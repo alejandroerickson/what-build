@@ -13,13 +13,17 @@ A new derivation is produced when: a primary file is first added; a new version 
 uploaded; a different file becomes primary; `derived.rederive` is called (for example after a
 parser upgrade). Earlier derivations are retained and readable by id.
 
-Where it runs: inline in the worker (browser profile); in-process immediately after the upload
-completes (server profile; large files are queued so the upload response is not held); from a
-queue (cloud profile). Callers observe progress through `record.derivation.status`.
+**Where it runs.** Always on the `JobQueue` ([§2.4](02-architecture.md)), in every environment.
+The upload response is never held while a file is parsed, and a slow PDF cannot occupy a request
+worker. Development runs the same queue in-process — running derivation inline in the request
+would be an observable behavior difference and is forbidden
+([§1.5 rule 12](01-product.md)). Callers observe progress through `record.derivation.status`, and
+the activity log records the transition.
 
 ## 5.2 Sidecars
 
-Each derivation consists of four sidecars.
+Each derivation consists of four sidecars, stored as immutable blobs
+([§4.14](04-data-model.md)).
 
 ### `segments.jsonl`
 
@@ -58,7 +62,7 @@ Small enough to read whole; it is how a person or an agent decides where to look
 {
   "derivation_id": "01J…", "record_id": "01J…",
   "parser": "vtt", "parser_version": "1.0.0",
-  "source_path": "call.vtt", "source_version_id": "01J…",
+  "source_path": "call.vtt", "file_version_id": "01J…",
   "segment_count": 412, "char_count": 58211, "duration_ms": 3540000,
   "skipped": { "inverted_cues": 0 },
   "status": "ready", "status_detail": null,
@@ -72,7 +76,7 @@ Small enough to read whole; it is how a person or an agent decides where to look
 | `ready` | Segments available. |
 | `needs_transcript` | The primary is a recording; no text can be derived until a transcript is added and made primary. |
 | `unsupported` | No parser for this media type. |
-| `too_large` | Exceeds the parse cap (default 25 MB for text-like formats, 100 MB for PDF/DOCX; configurable). |
+| `too_large` | Exceeds the parse cap (default 25 MB for text-like formats, 100 MB for PDF/DOCX; operator-configurable). |
 | `failed` | The parser errored, **or** it kept almost nothing (for example a scanned PDF with no text layer). `status_detail` says which. |
 
 Every status except `pending` is terminal for that derivation. A record whose current derivation
@@ -91,9 +95,9 @@ is not `ready` is fully usable as a stored, downloadable source; it simply has n
 - No speech-to-text and no OCR in the product. A recording is stored, playable, and awaits a
   transcript. (An agent with its own transcription tool can add one as a file with
   `derived_from` provenance.)
-- Parsers are pure functions of bytes → sidecars, with no I/O, so they run identically in a worker
-  and in Node. Each has golden-file tests; a parser change that alters golden output MUST bump
-  `parser_version`.
+- Parsers are pure functions of bytes → sidecars, with no I/O. Each has golden-file tests; a parser
+  change that alters golden output MUST bump `parser_version`. No native dependencies: the image
+  stays small, cold starts stay fast, and `pnpm install` cannot fail on a contributor's toolchain.
 
 ## 5.4 Passage reads
 
@@ -113,7 +117,7 @@ Response:
 ```json
 {
   "record": { "record_id": "01J…", "title": "…", "kind": "interview_transcript" },
-  "derivation_id": "01J…", "source_version_id": "01J…", "is_current_derivation": true,
+  "derivation_id": "01J…", "file_version_id": "01J…", "is_current_derivation": true,
   "total_segments": 412, "duration_ms": 3540000,
   "requested": { "seq_start": 400, "seq_end": 450 },
   "returned":  { "seq_start": 400, "seq_end": 411 },
@@ -134,4 +138,5 @@ never a silent empty success.
   `truncated` and `total_chars`.
 - `derived.list` — a record's derivations, newest first.
 - All accept `derivation_id`, so a passage cited against an old derivation stays readable exactly
-  as it was cited.
+  as it was cited — unless the record was deleted, in which case the read returns
+  `410 record_deleted` with the tombstone ([§9.5](09-data-lifecycle.md)).

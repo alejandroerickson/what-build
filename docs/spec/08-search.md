@@ -18,25 +18,27 @@ search {
 }
 ```
 
-- One project per call. There is no cross-project search in v1.
+- One project per call. There is no cross-project search in v1, and there will never be a
+  cross-team one.
 - `passages` results: `{ record (brief), seq_start, seq_end, snippet, speaker?, start_ms?,
   score }` — directly usable as `read_passage` and citation inputs. Snippets are ≤ 300 chars.
 - Results are bounded as everywhere ([§6.3](06-operations-and-adapters.md)).
 - The response carries a `coverage` object (§8.4).
+- Search is a read: it is never blocked by a quota ([§9.2](09-data-lifecycle.md)).
 
 ## 8.2 Lexical search (v1)
 
 - **`lexical`:** ranked full-text search over the segments of each record's *current* `ready`
   derivation, and over register statements and bodies and insight titles, summaries, and bodies.
-  Boolean operators `AND`, `OR`, `NOT`, quoted phrases, prefix `*`. BM25-style ranking. SQLite
-  FTS5 (unicode61, diacritics removed) in the browser and server profiles; Postgres full-text in
-  the cloud. Ranking may differ slightly between engines; the conformance suite asserts result
-  *sets* for a fixed corpus, and ordering only for clear-cut cases.
-- **`substring`:** exact, case-insensitive substring match — for identifiers, part numbers, and
-  quotes where tokenization gets in the way.
+  Boolean operators, quoted phrases and prefixes through Postgres `websearch_to_tsquery` and
+  `tsquery`, ranked with `ts_rank_cd`, indexed with GIN over a stored `tsvector`.
+- **`substring`:** exact, case-insensitive substring match through `pg_trgm` — for identifiers,
+  part numbers, and quotes where tokenization gets in the way.
 - Archived records and entries are excluded unless `include_archived`.
 - Indexing happens in the same transaction that makes a derivation current, so search never
   returns a passage that `read_passage` cannot serve.
+- **One engine.** Because there is only one database, development and production rank results
+  identically and the conformance suite can assert ordering, not merely result sets.
 
 ## 8.3 Dimensions and the alias registry
 
@@ -59,9 +61,9 @@ Search must never claim to have examined what it did not.
 - Every search response includes
   `coverage: { searched: ["primary"], records_with_unsearched_files: n, records_without_passages: n }`
   counted over the records matching the filters. The UI shows this in a sentence ("Searched the
-  primary text of 41 sources. 6 have attachments that are not searchable; 3 have no derived text
+  primary text of 41 records. 6 have attachments that are not searchable; 3 have no derived text
   yet.").
-- **Planned — tiers:** derive `supplement` and `source` files as secondary derivations;
+- **Planned — tiers:** derive `supplement` and `origin` files as secondary derivations;
   `tiers: ["primary", "attachments"]` opts in; results name the file they came from. Citations
   continue to address primary derivations only until the citation model is deliberately extended.
 
@@ -69,16 +71,17 @@ Search must never claim to have examined what it did not.
 
 - Behind the `Embedder` and `SearchIndex` ports; `mode: "semantic"` and a hybrid mode that fuses
   lexical and vector ranks.
-- **Measure before committing.** Build a small relevance set (queries with judged passages) from
-  the synthetic sample project and one real corpus; adopt an index dependency only if hybrid
-  retrieval clearly beats lexical on it.
-- Default embedder runs **on-device** (a small sentence-embedding model in WASM/WebGPU in the
-  browser, ONNX on the server) so the browser profile needs no embedding service and costs nothing to run. A hosted embedder
-  is an optional adapter for the cloud profile.
-- At local scale (tens of thousands of segments) brute-force cosine over a typed array is
-  acceptable; a vector index is a cloud-scale concern.
+- **The index question is already answered:** `pgvector` is an extension of the database we
+  already run, in both environments, with no new service and no new bill. Adopting it costs a
+  migration.
+- **The quality question is not.** Build a small relevance set (queries with judged passages) from
+  the synthetic sample project and one real corpus; adopt hybrid retrieval only if it clearly
+  beats lexical on it. A measurable improvement, or it does not ship.
+- The embedder runs a small sentence-embedding model **in our own worker** (ONNX), not a hosted
+  API. That keeps the "no API key anywhere, including on a contributor's laptop" property, which
+  the removal of the browser profile did not change.
 - Embeddings are keyed by `derivation_id` and model id, and are disposable: they can always be
-  rebuilt from sidecars.
+  rebuilt from sidecars, so they are excluded from backups and from exports.
 
 ## 8.6 Historical derivations and recursive lineage
 
