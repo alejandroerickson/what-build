@@ -69,9 +69,9 @@ Design system and visual language are out of scope here and chosen in the design
 
 ### Server profile — "run it" and "self-host it"
 
-- `npx rapid-discovery` starts one Node process that serves the SPA, REST (`/api/v1`), MCP over
+- `npx what-build` starts one Node process that serves the SPA, REST (`/api/v1`), MCP over
   Streamable HTTP (`/mcp`), and upload-grant endpoints. Data lives in a directory
-  (`./.rapid-discovery/` by default): one SQLite file plus a blob folder.
+  (`./.what-build/` by default): one SQLite file plus a blob folder.
 - The same process packaged as a Docker image is the self-host story: one container, one volume.
 - Exactly one workspace. Bound to loopback, there is no sign-in and the caller is the local
   principal. Bound to anything else, sign-in MUST be configured or the process refuses to start
@@ -186,7 +186,7 @@ MCP client ──HTTPS (MCP)──▶ relay (stores nothing) ◀──WSS, tab d
 ◆ Decision: the relay exists because an agent-first product whose zero-install trial has no
 agent access is a weak demonstration. It is for trying the product, not for real data; the path
 to real use is the project bundle into a server-profile instance. Clients that only speak stdio
-reach any HTTP MCP endpoint (relay or server) through `rapid-discovery mcp-stdio`, a thin
+reach any HTTP MCP endpoint (relay or server) through `what-build mcp-stdio`, a thin
 stdio↔HTTP proxy.
 
 ## 2.7 Repository layout

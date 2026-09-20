@@ -34,7 +34,7 @@ adapters; lexical and substring search; upload grants, URL fetch; the conformanc
 - Golden files for each format; each manifest status reachable by a test fixture.
 - Out-of-range and over-size passage windows behave per [§5.4](05-derived-layer.md).
 - Upload → derive → search → passage read works end to end through REST and through MCP.
-- `npx rapid-discovery` persists across restarts. Conformance passes on in-memory and SQLite.
+- `npx what-build` persists across restarts. Conformance passes on in-memory and SQLite.
 
 ## Phase 3 — The web application
 
@@ -102,7 +102,7 @@ blocked.
 
 | # | Question | Default in this draft |
 |---|---|---|
-| 1 | **Product name**, npm package and CLI name, domain. Check registry availability before Phase 0 publishes anything. | "Rapid Discovery" / `rapid-discovery` as working names. |
+| 1 | **npm package name and domain.** The product name is WhatBuild; the package, CLI and domain still need to be secured. Check registry availability before Phase 0 publishes anything. | `what-build` as the package and CLI name. |
 | 2 | **License.** Permissive (Apache-2.0, MIT) or copyleft (AGPL) given a future hosted service? | Apache-2.0. |
 | 3 | **The hosted relay** ([§2.6](02-architecture.md)) — agents reach the zero-install demo through a relay we host; data is stored in the browser but transits our service. Accept that trust model and the running cost? Which platform hosts it? | Yes, for demo data only, stated plainly in the UI. Edge platform with per-id coordination objects; single Node instance as the portable alternative. A local bridge process was considered and rejected (browser loopback restrictions; needs an install anyway). |
 | 4 | **Cloud reference platform.** | Containers + managed Postgres + S3-compatible; no vendor SDKs outside adapters. |
@@ -113,7 +113,7 @@ blocked.
 | 9 | **Human-declared reviews over MCP** ([§4.8](04-data-model.md)) — allow an agent to relay a person's judgment with confidence? | Allowed, recorded as declared. |
 | 10 | **Workspace `owner` flag** limited to workspace lifecycle ([§3.5](03-tenancy-and-identity.md)). | As written. |
 | 11 | **Personal access tokens** for MCP clients without OAuth. | Not in v1; permitted by the principles if needed. |
-| 12 | **Purging.** "Nothing is deleted" meets real needs (a source uploaded by mistake containing personal data; erasure requests in the cloud). | No product operation. Local: an operator CLI command outside the API (`rapid-discovery purge-record`), logged. Cloud: operator process. Needs a proper design before Phase 7. |
+| 12 | **Purging.** "Nothing is deleted" meets real needs (a source uploaded by mistake containing personal data; erasure requests in the cloud). | No product operation. Local: an operator CLI command outside the API (`what-build purge-record`), logged. Cloud: operator process. Needs a proper design before Phase 7. |
 | 13 | **Sample project content.** Who writes the synthetic corpus, and about what fictional product? | Written in Phase 4; entirely synthetic. |
 | 14 | **UI framework.** React is chosen for contributor reach; the spec depends only on "static SPA". | React + Vite. |
 | 15 | **Limits** (file size, parse caps, HTML size) are first guesses. | As written; tune with real material. |

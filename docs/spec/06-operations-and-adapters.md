@@ -131,7 +131,7 @@ Rules:
 - **Stateless.** No MCP session state; any replica serves any call. Server `initialize` info
   advertises product version, profile, and skill version.
 - **Transports:** Streamable HTTP at `/mcp` (and `/mcp/p/<slug>`); stdio through
-  `rapid-discovery mcp-stdio`.
+  `what-build mcp-stdio`.
 
 ## 6.6 Write attribution
 

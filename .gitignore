@@ -12,7 +12,7 @@ coverage/
 
 # Local data and secrets
 /data/
-.rapid-discovery/
+.what-build/
 .env
 .env.*
 !.env.example

@@ -1,10 +1,8 @@
-# Rapid Discovery — product specification
+# WhatBuild — product specification
 
 **Status:** Draft 0.1 · 2026-09-19 · nothing is built yet; this is the document we build from.
 
-"Rapid Discovery" is a working name (see [open questions](09-roadmap.md#open-questions)).
-
-Rapid Discovery is open-source software for rapid product discovery. A team collects discovery
+WhatBuild is open-source software for rapid product discovery. A team collects discovery
 material — interviews, sales calls, research exports, documents, decks — and the application gives
 that material an opinionated home, derives precise, addressable text from every source, and helps
 the team turn it into objectives, insights, and reviewed assumptions and decisions, then tell the
