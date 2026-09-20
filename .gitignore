@@ -1,0 +1,24 @@
+# Private working material — never part of the public repository
+/_private/
+*handoff*.md
+
+# Dependencies and build output
+node_modules/
+dist/
+build/
+coverage/
+.turbo/
+*.tsbuildinfo
+
+# Local data and secrets
+/data/
+.rapid-discovery/
+.env
+.env.*
+!.env.example
+
+# OS and editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
