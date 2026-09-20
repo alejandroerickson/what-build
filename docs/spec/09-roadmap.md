@@ -102,8 +102,8 @@ blocked.
 
 | # | Question | Default in this draft |
 |---|---|---|
-| 1 | **npm package name and domain.** The product name is WhatBuild; the package, CLI and domain still need to be secured. Check registry availability before Phase 0 publishes anything. | `what-build` as the package and CLI name. |
-| 2 | **License.** Permissive (Apache-2.0, MIT) or copyleft (AGPL) given a future hosted service? | Apache-2.0. |
+| 1 | **npm package name.** The product name is WhatBuild and the domain what-build.com is registered; the npm package and CLI name still need securing. Check registry availability before Phase 0 publishes anything. | `what-build` as the package and CLI name. |
+| 2 | ~~**License.**~~ Settled 2026-09-19: **MIT**, in `LICENSE` at the repository root. | — |
 | 3 | **The hosted relay** ([§2.6](02-architecture.md)) — agents reach the zero-install demo through a relay we host; data is stored in the browser but transits our service. Accept that trust model and the running cost? Which platform hosts it? | Yes, for demo data only, stated plainly in the UI. Edge platform with per-id coordination objects; single Node instance as the portable alternative. A local bridge process was considered and rejected (browser loopback restrictions; needs an install anyway). |
 | 4 | **Cloud reference platform.** | Containers + managed Postgres + S3-compatible; no vendor SDKs outside adapters. |
 | 5 | **Auth library.** | Better Auth, confirmed by a spike at the start of Phase 6 (OIDC, org membership, MCP OAuth provider on SQLite and Postgres). |
