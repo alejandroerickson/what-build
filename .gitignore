@@ -1,6 +1,8 @@
 # Private working material — never part of the public repository
 /_private/
 *handoff*.md
+*HANDOFF*
+*handoff*.zip
 
 # Dependencies and build output
 node_modules/

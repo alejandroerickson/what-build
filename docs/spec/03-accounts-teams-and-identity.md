@@ -1,183 +1,170 @@
-# 3. Accounts, teams, projects, identity
+# 3. Accounts, tenants, teams, products, roles
+
+> Draft 0.3 replaces draft 0.2's team → project hierarchy and its single membership rule with a
+> three-level hierarchy and roles, following the owner's brief. The shape of the rule is kept: one
+> policy module, both front doors, attribution on every write, and "cannot see" answered as `404`.
 
 ## 3.1 The hierarchy
 
 ```
-account              one person's sign-in; belongs to one or more teams
-team                 membership, billing and isolation boundary
-└── project          one product discovery
-    ├── objectives
-    ├── library      records → files → derivations → segments; annotations
-    ├── insights     with immutable revisions
-    ├── assumption register · decision register
-    ├── Story        pages, versions, hierarchy
-    ├── views        lineage baselines
-    └── activity     append-only event log
+account              one person's sign-in; may belong to several tenants
+tenant               an organization: the isolation and (later) billing boundary
+└── team             a group of people and the products they run
+    └── product      one discovery
+        ├── objectives
+        ├── sources      records → files → derivations → segments; notes
+        ├── insights     with immutable revisions
+        ├── assumptions · decisions   (the two registers)
+        ├── Story        pages, versions, hierarchy
+        ├── lineage
+        └── activity     append-only event log
 ```
 
-- Every object belongs to **exactly one project**, recorded as an immutable `project_id`, and every
-  project to exactly one team, recorded as an immutable `team_id`.
-- **References never cross projects.** A citation, link, or reference whose target is in another
-  project is rejected with `422 cross_project_reference`. This keeps a project exportable as a
-  closed bundle.
-- ◆ Decision: material that matters to two discoveries is added to both. A later "copy record to
-  project" operation (new record id, provenance link to the original) is the planned relief; shared
-  records are not.
-- Members, invitations, usage, the skill, and feedback reports are team-level. Nothing else is.
+- Every object belongs to exactly one product (`product_id`), every product to one team, every team
+  to one tenant. Every content row also carries `tenant_id`, which is what isolation keys on.
+- **References never cross products.** A citation, link or reference to another product's object is
+  refused with `422 cross_product_reference`, which keeps a product exportable as a closed bundle.
+- **Moving and copying** a source between products is allowed **within one team**
+  ([§3.7](#37-moving-and-copying-between-products)).
+- In the UI the tenant is called the **organization**. The API and MCP say `tenant`, because
+  records already carry an `organization` field (the external organization a source concerns).
+  ◆ Decision: two words for one concept is a known cost; see open question 18.
 
-## 3.2 Accounts and sign-up
+## 3.2 Accounts and sign-in
 
 | Field | Rule |
 |---|---|
 | `account_id` | ULID, immutable. |
-| `email` | Unique, verified before any upload. |
+| `email` | Unique (case-insensitive), verified by the sign-in itself. |
 | `display_name` | 1–100 chars. Appears in attribution. |
-| `created_at` | |
 
-Sign-up is: email address → verification link → name your team → create the first project or copy
-the sample project → invite colleagues → Connect an agent.
+Sign-in methods, each optional per deployment:
 
-- **Sign-in methods:** email + password, and email magic link. ◆ Decision: OIDC and social sign-in
-  are permitted by the design but are not in v1; they are one Better Auth plugin away.
-- Verification MUST be complete before a file can be uploaded or an invitation sent. Reading and
-  creating text is allowed before it.
-- Per-IP and per-email sign-up rate limits apply from the first public deployment
-  ([§9.2](09-data-lifecycle.md)).
-- An account may be deleted by its owner. Deleting an account removes the person from every team;
-  it does **not** delete team content, and attribution snapshots survive
-  ([§3.8](#38-attribution)).
+- **Email link** — a single-use link valid 15 minutes, at most five per address per hour. A server
+  with no mail provider disables it rather than log a link.
+- **Google** — OpenID Connect, when a client id and secret are configured.
+- **Development** — "sign in as" an email, only when `NODE_ENV` is not `production`.
 
-## 3.3 Teams
+There is no password. First sign-in creates the account; every invitation addressed to that email
+is accepted at once, because the verified address is the proof.
+
+**Invite-only mode.** `WHATBUILD_SIGNUP_ALLOWLIST` (emails and `@domains`) limits who may create an
+account. Existing accounts and invited addresses always may. Staging runs invite-only until public
+sign-up opens ([§10 Phase 6](10-roadmap.md)).
+
+## 3.3 Tenants and teams
+
+| Object | Fields |
+|---|---|
+| Tenant | `tenant_id`, `slug` (3–50, `[a-z0-9-]`, globally unique), `name`, `plan` (`free`), `status` |
+| Team | `team_id`, `tenant_id`, `slug` (unique in the tenant), `name`, `archived_at` |
+
+Creating a tenant creates its first team and makes the creator the tenant's **owner**. A new user's
+first-run flow is: name the organization, name the first product and its idea.
+
+## 3.4 Products
 
 | Field | Rule |
 |---|---|
-| `team_id` | ULID, immutable. The canonical reference. |
-| `slug` | 3–50 chars, `[a-z0-9-]`, globally unique. Mutable; previous slugs keep resolving until reused. |
+| `product_id` | ULID, immutable. |
+| `slug` | 3–50 chars, unique in the team. Mutable. |
 | `name` | 1–100 chars. |
-| `plan` | `free` in v1. The seam for a later paid plan. |
-| `status` | `active` or `closing` ([§9.5](09-data-lifecycle.md)). |
+| `idea` | Markdown, ≤ 2,000 chars, heads the Objectives screen; overwrites keep revisions. |
+| `archived_at` | Archived products are hidden from lists and read-only (`409 product_archived`) until restored. |
 
-- Operations: `get`, `update`, `usage`, `members`, `invite`, `remove_member`, `export`, `close`.
-- An account that signs up gets **one team**, created by them, and may be invited into others.
-- **Settled 2026-09-19: the word is "team".** It is what a person calls the thing they create and
-  invite people to, and one word per concept is a rule of this spec. "Workspace" does not appear in
-  the product.
+A product is addressed as `tenant/team/product` (slugs or ids at each level) or by `product_id`.
 
-## 3.4 Projects
+## 3.5 Roles
 
-| Field | Rule |
-|---|---|
-| `project_id` | ULID, immutable. The canonical reference. |
-| `slug` | 3–50 chars, `[a-z0-9-]`, unique in the team. Mutable; previous slugs keep resolving to the project until reused. |
-| `name` | 1–100 chars. |
-| `idea` | Markdown, up to 2,000 chars. The product idea this discovery serves; shown at the top of Objectives. |
-| `status` | `active` or `archived`. |
-| envelope | `etag`, `created_*`, `updated_*` ([§4.1](04-data-model.md)). |
-
-- Operations: `list`, `get`, `create`, `update`, `archive`, `restore`. No delete.
-- Archiving a project hides it from the switcher and default listings and makes it read-only
-  (writes return `409 project_archived`) until restored. Nothing inside it changes. An archived
-  project still counts toward stored bytes and still exports.
-- A brand-new team has no projects. The first-run experience is creating one: name, idea.
-- ◆ Decision: a **sample project** — synthetic interviews, a few objectives, an insight, a couple of
-  register entries and a Story page — can be copied into a team in one click, so a new team sees
-  the whole loop before uploading anything. It is also published **read-only and
-  unauthenticated** at a stable URL, so someone can see a real, fully derived discovery before
-  deciding whether to sign up. All sample content MUST be synthetic.
-
-## 3.5 Membership
-
-- Membership is binary. Every member can do everything inside the team, including inviting and
-  removing members, creating and archiving projects, and exporting.
-- ◆ Decision: the single exception is an `owner` flag that gates only **team lifecycle**: rename,
-  transfer ownership, close the team, and (later) billing. It never gates content — deleting a
-  record is a content operation and is available to every member
-  ([§9.5](09-data-lifecycle.md)). This is the **only** `403 owner_only` in the product.
-- Invitations are by email or single-use link, expire after 7 days, and are consumed on acceptance.
-  An invitation to an address with no account starts a sign-up.
-- Removing a member revokes their sessions and tokens for that team. Their attribution snapshots
-  remain ([§3.8](#38-attribution)).
-- A person may belong to several teams and switches between them in the UI.
-
-## 3.6 Addressing, and isolation
-
-The team and the project are always explicit in the request. Nothing on the server remembers a
-"current" anything, because the transports are stateless.
-
-**Web.** `/t/<team-slug>/p/<project-slug>/library`. Links are shareable and browser history works
-across teams and projects. The switcher's requirements are in [§7.2](07-web-app.md).
-
-**REST.** `/api/v1/t/<team-id-or-slug>/p/<project-id-or-slug>/…`. Team-level routes drop the `/p/`
-segment.
-
-**MCP.** The endpoint carries the team — `/mcp/t/<team-slug>`, or `/mcp/t/<team>/p/<slug>` for
-people who want one agent configuration per discovery. A token is only ever valid for teams its
-account belongs to. The project then resolves in this order:
-
-1. the explicit `project` parameter;
-2. a project bound to the endpoint;
-3. the team's only active project, if there is exactly one;
-4. otherwise `422 project_required`, with the list of active projects (id, slug, name) in
-   `details` so the agent can ask the person or choose.
-
-Every project-scoped MCP result echoes `team: { id, slug }` and `project: { id, slug, name }` so an
-agent, and the person reading its transcript, can see where a write landed. The skill instructs
-agents to confirm the project with the person before their first write in a conversation.
-
-**Isolation** is enforced in three places, deliberately redundantly:
-
-1. Authorization resolves the caller's membership of the addressed team, or returns `404`.
-2. The core receives `stores.forTeam(team_id)` and can express nothing wider. Handlers never
-   receive a raw database handle.
-3. Postgres row-level security policies key on a session-local `team_id`, so a query that escaped
-   the first two layers still returns nothing.
-
-Blob keys begin `t/<team_id>/p/<project_id>/…`, so a mis-scoped read cannot even name another
-team's object. A conformance test MUST attempt a cross-team read through **every** operation and
-require `404` from all of them — not `403`: in this product an object you cannot reach does not
-exist.
-
-## 3.7 Identity of the caller
-
-| Surface | Credential | Caller |
+| Level | Roles | What the role grants |
 |---|---|---|
-| Web | Session cookie, `SameSite=Lax`, rotated on sign-in | the signed-in account |
-| REST (scripts) | Session or personal access token | the same account |
-| MCP | OAuth 2.1 access token, or a personal access token | **the person who authorized it** |
-| Job worker | none — internal | the actor recorded on the job |
+| Tenant | `owner`, `admin`, `member` | owner and admin: admin of every team and product in the tenant; owner: tenant lifecycle. member: nothing by itself |
+| Team | `admin`, `editor`, `viewer` | the same role on every product in the team |
+| Product | `admin`, `editor`, `viewer` | that product only |
 
-- **MCP authentication** follows the MCP authorization specification: the server publishes
-  protected-resource metadata and acts as (or delegates to) an OAuth 2.1 authorization server. An
-  agent is a member acting through another surface — the same account, not a separate service
-  identity.
-- ◆ Decision: **personal access tokens are in v1.** There is no local no-auth mode to fall back
-  on, so without them a client that cannot do OAuth has no way in at all. A
-  token is a member's credential: full access of that member, named, listed, revocable, shown once,
-  and attributed exactly like a session. It never carries scopes that widen or narrow what the
-  member can do.
-- An unauthenticated call gets `401` from both adapters. No caller-supplied input (header, param,
-  claimed name) can change who the caller is or what they can reach.
+- **Viewer** reads everything in the product. **Editor** also writes: sources, files, notes,
+  objectives, insights, register entries and reviews, the Story, and permanent deletes of sources
+  (guarded, [§9.5](09-data-lifecycle.md)). **Admin** also manages the product (rename, archive) and
+  its people. Creating products and teams needs admin of the team or tenant.
+- **The effective role is the highest that applies.** A product grant can raise access but never
+  lower an inherited one. ◆ Decision: no negative overrides — they make "who can see this?"
+  unanswerable at a glance.
+- **Visibility:** with no role on a product, the product does not exist for you: `404`, never
+  `403`, from every operation. With a role too low for an action, `403` names the role you have
+  and the one needed ("You are a viewer on product Crewboard; objectives.create needs editor").
+- **Membership administration:** admins grant and revoke at their own level and below; granting
+  someone without an account creates a 7-day invitation, emailed where mail is configured and
+  always returned to the inviter as a single-use link. A tenant keeps at least one owner.
+- ◆ Decision: reviewing (confirm, refute) is an editor right; there is no separate reviewer role.
+- ◆ Decision: every role can read the product's activity log.
 
-## 3.8 Attribution
+## 3.6 Addressing and isolation
 
-Every mutation stores an **actor snapshot**:
+The addressed tenant, team and product are always explicit. Nothing on the server remembers a
+"current" product.
 
-```json
-{
-  "account_id": "01J…",
-  "display_name": "Sam Rivera",
-  "surface": "mcp",
-  "client": "claude-desktop"
-}
-```
+| Surface | Addressing |
+|---|---|
+| Web | `/t/<tenant>/<team>/<product>/<screen>` |
+| REST | `/api/v1/p/<tenant>/<team>/<product>/…` for product operations; `/api/v1/teams/<tenant>/<team>/…`, `/api/v1/tenants/<tenant>/…` and `/api/v1/…` for the rest |
+| MCP | `/mcp` for everything the account can reach, or `/mcp/t/<tenant>/<team>/<product>` bound to one product |
 
-- `surface` is `web`, `rest`, or `mcp`. `client` is the MCP `clientInfo.name` (or a REST
-  `User-Agent` product token) and is informational.
-- An actor is treated as an **agent** when `surface = mcp`, and as a **human** when
-  `surface = web`. This distinction is descriptive — it never affects access. Its one functional
-  use is review confidence ([§4.8](04-data-model.md)).
-- Snapshots are copied, not joined, so attribution survives renames, member removal, account
-  deletion, and bundle import into another team.
-- Every mutation also appends an **activity event** ([§4.10](04-data-model.md)). Attribution
-  answers "who wrote this"; activity answers "what has been happening here" — which matters far
-  more now that several people and their agents work in the same project at once.
+On MCP a product-scoped call resolves its product in this order: the `product` argument (an id or
+`tenant/team/product`); the product the endpoint is bound to; the only product the caller can
+reach; otherwise `422 product_required` listing the reachable products. Every product-scoped result
+echoes `scope` (tenant, team, product, your role) so an agent and the person reading its transcript
+can see where a write landed.
+
+Isolation is enforced three times:
+
+1. **Authorization** resolves the caller's role for the addressed product, or answers `404`. It runs
+   before input validation, so a non-member learns nothing — not even whether their input was valid.
+2. **The core** receives a transaction already scoped to one tenant; handlers never see another.
+3. **Postgres row-level security** on every content table keys on a transaction-local `tenant_id`,
+   so a query that escaped the first two layers still returns nothing. The server refuses to start
+   in production as a database role that bypasses row-level security.
+
+Blob keys begin `t/<tenant_id>/…`. A conformance test calls **every** non-account operation as a
+member of another tenant and requires `404` from each.
+
+## 3.7 Moving and copying between products
+
+- **Copy** (`sources.copy_to_product`): a new record id in another product of the same team, with
+  `copied_from`; files are shared (blobs are immutable) and parsed afresh in the target.
+- **Move** (`sources.move_to_product`): keeps the record id, files, derivations and notes. Refused
+  with `409 source_in_use` while anything in the current product cites or references the source,
+  listing what does, because references never cross products. Both products log the move.
+- Moving insights, entries, objectives and Story pages is planned, with the same closure rule.
+
+## 3.8 Identity of the caller
+
+| Surface | Credential | Recorded surface |
+|---|---|---|
+| Web | Session cookie (`HttpOnly`, `SameSite=Lax`, `Secure` on HTTPS), 30 days; cookie writes must come from the app's own origin | `web` |
+| REST (scripts) | Personal access token (`wbpat_…`) | `rest` |
+| MCP | OAuth 2.1 access token issued by WhatBuild for its MCP endpoint, or a personal access token | `mcp` |
+| Upload relay | A signed, single-file grant; the file is attributed to whoever requested the grant | as requested |
+| Job worker | none — internal | `WhatBuild` (system) |
+
+**OAuth for agents.** WhatBuild is its own authorization server: protected-resource metadata
+(RFC 9728) at `/.well-known/oauth-protected-resource/mcp`, authorization-server metadata (RFC 8414),
+dynamic client registration (RFC 7591), authorization code with PKCE S256, resource indicators
+(RFC 8707), one-hour access tokens and rotating refresh tokens (reusing a rotated refresh token
+revokes the whole connection). The consent page tells the person the agent will act as them and
+that its reads go to whoever runs the agent. A token is the person: it never widens or narrows what
+they can do.
+
+**Personal access tokens** are created in the web app only, shown once, stored hashed, listed with
+last use, and revoked immediately.
+
+## 3.9 Attribution
+
+Every mutation stores an actor snapshot — `{ account_id, display_name, surface, client }` — copied,
+not joined, so attribution survives renames and removals. `client` is the OAuth client's name or a
+token's user agent. It never holds an email address.
+
+Authenticated identity says which account wrote; it does not say whether a person exercised
+judgment, because an agent writes with its person's credentials. Register entries and reviews
+therefore carry a declared `author_type` / `reviewer_type` (`human` or `agent`), defaulting to
+`human` in the web app and `agent` everywhere else, and a human confidence rating is accepted only
+from a declared human reviewer.

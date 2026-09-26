@@ -44,31 +44,28 @@ Requirements (placement and appearance are a design-phase decision):
 
 ## 7.3 Routes
 
+As built (draft 0.3):
+
 ```
-/                                     last-used team and project, or the project list
-/signup  /signin  /verify  /invite/:token
-/sample[/…]                           the public read-only sample project — no account
+/signin  /welcome  /invite/:token             sign-in, first run, accepting an invitation
+/                                             the last product this browser used, else the first, else first run
+/products                                     every product you can reach, by organization and team; new product
+/t/:tenant/members                            people and roles in an organization
+/connect                                      connect an agent: MCP URL, the skill, tokens
+/account                                      display name, tokens, connected agents
 
-/t/:team                              → /t/:team/projects
-/t/:team/projects                     full list: create, copy sample, import bundle, archived filter
-/t/:team/members                      members, invitations
-/t/:team/connect                      agent onboarding (§6.8): endpoint, tokens, skill
-/t/:team/settings                     team name and slug, usage and limits, export, danger zone
-/account                              display name, email, password, sessions, delete account
-
-/t/:team/p/:project                   → …/objectives
-/t/:team/p/:project/objectives
-/t/:team/p/:project/library                        browse (filters in the query string)
-/t/:team/p/:project/library/new                    kind-first upload
-/t/:team/p/:project/library/search                 search (same filters + q)
-/t/:team/p/:project/library/:record                record page: overview · passages · insights · files
-/t/:team/p/:project/library/:record/passages?seq=…|t=…
-/t/:team/p/:project/insights                       insight documents
-/t/:team/p/:project/insights/:insight[?rev=n]      read / edit / revision history
-/t/:team/p/:project/insights/assumptions[/:id]
-/t/:team/p/:project/insights/decisions[/:id]
-/t/:team/p/:project/story[/:page][?v=n]
-/t/:team/p/:project/settings                       name, slug, idea, export, archive
+/t/:tenant/:team/:product                     → …/objectives
+  /objectives                                 the idea, objectives with counts
+  /sources            ?folder&kind&organization&date_from&date_to&query&include_archived
+  /sources/new                                kind-first intake
+  /sources/:record    ?tab=passages|preview|files|connected|notes &seq=N
+  /search             ?q&mode&scope
+  /insights           ?objective_id&status&query
+  /insights/new  /insights/:id  /insights/:id/edit
+  /insights/assumptions[/:id]  /insights/decisions[/:id]
+  /story[/:page]      ?v=N
+  /activity
+  /settings                                   name, slug, archive
 ```
 
 ## 7.4 Sign-up, and the first ten minutes

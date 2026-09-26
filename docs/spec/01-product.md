@@ -42,7 +42,7 @@ of one of them.
 | Screen | Purpose |
 |---|---|
 | **Objectives** | Short strategic goals. The landing screen of a project: where a product idea becomes explicit direction. |
-| **Library** | Kind-first upload, browse with filters, record pages, the passage reader, annotations, search. |
+| **Sources** | Kind-first upload, browse with filters, source pages, the passage reader, notes, search. |
 | **Insights** | The synthesis center: insight documents, the assumption register, the decision register. |
 | **Story** | The outward-facing report: an ordered hierarchy of versioned, sandboxed HTML pages. |
 
@@ -58,11 +58,12 @@ One word per concept, used identically in the UI, REST, MCP, the skill, and docu
 
 | Term | Meaning |
 |---|---|
-| **account** | One person's sign-in. Belongs to one or more teams. |
-| **team** | The membership, billing and isolation boundary. Settled 2026-09-19. Never "workspace". |
-| **project** | One product discovery. Owns all of the objects below. |
-| **library** | A project's store of discovery material. The only word for it: never "sources", "bucket", "drive", "repository", "document store", or a storage path. |
-| **record** | One discovery event or document in the library, with metadata and one or more files. |
+| **account** | One person's sign-in. May belong to several tenants. |
+| **tenant** | An organization: the isolation and billing boundary. Shown as "organization" in the UI. |
+| **team** | A group inside a tenant and the products it runs. Roles granted on a team apply to its products. Never "workspace". |
+| **product** | One discovery. Owns all of the objects below. (Draft 0.2 said "project".) |
+| **role** | viewer, editor or admin on a team or product; owner, admin or member of a tenant. |
+| **source** | One discovery event or document, with metadata and one or more files. "Record" and `record_id` in the API. The destination that holds them is **Sources**; never "library", "document store", "bucket" or a storage path. |
 | **file** | A stored file belonging to a record, with a role: `primary`, `origin`, or `supplement`. |
 | **segment** | The atomic unit of derived text: a paragraph or a cue, with offsets. |
 | **passage** | A contiguous range of segments in one record. What citations and reads address. |
@@ -80,11 +81,12 @@ One word per concept, used identically in the UI, REST, MCP, the skill, and docu
 
 ## 1.5 Non-negotiable behaviors
 
-1. **Membership is the only access rule.** Every authenticated member of a team — human or
-   agent — has the same read and write access to everything in it. No per-project or per-folder
-   permissions, no roles that gate content, no API tokens that act as access rules. Exactly one
-   `403` exists in the product, for **team lifecycle** (rename, transfer, close, billing); it
-   touches no content ([§3.5](03-accounts-teams-and-identity.md)).
+1. **Roles, and nothing finer.** Access is a role on a tenant, team or product — viewer, editor,
+   admin — checked in one policy module for both front doors. No per-folder or per-object
+   permissions, and no token that widens or narrows its person's role. An agent has exactly its
+   person's role. What you cannot see is `404`; what you may see but not change is a `403` naming
+   both roles ([§3.5](03-accounts-teams-and-identity.md)). *(Draft 0.3; draft 0.2 had a single
+   membership rule.)*
 2. **Isolation is enforced twice.** The core only ever receives a store already scoped to one team,
    so a cross-team query cannot be expressed; Postgres row-level security checks again. A
    cross-team read is `404`, and a conformance test attempts one through **every** operation.

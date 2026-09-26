@@ -114,28 +114,32 @@ renderable content type from the application's origin.
 
 ## 6.5 MCP tools
 
-Sixteen tools. Grouped tools take `action` (an enum), `params` (an object), `project`, and
-— for mutations of existing objects — `etag`. The **team is carried by the endpoint**
-([§3.6](03-accounts-teams-and-identity.md)), never by a parameter.
+Sixteen tools over 95 operations (draft 0.3, as built). Grouped tools take `action` (an enum),
+`params` (an object), `describe`, and `product` — a product id or `tenant/team/product`, optional
+when the endpoint is bound to a product or the caller reaches only one ([§3.6](03-accounts-teams-and-identity.md)).
 
 | Tool | Actions |
 |---|---|
-| `projects` | `list`, `get`, `create`, `update`, `archive`, `restore`, `delete_impact`, `delete` |
-| `objectives` | `list`, `get`, `create`, `update`, `revisions`, `get_revision`, `restore_revision`, `archive`, `restore`, `delete_impact`, `delete` |
-| `library` | `kinds`, `list`, `get`, `create`, `update`, `archive`, `restore`, `delete_impact`, `delete`, `list_annotations`, `annotate`, `update_annotation`, `archive_annotation`, `insights_for` |
-| `files` | `list`, `add_note`, `request_upload`, `complete_upload`, `fetch_url`, `set_role`, `get_download` |
-| `derived` | `list`, `manifest`, `outline`, `text`, `rederive` |
+| `products` | `list`, `create_tenant`, `create_team`, `create`, `get`, `update`, `archive`, `restore`, `export`, `exports` |
+| `members` | `list`, `grant`, `revoke`, `cancel_invitation` |
+| `objectives` | `list`, `get`, `create`, `update`, `revisions`, `get_revision`, `restore_revision` |
+| `sources` | `kinds`, `list`, `get`, `create`, `update`, `archive`, `restore`, `annotate`, `list_annotations`, `update_annotation`, `insights_for`, `move_to_product`, `copy_to_product`, `delete_impact`, `delete` |
+| `files` | `request_upload`, `create_upload`, `complete_upload`, `add_note`, `fetch_url`, `set_role`, `get_download` |
+| `derived` | `manifest`, `outline`, `text`, `list`, `rederive`, `write_note`, `read_note` |
 | `read_passage` | — (single purpose) |
-| `search` | — (single purpose; [§8](08-search.md)) |
-| `insights` | `list`, `get`, `create`, `update`, `publish`, `unpublish`, `revisions`, `get_revision`, `restore_revision`, `archive`, `restore`, `delete_impact`, `delete` |
-| `assumptions` | `list`, `get`, `create`, `update`, `review`, `link`, `unlink`, `supersede`, `check_citations`, `revisions`, `get_revision`, `restore_revision`, `archive`, `restore`, `delete_impact`, `delete` |
+| `search` | — (single purpose) |
+| `insights` | `list`, `get`, `create`, `update`, `revisions`, `get_revision`, `restore_revision` |
+| `assumptions` | `list`, `get`, `create`, `update`, `review`, `supersede`, `link`, `unlink`, `archive`, `check_citations` |
 | `decisions` | same as `assumptions` |
-| `story` | `guidance`, `list_pages`, `get_page`, `create_page`, `publish_version`, `list_versions`, `get_hierarchy`, `set_hierarchy`, `archive_page`, `restore_page`, `delete_impact`, `delete_page` |
-| `lineage` | `capture`, `check`, `get` |
+| `story` | `guidance`, `list_pages`, `get_page`, `list_versions`, `get_version`, `publish`, `get_hierarchy`, `set_hierarchy`, `archive_page`, `restore_page` |
+| `lineage` | `capture`, `write`, `check` |
 | `activity` | `list` |
-| `team` | `get`, `usage`, `members`, `invite`, `export` |
-| `submit_feedback` | — |
-| `get_skill` | — |
+| `get_skill` | — (single purpose) |
+| `submit_feedback` | — (single purpose) |
+
+Not yet built from the draft 0.2 list: revisions for the product idea, annotations and register
+entries (they are kept, but only insights and objectives expose them); `delete` for objects other
+than sources; bundle import (export is built); `team.usage` and quotas.
 
 Rules:
 

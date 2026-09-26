@@ -3,6 +3,18 @@
 The ethos: the smallest implementation that proves the full path wins. Each phase ends in
 something demonstrable, and each acceptance list is a test plan.
 
+## Status on 2026-09-26
+
+| Phase | State | Done | Not done yet |
+|---|---|---|---|
+| 0 | Mostly done | pnpm workspace, strict TypeScript, `pnpm dev` with **no Docker** (embedded Postgres), migrations, seed, `pnpm test` (parsers, server against real Postgres, web), CI workflow | CI has not run (no remote yet); contribution guide, code of conduct, security policy; lint and format config |
+| 1 | Done | registry → REST and MCP; row-level security in the first migration; ETags; paging; `describe`; activity in the same transaction; the isolation probe over every operation; parity test | a staging deployment |
+| 2 | Mostly done | upload grants (relay, optional signed URLs); parsers for text, Markdown, VTT, SRT, HTML, DOCX, PDF, XLSX; derivation on the Postgres queue; passages by segment and time; exact and ranked search with coverage; archive and restore; guarded delete with tombstones; the sample product | usage metering; golden-file tests per format; the conformance suite against the GCS adapter (written, never run against a real bucket); legacy `.doc` |
+| 3 | Mostly done | tenants, teams, products, roles; email-link, Google and development sign-in; invitations by email and link; personal access tokens; invite-only mode | quotas and their `409 quota_exceeded`; general rate limits (only sign-in links are limited); account deletion |
+| 4 | Provisional | every screen of the loop on a **provisional, neutral** look: Objectives, Sources (browse, kind-first intake, source page, passage reader, notes, files, search), Insights (editor, revision history), assumptions and decisions (review, confidence, citation checks), Story reader, Activity, members, Connect, account | **the design system** (the owner's decision); Story arranging in the UI; an accessibility audit; Playwright in CI (a browser walk-through exists in `scripts/e2e.mjs`) |
+| 5 | Mostly done | OAuth for MCP, tokens, the versioned skill, `get_skill`, Connect page, installers, feedback | `mcp-stdio`; Story guidance derived from the chosen design system |
+| 6 | Not started | the Cloud Run deployment scripts | backups rehearsal, export and import, closing a tenant, sub-processors page, abuse tests |
+
 **Deploy from Phase 1.** A staging deployment exists as soon as there is something to deploy, is
 redeployed on every merge, and is invite-only until Phase 6. The first production deploy is then a
 configuration change and not a milestone that can go wrong.
@@ -159,6 +171,14 @@ blocked.
 | 15 | **Register edit rule** — frozen after first review, corrections by supersede ([§4.8](04-data-model.md)). | As written. |
 | 16 | **Human-declared reviews over MCP** ([§4.8](04-data-model.md)) — allow an agent to relay a person's judgment with confidence? | Allowed, recorded as declared. |
 | 17 | **Sample project content** — who writes the synthetic corpus, and about what fictional product? | Written in Phase 2; entirely synthetic; published read-only and unauthenticated at `/sample`. |
+| 18 | **The tenant's name in the UI.** Records already have an `organization` field (the organization a source concerns), so the API says `tenant` and the UI says "organization". | As built; rename the record field (for example `about_organization`) if one word is wanted. |
+| 19 | **Negative role overrides** — can a product grant lower an inherited team role? | No: the highest applicable role wins. |
+| 20 | **Who may delete permanently** now that roles exist. | Editors, with every guard of [§9.5](09-data-lifecycle.md). |
+| 21 | **A reviewer role** separate from editor. | No: editors review. |
+| 22 | **Stakeholders who read only the Story** — a Story-only role, or share links? | Open. Viewers can read the Story today. |
+| 23 | **Who sees the activity log.** | Every role on the product. |
+| 24 | **Database host** — Cloud SQL (about US$10/month) or a free external Postgres. | Either; `setup.sh` supports both. |
+| 25 | **The design system.** | Open, for the owner. The web app and Story guidance run on a provisional neutral layer designed to be replaced. |
 
 ## Risks
 

@@ -1,6 +1,7 @@
 # WhatBuild — product specification
 
-**Status:** Draft 0.2 · 2026-09-19 · nothing is built yet; this is the document we build from.
+**Status:** Draft 0.3 · 2026-09-26 · Phases 0–2 built, most of 3–5 built; see the
+[roadmap](10-roadmap.md) for what is done and what is not. This is still the document we build from.
 
 WhatBuild is open-source software for rapid product discovery. A team collects discovery
 material — interviews, sales calls, research exports, documents, decks — and the application gives
@@ -13,6 +14,22 @@ surface is the most complete control panel, and the web UI is how a person does 
 It is **one hosted, multi-tenant service**. People sign up, create a team, invite colleagues, and
 try it for free within published limits. The whole application also runs on a contributor's laptop
 with one command, no accounts and no API keys — that is how it is developed and how CI runs it.
+
+## What changed in draft 0.3
+
+Draft 0.3 records what the first build settled, and adopts the owner's brief for tenancy and roles.
+
+| Changed | Why |
+|---|---|
+| **Tenant → team → product, with roles** replaces team → project with "membership is the only access rule" ([§3](03-accounts-teams-and-identity.md)). Roles at three levels; the highest applies; no role means `404`; a too-low role means a `403` that names both roles. | The owner's direction: customer organizations containing several teams, each running several discoveries, with differentiated access. |
+| **Product** replaces project; **Sources** replaces Library as the destination and the MCP tool. The file role stays **origin** (not "source"), so it cannot be confused with the destination. | The owner's vocabulary. |
+| **Delete** needs editor (not merely membership) and keeps every other guard. | Roles now exist; delete is a content operation, so it sits with writing. |
+| **Local development needs Node only.** Postgres comes from the embedded-postgres npm package; no Docker. | Removes the last thing a contributor has to install. CI uses the same path. |
+| **Google Cloud Run** is the host: one image, migrations as a Cloud Run Job, Cloud Storage for blobs, Secret Manager for secrets ([deployment guide](../../deploy/cloud-run/README.md)). | The owner's choice. |
+| **WhatBuild is its own OAuth authorization server** for MCP (dynamic registration, PKCE, rotating refresh tokens), instead of an auth library. Sign-in is email links and Google; there are no passwords. | Fewer moving parts, fully under test; Better Auth was not needed. |
+| **One upload path for everyone.** A grant always points at the service's own relay (agents' sandboxes can reach it); large files may also get a direct signed bucket URL. The browser uses the same grants. | Agents' sandboxes often cannot reach the object store; one path means one set of rules. |
+| The web UI uses **React Router** rather than TanStack Router. | Smaller surface; no loss for URL-held state. |
+| The visual design remains **deliberately open**: the web app runs on a provisional, neutral token layer ([`apps/web/src/styles/tokens.css`](../../apps/web/src/styles/tokens.css)) meant to be replaced, and Story guidance embeds the same provisional values. | The owner will choose the design system. |
 
 ## What changed in draft 0.2
 
@@ -93,10 +110,11 @@ sandboxed frame.
 3. **Operations are defined once.** A single operation registry generates the REST routes, the MCP
    tools, and their self-descriptions, so the two adapters cannot drift.
    → [Operations](06-operations-and-adapters.md)
-4. **Team → project → everything.** A project is one product discovery. Every object belongs to
-   exactly one project; both team and project are explicit in every request.
-   → [Accounts and teams](03-accounts-teams-and-identity.md)
-5. **Membership is the only access rule.** Every member of a team, human or agent, reads and writes
-   everything in it. One `403` exists, for team lifecycle, and it touches no content.
+4. **Tenant → team → product → everything.** A product is one discovery. Every object belongs to
+   exactly one product; the product is explicit in every request.
+   → [Accounts, tenants, teams, products, roles](03-accounts-teams-and-identity.md)
+5. **Roles, checked in one place.** Viewer, editor and admin at the team or product, owner and admin
+   at the tenant; the highest applies. What you cannot see answers `404`; what you can see but may
+   not change answers `403` with both roles named. Agents act with exactly their person's role.
 6. **Data leaves as easily as it arrives.** Complete export in an open format, by any member, at
    any time, never blocked by a quota. → [Data lifecycle](09-data-lifecycle.md)
