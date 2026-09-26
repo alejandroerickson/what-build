@@ -1,0 +1,18 @@
+{
+  "name": "@whatbuild/parsers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2",
+    "parse5": "^8.0.0",
+    "pdfjs-dist": "^5.4.0",
+    "saxes": "^6.0.0"
+  }
+}

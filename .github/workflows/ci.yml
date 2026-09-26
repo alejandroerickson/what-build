@@ -1,0 +1,28 @@
+name: CI
+
+# The same path a contributor runs: install, typecheck, test against a real Postgres (the
+# embedded-postgres package, nothing to provision), and build the production bundle.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: The embedded skill matches SKILL.md
+        run: node scripts/gen-skill.mjs && git diff --exit-code packages/core/src/skill/skill-text.ts
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build

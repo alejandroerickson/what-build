@@ -1,0 +1,104 @@
+import { AppError, SKILL_VERSION, type BlobStore, type Db, type Env, type Mailer, type Ports } from "@whatbuild/core";
+import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
+import { FsBlobStore, MemoryBlobStore } from "./adapters/blobs.ts";
+import { ConsoleMailer, HmacGrantSigner, MemoryMailer, SafeUrlFetcher, SmtpMailer } from "./adapters/misc.ts";
+import { oauthRoutes } from "./auth/oauth.ts";
+import { authRoutes } from "./auth/routes.ts";
+import type { ServerConfig } from "./config.ts";
+import { mcpRoutes } from "./mcp.ts";
+import { publicRoutes, staticRoutes } from "./public-routes.ts";
+import { restRoutes } from "./rest.ts";
+import { uploadRoutes } from "./uploads.ts";
+
+export const SERVER_VERSION = process.env["WHATBUILD_RELEASE"] ?? `dev-${SKILL_VERSION}`;
+
+export async function createBlobStore(config: ServerConfig): Promise<BlobStore> {
+  if (config.blobStore === "memory") return new MemoryBlobStore();
+  if (config.blobStore === "gcs") {
+    if (!config.gcsBucket) throw new Error("WHATBUILD_GCS_BUCKET is required for the gcs blob store.");
+    const { GcsBlobStore } = await import("./adapters/blobs-gcs.ts");
+    return new GcsBlobStore(config.gcsBucket, config.gcsSignedUrls);
+  }
+  return new FsBlobStore(config.blobDir);
+}
+
+export function createMailer(config: ServerConfig): Mailer {
+  if (config.mailer === "memory") return new MemoryMailer();
+  if (config.mailer === "none")
+    return {
+      async send() {
+        // No mail provider: invitations still work by link; sign-in links are disabled upstream.
+      },
+    };
+  if (config.mailer === "smtp") {
+    if (!config.smtpUrl) throw new Error("WHATBUILD_SMTP_URL is required for the smtp mailer.");
+    return new SmtpMailer(config.smtpUrl, config.mailFrom);
+  }
+  return new ConsoleMailer();
+}
+
+export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mailer, notifyJobs?: () => void): Ports {
+  return {
+    blobs,
+    grants: new HmacGrantSigner(config.grantKey),
+    mailer,
+    fetcher: new SafeUrlFetcher(),
+    notifyJobs,
+    config: {
+      publicBaseUrl: config.publicBaseUrl,
+      serverVersion: SERVER_VERSION,
+      relayMaxBytes: config.relayMaxBytes,
+      fileMaxBytes: config.fileMaxBytes,
+      parseCapBytes: config.parseCapBytes,
+      grantTtlSeconds: config.grantTtlSeconds,
+      urlFetchMaxBytes: config.urlFetchMaxBytes,
+    },
+  };
+}
+
+/** One application: static web app, REST, MCP, OAuth and the upload relay, all on one origin. */
+export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig }) {
+  const env: Env & { config: ServerConfig } = { db: deps.db, ports: deps.ports, config: deps.config };
+  const app = new Hono();
+
+  app.use("*", async (c, next) => {
+    const started = Date.now();
+    await next();
+    // Operational telemetry only: never content, email addresses or tokens.
+    if (deps.config.env !== "test" && !c.req.path.startsWith("/assets/"))
+      console.log(JSON.stringify({ at: new Date().toISOString(), method: c.req.method, path: c.req.path.replace(/[0-9A-HJKMNP-TV-Z]{26}/g, ":id"), status: c.res.status, ms: Date.now() - started }));
+  });
+
+  // Cookie-carrying writes must come from our own origin, on every route. SameSite=Lax is not
+  // enough on a shared parent domain such as run.app, where another service can be "same-site".
+  app.use("*", async (c, next) => {
+    if (["GET", "HEAD", "OPTIONS"].includes(c.req.method) || !c.req.header("cookie")?.includes("wb_")) return next();
+    const origin = c.req.header("origin");
+    const ok = !origin || origin === deps.config.publicBaseUrl || (deps.config.env !== "production" && /^http:\/\/localhost:\d+$/.test(origin));
+    if (!ok) return c.json({ error: { code: "forbidden_origin", status: 403, message: "Cross-origin writes are refused." } }, 403);
+    return next();
+  });
+
+  app.use("/api/v1/*", async (c, next) => {
+    if (c.req.path.startsWith("/api/v1/uploads/")) return next();
+    return bodyLimit({ maxSize: 5 * 1024 * 1024, onError: (cx) => cx.json({ error: { code: "too_large", status: 413, message: "Request bodies are limited to 5 MB. Send files through an upload grant." } }, 413) })(c, next);
+  });
+
+  app.route("/", publicRoutes({ db: deps.db, config: deps.config, serverVersion: SERVER_VERSION }));
+  app.route("/", oauthRoutes({ db: deps.db, config: deps.config }));
+  app.route("/", authRoutes({ db: deps.db, config: deps.config, mailer: deps.ports.mailer ?? new ConsoleMailer() }));
+  app.route("/", uploadRoutes(env));
+  app.route("/", mcpRoutes(env));
+  app.route("/", restRoutes(env));
+
+  app.all("/api/*", (c) => c.json({ error: { code: "not_found", status: 404, message: `No route ${c.req.method} ${c.req.path}.` } }, 404));
+  if (deps.config.webDist) app.route("/", staticRoutes(deps.config.webDist));
+
+  app.onError((err, c) => {
+    if (err instanceof AppError) return c.json({ error: err.toJSON() }, err.status as 400);
+    console.error(err);
+    return c.json({ error: { code: "internal", status: 500, message: "Unexpected error." } }, 500);
+  });
+  return app;
+}

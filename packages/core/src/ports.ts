@@ -1,0 +1,69 @@
+/**
+ * The core depends only on these interfaces. Each adapter implements one; the in-memory ones are
+ * for tests. No provider SDK is imported outside its own adapter.
+ */
+
+export interface BlobStat {
+  size: number;
+  contentType: string | null;
+  sha256: string | null;
+}
+
+export interface BlobStore {
+  /** Create-only: refuses to overwrite. Returns what was stored. */
+  put(key: string, data: Uint8Array, options: { contentType: string }): Promise<{ size: number; sha256: string }>;
+  /** Stream a body into a new blob, enforcing a size limit while reading. */
+  putStream(
+    key: string,
+    body: ReadableStream<Uint8Array>,
+    options: { contentType: string; maxBytes: number },
+  ): Promise<{ size: number; sha256: string }>;
+  get(key: string): Promise<Uint8Array>;
+  /** A byte range, or the whole blob. A past-the-end range returns an empty body. */
+  getStream(key: string, range?: { start: number; end?: number }): Promise<ReadableStream<Uint8Array>>;
+  stat(key: string): Promise<BlobStat | null>;
+  delete(key: string): Promise<void>;
+  /** A short-lived URL that PUTs one new object directly to the store, when the store offers it. */
+  signedUploadUrl?(key: string, contentType: string, expiresAt: Date): Promise<{ url: string; headers: Record<string, string> }>;
+  /** A short-lived URL that GETs one object directly from the store, when the store offers it. */
+  signedDownloadUrl?(key: string, fileName: string, contentType: string, expiresAt: Date): Promise<string>;
+}
+
+/** Signs and verifies the upload and download grants that travel in a header. */
+export interface GrantSigner {
+  sign(payload: Record<string, unknown>): string;
+  verify(token: string): Record<string, unknown> | null;
+}
+
+/** Size-capped, SSRF-safe HTTPS fetch for `files.fetch_url`. */
+export interface UrlFetcher {
+  fetch(url: string, maxBytes: number): Promise<{ bytes: Uint8Array; fileName: string; mediaType: string | null }>;
+}
+
+export interface Mailer {
+  send(message: { to: string; subject: string; text: string }): Promise<void>;
+}
+
+export interface CoreConfig {
+  /** The public origin, without a trailing slash. */
+  publicBaseUrl: string;
+  serverVersion: string;
+  /** Upload limit through the service's own relay (Cloud Run caps a request body at 32 MiB). */
+  relayMaxBytes: number;
+  /** Upload limit per file overall (direct-to-store uploads may exceed the relay's). */
+  fileMaxBytes: number;
+  parseCapBytes: number;
+  /** Lifetime of upload and download grants, in seconds. */
+  grantTtlSeconds: number;
+  urlFetchMaxBytes: number;
+}
+
+export interface Ports {
+  blobs: BlobStore;
+  grants: GrantSigner;
+  config: CoreConfig;
+  fetcher?: UrlFetcher;
+  mailer?: Mailer;
+  /** Wakes the job worker after a commit that enqueued work. */
+  notifyJobs?: () => void;
+}

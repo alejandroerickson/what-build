@@ -1,0 +1,36 @@
+{
+  "name": "what-build",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "tsx apps/server/src/dev.ts",
+    "build": "vite build apps/web && node apps/server/build.mjs",
+    "start": "node apps/server/dist/main.js serve",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p packages/parsers && tsc -p packages/core && tsc -p apps/server && tsc -p apps/web",
+    "db:migrate": "tsx apps/server/src/main.ts migrate",
+    "db:seed": "tsx apps/server/src/main.ts seed",
+    "gen:skill": "node scripts/gen-skill.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.0",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.11",
+    "tsx": "^4.20.6",
+    "playwright-core": "^1.56.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "@embedded-postgres/darwin-arm64",
+      "@embedded-postgres/darwin-x64",
+      "@embedded-postgres/linux-x64",
+      "@embedded-postgres/linux-arm64"
+    ]
+  }
+}

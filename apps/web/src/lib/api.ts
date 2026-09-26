@@ -1,0 +1,95 @@
+/** The one HTTP client. The web app uses only operations the agents also have. */
+
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    message: string,
+    readonly details?: Record<string, unknown>,
+  ) {
+    super(message);
+  }
+  get isConflict() {
+    return this.status === 409;
+  }
+  get isNotFound() {
+    return this.status === 404 || this.status === 410;
+  }
+}
+
+const DEFAULT_MESSAGES: Record<number, string> = {
+  0: "WhatBuild could not be reached. Check your connection and try again.",
+  401: "Your sign-in has expired.",
+  403: "You don't have access to do that.",
+  404: "That does not exist, or you cannot see it.",
+  409: "That changed since you loaded it.",
+  422: "WhatBuild did not accept that.",
+  500: "WhatBuild ran into a problem. Try again in a moment.",
+};
+
+let onUnauthenticated: (() => void) | null = null;
+export function setUnauthenticatedHandler(fn: () => void) {
+  onUnauthenticated = fn;
+}
+
+export async function api<T = unknown>(method: string, path: string, body?: unknown, init: RequestInit = {}): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(path.startsWith("/") ? path : `/api/v1/${path}`, {
+      method,
+      credentials: "same-origin",
+      ...init,
+      headers: { ...(body !== undefined ? { "Content-Type": "application/json" } : {}), Accept: "application/json", ...(init.headers ?? {}) },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  } catch {
+    throw new ApiError(0, "network", DEFAULT_MESSAGES[0]!);
+  }
+  const text = await res.text();
+  let data: unknown = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
+  }
+  if (!res.ok) {
+    const err = (data as { error?: { code?: string; message?: string; details?: Record<string, unknown> } } | null)?.error;
+    if (res.status === 401) onUnauthenticated?.();
+    throw new ApiError(res.status, err?.code ?? "error", err?.message ?? DEFAULT_MESSAGES[res.status] ?? `WhatBuild answered with status ${res.status}.`, err?.details);
+  }
+  return data as T;
+}
+
+export function qs(params: Record<string, unknown>): string {
+  const u = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null || v === "" || (Array.isArray(v) && !v.length)) continue;
+    u.set(k, Array.isArray(v) ? v.join(",") : String(v));
+  }
+  const s = u.toString();
+  return s ? `?${s}` : "";
+}
+
+/** Upload a file's bytes to a grant with progress, the same relay agents use. */
+export function putWithProgress(url: string, headers: Record<string, string>, file: Blob, onProgress: (loaded: number, total: number) => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
+    xhr.upload.onprogress = (e) => onProgress(e.loaded, e.total || file.size);
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else {
+        let message = `The upload failed (${xhr.status}).`;
+        try {
+          message = JSON.parse(xhr.responseText).error.message ?? message;
+        } catch {
+          // keep the default
+        }
+        reject(new ApiError(xhr.status, "upload_failed", message));
+      }
+    };
+    xhr.onerror = () => reject(new ApiError(0, "network", DEFAULT_MESSAGES[0]!));
+    xhr.send(file);
+  });
+}

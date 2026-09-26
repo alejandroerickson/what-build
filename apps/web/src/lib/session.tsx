@@ -1,0 +1,121 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { createContext, useContext, type ReactNode } from "react";
+import { Navigate, useLocation, useParams } from "react-router";
+import { Loading } from "../ui/index.tsx";
+import { api } from "./api.ts";
+
+export interface Me {
+  account_id: string;
+  email: string;
+  display_name: string;
+}
+
+export interface ProductSummary {
+  product_id: string;
+  path: string;
+  name: string;
+  idea: string;
+  archived_at: string | null;
+  updated_at: string;
+  tenant: { tenant_id: string; slug: string; name: string };
+  team: { team_id: string; slug: string; name: string };
+  your_role: "viewer" | "editor" | "admin";
+}
+
+export interface ProductsResponse {
+  items: ProductSummary[];
+  tenants: { tenant_id: string; slug: string; name: string; your_role: string | null; teams: { team_id: string; slug: string; name: string; your_role: string | null }[] }[];
+}
+
+export function useMe() {
+  return useQuery({ queryKey: ["me"], queryFn: () => api<Me>("GET", "/api/v1/me"), retry: false, staleTime: 60_000 });
+}
+
+export function useProducts(includeArchived = false) {
+  return useQuery({ queryKey: ["products", includeArchived], queryFn: () => api<ProductsResponse>("GET", `/api/v1/me/products${includeArchived ? "?include_archived=true" : ""}`) });
+}
+
+export function useSignOut() {
+  const qc = useQueryClient();
+  return async () => {
+    await api("POST", "/auth/sign-out").catch(() => undefined);
+    qc.clear();
+    window.location.assign("/signin");
+  };
+}
+
+/** Renders children only once the session is known; anyone signed out goes to sign-in and comes back. */
+export function RequireSession({ children }: { children: ReactNode }) {
+  const me = useMe();
+  const loc = useLocation();
+  if (me.isPending) return <div className="center-page"><Loading label="Checking your sign-in…" /></div>;
+  if (me.isError) return <Navigate to={`/signin?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
+  return <>{children}</>;
+}
+
+// ---- The addressed product ---------------------------------------------------------------------
+
+export interface Product {
+  product_id: string;
+  slug: string;
+  name: string;
+  idea: string;
+  archived_at: string | null;
+  etag: string;
+  path: string;
+  tenant: { tenant_id: string; slug: string; name: string };
+  team: { team_id: string; slug: string; name: string };
+  your_role: "viewer" | "editor" | "admin";
+  counts: { sources: number; objectives: number; insights: number; assumptions: number; decisions: number; story_pages: number };
+}
+
+interface ProductCtx {
+  product: Product;
+  /** REST base for this product's operations. */
+  api: string;
+  /** Web base for this product's screens. */
+  app: string;
+  canWrite: boolean;
+  isAdmin: boolean;
+}
+
+const ProductContext = createContext<ProductCtx | null>(null);
+
+export function useProductParams() {
+  const { tenant = "", team = "", product = "" } = useParams();
+  return { tenant, team, product, path: `${tenant}/${team}/${product}` };
+}
+
+export function ProductProvider({ children, fallback }: { children: (ctx: ProductCtx) => ReactNode; fallback: (error: unknown) => ReactNode }) {
+  const { path } = useProductParams();
+  const q = useQuery({ queryKey: ["product", path], queryFn: () => api<Product>("GET", `/api/v1/p/${path}`) });
+  if (q.isPending) return <div className="center-page"><Loading /></div>;
+  if (q.isError) return <>{fallback(q.error)}</>;
+  const ctx: ProductCtx = {
+    product: q.data,
+    api: `/api/v1/p/${path}`,
+    app: `/t/${path}`,
+    canWrite: (q.data.your_role === "editor" || q.data.your_role === "admin") && !q.data.archived_at,
+    isAdmin: q.data.your_role === "admin",
+  };
+  try {
+    localStorage.setItem("whatbuild.last-product", path);
+  } catch {
+    // Storage may be blocked; the URL still carries the product.
+  }
+  return <ProductContext.Provider value={ctx}>{children(ctx)}</ProductContext.Provider>;
+}
+
+export function useProduct(): ProductCtx {
+  const ctx = useContext(ProductContext);
+  if (!ctx) throw new Error("useProduct outside a product");
+  return ctx;
+}
+
+export function lastProduct(): string | null {
+  try {
+    return localStorage.getItem("whatbuild.last-product");
+  } catch {
+    return null;
+  }
+}
