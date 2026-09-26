@@ -1,0 +1,47 @@
+# Cloud Build: build the image, migrate the database, then deploy the service.
+#
+# A trigger on pushes to main runs this file (configuration type "Cloud Build configuration file",
+# location /cloudbuild.yaml). deploy/cloud-run/setup.sh creates everything it refers to by name.
+# Nothing here holds a credential: the database URL and keys live in Secret Manager.
+#
+# Migrations run as a Cloud Run Job from the new image before the service moves to it, so a new
+# revision never serves traffic against an old schema. Migrations are forward-only.
+substitutions:
+  _REGION: northamerica-northeast2
+  _SERVICE: whatbuild
+  _MIGRATE_JOB: whatbuild-migrate
+  _REPO: whatbuild
+  _IMAGE: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/whatbuild:${COMMIT_SHA}
+
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args: ["build", "-t", "${_IMAGE}", "."]
+
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args: ["push", "${_IMAGE}"]
+
+  # The migration job keeps the settings setup.sh gave it; each build only points it at the new image.
+  - id: migrate
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        gcloud run jobs update "${_MIGRATE_JOB}" --image "${_IMAGE}" --region "${_REGION}" --quiet
+        gcloud run jobs execute "${_MIGRATE_JOB}" --region "${_REGION}" --wait
+
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args: ["run", "deploy", "${_SERVICE}", "--image", "${_IMAGE}", "--region", "${_REGION}", "--update-env-vars", "WHATBUILD_RELEASE=${SHORT_SHA}", "--quiet"]
+
+images: ["${_IMAGE}"]
+
+options:
+  dynamicSubstitutions: true
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 1800s

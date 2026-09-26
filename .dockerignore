@@ -1,0 +1,14 @@
+# Allow-list: the build sees source and lockfile, nothing else.
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!tsconfig.base.json
+!scripts/gen-skill.mjs
+!packages/
+!apps/
+**/node_modules
+**/dist
+**/.what-build
+**/test
+**/*.test.ts

@@ -1,0 +1,5 @@
+# What gcloud uploads to Cloud Build: the repository minus everything git ignores (including private
+# working material), minus git itself.
+#!include:.gitignore
+.git
+.github
