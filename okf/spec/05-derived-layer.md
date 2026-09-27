@@ -72,11 +72,18 @@ with one newline.
 - Untimed transcripts (plain text, Markdown, DOCX): one turn per segment, the speaker on the
   segment and the `Name:` label removed from the text, as for timed sources.
 - Documents: headings kept as their own segments; a `# Page N` heading per PDF page; each list
-  item its own segment; tables (DOCX, HTML, Markdown pipe tables) one segment per row with the
-  header repeated as `header: cell` pairs; tracked insertions kept and tracked deletions dropped;
-  reviewer comments appended under `# Review comments`; XLSX a `# Sheet: <name>` heading per
-  worksheet and one segment per non-empty row, prefixed `[<Sheet>, row N]`; CSV and TSV one
-  segment per non-empty row, prefixed `[row N]`.
+  item its own segment, a numbered item keeping its number (`1.`) and a bullet dropping its
+  marker; tables (DOCX, HTML, Markdown pipe tables) one segment per row with the header repeated
+  as `header: cell` pairs; tracked insertions kept and tracked deletions dropped; reviewer
+  comments appended under `# Review comments`; XLSX a `# Sheet: <name>` heading per worksheet and
+  one segment per non-empty row, prefixed `[<Sheet>, row N]`; CSV and TSV one segment per
+  non-empty row, prefixed `[row N]`.
+- Tables in DOCX, HTML and Markdown share one rule
+  ([`tables.ts`](../../packages/parsers/src/tables.ts)). A matrix whose top-left header cell is
+  empty still labels its columns, and each row's first cell leads unlabelled as the row's name:
+  `Reached the saved view | Plan A: 4 of 5 | Plan B: 0 of 5`. A table with only one row, or with an
+  empty header cell anywhere after the first, has no usable header, and its rows' cells are joined
+  with ` | `.
 
 ### `outline.md`
 
@@ -125,8 +132,8 @@ extension ([`packages/parsers/src/index.ts`](../../packages/parsers/src/index.ts
 | Plain text (`.txt`, `.text`) | Paragraphs split on blank lines; ATX headings become heading segments and feed the outline; each list item (`-`, `*`, `+`, `1.`) and each pipe-table row is its own segment. A transcript is read one turn per segment with its speaker (below). |
 | Markdown (`.md`, `.markdown`) | Everything plain text does, plus setext headings; blockquote markers and thematic breaks dropped; inline emphasis and code markers (`**`, `__`, `*`, `_`, backticks) stripped where they are clearly markup, never inside words or code spans. `**Name:** words` is a speaker turn. |
 | WebVTT, SRT | Cue timing; speakers from `<v Name>` voice tags and from `Name:` prefixes; caption markup stripped. |
-| DOCX | Headings (a Title above Heading 1), paragraphs, tables, the accepted view of tracked changes, comments. `Name: words` paragraphs, including a bold `Name:` run, are speaker turns in a transcript (below). |
-| XLSX | Sheets and rows; the first all-text row with two or more cells near the top becomes the header, and later rows render `label: value` pairs. |
+| DOCX | Headings (a Title above Heading 1), paragraphs, tables, the accepted view of tracked changes, comments. A paragraph in a decimal Word list (numbered directly or by its style) starts with its number as Word counts it (`2.`, `1.1.`); bullets and other number formats (letters, roman numerals) get no marker. `Name: words` paragraphs, including a bold `Name:` run, are speaker turns in a transcript (below). |
+| XLSX | Sheets and rows; the first all-text row with two or more cells near the top becomes the header, and later rows render `label: value` pairs. A number whose cell format is a date or time (the built-in formats 14–22 and 45–47, or a custom format with day, month, year, hour or second codes outside quotes and brackets) renders in ISO 8601: `2026-04-10`, `2026-04-10 12:00`, `13:30`, or elapsed hours `30:00:00`, in the workbook's 1900 or 1904 date system. Other numbers keep their stored value, not their displayed format. |
 | CSV, TSV (`.csv`, `.tsv`) | Read like a one-sheet workbook, with the same header rule and `label: value` rows. Quoted fields may hold delimiters and line breaks; the delimiter (comma, semicolon or tab) is taken from the first line. |
 | PDF | Text layer only, per page. No OCR. |
 | HTML | Main-content text with headings; scripts, styles, navigation, forms and frames dropped; tables one segment per row with header pairs; adjacent elements (labels, breadcrumbs) kept apart by a space. |

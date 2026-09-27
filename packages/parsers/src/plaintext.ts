@@ -161,7 +161,7 @@ function parseText(source: string, markdown: boolean): { blocks: Block[]; facts:
  */
 export const plaintextParser: FormatParser = {
   name: "plaintext",
-  version: "4",
+  version: "5",
   parse(bytes) {
     return parseText(decodeText(bytes), false);
   },
@@ -174,7 +174,7 @@ export const plaintextParser: FormatParser = {
  */
 export const markdownParser: FormatParser = {
   name: "markdown",
-  version: "1",
+  version: "2",
   parse(bytes) {
     return parseText(decodeText(bytes), true);
   },

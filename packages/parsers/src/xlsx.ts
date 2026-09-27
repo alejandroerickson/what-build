@@ -62,20 +62,102 @@ function formatNumber(raw: string): string {
   return String(Number(n.toPrecision(15)));
 }
 
+/** The built-in number formats that are dates or times (ECMA-376 18.8.30); the others are numbers. */
+const BUILTIN_DATE_FORMATS: Record<number, string> = {
+  14: "m/d/yyyy", 15: "d-mmm-yy", 16: "d-mmm", 17: "mmm-yy", 18: "h:mm AM/PM", 19: "h:mm:ss AM/PM",
+  20: "h:mm", 21: "h:mm:ss", 22: "m/d/yyyy h:mm", 45: "mm:ss", 46: "[h]:mm:ss", 47: "mmss.0",
+};
+
+/** What a number format shows of a date serial: a date, a time of day, an elapsed time, or none. */
+export interface DateFormat {
+  date: boolean;
+  time: boolean;
+  seconds: boolean;
+  elapsed: "h" | "m" | "s" | null;
+}
+
+/**
+ * Read a number format code as a date format, or undefined when it shows a plain number. Only the
+ * first section counts; quoted text, backslash escapes, padding (`_x`, `*x`), colours and locales
+ * in brackets and AM/PM markers are ignored. `m` is a month unless it sits with hours or seconds.
+ */
+export function dateFormatOf(code: string): DateFormat | undefined {
+  const section = code.split(/;(?=(?:[^"]*"[^"]*")*[^"]*$)/)[0] ?? "";
+  const elapsed = section.match(/\[(h+|m+|s+)\]/i)?.[1]?.[0]?.toLowerCase() as DateFormat["elapsed"] | undefined;
+  const bare = section
+    .replace(/"[^"]*"/g, "")
+    .replace(/\\./g, "")
+    .replace(/[_*]./g, "")
+    .replace(/\[[^\]]*\]/g, (m) => (/^\[(h+|m+|s+)\]$/i.test(m) ? m.slice(1, -1) : ""))
+    .replace(/AM\/PM|A\/P/gi, "h")
+    .toLowerCase();
+  if (!/[dmyhs]/.test(bare) || /^general$/.test(bare.trim())) return undefined;
+  const time = /[hs]/.test(bare);
+  const date = /[dy]/.test(bare) || (/m/.test(bare) && !time);
+  return { date, time, seconds: /s/.test(bare), elapsed: elapsed ?? null };
+}
+
+const DAY_MS = 86_400_000;
+const pad = (n: number) => String(n).padStart(2, "0");
+
+/**
+ * An Excel date serial as ISO 8601: `YYYY-MM-DD`, `YYYY-MM-DD HH:MM[:SS]`, `HH:MM[:SS]`, or an
+ * elapsed `H:MM[:SS]`. The 1900 system keeps Excel's fictitious 1900-02-29 (serial 60); the 1904
+ * system counts from 1904-01-01. Undefined when the serial is out of range for the format.
+ */
+export function formatDateSerial(serial: number, fmt: DateFormat, date1904: boolean): string | undefined {
+  if (!Number.isFinite(serial) || serial < 0 || serial > 2_958_465) return undefined;
+  const totalSeconds = Math.round(serial * 86_400);
+  const days = Math.floor(totalSeconds / 86_400);
+  const secs = totalSeconds - days * 86_400;
+  const hh = Math.floor(secs / 3600);
+  const mm = Math.floor((secs % 3600) / 60);
+  const ss = secs % 60;
+  if (fmt.elapsed) {
+    if (fmt.elapsed === "s") return String(totalSeconds);
+    if (fmt.elapsed === "m") return `${Math.floor(totalSeconds / 60)}:${pad(ss)}`;
+    return `${Math.floor(totalSeconds / 3600)}:${pad(mm)}${fmt.seconds ? `:${pad(ss)}` : ""}`;
+  }
+  const clock = `${pad(hh)}:${pad(mm)}${fmt.seconds ? `:${pad(ss)}` : ""}`;
+  if (!fmt.date || (days < 1 && !date1904)) return fmt.time ? clock : undefined;
+  let day: string;
+  if (date1904) day = new Date(Date.UTC(1904, 0, 1) + days * DAY_MS).toISOString().slice(0, 10);
+  else if (days === 60) day = "1900-02-29";
+  else day = new Date(Date.UTC(1899, 11, days < 60 ? 31 : 30) + days * DAY_MS).toISOString().slice(0, 10);
+  return fmt.time ? `${day} ${clock}` : day;
+}
+
+/** The date format of each cell style (`c/@s` indexes `cellXfs`), undefined for number styles. */
+function cellDateFormats(stylesXml: Uint8Array | undefined): (DateFormat | undefined)[] {
+  if (!stylesXml) return [];
+  const styles = parseXml(strFromU8(stylesXml));
+  const custom = new Map<number, string>();
+  for (const f of descendants(styles, "numFmt")) custom.set(Number(f.attrs["numFmtId"]), f.attrs["formatCode"] ?? "");
+  const xfs = descendants(styles, "cellXfs")[0];
+  if (!xfs) return [];
+  return elements(xfs, "xf").map((xf) => {
+    const id = Number(xf.attrs["numFmtId"] ?? 0);
+    const code = custom.get(id) ?? BUILTIN_DATE_FORMATS[id];
+    return code === undefined ? undefined : dateFormatOf(code);
+  });
+}
+
 /**
  * XLSX: a `# Sheet: <name>` heading per worksheet and one segment per non-empty row, prefixed
  * `[<Sheet>, row N]`. The first all-text row with two or more cells in the top 20 becomes the
- * header, and later rows render `label: value` pairs.
+ * header, and later rows render `label: value` pairs. A number in a date or time format renders
+ * as an ISO 8601 date or time, in the workbook's 1900 or 1904 date system.
  */
 export const xlsxParser: FormatParser = {
   name: "xlsx",
-  version: "1",
+  version: "2",
   parse(bytes) {
     const files = unzipSync(bytes, {
       filter: (f) =>
         f.name === "xl/workbook.xml" ||
         f.name === "xl/_rels/workbook.xml.rels" ||
         f.name === "xl/sharedStrings.xml" ||
+        f.name === "xl/styles.xml" ||
         /^xl\/worksheets\/[^/]+\.xml$/.test(f.name),
     });
     const wb = files["xl/workbook.xml"];
@@ -90,7 +172,10 @@ export const xlsxParser: FormatParser = {
         const target = r.attrs["Target"] ?? "";
         rels.set(r.attrs["Id"] ?? "", target.startsWith("/") ? target.slice(1) : `xl/${target}`);
       }
-    const sheets = descendants(parseXml(strFromU8(wb)), "sheet").map((s, i) => ({
+    const workbook = parseXml(strFromU8(wb));
+    const date1904 = ["1", "true"].includes(descendants(workbook, "workbookPr")[0]?.attrs["date1904"] ?? "");
+    const dateFormats = cellDateFormats(files["xl/styles.xml"]);
+    const sheets = descendants(workbook, "sheet").map((s, i) => ({
       name: s.attrs["name"] ?? `Sheet${i + 1}`,
       path: rels.get(s.attrs["r:id"] ?? "") ?? `xl/worksheets/sheet${i + 1}.xml`,
     }));
@@ -136,7 +221,8 @@ export const xlsxParser: FormatParser = {
           } else if (t === "e") {
             value = v ? textOf(v) : "";
           } else if (v) {
-            value = formatNumber(textOf(v));
+            const fmt = dateFormats[Number(c.attrs["s"] ?? 0)];
+            value = (fmt && formatDateSerial(Number(textOf(v)), fmt, date1904)) || formatNumber(textOf(v));
           }
           value = value.replace(/\s+/g, " ").trim().slice(0, MAX_CELL);
           if (value) cells.push({ col, value, isText });
