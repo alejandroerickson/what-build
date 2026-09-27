@@ -7,8 +7,30 @@ import { descendants, elements, first, parseXml, textOf, type XmlElement } from 
 /** A heading style: the document title, its subtitle, or a numbered heading. */
 type HeadingStyle = { kind: "title" } | { kind: "subtitle" } | { kind: "heading"; n: number };
 
+/** One level of a Word list: its number format (`decimal`, `bullet`, …), start and label pattern. */
+interface ListLevel {
+  format: string;
+  start: number;
+  text: string;
+}
+
+/**
+ * A `w:num`. Lists that share an abstract definition continue one count, as Word numbers them,
+ * unless the list restarts it with a start override.
+ */
+interface WordList {
+  levels: Map<number, ListLevel>;
+  counter: string;
+}
+
 interface DocxState {
   headingByStyle: Map<string, HeadingStyle>;
+  /** The list numbering a paragraph style carries (Word's "List Number"), by style id. */
+  numPrByStyle: Map<string, XmlElement>;
+  /** Lists by `numId`: their levels by `ilvl`, and the counter they share. */
+  lists: Map<string, WordList>;
+  /** The running count of each counter's levels. */
+  listCounts: Map<string, number[]>;
   trackedInsertions: number;
   trackedDeletions: number;
   tableCount: number;
@@ -101,12 +123,75 @@ function levelOf(style: HeadingStyle, hasTitle: boolean): number {
   return hasTitle ? Math.min(style.n + 1, 6) : style.n;
 }
 
+/** The lists of `word/numbering.xml`: each `w:num` resolved to its abstract definition's levels. */
+function readLists(xml: Uint8Array | undefined): Map<string, WordList> {
+  const lists = new Map<string, WordList>();
+  if (!xml) return lists;
+  const numbering = parseXml(strFromU8(xml));
+  const abstracts = new Map<string, Map<number, ListLevel>>();
+  for (const a of descendants(numbering, "w:abstractNum")) {
+    const levels = new Map<number, ListLevel>();
+    for (const lvl of elements(a, "w:lvl"))
+      levels.set(Number(lvl.attrs["w:ilvl"] ?? 0), {
+        format: first(lvl, "w:numFmt")?.attrs["w:val"] ?? "decimal",
+        start: Number(first(lvl, "w:start")?.attrs["w:val"] ?? 1),
+        text: first(lvl, "w:lvlText")?.attrs["w:val"] ?? "",
+      });
+    abstracts.set(a.attrs["w:abstractNumId"] ?? "", levels);
+  }
+  for (const num of descendants(numbering, "w:num")) {
+    const abstractId = first(num, "w:abstractNumId")?.attrs["w:val"] ?? "";
+    const base = abstracts.get(abstractId);
+    if (!base) continue;
+    const numId = num.attrs["w:numId"] ?? "";
+    const levels = new Map(base);
+    let restarts = false;
+    for (const o of elements(num, "w:lvlOverride")) {
+      const ilvl = Number(o.attrs["w:ilvl"] ?? 0);
+      const start = first(o, "w:startOverride")?.attrs["w:val"];
+      const lvl = levels.get(ilvl);
+      if (lvl && start !== undefined) {
+        levels.set(ilvl, { ...lvl, start: Number(start) });
+        restarts = true;
+      }
+    }
+    lists.set(numId, { levels, counter: restarts ? `num:${numId}` : `abstract:${abstractId}` });
+  }
+  return lists;
+}
+
+/**
+ * The number of a paragraph in a decimal Word list (`1.`, `2.1.`), counted in document order, or
+ * "" for bullets, other number formats and paragraphs outside a list. As in Markdown, a bullet's
+ * marker is dropped and a number is kept.
+ */
+function listNumber(p: XmlElement, st: DocxState): string {
+  const pPr = first(p, "w:pPr");
+  const styleId = pPr && first(pPr, "w:pStyle")?.attrs["w:val"];
+  const numPr = (pPr && first(pPr, "w:numPr")) ?? (styleId ? st.numPrByStyle.get(styleId) : undefined);
+  if (!numPr) return "";
+  const list = st.lists.get(first(numPr, "w:numId")?.attrs["w:val"] ?? "");
+  if (!list) return "";
+  const { levels } = list;
+  const ilvl = Number(first(numPr, "w:ilvl")?.attrs["w:val"] ?? 0);
+  const counts = st.listCounts.get(list.counter) ?? [];
+  st.listCounts.set(list.counter, counts);
+  for (let i = 0; i <= ilvl; i++) if (counts[i] === undefined) counts[i] = (levels.get(i)?.start ?? 1) - (i < ilvl ? 0 : 1);
+  counts[ilvl]!++;
+  counts.length = ilvl + 1;
+  const lvl = levels.get(ilvl);
+  if (lvl?.format !== "decimal") return "";
+  const label = (lvl.text || `%${ilvl + 1}.`).replace(/%([1-9])/g, (_m, k: string) => String(counts[Number(k) - 1] ?? 1));
+  return /\d/.test(label) ? label.trim() : "";
+}
+
 function cellText(tc: XmlElement, st: DocxState): string {
   const parts: string[] = [];
   for (const el of elements(tc)) {
     if (el.name === "w:p") {
+      const n = listNumber(el, st);
       const t = paragraphText(el, st);
-      if (t) parts.push(t);
+      if (t) parts.push(n ? `${n} ${t}` : t);
     } else if (el.name === "w:tbl") {
       // Nested tables are flattened into their cell.
       for (const row of elements(el, "w:tr")) {
@@ -124,26 +209,38 @@ function tableBlocks(tbl: XmlElement, st: DocxState): Block[] {
 }
 
 /**
- * DOCX: headings, paragraphs, tables (one segment per row, header repeated as `header: cell`
- * pairs), the accepted view of tracked changes, and reviewer comments appended at the end. A
+ * DOCX: headings, paragraphs, decimal list numbers, tables (one segment per row, header repeated as
+ * `header: cell` pairs), the accepted view of tracked changes, and reviewer comments appended at
+ * the end. A
  * document whose paragraphs are mostly "Name: words" turns is read as a transcript, with speakers.
  */
 export const docxParser: FormatParser = {
   name: "docx",
-  version: "4",
+  version: "5",
   parse(bytes) {
     const files = unzipSync(bytes, {
-      filter: (f) => ["word/document.xml", "word/styles.xml", "word/comments.xml"].includes(f.name),
+      filter: (f) => ["word/document.xml", "word/styles.xml", "word/comments.xml", "word/numbering.xml"].includes(f.name),
     });
     const docXml = files["word/document.xml"];
     if (!docXml) throw new Error("not a Word document: word/document.xml is missing");
-    const st: DocxState = { headingByStyle: new Map(), trackedInsertions: 0, trackedDeletions: 0, tableCount: 0 };
+    const st: DocxState = {
+      headingByStyle: new Map(),
+      numPrByStyle: new Map(),
+      lists: readLists(files["word/numbering.xml"]),
+      listCounts: new Map(),
+      trackedInsertions: 0,
+      trackedDeletions: 0,
+      tableCount: 0,
+    };
     const stylesXml = files["word/styles.xml"];
     if (stylesXml) {
       const styles = parseXml(strFromU8(stylesXml));
       for (const s of descendants(styles, "w:style")) {
         const id = s.attrs["w:styleId"];
         const name = first(s, "w:name")?.attrs["w:val"]?.toLowerCase() ?? "";
+        const stylePPr = first(s, "w:pPr");
+        const numPr = stylePPr && first(stylePPr, "w:numPr");
+        if (id && numPr) st.numPrByStyle.set(id, numPr);
         const m = name.match(/^heading\s*([1-6])$/);
         if (id && m?.[1]) st.headingByStyle.set(id, { kind: "heading", n: Number(m[1]) });
         else if (id && name === "title") st.headingByStyle.set(id, { kind: "title" });
@@ -161,10 +258,11 @@ export const docxParser: FormatParser = {
     const walkBody = (el: XmlElement) => {
       for (const c of elements(el)) {
         if (c.name === "w:p") {
+          const n = listNumber(c, st);
           const text = paragraphText(c, st);
           if (!text) continue;
           const style = headingStyle(c, st);
-          const block: Block = { text };
+          const block: Block = { text: n ? `${n} ${text}` : text };
           if (style) headings.push({ block, style });
           else paragraphs.push(block);
           blocks.push(block);

@@ -1,8 +1,10 @@
+import { strToU8, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 import { derive, sliceCodePoints, type ParseResult } from "../src/index.ts";
 import { splitLong } from "../src/text.ts";
 import { stripInlineMarkdown } from "../src/plaintext.ts";
-import { makeDocx, makeDocxParagraphs, makePdf, makeXlsx, utf8 } from "./fixtures.ts";
+import { dateFormatOf } from "../src/xlsx.ts";
+import { makeDocx, makeDocxList, makeDocxParagraphs, makePdf, makeXlsx, makeXlsxSheet, utf8 } from "./fixtures.ts";
 
 /** The offset invariant every derivation must hold: text[char_start:char_end] == segment.text, in code points. */
 function expectOffsetsExact(r: ParseResult) {
@@ -147,6 +149,18 @@ describe("plain text and Markdown", () => {
     expect(r.facts["table_count"]).toBe(1);
   });
 
+  it("labels a matrix whose top-left header cell is empty, with each row's first cell as its name", async () => {
+    const md = "|   | Plan A | Plan B |\n|---|---|---|\n| Reached the saved view | 4 of 5 | 0 of 5 |\n| Asked for help | | 2 of 5 |\n";
+    const r = await derive(utf8(md), "results.md");
+    expect(r.segments.map((s) => s.text)).toEqual([
+      "Plan A | Plan B",
+      "Reached the saved view | Plan A: 4 of 5 | Plan B: 0 of 5",
+      "Asked for help | Plan B: 2 of 5",
+    ]);
+    const keyValue = await derive(utf8("| Owner | |\n|---|---|\n| Status | Open |\n"), "meta.md");
+    expect(keyValue.segments.map((s) => s.text)).toEqual(["Owner", "Status | Open"]);
+  });
+
   it("strips inline Markdown and blockquote markers, but not snake_case, arithmetic or code", async () => {
     const md = "> **Bold** and *italic* and __strong__ and _em_ and `x_y_z`.\n\nKeep snake_case_name, 2*3*4 and \\*literal\\*.\n\n---\n\nSetext title\n============\n";
     const r = await derive(utf8(md), "notes.md");
@@ -209,6 +223,13 @@ describe("HTML", () => {
       <tbody><tr><td>Pricing <b>reviewed</b></td><td>Sam</td></tr><tr><td><p>Legal</p><p>sign-off</p></td><td></td></tr></tbody></table></body>`;
     const r = await derive(utf8(html), "checks.html");
     expect(r.segments.map((s) => s.text)).toEqual(["Checks", "Check | Owner", "Check: Pricing reviewed | Owner: Sam", "Check: Legal sign-off"]);
+  });
+
+  it("labels a matrix with an empty corner cell the same way as Markdown and DOCX", async () => {
+    const html = `<body><table><tr><th></th><th>Plan A</th><th>Plan B</th></tr>
+      <tr><th>Reached the saved view</th><td>4 of 5</td><td>0 of 5</td></tr></table></body>`;
+    const r = await derive(utf8(html), "results.html");
+    expect(r.segments.map((s) => s.text)).toEqual(["Plan A | Plan B", "Reached the saved view | Plan A: 4 of 5 | Plan B: 0 of 5"]);
   });
 
   it("keeps adjacent elements apart instead of running them together", async () => {
@@ -281,6 +302,39 @@ describe("DOCX", () => {
     expect(noTitle.segments[0]).toMatchObject({ text: "# Agenda", heading_level: 1 });
   });
 
+  it("numbers decimal list items, drops bullet markers, and labels a matrix with an empty corner cell", async () => {
+    const r = await derive(
+      makeDocxList([
+        { text: "Tasks", style: "Heading1" },
+        { text: "Find the overdue approvals.", numId: 1 },
+        { text: "Open the oldest one.", numId: 1, ilvl: 1 },
+        { text: "Approve it.", numId: 1 },
+        { text: "Crews text the office.", numId: 2 },
+        { text: "Continues the list.", numId: 1 },
+        { text: "Restarts at one.", numId: 3 },
+        { text: "Numbered by its style.", style: "ListNumber" },
+        { text: "A plain paragraph." },
+      ]),
+      "tasks.docx",
+    );
+    expect(r.segments.map((s) => s.text)).toEqual([
+      "# Tasks",
+      "1. Find the overdue approvals.",
+      "1.1. Open the oldest one.",
+      "2. Approve it.",
+      "Crews text the office.",
+      "3. Continues the list.",
+      "1. Restarts at one.",
+      "4. Numbered by its style.",
+      "A plain paragraph.",
+    ]);
+    const cell = (t: string) => `<w:tc><w:p><w:r><w:t>${t}</w:t></w:r></w:p></w:tc>`;
+    const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+    const doc = `<w:document ${W}><w:body><w:tbl><w:tr><w:tc><w:p/></w:tc>${cell("Plan A")}${cell("Plan B")}</w:tr><w:tr>${cell("Reached the saved view")}${cell("4 of 5")}${cell("0 of 5")}</w:tr></w:tbl></w:body></w:document>`;
+    const matrix = await derive(zipSync({ "word/document.xml": strToU8(doc) }), "results.docx");
+    expect(matrix.segments.map((s) => s.text)).toEqual(["Plan A | Plan B", "Reached the saved view | Plan A: 4 of 5 | Plan B: 0 of 5"]);
+  });
+
   it("reports failed for a file that is not a Word document", async () => {
     const r = await derive(utf8("not a zip"), "x.docx");
     expect(r.status).toBe("failed");
@@ -320,6 +374,48 @@ describe("XLSX", () => {
       "[Accounts, row 3] Account: Globex | Seats: 3.5",
     ]);
     expect(r.facts).toMatchObject({ sheet_count: 1, row_count: 3 });
+  });
+
+  it("renders numbers in date and time formats as ISO dates and times, and other numbers as numbers", async () => {
+    const r = await derive(
+      makeXlsxSheet(
+        [
+          ["Permit", "Granted", "Expiry", "Checked", "Meeting", "Lead time", "Logged", "Renewed", "Share"],
+          ["EL 101", [43565, 1], [46122, 2], [46055.5, 3], [0.5625, 4], [12.5, 5], [1.25, 6], [46086, 7], [0.25, 8]],
+          ["EL 102", [1, 2], [60, 2], [61, 2], [-3, 2], [0.5, 1], [46122.25, 1], [45000, 0], [44927.75, 9]],
+        ],
+        {
+          numFmts: ["yyyy-mm-dd", '[$-409]d mmm yyyy;@', '0.0" days"', "[Red]#,##0_);(#,##0)", 'dd/mm/yyyy\\ hh:mm:ss AM/PM'],
+          xfs: [0, 164, 14, 22, 20, 166, 46, 165, 10, 168],
+        },
+      ),
+      "register.xlsx",
+    );
+    expect(r.segments.map((s) => s.text)).toEqual([
+      "# Sheet: Register",
+      "[Register, row 1] Permit | Granted | Expiry | Checked | Meeting | Lead time | Logged | Renewed | Share",
+      "[Register, row 2] Permit: EL 101 | Granted: 2019-04-10 | Expiry: 2026-04-10 | Checked: 2026-02-02 12:00 | Meeting: 13:30 | Lead time: 12.5 | Logged: 30:00:00 | Renewed: 2026-03-05 | Share: 0.25",
+      "[Register, row 3] Permit: EL 102 | Granted: 1900-01-01 | Expiry: 1900-02-29 | Checked: 1900-03-01 | Meeting: -3 | Lead time: 0.5 | Logged: 2026-04-10 | Renewed: 45000 | Share: 2023-01-01 18:00:00",
+    ]);
+  });
+
+  it("counts dates from 1904 when the workbook uses the 1904 date system", async () => {
+    const r = await derive(makeXlsxSheet([["Permit", "Expiry"], ["EL 101", [44660, 1]], ["EL 102", [0, 1]]], { numFmts: ["yyyy-mm-dd"], xfs: [0, 164], date1904: true }), "register.xlsx");
+    expect(r.segments.slice(2).map((s) => s.text)).toEqual(["[Register, row 2] Permit: EL 101 | Expiry: 2026-04-10", "[Register, row 3] Permit: EL 102 | Expiry: 1904-01-01"]);
+  });
+
+  it("tells date formats from number formats", () => {
+    expect(dateFormatOf("General")).toBeUndefined();
+    expect(dateFormatOf("#,##0.00")).toBeUndefined();
+    expect(dateFormatOf('0" days"')).toBeUndefined();
+    expect(dateFormatOf("0.00E+00")).toBeUndefined();
+    expect(dateFormatOf("[Red]0.0%")).toBeUndefined();
+    expect(dateFormatOf("_-* #,##0_-;-* #,##0_-")).toBeUndefined();
+    expect(dateFormatOf("mmm-yy")).toMatchObject({ date: true, time: false });
+    expect(dateFormatOf("h:mm AM/PM")).toMatchObject({ date: false, time: true, seconds: false });
+    expect(dateFormatOf("mm:ss")).toMatchObject({ date: false, time: true, seconds: true });
+    expect(dateFormatOf('yyyy-mm-dd"T"hh:mm')).toMatchObject({ date: true, time: true, seconds: false });
+    expect(dateFormatOf("[h]:mm")).toMatchObject({ elapsed: "h" });
   });
 });
 

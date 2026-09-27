@@ -3,14 +3,17 @@ import type { Block } from "./types.ts";
 /**
  * One block per table row, the same for every format that has tables (DOCX, HTML, Markdown): the
  * header row as `A | B`, then each row as `A: cell | B: cell` with empty cells left out, so a single
- * row can be read and cited on its own. Without a usable header (one row, or an empty header
- * cell), each row's cells are joined with " | ".
+ * row can be read and cited on its own. A matrix whose top-left header cell is empty
+ * (`|  | A | B |`) still labels its columns, and each row's first cell leads unlabelled as the
+ * row's name: `Name | A: cell | B: cell`. Without a usable header (one row, or an empty header
+ * cell after the first), each row's cells are joined with " | ".
  */
 export function tableBlocks(rows: string[][]): Block[] {
   if (!rows.length) return [];
   const header = rows[0]!;
   const blocks: Block[] = [];
-  const headerUsable = rows.length > 1 && header.every((h) => h.trim().length > 0);
+  const filled = (h: string | undefined) => (h ?? "").trim().length > 0;
+  const headerUsable = rows.length > 1 && header.slice(1).every(filled) && header.some(filled);
   if (!headerUsable) {
     for (const r of rows) {
       const t = r.filter(Boolean).join(" | ");
@@ -18,9 +21,15 @@ export function tableBlocks(rows: string[][]): Block[] {
     }
     return blocks;
   }
-  blocks.push({ text: header.join(" | ") });
+  blocks.push({ text: header.filter(filled).join(" | ") });
   for (const r of rows.slice(1)) {
-    const pairs = r.map((cell, i) => (cell ? `${header[i] ?? `Column ${i + 1}`}: ${cell}` : "")).filter(Boolean);
+    const pairs = r
+      .map((cell, i) => {
+        if (!cell) return "";
+        if (i === 0 && !filled(header[0])) return cell;
+        return `${header[i] ?? `Column ${i + 1}`}: ${cell}`;
+      })
+      .filter(Boolean);
     if (pairs.length) blocks.push({ text: pairs.join(" | ") });
   }
   return blocks;
