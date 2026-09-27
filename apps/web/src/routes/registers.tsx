@@ -2,7 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
-import { attribution, formatCue, nestQuotes, plural, relativeTime } from "../lib/format.ts";
+import { attribution, citationCheckWords, formatCue, nestQuotes, plural, relativeTime } from "../lib/format.ts";
 import { Markdown, passageHref } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { PROVENANCE_LABEL, REVIEW_STATUS, toneFor } from "../lib/status.ts";
@@ -228,6 +228,8 @@ interface CitationCheck {
   status: "ok" | "relocated" | "text_changed" | "record_archived" | "record_deleted" | "record_missing";
   relocated?: { seq_start: number; seq_end: number };
   version_drift: boolean;
+  derivation_changed?: boolean;
+  quote_match?: "normalized";
 }
 interface CheckResult {
   valid: boolean;
@@ -255,7 +257,7 @@ function driftWords(c: CitationCheck): string {
             : c.status === "record_deleted"
               ? "Source deleted; the quote is kept"
               : "Source not found; the quote is kept";
-  return c.version_drift ? `${base} · newer file version` : base;
+  return citationCheckWords(base, c);
 }
 
 function CitationRow({ c, check, checking }: { c: CitationView; check?: CitationCheck; checking: boolean }) {

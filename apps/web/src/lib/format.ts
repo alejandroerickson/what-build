@@ -143,3 +143,15 @@ export function fileTypeName(mediaType: string | null | undefined, path?: string
   if (ext) return `${ext.toUpperCase()} file`;
   return t || "Unknown type";
 }
+
+/**
+ * What a citation check says beyond its status, in words: a quote found only once formatting was
+ * set aside, a newer primary file, or a re-parse of the same file since the citation was made.
+ */
+export function citationCheckWords(base: string, c: { version_drift: boolean; derivation_changed?: boolean; quote_match?: string }): string {
+  const notes: string[] = [];
+  if (c.quote_match === "normalized") notes.push("matched ignoring formatting");
+  if (c.version_drift) notes.push("newer file version");
+  else if (c.derivation_changed) notes.push("source re-parsed since this was cited");
+  return [base, ...notes].join(" · ");
+}

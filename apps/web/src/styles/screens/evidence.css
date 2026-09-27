@@ -404,6 +404,13 @@
 .source-impact p {
   line-height: 1.5;
 }
+.source-impact-list {
+  display: grid;
+  gap: var(--s-1);
+  margin-bottom: 0;
+  padding-left: var(--s-4);
+  line-height: 1.5;
+}
 .source-role-choice {
   display: grid;
   gap: var(--s-1);

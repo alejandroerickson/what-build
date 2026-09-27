@@ -983,6 +983,33 @@ function EditDetails({ record, onClose, onReload }: { record: SourceRecord; onCl
   );
 }
 
+interface StoryVersionCiting {
+  page_id: string;
+  title: string;
+  version: number;
+  count: number;
+  is_current: boolean;
+}
+
+/** Story versions that cite a source, grouped by page in the order the server lists them. */
+function byStoryPage(versions: StoryVersionCiting[]): { page_id: string; title: string; versions: StoryVersionCiting[] }[] {
+  const pages = new Map<string, { page_id: string; title: string; versions: StoryVersionCiting[] }>();
+  for (const v of versions) {
+    const p = pages.get(v.page_id) ?? { page_id: v.page_id, title: v.title, versions: [] };
+    p.versions.push(v);
+    pages.set(v.page_id, p);
+  }
+  return [...pages.values()];
+}
+
+/** "Current version and 2 earlier", "Current version" or "2 earlier versions, not the current one". */
+function storyVersionWords(versions: StoryVersionCiting[]): string {
+  const current = versions.some((v) => v.is_current);
+  const earlier = versions.filter((v) => !v.is_current).length;
+  if (current) return earlier ? `Current version and ${earlier} earlier` : "Current version";
+  return `${plural(earlier, "earlier version")}, not the current one`;
+}
+
 function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () => void }) {
   const { api: base, app } = useProduct();
   const navigate = useNavigate();
@@ -1003,6 +1030,7 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
         citations: { id: string; kind: string; statement: string; count: number }[];
         insights_referencing: { id: string; title: string }[];
         story_pages_citing?: { page_id: string; title: string; version: number; count: number }[];
+        story_versions_citing?: StoryVersionCiting[];
       }>("GET", `${base}/sources/${record.record_id}/delete-impact`),
   });
   const del = useMutation({
@@ -1016,6 +1044,8 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
   });
   const i = impact.data;
   const pages = i?.story_pages_citing ?? [];
+  const versions = i?.story_versions_citing ?? [];
+  const storyPages = byStoryPage(versions);
   return (
     <Dialog
       open
@@ -1057,7 +1087,26 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
               and will point at a record of the deletion instead. Their quoted text is kept.
             </p>
           ) : null}
-          {pages.length ? <p>{plural(pages.length, "Story page")} cite it; their quotes are kept.</p> : null}
+          {storyPages.length ? (
+            <>
+              <p>
+                <strong>
+                  {plural(versions.length, "Story version")} on {plural(storyPages.length, "page")} cite it
+                </strong>
+                {versions.some((v) => !v.is_current) ? ", earlier versions included" : ""}. Their quotes are kept, and each will say the source
+                was deleted.
+              </p>
+              <ul className="source-impact-list">
+                {storyPages.map((p) => (
+                  <li key={p.page_id}>
+                    {p.title} <span className="faint">· {storyVersionWords(p.versions)}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : pages.length ? (
+            <p>{plural(pages.length, "Story page")} cite it; their quotes are kept.</p>
+          ) : null}
           {i.insights_referencing.length ? <p>{plural(i.insights_referencing.length, "insight")} reference it and will keep a dead reference.</p> : null}
         </div>
       ) : null}
