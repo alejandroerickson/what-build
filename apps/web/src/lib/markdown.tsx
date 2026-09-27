@@ -12,10 +12,14 @@ import { Link, useInRouterContext } from "react-router";
  * agent guidance asks — "source 01K…, segments 4–6" — becomes that same linked token.
  */
 
-/** What a caller knows for resolving bare citations: the product's app path and titles by id. */
+/**
+ * What a caller knows for resolving bare citations: the product's app path, titles by id, and
+ * optionally chip labels already worked out across a larger page (see `citationLabels`).
+ */
 export interface EvidenceContext {
   app: string;
   titles: Record<string, string | undefined>;
+  labels?: Record<string, string>;
 }
 
 const ULID = "[0-9A-HJKMNP-TV-Z]{26}";
@@ -36,15 +40,70 @@ function inApp(href: string): string {
   return href.slice(window.location.origin.length);
 }
 
-/** A title short enough to sit in a sentence: the part before an em-dash qualifier. */
-function shortTitle(title: string): string {
-  return title.split(" — ")[0]!.trim() || title;
-}
 
 /** "Title ¶5" with the ¶ kept on the title's line. */
 function evidenceText(title: string, start?: string, end?: string): string {
   if (!start) return title;
   return `${title}\u00a0¶${start}${end && end !== start ? `–${end}` : ""}`;
+}
+
+/** Each bare citation in a text ("source 01K…, segments 4–6"), in order. */
+export function bareCitations(text: string): { id: string; start?: string; end?: string }[] {
+  if (!text.includes("source ")) return [];
+  return [...text.matchAll(BARE_CITATION)].map((m) => ({ id: m[1]!, start: m[2], end: m[3] }));
+}
+
+/** The sources a text cites the bare way, in order of first mention. */
+export function citedSourceIds(text: string): string[] {
+  return [...new Set(bareCitations(text).map((c) => c.id))];
+}
+
+/** A citation's chip text: "Label ¶4–6". */
+export function citationText(label: string, start?: string, end?: string): string {
+  return evidenceText(label, start, end);
+}
+
+/**
+ * Chip labels that tell sources apart on one page. A label starts as the title's part before an
+ * em-dash qualifier ("Usability study"). Where cited sources would share a label, each adds its
+ * next qualifier in brackets ("Usability study (crew)") until they differ; sources whose whole
+ * titles match are numbered in order of mention.
+ */
+export function citationLabels(ids: string[], titles: Record<string, string | undefined>): Record<string, string> {
+  const parts = new Map(ids.map((id) => [id, (titles[id] ?? "Source").split(" — ").map((p) => p.trim()).filter(Boolean)]));
+  const depth = new Map(ids.map((id) => [id, 1]));
+  const label = (id: string) => {
+    const p = parts.get(id)!;
+    const n = depth.get(id)!;
+    if (!p.length) return "Source";
+    return n <= 1 ? p[0]! : `${p[0]} (${p.slice(1, n).join(", ")})`;
+  };
+  const groups = () => {
+    const by = new Map<string, string[]>();
+    for (const id of ids) by.set(label(id), [...(by.get(label(id)) ?? []), id]);
+    return by;
+  };
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const group of groups().values()) {
+      if (group.length < 2) continue;
+      for (const id of group) {
+        if (depth.get(id)! >= parts.get(id)!.length) continue;
+        depth.set(id, depth.get(id)! + 1);
+        grew = true;
+      }
+    }
+  }
+  const out: Record<string, string> = {};
+  for (const [l, group] of groups()) group.forEach((id, i) => (out[id] = group.length > 1 ? `${l} (${i + 1})` : l));
+  return out;
+}
+
+/** An in-app link to a passage, or to a range of passages as `?seq=45&to=50`. */
+export function passageHref(app: string, recordId: string, start?: number | string | null, end?: number | string | null): string {
+  if (start === undefined || start === null || start === "") return `${app}/evidence/${recordId}`;
+  const range = end !== undefined && end !== null && end !== "" && String(end) !== String(start);
+  return `${app}/evidence/${recordId}?seq=${start}${range ? `&to=${end}` : ""}`;
 }
 
 function AppLink({ href, className, title, children }: { href: string; className?: string; title?: string; children: ReactNode }) {
@@ -63,19 +122,29 @@ function AppLink({ href, className, title, children }: { href: string; className
   );
 }
 
-/** Turn bare "source <id>, segment N" citations in a run of text into evidence links. */
-function citations(text: string, key: string, ev: EvidenceContext | undefined): ReactNode {
+/**
+ * Turn bare "source <id>, segment N" citations in a run of text into evidence links; or, where the
+ * text already sits inside a link (a search hit), into the same token without a link of its own.
+ */
+export function citations(text: string, key: string, ev: EvidenceContext | undefined, asLink = true): ReactNode {
   if (!ev || !text.includes("source ")) return text;
   const out: ReactNode[] = [];
   let last = 0;
   for (const m of text.matchAll(BARE_CITATION)) {
     const [whole, id, start, end] = m;
     const known = ev.titles[id!];
+    const label = evidenceText(ev.labels?.[id!] ?? citationLabels([id!], ev.titles)[id!]!, start, end);
     out.push(text.slice(last, m.index));
     out.push(
-      <AppLink key={`${key}.c${m.index}`} href={`${ev.app}/evidence/${id}${start ? `?seq=${start}` : ""}`} className="evidence-link" title={known ?? undefined}>
-        {evidenceText(known ? shortTitle(known) : "Source", start, end)}
-      </AppLink>,
+      asLink ? (
+        <AppLink key={`${key}.c${m.index}`} href={passageHref(ev.app, id!, start, end)} className="evidence-link" title={known ?? undefined}>
+          {label}
+        </AppLink>
+      ) : (
+        <span key={`${key}.c${m.index}`} className="evidence-link" title={known ?? undefined}>
+          {label}
+        </span>
+      ),
     );
     last = m.index! + whole.length;
   }
@@ -237,5 +306,7 @@ function inlineOrBlock(tokens: Token[], key: string, ev?: EvidenceContext): Reac
 
 export function Markdown({ source, className = "prose", headingShift = 1, evidence }: { source: string; className?: string; headingShift?: number; evidence?: EvidenceContext }) {
   const tokens = new Lexer({ gfm: true }).lex(source ?? "");
-  return <div className={className}>{block(tokens, "md", headingShift, evidence)}</div>;
+  // Chip labels are worked out across the whole text, so two sources never read alike on one page.
+  const ev = evidence && !evidence.labels ? { ...evidence, labels: citationLabels(citedSourceIds(source ?? ""), evidence.titles) } : evidence;
+  return <div className={className}>{block(tokens, "md", headingShift, ev)}</div>;
 }

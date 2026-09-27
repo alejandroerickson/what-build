@@ -105,6 +105,46 @@ describe("what upload, read and search say about a source", () => {
   });
 });
 
+describe("listing sources in order", () => {
+  it("sorts by date (undated last) or title, pages without skipping, and names each primary file", async () => {
+    const make = async (title: string, date: string | null) => {
+      const r = await alice.api("POST", `${P}/sources`, { kind: "other", title, ...(date ? { date } : {}) });
+      expect(r.status).toBe(201);
+      return r.body.record_id as string;
+    };
+    const june = await make("Sortable delta", "2026-06-05");
+    const sept = await make("sortable Alpha", "2026-09-27");
+    const undated = await make("Sortable charlie", null);
+    const aug = await make("Sortable bravo", "2026-08-01");
+    const sameDay = await make("Sortable echo", "2026-08-01");
+    const walk = async (sort: string) => {
+      const ids: string[] = [];
+      let cursor = "";
+      for (let i = 0; i < 5; i++) {
+        const r = await alice.api("GET", `${P}/sources?query=Sortable&sort=${sort}&limit=2${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`);
+        expect(r.status).toBe(200);
+        ids.push(...r.body.records.map((x: { record_id: string }) => x.record_id));
+        if (!r.body.next_cursor) break;
+        cursor = r.body.next_cursor;
+      }
+      return ids;
+    };
+    expect(await walk("date")).toEqual([sept, sameDay, aug, june, undated]);
+    expect(await walk("title")).toEqual([sept, aug, undated, june, sameDay]);
+    expect(await walk("added")).toEqual([sameDay, aug, undated, sept, june]);
+
+    const { recordId } = await upload("other", "sortable-deck.pptx", new Uint8Array([80, 75, 3, 4]));
+    const listed = await alice.api("GET", `${P}/sources?query=sortable-deck`);
+    expect(listed.body.records).toEqual([expect.objectContaining({ record_id: recordId, primary_file: "sortable-deck.pptx" })]);
+    const none = await alice.api("GET", `${P}/sources?query=Sortable%20delta`);
+    expect(none.body.records[0].primary_file).toBeNull();
+
+    const bad = await alice.api("GET", `${P}/sources?sort=date&cursor=${june}`);
+    expect(bad.status).toBe(422);
+    expect(bad.body.error.code).toBe("invalid_cursor");
+  });
+});
+
 describe("the fetch lookup", () => {
   const resolver = (addrs: { address: string; family: number }[]) => async () => addrs;
   const call = (lookup: ReturnType<typeof publicOnlyLookup>, options: object) =>

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
 import { attribution, formatCue, plural, relativeTime } from "../lib/format.ts";
-import { Markdown } from "../lib/markdown.tsx";
+import { Markdown, passageHref } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { PROVENANCE_LABEL, REVIEW_STATUS, toneFor } from "../lib/status.ts";
 import type { CitationView, RegisterEntry, RegisterSummary } from "../lib/types.ts";
@@ -227,10 +227,10 @@ function CitationRow({ c, check, checking }: { c: CitationView; check?: Citation
   const { app } = useProduct();
   const tone = check ? toneFor("citation", check.status) : "neutral";
   const good = check?.status === "ok" && !check.version_drift;
-  const seq = check?.status === "relocated" && check.relocated ? check.relocated.seq_start : c.seq_start;
+  const at = check?.status === "relocated" && check.relocated ? check.relocated : c;
   return (
     <li className="entry-cite-row">
-      <Link className="entry-cite-address num" to={`${app}/evidence/${c.record_id}?seq=${seq}`} aria-label={`${span(c.seq_start, c.seq_end)} in ${c.source_title ?? "the source"}`}>
+      <Link className="entry-cite-address num" to={passageHref(app, c.record_id, at.seq_start, at.seq_end)} aria-label={`${span(c.seq_start, c.seq_end)} in ${c.source_title ?? "the source"}`}>
         {span(c.seq_start, c.seq_end)}
       </Link>
       <div className="entry-cite-main">

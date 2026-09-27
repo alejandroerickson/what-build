@@ -158,8 +158,12 @@ The sources, and everything for reading them.
   plain-language explanation and next step (`needs_transcript` → "add a transcript").
 - **Browse.** Filters held in the URL: folder, kind, organization, date range, tags, title
   substring, archived — set from the panel's context slot, each a link that sets URL params.
-  Paged. The header counts the sources listed, with "of N" live sources while filters narrow the
-  list (left out once archived sources are included). Archived rows are muted and marked Archived.
+  Paged. A segmented control in the header orders the list by the source's own **Date** (the
+  default, undated last), when it was **Added**, or **Title** (`?sort=`). The header counts the
+  sources listed, with "of N" live sources while filters narrow the list (left out once archived
+  sources are included). Archived rows are muted and marked Archived. Rows whose titles match
+  another listed row also name their primary file, so the twins can be told apart. A folder filter
+  below a kind group (from a source's "Filed in") reads as the group and the rest of the path.
 - **Source page.** A source is the busiest object in the app, so the page is dense on purpose.
   - **Header:** the title, then a meta line (kind, date, organization, and "Added by <who> · via
     <surface>, <date>"). Below it the **description**: the agent's summary note when there is one,
@@ -171,23 +175,46 @@ The sources, and everything for reading them.
     **Passages** (the default once the source is parsed), **Original** (a preview of the origin
     file, or of the primary when there is no origin, with a line saying whether it is searched),
     **Notes** (the agent's outline and notes, then every comment on the source, each linking to its
-    passage) and **Files** (every file with its role, "Searched" or "Kept, not searched", versions,
-    download, and add file).
+    passage; with no agent outline, a document's own headings, each linking to its passage — a
+    timed transcript's speaker-turn outline is left out, since the passages already show speaker
+    and time) and **Files** (every file with its role, "Searched" or "Kept, not searched",
+    versions, download, and add file). Original states a recording's length beside the player
+    when the parse read one.
   - **Inspector:** **Details** (kind, date, organization, participants, tags, source system,
-    evidence, where it is filed, added by, added, updated), a **Files** summary (only the primary
-    is searched), **Cited in** (insights, assumptions, decisions and Story pages, each citation
-    linking to its exact passage), "Activity on this source", and Archive. On a narrow screen the
-    page stacks header, description and sections, and the inspector opens from "Details".
+    evidence, where it is filed — a link to the list filtered to that folder — added by, added,
+    updated), a **Files** summary ("2 files", adding stored versions only when there are more
+    versions than files; only the primary is searched), **Cited in** (insights, assumptions,
+    decisions and Story pages, each citation linking to its exact passage or range), "Activity on
+    this source", and Archive. On a narrow screen the page stacks header, description and
+    sections, and the inspector opens from "Details".
+  - **Lineage:** a view with lineage says what it was built from: "Built from 17 inputs · none
+    changed since" with an Up to date mark, or, when `lineage.check` finds inputs changed,
+    archived, deleted or missing, an attention callout "Built from 17 inputs · 10 changed since"
+    with the counts and when it was built. Nothing is rebuilt automatically.
   - **Status:** a source that is not `ready` shows a callout with the status's explanation and next
     step. The server's `status_detail` is added only where it says more (a size or an error).
 - **Passage reader.** Paged segments with address (¶n), speaker and cue time; heading passages
   are shown without their Markdown markers (the stored text, which citations quote, keeps them); go
-  to a passage number; the URL tracks position (`?seq=N`); "Search this source" at the top. Selecting a passage
-  (Shift for a range) offers: comment, or copy a citation reference for an agent.
+  to a passage number; the URL tracks position (`?seq=N`, and `&to=M` for a range: the whole range
+  is marked, on a page that starts at the range when it would otherwise cross a page boundary);
+  "Search this source" at the top. Selecting a passage (Shift for a range) offers: comment, or
+  copy a citation reference for an agent; the selection bar docks above the pager and never
+  covers it. Reading aids:
+  - a passage cited by assumptions, decisions or Story pages carries "Cited by N", a menu of
+    those entries;
+  - a passage that cites other sources the bare way (a view or digest: "source <id>, segments
+    4–6") shows each citation as a "Title ¶4–6" token, and a "Cites" line of links to them;
+  - a table stored as a header passage and one passage per row ("A: x | B: y") is laid out in
+    columns (up to six), each row still its own passage to select and cite.
+- **Citation tokens** in insights, views and search read "Title ¶N". A title is cut at its em-dash
+  qualifier; where two cited sources on the page would read alike, each adds its qualifiers in
+  brackets ("Usability study (crew) ¶29"), and identical titles are numbered. A range token links
+  to the whole range.
 - **Comments** (annotations) are shown inline under the passage they belong to, and listed in the
-  Notes section.
+  Notes section. A comment on a range also tints every passage it covers.
 - **Search.** Same filters plus free-text passage search; results are passages in context with
-  speaker and time, linking into the reader at that position. The UI states what was searched
+  speaker and time, linking into the reader at that position. Exact-text results mark the whole
+  phrase; ranked results mark each word. The UI states what was searched
   ([§8.4](08-search.md)).
 
 ## 7.7 Synthesis

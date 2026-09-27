@@ -73,7 +73,7 @@ receive no transport details and no way to reach another tenant.
 | 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `slug_taken`, `frozen`, `primary_taken`, `source_in_use`, `export_in_progress`, `last_owner`, `quota_exceeded` |
 | 410 | Deliberately deleted, with a tombstone | `record_deleted` |
 | 413 | Body or file beyond a limit | `too_large` |
-| 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `product_required`, `window_too_large`, `quote_not_found`, `invalid_citation`, `cross_product_reference`, `invalid_query`, `invalid_html`, `invalid_patch`, `confirmation_required`, `confidence_requires_human` |
+| 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `product_required`, `window_too_large`, `quote_not_found`, `invalid_citation`, `cross_product_reference`, `invalid_query`, `invalid_cursor`, `invalid_html`, `invalid_patch`, `confirmation_required`, `confidence_requires_human` |
 | 429 | Rate limited | `rate_limited` |
 
 - **`403` names the role.** A caller with a role on the product but too low for the action gets
@@ -97,6 +97,10 @@ receive no transport details and no way to reach another tenant.
   Page sizes are per operation: default 50, at most 200 for sources, search, activity and
   revisions; default 25, at most 100 for insights, register entries and Story versions; objectives
   default to 100. Asking for more than the maximum is `422`, not a silent clamp.
+- `sources.list` orders by `sort`: `added` (newest added first, the default), `date` (the
+  source's own date, newest first, undated last) or `title` (A to Z). A cursor belongs to its sort
+  and filters: pass it back with both unchanged. With `date` or `title`, a cursor the sort did not issue is `422 invalid_cursor`. Each
+  summary in the list also names its primary file (`primary_file`, or `null`).
 - Text windows (`derived.text`, insight bodies): at most 20,000 characters per call by default,
   with `truncated` and totals.
 - Passages: at most 200 segments and 10 minutes per read ([§5.4](05-derived-layer.md)).

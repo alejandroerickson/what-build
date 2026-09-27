@@ -146,6 +146,15 @@
   gap: var(--s-2);
   margin-bottom: var(--s-3);
 }
+.source-lineage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-2);
+  margin: calc(-1 * var(--s-2)) 0 var(--s-3) var(--crumb-inset);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
 
 /* Inspector */
 .source-inspector .kv-row {
@@ -309,6 +318,29 @@
 .source-outline {
   max-height: 384px;
   overflow-y: auto;
+}
+.source-outline-list {
+  max-width: var(--measure);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.source-outline-link {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  padding: 3px var(--s-1h);
+  border-radius: var(--r-xs);
+  color: var(--text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  text-decoration: none;
+}
+.source-outline-link:hover {
+  background: var(--hover);
+}
+.source-outline-link:focus-visible {
+  outline-offset: -2px;
 }
 .source-comments {
   margin: 0;
@@ -489,6 +521,71 @@
   color: var(--select-text);
   font-weight: var(--fw-semibold);
 }
+/* A comment on a range tints every passage it covers, in the comment cards' own fill. */
+.passage-commented:not(.passage-selected, .passage-target) {
+  background: color-mix(in srgb, var(--hover) 65%, var(--panel));
+}
+/* Consecutive table-row passages line up as a small table; each row stays its own passage. */
+.passage-row {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.passage-row .passage-select {
+  padding: var(--s-1) 0;
+}
+.passage-cells {
+  display: grid;
+  gap: var(--s-3);
+  max-width: var(--measure);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-variant-numeric: tabular-nums;
+}
+.passage-cell {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.passage-row-head .passage-cell {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+/* Reading aids under a passage: what it cites, and what cites it. */
+.passage-aids {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-3);
+  margin: 0 0 var(--s-1h);
+  font-size: var(--fs-sm);
+}
+.passage-cites {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-1) var(--s-2);
+}
+.passage-cites .evidence-link {
+  font-variant-numeric: tabular-nums;
+}
+.passage-cited {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-height: var(--h-sm);
+  padding: 0 var(--s-1h);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  color: var(--select-text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.passage-cited:hover,
+.passage-cited[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+}
 .passage-comments {
   display: grid;
   gap: var(--s-1h);
@@ -550,6 +647,11 @@
   width: 72px;
   height: var(--h-sm);
 }
+/* The selection bar docks inside the sheet, above the pager. `clip` rounds the corners like the
+   sheet's own `hidden` but, unlike it, lets the bar stick to the bottom of the window. */
+.passages-sheet {
+  overflow: clip;
+}
 .selection-bar {
   position: sticky;
   bottom: var(--s-3);
@@ -559,7 +661,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--s-2) var(--s-3);
-  margin-top: var(--s-3);
+  margin: var(--s-2) var(--s-3);
   padding: var(--s-2) var(--s-2) var(--s-2) var(--s-3h);
   border: 1px solid var(--line);
   border-radius: var(--r-md);

@@ -8,7 +8,7 @@ import { derivedStatus } from "../lib/status.ts";
 import type { KindsResponse, RecordSummary } from "../lib/types.ts";
 import { PanelContext, PanelSection, usePageTitle } from "../shell/slots.tsx";
 import {
-  Button, ButtonLink, EmptyState, ErrorCallout, FindField, Glyph, ListRow, Loading, Menu, MenuGroup, MenuItem, MenuNote, MenuSeparator, Sheet,
+  Button, ButtonLink, EmptyState, ErrorCallout, FindField, Glyph, ListRow, Loading, Menu, MenuGroup, MenuItem, MenuNote, MenuSeparator, Segmented, Sheet,
   SheetHeader, StatusBadge, type GlyphName,
 } from "../ui/index.tsx";
 import "../styles/screens/evidence.css";
@@ -130,6 +130,8 @@ export function EvidenceFilters() {
       const v = k in patch ? patch[k] : f[k];
       if (v) next.set(k, v);
     }
+    // A filter keeps the list's order.
+    if (onList && params.get("sort")) next.set("sort", params.get("sort")!);
     const s = next.toString();
     return `${app}/evidence${s ? `?${s}` : ""}`;
   };
@@ -229,26 +231,51 @@ export function EvidenceFilters() {
   );
 }
 
+/** List orders: the source's own date is the default, since that is when the evidence happened. */
+const SORTS = [
+  { id: "date", label: "Date" },
+  { id: "added", label: "Added" },
+  { id: "title", label: "Title" },
+] as const;
+type Sort = (typeof SORTS)[number]["id"];
+
 export function EvidencePage() {
   const { api: base, app, canWrite, product } = useProduct();
   const kinds = useKinds();
   const [params] = useSearchParams();
   const f = readFilters(params);
+  const sort: Sort = SORTS.find((s) => s.id === params.get("sort"))?.id ?? "date";
   usePageTitle("Evidence");
   const q = useInfiniteQuery({
-    queryKey: ["sources", base, f],
+    queryKey: ["sources", base, f, sort],
     queryFn: ({ pageParam }) =>
       api<{ records: RecordSummary[]; next_cursor: string | null }>(
         "GET",
-        `${base}/sources${qs({ ...f, include_archived: f.include_archived === "1" ? "true" : "", cursor: pageParam, limit: 50 })}`,
+        `${base}/sources${qs({ ...f, include_archived: f.include_archived === "1" ? "true" : "", sort, cursor: pageParam, limit: 50 })}`,
       ),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_cursor ?? undefined,
   });
   const records = q.data?.pages.flatMap((p) => p.records) ?? [];
+  // Titles shared by more than one listed source: those rows also name their primary file.
+  const titleCount = new Map<string, number>();
+  for (const r of records) titleCount.set(r.title.trim().toLowerCase(), (titleCount.get(r.title.trim().toLowerCase()) ?? 0) + 1);
+  const sortLink = (id: Sort) => {
+    const next = new URLSearchParams(params);
+    if (id === "date") next.delete("sort");
+    else next.set("sort", id);
+    const s = next.toString();
+    return `${app}/evidence${s ? `?${s}` : ""}`;
+  };
   const active = FILTER_KEYS.filter((k) => f[k]);
   const kindLabel = (k: string) => kinds.data?.kinds.find((x) => x.kind === k)?.label ?? k;
-  const groupLabel = (folder: string) => kinds.data?.groups.find((g) => folderForGroup(g.group) === folder)?.label ?? folder;
+  // A folder filter names its kind group; one below it ("interviews/2026", from a source's "Filed
+  // in") reads as the group and the rest of the path: "Interviews › 2026".
+  const groupLabel = (folder: string) => {
+    const [root, ...rest] = folder.split("/").filter(Boolean);
+    const label = kinds.data?.groups.find((g) => folderForGroup(g.group) === root)?.label ?? root ?? folder;
+    return [label, ...rest].join(" › ");
+  };
   const clear = (keys: (keyof Filters)[]) => {
     const next = new URLSearchParams(params);
     for (const k of keys) next.delete(k);
@@ -270,7 +297,13 @@ export function EvidencePage() {
     <>
       <EvidenceFilters />
       <Sheet className="sources-sheet">
-        <SheetHeader level={1} title="Evidence" count={count} end={canWrite ? <AddSourceMenu /> : undefined} />
+        <SheetHeader
+          level={1}
+          title="Evidence"
+          count={count}
+          filter={<Segmented label="Sort sources by" value={sort} items={SORTS.map((s) => ({ id: s.id, label: s.label, to: sortLink(s.id) }))} />}
+          end={canWrite ? <AddSourceMenu /> : undefined}
+        />
         {chips.length ? (
           <div className="sources-active" aria-label="Filters in use">
             {chips.map((c) => (
@@ -312,13 +345,21 @@ export function EvidencePage() {
             <div className="sources-rows">
               {records.map((r) => {
                 const status = r.derived_status === "ready" ? null : derivedStatus(r.derived_status);
+                const twin = (titleCount.get(r.title.trim().toLowerCase()) ?? 0) > 1;
                 return (
                   <ListRow
                     key={r.record_id}
                     to={`${app}/evidence/${r.record_id}`}
                     className={r.archived_at ? "source-row is-archived" : "source-row"}
                     title={r.title}
-                    sub={[kinds.data?.kinds.find((k) => k.kind === r.kind)?.short ?? r.kind_label, r.organization, r.date ? formatDate(r.date) : null].filter(Boolean).join(" · ")}
+                    sub={[
+                      kinds.data?.kinds.find((k) => k.kind === r.kind)?.short ?? r.kind_label,
+                      r.organization,
+                      r.date ? formatDate(r.date) : sort === "date" ? "No date" : null,
+                      twin ? (r.primary_file ? r.primary_file.split("/").pop() : "No file yet") : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
                     end={
                       <>
                         <span className="source-row-count num">

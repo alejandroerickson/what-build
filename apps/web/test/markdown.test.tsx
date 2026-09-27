@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { formatCue, formatDate, formatDateTime, passageText, relativeTime } from "../src/lib/format.ts";
-import { Markdown } from "../src/lib/markdown.tsx";
+import { citationLabels, Markdown } from "../src/lib/markdown.tsx";
 import { derivedStatusDetail } from "../src/lib/status.ts";
 
 const html = (md: string) => renderToStaticMarkup(<Markdown source={md} />);
@@ -36,9 +36,23 @@ describe("safe Markdown", () => {
       <Markdown source={`As she said (source ${id}, segments 1–3; source 01K5Z8T2Q4R6S8V0W2X4Y6Z8A1).`} evidence={{ app: "/t/a/b/c", titles: { [id]: "Crew lead interview — Greenline, Aug 2026" } }} />,
     );
     expect(bare).not.toContain(id + ",");
-    expect(bare).toContain(`href="/t/a/b/c/evidence/${id}?seq=1"`);
+    expect(bare).toContain(`href="/t/a/b/c/evidence/${id}?seq=1&amp;to=3"`);
     expect(bare).toContain("Crew lead interview\u00a0¶1–3");
     expect(bare).toContain(">Source</a>");
+  });
+  it("extends a chip label until each cited source reads differently", () => {
+    const [a, b, c, d, e] = ["A0", "A1", "A2", "A3", "A4"].map((x) => `01K5Z8T2Q4R6S8V0W2X4Y6Z8${x}`) as [string, string, string, string, string];
+    const titles = { [a]: "Usability study — crew", [b]: "Usability study — office", [c]: "Digest", [d]: "Digest", [e]: "Kickoff notes — March" };
+    expect(citationLabels([a, b, c, d, e], titles)).toEqual({
+      [a]: "Usability study (crew)",
+      [b]: "Usability study (office)",
+      [c]: "Digest (1)",
+      [d]: "Digest (2)",
+      [e]: "Kickoff notes",
+    });
+    const out = renderToStaticMarkup(<Markdown source={`One (source ${a}, segment 29), another (source ${b}, ¶29).`} evidence={{ app: "/p", titles }} />);
+    expect(out).toContain(`Usability study (crew)${" "}¶29`);
+    expect(out).toContain(`Usability study (office)${" "}¶29`);
   });
 });
 
