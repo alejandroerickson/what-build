@@ -31,8 +31,11 @@ Every editable object carries:
 publish after a page's first version requires the current etag (`expected_etag` in the input, or
 `If-Match` in REST). Missing → `422`. Stale → `409 stale_etag`, with the current etag in
 `details.current_etag` so a caller can re-read and retry deliberately. Creates take no etag;
-neither do the batch `sources.archive` / `sources.restore` or `files.set_role`. Check-and-write is
-atomic: the row is locked (`SELECT … FOR UPDATE`) in the same transaction.
+neither do the batch `sources.archive` / `sources.restore` or `files.set_role`. A source's etag
+also changes when a file is added or a file's role changes (`complete_upload` returns the new one as
+`record_etag`). Parsing, which no caller does, does not change it, so an etag never goes stale while
+the worker runs. Check-and-write is atomic: the row is locked (`SELECT … FOR UPDATE`) in the same
+transaction.
 
 **Unknown fields are rejected** (`422 invalid_input`), in every input, at every depth: every input
 schema is a strict Zod object.
@@ -114,10 +117,15 @@ A source is one discovery event or document. It is stored as a **record**, so it
   permanently. Editors may do it, through either adapter. It requires the current etag, a reason,
   and `confirm` set to exactly `delete permanently`, and it leaves a tombstone, so citations report
   `record_deleted` and reads return `410 record_deleted` rather than a bare `404`.
-  `sources.delete_impact` previews what it will destroy and which citations it will orphan.
+  `sources.delete_impact` previews what it will destroy and which citations it will orphan,
+  including every Story page version that cites the source.
 - **Read modes** (`detail`): `brief` (identity, kind, title, date, derived status, counts) and
   `full` (adds files, the derivation manifest, the outline, and notes). Neither includes file bytes
-  or derived text.
+  or derived text. Both carry `warnings`, which says when the source has files but no primary yet,
+  so nothing on it is searched.
+- **Duplicates are warned about, not refused.** `sources.create` and `files.create_upload` return a
+  warning naming any live source in the product with the same title (ignoring case and surrounding
+  space), kind and date.
 
 ## 4.4 Kinds and placement: the opinionated taxonomy
 
@@ -180,6 +188,7 @@ An **annotation** is a note on a source, optionally anchored to a passage.
 | `seq_start`, `seq_end` | Optional, given together: an inclusive segment range of the current derivation, ≤ 50 segments. |
 | `note` | Markdown, 1–2,000 chars. |
 | `tags` | As sources. |
+| `archive_reason` | Optional, ≤ 500 chars: why the note was archived. Given only with `archived: true`; restoring clears it. |
 | `anchor` | When a range is given, a snapshot taken at creation (range, offsets, derivation id, and up to 500 characters of the text, a longer text cut at a word boundary and ending in an ellipsis), so the note can be re-located after a re-derivation. |
 
 Editable (note only, keeping revisions), archivable.

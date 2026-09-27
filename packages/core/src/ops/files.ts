@@ -7,8 +7,8 @@ import { kindInfo, SEARCH_RULE } from "../kinds.ts";
 import { extensionForMediaType, extensionOf, mediaTypeFor, NOTE_EXTENSIONS, validFilePath } from "../media.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { fileRole, id, kind } from "../schemas.ts";
-import { newId, sha256Hex } from "../util.ts";
-import { derivedStatuses, fileEntries, insertRecord, loadRecord, recordMetadata, recordSummary } from "./sources.ts";
+import { newEtag, newId, sha256Hex } from "../util.ts";
+import { derivedStatuses, duplicateWarnings, fileEntries, insertRecord, loadRecord, NO_PRIMARY_WARNING, recordMetadata, recordSummary } from "./sources.ts";
 
 export const UPLOAD_GRANT_HEADER = "X-WhatBuild-Upload-Grant";
 export const DOWNLOAD_GRANT_HEADER = "X-WhatBuild-Download-Grant";
@@ -25,6 +25,22 @@ const provenance = {
 function checkPath(path: string) {
   const problem = validFilePath(path);
   if (problem) throw invalid("invalid_path", `${problem}.`);
+}
+
+/**
+ * A warning, before any bytes move, when a primary's format has no parser: the primary role is
+ * permanent, so the mistake is cheapest to catch at the grant. A recording is left out; its
+ * result already says it is kept unparsed and needs a transcript source.
+ */
+export function unparsedPrimaryWarnings(path: string, role: string, declaredType?: string | null): string[] {
+  if (role !== "primary") return [];
+  const mediaType = mediaTypeFor(path, declaredType);
+  if (isRecording(path, mediaType) || parserFor(path, mediaType)) return [];
+  const ext = extensionOf(path) || "(no extension)";
+  return [
+    `No parser reads ${ext} files, so this primary would be stored but never parsed or searched, and a source's primary cannot be replaced by another file. ` +
+      `To make it searchable, upload a PDF export (or another parsed format: ${SUPPORTED_EXTENSIONS.join(", ")}) as the primary instead, and add ${path} to the same source with role origin.`,
+  ];
 }
 
 /** Validate that `path` can receive a new file or version with `role`, before any grant or bytes. */
@@ -117,14 +133,15 @@ export const requestUpload = defineOperation({
   mutates: true,
   summary: "Get a short-lived grant to PUT one file's bytes to a source. Never pass file bytes through a tool call.",
   description:
-    `Returns {url, method: "PUT", headers, max_bytes, expires_at}. Send the local file's bytes with your own shell or HTTP tool (curl -T file -H …), then call complete_upload. Grants are single-file, create-only, and expire. ${SEARCH_RULE} Never encode file content as base64 in a tool argument; if you cannot reach the URL, ask the person to use the web upload instead.`,
+    `Returns {url, method: "PUT", headers, max_bytes, expires_at, warnings}; warnings flag a primary no parser reads, before any bytes move. Send the local file's bytes with your own shell or HTTP tool (curl -T file -H …), then call complete_upload. Grants are single-file, create-only, and expire. ${SEARCH_RULE} Never encode file content as base64 in a tool argument; if you cannot reach the URL, ask the person to use the web upload instead.`,
   input: z.strictObject({ record_id: id("source"), ...requestUploadInput }),
   rest: { method: "POST", path: "/sources/:record_id/uploads" },
   mcp: { tool: "files", action: "request_upload" },
   async handler(ctx, input) {
     await loadRecord(ctx, input.record_id, { live: true });
     await checkTarget(ctx, input.record_id, input.path, input.role);
-    return issueGrant(ctx, input.record_id, input);
+    const grant = await issueGrant(ctx, input.record_id, input);
+    return { ...grant, warnings: unparsedPrimaryWarnings(input.path, input.role, input.media_type) };
   },
 });
 
@@ -135,16 +152,17 @@ export const createUpload = defineOperation({
   mutates: true,
   summary: "Create a source and get an upload grant for its first file, in one call.",
   description:
-    "Takes sources.create's metadata plus the file's path and role. Returns {record, upload}; PUT the bytes to upload.url with upload.headers, then call complete_upload. Prefer a digest to a bulk upload for long or mostly off-topic documents, and keep the original as an origin file.",
+    "Takes sources.create's metadata plus the file's path and role. Returns {record, upload, warnings}; PUT the bytes to upload.url with upload.headers, then call complete_upload. Read warnings first: they flag a primary no parser reads, and an existing source with the same title, kind and date. Prefer a digest to a bulk upload for long or mostly off-topic documents, and keep the original as an origin file.",
   input: z.strictObject({ kind, ...recordMetadata, ...requestUploadInput }),
   rest: { method: "POST", path: "/sources/with-upload" },
   mcp: { tool: "files", action: "create_upload" },
   async handler(ctx, input) {
     checkPath(input.path);
     const { path, role, media_type, size, derived_from, derivation_note, derived_by, ...meta } = input;
+    const warnings = [...(await duplicateWarnings(ctx, meta)), ...unparsedPrimaryWarnings(path, role, media_type)];
     const r = await insertRecord(ctx, meta);
     const upload = await issueGrant(ctx, r.record_id, { path, role, media_type, size, derived_from, derivation_note, derived_by });
-    return { record: recordSummary(r, { derived_status: "pending", segment_count: 0, file_count: 0 }), upload };
+    return { record: recordSummary(r, { derived_status: "pending", segment_count: 0, file_count: 0 }), upload, warnings };
   },
 });
 
@@ -193,6 +211,8 @@ export async function completeGrant(ctx: OpContext, grantId: string, provenanceO
       .where("file_id", "=", file.file_id)
       .execute();
     await ctx.db.updateTable("upload_grants").set({ completed_at: ctx.now, file_version_id: fileVersionId }).where("grant_id", "=", g.grant_id).execute();
+    // Adding a file changes the source, so its etag moves on.
+    await ctx.db.updateTable("records").set({ etag: newEtag() }).where("record_id", "=", g.record_id).execute();
     if (g.role === "primary") await ctx.enqueue("derive", { record_id: g.record_id, file_version_id: fileVersionId });
     await recordActivity(ctx, { action: "file_added", entity_type: "source", entity_id: g.record_id, entity_title: record.title, summary: `Added ${g.role} file ${g.path}` });
   } else if (provenanceOverride && Object.values(provenanceOverride).some((v) => v !== undefined)) {
@@ -217,7 +237,9 @@ export async function completeGrant(ctx: OpContext, grantId: string, provenanceO
     if (isRecording(g.path, entry.media_type)) outcome = "needs_transcript";
     else if (!parserFor(g.path, entry.media_type)) [outcome, detail] = ["unsupported", `no parser reads ${extensionOf(g.path) || "(no extension)"} files`];
   }
-  return { ...entry, record_id: g.record_id, note: fileNote(entry.role, outcome, detail) };
+  const warnings = entry.role !== "primary" && status.derived_status === "awaiting_file" ? [NO_PRIMARY_WARNING] : [];
+  const { etag: record_etag } = await ctx.db.selectFrom("records").select("etag").where("record_id", "=", g.record_id).executeTakeFirstOrThrow();
+  return { ...entry, record_id: g.record_id, record_etag, note: fileNote(entry.role, outcome, detail), warnings };
 }
 
 /** What will happen to a file, in words that match its search_status. */
@@ -246,7 +268,7 @@ export const completeUpload = defineOperation({
   mutates: true,
   summary: "Attach the bytes you PUT under a grant to the source. Idempotent.",
   description:
-    "Call after the PUT succeeds. The stored object's own size, hash and type decide the entry. A primary starts parsing; check sources.get(detail=\"brief\") for derived_status. 404 means no bytes arrived yet — PUT first. A repeat returns the existing entry; provenance fields given on a repeat are added. Tell the person which file is searched.",
+    "Call after the PUT succeeds. The stored object's own size, hash and type decide the entry. A primary starts parsing; check sources.get(detail=\"brief\") for derived_status. Adding a file changes the source's etag; record_etag is the new one. warnings says when the source still has no primary, so nothing on it is searched. 404 means no bytes arrived yet — PUT first. A repeat returns the existing entry; provenance fields given on a repeat are added. Tell the person which file is searched.",
   input: z.strictObject({ record_id: id("source"), path: z.string().min(1).max(200), ...provenance }),
   rest: { method: "POST", path: "/sources/:record_id/uploads/complete" },
   mcp: { tool: "files", action: "complete_upload" },
@@ -301,6 +323,16 @@ export const addNote = defineOperation({
   },
 });
 
+/** The part of a URL after # is never sent, so what was stored is the page without it. */
+export function fragmentWarnings(url: string): string[] {
+  const hash = new URL(url).hash;
+  if (!hash || hash === "#") return [];
+  return [
+    `The URL's fragment (${hash}) never reaches the server, so the stored file is the page at the URL without it. ` +
+      "If the fragment is a single-page app's route (…/#/page), the file is probably the app's empty shell: check segment_count once it is parsed, and prefer the document's own address, a PDF export, or an upload.",
+  ];
+}
+
 export const fetchUrl = defineOperation({
   name: "files.fetch_url",
   scope: "product",
@@ -308,7 +340,7 @@ export const fetchUrl = defineOperation({
   mutates: true,
   summary: "Fetch a public HTTPS document into a source, server-side (size-capped).",
   description:
-    "HTTPS only, public addresses only, redirects re-checked, size and time capped. The file name comes from the response, or pass path. Use for public material only; nothing is sent with the request. The part of a URL after # never reaches the server, so a single-page app's route (…/#/page) fetches only the app's empty shell.",
+    "HTTPS only, public addresses only, redirects re-checked, size and time capped. The file name comes from the response, or pass path. Use for public material only; nothing is sent with the request. The part of a URL after # never reaches the server, so a single-page app's route (…/#/page) fetches only the app's empty shell; the result's warnings say so whenever the URL has a fragment.",
   input: z.strictObject({ record_id: id("source"), url: z.url().max(2000), path: z.string().min(1).max(200).optional(), role: fileRole.default("primary"), ...provenance }),
   rest: { method: "POST", path: "/sources/:record_id/fetch" },
   mcp: { tool: "files", action: "fetch_url" },
@@ -324,7 +356,8 @@ export const fetchUrl = defineOperation({
     }
     let path = input.path ?? fetched.fileName;
     if (!extensionOf(path)) path += extensionForMediaType(fetched.mediaType);
-    return storeDirect(ctx, input.record_id, path, input.role, fetched.bytes, fetched.mediaType, input);
+    const stored = await storeDirect(ctx, input.record_id, path, input.role, fetched.bytes, fetched.mediaType, input);
+    return { ...stored, warnings: [...fragmentWarnings(input.url), ...stored.warnings] };
   },
 });
 
@@ -350,6 +383,7 @@ export const setRole = defineOperation({
       if (other) throw conflict("primary_taken", `This source's primary is ${other.path}.`);
     }
     await ctx.db.updateTable("files").set({ role: input.role, role_changed_at: ctx.now, role_changed_by: json(ctx.actor) }).where("file_id", "=", f.file_id).execute();
+    await ctx.db.updateTable("records").set({ etag: newEtag() }).where("record_id", "=", r.record_id).execute();
     if (input.role === "primary" && f.current_version_id) await ctx.enqueue("derive", { record_id: r.record_id, file_version_id: f.current_version_id });
     await recordActivity(ctx, { action: "file_role_changed", entity_type: "source", entity_id: r.record_id, entity_title: r.title, summary: `Changed ${f.path} from ${f.role} to ${input.role}` });
     const status = (await derivedStatuses(ctx, [r.record_id])).get(r.record_id)!;

@@ -74,6 +74,39 @@ export async function derivedStatuses(ctx: OpContext, recordIds: string[]) {
   return out;
 }
 
+/** Said wherever a source with files but no primary shows up: a primary is still expected. */
+export const NO_PRIMARY_WARNING =
+  "This source has no primary file yet, so nothing on it is parsed or searched. A primary is still expected: upload one with files(action=\"request_upload\", role=\"primary\"), or make an existing file the primary with files(action=\"set_role\").";
+
+/** What a read of a source should warn about, beyond its derived_status. */
+function sourceWarnings(s: { derived_status: string; file_count: number }): string[] {
+  return s.derived_status === "awaiting_file" && s.file_count > 0 ? [NO_PRIMARY_WARNING] : [];
+}
+
+/**
+ * A soft warning, never a refusal, when a live source in this product already has the same title
+ * (ignoring case and surrounding space), kind and date: duplicates split citations and dilute search.
+ */
+export async function duplicateWarnings(ctx: OpContext, meta: { kind: string; title: string; date?: string | null | undefined }): Promise<string[]> {
+  const date = meta.date ?? null;
+  const same = await ctx.db
+    .selectFrom("records")
+    .select(["record_id", "title"])
+    .where("product_id", "=", productId(ctx))
+    .where("archived_at", "is", null)
+    .where("kind", "=", meta.kind)
+    .where(sql<boolean>`lower(btrim(title)) = lower(btrim(${meta.title}))`)
+    .where(date === null ? sql<boolean>`date is null` : sql<boolean>`date = ${date}`)
+    .orderBy("record_id")
+    .limit(5)
+    .execute();
+  if (!same.length) return [];
+  const ids = same.map((r) => r.record_id).join(", ");
+  return [
+    `A source with the same title, kind and date already exists (${ids}). If this is the same material, add files to that source and archive this one; if it is different, give this one a title that tells them apart.`,
+  ];
+}
+
 export function recordSummary(r: RecordRow, s?: { derived_status: string; segment_count: number; file_count: number }) {
   const info = kindInfo(r.kind);
   return {
@@ -220,7 +253,7 @@ export const getSource = defineOperation({
   mutates: false,
   summary: "Read a source cheaply (brief), or everything about it (full): files, manifest, outline, notes.",
   description:
-    "Start with detail=\"brief\" to check derived_status and segment_count, then plan read_passage windows. `full` adds files (each with searchable and search_status), the derivation manifest, the outline, and notes. Neither returns file bytes or derived text. An archived source is still readable by id.",
+    "Start with detail=\"brief\" to check derived_status and segment_count, then plan read_passage windows. warnings says when the source has files but still no primary. etag is the one sources.update and sources.delete expect. `full` adds files (each with searchable and search_status), the derivation manifest, the outline, and notes. Neither returns file bytes or derived text. An archived source is still readable by id.",
   input: z.strictObject({ record_id: id("source"), detail: z.enum(["brief", "full"]).default("brief") }),
   rest: { method: "GET", path: "/sources/:record_id" },
   mcp: { tool: "sources", action: "get" },
@@ -232,6 +265,7 @@ export const getSource = defineOperation({
       text_chars: s.text_chars,
       duration_ms: s.duration_ms,
       status_detail: s.status_detail,
+      warnings: sourceWarnings(s),
       annotation_count: Number(
         (await ctx.db.selectFrom("annotations").select((eb) => eb.fn.countAll<number>().as("n")).where("record_id", "=", r.record_id).where("archived_at", "is", null).executeTakeFirst())?.n ?? 0,
       ),
@@ -374,13 +408,14 @@ export const createSource = defineOperation({
   mutates: true,
   summary: "Create a source (a record) from metadata; then add files with files.request_upload, files.add_note or files.fetch_url.",
   description:
-    "Describe what the material is; the folder is derived from kind and date and never supplied. To create a source and get an upload grant in one call, use files(action=\"create_upload\"). Before creating, check sources(action=\"list\", query=…) for an equivalent source — duplicates dilute search and split citations.",
+    "Describe what the material is; the folder is derived from kind and date and never supplied. To create a source and get an upload grant in one call, use files(action=\"create_upload\"). Before creating, check sources(action=\"list\", query=…) for an equivalent source — duplicates dilute search and split citations. warnings names any live source with the same title, kind and date; nothing is refused.",
   input: z.strictObject({ kind, ...recordMetadata }),
   rest: { method: "POST", path: "/sources" },
   mcp: { tool: "sources", action: "create" },
   async handler(ctx, input) {
+    const warnings = await duplicateWarnings(ctx, input);
     const r = await insertRecord(ctx, input);
-    return { ...recordSummary(r, { derived_status: "awaiting_file", segment_count: 0, file_count: 0 }) };
+    return { ...recordSummary(r, { derived_status: "awaiting_file", segment_count: 0, file_count: 0 }), warnings };
   },
 });
 
@@ -391,7 +426,7 @@ export const updateSource = defineOperation({
   mutates: true,
   summary: "Correct a source's metadata in place — kind, title, date, organization, tags and more. Pass only what changes.",
   description:
-    "Fix mistakes here; never archive and recreate, because citations point at the record id. Changing kind, title or date re-derives the logical folder; the id, files, passages and every citation are untouched. Requires expected_etag.",
+    "Fix mistakes here; never archive and recreate, because citations point at the record id. Changing kind, title or date re-derives the logical folder; the id, files, passages and every citation are untouched. Requires expected_etag: the source's current etag, from sources(action=\"get\") or the result of your last write to it. Adding a file also changes it. A stale one gets 409 stale_etag with details.current_etag; read the source again before retrying.",
   input: z.strictObject({ record_id: id("source"), expected_etag: expectedEtag, kind: kind.optional(), ...recordMetadata, title: recordMetadata.title.optional() }),
   rest: { method: "PATCH", path: "/sources/:record_id" },
   mcp: { tool: "sources", action: "update" },
@@ -607,13 +642,14 @@ export const updateAnnotation = defineOperation({
   access: "write",
   mutates: true,
   summary: "Edit a note's text or tags, or archive or restore it.",
-  description: "Requires expected_etag. The previous note text is kept as a revision.",
+  description: "Requires expected_etag. The previous note text is kept as a revision. When archiving, say why in archive_reason rather than rewriting the note.",
   input: z.strictObject({
     annotation_id: id("annotation"),
     expected_etag: expectedEtag,
     note: z.string().trim().min(1).max(2000).optional(),
     tags: tags.optional(),
     archived: z.boolean().optional(),
+    archive_reason: z.string().trim().min(1).max(500).optional().describe("Why the note is archived. Only with archived: true; restoring clears it."),
   }),
   rest: { method: "PATCH", path: "/annotations/:annotation_id" },
   mcp: { tool: "sources", action: "update_annotation" },
@@ -621,6 +657,7 @@ export const updateAnnotation = defineOperation({
     const a = await ctx.db.selectFrom("annotations").selectAll().where("annotation_id", "=", input.annotation_id).where("product_id", "=", productId(ctx)).forUpdate().executeTakeFirst();
     if (!a) throw notFound(`Note ${input.annotation_id} does not exist in this product.`);
     checkEtag(input.expected_etag, a.etag, "note");
+    if (input.archive_reason !== undefined && input.archived !== true) throw invalid("invalid_input", "archive_reason goes with archived: true.");
     if (input.note !== undefined && input.note !== a.note) {
       await keepRevision(ctx, "annotation", a.annotation_id, { note: a.note }, a.updated_at, a.updated_by);
     }
@@ -630,6 +667,7 @@ export const updateAnnotation = defineOperation({
         note: input.note ?? a.note,
         tags: input.tags ? normalizeTags(input.tags) : a.tags,
         archived_at: input.archived === undefined ? a.archived_at : input.archived ? ctx.now : null,
+        archive_reason: input.archived === undefined ? a.archive_reason : input.archived ? (input.archive_reason ?? null) : null,
         etag: newEtag(),
         updated_at: ctx.now,
         updated_by: json(ctx.actor),
@@ -642,7 +680,7 @@ export const updateAnnotation = defineOperation({
       entity_type: "source",
       entity_id: a.record_id,
       entity_title: r?.title ?? null,
-      summary: input.archived === true ? "Archived a note" : input.archived === false ? "Restored a note" : "Edited a note",
+      summary: input.archived === true ? (input.archive_reason ? `Archived a note: ${truncateQuote(input.archive_reason, 200)}` : "Archived a note") : input.archived === false ? "Restored a note" : "Edited a note",
     });
     return ctx.db.selectFrom("annotations").selectAll().where("annotation_id", "=", a.annotation_id).executeTakeFirstOrThrow();
   },
@@ -816,6 +854,26 @@ export const copySource = defineOperation({
 
 // ---- Delete: permanent, guarded, and said plainly ----------------------------------------------
 
+/** Every Story page version, current or earlier, whose citations include a source. */
+async function storyVersionsCiting(ctx: OpContext, recordId: string) {
+  const rows = await ctx.db
+    .selectFrom("story_versions as v")
+    .innerJoin("story_pages as p", (j) => j.onRef("p.product_id", "=", "v.product_id").onRef("p.page_id", "=", "v.page_id"))
+    .select(["v.page_id", "p.title", "v.n", "v.version_id", "p.current_version_id", "v.citations"])
+    .where("v.product_id", "=", productId(ctx))
+    .where(sql<boolean>`v.citations @> ${JSON.stringify([{ record_id: recordId }])}::jsonb`)
+    .orderBy("p.title")
+    .orderBy("v.n", "desc")
+    .execute();
+  return rows.map((v) => ({
+    page_id: v.page_id,
+    title: v.title,
+    version: v.n,
+    count: v.citations.filter((c) => c.record_id === recordId).length,
+    is_current: v.version_id === v.current_version_id,
+  }));
+}
+
 async function impact(ctx: OpContext, r: RecordRow) {
   const pid = productId(ctx);
   const files = await ctx.db.selectFrom("file_versions").select(["file_version_id", "size", "blob_key"]).where("record_id", "=", r.record_id).execute();
@@ -823,6 +881,7 @@ async function impact(ctx: OpContext, r: RecordRow) {
   const annotations = await ctx.db.selectFrom("annotations").select("annotation_id").where("record_id", "=", r.record_id).execute();
   const entries = await ctx.db.selectFrom("register_entries").select(["entry_id", "kind", "statement", "citations"]).where("product_id", "=", pid).where(sql<boolean>`citations @> ${JSON.stringify([{ record_id: r.record_id }])}::jsonb`).execute();
   const insights = await ctx.db.selectFrom("insights").select(["insight_id", "title"]).where("product_id", "=", pid).where(sql<boolean>`refs->'sources' ? ${r.record_id}`).execute();
+  const versions = await storyVersionsCiting(ctx, r.record_id);
   return {
     record_id: r.record_id,
     title: r.title,
@@ -836,6 +895,10 @@ async function impact(ctx: OpContext, r: RecordRow) {
     story_pages_citing: (await storyPagesUsing(ctx, r.record_id, { includeArchived: true }))
       .filter((p) => p.citations.length)
       .map((p) => ({ page_id: p.page_id, title: p.title, version: p.version, count: p.citations.length })),
+    story_versions_citing: versions,
+    after_delete:
+      "Citations keep their quoted text (quote_kept: true) and then report record_deleted, with the tombstone: " +
+      `${entries.length} register ${entries.length === 1 ? "entry" : "entries"} and ${versions.length} Story page ${versions.length === 1 ? "version" : "versions"} (story_versions_citing lists every version, current or earlier).`,
     _blobs: files.map((f) => f.blob_key),
     _prefixes: derivations.map((d) => d.blob_prefix),
   };
@@ -848,7 +911,7 @@ export const deleteImpact = defineOperation({
   mutates: false,
   summary: "Preview exactly what deleting a source would destroy, including the citations it would orphan.",
   description:
-    "Read-only. Show the person this result before proposing a delete. Citations elsewhere keep their quoted snapshot text after a delete and report record_deleted.",
+    "Read-only. Show the person this result before proposing a delete. Citations elsewhere keep their quoted snapshot text after a delete and report record_deleted; story_versions_citing lists every Story page version that cites the source, earlier versions included. Pass this result's etag as the delete's expected_etag.",
   input: z.strictObject({ record_id: id("source") }),
   rest: { method: "GET", path: "/sources/:record_id/delete-impact" },
   mcp: { tool: "sources", action: "delete_impact" },
@@ -868,7 +931,7 @@ export const deleteSource = defineOperation({
   mutates: true,
   summary: "DELETE PERMANENTLY — cannot be undone. Destroys a source's files, passages and notes; archive is the reversible alternative.",
   description:
-    "This is permanent and cannot be undone. Archive (sources.archive) is the reversible alternative and almost always what is wanted. Requires editor, the current expected_etag, a reason, and confirm set to exactly \"delete permanently\". Call delete_impact first and show the person what it will destroy; never chain a delete after another action in the same turn. Leaves a tombstone: reads return 410 with who, when and why, and citations keep their quoted text.",
+    "This is permanent and cannot be undone. Archive (sources.archive) is the reversible alternative and almost always what is wanted. Requires editor, expected_etag, a reason, and confirm set to exactly \"delete permanently\". expected_etag is the etag from the delete_impact result you showed the person; if the source changed since, the delete is refused with 409 stale_etag, so preview again. Call delete_impact first and show the person what it will destroy; never chain a delete after another action in the same turn. Leaves a tombstone: reads return 410 with who, when and why, and citations keep their quoted text.",
   input: z.strictObject({
     record_id: id("source"),
     expected_etag: expectedEtag,
