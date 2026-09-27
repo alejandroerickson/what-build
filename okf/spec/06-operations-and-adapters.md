@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 99 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
-generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-27T06:00:00Z}
 status: stable
 ---
 
@@ -254,7 +254,7 @@ GET  /api/v1/connect                                 what the Connect page shows
 GET|PATCH /api/v1/me; GET|POST /api/v1/me/tokens; DELETE /api/v1/me/tokens/:id; DELETE /api/v1/me/agents/:family
 POST /api/v1/invitations/accept
 /auth/*  /oauth/*  /.well-known/oauth-*              sign-in and OAuth (§6.6)
-/healthz  /whatbuild-skill.md  /whatbuild-skill.zip  /install.sh  /install.ps1
+/health  /whatbuild-skill.md  /whatbuild-skill.zip  /install.sh  /install.ps1
 ```
 
 **Bytes are served by the service itself**, streamed from the object store with

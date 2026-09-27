@@ -26,7 +26,9 @@
 #                       gcloud account running this script. Invited people can always join.
 #   SMTP_URL            smtp(s)://user:pass@host:port for sign-in links and invitations (optional)
 #   MAIL_FROM           e.g. "WhatBuild <hello@what-build.com>"
-#   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET   an OAuth web client for "Continue with Google" (optional)
+#   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET   an OAuth web client for "Continue with Google" (optional).
+#                       The secret may instead be created in Secret Manager as
+#                       whatbuild-google-client-secret, and only GOOGLE_CLIENT_ID passed.
 #   SIGNED_URLS=1       also hand agents direct-to-bucket upload URLs for files over 25 MB
 set -euo pipefail
 
@@ -132,9 +134,14 @@ $G secrets describe whatbuild-grant-key >/dev/null 2>&1 || secret whatbuild-gran
 $G secrets add-iam-policy-binding whatbuild-grant-key --member "serviceAccount:$RUNTIME_SA" --role roles/secretmanager.secretAccessor >/dev/null
 SECRETS="DATABASE_URL=whatbuild-database-url:latest,WHATBUILD_GRANT_KEY=whatbuild-grant-key:latest"
 if [ -n "${SMTP_URL:-}" ]; then secret whatbuild-smtp-url "$SMTP_URL"; fi
-if $G secrets describe whatbuild-smtp-url >/dev/null 2>&1; then SECRETS="$SECRETS,WHATBUILD_SMTP_URL=whatbuild-smtp-url:latest"; fi
 if [ -n "${GOOGLE_CLIENT_SECRET:-}" ]; then secret whatbuild-google-client-secret "$GOOGLE_CLIENT_SECRET"; fi
-if $G secrets describe whatbuild-google-client-secret >/dev/null 2>&1; then SECRETS="$SECRETS,WHATBUILD_GOOGLE_CLIENT_SECRET=whatbuild-google-client-secret:latest"; fi
+# Either secret may also be created by hand in Secret Manager; the service uses it whenever it exists.
+for pair in WHATBUILD_SMTP_URL=whatbuild-smtp-url WHATBUILD_GOOGLE_CLIENT_SECRET=whatbuild-google-client-secret; do
+  if $G secrets describe "${pair#*=}" >/dev/null 2>&1; then
+    $G secrets add-iam-policy-binding "${pair#*=}" --member "serviceAccount:$RUNTIME_SA" --role roles/secretmanager.secretAccessor >/dev/null
+    SECRETS="$SECRETS,$pair:latest"
+  fi
+done
 
 step "First image (Cloud Build)"
 $G builds submit --region "$REGION" --tag "$IMAGE" .
@@ -165,7 +172,8 @@ step "Service $SERVICE"
 $G run deploy "$SERVICE" --region "$REGION" --image "$IMAGE" --service-account "$RUNTIME_SA" \
   --allow-unauthenticated --no-cpu-throttling --min-instances 0 --max-instances 3 --memory 1Gi --cpu 1 \
   --concurrency 40 --timeout 300 --set-secrets "$SECRETS" --set-env-vars "$ENV_ARG" ${CLOUDSQL_FLAGS[@]+"${CLOUDSQL_FLAGS[@]}"}
-URL="${PUBLIC_URL:-$($G run services describe "$SERVICE" --region "$REGION" --format='value(status.url)')}"
+# The stable run.app address, named by project number (status.url is the older, hashed one).
+URL="${PUBLIC_URL:-https://$SERVICE-$PROJECT_NUMBER.$REGION.run.app}"
 $G run services update "$SERVICE" --region "$REGION" --update-env-vars "WHATBUILD_PUBLIC_URL=$URL" >/dev/null
 
 cat <<EOF
