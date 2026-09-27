@@ -74,7 +74,10 @@ are excluded from search and included in exports.
 | `position` | Ordering key within the product; new objectives go last; reorder is an update. |
 
 Insights, register entries and Story versions point *to* objectives; objectives hold no outgoing
-references. Reads return counts of the insights, assumptions and decisions that point at each.
+references. Reads return counts of the insights, assumptions and decisions that point at each:
+unarchived insights, and current (`unconfirmed` or `confirmed`) register entries. Superseded and
+refuted entries are not counted, so a count matches the register's default view. `products.get`
+counts assumptions and decisions the same way.
 
 ## 4.3 Sources
 

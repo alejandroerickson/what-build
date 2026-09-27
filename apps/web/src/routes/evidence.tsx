@@ -263,8 +263,9 @@ export function EvidencePage() {
   if (f.tags) chips.push({ label: `Tagged ${f.tags}`, to: clear(["tags"]) });
   if (f.query) chips.push({ label: `Matching “${f.query}”`, to: clear(["query"]) });
   if (f.include_archived === "1") chips.push({ label: "Including archived", to: clear(["include_archived"]) });
-  const total = product.counts.sources;
-  const count = q.isSuccess ? (active.length ? `${records.length}${q.hasNextPage ? "+" : ""} of ${total}` : `${records.length}${q.hasNextPage ? "+" : ""}`) : undefined;
+  // "of N" compares with the product's live sources, so it is left out once archived ones are listed.
+  const total = active.length && f.include_archived !== "1" ? ` of ${product.counts.sources}` : "";
+  const count = q.isSuccess ? `${records.length}${q.hasNextPage ? "+" : ""}${total}` : undefined;
   return (
     <>
       <EvidenceFilters />
@@ -315,7 +316,7 @@ export function EvidencePage() {
                   <ListRow
                     key={r.record_id}
                     to={`${app}/evidence/${r.record_id}`}
-                    className="source-row"
+                    className={r.archived_at ? "source-row is-archived" : "source-row"}
                     title={r.title}
                     sub={[kinds.data?.kinds.find((k) => k.kind === r.kind)?.short ?? r.kind_label, r.organization, r.date ? formatDate(r.date) : null].filter(Boolean).join(" · ")}
                     end={

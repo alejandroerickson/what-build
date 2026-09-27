@@ -60,7 +60,9 @@ export function RegisterListPage({ kind }: { kind: Kind }) {
   });
   const items = q.data?.pages.flatMap((p) => p.items) ?? [];
   const filtered = Boolean(show || objective);
-  const count = !q.data ? undefined : !filtered ? product.counts[kind] : q.hasNextPage ? `${items.length}+` : items.length;
+  // The number of rows this view lists. The product's count is used only while more pages remain,
+  // and only for the default "Current" view, which is what it counts.
+  const count = !q.data ? undefined : !q.hasNextPage ? items.length : filtered ? `${items.length}+` : product.counts[kind];
   const objTitle = objectives.data?.items.find((o) => o.objective_id === objective)?.title;
   const setShow = (id: string) => {
     const n = new URLSearchParams(params);
@@ -334,6 +336,9 @@ function ReviewForm({ entry, kind, onSaved }: { entry: RegisterEntry; kind: Kind
         </Callout>
       ) : review.isError ? (
         <ErrorCallout title="The review was not saved" error={review.error} inset />
+      ) : null}
+      {!entry.frozen ? (
+        <p className="small muted register-freeze-note">Saving a review freezes this entry's statement, body and citations; a later correction supersedes it.</p>
       ) : null}
       <div className="register-form-actions">
         <Button type="submit" variant="primary" disabled={!note.trim()} busy={review.isPending} busyLabel="Saving…">

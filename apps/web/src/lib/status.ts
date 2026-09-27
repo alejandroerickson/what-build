@@ -1,7 +1,11 @@
 import type { StatusTone } from "../ui/index.tsx";
 
-/** What a source's derived status means to a person, and what to do next. */
-export const DERIVED_STATUS: Record<string, { label: string; tone: StatusTone; explain: string; next?: string }> = {
+/**
+ * What a source's derived status means to a person, and what to do next. `detail` marks the
+ * statuses whose server detail (a size or an error) adds to `explain`; for the rest, `explain`
+ * already says what the detail would.
+ */
+export const DERIVED_STATUS: Record<string, { label: string; tone: StatusTone; explain: string; next?: string; detail?: true }> = {
   ready: { label: "Ready", tone: "positive", explain: "Parsed into passages; its primary file is searched." },
   pending: { label: "Processing", tone: "progress", explain: "Queued for parsing. Passages and the outline appear when it finishes." },
   awaiting_file: { label: "No file yet", tone: "neutral", explain: "This source has no primary file yet.", next: "Add a file." },
@@ -17,12 +21,19 @@ export const DERIVED_STATUS: Record<string, { label: string; tone: StatusTone; e
     explain: "No parser reads this format. The file is stored and downloadable.",
     next: "Add a text, Markdown, VTT, SRT, DOCX, XLSX, PDF or HTML version as a new source.",
   },
-  too_large: { label: "Too large to parse", tone: "attention", explain: "Stored in full, but over the parsing limit.", next: "Add a shorter digest as a new source and keep this file as its origin." },
-  failed: { label: "Parsing failed", tone: "negative", explain: "The file is stored, but its text could not be read.", next: "Check it opens elsewhere; upload a clean copy as a new source." },
+  too_large: { label: "Too large to parse", tone: "attention", explain: "Stored in full, but over the parsing limit.", next: "Add a shorter digest as a new source and keep this file as its origin.", detail: true },
+  failed: { label: "Parsing failed", tone: "negative", explain: "The file is stored, but its text could not be read.", next: "Check it opens elsewhere; upload a clean copy as a new source.", detail: true },
 };
 
 export function derivedStatus(status: string) {
   return DERIVED_STATUS[status] ?? { label: status, tone: "neutral" as StatusTone, explain: "" };
+}
+
+/** The server's status detail, only when it adds to the explanation (an unknown status always shows it). */
+export function derivedStatusDetail(status: string, detail: string | null | undefined): string | null {
+  if (!detail) return null;
+  const known = DERIVED_STATUS[status];
+  return !known || known.detail ? detail : null;
 }
 
 export const REVIEW_STATUS: Record<string, { label: string; tone: StatusTone }> = {

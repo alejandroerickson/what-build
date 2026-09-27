@@ -1,7 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { formatCue, formatDate, formatDateTime, relativeTime } from "../src/lib/format.ts";
+import { formatCue, formatDate, formatDateTime, passageText, relativeTime } from "../src/lib/format.ts";
 import { Markdown } from "../src/lib/markdown.tsx";
+import { derivedStatusDetail } from "../src/lib/status.ts";
 
 const html = (md: string) => renderToStaticMarkup(<Markdown source={md} />);
 
@@ -49,5 +50,22 @@ describe("formatting", () => {
     expect(formatCue(3723400)).toBe("1:02:03.4");
     expect(relativeTime(new Date(Date.now() - 5000).toISOString())).toBe("just now");
     expect(relativeTime(new Date(Date.now() - 3 * 3600_000).toISOString())).toBe("3 h ago");
+  });
+});
+
+describe("passages and statuses", () => {
+  it("shows a heading passage without its Markdown markers, and leaves other text as stored", () => {
+    expect(passageText("## Tickets by category", 2)).toBe("Tickets by category");
+    expect(passageText("# Planning interview — Example Co, Mar 2026", 1)).toBe("Planning interview — Example Co, Mar 2026");
+    expect(passageText("#hashtag stays", null)).toBe("#hashtag stays");
+    expect(passageText("# Not a heading here", null)).toBe("# Not a heading here");
+  });
+  it("adds the server's status detail only where the explanation does not already say it", () => {
+    expect(derivedStatusDetail("needs_transcript", "a recording is stored and playable but has no text")).toBeNull();
+    expect(derivedStatusDetail("unsupported", "no parser reads .key files")).toBeNull();
+    expect(derivedStatusDetail("failed", "Error: bad zip")).toBe("Error: bad zip");
+    expect(derivedStatusDetail("too_large", "the file is 90 bytes")).toBe("the file is 90 bytes");
+    expect(derivedStatusDetail("something_new", "why")).toBe("why");
+    expect(derivedStatusDetail("failed", null)).toBeNull();
   });
 });

@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, routes, first run, and the behavior of every screen (Objectives, Evidence, Synthesis, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-27}
 status: stable
 ---
 
@@ -141,7 +141,7 @@ seeded accounts.
 The landing screen. The product's idea at the top; objectives as aligned cards in a centered
 content band that adapts to narrow screens. Create, edit inline, reorder, change status. Each card
 shows how many insights, assumptions, and decisions point at it, linking into Synthesis filtered by
-that objective. Archived objectives are behind a filter (`?status=`). An empty product presents this screen as
+that objective; each number is the one the linked list shows (current entries, [§4.2](04-data-model.md)). Archived objectives are behind a filter (`?status=`). An empty product presents this screen as
 the first step of the loop: write the idea, then the first objective, then add material.
 
 ## 7.6 Evidence
@@ -158,7 +158,8 @@ The sources, and everything for reading them.
   plain-language explanation and next step (`needs_transcript` → "add a transcript").
 - **Browse.** Filters held in the URL: folder, kind, organization, date range, tags, title
   substring, archived — set from the panel's context slot, each a link that sets URL params.
-  Paged.
+  Paged. The header counts the sources listed, with "of N" live sources while filters narrow the
+  list (left out once archived sources are included). Archived rows are muted and marked Archived.
 - **Source page.** A source is the busiest object in the app, so the page is dense on purpose.
   - **Header:** the title, then a meta line (kind, date, organization, and "Added by <who> · via
     <surface>, <date>"). Below it the **description**: the agent's summary note when there is one,
@@ -177,8 +178,11 @@ The sources, and everything for reading them.
     is searched), **Cited in** (insights, assumptions, decisions and Story pages, each citation
     linking to its exact passage), "Activity on this source", and Archive. On a narrow screen the
     page stacks header, description and sections, and the inspector opens from "Details".
-- **Passage reader.** Paged segments with address (¶n), speaker and cue time; go to a passage
-  number; the URL tracks position (`?seq=N`); "Search this source" at the top. Selecting a passage
+  - **Status:** a source that is not `ready` shows a callout with the status's explanation and next
+    step. The server's `status_detail` is added only where it says more (a size or an error).
+- **Passage reader.** Paged segments with address (¶n), speaker and cue time; heading passages
+  are shown without their Markdown markers (the stored text, which citations quote, keeps them); go
+  to a passage number; the URL tracks position (`?seq=N`); "Search this source" at the top. Selecting a passage
   (Shift for a range) offers: comment, or copy a citation reference for an agent.
 - **Comments** (annotations) are shown inline under the passage they belong to, and listed in the
   Notes section.
@@ -208,10 +212,12 @@ reached from it.
   revisions the operations expose, and looks and behaves identically in both. Planned: a diff
   against the current text, and the same control for the product idea, annotations and unreviewed
   register entries once their revisions are exposed.
-- **Registers:** two lists, filterable by review status (`?show=`) and objective. An
+- **Registers:** two lists, filterable by review status (`?show=`) and objective; the default is
+  current entries, and the header counts the rows the view lists. An
   entry page shows the statement, body, citations with their **snapshot text** and live
   `check_citations` status, links grouped by type, and the full review history. Actions: review
-  (status + required note, optional confidence), link, supersede (opens a prefilled new entry).
+  (status + required note, optional confidence; before the first review the form says that saving
+  freezes the statement, body and citations), link, supersede (opens a prefilled new entry).
   Frozen fields ([§4.8](04-data-model.md)) are shown as such, with "supersede" as the path to
   change them.
 

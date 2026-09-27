@@ -226,6 +226,13 @@
   margin-top: var(--s-4);
   padding-left: calc(var(--col-label) + var(--s-4));
 }
+.register-freeze-note {
+  margin: var(--s-4) 0 0;
+  padding-left: calc(var(--col-label) + var(--s-4));
+}
+.register-freeze-note + .register-form-actions {
+  margin-top: var(--s-2);
+}
 
 /* ---- History dialog --------------------------------------------------------------------------- */
 
@@ -452,7 +459,8 @@
     gap: 0;
   }
   .insight-form-actions,
-  .register-form-actions {
+  .register-form-actions,
+  .register-freeze-note {
     padding-left: 0;
   }
   .entry-cite-row {

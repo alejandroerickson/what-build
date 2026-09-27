@@ -5,7 +5,7 @@ import { api, ApiError, qs } from "../lib/api.ts";
 import { actorName, attribution, formatBytes, formatDate, plural, relativeTime } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
-import { derivedStatus, PROVENANCE_LABEL, REVIEW_STATUS, ROLE_LABEL } from "../lib/status.ts";
+import { derivedStatus, derivedStatusDetail, PROVENANCE_LABEL, REVIEW_STATUS, ROLE_LABEL } from "../lib/status.ts";
 import type { Actor, FileEntry, RecordFull } from "../lib/types.ts";
 import { Inspector, InspectorToggle, ShellContext, usePageTitle } from "../shell/slots.tsx";
 import {
@@ -120,6 +120,7 @@ export function SourceDetailPage() {
   }
   const r = q.data;
   const status = derivedStatus(r.derived_status);
+  const statusDetail = derivedStatusDetail(r.derived_status, r.status_detail);
   const parsed = r.segment_count > 0;
   const requested = params.get("view") as View | null;
   const fallback: View = parsed ? "passages" : r.files.length ? "original" : "files";
@@ -150,7 +151,7 @@ export function SourceDetailPage() {
       ) : null}
       {r.derived_status !== "ready" ? (
         <Callout tone={status.tone === "negative" ? "negative" : status.tone === "attention" ? "attention" : "info"} title={status.label}>
-          {status.explain} {r.status_detail ? <span className="muted">({r.status_detail})</span> : null} {status.next ?? ""}
+          {status.explain} {statusDetail ? <span className="muted">({statusDetail})</span> : null} {status.next ?? ""}
         </Callout>
       ) : null}
         </div>
