@@ -144,8 +144,9 @@ ENV_VARS="WHATBUILD_GCS_BUCKET=$BUCKET,WHATBUILD_SIGNUP_ALLOWLIST=${ALLOW//,/;}"
 [ -n "${MAIL_FROM:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_MAIL_FROM=$MAIL_FROM"
 [ -n "${GOOGLE_CLIENT_ID:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID"
 [ -n "${SIGNED_URLS:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_GCS_SIGNED_URLS=1"
-# A list inside a --set-env-vars value needs gcloud's alternate delimiter syntax.
-ENV_ARG="^@^${ENV_VARS//,/@}"
+# A list inside a --set-env-vars value needs gcloud's alternate delimiter syntax. The delimiter is "|",
+# which no email, domain or sender name contains ("@" would split the allowlist).
+ENV_ARG="^|^${ENV_VARS//,/|}"
 ENV_ARG="${ENV_ARG//;/,}"
 
 step "Migration job $JOB"
