@@ -954,7 +954,7 @@ export const deleteSource = defineOperation({
   mutates: true,
   summary: "DELETE PERMANENTLY — cannot be undone. Destroys a source's files, passages and notes; archive is the reversible alternative.",
   description:
-    "This is permanent and cannot be undone. Archive (sources.archive) is the reversible alternative and almost always what is wanted. Requires editor, expected_etag, a reason, and confirm set to exactly \"delete permanently\". expected_etag is the etag from the delete_impact result you showed the person; if the source changed since, the delete is refused with 409 stale_etag, so preview again. Call delete_impact first and show the person what it will destroy; never chain a delete after another action in the same turn. Leaves a tombstone: reads return 410 with who, when and why, and citations keep their quoted text.",
+    "This is permanent and cannot be undone. Archive (sources.archive) is the reversible alternative and almost always what is wanted. Requires editor, expected_etag, a reason, and confirm set to exactly \"delete permanently\". expected_etag is the etag from the delete_impact result you showed the person; if the source changed since, the delete is refused with 409 stale_etag, so preview again. Call delete_impact first, show the person what it will destroy, and delete only once they approve that impact: never slip a delete into a run of other actions, and even with a delete approved in advance, read delete_impact first and stop to ask when it would destroy more than they approved. Leaves a tombstone: reads return 410 with who, when and why, and citations keep their quoted text.",
   input: z.strictObject({
     record_id: id("source"),
     expected_etag: expectedEtag,
