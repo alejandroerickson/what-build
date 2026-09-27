@@ -163,7 +163,10 @@ together. Search the terms separately and read the window around the hits.
 
 For an analysis built across sources: `lineage(action="capture")` the inputs, generate the view,
 upload it as a source of kind `view` (or `analysis`, `digest`), then `lineage(action="write")` with
-the untouched fingerprints. Later, `lineage(action="check")` says whether any input changed. Never
+the untouched fingerprints and `captured_at`. Later, `lineage(action="check")` says whether any
+input changed and which parts (title, date, derivation, statement…). It checks direct inputs only:
+capture a source a decision cites as its own input if its changes matter. `sources(action=
+"insights_for")` lists the views built on a source. Never
 present analysis of analysis as direct evidence; unknown provenance stays `unknown`.
 
 ## The Story

@@ -11,8 +11,25 @@ const inputRef = z.strictObject({ kind: z.enum(["record", "assumption", "decisio
 
 type Status = "current" | "changed" | "archived" | "deleted" | "missing";
 
+/** The parts a fingerprint covers, and when each last changed, as far as the data records it. */
+interface Parts {
+  values: Record<string, unknown>;
+  changedAt: Record<string, string | null>;
+}
+
+interface Fingerprint {
+  fingerprint: string | null;
+  status: Exclude<Status, "changed" | "current"> | "ok";
+  parts?: Parts;
+}
+
+/** A short hash of one part's value: enough to tell that it changed, without storing the content. */
+const partHash = (value: unknown) => sha256Hex(canonicalJson(value)).slice(0, 16);
+
+const hashParts = (parts: Parts): Record<string, string> => Object.fromEntries(Object.entries(parts.values).map(([k, v]) => [k, partHash(v)]));
+
 /** A fingerprint of an input as it is now, or why it cannot be fingerprinted. */
-async function fingerprint(ctx: OpContext, ref: { kind: string; id: string }): Promise<{ fingerprint: string | null; status: Exclude<Status, "changed" | "current"> | "ok" }> {
+async function fingerprint(ctx: OpContext, ref: { kind: string; id: string }): Promise<Fingerprint> {
   if (ref.kind === "record") {
     const r = await ctx.db.selectFrom("records").selectAll().where("record_id", "=", ref.id).executeTakeFirst();
     if (!r || r.product_id !== productId(ctx)) {
@@ -20,14 +37,40 @@ async function fingerprint(ctx: OpContext, ref: { kind: string; id: string }): P
       return { fingerprint: null, status: t ? "deleted" : "missing" };
     }
     const primary = await ctx.db.selectFrom("files").select("current_version_id").where("record_id", "=", r.record_id).where("role", "=", "primary").executeTakeFirst();
-    const fp = sha256Hex(canonicalJson({ kind: r.kind, title: r.title, date: r.date, organization: r.organization, primary_version: primary?.current_version_id ?? null, derivation: r.current_derivation_id, archived: Boolean(r.archived_at) }));
-    return { fingerprint: fp, status: r.archived_at ? "archived" : "ok" };
+    const values = { kind: r.kind, title: r.title, date: r.date, organization: r.organization, primary_version: primary?.current_version_id ?? null, derivation: r.current_derivation_id, archived: Boolean(r.archived_at) };
+    const version = values.primary_version ? await ctx.db.selectFrom("file_versions").select("created_at").where("file_version_id", "=", values.primary_version).executeTakeFirst() : undefined;
+    const derivation = values.derivation ? await ctx.db.selectFrom("derivations").select("created_at").where("derivation_id", "=", values.derivation).executeTakeFirst() : undefined;
+    const changedAt = {
+      kind: r.updated_at,
+      title: r.updated_at,
+      date: r.updated_at,
+      organization: r.updated_at,
+      primary_version: version?.created_at ?? null,
+      derivation: derivation?.created_at ?? null,
+      archived: r.archived_at ?? r.updated_at,
+    };
+    return { fingerprint: sha256Hex(canonicalJson(values)), status: r.archived_at ? "archived" : "ok", parts: { values, changedAt } };
   }
   const e = await ctx.db.selectFrom("register_entries").selectAll().where("entry_id", "=", ref.id).executeTakeFirst();
   if (!e || e.product_id !== productId(ctx) || e.kind !== ref.kind) return { fingerprint: null, status: "missing" };
-  const fp = sha256Hex(canonicalJson({ statement: e.statement, body: e.body, citations: e.citations, status: e.status, review_count: e.review_count, archived: Boolean(e.archived_at) }));
-  return { fingerprint: fp, status: e.archived_at ? "archived" : "ok" };
+  const values = { statement: e.statement, body: e.body, citations: e.citations, status: e.status, review_count: e.review_count, archived: Boolean(e.archived_at) };
+  const changedAt = Object.fromEntries(Object.keys(values).map((k) => [k, e.updated_at]));
+  return { fingerprint: sha256Hex(canonicalJson(values)), status: e.archived_at ? "archived" : "ok", parts: { values, changedAt } };
 }
+
+const PARTS_NOT_RECORDED = "Parts not recorded: this lineage was written before WhatBuild stored what each fingerprint covers, so only the whole fingerprint can be compared.";
+
+/** Which stored parts differ from the input as it is now, and when the latest of those changes was made. */
+function diffParts(stored: Record<string, string> | undefined, now: Parts | undefined) {
+  if (!stored || !now) return { changed_parts: null, last_changed_at: null, detail: PARTS_NOT_RECORDED };
+  const changed = Object.keys(now.values).filter((k) => stored[k] !== partHash(now.values[k]));
+  const times = changed.map((k) => now.changedAt[k]).filter((t): t is string => Boolean(t));
+  const latest = times.length ? times.reduce((a, b) => (Date.parse(a) >= Date.parse(b) ? a : b)) : null;
+  return { changed_parts: changed, last_changed_at: latest };
+}
+
+const DIRECT_ONLY =
+  "Direct inputs only: a view built on a decision is not told when a source that decision cites is re-derived or edited; capture that source as an input too if it matters.";
 
 export const capture = defineOperation({
   name: "lineage.capture",
@@ -35,8 +78,7 @@ export const capture = defineOperation({
   access: "read",
   mutates: false,
   summary: "Fingerprint up to 50 inputs (sources, assumptions, decisions) before you generate a view from them.",
-  description:
-    "Step 1 of 3: capture the inputs, generate the view, upload it as a new source (kind view, analysis or digest), then call write with the untouched fingerprints. An archived input is refused.",
+  description: `Step 1 of 3: capture the inputs, generate the view, upload it as a new source (kind view, analysis or digest), then call write with the untouched fingerprints and captured_at. An archived input is refused. ${DIRECT_ONLY}`,
   input: z.strictObject({ inputs: z.array(inputRef).min(1).max(50) }),
   rest: { method: "POST", path: "/lineage/capture" },
   mcp: { tool: "lineage", action: "capture" },
@@ -62,10 +104,11 @@ export const write = defineOperation({
   mutates: true,
   summary: "Register a view source's input baseline. Write-once: a changed input must never quietly become a new baseline.",
   description:
-    "Pass the view's record_id, the inputs exactly as capture returned them, and the query_spec that describes how you selected them. Refused with 409 if any input changed since capture (regenerate the view) or if the view already has lineage (create a new view).",
+    "Pass the view's record_id, the inputs exactly as capture returned them, captured_at from the same capture, and the query_spec that describes how you selected them. Refused with 409 if any input changed since capture (regenerate the view) or if the view already has lineage (create a new view). What each fingerprint covers is stored too, so check can say which parts of an input changed.",
   input: z.strictObject({
     record_id: id("source").describe("The view source."),
     inputs: z.array(z.strictObject({ kind: z.enum(["record", "assumption", "decision"]), id: z.string().min(1), fingerprint: z.string().regex(/^[0-9a-f]{64}$/) })).min(1).max(50),
+    captured_at: z.iso.datetime({ offset: true }).optional().describe("captured_at exactly as capture returned it."),
     query_spec: z.strictObject({
       description: z.string().min(1).max(2000).describe("How the inputs were chosen, in words."),
       query: z.string().max(2000).optional(),
@@ -78,15 +121,22 @@ export const write = defineOperation({
   async handler(ctx, input) {
     const view = await loadRecord(ctx, input.record_id, { live: true });
     if (input.inputs.some((i) => i.kind === "record" && i.id === view.record_id)) throw invalid("invalid_input", "A view cannot list itself as an input.");
+    if (input.captured_at && Date.parse(input.captured_at) > Date.parse(ctx.now)) throw invalid("invalid_input", "captured_at is in the future; pass it exactly as capture returned it.");
     const existing = await ctx.db.selectFrom("lineage").select("record_id").where("record_id", "=", view.record_id).executeTakeFirst();
     if (existing) throw conflict("lineage_exists", "This source already has lineage; create a new view to regenerate.");
+    const stored: LineageInput[] = [];
     for (const i of input.inputs) {
       const f = await fingerprint(ctx, i);
       if (f.status !== "ok" || f.fingerprint !== i.fingerprint) throw conflict("input_changed", `Input ${i.kind} ${i.id} changed since capture (${f.status === "ok" ? "changed" : f.status}); regenerate the view.`);
+      stored.push({ kind: i.kind, id: i.id, fingerprint: i.fingerprint, parts: hashParts(f.parts!) });
     }
-    await ctx.db.insertInto("lineage").values({ record_id: view.record_id, tenant_id: tenantId(ctx), product_id: productId(ctx), inputs: json(input.inputs), query_spec: json(input.query_spec), generated_by: json(ctx.actor) }).execute();
+    const capturedAt = input.captured_at ?? null;
+    await ctx.db
+      .insertInto("lineage")
+      .values({ record_id: view.record_id, tenant_id: tenantId(ctx), product_id: productId(ctx), inputs: json(stored), query_spec: json(input.query_spec), captured_at: capturedAt, generated_by: json(ctx.actor) })
+      .execute();
     await recordActivity(ctx, { action: "lineage_registered", entity_type: "source", entity_id: view.record_id, entity_title: view.title, summary: `Registered ${input.inputs.length} input${input.inputs.length === 1 ? "" : "s"} for this view` });
-    return { record_id: view.record_id, inputs: input.inputs, query_spec: input.query_spec, registered_at: ctx.now };
+    return { record_id: view.record_id, inputs: input.inputs, query_spec: input.query_spec, captured_at: capturedAt, registered_at: ctx.now };
   },
 });
 
@@ -95,8 +145,8 @@ export const check = defineOperation({
   scope: "product",
   access: "read",
   mutates: false,
-  summary: "Is this view stale? Reports each direct input as current, changed, archived, deleted or missing.",
-  description: "Direct inputs only; nothing is regenerated. registered_at marks when lineage was written, not when any model ran. 404 means the source has no lineage.",
+  summary: "Is this view stale? Reports each direct input as current, changed, archived, deleted or missing, and which parts of a changed input changed.",
+  description: `A changed input lists changed_parts (for a source: kind, title, date, organization, primary_version, derivation, archived; for an assumption or decision: statement, body, citations, status, review_count, archived) and last_changed_at, when the latest of those changes was made as far as WhatBuild records it. Lineage written before parts were stored reports changed_parts null with a note. Nothing is regenerated. captured_at is when capture fingerprinted the inputs (null if write was not given it); registered_at marks when lineage was written; neither is when any model ran. 404 means the source has no lineage. ${DIRECT_ONLY}`,
   input: z.strictObject({ record_id: id("source") }),
   rest: { method: "GET", path: "/sources/:record_id/lineage" },
   mcp: { tool: "lineage", action: "check" },
@@ -108,9 +158,19 @@ export const check = defineOperation({
     for (const i of l.inputs) {
       const f = await fingerprint(ctx, i);
       const status: Status = f.status === "ok" ? (f.fingerprint === i.fingerprint ? "current" : "changed") : f.status;
-      checks.push({ kind: i.kind, id: i.id, status });
+      checks.push(status === "changed" ? { kind: i.kind, id: i.id, status, ...diffParts(i.parts, f.parts) } : { kind: i.kind, id: i.id, status });
     }
-    return { record_id: l.record_id, query_spec: l.query_spec, registered_at: l.generated_at, registered_by: l.generated_by, stale: checks.some((c) => c.status !== "current"), input_checks: checks, checked_at: ctx.now, scope: "direct_inputs" };
+    return {
+      record_id: l.record_id,
+      query_spec: l.query_spec,
+      captured_at: l.captured_at,
+      registered_at: l.generated_at,
+      registered_by: l.generated_by,
+      stale: checks.some((c) => c.status !== "current"),
+      input_checks: checks,
+      checked_at: ctx.now,
+      scope: "direct_inputs",
+    };
   },
 });
 

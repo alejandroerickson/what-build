@@ -63,6 +63,11 @@ export interface LineageInput {
   kind: "record" | "assumption" | "decision";
   id: string;
   fingerprint: string;
+  /**
+   * A short hash of each part the fingerprint covers, stored at write so check can say which parts
+   * changed. Absent on lineage written before parts were stored.
+   */
+  parts?: Record<string, string>;
 }
 
 // ---- Directory tables (no row-level security; reached only through the auth layer) --------------
@@ -509,6 +514,8 @@ export interface LineageTable {
   product_id: string;
   inputs: Json<LineageInput[]>;
   query_spec: Json<Record<string, unknown>>;
+  /** When capture fingerprinted the inputs, as the agent passed it to write; null when not passed. */
+  captured_at: TsNull;
   generated_at: Ts;
   generated_by: Json<ActorSnapshot>;
 }

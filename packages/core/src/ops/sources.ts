@@ -253,7 +253,7 @@ export const getSource = defineOperation({
   mutates: false,
   summary: "Read a source cheaply (brief), or everything about it (full): files, manifest, outline, notes.",
   description:
-    "Start with detail=\"brief\" to check derived_status and segment_count, then plan read_passage windows. warnings says when the source has files but still no primary. etag is the one sources.update and sources.delete expect. `full` adds files (each with searchable and search_status), the derivation manifest, the outline, and notes. Neither returns file bytes or derived text. An archived source is still readable by id.",
+    "Start with detail=\"brief\" to check derived_status and segment_count, then plan read_passage windows. warnings says when the source has files but still no primary. etag is the one sources.update and sources.delete expect. `full` adds files (each with searchable and search_status), the derivation manifest, the outline, notes, and for a view its lineage (direct inputs, how they were chosen, when captured and registered; staleness comes from lineage check). Neither returns file bytes or derived text. An archived source is still readable by id.",
   input: z.strictObject({ record_id: id("source"), detail: z.enum(["brief", "full"]).default("brief") }),
   rest: { method: "GET", path: "/sources/:record_id" },
   mcp: { tool: "sources", action: "get" },
@@ -283,7 +283,7 @@ export const getSource = defineOperation({
       }
     }
     const annotations = await ctx.db.selectFrom("annotations").selectAll().where("record_id", "=", r.record_id).where("archived_at", "is", null).orderBy("annotation_id", "desc").limit(100).execute();
-    const lineage = await ctx.db.selectFrom("lineage").select(["generated_at"]).where("record_id", "=", r.record_id).executeTakeFirst();
+    const lineage = await ctx.db.selectFrom("lineage").select(["inputs", "query_spec", "captured_at", "generated_at", "generated_by"]).where("record_id", "=", r.record_id).executeTakeFirst();
     const agentNotes = await ctx.db.selectFrom("agent_notes").select(["kind", "updated_at", "updated_by"]).where("record_id", "=", r.record_id).execute();
     return {
       ...brief,
@@ -316,6 +316,17 @@ export const getSource = defineOperation({
       outline,
       annotations,
       has_lineage: Boolean(lineage),
+      lineage: lineage
+        ? {
+            scope: "direct_inputs",
+            inputs: lineage.inputs.map((i) => ({ kind: i.kind, id: i.id })),
+            query_spec: lineage.query_spec,
+            captured_at: lineage.captured_at,
+            registered_at: lineage.generated_at,
+            registered_by: lineage.generated_by,
+            staleness: 'Not checked here: call lineage(action="check").',
+          }
+        : null,
       agent_notes: agentNotes,
     };
   },
@@ -714,8 +725,9 @@ export const insightsFor = defineOperation({
   scope: "product",
   access: "read",
   mutates: false,
-  summary: "Everything built on a source: insights that reference it, assumptions and decisions that cite it, and Story pages that cite or reference it.",
-  description: "Each citation names its exact segment range, so you can read the passage that supports it. Story pages are judged by their current version; archived pages are left out.",
+  summary: "Everything built on a source: insights that reference it, assumptions and decisions that cite it, Story pages that cite or reference it, and views whose lineage lists it as an input.",
+  description:
+    "Each citation names its exact segment range, so you can read the passage that supports it. Story pages are judged by their current version; archived pages and archived views are left out. Views are those that list this source as a direct input; call lineage(action=\"check\") on one to see whether it is stale.",
   input: z.strictObject({ record_id: id("source") }),
   rest: { method: "GET", path: "/sources/:record_id/insights" },
   mcp: { tool: "sources", action: "insights_for" },
@@ -752,6 +764,16 @@ export const insightsFor = defineOperation({
       assumptions: entries.filter((e) => e.kind === "assumption").map(shape),
       decisions: entries.filter((e) => e.kind === "decision").map(shape),
       story_pages: (await storyPagesUsing(ctx, input.record_id, { includeArchived: false })).map(({ archived_at, ...p }) => (void archived_at, p)),
+      views: await ctx.db
+        .selectFrom("lineage as l")
+        .innerJoin("records as r", "r.record_id", "l.record_id")
+        .select(["r.record_id", "r.kind", "r.title", "l.generated_at as registered_at"])
+        .where("l.product_id", "=", productId(ctx))
+        .where("r.archived_at", "is", null)
+        .where(sql<boolean>`l.inputs @> ${JSON.stringify([{ kind: "record", id: input.record_id }])}::jsonb`)
+        .orderBy("l.generated_at", "desc")
+        .limit(100)
+        .execute(),
     };
   },
 });
