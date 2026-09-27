@@ -6,7 +6,9 @@ import { json, type RegisterEntriesTable, type RegisterLink } from "../db.ts";
 import { conflict, invalid, notFound } from "../errors.ts";
 import { defineOperation, type OpContext, type OperationDef } from "../registry.ts";
 import { authorType, dimensions, expectedEtag, id, provenanceDepth, tags } from "../schemas.ts";
+import { applyEdits, editsInput, textDiff } from "../text-edits.ts";
 import { newEtag, newId, uniq } from "../util.ts";
+import { archivedObjectiveIds } from "./objectives.ts";
 
 export type RegisterKind = "assumption" | "decision";
 type Row = Selectable<RegisterEntriesTable>;
@@ -79,6 +81,7 @@ async function detail(ctx: OpContext, row: Row) {
     .where("product_id", "=", productId(ctx))
     .where(sql<boolean>`links @> ${JSON.stringify([{ id: row.entry_id }])}::jsonb`)
     .execute();
+  const archivedObjectives = await archivedObjectiveIds(ctx, row.objective_ids);
   return {
     id: row.entry_id,
     kind: row.kind,
@@ -89,7 +92,9 @@ async function detail(ctx: OpContext, row: Row) {
     citations: await citationViews(ctx, row.citations),
     links: row.links.map((l) => ({ ...l, ...(() => { const e = linked.find((x) => x.entry_id === l.id); return e ? { kind: e.kind, statement: e.statement, status: e.status } : {}; })() })),
     linked_from: incoming.flatMap((e) => e.links.filter((l) => l.id === row.entry_id).map((l) => ({ id: e.entry_id, kind: e.kind, statement: e.statement, status: e.status, type: l.type }))),
+    superseded_by: incoming.filter((e) => e.links.some((l) => l.id === row.entry_id && l.type === "supersedes")).map((e) => e.entry_id),
     objective_ids: row.objective_ids,
+    archived_objective_ids: row.objective_ids.filter((o) => archivedObjectives.has(o)),
     tags: row.tags,
     dimensions: row.dimensions,
     provenance_depth: row.provenance_depth,
@@ -105,11 +110,28 @@ async function detail(ctx: OpContext, row: Row) {
   };
 }
 
+/** For a page of entries: who links to each (linked_from), and which entries supersede it. */
+async function incomingLinks(ctx: OpContext, ids: string[]) {
+  const out = new Map<string, { linked_from: number; superseded_by: string[] }>(ids.map((i) => [i, { linked_from: 0, superseded_by: [] }]));
+  if (!ids.length) return out;
+  const rows = await sql<{ target: string; type: string; source: string }>`
+    select l->>'id' as target, l->>'type' as type, e.entry_id as source
+    from register_entries e, jsonb_array_elements(e.links) as l
+    where e.product_id = ${productId(ctx)} and l->>'id' = any(${ids})
+    order by e.entry_id`.execute(ctx.db);
+  for (const r of rows.rows) {
+    const o = out.get(r.target)!;
+    o.linked_from++;
+    if (r.type === "supersedes") o.superseded_by.push(r.source);
+  }
+  return out;
+}
+
 export function registerOps(kind: RegisterKind): OperationDef[] {
   const tool = `${kind}s`;
   const label = kind;
   const other = kind === "assumption" ? "decision" : "assumption";
-  const idField = z.string().min(1).describe(`The ${label} id.`);
+  const idField = z.string().min(1).describe(`The ${label} id. ${kind}_id is accepted as another name for it.`);
   const meaning =
     kind === "assumption"
       ? "An assumption is what the team is treating as true while evidence is incomplete."
@@ -165,7 +187,7 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
     access: "read",
     mutates: false,
     summary: `List ${kind}s, newest first, without quotes or review notes.`,
-    description: `${meaning} Filter by review status, a cited source, an objective, a tag, human confidence or dimensions. Archived entries are left out unless include_archived.`,
+    description: `${meaning} Filter by review status (one or more of unconfirmed, confirmed, refuted, superseded), a cited source, an objective, a tag, human confidence or dimensions. Archived entries are left out unless include_archived. Each item says whether it is frozen (reviewed, so its statement, body and citations can no longer be edited), which entries supersede it (superseded_by), and how many links it has out (link_count) and in (linked_from_count); get returns the links themselves.`,
     input: z.strictObject({
       status: z.array(STATUS).max(4).optional(),
       record_id: id("source").optional(),
@@ -196,12 +218,17 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
       if (input.cursor) q = q.where("entry_id", "<", input.cursor);
       const rows = await q.orderBy("entry_id", "desc").limit(input.limit + 1).execute();
       const page = rows.slice(0, input.limit);
+      const incoming = await incomingLinks(ctx, page.map((r) => r.entry_id));
+      const archivedObjectives = await archivedObjectiveIds(ctx, page.flatMap((r) => r.objective_ids));
       const items = [];
       for (const r of page)
         items.push({
           id: r.entry_id, kind: r.kind, statement: r.statement, status: r.status, author: r.author, author_type: r.author_type,
           created_at: r.created_at, updated_at: r.updated_at, dimensions: r.dimensions, provenance_depth: r.provenance_depth, tags: r.tags,
-          objective_ids: r.objective_ids, citation_count: r.citations.length, record_ids: uniq(r.citations.map((c) => c.record_id)),
+          objective_ids: r.objective_ids, archived_objective_ids: r.objective_ids.filter((o) => archivedObjectives.has(o)),
+          citation_count: r.citations.length, record_ids: uniq(r.citations.map((c) => c.record_id)),
+          frozen: r.review_count > 0, superseded_by: incoming.get(r.entry_id)!.superseded_by,
+          link_count: r.links.length, linked_from_count: incoming.get(r.entry_id)!.linked_from,
           review_count: r.review_count, human_review: await humanReview(ctx, r.entry_id), archived_at: r.archived_at, etag: r.etag,
         });
       return { items, next_cursor: rows.length > input.limit ? page[page.length - 1]!.entry_id : null };
@@ -245,12 +272,14 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
     access: "write",
     mutates: true,
     summary: `Edit a ${kind}. Statement, body and citations only until its first review; tags, objectives, links and dimensions always.`,
-    description: "After the first review the statement, body and citations are frozen, because a confirmation must refer to the exact words reviewed; correct a reviewed entry with supersede. Earlier text is kept as a revision.",
+    description:
+      "After the first review the statement, body and citations are frozen, because a confirmation must refer to the exact words reviewed; correct a reviewed entry with supersede. For a small correction before then, pass edits (exact replacements in the statement or body that must each match once) instead of re-sending the whole text. Earlier text is kept as a revision. The result lists changed fields and a short diff of each changed text; check it.",
     input: z.strictObject({
       id: idField,
       expected_etag: expectedEtag,
       statement: createFields.statement.optional(),
       body: z.string().max(10_000).optional(),
+      edits: editsInput(["body", "statement"] as const, "body").optional(),
       citations: createFields.citations.optional(),
       objective_ids: createFields.objective_ids,
       links: createFields.links,
@@ -263,9 +292,16 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
     async handler(ctx, input) {
       const row = await load(ctx, input.id, true);
       checkEtag(input.expected_etag, row.etag, kind);
-      const textChange = input.statement !== undefined || input.body !== undefined || input.citations !== undefined;
+      const textChange = input.statement !== undefined || input.body !== undefined || input.citations !== undefined || input.edits !== undefined;
       if (textChange && row.review_count > 0)
         throw conflict("frozen", `This ${kind} has been reviewed, so its statement, body and citations are frozen. Supersede it with a corrected entry instead.`);
+      const next = { statement: input.statement ?? row.statement, body: input.body ?? row.body };
+      if (input.edits) {
+        Object.assign(next, applyEdits(next, input.edits, input));
+        next.statement = next.statement.trim();
+        if (!next.statement || next.statement.length > 1000) throw invalid("invalid_input", "After the edits the statement would be empty or longer than 1,000 characters. Nothing was changed.");
+        if (next.body.length > 10_000) throw invalid("invalid_input", "After the edits the body would be longer than 10,000 characters. Nothing was changed.");
+      }
       const citations = input.citations ? await snapshotAll(ctx, input.citations) : row.citations;
       const links = input.links ?? row.links;
       if (input.links) await checkLinks(ctx, row.entry_id, links);
@@ -273,8 +309,8 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
       await ctx.db
         .updateTable("register_entries")
         .set({
-          statement: input.statement ?? row.statement,
-          body: input.body ?? row.body,
+          statement: next.statement,
+          body: next.body,
           citations: json(citations),
           links: json(links),
           objective_ids: input.objective_ids ? uniq(input.objective_ids) : row.objective_ids,
@@ -287,8 +323,16 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
         })
         .where("entry_id", "=", row.entry_id)
         .execute();
-      await recordActivity(ctx, { action: "updated", entity_type: kind, entity_id: row.entry_id, entity_title: input.statement ?? row.statement, summary: "Edited the entry" });
-      return detail(ctx, await load(ctx, row.entry_id));
+      const after = await load(ctx, row.entry_id);
+      const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+      const changed = [
+        ...(["statement", "body"] as const).filter((k) => next[k] !== row[k]),
+        ...(input.citations && !same(after.citations.map((c) => [c.record_id, c.seq_start, c.seq_end, c.quote]), row.citations.map((c) => [c.record_id, c.seq_start, c.seq_end, c.quote])) ? ["citations"] : []),
+        ...(["links", "objective_ids", "tags", "dimensions", "provenance_depth"] as const).filter((k) => !same(after[k], row[k])),
+      ];
+      const diff = (["statement", "body"] as const).filter((k) => next[k] !== row[k]).map((k) => textDiff(k, row[k], next[k])!);
+      await recordActivity(ctx, { action: "updated", entity_type: kind, entity_id: row.entry_id, entity_title: next.statement, summary: changed.length ? `Changed ${changed.join(", ")}` : "Edited the entry" });
+      return { ...(await detail(ctx, after)), changed, diff };
     },
   });
 
@@ -307,9 +351,9 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
     scope: "product",
     access: "write",
     mutates: true,
-    summary: `Record an attributed review of a ${kind}: a status and a required note, optionally a human's confidence.`,
+    summary: `Record an attributed review of a ${kind}: a status and a required note, optionally a human's confidence. Any review freezes the statement, body and citations.`,
     description:
-      "Status is unconfirmed, confirmed, refuted or superseded; any review may move it anywhere. reviewer_type defaults to human in the web app and agent elsewhere; an agent may declare human only when relaying a judgment the person made in the conversation. confidence (low, medium, high) measures a human's view of suitability for current work, not truth, and is accepted only with reviewer_type human. Review with the current status to record confidence alone. Reviews are never edited; a changed mind is a new review.",
+      "Status is unconfirmed, confirmed, refuted or superseded; any review may move it anywhere. reviewer_type defaults to human in the web app and agent elsewhere; an agent may declare human only when relaying a judgment the person made in the conversation. confidence (low, medium, high) measures a human's view of suitability for current work, not truth, and is accepted only with reviewer_type human. Review with the current status to record confidence alone. Any review, by a person or an agent and whatever the status (even one that keeps it unconfirmed), freezes the entry's statement, body and citations for good: make every edit first, and after that correct it only with supersede. Reviews are never edited; a changed mind is a new review.",
     input: z.strictObject({
       id: idField,
       expected_etag: expectedEtag,

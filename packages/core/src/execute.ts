@@ -2,6 +2,7 @@ import { sql } from "kysely";
 import type { z } from "zod";
 import { json, type ActorSnapshot, type Db } from "./db.ts";
 import { AppError, conflict, invalid } from "./errors.ts";
+import { resolveIdAlias } from "./id-aliases.ts";
 import { resolveScope, type ScopeRef } from "./policy.ts";
 import type { Ports } from "./ports.ts";
 import type { OpContext, OperationDef, Principal, Scope } from "./registry.ts";
@@ -25,7 +26,7 @@ function refFromInput(op: OperationDef, input: Record<string, unknown>, ref: Sco
 }
 
 export function parseInput<I extends z.ZodType>(op: OperationDef<I>, raw: unknown): z.output<I> {
-  const parsed = op.input.safeParse(raw ?? {});
+  const parsed = op.input.safeParse(resolveIdAlias(op, raw ?? {}));
   if (!parsed.success) {
     throw invalid("invalid_input", `${formatIssues(parsed.error)}. Nothing was changed.`, { operation: op.name });
   }

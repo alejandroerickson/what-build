@@ -47,7 +47,8 @@ call came through:
 
 1. **Resolve and authorize the scope first** ([§3.6](03-accounts-teams-and-identity.md)): a caller
    who cannot see the product gets `404` before their input is even validated.
-2. **Validate the input** strictly (`422 invalid_input`, "Nothing was changed").
+2. **Validate the input** strictly (`422 invalid_input`, "Nothing was changed"), after renaming an
+   accepted id alias to its canonical field (§6.5).
 3. Refuse writes to an archived product (`409 product_archived`) unless the operation allows it.
 4. **Run the handler in one transaction** scoped to the tenant (`app.tenant_id` set for row-level
    security). Mutating handlers record their activity event ([§4.10](04-data-model.md)) and enqueue
@@ -72,7 +73,7 @@ receive no transport details and no way to reach another tenant.
 | 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `slug_taken`, `frozen`, `primary_taken`, `source_in_use`, `export_in_progress`, `last_owner`, `quota_exceeded` |
 | 410 | Deliberately deleted, with a tombstone | `record_deleted` |
 | 413 | Body or file beyond a limit | `too_large` |
-| 422 | Invalid input | `invalid_input`, `unknown_field`, `unknown_action`, `unknown_tool`, `product_required`, `window_too_large`, `quote_not_found`, `invalid_citation`, `cross_product_reference`, `invalid_query`, `invalid_html`, `confirmation_required`, `confidence_requires_human` |
+| 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `product_required`, `window_too_large`, `quote_not_found`, `invalid_citation`, `cross_product_reference`, `invalid_query`, `invalid_html`, `confirmation_required`, `confidence_requires_human` |
 | 429 | Rate limited | `rate_limited` |
 
 - **`403` names the role.** A caller with a role on the product but too low for the action gets
@@ -227,6 +228,10 @@ Notes on recent actions:
 - `insights.review { insight_id, reviewed, expected_etag }` records a person's review. Each insight
   reports `review_state`: `unreviewed`, `reviewed`, or `changed` (edited since its review);
   `insights.list` filters by it ([§4.7](04-data-model.md)).
+- `insights.update` and the registers' `update` take `edits` (exact replacements that must match
+  once) and return `changed` and a short `diff` ([§4.1](04-data-model.md)). Register lists return
+  `frozen`, `superseded_by`, `link_count` and `linked_from_count`; `objectives.list` returns
+  `archived_hidden` ([§4.2](04-data-model.md), [§4.8](04-data-model.md)).
 - `story.publish` takes `citations` (up to 20 exact passages, snapshotted as in the registers)
   beside `refs`; `story.check_citations` checks a version's citations.
 - `story.write_notes` replaces a page's notes for agents. The notes carry their own etag
@@ -344,6 +349,13 @@ Rules:
   `params`), it returns that action's scope, access, whether it mutates, its guidance and its
   exact JSON Schema — without executing.
 - **Strict.** Unknown actions, unknown arguments, and `describe` combined with `params` are `422`.
+- **One alias for each entity id.** The id is `insight_id` and `objective_id` on those tools but
+  `id` on the registers. Each tool also accepts the other convention for its own entity: `id` on
+  `insights` and `objectives`, `assumption_id` on `assumptions`, `decision_id` on `decisions`.
+  `execute` renames the alias before strict validation
+  ([`id-aliases.ts`](../../packages/core/src/id-aliases.ts)), so it works over REST and MCP alike;
+  sending both with different values is `422`. ◆ Decision: aliases, not a rename, so no existing
+  caller breaks; the canonical names stay as they are in schemas and paths.
 - **Product resolution.** A product-scoped call resolves its product from the `product` argument,
   then the bound endpoint, then the only product the caller can reach; otherwise
   `422 product_required` listing up to 50 reachable products ([§3.6](03-accounts-teams-and-identity.md)).

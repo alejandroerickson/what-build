@@ -11,12 +11,21 @@ const STATUS = z.enum(["active", "achieved", "archived"]);
 
 type Row = Selectable<ObjectivesTable>;
 
+const objectiveId = id("objective").describe("The objective id. id is accepted as another name for it.");
+
 async function load(ctx: OpContext, objectiveId: string, lock = false) {
   let q = ctx.db.selectFrom("objectives").selectAll().where("objective_id", "=", objectiveId).where("product_id", "=", productId(ctx));
   if (lock) q = q.forUpdate();
   const row = await q.executeTakeFirst();
   if (!row) throw notFound(`Objective ${objectiveId} does not exist in this product.`);
   return row as Row;
+}
+
+/** Referenced objectives that are archived: hidden from the objectives list, but still linkable. */
+export async function archivedObjectiveIds(ctx: OpContext, ids: string[]): Promise<Set<string>> {
+  if (!ids.length) return new Set();
+  const rows = await ctx.db.selectFrom("objectives").select("objective_id").where("product_id", "=", productId(ctx)).where("status", "=", "archived").where("objective_id", "in", [...new Set(ids)]).execute();
+  return new Set(rows.map((r) => r.objective_id));
 }
 
 async function withCounts(ctx: OpContext, rows: Row[]) {
@@ -49,7 +58,7 @@ export const listObjectives = defineOperation({
   mutates: false,
   summary: "List the product's objectives in order, with how many insights, assumptions and decisions point at each.",
   description:
-    "Objectives are the short outcomes discovery serves. Read them before writing insights, and link insights to them through refs.objectives. Archived objectives are left out unless status is \"archived\". Counts cover unarchived insights and current (unconfirmed or confirmed) assumptions and decisions; superseded and refuted entries are not counted.",
+    "Objectives are the short outcomes discovery serves. Read them before writing insights, and link insights to them through refs.objectives. Archived objectives are left out unless status is \"archived\"; archived_hidden says how many were left out. An archived objective can still be linked, and insights and registers flag such links in archived_objective_ids. Counts cover unarchived insights and current (unconfirmed or confirmed) assumptions and decisions; superseded and refuted entries are not counted.",
   input: z.strictObject({
     status: STATUS.optional().describe("Only this status. Omit for active and achieved."),
     query: z.string().max(500).optional().describe("Case-insensitive substring of title or description."),
@@ -65,7 +74,18 @@ export const listObjectives = defineOperation({
     if (input.cursor) q = q.where("position", ">", Number(input.cursor));
     const rows = (await q.orderBy("position").orderBy("objective_id").limit(input.limit + 1).execute()) as Row[];
     const items = await withCounts(ctx, rows.slice(0, input.limit));
-    return { items, next_cursor: rows.length > input.limit ? String(items[items.length - 1]!.position) : null };
+    let archived_hidden = 0;
+    if (!input.status) {
+      let a = ctx.db.selectFrom("objectives").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", productId(ctx)).where("status", "=", "archived");
+      if (input.query) a = a.where(sql<boolean>`(title ilike ${"%" + input.query + "%"} or description ilike ${"%" + input.query + "%"})`);
+      archived_hidden = Number((await a.executeTakeFirst())?.n ?? 0);
+    }
+    return {
+      items,
+      next_cursor: rows.length > input.limit ? String(items[items.length - 1]!.position) : null,
+      archived_hidden,
+      ...(archived_hidden ? { note: `${archived_hidden} archived objective${archived_hidden === 1 ? " is" : "s are"} not listed; pass status "archived" to see ${archived_hidden === 1 ? "it" : "them"}.` } : {}),
+    };
   },
 });
 
@@ -76,7 +96,7 @@ export const getObjective = defineOperation({
   mutates: false,
   summary: "Read one objective with its etag.",
   description: "The etag guards update.",
-  input: z.strictObject({ objective_id: id("objective") }),
+  input: z.strictObject({ objective_id: objectiveId }),
   rest: { method: "GET", path: "/objectives/:objective_id" },
   mcp: { tool: "objectives", action: "get" },
   async handler(ctx, input) {
@@ -125,7 +145,7 @@ export const updateObjective = defineOperation({
   description:
     "Requires expected_etag from your latest read. Fields you omit keep their values. Setting status to archived retires it; achieved keeps it visible. The previous title and description are kept as a revision.",
   input: z.strictObject({
-    objective_id: id("objective"),
+    objective_id: objectiveId,
     expected_etag: expectedEtag,
     title: z.string().trim().min(1).max(200).optional(),
     description: z.string().max(2000).optional(),
