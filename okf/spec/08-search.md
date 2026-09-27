@@ -50,6 +50,9 @@ search {
   and parentheses, adjacent terms implying AND, at most 64 tokens — compiled to a Postgres
   `tsquery` over the language-neutral `simple` configuration (no stemming), matched against a
   stored, GIN-indexed `tsvector`, and ranked with `ts_rank_cd`. A score is not a confidence.
+- Each passage (segment) is matched on its own, in both modes: `AND`, `OR` and `NOT` combine terms
+  within one passage, so words a transcript splits across neighbouring cues never match together.
+  The `search` description says so.
 - Passages are searched over the segments of each source's *current* derivation, primary file
   only. Registers are searched over statement and body; insights over title, summary and body.
 - Archived sources and entries, and archived insights, are excluded unless `include_archived`.
@@ -108,8 +111,11 @@ Search must never claim to have examined what it did not.
 
 - **Historical reads exist:** derivations are immutable and retained, and the derived reads accept
   `derivation_id` ([§5.5](05-derived-layer.md)).
-- **Planned — anchors that survive re-parsing:** `check_citations` already relocates intact text
-  ([§4.8](04-data-model.md)). The extension is fuzzy relocation (a quote with small edits) reported
+- **Planned — anchors that survive re-parsing:** `check_citations` already relocates intact text,
+  forgiving differences in markup, spacing and speaker labels, and flags `derivation_changed`
+  ([§4.8](04-data-model.md)). Still to come: comparing a range's edges as well as its quote, a text
+  hash on each derivation so a re-parse with identical text says so, and a safe refresh of a
+  snapshot whose quote still matches. The extension is fuzzy relocation (a quote with small edits) reported
   as `relocated_approximate` with a similarity score — still report-only.
 - **Planned — recursive lineage:** `lineage.check { recursive: true }` walks inputs that are
   themselves views, reports the full ancestor tree with per-node status, detects cycles, and is

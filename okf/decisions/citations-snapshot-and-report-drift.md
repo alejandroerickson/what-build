@@ -3,7 +3,7 @@ type: Decision
 title: Citations freeze a snapshot and report drift; they are never repaired silently
 description: A citation stores the exact passage text when written; a check re-resolves it and reports the result in words.
 tags: [decision, citations, trust, registers, story]
-generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-27}
 status: stable
 ---
 
@@ -16,7 +16,8 @@ A conclusion is only as good as the words it rests on, and sources get re-parsed
 ## Decision
 
 - A citation names a source and passage range, with an optional quote; on save it is resolved and a snapshot is frozen.
-- `check_citations` reports ok, relocated, text changed, source archived, deleted or missing. It never rewrites.
+- `check_citations` reports ok, relocated, text changed, source archived, deleted or missing, and flags a citation whose source was parsed again since the snapshot. It never rewrites.
+- A quote is found exactly where possible; a match that holds only once markup, spacing and speaker labels are set aside is reported as such, never as silent equality.
 - Assumptions, decisions and Story pages cite this way. After an assumption or decision is reviewed, its statement and citations are frozen; correct it by superseding.
 
 ## Consequences

@@ -23,7 +23,9 @@ a `derivation_id`. A source has zero or more derivations and at most one **curre
 A new derivation is produced when: a primary file is first added; a new version of the primary is
 uploaded; a different file becomes primary; a source is copied to another product; or
 `derived.rederive` is called (for example after a parser upgrade). Earlier derivations are
-retained and readable by id.
+retained and readable by id. `rederive` returns `previous_derivation_id`; the current derivation
+stays in place until the new parse finishes, so a caller knows it is done when
+`derived.manifest` reports a different `derivation_id`.
 
 **Where it runs.** Always on the Postgres job queue, in the worker
 ([`apps/server/src/worker.ts`](../../apps/server/src/worker.ts)), in every environment. The
@@ -199,8 +201,9 @@ Response:
 
 A window that runs past the end returns what exists, sets `out_of_range: true` and gives
 `valid_range`. A window entirely outside the source returns no segments and the same flags. A
-window inside the source that matches nothing (a gap between cues) says so in `warning`. It is
-never a silent empty success.
+window inside the source that matches nothing (a gap between cues) says so in `warning`. When
+`unit` was omitted on a timed source and the empty window would be valid segment numbers, the
+warning asks whether `unit: "seq"` was meant. It is never a silent empty success.
 
 ## 5.5 Other derived reads
 

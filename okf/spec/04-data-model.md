@@ -189,7 +189,7 @@ An **annotation** is a note on a source, optionally anchored to a passage.
 | `note` | Markdown, 1–2,000 chars. |
 | `tags` | As sources. |
 | `archive_reason` | Optional, ≤ 500 chars: why the note was archived. Given only with `archived: true`; restoring clears it. |
-| `anchor` | When a range is given, a snapshot taken at creation (range, offsets, derivation id, and up to 500 characters of the text, a longer text cut at a word boundary and ending in an ellipsis), so the note can be re-located after a re-derivation. |
+| `anchor` | When a range is given, a snapshot taken at creation (range, offsets, derivation id, and up to 500 characters of the text, with the speaker's `Name: ` at each change of speaker, a longer text cut at a word boundary and ending in an ellipsis), so the note can be re-located after a re-derivation. |
 
 Editable (note only, keeping revisions), archivable.
 
@@ -268,7 +268,9 @@ is `404`.
 
 Input: `{ record_id, seq_start, seq_end, quote? }`: an inclusive segment range of ≤ 100 segments
 in a live (unarchived) source of the same product with a `ready` derivation. If `quote` is given it
-MUST occur exactly in the range's text, else `422 quote_not_found`. The quotes of one entry total
+MUST occur exactly in the range's text, else `422 quote_not_found`. When the quote differs from the
+range's text only in emphasis or code markers, spacing or a speaker label, the refusal gives the
+range's own words in `details.exact_quote`; the quote is still refused. The quotes of one entry total
 at most 40,000 characters. ([`packages/core/src/citations.ts`](../../packages/core/src/citations.ts))
 
 Story page versions cite passages the same way, with the same input, limits and snapshot
@@ -288,8 +290,8 @@ At creation the service stores an immutable **snapshot**:
 }
 ```
 
-`check_citations` re-resolves every citation of an entry and reports, per citation, one status and
-a `version_drift` flag:
+`check_citations` re-resolves every citation of an entry and reports, per citation, one status, a
+`version_drift` flag and a `derivation_changed` flag:
 
 | Status | Meaning |
 |---|---|
@@ -301,6 +303,19 @@ a `version_drift` flag:
 | `record_missing` | The source cannot be resolved at all. |
 
 `version_drift` is true when the primary file has a newer version than the snapshot's.
+`derivation_changed` is true when the source has been parsed again since the snapshot (a new file
+version or a re-derive), and then `current_derivation_id` names the derivation checked against. An
+`ok` with `derivation_changed` says only that the quote is still in the range; the range's edges may
+cover different text, so read the passage before relying on it.
+
+Against a newer derivation the quote is looked for exactly first. If that fails it is matched again
+with emphasis and code markers (`*`, `_` at a word edge, backticks), runs of whitespace, and a
+`Name:` label at the start of a line set aside on both sides, the label only when the name is a
+speaker of the source or of the snapshot. A match of that kind counts only where the source gives
+the passage the labelled speaker, or none, and is reported with `quote_match: "normalized"` and a
+`note`; it is `ok` in the same range and `relocated` elsewhere. Words, their order and punctuation
+must still agree. The order of preference is exact in the range, normalised in the range, exact
+elsewhere, normalised elsewhere.
 
 It reports. It never rewrites a citation or a snapshot. The original passage stays readable
 through its retained derivation ([§5.5](05-derived-layer.md)) unless the source was deleted, and
