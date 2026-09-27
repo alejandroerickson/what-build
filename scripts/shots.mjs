@@ -1,67 +1,195 @@
-// Screenshot the running dev app with the locally installed Chrome (no browser download).
-// node scripts/shots.mjs <outdir> [baseUrl]
+// Screenshot every screen of the running dev app with the locally installed Chrome (no browser
+// download), in light and dark, on a desktop (1440×900) and a phone (390×844).
+//
+//   node scripts/shots.mjs <outdir> [baseUrl]
+//   SHOTS=objectives,story node scripts/shots.mjs <outdir>     only these screens
+//
+// Files are named <screen>-<theme>-<desktop|phone>.png. The canvas is the page's only scroller, so a
+// capture grows the viewport to the canvas's content height (up to a cap) instead of fullPage.
 import { chromium } from "playwright-core";
 import { mkdirSync } from "node:fs";
 
 const out = process.argv[2] ?? ".what-build/shots";
 const base = process.argv[3] ?? "http://localhost:5273";
+const only = (process.env.SHOTS ?? "").split(",").filter(Boolean);
+const MAX_HEIGHT = 4000;
 mkdirSync(out, { recursive: true });
+
 const browser = await chromium.launch({ executablePath: process.env.CHROME ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" });
 const errors = [];
-async function session(width, height, tag) {
-  const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1 });
+const DEVICES = {
+  desktop: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 },
+  phone: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
+};
+
+async function context(theme, device, signIn = true) {
+  const ctx = await browser.newContext(DEVICES[device]);
+  await ctx.addInitScript((t) => {
+    try {
+      localStorage.setItem("whatbuild.theme", t);
+      if (!sessionStorage.getItem("shots.nav")) {
+        localStorage.setItem("whatbuild.nav", "open");
+        sessionStorage.setItem("shots.nav", "1");
+      }
+    } catch {}
+  }, theme);
   const page = await ctx.newPage();
-  page.on("console", (m) => m.type() === "error" && errors.push(`${tag} ${page.url()}: ${m.text()}`));
+  const tag = `${theme}/${device}`;
+  // Signed out, the sign-in page's session check is expected to answer 401.
+  page.on("console", (m) => m.type() === "error" && !(page.url().includes("/signin") && m.text().includes("401")) && errors.push(`${tag} ${page.url()}: ${m.text()}`));
   page.on("pageerror", (e) => errors.push(`${tag} ${page.url()}: ${e.message}`));
-  await page.goto(`${base}/signin`);
-  await page.getByRole("button", { name: /Riley Chen/ }).click();
-  await page.waitForURL(/objectives/);
+  if (signIn) {
+    await page.goto(`${base}/signin`);
+    await page.getByRole("button", { name: /Sam Okafor/ }).click();
+    await page.waitForURL(/objectives/);
+  }
   return { ctx, page };
 }
-const shots = (process.env.SHOTS ?? "").split(",").filter(Boolean);
-const { ctx, page } = await session(1440, 900, "desktop");
-const app = page.url().replace(/\/objectives.*$/, "");
-const routes = [
-  ["objectives", "/objectives"],
-  ["sources", "/sources"],
-  ["source", null],
-  ["search", "/search?q=spreadsheet"],
-  ["insights", "/insights"],
-  ["insight", null],
-  ["assumptions", "/insights/assumptions"],
-  ["decision", null],
-  ["story", "/story"],
-  ["new-source", "/sources/new"],
-  ["activity", "/activity"],
-];
-async function snap(name, url, w = page) {
-  if (shots.length && !shots.includes(name)) return;
-  if (url) await w.goto(url.startsWith("http") ? url : `${app}${url}`);
-  await w.waitForLoadState("networkidle");
-  await w.waitForTimeout(400);
-  await w.screenshot({ path: `${out}/${name}.png`, fullPage: true });
+
+/** Wait until the screen has settled: network idle, no skeletons, fonts loaded. */
+async function settle(page) {
+  await page.waitForLoadState("networkidle");
+  await page.waitForFunction(() => !document.querySelector('[aria-busy="true"]'), null, { timeout: 10000 }).catch(() => {});
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(350);
 }
-for (const [name, url] of routes) {
-  if (name === "source") {
-    await page.goto(`${app}/sources`);
-    await page.waitForLoadState("networkidle");
-    await page.getByRole("link", { name: /Crew lead interview/ }).click();
-    await snap(name, null);
-  } else if (name === "insight") {
-    await page.goto(`${app}/insights`);
-    await page.waitForLoadState("networkidle");
-    await page.locator(".insight-list a").first().click();
-    await snap(name, null);
-  } else if (name === "decision") {
-    await page.goto(`${app}/insights/decisions`);
-    await page.waitForLoadState("networkidle");
-    await page.locator(".entry-list a").first().click();
-    await snap(name, null);
-  } else await snap(name, url);
+
+async function capture(page, file, { full = true } = {}) {
+  const vp = page.viewportSize();
+  if (full) {
+    const h = await page.evaluate(() => {
+      const main = document.querySelector("main#main");
+      if (!main) return document.documentElement.scrollHeight;
+      return main.getBoundingClientRect().top + main.scrollHeight;
+    });
+    const height = Math.min(MAX_HEIGHT, Math.max(vp.height, Math.ceil(h)));
+    if (height !== vp.height) {
+      await page.setViewportSize({ width: vp.width, height });
+      await page.waitForTimeout(250);
+    }
+  }
+  await page.screenshot({ path: `${out}/${file}.png` });
+  if (page.viewportSize().height !== vp.height) await page.setViewportSize(vp);
 }
-await snap("connect", `${base}/connect`);
-await snap("products", `${base}/products`);
-const mobile = await session(390, 844, "mobile");
-for (const [name, url] of [["m-objectives", "/objectives"], ["m-sources", "/sources"]]) await snap(name, url, mobile.page);
+
+const wanted = (screen) => !only.length || only.includes(screen);
+
+/** Resolve the sample product's ids through the API, with the signed-in session. */
+async function sample(page) {
+  const app = page.url().replace(/\/objectives.*$/, "");
+  const path = app.replace(/^.*\/t\//, "");
+  const P = `${base}/api/v1/p/${path}`;
+  const get = async (url) => (await page.request.get(url)).json();
+  const sources = await get(`${P}/sources?limit=200`);
+  const source = sources.records.find((r) => r.title.startsWith("Crew lead interview")) ?? sources.records[0];
+  const insights = await get(`${P}/insights`);
+  const assumptions = await get(`${P}/assumptions`);
+  const inState = (state) => insights.items.find((i) => i.review_state === state)?.insight_id;
+  return {
+    app,
+    api: P,
+    tenant: path.split("/")[0],
+    source: source.record_id,
+    insight: insights.items[0].insight_id,
+    reviewed: inState("reviewed"),
+    changed: inState("changed"),
+    assumption: (assumptions.items ?? assumptions.entries)[0].id,
+  };
+}
+
+for (const device of ["desktop", "phone"]) {
+  for (const theme of ["light", "dark"]) {
+    const { ctx, page } = await context(theme, device);
+    const s = await sample(page);
+    const name = (screen) => `${screen}-${theme}-${device}`;
+    const shoot = async (screen, url, opts) => {
+      if (!wanted(screen)) return;
+      if (url) await page.goto(url.startsWith("http") ? url : `${s.app}${url}`);
+      await settle(page);
+      await capture(page, name(screen), opts);
+    };
+
+    await shoot("objectives", "/objectives");
+    await shoot("evidence", "/evidence");
+    for (const view of ["passages", "original", "notes", "files"]) await shoot(`source-${view}`, `/evidence/${s.source}?view=${view}`);
+    await shoot("search", "/search?q=spreadsheet");
+    await shoot("insights", "/synthesis/insights");
+    await shoot("insight", `/synthesis/insights/${s.insight}`);
+    await shoot("assumptions", "/synthesis/assumptions");
+    await shoot("assumption", `/synthesis/assumptions/${s.assumption}`);
+    await shoot("decisions", "/synthesis/decisions");
+    await shoot("story", "/story/overview", { full: false });
+    if (wanted("export-dialog")) {
+      await page.goto(`${s.app}/story/overview`);
+      await settle(page);
+      if (device === "phone") {
+        await page.locator(".show-pill").click();
+        await page.waitForTimeout(300);
+      }
+      await page.getByRole("button", { name: "Story page options" }).click();
+      await page.getByRole("menuitem", { name: /Export to PDF/ }).click();
+      await page.getByRole("dialog", { name: "Export to PDF" }).waitFor();
+      await page.waitForTimeout(300);
+      await capture(page, name("export-dialog"), { full: false });
+    }
+    if (wanted("story-notes")) {
+      // The inspector scrolled to "Notes for agents", with its Edit control in view.
+      await page.goto(`${s.app}/story/overview`);
+      await settle(page);
+      const toggle = page.locator("[data-inspector-toggle]");
+      if (await toggle.isVisible()) {
+        await toggle.click();
+        await page.waitForTimeout(400);
+      }
+      await page.locator(".inspector .group-title", { hasText: "Notes for agents" }).evaluate((el) => el.closest(".group").scrollIntoView({ block: "start" }));
+      await page.locator(".inspector .group-title", { hasText: "Notes for agents" }).getByRole("button", { name: "Edit" }).waitFor();
+      await page.waitForTimeout(200);
+      await capture(page, name("story-notes"), { full: false });
+    }
+    if (device === "desktop") {
+      // The two review marks a person sees on an insight: reviewed (with Undo), and changed since review.
+      if (s.reviewed) await shoot("insight-reviewed", `/synthesis/insights/${s.reviewed}`);
+      if (s.changed) await shoot("insight-changed", `/synthesis/insights/${s.changed}`);
+    }
+    await shoot("print-view", `${s.api}/story/print?page_ids=overview,hand-off-test`);
+    await shoot("activity", "/activity");
+    await shoot("settings", "/settings");
+    await shoot("agents", `${base}/connect`);
+    await shoot("account", `${base}/account`);
+    await shoot("members", `${base}/t/${s.tenant}/members`);
+    await shoot("products", `${base}/products`);
+    await shoot("not-found", "/no-such-screen", { full: false });
+
+    if (device === "desktop" && wanted("panel-hidden")) {
+      await page.goto(`${s.app}/evidence/${s.source}?view=passages`);
+      await settle(page);
+      await page.getByRole("button", { name: "Hide panel" }).click();
+      await page.waitForTimeout(400);
+      await capture(page, name("panel-hidden"), { full: false });
+      await page.locator(".show-pill").click();
+    }
+    if (device === "phone" && wanted("drawer")) {
+      await page.goto(`${s.app}/objectives`);
+      await settle(page);
+      await page.locator(".show-pill").click();
+      await page.waitForTimeout(400);
+      await capture(page, name("drawer"), { full: false });
+    }
+    await ctx.close();
+
+    if (wanted("signin")) {
+      const anon = await context(theme, device, false);
+      await anon.page.goto(`${base}/signin`);
+      await settle(anon.page);
+      await capture(anon.page, name("signin"), { full: false });
+      await anon.ctx.close();
+    }
+  }
+}
+
 await browser.close();
-console.log(errors.length ? errors.join("\n") : "no console errors");
+if (errors.length) {
+  console.log(errors.join("\n"));
+  process.exit(1);
+}
+console.log(`no console errors; shots in ${out}`);

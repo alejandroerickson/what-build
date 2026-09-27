@@ -17,10 +17,10 @@ const GROUP_SENTENCES: Record<string, string> = {
   files: "Move files into sources through short-lived grants (never pass bytes through a tool), set file roles, and get download grants. Only the primary file is searched.",
   derived: "Read a source's parse: manifest, outline, text windows and older derivations; re-parse; and keep agent-written summaries or notes.",
   objectives: "Read and maintain the product's objectives: the outcomes discovery serves. Updates change only the fields you pass and keep old text as revisions.",
-  insights: "Read and write insights: readable Markdown synthesis linked to objectives, sources and entries. Updates keep old text as revisions.",
+  insights: "Read and write insights: readable Markdown synthesis linked to objectives, sources and entries. Updates keep old text as revisions. review records a person's review, never an agent's own.",
   assumptions: "The assumption register: premises the team treats as true, each cited to exact passages, with attributed reviews.",
   decisions: "The decision register: choices and their rationale, each cited to exact passages, with attributed reviews. Creating one does not imply agreement.",
-  story: "Read and publish the Story: versioned, sandboxed HTML pages for stakeholders, arranged in a hierarchy with its own etag. Read guidance first.",
+  story: "Read and publish the Story: versioned, sandboxed HTML pages for stakeholders, citing exact passages, each with notes for agents, arranged in a hierarchy with its own etag. Read guidance first, and a page's notes before revising it.",
   lineage: "Record and check the inputs a derived view was built from, so staleness can be reported.",
   activity: "What changed in the product, who changed it, and whether an agent did it.",
 };

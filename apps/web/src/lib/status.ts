@@ -1,13 +1,13 @@
-import type { Tone } from "../ui/index.tsx";
+import type { StatusTone } from "../ui/index.tsx";
 
 /** What a source's derived status means to a person, and what to do next. */
-export const DERIVED_STATUS: Record<string, { label: string; tone: Tone; explain: string; next?: string }> = {
-  ready: { label: "Ready", tone: "success", explain: "Parsed into passages; its primary file is searched." },
-  pending: { label: "Processing", tone: "info", explain: "Queued for parsing. Passages and the outline appear when it finishes." },
+export const DERIVED_STATUS: Record<string, { label: string; tone: StatusTone; explain: string; next?: string }> = {
+  ready: { label: "Ready", tone: "positive", explain: "Parsed into passages; its primary file is searched." },
+  pending: { label: "Processing", tone: "progress", explain: "Queued for parsing. Passages and the outline appear when it finishes." },
   awaiting_file: { label: "No file yet", tone: "neutral", explain: "This source has no primary file yet.", next: "Add a file." },
   needs_transcript: {
     label: "Needs transcript",
-    tone: "warning",
+    tone: "attention",
     explain: "A recording is stored and playable, but WhatBuild does not transcribe.",
     next: "Add the transcript as its own source, with the transcript as its primary file.",
   },
@@ -17,19 +17,19 @@ export const DERIVED_STATUS: Record<string, { label: string; tone: Tone; explain
     explain: "No parser reads this format. The file is stored and downloadable.",
     next: "Add a text, Markdown, VTT, SRT, DOCX, XLSX, PDF or HTML version as a new source.",
   },
-  too_large: { label: "Too large to parse", tone: "warning", explain: "Stored in full, but over the parsing limit.", next: "Add a shorter digest as a new source and keep this file as its origin." },
-  failed: { label: "Parsing failed", tone: "danger", explain: "The file is stored, but its text could not be read.", next: "Check it opens elsewhere; upload a clean copy as a new source." },
+  too_large: { label: "Too large to parse", tone: "attention", explain: "Stored in full, but over the parsing limit.", next: "Add a shorter digest as a new source and keep this file as its origin." },
+  failed: { label: "Parsing failed", tone: "negative", explain: "The file is stored, but its text could not be read.", next: "Check it opens elsewhere; upload a clean copy as a new source." },
 };
 
 export function derivedStatus(status: string) {
-  return DERIVED_STATUS[status] ?? { label: status, tone: "neutral" as Tone, explain: "" };
+  return DERIVED_STATUS[status] ?? { label: status, tone: "neutral" as StatusTone, explain: "" };
 }
 
-export const REVIEW_STATUS: Record<string, { label: string; tone: Tone }> = {
-  unconfirmed: { label: "Unconfirmed", tone: "neutral" },
-  confirmed: { label: "Confirmed", tone: "success" },
-  refuted: { label: "Refuted", tone: "danger" },
-  superseded: { label: "Superseded", tone: "warning" },
+export const REVIEW_STATUS: Record<string, { label: string; tone: StatusTone }> = {
+  unconfirmed: { label: "Unconfirmed", tone: "attention" },
+  confirmed: { label: "Confirmed", tone: "positive" },
+  refuted: { label: "Refuted", tone: "negative" },
+  superseded: { label: "Superseded", tone: "neutral" },
 };
 
 export const ROLE_LABEL: Record<string, string> = { primary: "Primary", origin: "Origin", supplement: "Supplement" };
@@ -40,3 +40,19 @@ export const PROVENANCE_LABEL: Record<string, string> = {
   analysis_of_analysis: "Analysis of analysis",
   unknown: "Not specified",
 };
+
+/**
+ * The written map from every other domain status to a StatusBadge tone. positive: done and good;
+ * attention: needs a person; negative: failed or refuted; progress: running; neutral: a plain state.
+ */
+export const STATUS_TONE = {
+  insight: { draft: "attention", published: "positive", archived: "neutral" },
+  objective: { active: "neutral", achieved: "positive", archived: "neutral" },
+  review: { unreviewed: "attention", changed: "attention", reviewed: "positive" },
+  citation: { ok: "positive", relocated: "attention", text_changed: "attention", record_archived: "neutral", record_deleted: "negative", record_missing: "negative" },
+  upload: { queued: "neutral", uploading: "progress", done: "positive", failed: "negative" },
+} as const satisfies Record<string, Record<string, StatusTone>>;
+
+export function toneFor<K extends keyof typeof STATUS_TONE>(domain: K, status: string): StatusTone {
+  return (STATUS_TONE[domain] as Record<string, StatusTone>)[status] ?? "neutral";
+}

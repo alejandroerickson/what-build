@@ -1,0 +1,95 @@
+/* Activity: the product's log, reached from the account menu and from items. */
+
+.activity-scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-1);
+  margin: 0;
+  padding: var(--s-2h) var(--sheet-px);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+.activity-scope b {
+  color: var(--text);
+  font-weight: var(--fw-medium);
+}
+.activity-scope-quiet {
+  color: var(--faint);
+}
+.activity-state {
+  padding: var(--s-3) var(--sheet-px);
+}
+
+.activity-day {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  margin: 0;
+  padding: var(--s-3h) var(--sheet-px) var(--s-1h);
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0;
+}
+.activity-day-count {
+  color: var(--faint);
+  font-weight: var(--fw-regular);
+}
+.activity-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.activity-row {
+  display: grid;
+  grid-template-columns: var(--col-face) minmax(0, 1fr) auto;
+  gap: var(--s-3);
+  align-items: center;
+  padding: 11px var(--sheet-px);
+  border-bottom: 1px solid var(--line);
+}
+.activity-main {
+  min-width: 0;
+}
+.activity-sentence {
+  margin: 0;
+  line-height: var(--lh-ui);
+  overflow-wrap: anywhere;
+}
+.activity-sentence b {
+  font-weight: var(--fw-medium);
+}
+.activity-sub {
+  margin: 2px 0 0;
+  color: var(--faint);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-ui);
+  overflow-wrap: anywhere;
+}
+.activity-time {
+  color: var(--faint);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+.activity-foot {
+  padding: var(--s-3) var(--sheet-px);
+}
+.activity-end {
+  margin: 0;
+  color: var(--faint);
+  font-size: var(--fs-sm);
+}
+
+@media (max-width: 760px) {
+  .activity-row {
+    grid-template-columns: var(--col-face) minmax(0, 1fr);
+    align-items: start;
+    row-gap: var(--s-0);
+  }
+  .activity-time {
+    grid-column: 2;
+  }
+}

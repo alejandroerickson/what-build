@@ -4,8 +4,11 @@ import { Link, useSearchParams } from "react-router";
 import { api, qs } from "../lib/api.ts";
 import { formatCue } from "../lib/format.ts";
 import { useProduct } from "../lib/session.tsx";
-import { REVIEW_STATUS } from "../lib/status.ts";
-import { Badge, Button, Callout, EmptyState, ErrorCallout, Loading, PageHeader, SelectField, TextField } from "../ui/index.tsx";
+import { REVIEW_STATUS, toneFor } from "../lib/status.ts";
+import type { RecordFull } from "../lib/types.ts";
+import { usePageTitle } from "../shell/slots.tsx";
+import { Button, EmptyState, ErrorCallout, FindField, Glyph, Loading, Segmented, Sheet, SheetHeader, StatusBadge } from "../ui/index.tsx";
+import "../styles/screens/evidence.css";
 
 interface SearchResult {
   records?: Record<string, { title: string; kind_label: string; folder_label: string; archived_at: string | null }>;
@@ -25,128 +28,205 @@ function highlight(text: string, query: string): ReactNode {
   return text.split(re).map((part, i) => (i % 2 ? <mark key={i}>{part}</mark> : part));
 }
 
+const SCOPES = [
+  { id: "passages", label: "Passages" },
+  { id: "registers", label: "Assumptions and decisions" },
+  { id: "insights", label: "Insights" },
+  { id: "all", label: "Everything" },
+];
+
 export function SearchPage() {
   const { api: base, app } = useProduct();
   const [params, setParams] = useSearchParams();
   const q = params.get("q") ?? "";
-  const mode = params.get("mode") ?? "substring";
-  const scope = params.get("scope") ?? "passages";
+  const mode = params.get("mode") === "ranked" ? "ranked" : "substring";
+  const scope = SCOPES.some((s) => s.id === params.get("scope")) ? params.get("scope")! : "passages";
+  const recordId = params.get("record_id") ?? "";
   const [text, setText] = useState(q);
-  const [cursor, setCursor] = useState<string | undefined>(undefined);
+  const [cursors, setCursors] = useState<string[]>([]);
+  usePageTitle(q ? `Search: ${q}` : "Search");
   useEffect(() => {
     setText(q);
-    setCursor(undefined);
-  }, [q, mode, scope]);
+    setCursors([]);
+  }, [q, mode, scope, recordId]);
+  const cursor = cursors[cursors.length - 1];
   const res = useQuery({
-    queryKey: ["search", base, q, mode, scope, cursor],
-    queryFn: () => api<SearchResult>("GET", `${base}/search${qs({ query: q, mode, scope, cursor, limit: 50 })}`),
+    queryKey: ["search", base, q, mode, scope, recordId, cursor],
+    queryFn: () => api<SearchResult>("GET", `${base}/search${qs({ query: q, mode, scope, record_id: recordId, cursor, limit: 50 })}`),
     enabled: Boolean(q),
+    placeholderData: (prev) => prev,
   });
-  const set = (patch: Record<string, string>) => {
+  const source = useQuery({
+    queryKey: ["source-brief", base, recordId],
+    queryFn: () => api<Pick<RecordFull, "record_id" | "title">>("GET", `${base}/sources/${recordId}`),
+    enabled: Boolean(recordId),
+    staleTime: 60_000,
+  });
+  const link = (patch: Record<string, string>) => {
     const next = new URLSearchParams(params);
     for (const [k, v] of Object.entries(patch)) (v ? next.set(k, v) : next.delete(k));
-    setParams(next);
+    const s = next.toString();
+    return `?${s}`;
   };
   const d = res.data;
+  const busy = res.isFetching && !res.isPending;
   return (
-    <div className="stack-lg">
-      <PageHeader title="Search" description="Find a passage across every source, then open it where it sits. Search matches words, not meaning." />
-      <form
-        className="search-form"
-        role="search"
-        onSubmit={(e) => {
-          e.preventDefault();
-          set({ q: text.trim() });
-        }}
-      >
-        <div className="grow">
-          <TextField label="Words or a phrase" type="search" placeholder='e.g. pricing objection, or "every Friday"' value={text} onChange={(e) => setText(e.target.value)} />
+    <>
+      <Sheet className="search-sheet">
+        <SheetHeader level={1} title="Search" end={<span className="faint small">Matches words, not meaning.</span>} />
+        <form
+          className="search-bar"
+          role="search"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const next = new URLSearchParams(params);
+            if (text.trim()) next.set("q", text.trim());
+            else next.delete("q");
+            setParams(next);
+          }}
+        >
+          <FindField label={recordId ? "Search this source" : "Search passages"} value={text} onChange={(e) => setText(e.target.value)} placeholder={recordId ? "Search this source" : 'Words or a phrase, e.g. "gate code"'} autoFocus={!q} enterKeyHint="search" />
+          <Button type="submit" variant="primary">
+            Search
+          </Button>
+        </form>
+        <div className="search-options">
+          <Segmented label="What to search" value={scope} items={SCOPES.map((s) => ({ id: s.id, label: s.label, to: link({ scope: s.id === "passages" ? "" : s.id }) }))} />
+          <Segmented
+            label="Matching"
+            value={mode}
+            items={[
+              { id: "substring", label: "Exact text", to: link({ mode: "" }) },
+              { id: "ranked", label: "Ranked", to: link({ mode: "ranked" }) },
+            ]}
+          />
+          {recordId ? (
+            <span className="search-in">
+              <Glyph name="library" size="sm" />
+              <span className="ellipsis">
+                In{" "}
+                <Link to={`${app}/evidence/${recordId}`} className="quiet-link">
+                  {source.data?.title ?? "one source"}
+                </Link>
+              </span>
+              <Link to={link({ record_id: "" })} className="quiet-link">
+                Search all sources
+              </Link>
+            </span>
+          ) : null}
         </div>
-        <SelectField label="Search" value={scope} onChange={(e) => set({ scope: e.target.value === "passages" ? "" : e.target.value })}>
-          <option value="passages">Passages</option>
-          <option value="registers">Assumptions and decisions</option>
-          <option value="insights">Insights</option>
-          <option value="all">Everything</option>
-        </SelectField>
-        <SelectField label="Matching" value={mode} onChange={(e) => set({ mode: e.target.value === "substring" ? "" : e.target.value })}>
-          <option value="substring">Exact text</option>
-          <option value="ranked">Ranked query</option>
-        </SelectField>
-        <Button type="submit" variant="primary" style={{ alignSelf: "end" }}>
-          Search
-        </Button>
-      </form>
-      {mode === "ranked" ? <p className="small muted">Ranked queries take words, "quoted phrases", prefix*, AND, OR, NOT and parentheses.</p> : null}
+        {mode === "ranked" ? <p className="search-help">Ranked queries take words, "quoted phrases", prefix*, AND, OR, NOT and parentheses.</p> : null}
+      </Sheet>
+
       {!q ? (
         <EmptyState title="Search the evidence">Only each source's primary file is searched; originals and supplements are kept but never searched. An empty result does not prove the evidence is absent.</EmptyState>
       ) : res.isPending ? (
-        <Loading label="Searching…" lines={6} />
+        <Sheet>
+          <Loading label="Searching…" lines={6} />
+        </Sheet>
       ) : res.isError ? (
         <ErrorCallout title="Search did not finish" error={res.error} onRetry={() => res.refetch()} />
       ) : d ? (
-        <div className="stack-lg" aria-live="polite">
-          {d.coverage ? <Callout tone="info">{d.coverage.statement}</Callout> : null}
+        <div className="search-results" aria-live="polite" aria-busy={busy || undefined}>
+          {d.coverage ? (
+            <p className="search-coverage">
+              <Glyph name="info" size="sm" />
+              {d.coverage.statement}
+            </p>
+          ) : null}
           {d.hits ? (
-            <section className="stack" aria-labelledby="hits-h">
-              <h2 id="hits-h">
-                Passages <span className="muted small">· {d.hits.length}{d.next_cursor ? "+" : ""} matches</span>
-              </h2>
+            <Sheet labelledBy="hits-h">
+              <SheetHeader id="hits-h" title="Passages" count={`${d.hits.length}${d.next_cursor ? "+" : ""}`} />
               {!d.hits.length ? (
-                <EmptyState title="No passages match">{mode === "ranked" ? "Try fewer terms or a broader query." : "Try fewer words, or a ranked query."}</EmptyState>
+                <EmptyState size="inline" title="No passages match.">
+                  {mode === "ranked" ? "Try fewer terms or a broader query." : "Try fewer words, or a ranked query."}
+                </EmptyState>
               ) : (
-                <ol className="hits">
+                <ol className="search-hits">
                   {d.hits.map((h) => {
                     const r = d.records?.[h.record_id];
                     return (
                       <li key={`${h.record_id}:${h.seq}`} className="hit">
-                        <Link to={`${app}/sources/${h.record_id}?tab=passages&seq=${h.seq}`} className="hit-link">
-                          <span className="row small">
-                            <strong>{r?.title}</strong>
-                            <Badge>{r?.kind_label}</Badge>
-                            {h.speaker ? <span>{h.speaker}</span> : null}
-                            <span className="faint num">{h.start_ms !== null ? formatCue(h.start_ms) : `segment ${h.seq}`}</span>
+                        <Link to={`${app}/evidence/${h.record_id}?view=passages&seq=${h.seq}`} className="hit-link">
+                          <span className="hit-addr num">¶{h.seq}</span>
+                          <span className="hit-main">
+                            <span className="hit-source">
+                              <b className="ellipsis">{r?.title ?? "Source"}</b>
+                              <span className="faint">
+                                {[r?.kind_label, h.speaker, h.start_ms !== null ? formatCue(h.start_ms) : null].filter(Boolean).join(" · ")}
+                                {r?.archived_at ? " · archived" : ""}
+                              </span>
+                            </span>
+                            <span className="hit-snippet">{highlight(h.snippet, q)}</span>
                           </span>
-                          <span className="hit-snippet">{highlight(h.snippet, q)}</span>
                         </Link>
                       </li>
                     );
                   })}
                 </ol>
               )}
-              {d.next_cursor ? <Button onClick={() => setCursor(d.next_cursor!)}>Next matches</Button> : null}
-            </section>
+              {d.next_cursor || cursors.length ? (
+                <div className="search-pager">
+                  <Button size="sm" icon="chevron-left" disabled={!cursors.length} onClick={() => setCursors(cursors.slice(0, -1))}>
+                    Previous
+                  </Button>
+                  <Button size="sm" disabled={!d.next_cursor} busy={busy} busyLabel="Loading…" onClick={() => setCursors([...cursors, d.next_cursor!])}>
+                    Next matches
+                  </Button>
+                </div>
+              ) : null}
+            </Sheet>
           ) : null}
           {d.assumptions || d.decisions ? (
-            <section className="stack" aria-labelledby="reg-h">
-              <h2 id="reg-h">Assumptions and decisions</h2>
-              {![...(d.assumptions ?? []), ...(d.decisions ?? [])].length ? <p className="muted">None match.</p> : null}
-              <ul className="plain-list">
-                {[...(d.assumptions ?? []).map((a) => ({ ...a, k: "assumptions" })), ...(d.decisions ?? []).map((a) => ({ ...a, k: "decisions" }))].map((e) => (
-                  <li key={e.id} className="row">
-                    <Badge>{e.k === "assumptions" ? "Assumption" : "Decision"}</Badge>
-                    <Link to={`${app}/insights/${e.k}/${e.id}`}>{highlight(e.statement, q)}</Link>
-                    <Badge tone={REVIEW_STATUS[e.status]?.tone}>{REVIEW_STATUS[e.status]?.label}</Badge>
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <Sheet labelledBy="reg-h">
+              <SheetHeader id="reg-h" title="Assumptions and decisions" count={(d.assumptions?.length ?? 0) + (d.decisions?.length ?? 0)} />
+              {![...(d.assumptions ?? []), ...(d.decisions ?? [])].length ? (
+                <EmptyState size="inline">None match.</EmptyState>
+              ) : (
+                <ul className="search-entries">
+                  {[...(d.assumptions ?? []).map((a) => ({ ...a, k: "assumptions" as const })), ...(d.decisions ?? []).map((a) => ({ ...a, k: "decisions" as const }))].map((e) => (
+                    <li key={e.id}>
+                      <Link to={`${app}/synthesis/${e.k}/${e.id}`} className="search-entry">
+                        <Glyph name={e.k === "assumptions" ? "scale" : "signpost"} />
+                        <span className="search-entry-main">
+                          <span className="search-entry-title">{highlight(e.statement, q)}</span>
+                          <span className="faint">
+                            {e.k === "assumptions" ? "Assumption" : "Decision"} · {e.citation_count} {e.citation_count === 1 ? "citation" : "citations"}
+                          </span>
+                        </span>
+                        <StatusBadge tone={REVIEW_STATUS[e.status]?.tone}>{REVIEW_STATUS[e.status]?.label ?? e.status}</StatusBadge>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Sheet>
           ) : null}
           {d.insights ? (
-            <section className="stack" aria-labelledby="ins-h">
-              <h2 id="ins-h">Insights</h2>
-              {!d.insights.length ? <p className="muted">None match.</p> : null}
-              <ul className="plain-list">
-                {d.insights.map((i) => (
-                  <li key={i.id}>
-                    <Link to={`${app}/insights/${i.id}`}>{i.title}</Link>
-                    {i.summary ? <p className="small muted">{i.summary}</p> : null}
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <Sheet labelledBy="ins-h">
+              <SheetHeader id="ins-h" title="Insights" count={d.insights.length} />
+              {!d.insights.length ? (
+                <EmptyState size="inline">None match.</EmptyState>
+              ) : (
+                <ul className="search-entries">
+                  {d.insights.map((i) => (
+                    <li key={i.id}>
+                      <Link to={`${app}/synthesis/insights/${i.id}`} className="search-entry">
+                        <Glyph name="lightbulb" />
+                        <span className="search-entry-main">
+                          <span className="search-entry-title">{highlight(i.title, q)}</span>
+                          {i.summary ? <span className="faint search-entry-sub">{i.summary}</span> : null}
+                        </span>
+                        <StatusBadge tone={toneFor("insight", i.status)}>{i.status === "published" ? "Published" : i.status === "draft" ? "Draft" : "Archived"}</StatusBadge>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Sheet>
           ) : null}
         </div>
       ) : null}
-    </div>
+    </>
   );
 }

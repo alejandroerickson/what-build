@@ -1,83 +1,144 @@
 /**
  * Story authoring guidance, served by story(action="guidance") so page quality does not depend on
- * an agent's taste. The sandboxed frame cannot inherit the app's stylesheet, so the guidance embeds
- * a small resolved token set and recipes built only on it.
+ * an agent's taste. The sandboxed frame cannot inherit the app's stylesheet or load fonts, so the
+ * guidance embeds a small resolved token set and recipes built only on it.
  *
- * PROVISIONAL: these values are a deliberately neutral placeholder until WhatBuild's design system
- * is chosen. When it is, TOKENS below must be derived from it and a drift test must compare them.
+ * Every colour, radius and UI font below is copied from the web app's design tokens
+ * (apps/web/src/styles/tokens.css): WEB_TOKEN names the web token each guidance token derives from,
+ * and a drift test in the server suite fails when the two disagree in either scheme. Change the
+ * web tokens first, then update the values here and bump GUIDANCE_VERSION. The reading face stays
+ * a serif system stack: it is the Story's own, not the app's.
  */
 
-export const GUIDANCE_VERSION = "0.1.0-provisional";
+export const GUIDANCE_VERSION = "1.1.0";
 
+/** The web design token each derived guidance token copies, in both schemes. */
+export const WEB_TOKEN: Record<string, string> = {
+  "--wb-ink": "--text",
+  "--wb-ink-muted": "--muted",
+  "--wb-paper": "--panel",
+  "--wb-surface": "--canvas",
+  "--wb-rule": "--line",
+  "--wb-rule-strong": "--line-2",
+  "--wb-accent": "--accent",
+  "--wb-status-evidence": "--ok",
+  "--wb-status-caution": "--warn",
+  "--wb-status-open": "--muted",
+  "--wb-font-ui": "--font",
+  "--wb-font-mono": "--mono",
+  "--wb-radius-sm": "--r-xs",
+  "--wb-radius": "--r-sm",
+  "--wb-radius-lg": "--r-md",
+};
+
+/** Light scheme (the default), plus the scheme-independent type, space and shape. */
 export const TOKENS: Record<string, string> = {
-  "--wb-ink": "#1c1b19",
-  "--wb-ink-muted": "#5d5a53",
-  "--wb-paper": "#fbfaf7",
-  "--wb-surface": "#f2f0ea",
-  "--wb-rule": "#dcd8ce",
-  "--wb-accent": "#2f5d50",
-  "--wb-status-evidence": "#2f5d50",
-  "--wb-status-caution": "#8a5a00",
-  "--wb-status-open": "#5d5a53",
-  "--wb-font-body": "ui-serif, Georgia, 'Times New Roman', serif",
-  "--wb-font-ui": "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
-  "--wb-font-mono": "ui-monospace, SFMono-Regular, Menlo, monospace",
+  "--wb-ink": "#1e1e1e",
+  "--wb-ink-muted": "#555555",
+  "--wb-paper": "#ffffff",
+  "--wb-surface": "#f0f0f0",
+  "--wb-rule": "#e6e6e6",
+  "--wb-rule-strong": "#d5d5d5",
+  "--wb-accent": "#5a53e8",
+  "--wb-status-evidence": "#0f7440",
+  "--wb-status-caution": "#9a5b00",
+  "--wb-status-open": "#555555",
+  "--wb-font-body": 'ui-serif, Charter, Georgia, "Times New Roman", serif',
+  "--wb-font-ui": '"Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+  "--wb-font-mono": 'ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace',
   "--wb-step--1": "0.875rem",
   "--wb-step-0": "1.0625rem",
-  "--wb-step-1": "1.3rem",
-  "--wb-step-2": "1.7rem",
-  "--wb-step-3": "2.2rem",
+  "--wb-step-h2": "1.125rem",
+  "--wb-step-1": "1.25rem",
+  "--wb-step-2": "1.5rem",
+  "--wb-step-3": "2rem",
   "--wb-space-1": "0.25rem",
   "--wb-space-2": "0.5rem",
   "--wb-space-3": "1rem",
   "--wb-space-4": "1.5rem",
   "--wb-space-5": "2.5rem",
+  "--wb-radius-sm": "4px",
   "--wb-radius": "6px",
+  "--wb-radius-lg": "8px",
   "--wb-measure": "68ch",
   "--wb-page": "72rem",
 };
 
-const tokenCss = Object.entries(TOKENS)
-  .map(([k, v]) => `  ${k}: ${v};`)
-  .join("\n");
+/** Dark scheme: only the colours change. */
+export const TOKENS_DARK: Record<string, string> = {
+  "--wb-ink": "#ededed",
+  "--wb-ink-muted": "#bdbdbd",
+  "--wb-paper": "#2a2a2a",
+  "--wb-surface": "#1b1b1b",
+  "--wb-rule": "#383838",
+  "--wb-rule-strong": "#474747",
+  "--wb-accent": "#8b85ff",
+  "--wb-status-evidence": "#62d394",
+  "--wb-status-caution": "#f0b95e",
+  "--wb-status-open": "#bdbdbd",
+};
+
+const declarations = (tokens: Record<string, string>, indent: string) =>
+  Object.entries(tokens)
+    .map(([k, v]) => `${indent}${k}: ${v};`)
+    .join("\n");
+
+/**
+ * The attribute the app sets on a Story page's <html> when it shows the page, so the page follows
+ * the app's chosen theme rather than only the system's. Without it the page follows the system.
+ */
+export const THEME_ATTRIBUTE = "data-wb-theme";
 
 export const STYLESHEET = `:root {
-${tokenCss}
+  color-scheme: light dark;
+${declarations(TOKENS, "  ")}
 }
 @media (prefers-color-scheme: dark) {
-  :root { --wb-ink: #ecebe6; --wb-ink-muted: #b5b1a7; --wb-paper: #171614; --wb-surface: #22211e; --wb-rule: #3a3833; --wb-accent: #8cc2b0; --wb-status-evidence: #8cc2b0; --wb-status-caution: #e3b45c; }
+  :root:not([${THEME_ATTRIBUTE}="light"]) {
+${declarations(TOKENS_DARK, "    ")}
+  }
+}
+:root[${THEME_ATTRIBUTE}="light"] { color-scheme: light; }
+:root[${THEME_ATTRIBUTE}="dark"] {
+  color-scheme: dark;
+${declarations(TOKENS_DARK, "  ")}
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--wb-paper); color: var(--wb-ink); font: var(--wb-step-0)/1.6 var(--wb-font-body); }
 .wb-page { max-width: var(--wb-page); margin: 0 auto; padding: var(--wb-space-5) var(--wb-space-3); }
 .wb-prose { max-width: var(--wb-measure); }
 .wb-prose > * + * { margin-top: var(--wb-space-3); }
-h1, h2, h3 { font-family: var(--wb-font-ui); line-height: 1.2; letter-spacing: -0.01em; }
+h1, h2, h3 { font-family: var(--wb-font-ui); font-weight: 600; line-height: 1.25; letter-spacing: -0.01em; }
 h1 { font-size: var(--wb-step-3); margin: 0 0 var(--wb-space-2); }
-h2 { font-size: var(--wb-step-2); margin: var(--wb-space-5) 0 var(--wb-space-2); }
-h3 { font-size: var(--wb-step-1); margin: var(--wb-space-4) 0 var(--wb-space-2); }
-a { color: var(--wb-accent); text-underline-offset: 0.15em; }
+h2 { font-size: var(--wb-step-h2); margin: var(--wb-space-5) 0 var(--wb-space-2); }
+h3 { font-size: var(--wb-step-0); margin: var(--wb-space-4) 0 var(--wb-space-2); }
+a { color: var(--wb-accent); text-decoration-thickness: 1px; text-underline-offset: 0.15em; }
+:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; border-radius: var(--wb-radius-sm); }
+code, kbd, samp { font-family: var(--wb-font-mono); font-size: 0.875em; }
 .wb-lead { font-size: var(--wb-step-1); color: var(--wb-ink); max-width: var(--wb-measure); }
 .wb-meta { font: var(--wb-step--1)/1.4 var(--wb-font-ui); color: var(--wb-ink-muted); }
 .wb-stack > * + * { margin-top: var(--wb-space-3); }
-.wb-card { border: 1px solid var(--wb-rule); border-radius: var(--wb-radius); padding: var(--wb-space-3); background: var(--wb-paper); }
-.wb-callout { border-left: 3px solid var(--wb-rule); padding: var(--wb-space-2) var(--wb-space-3); background: var(--wb-surface); }
-.wb-callout[data-tone="caution"] { border-left-color: var(--wb-status-caution); }
-.wb-quote { margin: 0; padding-left: var(--wb-space-3); border-left: 2px solid var(--wb-rule); }
+.wb-card { border: 1px solid var(--wb-rule); border-radius: var(--wb-radius-lg); padding: var(--wb-space-3); background: var(--wb-paper); }
+.wb-callout { border: 1px solid var(--wb-rule); border-radius: var(--wb-radius-lg); padding: var(--wb-space-2) var(--wb-space-3); background: var(--wb-surface); }
+.wb-stack > :first-child, .wb-card > :first-child, .wb-callout > :first-child { margin-top: 0; }
+.wb-card > :last-child, .wb-callout > :last-child { margin-bottom: 0; }
+.wb-callout[data-tone="caution"] { border-color: var(--wb-status-caution); }
+.wb-quote { margin: 0; padding-left: var(--wb-space-3); border-left: 2px solid var(--wb-rule-strong); }
 .wb-quote blockquote { margin: 0; }
 .wb-quote figcaption { font: var(--wb-step--1)/1.4 var(--wb-font-ui); color: var(--wb-ink-muted); margin-top: var(--wb-space-1); }
-.wb-status { display: inline-block; font: 600 var(--wb-step--1)/1 var(--wb-font-ui); padding: 0.2em 0.5em; border-radius: 999px; border: 1px solid currentColor; }
+.wb-status { display: inline-block; font: 500 var(--wb-step--1)/1 var(--wb-font-ui); padding: 0.25em 0.5em; border-radius: var(--wb-radius-sm); border: 1px solid currentColor; }
 .wb-status[data-state="evidence"] { color: var(--wb-status-evidence); }
 .wb-status[data-state="caution"] { color: var(--wb-status-caution); }
 .wb-status[data-state="open"] { color: var(--wb-status-open); }
 .wb-metric { font-family: var(--wb-font-ui); }
-.wb-metric strong { display: block; font-size: var(--wb-step-2); }
-.wb-table-wrap { overflow-x: auto; }
-table { border-collapse: collapse; width: 100%; font: var(--wb-step--1)/1.45 var(--wb-font-ui); }
+.wb-metric strong { display: block; font-size: var(--wb-step-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+.wb-table-wrap { overflow-x: auto; border-radius: var(--wb-radius-sm); }
+table { border-collapse: collapse; width: 100%; font: var(--wb-step--1)/1.45 var(--wb-font-ui); font-variant-numeric: tabular-nums; }
 caption { text-align: left; font-weight: 600; padding-bottom: var(--wb-space-2); }
 th, td { text-align: left; padding: var(--wb-space-2); border-bottom: 1px solid var(--wb-rule); vertical-align: top; }
+thead th { font-weight: 500; color: var(--wb-ink-muted); border-bottom-color: var(--wb-rule-strong); }
 details { border-top: 1px solid var(--wb-rule); padding: var(--wb-space-2) 0; }
-summary { cursor: pointer; font-family: var(--wb-font-ui); }
+summary { cursor: pointer; font-family: var(--wb-font-ui); font-weight: 500; }
 .wb-split { display: grid; gap: var(--wb-space-5); grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
 .wb-grid { display: grid; gap: var(--wb-space-3); grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
 @media (max-width: 48rem) { .wb-split { grid-template-columns: 1fr; } .wb-page { padding: var(--wb-space-4) var(--wb-space-3); } }
@@ -86,12 +147,12 @@ summary { cursor: pointer; font-family: var(--wb-font-ui); }
 export function linkTemplates(base: string, path: string) {
   const p = `${base}/t/${path}`;
   return {
-    source: `${p}/sources/{record_id}`,
-    passage: `${p}/sources/{record_id}?tab=passages&seq={seq}`,
-    insight: `${p}/insights/{insight_id}`,
+    source: `${p}/evidence/{record_id}`,
+    passage: `${p}/evidence/{record_id}?view=passages&seq={seq}`,
+    insight: `${p}/synthesis/insights/{insight_id}`,
     objective: `${p}/objectives`,
-    assumption: `${p}/insights/assumptions/{id}`,
-    decision: `${p}/insights/decisions/{id}`,
+    assumption: `${p}/synthesis/assumptions/{id}`,
+    decision: `${p}/synthesis/decisions/{id}`,
     story_page: `${p}/story/{page_id}`,
   };
 }
@@ -178,9 +239,11 @@ ${layouts()[1]!.html}
 
 export const WORKFLOW = [
   "Read the objectives, the relevant sources, insights, assumptions and decisions first.",
-  "Read the current version of the page before revising it, keep what is useful, and pass its etag.",
+  "Read the current version of the page and its notes for agents (get_page → agent_notes) before revising it, keep what is useful, and pass its etag.",
+  "Cite the exact passages the page rests on in citations (up to 20), and list the objects it draws on in refs; pass both in full on every publish.",
   "Use the hierarchy to find related pages; give each page a short lower-case page_id; link related pages inline.",
   "Publish with a short note saying what changed. Publishing does not place a page: set_hierarchy does, with its own etag.",
+  "After publishing, update the page's notes for agents with write_notes: its purpose, what is still to fold in, and structural decisions.",
   "Archiving a page takes it out of navigation and promotes its sub-pages; restoring returns it unplaced.",
 ];
 
@@ -195,11 +258,24 @@ export const CONTENT_RULES = [
 
 export const DESIGN_RULES = [
   "One H1; logical heading levels.",
-  "Spacing, radius and type only from the supplied tokens.",
-  "Restrained surfaces: most content is prose on paper.",
+  "Spacing, radius and type only from the supplied tokens; the stylesheet already carries the light and dark schemes, so use its variables rather than new colour values.",
+  "Restrained surfaces: most content is prose on paper, separated by hairline rules; no shadows, glows or gradients.",
   "Colour only for a labelled status or a necessary data comparison, never as the only carrier of meaning.",
   "Accent colour is for links; do not use status colours for decoration.",
   "Source order is reading order.",
   "No fixed heights or minimum widths: the page reflows in the frame.",
-  "Fonts cannot load from a network; use the supplied system stacks.",
+  "Fonts cannot load from a network: use the supplied stacks, which name Inter first for headings and fall back to system faces. Never embed font files.",
 ];
+
+/**
+ * Mark a stored Story page with the viewer's theme for one response: adds the theme attribute to the
+ * page's <html> start tag (or opens one after any doctype and leading comments when the page has
+ * none). Only "light" and "dark" are ever written. The stored HTML is not changed.
+ */
+export function withStoryTheme(html: string, theme: "light" | "dark"): string {
+  const attr = ` ${THEME_ATTRIBUTE}="${theme}"`;
+  const lead = /^(?:\uFEFF)?(?:\s+|<!doctype[^>]*>|<!--[\s\S]*?-->)*/i.exec(html)![0];
+  const rest = html.slice(lead.length);
+  if (/^<html(?=[\s>/])/i.test(rest)) return `${lead}<html${attr}${rest.slice(5)}`;
+  return `${lead}<html${attr}>${rest}`;
+}

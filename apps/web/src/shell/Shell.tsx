@@ -1,192 +1,333 @@
-import { useState, type ReactNode } from "react";
-import { Link, NavLink, useLocation } from "react-router";
-import { useMe, useProducts, useSignOut, type Product } from "../lib/session.tsx";
-import { IconChevronDown, IconClock, IconMenu, IconPlug } from "../ui/icons.tsx";
-import { Badge, Menu, MenuItem, MenuSeparator } from "../ui/index.tsx";
-import { ActivityDrawer } from "./ActivityDrawer.tsx";
-import "./shell.css";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useLocation, useParams } from "react-router";
+import type { Product } from "../lib/session.tsx";
+import { Callout, Glyph } from "../ui/index.tsx";
+import { isTypingTarget, NARROW_QUERY, PHONE_QUERY, shortcutLabel, useMediaQuery } from "../ui/media.ts";
+import { BrandMark } from "./brand.tsx";
+import { AccountMenu, BrandRow, PlainNav, ProductNav, ProductSwitcher, productSection, useLastProduct } from "./panel.tsx";
+import { ShellContext, type ShellSlots } from "./slots.tsx";
 
-function initials(name: string) {
-  return (
-    name
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((p) => p[0]!.toUpperCase())
-      .join("") || "?"
-  );
+const NAV_KEY = "whatbuild.nav";
+
+function readNavHidden(): boolean {
+  try {
+    return localStorage.getItem(NAV_KEY) === "closed";
+  } catch {
+    return false;
+  }
 }
 
-export function AccountMenu() {
-  const me = useMe();
-  const signOut = useSignOut();
-  const name = me.data?.display_name ?? "Signed in";
-  return (
-    <Menu label={`Account for ${name}`} trigger={<span className="avatar" aria-hidden="true">{initials(name)}</span>}>
-      <div className="menu-heading">
-        <div className="account-name">{name}</div>
-        <div className="faint">{me.data?.email}</div>
-      </div>
-      <MenuSeparator />
-      <MenuItem to="/products">All products</MenuItem>
-      <MenuItem to="/connect">Connect an agent</MenuItem>
-      <MenuItem to="/account">Account and tokens</MenuItem>
-      <MenuSeparator />
-      <MenuItem onSelect={signOut}>Sign out</MenuItem>
-    </Menu>
-  );
-}
-
-function ProductSwitcher({ current }: { current?: Product }) {
-  const products = useProducts();
+/**
+ * The stage every signed-in screen lives on: a floating left panel, the canvas (the one scroller),
+ * and an inspector when a route provides one.
+ *
+ * - The panel hides fully with its button or ⌘\ / Ctrl+\ (not while typing); the choice is remembered.
+ *   While hidden, a pill with the mark, the product and the section brings it back.
+ * - At ≤760px the panel is a drawer with a scrim: focus is trapped, Esc closes it, and it closes on
+ *   navigation.
+ * - The inspector docks at the right above 1100px; at or below it is an overlay (focus trapped, Esc).
+ * - On a route change the canvas scrolls to the top, focus moves to the new h1, and the new page is
+ *   announced politely.
+ */
+function Stage({ variant, panel, panelFoot, pillName, section, title, banner, children }: {
+  variant: "product" | "plain";
+  /** The panel above the context slot: brand row and navigation. */
+  panel: (hide: () => void, hideLabel: string) => ReactNode;
+  /** The panel below the context slot: the account menu. */
+  panelFoot: ReactNode;
+  pillName: string | null;
+  section: string;
+  /** Default document title parts, before any usePageTitle override. */
+  title: string;
+  banner?: ReactNode;
+  children: ReactNode;
+}) {
+  const isPhone = useMediaQuery(PHONE_QUERY);
+  const isNarrow = useMediaQuery(NARROW_QUERY);
   const loc = useLocation();
-  // Switching product keeps the screen: from Sources in one product to Sources in the next.
-  const screen = current ? loc.pathname.split("/")[5] ?? "objectives" : "objectives";
-  const keep = ["objectives", "sources", "insights", "story", "activity", "search"].includes(screen) ? screen : "objectives";
-  return (
-    <Menu
-      label="Switch product"
-      align="start"
-      trigger={
-        <span className="switcher">
-          <span className="switcher-text">
-            {current ? (
-              <>
-                <span className="switcher-context">
-                  {current.tenant.name} / {current.team.name}
-                </span>
-                <span className="switcher-name">{current.name}</span>
-              </>
-            ) : (
-              <span className="switcher-name">Choose a product</span>
-            )}
-          </span>
-          <IconChevronDown />
-        </span>
+  const [navHidden, setNavHidden] = useState(readNavHidden);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [panelContextEl, setPanelContextEl] = useState<HTMLElement | null>(null);
+  const [inspectorEl, setInspectorEl] = useState<HTMLElement | null>(null);
+  const [contextCount, setContextCount] = useState(0);
+  const [inspectorCount, setInspectorCount] = useState(0);
+  const [inspectorOpen, setInspectorOpenState] = useState(false);
+  const [pageTitle, setPageTitle] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const inspectorId = useId();
+  const mainRef = useRef<HTMLElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const pillRef = useRef<HTMLButtonElement>(null);
+  const inspectorReturn = useRef<HTMLElement | null>(null);
+
+  const navOpen = isPhone ? drawerOpen : !navHidden;
+  const hasInspector = inspectorCount > 0;
+  const insState = !hasInspector ? "none" : !isNarrow ? "docked" : inspectorOpen ? "open" : "closed";
+  const drawerActive = isPhone && drawerOpen;
+  const overlayActive = insState === "open";
+
+  const toggleNav = useCallback(() => {
+    if (window.matchMedia(PHONE_QUERY).matches) {
+      setDrawerOpen((o) => !o);
+      return;
+    }
+    // Keep focus somewhere visible: hiding the panel from inside it lands on the pill; showing it
+    // from the pill lands on the panel's hide button.
+    const active = document.activeElement;
+    const fromPanel = !active || active === document.body || Boolean(panelRef.current?.contains(active));
+    const fromPill = active === pillRef.current;
+    setNavHidden((h) => {
+      try {
+        localStorage.setItem(NAV_KEY, h ? "open" : "closed");
+      } catch {
+        // The choice lasts for this visit.
       }
-    >
-      {products.data?.items.map((p) => (
-        <MenuItem key={p.product_id} to={`/t/${p.path}/${keep}`}>
-          <span className="row-between">
-            <span>
-              {p.name}
-              <span className="faint small"> · {p.team.name}</span>
-            </span>
-            {current?.product_id === p.product_id ? <Badge tone="accent">Current</Badge> : null}
-          </span>
-        </MenuItem>
-      ))}
-      <MenuSeparator />
-      <MenuItem to="/products">All products and teams</MenuItem>
-      <MenuItem to="/products?create=1">New product</MenuItem>
-    </Menu>
+      return !h;
+    });
+    requestAnimationFrame(() => {
+      const pill = pillRef.current;
+      if (pill && !pill.hidden && fromPanel) pill.focus();
+      else if (pill?.hidden && fromPill) panelRef.current?.querySelector<HTMLElement>("[data-panel-hide]")?.focus();
+    });
+  }, []);
+
+  const setInspectorOpen = useCallback((open: boolean) => {
+    if (open) inspectorReturn.current = document.activeElement as HTMLElement | null;
+    setInspectorOpenState(open);
+    if (!open) {
+      const back = inspectorReturn.current;
+      requestAnimationFrame(() => (back?.isConnected ? back : document.querySelector<HTMLElement>("[data-inspector-toggle]"))?.focus());
+    }
+  }, []);
+
+  // Global keys: the panel shortcut, and Esc for the open overlay.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "\\" && (e.metaKey || e.ctrlKey) && !e.altKey && !isTypingTarget(e.target)) {
+        e.preventDefault();
+        toggleNav();
+      } else if (e.key === "Escape" && !e.defaultPrevented) {
+        if (document.querySelector("dialog[open], .menu")) return;
+        if (drawerActive) {
+          setDrawerOpen(false);
+          pillRef.current?.focus();
+        } else if (overlayActive) setInspectorOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [toggleNav, drawerActive, overlayActive, setInspectorOpen]);
+
+  // Opening the drawer moves focus into it; opening the inspector overlay focuses its close button.
+  useEffect(() => {
+    if (drawerActive) panelRef.current?.querySelector<HTMLElement>("a, button")?.focus();
+  }, [drawerActive]);
+  useEffect(() => {
+    if (overlayActive) requestAnimationFrame(() => document.getElementById(inspectorId)?.querySelector<HTMLElement>(".inspector-close, button, a")?.focus());
+  }, [overlayActive, inspectorId]);
+
+  // Route changes: close overlays, scroll to top, move focus to the h1, announce.
+  const firstPath = useRef(true);
+  useEffect(() => {
+    setDrawerOpen(false);
+    setInspectorOpenState(false);
+    if (firstPath.current) {
+      firstPath.current = false;
+      return;
+    }
+    const main = mainRef.current;
+    if (!main) return;
+    main.scrollTop = 0;
+    let done = false;
+    const land = () => {
+      const h1 = main.querySelector<HTMLElement>("h1");
+      if (!h1 || done) return false;
+      done = true;
+      h1.tabIndex = -1;
+      h1.focus({ preventScroll: true });
+      setAnnouncement(h1.textContent?.trim() || document.title);
+      return true;
+    };
+    if (land()) return;
+    const obs = new MutationObserver(() => land() && obs.disconnect());
+    obs.observe(main, { childList: true, subtree: true });
+    const t = setTimeout(() => {
+      obs.disconnect();
+      if (!done) {
+        done = true;
+        main.focus({ preventScroll: true });
+        setAnnouncement(document.title);
+      }
+    }, 3000);
+    return () => {
+      obs.disconnect();
+      clearTimeout(t);
+    };
+  }, [loc.pathname]);
+
+  useEffect(() => {
+    document.title = pageTitle ? `${pageTitle} · ${title}` : title;
+  }, [pageTitle, title]);
+
+  const slots = useMemo<ShellSlots>(
+    () => ({
+      panelContextEl,
+      inspectorEl,
+      inspectorId,
+      registerPanelContext: () => {
+        setContextCount((n) => n + 1);
+        return () => setContextCount((n) => n - 1);
+      },
+      registerInspector: () => {
+        setInspectorCount((n) => n + 1);
+        return () => setInspectorCount((n) => n - 1);
+      },
+      inspectorOverlay: isNarrow,
+      inspectorOpen,
+      setInspectorOpen,
+      setPageTitle,
+    }),
+    [panelContextEl, inspectorEl, inspectorId, isNarrow, inspectorOpen, setInspectorOpen],
   );
-}
 
-export function TopBar({ product, onMenu, onActivity }: { product?: Product; onMenu?: () => void; onActivity?: () => void }) {
+  const hideLabel = isPhone ? "Close navigation" : "Hide panel";
+  const scrim = drawerActive || overlayActive;
+
   return (
-    <header className="topbar">
-      {onMenu ? (
-        <button type="button" className="icon-btn rail-toggle" onClick={onMenu} aria-label="Open navigation">
-          <IconMenu />
+    <ShellContext.Provider value={slots}>
+      <div className="stage" data-nav={navOpen ? "open" : "closed"} data-ins={insState} data-variant={variant}>
+        <a href="#main" className="skip-link">
+          Skip to content
+        </a>
+        <button
+          ref={pillRef}
+          type="button"
+          className="show-pill"
+          hidden={navOpen}
+          inert={drawerActive || overlayActive}
+          title={`Show panel (${shortcutLabel("\\")})`}
+          aria-expanded={isPhone ? drawerOpen : undefined}
+          onClick={toggleNav}
+        >
+          <BrandMark size={18} />
+          {pillName ? <span className="show-pill-name">{pillName}</span> : null}
+          <span className="show-pill-section">{section}</span>
+          <span className="visually-hidden">, show panel</span>
+          <Glyph name="panel-left-open" />
         </button>
-      ) : null}
-      <Link to="/" className="wordmark" aria-label="WhatBuild home">
-        WhatBuild
-      </Link>
-      <ProductSwitcher current={product} />
-      <div className="grow" />
-      {onActivity ? (
-        <button type="button" className="btn btn-quiet btn-sm" onClick={onActivity}>
-          <IconClock /> <span className="hide-narrow">Activity</span>
-        </button>
-      ) : null}
-      <Link to="/connect" className="btn btn-quiet btn-sm">
-        <IconPlug /> <span className="hide-narrow">Connect an agent</span>
-      </Link>
-      <AccountMenu />
-    </header>
-  );
-}
-
-const DESTINATIONS = [
-  { id: "objectives", label: "Objectives", children: [] as { to: string; label: string }[] },
-  { id: "sources", label: "Sources", children: [{ to: "sources", label: "Browse" }, { to: "search", label: "Search passages" }, { to: "sources/new", label: "Add a source" }] },
-  { id: "insights", label: "Insights", children: [{ to: "insights", label: "Insights" }, { to: "insights/assumptions", label: "Assumptions" }, { to: "insights/decisions", label: "Decisions" }] },
-  { id: "story", label: "Story", children: [] },
-];
-
-export function ProductShell({ product, app, children }: { product: Product; app: string; children: ReactNode }) {
-  const [railOpen, setRailOpen] = useState(false);
-  const [activityOpen, setActivityOpen] = useState(false);
-  const loc = useLocation();
-  const section = loc.pathname.split("/")[5] ?? "objectives";
-  const active = section === "search" ? "sources" : section;
-  return (
-    <div className="app">
-      <a href="#main" className="skip-link">
-        Skip to content
-      </a>
-      <TopBar product={product} onMenu={() => setRailOpen((o) => !o)} onActivity={() => setActivityOpen(true)} />
-      <div className="app-body">
-        <nav className={`rail ${railOpen ? "rail-open" : ""}`} aria-label="Product" onClick={() => setRailOpen(false)}>
-          <ul>
-            {DESTINATIONS.map((d) => (
-              <li key={d.id}>
-                <NavLink to={`${app}/${d.id}`} className="rail-link" aria-current={active === d.id ? "page" : undefined} end={false}>
-                  {d.label}
-                </NavLink>
-                {active === d.id && d.children.length ? (
-                  <ul className="rail-sub">
-                    {d.children.map((c) => (
-                      <li key={c.to}>
-                        <NavLink to={`${app}/${c.to}`} end className={({ isActive }) => `rail-sublink ${isActive ? "active" : ""}`}>
-                          {c.label}
-                        </NavLink>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-          <div className="rail-foot">
-            <NavLink to={`${app}/settings`} className="rail-sublink">
-              Product settings
-            </NavLink>
-            <NavLink to={`/t/${product.tenant.slug}/members`} className="rail-sublink">
-              People and roles
-            </NavLink>
-            <p className="faint small rail-role">
-              You are {product.your_role === "admin" ? "an admin" : `a ${product.your_role}`} here.
-            </p>
+        <div
+          className="scrim"
+          hidden={!scrim}
+          data-tone={drawerActive || isPhone ? "dim" : "clear"}
+          aria-hidden="true"
+          onClick={() => (drawerActive ? setDrawerOpen(false) : setInspectorOpen(false))}
+        />
+        <div
+          ref={panelRef}
+          className="panel panel-left"
+          role={drawerActive ? "dialog" : undefined}
+          aria-modal={drawerActive || undefined}
+          aria-label={drawerActive ? "Navigation" : undefined}
+          inert={!navOpen || overlayActive}
+        >
+          {panel(toggleNav, hideLabel)}
+          <div className="panel-context" ref={setPanelContextEl} hidden={contextCount === 0} />
+          {contextCount === 0 ? <div className="panel-spacer" /> : null}
+          {panelFoot}
+        </div>
+        <main id="main" ref={mainRef} className="canvas" tabIndex={-1} inert={drawerActive || overlayActive}>
+          <div className="canvas-wrap">
+            {banner}
+            {children}
           </div>
-        </nav>
-        <main id="main" className="content" tabIndex={-1}>
-          {product.archived_at ? (
-            <div className="archived-banner" role="status">
-              This product is archived and read-only. An admin can restore it in product settings.
-            </div>
-          ) : null}
-          {children}
         </main>
+        <aside
+          id={inspectorId}
+          ref={setInspectorEl}
+          className="panel inspector"
+          hidden={!hasInspector}
+          inert={insState === "closed" || drawerActive}
+          role={overlayActive ? "dialog" : undefined}
+          aria-modal={overlayActive || undefined}
+          aria-labelledby={`${inspectorId}-title`}
+        />
+        <div className="visually-hidden" aria-live="polite" aria-atomic="true">
+          {announcement}
+        </div>
       </div>
-      <ActivityDrawer open={activityOpen} onClose={() => setActivityOpen(false)} />
-    </div>
+    </ShellContext.Provider>
   );
 }
 
-/** Screens outside a product: the product list, members, Connect, account. */
-export function PlainShell({ children }: { children: ReactNode }) {
+/** Every screen inside a product: L1, the quiet group, the context slot, the account menu. */
+export function ProductShell({ product, app, children }: { product: Product; app: string; children: ReactNode }) {
+  const loc = useLocation();
+  const section = productSection(loc.pathname.split("/")[5]);
   return (
-    <div className="app">
-      <a href="#main" className="skip-link">
-        Skip to content
-      </a>
-      <TopBar />
-      <main id="main" className="content content-plain" tabIndex={-1}>
-        {children}
-      </main>
-    </div>
+    <Stage
+      variant="product"
+      pillName={product.name}
+      section={section.label}
+      title={`${section.label} · ${product.name} · WhatBuild`}
+      banner={
+        product.archived_at ? (
+          <div className="canvas-banner">
+            <Callout tone="attention" title="This product is archived">
+              It is read-only. An admin can restore it in Settings.
+            </Callout>
+          </div>
+        ) : null
+      }
+      panel={(hide, hideLabel) => (
+        <>
+          <BrandRow to={`${app}/objectives`} label={`WhatBuild, ${product.name} objectives`} onHide={hide} hideLabel={hideLabel} />
+          <nav className="panel-nav" aria-label={product.name}>
+            <ProductSwitcher current={product} />
+            <ProductNav product={product} app={app} section={section.id} />
+          </nav>
+        </>
+      )}
+      panelFoot={<AccountMenu activityTo={`${app}/activity`} />}
+    >
+      {children}
+    </Stage>
+  );
+}
+
+const PLAIN_SECTIONS: Record<string, string> = { connect: "Agents", account: "Account", products: "Products", members: "Members", _system: "System" };
+
+/**
+ * Screens outside a product (Agents, account, organization members, all products): the same stage
+ * with the non-product panel, which offers "Back to <product>" for the product the person came from.
+ */
+export function PlainShell({ children }: { children: ReactNode }) {
+  const loc = useLocation();
+  const params = useParams();
+  const last = useLastProduct();
+  const parts = loc.pathname.split("/").filter(Boolean);
+  const key = parts[0] === "t" ? "members" : (parts[0] ?? "products");
+  const section = PLAIN_SECTIONS[key] ?? "WhatBuild";
+  const sectionId = key === "connect" ? "agents" : key;
+  const tenantSlug = params["tenant"] ?? last?.tenant.slug ?? null;
+  const tenantName = last && last.tenant.slug === tenantSlug ? last.tenant.name : null;
+  const home = last ? `/t/${last.path}/objectives` : "/products";
+  return (
+    <Stage
+      variant="plain"
+      pillName={null}
+      section={section}
+      title={`${section} · WhatBuild`}
+      panel={(hide, hideLabel) => (
+        <>
+          <BrandRow to={home} label={last ? `WhatBuild, ${last.name} objectives` : "WhatBuild, all products"} onHide={hide} hideLabel={hideLabel} />
+          <nav className="panel-nav" aria-label="Account and organization">
+            <PlainNav section={sectionId} backTo={last ? `/t/${last.path}/objectives` : null} backLabel={last?.name ?? null} tenantSlug={tenantSlug} tenantName={tenantName} />
+          </nav>
+        </>
+      )}
+      panelFoot={<AccountMenu activityTo={last ? `/t/${last.path}/activity` : null} />}
+    >
+      {children}
+    </Stage>
   );
 }

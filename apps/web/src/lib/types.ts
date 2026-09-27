@@ -197,7 +197,14 @@ export interface InsightSummary {
   created_by: Actor;
   updated_at: string;
   updated_by: Actor;
+  /** unreviewed: never reviewed; reviewed: the current revision is; changed: an earlier one was. */
+  review_state: InsightReviewState;
+  reviewed_revision: number | null;
+  reviewed_at: string | null;
+  reviewed_by: Actor | null;
 }
+
+export type InsightReviewState = "unreviewed" | "reviewed" | "changed";
 
 export interface Insight extends InsightSummary {
   body: string;

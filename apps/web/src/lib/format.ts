@@ -1,17 +1,27 @@
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "June", "July", "Aug", "Sept", "Oct", "Nov", "Dec"];
 
-/** "2 Sept 2026": day, short month, year. */
+/** "2 Sept 2026": day, short month, year. A plain date keeps its day; a timestamp shows the local day. */
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—";
+  if (iso.length > 10) {
+    const t = new Date(iso);
+    if (!Number.isNaN(t.getTime())) return `${t.getDate()} ${MONTHS[t.getMonth()]} ${t.getFullYear()}`;
+  }
   const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
   if (!y || !m || !d) return iso;
   return `${d} ${MONTHS[m - 1]} ${y}`;
 }
 
+/** "2:18 PM" (or "14:18" where the locale uses a 24-hour clock): local time, hour not zero-padded. */
+export function formatTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+/** "26 Sept 2026, 2:18 PM": the app's date, then the local time. */
 export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return "—";
-  const d = new Date(iso);
-  return `${formatDate(d.toISOString().slice(0, 10) === iso.slice(0, 10) ? iso : d.toISOString())} ${d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`;
+  return `${formatDate(iso)}, ${formatTime(iso)}`;
 }
 
 /** Coarse enough to stay true while it is on screen. */

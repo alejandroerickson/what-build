@@ -1,0 +1,457 @@
+/* The stage: floating left panel, the canvas (the one scroller), the inspector, the pill. */
+
+.stage {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--canvas);
+}
+
+.skip-link {
+  position: absolute;
+  left: var(--float-inset);
+  top: var(--float-inset);
+  z-index: var(--z-skip);
+  transform: translateY(calc(-100% - 40px));
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--popover);
+  color: var(--text);
+  box-shadow: var(--shadow-2);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+}
+.skip-link:focus {
+  transform: none;
+}
+
+/* Programmatic focus on a route's h1 should not draw a ring around the title. */
+h1[tabindex="-1"]:focus {
+  outline: none;
+}
+
+/* ---- Floating panels -------------------------------------------------------------------------- */
+
+.panel {
+  position: absolute;
+  top: var(--float-inset);
+  bottom: var(--float-inset);
+  z-index: var(--z-panel);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--r-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  transition:
+    transform var(--dur-3) var(--ease),
+    opacity var(--dur-3) var(--ease),
+    visibility 0s;
+}
+.panel-left {
+  left: var(--float-inset);
+  width: var(--panel-w);
+}
+.stage[data-nav="closed"] .panel-left {
+  transform: translateX(calc(-100% - 20px));
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform var(--dur-3) var(--ease),
+    opacity var(--dur-3) var(--ease),
+    visibility 0s var(--dur-3);
+}
+
+.panel-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1h);
+  padding: var(--s-2h) var(--s-2h) var(--s-2) var(--s-3h);
+  border-bottom: 1px solid var(--line);
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex: 1;
+  min-width: 0;
+  margin: -2px -4px;
+  padding: 2px 4px;
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-title);
+  text-decoration: none;
+}
+.brand:hover {
+  background: var(--hover);
+}
+.brand-mark {
+  flex: none;
+}
+.brand-mark rect {
+  fill: var(--text);
+}
+.brand-mark path {
+  fill: none;
+  stroke: var(--panel);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.panel-nav {
+  flex: none;
+}
+.panel-product {
+  padding: var(--s-2h) var(--s-2h) var(--s-2) var(--s-3h);
+}
+.product-switch {
+  display: grid;
+  width: calc(100% + 12px);
+  margin: -4px -6px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.product-switch:hover,
+.product-switch[aria-expanded="true"] {
+  background: var(--hover);
+}
+.product-name {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-width: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.product-name .glyph {
+  color: var(--faint);
+}
+.product-context {
+  display: block;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+}
+
+.nav-l1 {
+  display: grid;
+  gap: 1px;
+  padding: var(--s-0) var(--s-1h) var(--s-1);
+}
+.nav-quiet {
+  display: grid;
+  padding: var(--s-0) var(--s-1h) var(--s-2);
+}
+.nav-back {
+  padding: var(--s-1h) var(--s-1h) var(--s-1);
+}
+.nav-node {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+  height: var(--h-md);
+  padding: 0 var(--s-2);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.nav-node .glyph {
+  color: var(--faint);
+}
+.nav-node:hover {
+  background: var(--hover);
+}
+.nav-node[aria-current="page"] {
+  background: var(--select);
+  color: var(--select-text);
+}
+.nav-node[aria-current="page"] .glyph,
+.nav-node[aria-current="page"] .nav-count {
+  color: var(--select-text);
+}
+.nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nav-count {
+  margin-left: auto;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-regular);
+}
+.nav-node-quiet {
+  height: 26px;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-regular);
+}
+.nav-node-quiet .glyph {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  margin: 0 1px;
+}
+.nav-node-quiet:hover {
+  color: var(--text);
+}
+.nav-node-back {
+  color: var(--muted);
+  font-weight: var(--fw-regular);
+}
+.nav-node-back:hover {
+  color: var(--text);
+}
+
+/* The context slot: filled by the route (Story tree, source filters); scrolls on its own. */
+.panel-context {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  border-top: 1px solid var(--line);
+}
+.panel-context-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--s-1) var(--s-1h) var(--s-3);
+}
+.panel-spacer {
+  flex: 1;
+}
+.panel-section + .panel-section {
+  margin-top: var(--s-1);
+}
+.panel-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  min-height: 30px;
+  padding: var(--s-2) var(--s-2) var(--s-1);
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+}
+
+.panel-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1h);
+  padding: var(--s-1h) var(--s-2);
+  border-top: 1px solid var(--line);
+}
+.account-button {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  max-width: 100%;
+  height: var(--h-md);
+  padding: 0 var(--s-1h) 0 var(--s-1);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+}
+.account-button:hover,
+.account-button[aria-expanded="true"] {
+  background: var(--hover);
+}
+
+/* ---- The pill that brings the hidden panel back ----------------------------------------------- */
+
+.show-pill {
+  position: absolute;
+  left: var(--float-inset);
+  top: var(--float-inset);
+  z-index: var(--z-pill);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  max-width: calc(100% - 2 * var(--float-inset));
+  height: var(--h-lg);
+  padding: 0 var(--s-2h) 0 7px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  animation: pill-in var(--dur-3) var(--ease);
+}
+.show-pill:hover {
+  background: var(--hover);
+}
+.show-pill-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.show-pill-section {
+  color: var(--faint);
+  font-weight: var(--fw-regular);
+}
+.show-pill > .glyph {
+  color: var(--faint);
+}
+@keyframes pill-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-scrim);
+  background: transparent;
+}
+.scrim[data-tone="dim"] {
+  background: var(--scrim);
+  animation: scrim-in var(--dur-3) var(--ease);
+}
+@keyframes scrim-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---- Canvas ----------------------------------------------------------------------------------- */
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: var(--canvas-pt) var(--canvas-px) var(--canvas-pb) calc(var(--panel-w) + var(--canvas-px));
+  transition: padding var(--dur-3) var(--ease);
+}
+.canvas:focus {
+  outline: none;
+}
+.stage[data-nav="closed"] .canvas {
+  padding-left: var(--canvas-px);
+  padding-top: 60px;
+}
+.stage[data-ins="docked"] .canvas {
+  padding-right: calc(var(--ins-w) + var(--canvas-px));
+}
+.canvas-wrap {
+  max-width: var(--content-max);
+  margin: 0 auto;
+}
+.canvas-banner {
+  margin-bottom: var(--s-4);
+}
+
+/* ---- Inspector -------------------------------------------------------------------------------- */
+
+.inspector {
+  right: var(--float-inset);
+  width: var(--ins-w);
+}
+.inspector-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1h);
+  min-height: 48px;
+  padding: var(--s-2h) var(--s-2) var(--s-2h) var(--s-3h);
+  border-bottom: 1px solid var(--line);
+}
+.inspector-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--fs-md);
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inspector-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+@media (max-width: 1100px) {
+  .canvas,
+  .stage[data-ins="docked"] .canvas {
+    padding-right: var(--s-6);
+  }
+  .inspector {
+    z-index: var(--z-overlay);
+    box-shadow: var(--shadow-2);
+  }
+  .stage[data-ins="closed"] .inspector {
+    transform: translateX(calc(100% + 20px));
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+      transform var(--dur-3) var(--ease),
+      opacity var(--dur-3) var(--ease),
+      visibility 0s var(--dur-3);
+  }
+}
+
+@media (max-width: 760px) {
+  :root {
+    --sheet-px: 14px;
+  }
+  .panel-left {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: var(--z-overlay);
+    width: min(320px, 86vw);
+    border-radius: 0;
+    box-shadow: var(--shadow-2);
+  }
+  .inspector {
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: min(340px, 92vw);
+    border-radius: 0;
+  }
+  .canvas,
+  .stage[data-nav="closed"] .canvas,
+  .stage[data-ins="docked"] .canvas {
+    padding: 56px var(--s-3) 60px;
+  }
+  /* Sheets run edge to edge on a phone; everything else keeps the 12px gutter. */
+  .canvas .sheet {
+    margin-left: calc(-1 * var(--s-3));
+    margin-right: calc(-1 * var(--s-3));
+    border-radius: 0;
+  }
+}
+
+/* A quiet text control in a panel section header ("Clear filters"). */
+.panel-text-button {
+  height: var(--h-sm);
+  padding: 0 var(--s-1);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+}
+.panel-text-button:hover {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

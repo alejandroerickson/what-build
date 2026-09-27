@@ -1,7 +1,10 @@
 import { createTenantWithTeam, execute, OPERATIONS_BY_NAME, STORY_STYLESHEET, type Env, type Principal, type ScopeRef } from "@whatbuild/core";
 import { sql } from "kysely";
 import { findOrCreateAccount } from "./auth/identity.ts";
-import { INSIGHT, INTERVIEW_TXT, INTERVIEW_VTT, OWNER_NOTES_MD, RESEARCH_EXPORT_MD, SAMPLE, STORY_HTML } from "./seed-content.ts";
+import {
+  HANDOFF_HTML, HANDOFF_NOTES, INSIGHT, INSIGHT_ERRORS, INSIGHT_KNOWLEDGE, INTERVIEW_AGENT_NOTES, INTERVIEW_RECORDER_EXPORT, INTERVIEW_TXT, INTERVIEW_VTT, OVERVIEW_NOTES, OWNER_NOTES_MD, RESEARCH_EXPORT_MD, SAMPLE, STORY_HTML,
+  type SourceLink,
+} from "./seed-content.ts";
 import type { Worker } from "./worker.ts";
 
 export const SEED_ACCOUNTS = [
@@ -15,8 +18,8 @@ async function call(env: Env, who: Principal, name: string, input: Record<string
   return (await execute(env, who, op, input, ref)).result as Record<string, unknown>;
 }
 
-async function upload(env: Env, who: Principal, ref: ScopeRef, tenantId: string, recordId: string, path: string, text: string) {
-  const grant = (await call(env, who, "files.request_upload", { record_id: recordId, path, role: "primary" }, ref)) as { grant_id: string };
+async function upload(env: Env, who: Principal, ref: ScopeRef, tenantId: string, recordId: string, path: string, text: string, role: "primary" | "origin" = "primary") {
+  const grant = (await call(env, who, "files.request_upload", { record_id: recordId, path, role }, ref)) as { grant_id: string };
   const g = await env.db.transaction().execute(async (trx) => {
     await sql`select set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
     return trx.selectFrom("upload_grants").select(["blob_key", "media_type"]).where("grant_id", "=", grant.grant_id).executeTakeFirstOrThrow();
@@ -63,14 +66,51 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
   const notes = await mk(riley, { kind: "interviewer_notes", title: "Owner call notes — Fernside Cleaning, Aug 2026", date: "2026-08-21", organization: "Fernside Cleaning", participants: ["Priya (owner)"], tags: ["planning", "cleaning"], provenance_depth: "primary" }, "notes.md", OWNER_NOTES_MD);
   const survey = await mk(samAgent, { kind: "user_research_export", title: "Crew lead planning survey — spring round, 23 responses", date: "2026-05-30", source_system: "survey tool", tags: ["planning", "survey"], dimensions: { lifecycle_stage: "research" }, provenance_depth: "derived" }, "survey-summary.md", RESEARCH_EXPORT_MD);
 
+  // The Greenline call keeps the recorder's export as its origin file (kept, not searched).
+  await upload(env, samAgent, ref, created.tenant.tenant_id, vtt, "recorder-export.txt", INTERVIEW_RECORDER_EXPORT, "origin");
+
   // The worker derives passages exactly as it would in production.
   await worker.drain();
 
+  // The agent's description, outline and working notes for the Greenline call.
+  for (const note_kind of ["summary", "outline", "notes"] as const) {
+    await call(env, samAgent, "derived.write_note", { record_id: vtt, note_kind, content: INTERVIEW_AGENT_NOTES[note_kind] }, ref);
+  }
+
+  const base = env.ports.config.publicBaseUrl;
+  const path = `${tenant}/${team}/crewboard`;
+  const sourceIds = { vtt, txt, survey, notes };
+  const at: SourceLink = (source, seq) => `${base}/t/${path}/evidence/${sourceIds[source]}${seq === undefined ? "" : `?seq=${seq}`}`;
   const insight = await call(
     env,
     samAgent,
     "insights.create",
-    { title: INSIGHT.title, summary: INSIGHT.summary, body: INSIGHT.body({ vtt, txt, survey, notes }), status: "published", refs: { objectives: [objectiveIds[0]!, objectiveIds[1]!], sources: [vtt, txt, notes, survey] } },
+    { title: INSIGHT.title, summary: INSIGHT.summary, body: INSIGHT.body(at), status: "published", refs: { objectives: [objectiveIds[0]!, objectiveIds[1]!], sources: [vtt, txt, notes, survey] } },
+    ref,
+  );
+  // A person reviews the first insight; the second is left for review.
+  await call(env, riley, "insights.review", { insight_id: insight["insight_id"], reviewed: true, expected_etag: insight["etag"] }, ref);
+  await call(
+    env,
+    samAgent,
+    "insights.create",
+    { title: INSIGHT_KNOWLEDGE.title, summary: INSIGHT_KNOWLEDGE.summary, body: INSIGHT_KNOWLEDGE.body(at), status: "published", refs: { objectives: [objectiveIds[0]!], sources: [vtt, notes] } },
+    ref,
+  );
+  // The third is reviewed, then revised by the agent, so it reads "changed since review".
+  const errors = await call(
+    env,
+    samAgent,
+    "insights.create",
+    { title: INSIGHT_ERRORS.title, summary: INSIGHT_ERRORS.summary, body: INSIGHT_ERRORS.body(at), status: "published", refs: { objectives: [objectiveIds[1]!], sources: [txt] } },
+    ref,
+  );
+  const errorsReviewed = await call(env, riley, "insights.review", { insight_id: errors["insight_id"], reviewed: true, expected_etag: errors["etag"] }, ref);
+  await call(
+    env,
+    samAgent,
+    "insights.update",
+    { insight_id: errors["insight_id"], expected_etag: errorsReviewed["etag"], body: INSIGHT_ERRORS.revised(at), refs: { sources: [txt, notes] } },
     ref,
   );
   const assumption = await call(
@@ -108,8 +148,6 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
   const decisionEtag = String(decision["etag"]);
   await call(env, riley, "decisions.review", { id: decision["id"], expected_etag: decisionEtag, status: "confirmed", note: "Agreed in the Thursday review. Sam to set up the two-crew test.", reviewer_type: "human", confidence: "medium" }, ref);
 
-  const base = env.ports.config.publicBaseUrl;
-  const path = `${tenant}/${team}/crewboard`;
   await call(
     env,
     samAgent,
@@ -120,18 +158,42 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
       summary: "Planning costs an afternoon a week; the hand-off is where mistakes happen.",
       html: STORY_HTML(
         {
-          insight: `${base}/t/${path}/insights/${insight["insight_id"]}`,
-          assumption: `${base}/t/${path}/insights/assumptions/${assumption["id"]}`,
-          decision: `${base}/t/${path}/insights/decisions/${decision["id"]}`,
+          insight: `${base}/t/${path}/synthesis/insights/${insight["insight_id"]}`,
+          assumption: `${base}/t/${path}/synthesis/assumptions/${assumption["id"]}`,
+          decision: `${base}/t/${path}/synthesis/decisions/${decision["id"]}`,
         },
         STORY_STYLESHEET,
       ),
       note: "First version.",
-      refs: { insights: [String(insight["insight_id"])], assumptions: [String(assumption["id"])], decisions: [String(decision["id"])] },
+      refs: { objectives: [objectiveIds[1]!], sources: [vtt, txt, survey], insights: [String(insight["insight_id"])], assumptions: [String(assumption["id"])], decisions: [String(decision["id"])] },
+      citations: [
+        { record_id: vtt, seq_start: 8, seq_end: 8, quote: "The texts are the worst part honestly. Every crew lead gets a message with their jobs and addresses, and I type those by hand." },
+        { record_id: vtt, seq_start: 3, seq_end: 3, quote: "Two hours if nothing's weird." },
+        { record_id: txt, seq_start: 9, seq_end: 9, quote: "By the day, if I'm honest." },
+      ],
     },
     ref,
   );
-  await call(env, samAgent, "story.set_hierarchy", { items: [{ page_id: "overview", children: [] }], expected_etag: null }, ref);
+  await call(
+    env,
+    samAgent,
+    "story.publish",
+    {
+      page_id: "hand-off-test",
+      title: "The hand-off test",
+      summary: "Two crews get their week as a generated message instead of a typed one.",
+      html: HANDOFF_HTML({ decision: `${base}/t/${path}/synthesis/decisions/${decision["id"]}` }, STORY_STYLESHEET),
+      note: "First version.",
+      refs: { objectives: [objectiveIds[1]!], sources: [vtt], decisions: [String(decision["id"])] },
+      citations: [{ record_id: vtt, seq_start: 9, seq_end: 10 }],
+    },
+    ref,
+  );
+  await call(env, samAgent, "story.set_hierarchy", { items: [{ page_id: "overview", children: [{ page_id: "hand-off-test", children: [] }] }], expected_etag: null }, ref);
+  for (const [page_id, notesText] of [["overview", OVERVIEW_NOTES], ["hand-off-test", HANDOFF_NOTES]] as const) {
+    const page = (await call(env, samAgent, "story.get_page", { page_id, include_html: false }, ref)) as { agent_notes: { etag: string } };
+    await call(env, samAgent, "story.write_notes", { page_id, notes: notesText, expected_etag: page.agent_notes.etag }, ref);
+  }
   await call(env, riley, "sources.annotate", { record_id: vtt, note: "This is the moment to design for: the typed message, not the spreadsheet.", seq_start: 8, seq_end: 8, tags: ["hand-off"] }, ref);
   log(`seed: created ${SAMPLE.tenant} / ${SAMPLE.team} / ${SAMPLE.product} with ${SEED_ACCOUNTS.map((a) => a.email).join(" and ")}.`);
 }

@@ -13,13 +13,13 @@ under the person's own account. WhatBuild contains no AI: it parses, stores, sea
 deterministically. The thinking is yours, done in the open where the person can watch and correct it.
 
 Everything lives in a **product** (one discovery), inside a **team**, inside a **tenant** (an
-organization). A product has four parts:
+organization). A product has four parts, named as the person sees them in the web app:
 
 - **Objectives** — the few outcomes the discovery serves.
-- **Sources** — the evidence: interviews, calls, research exports, documents, decks. Each source's
-  primary file is parsed into **passages** you can address exactly.
-- **Insights** — readable Markdown synthesis, plus two small reviewed **registers**: assumptions
-  and decisions, each cited to exact passages.
+- **Evidence** — the **sources**: interviews, calls, research exports, documents, decks. Each
+  source's primary file is parsed into **passages** you can address exactly.
+- **Synthesis** — **insights** (readable Markdown synthesis), plus two small reviewed
+  **registers**: assumptions and decisions, each cited to exact passages.
 - **Story** — versioned HTML pages that tell stakeholders where the discovery stands.
 
 ## Before anything else
@@ -114,6 +114,12 @@ e.g. `(source 01K…, segments 41–44)`. Separate what a source says from your 
 update changes only the fields you pass; earlier text is kept as a revision, so you cannot lose a
 teammate's words — but read the current version (and its etag) before revising.
 
+**Review is a person's mark.** Each insight has a `review_state`: `unreviewed`, `reviewed` (a person
+marked this revision), or `changed` (edited since it was reviewed). Only call
+`insights(action="review")` to record a review the person made and asked you to record — never on
+your own judgment. When you revise a reviewed insight it becomes `changed`; say so, so the person
+can review it again.
+
 ## Assumptions, decisions and review
 
 - An **assumption** is what the team treats as true while evidence is incomplete. A **decision**
@@ -151,6 +157,19 @@ there. Read a page with `get_page` before revising and pass its etag; omit the e
 page. Publishing never places a page: then call `set_hierarchy` with the hierarchy's own etag. Do not
 invent owners, dates, measurements, commitments or agreement, and never present an unconfirmed
 assumption as settled.
+
+- **Cite what the page rests on.** `publish` takes `citations` — up to 20 exact passages,
+  `{record_id, seq_start, seq_end, quote?}`, snapshotted like register citations — beside `refs`.
+  Read each passage before citing it. Both belong to the version, so pass the full lists every time
+  you publish; nothing carries over. `check_citations` reports whether a version's passages still
+  say what was quoted.
+- **Keep the page's notes.** Each page has notes for agents (`get_page` → `agent_notes`): Markdown
+  memory about what the page is for and who reads it, sources still to fold in, and decisions about
+  its structure. Readers do not see them. Read them before revising a page, and after publishing
+  update them with `write_notes`, passing `agent_notes.etag` (not the page etag). Keep them short
+  and current; the activity log already records what changed.
+- **Printing.** `print_view` plans a print view of chosen pages and returns a `url` the person can
+  open in a browser and save as PDF. Content a page draws with JavaScript is left out there.
 
 ## Catching up on recent changes
 

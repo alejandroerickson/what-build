@@ -1,12 +1,11 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { api, qs } from "../lib/api.ts";
-import { formatDate, relativeTime } from "../lib/format.ts";
+import { formatDate, formatDateTime, formatTime, relativeTime } from "../lib/format.ts";
 import { useProduct } from "../lib/session.tsx";
-import { IconAgent } from "../ui/icons.tsx";
-import { Button, EmptyState, ErrorCallout, Loading } from "../ui/index.tsx";
+import { AgentFace, Avatar, Button, ButtonLink, EmptyState, ErrorCallout, Loading } from "../ui/index.tsx";
 
-interface ActivityItem {
+export interface ActivityItem {
   activity_id: string;
   occurred_at: string;
   actor: { account_id: string; display_name: string; surface: string | null; client: string | null };
@@ -19,16 +18,27 @@ interface ActivityItem {
   summary: string;
 }
 
+/** Filters the activity log understands. `by: "agents"` is everything agents did over MCP; "people" is the rest. */
+export interface ActivityFilter {
+  entityType?: string;
+  entityId?: string;
+  by?: "people" | "agents";
+}
+
 const VERBS: Record<string, string> = {
   "source:created": "added the source",
   "source:copied": "copied in the source",
+  "source:copied_out": "copied out",
   "source:updated": "edited the details of",
   "source:reorganized": "refiled",
   "source:file_added": "added a file to",
   "source:file_role_changed": "changed a file role on",
-  "source:note_added": "added a note to",
-  "source:note_updated": "edited a note on",
+  "source:note_added": "commented on",
+  "source:note_updated": "edited a comment on",
+  "source:note_archived": "archived a comment on",
+  "source:note_restored": "restored a comment on",
   "source:derived": "finished parsing",
+  "source:rederive_requested": "asked to parse again",
   "source:archived": "archived",
   "source:restored": "restored",
   "source:deleted": "deleted",
@@ -38,74 +48,152 @@ const VERBS: Record<string, string> = {
   "source:lineage_registered": "registered the inputs of",
   "objective:created": "added the objective",
   "objective:updated": "edited the objective",
+  "objective:reordered": "reordered the objective",
   "objective:achieved": "marked achieved",
+  "objective:active": "reopened the objective",
   "objective:archived": "archived the objective",
+  "objective:restored": "restored the objective",
   "insight:created": "wrote",
   "insight:updated": "revised",
   "insight:published": "published",
   "insight:unpublished": "unpublished",
   "insight:archived": "archived",
+  "insight:reviewed": "marked reviewed",
+  "insight:review_cleared": "cleared the review mark on",
   "assumption:created": "recorded the assumption",
   "assumption:reviewed": "reviewed the assumption",
   "assumption:superseded": "superseded the assumption",
+  "assumption:archived": "archived the assumption",
+  "assumption:restored": "restored the assumption",
   "decision:created": "recorded the decision",
   "decision:reviewed": "reviewed the decision",
   "decision:superseded": "superseded the decision",
+  "decision:archived": "archived the decision",
+  "decision:restored": "restored the decision",
   "story_page:published": "published",
   "story_page:updated": "published a new version of",
   "story_page:archived": "archived the page",
+  "story_page:restored": "restored the page",
+  "story_page:notes_updated": "updated the notes for agents on",
   "story_hierarchy:organized": "rearranged",
   "product:created": "created the product",
   "product:updated": "changed the product",
+  "product:archived": "archived the product",
+  "product:restored": "restored the product",
+  "product:export_requested": "exported",
   "membership:granted": "gave a role to",
+  "membership:role_changed": "changed the role of",
   "membership:revoked": "removed a role from",
   "membership:joined": "joined as",
+  "membership:invited": "invited someone to",
+  "membership:invitation_cancelled": "cancelled an invitation",
+};
+
+/** What an entity type is called when the log is filtered to it: "Showing activity on sources". */
+export const ENTITY_LABEL: Record<string, string> = {
+  source: "sources",
+  objective: "objectives",
+  insight: "insights",
+  assumption: "assumptions",
+  decision: "decisions",
+  story_page: "Story pages",
+  story_hierarchy: "the Story tree",
+  product: "the product",
+  membership: "people and roles",
 };
 
 function linkFor(app: string, i: ActivityItem): string | null {
-  if (!i.entity_id && i.entity_type !== "story_hierarchy") return null;
+  if (!i.entity_id && i.entity_type !== "story_hierarchy" && i.entity_type !== "product") return null;
   switch (i.entity_type) {
     case "source":
-      return i.action === "deleted" || i.action === "moved_out" ? null : `${app}/sources/${i.entity_id}`;
+      return i.action === "deleted" || i.action === "moved_out" ? null : `${app}/evidence/${i.entity_id}`;
     case "insight":
-      return `${app}/insights/${i.entity_id}`;
+      return `${app}/synthesis/insights/${i.entity_id}`;
     case "assumption":
-      return `${app}/insights/assumptions/${i.entity_id}`;
+      return `${app}/synthesis/assumptions/${i.entity_id}`;
     case "decision":
-      return `${app}/insights/decisions/${i.entity_id}`;
+      return `${app}/synthesis/decisions/${i.entity_id}`;
     case "objective":
       return `${app}/objectives`;
     case "story_page":
       return `${app}/story/${i.entity_id}`;
     case "story_hierarchy":
       return `${app}/story`;
+    case "product":
+      return `${app}/settings`;
+    case "membership":
+      return i.action === "invitation_cancelled" ? null : `${app}/settings#people`;
     default:
       return null;
   }
 }
 
-function dayLabel(iso: string) {
+function localDay(iso: string) {
   const d = new Date(iso);
-  const today = new Date();
-  const y = new Date(Date.now() - 86400_000);
-  const same = (a: Date, b: Date) => a.toDateString() === b.toDateString();
-  if (same(d, today)) return "Today";
-  if (same(d, y)) return "Yesterday";
-  return formatDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export function ActivityFeed({ entityId, entityType, compact }: { entityId?: string; entityType?: string; compact?: boolean }) {
-  const { api: base, app } = useProduct();
-  const q = useInfiniteQuery({
-    queryKey: ["activity", base, entityId, entityType],
-    queryFn: ({ pageParam }) => api<{ items: ActivityItem[]; next_cursor: string | null }>("GET", `${base}/activity${qs({ entity_id: entityId, entity_type: entityType, cursor: pageParam, limit: 50 })}`),
+function dayLabel(iso: string) {
+  const day = localDay(iso);
+  if (day === localDay(new Date().toISOString())) return "Today";
+  if (day === localDay(new Date(Date.now() - 86400_000).toISOString())) return "Yesterday";
+  return formatDate(day);
+}
+
+/** "via claude-code" for an agent, "in the app" or "through the API" for a person. */
+export function surfaceWords(i: Pick<ActivityItem, "through_agent" | "channel" | "actor">) {
+  if (i.through_agent) return `via ${i.actor.client ?? "an agent"}`;
+  if (i.channel === "rest") return "through the API";
+  return "in the app";
+}
+
+/** The log for this product, newest first, loaded 50 at a time. */
+export function useActivity(filter: ActivityFilter) {
+  const { api: base } = useProduct();
+  return useInfiniteQuery({
+    queryKey: ["activity", base, filter.entityId ?? null, filter.entityType ?? null, filter.by ?? null],
+    queryFn: ({ pageParam }) =>
+      api<{ items: ActivityItem[]; next_cursor: string | null }>(
+        "GET",
+        `${base}/activity${qs({ entity_id: filter.entityId, entity_type: filter.entityType, by: filter.by, cursor: pageParam, limit: 50 })}`,
+      ),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_cursor ?? undefined,
   });
-  if (q.isPending) return <Loading label="Loading activity…" lines={5} />;
-  if (q.isError) return <ErrorCallout title="Activity could not be loaded" error={q.error} onRetry={() => q.refetch()} />;
+}
+
+/**
+ * The day-grouped feed, drawn as rows inside a sheet: who (a face, the name), what they did with a
+ * link to it, through which surface, and when. Put it inside a <Sheet>; it brings its own states.
+ */
+export function ActivityFeed(filter: ActivityFilter & { query?: ReturnType<typeof useActivity> }) {
+  const own = useActivity(filter);
+  const q = filter.query ?? own;
+  const { app } = useProduct();
+  if (q.isPending) return <Loading label="Loading activity…" lines={6} />;
+  if (q.isError)
+    return (
+      <div className="activity-state">
+        <ErrorCallout inset title="Activity could not be loaded" error={q.error} onRetry={() => q.refetch()} />
+      </div>
+    );
   const items = q.data.pages.flatMap((p) => p.items);
-  if (!items.length) return <EmptyState title="Nothing has changed yet">Adding a source, writing an insight, reviewing an entry or publishing the Story — in the app or through a connected agent — shows up here.</EmptyState>;
+  if (!items.length) {
+    const filtered = Boolean(filter.entityId || filter.entityType || filter.by);
+    return (
+      <EmptyState
+        size="inline"
+        title={filter.by === "agents" ? "No agent has changed anything here yet" : filtered ? "Nothing matches this view yet" : "Nothing has changed yet"}
+        action={filter.by === "agents" || !filtered ? <ButtonLink to="/connect" size="sm" icon="plug">Connect an agent</ButtonLink> : undefined}
+      >
+        {filter.by === "agents"
+          ? "Connect the agent you already use; everything it does here is listed with its name."
+          : filtered
+            ? "Changes show up here as soon as someone makes them."
+            : "Adding a source, writing an insight or publishing the Story, in the app or through your agent, shows up here."}
+      </EmptyState>
+    );
+  }
   const groups: { day: string; items: ActivityItem[] }[] = [];
   for (const i of items) {
     const day = dayLabel(i.occurred_at);
@@ -114,47 +202,50 @@ export function ActivityFeed({ entityId, entityType, compact }: { entityId?: str
   }
   return (
     <div className="activity">
-      {groups.map((g) => (
-        <section key={g.day} aria-label={g.day}>
-          <h3 className="activity-day">
-            {g.day} <span className="faint small">· {g.items.length} {g.items.length === 1 ? "change" : "changes"}</span>
-          </h3>
-          <ul className="activity-list">
+      {groups.map((g, gi) => (
+        <section key={`${g.day}-${gi}`} className="activity-group" aria-labelledby={`activity-day-${gi}`}>
+          <h2 className="activity-day" id={`activity-day-${gi}`}>
+            {g.day}
+            <span className="activity-day-count num">
+              {g.items.length} {g.items.length === 1 ? "change" : "changes"}
+            </span>
+          </h2>
+          <ol className="activity-list">
             {g.items.map((i) => {
               const verb = VERBS[`${i.entity_type}:${i.action}`] ?? i.action.replace(/_/g, " ");
               const href = linkFor(app, i);
-              const title = i.entity_title ?? i.entity_type.replace("_", " ");
+              const title = i.entity_title ?? ENTITY_LABEL[i.entity_type] ?? i.entity_type.replace(/_/g, " ");
+              const today = g.day === "Today";
               return (
-                <li key={i.activity_id} className="activity-item">
-                  <div>
-                    <strong>{i.actor.display_name}</strong> {verb}{" "}
-                    {href ? <Link to={href}>{title}</Link> : <span>{title}</span>}
+                <li key={i.activity_id} className="activity-row">
+                  {i.through_agent ? <AgentFace /> : <Avatar name={i.actor.display_name} />}
+                  <div className="activity-main">
+                    <p className="activity-sentence">
+                      <b>{i.actor.display_name}</b> {verb} {href ? <Link to={href}>{title}</Link> : <span>{title}</span>}
+                    </p>
+                    <p className="activity-sub">
+                      {surfaceWords(i)}
+                      {i.summary ? <> <span className="sep-dot"> {i.summary}</span></> : null}
+                    </p>
                   </div>
-                  <div className="small muted row">
-                    {i.through_agent ? (
-                      <span className="row" title={i.actor.client ? `through ${i.actor.client}` : "through an agent"}>
-                        <IconAgent width={14} height={14} /> Through {i.actor.client ?? "an agent"}
-                      </span>
-                    ) : null}
-                    {!compact ? <span>{i.summary}</span> : null}
-                    <time dateTime={i.occurred_at} title={new Date(i.occurred_at).toLocaleString()}>
-                      {relativeTime(i.occurred_at)}
-                    </time>
-                  </div>
-                  {compact ? <div className="small faint">{i.summary}</div> : null}
+                  <time className="activity-time num" dateTime={i.occurred_at} title={formatDateTime(i.occurred_at)}>
+                    {today ? relativeTime(i.occurred_at) : formatTime(i.occurred_at)}
+                  </time>
                 </li>
               );
             })}
-          </ul>
+          </ol>
         </section>
       ))}
-      {q.hasNextPage ? (
-        <Button onClick={() => q.fetchNextPage()} busy={q.isFetchingNextPage} busyLabel="Loading older changes…">
-          Show older changes
-        </Button>
-      ) : (
-        <p className="small faint">The log begins here.</p>
-      )}
+      <div className="activity-foot">
+        {q.hasNextPage ? (
+          <Button size="sm" onClick={() => void q.fetchNextPage()} busy={q.isFetchingNextPage} busyLabel="Loading older changes…">
+            Show older changes
+          </Button>
+        ) : (
+          <p className="activity-end">The log begins here.</p>
+        )}
+      </div>
     </div>
   );
 }

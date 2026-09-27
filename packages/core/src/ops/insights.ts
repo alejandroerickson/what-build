@@ -9,6 +9,8 @@ import { newEtag, newId } from "../util.ts";
 
 export const BODY_MAX = 100_000;
 const STATUS = z.enum(["draft", "published", "archived"]);
+export const REVIEW_STATE = z.enum(["unreviewed", "reviewed", "changed"]);
+export type ReviewState = z.output<typeof REVIEW_STATE>;
 
 const refsInput = z
   .strictObject({
@@ -30,6 +32,12 @@ async function load(ctx: OpContext, insightId: string, lock = false): Promise<Ro
   return row;
 }
 
+/** unreviewed: never marked; reviewed: marked at the current revision; changed: edited since. */
+export function reviewState(r: Pick<Row, "reviewed_revision" | "revision">): ReviewState {
+  if (r.reviewed_revision === null) return "unreviewed";
+  return r.reviewed_revision === r.revision ? "reviewed" : "changed";
+}
+
 function summaryOf(r: Row) {
   return {
     insight_id: r.insight_id,
@@ -39,6 +47,10 @@ function summaryOf(r: Row) {
     refs: r.refs,
     ref_counts: Object.fromEntries(Object.entries(r.refs).map(([k, v]) => [k, (v as string[]).length])),
     revision: r.revision,
+    review_state: reviewState(r),
+    reviewed_revision: r.reviewed_revision,
+    reviewed_at: r.reviewed_at,
+    reviewed_by: r.reviewed_by,
     body_chars: r.body.length,
     etag: r.etag,
     created_at: r.created_at,
@@ -54,9 +66,11 @@ export const listInsights = defineOperation({
   access: "read",
   mutates: false,
   summary: "List insights, newest first, without bodies.",
-  description: "Filter by status, by an objective or a source they reference, or by a substring of title, summary or body. Archived insights are left out unless status is \"archived\". Use get for the body.",
+  description:
+    "Filter by status, by an objective or a source they reference, by review_state (one or more of unreviewed, reviewed, changed — changed means edited since its review), or by a substring of title, summary or body. Archived insights are left out unless status is \"archived\". Use get for the body.",
   input: z.strictObject({
     status: STATUS.optional(),
+    review_state: z.array(REVIEW_STATE).min(1).max(3).optional().describe("Only insights in these review states."),
     objective_id: id("objective").optional(),
     source_id: id("source").optional(),
     query: z.string().max(500).optional(),
@@ -70,6 +84,14 @@ export const listInsights = defineOperation({
     q = input.status ? q.where("status", "=", input.status) : q.where("status", "!=", "archived");
     if (input.objective_id) q = q.where(sql<boolean>`refs->'objectives' ? ${input.objective_id}`);
     if (input.source_id) q = q.where(sql<boolean>`refs->'sources' ? ${input.source_id}`);
+    if (input.review_state?.length) {
+      const states = new Set(input.review_state);
+      const parts = [];
+      if (states.has("unreviewed")) parts.push(sql<boolean>`reviewed_revision is null`);
+      if (states.has("reviewed")) parts.push(sql<boolean>`reviewed_revision = revision`);
+      if (states.has("changed")) parts.push(sql<boolean>`reviewed_revision <> revision`);
+      q = q.where(sql<boolean>`(${sql.join(parts, sql` or `)})`);
+    }
     if (input.query) {
       const like = `%${input.query}%`;
       q = q.where(sql<boolean>`(title ilike ${like} or summary ilike ${like} or body ilike ${like})`);
@@ -192,4 +214,40 @@ export const updateInsight = defineOperation({
   },
 });
 
-export const insightOps = [listInsights, getInsight, createInsight, updateInsight];
+export const reviewInsight = defineOperation({
+  name: "insights.review",
+  scope: "product",
+  access: "write",
+  mutates: true,
+  summary: "Mark an insight reviewed by a person, or clear the mark. An edit afterwards shows it as changed since review.",
+  description:
+    "Records that a person read this revision and stands by it; it is not a vote on truth. reviewed true marks the current revision, false clears the mark. An agent may call this only to relay a review the person made in the conversation — never on its own judgment. Requires expected_etag; the mark does not change the text or its revision.",
+  input: z.strictObject({ insight_id: id("insight"), reviewed: z.boolean(), expected_etag: expectedEtag }),
+  rest: { method: "POST", path: "/insights/:insight_id/review" },
+  mcp: { tool: "insights", action: "review" },
+  async handler(ctx, input) {
+    const r = await load(ctx, input.insight_id, true);
+    checkEtag(input.expected_etag, r.etag, "insight");
+    const state = reviewState(r);
+    if (input.reviewed ? state === "reviewed" && r.reviewed_by?.account_id === ctx.actor.account_id : state === "unreviewed") return summaryOf(r);
+    await ctx.db
+      .updateTable("insights")
+      .set(
+        input.reviewed
+          ? { reviewed_revision: r.revision, reviewed_at: ctx.now, reviewed_by: json(ctx.actor), etag: newEtag() }
+          : { reviewed_revision: null, reviewed_at: null, reviewed_by: null, etag: newEtag() },
+      )
+      .where("insight_id", "=", r.insight_id)
+      .execute();
+    await recordActivity(ctx, {
+      action: input.reviewed ? "reviewed" : "review_cleared",
+      entity_type: "insight",
+      entity_id: r.insight_id,
+      entity_title: r.title,
+      summary: input.reviewed ? `Marked revision ${r.revision} reviewed` : "Cleared the review mark",
+    });
+    return summaryOf(await load(ctx, r.insight_id));
+  },
+});
+
+export const insightOps = [listInsights, getInsight, createInsight, updateInsight, reviewInsight];

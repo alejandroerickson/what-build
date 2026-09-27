@@ -635,13 +635,33 @@ export const updateAnnotation = defineOperation({
 
 // ---- Connections --------------------------------------------------------------------------------
 
+/** Story pages whose current version cites a source or lists it in refs. */
+async function storyPagesUsing(ctx: OpContext, recordId: string, opts: { includeArchived: boolean }) {
+  let q = ctx.db
+    .selectFrom("story_pages as p")
+    .innerJoin("story_versions as v", "v.version_id", "p.current_version_id")
+    .select(["p.page_id", "p.title", "p.archived_at", "v.n", "v.citations", "v.refs"])
+    .where("p.product_id", "=", productId(ctx))
+    .where(sql<boolean>`(v.citations @> ${JSON.stringify([{ record_id: recordId }])}::jsonb or v.refs->'sources' ? ${recordId})`);
+  if (!opts.includeArchived) q = q.where("p.archived_at", "is", null);
+  const rows = await q.orderBy("p.title").execute();
+  return rows.map((r) => ({
+    page_id: r.page_id,
+    title: r.title,
+    version: r.n,
+    archived_at: r.archived_at,
+    referenced: r.refs.sources.includes(recordId),
+    citations: r.citations.filter((c) => c.record_id === recordId).map((c) => ({ seq_start: c.seq_start, seq_end: c.seq_end })),
+  }));
+}
+
 export const insightsFor = defineOperation({
   name: "sources.insights_for",
   scope: "product",
   access: "read",
   mutates: false,
-  summary: "Everything built on a source: insights that reference it, and assumptions and decisions that cite it.",
-  description: "Each citation names its exact segment range, so you can read the passage that supports it.",
+  summary: "Everything built on a source: insights that reference it, assumptions and decisions that cite it, and Story pages that cite or reference it.",
+  description: "Each citation names its exact segment range, so you can read the passage that supports it. Story pages are judged by their current version; archived pages are left out.",
   input: z.strictObject({ record_id: id("source") }),
   rest: { method: "GET", path: "/sources/:record_id/insights" },
   mcp: { tool: "sources", action: "insights_for" },
@@ -677,6 +697,7 @@ export const insightsFor = defineOperation({
       insights,
       assumptions: entries.filter((e) => e.kind === "assumption").map(shape),
       decisions: entries.filter((e) => e.kind === "decision").map(shape),
+      story_pages: (await storyPagesUsing(ctx, input.record_id, { includeArchived: false })).map(({ archived_at, ...p }) => (void archived_at, p)),
     };
   },
 });
@@ -708,7 +729,7 @@ export const moveSource = defineOperation({
   mutates: true,
   summary: "Move a source, with its files, passages and notes, to another product in the same team.",
   description:
-    "The record keeps its id, so its passages, file versions and notes move intact. Refused with 409 source_in_use while anything in this product cites or references it — insights, assumptions, decisions, lineage — because references never cross products; the error lists them. Copy instead to keep it in both.",
+    "The record keeps its id, so its passages, file versions and notes move intact. Refused with 409 source_in_use while anything in this product cites or references it — insights, assumptions, decisions, lineage, the current version of a Story page — because references never cross products; the error lists them. Copy instead to keep it in both.",
   input: z.strictObject({ record_id: id("source"), to_product: z.string().min(1).describe("Target product id or slug, in the same team."), expected_etag: expectedEtag }),
   rest: { method: "POST", path: "/sources/:record_id/move" },
   mcp: { tool: "sources", action: "move_to_product" },
@@ -721,12 +742,14 @@ export const moveSource = defineOperation({
     const entries = await ctx.db.selectFrom("register_entries").select(["entry_id", "kind", "statement"]).where("product_id", "=", pid).where(sql<boolean>`citations @> ${JSON.stringify([{ record_id: r.record_id }])}::jsonb`).execute();
     const lineage = await ctx.db.selectFrom("lineage").select("record_id").where("product_id", "=", pid).where(sql<boolean>`inputs @> ${JSON.stringify([{ id: r.record_id }])}::jsonb`).execute();
     const related = await ctx.db.selectFrom("records").select("record_id").where("product_id", "=", pid).where(sql<boolean>`${r.record_id} = any(related_records)`).execute();
-    if (insights.length || entries.length || lineage.length || related.length)
+    const pages = await storyPagesUsing(ctx, r.record_id, { includeArchived: true });
+    if (insights.length || entries.length || lineage.length || related.length || pages.length)
       throw conflict("source_in_use", "This source is referenced in its product, and references never cross products. Remove the references, or copy the source instead.", {
         insights: insights.map((i) => ({ id: i.insight_id, title: i.title })),
         register_entries: entries.map((e) => ({ id: e.entry_id, kind: e.kind, statement: e.statement })),
         views: lineage.map((l) => l.record_id),
         related_sources: related.map((x) => x.record_id),
+        story_pages: pages.map((p) => ({ page_id: p.page_id, title: p.title })),
       });
     await ctx.db.updateTable("records").set({ product_id: target.product_id, related_records: [], etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("record_id", "=", r.record_id).execute();
     await ctx.db.updateTable("annotations").set({ product_id: target.product_id }).where("record_id", "=", r.record_id).execute();
@@ -795,6 +818,9 @@ async function impact(ctx: OpContext, r: RecordRow) {
     annotations: annotations.length,
     citations: entries.map((e) => ({ id: e.entry_id, kind: e.kind, statement: e.statement, count: e.citations.filter((c) => c.record_id === r.record_id).length })),
     insights_referencing: insights.map((i) => ({ id: i.insight_id, title: i.title })),
+    story_pages_citing: (await storyPagesUsing(ctx, r.record_id, { includeArchived: true }))
+      .filter((p) => p.citations.length)
+      .map((p) => ({ page_id: p.page_id, title: p.title, version: p.version, count: p.citations.length })),
     _blobs: files.map((f) => f.blob_key),
     _prefixes: derivations.map((d) => d.blob_prefix),
   };
