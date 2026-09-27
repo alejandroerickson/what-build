@@ -101,6 +101,11 @@ Recordings, transcripts and interview notes are the evidence itself: upload them
 searched; every file entry says `searchable` and `search_status`. Tell the person which file is
 searched. Over 25 MB a primary is stored but not parsed.
 
+**Read intake `warnings`.** Grants and upload results warn, without refusing, about a primary no
+parser reads (a primary cannot be replaced, so upload a PDF export as the primary and keep the
+original as `origin`), a source with the same title, kind and date, a source that still has no
+primary, and a fetched URL's `#fragment`, which never reaches the server.
+
 ## Objectives
 
 Outcomes, not a task list: say what the discovery is trying to achieve and what success means. Keep
@@ -183,8 +188,9 @@ names a change; read the item before relying on it.
 Archive is the reversible default: it takes a source, entry, insight or page out of lists and out of
 search, including yours, and erases nothing. **Delete is permanent.** Only when the person asks:
 call `sources(action="delete_impact")`, show them exactly what would be destroyed (including
-citations it would orphan), and only then delete with their reason and `confirm: "delete
-permanently"`. Never chain a delete after another action in the same turn.
+citations and Story versions it would orphan), and only then delete with their reason, the
+impact's `etag` as `expected_etag`, and `confirm: "delete permanently"`. Never chain a delete after
+another action in the same turn. `sources(action="update")` takes the etag from `get`.
 
 ## Moving between products
 

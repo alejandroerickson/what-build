@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete, closing an organization, and the operator runbooks.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete]
-generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-27}
 status: stable
 ---
 
@@ -169,7 +169,7 @@ been here".
 | Sources | `sources.archive` / `sources.restore` (up to 200 at once) |
 | Insights | `insights.update { status: "archived" }`, and back |
 | Assumptions, decisions | `<register>.archive { archived: true | false }` |
-| Annotations | `sources.update_annotation { archived }` |
+| Annotations | `sources.update_annotation { archived, archive_reason? }` |
 | Objectives | `objectives.update { status: "archived" }`, and back |
 | Story pages | `story.archive_page` / `story.restore_page` (subpages move up into its place) |
 | Products | `products.archive` / `products.restore` (admin); an archived product is read-only |
@@ -194,15 +194,19 @@ insights, register entries, annotations, Story pages, objectives and products, i
 - **Permanent. Immediately.** There is no trash and no grace period. Every surface that offers it
   says it is permanent and cannot be undone, in those words, not "remove" and not "dismiss".
 - **Three guards, none of them a permission:**
-  1. `expected_etag` is required — you cannot delete an object you have not read.
+  1. `expected_etag` is required — you cannot delete an object you have not read. It is the
+     `etag` in the `delete_impact` result; a source changed since the preview is refused with
+     `409 stale_etag`.
   2. `reason`, 1–500 characters, recorded on the tombstone.
   3. `confirm` must be the exact literal string `"delete permanently"`; anything else is
      `422 confirmation_required`. It exists so that no action enum, retry, or loose parameter
      can destroy something by accident.
 - **Preview first.** `sources.delete_impact { record_id }` is a read-only operation returning
   exactly what would be destroyed: file versions and bytes, derivations, annotations, the
-  register entries whose citations point at the source, the insights that reference it, and the
-  Story pages that cite it. The web UI shows this inside the confirmation dialog. The skill requires
+  register entries whose citations point at the source, the insights that reference it, the
+  Story pages whose current version cites it, and `story_versions_citing`: every page version,
+  current or earlier, that cites it (`page_id`, `version`, `count`, `is_current`). `after_delete`
+  says that those citations keep their quoted text and will report `record_deleted`. The web UI shows this inside the confirmation dialog. The skill requires
   an agent to call it and show the person the result before proposing a delete, and never to chain
   a delete after another action in the same turn.
 - **What it removes:** the source and, with it, its files and file versions, derivations,

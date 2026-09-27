@@ -169,6 +169,12 @@ describe("Story citations", () => {
     expect(using.body.story_pages).toEqual([{ page_id: "overview", title: "Overview", version: 3, referenced: false, citations: [{ seq_start: 2, seq_end: 2 }] }]);
     const impact = await alice.api("GET", `${P}/sources/${recordId}/delete-impact`);
     expect(impact.body.story_pages_citing).toEqual([{ page_id: "overview", title: "Overview", version: 3, count: 1 }]);
+    expect(impact.body.story_versions_citing).toEqual([
+      { page_id: "overview", title: "Overview", version: 3, count: 1, is_current: true },
+      { page_id: "overview", title: "Overview", version: 1, count: 2, is_current: false },
+    ]);
+    expect(impact.body.after_delete).toMatch(/keep their quoted text .* report record_deleted/);
+    expect(impact.body.after_delete).toMatch(/2 Story page versions/);
   });
 });
 

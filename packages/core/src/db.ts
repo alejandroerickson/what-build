@@ -354,6 +354,7 @@ export interface AnnotationsTable {
   tags: string[];
   anchor: JsonNull<Record<string, unknown>>;
   archived_at: TsNull;
+  archive_reason: ColumnType<string | null, string | null | undefined, string | null>;
   etag: string;
   created_at: Ts;
   created_by: Json<ActorSnapshot>;

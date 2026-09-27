@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { serve, type ServerType } from "@hono/node-server";
 import pg from "pg";
+import type { UrlFetcher } from "@whatbuild/core";
 import { inject } from "vitest";
 import { MemoryBlobStore } from "../src/adapters/blobs.ts";
 import { MemoryMailer } from "../src/adapters/misc.ts";
@@ -29,7 +30,7 @@ export interface Browser {
 }
 
 /** A fresh database, migrated, behind a real HTTP server on a random port. */
-export async function startHarness(overrides: Partial<ServerConfig> = {}): Promise<Harness> {
+export async function startHarness(overrides: Partial<ServerConfig> = {}, opts: { fetcher?: UrlFetcher } = {}): Promise<Harness> {
   const name = `t_${randomBytes(6).toString("hex")}`;
   const admin = new pg.Client({ connectionString: inject("adminUrl") });
   await admin.connect();
@@ -52,6 +53,8 @@ export async function startHarness(overrides: Partial<ServerConfig> = {}): Promi
   const mailer = new MemoryMailer();
   let worker: Worker | null = null;
   const ports = createPorts(config, blobs, mailer, () => undefined);
+  // A test that fetches URLs stands in for the network.
+  if (opts.fetcher) ports.fetcher = opts.fetcher;
   worker = new Worker({ db, ports }, 60_000, () => {});
   const app = createApp({ db, ports, config });
   server = serve({ fetch: app.fetch, port });
