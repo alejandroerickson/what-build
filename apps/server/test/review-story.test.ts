@@ -153,10 +153,11 @@ describe("Story citations", () => {
     expect(check.body.citations.map((c: { status: string }) => c.status)).toEqual(["ok", "ok"]);
     const missing = await alice.api("GET", `${P}/story/pages/overview/check-citations?version=9`);
     expect(missing.status).toBe(404);
-    // A new version carries only the citations it is given.
-    const v2 = await alice.api("POST", `${P}/story/pages/overview/versions`, { title: "Overview", html: html("Overview", "<p>Short.</p>"), expected_etag: pageEtag });
+    // Empty lists clear a later version's citations and refs.
+    const v2 = await alice.api("POST", `${P}/story/pages/overview/versions`, { title: "Overview", html: html("Overview", "<p>Short.</p>"), refs: {}, citations: [], expected_etag: pageEtag });
     pageEtag = v2.body.etag;
     expect(v2.body.current.citations).toEqual([]);
+    expect(v2.body.current.refs.sources).toEqual([]);
     const old = await alice.api("GET", `${P}/story/pages/overview/check-citations?version=1`);
     expect(old.body.citations).toHaveLength(2);
     await alice.api("POST", `${P}/story/pages/overview/versions`, {
@@ -210,6 +211,89 @@ describe("notes for agents", () => {
     expect(v.status).toBe(201);
     const act = await alice.api("GET", `${P}/activity?entity_id=overview`);
     expect(act.body.items.map((a: { action: string }) => a.action)).toContain("notes_updated");
+  });
+});
+
+describe("publishing a later version", () => {
+  it("keeps what a later version omits, and restores an earlier version with from_version", async () => {
+    const V = `${P}/story/pages/plan/versions`;
+    const v1 = await alice.api("POST", V, {
+      title: "Plan",
+      summary: "What we learn next.",
+      html: html("Plan", "<h1>Plan</h1><p>First.</p>"),
+      refs: { sources: [recordId] },
+      citations: [{ record_id: recordId, seq_start: 2, seq_end: 2, quote: "numbers close" }],
+    });
+    expect(v1.status).toBe(201);
+    expect(v1.body).toMatchObject({ based_on_version: null, carried_forward: [] });
+    expect(v1.body.current.html_sha256).toMatch(/^[0-9a-f]{64}$/);
+    const v2 = await alice.api("POST", V, { html: html("Plan", "<h1>Plan</h1><p>Second.</p>"), note: "Tightened the opening.", expected_etag: v1.body.etag });
+    expect(v2.status).toBe(201);
+    expect(v2.body).toMatchObject({ title: "Plan", summary: "What we learn next.", based_on_version: 1, carried_forward: ["title", "summary", "refs", "citations"] });
+    expect(v2.body.current.refs.sources).toEqual([recordId]);
+    expect(v2.body.current.citations).toEqual(v1.body.current.citations);
+    expect(v2.body.current.html_sha256).not.toBe(v1.body.current.html_sha256);
+    const v3 = await alice.api("POST", V, { from_version: 1, expected_etag: v2.body.etag });
+    expect(v3.status).toBe(201);
+    expect(v3.body).toMatchObject({ based_on_version: 1, carried_forward: ["title", "summary", "html", "refs", "citations"] });
+    expect(v3.body.current).toMatchObject({ version: 3, note: "Restored version 1.", html_sha256: v1.body.current.html_sha256 });
+    expect(v3.body.current.citations).toEqual(v1.body.current.citations);
+    const list = await alice.api("GET", V);
+    expect(list.body.items.map((i: { html_sha256: string }) => i.html_sha256)).toEqual([v1.body.current.html_sha256, v2.body.current.html_sha256, v1.body.current.html_sha256]);
+    const act = await alice.api("GET", `${P}/activity?entity_id=plan`);
+    expect(act.body.items.map((a: { summary: string }) => a.summary)).toContain("Published version 3 from version 1: Restored version 1.");
+    // An unknown base version, a stale etag and a first version without a title are refused.
+    expect((await alice.api("POST", V, { from_version: 9, expected_etag: v3.body.etag })).status).toBe(404);
+    expect((await alice.api("POST", V, { from_version: 1, expected_etag: v2.body.etag })).status).toBe(409);
+    expect((await alice.api("POST", `${P}/story/pages/unborn/versions`, { from_version: 1 })).status).toBe(404);
+    const untitled = await alice.api("POST", `${P}/story/pages/unborn/versions`, { html: html("x", "<h1>x</h1>") });
+    expect(untitled.status).toBe(422);
+    expect((await vic.api("POST", V, { from_version: 2, expected_etag: v3.body.etag })).status).toBe(403);
+  });
+
+  it("edits a later version's HTML by exact find and replace, or publishes nothing", async () => {
+    const V = `${P}/story/pages/plan/versions`;
+    const cur = await alice.api("GET", `${P}/story/pages/plan`);
+    const patched = await alice.api("POST", V, { patch_html: [{ find: "<p>First.</p>", replace: "<p>First, corrected.</p>" }], note: "Corrected the opening.", expected_etag: cur.body.etag });
+    expect(patched.status).toBe(201);
+    expect(patched.body.carried_forward).toEqual(["title", "summary", "refs", "citations"]);
+    const after = await alice.api("GET", `${P}/story/pages/plan`);
+    expect(after.body.current.html).toBe(cur.body.current.html.replace("<p>First.</p>", "<p>First, corrected.</p>"));
+    const missing = await alice.api("POST", V, { patch_html: [{ find: "<p>Nowhere.</p>", replace: "" }, { find: "Plan", replace: "Plan" }], expected_etag: after.body.etag });
+    expect(missing.status).toBe(422);
+    expect(missing.body.error.code).toBe("invalid_patch");
+    expect(missing.body.error.details.problems).toHaveLength(2);
+    const both = await alice.api("POST", V, { html: html("Plan", "<h1>Plan</h1>"), patch_html: [{ find: "Plan", replace: "Plan" }], expected_etag: after.body.etag });
+    expect(both.status).toBe(422);
+    expect((await alice.api("GET", V)).body.items[0].version).toBe(4);
+  });
+
+  it("regenerates a generated title page when only its title changes", async () => {
+    const v1 = await alice.api("POST", `${P}/story/pages/cover/versions`, { title: "Cover", summary: "Where the discovery stands." });
+    const v2 = await alice.api("POST", `${P}/story/pages/cover/versions`, { title: "Cover page", expected_etag: v1.body.etag });
+    expect(v2.status).toBe(201);
+    const page = await alice.api("GET", `${P}/story/pages/cover`);
+    expect(page.body.current.html).toContain("<h1>Cover page</h1>");
+    expect(page.body.current.html).toContain("Where the discovery stands.");
+  });
+
+  it("returns the notes etag from publish, and takes write_notes without an etag only while the notes are empty", async () => {
+    const v1 = await alice.api("POST", `${P}/story/pages/memo/versions`, { title: "Memo", html: html("Memo", "<h1>Memo</h1>") });
+    const page = await alice.api("GET", `${P}/story/pages/memo?include_html=false`);
+    expect(v1.body.agent_notes_etag).toBe(page.body.agent_notes.etag);
+    expect(page.body.current.html_sha256).toBe(v1.body.current.html_sha256);
+    const first = await alice.api("PUT", `${P}/story/pages/memo/notes`, { notes: "## Purpose\n\nA memo." });
+    expect(first.status).toBe(200);
+    expect(first.body.changed).toBe(true);
+    const again = await alice.api("PUT", `${P}/story/pages/memo/notes`, { notes: "Overwrite." });
+    expect(again.status).toBe(409);
+    expect(again.body.error).toMatchObject({ code: "stale_etag", details: { current_etag: first.body.agent_notes.etag } });
+    const pageEtag = await alice.api("PUT", `${P}/story/pages/memo/notes`, { notes: "Overwrite.", expected_etag: v1.body.etag });
+    expect(pageEtag.status).toBe(409);
+    expect(pageEtag.body.error.message).toContain("page etag");
+    const ok = await alice.api("PUT", `${P}/story/pages/memo/notes`, { notes: "Overwrite.", expected_etag: first.body.agent_notes.etag });
+    expect(ok.status).toBe(200);
+    expect((await vic.api("PUT", `${P}/story/pages/memo/notes`, { notes: "x" })).status).toBe(403);
   });
 });
 

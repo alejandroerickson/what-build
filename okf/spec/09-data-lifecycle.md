@@ -206,9 +206,11 @@ insights, register entries, annotations, Story pages, objectives and products, i
   register entries whose citations point at the source, the insights that reference it, the
   Story pages whose current version cites it, and `story_versions_citing`: every page version,
   current or earlier, that cites it (`page_id`, `version`, `count`, `is_current`). `after_delete`
-  says that those citations keep their quoted text and will report `record_deleted`. The web UI shows this inside the confirmation dialog. The skill requires
-  an agent to call it and show the person the result before proposing a delete, and never to chain
-  a delete after another action in the same turn.
+  says that those citations keep their quoted text and will report `record_deleted`. The web UI
+  shows this inside the confirmation dialog. The skill requires an agent to call it and show the
+  person the result before proposing a delete, and to delete only once the person approves that
+  impact (a delete approved in advance still waits for the preview), never slipped into a run of
+  other actions.
 - **What it removes:** the source and, with it, its files and file versions, derivations,
   segments (the searchable text), annotations and agent notes; a background job then deletes the
   file bytes and sidecars. Bytes still used by a copy in another product stay until nothing refers

@@ -180,14 +180,22 @@ assumption as settled.
 
 - **Cite what the page rests on.** `publish` takes `citations` — up to 20 exact passages,
   `{record_id, seq_start, seq_end, quote?}`, snapshotted like register citations — beside `refs`.
-  Read each passage before citing it. Both belong to the version, so pass the full lists every time
-  you publish; nothing carries over. `check_citations` reports whether a version's passages still
-  say what was quoted.
+  Read each passage before citing it. Both belong to the version: when you pass either list, pass
+  it in full, because it replaces the previous one. `check_citations` reports whether a version's
+  passages still say what was quoted.
+- **Change only what changes.** On a later version, the title, summary, `html`, `refs` and
+  `citations` you omit carry forward from the current version (`carried_forward` names them).
+  `patch_html` fixes a sentence by exact find and replace; `from_version: N` restores an earlier
+  version as a new one. `html_sha256` on every version confirms identical HTML without reading it.
+- **`note` is for readers.** Each version's `note` is one line on what changed for the reader,
+  shown in the page's history. Put mechanics (citation ranges, merges, ids) in the page's notes.
+  `summary` describes the page itself, not the change.
 - **Keep the page's notes.** Each page has notes for agents (`get_page` → `agent_notes`): Markdown
   memory about what the page is for and who reads it, sources still to fold in, and decisions about
   its structure. Readers do not see them. Read them before revising a page, and after publishing
-  update them with `write_notes`, passing `agent_notes.etag` (not the page etag). Keep them short
-  and current; the activity log already records what changed.
+  update them with `write_notes`, passing the notes etag (not the page etag): `agent_notes_etag`
+  from `publish`, or `agent_notes.etag` from `get_page`. While the notes are empty you may omit it.
+  Keep them short and current; the activity log already records what changed.
 - **Printing.** `print_view` plans a print view of chosen pages and returns a `url` the person can
   open in a browser and save as PDF. Content a page draws with JavaScript is left out there.
 
@@ -204,8 +212,11 @@ Archive is the reversible default: it takes a source, entry, insight or page out
 search, including yours, and erases nothing. **Delete is permanent.** Only when the person asks:
 call `sources(action="delete_impact")`, show them exactly what would be destroyed (including
 citations and Story versions it would orphan), and only then delete with their reason, the
-impact's `etag` as `expected_etag`, and `confirm: "delete permanently"`. Never chain a delete after
-another action in the same turn. `sources(action="update")` takes the etag from `get`.
+impact's `etag` as `expected_etag`, and `confirm: "delete permanently"`. What gates a delete is the
+person's approval of its impact, not a turn boundary: never slip a delete into a run of other
+actions on a general instruction. If they approved deleting a specific source in advance, still
+read its `delete_impact` first, and stop to ask when it would destroy more than they approved.
+`sources(action="update")` takes the etag from `get`.
 
 ## Moving between products
 
