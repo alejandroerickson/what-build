@@ -146,3 +146,56 @@ describe("the fetch lookup", () => {
     expect(text).toBe("hello");
   });
 });
+
+/** A minimal M4A: `ftyp`, a zeroed `mdat`, then `moov` with a version 0 `mvhd` (not fast-start). */
+function m4a(timescale: number, duration: number, mdatBytes: number): Uint8Array {
+  const be32 = (n: number) => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+  const box = (type: string, body: number[]) => [...be32(8 + body.length), ...Array.from(type, (c) => c.charCodeAt(0)), ...body];
+  const ftyp = box("ftyp", [77, 52, 65, 32, 0, 0, 0, 0]);
+  const mdat = box("mdat", new Array(mdatBytes).fill(0));
+  const moov = box("moov", box("mvhd", [0, 0, 0, 0, ...be32(0), ...be32(0), ...be32(timescale), ...be32(duration), ...new Array(80).fill(0)]));
+  return new Uint8Array([...ftyp, ...mdat, ...moov]);
+}
+
+describe("what derivation records beyond passages", () => {
+  let h2: Harness;
+  let bob: Browser;
+  let Q: string;
+
+  beforeAll(async () => {
+    h2 = await startHarness({ parseCapBytes: 4000 });
+    bob = await h2.signIn("bob@example.com", "Bob Example");
+    const t = await bob.api("POST", "/api/v1/tenants", { name: "Example Field Research" });
+    const p = await bob.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Dispatch" });
+    Q = `/api/v1/p/${p.body.path}`;
+  });
+  afterAll(async () => h2?.close());
+
+  async function stored(kind: string, path: string, body: string | Uint8Array) {
+    const created = await bob.api("POST", `${Q}/sources/with-upload`, { kind, title: `Sample ${path}`, path, role: "primary" });
+    expect(created.status).toBe(201);
+    const recordId: string = created.body.record.record_id;
+    expect((await fetch(created.body.upload.url, { method: "PUT", headers: created.body.upload.headers, body })).status).toBe(201);
+    expect((await bob.api("POST", `${Q}/sources/${recordId}/uploads/complete`, { record_id: recordId, path })).status).toBe(200);
+    return recordId;
+  }
+
+  it("reads a recording's duration from its container, even past the parse cap", async () => {
+    const small = await stored("interview_recording", "call.m4a", m4a(1000, 147_250, 1000));
+    const large = await stored("interview_recording", "site-visit.m4a", m4a(48_000, 48_000 * 3600, 6000));
+    await h2.worker.drain();
+    const a = await bob.api("GET", `${Q}/sources/${small}`);
+    expect(a.body).toMatchObject({ derived_status: "needs_transcript", segment_count: 0, duration_ms: 147_250 });
+    const b = await bob.api("GET", `${Q}/sources/${large}?detail=full`);
+    expect(b.body).toMatchObject({ derived_status: "too_large", duration_ms: 3_600_000 });
+    expect(b.body.manifest.duration_ms).toBe(3_600_000);
+  });
+
+  it("fails an HTML page that has no readable text instead of calling it ready", async () => {
+    const shell = await stored("other", "manual.html", '<html><head><script src="/app.js"></script></head><body><div id="root"></div></body></html>');
+    await h2.worker.drain();
+    const s = await bob.api("GET", `${Q}/sources/${shell}`);
+    expect(s.body).toMatchObject({ derived_status: "failed", segment_count: 0 });
+    expect(s.body.status_detail).toMatch(/no readable text/);
+  });
+});

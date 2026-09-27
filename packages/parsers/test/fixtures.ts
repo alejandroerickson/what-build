@@ -156,3 +156,66 @@ export function makePdf(lines: string[]): Uint8Array {
   out += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
   return utf8(out);
 }
+
+// ---- Recordings: container headers only, around silent (zeroed) media data ----------------------
+
+const be32 = (n: number) => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+const le32 = (n: number) => [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255];
+const chars = (s: string) => Array.from(s, (c) => c.charCodeAt(0));
+const box = (type: string, body: number[]) => [...be32(8 + body.length), ...chars(type), ...body];
+
+/**
+ * An M4A: `ftyp`, then `moov` holding an `mvhd` (version 0 or 1), with a zeroed `mdat` of
+ * `mdatBytes` placed before `moov` unless the file is fast-start.
+ */
+export function makeMp4(o: { timescale: number; duration: number; version?: 0 | 1; fastStart?: boolean; mdatBytes?: number }): Uint8Array {
+  const times =
+    o.version === 1
+      ? [...be32(0), ...be32(0), ...be32(0), ...be32(0), ...be32(o.timescale), ...be32(Math.floor(o.duration / 2 ** 32)), ...be32(o.duration >>> 0)]
+      : [...be32(0), ...be32(0), ...be32(o.timescale), ...be32(o.duration)];
+  const moov = box("moov", box("mvhd", [o.version ?? 0, 0, 0, 0, ...times, ...new Array(80).fill(0)]));
+  const ftyp = box("ftyp", [...chars("M4A "), ...be32(0), ...chars("M4A isom")]);
+  const mdat = new Uint8Array(8 + (o.mdatBytes ?? 64));
+  mdat.set([...be32(mdat.byteLength), ...chars("mdat")]);
+  const parts = o.fastStart ? [ftyp, moov, mdat] : [ftyp, mdat, moov];
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let at = 0;
+  for (const p of parts) {
+    out.set(p, at);
+    at += p.length;
+  }
+  return out;
+}
+
+/** A 16-bit mono PCM WAV with a `LIST` chunk before the audio, `byteRate` bytes per second. */
+export function makeWav(dataBytes: number, byteRate: number): Uint8Array {
+  const fmt = [...chars("fmt "), ...le32(16), 1, 0, 1, 0, ...le32(byteRate / 2), ...le32(byteRate), 2, 0, 16, 0];
+  const list = [...chars("LIST"), ...le32(5), ...chars("INFOx"), 0];
+  const data = [...chars("data"), ...le32(dataBytes), ...new Array(dataBytes).fill(0)];
+  const body = [...chars("WAVE"), ...fmt, ...list, ...data];
+  return new Uint8Array([...chars("RIFF"), ...le32(body.length), ...body]);
+}
+
+/** A FLAC whose STREAMINFO block states a sample rate and a total sample count (under 2^32). */
+export function makeFlac(sampleRate: number, samples: number): Uint8Array {
+  const info = [0, 16, 0, 16, 0, 0, 0, 0, 0, 0, (sampleRate >> 12) & 255, (sampleRate >> 4) & 255, ((sampleRate & 15) << 4) | (1 << 1), 15 << 4, ...be32(samples), ...new Array(16).fill(0)];
+  return new Uint8Array([...chars("fLaC"), 0x80, 0, 0, 34, ...info]);
+}
+
+/**
+ * An MP3 of 128 kbit/s, 44.1 kHz MPEG-1 Layer III frames (417 bytes each) after an ID3v2 tag;
+ * with `xingFrames`, a leading Xing frame states that frame count.
+ */
+export function makeMp3(frames: number, xingFrames?: number): Uint8Array {
+  const id3 = [...chars("ID3"), 3, 0, 0, 0, 0, 0, 20, ...new Array(20).fill(0)];
+  const frame = (xing?: number) => {
+    const f = new Array(417).fill(0);
+    f.splice(0, 4, 0xff, 0xfb, 0x90, 0x00);
+    if (xing !== undefined) f.splice(36, 12, ...chars("Xing"), ...be32(1), ...be32(xing));
+    return f;
+  };
+  const out = [...id3];
+  if (xingFrames !== undefined) out.push(...frame(xingFrames));
+  for (let i = 0; i < frames; i++) out.push(...frame());
+  return new Uint8Array(out);
+}

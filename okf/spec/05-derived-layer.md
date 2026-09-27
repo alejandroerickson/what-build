@@ -106,6 +106,12 @@ where to look.
 }
 ```
 
+`duration_ms` is the last cue end for a timed source (VTT, SRT) and, for a recording, its playing
+time read from the container headers without decoding audio: MP4, M4A and MOV (`mvhd`), WAV,
+FLAC and MP3 (a Xing, Info or VBRI frame count, else the constant bitrate). It is null for other
+sources and for a container that cannot be read. A recording over the parse cap is not downloaded;
+only the byte ranges holding those headers are read.
+
 `facts` holds format-specific counts (pages and text-layer characters for PDF; tables, tracked
 changes and comments for DOCX; sheets for XLSX; rows and the delimiter for CSV; skipped cues for VTT
 and SRT; `transcript_turns` for a text, Markdown or DOCX file read as a transcript). `inference: "none"`
@@ -114,10 +120,10 @@ states that no model produced or altered the text.
 | `status` | Meaning |
 |---|---|
 | `ready` | Segments available. |
-| `needs_transcript` | The primary is a recording (an audio or video media type or extension); no text can be derived until a transcript is added and made primary. |
+| `needs_transcript` | The primary is a recording (an audio or video media type or extension); no text can be derived until a transcript is added and made primary. `duration_ms` gives its playing time when the container states it. |
 | `unsupported` | No parser for this file's extension or media type. |
 | `too_large` | Exceeds the parse cap: 25 MiB by default for every format (`WHATBUILD_PARSE_CAP_BYTES`). The file is stored but not read. |
-| `failed` | The parser errored, **or** it kept almost nothing: a text-like file (plain text, Markdown, VTT, SRT, CSV, TSV) that kept under 10% of at least 200 characters, or a PDF with no text layer (a scan; there is no OCR). `status_detail` says which. |
+| `failed` | The parser errored, **or** it kept almost nothing: a text-like file (plain text, Markdown, VTT, SRT, CSV, TSV) that kept under 10% of at least 200 characters, a PDF with no text layer (a scan; there is no OCR), or an HTML page with no readable text (a page whose text is drawn by scripts, such as a single-page app's shell). `status_detail` says which. |
 
 Every status is terminal for its derivation. A source whose current derivation is not `ready` is
 fully usable as a stored, downloadable source; it simply has no passages.
@@ -133,8 +139,8 @@ extension ([`packages/parsers/src/index.ts`](../../packages/parsers/src/index.ts
 | Markdown (`.md`, `.markdown`) | Everything plain text does, plus setext headings; blockquote markers and thematic breaks dropped; inline emphasis and code markers (`**`, `__`, `*`, `_`, backticks) stripped where they are clearly markup, never inside words or code spans. `**Name:** words` is a speaker turn. |
 | WebVTT, SRT | Cue timing; speakers from `<v Name>` voice tags and from `Name:` prefixes; caption markup stripped. |
 | DOCX | Headings (a Title above Heading 1), paragraphs, tables, the accepted view of tracked changes, comments. A paragraph in a decimal Word list (numbered directly or by its style) starts with its number as Word counts it (`2.`, `1.1.`); bullets and other number formats (letters, roman numerals) get no marker. `Name: words` paragraphs, including a bold `Name:` run, are speaker turns in a transcript (below). |
-| XLSX | Sheets and rows; the first all-text row with two or more cells near the top becomes the header, and later rows render `label: value` pairs. A number whose cell format is a date or time (the built-in formats 14–22 and 45–47, or a custom format with day, month, year, hour or second codes outside quotes and brackets) renders in ISO 8601: `2026-04-10`, `2026-04-10 12:00`, `13:30`, or elapsed hours `30:00:00`, in the workbook's 1900 or 1904 date system. Other numbers keep their stored value, not their displayed format. |
-| CSV, TSV (`.csv`, `.tsv`) | Read like a one-sheet workbook, with the same header rule and `label: value` rows. Quoted fields may hold delimiters and line breaks; the delimiter (comma, semicolon or tab) is taken from the first line. |
+| XLSX | Sheets and rows; the first all-text row with two or more cells near the top becomes the header, and later rows render `label: value` pairs in column order. A header column that a row leaves empty renders `label: (blank)`, so a missing value reads differently from a column that does not exist; this applies to a row that fills at least one header column, and a lone cell outside the header columns (a side note) stays unlabelled. A number whose cell format is a date or time (the built-in formats 14–22 and 45–47, or a custom format with day, month, year, hour or second codes outside quotes and brackets) renders in ISO 8601: `2026-04-10`, `2026-04-10 12:00`, `13:30`, or elapsed hours `30:00:00`, in the workbook's 1900 or 1904 date system. Other numbers keep their stored value, not their displayed format. |
+| CSV, TSV (`.csv`, `.tsv`) | Read like a one-sheet workbook, with the same header rule and `label: value` rows, including `(blank)` for an empty header column. Quoted fields may hold delimiters and line breaks; the delimiter (comma, semicolon or tab) is taken from the first line. |
 | PDF | Text layer only, per page. No OCR. |
 | HTML | Main-content text with headings; scripts, styles, navigation, forms and frames dropped; tables one segment per row with header pairs; adjacent elements (labels, breadcrumbs) kept apart by a space. |
 
@@ -149,7 +155,8 @@ an occasional `Note:`, as prose.
 - No speech-to-text and no OCR in the product. A recording is stored, playable, and awaits a
   transcript. (An agent with its own transcription tool can add one as a file with
   `derived_from` provenance.)
-- Parsers are pure functions of bytes → sidecars, with no I/O, and never throw for a bad file:
+- Parsers are pure functions of bytes → sidecars, with no I/O (the recording-duration reader
+  takes a byte-range callback, so the worker can serve it ranges of a stored file), and never throw for a bad file:
   every outcome is a status. They have fixture tests
   ([`packages/parsers/test`](../../packages/parsers/test)); golden-file tests for each format are
   planned. A parser change that alters its output MUST bump `parser_version`. No native

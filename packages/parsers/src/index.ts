@@ -2,6 +2,7 @@ import { srtParser, vttParser } from "./cues.ts";
 import { csvParser } from "./csv.ts";
 import { docxParser } from "./docx.ts";
 import { htmlParser } from "./html.ts";
+import { bytesReader, recordingDurationMs } from "./media.ts";
 import { pdfParser } from "./pdf.ts";
 import { markdownParser, plaintextParser } from "./plaintext.ts";
 import { assemble, codePointLength, decodeText, headingOutline, speakerOutline } from "./text.ts";
@@ -10,6 +11,7 @@ import { xlsxParser } from "./xlsx.ts";
 
 export type { Block, DerivationStatus, ParseResult, Segment } from "./types.ts";
 export { codePointLength, sliceCodePoints, MAX_SEGMENT_CHARS } from "./text.ts";
+export { recordingDurationMs, type ByteReader } from "./media.ts";
 
 /** Sources over this size are stored but not parsed (`too_large`). Operator-configurable. */
 export const DEFAULT_PARSE_CAP_BYTES = 25 * 1024 * 1024;
@@ -102,10 +104,10 @@ export async function derive(
     return nonReady("too_large", `the file is ${bytes.byteLength} bytes; files over ${cap} bytes are stored but not parsed`);
   }
   if (isRecording(fileName, options.mediaType)) {
-    return nonReady(
-      "needs_transcript",
-      "a recording is stored and playable but has no text; add a transcript as a new source",
-    );
+    return {
+      ...nonReady("needs_transcript", "a recording is stored and playable but has no text; add a transcript as a new source"),
+      duration_ms: await recordingDurationMs(bytesReader(bytes), bytes.byteLength),
+    };
   }
   const parser = parserFor(fileName, options.mediaType);
   if (!parser) {
@@ -132,6 +134,12 @@ export async function derive(
         facts,
       };
     }
+  }
+  if (parser === htmlParser && segments.length === 0) {
+    return {
+      ...nonReady("failed", "the HTML has no readable text: a page built by scripts, such as a single-page app, keeps its text out of the file; add the page's text as a file instead", parser.name, parser.version),
+      facts,
+    };
   }
   if (parser === pdfParser && Number(facts["text_layer_chars"] ?? 0) === 0) {
     return {

@@ -1,10 +1,11 @@
 import { strToU8, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
-import { derive, sliceCodePoints, type ParseResult } from "../src/index.ts";
+import { derive, recordingDurationMs, sliceCodePoints, type ParseResult } from "../src/index.ts";
+import { bytesReader } from "../src/media.ts";
 import { splitLong } from "../src/text.ts";
 import { stripInlineMarkdown } from "../src/plaintext.ts";
 import { dateFormatOf } from "../src/xlsx.ts";
-import { makeDocx, makeDocxList, makeDocxParagraphs, makePdf, makeXlsx, makeXlsxSheet, utf8 } from "./fixtures.ts";
+import { makeDocx, makeDocxList, makeDocxParagraphs, makeFlac, makeMp3, makeMp4, makePdf, makeWav, makeXlsx, makeXlsxSheet, utf8 } from "./fixtures.ts";
 
 /** The offset invariant every derivation must hold: text[char_start:char_end] == segment.text, in code points. */
 function expectOffsetsExact(r: ParseResult) {
@@ -238,6 +239,15 @@ describe("HTML", () => {
     const r = await derive(utf8(html), "page.html");
     expect(r.segments.map((s) => s.text)).toEqual(["Intranet Wiki", "Labels: procedure stage-gate governance", "unbelievable"]);
   });
+
+  it("fails a page with no readable text, such as a single-page app's shell", async () => {
+    const html = `<!doctype html><html><head><title>Manual</title><script src="/app.js"></script></head>
+      <body><div id="root"></div><noscript>You need to enable JavaScript to run this app.</noscript></body></html>`;
+    const r = await derive(utf8(html), "manual.html");
+    expect(r.status).toBe("failed");
+    expect(r.segments).toEqual([]);
+    expect(r.status_detail).toMatch(/no readable text/);
+  });
 });
 
 describe("DOCX", () => {
@@ -362,6 +372,18 @@ describe("CSV", () => {
     const semi = await derive(utf8("Name;Role\nSam;Planner\n"), "export", { mediaType: "text/csv" });
     expect(semi.segments[1]!.text).toBe("[row 2] Name: Sam | Role: Planner");
   });
+
+  it("marks a header column a row leaves empty as blank, and leaves side notes unlabelled", async () => {
+    const r = await derive(utf8("Sample,Cu_pct,S_pct\nKL-01,1.2,0.4\nKL-02,0.9,\nNR,,\n,,,Checked twice\n"), "assays.csv");
+    expect(r.segments.map((s) => s.text)).toEqual([
+      "[row 1] Sample | Cu_pct | S_pct",
+      "[row 2] Sample: KL-01 | Cu_pct: 1.2 | S_pct: 0.4",
+      "[row 3] Sample: KL-02 | Cu_pct: 0.9 | S_pct: (blank)",
+      "[row 4] Sample: NR | Cu_pct: (blank) | S_pct: (blank)",
+      "[row 5] Checked twice",
+    ]);
+    expect(r.parser_version).toBe("2");
+  });
 });
 
 describe("XLSX", () => {
@@ -374,6 +396,16 @@ describe("XLSX", () => {
       "[Accounts, row 3] Account: Globex | Seats: 3.5",
     ]);
     expect(r.facts).toMatchObject({ sheet_count: 1, row_count: 3 });
+  });
+
+  it("marks a header column a row leaves empty as blank, as CSV does", async () => {
+    const r = await derive(makeXlsxSheet([["Sample", "Cu_pct", "S_pct"], ["KL-01", [1.2, 0], [0.4, 0]], ["KL-02", [0.9, 0]], ["NR", "", ""]]), "assays.xlsx");
+    expect(r.segments.slice(2).map((s) => s.text)).toEqual([
+      "[Register, row 2] Sample: KL-01 | Cu_pct: 1.2 | S_pct: 0.4",
+      "[Register, row 3] Sample: KL-02 | Cu_pct: 0.9 | S_pct: (blank)",
+      "[Register, row 4] Sample: NR | Cu_pct: (blank) | S_pct: (blank)",
+    ]);
+    expect(r.parser_version).toBe("3");
   });
 
   it("renders numbers in date and time formats as ISO dates and times, and other numbers as numbers", async () => {
@@ -435,9 +467,44 @@ describe("PDF", () => {
   });
 });
 
+describe("recording duration", () => {
+  it("reads an M4A's mvhd, before or after the media data, in version 0 or 1", async () => {
+    const late = await derive(makeMp4({ timescale: 44100, duration: 44100 * 147 + 11025 }), "call.m4a");
+    expect(late).toMatchObject({ status: "needs_transcript", duration_ms: 147250, segments: [] });
+    expect((await derive(makeMp4({ timescale: 1000, duration: 2 ** 33, version: 1, fastStart: true }), "long.mp4")).duration_ms).toBe(2 ** 33);
+  });
+
+  it("finds a late moov without reading the media data", async () => {
+    const bytes = makeMp4({ timescale: 600, duration: 600 * 90, mdatBytes: 5_000_000 });
+    let read = 0;
+    const ms = await recordingDurationMs(async (s, e) => {
+      const b = await bytesReader(bytes)(s, e);
+      read += b.byteLength;
+      return b;
+    }, bytes.byteLength);
+    expect(ms).toBe(90_000);
+    expect(read).toBeLessThan(200);
+  });
+
+  it("reads WAV, FLAC, and constant and variable bitrate MP3", async () => {
+    expect((await derive(makeWav(32_000, 16_000), "room.wav")).duration_ms).toBe(2000);
+    expect((await derive(makeFlac(44_100, 441_000), "room.flac")).duration_ms).toBe(10_000);
+    expect((await derive(makeMp3(100), "memo.mp3")).duration_ms).toBe(2606);
+    expect((await derive(makeMp3(3, 1000), "memo.mp3")).duration_ms).toBe(26_122);
+  });
+
+  it("gives no duration for a container it cannot read", async () => {
+    expect((await derive(new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]), "call.m4a")).duration_ms).toBeNull();
+    expect((await derive(utf8("OggS and more bytes than that"), "call.ogg")).duration_ms).toBeNull();
+    expect((await derive(makeMp4({ timescale: 0, duration: 10 }), "call.m4a")).duration_ms).toBeNull();
+  });
+});
+
 describe("statuses", () => {
   it("marks recordings as needing a transcript", async () => {
-    expect((await derive(new Uint8Array(10), "call.m4a")).status).toBe("needs_transcript");
+    const r = await derive(new Uint8Array(10), "call.m4a");
+    expect(r.status).toBe("needs_transcript");
+    expect(r.duration_ms).toBeNull();
   });
   it("marks unknown formats unsupported", async () => {
     const r = await derive(new Uint8Array(10), "slides.pptx");

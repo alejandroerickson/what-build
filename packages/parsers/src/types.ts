@@ -28,7 +28,7 @@ export interface ParseResult {
   /** The full derived text the segment offsets index into. Ends with one newline when non-empty. */
   text: string;
   outline: string;
-  /** Largest cue end for timed sources, else null. */
+  /** Largest cue end for timed sources, the container's playing time for a recording, else null. */
   duration_ms: number | null;
   /** Human-readable reason when status is not `ready`. */
   status_detail: string | null;

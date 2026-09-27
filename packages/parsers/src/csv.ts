@@ -46,11 +46,12 @@ const isNumeric = (v: string) => /^[-+]?(\d+([.,]\d+)?|\.\d+)([eE][-+]?\d+)?%?$/
 
 /**
  * CSV and TSV, read like a one-sheet workbook: one segment per non-empty row, prefixed
- * `[row N]`, with the same header detection and `label: value` pairs as XLSX.
+ * `[row N]`, with the same header detection and `label: value` pairs as XLSX, including
+ * `label: (blank)` for a header column the row leaves empty.
  */
 export const csvParser: FormatParser = {
   name: "csv",
-  version: "1",
+  version: "2",
   parse(bytes, fileName) {
     const source = decodeText(bytes);
     const delimiter = sniffDelimiter(source, fileName);
