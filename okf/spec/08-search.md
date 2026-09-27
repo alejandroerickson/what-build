@@ -3,7 +3,7 @@ type: Specification
 title: Search is lexical, bounded, and says exactly what it examined.
 description: The search operation as built (substring and ranked modes, scopes, filters, coverage), dimensions, and the planned retrieval work (dimension registry, attachment tiers, semantic search, approximate relocation, recursive lineage).
 tags: [spec, search, retrieval, coverage]
-generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-27}
 status: stable
 ---
 
@@ -80,8 +80,11 @@ Search must never claim to have examined what it did not.
 - Every passage search response includes
   `coverage: { searched: ["primary"], records_considered, records_without_passages,
   records_with_unsearched_files, statement }`, counted over the sources matching the filters.
-  `statement` says it in a sentence ("Searched the primary text of 41 sources. 6 have origin or
-  supplement files that are not searched; 3 have no passages yet."), and the UI shows it.
+  `statement` says it in sentences, leaving out zero counts and counting sources without passages
+  by reason, since each needs a different next step ("Searched the primary text of 41 sources. 6
+  sources have origin or supplement files that are not searched. Not searched: 1 has no primary
+  file yet; 2 are not parsed yet; 1 is a recording with no transcript (add the transcript as its own source); 1 has a primary
+  that could not be parsed (unsupported, too large or failed)."), and the UI shows it.
 - **Planned — tiers:** derive `supplement` and `origin` files as secondary derivations;
   `tiers: ["primary", "attachments"]` opts in; results name the file they came from. Citations
   continue to address primary derivations only until the citation model is deliberately extended.

@@ -196,6 +196,35 @@ export const readNote = defineOperation({
 
 // ---- The signature read -------------------------------------------------------------------------
 
+/**
+ * Why a speaker-filtered read came back empty, when the reason is the speaker rather than the
+ * window: the derivation has no speaker data at all, or nobody by that name speaks in it.
+ */
+async function speakerWarning(ctx: OpContext, derivationId: string, speaker: string): Promise<string | null> {
+  const speaks = await ctx.db
+    .selectFrom("segments")
+    .select("seq")
+    .where("derivation_id", "=", derivationId)
+    .where(sql<boolean>`lower(speaker) = lower(${speaker})`)
+    .limit(1)
+    .executeTakeFirst();
+  if (speaks) return null;
+  const names = await ctx.db
+    .selectFrom("segments")
+    .select("speaker")
+    .distinct()
+    .where("derivation_id", "=", derivationId)
+    .where("speaker", "is not", null)
+    .orderBy("speaker")
+    .limit(21)
+    .execute();
+  if (!names.length)
+    return `This source has no speaker data: none of its passages carries a speaker, so the speaker filter cannot match. Read the window without speaker; any names are in the text itself.`;
+  const known = names.map((n) => n.speaker!);
+  const list = known.slice(0, 20).join(", ") + (known.length > 20 ? ", …" : "");
+  return `No passage in this source is by "${speaker}". Its speakers are: ${list}.`;
+}
+
 export const readPassage = defineOperation({
   name: "read_passage",
   scope: "product",
@@ -209,7 +238,7 @@ export const readPassage = defineOperation({
     start: z.number().int().min(0),
     end: z.number().int().min(0),
     unit: z.enum(["seq", "ms"]).optional(),
-    speaker: z.string().max(100).optional().describe("Only this speaker's segments within the window."),
+    speaker: z.string().max(100).optional().describe("Only this speaker's segments within the window. If the source has no speaker data, or nobody by that name, warning says so."),
     derivation_id: derivationIdField,
   }),
   rest: { method: "GET", path: "/sources/:record_id/passage" },
@@ -239,7 +268,8 @@ export const readPassage = defineOperation({
     const duration = d.duration_ms === null ? null : Number(d.duration_ms);
     const outOfRange = unit === "seq" ? input.end >= total || input.start >= total : input.end > (duration ?? 0) || input.start > (duration ?? 0);
     let warning: string | null = null;
-    if (!segments.length && !outOfRange) warning = unit === "ms" ? "No cue overlaps this window: a gap between cues." : "No segments in this range.";
+    if (!segments.length && input.speaker) warning = await speakerWarning(ctx, d.derivation_id, input.speaker);
+    if (!warning && !segments.length && !outOfRange) warning = unit === "ms" ? "No cue overlaps this window: a gap between cues." : "No segments in this range.";
     return {
       record: { record_id: record.record_id, title: record.title, kind: record.kind, archived_at: record.archived_at },
       derivation_id: d.derivation_id,

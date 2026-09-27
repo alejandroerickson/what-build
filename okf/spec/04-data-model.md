@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), objectives, sources and their taxonomy, files, annotations, insights and insight review, the registers and citations, views and lineage, activity, Story, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, citations, revisions, story, export]
-generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-27}
 status: stable
 ---
 
@@ -177,7 +177,7 @@ An **annotation** is a note on a source, optionally anchored to a passage.
 | `seq_start`, `seq_end` | Optional, given together: an inclusive segment range of the current derivation, ≤ 50 segments. |
 | `note` | Markdown, 1–2,000 chars. |
 | `tags` | As sources. |
-| `anchor` | When a range is given, a snapshot taken at creation (range, offsets, derivation id, and up to 500 chars of the text), so the note can be re-located after a re-derivation. |
+| `anchor` | When a range is given, a snapshot taken at creation (range, offsets, derivation id, and up to 500 characters of the text, a longer text cut at a word boundary and ending in an ellipsis), so the note can be re-located after a re-derivation. |
 
 Editable (note only, keeping revisions), archivable.
 

@@ -27,6 +27,23 @@ export function makeDocx(): Uint8Array {
   });
 }
 
+/** A DOCX whose body is the given paragraphs: `{ style }` sets a paragraph style, `{ boldLead }` a bold first run. */
+export function makeDocxParagraphs(paras: { text: string; style?: string; boldLead?: string }[]): Uint8Array {
+  const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const body = paras
+    .map((p) => {
+      const pPr = p.style ? `<w:pPr><w:pStyle w:val="${p.style}"/></w:pPr>` : "";
+      const lead = p.boldLead ? `<w:r><w:rPr><w:b/></w:rPr><w:t>${esc(p.boldLead)}</w:t></w:r>` : "";
+      return `<w:p>${pPr}${lead}<w:r><w:t xml:space="preserve">${esc(p.text)}</w:t></w:r></w:p>`;
+    })
+    .join("\n");
+  return zipSync({
+    "[Content_Types].xml": strToU8("<Types/>"),
+    "word/document.xml": strToU8(`<?xml version="1.0" encoding="UTF-8"?>\n<w:document ${W}><w:body>${body}</w:body></w:document>`),
+  });
+}
+
 /** A minimal XLSX with a header row and two data rows. */
 export function makeXlsx(): Uint8Array {
   const workbook = `<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Accounts" sheetId="1" r:id="rId1"/></sheets></workbook>`;

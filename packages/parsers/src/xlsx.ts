@@ -2,10 +2,16 @@ import { strFromU8, unzipSync } from "fflate";
 import type { Block, FormatParser } from "./types.ts";
 import { descendants, elements, first, parseXml, textOf } from "./xml.ts";
 
-const MAX_ROWS = 50_000;
-const MAX_COLUMNS = 256;
-const MAX_CHARS = 20_000_000;
-const MAX_CELL = 32_767;
+export const MAX_ROWS = 50_000;
+export const MAX_COLUMNS = 256;
+export const MAX_CHARS = 20_000_000;
+export const MAX_CELL = 32_767;
+
+/** A non-empty row of a sheet: its 1-based row number and its non-empty cells. */
+export interface SheetRow {
+  n: number;
+  cells: { col: number; value: string; isText: boolean }[];
+}
 
 function columnIndex(ref: string): number {
   const letters = ref.match(/^[A-Z]+/)?.[0] ?? "A";
@@ -23,6 +29,30 @@ function columnLetter(i: number): string {
     n = Math.floor((n - 1) / 26);
   }
   return s;
+}
+
+/**
+ * One block per row, shared by XLSX and CSV. The first all-text row with two or more cells in the
+ * top 20 is the header; later rows render `label: value` pairs. `budget` caps the characters across
+ * every sheet of one file.
+ */
+export function sheetRowBlocks(table: SheetRow[], prefix: (n: number) => string, budget: { chars: number }): { blocks: Block[]; truncated: boolean } {
+  const headerRow = table.slice(0, 20).find((r) => r.cells.length >= 2 && r.cells.every((c) => c.isText));
+  const header = new Map<number, string>();
+  if (headerRow) for (const c of headerRow.cells) header.set(c.col, c.value);
+  const blocks: Block[] = [];
+  for (const r of table) {
+    let text: string;
+    if (r === headerRow) text = r.cells.map((c) => c.value).join(" | ");
+    else if (headerRow && r.n > headerRow.n && !(r.cells.length === 1 && !header.has(r.cells[0]!.col)))
+      text = r.cells.map((c) => `${header.get(c.col) ?? columnLetter(c.col)}: ${c.value}`).join(" | ");
+    else text = r.cells.map((c) => c.value).join(" | ");
+    const line = prefix(r.n) + text;
+    budget.chars += line.length;
+    if (budget.chars > MAX_CHARS) return { blocks, truncated: true };
+    blocks.push({ text: line });
+  }
+  return { blocks, truncated: false };
 }
 
 function formatNumber(raw: string): string {
@@ -66,14 +96,14 @@ export const xlsxParser: FormatParser = {
     }));
     const blocks: Block[] = [];
     let rowCount = 0;
-    let chars = 0;
+    const budget = { chars: 0 };
     const truncatedSheets: string[] = [];
     for (const sheet of sheets) {
       const xml = files[sheet.path];
       if (!xml) continue;
       blocks.push({ text: `# Sheet: ${sheet.name}`, heading_level: 1 });
       const rows = descendants(parseXml(strFromU8(xml)), "row");
-      const table: { n: number; cells: { col: number; value: string; isText: boolean }[] }[] = [];
+      const table: SheetRow[] = [];
       let truncated = false;
       for (const row of rows) {
         if (table.length >= MAX_ROWS) {
@@ -113,25 +143,10 @@ export const xlsxParser: FormatParser = {
         }
         if (cells.length) table.push({ n, cells });
       }
-      const headerRow = table.slice(0, 20).find((r) => r.cells.length >= 2 && r.cells.every((c) => c.isText));
-      const header = new Map<number, string>();
-      if (headerRow) for (const c of headerRow.cells) header.set(c.col, c.value);
-      for (const r of table) {
-        let text: string;
-        if (r === headerRow) text = r.cells.map((c) => c.value).join(" | ");
-        else if (headerRow && r.n > headerRow.n && !(r.cells.length === 1 && !header.has(r.cells[0]!.col)))
-          text = r.cells.map((c) => `${header.get(c.col) ?? columnLetter(c.col)}: ${c.value}`).join(" | ");
-        else text = r.cells.map((c) => c.value).join(" | ");
-        const line = `[${sheet.name}, row ${r.n}] ${text}`;
-        chars += line.length;
-        if (chars > MAX_CHARS) {
-          truncated = true;
-          break;
-        }
-        blocks.push({ text: line });
-        rowCount++;
-      }
-      if (truncated) truncatedSheets.push(sheet.name);
+      const out = sheetRowBlocks(table, (n) => `[${sheet.name}, row ${n}] `, budget);
+      blocks.push(...out.blocks);
+      rowCount += out.blocks.length;
+      if (truncated || out.truncated) truncatedSheets.push(sheet.name);
     }
     return {
       blocks,

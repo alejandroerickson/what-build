@@ -3,7 +3,7 @@ type: Specification
 title: Every source's primary file is parsed into immutable, passage-addressable text that any client can read by segment or time.
 description: Derivations and when they run, the four sidecars, derivation statuses, the parsers by format, the read_passage contract, and the other derived reads.
 tags: [spec, derived-layer, parsers, passages, sidecars]
-generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-27}
 status: stable
 ---
 
@@ -59,7 +59,8 @@ One JSON object per line, ordered by `seq` (0-based, dense):
   speaker and timing, preferring sentence boundaries, then the last space, then a hard cut.
 - Inverted cues (end before start) are skipped and counted in the manifest's `facts`.
 - Optional `heading_level` (1–6) marks a heading segment, and `page` (PDF, 1-based) locates a
-  segment on its page.
+  segment on its page. Levels agree across formats: a Markdown `#` title and a DOCX Title are
+  level 1, and the sections under them (`##`, or Heading 1 below a Title) level 2.
 
 ### `text.md`
 
@@ -68,11 +69,14 @@ with one newline.
 
 - Timed sources: one cue per paragraph. The speaker is carried on the segment, not written into
   the text.
-- Documents: headings kept as their own segments; a `# Page N` heading per PDF page; DOCX tables
-  one segment per row with the header repeated as `header: cell` pairs; tracked insertions kept and
-  tracked deletions dropped; reviewer comments appended under `# Review comments`; XLSX a
-  `# Sheet: <name>` heading per worksheet and one segment per non-empty row, prefixed
-  `[<Sheet>, row N]`.
+- Untimed transcripts (plain text, Markdown, DOCX): one turn per segment, the speaker on the
+  segment and the `Name:` label removed from the text, as for timed sources.
+- Documents: headings kept as their own segments; a `# Page N` heading per PDF page; each list
+  item its own segment; tables (DOCX, HTML, Markdown pipe tables) one segment per row with the
+  header repeated as `header: cell` pairs; tracked insertions kept and tracked deletions dropped;
+  reviewer comments appended under `# Review comments`; XLSX a `# Sheet: <name>` heading per
+  worksheet and one segment per non-empty row, prefixed `[<Sheet>, row N]`; CSV and TSV one
+  segment per non-empty row, prefixed `[row N]`.
 
 ### `outline.md`
 
@@ -96,7 +100,8 @@ where to look.
 ```
 
 `facts` holds format-specific counts (pages and text-layer characters for PDF; tables, tracked
-changes and comments for DOCX; sheets for XLSX; skipped cues for VTT and SRT). `inference: "none"`
+changes and comments for DOCX; sheets for XLSX; rows and the delimiter for CSV; skipped cues for VTT
+and SRT; `transcript_turns` for a text, Markdown or DOCX file read as a transcript). `inference: "none"`
 states that no model produced or altered the text.
 
 | `status` | Meaning |
@@ -105,7 +110,7 @@ states that no model produced or altered the text.
 | `needs_transcript` | The primary is a recording (an audio or video media type or extension); no text can be derived until a transcript is added and made primary. |
 | `unsupported` | No parser for this file's extension or media type. |
 | `too_large` | Exceeds the parse cap: 25 MiB by default for every format (`WHATBUILD_PARSE_CAP_BYTES`). The file is stored but not read. |
-| `failed` | The parser errored, **or** it kept almost nothing: a text-like file that kept under 10% of at least 200 characters, or a PDF with no text layer (a scan; there is no OCR). `status_detail` says which. |
+| `failed` | The parser errored, **or** it kept almost nothing: a text-like file (plain text, Markdown, VTT, SRT, CSV, TSV) that kept under 10% of at least 200 characters, or a PDF with no text layer (a scan; there is no OCR). `status_detail` says which. |
 
 Every status is terminal for its derivation. A source whose current derivation is not `ready` is
 fully usable as a stored, downloadable source; it simply has no passages.
@@ -117,12 +122,22 @@ extension ([`packages/parsers/src/index.ts`](../../packages/parsers/src/index.ts
 
 | Format | Notes |
 |---|---|
-| Plain text, Markdown (`.txt`, `.text`, `.md`, `.markdown`) | Paragraphs split on blank lines; ATX headings become heading segments and feed the outline. |
+| Plain text (`.txt`, `.text`) | Paragraphs split on blank lines; ATX headings become heading segments and feed the outline; each list item (`-`, `*`, `+`, `1.`) and each pipe-table row is its own segment. A transcript is read one turn per segment with its speaker (below). |
+| Markdown (`.md`, `.markdown`) | Everything plain text does, plus setext headings; blockquote markers and thematic breaks dropped; inline emphasis and code markers (`**`, `__`, `*`, `_`, backticks) stripped where they are clearly markup, never inside words or code spans. `**Name:** words` is a speaker turn. |
 | WebVTT, SRT | Cue timing; speakers from `<v Name>` voice tags and from `Name:` prefixes; caption markup stripped. |
-| DOCX | Headings, paragraphs, tables, the accepted view of tracked changes, comments. |
+| DOCX | Headings (a Title above Heading 1), paragraphs, tables, the accepted view of tracked changes, comments. `Name: words` paragraphs, including a bold `Name:` run, are speaker turns in a transcript (below). |
 | XLSX | Sheets and rows; the first all-text row with two or more cells near the top becomes the header, and later rows render `label: value` pairs. |
+| CSV, TSV (`.csv`, `.tsv`) | Read like a one-sheet workbook, with the same header rule and `label: value` rows. Quoted fields may hold delimiters and line breaks; the delimiter (comma, semicolon or tab) is taken from the first line. |
 | PDF | Text layer only, per page. No OCR. |
-| HTML | Main-content text with headings; scripts, styles, navigation, forms and frames dropped. |
+| HTML | Main-content text with headings; scripts, styles, navigation, forms and frames dropped; tables one segment per row with header pairs; adjacent elements (labels, breadcrumbs) kept apart by a space. |
+
+**Untimed transcripts.** Plain text, Markdown and DOCX share one rule
+([`speakers.ts`](../../packages/parsers/src/speakers.ts)), so a transcript reads the same whatever
+it was saved as. A file is a transcript when it has at least four lines (paragraphs, for DOCX), at
+least 60% of them are `Name:` turns (a capitalised name of up to 41 characters, or a bracketed
+label, optionally after a timestamp), and at least half of those turns come from a name that speaks
+more than once. The last condition keeps field lines such as `Project:`, `Date:` and `Location:`, and
+an occasional `Note:`, as prose.
 
 - No speech-to-text and no OCR in the product. A recording is stored, playable, and awaits a
   transcript. (An agent with its own transcription tool can add one as a file with
@@ -142,8 +157,10 @@ extension ([`packages/parsers/src/index.ts`](../../packages/parsers/src/index.ts
 - `unit: "ms"`: every segment overlapping `[start, end]`; timed sources only
   (`422 untimed_source` otherwise).
 - Without `unit`, timed sources read by `ms` and others by `seq`.
-- `speaker` keeps only that speaker's segments within the window; `derivation_id` defaults to the
-  current derivation.
+- `speaker` keeps only that speaker's segments within the window (case-insensitive);
+  `derivation_id` defaults to the current derivation. When the filter leaves nothing, `warning`
+  says why: the derivation has no speaker data at all, or nobody by that name speaks in it (with
+  the names that do), before any "No segments in this range".
 
 Bounds: at most 200 segments **and** at most 600,000 ms (10 minutes) per call. A wider request is
 **refused** with `422 window_too_large` stating the limits; it is not silently clipped. A source

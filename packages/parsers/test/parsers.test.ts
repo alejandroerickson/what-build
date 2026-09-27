@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { derive, sliceCodePoints, type ParseResult } from "../src/index.ts";
 import { splitLong } from "../src/text.ts";
-import { makeDocx, makePdf, makeXlsx, utf8 } from "./fixtures.ts";
+import { stripInlineMarkdown } from "../src/plaintext.ts";
+import { makeDocx, makeDocxParagraphs, makePdf, makeXlsx, utf8 } from "./fixtures.ts";
 
 /** The offset invariant every derivation must hold: text[char_start:char_end] == segment.text, in code points. */
 function expectOffsetsExact(r: ParseResult) {
@@ -98,6 +99,82 @@ describe("plain text and Markdown", () => {
     ]);
   });
 
+  it("reads timestamped and bracketed speaker labels", async () => {
+    const t = "[00:00:05] Interviewer: How do you plan?\n[00:00:09] Dana: Quarterly.\n[Interviewer]: Who decides?\n[Dana]: The ops lead.\n";
+    const r = await derive(utf8(t), "interview.txt");
+    expect(r.segments.map((s) => [s.speaker, s.text])).toEqual([
+      ["Interviewer", "How do you plan?"],
+      ["Dana", "Quarterly."],
+      ["Interviewer", "Who decides?"],
+      ["Dana", "The ops lead."],
+    ]);
+  });
+
+  it("keeps field lines and occasional labels as prose, not speakers", async () => {
+    const fields = "Project: Scheduling\nDate: 3 September\nLocation: Depot\nAttendees: Dana, Sam\nWe walked the yard first.\n";
+    const notes = "Note: this is a draft.\n\nWe met the ops lead on Tuesday.\n\nShe plans by the week.\n\nNote: follow up on pricing.\n";
+    for (const [text, name] of [[fields, "visit.txt"], [notes, "notes.md"]] as const) {
+      const r = await derive(utf8(text), name);
+      expect(r.segments.every((s) => s.speaker === null)).toBe(true);
+      expect(r.facts["transcript_turns"]).toBeUndefined();
+    }
+  });
+
+  it("gives each list item its own segment, under its heading", async () => {
+    const md = "## Observations\n\n- Crews text the office\n  every morning.\n- Nobody called it a crisis.\n* Third item\n\n1. First step\n2. Second step\n\nThe year was\n2019. It stayed in the paragraph.\n";
+    const r = await derive(utf8(md), "visit.md");
+    expect(r.segments.map((s) => s.text)).toEqual([
+      "## Observations",
+      "Crews text the office every morning.",
+      "Nobody called it a crisis.",
+      "Third item",
+      "1. First step",
+      "2. Second step",
+      "The year was 2019. It stayed in the paragraph.",
+    ]);
+    expectOffsetsExact(r);
+  });
+
+  it("splits plain-text bullets too", async () => {
+    const r = await derive(utf8("Follow-ups:\n- call Dana\n- send the price sheet\n"), "note.txt");
+    expect(r.segments.map((s) => s.text)).toEqual(["Follow-ups:", "call Dana", "send the price sheet"]);
+  });
+
+  it("renders a pipe table one row per segment with header pairs, dropping the rule", async () => {
+    const md = "| Plan | Price |\n|:-----|------:|\n| **Starter** | $10 |\n| Team | |\n\nAfter the table.\n";
+    const r = await derive(utf8(md), "pricing.md");
+    expect(r.segments.map((s) => s.text)).toEqual(["Plan | Price", "Plan: Starter | Price: $10", "Plan: Team", "After the table."]);
+    expect(r.facts["table_count"]).toBe(1);
+  });
+
+  it("strips inline Markdown and blockquote markers, but not snake_case, arithmetic or code", async () => {
+    const md = "> **Bold** and *italic* and __strong__ and _em_ and `x_y_z`.\n\nKeep snake_case_name, 2*3*4 and \\*literal\\*.\n\n---\n\nSetext title\n============\n";
+    const r = await derive(utf8(md), "notes.md");
+    expect(r.segments.map((s) => s.text)).toEqual([
+      "Bold and italic and strong and em and x_y_z.",
+      "Keep snake_case_name, 2*3*4 and *literal*.",
+      "# Setext title",
+    ]);
+    expect(r.segments[2]!.heading_level).toBe(1);
+    expect(stripInlineMarkdown("***both***")).toBe("both");
+    // Plain text keeps its asterisks.
+    const t = await derive(utf8("A *starred* word.\n"), "a.txt");
+    expect(t.segments[0]!.text).toBe("A *starred* word.");
+  });
+
+  it("reads **Name:** turns in a Markdown transcript as speakers", async () => {
+    const md = "# Interview\n\n**Interviewer:** How do you plan?\n\n**Ana Lucía:** Quarterly, then\nwe revise monthly.\n\n**Interviewer:** Who decides?\n\n**Ana Lucía**: The *ops* lead.\n";
+    const r = await derive(utf8(md), "interview.md");
+    expect(r.parser).toBe("markdown");
+    expect(r.segments.map((s) => [s.speaker, s.text])).toEqual([
+      [null, "# Interview"],
+      ["Interviewer", "How do you plan?"],
+      ["Ana Lucía", "Quarterly, then we revise monthly."],
+      ["Interviewer", "Who decides?"],
+      ["Ana Lucía", "The ops lead."],
+    ]);
+  });
+
   it("splits an oversized paragraph at sentence boundaries under 2,000 characters", async () => {
     const sentence = "This sentence is exactly long enough to be repeated many times over. ";
     const r = await derive(utf8(sentence.repeat(100)), "long.txt");
@@ -126,6 +203,20 @@ describe("HTML", () => {
     const r = await derive(utf8(html), "page.html");
     expect(r.segments.map((s) => s.text)).toEqual(["# Findings", "First bold point. Same para.", "One", "Two"]);
   });
+
+  it("renders a table one row per segment with header pairs", async () => {
+    const html = `<body><table><caption>Checks</caption><thead><tr><th>Check</th><th>Owner</th></tr></thead>
+      <tbody><tr><td>Pricing <b>reviewed</b></td><td>Sam</td></tr><tr><td><p>Legal</p><p>sign-off</p></td><td></td></tr></tbody></table></body>`;
+    const r = await derive(utf8(html), "checks.html");
+    expect(r.segments.map((s) => s.text)).toEqual(["Checks", "Check | Owner", "Check: Pricing reviewed | Owner: Sam", "Check: Legal sign-off"]);
+  });
+
+  it("keeps adjacent elements apart instead of running them together", async () => {
+    const html = `<body><p><a href="/a">Intranet</a><a href="/b">Wiki</a></p>
+      <div>Labels: <span>procedure</span><span>stage-gate</span><span>governance</span></div><p>un<b>believ</b>able</p></body>`;
+    const r = await derive(utf8(html), "page.html");
+    expect(r.segments.map((s) => s.text)).toEqual(["Intranet Wiki", "Labels: procedure stage-gate governance", "unbelievable"]);
+  });
 });
 
 describe("DOCX", () => {
@@ -145,9 +236,77 @@ describe("DOCX", () => {
     expectOffsetsExact(r);
   });
 
+  it("reads Name: paragraphs as speaker turns, the same as a plain-text transcript", async () => {
+    const turns = [
+      { text: "Interviewer: How do you plan?" },
+      { text: "Quarterly, then we revise monthly.", boldLead: "Dana Ortiz:" },
+      { text: "Interviewer: Who decides?" },
+      { text: "Dana Ortiz: The ops lead." },
+    ];
+    const r = await derive(makeDocxParagraphs([{ text: "Planning call", style: "Title" }, ...turns]), "call.docx");
+    expect(r.segments.map((s) => [s.speaker, s.text])).toEqual([
+      [null, "# Planning call"],
+      ["Interviewer", "How do you plan?"],
+      ["Dana Ortiz", "Quarterly, then we revise monthly."],
+      ["Interviewer", "Who decides?"],
+      ["Dana Ortiz", "The ops lead."],
+    ]);
+    expect(r.facts["transcript_turns"]).toBe(4);
+    const txt = await derive(utf8(turns.map((t) => (t.boldLead ? `${t.boldLead} ${t.text}` : t.text)).join("\n")), "call.txt");
+    expect(txt.segments.map((s) => [s.speaker, s.text])).toEqual(r.segments.slice(1).map((s) => [s.speaker, s.text]));
+  });
+
+  it("leaves an ordinary document's labelled paragraphs alone", async () => {
+    const r = await derive(
+      makeDocxParagraphs([{ text: "Note: draft." }, { text: "We met on Tuesday." }, { text: "Scope: pricing." }, { text: "Owner: Sam." }, { text: "Status: open." }]),
+      "memo.docx",
+    );
+    expect(r.segments.every((s) => s.speaker === null)).toBe(true);
+    expect(r.segments[0]!.text).toBe("Note: draft.");
+  });
+
+  it("puts Heading 1 below a Title, as Markdown puts ## below #", async () => {
+    const withTitle = await derive(
+      makeDocxParagraphs([{ text: "Planning notes", style: "Title" }, { text: "Agenda", style: "Heading1" }, { text: "Item", style: "Heading2" }, { text: "Body." }]),
+      "notes.docx",
+    );
+    expect(withTitle.segments.map((s) => [s.text, s.heading_level ?? null])).toEqual([
+      ["# Planning notes", 1],
+      ["## Agenda", 2],
+      ["### Item", 3],
+      ["Body.", null],
+    ]);
+    expect(withTitle.outline).toBe("- # Planning notes (segment 0)\n  - ## Agenda (segment 1)\n    - ### Item (segment 2)\n");
+    const noTitle = await derive(makeDocxParagraphs([{ text: "Agenda", style: "Heading1" }, { text: "Body." }]), "notes.docx");
+    expect(noTitle.segments[0]).toMatchObject({ text: "# Agenda", heading_level: 1 });
+  });
+
   it("reports failed for a file that is not a Word document", async () => {
     const r = await derive(utf8("not a zip"), "x.docx");
     expect(r.status).toBe("failed");
+  });
+});
+
+describe("CSV", () => {
+  it("reads a CSV like a one-sheet workbook, with quoted fields", async () => {
+    const csv = 'Account,Seats,Comment\r\nAcme,12,"Plans weekly, by hand"\r\nGlobex,3.5,"Said ""maybe""\non a second line"\r\n\r\n';
+    const r = await derive(utf8(csv), "accounts.csv");
+    expect(r.status).toBe("ready");
+    expect(r.parser).toBe("csv");
+    expect(r.segments.map((s) => s.text)).toEqual([
+      "[row 1] Account | Seats | Comment",
+      "[row 2] Account: Acme | Seats: 12 | Comment: Plans weekly, by hand",
+      '[row 3] Account: Globex | Seats: 3.5 | Comment: Said "maybe" on a second line',
+    ]);
+    expect(r.facts).toMatchObject({ row_count: 3, truncated: false });
+    expectOffsetsExact(r);
+  });
+
+  it("reads TSV and semicolon-separated files, and picks the parser by media type", async () => {
+    const tsv = await derive(utf8("Name\tRole\nDana\tOps lead\n"), "people.tsv");
+    expect(tsv.segments[1]!.text).toBe("[row 2] Name: Dana | Role: Ops lead");
+    const semi = await derive(utf8("Name;Role\nSam;Planner\n"), "export", { mediaType: "text/csv" });
+    expect(semi.segments[1]!.text).toBe("[row 2] Name: Sam | Role: Planner");
   });
 });
 

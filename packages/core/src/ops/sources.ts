@@ -548,7 +548,7 @@ export const annotate = defineOperation({
         char_start: segs[0]!.char_start,
         char_end: segs[segs.length - 1]!.char_end,
         derivation_id: segs[0]!.derivation_id,
-        quote: text.slice(0, 500),
+        quote: truncateQuote(text, 500),
       };
     }
     const annotation_id = newId();
@@ -564,6 +564,20 @@ export const annotate = defineOperation({
     return ctx.db.selectFrom("annotations").selectAll().where("annotation_id", "=", annotation_id).executeTakeFirstOrThrow();
   },
 });
+
+/**
+ * At most `max` code points of `text`. A longer text is cut at the last word boundary that fits
+ * and ends with an ellipsis, so a snapshot never ends mid-word.
+ */
+export function truncateQuote(text: string, max: number): string {
+  const cps = Array.from(text);
+  if (cps.length <= max) return text;
+  const head = cps.slice(0, max - 1).join("");
+  // The next character decides whether the last word in `head` is whole.
+  const boundary = /\s/.test(cps[max - 1]!) ? head.length : head.search(/\s\S*$/);
+  const cut = boundary > 0 ? head.slice(0, boundary) : head;
+  return `${cut.trimEnd()}…`;
+}
 
 export const listAnnotations = defineOperation({
   name: "sources.list_annotations",

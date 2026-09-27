@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-27}
 status: stable
 ---
 
@@ -47,7 +47,7 @@ Observed in the `package.json` files, the [`Dockerfile`](../../Dockerfile) and
 | Identity | **Built in** ([`apps/server/src/auth`](../../apps/server/src/auth)): email links, Google OpenID Connect, sessions, personal access tokens, and WhatBuild's own OAuth 2.1 authorization server for MCP | Fewer moving parts and fully under test; no auth library. See [§3.8](03-accounts-teams-and-identity.md). |
 | Mail | `nodemailer` over SMTP, or the console in development | Any SMTP provider; no provider SDK. |
 | Web UI | **React 19 + Vite**, SPA; **React Router 7** and **TanStack Query**; `lucide-react` icons | Static assets served by the same process; URL-held state through the router. |
-| Parsing | Own code for text/Markdown/VTT/SRT; `pdfjs-dist` for PDF; `fflate` + `saxes` for DOCX and XLSX; `parse5` for HTML | Pure functions of bytes → sidecars with no native dependencies: a small image, a fast cold start, and a contributor install that cannot fail on a toolchain. |
+| Parsing | Own code for text/Markdown/VTT/SRT/CSV; `pdfjs-dist` for PDF; `fflate` + `saxes` for DOCX and XLSX; `parse5` for HTML | Pure functions of bytes → sidecars with no native dependencies: a small image, a fast cold start, and a contributor install that cannot fail on a toolchain. |
 | Markdown rendering | `marked`'s lexer, with tokens mapped to React elements ([`apps/web/src/lib/markdown.tsx`](../../apps/web/src/lib/markdown.tsx)) | Insight bodies are untrusted input: no HTML string from them ever reaches the DOM; raw HTML shows as text and images never load. |
 | Tooling | pnpm workspaces, `tsc` for type checks, Vitest, `tsx`, esbuild (server bundle), `playwright-core` for browser scripts | No linter or formatter is configured. |
 
@@ -205,7 +205,9 @@ self-hosters. This keeps the promise cheap to make and impossible to break by ac
   `SameSite=Lax` is not enough on a shared parent domain.
 - **Request bodies** under `/api/v1` are limited to 5 MB; files travel through upload grants.
 - **URL fetch is SSRF-hardened:** HTTPS only, public addresses only (re-checked after every
-  redirect and after DNS resolution), size and time caps, no credentials forwarded.
+  redirect and after DNS resolution, in the lookup the connection itself uses: a name with any
+  private address, including an IPv4-mapped IPv6 one, is refused), size and time caps, no
+  credentials forwarded.
 - **Migrations** are forward-only SQL, applied by `whatbuild migrate` as a separate step before a
   new image serves traffic. An export bundle records its format version.
 - **Observability:** one structured log line per request with method, path (ids masked), status
@@ -222,7 +224,7 @@ self-hosters. This keeps the promise cheap to make and impossible to break by ac
 
 ```
 packages/
-  parsers/          text, md, vtt, srt, html, docx, pdf, xlsx → sidecars (pure: bytes in, sidecars out)
+  parsers/          text, md, vtt, srt, html, docx, pdf, xlsx, csv → sidecars (pure: bytes in, sidecars out)
   core/             operation registry and every operation, policy, citations, ports, Kysely table
                     types, Story guidance and print view, the versioned product skill (src/skill/)
 apps/
