@@ -3,7 +3,7 @@ type: Specification
 title: Accounts belong to tenants, tenants hold teams, teams run products, and one role check decides every call.
 description: The account → tenant → team → product hierarchy, sign-in, roles and what they grant, addressing and isolation, moving sources between products, caller identity, and attribution.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation]
-generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-27T08:00:00Z}
 status: stable
 ---
 
@@ -173,7 +173,10 @@ dynamic client registration (RFC 7591), authorization code with PKCE S256, resou
 (RFC 8707) limited to the MCP endpoint, one-hour access tokens and rotating 30-day refresh tokens
 (both configurable; reusing a rotated refresh token revokes the whole connection)
 ([`apps/server/src/auth/oauth.ts`](../../apps/server/src/auth/oauth.ts)). The consent page tells the
-person the agent will act as them and that the passages it reads go to whoever runs the agent. A
+person the agent will act as them and that the passages it reads go to whoever runs the agent. Any
+MCP client registers itself, so no client is configured in advance. The consent page's security policy
+allows its form to reach only WhatBuild and that client's registered callback, the one place Allow
+redirects to. A
 token is the person: it never widens or narrows what they can do. Connected agents are listed and
 revoked from the Account page.
 
