@@ -1,3 +1,4 @@
+import { sql } from "kysely";
 import { z } from "zod";
 import { checkEtag, EMPTY_REFS, productId, recordActivity, tenantId, validateRefs } from "../common.ts";
 import { checkCitationList, CITATION_MAX_COUNT, citationInput, citationViews, snapshotAll } from "../citations.ts";
@@ -10,7 +11,7 @@ import { composePrintDocument, PRINT_MAX_PAGES, printOrder } from "../story-prin
 import {
   CHECKLIST, components, CONTENT_RULES, DESIGN_RULES, GUIDANCE_VERSION, layouts, linkTemplates, starterHtml, STYLESHEET, TOKENS, WORKFLOW, WRITING,
 } from "../story-guidance.ts";
-import { newEtag, newId, randomToken, uniq } from "../util.ts";
+import { newEtag, newId, randomToken, sha256Hex, uniq } from "../util.ts";
 
 export const MAX_PAGES = 50;
 export const MAX_DEPTH = 6;
@@ -167,6 +168,7 @@ async function versionView(ctx: OpContext, versionId: string, withHtml: boolean)
     citations: await citationViews(ctx, v.citations),
     published_at: v.created_at,
     published_by: v.created_by,
+    html_sha256: sha256Hex(v.html),
     ...(withHtml ? { html: v.html } : { html_chars: v.html.length }),
   };
 }
@@ -178,7 +180,7 @@ export const getPage = defineOperation({
   mutates: false,
   summary: "Read a Story page's current version, with its HTML, citations, notes for agents, and the page etag you need to publish again.",
   description:
-    "404 means the page has never been published. An archived page stays readable here. Read this before revising a page, and keep what is useful. agent_notes holds what agents keep about the page — its purpose, sources still to fold in, structural decisions — with its own etag for write_notes; read it before revising.",
+    "404 means the page has never been published. An archived page stays readable here. Read this before revising a page, and keep what is useful. agent_notes holds what agents keep about the page — its purpose, sources still to fold in, structural decisions — with its own etag for write_notes; read it before revising. include_html false leaves out the HTML (html_chars and html_sha256 stay).",
   input: z.strictObject({ page_id: pageId, include_html: z.boolean().default(true) }),
   rest: { method: "GET", path: "/story/pages/:page_id" },
   mcp: { tool: "story", action: "get_page" },
@@ -194,7 +196,8 @@ export const listVersions = defineOperation({
   access: "read",
   mutates: false,
   summary: "A page's published versions, newest first, without HTML.",
-  description: "Versions are immutable and numbered 1, 2, 3…; read any one with get_version.",
+  description:
+    "Versions are immutable and numbered 1, 2, 3…; read any one with get_version, and restore one with publish from_version. html_sha256 tells versions with identical HTML apart without reading it.",
   input: z.strictObject({ page_id: pageId, limit: z.number().int().min(1).max(100).default(25), before: z.number().int().min(1).optional().describe("Only versions numbered below this.") }),
   rest: { method: "GET", path: "/story/pages/:page_id/versions" },
   mcp: { tool: "story", action: "list_versions" },
@@ -203,11 +206,12 @@ export const listVersions = defineOperation({
     let q = ctx.db
       .selectFrom("story_versions")
       .select(["version_id", "n", "title", "summary", "note", "created_at", "created_by", "citations"])
+      .select(sql<string>`encode(sha256(convert_to(html, 'UTF8')), 'hex')`.as("html_sha256"))
       .where("product_id", "=", productId(ctx))
       .where("page_id", "=", input.page_id);
     if (input.before) q = q.where("n", "<", input.before);
     const rows = await q.orderBy("n", "desc").limit(input.limit + 1).execute();
-    const items = rows.slice(0, input.limit).map((v) => ({ version_id: v.version_id, version: v.n, title: v.title, summary: v.summary, note: v.note, citation_count: v.citations.length, published_at: v.created_at, published_by: v.created_by }));
+    const items = rows.slice(0, input.limit).map((v) => ({ version_id: v.version_id, version: v.n, title: v.title, summary: v.summary, note: v.note, citation_count: v.citations.length, html_sha256: v.html_sha256, published_at: v.created_at, published_by: v.created_by }));
     return { items, next_before: rows.length > input.limit ? items[items.length - 1]!.version : null };
   },
 });
@@ -230,68 +234,136 @@ export const getVersion = defineOperation({
   },
 });
 
+/** The page generated when a first version omits html: its title and summary on the Story stylesheet. */
+function titlePageHtml(title: string, summary: string) {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)}</title><style>${STYLESHEET}</style></head><body><main class="wb-page wb-prose"><h1>${escapeHtml(title)}</h1>${summary ? `<p class="wb-lead">${escapeHtml(summary)}</p>` : ""}</main></body></html>`;
+}
+
+/** Whether html is the generated title page for this title and summary, under any version of the stylesheet. */
+function isTitlePage(html: string, title: string, summary: string) {
+  const unstyled = (h: string) => h.replace(/<style>[\s\S]*?<\/style>/, "<style></style>");
+  return unstyled(html) === unstyled(titlePageHtml(title, summary));
+}
+
+/** Apply exact find/replace edits in order; each find must occur exactly once in the text it meets. */
+function patchHtml(html: string, edits: { find: string; replace: string }[]) {
+  const problems: string[] = [];
+  let out = html;
+  edits.forEach(({ find, replace }, i) => {
+    const at = out.indexOf(find);
+    if (at < 0) problems.push(`Edit ${i + 1}: its find text does not occur in the HTML.`);
+    else if (out.indexOf(find, at + 1) >= 0) problems.push(`Edit ${i + 1}: its find text occurs more than once; include more context.`);
+    else out = out.slice(0, at) + replace + out.slice(at + find.length);
+  });
+  if (problems.length) throw invalid("invalid_patch", `The page was not published: ${problems.join(" ")}`, { problems });
+  return out;
+}
+
+/** The fields a later version takes from its base version when the call omits them. */
+const CARRIED = ["title", "summary", "html", "refs", "citations"] as const;
+
 export const publish = defineOperation({
   name: "story.publish",
   scope: "product",
   access: "write",
   mutates: true,
-  summary: "Publish a new version of a Story page (creating the page on its first version).",
+  summary: "Publish a new version of a Story page (creating the page on its first version). A later version keeps whatever you omit.",
   description:
-    `Call guidance first, and get_page before revising (read its agent_notes too). Omit expected_etag only for a page's first version; otherwise pass the page etag. html is one self-contained document (omit it for a generated title page). The HTML is validated and every problem is listed at once (422). citations lists up to ${CITATION_MAX_COUNT} exact passages the page draws on, {record_id, seq_start, seq_end, quote?}, each frozen as a snapshot as in the registers; refs and citations belong to the version, so pass the full lists each time — nothing carries over from the previous version. Publishing never places the page in the navigation: call set_hierarchy afterwards, and update the page's notes with write_notes. Never invent facts, owners or dates, and never present an unconfirmed assumption as settled.`,
+    `Call guidance first, and get_page before revising (read its agent_notes too). A page's first version: omit expected_etag, give a title, and give html (or omit it for a generated title page). A later version: pass the page etag and send only what changes — the title, summary, html, refs and citations you omit are taken from the current version, and carried_forward in the result names them. To change a sentence, patch_html applies exact find/replace edits instead of re-sending the page. from_version: N starts from that earlier version instead, so from_version alone restores it as a new version; compare html_sha256 to confirm the HTML is identical. Pass an empty list to clear refs or citations. The HTML is validated and every problem is listed at once (422). citations lists up to ${CITATION_MAX_COUNT} exact passages the page draws on, {record_id, seq_start, seq_end, quote?}, each frozen as a snapshot as in the registers; carried citations keep their snapshots. note is one reader-facing line on what changed, shown in the page's history; summary describes the page itself. Publishing never places the page in the navigation: call set_hierarchy afterwards, and update the page's notes with write_notes (agent_notes_etag is in the result). Never invent facts, owners or dates, and never present an unconfirmed assumption as settled.`,
   input: z.strictObject({
     page_id: pageId.default("overview"),
-    title: z.string().trim().min(1).max(200),
-    summary: z.string().max(2000).default(""),
-    html: z.string().min(1).max(STORY_HTML_MAX).optional(),
-    note: z.string().max(500).default("").describe("What changed in this version."),
-    refs: refsInput,
-    citations: z.array(citationInput).max(CITATION_MAX_COUNT).optional().describe(`Up to ${CITATION_MAX_COUNT} exact passages the page draws on: {record_id, seq_start, seq_end, quote?}. Read each passage first.`),
+    title: z.string().trim().min(1).max(200).optional().describe("Required on a page's first version; omit it later to keep the title."),
+    summary: z.string().max(2000).optional().describe("A short description of the page, shown in navigation and lists; not the change note. Omit it on a later version to keep it."),
+    html: z.string().min(1).max(STORY_HTML_MAX).optional().describe("The whole page. On a first version, omit it for a generated title page; on a later version, omit it to keep the HTML."),
+    patch_html: z
+      .array(z.strictObject({ find: z.string().min(1).max(20_000), replace: z.string().max(100_000) }))
+      .min(1)
+      .max(50)
+      .optional()
+      .describe("A later version only, instead of html: exact find/replace edits applied in order to the base version's HTML. Each find must occur exactly once, or nothing is published."),
+    note: z.string().max(500).default("").describe("One reader-facing line on what changed in this version, shown to readers in the page's history. Keep mechanics (citation ranges, merges) in the notes for agents."),
+    refs: refsInput.describe("The objects the page draws on, in full. Omit it on a later version to keep the refs."),
+    citations: z
+      .array(citationInput)
+      .max(CITATION_MAX_COUNT)
+      .optional()
+      .describe(`Up to ${CITATION_MAX_COUNT} exact passages the page draws on, in full: {record_id, seq_start, seq_end, quote?}. Read each passage first. Omit it on a later version to keep the citations.`),
+    from_version: z.number().int().min(1).optional().describe("Start from this earlier version instead of the current one: omitted fields are taken from it. Alone, it restores that version as a new one."),
     expected_etag: expectedEtag.optional(),
   }),
   rest: { method: "POST", path: "/story/pages/:page_id/versions" },
   mcp: { tool: "story", action: "publish" },
   async handler(ctx, input) {
-    const refs = await validateRefs(ctx, input.refs ?? EMPTY_REFS);
-    const html =
-      input.html ??
-      `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(input.title)}</title><style>${STYLESHEET}</style></head><body><main class="wb-page wb-prose"><h1>${escapeHtml(input.title)}</h1>${input.summary ? `<p class="wb-lead">${escapeHtml(input.summary)}</p>` : ""}</main></body></html>`;
-    const problems = inspectStoryHtml(html);
-    if (problems.length) throw invalid("invalid_html", `The page was not published: ${problems.join(" ")}`, { problems });
-    const citations = await snapshotAll(ctx, input.citations ?? [], "page version");
-    const existing = await ctx.db.selectFrom("story_pages").selectAll().where("product_id", "=", productId(ctx)).where("page_id", "=", input.page_id).forUpdate().executeTakeFirst();
+    const pid = productId(ctx);
+    const existing = await ctx.db.selectFrom("story_pages").selectAll().where("product_id", "=", pid).where("page_id", "=", input.page_id).forUpdate().executeTakeFirst();
     const version_id = newId();
+    let carried: (typeof CARRIED)[number][] = [];
     if (!existing) {
       if (input.expected_etag) throw conflict("stale_etag", `Page "${input.page_id}" does not exist yet; omit expected_etag for its first version.`);
-      const count = await ctx.db.selectFrom("story_pages").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", productId(ctx)).executeTakeFirst();
+      if (input.from_version) throw notFound(`Page "${input.page_id}" has never been published, so it has no version ${input.from_version}.`);
+      if (!input.title) throw invalid("invalid_input", "A page's first version needs a title.");
+      if (input.patch_html) throw invalid("invalid_input", "patch_html edits an earlier version; a page's first version needs html.");
+      const summary = input.summary ?? "";
+      const html = input.html ?? titlePageHtml(input.title, summary);
+      const problems = inspectStoryHtml(html);
+      if (problems.length) throw invalid("invalid_html", `The page was not published: ${problems.join(" ")}`, { problems });
+      const refs = await validateRefs(ctx, input.refs ?? EMPTY_REFS);
+      const citations = await snapshotAll(ctx, input.citations ?? [], "page version");
+      const count = await ctx.db.selectFrom("story_pages").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst();
       if (Number(count?.n ?? 0) >= MAX_PAGES) throw conflict("quota_exceeded", `A product's Story holds at most ${MAX_PAGES} pages.`, { quota: "story_pages", limit: MAX_PAGES, used: Number(count?.n ?? 0), unit: "pages" });
       await ctx.db
         .insertInto("story_versions")
-        .values({ version_id, tenant_id: tenantId(ctx), product_id: productId(ctx), page_id: input.page_id, n: 1, title: input.title, summary: input.summary, html, note: input.note, refs: json(refs), citations: json(citations), previous_version_id: null, created_by: json(ctx.actor) })
+        .values({ version_id, tenant_id: tenantId(ctx), product_id: pid, page_id: input.page_id, n: 1, title: input.title, summary, html, note: input.note, refs: json(refs), citations: json(citations), previous_version_id: null, created_by: json(ctx.actor) })
         .execute();
       await ctx.db
         .insertInto("story_pages")
-        .values({ tenant_id: tenantId(ctx), product_id: productId(ctx), page_id: input.page_id, title: input.title, summary: input.summary, current_version_id: version_id, version_count: 1, etag: newEtag(), agent_notes_etag: newEtag(), created_by: json(ctx.actor), updated_by: json(ctx.actor) })
+        .values({ tenant_id: tenantId(ctx), product_id: pid, page_id: input.page_id, title: input.title, summary, current_version_id: version_id, version_count: 1, etag: newEtag(), agent_notes_etag: newEtag(), created_by: json(ctx.actor), updated_by: json(ctx.actor) })
         .execute();
       await recordActivity(ctx, { action: "published", entity_type: "story_page", entity_id: input.page_id, entity_title: input.title, summary: "Published the first version" });
     } else {
       if (existing.archived_at) throw conflict("page_archived", `Page "${input.page_id}" is archived; restore it before publishing.`);
       if (!input.expected_etag) throw conflict("stale_etag", `Page "${input.page_id}" exists; read it with get_page and pass its etag.`, { current_etag: existing.etag });
       checkEtag(input.expected_etag, existing.etag, "story page");
+      let base = ctx.db.selectFrom("story_versions").select(["n", "title", "summary", "html", "refs", "citations"]).where("product_id", "=", pid).where("page_id", "=", input.page_id);
+      base = input.from_version ? base.where("n", "=", input.from_version) : base.where("version_id", "=", existing.current_version_id);
+      const from = await base.executeTakeFirst();
+      if (!from) throw notFound(`Page "${input.page_id}" has no version ${input.from_version}; its versions run from 1 to ${existing.version_count}.`, { version_count: existing.version_count });
+      if (input.html !== undefined && input.patch_html) throw invalid("invalid_input", "Pass html or patch_html, not both.");
+      carried = CARRIED.filter((f) => input[f] === undefined && !(f === "html" && input.patch_html));
+      const title = input.title ?? from.title;
+      const summary = input.summary ?? from.summary;
+      // A generated title page follows a new title or summary rather than keeping the old one.
+      const html =
+        input.html ??
+        (input.patch_html ? patchHtml(from.html, input.patch_html) : isTitlePage(from.html, from.title, from.summary) ? titlePageHtml(title, summary) : from.html);
+      const problems = inspectStoryHtml(html);
+      if (problems.length) throw invalid("invalid_html", `The page was not published: ${problems.join(" ")}`, { problems });
+      const refs = input.refs ? await validateRefs(ctx, input.refs) : from.refs;
+      const citations = input.citations ? await snapshotAll(ctx, input.citations, "page version") : from.citations;
+      const restored = input.from_version !== undefined && carried.length === CARRIED.length;
+      const note = input.note || (restored ? `Restored version ${input.from_version}.` : "");
       const n = existing.version_count + 1;
       await ctx.db
         .insertInto("story_versions")
-        .values({ version_id, tenant_id: tenantId(ctx), product_id: productId(ctx), page_id: input.page_id, n, title: input.title, summary: input.summary, html, note: input.note, refs: json(refs), citations: json(citations), previous_version_id: existing.current_version_id, created_by: json(ctx.actor) })
+        .values({ version_id, tenant_id: tenantId(ctx), product_id: pid, page_id: input.page_id, n, title, summary, html, note, refs: json(refs), citations: json(citations), previous_version_id: existing.current_version_id, created_by: json(ctx.actor) })
         .execute();
       await ctx.db
         .updateTable("story_pages")
-        .set({ title: input.title, summary: input.summary, current_version_id: version_id, version_count: n, etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) })
-        .where("product_id", "=", productId(ctx))
+        .set({ title, summary, current_version_id: version_id, version_count: n, etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) })
+        .where("product_id", "=", pid)
         .where("page_id", "=", input.page_id)
         .execute();
-      await recordActivity(ctx, { action: "updated", entity_type: "story_page", entity_id: input.page_id, entity_title: input.title, summary: `Published version ${n}${input.note ? `: ${input.note}` : ""}` });
+      await recordActivity(ctx, { action: "updated", entity_type: "story_page", entity_id: input.page_id, entity_title: title, summary: `Published version ${n}${input.from_version ? ` from version ${input.from_version}` : ""}${note ? `: ${note}` : ""}` });
     }
     const p = await loadPage(ctx, input.page_id);
-    return { ...pageSummary(p), current: await versionView(ctx, p.current_version_id, false), placed: await isPlaced(ctx, input.page_id) };
+    return {
+      ...pageSummary(p),
+      current: await versionView(ctx, p.current_version_id, false),
+      based_on_version: existing ? (input.from_version ?? existing.version_count) : null,
+      carried_forward: carried,
+      agent_notes_etag: p.agent_notes_etag,
+      placed: await isPlaced(ctx, input.page_id),
+    };
   },
 });
 
@@ -451,13 +523,22 @@ export const writeNotes = defineOperation({
   mutates: true,
   summary: "Replace a Story page's notes for agents: the Markdown memory agents keep while writing and maintaining the page.",
   description:
-    `Notes are not versioned with the HTML and readers do not see them on the page. Keep them short and current: what the page is for and who reads it, sources and insights still to fold in, decisions about structure, and anything the next agent should not undo. Read them (get_page → agent_notes) before revising, and update them after publishing. The whole note is replaced; pass agent_notes.etag from get_page as expected_etag (it is not the page etag). At most ${NOTES_MAX.toLocaleString("en-US")} characters; an empty string clears the notes.`,
-  input: z.strictObject({ page_id: pageId, notes: z.string().max(NOTES_MAX), expected_etag: expectedEtag }),
+    `Notes are not versioned with the HTML and readers do not see them on the page. Keep them short and current: what the page is for and who reads it, sources and insights still to fold in, decisions about structure, and anything the next agent should not undo. Read them (get_page → agent_notes) before revising, and update them after publishing. The whole note is replaced. Pass the notes etag as expected_etag — agent_notes_etag from publish, or agent_notes.etag from get_page; it is not the page etag. While the notes are empty you may omit it. At most ${NOTES_MAX.toLocaleString("en-US")} characters; an empty string clears the notes.`,
+  input: z.strictObject({
+    page_id: pageId,
+    notes: z.string().max(NOTES_MAX),
+    expected_etag: expectedEtag.optional().describe("The notes etag (agent_notes_etag from publish, or agent_notes.etag from get_page). Optional while the notes are empty."),
+  }),
   rest: { method: "PUT", path: "/story/pages/:page_id/notes" },
   mcp: { tool: "story", action: "write_notes" },
   async handler(ctx, input) {
     const p = await loadPage(ctx, input.page_id, true);
-    checkEtag(input.expected_etag, p.agent_notes_etag, "page's notes");
+    if (input.expected_etag === undefined) {
+      if (p.agent_notes)
+        throw conflict("stale_etag", "This page already has notes for agents; read them (get_page → agent_notes) and pass agent_notes.etag as expected_etag.", { current_etag: p.agent_notes_etag });
+    } else if (input.expected_etag === p.etag && p.etag !== p.agent_notes_etag) {
+      throw conflict("stale_etag", "That is the page etag; the notes have their own. Pass agent_notes_etag from publish, or agent_notes.etag from get_page.", { current_etag: p.agent_notes_etag });
+    } else checkEtag(input.expected_etag, p.agent_notes_etag, "page's notes");
     if (input.notes === p.agent_notes) return { page_id: p.page_id, agent_notes: notesView(p), changed: false };
     await ctx.db
       .updateTable("story_pages")

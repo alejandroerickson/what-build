@@ -73,7 +73,7 @@ receive no transport details and no way to reach another tenant.
 | 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `slug_taken`, `frozen`, `primary_taken`, `source_in_use`, `export_in_progress`, `last_owner`, `quota_exceeded` |
 | 410 | Deliberately deleted, with a tombstone | `record_deleted` |
 | 413 | Body or file beyond a limit | `too_large` |
-| 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `product_required`, `window_too_large`, `quote_not_found`, `invalid_citation`, `cross_product_reference`, `invalid_query`, `invalid_html`, `confirmation_required`, `confidence_requires_human` |
+| 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `product_required`, `window_too_large`, `quote_not_found`, `invalid_citation`, `cross_product_reference`, `invalid_query`, `invalid_html`, `invalid_patch`, `confirmation_required`, `confidence_requires_human` |
 | 429 | Rate limited | `rate_limited` |
 
 - **`403` names the role.** A caller with a role on the product but too low for the action gets
@@ -233,10 +233,13 @@ Notes on recent actions:
   `frozen`, `superseded_by`, `link_count` and `linked_from_count`; `objectives.list` returns
   `archived_hidden` ([§4.2](04-data-model.md), [§4.8](04-data-model.md)).
 - `story.publish` takes `citations` (up to 20 exact passages, snapshotted as in the registers)
-  beside `refs`; `story.check_citations` checks a version's citations.
+  beside `refs`; `story.check_citations` checks a version's citations. A later version keeps the
+  `title`, `summary`, `html`, `refs` and `citations` it omits, `patch_html` edits the HTML by exact
+  find and replace, and `from_version` starts from an earlier version, which restores it
+  ([§4.11](04-data-model.md)). Versions report `html_sha256`.
 - `story.write_notes` replaces a page's notes for agents. The notes carry their own etag
-  (`get_page` → `agent_notes.etag`), separate from the page etag, and are not versioned with the
-  page.
+  (`publish` → `agent_notes_etag`, `get_page` → `agent_notes.etag`), separate from the page etag,
+  and are not versioned with the page. While the notes are empty the etag may be omitted.
 - `members.list` takes an optional `product` to list only the people who can reach it, each with
   `product_access { role, via }`.
 - `activity.list` takes `by: "people" | "agents"` (agents = calls over MCP), besides
@@ -367,8 +370,8 @@ Rules:
 - **Delete is on the MCP surface, and it is guarded rather than hidden.** An agent that can create
   a source can delete one ([§9.5](09-data-lifecycle.md)). The guards are `expected_etag` + `reason`
   + `confirm: "delete permanently"`, a read-only `delete_impact` preview, and a skill that requires
-  an agent to show that preview to the person and never to chain a delete after another action in
-  the same turn. The `delete` action's summary and guidance lead with *permanent, cannot be undone*
+  an agent to show that preview to the person and to delete only once they approve that impact,
+  never slipped into a run of other actions. The `delete` action's summary and guidance lead with *permanent, cannot be undone*
   and name `archive` as the reversible alternative.
 - **Planned:** a stdio transport (a thin local proxy holding the endpoint URL and a credential) for
   clients that cannot speak HTTP.

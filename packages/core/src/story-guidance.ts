@@ -10,7 +10,7 @@
  * a serif system stack: it is the Story's own, not the app's.
  */
 
-export const GUIDANCE_VERSION = "1.1.0";
+export const GUIDANCE_VERSION = "1.2.0";
 
 /** The web design token each derived guidance token copies, in both schemes. */
 export const WEB_TOKEN: Record<string, string> = {
@@ -126,22 +126,22 @@ code, kbd, samp { font-family: var(--wb-font-mono); font-size: 0.875em; }
 .wb-quote { margin: 0; padding-left: var(--wb-space-3); border-left: 2px solid var(--wb-rule-strong); }
 .wb-quote blockquote { margin: 0; }
 .wb-quote figcaption { font: var(--wb-step--1)/1.4 var(--wb-font-ui); color: var(--wb-ink-muted); margin-top: var(--wb-space-1); }
-.wb-status { display: inline-block; font: 500 var(--wb-step--1)/1 var(--wb-font-ui); padding: 0.25em 0.5em; border-radius: var(--wb-radius-sm); border: 1px solid currentColor; }
+.wb-status { display: inline-block; font: 500 var(--wb-step--1)/1 var(--wb-font-ui); padding: 0.25em 0.5em; border-radius: var(--wb-radius-sm); border: 1px solid currentColor; white-space: nowrap; }
 .wb-status[data-state="evidence"] { color: var(--wb-status-evidence); }
 .wb-status[data-state="caution"] { color: var(--wb-status-caution); }
 .wb-status[data-state="open"] { color: var(--wb-status-open); }
 .wb-metric { font-family: var(--wb-font-ui); }
 .wb-metric strong { display: block; font-size: var(--wb-step-2); font-weight: 600; font-variant-numeric: tabular-nums; }
-.wb-table-wrap { overflow-x: auto; border-radius: var(--wb-radius-sm); }
+.wb-table-wrap { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; border-radius: var(--wb-radius-sm); }
 table { border-collapse: collapse; width: 100%; font: var(--wb-step--1)/1.45 var(--wb-font-ui); font-variant-numeric: tabular-nums; }
 caption { text-align: left; font-weight: 600; padding-bottom: var(--wb-space-2); }
-th, td { text-align: left; padding: var(--wb-space-2); border-bottom: 1px solid var(--wb-rule); vertical-align: top; }
+th, td { text-align: left; min-width: 6.5rem; padding: var(--wb-space-2); border-bottom: 1px solid var(--wb-rule); vertical-align: top; }
 thead th { font-weight: 500; color: var(--wb-ink-muted); border-bottom-color: var(--wb-rule-strong); }
 details { border-top: 1px solid var(--wb-rule); padding: var(--wb-space-2) 0; }
 summary { cursor: pointer; font-family: var(--wb-font-ui); font-weight: 500; }
 .wb-split { display: grid; gap: var(--wb-space-5); grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
 .wb-grid { display: grid; gap: var(--wb-space-3); grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
-@media (max-width: 48rem) { .wb-split { grid-template-columns: 1fr; } .wb-page { padding: var(--wb-space-4) var(--wb-space-3); } }
+@media (max-width: 48rem) { .wb-split { grid-template-columns: 1fr; } .wb-page { padding: var(--wb-space-4) var(--wb-space-3); } th:first-child, td:first-child { padding-left: 0; } }
 `;
 
 export function linkTemplates(base: string, path: string) {
@@ -169,7 +169,7 @@ export function components(links: ReturnType<typeof linkTemplates>) {
     { id: "quote", name: "Quote", use_when: "The source's exact words add evidence. Quote only after reading the passage.", html: `<figure class="wb-quote"><blockquote><p>REPLACE: exact words from the passage.</p></blockquote><figcaption>REPLACE_SPEAKER · REPLACE_SOURCE_DATE · segment REPLACE_SEQ · ${link(passage, "Read in context")}</figcaption></figure>`, adaptation: "Use exact quotations only; never paraphrase inside quotation marks." },
     { id: "status", name: "Status label", use_when: "Label evidence or review state.", html: `<span class="wb-status" data-state="open">Unconfirmed</span>`, adaptation: "States: evidence (supported by cited passages), caution (contested or thin), open (not yet reviewed). The text always explains the state." },
     { id: "metric", name: "Metric", use_when: "A real count, ratio or interval with its denominator, period and source. Omit when no measured value exists.", html: `<p class="wb-metric"><strong>REPLACE_VALUE</strong> REPLACE: what was counted, out of what, over what period · ${link(src, "source")}</p>`, adaptation: "Never invent or estimate a number." },
-    { id: "comparison_table", name: "Comparison table", use_when: "The same criteria across alternatives.", html: `<div class="wb-table-wrap" role="region" aria-label="REPLACE: table name" tabindex="0"><table><caption>REPLACE: what is compared</caption><thead><tr><th scope="col">Option</th><th scope="col">REPLACE_CRITERION</th></tr></thead><tbody><tr><th scope="row">REPLACE_OPTION</th><td>REPLACE</td></tr></tbody></table></div>`, adaptation: "Use a table only when criteria recur across rows." },
+    { id: "comparison_table", name: "Comparison table", use_when: "The same criteria across alternatives. Always inside .wb-table-wrap, so a wide table scrolls within itself instead of squeezing its columns.", html: `<div class="wb-table-wrap" role="region" aria-label="REPLACE: table name" tabindex="0"><table><caption>REPLACE: what is compared</caption><thead><tr><th scope="col">Option</th><th scope="col">REPLACE_CRITERION</th></tr></thead><tbody><tr><th scope="row">REPLACE_OPTION</th><td>REPLACE</td></tr></tbody></table></div>`, adaptation: "Use a table only when criteria recur across rows. Keep it to three columns where you can: at phone width (about 390px) three fit, and a fourth makes the table scroll. Short cell text; put explanation in prose." },
     { id: "disclosure", name: "Disclosure", use_when: "Optional method or caveat detail. Consequential caveats stay visible.", html: `<details><summary>How we know this</summary><p>REPLACE: method detail.</p></details>`, adaptation: "Never hide something that changes the conclusion." },
     { id: "next_steps", name: "Next steps", use_when: "Ordered actions with a real dependency or order. Omit invented owners or dates.", html: `<ol><li>REPLACE: the next step and what it would tell us.</li></ol>`, adaptation: "An owner or date appears only if the linked material establishes it." },
   ];
@@ -208,6 +208,8 @@ export const WRITING = {
     "Never add a person, owner, date, source, quote, count, measurement, customer claim, commitment or decision the linked material does not establish.",
     "Never turn a working interpretation into agreement, or an unconfirmed assumption into a settled one.",
     "When a detail is not established, name the limit or leave it out.",
+    "Honour a source's own quoting rules: when an agreement, consent note or the source's metadata limits naming people, attribute by role (\"an operations lead at one customer\") and never name them.",
+    "A derived view, digest or analysis is not direct evidence. When a page cites one, say so beside the claim (\"analysis, not evidence\") and cite the underlying passages where you can.",
   ],
   composition: "One H1, informative headings, a short opening; tables and ordered lists only when their semantics apply.",
 };
@@ -218,7 +220,7 @@ export const CHECKLIST = [
   { check: "Scope", question: "Does each section do one job, and is everything here needed?" },
   { check: "Editorial pass", question: "Did you clarify, distill and polish?" },
   { check: "Structure and access", question: "One H1, logical headings, labelled tables, links that say where they go, no colour-only meaning?" },
-  { check: "Publishing", question: "Did you read the current version, pass its etag, include refs, and place the page in the hierarchy?" },
+  { check: "Publishing", question: "Did you read the current version, pass its etag, send refs and citations in full when they change, write a one-line change note for readers, and place the page in the hierarchy (unless your instructions say not to)?" },
 ];
 
 export function starterHtml(title = "REPLACE: page title") {
@@ -240,10 +242,12 @@ ${layouts()[1]!.html}
 export const WORKFLOW = [
   "Read the objectives, the relevant sources, insights, assumptions and decisions first.",
   "Read the current version of the page and its notes for agents (get_page → agent_notes) before revising it, keep what is useful, and pass its etag.",
-  "Cite the exact passages the page rests on in citations (up to 20), and list the objects it draws on in refs; pass both in full on every publish.",
+  "Cite the exact passages the page rests on in citations (up to 20), and list the objects it draws on in refs. When you pass either list, pass it in full: it replaces the previous one.",
+  "On a later version send only what changes: html, refs and citations you omit carry forward from the current version. patch_html fixes a sentence by exact find and replace; from_version restores an earlier version as a new one. Compare html_sha256 to confirm identical HTML.",
   "Use the hierarchy to find related pages; give each page a short lower-case page_id; link related pages inline.",
-  "Publish with a short note saying what changed. Publishing does not place a page: set_hierarchy does, with its own etag.",
-  "After publishing, update the page's notes for agents with write_notes: its purpose, what is still to fold in, and structural decisions.",
+  "Give each version a note: one line, for readers, on what changed for them (it appears in the page's history), e.g. \"Added what the finance interviews showed about month-end.\" Mechanics — citation ranges, merges to stay within the citation limit, ids — belong in the notes for agents. summary is different: it describes the page itself and shows in navigation.",
+  "Publishing does not place a page: set_hierarchy does, with its own etag. Place each new page unless your instructions say otherwise; then leave it unplaced and say so.",
+  "After publishing, update the page's notes for agents with write_notes: its purpose, what is still to fold in, and structural decisions. publish returns agent_notes_etag; while the notes are empty you may omit the etag.",
   "Archiving a page takes it out of navigation and promotes its sub-pages; restoring returns it unplaced.",
 ];
 
@@ -263,7 +267,8 @@ export const DESIGN_RULES = [
   "Colour only for a labelled status or a necessary data comparison, never as the only carrier of meaning.",
   "Accent colour is for links; do not use status colours for decoration.",
   "Source order is reading order.",
-  "No fixed heights or minimum widths: the page reflows in the frame.",
+  "No fixed heights or minimum widths: the page reflows in the frame, down to phone width (about 390px).",
+  "Wrap every table in .wb-table-wrap so it scrolls inside itself rather than squeezing or widening the page.",
   "Fonts cannot load from a network: use the supplied stacks, which name Inter first for headings and fall back to system faces. Never embed font files.",
 ];
 

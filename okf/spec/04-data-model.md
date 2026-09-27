@@ -423,11 +423,25 @@ An append-only event log, written in the same transaction as the mutation that c
 
 **Pages.** `page_id` (a slug the author chooses, `[a-z0-9][a-z0-9-]*`, ≤ 80 chars, e.g.
 `overview`), `title` (1–200), `summary` (≤ 2,000), `archived_at`, `current_version`, and an
-append-only list of **versions**. The first publish creates the page. A version is immutable:
-`version` (1, 2, 3…), `title`, `summary`, `html`, `note` (what changed, ≤ 500 chars), `refs`,
-`citations`, `published_at`, `published_by`. Publishing a new version of an existing page requires
-the page's current etag. Readers see the latest version; any version can be read by number.
-Limit: 50 pages per product (`409 quota_exceeded`).
+append-only list of **versions**. The first publish creates the page and needs a `title`. A
+version is immutable: `version` (1, 2, 3…), `title`, `summary` (describes the page), `html`,
+`note` (one reader-facing line on what changed, ≤ 500 chars, shown in the page's history), `refs`,
+`citations`, `published_at`, `published_by`, and `html_sha256` (computed on read, so identical HTML
+can be recognised without reading it). Readers see the latest version; any version can be read by
+number. Limit: 50 pages per product (`409 quota_exceeded`).
+
+**Later versions.** Publishing a new version of an existing page requires the page's current etag.
+It starts from a **base version**, the current one unless `from_version: N` names another, and
+takes every field it omits (`title`, `summary`, `html`, `refs`, `citations`) from the base;
+the result lists them in `carried_forward`, with `based_on_version`. Carried citations keep their
+snapshots. `patch_html: [{find, replace}]` edits the base HTML instead of replacing it: each `find`
+must occur exactly once when its turn comes, or nothing is published (`422 invalid_patch` listing
+every failed edit). A generated title page follows a new title or summary. `from_version` alone
+restores the base as a new version, with the note "Restored version N." when none is given. An
+unknown `from_version` is `404`.
+◆ Decision: a later version carries forward what it omits, so changing a sentence or reverting a
+page never means re-sending the whole page. A list that is passed replaces the previous list in
+full; an empty list clears it.
 
 **HTML rules**, validated at publish (`422 invalid_html` listing every problem at once;
 [`story-html.ts`](../../packages/core/src/story-html.ts)):
@@ -452,8 +466,8 @@ different people.
 
 **Citations.** A version may carry up to 20 `citations`, `{ record_id, seq_start, seq_end,
 quote? }`, snapshotted exactly as register citations are (§4.8), with the same quote budget of
-40,000 characters per version. Like `refs`, they belong to the version: each publish passes the
-full list, and nothing carries over. Reading a version returns each citation with its source's
+40,000 characters per version. Like `refs`, they belong to the version: a publish that passes them
+passes the full list, and one that omits them keeps the base version's. Reading a version returns each citation with its source's
 current title, and each `refs` id resolved to its current title and state (`resolved_refs`).
 `story.check_citations { page_id, version? }` re-resolves a version's citations (the current one by
 default) with the statuses in §4.8. It reports; it never rewrites.
@@ -462,9 +476,11 @@ default) with the statuses in §4.8. It reports; it never rewrites.
 keep while writing and maintaining the page: what the page is for and who reads it, sources still
 to fold in, decisions about its structure. It is not versioned with the HTML and is not shown on
 the page. It has its own etag (`agent_notes.etag`), so editing the note and publishing the page
-never conflict. `story.write_notes { page_id, notes, expected_etag }` replaces it and records
-`agent_notes_updated_at` and `agent_notes_updated_by`; `story.get_page` returns it as
-`agent_notes { content, etag, updated_at, updated_by }`.
+never conflict. `story.write_notes { page_id, notes, expected_etag? }` replaces it and records
+`agent_notes_updated_at` and `agent_notes_updated_by`; `expected_etag` may be omitted only while
+the notes are empty, and passing the page etag instead is refused with a message that says so.
+`story.get_page` returns the notes as `agent_notes { content, etag, updated_at, updated_by }`, and
+`story.publish` returns their etag as `agent_notes_etag`.
 
 **Print view.** `story.print_view` composes 1–50 chosen pages, each at its current version, into
 one HTML document for a browser to print to PDF ([§6.4](06-operations-and-adapters.md)).
@@ -479,7 +495,12 @@ if restored.
 stylesheet, recipes, layouts, editorial passes, a checklist and a starter page) so authoring
 quality does not depend on an agent's taste. Its colors, radii and UI fonts are copied from the web
 app's design tokens ([`story-guidance.ts`](../../packages/core/src/story-guidance.ts)), and a
-server test fails when the two drift apart.
+server test fails when the two drift apart. The stylesheet keeps pages readable at phone width
+(about 390 px): tables sit in a scrolling `.wb-table-wrap`, cells keep a minimum width so a fourth
+column scrolls rather than squeezes, and status labels never wrap. The writing guidance asks for a
+reader-facing change note, source-level quoting rules honoured (attribution by role where a source
+limits naming people), derived views labelled as analysis rather than evidence, and pages placed in
+the hierarchy unless the author's instructions say otherwise.
 
 ## 4.12 Feedback
 
