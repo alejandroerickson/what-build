@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router";
 import { api } from "../lib/api.ts";
-import { attribution, formatDate, formatDateTime, relativeTime } from "../lib/format.ts";
+import { attribution, formatDate, formatDateTime, nestQuotes, relativeTime } from "../lib/format.ts";
 import { Markdown, passageHref } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { REVIEW_STATUS, toneFor } from "../lib/status.ts";
@@ -208,7 +208,7 @@ export function StoryInspectorBody({ page, shown, versions, parent, placed, subp
                       {address(c.seq_start, c.seq_end)}
                     </Link>
                   </div>
-                  <q className="story-cite-quote">{c.quote}</q>
+                  <q className="story-cite-quote">{nestQuotes(c.quote)}</q>
                   <div className="story-cite-status">
                     {check ? (
                       <StatusBadge tone={check.version_drift && check.status === "ok" ? "attention" : toneFor("citation", check.status)}>{driftWords(check)}</StatusBadge>

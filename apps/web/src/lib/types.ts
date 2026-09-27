@@ -174,6 +174,8 @@ export interface RegisterSummary {
   record_ids: string[];
   review_count: number;
   human_review: RegisterEntry["human_review"];
+  /** The entries that supersede this one, newest first. */
+  superseded_by: string[];
   archived_at: string | null;
   updated_at: string;
 }

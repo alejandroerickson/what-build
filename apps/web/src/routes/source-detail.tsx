@@ -2,7 +2,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/rea
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
-import { actorName, attribution, formatBytes, formatDate, passageText, plural, relativeTime } from "../lib/format.ts";
+import { actorName, attribution, fileTypeName, formatBytes, formatDate, passageText, plural, relativeTime } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { derivedStatus, derivedStatusDetail, PROVENANCE_LABEL, REVIEW_STATUS, ROLE_LABEL } from "../lib/status.ts";
@@ -498,7 +498,7 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
                       {p.title}
                     </Link>
                     <span className="faint">
-                      Story page, version {p.version}
+                      <span title={`Version ${p.version}, the page's current version`}>Story page, current version</span>
                       {p.citations.length ? "" : " · lists it"}
                       {p.citations.map((x, i) => (
                         <span key={i}>
@@ -629,7 +629,7 @@ function OriginalView({ record }: { record: SourceRecord }) {
           ? `${f.path} is the primary file${f.searchable ? `, parsed into ${plural(record.segment_count, "passage")}` : ""}.`
           : `${f.path} is kept with the source for download and checking; search never reads it.`}{" "}
         <span className="faint">
-          {f.media_type ?? "Unknown type"} · {formatBytes(f.size)}
+          <span title={f.media_type ?? undefined}>{fileTypeName(f.media_type, f.path)}</span> · {formatBytes(f.size)}
           {length ? ` · ${clockLength(length)} long` : ""}
         </span>
       </p>
@@ -766,12 +766,18 @@ function FilesView({ record, onAdd }: { record: SourceRecord; onAdd?: () => void
   const { canWrite } = useProduct();
   const qc = useQueryClient();
   const toast = useToast();
+  // A role change is asked for in the row menu and confirmed in a dialog that says what it does.
+  const [change, setChange] = useState<{ path: string; role: Role } | null>(null);
   const setRole = useMutation({
-    mutationFn: ({ path, role }: { path: string; role: string }) => api("POST", `${base}/sources/${record.record_id}/files/role`, { path, role }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: key }),
-    onError: (e) => toast((e as Error).message, { tone: "negative" }),
+    mutationFn: ({ path, role }: { path: string; role: Role }) => api("POST", `${base}/sources/${record.record_id}/files/role`, { path, role }),
+    onSuccess: (_, { path, role }) => {
+      void qc.invalidateQueries({ queryKey: key });
+      setChange(null);
+      toast(`${path} is now ${role === "primary" ? "the primary file" : `${ROLE_LABEL[role]?.toLowerCase()}`}.`);
+    },
   });
   const hasPrimary = record.files.some((x) => x.role === "primary");
+  const writable = canWrite && !record.archived_at;
   return (
     <Sheet labelledBy="files-h">
       <SheetHeader
@@ -793,7 +799,7 @@ function FilesView({ record, onAdd }: { record: SourceRecord; onAdd?: () => void
           {record.pending_primary_path ? ` An upload of ${record.pending_primary_path} is in progress.` : ""}
         </EmptyState>
       ) : (
-        <ul className="source-files">
+        <ul className={`source-files${writable && record.files.some((x) => x.role !== "primary") ? " source-files-with-menus" : ""}`}>
           {record.files.map((f) => (
             <li key={f.path} className="source-file">
               <Glyph name={fileGlyph(f)} />
@@ -811,27 +817,73 @@ function FilesView({ record, onAdd }: { record: SourceRecord; onAdd?: () => void
                   </span>
                 </span>
               </span>
-              <span className="source-file-role">
-                {canWrite && f.role !== "primary" && !record.archived_at ? (
-                  <span className="select-wrap">
-                    <select className="input select" aria-label={`Role of ${f.path}`} value={f.role} disabled={setRole.isPending} onChange={(e) => setRole.mutate({ path: f.path, role: e.target.value })}>
-                      <option value="origin">Origin</option>
-                      <option value="supplement">Supplement</option>
-                      {!hasPrimary ? <option value="primary">Make primary</option> : null}
-                    </select>
-                    <Glyph name="chevron-down" size="sm" />
-                  </span>
-                ) : (
-                  <span className="muted">{ROLE_LABEL[f.role]}</span>
-                )}
+              <span className="source-file-role muted">{ROLE_LABEL[f.role]}</span>
+              <span className="source-file-actions">
+                <a href={fileUrl(base, record.record_id, f.path, true)} className="icon-btn icon-btn-md" aria-label={`Download ${f.path}`} title={`Download ${f.path}`}>
+                  <Glyph name="download" />
+                </a>
+                {writable && f.role !== "primary" ? (
+                  <Menu label={`Actions for ${f.path}`} triggerClassName="icon-btn icon-btn-md" trigger={<Glyph name="ellipsis" />} align="end">
+                    {f.role !== "origin" ? (
+                      <MenuItem icon="file-text" onSelect={() => setChange({ path: f.path, role: "origin" })}>
+                        Make it an origin file…
+                      </MenuItem>
+                    ) : null}
+                    {f.role !== "supplement" ? (
+                      <MenuItem icon="file-text" onSelect={() => setChange({ path: f.path, role: "supplement" })}>
+                        Make it a supplement…
+                      </MenuItem>
+                    ) : null}
+                    {!hasPrimary ? (
+                      <MenuItem icon="search" onSelect={() => setChange({ path: f.path, role: "primary" })}>
+                        Make it the primary file…
+                      </MenuItem>
+                    ) : null}
+                  </Menu>
+                ) : null}
               </span>
-              <a href={fileUrl(base, record.record_id, f.path, true)} className="icon-btn icon-btn-md" aria-label={`Download ${f.path}`} title={`Download ${f.path}`}>
-                <Glyph name="download" />
-              </a>
             </li>
           ))}
         </ul>
       )}
+      {change ? (
+        <Dialog
+          open
+          onClose={() => {
+            setChange(null);
+            setRole.reset();
+          }}
+          dismissable={!setRole.isPending}
+          title={change.role === "primary" ? "Make this the primary file?" : `Make this ${change.role === "origin" ? "an origin file" : "a supplement"}?`}
+          footer={
+            <>
+              <Button
+                onClick={() => {
+                  setChange(null);
+                  setRole.reset();
+                }}
+                disabled={setRole.isPending}
+              >
+                Cancel
+              </Button>
+              <Button variant="primary" busy={setRole.isPending} busyLabel="Saving…" onClick={() => setRole.mutate(change)}>
+                {change.role === "primary" ? "Make it primary" : `Make it ${change.role === "origin" ? "an origin file" : "a supplement"}`}
+              </Button>
+            </>
+          }
+        >
+          <p>
+            <b>{change.path}</b>{" "}
+            {change.role === "primary"
+              ? "will be parsed into passages and searched. A primary file's role can't be changed afterwards; to use a different primary, create a new source."
+              : change.role === "origin"
+                ? "will be kept as an original behind this source's primary text. It stays kept, not searched."
+                : "will be kept beside the source as supporting material. It stays kept, not searched."}{" "}
+            No bytes move, and the change is recorded in the source's activity.
+          </p>
+          {setRole.isError ? <ErrorCallout inset error={setRole.error} title="The role was not changed" /> : null}
+        </Dialog>
+      ) : null}
     </Sheet>
   );
 }

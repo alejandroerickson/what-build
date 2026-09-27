@@ -161,8 +161,21 @@
   padding: 0;
   list-style: none;
 }
+.insight-refs li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-1h);
+  min-width: 0;
+}
+/* The reference's state in words (Archived, Confirmed…), after its title: never colour alone. */
+.insight-ref-mark {
+  flex: none;
+  color: var(--faint);
+  font-size: var(--fs-sm);
+}
 .insight-refs li a {
   display: inline-block;
+  min-width: 0;
   max-width: 100%;
   padding: 3px 0;
   overflow: hidden;
@@ -317,6 +330,27 @@
 }
 .register-intro .insights-scope {
   justify-content: flex-start;
+}
+/* History: a superseded entry sits under the entry that replaced it, quieter than the live rows. */
+.register-row-replaced .list-title {
+  color: var(--muted);
+  font-weight: var(--fw-regular);
+}
+.register-row-replaced .list-lead {
+  display: flex;
+  justify-content: flex-end;
+  align-self: start;
+  padding-top: 2px;
+}
+.register-replaced-by {
+  color: var(--muted);
+}
+/* An entry and the history under it read as one group: no rule between them. */
+.register-row:has(+ .register-row-nested) {
+  border-bottom-color: transparent;
+}
+.register-row-nested {
+  padding-top: var(--s-0);
 }
 .register-link-row {
   grid-template-columns: 104px minmax(0, 1fr) auto;

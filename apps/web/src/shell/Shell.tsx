@@ -166,7 +166,9 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
   }, [loc.pathname]);
 
   useEffect(() => {
-    document.title = pageTitle ? `${pageTitle} · ${title}` : title;
+    // A screen named after its section ("Evidence · Evidence") says it once.
+    const parts = [...(pageTitle ? [pageTitle] : []), ...title.split(" · ")];
+    document.title = parts.filter((p, i) => p !== parts[i - 1]).join(" · ");
   }, [pageTitle, title]);
 
   const slots = useMemo<ShellSlots>(

@@ -26,7 +26,8 @@ interface Objective {
 const STATUS_WORD: Record<Objective["status"], string> = { active: "Active", achieved: "Achieved", archived: "Archived" };
 
 const VIEWS = [
-  { id: "", label: "All" },
+  // Active and achieved: archived objectives have their own view.
+  { id: "", label: "Current" },
   { id: "active", label: "Active" },
   { id: "achieved", label: "Achieved" },
   { id: "archived", label: "Archived" },
@@ -230,6 +231,7 @@ export function ObjectivesPage() {
 
   return (
     <>
+      <IdeaSheet />
       <Sheet labelledBy="objectives-h" className="objectives-sheet">
         <SheetHeader
           level={1}
@@ -254,7 +256,7 @@ export function ObjectivesPage() {
           </SheetBody>
         ) : !items.length ? (
           editing === "new" ? null : status ? (
-            <EmptyState size="inline" title={`No ${STATUS_WORD[status as Objective["status"]]?.toLowerCase() ?? ""} objectives.`} action={<ButtonLink to={`${app}/objectives`} size="sm">Show all objectives</ButtonLink>} />
+            <EmptyState size="inline" title={`No ${STATUS_WORD[status as Objective["status"]]?.toLowerCase() ?? ""} objectives.`} action={<ButtonLink to={`${app}/objectives`} size="sm">Show current objectives</ButtonLink>} />
           ) : (
             <EmptyState
               size="inline"
@@ -328,7 +330,6 @@ export function ObjectivesPage() {
           </ol>
         )}
       </Sheet>
-      <IdeaSheet />
       {product.counts.sources === 0 && canWrite ? (
         <Callout tone="info" title="Next: add material" action={<ButtonLink to={`${app}/evidence/new`} size="sm">Add a source</ButtonLink>}>
           Interviews, calls, research exports, documents. Or connect an agent and let it do the uploading.

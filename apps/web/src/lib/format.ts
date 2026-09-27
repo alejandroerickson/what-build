@@ -86,3 +86,60 @@ export function plural(n: number, one: string, many = `${one}s`): string {
 export function passageText(text: string, headingLevel: number | null | undefined): string {
   return headingLevel ? text.replace(/^#{1,6}[ \t]+/, "") : text;
 }
+
+/**
+ * A quotation's text ready to sit inside the app's own quotation marks (a <q> element). Quotation
+ * marks already in the text become the inner, single kind, so `Sam: "It's slow."` reads
+ * “Sam: ‘It's slow.’”; when the whole text is one quotation, its own marks are dropped.
+ */
+export function nestQuotes(text: string): string {
+  const t = text.trim();
+  const marks = t.match(/["“”]/g)?.length ?? 0;
+  if (!marks) return text;
+  if (marks === 2 && /^["“]/.test(t) && /["”]$/.test(t)) return t.slice(1, -1);
+  return t.replace(/["“”]/g, (m, i: number) => {
+    if (m === "“") return "‘";
+    if (m === "”") return "’";
+    return i === 0 || /[\s([{—–/-]/.test(t[i - 1]!) ? "‘" : "’";
+  });
+}
+
+const FILE_TYPES: Record<string, string> = {
+  "application/pdf": "PDF document",
+  "application/msword": "Word document",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "Word document",
+  "application/vnd.ms-excel": "Excel workbook",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "Excel workbook",
+  "application/vnd.ms-powerpoint": "PowerPoint presentation",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": "PowerPoint presentation",
+  "application/vnd.oasis.opendocument.text": "OpenDocument text",
+  "application/vnd.oasis.opendocument.spreadsheet": "OpenDocument spreadsheet",
+  "application/vnd.oasis.opendocument.presentation": "OpenDocument presentation",
+  "application/rtf": "Rich text document",
+  "application/json": "JSON file",
+  "application/zip": "ZIP archive",
+  "application/x-subrip": "SRT subtitles",
+  "text/plain": "Plain text",
+  "text/markdown": "Markdown",
+  "text/html": "Web page (HTML)",
+  "text/csv": "CSV spreadsheet",
+  "text/tab-separated-values": "TSV spreadsheet",
+  "text/vtt": "WebVTT transcript",
+  "image/svg+xml": "SVG image",
+};
+
+/**
+ * A file's type in words ("Word document"), not its media type. An unknown type falls back to its
+ * family ("Audio (MPEG)"), then the file's extension, and only then to the media type itself.
+ */
+export function fileTypeName(mediaType: string | null | undefined, path?: string): string {
+  const t = (mediaType ?? "").split(";")[0]!.trim().toLowerCase();
+  const known = FILE_TYPES[t];
+  if (known) return known;
+  const [family, sub] = t.split("/");
+  const words: Record<string, string> = { audio: "Audio", video: "Video", image: "Image" };
+  if (family && sub && words[family]) return `${words[family]} (${sub.replace(/^x-/, "").toUpperCase()})`;
+  const ext = path?.match(/\.([a-z0-9]{1,8})$/i)?.[1];
+  if (ext) return `${ext.toUpperCase()} file`;
+  return t || "Unknown type";
+}

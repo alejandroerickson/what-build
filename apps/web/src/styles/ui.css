@@ -1103,6 +1103,8 @@ button.crumb[aria-expanded="true"] {
   font-size: var(--fs-h1);
   line-height: var(--lh-tight);
   letter-spacing: var(--tracking-title);
+  /* Item titles can be a long sentence (a register statement): fill the line, only avoiding a lone last word. */
+  text-wrap: pretty;
 }
 .page-meta {
   display: flex;

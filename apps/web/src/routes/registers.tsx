@@ -2,7 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
-import { attribution, formatCue, plural, relativeTime } from "../lib/format.ts";
+import { attribution, formatCue, nestQuotes, plural, relativeTime } from "../lib/format.ts";
 import { Markdown, passageHref } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { PROVENANCE_LABEL, REVIEW_STATUS, toneFor } from "../lib/status.ts";
@@ -25,15 +25,43 @@ const MEANING: Record<Kind, string> = {
   decisions: "The choices we agree to act on, and the evidence behind them. Recording one does not mean the team agreed.",
 };
 
+// Named after the status chips the rows carry, so a filter and the rows it shows use the same words.
 const SHOW: { id: string; label: string; status: string[] }[] = [
   { id: "", label: "Current", status: ["unconfirmed", "confirmed"] },
-  { id: "unconfirmed", label: "Awaiting agreement", status: ["unconfirmed"] },
-  { id: "confirmed", label: "Agreed", status: ["confirmed"] },
-  { id: "all", label: "All, including history", status: [] },
+  { id: "unconfirmed", label: "Unconfirmed", status: ["unconfirmed"] },
+  { id: "confirmed", label: "Confirmed", status: ["confirmed"] },
+  { id: "all", label: "All statuses", status: [] },
 ];
 
 function statusOf(status: string) {
   return REVIEW_STATUS[status] ?? { label: status, tone: "neutral" as const };
+}
+
+/**
+ * The rows in list order, with each superseded entry placed under the listed entry that replaced
+ * it (a chain stays in order: each row sits under its own replacement).
+ */
+function withHistory(items: RegisterSummary[]): { e: RegisterSummary; nested: boolean }[] {
+  const listed = new Set(items.map((e) => e.id));
+  const children = new Map<string, RegisterSummary[]>();
+  const roots: RegisterSummary[] = [];
+  for (const e of items) {
+    const parent = e.status === "superseded" ? e.superseded_by?.find((id) => id !== e.id && listed.has(id)) : undefined;
+    if (parent) children.set(parent, [...(children.get(parent) ?? []), e]);
+    else roots.push(e);
+  }
+  const out: { e: RegisterSummary; nested: boolean }[] = [];
+  const seen = new Set<string>();
+  const visit = (e: RegisterSummary, nested: boolean) => {
+    if (seen.has(e.id)) return;
+    seen.add(e.id);
+    out.push({ e, nested });
+    for (const c of children.get(e.id) ?? []) visit(c, true);
+  };
+  for (const e of roots) visit(e, false);
+  // Anything a broken chain left unvisited still shows, at the top level.
+  for (const e of items) visit(e, false);
+  return out;
 }
 
 // ---- Register list ------------------------------------------------------------------------------
@@ -141,17 +169,24 @@ export function RegisterListPage({ kind }: { kind: Kind }) {
           )
         ) : (
           <div>
-            {items.map((e) => {
+            {withHistory(items).map(({ e, nested }) => {
               const s = statusOf(e.status);
               const sources = new Set(e.record_ids).size;
+              const replaced = e.status === "superseded";
               return (
                 <ListRow
                   key={e.id}
                   to={`${path}/${e.id}`}
-                  className="register-row"
+                  className={`register-row${replaced ? " register-row-replaced" : ""}${nested ? " register-row-nested" : ""}`}
+                  lead={nested ? <Glyph name="corner-down-right" size="sm" /> : undefined}
                   title={e.statement}
                   end={<StatusBadge tone={s.tone}>{s.label}</StatusBadge>}
                 >
+                  {replaced ? (
+                    <span className="list-sub register-replaced-by">
+                      {nested ? "Replaced by the entry above" : e.superseded_by?.length ? "Replaced by a newer entry" : "Replaced by a correction"}
+                    </span>
+                  ) : null}
                   <span className="list-sub">
                     {e.author_type === "agent" ? "Drafted by " : "Recorded by "}
                     {attribution(e.author)} · {relativeTime(e.updated_at)}
@@ -234,7 +269,7 @@ function CitationRow({ c, check, checking }: { c: CitationView; check?: Citation
         {span(c.seq_start, c.seq_end)}
       </Link>
       <div className="entry-cite-main">
-        <q className="entry-cite-quote">{c.quote}</q>
+        <q className="entry-cite-quote">{nestQuotes(c.quote)}</q>
         <span className="entry-cite-sub">
           {check ? (
             <span className={`entry-cite-state ${good ? "text-ok" : tone === "negative" ? "text-bad" : tone === "attention" ? "text-warn" : ""}`}>

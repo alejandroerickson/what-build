@@ -6,10 +6,11 @@ import { formatCue } from "../lib/format.ts";
 import { citationLabels, citations, citedSourceIds, type EvidenceContext } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { useSourceTitles } from "../lib/source-titles.ts";
-import { REVIEW_STATUS, toneFor } from "../lib/status.ts";
-import type { RecordFull } from "../lib/types.ts";
+import { REVIEW_STATUS } from "../lib/status.ts";
+import type { InsightReviewState, RecordFull } from "../lib/types.ts";
 import { usePageTitle } from "../shell/slots.tsx";
 import { Button, EmptyState, ErrorCallout, FindField, Glyph, Loading, Segmented, Sheet, SheetHeader, StatusBadge } from "../ui/index.tsx";
+import { ReviewBadge, STATUS_WORD } from "./insights-common.tsx";
 import "../styles/screens/evidence.css";
 
 interface SearchResult {
@@ -19,7 +20,7 @@ interface SearchResult {
   coverage?: { statement: string; records_considered: number };
   assumptions?: { id: string; statement: string; status: string; citation_count: number }[];
   decisions?: { id: string; statement: string; status: string; citation_count: number }[];
-  insights?: { id: string; title: string; summary: string; status: string }[];
+  insights?: { id: string; title: string; summary: string; status: "draft" | "published" | "archived"; review_state: InsightReviewState }[];
 }
 
 /**
@@ -236,9 +237,14 @@ export function SearchPage() {
                         <Glyph name="lightbulb" />
                         <span className="search-entry-main">
                           <span className="search-entry-title">{highlight(i.title, q, exact)}</span>
-                          {i.summary ? <span className="faint search-entry-sub">{i.summary}</span> : null}
+                          {i.summary || i.status !== "published" ? (
+                            <span className="faint search-entry-sub">
+                              {i.status !== "published" ? <>{STATUS_WORD[i.status]}{i.summary ? " · " : ""}</> : null}
+                              {i.summary}
+                            </span>
+                          ) : null}
                         </span>
-                        <StatusBadge tone={toneFor("insight", i.status)}>{i.status === "published" ? "Published" : i.status === "draft" ? "Draft" : "Archived"}</StatusBadge>
+                        <ReviewBadge state={i.review_state} />
                       </Link>
                     </li>
                   ))}

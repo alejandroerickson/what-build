@@ -5,21 +5,19 @@ import { api, ApiError, qs } from "../lib/api.ts";
 import { attribution, plural, relativeTime } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
-import { toneFor } from "../lib/status.ts";
-import type { Insight, InsightReviewState, InsightSummary, RecordSummary, Refs } from "../lib/types.ts";
+import { REVIEW_STATUS, toneFor } from "../lib/status.ts";
+import type { Insight, InsightSummary, RecordSummary, Refs } from "../lib/types.ts";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
   Button, ButtonLink, Callout, ChoiceRow, EmptyState, ErrorCallout, FindField, FormGrid, Glyph, ListRow, Loading, Menu, MenuItem, MenuRadio, MenuSeparator,
   PageHeader, Segmented, SelectField, Sheet, SheetBody, SheetHeader, StatusBadge, TextArea, TextField, useToast,
 } from "../ui/index.tsx";
-import { Byline, HistoryDialog, searchWith, useCopyLink } from "./insights-common.tsx";
+import { Byline, HistoryDialog, ReviewBadge, searchWith, STATUS_WORD, useCopyLink } from "./insights-common.tsx";
 import "../styles/screens/synthesis.css";
 
 export { HistoryDialog } from "./insights-common.tsx";
 
 
-const STATUS_WORD = { draft: "Working draft", published: "Published", archived: "Archived" } as const;
-const REVIEW_WORD: Record<InsightReviewState, string> = { unreviewed: "Unreviewed", reviewed: "Reviewed", changed: "Changed since review" };
 
 /** The Segmented filter: All, Unreviewed (includes changed since review), Reviewed. */
 const REVIEW_FILTER: Record<string, string[] | undefined> = { "": undefined, unreviewed: ["unreviewed", "changed"], reviewed: ["reviewed"] };
@@ -30,10 +28,6 @@ const STATUS_FILTER = [
   { id: "draft", label: "Working drafts" },
   { id: "archived", label: "Archived" },
 ];
-
-function ReviewBadge({ state }: { state: InsightReviewState }) {
-  return <StatusBadge tone={toneFor("review", state)}>{REVIEW_WORD[state]}</StatusBadge>;
-}
 
 // ---- Insights list ------------------------------------------------------------------------------
 
@@ -230,32 +224,44 @@ export function InsightsPage() {
 
 // ---- One insight --------------------------------------------------------------------------------
 
+type Ref = Record<string, string | null>;
+
+/**
+ * Each reference's title, and a word for its state where the reader should know it (archived,
+ * achieved, a register entry's status, gone), as the Story inspector marks them.
+ */
 function useTitles(refs: Refs | undefined) {
   const { api: base } = useProduct();
   return useQuery({
     queryKey: ["ref-titles", base, refs],
     enabled: Boolean(refs),
     queryFn: async () => {
-      const out: Record<string, string> = {};
-      const load = async (ids: string[], path: (id: string) => string, pick: (r: Record<string, string>) => string) => {
+      const titles: Record<string, string> = {};
+      const marks: Record<string, string> = {};
+      const load = async (ids: string[], path: (id: string) => string, title: (r: Ref) => string | null, mark: (r: Ref) => string | null) => {
         await Promise.all(
           ids.map(async (id) => {
             try {
-              out[id] = pick(await api<Record<string, string>>("GET", `${base}/${path(id)}`));
-            } catch {
+              const r = await api<Ref>("GET", `${base}/${path(id)}`);
+              titles[id] = title(r) ?? id;
+              const m = r["archived_at"] || r["status"] === "archived" ? "Archived" : mark(r);
+              if (m) marks[id] = m;
+            } catch (e) {
               // A reference that no longer resolves keeps its placeholder.
+              if (e instanceof ApiError && (e.isNotFound || e.status === 410)) marks[id] = "No longer in this product";
             }
           }),
         );
       };
+      const entryStatus = (r: Ref) => (r["status"] ? (REVIEW_STATUS[r["status"]]?.label ?? r["status"]) : null);
       await Promise.all([
-        load(refs!.sources, (id) => `sources/${id}`, (r) => r["title"]!),
-        load(refs!.insights, (id) => `insights/${id}?limit=1`, (r) => r["title"]!),
-        load(refs!.assumptions, (id) => `assumptions/${id}`, (r) => r["statement"]!),
-        load(refs!.decisions, (id) => `decisions/${id}`, (r) => r["statement"]!),
-        load(refs!.objectives, (id) => `objectives/${id}`, (r) => r["title"]!),
+        load(refs!.sources, (id) => `sources/${id}`, (r) => r["title"]!, () => null),
+        load(refs!.insights, (id) => `insights/${id}?limit=1`, (r) => r["title"]!, (r) => (r["status"] === "draft" ? "Draft" : null)),
+        load(refs!.assumptions, (id) => `assumptions/${id}`, (r) => r["statement"]!, entryStatus),
+        load(refs!.decisions, (id) => `decisions/${id}`, (r) => r["statement"]!, entryStatus),
+        load(refs!.objectives, (id) => `objectives/${id}`, (r) => r["title"]!, (r) => (r["status"] === "achieved" ? "Achieved" : null)),
       ]);
-      return out;
+      return { titles, marks };
     },
   });
 }
@@ -341,7 +347,8 @@ export function InsightPage() {
       </>
     );
   const i = q.data;
-  const t = titles.data ?? {};
+  const t = titles.data?.titles ?? {};
+  const marks = titles.data?.marks ?? {};
   const archived = i.status === "archived";
   const connected = REF_ROWS.filter((r) => i.refs[r.key].length);
 
@@ -447,6 +454,7 @@ export function InsightPage() {
                     {i.refs[r.key].map((id) => (
                       <li key={id}>
                         <Link to={r.to(app, id)}>{t[id] ?? (titles.isPending ? "Loading…" : r.missing)}</Link>
+                        {marks[id] ? <span className="insight-ref-mark">{marks[id]}</span> : null}
                       </li>
                     ))}
                   </ul>
