@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fileTypeName, nestQuotes } from "../src/lib/format.ts";
+import { citationCheckWords, fileTypeName, nestQuotes } from "../src/lib/format.ts";
 
 describe("nestQuotes", () => {
   it("leaves text without quotation marks alone", () => {
@@ -28,5 +28,19 @@ describe("fileTypeName", () => {
     expect(fileTypeName("application/octet-stream", "notes.key")).toBe("KEY file");
     expect(fileTypeName("application/x-thing")).toBe("application/x-thing");
     expect(fileTypeName(null)).toBe("Unknown type");
+  });
+});
+
+describe("citationCheckWords", () => {
+  it("adds nothing to a plain match", () => {
+    expect(citationCheckWords("Matches the source", { version_drift: false, derivation_changed: false })).toBe("Matches the source");
+  });
+  it("says when the quote matched only ignoring formatting, and when the source was parsed again", () => {
+    expect(citationCheckWords("Matches the source", { version_drift: false, derivation_changed: true, quote_match: "normalized" })).toBe(
+      "Matches the source · matched ignoring formatting · source re-parsed since this was cited",
+    );
+  });
+  it("names a newer file version rather than the re-parse it caused", () => {
+    expect(citationCheckWords("Moved to ¶4", { version_drift: true, derivation_changed: true })).toBe("Moved to ¶4 · newer file version");
   });
 });

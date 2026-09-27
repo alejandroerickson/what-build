@@ -258,6 +258,8 @@ export interface CitationCheck {
   status: "ok" | "relocated" | "text_changed" | "record_archived" | "record_deleted" | "record_missing";
   relocated?: { seq_start: number; seq_end: number };
   version_drift: boolean;
+  derivation_changed?: boolean;
+  quote_match?: "normalized";
 }
 
 export interface VersionView {

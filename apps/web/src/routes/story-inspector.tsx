@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router";
 import { api } from "../lib/api.ts";
-import { attribution, formatDate, formatDateTime, nestQuotes, relativeTime } from "../lib/format.ts";
+import { attribution, citationCheckWords, formatDate, formatDateTime, nestQuotes, relativeTime } from "../lib/format.ts";
 import { Markdown, passageHref } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { REVIEW_STATUS, toneFor } from "../lib/status.ts";
@@ -50,7 +50,7 @@ function driftWords(c: CitationCheck): string {
     record_deleted: "Source deleted",
     record_missing: "Source not found",
   }[c.status];
-  return c.version_drift ? `${base} · newer file version` : base;
+  return citationCheckWords(base, c);
 }
 
 function address(a: number, b: number) {

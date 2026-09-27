@@ -255,7 +255,9 @@ reached from it.
   entries, each sits under the entry that replaced it, muted, marked "Replaced by the entry
   above". An
   entry page shows the statement, body, citations with their **snapshot text** and live
-  `check_citations` status, links grouped by type, and the full review history. Actions: review
+  `check_citations` status in words (which also says when a quote matched only ignoring
+  formatting, when the primary file has a newer version, and when the source was parsed again
+  since the citation), links grouped by type, and the full review history. Actions: review
   (status + required note, optional confidence; before the first review the form says that saving
   freezes the statement, body and citations), link, supersede (opens a prefilled new entry).
   Frozen fields ([§4.8](04-data-model.md)) are shown as such, with "supersede" as the path to
@@ -287,7 +289,8 @@ reached from it.
   - **Draws on:** the version's references — objectives, sources, insights, assumptions,
     decisions — each linked.
   - **Cited passages:** each citation as the source title, its address (¶8–9, linking to the
-    passage) and a snapshot quote, with its `story.check_citations` status in words.
+    passage) and a snapshot quote, with its `story.check_citations` status in words, worded as
+    on a register entry.
   - **Notes for agents:** the page's Markdown note, which agents read before revising the page and
     update after publishing (what it is for, sources still to fold in, decisions about structure).
     Not versioned with the page. People with write access edit it in a dialog; a `409` keeps their
@@ -332,7 +335,9 @@ offers archive only.
 3. Choosing it opens a dialog that leads with **"Delete permanently. This cannot be undone."** and
    shows the `delete_impact` result as plain sentences before any control: *4 files (218 MB), 2
    derivations, 1 annotation, 3 revisions. **2 citations in the decision register point at this
-   record** and will be left pointing at a tombstone — their quoted text will be kept.*
+   record** and will be left pointing at a tombstone — their quoted text will be kept.* When
+   Story versions cite the source, it counts them, earlier versions included, and lists each page
+   with which of its versions do ("Current version and 2 earlier").
 4. The dialog asks for a reason, and requires the person to type the object's title to enable the
    button. Archive is offered again, in the dialog, as the secondary action.
 5. Afterwards, a toast states what was deleted and that the activity log records who, when and
