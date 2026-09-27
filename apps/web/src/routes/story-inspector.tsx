@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router";
 import { api } from "../lib/api.ts";
 import { attribution, formatDate, formatDateTime, relativeTime } from "../lib/format.ts";
-import { Markdown } from "../lib/markdown.tsx";
+import { Markdown, passageHref } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { REVIEW_STATUS, toneFor } from "../lib/status.ts";
 import { Button, EmptyState, Glyph, Group, KeyValue, Menu, MenuRadio, StatusBadge } from "../ui/index.tsx";
@@ -204,7 +204,7 @@ export function StoryInspectorBody({ page, shown, versions, parent, placed, subp
                     <Link className="story-cite-source story-ref-link" to={`${app}/evidence/${c.record_id}`}>
                       {c.source_title ?? "Source"}
                     </Link>
-                    <Link className="story-cite-address num" to={`${app}/evidence/${c.record_id}?seq=${c.seq_start}`} aria-label={`Passage ${address(c.seq_start, c.seq_end)} in ${c.source_title ?? "the source"}`}>
+                    <Link className="story-cite-address num" to={passageHref(app, c.record_id, c.seq_start, c.seq_end)} aria-label={`Passage ${address(c.seq_start, c.seq_end)} in ${c.source_title ?? "the source"}`}>
                       {address(c.seq_start, c.seq_end)}
                     </Link>
                   </div>

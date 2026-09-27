@@ -24,6 +24,8 @@ export interface RecordSummary {
   segment_count: number;
   file_count: number;
   etag: string;
+  /** The primary file's path; sources.list includes it. */
+  primary_file?: string | null;
 }
 
 export interface FileEntry {

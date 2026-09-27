@@ -2,7 +2,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/rea
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
-import { actorName, attribution, formatBytes, formatDate, plural, relativeTime } from "../lib/format.ts";
+import { actorName, attribution, formatBytes, formatDate, passageText, plural, relativeTime } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { derivedStatus, derivedStatusDetail, PROVENANCE_LABEL, REVIEW_STATUS, ROLE_LABEL } from "../lib/status.ts";
@@ -142,6 +142,7 @@ export function SourceDetailPage() {
         }
       />
       <SourceDescription note={summary?.data ?? null} loading={Boolean(summary?.isPending && noteKinds.includes("summary"))} />
+      {r.has_lineage ? <ViewLineage recordId={r.record_id} /> : null}
       {r.archived_at || r.derived_status !== "ready" ? (
         <div className="source-notices">
       {r.archived_at ? (
@@ -231,6 +232,52 @@ function SourceDescription({ note, loading }: { note: AgentNote | null; loading:
           Summary by {attribution(note.updated_by)}, {relativeTime(note.updated_at)}
         </span>
       </div>
+    </div>
+  );
+}
+
+interface LineageCheck {
+  registered_at: string;
+  registered_by: Actor;
+  stale: boolean;
+  input_checks: { kind: string; id: string; status: "current" | "changed" | "archived" | "deleted" | "missing" }[];
+}
+
+/**
+ * A view built from other sources and register entries: how many inputs it was built from, and how
+ * many have changed since. Nothing is rebuilt automatically, so a stale view says so plainly.
+ */
+function ViewLineage({ recordId }: { recordId: string }) {
+  const { api: base } = useProduct();
+  const q = useQuery({
+    queryKey: ["lineage", base, recordId],
+    queryFn: () => api<LineageCheck>("GET", `${base}/sources/${recordId}/lineage`),
+    retry: false,
+  });
+  if (!q.data) return null;
+  const l = q.data;
+  const n = l.input_checks.length;
+  const moved = l.input_checks.filter((c) => c.status !== "current");
+  const built = `Built from ${plural(n, "input")}`;
+  if (!l.stale)
+    return (
+      <p className="source-lineage">
+        <StatusBadge tone="positive">Up to date</StatusBadge>
+        <span>
+          {built} on {formatDate(l.registered_at)} · none changed since
+        </span>
+      </p>
+    );
+  const counts = (["changed", "archived", "deleted", "missing"] as const)
+    .map((s) => [s, moved.filter((c) => c.status === s).length] as const)
+    .filter(([, k]) => k > 0)
+    .map(([s, k]) => `${k} ${s}`);
+  return (
+    <div className="source-notices">
+      <Callout tone="attention" title={`${built} · ${moved.length} changed since`}>
+        Built on {formatDate(l.registered_at)} by {attribution(l.registered_by)}. Since then: {counts.join(", ")}. Nothing is rebuilt automatically; read it as of that date, or ask your agent to
+        rebuild it.
+      </Callout>
     </div>
   );
 }
@@ -349,7 +396,14 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
               { label: "Tags", value: r.tags.length ? <span className="chips source-tags">{r.tags.map((t) => <Tag key={t}>{t}</Tag>)}</span> : null },
               { label: "From", value: r.source_system },
               { label: "Evidence", value: r.provenance_depth !== "unknown" ? PROVENANCE_LABEL[r.provenance_depth] : null },
-              { label: "Filed in", value: r.folder_label },
+              {
+                label: "Filed in",
+                value: (
+                  <Link to={`${app}/evidence?folder=${encodeURIComponent(r.folder)}`} className="quiet-link" title={`Every source filed in ${r.folder_label}`}>
+                    {r.folder_label}
+                  </Link>
+                ),
+              },
               {
                 label: "Added by",
                 value: (
@@ -391,7 +445,12 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
           ) : (
             <EmptyState size="inline">No files yet. {primary ? "" : "The primary file is what gets parsed and searched."}</EmptyState>
           )}
-          {r.files.length ? <p className="source-inspector-note">{plural(versions, "stored version")}. Only the primary file is searched.</p> : null}
+          {r.files.length ? (
+            <p className="source-inspector-note">
+              {plural(r.files.length, "file")}
+              {versions > r.files.length ? `, ${plural(versions, "stored version")}` : ""}. Only the primary file is searched.
+            </p>
+          ) : null}
         </Group>
         <Group title="Cited in" count={citedCount}>
           {cited.isPending ? (
@@ -422,7 +481,7 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
                       {e.citations.map((x, i) => (
                         <span key={i}>
                           {" · "}
-                          <Link to={`?view=passages&seq=${x.seq_start}`} className="quiet-link num">
+                          <Link to={`?view=passages&seq=${x.seq_start}${x.seq_end !== x.seq_start ? `&to=${x.seq_end}` : ""}`} className="quiet-link num">
                             {address(x.seq_start, x.seq_end)}
                           </Link>
                         </span>
@@ -444,7 +503,7 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
                       {p.citations.map((x, i) => (
                         <span key={i}>
                           {" · "}
-                          <Link to={`?view=passages&seq=${x.seq_start}`} className="quiet-link num">
+                          <Link to={`?view=passages&seq=${x.seq_start}${x.seq_end !== x.seq_start ? `&to=${x.seq_end}` : ""}`} className="quiet-link num">
                             {address(x.seq_start, x.seq_end)}
                           </Link>
                         </span>
@@ -503,6 +562,15 @@ function previewKind(f: FileEntry): "html" | "markdown" | "pdf" | "audio" | "vid
   return "download";
 }
 
+/** A recording's length as a clock: "2:27", or "1:02:05" past an hour. */
+function clockLength(ms: number) {
+  const s = Math.round(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = String(s % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
+}
+
 /** The origin file (or the primary, when there is no origin), shown as it was uploaded. */
 function OriginalView({ record }: { record: SourceRecord }) {
   const { api: base } = useProduct();
@@ -530,6 +598,9 @@ function OriginalView({ record }: { record: SourceRecord }) {
       </Sheet>
     );
   const url = fileUrl(base, record.record_id, f.path);
+  // A recording's length, read from the file when it was parsed, so a reader can tell whether a
+  // transcript covers all of it.
+  const length = (kind === "audio" || kind === "video") && f.role === "primary" ? (record.duration_ms ?? record.manifest?.duration_ms ?? null) : null;
   return (
     <Sheet className="source-original">
       <SheetHeader
@@ -559,6 +630,7 @@ function OriginalView({ record }: { record: SourceRecord }) {
           : `${f.path} is kept with the source for download and checking; search never reads it.`}{" "}
         <span className="faint">
           {f.media_type ?? "Unknown type"} · {formatBytes(f.size)}
+          {length ? ` · ${clockLength(length)} long` : ""}
         </span>
       </p>
       <div className="source-original-body">
@@ -592,7 +664,10 @@ function NotesView({ record, outline, notes, fileOutline }: { record: SourceReco
   const { canWrite } = useProduct();
   const [writing, setWriting] = useState(false);
   const writable = canWrite && !record.archived_at;
-  const showFileOutline = Boolean(fileOutline && !outline && !/\(no headings\)/.test(fileOutline));
+  // A timed transcript's outline lists every speaker turn, which the passage list already shows with
+  // its speaker and time; agents still read it, but it is left out here.
+  const timed = /^- \d{2}:\d{2}:\d{2}\.\d{3} to |^- \(no cues\)/m.test(fileOutline ?? "");
+  const showFileOutline = Boolean(fileOutline && !outline && !timed && !/\(no headings\)/.test(fileOutline));
   return (
     <>
       <Sheet labelledBy="agent-notes-h">
@@ -607,7 +682,7 @@ function NotesView({ record, outline, notes, fileOutline }: { record: SourceReco
             {showFileOutline ? (
               <section className="source-agent-note">
                 <h3>Outline from the file's headings</h3>
-                <Markdown source={fileOutline!} className="prose source-outline" headingShift={3} />
+                <FileOutline outline={fileOutline!} />
               </section>
             ) : null}
             {notes ? <AgentNoteBlock title="Notes" note={notes} /> : null}
@@ -647,6 +722,28 @@ function NotesView({ record, outline, notes, fileOutline }: { record: SourceReco
         )}
       </Sheet>
     </>
+  );
+}
+
+/**
+ * The parser's outline of a document's headings ("  - Scope (segment 12)" per line), each heading
+ * linked to its passage. An outline in any other shape is shown as written.
+ */
+function FileOutline({ outline }: { outline: string }) {
+  const lines = outline.split("\n").filter((l) => l.trim());
+  const entries = lines.map((l) => /^( *)- (.*) \(segment (\d+)\)$/.exec(l)).filter((m): m is RegExpExecArray => m !== null);
+  if (!entries.length || entries.length !== lines.length) return <Markdown source={outline} className="prose source-outline" headingShift={3} />;
+  return (
+    <ol className="source-outline source-outline-list">
+      {entries.map(([, indent, text, seq]) => (
+        <li key={seq} style={{ paddingLeft: `calc(${Math.floor(indent!.length / 2)} * var(--s-4))` }}>
+          <Link to={`?view=passages&seq=${seq}`} className="source-outline-link">
+            <span className="ellipsis">{passageText(text!, 1)}</span>
+            <span className="num faint">¶{seq}</span>
+          </Link>
+        </li>
+      ))}
+    </ol>
   );
 }
 

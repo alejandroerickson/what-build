@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api, qs } from "../lib/api.ts";
 import { formatCue } from "../lib/format.ts";
+import { citationLabels, citations, citedSourceIds, type EvidenceContext } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
+import { useSourceTitles } from "../lib/source-titles.ts";
 import { REVIEW_STATUS, toneFor } from "../lib/status.ts";
 import type { RecordFull } from "../lib/types.ts";
 import { usePageTitle } from "../shell/slots.tsx";
@@ -20,12 +22,25 @@ interface SearchResult {
   insights?: { id: string; title: string; summary: string; status: string }[];
 }
 
-/** Highlight the query's words in a snippet, client-side; offsets refer to the source, not the snippet. */
-function highlight(text: string, query: string): ReactNode {
-  const words = [...new Set(query.replace(/["()*]/g, " ").split(/\s+/).filter((w) => w && !/^(AND|OR|NOT)$/.test(w)))].sort((a, b) => b.length - a.length);
+/**
+ * Highlight what matched in a snippet, client-side; offsets refer to the source, not the snippet.
+ * Exact text matched the whole query as one phrase, so only the phrase is marked; a ranked query
+ * matched its words, so each word is.
+ */
+function highlight(text: string, query: string, exact: boolean): ReactNode {
+  const words = exact
+    ? [query.trim()].filter(Boolean)
+    : [...new Set(query.replace(/["()*]/g, " ").split(/\s+/).filter((w) => w && !/^(AND|OR|NOT)$/.test(w)))].sort((a, b) => b.length - a.length);
   if (!words.length) return text;
   const re = new RegExp(`(${words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "gi");
   return text.split(re).map((part, i) => (i % 2 ? <mark key={i}>{part}</mark> : part));
+}
+
+/** A snippet with its bare citations as "Title ¶N" tokens (not links: the whole hit is one) and the match marked. */
+function snippet(text: string, query: string, exact: boolean, ev: EvidenceContext): ReactNode {
+  const parts = citations(text, "s", ev, false);
+  if (typeof parts === "string") return highlight(parts, query, exact);
+  return (parts as ReactNode[]).map((p, i) => (typeof p === "string" ? <Fragment key={i}>{highlight(p, query, exact)}</Fragment> : p));
 }
 
 const SCOPES = [
@@ -70,6 +85,12 @@ export function SearchPage() {
   };
   const d = res.data;
   const busy = res.isFetching && !res.isPending;
+  const exact = mode === "substring";
+  // Hits from a view or a digest cite other sources; show those as "Title ¶N", never a raw id.
+  const citedIds = [...new Set((d?.hits ?? []).flatMap((h) => citedSourceIds(h.snippet)))];
+  const fetched = useSourceTitles(base, citedIds.filter((id) => !d?.records?.[id]));
+  const titles = Object.fromEntries(citedIds.map((id) => [id, d?.records?.[id]?.title ?? fetched[id]]));
+  const evidence: EvidenceContext = { app, titles, labels: citationLabels(citedIds, titles) };
   return (
     <>
       <Sheet className="search-sheet">
@@ -157,7 +178,7 @@ export function SearchPage() {
                                 {r?.archived_at ? " · archived" : ""}
                               </span>
                             </span>
-                            <span className="hit-snippet">{highlight(h.snippet, q)}</span>
+                            <span className="hit-snippet">{snippet(h.snippet, q, exact, evidence)}</span>
                           </span>
                         </Link>
                       </li>
@@ -189,7 +210,7 @@ export function SearchPage() {
                       <Link to={`${app}/synthesis/${e.k}/${e.id}`} className="search-entry">
                         <Glyph name={e.k === "assumptions" ? "scale" : "signpost"} />
                         <span className="search-entry-main">
-                          <span className="search-entry-title">{highlight(e.statement, q)}</span>
+                          <span className="search-entry-title">{highlight(e.statement, q, exact)}</span>
                           <span className="faint">
                             {e.k === "assumptions" ? "Assumption" : "Decision"} · {e.citation_count} {e.citation_count === 1 ? "citation" : "citations"}
                           </span>
@@ -214,7 +235,7 @@ export function SearchPage() {
                       <Link to={`${app}/synthesis/insights/${i.id}`} className="search-entry">
                         <Glyph name="lightbulb" />
                         <span className="search-entry-main">
-                          <span className="search-entry-title">{highlight(i.title, q)}</span>
+                          <span className="search-entry-title">{highlight(i.title, q, exact)}</span>
                           {i.summary ? <span className="faint search-entry-sub">{i.summary}</span> : null}
                         </span>
                         <StatusBadge tone={toneFor("insight", i.status)}>{i.status === "published" ? "Published" : i.status === "draft" ? "Draft" : "Archived"}</StatusBadge>
