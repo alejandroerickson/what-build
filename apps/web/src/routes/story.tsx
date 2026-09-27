@@ -37,6 +37,32 @@ function useScheme(): "light" | "dark" {
   return choice === "system" ? (systemDark ? "dark" : "light") : choice;
 }
 
+/**
+ * The page in its sandbox. Until the frame has its document, skeleton lines stand in for the page,
+ * so a slow page reads as loading rather than blank.
+ */
+function StoryFrame({ title, scheme, src }: { title: string; scheme: "light" | "dark"; src: string }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <div className="story-frame-wrap">
+      <iframe
+        title={title}
+        className="story-frame"
+        style={{ colorScheme: scheme }}
+        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+        referrerPolicy="no-referrer"
+        src={src}
+        onLoad={() => setLoaded(true)}
+      />
+      {loaded ? null : (
+        <div className="story-frame-status">
+          <Loading variant="lines" lines={6} label="Loading the page…" />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function StoryPage() {
   const { pageId } = useParams();
   const { api: base, app, product, canWrite } = useProduct();
@@ -305,13 +331,10 @@ export function StoryPage() {
             </Callout>
           ) : null}
           {shown ? (
-            <iframe
+            <StoryFrame
               key={`${pageId}:${shown.version}:${scheme}`}
               title={`${shown.title}, shown in a sandbox`}
-              className="story-frame"
-              style={{ colorScheme: scheme }}
-              sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
-              referrerPolicy="no-referrer"
+              scheme={scheme}
               src={`${base}/story/pages/${pageId}/versions/${shown.version}/html?theme=${scheme}`}
             />
           ) : wantsOld && old.isPending ? (

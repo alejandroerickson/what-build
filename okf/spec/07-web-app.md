@@ -111,7 +111,11 @@ place.
 
 Source links with `?tab=` resolve too: `passages`, `preview`, `files` and `notes` become
 `?view=passages|original|files|notes`, and `connected` opens the inspector, where "Cited in"
-lives.
+lives. A product path without the `/t/` prefix (`/<tenant>/<team>/<product>[/…]`, as people type
+or paste it) redirects to the same path under `/t/`.
+
+The document title is "<screen> · <section> · <product> · WhatBuild", with a screen named after
+its section ("Evidence") said once.
 
 The Story print view is served by the API, not the app: `GET
 /api/v1/p/<tenant>/<team>/<product>/story/print?page_ids=…` returns one HTML document, opened in a
@@ -138,10 +142,11 @@ seeded accounts.
 
 ## 7.5 Objectives
 
-The landing screen. The product's idea at the top; objectives as aligned cards in a centered
+The landing screen. The product's idea first; then objectives as aligned cards in a centered
 content band that adapts to narrow screens. Create, edit inline, reorder, change status. Each card
 shows how many insights, assumptions, and decisions point at it, linking into Synthesis filtered by
-that objective; each number is the one the linked list shows (current entries, [§4.2](04-data-model.md)). Archived objectives are behind a filter (`?status=`). An empty product presents this screen as
+that objective; each number is the one the linked list shows (current entries, [§4.2](04-data-model.md)). The default view, **Current**, lists active and achieved objectives; Active, Achieved and
+Archived are filters (`?status=`). An empty product presents this screen as
 the first step of the loop: write the idea, then the first objective, then add material.
 
 ## 7.6 Evidence
@@ -173,20 +178,23 @@ The sources, and everything for reading them.
     (§7.10) are in the page's actions menu.
   - **Sections**, a segmented control held in the URL as `?view=` (links, not tabs):
     **Passages** (the default once the source is parsed), **Original** (a preview of the origin
-    file, or of the primary when there is no origin, with a line saying whether it is searched),
+    file, or of the primary when there is no origin, with a line saying whether it is searched and
+    naming its type in words, such as "Word document", not its media type),
     **Notes** (the agent's outline and notes, then every comment on the source, each linking to its
     passage; with no agent outline, a document's own headings, each linking to its passage — a
     timed transcript's speaker-turn outline is left out, since the passages already show speaker
     and time) and **Files** (every file with its role, "Searched" or "Kept, not searched",
-    versions, download, and add file). Original states a recording's length beside the player
-    when the parse read one.
+    versions, download, and add file). A non-primary file's role changes from its row menu,
+    confirmed in a dialog that says what the change does. Original states a recording's length
+    beside the player when the parse read one.
   - **Inspector:** **Details** (kind, date, organization, participants, tags, source system,
     evidence, where it is filed — a link to the list filtered to that folder — added by, added,
     updated), a **Files** summary ("2 files", adding stored versions only when there are more
     versions than files; only the primary is searched), **Cited in** (insights, assumptions,
-    decisions and Story pages, each citation linking to its exact passage or range), "Activity on
-    this source", and Archive. On a narrow screen the page stacks header, description and
-    sections, and the inspector opens from "Details".
+    decisions and Story pages, each citation linking to its exact passage or range; a Story page
+    is judged by its current version, and says so), "Activity on this source", and Archive. On a
+    narrow screen the page stacks header, description and sections, and the inspector opens from
+    "Details".
   - **Lineage:** a view with lineage says what it was built from: "Built from 17 inputs · none
     changed since" with an Up to date mark, or, when `lineage.check` finds inputs changed,
     archived, deleted or missing, an attention callout "Built from 17 inputs · 10 changed since"
@@ -215,7 +223,7 @@ The sources, and everything for reading them.
 - **Search.** Same filters plus free-text passage search; results are passages in context with
   speaker and time, linking into the reader at that position. Exact-text results mark the whole
   phrase; ranked results mark each word. The UI states what was searched
-  ([§8.4](08-search.md)).
+  ([§8.4](08-search.md)). Insight results carry the same review badge as the Insights list.
 
 ## 7.7 Synthesis
 
@@ -231,7 +239,9 @@ reached from it.
   has a segmented filter **All / Unreviewed / Reviewed** (`?review=`; Unreviewed includes changed
   since review, and shows how many wait) and a review badge on each row. The insight page shows the
   state in words with who reviewed it and when, a **Mark reviewed** button, and Undo on a reviewed
-  insight.
+  insight. Its **Connected** list marks each reference's state in words where the reader should
+  know it (Archived, Achieved, a register entry's status, No longer in this product), as the Story
+  inspector's Draws on does.
 - **Revision history** ([§4.1](04-data-model.md)): a list of revisions with author, surface and
   time; a read-only view of any revision; and a restore that writes the old content as a new
   revision. The entry point is visible on the reader, because the most likely reason to look is
@@ -239,8 +249,11 @@ reached from it.
   revisions the operations expose, and looks and behaves identically in both. Planned: a diff
   against the current text, and the same control for the product idea, annotations and unreviewed
   register entries once their revisions are exposed.
-- **Registers:** two lists, filterable by review status (`?show=`) and objective; the default is
-  current entries, and the header counts the rows the view lists. An
+- **Registers:** two lists, filterable by review status (`?show=`: Current, Unconfirmed,
+  Confirmed, All statuses — named after the status chips on the rows) and objective; the default
+  is current entries, and the header counts the rows the view lists. Where a view lists superseded
+  entries, each sits under the entry that replaced it, muted, marked "Replaced by the entry
+  above". An
   entry page shows the statement, body, citations with their **snapshot text** and live
   `check_citations` status, links grouped by type, and the full review history. Actions: review
   (status + required note, optional confidence; before the first review the form says that saving
@@ -255,7 +268,7 @@ reached from it.
   "Version n · updated <date>", then the page. Nothing else is on the canvas. Opens the last page
   this browser read in this product, otherwise the first root page. Pages render only in the
   sandboxed frame ([§4.11](04-data-model.md)); the frame resizes to content and follows the app's
-  theme.
+  theme. Until the frame has its document, skeleton lines stand in for the page.
 - **The tree.** A keyboard tree (one tab stop, arrow keys) with "Find a page", expand and collapse
   all, the current page marked, add a page, and sections for **Unplaced pages** (published, not yet
   in the navigation) and **Archived pages**. Each row's menu: Rename… (a republish that creates a

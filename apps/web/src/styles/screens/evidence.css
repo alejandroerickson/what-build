@@ -391,9 +391,13 @@
   color: var(--faint);
   font-size: var(--fs-sm);
 }
-.source-file-role .input {
-  height: var(--h-sm);
-  min-width: 120px;
+.source-file-actions {
+  display: flex;
+  align-items: center;
+}
+/* When some rows carry a menu, every row keeps room for one, so roles and downloads line up. */
+.source-files-with-menus .source-file-actions {
+  min-width: calc(2 * var(--h-md));
 }
 
 /* Dialogs */
@@ -1034,7 +1038,7 @@
     grid-column: 2;
     grid-row: 2;
   }
-  .source-file > a {
+  .source-file-actions {
     grid-column: 3;
     grid-row: 1;
   }

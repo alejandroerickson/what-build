@@ -3,9 +3,18 @@ import { useState, type ReactNode } from "react";
 import { api } from "../lib/api.ts";
 import { attribution, relativeTime } from "../lib/format.ts";
 import { useProduct } from "../lib/session.tsx";
-import type { Actor } from "../lib/types.ts";
-import { AgentFace, Avatar, Button, Dialog, EmptyState, ErrorCallout, Loading, useToast } from "../ui/index.tsx";
+import { toneFor } from "../lib/status.ts";
+import type { Actor, InsightReviewState } from "../lib/types.ts";
+import { AgentFace, Avatar, Button, Dialog, EmptyState, ErrorCallout, Loading, StatusBadge, useToast } from "../ui/index.tsx";
 import "../styles/screens/synthesis.css";
+
+export const STATUS_WORD = { draft: "Working draft", published: "Published", archived: "Archived" } as const;
+const REVIEW_WORD: Record<InsightReviewState, string> = { unreviewed: "Unreviewed", reviewed: "Reviewed", changed: "Changed since review" };
+
+/** An insight's review state as a status: the same words wherever an insight is listed. */
+export function ReviewBadge({ state }: { state: InsightReviewState }) {
+  return <StatusBadge tone={toneFor("review", state)}>{REVIEW_WORD[state]}</StatusBadge>;
+}
 
 /** `path` with the current params, some keys set or removed (an empty value removes it). */
 export function searchWith(path: string, params: URLSearchParams, changes: Record<string, string | null | undefined>): string {

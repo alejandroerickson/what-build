@@ -6,7 +6,7 @@ import "./styles/shell.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { createBrowserRouter, Navigate, Outlet, RouterProvider, useRouteError } from "react-router";
+import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, useParams, useRouteError } from "react-router";
 import { ApiError, setUnauthenticatedHandler } from "./lib/api.ts";
 import { ProductProvider, RequireSession } from "./lib/session.tsx";
 import { AccountPage, ConnectPage } from "./routes/connect.tsx";
@@ -64,6 +64,22 @@ function ProductNotFound({ error }: { error: unknown }) {
   );
 }
 
+/**
+ * A product's path typed or pasted without the /t/ prefix (organization/team/product) opens the
+ * product rather than a dead end. A three-part path that starts with t/ is not a product.
+ */
+function BareProductPath() {
+  const { tenant, team, product, "*": rest } = useParams();
+  const { search, hash } = useLocation();
+  if (tenant === "t")
+    return (
+      <PlainShell>
+        <NotFound />
+      </PlainShell>
+    );
+  return <Navigate replace to={`/t/${tenant}/${team}/${product}${rest ? `/${rest}` : ""}${search}${hash}`} />;
+}
+
 const router = createBrowserRouter([
   { path: "/signin", element: <SignIn />, errorElement: <RouteError /> },
   {
@@ -117,6 +133,7 @@ const router = createBrowserRouter([
           { path: "settings", element: <ProductSettingsPage /> },
         ],
       },
+      { path: "/:tenant/:team/:product/*", element: <BareProductPath /> },
       { path: "*", element: <PlainShell><NotFound /></PlainShell> },
     ],
   },

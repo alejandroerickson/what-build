@@ -284,6 +284,20 @@
 .story-view > .callout {
   margin-bottom: var(--s-3);
 }
+.story-frame-wrap {
+  position: relative;
+}
+/* Skeleton lines over the frame until its document arrives, at the page's own inset and measure. */
+.story-frame-status {
+  position: absolute;
+  inset: 1px;
+  padding: var(--s-10) var(--s-6);
+  background: var(--panel);
+  pointer-events: none;
+}
+.story-frame-status .loading {
+  max-width: 68ch;
+}
 .story-frame {
   display: block;
   width: 100%;
