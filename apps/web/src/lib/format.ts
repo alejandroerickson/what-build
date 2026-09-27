@@ -78,3 +78,11 @@ export function attribution(actor: { display_name?: string; surface?: string | n
 export function plural(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`;
 }
+
+/**
+ * A passage's text as a person reads it. Parsers keep a heading's Markdown markers ("## Scope") in
+ * the stored text, which citations quote; the reader shows the heading without them.
+ */
+export function passageText(text: string, headingLevel: number | null | undefined): string {
+  return headingLevel ? text.replace(/^#{1,6}[ \t]+/, "") : text;
+}

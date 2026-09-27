@@ -165,6 +165,28 @@ describe("the discovery loop through REST", () => {
     expect(wrongKind.status).toBe(404);
   });
 
+  it("counts only current assumptions and decisions, as the default lists show them", async () => {
+    const o = await alice.api("POST", `${P}/objectives`, { title: "Know when numbers close" });
+    const cite = [{ record_id: recordId, seq_start: 2, seq_end: 2 }];
+    const a = await alice.api("POST", `${P}/assumptions`, { statement: "Numbers close weekly.", citations: cite, objective_ids: [o.body.objective_id] });
+    const sup = await alice.api("POST", `${P}/assumptions/${a.body.id}/supersede`, {
+      expected_etag: a.body.etag, note: "Sharper.", statement: "Numbers close every Friday.", citations: cite, objective_ids: [o.body.objective_id],
+    });
+    expect(sup.status).toBe(200);
+    const d = await alice.api("POST", `${P}/decisions`, { statement: "Plan around Friday.", citations: cite, objective_ids: [o.body.objective_id] });
+    await alice.api("POST", `${P}/decisions/${d.body.id}/review`, { expected_etag: d.body.etag, status: "refuted", note: "Friday moved." });
+    const objs = await alice.api("GET", `${P}/objectives`);
+    const mine = objs.body.items.find((x: { objective_id: string }) => x.objective_id === o.body.objective_id);
+    expect(mine.counts).toEqual({ insights: 0, assumptions: 1, decisions: 0 });
+    const onObjective = await alice.api("GET", `${P}/assumptions?status=unconfirmed,confirmed&objective_id=${o.body.objective_id}`);
+    expect(onObjective.body.items).toHaveLength(mine.counts.assumptions);
+    const product = await alice.api("GET", P);
+    for (const kind of ["assumptions", "decisions"] as const) {
+      const current = await alice.api("GET", `${P}/${kind}?status=unconfirmed,confirmed&limit=100`);
+      expect(product.body.counts[kind]).toBe(current.body.items.length);
+    }
+  });
+
   it("writes insights with revisions and validated references", async () => {
     const bad = await alice.api("POST", `${P}/insights`, { title: "x", body: "y", refs: { sources: ["01ARZ3NDEKTSV4RRFFQ69G5FAV"] } });
     expect(bad.status).toBe(422);

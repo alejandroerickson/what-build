@@ -65,6 +65,10 @@
   display: flex;
   gap: var(--s-3);
 }
+.source-row.is-archived .list-title {
+  color: var(--muted);
+  font-weight: var(--fw-regular);
+}
 .source-row-count {
   width: 96px;
   text-align: right;

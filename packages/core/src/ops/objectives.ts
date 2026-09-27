@@ -30,7 +30,7 @@ async function withCounts(ctx: OpContext, rows: Row[]) {
   const registerCounts = await sql<{ id: string; kind: string; n: number }>`
     select o.id, r.kind, count(*)::int as n
     from register_entries r, unnest(r.objective_ids) as o(id)
-    where r.product_id = ${productId(ctx)} and r.archived_at is null and o.id = any(${ids})
+    where r.product_id = ${productId(ctx)} and r.archived_at is null and r.status in ('unconfirmed', 'confirmed') and o.id = any(${ids})
     group by o.id, r.kind`.execute(ctx.db);
   return rows.map((r) => ({
     ...r,
@@ -49,7 +49,7 @@ export const listObjectives = defineOperation({
   mutates: false,
   summary: "List the product's objectives in order, with how many insights, assumptions and decisions point at each.",
   description:
-    "Objectives are the short outcomes discovery serves. Read them before writing insights, and link insights to them through refs.objectives. Archived objectives are left out unless status is \"archived\".",
+    "Objectives are the short outcomes discovery serves. Read them before writing insights, and link insights to them through refs.objectives. Archived objectives are left out unless status is \"archived\". Counts cover unarchived insights and current (unconfirmed or confirmed) assumptions and decisions; superseded and refuted entries are not counted.",
   input: z.strictObject({
     status: STATUS.optional().describe("Only this status. Omit for active and achieved."),
     query: z.string().max(500).optional().describe("Case-insensitive substring of title or description."),

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { api, qs } from "../lib/api.ts";
-import { attribution, formatCue, relativeTime } from "../lib/format.ts";
+import { attribution, formatCue, passageText, relativeTime } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import type { Annotation, RecordFull, Segment } from "../lib/types.ts";
@@ -132,7 +132,7 @@ export function PassageReader({ record }: { record: RecordFull }) {
                   <div className="passage-body">
                     <button type="button" className="passage-select" aria-pressed={selected} onClick={(e) => pick(s.seq, e.shiftKey)}>
                       {line ? <span className="passage-who">{line}</span> : null}
-                      <span className="passage-text">{s.text}</span>
+                      <span className="passage-text">{passageText(s.text, s.heading_level)}</span>
                     </button>
                     {comments.length ? (
                       <ul className="passage-comments" aria-label={`Comments on passage ${s.seq}`}>

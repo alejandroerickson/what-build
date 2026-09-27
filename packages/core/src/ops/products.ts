@@ -243,7 +243,7 @@ export const getProduct = defineOperation({
   access: "read",
   mutates: false,
   summary: "Read a product: its idea, etag, your role, and counts of what it holds.",
-  description: "Use the counts to decide where to look first. The etag guards products(action=\"update\").",
+  description: "Use the counts to decide where to look first. They leave out archived items, and assumptions and decisions count only current (unconfirmed or confirmed) entries, not superseded or refuted ones. The etag guards products(action=\"update\").",
   input: z.strictObject({}),
   rest: { method: "GET", path: "" },
   mcp: { tool: "products", action: "get" },
@@ -260,6 +260,7 @@ export const getProduct = defineOperation({
       .select(["kind", (eb) => eb.fn.countAll<number>().as("n")])
       .where("product_id", "=", pid)
       .where("archived_at", "is", null)
+      .where("status", "in", ["unconfirmed", "confirmed"])
       .groupBy("kind")
       .execute();
     return {
