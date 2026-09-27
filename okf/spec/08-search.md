@@ -37,7 +37,8 @@ search {
   score? }`, with each source's metadata sent once in `records`. A hit's `record_id` and `seq` are
   directly usable with `read_passage` and as citations. Snippets are at most 160 characters.
 - Register hits come back as `assumptions` and `decisions` (id, statement, status, citation
-  count); insight hits as `insights` (id, title, summary, status, snippet).
+  count); insight hits as `insights` (id, title, summary, status, `review_state` as in
+  `insights.list`, snippet).
 - Results are bounded and paged as everywhere ([§6.3](06-operations-and-adapters.md)).
 - The response carries a `coverage` object (§8.4).
 - Search is a read, and reads are never blocked by a quota ([§9.2](09-data-lifecycle.md)).

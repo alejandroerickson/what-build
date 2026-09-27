@@ -3,6 +3,7 @@ import { z } from "zod";
 import { normalizeDimensions, normalizeTags, productId } from "../common.ts";
 import { invalid } from "../errors.ts";
 import { describeFolder, kindInfo } from "../kinds.ts";
+import { reviewState } from "./insights.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { id, isoDate, kind, provenanceDepth } from "../schemas.ts";
 import { decodeCursor, encodeCursor } from "../util.ts";
@@ -327,11 +328,11 @@ async function searchInsights(ctx: OpContext, i: Input) {
     i.mode === "substring"
       ? sql`(title ilike ${"%" + i.query + "%"} or summary ilike ${"%" + i.query + "%"} or body ilike ${"%" + i.query + "%"})`
       : sql`tsv @@ ${tsquery(parseRanked(i.query))}`;
-  const res = await sql<{ insight_id: string; title: string; summary: string; status: string; body: string }>`
-    select insight_id, title, summary, status, body from insights
+  const res = await sql<{ insight_id: string; title: string; summary: string; status: string; body: string; revision: number; reviewed_revision: number | null }>`
+    select insight_id, title, summary, status, body, revision, reviewed_revision from insights
     where product_id = ${pid} and ${i.include_archived ? sql`true` : sql`status != 'archived'`} and ${match}
     order by insight_id desc limit ${i.limit}`.execute(ctx.db);
-  return { insights: res.rows.map((r) => ({ id: r.insight_id, title: r.title, summary: r.summary, status: r.status, snippet: snippetAround(r.body, i.mode === "substring" ? i.query : "") })) };
+  return { insights: res.rows.map((r) => ({ id: r.insight_id, title: r.title, summary: r.summary, status: r.status, review_state: reviewState(r), snippet: snippetAround(r.body, i.mode === "substring" ? i.query : "") })) };
 }
 
 export const search = defineOperation({

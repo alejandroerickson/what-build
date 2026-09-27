@@ -161,6 +161,11 @@ describe("the discovery loop through REST", () => {
     expect(sup.body.entry.links).toEqual([expect.objectContaining({ id: a.body.id, type: "supersedes" })]);
     const old = await alice.api("GET", `${P}/assumptions/${a.body.id}`);
     expect(old.body.status).toBe("superseded");
+    // The list names each entry's successors, so history can be shown under its correction.
+    const all = await alice.api("GET", `${P}/assumptions?status=superseded,confirmed,unconfirmed`);
+    const byId = (id: string) => all.body.items.find((x: { id: string }) => x.id === id);
+    expect(byId(a.body.id).superseded_by).toEqual([sup.body.entry.id]);
+    expect(byId(sup.body.entry.id).superseded_by).toEqual([]);
     const wrongKind = await alice.api("GET", `${P}/decisions/${a.body.id}`);
     expect(wrongKind.status).toBe(404);
   });
