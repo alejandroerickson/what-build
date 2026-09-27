@@ -93,6 +93,9 @@ describe("insight review", () => {
     expect(open.body.items.map((x: { insight_id: string }) => x.insight_id)).toEqual([other.body.insight_id]);
     const bad = await alice.api("GET", `${P}/insights?review_state=maybe`);
     expect(bad.status).toBe(422);
+    // Search reports the same review state as the list, so both say the same thing about an insight.
+    const found = await alice.api("GET", `${P}/search?query=Friday&scope=insights&mode=substring`);
+    expect(found.body.insights.find((x: { id: string }) => x.id === id)).toMatchObject({ review_state: "reviewed" });
   });
 
   it("shows an edited insight as changed since review until reviewed again, and clears a review", async () => {

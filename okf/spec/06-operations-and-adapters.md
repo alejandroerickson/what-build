@@ -234,7 +234,9 @@ Notes on recent actions:
   `insights.list` filters by it ([§4.7](04-data-model.md)).
 - `insights.update` and the registers' `update` take `edits` (exact replacements that must match
   once) and return `changed` and a short `diff` ([§4.1](04-data-model.md)). Register lists return
-  `frozen`, `superseded_by`, `link_count` and `linked_from_count`; `objectives.list` returns
+  `frozen`, `superseded_by` (the ids of the entries whose `supersedes` link points at the entry, newest
+  first, so a list can show history under its correction without a `get` per entry),
+  `link_count` and `linked_from_count`; `objectives.list` returns
   `archived_hidden` ([§4.2](04-data-model.md), [§4.8](04-data-model.md)).
 - `story.publish` takes `citations` (up to 20 exact passages, snapshotted as in the registers)
   beside `refs`; `story.check_citations` checks a version's citations. A later version keeps the

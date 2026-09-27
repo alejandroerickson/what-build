@@ -80,6 +80,7 @@ async function detail(ctx: OpContext, row: Row) {
     .select(["entry_id", "kind", "statement", "status", "links"])
     .where("product_id", "=", productId(ctx))
     .where(sql<boolean>`links @> ${JSON.stringify([{ id: row.entry_id }])}::jsonb`)
+    .orderBy("entry_id", "desc")
     .execute();
   const archivedObjectives = await archivedObjectiveIds(ctx, row.objective_ids);
   return {
@@ -118,7 +119,7 @@ async function incomingLinks(ctx: OpContext, ids: string[]) {
     select l->>'id' as target, l->>'type' as type, e.entry_id as source
     from register_entries e, jsonb_array_elements(e.links) as l
     where e.product_id = ${productId(ctx)} and l->>'id' = any(${ids})
-    order by e.entry_id`.execute(ctx.db);
+    order by e.entry_id desc`.execute(ctx.db);
   for (const r of rows.rows) {
     const o = out.get(r.target)!;
     o.linked_from++;
@@ -187,7 +188,7 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
     access: "read",
     mutates: false,
     summary: `List ${kind}s, newest first, without quotes or review notes.`,
-    description: `${meaning} Filter by review status (one or more of unconfirmed, confirmed, refuted, superseded), a cited source, an objective, a tag, human confidence or dimensions. Archived entries are left out unless include_archived. Each item says whether it is frozen (reviewed, so its statement, body and citations can no longer be edited), which entries supersede it (superseded_by), and how many links it has out (link_count) and in (linked_from_count); get returns the links themselves.`,
+    description: `${meaning} Filter by review status (one or more of unconfirmed, confirmed, refuted, superseded), a cited source, an objective, a tag, human confidence or dimensions. Archived entries are left out unless include_archived. Each item says whether it is frozen (reviewed, so its statement, body and citations can no longer be edited), which entries supersede it (superseded_by, newest first), and how many links it has out (link_count) and in (linked_from_count); get returns the links themselves.`,
     input: z.strictObject({
       status: z.array(STATUS).max(4).optional(),
       record_id: id("source").optional(),
