@@ -2,9 +2,11 @@ import { sql, type Selectable } from "kysely";
 import { z } from "zod";
 import { checkEtag, EMPTY_REFS, keepRevision, productId, recordActivity, tenantId, validateRefs } from "../common.ts";
 import { json, type InsightsTable, type Refs } from "../db.ts";
-import { notFound } from "../errors.ts";
+import { invalid, notFound } from "../errors.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag, id } from "../schemas.ts";
+import { applyEdits, editsInput, textDiff, wordCount } from "../text-edits.ts";
+import { archivedObjectiveIds } from "./objectives.ts";
 import { newEtag, newId } from "../util.ts";
 
 export const BODY_MAX = 100_000;
@@ -23,6 +25,8 @@ const refsInput = z
   .describe("Structural references, each validated to exist in this product. They do not establish agreement and do not replace citations.");
 
 type Row = Selectable<InsightsTable>;
+
+const insightId = id("insight").describe("The insight id. id is accepted as another name for it.");
 
 async function load(ctx: OpContext, insightId: string, lock = false): Promise<Row> {
   let q = ctx.db.selectFrom("insights").selectAll().where("insight_id", "=", insightId).where("product_id", "=", productId(ctx));
@@ -52,12 +56,22 @@ function summaryOf(r: Row) {
     reviewed_at: r.reviewed_at,
     reviewed_by: r.reviewed_by,
     body_chars: r.body.length,
+    body_words: wordCount(r.body),
     etag: r.etag,
     created_at: r.created_at,
     created_by: r.created_by,
     updated_at: r.updated_at,
     updated_by: r.updated_by,
   };
+}
+
+async function summaries(ctx: OpContext, rows: Row[]) {
+  const archived = await archivedObjectiveIds(ctx, rows.flatMap((r) => r.refs.objectives ?? []));
+  return rows.map((r) => ({ ...summaryOf(r), archived_objective_ids: (r.refs.objectives ?? []).filter((o) => archived.has(o)) }));
+}
+
+async function summary(ctx: OpContext, r: Row) {
+  return (await summaries(ctx, [r]))[0]!;
 }
 
 export const listInsights = defineOperation({
@@ -98,7 +112,7 @@ export const listInsights = defineOperation({
     }
     if (input.cursor) q = q.where("insight_id", "<", input.cursor);
     const rows = await q.orderBy("insight_id", "desc").limit(input.limit + 1).execute();
-    const items = rows.slice(0, input.limit).map(summaryOf);
+    const items = await summaries(ctx, rows.slice(0, input.limit));
     return { items, next_cursor: rows.length > input.limit ? items[items.length - 1]!.insight_id : null };
   },
 });
@@ -109,14 +123,14 @@ export const getInsight = defineOperation({
   access: "read",
   mutates: false,
   summary: "Read an insight, with its body in a bounded window.",
-  description: `The body comes back in a window (offset and limit, default 20,000 characters, at most ${BODY_MAX}) with truncated and body_chars; page through long bodies. The etag guards update.`,
-  input: z.strictObject({ insight_id: id("insight"), offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(BODY_MAX).default(20_000) }),
+  description: `The body comes back in a window (offset and limit, default 20,000 characters, at most ${BODY_MAX}) with truncated, body_chars and body_words (the whole body's length in characters and in words); page through long bodies. archived_objective_ids lists referenced objectives that are archived. The etag guards update.`,
+  input: z.strictObject({ insight_id: insightId, offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(BODY_MAX).default(20_000) }),
   rest: { method: "GET", path: "/insights/:insight_id" },
   mcp: { tool: "insights", action: "get" },
   async handler(ctx, input) {
     const r = await load(ctx, input.insight_id);
     const body = r.body.slice(input.offset, input.offset + input.limit);
-    return { ...summaryOf(r), body, offset: input.offset, truncated: input.offset + input.limit < r.body.length };
+    return { ...(await summary(ctx, r)), body, offset: input.offset, truncated: input.offset + input.limit < r.body.length };
   },
 });
 
@@ -148,7 +162,7 @@ export const createInsight = defineOperation({
       })
       .execute();
     await recordActivity(ctx, { action: "created", entity_type: "insight", entity_id: insight_id, entity_title: input.title, summary: `Wrote a ${input.status === "draft" ? "draft" : "published"} insight` });
-    return { ...summaryOf(await load(ctx, insight_id)), body: input.body };
+    return { ...(await summary(ctx, await load(ctx, insight_id))), body: input.body };
   },
 });
 
@@ -159,14 +173,15 @@ export const updateInsight = defineOperation({
   mutates: true,
   summary: "Revise an insight: text, status (publish, unpublish, archive) or references. Pass only what changes.",
   description:
-    "Requires expected_etag. Fields you omit keep their values; a refs group you pass replaces that group only. Any change to title, summary or body keeps the previous text as a revision, so nothing is lost to an overwrite.",
+    "Requires expected_etag. Fields you omit keep their values; a refs group you pass replaces that group only. For a small correction, pass edits (exact replacements that must each match once) instead of re-sending the whole body. Any change to title, summary or body keeps the previous text as a revision, so nothing is lost to an overwrite. The result lists changed fields and a short diff of each changed text; check it.",
   input: z.strictObject({
-    insight_id: id("insight"),
+    insight_id: insightId,
     expected_etag: expectedEtag,
     title: z.string().trim().min(1).max(200).optional(),
     summary: z.string().max(1000).optional(),
     body: z.string().min(1).max(BODY_MAX).optional(),
     status: STATUS.optional(),
+    edits: editsInput(["body", "summary", "title"] as const, "body").optional(),
     refs: refsInput.optional(),
   }),
   rest: { method: "PATCH", path: "/insights/:insight_id" },
@@ -175,7 +190,15 @@ export const updateInsight = defineOperation({
     const r = await load(ctx, input.insight_id, true);
     checkEtag(input.expected_etag, r.etag, "insight");
     const refs: Refs = input.refs ? await validateRefs(ctx, { ...r.refs, ...input.refs }, r.insight_id) : r.refs;
-    const textChanged = (["title", "summary", "body"] as const).filter((k) => input[k] !== undefined && input[k] !== r[k]);
+    const next = { title: input.title ?? r.title, summary: input.summary ?? r.summary, body: input.body ?? r.body };
+    if (input.edits) {
+      Object.assign(next, applyEdits(next, input.edits, input));
+      next.title = next.title.trim();
+      if (!next.title || next.title.length > 200) throw invalid("invalid_input", "After the edits the title would be empty or longer than 200 characters. Nothing was changed.");
+      if (next.summary.length > 1000) throw invalid("invalid_input", "After the edits the summary would be longer than 1,000 characters. Nothing was changed.");
+      if (!next.body || next.body.length > BODY_MAX) throw invalid("invalid_input", `After the edits the body would be empty or longer than ${BODY_MAX} characters. Nothing was changed.`);
+    }
+    const textChanged = (["title", "summary", "body"] as const).filter((k) => next[k] !== r[k]);
     let revision = r.revision;
     if (textChanged.length) {
       await keepRevision(ctx, "insight", r.insight_id, { title: r.title, summary: r.summary, body: r.body, revision: r.revision }, r.updated_at, r.updated_by);
@@ -183,13 +206,13 @@ export const updateInsight = defineOperation({
     }
     const refsChanged = JSON.stringify(refs) !== JSON.stringify(r.refs);
     const statusChanged = input.status !== undefined && input.status !== r.status;
-    if (!textChanged.length && !refsChanged && !statusChanged) return { ...summaryOf(r), changed: [] };
+    if (!textChanged.length && !refsChanged && !statusChanged) return { ...(await summary(ctx, r)), changed: [], diff: [] };
     await ctx.db
       .updateTable("insights")
       .set({
-        title: input.title ?? r.title,
-        summary: input.summary ?? r.summary,
-        body: input.body ?? r.body,
+        title: next.title,
+        summary: next.summary,
+        body: next.body,
         status: input.status ?? r.status,
         refs: json(refs),
         revision,
@@ -207,10 +230,11 @@ export const updateInsight = defineOperation({
       action,
       entity_type: "insight",
       entity_id: r.insight_id,
-      entity_title: input.title ?? r.title,
+      entity_title: next.title,
       summary: statusChanged ? `Changed status from ${r.status} to ${input.status}` : `Changed ${changed.join(", ")}${textChanged.length ? ` (revision ${revision})` : ""}`,
     });
-    return { ...summaryOf(await load(ctx, r.insight_id)), changed };
+    const diff = textChanged.map((k) => textDiff(k, r[k], next[k])!);
+    return { ...(await summary(ctx, await load(ctx, r.insight_id))), changed, diff };
   },
 });
 
@@ -222,14 +246,14 @@ export const reviewInsight = defineOperation({
   summary: "Mark an insight reviewed by a person, or clear the mark. An edit afterwards shows it as changed since review.",
   description:
     "Records that a person read this revision and stands by it; it is not a vote on truth. reviewed true marks the current revision, false clears the mark. An agent may call this only to relay a review the person made in the conversation — never on its own judgment. Requires expected_etag; the mark does not change the text or its revision.",
-  input: z.strictObject({ insight_id: id("insight"), reviewed: z.boolean(), expected_etag: expectedEtag }),
+  input: z.strictObject({ insight_id: insightId, reviewed: z.boolean(), expected_etag: expectedEtag }),
   rest: { method: "POST", path: "/insights/:insight_id/review" },
   mcp: { tool: "insights", action: "review" },
   async handler(ctx, input) {
     const r = await load(ctx, input.insight_id, true);
     checkEtag(input.expected_etag, r.etag, "insight");
     const state = reviewState(r);
-    if (input.reviewed ? state === "reviewed" && r.reviewed_by?.account_id === ctx.actor.account_id : state === "unreviewed") return summaryOf(r);
+    if (input.reviewed ? state === "reviewed" && r.reviewed_by?.account_id === ctx.actor.account_id : state === "unreviewed") return summary(ctx, r);
     await ctx.db
       .updateTable("insights")
       .set(
@@ -246,7 +270,7 @@ export const reviewInsight = defineOperation({
       entity_title: r.title,
       summary: input.reviewed ? `Marked revision ${r.revision} reviewed` : "Cleared the review mark",
     });
-    return summaryOf(await load(ctx, r.insight_id));
+    return summary(ctx, await load(ctx, r.insight_id));
   },
 });
 

@@ -66,6 +66,18 @@ exported; operations to read them are planned.
 is explaining a retention rule to someone who just lost a paragraph to a well-meaning agent. They
 are excluded from search and included in exports.
 
+**Small edits and diffs.** `insights.update` and the registers' `update` take `edits`: up to 20
+exact replacements `{ field?, old_text, new_text }`, applied in order, so a one-phrase correction
+does not mean re-sending a long body ([`text-edits.ts`](../../packages/core/src/text-edits.ts)).
+`field` is `body` by default, or `title` or `summary` on an insight and `statement` on an entry.
+Each `old_text` must occur exactly once in its field at that point: no match is
+`422 edit_not_found`, more than one is `422 edit_ambiguous` (with the count), and editing a field
+the same call replaces whole is `422 invalid_input`. Any refusal changes nothing. Both updates
+return `changed` (the fields that changed) and `diff`: per changed text field, one hunk
+`{ field, at, before, removed, added, after }` from the first to the last difference, with 40
+characters of unchanged context each side and the changed parts clipped at 300 characters, so a
+slip in a re-sent text shows up in the result.
+
 ## 4.2 Objectives
 
 | Field | Rule |
@@ -81,6 +93,12 @@ references. Reads return counts of the insights, assumptions and decisions that 
 unarchived insights, and current (`unconfirmed` or `confirmed`) register entries. Superseded and
 refuted entries are not counted, so a count matches the register's default view. `products.get`
 counts assumptions and decisions the same way.
+
+`objectives.list` leaves archived objectives out unless asked for `status: "archived"`, and says
+how many it left out: `archived_hidden` (the count, honouring `query`) and, when it is not zero, a
+`note`. An archived objective can still be referenced. Insights (`refs.objectives`) and register
+entries (`objective_ids`) return `archived_objective_ids`: the referenced objectives that are
+archived, so a link to one is visible rather than accidental.
 
 ## 4.3 Sources
 
@@ -210,7 +228,8 @@ labelled so.
 | `revision` | Integer, starts at 1, increments on every change to title, summary or body. |
 | `refs` | `{ objectives[] ≤ 50, sources[] ≤ 100, insights[] ≤ 100, assumptions[] ≤ 100, decisions[] ≤ 100 }`, same product, validated to exist (`422 unknown_reference`, `422 cross_product_reference`). |
 
-- Lists return everything except `body` (with `body_chars`). `get` returns the body in bounded
+- Lists return everything except `body` (with `body_chars` and `body_words`, a count of runs of
+  letters and digits that ignores Markdown punctuation). `get` returns the body in bounded
   windows (`offset`, `limit` default 20,000 and at most 100,000 chars) with a `truncated` flag;
   the UI pages through.
 - The **per-source view** (`sources.insights_for`) for a source is: insights whose `refs.sources`
@@ -247,8 +266,9 @@ on truth, and it does not change the text or the revision.
 ## 4.8 The registers
 
 Two registers, **assumptions** and **decisions**, with the same shape and separate tools and lists.
-Both are stored in one table with a `kind`; an entry's id is `id`, and a call on the wrong register
-is `404`.
+Both are stored in one table with a `kind`; an entry's id is `id` (the tools also accept
+`assumption_id` or `decision_id`, [§6.5](06-operations-and-adapters.md)), and a call on the wrong
+register is `404`.
 
 | Field | Rule |
 |---|---|
@@ -257,12 +277,16 @@ is `404`.
 | `body` | Markdown, 0–10,000 chars: reasoning, stakes, alternatives considered. |
 | `citations` | 1–20 (below). |
 | `objective_ids` | ≤ 20 objective ids. |
-| `links` | ≤ 50 of `{ id, type }` to entries in **either** register; `type` is `supports`, `contradicts`, or `supersedes`. Reads also return `linked_from`. |
+| `links` | ≤ 50 of `{ id, type }` to entries in **either** register; `type` is `supports`, `contradicts`, or `supersedes`. Reads also return `linked_from` and `superseded_by` (the ids of entries that supersede this one). |
 | `tags`, `dimensions`, `provenance_depth` | As sources. |
 | `author`, `author_type` | Actor snapshot, and a declared `human` or `agent` ([§3.9](03-accounts-teams-and-identity.md)). |
 | `status` | `unconfirmed` (initial), `confirmed`, `refuted`, `superseded`: always the status of the latest review. |
 | `reviews` | Append-only, at most 500 per entry. |
 | `frozen` | Derived: true once the entry has a review. |
+
+List items carry the entry's state without a `get` per entry: `status`, `frozen`,
+`superseded_by`, `link_count` (links out), `linked_from_count` (links in), `review_count`,
+`human_review` and `archived_objective_ids`. The list filters by one or more statuses.
 
 ### Citations
 
@@ -337,7 +361,9 @@ down, not a copy of the source ([§9.5](09-data-lifecycle.md)).
 ### Corrections and links
 
 - ◆ Decision: `statement`, `body`, and `citations` are editable only while the entry has no
-  review. After the first review they are frozen (`409 frozen`): a correction is a **new entry**
+  review. After the first review — any review, by a person or an agent, with any status, including
+  one that leaves it `unconfirmed` — they are frozen (`409 frozen`); the `review` guidance says
+  so: a correction is a **new entry**
   created with `supersede`, which links `supersedes` → the old entry and records a `superseded`
   review on the old entry in the same atomic operation. `tags`, `objective_ids`, and `links` stay
   editable.
