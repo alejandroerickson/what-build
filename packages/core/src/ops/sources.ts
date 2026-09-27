@@ -549,7 +549,7 @@ export const annotate = defineOperation({
   mutates: true,
   summary: "Attach a note to a source, optionally to an exact segment range.",
   description:
-    "Use notes for a single-source observation; use an insight for anything across sources. A segment range is inclusive, at most 50 segments, within the source's current derivation; the note keeps an anchor (text and hash) so it can be re-located after a re-parse.",
+    "Use notes for a single-source observation; use an insight for anything across sources. A segment range is inclusive, at most 50 segments, within the source's current derivation; the note keeps an anchor (the range, its offsets and derivation, and its text with the speaker's name at each change of turn) so it can be re-located after a re-parse.",
   input: z.strictObject({
     record_id: id("source"),
     note: z.string().trim().min(1).max(2000).describe("Markdown, up to 2,000 characters."),
@@ -568,7 +568,7 @@ export const annotate = defineOperation({
       if (input.seq_end - input.seq_start + 1 > 50) throw invalid("window_too_large", "A note covers at most 50 segments.");
       const segs = await ctx.db
         .selectFrom("segments")
-        .select(["seq", "text", "char_start", "char_end", "derivation_id"])
+        .select(["seq", "text", "speaker", "char_start", "char_end", "derivation_id"])
         .where("record_id", "=", r.record_id)
         .where("is_current", "=", true)
         .where("seq", ">=", input.seq_start)
@@ -577,7 +577,8 @@ export const annotate = defineOperation({
         .execute();
       if (segs.length !== input.seq_end - input.seq_start + 1)
         throw invalid("out_of_range", "That segment range does not exist in full in the source's current passages.");
-      const text = segs.map((s) => s.text).join("\n\n");
+      // Each change of speaker opens with the speaker's name, so a note across turns keeps who said what.
+      const text = segs.map((s, i) => (s.speaker && s.speaker !== segs[i - 1]?.speaker ? `${s.speaker}: ${s.text}` : s.text)).join("\n\n");
       anchor = {
         seq_start: input.seq_start,
         seq_end: input.seq_end,

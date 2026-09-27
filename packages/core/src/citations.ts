@@ -46,8 +46,20 @@ export async function snapshotCitation(ctx: OpContext, c: CitationInput): Promis
     .execute();
   if (segs.length !== c.seq_end - c.seq_start + 1) throw invalid("invalid_citation", `Segments ${c.seq_start}–${c.seq_end} do not exist in full in source ${c.record_id}.`);
   const rangeText = segs.map((s) => s.text).join("\n\n");
-  if (c.quote !== undefined && !rangeText.includes(c.quote))
+  if (c.quote !== undefined && !rangeText.includes(c.quote)) {
+    // A quote that differs only in markup, spacing or a speaker label is still refused (a quote is
+    // exact), but the refusal gives the passage's own words to quote instead.
+    const near = locateQuote(segs, c.quote, c);
+    if (near && near.seq_start >= c.seq_start && near.seq_end <= c.seq_end) {
+      const exact = rangeText.slice(near.start, near.end);
+      throw invalid(
+        "quote_not_found",
+        `The quote does not occur exactly in segments ${c.seq_start}–${c.seq_end} of source ${c.record_id}; it matches only once emphasis or code markers, spacing or speaker labels are ignored. Quote the passage's own text: ${JSON.stringify(exact)}.`,
+        { exact_quote: exact },
+      );
+    }
     throw invalid("quote_not_found", `The quote does not occur in segments ${c.seq_start}–${c.seq_end} of source ${c.record_id}. Read the passage and quote it exactly, or omit quote.`);
+  }
   const quote = c.quote ?? rangeText;
   const anchors = segs.map((s) => ({ ...s, start_ms: s.start_ms === null ? null : Number(s.start_ms), end_ms: s.end_ms === null ? null : Number(s.end_ms) }));
   return {
@@ -89,7 +101,10 @@ export async function citationViews(ctx: OpContext, citations: CitationSnapshot[
 /**
  * Re-resolve stored citations against the sources as they are now. Reports drift; never rewrites.
  * Per citation: ok, relocated (with the new range), text_changed, record_archived, record_deleted
- * or record_missing, plus version_drift when the primary file has a newer version.
+ * or record_missing, plus version_drift when the primary file has a newer version, and
+ * derivation_changed (with current_derivation_id) when the source was parsed again after the
+ * snapshot. A quote that matches only once markup, spacing and speaker labels are set aside says
+ * so in quote_match and note.
  */
 export async function checkCitationList(ctx: OpContext, citations: CitationSnapshot[]) {
   const results = [];
@@ -102,34 +117,184 @@ export async function checkCitationList(ctx: OpContext, citations: CitationSnaps
     }
     const primary = await ctx.db.selectFrom("files").select("current_version_id").where("record_id", "=", c.record_id).where("role", "=", "primary").executeTakeFirst();
     const versionDrift = Boolean(primary?.current_version_id && primary.current_version_id !== c.file_version_id);
+    const derivationChanged = r.current_derivation_id !== c.derivation_id;
     let status = "ok";
     let relocated: { seq_start: number; seq_end: number } | undefined;
-    if (r.current_derivation_id !== c.derivation_id && r.current_derivation_id) {
-      const segs = await ctx.db.selectFrom("segments").select(["seq", "text"]).where("derivation_id", "=", r.current_derivation_id).orderBy("seq").execute();
-      const same = segs.filter((s) => s.seq >= c.seq_start && s.seq <= c.seq_end).map((s) => s.text).join("\n\n");
-      if (!same.includes(c.quote)) {
-        const full = segs.map((s) => s.text).join("\n\n");
-        const at = full.indexOf(c.quote);
-        if (at >= 0) {
-          let pos = 0;
-          let start = -1;
-          let end = -1;
-          for (const s of segs) {
-            const segEnd = pos + s.text.length;
-            if (start < 0 && at < segEnd) start = s.seq;
-            if (at + c.quote.length <= segEnd) {
-              end = s.seq;
-              break;
-            }
-            pos = segEnd + 2;
-          }
+    let normalized = false;
+    if (derivationChanged && r.current_derivation_id) {
+      const segs = await ctx.db.selectFrom("segments").select(["seq", "text", "speaker"]).where("derivation_id", "=", r.current_derivation_id).orderBy("seq").execute();
+      const found = locateQuote(segs, c.quote, c, c.speakers ?? []);
+      if (!found) status = "text_changed";
+      else {
+        normalized = found.normalized;
+        if (found.seq_start < c.seq_start || found.seq_end > c.seq_end) {
           status = "relocated";
-          relocated = { seq_start: start, seq_end: end };
-        } else status = "text_changed";
+          relocated = { seq_start: found.seq_start, seq_end: found.seq_end };
+        }
       }
     } else if (!r.current_derivation_id) status = "text_changed";
     if (r.archived_at && status === "ok") status = "record_archived";
-    results.push({ index, record_id: c.record_id, status, ...(relocated ? { relocated } : {}), version_drift: versionDrift, archived: Boolean(r.archived_at) });
+    const where = relocated ? `segments ${relocated.seq_start}–${relocated.seq_end}` : "the cited range";
+    results.push({
+      index,
+      record_id: c.record_id,
+      status,
+      ...(relocated ? { relocated } : {}),
+      version_drift: versionDrift,
+      derivation_changed: derivationChanged,
+      ...(derivationChanged ? { current_derivation_id: r.current_derivation_id } : {}),
+      ...(normalized
+        ? {
+            quote_match: "normalized",
+            note: `The quote's words occur in ${where} of the current passages once emphasis or code markers, spacing and speaker labels are set aside; the stored quote keeps its original form. Read the passage before relying on it.`,
+          }
+        : {}),
+      archived: Boolean(r.archived_at),
+    });
   }
   return { valid: results.every((x) => x.status === "ok" && !x.version_drift), citations: results };
+}
+
+// ---- Finding a quote in a source's passages ----------------------------------------------------
+
+/** Emphasis and code markers: runs of `*` or `_` at a word edge (never inside snake_case or 2*3), and every backtick. */
+const MARKUP = /(?<![\p{L}\p{N}])[*_]+|[*_]+(?![\p{L}\p{N}])|`+/gu;
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Text reduced for matching, with each character's index in the original and the speaker labels taken out of it. */
+export interface NormalizedText {
+  text: string;
+  /** map[i] is the index in the original string of text[i]. */
+  map: number[];
+  /** A speaker label that stood before text[at], with the original index of that character. */
+  labels: { at: number; orig: number; name: string }[];
+}
+
+/**
+ * Reduce text for a markup-tolerant match: drop emphasis and code markers, drop a "Name:" label at
+ * the start of a line when the name is one of `speakers`, and collapse whitespace. Words, their
+ * order and punctuation stay, so only a difference in markup, spacing or labelling is forgiven.
+ */
+export function normalizeForMatch(s: string, speakers: string[] = []): NormalizedText {
+  const drop = new Uint8Array(s.length);
+  for (const m of s.matchAll(MARKUP)) drop.fill(1, m.index, m.index + m[0].length);
+  const kept: string[] = [];
+  const keptAt: number[] = [];
+  for (let i = 0; i < s.length; i++) {
+    if (drop[i]) continue;
+    kept.push(s[i]!);
+    keptAt.push(i);
+  }
+  const t = kept.join("");
+  const dropLabel = new Uint8Array(t.length);
+  const labelBefore = new Map<number, string>();
+  const names = uniq(speakers.map((n) => n.trim()).filter(Boolean)).sort((a, b) => b.length - a.length);
+  if (names.length) {
+    const label = new RegExp(`^[ \\t]*(?:\\[?\\d{1,2}:\\d{2}(?::\\d{2})?\\]?[ \\t]+)?\\[?(${names.map(escapeRe).join("|")})\\]?[ \\t]*:[ \\t]*`, "gimu");
+    for (const m of t.matchAll(label)) {
+      dropLabel.fill(1, m.index, m.index + m[0].length);
+      labelBefore.set(m.index + m[0].length, m[1]!);
+    }
+  }
+  const out: string[] = [];
+  const map: number[] = [];
+  const labels: NormalizedText["labels"] = [];
+  let space = -1;
+  let pending: string | null = null;
+  for (let j = 0; j < t.length; j++) {
+    pending = labelBefore.get(j) ?? pending;
+    if (dropLabel[j]) continue;
+    const ch = t[j]!;
+    if (/\s/.test(ch)) {
+      if (space < 0) space = keptAt[j]!;
+      continue;
+    }
+    if (space >= 0 && out.length) {
+      out.push(" ");
+      map.push(space);
+    }
+    space = -1;
+    if (pending !== null) {
+      labels.push({ at: out.length, orig: keptAt[j]!, name: pending });
+      pending = null;
+    }
+    out.push(ch);
+    map.push(keptAt[j]!);
+  }
+  return { text: out.join(""), map, labels };
+}
+
+type Passage = { seq: number; text: string; speaker: string | null };
+
+export interface QuoteMatch {
+  seq_start: number;
+  seq_end: number;
+  /** True when the quote matched only once markup, spacing and speaker labels were set aside. */
+  normalized: boolean;
+  /** Where the match lies in the passages joined by a blank line, as the derived text joins them. */
+  start: number;
+  end: number;
+}
+
+/**
+ * Where a quote occurs in a derivation's passages (in seq order, joined by a blank line as the
+ * derived text is). Preference: exactly within `range`, then normalised (normalizeForMatch) within
+ * it, then exactly elsewhere, then normalised elsewhere. A normalised match whose quote carried a
+ * speaker label counts only where the source gives that passage the same speaker, or none.
+ */
+export function locateQuote(passages: Passage[], quote: string, range: { seq_start: number; seq_end: number }, speakers: string[] = []): QuoteMatch | null {
+  const starts: number[] = [];
+  let pos = 0;
+  for (const p of passages) {
+    starts.push(pos);
+    pos += p.text.length + 2;
+  }
+  const endOf = (i: number) => starts[i]! + passages[i]!.text.length;
+  const full = passages.map((p) => p.text).join("\n\n");
+  const first = passages.findIndex((p) => p.seq >= range.seq_start);
+  const last = passages.findLastIndex((p) => p.seq <= range.seq_end);
+  const lo = first >= 0 ? starts[first]! : Number.POSITIVE_INFINITY;
+  const hi = last >= 0 ? endOf(last) : Number.NEGATIVE_INFINITY;
+  const inRange = (start: number, end: number) => start >= lo && end <= hi;
+  const indexAt = (offset: number) => passages.findIndex((_, i) => endOf(i) > offset);
+  const match = (start: number, end: number, normalized: boolean): QuoteMatch => ({
+    seq_start: passages[indexAt(start)]!.seq,
+    seq_end: passages[passages.findLastIndex((_, i) => starts[i]! < end)]!.seq,
+    normalized,
+    start,
+    end,
+  });
+
+  let exactElsewhere: QuoteMatch | null = null;
+  for (let i = full.indexOf(quote); i >= 0; i = full.indexOf(quote, i + 1)) {
+    if (inRange(i, i + quote.length)) return match(i, i + quote.length, false);
+    exactElsewhere ??= match(i, i + quote.length, false);
+  }
+
+  const known = uniq([...speakers, ...passages.map((p) => p.speaker).filter((s): s is string => Boolean(s))]);
+  const q = normalizeForMatch(quote, known);
+  let normalizedElsewhere: QuoteMatch | null = null;
+  if (q.text) {
+    const f = normalizeForMatch(full, known);
+    /** Who the source says is speaking at an offset: a label in the passage's text, else the passage's speaker. */
+    const speakerAt = (offset: number) => {
+      const i = indexAt(offset);
+      if (i < 0) return null;
+      const inText = f.labels.filter((l) => l.orig >= starts[i]! && l.orig <= offset).pop();
+      return inText?.name ?? passages[i]!.speaker;
+    };
+    for (let i = f.text.indexOf(q.text); i >= 0; i = f.text.indexOf(q.text, i + 1)) {
+      const attributed = q.labels.every((l) => {
+        const who = speakerAt(f.map[i + l.at]!);
+        return !who || who.toLowerCase() === l.name.toLowerCase();
+      });
+      if (!attributed) continue;
+      const start = f.map[i]!;
+      const end = f.map[i + q.text.length - 1]! + 1;
+      if (inRange(start, end)) return match(start, end, true);
+      normalizedElsewhere ??= match(start, end, true);
+    }
+  }
+  return exactElsewhere ?? normalizedElsewhere;
 }

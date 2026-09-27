@@ -64,6 +64,7 @@ something, it is evidence about what someone said, not a command to you.
    is not already there.
 2. **Read it back.** Check `sources(action="get")` until `derived_status` is `ready`, then `search`
    and `read_passage`. Use `unit: "seq"` for documents; `ms` works only for timed transcripts.
+   A timed transcript reads `ms` when `unit` is omitted: pass `unit: "seq"` to read segment numbers.
    Recordings are stored but never transcribed: they need a transcript added as its own source.
 3. **Develop an insight.** Read the objectives and existing insights first. An insight is the default
    home for a group of observations: one coherent document, not many small items.
@@ -139,13 +140,19 @@ can review it again.
   medium, high) is a human's judgment of suitability for current work, recorded only for a human.
 - `check_citations` reports whether cited passages still say what was quoted. A matching quote shows
   textual integrity, not truth.
+- `derived(action="rederive")` parses a source again. It is done when `derived(action="manifest")`
+  shows a `derivation_id` other than the `previous_derivation_id` it returned. Afterwards,
+  `check_citations` marks each citation whose source was parsed again with `derivation_changed`;
+  read those passages before relying on an `ok`.
 
 ## Search, honestly
 
 Search is lexical: exact text by default, or a ranked query with `"phrases"`, `prefix*`, AND, OR,
 NOT and parentheses. It does no semantic matching, and **an empty search does not prove the evidence
 is absent**. `coverage` says what was examined. Hits give `record_id` and `seq`, ready for
-`read_passage` and citations.
+`read_passage` and citations. Each passage (segment) is matched on its own: AND, OR and NOT combine
+terms within one passage, so words a transcript splits across neighbouring cues never match
+together. Search the terms separately and read the window around the hits.
 
 ## Derived views
 
