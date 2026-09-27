@@ -31,10 +31,14 @@ function columnLetter(i: number): string {
   return s;
 }
 
+/** What a labelled row shows for a header column it leaves empty, so a blank reads as data. */
+export const BLANK_CELL = "(blank)";
+
 /**
  * One block per row, shared by XLSX and CSV. The first all-text row with two or more cells in the
- * top 20 is the header; later rows render `label: value` pairs. `budget` caps the characters across
- * every sheet of one file.
+ * top 20 is the header; later rows render `label: value` pairs in column order, and a header column
+ * the row leaves empty renders `label: (blank)`. `budget` caps the characters across every sheet of
+ * one file.
  */
 export function sheetRowBlocks(table: SheetRow[], prefix: (n: number) => string, budget: { chars: number }): { blocks: Block[]; truncated: boolean } {
   const headerRow = table.slice(0, 20).find((r) => r.cells.length >= 2 && r.cells.every((c) => c.isText));
@@ -44,9 +48,13 @@ export function sheetRowBlocks(table: SheetRow[], prefix: (n: number) => string,
   for (const r of table) {
     let text: string;
     if (r === headerRow) text = r.cells.map((c) => c.value).join(" | ");
-    else if (headerRow && r.n > headerRow.n && !(r.cells.length === 1 && !header.has(r.cells[0]!.col)))
-      text = r.cells.map((c) => `${header.get(c.col) ?? columnLetter(c.col)}: ${c.value}`).join(" | ");
-    else text = r.cells.map((c) => c.value).join(" | ");
+    else if (headerRow && r.n > headerRow.n && !(r.cells.length === 1 && !header.has(r.cells[0]!.col))) {
+      const values = new Map(r.cells.map((c) => [c.col, c.value]));
+      // Blanks only in a row that fills some header column; cells off to the side stay as they are.
+      const blanks = r.cells.some((c) => header.has(c.col)) ? header.keys() : [];
+      const cols = [...new Set([...blanks, ...values.keys()])].sort((a, b) => a - b);
+      text = cols.map((col) => `${header.get(col) ?? columnLetter(col)}: ${values.get(col) ?? BLANK_CELL}`).join(" | ");
+    } else text = r.cells.map((c) => c.value).join(" | ");
     const line = prefix(r.n) + text;
     budget.chars += line.length;
     if (budget.chars > MAX_CHARS) return { blocks, truncated: true };
@@ -150,7 +158,7 @@ function cellDateFormats(stylesXml: Uint8Array | undefined): (DateFormat | undef
  */
 export const xlsxParser: FormatParser = {
   name: "xlsx",
-  version: "2",
+  version: "3",
   parse(bytes) {
     const files = unzipSync(bytes, {
       filter: (f) =>

@@ -1,4 +1,4 @@
-import { derive, sliceCodePoints, type ParseResult } from "@whatbuild/parsers";
+import { derive, isRecording, recordingDurationMs, sliceCodePoints, type ByteReader, type ParseResult } from "@whatbuild/parsers";
 import { sql } from "kysely";
 import { z } from "zod";
 import { recordActivity, tenantId } from "../common.ts";
@@ -292,6 +292,23 @@ export const derivedOps = [manifest, outline, text, listDerivations, rederive, w
 
 // ---- The derivation job -------------------------------------------------------------------------
 
+/** Reads byte ranges of a stored blob (end exclusive), for headers of a file too large to download. */
+function blobRangeReader(ports: Ports, key: string): ByteReader {
+  return async (start, end) => {
+    if (end <= start) return new Uint8Array(0);
+    const chunks: Uint8Array[] = [];
+    const reader = (await ports.blobs.getStream(key, { start, end: end - 1 })).getReader();
+    for (let r = await reader.read(); !r.done; r = await reader.read()) chunks.push(r.value);
+    const out = new Uint8Array(chunks.reduce((n, c) => n + c.byteLength, 0));
+    let at = 0;
+    for (const c of chunks) {
+      out.set(c, at);
+      at += c.byteLength;
+    }
+    return out;
+  };
+}
+
 /**
  * Parse one file version into four immutable sidecars and make it the record's current
  * derivation, loading its segments for passage reads and search in the same transaction.
@@ -317,6 +334,8 @@ export async function runDerivation(
     // Too large to read at all: record the status without downloading the file.
     result = await derive(new Uint8Array(0), file.path, { parseCapBytes: -1 });
     result.status_detail = `the file is ${stat.size} bytes; files over ${ports.config.parseCapBytes} bytes are stored but not parsed`;
+    // A recording's playing time sits in its container headers: read those ranges, not the file.
+    if (isRecording(file.path, version.media_type)) result.duration_ms = await recordingDurationMs(blobRangeReader(ports, version.blob_key), stat.size);
   } else {
     const bytes = await ports.blobs.get(version.blob_key);
     result = await derive(bytes, file.path, { mediaType: version.media_type, parseCapBytes: ports.config.parseCapBytes });

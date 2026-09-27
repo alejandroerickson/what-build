@@ -64,7 +64,8 @@ export async function derivedStatuses(ctx: OpContext, recordIds: string[]) {
       status_detail: status === r.status ? r.status_detail : null,
       segment_count: status === "ready" ? Number(r.segment_count ?? 0) : 0,
       text_chars: status === "ready" ? Number(r.text_chars ?? 0) : 0,
-      duration_ms: status === "ready" && r.duration_ms !== null ? Number(r.duration_ms) : null,
+      // A transcript's last cue time, or a recording's playing time read from its container.
+      duration_ms: status === r.status && r.duration_ms !== null ? Number(r.duration_ms) : null,
       file_count: r.file_count,
       pending_primary_path: r.primary_version ? null : r.pending_primary,
       derivation_id: r.derivation_id,
