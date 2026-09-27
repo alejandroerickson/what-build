@@ -1,8 +1,9 @@
 import { srtParser, vttParser } from "./cues.ts";
+import { csvParser } from "./csv.ts";
 import { docxParser } from "./docx.ts";
 import { htmlParser } from "./html.ts";
 import { pdfParser } from "./pdf.ts";
-import { plaintextParser } from "./plaintext.ts";
+import { markdownParser, plaintextParser } from "./plaintext.ts";
 import { assemble, codePointLength, decodeText, headingOutline, speakerOutline } from "./text.ts";
 import type { FormatParser, ParseResult } from "./types.ts";
 import { xlsxParser } from "./xlsx.ts";
@@ -22,17 +23,19 @@ const PARSERS: Record<string, FormatParser> = {
   ".srt": srtParser,
   ".txt": plaintextParser,
   ".text": plaintextParser,
-  ".md": plaintextParser,
-  ".markdown": plaintextParser,
+  ".md": markdownParser,
+  ".markdown": markdownParser,
   ".html": htmlParser,
   ".htm": htmlParser,
   ".docx": docxParser,
   ".pdf": pdfParser,
   ".xlsx": xlsxParser,
+  ".csv": csvParser,
+  ".tsv": csvParser,
 };
 
 /** Formats whose parse should keep most of the decoded characters; used by the silent-loss check. */
-const TEXT_LIKE = new Set([".txt", ".text", ".md", ".markdown", ".vtt", ".srt"]);
+const TEXT_LIKE = new Set([".txt", ".text", ".md", ".markdown", ".vtt", ".srt", ".csv", ".tsv"]);
 
 export const SUPPORTED_EXTENSIONS = Object.keys(PARSERS);
 
@@ -47,6 +50,8 @@ const MEDIA_TYPE_EXTENSIONS: Record<string, string> = {
   "application/x-subrip": ".srt",
   "text/markdown": ".md",
   "text/plain": ".txt",
+  "text/csv": ".csv",
+  "text/tab-separated-values": ".tsv",
   "text/html": ".html",
   "application/pdf": ".pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",

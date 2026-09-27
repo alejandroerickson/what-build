@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { request } from "node:https";
-import { isIP } from "node:net";
+import { isIP, type LookupFunction } from "node:net";
 import { invalid, tooLarge, type GrantSigner, type Mailer, type UrlFetcher } from "@whatbuild/core";
 
 // ---- Grants ---------------------------------------------------------------------------------------
@@ -82,8 +82,47 @@ function isPublicAddress(ip: string): boolean {
   const v6 = ip.toLowerCase();
   if (v6 === "::1" || v6 === "::") return false;
   if (v6.startsWith("fe80") || v6.startsWith("fc") || v6.startsWith("fd") || v6.startsWith("ff")) return false;
-  if (v6.startsWith("::ffff:")) return isPublicAddress(v6.slice(7));
+  // IPv4-mapped (::ffff:a.b.c.d, or its hex form ::ffff:7f00:1) and IPv4-compatible (::a.b.c.d).
+  const mapped = v6.match(/^::(?:ffff:)?(.+)$/)?.[1];
+  if (mapped) {
+    if (isIP(mapped) === 4) return isPublicAddress(mapped);
+    const hex = mapped.match(/^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+    if (hex && v6.startsWith("::ffff:")) {
+      const [hi, lo] = [parseInt(hex[1]!, 16), parseInt(hex[2]!, 16)];
+      return isPublicAddress(`${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`);
+    }
+  }
   return true;
+}
+
+type Resolver = (hostname: string) => Promise<{ address: string; family: number }[]>;
+
+/**
+ * The DNS lookup for outbound fetches: it only ever yields public addresses, and refuses a name if
+ * any of its addresses is private, so a name cannot be steered to an internal host. It answers in
+ * both shapes Node asks for: one address, or with `all` (as Node's happy-eyeballs connect asks) the
+ * list of `{address, family}`. Checking here, rather than before the request, checks the address
+ * actually connected to.
+ */
+export function publicOnlyLookup(resolve: Resolver = (h) => lookup(h, { all: true }), isPublic: (ip: string) => boolean = isPublicAddress): LookupFunction {
+  return (hostname, options, callback) => {
+    const fail = (message: string, code: string) => {
+      const err = Object.assign(new Error(message), { code, hostname }) as NodeJS.ErrnoException;
+      if (options.all) callback(err, []);
+      else callback(err, "", 4);
+    };
+    resolve(hostname)
+      .then((addrs) => {
+        if (addrs.some((a) => !isPublic(a.address))) return fail(`${hostname} resolves to a non-public address, which is never fetched`, "EACCES");
+        const family = options.family === "IPv4" ? 4 : options.family === "IPv6" ? 6 : (options.family ?? 0);
+        const usable = family ? addrs.filter((a) => a.family === family) : addrs;
+        const firstUsable = usable[0];
+        if (!firstUsable) return fail(`${hostname} has no ${family ? `IPv${family} ` : ""}address`, "ENOTFOUND");
+        if (options.all) callback(null, usable.map((a) => ({ address: a.address, family: a.family })));
+        else callback(null, firstUsable.address, firstUsable.family);
+      })
+      .catch((e: NodeJS.ErrnoException) => fail(`${hostname} could not be resolved: ${e.code ?? e.message}`, e.code ?? "ENOTFOUND"));
+  };
 }
 
 /**
@@ -91,6 +130,8 @@ function isPublicAddress(ip: string): boolean {
  * every redirect — with size and time caps and no credentials forwarded.
  */
 export class SafeUrlFetcher implements UrlFetcher {
+  constructor(private readonly lookup: LookupFunction = publicOnlyLookup()) {}
+
   async fetch(url: string, maxBytes: number) {
     let current = new URL(url);
     for (let hop = 0; hop < 5; hop++) {
@@ -119,15 +160,7 @@ export class SafeUrlFetcher implements UrlFetcher {
           method: "GET",
           timeout: 30_000,
           headers: { "User-Agent": "WhatBuild-fetch/1", Accept: "*/*" },
-          lookup: (hostname, _opts, cb) => {
-            lookup(hostname, { all: true })
-              .then((addrs) => {
-                const ok = addrs.find((a) => isPublicAddress(a.address));
-                if (!ok || addrs.some((a) => !isPublicAddress(a.address))) cb(new Error(`${hostname} resolves to a non-public address`) as NodeJS.ErrnoException, "", 4);
-                else cb(null, ok.address, ok.family);
-              })
-              .catch((e: NodeJS.ErrnoException) => cb(e, "", 4));
-          },
+          lookup: this.lookup,
         },
         (res) => {
           const status = res.statusCode ?? 0;

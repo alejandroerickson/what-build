@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 99 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
-generated: {by: agent:claude, at: 2026-09-27T06:00:00Z}
+generated: {by: agent:claude, at: 2026-09-27}
 status: stable
 ---
 
@@ -385,9 +385,13 @@ In order of preference for an agent (`packages/core/src/ops/files.ts`):
    local file's raw bytes to `url` (the service's own upload relay,
    `/api/v1/uploads/:grant_id`) with exactly those headers, using whatever shell or HTTP tool it
    has. The relay stores the bytes, records size and SHA-256 **from what arrived**, not from the
-   agent's claims, attaches the file at once, and enqueues derivation if it is primary;
+   agent's claims, attaches the file at once, and enqueues derivation if it is primary; its
+   response says the bytes were received and to call `files.complete_upload` next.
    `files.complete_upload` then confirms idempotently and can add provenance (`derived_from`,
-   `derivation_note`, `derived_by`). Grants are single-file, create-only, signed, and expire after
+   `derivation_note`, `derived_by`). It returns the file entry (`searchable`, `search_status`) and a
+   `note` on what happens next that agrees with it: the primary is being parsed, is ready, is a
+   recording that needs a transcript as its own source, or is in a format no parser reads (with the
+   formats that are parsed). The last two are said at once, before the worker has run. Grants are single-file, create-only, signed, and expire after
    30 minutes by default (`WHATBUILD_GRANT_TTL_SECONDS`). The relay takes at most 25 MB
    (`WHATBUILD_RELAY_MAX_BYTES`); when the deployment enables signed URLs
    (`WHATBUILD_GCS_SIGNED_URLS=1`), the grant also carries a `direct` block for a PUT straight to
@@ -396,6 +400,8 @@ In order of preference for an agent (`packages/core/src/ops/files.ts`):
    20 lines, with a text extension. For short notes only.
 3. **URL fetch** — `files.fetch_url { record_id, url, path?, role }` for public HTTPS material:
    public addresses only, redirects re-checked, size-capped (25 MB by default) and time-capped.
+   The part of a URL after `#` never reaches a server, so a single-page app's route fetches only
+   its shell.
 4. **Web upload** — a person uses the kind-first upload flow. This covers clients with no file
    tools at all; the skill tells agents to ask for it rather than attempt base64.
 

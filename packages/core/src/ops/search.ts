@@ -241,9 +241,12 @@ async function searchPassages(ctx: OpContext, i: Input) {
   const recs = ids.length ? await ctx.db.selectFrom("records").select(["record_id", "title", "kind", "folder", "archived_at"]).where("record_id", "in", ids).execute() : [];
   const records: Record<string, { title: string; kind: string; kind_label: string; folder: string; folder_label: string; archived_at: string | null }> = {};
   for (const r of recs) records[r.record_id] = { title: r.title, kind: r.kind, kind_label: kindInfo(r.kind).short, folder: r.folder, folder_label: describeFolder(r.folder), archived_at: r.archived_at };
-  const coverage = await sql<{ considered: number; without_passages: number; with_unsearched: number }>`
+  const coverage = await sql<{ considered: number; without_passages: number; recordings: number; not_derived: number; no_primary: number; with_unsearched: number }>`
     select count(*)::int as considered,
       count(*) filter (where d.status is distinct from 'ready')::int as without_passages,
+      count(*) filter (where d.status = 'needs_transcript')::int as recordings,
+      count(*) filter (where d.status is null)::int as not_derived,
+      count(*) filter (where not exists (select 1 from files f where f.record_id = r.record_id and f.role = 'primary'))::int as no_primary,
       count(*) filter (where exists (select 1 from files f where f.record_id = r.record_id and f.role != 'primary'))::int as with_unsearched
     from records r left join derivations d on d.derivation_id = r.current_derivation_id
     where r.product_id = ${pid} and ${where}`.execute(ctx.db);
@@ -267,9 +270,32 @@ async function searchPassages(ctx: OpContext, i: Input) {
       records_considered: cov.considered,
       records_without_passages: cov.without_passages,
       records_with_unsearched_files: cov.with_unsearched,
-      statement: `Searched the primary text of ${cov.considered - cov.without_passages} source${cov.considered - cov.without_passages === 1 ? "" : "s"}. ${cov.with_unsearched} have origin or supplement files that are not searched; ${cov.without_passages} have no passages yet.`,
+      statement: coverageStatement(cov),
     },
   };
+}
+
+const sources = (n: number) => `${n} source${n === 1 ? "" : "s"}`;
+const are = (n: number, singular: string, plural: string) => `${n} ${n === 1 ? singular : plural}`;
+
+/**
+ * What a passage search examined, in plain sentences. Sources without passages are counted by
+ * reason, because "not parsed yet" and "a recording that needs a transcript" call for different
+ * next steps.
+ */
+export function coverageStatement(cov: { considered: number; without_passages: number; recordings: number; not_derived: number; no_primary: number; with_unsearched: number }): string {
+  const parts = [`Searched the primary text of ${sources(cov.considered - cov.without_passages)}.`];
+  if (cov.with_unsearched) parts.push(`${are(cov.with_unsearched, "source has", "sources have")} origin or supplement files that are not searched.`);
+  const unparsed = cov.without_passages - cov.recordings - cov.not_derived;
+  const parsing = cov.not_derived - cov.no_primary;
+  const gaps = [
+    cov.no_primary ? `${are(cov.no_primary, "has", "have")} no primary file yet` : "",
+    parsing ? `${are(parsing, "is", "are")} not parsed yet` : "",
+    cov.recordings ? `${are(cov.recordings, "is a recording", "are recordings")} with no transcript (add the transcript as its own source)` : "",
+    unparsed ? `${are(unparsed, "has", "have")} a primary that could not be parsed (unsupported, too large or failed)` : "",
+  ].filter(Boolean);
+  if (gaps.length) parts.push(`Not searched: ${gaps.join("; ")}.`);
+  return parts.join(" ");
 }
 
 async function searchRegisters(ctx: OpContext, i: Input) {

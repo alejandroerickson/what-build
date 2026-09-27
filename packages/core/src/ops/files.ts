@@ -1,3 +1,4 @@
+import { isRecording, parserFor, SUPPORTED_EXTENSIONS } from "@whatbuild/parsers";
 import { z } from "zod";
 import { productId, recordActivity, tenantId } from "../common.ts";
 import { json } from "../db.ts";
@@ -209,11 +210,33 @@ export async function completeGrant(ctx: OpContext, grantId: string, provenanceO
   const status = (await derivedStatuses(ctx, [g.record_id])).get(g.record_id)!;
   const entries = await fileEntries(ctx, g.record_id, status.derived_status);
   const entry = entries.find((e) => e.path === g.path)!;
-  return {
-    ...entry,
-    record_id: g.record_id,
-    note: entry.role === "primary" ? "This file is the primary: it is parsed and searched once derived_status is ready." : "This file is stored in full and downloadable; it is not searched.",
-  };
+  // Before the worker has run, the outcome for a recording or an unreadable format is already known.
+  let outcome = status.derived_status;
+  let detail = status.status_detail;
+  if (entry.role === "primary" && outcome === "pending") {
+    if (isRecording(g.path, entry.media_type)) outcome = "needs_transcript";
+    else if (!parserFor(g.path, entry.media_type)) [outcome, detail] = ["unsupported", `no parser reads ${extensionOf(g.path) || "(no extension)"} files`];
+  }
+  return { ...entry, record_id: g.record_id, note: fileNote(entry.role, outcome, detail) };
+}
+
+/** What will happen to a file, in words that match its search_status. */
+export function fileNote(role: string, derivedStatus: string, statusDetail: string | null): string {
+  if (role !== "primary") return "This file is stored in full and downloadable; it is not searched.";
+  const detail = statusDetail ? ` (${statusDetail})` : "";
+  switch (derivedStatus) {
+    case "ready":
+      return "This file is the primary: its passages are ready to search and read.";
+    case "pending":
+    case "awaiting_file":
+      return "This file is the primary: it is being parsed, and becomes searchable when the source's derived_status is ready. Check sources(action=\"get\").";
+    case "needs_transcript":
+      return "This file is the primary and a recording: it is stored and playable, but WhatBuild never transcribes, so it will not be parsed or searched. Add its transcript as a separate source, and link the two with related_records on each.";
+    case "unsupported":
+      return `This file is the primary, but no parser reads its format, so it is stored and downloadable and will not be parsed or searched${detail}. Parsed formats: ${SUPPORTED_EXTENSIONS.join(", ")}. To make it searchable, create a new source whose primary is an export in one of those formats, and keep this file as its origin.`;
+    default:
+      return `This file is the primary, but it could not be parsed: its derived_status is ${derivedStatus}${detail}. It is stored and downloadable, and will not be searched.`;
+  }
 }
 
 export const completeUpload = defineOperation({
@@ -285,7 +308,7 @@ export const fetchUrl = defineOperation({
   mutates: true,
   summary: "Fetch a public HTTPS document into a source, server-side (size-capped).",
   description:
-    "HTTPS only, public addresses only, redirects re-checked, size and time capped. The file name comes from the response, or pass path. Use for public material only; nothing is sent with the request.",
+    "HTTPS only, public addresses only, redirects re-checked, size and time capped. The file name comes from the response, or pass path. Use for public material only; nothing is sent with the request. The part of a URL after # never reaches the server, so a single-page app's route (…/#/page) fetches only the app's empty shell.",
   input: z.strictObject({ record_id: id("source"), url: z.url().max(2000), path: z.string().min(1).max(200).optional(), role: fileRole.default("primary"), ...provenance }),
   rest: { method: "POST", path: "/sources/:record_id/fetch" },
   mcp: { tool: "files", action: "fetch_url" },
