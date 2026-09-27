@@ -34,6 +34,12 @@ function validRedirectUri(u: string): boolean {
   return /^[a-z][a-z0-9+.-]*:$/.test(url.protocol) && !["javascript:", "data:", "file:", "vbscript:", "blob:"].includes(url.protocol);
 }
 
+/** A CSP source for a validated redirect URI: its origin (https, loopback http), or its private-use scheme. */
+function formTarget(u: string): string {
+  const url = new URL(u);
+  return url.protocol === "https:" || url.protocol === "http:" ? url.origin : url.protocol;
+}
+
 function consentPage(p: { client: string; account: string; email: string; hidden: Record<string, string>; csrf: string }) {
   const inputs = Object.entries(p.hidden)
     .map(([k, v]) => `<input type="hidden" name="${escapeHtml(k)}" value="${escapeHtml(v)}">`)
@@ -151,7 +157,9 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
     const csrf = randomToken(16);
     setCookie(c, "wb_consent", csrf, { httpOnly: true, secure, sameSite: "Strict", path: "/oauth/authorize", maxAge: 900 });
     c.header("X-Frame-Options", "DENY");
-    c.header("Content-Security-Policy", "frame-ancestors 'none'; default-src 'none'; style-src 'unsafe-inline'; form-action 'self'");
+    // Browsers apply form-action to the redirect that answers the form too, so the client's own
+    // registered callback must be allowed here, or Allow silently goes nowhere.
+    c.header("Content-Security-Policy", `frame-ancestors 'none'; default-src 'none'; style-src 'unsafe-inline'; form-action 'self' ${formTarget(redirect)}`);
     return c.html(
       consentPage({
         client: client.client_name,

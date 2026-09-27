@@ -144,6 +144,8 @@ describe("OAuth for MCP clients", () => {
     const page = await fetch(authUrl, { headers: { cookie: alice.cookie } });
     const html = await page.text();
     expect(html).toContain("Test Desktop");
+    // Browsers hold the redirect after Allow to form-action, so the callback's origin must be allowed.
+    expect(page.headers.get("content-security-policy")).toContain("form-action 'self' http://127.0.0.1:9999");
     const consentCookie = (page.headers.get("set-cookie") ?? "").split(";")[0]!;
     const csrf = /name="csrf" value="([^"]+)"/.exec(html)![1]!;
     const fields = Object.fromEntries([...html.matchAll(/type="hidden" name="([^"]+)" value="([^"]*)"/g)].map((m) => [m[1]!, m[2]!.replace(/&amp;/g, "&")]));
