@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
 description: What the production deployment is made of, how deploy/cloud-run/setup.sh creates it, sign-in and continuous deployment, cost, names, and useful commands.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-27T06:00:00Z}
 status: stable
 ---
 
@@ -61,8 +61,10 @@ right to sign as itself.
 **Sign-in.** A production server never logs sign-in links, so it needs one of:
 
 - **Google sign-in** — create an OAuth client (type *Web application*) in Google Auth Platform with
-  the redirect URI `https://<your-url>/auth/google/callback`, then re-run with `GOOGLE_CLIENT_ID`
-  and `GOOGLE_CLIENT_SECRET`. The secret goes to Secret Manager, never to the repository.
+  the redirect URI `https://<your-url>/auth/google/callback` (the service answers at
+  `https://whatbuild-<project number>.<region>.run.app`, known as soon as the project exists), then re-run with `GOOGLE_CLIENT_ID`
+  and `GOOGLE_CLIENT_SECRET` (or create the secret `whatbuild-google-client-secret` in Secret Manager
+  yourself and pass only the ID). The secret lives in Secret Manager, never in the repository.
 - **Email links** — re-run with `SMTP_URL=smtps://user:pass@host:465` and `MAIL_FROM`. Any SMTP
   provider works; this is also what sends invitations. Without it, invitations still work: the
   inviter is shown the single-use link to pass on.
@@ -92,7 +94,7 @@ US$10 a month; a free-tier Postgres elsewhere costs nothing. Storage is cents.
 
 | Thing | Name | Notes |
 |---|---|---|
-| Service | `whatbuild` | public; WhatBuild's own sign-in guards everything but the web app's static files, sign-in, OAuth discovery, `/api/v1/meta`, `/healthz`, and the skill and its installers |
+| Service | `whatbuild` | public; WhatBuild's own sign-in guards everything but the web app's static files, sign-in, OAuth discovery, `/api/v1/meta`, `/health`, and the skill and its installers |
 | Migration job | `whatbuild-migrate` | same image, `node main.js migrate` |
 | Runtime identity | `whatbuild-runtime` | the bucket, the secrets, Cloud SQL client — nothing else |
 | Database | Cloud SQL instance `whatbuild-db`, database and user `whatbuild` (with `CLOUD_SQL=1`) | or the Postgres named by `DATABASE_URL` |

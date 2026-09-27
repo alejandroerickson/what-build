@@ -47,7 +47,8 @@ export function publicRoutes(deps: { db: Db; config: ServerConfig; serverVersion
   const app = new Hono();
   const noStore = { "Cache-Control": "no-store" };
 
-  app.get("/healthz", (c) => c.json({ status: "ok" }));
+  // Not /healthz: Cloud Run reserves paths ending in "z" and never forwards them.
+  app.get("/health", (c) => c.json({ status: "ok" }));
   app.get("/api/v1/meta", (c) =>
     c.json({
       product: "WhatBuild",
