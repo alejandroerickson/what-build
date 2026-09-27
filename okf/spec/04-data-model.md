@@ -233,8 +233,8 @@ labelled so.
   windows (`offset`, `limit` default 20,000 and at most 100,000 chars) with a `truncated` flag;
   the UI pages through.
 - The **per-source view** (`sources.insights_for`) for a source is: insights whose `refs.sources`
-  include it, assumptions and decisions with a citation into it, and live Story pages whose current
-  version cites it or lists it in `refs`.
+  include it, assumptions and decisions with a citation into it, live Story pages whose current
+  version cites it or lists it in `refs`, and live views whose lineage lists it as a direct input.
 - Evidence is cited in prose as a source id and segment range ("source 01K…, segments 4–6"); the
   web app renders such citations, and links to sources and passages, as evidence links
   ([`apps/web/src/lib/markdown.tsx`](../../apps/web/src/lib/markdown.tsx)).
@@ -380,12 +380,20 @@ steps ([`lineage.ts`](../../packages/core/src/ops/lineage.ts)):
   input is refused. A source's fingerprint covers its kind, title, date, organization, primary
   file version, current derivation and archived state; a register entry's covers its statement,
   body, citations, status, review count and archived state.
-- `write` attaches the untouched fingerprints and a description of how the inputs were chosen to
-  the view, refusing with `409 input_changed` if any input changed since capture.
+- `write` attaches the untouched fingerprints, `captured_at` as capture returned it (optional;
+  refused if in the future), and a description of how the inputs were chosen to the view,
+  refusing with `409 input_changed` if any input changed since capture. It also stores a short hash
+  of each part the fingerprint covers; the fingerprint itself is unchanged.
 - `check` reports each input as `current`, `changed`, `archived`, `deleted`, or `missing`, and
-  whether the view is `stale`.
-- It reports drift. It does not regenerate anything. It checks direct inputs only (recursive
-  lineage: [§8.6](08-search.md)).
+  whether the view is `stale`. A `changed` input lists `changed_parts` (the parts above whose hash
+  differs) and `last_changed_at` (the latest recorded time among them: the source's or entry's
+  `updated_at`, the file version's or derivation's `created_at`). Lineage written before parts were
+  stored reports `changed_parts: null` with a note that the parts were not recorded.
+- A view's full `sources.get` includes its lineage: the direct inputs, the query spec,
+  `captured_at`, and when and by whom it was registered. Staleness comes only from `check`.
+- It reports drift. It does not regenerate anything. It checks direct inputs only: a view built on
+  a decision is not told when a source that decision cites changes (recursive lineage:
+  [§8.6](08-search.md)).
 
 ## 4.10 Activity
 

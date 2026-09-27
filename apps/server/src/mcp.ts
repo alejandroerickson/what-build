@@ -21,7 +21,7 @@ const GROUP_SENTENCES: Record<string, string> = {
   assumptions: "The assumption register: premises the team treats as true, each cited to exact passages, with attributed reviews.",
   decisions: "The decision register: choices and their rationale, each cited to exact passages, with attributed reviews. Creating one does not imply agreement.",
   story: "Read and publish the Story: versioned, sandboxed HTML pages for stakeholders, citing exact passages, each with notes for agents, arranged in a hierarchy with its own etag. Read guidance first, and a page's notes before revising it.",
-  lineage: "Record and check the inputs a derived view was built from, so staleness can be reported.",
+  lineage: "Record and check the direct inputs a derived view was built from, so staleness can be reported.",
   activity: "What changed in the product, who changed it, and whether an agent did it.",
 };
 
