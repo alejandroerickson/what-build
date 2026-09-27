@@ -1,0 +1,38 @@
+---
+type: Index
+title: WhatBuild knowledge bundle
+description: The map of the documentation; start here.
+tags: [index, okf]
+generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
+status: stable
+okf_version: "0.2"
+---
+
+# WhatBuild knowledge bundle
+
+WhatBuild turns a product team's discovery material into objectives, cited insights, reviewed
+assumptions and decisions, and a Story for stakeholders. People use a web app; agents use an MCP
+server with the same operations. There is no AI inside.
+
+## Map
+
+- [Charter](project/charter.md): what the product and repository are, and are not.
+- [WhatBuild at three altitudes](system/overview.md): the whole system, top down.
+- [Repository map](system/repository-map.md): where things are.
+- [Decisions](decisions/index.md): the architectural decision records.
+- [Specification](spec/index.md): product, architecture, identity and tenancy, data model, derived
+  layer, operations and MCP, web app, search, data lifecycle, and the [roadmap](spec/10-roadmap.md).
+- [Local development](operations/local-development.md) and [Cloud Run](operations/cloud-run.md).
+- [Working in this repository](process/working-in-this-repository.md).
+- [Ontology](ontology.md), [bundle guide](README.md), [tools](tools/index.md).
+
+## Outside the bundle
+
+- `README.md`: the human-facing introduction.
+- `AGENTS.md`: agent orientation (`CLAUDE.md` links to it).
+- `.agents/skills/`: skills for agents working on the repository: reading this bundle
+  (`okf-orient`), keeping it true (`okf-update`) and recording decisions (`okf-decision`).
+- `PRODUCT.md`: users, purpose and principles. `DESIGN.md` and `.impeccable/design.json`: the
+  Studio design system. Both stay at the root because design tooling reads them there.
+- `packages/core/src/skill/SKILL.md`: the agent skill the product serves to connected agents.
+- `deploy/cloud-run/README.md`: a pointer next to `setup.sh`.

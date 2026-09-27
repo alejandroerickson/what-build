@@ -1,0 +1,173 @@
+/* The design-system specimen (development only). */
+
+.system-bands {
+  display: grid;
+  gap: var(--s-6);
+}
+.system-band {
+  padding: var(--s-4);
+  border-radius: var(--r-lg);
+  background: var(--canvas);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--line-2);
+}
+.system-band-title {
+  margin: 0 0 var(--s-3) var(--crumb-inset);
+  color: var(--faint);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+}
+.system-specimen > * + * {
+  margin-top: var(--s-4);
+}
+.system-row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: var(--s-3);
+  padding: var(--s-2h) 0;
+  border-bottom: 1px solid var(--line);
+}
+.system-row:first-child {
+  padding-top: 0;
+}
+.system-row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.system-row-label {
+  padding-top: 6px;
+  color: var(--faint);
+}
+.system-row-body {
+  min-width: 0;
+}
+.system-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--s-2);
+}
+.system-swatch {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.system-chip {
+  width: 28px;
+  height: 20px;
+  flex: none;
+  border-radius: var(--r-xs);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.system-depths,
+.system-radii {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+}
+.system-depths span,
+.system-radii span {
+  display: grid;
+  place-items: center;
+  min-width: 120px;
+  height: 56px;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--panel);
+  color: var(--faint);
+}
+.system-radii span {
+  background: var(--hover);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.system-type {
+  display: grid;
+  gap: var(--s-1h);
+}
+.system-type code {
+  color: var(--faint);
+}
+.system-space {
+  display: grid;
+  gap: var(--s-1);
+}
+.system-space div {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.system-space span {
+  height: 8px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.system-find {
+  max-width: 240px;
+}
+.system-choices {
+  display: grid;
+  max-width: 320px;
+}
+.system-equal {
+  max-width: 280px;
+}
+.system-fieldbutton {
+  width: 180px;
+}
+.system-face {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1h);
+}
+.system-face small {
+  display: block;
+  color: var(--faint);
+  font-size: var(--fs-xs);
+}
+.system-inline-link {
+  margin-left: var(--s-2);
+}
+.system-chrome {
+  padding: 0 var(--crumb-inset);
+}
+.system-files {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.system-files li {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: var(--s-2);
+}
+.system-files li > .glyph {
+  margin-top: 1px;
+  color: var(--faint);
+}
+.system-files b {
+  display: block;
+  font-weight: var(--fw-medium);
+}
+.system-panel-find {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: var(--s-1) var(--s-0) var(--s-0);
+}
+.system-panel-find .find {
+  flex: 1;
+}
+
+@media (max-width: 760px) {
+  .system-band {
+    padding: var(--s-3);
+  }
+  .system-row {
+    grid-template-columns: 1fr;
+    gap: var(--s-1h);
+  }
+  .system-row-label {
+    padding-top: 0;
+  }
+}

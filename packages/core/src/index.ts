@@ -24,13 +24,15 @@ export * from "./ports.ts";
 export * from "./registry.ts";
 export * from "./schemas.ts";
 export * from "./story-html.ts";
+export * from "./story-print.ts";
 export * from "./util.ts";
 export { runDerivation } from "./ops/derived.ts";
 export { markExportFailed, runExport } from "./ops/export.ts";
 export { completeGrant, DOWNLOAD_GRANT_HEADER, UPLOAD_GRANT_HEADER, blobKeyFor } from "./ops/files.ts";
 export { createTenantWithTeam, uniqueTenantSlug } from "./ops/products.ts";
+export { printDocument } from "./ops/story.ts";
 export { SKILL_NAME, SKILL_VERSION, skillMarkdown } from "./ops/meta.ts";
-export { GUIDANCE_VERSION, STYLESHEET as STORY_STYLESHEET, TOKENS as STORY_TOKENS } from "./story-guidance.ts";
+export { GUIDANCE_VERSION, STYLESHEET as STORY_STYLESHEET, TOKENS as STORY_TOKENS, withStoryTheme } from "./story-guidance.ts";
 
 /** Every operation, defined once. REST routes, MCP tools and `describe` are generated from this list. */
 export const OPERATIONS: OperationDef[] = [

@@ -1,0 +1,473 @@
+/* Synthesis: the Insights list, the insight page and editor, and the assumption and decision registers. */
+
+/* ---- Shared bits ------------------------------------------------------------------------------ */
+
+.insights-byline {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  color: var(--muted);
+}
+.insights-byline .avatar,
+.insights-byline .agent-face {
+  width: 18px;
+  height: 18px;
+  font-size: 8.5px;
+}
+.insights-byline .agent-face .glyph {
+  width: 11px;
+  height: 11px;
+}
+
+/* Assumptions / Decisions as quiet links in a sheet header. */
+.insights-quick {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-right: var(--s-1);
+}
+.insights-quick .quiet-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-height: var(--h-sm);
+  padding: 0 2px;
+}
+
+/* ---- Insights list ---------------------------------------------------------------------------- */
+
+.insights-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3) var(--s-2) var(--sheet-px);
+  border-bottom: 1px solid var(--line);
+}
+.insights-find {
+  flex: 0 1 260px;
+  min-width: 180px;
+}
+.insights-status {
+  width: auto;
+  max-width: 220px;
+}
+.insights-scope {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+.insights-scope strong {
+  color: var(--text);
+  font-weight: var(--fw-medium);
+}
+.insights-scope .quiet-link {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--h-sm);
+}
+.insights-tools .insights-scope {
+  flex: 1 1 240px;
+  justify-content: flex-end;
+}
+.insight-row-summary {
+  display: -webkit-box;
+  max-width: 72ch;
+  overflow: hidden;
+  color: var(--muted);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.insight-more {
+  padding: var(--s-2h) var(--sheet-px);
+  border-top: 1px solid var(--line);
+}
+
+/* ---- One insight ------------------------------------------------------------------------------ */
+
+.insight-written .insights-byline {
+  vertical-align: middle;
+}
+.insight-review {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+.insight-undo {
+  display: inline-flex;
+  align-items: center;
+  height: var(--h-sm);
+  padding: 0 var(--s-1);
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--line-2);
+  text-underline-offset: 2px;
+}
+.insight-undo:hover:not(:disabled) {
+  color: var(--text);
+  text-decoration-color: currentColor;
+}
+.insight-prose {
+  padding: var(--s-5) 22px;
+  font-size: var(--fs-prose);
+  line-height: 1.62;
+}
+.insight-prose > .prose > * + * {
+  margin-top: var(--s-2h);
+}
+.insight-summary {
+  max-width: var(--measure);
+  margin-bottom: var(--s-3h);
+  font-size: var(--fs-lead);
+  line-height: 1.55;
+}
+
+/* Connected: label column and the linked things. */
+.insight-refs {
+  margin: 0;
+  padding: var(--s-1) 0;
+}
+.insight-refs-row {
+  display: grid;
+  grid-template-columns: var(--col-label) minmax(0, 1fr);
+  gap: var(--s-3);
+  padding: var(--s-1h) var(--sheet-px);
+}
+.insight-refs dt {
+  padding-top: 3px;
+  color: var(--faint);
+  font-size: var(--fs-sm);
+}
+.insight-refs dd {
+  margin: 0;
+  min-width: 0;
+}
+.insight-refs ul {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.insight-refs li a {
+  display: inline-block;
+  max-width: 100%;
+  padding: 3px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+/* ---- Editor ----------------------------------------------------------------------------------- */
+
+.insight-form {
+  padding: var(--s-4) var(--sheet-px);
+}
+.insight-form .input:not(.insight-textarea) {
+  max-width: 560px;
+}
+.insight-form .field-control > .segmented {
+  justify-self: start;
+  width: fit-content;
+  margin-bottom: var(--s-1h);
+}
+.insight-textarea,
+.insight-preview {
+  max-width: 760px;
+}
+.insight-textarea {
+  min-height: 22rem;
+  font-family: var(--mono);
+  font-size: var(--fs-base);
+  line-height: 1.6;
+}
+.insight-preview {
+  min-height: 22rem;
+  padding: var(--s-3) var(--s-3h);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+}
+.insight-choices {
+  display: grid;
+  gap: var(--s-1);
+  max-width: 560px;
+}
+.insight-choice-list {
+  max-height: 232px;
+  overflow-y: auto;
+  padding: 2px;
+  margin: -2px;
+}
+.insight-choice-empty {
+  padding: var(--s-1h) 0;
+  font-size: var(--fs-sm);
+}
+.insight-form-notice {
+  margin-top: var(--s-4);
+}
+.insight-form-actions,
+.register-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1h);
+  margin-top: var(--s-4);
+  padding-left: calc(var(--col-label) + var(--s-4));
+}
+
+/* ---- History dialog --------------------------------------------------------------------------- */
+
+.history {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: var(--s-4);
+  min-height: 280px;
+}
+.history-list {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  max-height: 60vh;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.history-item {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: var(--s-1h) var(--s-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.history-item:hover {
+  background: var(--hover);
+}
+.history-item[aria-pressed="true"] {
+  border-color: var(--line-2);
+  background: var(--select);
+  color: var(--select-text);
+}
+.history-item-title {
+  font-weight: var(--fw-medium);
+}
+.history-item-meta {
+  color: var(--faint);
+  font-size: var(--fs-sm);
+}
+.history-view {
+  max-height: 60vh;
+  min-width: 0;
+  padding-left: var(--s-4);
+  border-left: 1px solid var(--line);
+  overflow-y: auto;
+}
+.history-content > * + * {
+  margin-top: var(--s-3);
+}
+.history-title {
+  font-size: var(--fs-title);
+}
+.history-actions {
+  padding-top: var(--s-1);
+}
+
+/* ---- Registers -------------------------------------------------------------------------------- */
+
+.register-crumbs {
+  margin: var(--s-1) 0 var(--s-1h);
+}
+.register-show {
+  width: auto;
+  max-width: 220px;
+}
+.register-intro {
+  display: grid;
+  gap: var(--s-1h);
+  padding: var(--s-3h) var(--sheet-px);
+  border-bottom: 1px solid var(--line);
+}
+.register-intro > p:first-child {
+  max-width: 70ch;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.register-intro .insights-scope {
+  justify-content: flex-start;
+}
+.register-link-row {
+  grid-template-columns: 104px minmax(0, 1fr) auto;
+}
+.register-link-row .list-lead {
+  font-size: var(--fs-sm);
+}
+
+/* Cited passages: address, quote, then drift in words and the source. */
+.entry-cite-list,
+.entry-review-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.entry-cite-row {
+  display: grid;
+  grid-template-columns: var(--col-addr) minmax(0, 1fr);
+  gap: var(--s-3);
+  padding: 11px var(--sheet-px);
+  border-bottom: 1px solid var(--line);
+}
+.entry-cite-row:last-child {
+  border-bottom: 0;
+}
+.entry-cite-address {
+  align-self: start;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--h-sm);
+  margin-top: -3px;
+  padding: 0 2px;
+  border-radius: var(--r-xs);
+}
+.entry-cite-quote {
+  display: block;
+  max-width: var(--measure);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+  white-space: pre-line;
+  quotes: "\201C" "\201D";
+}
+.entry-cite-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-2);
+  margin-top: 3px;
+  color: var(--faint);
+  font-size: var(--fs-sm);
+}
+.entry-cite-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: var(--fw-medium);
+}
+.entry-cite-state:not(.text-ok):not(.text-warn):not(.text-bad) {
+  color: var(--muted);
+}
+
+/* Reviews, newest first. */
+.entry-review-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+  gap: var(--s-3);
+  padding: 11px var(--sheet-px);
+  border-bottom: 1px solid var(--line);
+}
+.entry-review-row:last-child {
+  border-bottom: 0;
+}
+.entry-review-row .insights-byline {
+  align-self: start;
+  color: var(--text);
+  font-weight: var(--fw-medium);
+}
+.entry-review-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-2);
+  color: var(--faint);
+  font-size: var(--fs-sm);
+}
+.entry-review-note {
+  max-width: var(--measure);
+  margin-top: var(--s-1);
+  line-height: 1.55;
+  white-space: pre-line;
+}
+.register-review {
+  padding: var(--s-3h) var(--sheet-px) var(--s-4);
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--hover) 45%, var(--panel));
+}
+.register-review-title {
+  margin: 0 0 var(--s-3);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+}
+.register-review-form .input {
+  max-width: 560px;
+}
+.register-review-form .callout {
+  margin-top: var(--s-3);
+}
+
+@media (max-width: 1100px) {
+  .history {
+    grid-template-columns: 1fr;
+  }
+  .history-list {
+    max-height: 30vh;
+  }
+  .history-view {
+    padding-left: 0;
+    border-left: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .insights-sheet .sheet-end {
+    justify-content: space-between;
+    width: 100%;
+    margin-left: 0;
+  }
+  .insights-find {
+    flex: 1 1 100%;
+  }
+  .insights-tools .insights-scope {
+    justify-content: flex-start;
+  }
+  .insight-prose {
+    padding: var(--s-4) var(--sheet-px);
+  }
+  .insight-refs-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .insight-form-actions,
+  .register-form-actions {
+    padding-left: 0;
+  }
+  .entry-cite-row {
+    grid-template-columns: 1fr;
+    gap: var(--s-1);
+  }
+  .entry-review-row {
+    grid-template-columns: 1fr;
+    gap: var(--s-1);
+  }
+  .register-link-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.insight-summary-input {
+  min-height: 56px;
+}

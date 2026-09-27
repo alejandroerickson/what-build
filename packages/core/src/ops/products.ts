@@ -412,18 +412,26 @@ async function requireAdminOf(ctx: OpContext, target: Awaited<ReturnType<typeof 
   }
 }
 
+const RANK: Record<string, number> = { viewer: 1, editor: 2, admin: 3 };
+
 export const listMembers = defineOperation({
   name: "members.list",
   scope: "tenant",
   access: "any",
   mutates: false,
-  summary: "List the tenant's members with every grant they hold, and outstanding invitations.",
-  description: "Each member lists grants as {scope_type, scope, role}. Effective access is the highest role that applies.",
-  input: z.strictObject({ tenant: z.string().min(1) }),
+  summary: "List the tenant's members with every grant they hold, and outstanding invitations; or, with product, the people who can reach one product.",
+  description:
+    "Each member lists grants as {scope_type, scope, role}. Effective access is the highest role that applies. Pass product (a slug with team, or an id) to list only the people with access to that product: each then carries product_access {role, via} — via is product, team or tenant, the grant the role comes from (the broadest one when grants tie) — and grants are limited to the ones that apply to that product. Invitations are limited the same way.",
+  input: z.strictObject({
+    tenant: z.string().min(1),
+    team: z.string().optional().describe("Team slug or id, to name the product by slug."),
+    product: z.string().optional().describe("Product slug (with team) or id: list only the people who can reach this product."),
+  }),
   rest: { method: "GET", path: "/members" },
   mcp: { tool: "members", action: "list" },
-  async handler(ctx) {
+  async handler(ctx, input) {
     const tid = ctx.scope.tenant!.tenant_id;
+    const target = input.product ? await resolveGrantTarget(ctx, { team: input.team, product: input.product }) : null;
     const rows = await ctx.db
       .selectFrom("memberships as m")
       .innerJoin("accounts as a", "a.account_id", "m.account_id")
@@ -439,8 +447,16 @@ export const listMembers = defineOperation({
         : type === "team"
           ? teams.find((t) => t.team_id === sid) ?? { name: "(removed team)", slug: "" }
           : products.find((p) => p.product_id === sid) ?? { name: "(removed product)", slug: "" };
-    const byAccount = new Map<string, { account_id: string; display_name: string; email: string; grants: unknown[] }>();
+    // With a product: only grants that reach it — its own, its team's, and tenant owner or admin.
+    const applies = (type: string, sid: string, role: string) =>
+      !target ||
+      (type === "product" && sid === target.product_id) ||
+      (type === "team" && sid === target.team_id) ||
+      (type === "tenant" && (role === "owner" || role === "admin"));
+    type Grant = { membership_id: string; scope_type: string; scope_id: string; scope: unknown; role: string; since: string };
+    const byAccount = new Map<string, { account_id: string; display_name: string; email: string; grants: Grant[] }>();
     for (const r of rows) {
+      if (!applies(r.scope_type, r.scope_id, r.role)) continue;
       const m = byAccount.get(r.account_id) ?? { account_id: r.account_id, display_name: r.display_name, email: r.email, grants: [] };
       m.grants.push({ membership_id: r.membership_id, scope_type: r.scope_type, scope_id: r.scope_id, scope: label(r.scope_type, r.scope_id), role: r.role, since: r.created_at });
       byAccount.set(r.account_id, m);
@@ -452,9 +468,27 @@ export const listMembers = defineOperation({
       .where("accepted_at", "is", null)
       .where("expires_at", ">", ctx.now)
       .execute();
+    if (!target) {
+      return {
+        members: [...byAccount.values()],
+        invitations: invitations.map((i) => ({ ...i, scope: label(i.scope_type, i.scope_id) })),
+      };
+    }
+    const breadth: Record<string, number> = { tenant: 3, team: 2, product: 1 };
+    const members = [...byAccount.values()].map((m) => {
+      let best: { role: string; via: string } | null = null;
+      for (const g of m.grants) {
+        const role = g.scope_type === "tenant" ? "admin" : g.role;
+        if (!best || RANK[role]! > RANK[best.role]! || (RANK[role] === RANK[best.role] && breadth[g.scope_type]! > breadth[best.via]!)) best = { role, via: g.scope_type };
+      }
+      return { ...m, product_access: best! };
+    });
     return {
-      members: [...byAccount.values()],
-      invitations: invitations.map((i) => ({ ...i, scope: label(i.scope_type, i.scope_id) })),
+      product: { product_id: target.product_id, name: target.name, team_id: target.team_id, team: teams.find((t) => t.team_id === target.team_id)?.name ?? null },
+      members,
+      invitations: invitations
+        .filter((i) => applies(i.scope_type, i.scope_id, i.role))
+        .map((i) => ({ ...i, scope: label(i.scope_type, i.scope_id) })),
     };
   },
 });

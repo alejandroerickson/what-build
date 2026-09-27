@@ -21,3 +21,6 @@ coverage/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Documentation holds reference knowledge only (see okf/decisions/public-repository-reference-docs.md)
+/okf/log.md

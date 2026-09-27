@@ -1,112 +1,173 @@
 /*
- * PROVISIONAL TOKENS — a neutral placeholder, not WhatBuild's design system.
+ * WhatBuild design tokens. Every colour, size, radius, shadow, duration and layer in the app comes
+ * from here; no other file defines raw values for these.
  *
- * The visual direction is deliberately undecided (the owner will choose it). Every screen reads its
- * colour, type, space and shape from these custom properties and from the primitives in src/ui/,
- * so adopting the real system means replacing this file and ui/*.css, not rewriting screens.
+ * Theme: `html[data-theme]` is always "light" or "dark", set before first paint by
+ * /theme-boot.js from the stored choice (whatbuild.theme: light, dark or system). `.theme-light`
+ * and `.theme-dark` scope a subtree to one theme (the /_system specimen uses them).
  */
 :root {
-  color-scheme: light;
-  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-read: var(--font-ui);
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-
-  --text-xs: 0.75rem;
-  --text-sm: 0.8125rem;
-  --text-md: 0.9375rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.375rem;
-  --text-2xl: 1.75rem;
-  --leading: 1.5;
-
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.5rem;
-  --space-6: 2rem;
-  --space-7: 3rem;
-
-  --radius-sm: 4px;
-  --radius: 6px;
-  --radius-lg: 10px;
-
-  --bg: #f7f7f5;
-  --surface: #ffffff;
-  --surface-2: #efefec;
-  --border: #d9d9d4;
-  --border-strong: #b9b9b2;
-  --text: #1d1d1b;
-  --text-muted: #5c5c57;
-  --text-faint: #6f6f69;
-  --accent: #2d5bd7;
-  --accent-text: #ffffff;
-  --accent-soft: #e6ecfb;
-  --focus: #2d5bd7;
-  --danger: #b3261e;
-  --danger-soft: #fbe9e7;
-  --warning: #8a5300;
-  --warning-soft: #fdf1dc;
-  --success: #1f6b3a;
-  --success-soft: #e3f3e8;
-  --info-soft: #eaf0f8;
-  --mark: #fff1a8;
-
-  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.06), 0 1px 1px rgb(0 0 0 / 0.04);
-  --shadow-2: 0 6px 24px rgb(0 0 0 / 0.12), 0 2px 6px rgb(0 0 0 / 0.08);
+  /* Type */
+  --font: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --fs-xs: 11px; /* counts, section labels, captions */
+  --fs-sm: 11.5px; /* secondary meta, chips, group headings */
+  --fs-base: 12px; /* the UI: body, rows, buttons, menus, forms */
+  --fs-md: 12.5px; /* product name, inspector title */
+  --fs-body: 13px; /* passages and quotes: text people read */
+  --fs-prose: 13.5px; /* long-form Markdown */
+  --fs-title: 14px; /* sheet title; the h1 of a list screen */
+  --fs-lead: 15px; /* a summary paragraph above prose */
+  --fs-h1: 20px; /* the h1 of an item screen */
+  --lh-tight: 1.25;
+  --lh-ui: 1.4;
+  --lh-body: 1.55;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --tracking-title: -0.01em;
   --measure: 68ch;
-  --topbar-h: 3.25rem;
-  --rail-w: 15rem;
+
+  /* Space: a 2px-based scale for dense UI */
+  --s-0: 2px;
+  --s-1: 4px;
+  --s-1h: 6px;
+  --s-2: 8px;
+  --s-2h: 10px;
+  --s-3: 12px;
+  --s-3h: 14px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-7: 28px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --s-14: 56px;
+  --s-20: 80px;
+  --sheet-px: 18px; /* horizontal inset of every row inside a sheet */
+  --crumb-inset: 5px; /* aligns text under the crumbs with the crumb labels */
+  --float-inset: 10px; /* gap between a floating panel and the window edge */
+
+  /* Shape */
+  --r-xs: 4px; /* inline tokens, segment items, crumbs */
+  --r-sm: 6px; /* controls */
+  --r-md: 8px; /* popovers, the pill, callouts */
+  --r-lg: 12px; /* panels and sheets */
+  --r-full: 999px;
+
+  /* Controls and marks */
+  --h-sm: 24px;
+  --h-md: 28px;
+  --h-lg: 32px; /* the floating pill only */
+  --icon-sm: 12px;
+  --icon-md: 14px;
+  --icon-stroke: 1.75;
+  --avatar: 22px;
+  --mark: 7px;
+
+  /* Layout */
+  --panel-w: 264px;
+  --ins-w: 272px;
+  --content-max: 900px;
+  --canvas-pt: 28px;
+  --canvas-px: 40px;
+  --canvas-pb: 80px;
+  --col-id: 48px;
+  --col-addr: 76px;
+  --col-face: 22px;
+  --col-key: 64px;
+  --col-label: 140px;
+
+  /* Layers */
+  --z-panel: 5;
+  --z-pill: 6;
+  --z-scrim: 8;
+  --z-overlay: 9;
+  --z-dialog: 50;
+  --z-menu: 60;
+  --z-toast: 70;
+  --z-skip: 100;
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur-1: 120ms; /* small state changes: carets, hovers, menus */
+  --dur-2: 160ms; /* toasts, dialogs */
+  --dur-3: 200ms; /* panels, the inspector, the canvas */
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --bg: #161615;
-    --surface: #1e1e1c;
-    --surface-2: #272725;
-    --border: #3a3a37;
-    --border-strong: #55554f;
-    --text: #ececea;
-    --text-muted: #b1b1ab;
-    --text-faint: #9a9a93;
-    --accent: #8fb0ff;
-    --accent-text: #0f1a33;
-    --accent-soft: #23304f;
-    --focus: #8fb0ff;
-    --danger: #ff9d94;
-    --danger-soft: #3d1f1c;
-    --warning: #f0c070;
-    --warning-soft: #372c17;
-    --success: #7fd1a0;
-    --success-soft: #1b3325;
-    --info-soft: #1f2a3a;
-    --mark: #5c5019;
-    --shadow-1: 0 1px 2px rgb(0 0 0 / 0.5);
-    --shadow-2: 0 8px 28px rgb(0 0 0 / 0.55);
-  }
+/* Light (default) */
+:root,
+.theme-light {
+  color-scheme: light;
+  --canvas: #f0f0f0;
+  --panel: #ffffff;
+  --popover: #ffffff;
+  --hover: #f2f2f2;
+  --hover-strong: #e6e6e6;
+  --select: #ecebfd;
+  --select-text: #3a33b8;
+  --line: #e6e6e6;
+  --line-2: #d5d5d5;
+  --line-strong: #8a8a8a;
+  --text: #1e1e1e;
+  --muted: #555555;
+  --faint: #666666;
+  --accent: #5a53e8;
+  --accent-hover: #4a43d6;
+  --accent-text: #ffffff;
+  --ok: #0f7440;
+  --warn: #9a5b00;
+  --bad: #c4321f;
+  --bad-hover: #a92a19;
+  --bad-text: #ffffff;
+  --highlight: color-mix(in srgb, var(--accent) 22%, transparent);
+  --hit-bg: color-mix(in srgb, var(--accent) 9%, var(--panel));
+  --skeleton: #ebebeb;
+  --scrim: rgb(0 0 0 / 0.32);
+  --avatar-bg: #e3d9c8;
+  --avatar-text: #3a2b10;
+  --shadow: 0 2px 5px rgb(0 0 0 / 0.08), 0 0 0 0.5px rgb(0 0 0 / 0.12);
+  --shadow-2: 0 10px 28px rgb(0 0 0 / 0.16), 0 0 0 0.5px rgb(0 0 0 / 0.14);
+  --shadow-paper: 0 0 0 1px rgb(0 0 0 / 0.06), 0 1px 3px rgb(0 0 0 / 0.06);
 }
 
-:root[data-theme="dark"] {
+/* Dark */
+:root[data-theme="dark"],
+.theme-dark {
   color-scheme: dark;
-  --bg: #161615;
-  --surface: #1e1e1c;
-  --surface-2: #272725;
-  --border: #3a3a37;
-  --border-strong: #55554f;
-  --text: #ececea;
-  --text-muted: #b1b1ab;
-  --text-faint: #9a9a93;
-  --accent: #8fb0ff;
-  --accent-text: #0f1a33;
-  --accent-soft: #23304f;
-  --focus: #8fb0ff;
-  --danger: #ff9d94;
-  --danger-soft: #3d1f1c;
-  --warning: #f0c070;
-  --warning-soft: #372c17;
-  --success: #7fd1a0;
-  --success-soft: #1b3325;
-  --info-soft: #1f2a3a;
-  --mark: #5c5019;
+  --canvas: #1b1b1b;
+  --panel: #2a2a2a;
+  --popover: #323232;
+  --hover: #353535;
+  --hover-strong: #414141;
+  --select: #34325a;
+  --select-text: #c9c6ff;
+  --line: #383838;
+  --line-2: #474747;
+  --line-strong: #858585;
+  --text: #ededed;
+  --muted: #bdbdbd;
+  --faint: #adadad;
+  --accent: #8b85ff;
+  --accent-hover: #a09bff;
+  --accent-text: #15142b;
+  --ok: #62d394;
+  --warn: #f0b95e;
+  --bad: #ff8b7e;
+  --bad-hover: #ffa398;
+  --bad-text: #2a0d09;
+  --skeleton: #343434;
+  --scrim: rgb(0 0 0 / 0.5);
+  --avatar-bg: #5a4a30;
+  --avatar-text: #f3e6cc;
+  --shadow: 0 2px 5px rgb(0 0 0 / 0.4), 0 0 0 0.5px rgb(255 255 255 / 0.08);
+  --shadow-2: 0 10px 28px rgb(0 0 0 / 0.55), 0 0 0 0.5px rgb(255 255 255 / 0.1);
+  --shadow-paper: 0 0 0 1px rgb(255 255 255 / 0.08), 0 1px 3px rgb(0 0 0 / 0.3);
+}
+
+/* Colour-mixed tokens resolve per scope, so each theme block re-derives them. */
+.theme-light,
+.theme-dark {
+  --highlight: color-mix(in srgb, var(--accent) 22%, transparent);
+  --hit-bg: color-mix(in srgb, var(--accent) 9%, var(--panel));
 }

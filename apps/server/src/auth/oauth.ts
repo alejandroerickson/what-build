@@ -41,15 +41,19 @@ function consentPage(p: { client: string; account: string; email: string; hidden
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Connect ${escapeHtml(p.client)} · WhatBuild</title>
 <style>
-:root{color-scheme:light dark;--ink:#1c1b19;--muted:#5d5a53;--paper:#fbfaf7;--rule:#dcd8ce;--accent:#2f5d50}
-@media (prefers-color-scheme:dark){:root{--ink:#ecebe6;--muted:#b5b1a7;--paper:#171614;--rule:#3a3833;--accent:#8cc2b0}}
-body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 system-ui,sans-serif}
-main{max-width:32rem;margin:10vh auto;padding:0 1rem}
-h1{font-size:1.5rem;line-height:1.25;margin:0 0 1rem}
-p{margin:0 0 1rem}.muted{color:var(--muted);font-size:.9rem}
-.row{display:flex;gap:.75rem;margin-top:1.5rem;flex-wrap:wrap}
-button{font:inherit;padding:.6rem 1.1rem;border-radius:6px;border:1px solid var(--rule);background:transparent;color:var(--ink);cursor:pointer}
-button[value=allow]{background:var(--accent);border-color:var(--accent);color:var(--paper)}
+:root{color-scheme:light dark;--canvas:#f0f0f0;--panel:#ffffff;--text:#1e1e1e;--muted:#555555;--line:#e6e6e6;--line-2:#d5d5d5;--hover:#f2f2f2;--accent:#5a53e8;--accent-hover:#4a43d6;--accent-text:#ffffff;--shadow:0 2px 5px rgb(0 0 0 / .08),0 0 0 .5px rgb(0 0 0 / .12)}
+@media (prefers-color-scheme:dark){:root{--canvas:#1b1b1b;--panel:#2a2a2a;--text:#ededed;--muted:#bdbdbd;--line:#383838;--line-2:#474747;--hover:#353535;--accent:#8b85ff;--accent-hover:#a09bff;--accent-text:#15142b;--shadow:0 2px 5px rgb(0 0 0 / .4),0 0 0 .5px rgb(255 255 255 / .08)}}
+body{margin:0;background:var(--canvas);color:var(--text);font:13px/1.55 "Inter Variable","Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:30rem;margin:12vh auto;padding:24px;background:var(--panel);border-radius:12px;box-shadow:var(--shadow)}
+@media (max-width:32rem){main{margin:16px 10px}}
+h1{font-size:20px;font-weight:600;line-height:1.25;letter-spacing:-.01em;margin:0 0 16px}
+p{margin:0 0 12px}.muted{color:var(--muted);font-size:12px}
+.row{display:flex;gap:8px;margin-top:20px;flex-wrap:wrap}
+button{font:inherit;font-weight:500;height:28px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);background:var(--panel);color:var(--text);cursor:pointer}
+button:hover{background:var(--hover)}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button[value=allow]{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
+button[value=allow]:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
 </style></head><body><main>
 <h1>Let ${escapeHtml(p.client)} work in WhatBuild as you?</h1>
 <p>Signed in as <strong>${escapeHtml(p.account)}</strong> (${escapeHtml(p.email)}).</p>

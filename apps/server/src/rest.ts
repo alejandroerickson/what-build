@@ -1,5 +1,5 @@
 import {
-  AppError, execute, OPERATIONS, resolveScope, STORY_RESPONSE_HEADERS, toAppError, unauthenticated,
+  AppError, execute, OPERATIONS, printDocument, printResponseHeaders, resolveScope, STORY_RESPONSE_HEADERS, toAppError, unauthenticated, withStoryTheme,
   type Env, type OperationDef, type Principal, type ScopeRef,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
@@ -159,7 +159,11 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
 
   app.get(`${SCOPE_PREFIX.product}/story/pages/:page_id/versions/:version/html`, async (c) => {
     try {
+      // ?theme=light|dark: the app's resolved theme, written onto the page's <html> for this
+      // response only, so the page follows the app rather than only the system.
       const scope = await scoped(c);
+      const theme = c.req.query("theme");
+      if (theme !== undefined && theme !== "light" && theme !== "dark") throw new AppError(422, "invalid_input", "theme must be light or dark.");
       const v = await inTenant(scope.tenant!.tenant_id, (trx) =>
         trx
           .selectFrom("story_versions")
@@ -171,9 +175,26 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       );
       if (!v) throw new AppError(404, "not_found", "No such Story version.");
       for (const [k, val] of Object.entries(STORY_RESPONSE_HEADERS)) c.header(k, val);
-      return c.body(v.html);
+      return c.body(theme ? withStoryTheme(v.html, theme) : v.html);
     } catch (e) {
       return errorResponse(c, toAppError(e));
+    }
+  });
+
+  // The Story print view: one composed HTML document, opened top-level in a new tab and printed to
+  // PDF by the browser. Its policy runs only the nonce'd print script, in an opaque origin.
+  app.get(`${SCOPE_PREFIX.product}/story/print`, async (c) => {
+    try {
+      const principal = await principalOf(c);
+      const { tenant, team, product } = c.req.param() as Record<string, string>;
+      const input = coerceQuery(printDocument as OperationDef, c.req.query());
+      const { result } = await execute(env, principal, printDocument as OperationDef, input, { tenant, team, product });
+      const { html, nonce } = result as { html: string; nonce: string };
+      return c.body(html, 200, printResponseHeaders(nonce));
+    } catch (e) {
+      const err = toAppError(e);
+      if (err.status === 500) console.error("story print view:", e);
+      return errorResponse(c, err);
     }
   });
 

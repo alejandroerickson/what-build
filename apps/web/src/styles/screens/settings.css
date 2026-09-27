@@ -1,0 +1,129 @@
+/* Product settings: details, people on this product, export, organization, archive. */
+
+.settings-note {
+  padding: var(--s-3) var(--sheet-px) 0;
+}
+.settings-form {
+  padding: var(--s-3h) var(--sheet-px);
+}
+.settings-form .textarea {
+  max-width: 560px;
+}
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  padding: 0 var(--sheet-px) var(--s-3h) calc(var(--sheet-px) + var(--col-label) + var(--s-4));
+}
+.settings-anchor {
+  display: block;
+  scroll-margin-top: var(--s-4);
+}
+.settings-foot {
+  margin: var(--s-4) 0 0;
+  padding: 0 var(--s-1);
+  color: var(--faint);
+  font-size: var(--fs-sm);
+}
+
+/* People on this product */
+.people-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.people-row {
+  display: grid;
+  grid-template-columns: var(--col-face) minmax(0, 1fr) auto;
+  gap: var(--s-3);
+  align-items: center;
+  min-height: 44px;
+  padding: var(--s-2) var(--sheet-px);
+  border-bottom: 1px solid var(--line);
+}
+.people-main {
+  min-width: 0;
+}
+.people-name {
+  display: block;
+  font-weight: var(--fw-medium);
+  overflow-wrap: anywhere;
+}
+.people-sub {
+  display: block;
+  margin-top: 1px;
+  color: var(--faint);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-ui);
+}
+.people-end {
+  display: flex;
+  justify-content: flex-end;
+}
+.people-role {
+  width: 120px;
+}
+.people-role-text {
+  color: var(--muted);
+}
+.people-face-empty {
+  display: inline-grid;
+  place-items: center;
+  width: var(--avatar);
+  height: var(--avatar);
+  border: 1px dashed var(--line-strong);
+  border-radius: 50%;
+  color: var(--faint);
+}
+.people-foot {
+  margin: 0;
+  padding: var(--s-3) var(--sheet-px);
+  color: var(--faint);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+  max-width: calc(var(--measure) + 2 * var(--sheet-px));
+}
+.people-add {
+  display: grid;
+  gap: var(--s-3h);
+}
+
+/* Export */
+.export-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+.export-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 40px;
+  padding: var(--s-1h) var(--sheet-px);
+  border-bottom: 1px solid var(--line);
+}
+.export-row:last-child {
+  border-bottom: 0;
+}
+.export-row > .glyph {
+  color: var(--faint);
+}
+.export-when {
+  color: var(--muted);
+}
+.export-state {
+  margin-left: auto;
+}
+
+@media (max-width: 760px) {
+  .settings-actions {
+    padding-left: var(--sheet-px);
+  }
+  .export-state {
+    margin-left: 0;
+    flex-basis: 100%;
+    padding-left: calc(var(--icon-sm) + var(--s-2));
+  }
+}

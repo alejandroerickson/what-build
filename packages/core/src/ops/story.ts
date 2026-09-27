@@ -1,14 +1,16 @@
 import { z } from "zod";
 import { checkEtag, EMPTY_REFS, productId, recordActivity, tenantId, validateRefs } from "../common.ts";
-import { json, type StoryNode } from "../db.ts";
+import { checkCitationList, CITATION_MAX_COUNT, citationInput, citationViews, snapshotAll } from "../citations.ts";
+import { json, type Refs, type StoryNode } from "../db.ts";
 import { conflict, invalid, notFound } from "../errors.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag, id } from "../schemas.ts";
 import { escapeHtml, inspectStoryHtml, STORY_HTML_MAX } from "../story-html.ts";
+import { composePrintDocument, PRINT_MAX_PAGES, printOrder } from "../story-print.ts";
 import {
   CHECKLIST, components, CONTENT_RULES, DESIGN_RULES, GUIDANCE_VERSION, layouts, linkTemplates, starterHtml, STYLESHEET, TOKENS, WORKFLOW, WRITING,
 } from "../story-guidance.ts";
-import { newEtag, newId } from "../util.ts";
+import { newEtag, newId, randomToken, uniq } from "../util.ts";
 
 export const MAX_PAGES = 50;
 export const MAX_DEPTH = 6;
@@ -66,8 +68,6 @@ export const guidance = defineOperation({
         "HTML is untrusted and shown in a sandboxed frame. Bounded inline scripts run; forms, frames, remote resources, same-origin access and navigating the parent are blocked. Use target=\"_blank\" rel=\"noopener noreferrer\" on evidence and related-page links. Replace every REPLACE placeholder and adapt recipes to the content.",
       links,
       limits: { html_characters: STORY_HTML_MAX, inline_scripts: 10, script_characters: 32000, pages_per_product: MAX_PAGES, hierarchy_depth: MAX_DEPTH },
-      provisional:
-        "The design values are a neutral placeholder until WhatBuild's design system is chosen; they will change, and pages published now keep the values they embed.",
     };
     const design = { tokens: TOKENS, rules: DESIGN_RULES, integration: "The frame cannot inherit the app's stylesheet, so paste the stylesheet once into a <style> element; it embeds resolved values, not a runtime import." };
     switch (input.section) {
@@ -105,6 +105,54 @@ export const listPages = defineOperation({
   },
 });
 
+export const NOTES_MAX = 20_000;
+
+function notesView(p: { agent_notes: string; agent_notes_etag: string; agent_notes_updated_at: string | null; agent_notes_updated_by: unknown }) {
+  return { content: p.agent_notes, etag: p.agent_notes_etag, updated_at: p.agent_notes_updated_at, updated_by: p.agent_notes_updated_by };
+}
+
+type ResolvedRef = { id: string; title: string | null; status: string | null; kind?: string; archived: boolean; missing: boolean };
+
+/** A version's references with their current titles, so a reader can list them without a request per id. */
+async function resolveRefs(ctx: OpContext, refs: Refs): Promise<Record<keyof Refs, ResolvedRef[]>> {
+  const pid = productId(ctx);
+  const some = (ids: string[] | undefined) => (ids?.length ? ids : [""]);
+  const [objectives, sources, insights, entries] = await Promise.all([
+    ctx.db.selectFrom("objectives").select(["objective_id as id", "title", "status"]).where("product_id", "=", pid).where("objective_id", "in", some(refs.objectives)).execute(),
+    ctx.db.selectFrom("records").select(["record_id as id", "title", "kind", "archived_at"]).where("product_id", "=", pid).where("record_id", "in", some(refs.sources)).execute(),
+    ctx.db.selectFrom("insights").select(["insight_id as id", "title", "status"]).where("product_id", "=", pid).where("insight_id", "in", some(refs.insights)).execute(),
+    ctx.db
+      .selectFrom("register_entries")
+      .select(["entry_id as id", "statement", "status", "archived_at"])
+      .where("product_id", "=", pid)
+      .where("entry_id", "in", some([...(refs.assumptions ?? []), ...(refs.decisions ?? [])]))
+      .execute(),
+  ]);
+  const missing = (id: string): ResolvedRef => ({ id, title: null, status: null, archived: false, missing: true });
+  return {
+    objectives: (refs.objectives ?? []).map((i) => {
+      const o = objectives.find((x) => x.id === i);
+      return o ? { id: i, title: o.title, status: o.status, archived: o.status === "archived", missing: false } : missing(i);
+    }),
+    sources: (refs.sources ?? []).map((i) => {
+      const r = sources.find((x) => x.id === i);
+      return r ? { id: i, title: r.title, status: null, kind: r.kind, archived: Boolean(r.archived_at), missing: false } : missing(i);
+    }),
+    insights: (refs.insights ?? []).map((i) => {
+      const r = insights.find((x) => x.id === i);
+      return r ? { id: i, title: r.title, status: r.status, archived: r.status === "archived", missing: false } : missing(i);
+    }),
+    assumptions: (refs.assumptions ?? []).map((i) => {
+      const r = entries.find((x) => x.id === i);
+      return r ? { id: i, title: r.statement, status: r.status, archived: Boolean(r.archived_at), missing: false } : missing(i);
+    }),
+    decisions: (refs.decisions ?? []).map((i) => {
+      const r = entries.find((x) => x.id === i);
+      return r ? { id: i, title: r.statement, status: r.status, archived: Boolean(r.archived_at), missing: false } : missing(i);
+    }),
+  };
+}
+
 async function versionView(ctx: OpContext, versionId: string, withHtml: boolean) {
   const v = await ctx.db.selectFrom("story_versions").selectAll().where("version_id", "=", versionId).where("product_id", "=", productId(ctx)).executeTakeFirstOrThrow();
   return {
@@ -115,6 +163,8 @@ async function versionView(ctx: OpContext, versionId: string, withHtml: boolean)
     summary: v.summary,
     note: v.note,
     refs: v.refs,
+    resolved_refs: await resolveRefs(ctx, v.refs),
+    citations: await citationViews(ctx, v.citations),
     published_at: v.created_at,
     published_by: v.created_by,
     ...(withHtml ? { html: v.html } : { html_chars: v.html.length }),
@@ -126,14 +176,15 @@ export const getPage = defineOperation({
   scope: "product",
   access: "read",
   mutates: false,
-  summary: "Read a Story page's current version, with its HTML and the page etag you need to publish again.",
-  description: "404 means the page has never been published. An archived page stays readable here. Read this before revising a page, and keep what is useful.",
+  summary: "Read a Story page's current version, with its HTML, citations, notes for agents, and the page etag you need to publish again.",
+  description:
+    "404 means the page has never been published. An archived page stays readable here. Read this before revising a page, and keep what is useful. agent_notes holds what agents keep about the page — its purpose, sources still to fold in, structural decisions — with its own etag for write_notes; read it before revising.",
   input: z.strictObject({ page_id: pageId, include_html: z.boolean().default(true) }),
   rest: { method: "GET", path: "/story/pages/:page_id" },
   mcp: { tool: "story", action: "get_page" },
   async handler(ctx, input) {
     const p = await loadPage(ctx, input.page_id);
-    return { ...pageSummary(p), current: await versionView(ctx, p.current_version_id, input.include_html) };
+    return { ...pageSummary(p), agent_notes: notesView(p), current: await versionView(ctx, p.current_version_id, input.include_html) };
   },
 });
 
@@ -151,12 +202,12 @@ export const listVersions = defineOperation({
     await loadPage(ctx, input.page_id);
     let q = ctx.db
       .selectFrom("story_versions")
-      .select(["version_id", "n", "title", "summary", "note", "created_at", "created_by"])
+      .select(["version_id", "n", "title", "summary", "note", "created_at", "created_by", "citations"])
       .where("product_id", "=", productId(ctx))
       .where("page_id", "=", input.page_id);
     if (input.before) q = q.where("n", "<", input.before);
     const rows = await q.orderBy("n", "desc").limit(input.limit + 1).execute();
-    const items = rows.slice(0, input.limit).map((v) => ({ version_id: v.version_id, version: v.n, title: v.title, summary: v.summary, note: v.note, published_at: v.created_at, published_by: v.created_by }));
+    const items = rows.slice(0, input.limit).map((v) => ({ version_id: v.version_id, version: v.n, title: v.title, summary: v.summary, note: v.note, citation_count: v.citations.length, published_at: v.created_at, published_by: v.created_by }));
     return { items, next_before: rows.length > input.limit ? items[items.length - 1]!.version : null };
   },
 });
@@ -186,7 +237,7 @@ export const publish = defineOperation({
   mutates: true,
   summary: "Publish a new version of a Story page (creating the page on its first version).",
   description:
-    "Call guidance first, and get_page before revising. Omit expected_etag only for a page's first version; otherwise pass the page etag. html is one self-contained document (omit it for a generated title page). The HTML is validated and every problem is listed at once (422). Publishing never places the page in the navigation: call set_hierarchy afterwards. Never invent facts, owners or dates, and never present an unconfirmed assumption as settled.",
+    `Call guidance first, and get_page before revising (read its agent_notes too). Omit expected_etag only for a page's first version; otherwise pass the page etag. html is one self-contained document (omit it for a generated title page). The HTML is validated and every problem is listed at once (422). citations lists up to ${CITATION_MAX_COUNT} exact passages the page draws on, {record_id, seq_start, seq_end, quote?}, each frozen as a snapshot as in the registers; refs and citations belong to the version, so pass the full lists each time — nothing carries over from the previous version. Publishing never places the page in the navigation: call set_hierarchy afterwards, and update the page's notes with write_notes. Never invent facts, owners or dates, and never present an unconfirmed assumption as settled.`,
   input: z.strictObject({
     page_id: pageId.default("overview"),
     title: z.string().trim().min(1).max(200),
@@ -194,6 +245,7 @@ export const publish = defineOperation({
     html: z.string().min(1).max(STORY_HTML_MAX).optional(),
     note: z.string().max(500).default("").describe("What changed in this version."),
     refs: refsInput,
+    citations: z.array(citationInput).max(CITATION_MAX_COUNT).optional().describe(`Up to ${CITATION_MAX_COUNT} exact passages the page draws on: {record_id, seq_start, seq_end, quote?}. Read each passage first.`),
     expected_etag: expectedEtag.optional(),
   }),
   rest: { method: "POST", path: "/story/pages/:page_id/versions" },
@@ -205,6 +257,7 @@ export const publish = defineOperation({
       `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(input.title)}</title><style>${STYLESHEET}</style></head><body><main class="wb-page wb-prose"><h1>${escapeHtml(input.title)}</h1>${input.summary ? `<p class="wb-lead">${escapeHtml(input.summary)}</p>` : ""}</main></body></html>`;
     const problems = inspectStoryHtml(html);
     if (problems.length) throw invalid("invalid_html", `The page was not published: ${problems.join(" ")}`, { problems });
+    const citations = await snapshotAll(ctx, input.citations ?? [], "page version");
     const existing = await ctx.db.selectFrom("story_pages").selectAll().where("product_id", "=", productId(ctx)).where("page_id", "=", input.page_id).forUpdate().executeTakeFirst();
     const version_id = newId();
     if (!existing) {
@@ -213,11 +266,11 @@ export const publish = defineOperation({
       if (Number(count?.n ?? 0) >= MAX_PAGES) throw conflict("quota_exceeded", `A product's Story holds at most ${MAX_PAGES} pages.`, { quota: "story_pages", limit: MAX_PAGES, used: Number(count?.n ?? 0), unit: "pages" });
       await ctx.db
         .insertInto("story_versions")
-        .values({ version_id, tenant_id: tenantId(ctx), product_id: productId(ctx), page_id: input.page_id, n: 1, title: input.title, summary: input.summary, html, note: input.note, refs: json(refs), previous_version_id: null, created_by: json(ctx.actor) })
+        .values({ version_id, tenant_id: tenantId(ctx), product_id: productId(ctx), page_id: input.page_id, n: 1, title: input.title, summary: input.summary, html, note: input.note, refs: json(refs), citations: json(citations), previous_version_id: null, created_by: json(ctx.actor) })
         .execute();
       await ctx.db
         .insertInto("story_pages")
-        .values({ tenant_id: tenantId(ctx), product_id: productId(ctx), page_id: input.page_id, title: input.title, summary: input.summary, current_version_id: version_id, version_count: 1, etag: newEtag(), created_by: json(ctx.actor), updated_by: json(ctx.actor) })
+        .values({ tenant_id: tenantId(ctx), product_id: productId(ctx), page_id: input.page_id, title: input.title, summary: input.summary, current_version_id: version_id, version_count: 1, etag: newEtag(), agent_notes_etag: newEtag(), created_by: json(ctx.actor), updated_by: json(ctx.actor) })
         .execute();
       await recordActivity(ctx, { action: "published", entity_type: "story_page", entity_id: input.page_id, entity_title: input.title, summary: "Published the first version" });
     } else {
@@ -227,7 +280,7 @@ export const publish = defineOperation({
       const n = existing.version_count + 1;
       await ctx.db
         .insertInto("story_versions")
-        .values({ version_id, tenant_id: tenantId(ctx), product_id: productId(ctx), page_id: input.page_id, n, title: input.title, summary: input.summary, html, note: input.note, refs: json(refs), previous_version_id: existing.current_version_id, created_by: json(ctx.actor) })
+        .values({ version_id, tenant_id: tenantId(ctx), product_id: productId(ctx), page_id: input.page_id, n, title: input.title, summary: input.summary, html, note: input.note, refs: json(refs), citations: json(citations), previous_version_id: existing.current_version_id, created_by: json(ctx.actor) })
         .execute();
       await ctx.db
         .updateTable("story_pages")
@@ -267,27 +320,33 @@ export const getHierarchy = defineOperation({
   rest: { method: "GET", path: "/story/hierarchy" },
   mcp: { tool: "story", action: "get_hierarchy" },
   async handler(ctx) {
-    const h = await storedHierarchy(ctx);
-    const pages = await ctx.db.selectFrom("story_pages").select(["page_id", "title", "summary", "archived_at", "version_count", "updated_at"]).where("product_id", "=", productId(ctx)).execute();
-    const live = new Map(pages.filter((p) => !p.archived_at).map((p) => [p.page_id, p]));
-    const used = new Set<string>();
-    type Enriched = { page_id: string; title: string; description: string; children: Enriched[] };
-    const resolve = (nodes: StoryNode[]): Enriched[] =>
-      nodes.flatMap((n) => {
-        const p = live.get(n.page_id);
-        const kids = resolve(n.children);
-        if (!p || used.has(n.page_id)) return kids;
-        used.add(n.page_id);
-        return [{ page_id: p.page_id, title: p.title, description: p.summary, children: kids }];
-      });
-    const items = resolve(h?.items ?? []);
-    const unplaced = [...live.values()]
-      .filter((p) => !used.has(p.page_id))
-      .sort((a, b) => (a.page_id === "overview" ? -1 : b.page_id === "overview" ? 1 : a.title.localeCompare(b.title) || a.page_id.localeCompare(b.page_id)))
-      .map((p) => ({ page_id: p.page_id, title: p.title, description: p.summary, children: [] as Enriched[] }));
-    return { etag: h?.etag ?? null, items: [...items, ...unplaced], unplaced: unplaced.map((u) => u.page_id), updated_at: h?.updated_at ?? null };
+    const { placed, ...view } = await resolvedHierarchy(ctx);
+    void placed;
+    return view;
   },
 });
+
+async function resolvedHierarchy(ctx: OpContext) {
+  const h = await storedHierarchy(ctx);
+  const pages = await ctx.db.selectFrom("story_pages").select(["page_id", "title", "summary", "archived_at", "version_count", "updated_at"]).where("product_id", "=", productId(ctx)).execute();
+  const live = new Map(pages.filter((p) => !p.archived_at).map((p) => [p.page_id, p]));
+  const used = new Set<string>();
+  type Enriched = { page_id: string; title: string; description: string; children: Enriched[] };
+  const resolve = (nodes: StoryNode[]): Enriched[] =>
+    nodes.flatMap((n) => {
+      const p = live.get(n.page_id);
+      const kids = resolve(n.children);
+      if (!p || used.has(n.page_id)) return kids;
+      used.add(n.page_id);
+      return [{ page_id: p.page_id, title: p.title, description: p.summary, children: kids }];
+    });
+  const items = resolve(h?.items ?? []);
+  const unplaced = [...live.values()]
+    .filter((p) => !used.has(p.page_id))
+    .sort((a, b) => (a.page_id === "overview" ? -1 : b.page_id === "overview" ? 1 : a.title.localeCompare(b.title) || a.page_id.localeCompare(b.page_id)))
+    .map((p) => ({ page_id: p.page_id, title: p.title, description: p.summary, children: [] as Enriched[] }));
+  return { etag: h?.etag ?? null, items: [...items, ...unplaced], placed: items, unplaced: unplaced.map((u) => u.page_id), updated_at: h?.updated_at ?? null };
+}
 
 const nodeSchema: z.ZodType<StoryNode> = z.lazy(() => z.strictObject({ page_id: pageId, children: z.array(nodeSchema).default([]) })) as z.ZodType<StoryNode>;
 
@@ -385,4 +444,128 @@ export const restorePage = defineOperation({
   },
 });
 
-export const storyOps = [guidance, listPages, getPage, listVersions, getVersion, publish, getHierarchy, setHierarchy, archivePage, restorePage];
+export const writeNotes = defineOperation({
+  name: "story.write_notes",
+  scope: "product",
+  access: "write",
+  mutates: true,
+  summary: "Replace a Story page's notes for agents: the Markdown memory agents keep while writing and maintaining the page.",
+  description:
+    `Notes are not versioned with the HTML and readers do not see them on the page. Keep them short and current: what the page is for and who reads it, sources and insights still to fold in, decisions about structure, and anything the next agent should not undo. Read them (get_page → agent_notes) before revising, and update them after publishing. The whole note is replaced; pass agent_notes.etag from get_page as expected_etag (it is not the page etag). At most ${NOTES_MAX.toLocaleString("en-US")} characters; an empty string clears the notes.`,
+  input: z.strictObject({ page_id: pageId, notes: z.string().max(NOTES_MAX), expected_etag: expectedEtag }),
+  rest: { method: "PUT", path: "/story/pages/:page_id/notes" },
+  mcp: { tool: "story", action: "write_notes" },
+  async handler(ctx, input) {
+    const p = await loadPage(ctx, input.page_id, true);
+    checkEtag(input.expected_etag, p.agent_notes_etag, "page's notes");
+    if (input.notes === p.agent_notes) return { page_id: p.page_id, agent_notes: notesView(p), changed: false };
+    await ctx.db
+      .updateTable("story_pages")
+      .set({ agent_notes: input.notes, agent_notes_etag: newEtag(), agent_notes_updated_at: ctx.now, agent_notes_updated_by: json(ctx.actor) })
+      .where("product_id", "=", productId(ctx))
+      .where("page_id", "=", p.page_id)
+      .execute();
+    await recordActivity(ctx, { action: "notes_updated", entity_type: "story_page", entity_id: p.page_id, entity_title: p.title, summary: input.notes ? "Updated the notes for agents" : "Cleared the notes for agents" });
+    return { page_id: p.page_id, agent_notes: notesView(await loadPage(ctx, p.page_id)), changed: true };
+  },
+});
+
+export const checkStoryCitations = defineOperation({
+  name: "story.check_citations",
+  scope: "product",
+  access: "read",
+  mutates: false,
+  summary: "Re-resolve a Story page version's citations against the sources as they are now. Reports drift; never rewrites.",
+  description:
+    "Checks the current version unless version is given. Per citation: ok, relocated (text intact at another range, which it gives), text_changed, record_archived, record_deleted or record_missing, plus version_drift when the source's primary file has a newer version than the snapshot's. A matching quote establishes textual integrity only, not truth.",
+  input: z.strictObject({ page_id: pageId, version: z.number().int().min(1).optional() }),
+  rest: { method: "GET", path: "/story/pages/:page_id/check-citations" },
+  mcp: { tool: "story", action: "check_citations" },
+  async handler(ctx, input) {
+    const p = await loadPage(ctx, input.page_id);
+    let q = ctx.db.selectFrom("story_versions").select(["n", "citations"]).where("product_id", "=", productId(ctx)).where("page_id", "=", p.page_id);
+    q = input.version ? q.where("n", "=", input.version) : q.where("version_id", "=", p.current_version_id);
+    const v = await q.executeTakeFirst();
+    if (!v) throw notFound(`Page "${p.page_id}" has no version ${input.version}.`);
+    return { page_id: p.page_id, version: v.n, checked_at: ctx.now, ...(await checkCitationList(ctx, v.citations)) };
+  },
+});
+
+const printInput = z.strictObject({
+  page_ids: z
+    .array(pageId)
+    .min(1)
+    .max(PRINT_MAX_PAGES)
+    .describe(`The pages to include, 1 to ${PRINT_MAX_PAGES}; exactly these, never their sub-pages. In REST, a comma-separated list.`),
+});
+
+/** The chosen pages with their current versions, in tree order with outline levels. */
+async function printPages(ctx: OpContext, ids: string[]) {
+  const wanted = uniq(ids);
+  const rows = await ctx.db
+    .selectFrom("story_pages as p")
+    .innerJoin("story_versions as v", "v.version_id", "p.current_version_id")
+    .select(["p.page_id", "p.title", "p.archived_at", "v.n", "v.created_at", "v.html"])
+    .where("p.product_id", "=", productId(ctx))
+    .where("p.page_id", "in", wanted)
+    .execute();
+  const missing = wanted.filter((w) => !rows.some((r) => r.page_id === w));
+  if (missing.length) throw notFound(`These Story pages have never been published in this product: ${missing.join(", ")}.`, { missing });
+  const h = await resolvedHierarchy(ctx);
+  const order = printOrder(h.placed, rows.map((r) => ({ page_id: r.page_id, title: r.title })));
+  return order.map((slot) => {
+    const r = rows.find((x) => x.page_id === slot.page_id)!;
+    return { page_id: r.page_id, title: r.title, version: r.n, published_at: r.created_at, archived: Boolean(r.archived_at), depth: slot.depth, level: slot.level, html: r.html };
+  });
+}
+
+function printPath(ctx: OpContext, ids: string[]) {
+  return `/api/v1/p/${productPath(ctx)}/story/print?page_ids=${ids.map(encodeURIComponent).join(",")}`;
+}
+
+export const printView = defineOperation({
+  name: "story.print_view",
+  scope: "product",
+  access: "read",
+  mutates: false,
+  summary: "Plan a print view of chosen Story pages, to save as PDF from a browser: their order, heading levels and the view's address.",
+  description:
+    "Includes exactly the pages named, each at its current version, in the Story's tree order (a depth-first walk of the hierarchy; unplaced pages after, by title). level is the page's outline level among the chosen pages: 1 for a page with no chosen ancestor. url opens one HTML document — a title block, contents, then each page — that a person prints to PDF from their browser; page scripts do not run there, so content a page draws with JavaScript is left out. 404 lists pages that have never been published.",
+  input: printInput,
+  rest: { method: "GET", path: "/story/print-view" },
+  mcp: { tool: "story", action: "print_view" },
+  async handler(ctx, input) {
+    const pages = await printPages(ctx, input.page_ids);
+    const path = printPath(ctx, pages.map((p) => p.page_id));
+    return {
+      product: { name: ctx.scope.product!.name, path: productPath(ctx) },
+      pages: pages.map(({ html, ...p }) => ({ ...p, html_chars: html.length })),
+      path,
+      url: `${ctx.ports.config.publicBaseUrl}${path}`,
+    };
+  },
+});
+
+/**
+ * The print view document itself. Not a registry operation (it answers HTML, not JSON): the REST
+ * adapter serves it at GET /story/print with the headers from printResponseHeaders(nonce).
+ */
+export const printDocument = defineOperation({
+  name: "story.print_view",
+  scope: "product",
+  access: "read",
+  mutates: false,
+  summary: printView.summary,
+  description: printView.description,
+  input: printInput,
+  rest: { method: "GET", path: "/story/print" },
+  mcp: { tool: "story", action: "print_view" },
+  async handler(ctx, input) {
+    const pages = await printPages(ctx, input.page_ids);
+    const nonce = randomToken(18);
+    const html = composePrintDocument({ productName: ctx.scope.product!.name, exportedAt: ctx.now, pages, nonce });
+    return { html, nonce };
+  },
+});
+
+export const storyOps = [guidance, listPages, getPage, listVersions, getVersion, publish, writeNotes, checkStoryCitations, printView, getHierarchy, setHierarchy, archivePage, restorePage];

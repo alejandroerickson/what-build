@@ -395,6 +395,10 @@ export interface InsightsTable {
   status: "draft" | "published" | "archived";
   refs: Json<Refs>;
   revision: Def<number>;
+  /** The revision a person last marked reviewed; null when never reviewed. */
+  reviewed_revision: ColumnType<number | null, number | null | undefined, number | null>;
+  reviewed_at: TsNull;
+  reviewed_by: JsonNull<ActorSnapshot>;
   etag: string;
   created_at: Ts;
   created_by: Json<ActorSnapshot>;
@@ -465,6 +469,11 @@ export interface StoryPagesTable {
   created_by: Json<ActorSnapshot>;
   updated_at: Ts;
   updated_by: Json<ActorSnapshot>;
+  /** Markdown notes agents keep about the page; not versioned with the HTML. */
+  agent_notes: Def<string>;
+  agent_notes_etag: Def<string>;
+  agent_notes_updated_at: TsNull;
+  agent_notes_updated_by: JsonNull<ActorSnapshot>;
 }
 
 export interface StoryVersionsTable {
@@ -478,6 +487,7 @@ export interface StoryVersionsTable {
   html: string;
   note: string;
   refs: Json<Refs>;
+  citations: ColumnType<CitationSnapshot[], string | undefined, string>;
   previous_version_id: string | null;
   created_at: Ts;
   created_by: Json<ActorSnapshot>;

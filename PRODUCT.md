@@ -3,8 +3,8 @@
 <!-- impeccable:product-schema 1 -->
 
 > **Draft, written unattended on 2026-09-25 from the specification and the owner's brief. Every
-> line marked _(inferred)_ has not been confirmed by the owner; correct or delete it.** Nothing here
-> chooses a visual direction; that decision is deliberately left open for the owner.
+> line marked _(inferred)_ has not been confirmed by the owner; correct or delete it.** The visual
+> direction is the owner's: the Studio design system, documented in `DESIGN.md`.
 
 ## Platform
 
@@ -14,7 +14,7 @@ web
 
 TypeScript throughout: a Node server (Hono) serving REST, MCP and the web app from one image, a
 React single-page app, Postgres as the only database, and an object store for files. Hosted on
-Google Cloud Run. Recorded in `docs/spec/02-architecture.md`.
+Google Cloud Run. Recorded in `okf/spec/02-architecture.md`.
 
 ## Users
 
@@ -55,7 +55,7 @@ permissions and one activity log.
 
 ## Capabilities and Constraints
 
-- Four destinations inside a product: **Objectives, Sources, Insights, Story**. Everything else is
+- Four destinations inside a product: **Objectives, Evidence, Synthesis, Story**. Everything else is
   a sub-view.
 - Hierarchy: tenant (organization) → team → product (one discovery). Roles at each level; a person
   without a role on a product cannot see it at all.
@@ -65,7 +65,7 @@ permissions and one activity log.
 - Citations snapshot the exact text; drift is reported, never repaired silently.
 - Archive is the reversible default everywhere; delete is permanent, explicit and guarded.
 - Story pages are agent-authored, self-contained HTML shown in a sandbox. Their styling comes from
-  service-provided guidance that must eventually derive from the product's own design system.
+  service-provided guidance whose tokens derive from the product's own design system.
 - Vocabulary is fixed: source, passage, segment, objective, insight, assumption, decision, Story,
   archive. Never "findings", "claims", "document store" or a storage path in the UI.
 - WCAG 2.2 AA, fully keyboard-operable, usable at phone width.
@@ -75,7 +75,9 @@ permissions and one activity log.
 - A synthetic sample product ("Crewboard", in `apps/server/src/seed-content.ts`): four sources,
   objectives, an insight, register entries and a Story page. All people and organizations are
   invented; no real customer material exists in this repository and none may be fabricated as real.
-- No logo, wordmark, typeface or colour has been chosen. The domain what-build.com is registered.
+- The brand is the W mark (`apps/web/public/favicon.svg`) with the wordmark "WhatBuild". The type
+  is Inter and the accent is indigo, in the Studio design system documented in `DESIGN.md`. The
+  domain what-build.com is registered.
 
 ## Product Principles
 
