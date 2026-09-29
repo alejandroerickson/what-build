@@ -12,12 +12,12 @@ type Counts = ProductSummary["counts"];
 
 /** The discovery loop in the order the panel tells it, with what each stage holds. */
 const LOOP: { id: string; label: string; icon: GlyphName; figures: [keyof Counts, string, string][] }[] = [
-  { id: "idea", label: "Idea", icon: "target", figures: [["outcomes", "outcome", "outcomes"]] },
+  { id: "idea", label: "Idea", icon: "lightbulb", figures: [["outcomes", "outcome", "outcomes"]] },
   { id: "evidence", label: "Evidence", icon: "library", figures: [["sources", "source", "sources"]] },
   {
     id: "synthesis",
     label: "Synthesis",
-    icon: "lightbulb",
+    icon: "blend",
     figures: [["insights", "insight", "insights"], ["assumptions", "assumption", "assumptions"], ["decisions", "decision", "decisions"]],
   },
   { id: "story", label: "Story", icon: "book-open", figures: [["story_pages", "page", "pages"]] },

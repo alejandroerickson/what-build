@@ -174,7 +174,7 @@ function LinkedChips({ o }: { o: Outcome }) {
   return (
     <div className="chips outcome-chips">
       {insights ? (
-        <Chip to={`${app}/synthesis/insights?outcome_id=${o.outcome_id}`} icon="lightbulb">
+        <Chip to={`${app}/synthesis/insights?outcome_id=${o.outcome_id}`} icon="blend">
           {plural(insights, "insight")}
         </Chip>
       ) : null}
