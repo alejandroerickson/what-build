@@ -247,9 +247,9 @@ components:
     padding: "6px"
   show-pill:
     backgroundColor: "{colors.panel}"
-    textColor: "{colors.text}"
+    textColor: "{colors.muted}"
     rounded: "{rounded.md}"
-    padding: "0 10px 0 7px"
+    width: "58px"
     height: "32px"
   dialog:
     backgroundColor: "{colors.panel}"
@@ -281,7 +281,7 @@ One floating panel carries the product's whole story, Idea, Evidence, Synthesis 
 
 The system is dense and quiet. The UI runs at 12px in Inter; text people actually read (passages, quotes, Markdown) steps up to 13 to 13.5px. Hierarchy comes from weight (600) and grey steps rather than size, and nothing in the app is larger than 20px except the overview's intro. Indigo is the only chromatic voice in the chrome, reserved for selection, focus, primary commits and pointing at evidence. Status always pairs a small shaped mark with a word.
 
-The panel can hide (a button or Ctrl/Cmd+\). The canvas widens in a single 200ms motion and a floating pill with the mark, product and section takes its place. Item screens (a Story, a source) add a 272px inspector floating on the right, which hides and returns the same way: a button in its head or Shift+Ctrl/Cmd+\, and a square at the top-right inset in its place. A Story page is not part of Studio: it follows the product's own Story style (the company's design system or a house style) inside a sandboxed frame. On the Story, focus mode (F) hides both panels so the app falls away around the page, which keeps its measure rather than widening, and Esc or F brings them back.
+The panel can hide (a button or Ctrl/Cmd+\). The canvas widens in a single 200ms motion and a small floating pill with the mark takes its place. Item screens (a Story, a source) add a 272px inspector floating on the right, which hides and returns the same way: a button in its head or Shift+Ctrl/Cmd+\, and a square at the top-right inset in its place. A Story page is not part of Studio: it follows the product's own Story style (the company's design system or a house style) inside a sandboxed frame. On the Story, focus mode (F) hides both panels so the app falls away around the page, which keeps its measure rather than widening, and Esc or F brings them back.
 
 **Key Characteristics:**
 - A 264px floating left panel and 272px floating inspector around one scrolling canvas (content max 900px).
@@ -349,9 +349,9 @@ A neutral grey studio with a single indigo accent and three status hues; every v
 
 ## Layout
 
-The stage is fixed to the viewport. The left panel floats at a 10px inset (264px wide, full height), and the canvas is the one page scroller behind it, padded 28px top, 40px sides and 80px bottom, plus the panel's width on the left. Content is centred at a maximum of 900px. On item screens the inspector floats at the right inset (272px), and the canvas adds its width to the right padding while it is docked. While it is hidden, the canvas keeps clear of the square that brings it back.
+The stage is fixed to the viewport. The left panel floats at a 10px inset (264px wide, full height), and the canvas is the one page scroller behind it, padded 28px top, 40px sides and 80px bottom, plus the panel's width on the left. Content is centred at a maximum of 900px. On item screens the inspector floats at the right inset (272px), and the canvas adds its width to the right padding while it is docked. While either panel is hidden, the canvas keeps clear of the pill or square that brings it back at the side, never by moving down: the content keeps its height whichever panels are showing, and in focus mode. The panel's brand row and the inspector's head are both 48px, so their hairlines share a line.
 
-The panel stacks, top to bottom: brand row (W mark, wordmark, hide button), product switcher, the four ordered sections with counts, quiet links to Connect an agent, Activity and Settings, a context slot the route fills (Story tree, Evidence's filters, Synthesis's three lists and their filters) that scrolls independently, and the account at the foot. Hairlines separate each block. Outside a product the same panel lists the person's products under each organization's name, then a quiet link to Connect an agent; it is identical on each of those screens, so it never depends on where the person came from. The panel changes only on entering or leaving a product. The account menu holds the person's email, each organization with their role and its Members, the theme, Settings and Sign out.
+The panel stacks, top to bottom: brand row (W mark, wordmark, hide button), product switcher, the four ordered sections with counts, quiet links to Connect an agent, Activity and Settings, a context slot the route fills (Story tree, Evidence's filters, Synthesis's three lists and their filters) that scrolls independently, and the account at the foot. Hairlines separate each block. Outside a product the same panel lists the person's products under each organization's name (12.5px semibold, like the product switcher's name) over a faint "Products" label, with a hairline between organizations, then a quiet link to Connect an agent; long names truncate with an ellipsis rather than widening the panel; it is identical on each of those screens, so it never depends on where the person came from. The panel changes only on entering or leaving a product. The account menu holds the person's email, each organization with their role and its Members, the theme, Settings and Sign out.
 
 Screens are built from sheets. A sheet head (min 52px) holds the title and count, filters or segmented control, and actions at the right. Rows below are inset by an 18px sheet gutter (14px on phones) and divided by hairlines. Stacked sheets and callouts sit 16px apart. Spacing follows a 2px-based scale; 6, 8, 10, 12 and 14px do most of the work.
 
@@ -420,7 +420,7 @@ Compact and calm. Default buttons read as white tiles with a hairline, not as fi
 - **Toast:** a 40px popover row with an 8px radius, hairline border and lifted shadow, holding a tone icon, text, an optional action and a close button.
 
 ### The Floating Pill (signature)
-When the panel hides, a 32px pill takes its place at the top-left inset: panel fill, 8px corners, resting shadow, W mark, product name in 500 and the section in faint 400. It slides in over 200ms while the canvas widens on the same 200ms ease. A hidden inspector leaves its counterpart at the top-right inset: a 32px square in the same fill, corners and shadow, holding the panel-right-open glyph.
+When the panel hides, a 32px pill takes its place at the top-left inset: 58px wide whatever the product is called, panel fill, 8px corners, resting shadow, the W mark and the muted panel-left-open glyph. Its accessible name carries the product and the section. It slides in over 200ms while the canvas widens on the same 200ms ease. A hidden inspector leaves its counterpart at the top-right inset: a 32px square in the same fill, corners and shadow, holding the panel-right-open glyph.
 
 ### The W Mark
 A rounded square filled with ink, with a W stroked in the panel colour (2.6 stroke, round caps and joins) beside the "WhatBuild" wordmark in 13px semibold. The mark inverts automatically with the theme.
@@ -429,7 +429,7 @@ A rounded square filled with ink, with a W stroked in the panel colour (2.6 stro
 
 ### Do:
 - **Do** take every colour, size, radius, shadow, duration and layer from the token file. Screen stylesheets compose tokens and add layout only.
-- **Do** keep controls at 24px or 28px, and reserve 32px for the floating pill.
+- **Do** keep controls at 24px or 28px, and reserve 32px for the floating pill and its square.
 - **Do** draw icons through the glyph map: lucide at 12px or 14px, 1.75 stroke, faint or muted at rest.
 - **Do** pair every status with its shaped 7px mark and a word.
 - **Do** animate with the one ease (`cubic-bezier(0.2, 0.8, 0.2, 1)`) at 120ms for small state changes, 160ms for toasts and dialogs, and 200ms for panels, the inspector and the canvas. Honour reduced motion.

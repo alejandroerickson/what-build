@@ -169,12 +169,49 @@
 
 /* ---- Canvas ----------------------------------------------------------------------------------- */
 
-/* Crumbs on the left, the focus mode control on the right. */
-.story-bar {
+/* The Story fills the window rather than scrolling it: the page scrolls inside its frame, and the
+   frame ends at the panels' bottom inset, so nothing on the canvas moves while someone reads. */
+.stage .canvas:has(> .canvas-wrap > .story-view) {
   display: flex;
+  flex-direction: column;
+  padding-bottom: var(--float-inset);
+}
+.canvas:has(> .canvas-wrap > .story-view) > .canvas-wrap {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  width: 100%;
+}
+.story-view {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+}
+
+/* Crumbs on the left, the focus mode control on the right. The bar stays in view if the canvas
+   ever scrolls (a short window, a callout above the page). */
+.story-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex: none;
   align-items: center;
   gap: var(--s-3);
   min-width: 0;
+  background: var(--canvas);
+}
+/* Beside the panels, the bar sits in their head row: top-aligned with them at the float inset and
+   centred on their heads' line, so the crumbs, the brand row and the inspector's title read as one
+   line, and the page begins at the heads' hairline. */
+@media not all and (max-width: 760px) {
+  .canvas-wrap > .story-view:first-child > .story-bar {
+    /* Sticky offsets count from inside the canvas's padding. */
+    top: calc(-1 * var(--canvas-pt));
+    min-height: calc(var(--float-inset) + var(--head-h));
+    margin-top: calc(-1 * var(--canvas-pt));
+    padding-top: var(--float-inset);
+  }
 }
 .story-bar > .crumbs {
   flex: 1;
@@ -230,6 +267,9 @@
 }
 .story-frame-wrap {
   position: relative;
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
 }
 /* Skeleton lines over the frame until its document arrives, at the page's own inset and measure. */
 .story-frame-status {
@@ -244,8 +284,9 @@
 }
 .story-frame {
   display: block;
+  flex: 1 0 auto;
   width: 100%;
-  height: max(480px, calc(100dvh - 88px));
+  min-height: 480px;
   border: 1px solid var(--line-2);
   background: var(--panel);
 }
@@ -399,8 +440,11 @@
   opacity: 0.5;
 }
 @media (max-width: 760px) {
+  .stage .canvas:has(> .canvas-wrap > .story-view) {
+    padding-bottom: var(--s-3);
+  }
   .story-frame {
-    height: max(420px, calc(100dvh - 110px));
+    min-height: 420px;
   }
 }
 

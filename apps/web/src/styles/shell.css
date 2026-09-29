@@ -3,7 +3,9 @@
 .stage {
   position: fixed;
   inset: 0;
-  overflow: hidden;
+  /* Clip, not hidden: a hidden stage can still be scrolled, and focusing a control in a panel that
+     is sliding in would scroll the whole stage sideways. */
+  overflow: clip;
   background: var(--canvas);
 }
 
@@ -63,11 +65,13 @@ h1[tabindex="-1"]:focus {
     visibility 0s var(--dur-3);
 }
 
+/* The same height as the inspector's head, so the two heads and the Story's bar share a line. */
 .panel-brand {
   display: flex;
   align-items: center;
   gap: var(--s-1h);
-  padding: var(--s-2h) var(--s-2h) var(--s-2) var(--s-3h);
+  min-height: var(--head-h);
+  padding: var(--s-2h) var(--s-2h) var(--s-2h) var(--s-3h);
   border-bottom: 1px solid var(--line);
 }
 .brand {
@@ -147,29 +151,40 @@ h1[tabindex="-1"]:focus {
   font-size: var(--fs-xs);
 }
 
+/* One column that may shrink below its content, so a long name truncates instead of widening the panel. */
 .nav-l1 {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1px;
   padding: var(--s-0) var(--s-1h) var(--s-1);
 }
-/* Outside a product the panel lists the person's products under each organization's name. */
+/* Outside a product the panel lists the person's products under each organization: its name, as the
+   product switcher names a product, over the label "Products". */
 .nav-products {
   padding-top: var(--s-2h);
 }
 .nav-products + .nav-products {
-  padding-top: var(--s-1h);
+  margin-top: var(--s-1h);
+  border-top: 1px solid var(--line);
 }
-.nav-group-label {
-  padding: 0 var(--s-2) var(--s-1);
+.nav-org {
+  display: grid;
+  padding: var(--s-0) var(--s-2) var(--s-1h);
+}
+.nav-org-name {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+}
+.nav-org-label {
   color: var(--faint);
   font-size: var(--fs-xs);
-  font-weight: var(--fw-medium);
 }
 .nav-products + .nav-quiet {
   padding-top: var(--s-2);
 }
 .nav-quiet {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   padding: var(--s-0) var(--s-1h) var(--s-2);
 }
 .panel-nav > .nav-quiet:first-child {
@@ -329,6 +344,8 @@ h1[tabindex="-1"]:focus {
 
 /* ---- The pill that brings the hidden panel back ----------------------------------------------- */
 
+/* The same size whatever the product is called: the mark and the show glyph. The product and the
+   section are in its accessible name, and the crumbs and the window title carry them on screen. */
 .show-pill {
   position: absolute;
   left: var(--float-inset);
@@ -336,35 +353,21 @@ h1[tabindex="-1"]:focus {
   z-index: var(--z-pill);
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--s-2);
-  max-width: calc(100% - 2 * var(--float-inset));
+  width: var(--pill-w);
   height: var(--h-lg);
-  padding: 0 var(--s-2h) 0 7px;
+  padding: 0;
   border: 0;
   border-radius: var(--r-md);
   background: var(--panel);
-  color: var(--text);
+  color: var(--muted);
   box-shadow: var(--shadow);
-  font-weight: var(--fw-medium);
-  white-space: nowrap;
   animation: pill-in var(--dur-3) var(--ease);
-}
-.stage[data-ins="closed"] .show-pill {
-  max-width: calc(100% - 3 * var(--float-inset) - var(--h-lg));
 }
 .show-pill:hover {
   background: var(--hover);
-}
-.show-pill-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.show-pill-section {
-  color: var(--faint);
-  font-weight: var(--fw-regular);
-}
-.show-pill > .glyph {
-  color: var(--faint);
+  color: var(--text);
 }
 @keyframes pill-in {
   from {
@@ -428,16 +431,16 @@ h1[tabindex="-1"]:focus {
 .canvas:focus {
   outline: none;
 }
+/* A hidden panel or inspector leaves its show button in the top corner. The content keeps clear of
+   it at the side, never by moving down, so it keeps its height whichever panels are showing. */
 .stage[data-nav="closed"] .canvas {
-  padding-left: var(--canvas-px);
-  padding-top: 60px;
+  padding-left: max(var(--canvas-px), calc(var(--float-inset) + var(--pill-w) + var(--s-3)));
 }
 .stage[data-ins="docked"] .canvas {
   padding-right: calc(var(--ins-w) + var(--canvas-px));
 }
-/* A hidden inspector leaves its show button in the corner; the content keeps clear of it. */
 .stage[data-ins="closed"] .canvas {
-  padding-right: calc(var(--float-inset) + var(--h-lg) + var(--s-3));
+  padding-right: max(var(--canvas-px), calc(var(--float-inset) + var(--h-lg) + var(--s-3)));
 }
 .canvas-wrap {
   max-width: var(--content-max);
@@ -467,7 +470,7 @@ h1[tabindex="-1"]:focus {
   display: flex;
   align-items: center;
   gap: var(--s-1h);
-  min-height: 48px;
+  min-height: var(--head-h);
   padding: var(--s-2h) var(--s-2) var(--s-2h) var(--s-3h);
   border-bottom: 1px solid var(--line);
 }
@@ -548,9 +551,10 @@ h1[tabindex="-1"]:focus {
 /* ---- Focus mode ------------------------------------------------------------------------------- */
 
 /* Both panels are away and so are their show buttons, and the canvas takes the window. The content
-   keeps its ordinary measure: on a wide screen the page stays as it was and only the app around it
-   falls away, so the page does not reflow. */
+   keeps its ordinary measure and its height: on a wide screen the page stays where it was and only
+   the app around it falls away, so the page does not reflow. */
 .stage[data-focus] .canvas,
 .stage[data-focus][data-ins] .canvas {
-  padding: var(--canvas-pt) var(--canvas-px) var(--canvas-pb);
+  padding-right: var(--canvas-px);
+  padding-left: var(--canvas-px);
 }
