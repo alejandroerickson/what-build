@@ -17,6 +17,7 @@ import { MembersPage, Welcome } from "./routes/org.tsx";
 import { OverviewPage } from "./routes/overview.tsx";
 import { ActivityPage, ProductSettingsPage } from "./routes/product-misc.tsx";
 import { EntryEditPage, RegisterEntryPage, RegisterListPage } from "./routes/registers.tsx";
+import { JoinSandbox, SandboxPage } from "./routes/public-sandbox.tsx";
 import { SearchPage } from "./routes/search.tsx";
 import { SettingsPage } from "./routes/settings.tsx";
 import { SourceDetailPage } from "./routes/source-detail.tsx";
@@ -34,7 +35,8 @@ const queryClient = new QueryClient({
 });
 
 setUnauthenticatedHandler(() => {
-  if (!location.pathname.startsWith("/signin")) location.assign(`/signin?next=${encodeURIComponent(location.pathname + location.search)}`);
+  // The page behind a sandbox invitation says what it is before it asks anyone to sign in.
+  if (!location.pathname.startsWith("/signin") && !location.pathname.startsWith("/join/")) location.assign(`/signin?next=${encodeURIComponent(location.pathname + location.search)}`);
 });
 
 function RouteError() {
@@ -91,6 +93,7 @@ function BareProductPath() {
 
 const router = createBrowserRouter([
   { path: "/signin", element: <SignIn />, errorElement: <RouteError /> },
+  { path: "/join/:code", element: <JoinSandbox />, errorElement: <RouteError /> },
   {
     element: (
       <RequireSession>
@@ -107,6 +110,7 @@ const router = createBrowserRouter([
         { path: "/connect", element: <ConnectPage /> },
         { path: "/settings", element: <SettingsPage /> },
         { path: "/t/:tenant/members", element: <MembersPage /> },
+        { path: "/t/:tenant/sandbox", element: <SandboxPage /> },
       ] },
       ...devRoutes,
       {

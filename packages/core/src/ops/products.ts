@@ -2,8 +2,8 @@ import { sql } from "kysely";
 import { z } from "zod";
 import { checkEtag, keepRevision, recordActivity } from "../common.ts";
 import { json, type Db } from "../db.ts";
-import { conflict, forbidden, invalid, notFound } from "../errors.ts";
-import { effectiveRole, membershipsFor, PRODUCT_ROLES, roleAtLeast, tenantRoleAtLeast } from "../policy.ts";
+import { AppError, conflict, forbidden, invalid, notFound } from "../errors.ts";
+import { effectiveRole, isSandboxStaff, membershipsFor, PRODUCT_ROLES, roleAtLeast, tenantRoleAtLeast } from "../policy.ts";
 import { defineOperation, type OpContext, type ProductRole, type TenantRole } from "../registry.ts";
 import { expectedEtag, slug } from "../schemas.ts";
 import { newEtag, newId, randomToken, sha256Hex, slugify } from "../util.ts";
@@ -113,7 +113,7 @@ export const listProducts = defineOperation({
   mutates: false,
   summary: "List every product you can reach, across your tenants and teams, with your role and counts of what each holds.",
   description:
-    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` are the ones products(action=\"get\") reports.",
+    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` are the ones products(action=\"get\") reports. A tenant with `sandbox: true` is a public sandbox: what is added there is seen by other visitors and erased at its next reset, so read sandbox(action=\"status\") and tell the person before writing.",
   input: z.strictObject({ include_archived: z.boolean().default(false) }),
   rest: { method: "GET", path: "/me/products" },
   mcp: { tool: "products", action: "list" },
@@ -128,7 +128,7 @@ export const listProducts = defineOperation({
       .select([
         "p.product_id", "p.slug", "p.name", "p.concept", "p.archived_at", "p.updated_at",
         "tm.team_id", "tm.slug as team_slug", "tm.name as team_name",
-        "tn.tenant_id", "tn.slug as tenant_slug", "tn.name as tenant_name",
+        "tn.tenant_id", "tn.slug as tenant_slug", "tn.name as tenant_name", "tn.sandbox",
       ])
       .where("p.tenant_id", "in", tenantIds)
       .orderBy("tn.name").orderBy("tm.name").orderBy("p.name")
@@ -144,7 +144,7 @@ export const listProducts = defineOperation({
               concept: r.concept.slice(0, 300),
               archived_at: r.archived_at,
               updated_at: r.updated_at,
-              tenant: { tenant_id: r.tenant_id, slug: r.tenant_slug, name: r.tenant_name },
+              tenant: { tenant_id: r.tenant_id, slug: r.tenant_slug, name: r.tenant_name, ...(r.sandbox ? { sandbox: true } : {}) },
               team: { team_id: r.team_id, slug: r.team_slug, name: r.team_name },
               your_role: role,
             }
@@ -159,14 +159,16 @@ export const listProducts = defineOperation({
       for (const [id, c] of await countProducts(ctx.db, ids)) counts.set(id, c);
     }
     await sql`select set_config('app.tenant_id', '', true)`.execute(ctx.db);
-    const tenants = await ctx.db.selectFrom("tenants").select(["tenant_id", "slug", "name"]).where("tenant_id", "in", tenantIds).orderBy("name").execute();
+    const tenants = await ctx.db.selectFrom("tenants").select(["tenant_id", "slug", "name", "sandbox"]).where("tenant_id", "in", tenantIds).orderBy("name").execute();
     const teams = await ctx.db.selectFrom("teams").select(["team_id", "tenant_id", "slug", "name", "archived_at"]).where("tenant_id", "in", tenantIds).orderBy("name").execute();
     return {
       items: items.map((i) => ({ ...i, counts: counts.get(i.product_id)! })),
-      tenants: tenants.map((t) => {
+      tenants: tenants.map(({ sandbox, ...t }) => {
         const tr = memberships.find((m) => m.scope_type === "tenant" && m.scope_id === t.tenant_id)?.role ?? null;
         return {
           ...t,
+          // A public sandbox: call sandbox(action="status") for its notice and limits before writing there.
+          ...(sandbox ? { sandbox: true } : {}),
           your_role: tr,
           teams: teams
             .filter((tm) => tm.tenant_id === t.tenant_id)
@@ -194,9 +196,31 @@ export const createTenant = defineOperation({
   rest: { method: "POST", path: "/tenants" },
   mcp: { tool: "products", action: "create_tenant" },
   async handler(ctx, input) {
+    await mayCreateTenant(ctx);
     return createTenantWithTeam(ctx.db, ctx.actor, input);
   },
 });
+
+/**
+ * An account that a sandbox invitation created was let in to the sandbox, not to WhatBuild. While
+ * sign-up is limited it starts no organization, unless its address is one sign-up allows or
+ * someone has given it a role outside a sandbox.
+ */
+async function mayCreateTenant(ctx: OpContext) {
+  const allow = ctx.ports.config.signupAllowlist;
+  if (!ctx.principal.sandbox_only || !allow) return;
+  const email = ctx.principal.email.toLowerCase();
+  if (allow.some((a) => (a.startsWith("@") ? email.endsWith(a) : email === a))) return;
+  const outside = await ctx.db
+    .selectFrom("memberships as m")
+    .innerJoin("tenants as t", "t.tenant_id", "m.tenant_id")
+    .select("m.membership_id")
+    .where("m.account_id", "=", ctx.principal.account_id)
+    .where("t.sandbox", "=", false)
+    .executeTakeFirst();
+  if (outside) return;
+  throw new AppError(403, "sandbox_only", "Your account was made for the public sandbox, and WhatBuild is invite-only for now, so it cannot start an organization of its own. Ask someone who uses WhatBuild to invite you to theirs.");
+}
 
 export async function createTenantWithTeam(
   db: Db,
@@ -460,7 +484,7 @@ export const listMembers = defineOperation({
   mutates: false,
   summary: "List the tenant's members with every grant they hold, and outstanding invitations; or, with product, the people who can reach one product.",
   description:
-    "Each member lists grants as {scope_type, scope, role}. Effective access is the highest role that applies. Pass product (a slug with team, or an id) to list only the people with access to that product: each then carries product_access {role, via} — via is product, team or tenant, the grant the role comes from (the broadest one when grants tie) — and grants are limited to the ones that apply to that product. Invitations are limited the same way.",
+    "Each member lists grants as {scope_type, scope, role}. Effective access is the highest role that applies. Pass product (a slug with team, or an id) to list only the people with access to that product: each then carries product_access {role, via} — via is product, team or tenant, the grant the role comes from (the broadest one when grants tie) — and grants are limited to the ones that apply to that product. Invitations are limited the same way. In a public sandbox, only its owners and admins see people: they get the organization's own members, with visitors as a count (sandbox(action=\"visitors\") lists them), and everyone else gets only themselves.",
   input: z.strictObject({
     tenant: z.string().min(1),
     team: z.string().optional().describe("Team slug or id, to name the product by slug."),
@@ -471,13 +495,17 @@ export const listMembers = defineOperation({
   async handler(ctx, input) {
     const tid = ctx.scope.tenant!.tenant_id;
     const target = input.product ? await resolveGrantTarget(ctx, { team: input.team, product: input.product }) : null;
-    const rows = await ctx.db
+    // In a public sandbox nobody but its staff sees another person, and its visitors are counted, not listed.
+    const sandbox = Boolean(ctx.scope.tenant!.sandbox);
+    const onlySelf = sandbox && !isSandboxStaff(ctx.scope.tenantRole);
+    let people = ctx.db
       .selectFrom("memberships as m")
       .innerJoin("accounts as a", "a.account_id", "m.account_id")
       .select(["m.membership_id", "m.scope_type", "m.scope_id", "m.role", "m.created_at", "a.account_id", "a.display_name", "a.email"])
-      .where("m.tenant_id", "=", tid)
-      .orderBy("a.display_name")
-      .execute();
+      .where("m.tenant_id", "=", tid);
+    if (onlySelf) people = people.where("m.account_id", "=", ctx.principal.account_id);
+    else if (sandbox) people = people.where("m.role", "!=", "visitor");
+    const rows = (await people.orderBy("a.display_name").execute()).map((r) => (onlySelf ? { ...r, display_name: ctx.principal.display_name, email: "" } : r));
     const teams = await ctx.db.selectFrom("teams").select(["team_id", "slug", "name"]).where("tenant_id", "=", tid).execute();
     const products = await ctx.db.selectFrom("products").select(["product_id", "slug", "name", "team_id"]).where("tenant_id", "=", tid).execute();
     const label = (type: string, sid: string) =>
@@ -491,7 +519,7 @@ export const listMembers = defineOperation({
       !target ||
       (type === "product" && sid === target.product_id) ||
       (type === "team" && sid === target.team_id) ||
-      (type === "tenant" && (role === "owner" || role === "admin"));
+      (type === "tenant" && (role === "owner" || role === "admin" || role === "visitor"));
     type Grant = { membership_id: string; scope_type: string; scope_id: string; scope: unknown; role: string; since: string };
     const byAccount = new Map<string, { account_id: string; display_name: string; email: string; grants: Grant[] }>();
     for (const r of rows) {
@@ -500,24 +528,31 @@ export const listMembers = defineOperation({
       m.grants.push({ membership_id: r.membership_id, scope_type: r.scope_type, scope_id: r.scope_id, scope: label(r.scope_type, r.scope_id), role: r.role, since: r.created_at });
       byAccount.set(r.account_id, m);
     }
-    const invitations = await ctx.db
-      .selectFrom("invitations")
-      .select(["invitation_id", "email", "scope_type", "scope_id", "role", "expires_at", "created_at"])
-      .where("tenant_id", "=", tid)
-      .where("accepted_at", "is", null)
-      .where("expires_at", ">", ctx.now)
-      .execute();
+    const invitations = onlySelf
+      ? []
+      : await ctx.db
+          .selectFrom("invitations")
+          .select(["invitation_id", "email", "scope_type", "scope_id", "role", "expires_at", "created_at"])
+          .where("tenant_id", "=", tid)
+          .where("accepted_at", "is", null)
+          .where("expires_at", ">", ctx.now)
+          .execute();
+    const visitors = sandbox && !onlySelf
+      ? await ctx.db.selectFrom("memberships").select((eb) => eb.fn.countAll<number>().as("n")).where("tenant_id", "=", tid).where("scope_type", "=", "tenant").where("role", "=", "visitor").executeTakeFirst()
+      : null;
+    const inSandbox = sandbox ? { sandbox: { only_you: onlySelf, ...(visitors ? { visitors: Number(visitors.n) } : {}) } } : {};
     if (!target) {
       return {
         members: [...byAccount.values()],
         invitations: invitations.map((i) => ({ ...i, scope: label(i.scope_type, i.scope_id) })),
+        ...inSandbox,
       };
     }
     const breadth: Record<string, number> = { tenant: 3, team: 2, product: 1 };
     const members = [...byAccount.values()].map((m) => {
       let best: { role: string; via: string } | null = null;
       for (const g of m.grants) {
-        const role = g.scope_type === "tenant" ? "admin" : g.role;
+        const role = g.scope_type === "tenant" ? (g.role === "visitor" ? "editor" : "admin") : g.role;
         if (!best || RANK[role]! > RANK[best.role]! || (RANK[role] === RANK[best.role] && breadth[g.scope_type]! > breadth[best.via]!)) best = { role, via: g.scope_type };
       }
       return { ...m, product_access: best! };
@@ -528,6 +563,7 @@ export const listMembers = defineOperation({
       invitations: invitations
         .filter((i) => applies(i.scope_type, i.scope_id, i.role))
         .map((i) => ({ ...i, scope: label(i.scope_type, i.scope_id) })),
+      ...inSandbox,
     };
   },
 });

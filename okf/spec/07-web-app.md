@@ -120,9 +120,11 @@ person's organization role is in the account menu, and who has which role is on 
 
 ```
 /signin  /welcome  /invite/:token             sign-in, first run, accepting an invitation
+/join/:code                                   the page behind an invitation to the public sandbox
 /                   ?archived=1&create=1      the overview: what WhatBuild is, and every product; new product; first run with no organization
 /products                                     → / (with its query)
 /t/:tenant/members                            people and roles in an organization
+/t/:tenant/sandbox  ?visitor                  the public sandbox: its controls for staff, what it is for a visitor
 /connect            ?product                  Connect an agent: the MCP server URL for a product or all, and the agents connected now
 /settings                                     Settings: the person's display name
 
@@ -489,6 +491,38 @@ never described as deleting. A list row showing an archived object says *Archive
   Members, where it is changed. Access is per product; nothing is granted per page or per source.
 - **Settings** (`/settings`, from the account menu). Display name, and the email the person signs
   in with (read-only).
+- **The public sandbox** ([§3.10](03-accounts-teams-and-identity.md),
+  [§9.7](09-data-lifecycle.md)), in `apps/web/src/routes/public-sandbox.tsx` and
+  `apps/web/src/shell/PublicSandboxBanner.tsx`:
+  - **The notice.** Every screen of a product in the sandbox carries it above its content: that
+    the organization is public, the name the person writes under, and when everything added is
+    erased. It shows in full until the person presses Got it, and as one line from then on
+    (remembered per organization in the browser). It is hidden in the Story's focus mode. Staff
+    get their own words and a link to the controls. It shows nothing while it loads or if it
+    fails, so no screen waits for it.
+  - **The invitation** (`/join/:code`) is readable signed out. It says what the sandbox is, that
+    it is public and erased, what a visitor can and cannot do, and the day's main limits, then
+    offers Sign in to enter, or Enter the sandbox when signed in. Opening the link never enters
+    by itself. An invitation that admits nobody else says why. Sign-in reached from it is titled
+    "Sign in to enter the sandbox".
+  - **The controls** (`/t/:tenant/sandbox`, for owners and admins; Sandbox controls in the
+    account menu). State at a glance, with two switches that act at once: what visitors may do
+    (writing, reading only, closed) and whether their agents may connect. Then seats, the next
+    and last reset, and today's use. **Limits** is one table of every limit: what it counts, what
+    it is counted over, its value in a field, its default, and the error a call over it gets.
+    Below it are the reset's hour, time zone and switch. One Save changes button saves the table
+    and the schedule together. Then **Baselines** (Save baseline; Reset to this one),
+    **Invitations** (New invitation shows the link once; Withdraw), **Visitors** (found by name,
+    address or made-up name with `?visitor=`; Remove) and **Limits of this deployment**, read
+    only. Reset now and Reset to this one ask first and list what is erased.
+  - **For a visitor** the same address (About this sandbox in the account menu) shows the notice,
+    the name they write under, what they can do, and every allowance with what is used today.
+  - **Members** in the sandbox shows a visitor only themselves, and shows staff the
+    organization's own people with the visitors as a count and a link to the controls. The account
+    menu leaves Members out for a visitor. An organization that is a sandbox is tagged Public
+    sandbox on the overview.
+  - **First run** (`/welcome`) for an account made for the sandbox that is not in it says so, and
+    offers no organization to create.
 - **Planned:** organization settings with usage against every limit shown as fractions
   ([§9.2](09-data-lifecycle.md)), the data statement, organization export, and a danger zone
   holding only owner-gated actions (transfer ownership, close the organization), each behind a

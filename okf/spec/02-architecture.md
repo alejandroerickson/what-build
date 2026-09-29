@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-29}
 status: stable
 ---
 
@@ -83,6 +83,13 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
 - **The worker ships in the same image** and polls the Postgres queue; a commit that enqueues work
   also wakes it. `serve` runs HTTP and the worker in one process unless `WHATBUILD_WORKER=0`;
   `worker` runs the worker alone. Splitting them is a configuration change, not a code change.
+- **A public sandbox's reset needs no timer.** A service that scales to nothing cannot promise
+  an hour, so every request first runs a reset that is due, an instance that is awake looks every
+  minute, and a scheduler may call `POST /api/v1/sandbox/reset-if-due`
+  ([§9.7](09-data-lifecycle.md)). What an instance remembers is only when to look next, for at
+  most 30 seconds; whether a reset is due is read from Postgres, under a lock, so two instances
+  never run one twice. `WHATBUILD_SANDBOX_TENANT` names the organization, and is copied to
+  `tenants.sandbox` at start-up.
 - **One upload path for everyone.** An upload grant always points at the service's own relay
   (at most 25 MiB, under Cloud Run's 32 MiB request cap), because agents' sandboxes often cannot
   reach the object store. When the bucket can sign URLs (`WHATBUILD_GCS_SIGNED_URLS=1`), the grant

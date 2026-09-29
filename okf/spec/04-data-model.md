@@ -420,6 +420,9 @@ An append-only event log, written in the same transaction as the mutation that c
   product can read it.
 - Events are immutable and are retained for the life of the tenant. They are included in a product
   export.
+- In a public sandbox an event about a product is content: a reset puts the baseline's back
+  ([§9.7](09-data-lifecycle.md)). An event about the organization (people, access, the sandbox's
+  settings, baselines and resets) has no product, and stays through every reset.
 - Several people and several agents write into one product, and "what did that agent just do" is a
   question the product must be able to answer.
 
@@ -615,6 +618,15 @@ activity.jsonl
   policy keyed on the transaction-local `app.tenant_id`. Directory tables (accounts, sessions,
   tokens, OAuth clients, tenants, teams, products, memberships, invitations) and the job queue and
   feedback tables have no row-level security and are reached only through the authorization layer.
+- **The public sandbox** ([§9.7](09-data-lifecycle.md),
+  [`0009_public_sandbox.sql`](../../apps/server/src/migrations/0009_public_sandbox.sql)) adds
+  `tenants.sandbox` and `accounts.sandbox_only`, and five tables. Three sit beside the directory
+  tables, without row-level security: `sandbox_settings` (one row per sandbox: `settings` as
+  JSONB, `baseline_id`, `last_reset_at`, `last_reset`, `etag`), `sandbox_invites` (`code_hash`,
+  `label`, `max_uses`, `used`, `expires_at`, `revoked_at`) and `sandbox_usage` (the counters
+  behind the limits, keyed by tenant, account, `minute` or `day` bucket, its start, and counter).
+  Two hold content and have the policy: `sandbox_baselines` and `sandbox_baseline_rows`, which
+  keeps each row of a baseline as JSONB beside its table's name.
 - **Blobs** are immutable and keyed opaquely: `t/<tenant_id>/r/<record_id>/f/<file_version_id>`
   for files, `t/<tenant_id>/r/<record_id>/d/<derivation_id>/<sidecar>` for derived sidecars, and
   `t/<tenant_id>/exports/<export_id>.zip` for exports. Keys never encode titles, kinds, or folders,

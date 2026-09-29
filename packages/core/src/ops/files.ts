@@ -6,6 +6,7 @@ import { AppError, conflict, invalid, notFound, tooLarge } from "../errors.ts";
 import { kindInfo, SEARCH_RULE } from "../kinds.ts";
 import { extensionForMediaType, extensionOf, mediaTypeFor, NOTE_EXTENSIONS, validFilePath } from "../media.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
+import { countVisitorBytes, sandboxForAccount, visitorMayFetchUrl, visitorUploadLimit } from "../public-sandbox.ts";
 import { fileRole, id, kind } from "../schemas.ts";
 import { newEtag, newId, sha256Hex } from "../util.ts";
 import { derivedStatuses, duplicateWarnings, fileEntries, insertRecord, loadRecord, NO_PRIMARY_WARNING, recordMetadata, recordSummary } from "./sources.ts";
@@ -78,7 +79,10 @@ async function issueGrant(
   input: { path: string; role: "primary" | "origin" | "supplement"; media_type?: string | undefined; size?: number | undefined; derived_from?: string[] | undefined; derivation_note?: string | undefined; derived_by?: string | undefined },
 ) {
   const cfg = ctx.ports.config;
-  if (input.size !== undefined && input.size > cfg.fileMaxBytes) throw tooLarge(`Files are limited to ${cfg.fileMaxBytes} bytes.`, { limit: cfg.fileMaxBytes });
+  // A visitor to a public sandbox uploads less, through the relay only, where the size is enforced as the bytes arrive.
+  const visitor = ctx.sandbox?.visitor ? ctx.sandbox : null;
+  const maxBytes = visitor ? await visitorUploadLimit(ctx.db, visitor, ctx.principal.account_id, input, cfg.fileMaxBytes) : cfg.fileMaxBytes;
+  if (input.size !== undefined && input.size > maxBytes) throw tooLarge(`Files are limited to ${maxBytes} bytes.`, { limit: maxBytes });
   const grant_id = newId();
   const file_version_id = newId();
   const blob_key = blobKeyFor(tenantId(ctx), recordId, file_version_id);
@@ -88,13 +92,13 @@ async function issueGrant(
     .insertInto("upload_grants")
     .values({
       grant_id, tenant_id: tenantId(ctx), product_id: productId(ctx), record_id: recordId, path: input.path, role: input.role,
-      media_type: mediaType, max_bytes: cfg.fileMaxBytes, derived_from: input.derived_from ?? [], derivation_note: input.derivation_note ?? null,
+      media_type: mediaType, max_bytes: maxBytes, derived_from: input.derived_from ?? [], derivation_note: input.derivation_note ?? null,
       derived_by: input.derived_by ?? null, principal: json(ctx.actor), expires_at: expiresAt.toISOString(), blob_key,
     })
     .execute();
   const token = ctx.ports.grants.sign({ v: 1, purpose: "upload", g: grant_id, t: tenantId(ctx), exp: Math.floor(expiresAt.getTime() / 1000) });
   let direct: { url: string; method: "PUT"; headers: Record<string, string>; max_bytes: number } | undefined;
-  if (ctx.ports.blobs.signedUploadUrl) {
+  if (ctx.ports.blobs.signedUploadUrl && !visitor) {
     const signed = await ctx.ports.blobs.signedUploadUrl(blob_key, mediaType, expiresAt);
     direct = { url: signed.url, method: "PUT", headers: signed.headers, max_bytes: cfg.fileMaxBytes };
   }
@@ -106,7 +110,7 @@ async function issueGrant(
     method: "PUT" as const,
     url: `${cfg.publicBaseUrl}/api/v1/uploads/${grant_id}`,
     headers: { [UPLOAD_GRANT_HEADER]: token, "Content-Type": mediaType },
-    max_bytes: Math.min(cfg.relayMaxBytes, cfg.fileMaxBytes),
+    max_bytes: Math.min(cfg.relayMaxBytes, maxBytes),
     expires_at: expiresAt.toISOString(),
     ...(direct ? { direct } : {}),
     next:
@@ -214,6 +218,9 @@ export async function completeGrant(ctx: OpContext, grantId: string, provenanceO
     // Adding a file changes the source, so its etag moves on.
     await ctx.db.updateTable("records").set({ etag: newEtag() }).where("record_id", "=", g.record_id).execute();
     if (g.role === "primary") await ctx.enqueue("derive", { record_id: g.record_id, file_version_id: fileVersionId });
+    // In a public sandbox the file counts against whoever asked for the grant, whichever way its bytes came.
+    const sandbox = ctx.sandbox === null ? null : await sandboxForAccount(ctx.db, g.tenant_id, g.principal.account_id);
+    if (sandbox?.visitor) await countVisitorBytes(ctx.db, sandbox, g.principal.account_id, size!);
     await recordActivity(ctx, { action: "file_added", entity_type: "source", entity_id: g.record_id, entity_title: record.title, summary: `Added ${g.role} file ${g.path}` });
   } else if (provenanceOverride && Object.values(provenanceOverride).some((v) => v !== undefined)) {
     await ctx.db
@@ -346,6 +353,7 @@ export const fetchUrl = defineOperation({
   mcp: { tool: "files", action: "fetch_url" },
   async handler(ctx, input) {
     await loadRecord(ctx, input.record_id, { live: true });
+    if (ctx.sandbox?.visitor) visitorMayFetchUrl(ctx.sandbox);
     if (!ctx.ports.fetcher) throw notFound("Fetching URLs is not available on this deployment.");
     let fetched;
     try {

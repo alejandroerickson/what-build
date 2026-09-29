@@ -40,7 +40,7 @@ export const tooLarge = (message: string, details?: Record<string, unknown>) =>
 export const invalid = (code: string, message: string, details?: Record<string, unknown>) =>
   new AppError(422, code, message, details);
 
-export const rateLimited = (message: string) => new AppError(429, "rate_limited", message);
+export const rateLimited = (message: string, details?: Record<string, unknown>) => new AppError(429, "rate_limited", message, details);
 
 export function staleEtag(current: string, what = "item") {
   return conflict(

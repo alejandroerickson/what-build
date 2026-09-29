@@ -1,9 +1,9 @@
 ---
 type: Specification
 title: Accounts belong to tenants, tenants hold teams, teams run products, and one role check decides every call.
-description: The account → tenant → team → product hierarchy, sign-in, roles and what they grant, addressing and isolation, moving sources between products, caller identity, and attribution.
-tags: [spec, accounts, tenancy, roles, identity, oauth, isolation]
-generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
+description: The account → tenant → team → product hierarchy, sign-in, roles and what they grant, addressing and isolation, moving sources between products, caller identity, attribution, and who is who in the public sandbox.
+tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, sandbox]
+generated: {by: agent:claude, at: 2026-09-29}
 status: stable
 ---
 
@@ -73,6 +73,17 @@ different account once used, it answers `410 invitation_used`; expired or cancel
 account. Existing accounts and invited addresses always may. Staging runs invite-only until public
 sign-up opens ([§10 Phase 6](10-roadmap.md)).
 
+**An invitation to the public sandbox** ([§3.10](#310-the-public-sandbox)) also lets an address
+create an account in invite-only mode, when the sign-in is returning to the invitation's link
+(`next` is `/join/<code>`) and the invitation still has a place. The check is made when the link
+is asked for and again when it is followed, since an invitation can fill in between. An account
+created this way is marked `sandbox_only`.
+
+**A `sandbox_only` account is for the sandbox.** While sign-up is limited,
+`products.create_tenant` answers it `403 sandbox_only`, unless its address is one the allowlist
+admits or it holds a role in an organization that is not a sandbox. With sign-up open the mark
+changes nothing.
+
 ## 3.3 Tenants and teams
 
 | Object | Fields |
@@ -100,7 +111,7 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
 
 | Level | Roles | What the role grants |
 |---|---|---|
-| Tenant | `owner`, `admin`, `member` | owner and admin: admin of every team and product in the tenant; owner: tenant lifecycle. member: nothing by itself |
+| Tenant | `owner`, `admin`, `member`, `visitor` | owner and admin: admin of every team and product in the tenant; owner: tenant lifecycle. member: nothing by itself. visitor: editor of every product, in the public sandbox only ([§3.10](#310-the-public-sandbox)) |
 | Team | `admin`, `editor`, `viewer` | the same role on every product in the team |
 | Product | `admin`, `editor`, `viewer` | that product only |
 
@@ -207,3 +218,65 @@ judgment, because an agent writes with its person's credentials. Register entrie
 therefore carry a declared `author_type` / `reviewer_type` (`human` or `agent`), defaulting to
 `human` in the web app and `agent` everywhere else, and a human confidence rating is accepted only
 from a declared human reviewer ([§4.8](04-data-model.md)).
+
+## 3.10 The public sandbox
+
+A deployment may name one organization as its **public sandbox**: a place anyone holding an
+invitation may work in, to try WhatBuild on a worked example
+(◆ [decision](../decisions/the-public-sandbox-is-one-organization-with-pseudonymous-visitors.md)).
+The limits on what is done there, the baseline and the reset are in
+[§9.7](09-data-lifecycle.md); the operations are in [§6](06-operations-and-adapters.md).
+
+**Which organization.** `WHATBUILD_SANDBOX_TENANT` holds its slug. At start-up the server sets
+`tenants.sandbox` on that organization and clears it on every other
+(`syncSandboxTenant`, [`apps/server/src/public-sandbox.ts`](../../apps/server/src/public-sandbox.ts)). A slug
+that matches no organization makes none a sandbox, and the server says so in its log. The
+`sandbox` operations answer `404` in an organization that is not one.
+
+**Staff and visitors.** The organization's owners and admins are its **staff**: they work under
+their own names, administer as anywhere else, and meet none of the sandbox's limits. **Everyone
+else in the organization is a visitor**, whatever role they hold.
+
+| A visitor | How |
+|---|---|
+| edits every product | The tenant role `visitor` gives editor on every team and product in the organization. |
+| administers nothing | In a sandbox a role stops at editor for anyone but staff (`effectiveRole`), so every operation that needs admin answers `403`, and so do the `members` writes. |
+| writes under a made-up name | `Visitor ` and six hexadecimal digits, from a SHA-256 of the tenant and account ids (`visitorName`). `execute` puts it in the actor snapshot and hides the account's own name and address from the handler. |
+| sees no other person | `members.list` returns the caller alone, under the made-up name, with no address and no invitations. |
+| cannot delete permanently | `sources.delete` answers `403 sandbox_restricted`. Archive remains. |
+| meets the limits | [§9.7](09-data-lifecycle.md). |
+
+Because attribution is a copied snapshot ([§3.9](#39-attribution)), a visitor's name and address
+are never written into the organization's rows: not in an author, not in the activity log, not in
+a baseline. The account id is kept, as everywhere; it is how staff find the person behind a
+made-up name (`sandbox.visitors`).
+
+**The role fails closed.** `membershipsFor` leaves out a `visitor` grant whose tenant is not a
+sandbox. Taking `WHATBUILD_SANDBOX_TENANT` away and restarting therefore takes every visitor's
+access with it, and naming the organization again gives it back.
+
+**Staff see visitors as a count.** For staff, `members.list` lists the organization's own people
+and gives `sandbox.visitors` as a number; `sandbox.visitors` lists them a page at a time, with
+name, address and made-up name.
+
+**Invitations.** A sandbox invitation (`sandbox.create_invite`) is a link, `/join/<code>`, with a
+number of **places** and an optional expiry. Whoever holds it may take a place by signing in, with
+any address: it is a bearer credential, unlike an invitation to an ordinary organization
+([§3.2](#32-accounts-and-sign-in)). Only the hash of the code is stored, so the link is shown once.
+`sandbox.join` answers:
+
+| Answer | When |
+|---|---|
+| `200`, `already: false`, `role: "visitor"` | A place was taken and a seat given. |
+| `200`, `already: true` | The caller is in the organization already. They keep their role, and no place or seat is used. |
+| `404` | No such code, or its organization is not a sandbox. |
+| `410 invite_revoked`, `invite_expired`, `invite_used_up` | The invitation admits nobody else. |
+| `409 sandbox_full` | Every seat (`max_visitors`) is taken. `details` holds `quota`, `limit`, `used`. |
+| `403 sandbox_closed` | `visitor_access` is `closed`. |
+
+Entering writes no activity event, because an event would carry a name.
+
+**Seats.** `max_visitors` caps the visitors the sandbox holds, across every invitation. A visitor
+who has neither signed in nor used an agent for `visitor_idle_days` gives up their seat at the
+next reset (`0` keeps every seat), and staff remove one with `sandbox.remove_visitor`.
+

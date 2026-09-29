@@ -57,18 +57,23 @@ export function SignIn() {
   if (me.data) return <Navigate to={next} replace />;
   const error = params.get("error");
   const emailLink = !methods.data || methods.data.email_link;
+  // An invitation to the public sandbox admits whoever holds it, with any address.
+  const toSandbox = next.startsWith("/join/");
   return (
     <EntryPage title="Sign in · WhatBuild">
       <Sheet labelledBy="signin-title">
-        <SheetHeader level={1} id="signin-title" title={next.startsWith("/invite/") ? "Sign in to accept your invitation" : "Sign in to WhatBuild"} />
+        <SheetHeader level={1} id="signin-title" title={next.startsWith("/invite/") ? "Sign in to accept your invitation" : toSandbox ? "Sign in to enter the sandbox" : "Sign in to WhatBuild"} />
         <SheetBody className="entry-form">
           {next.startsWith("/invite/") && !error ? <p className="muted">Use the address the invitation was sent to, and you join as soon as you&rsquo;re signed in.</p> : null}
+          {toSandbox && !error ? <p className="muted">Any address of yours will do. Nobody in the sandbox sees it: there you write under a made-up name.</p> : null}
           {error ? (
             <Callout inset tone="attention" title="That sign-in did not work">
               {error === "link_expired"
                 ? "The link expired or was already used. Ask for a new one."
                 : error === "invite_only"
-                  ? "WhatBuild is invite-only for now. Ask someone who uses it to invite you."
+                  ? toSandbox
+                    ? "The invitation you came with has no place left, so it could not make you an account. Ask whoever sent it for a new link."
+                    : "WhatBuild is invite-only for now. Ask someone who uses it to invite you."
                   : "Try again, or use the email link."}
             </Callout>
           ) : null}

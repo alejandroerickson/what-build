@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild at three altitudes
 description: The whole system from the top down, the major parts, and the mechanics underneath, with links to the detail.
 tags: [overview, architecture, tenancy, access, mcp]
-generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-29}
 status: stable
 ---
 
@@ -53,7 +53,7 @@ Google Cloud Storage behind a storage port; the official MCP SDK (stateless Stre
 React 19, React Router 7, TanStack Query 5, Vite 7; Vitest. Details in
 [architecture](../spec/02-architecture.md).
 
-**Operations.** 101 operations, each defined once and exposed through both REST and MCP
+**Operations.** 113 operations, each defined once and exposed through both REST and MCP
 ([decision](../decisions/one-registry-two-front-doors.md)).
 
 **Tenancy.** Organization (tenant) → team → product. One shared database and schema; every content
@@ -67,8 +67,15 @@ highest applies, no per-object permissions. The database enforces only the tenan
 token is the person ([decision](../decisions/access-is-per-product-roles.md),
 [decision](../decisions/built-in-identity-and-oauth.md)).
 
+**The public sandbox.** A deployment may name one organization as its public sandbox
+(`WHATBUILD_SANDBOX_TENANT`). Anyone holding an invitation link enters it as a visitor: an editor
+of every product there, who writes under a made-up name, sees no other person, administers
+nothing, and meets limits on how often and how much. Its owners and admins save its content as a
+baseline, and a reset every day puts the baseline back
+([decision](../decisions/the-public-sandbox-is-one-organization-with-pseudonymous-visitors.md)).
+
 **MCP.** `/mcp` for every product the account can reach, or `/mcp/t/<tenant>/<team>/<product>`
-bound to one. 16 tools: 12 grouped by noun with `action`, `params`, `describe` and `product`, plus
+bound to one. 17 tools: 13 grouped by noun with `action`, `params`, `describe` and `product`, plus
 `search`, `read_passage`, `get_skill` and `submit_feedback`
 ([decision](../decisions/mcp-tools-grouped-by-noun.md)). The server's instructions tell agents to
 check the skill version, start with `products list`, confirm the product before writing, and
@@ -82,7 +89,8 @@ in-app tabs; rows are real links; works in a phone browser, light and dark
 ## 100 ft: mechanics
 
 **One request.** Identify the caller (cookie on REST, OAuth token on MCP → account,
-surface, client) → resolve tenant, team and product → authorize (`404`/`403`) → validate with the
+surface, client) → resolve tenant, team and product → authorize (`404`/`403`) → in a public
+sandbox, admit the visitor and count the call (`403`/`429`) → validate with the
 operation's schema (`422` lists every problem) → open a transaction with `app.tenant_id` set → run
 the handler (etag check, `409 stale_etag`; actor snapshot; activity event) → answer as JSON or MCP
 text with the scope echoed.

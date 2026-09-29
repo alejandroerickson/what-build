@@ -1,4 +1,4 @@
-import { AppError, SKILL_VERSION, type BlobStore, type Db, type Env, type Mailer, type Ports } from "@whatbuild/core";
+import { AppError, REST_BODY_MAX_BYTES, SKILL_VERSION, type BlobStore, type Db, type Env, type Mailer, type Ports } from "@whatbuild/core";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { FsBlobStore, MemoryBlobStore } from "./adapters/blobs.ts";
@@ -9,6 +9,7 @@ import type { ServerConfig } from "./config.ts";
 import { mcpRoutes } from "./mcp.ts";
 import { publicRoutes, staticRoutes } from "./public-routes.ts";
 import { restRoutes } from "./rest.ts";
+import { SandboxClock, sandboxRoutes } from "./public-sandbox.ts";
 import { uploadRoutes } from "./uploads.ts";
 
 export const SERVER_VERSION = process.env["WHATBUILD_RELEASE"] ?? `dev-${SKILL_VERSION}`;
@@ -53,13 +54,15 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
       parseCapBytes: config.parseCapBytes,
       grantTtlSeconds: config.grantTtlSeconds,
       urlFetchMaxBytes: config.urlFetchMaxBytes,
+      signupAllowlist: config.signupAllowlist,
     },
   };
 }
 
 /** One application: static web app, REST, MCP, OAuth and the upload relay, all on one origin. */
-export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig }) {
+export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; clock?: SandboxClock }) {
   const env: Env & { config: ServerConfig } = { db: deps.db, ports: deps.ports, config: deps.config };
+  const clock = deps.clock ?? new SandboxClock(env, deps.config.env === "test" ? () => {} : undefined);
   const app = new Hono();
 
   app.use("*", async (c, next) => {
@@ -82,10 +85,19 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig }) 
 
   app.use("/api/v1/*", async (c, next) => {
     if (c.req.path.startsWith("/api/v1/uploads/")) return next();
-    return bodyLimit({ maxSize: 5 * 1024 * 1024, onError: (cx) => cx.json({ error: { code: "too_large", status: 413, message: "Request bodies are limited to 5 MB. Send files through an upload grant." } }, 413) })(c, next);
+    return bodyLimit({ maxSize: REST_BODY_MAX_BYTES, onError: (cx) => cx.json({ error: { code: "too_large", status: 413, message: "Request bodies are limited to 5 MB. Send files through an upload grant." } }, 413) })(c, next);
+  });
+
+  // A public sandbox's overdue reset runs before the request that finds it, so nobody is served
+  // what its hour should have erased.
+  app.use("*", async (c, next) => {
+    const p = c.req.path;
+    if (p.startsWith("/api/") || p.startsWith("/mcp") || p.startsWith("/auth/")) await clock.resetIfDue().catch((e) => console.error("sandbox reset:", e));
+    return next();
   });
 
   app.route("/", publicRoutes({ db: deps.db, config: deps.config, serverVersion: SERVER_VERSION }));
+  app.route("/", sandboxRoutes({ db: deps.db, clock }));
   app.route("/", oauthRoutes({ db: deps.db, config: deps.config }));
   app.route("/", authRoutes({ db: deps.db, config: deps.config, mailer: deps.ports.mailer ?? new ConsoleMailer() }));
   app.route("/", uploadRoutes(env));

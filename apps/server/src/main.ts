@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server";
 import { createApp, createBlobStore, createMailer, createPorts } from "./app.ts";
 import { loadConfig } from "./config.ts";
 import { checkRowSecurity, createDb, migrate } from "./database.ts";
+import { SandboxClock, syncSandboxTenant } from "./public-sandbox.ts";
 import { seed } from "./seed.ts";
 import { Worker } from "./worker.ts";
 
@@ -50,13 +51,20 @@ async function main() {
   }
   if (command !== "serve") throw new Error(`Unknown command ${command}. Use serve, worker, migrate or seed.`);
 
+  await syncSandboxTenant(db, config.sandboxTenant);
+  const clock = new SandboxClock({ db, ports });
+  // While an instance is alive it looks every minute; a request looks too, so a sleeping service loses nothing.
+  const ticking = setInterval(() => void clock.resetIfDue().catch((e) => console.error("sandbox reset:", e)), 60_000);
+  ticking.unref();
+
   if (config.runWorker) worker.start();
-  const app = createApp({ db, ports, config });
+  const app = createApp({ db, ports, config, clock });
   const server = serve({ fetch: app.fetch, port: config.port, hostname: "0.0.0.0" }, (info) => {
     console.log(`WhatBuild listening on :${info.port} (public URL ${config.publicBaseUrl})`);
   });
   const shutdown = () => {
     worker?.stop();
+    clearInterval(ticking);
     server.close(() => void pool.end().then(() => process.exit(0)));
     setTimeout(() => process.exit(0), 8000).unref();
   };

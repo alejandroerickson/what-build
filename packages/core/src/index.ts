@@ -9,6 +9,7 @@ import { outcomeOps } from "./ops/outcomes.ts";
 import { productOps } from "./ops/products.ts";
 import { registerOpsList } from "./ops/registers.ts";
 import { revisionOpsList } from "./ops/revisions.ts";
+import { sandboxOps } from "./ops/public-sandbox.ts";
 import { searchOps } from "./ops/search.ts";
 import { sourceOps } from "./ops/sources.ts";
 import { storyOps } from "./ops/story.ts";
@@ -22,6 +23,8 @@ export * from "./media.ts";
 export * from "./policy.ts";
 export * from "./ports.ts";
 export * from "./registry.ts";
+export * from "./public-sandbox.ts";
+export * from "./public-sandbox-baseline.ts";
 export * from "./schemas.ts";
 export * from "./story-html.ts";
 export * from "./story-print.ts";
@@ -30,6 +33,7 @@ export { runDerivation } from "./ops/derived.ts";
 export { markExportFailed, runExport } from "./ops/export.ts";
 export { completeGrant, DOWNLOAD_GRANT_HEADER, UPLOAD_GRANT_HEADER, blobKeyFor } from "./ops/files.ts";
 export { createTenantWithTeam, uniqueTenantSlug } from "./ops/products.ts";
+export { RESET_CONFIRMATION, sandboxNotice } from "./ops/public-sandbox.ts";
 export { printDocument } from "./ops/story.ts";
 export { SKILL_NAME, SKILL_VERSION, skillMarkdown } from "./ops/meta.ts";
 export { GUIDANCE_VERSION } from "./story-guidance.ts";
@@ -39,6 +43,7 @@ export { FRAME_SCRIPT, THEME_ATTRIBUTE, withStoryFrame, withStoryTheme } from ".
 /** Every operation, defined once. REST routes, MCP tools and `describe` are generated from this list. */
 export const OPERATIONS: OperationDef[] = [
   ...productOps,
+  ...sandboxOps,
   ...exportOps,
   ...outcomeOps,
   ...sourceOps,

@@ -44,6 +44,11 @@ export interface Mailer {
   send(message: { to: string; subject: string; text: string }): Promise<void>;
 }
 
+/** The largest JSON body the REST API reads; file bytes go through upload grants. */
+export const REST_BODY_MAX_BYTES = 5 * 1024 * 1024;
+/** Sign-in links one address may ask for in an hour. */
+export const SIGN_IN_LINKS_PER_HOUR = 5;
+
 export interface CoreConfig {
   /** The public origin, without a trailing slash. */
   publicBaseUrl: string;
@@ -56,6 +61,8 @@ export interface CoreConfig {
   /** Lifetime of upload and download grants, in seconds. */
   grantTtlSeconds: number;
   urlFetchMaxBytes: number;
+  /** When set, only these emails (or @domains) may create an account without an invitation. */
+  signupAllowlist?: string[] | null;
 }
 
 export interface Ports {

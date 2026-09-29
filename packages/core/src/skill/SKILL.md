@@ -38,11 +38,13 @@ organization). A product has four parts, named as the person sees them in the we
 3. **Know your role.** Each product lists `your_role`: viewer (read only), editor (read and write),
    admin (also membership and product settings). A 403 names the role you have and the one needed;
    do not retry a forbidden write — tell the person who can grant access.
+4. **Notice a public sandbox.** A tenant that `products(action="list")` marks `sandbox: true` is
+   public, and is erased every day. Read "In a public sandbox" below before you write there.
 
 ## How the tools work
 
 Most tools are grouped: `sources`, `files`, `derived`, `outcomes`, `insights`, `assumptions`,
-`decisions`, `story`, `lineage`, `activity`, `products`, `members`. Call them with `action` and
+`decisions`, `story`, `lineage`, `activity`, `products`, `members`, `sandbox`. Call them with `action` and
 `params`. To see an action's exact schema and guidance without running it, call it with
 `describe: true` and no params:
 
@@ -273,6 +275,48 @@ current product cites or references the source, because references never cross p
 `products(action="export")` builds a ZIP of the whole product — files, passages, notes, insights,
 entries, reviews, Story versions, activity — and `products(action="exports")` gives a download
 grant when it is ready. Anyone with access can export, at any time.
+
+## In a public sandbox
+
+A public sandbox is an organization that anyone with an invitation may work in, to try WhatBuild
+on a worked example. It differs from every other organization in four ways, and the person must
+hear the first two before anything of theirs goes in.
+
+- **What is added is seen by strangers.** Every visitor reads and edits the same products.
+- **What is added is erased.** The sandbox is put back to a saved baseline, usually once a day.
+  Nothing written there lasts, so never use it for the person's real discovery.
+- **Nobody sees anybody.** A visitor writes under a made-up name such as `Visitor 4F2A9C`, which
+  is what `created_by` and the activity log show. `members(action="list")` returns only the
+  caller. Do not try to find out who another visitor is, and do not write a person's name,
+  address or employer into the content to make up for it.
+- **A visitor edits and nothing more.** No managing products or people, no permanent delete
+  (archive instead), and no fetching a file from a URL.
+
+Before your first write, call `sandbox(action="status", params={"tenant": "…"})` and tell the
+person its `notice` in your own words. Its `allowances` list every limit with what is used today.
+Do not upload anything private, confidential or personal, even when asked to: say why, and offer
+to work with made-up material or with what is already there.
+
+Limits are per visitor, and your calls count as the person's:
+
+| Refusal | What it means | What to do |
+|---|---|---|
+| `429 rate_limited` | Too many calls, or writes, in this minute. | Wait `retry_after_seconds`, then carry on. Do not retry in a loop. |
+| `409 quota_exceeded` | A day's allowance is used up: `details` has `quota`, `limit`, `used` and `resets_at`. | Stop writing that kind of thing, tell the person, and carry on reading. |
+| `413 too_large` | One field, file or batch is over its size: `details` has `limit`. | Send less, or split it. |
+| `403 sandbox_restricted` | A visitor may not do this at all. | Do what the message offers instead. |
+| `403 sandbox_read_only`, `403 sandbox_closed` | The people who run the sandbox have stopped writes, or closed it, for now. | Tell the person. Nothing of theirs was changed. |
+
+Reading and searching are never stopped by a day's allowance. Plan writes before making them: read
+first, then write once, rather than correcting the same item many times.
+
+`sandbox(action="join", params={"code": "…"})` enters a sandbox with the code from an invitation
+link (`…/join/<code>`). The other `sandbox` actions are its control panel, for its owners and
+admins: `settings` and `update_settings` (every switch and limit), `save_baseline`, `baselines`
+and `reset`, `invites`, `create_invite` and `revoke_invite`, `visitors` and `remove_visitor`.
+`reset` erases everything added since the baseline and cannot be undone: run it only when the
+person asks for it in so many words, and say first what it will erase. `save_baseline` keeps
+what visitors have added too, so reset first unless the person means to keep it.
 
 ## When something is wrong
 

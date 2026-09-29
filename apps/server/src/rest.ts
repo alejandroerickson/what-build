@@ -1,5 +1,5 @@
 import {
-  AppError, execute, OPERATIONS, printDocument, printResponseHeaders, resolveScope, STORY_RESPONSE_HEADERS, toAppError, unauthenticated, withStoryFrame, withStoryTheme, houseSpecimen, houseStyle, styleSpecimen,
+  AppError, admitRead, execute, OPERATIONS, printDocument, printResponseHeaders, resolveScope, STORY_RESPONSE_HEADERS, toAppError, unauthenticated, withStoryFrame, withStoryTheme, houseSpecimen, houseStyle, styleSpecimen,
   type Env, type OperationDef, type Principal, type ScopeRef,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
@@ -48,6 +48,8 @@ export function coerceQuery(op: OperationDef, query: Record<string, string>): Re
 
 function errorResponse(c: Context, e: AppError) {
   if (e.status === 401) c.header("WWW-Authenticate", 'Bearer realm="whatbuild"');
+  const retry = e.status === 429 ? e.details?.["retry_after_seconds"] : undefined;
+  if (typeof retry === "number") c.header("Retry-After", String(Math.max(1, Math.ceil(retry))));
   return c.json({ error: e.toJSON() }, e.status as 400);
 }
 
@@ -125,6 +127,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
     const principal = await principalOf(c);
     const { tenant, team, product } = c.req.param() as Record<string, string>;
     const scope = await resolveScope(env.db, principal, "product", "read", { tenant, team, product }, "read");
+    await admitRead(env, principal, scope, "files.read");
     return scope;
   };
 

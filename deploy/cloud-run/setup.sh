@@ -30,6 +30,12 @@
 #                       The secret may instead be created in Secret Manager as
 #                       whatbuild-google-client-secret, and only GOOGLE_CLIENT_ID passed.
 #   SIGNED_URLS=1       also hand agents direct-to-bucket upload URLs for files over 25 MB
+#   SANDBOX_TENANT      the slug of the organization that is the public sandbox (optional). The
+#                       organization must exist: create it in the app, then re-run with this.
+#                       Also creates a Cloud Scheduler job that wakes the service for the reset.
+#   SANDBOX_RESET_CRON, SANDBOX_RESET_TZ   when that job runs; default "1 2 * * *" in
+#                       America/Los_Angeles, a minute after the sandbox's default reset hour
+#   SCHEDULER_LOCATION  the job's region, where Cloud Scheduler is not offered in REGION
 set -euo pipefail
 
 : "${PROJECT_ID:?Set PROJECT_ID to the Google Cloud project for WhatBuild (it is never taken from the current gcloud project).}"
@@ -151,6 +157,7 @@ ENV_VARS="WHATBUILD_GCS_BUCKET=$BUCKET,WHATBUILD_SIGNUP_ALLOWLIST=${ALLOW//,/;}"
 [ -n "${MAIL_FROM:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_MAIL_FROM=$MAIL_FROM"
 [ -n "${GOOGLE_CLIENT_ID:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID"
 [ -n "${SIGNED_URLS:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_GCS_SIGNED_URLS=1"
+[ -n "${SANDBOX_TENANT:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_SANDBOX_TENANT=$SANDBOX_TENANT"
 # A list inside a --set-env-vars value needs gcloud's alternate delimiter syntax. The delimiter is "|",
 # which no email, domain or sender name contains ("@" would split the allowlist).
 ENV_ARG="^|^${ENV_VARS//,/|}"
@@ -176,6 +183,18 @@ $G run deploy "$SERVICE" --region "$REGION" --image "$IMAGE" --service-account "
 URL="${PUBLIC_URL:-https://$SERVICE-$PROJECT_NUMBER.$REGION.run.app}"
 $G run services update "$SERVICE" --region "$REGION" --update-env-vars "WHATBUILD_PUBLIC_URL=$URL" >/dev/null
 
+if [ -n "${SANDBOX_TENANT:-}" ]; then
+  step "Scheduler job for the public sandbox's reset"
+  # The reset runs before the first request after its hour in any case; this makes it run at the
+  # hour when nobody visits. The address needs no credential: it does nothing unless a reset is due.
+  $G services enable cloudscheduler.googleapis.com
+  SCHEDULER_LOCATION="${SCHEDULER_LOCATION:-$REGION}"
+  if $G scheduler jobs describe whatbuild-sandbox-reset --location "$SCHEDULER_LOCATION" >/dev/null 2>&1; then verb=update; else verb=create; fi
+  $G scheduler jobs "$verb" http whatbuild-sandbox-reset --location "$SCHEDULER_LOCATION" \
+    --schedule "${SANDBOX_RESET_CRON:-1 2 * * *}" --time-zone "${SANDBOX_RESET_TZ:-America/Los_Angeles}" \
+    --http-method POST --uri "$URL/api/v1/sandbox/reset-if-due"
+fi
+
 cat <<EOF
 
 WhatBuild is deployed at $URL
@@ -189,4 +208,6 @@ Next:
      GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET. For email links, re-run with SMTP_URL and MAIL_FROM.
   3. Only $ALLOW (and anyone invited) can create an account. Change SIGNUP_ALLOWLIST to widen it.
   4. Connect an agent: $URL/connect
+  5. A public sandbox: create the organization in the app, re-run with SANDBOX_TENANT=<its slug>,
+     then open $URL/t/<its slug>/sandbox to save a baseline and make an invitation.
 EOF

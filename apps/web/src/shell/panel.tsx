@@ -201,13 +201,25 @@ export function AccountMenu() {
             <MenuSeparator />
           </>
         ) : null}
-        {tenants.map((t) => (
-          <MenuGroup key={t.tenant_id} label={t.your_role ? `${t.name} · ${ROLE_WORD[t.your_role] ?? t.your_role}` : t.name}>
-            <MenuItem icon="users" to={`/t/${t.slug}/members`}>
-              Members
-            </MenuItem>
-          </MenuGroup>
-        ))}
+        {tenants.map((t) => {
+          // In a public sandbox only its owners and admins see people; everyone else is a visitor there.
+          const staff = t.your_role === "owner" || t.your_role === "admin";
+          const role = t.sandbox && !staff ? "visitor" : t.your_role;
+          return (
+            <MenuGroup key={t.tenant_id} label={role ? `${t.name} · ${ROLE_WORD[role] ?? role}` : t.name}>
+              {!t.sandbox || staff ? (
+                <MenuItem icon="users" to={`/t/${t.slug}/members`}>
+                  Members
+                </MenuItem>
+              ) : null}
+              {t.sandbox ? (
+                <MenuItem icon="flask" to={`/t/${t.slug}/sandbox`}>
+                  {staff ? "Sandbox controls" : "About this sandbox"}
+                </MenuItem>
+              ) : null}
+            </MenuGroup>
+          );
+        })}
         {tenants.length ? <MenuSeparator /> : null}
         <MenuGroup label="Theme">
           <MenuRadio checked={theme === "light"} onSelect={() => setTheme("light")} icon="sun" keepOpen>

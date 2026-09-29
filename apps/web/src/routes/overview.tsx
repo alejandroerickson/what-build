@@ -3,7 +3,7 @@ import { plural, relativeTime } from "../lib/format.ts";
 import { useProducts, type ProductsResponse, type ProductSummary } from "../lib/session.tsx";
 import { BrandMark } from "../shell/brand.tsx";
 import { L1 } from "../shell/panel.tsx";
-import { Button, EmptyState, ErrorCallout, Glyph, Loading, Sheet, SheetHeader, StatusBadge, type GlyphName } from "../ui/index.tsx";
+import { Button, EmptyState, ErrorCallout, Glyph, Loading, Sheet, SheetHeader, StatusBadge, Tag, type GlyphName } from "../ui/index.tsx";
 import { CreateProductDialog } from "./new-product.tsx";
 import "../styles/screens/overview.css";
 
@@ -133,6 +133,7 @@ function Organization({ tenant, products, showArchived, onShowArchived, onCreate
           <>
             <Glyph name="building" size="sm" />
             {tenant.name}
+            {tenant.sandbox ? <Tag>Public sandbox</Tag> : null}
           </>
         }
         end={
