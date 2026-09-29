@@ -7,26 +7,18 @@ import { Button, EmptyState, ErrorCallout, Glyph, Loading, Sheet, SheetHeader, S
 import { CreateProductDialog } from "./new-product.tsx";
 import "../styles/screens/overview.css";
 
-type Counts = ProductSummary["counts"];
-
-/** The discovery loop in the order the panel tells it, with what each stage holds. */
-const LOOP: { id: string; label: string; icon: GlyphName; figures: [keyof Counts, string, string][] }[] = [
-  { id: "idea", label: "Idea", icon: "lightbulb", figures: [["outcomes", "outcome", "outcomes"]] },
-  { id: "evidence", label: "Evidence", icon: "library", figures: [["sources", "source", "sources"]] },
-  {
-    id: "synthesis",
-    label: "Synthesis",
-    icon: "blend",
-    figures: [["insights", "insight", "insights"], ["assumptions", "assumption", "assumptions"], ["decisions", "decision", "decisions"]],
-  },
-  { id: "story", label: "Story", icon: "book-open", figures: [["story_pages", "page", "pages"]] },
+/** The WhatBuild journey in the order the panel tells it, with what each stage holds. */
+const LOOP: { id: string; label: string; icon: GlyphName; about: string }[] = [
+  { id: "idea", label: "Idea", icon: "lightbulb", about: "The outcomes you want and the concept you’re testing." },
+  { id: "evidence", label: "Evidence", icon: "library", about: "Interviews, calls and documents, searchable in one place." },
+  { id: "synthesis", label: "Synthesis", icon: "blend", about: "Insights, assumptions and decisions, each citing its evidence, for your team to review." },
+  { id: "story", label: "Story", icon: "book-open", about: "Pages for stakeholders, written by your agent, ready to export." },
 ];
 
 const UNIT: Record<string, [string, string]> = { idea: ["outcome", "outcomes"], evidence: ["source", "sources"], synthesis: ["insight", "insights"], story: ["page", "pages"] };
 
 /**
- * The overview at `/`: what WhatBuild is for, what the person's products hold between them, and every
- * product with a direct link to each of its four sections. It is the one list of products: New
+ * The overview at `/`: what WhatBuild is for, the loop a discovery moves through, and every product with a direct link to each of its four sections. It is the one list of products: New
  * product (`?create=1`) and archived products (`?archived=1`) open here.
  */
 export function OverviewPage() {
@@ -67,7 +59,7 @@ export function OverviewPage() {
             Connect an agent
           </Link>
         </div>
-        <Totals items={items} pending={products.isPending} />
+        <Loop />
       </Sheet>
 
       {products.isPending ? (
@@ -97,13 +89,12 @@ export function OverviewPage() {
   );
 }
 
-/** The six counts across every active product, laid out as the loop they belong to. */
-function Totals({ items, pending }: { items: ProductSummary[]; pending: boolean }) {
-  const total = (k: keyof Counts) => items.reduce((n, p) => n + p.counts[k], 0);
+/** The four stages every product moves through, with what each holds; the counts are on each product. */
+function Loop() {
   return (
-    <aside className="overview-loop" aria-labelledby="overview-loop-title" aria-busy={pending || undefined}>
+    <aside className="overview-loop" aria-labelledby="overview-loop-title">
       <h2 id="overview-loop-title" className="overview-loop-title">
-        {pending ? "Across your products" : `Across ${plural(items.length, "product")}`}
+        The WhatBuild journey
       </h2>
       <ol className="overview-loop-steps">
         {LOOP.map((step) => (
@@ -112,26 +103,11 @@ function Totals({ items, pending }: { items: ProductSummary[]; pending: boolean 
               <Glyph name={step.icon} />
             </span>
             <span className="overview-loop-name">{step.label}</span>
-            <Figure count={pending ? null : total(step.figures[0]![0])} one={step.figures[0]![1]} many={step.figures[0]![2]} />
-            {step.figures.length > 1 ? (
-              <span className="overview-loop-more">
-                {step.figures.slice(1).map(([key, one, many]) => (
-                  <Figure key={key} count={pending ? null : total(key)} one={one} many={many} />
-                ))}
-              </span>
-            ) : null}
+            <span className="overview-loop-about">{step.about}</span>
           </li>
         ))}
       </ol>
     </aside>
-  );
-}
-
-function Figure({ count, one, many }: { count: number | null; one: string; many: string }) {
-  return (
-    <span className="overview-loop-figure">
-      <b className="num">{count ?? "–"}</b> {count === 1 ? one : many}
-    </span>
   );
 }
 
