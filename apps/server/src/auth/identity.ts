@@ -11,10 +11,12 @@ export interface AccountRow {
   account_id: string;
   email: string;
   display_name: string;
+  /** Created on a sandbox invitation alone. */
+  sandbox_only?: boolean;
 }
 
 function principalFor(a: AccountRow, auth_kind: Principal["auth_kind"], surface: Principal["surface"], client: string | null): Principal {
-  return { account_id: a.account_id, email: a.email, display_name: a.display_name, auth_kind, surface, client };
+  return { account_id: a.account_id, email: a.email, display_name: a.display_name, auth_kind, surface, client, ...(a.sandbox_only ? { sandbox_only: true } : {}) };
 }
 
 export async function accountBySession(db: Db, token: string): Promise<AccountRow | null> {
@@ -22,7 +24,7 @@ export async function accountBySession(db: Db, token: string): Promise<AccountRo
   const row = await db
     .selectFrom("sessions as s")
     .innerJoin("accounts as a", "a.account_id", "s.account_id")
-    .select(["a.account_id", "a.email", "a.display_name", "s.last_seen_at"])
+    .select(["a.account_id", "a.email", "a.display_name", "a.sandbox_only", "s.last_seen_at"])
     .where("s.session_hash", "=", hash)
     .where("s.expires_at", ">", new Date().toISOString())
     .where("a.deleted_at", "is", null)
@@ -38,7 +40,7 @@ export async function accountByAccessToken(db: Db, token: string, resourcePrefix
     .selectFrom("oauth_tokens as t")
     .innerJoin("accounts as a", "a.account_id", "t.account_id")
     .innerJoin("oauth_clients as c", "c.client_id", "t.client_id")
-    .select(["a.account_id", "a.email", "a.display_name", "t.resource", "t.token_hash", "t.last_used_at", "c.client_name"])
+    .select(["a.account_id", "a.email", "a.display_name", "a.sandbox_only", "t.resource", "t.token_hash", "t.last_used_at", "c.client_name"])
     .where("t.token_hash", "=", sha256Hex(token))
     .where("t.kind", "=", "access")
     .where("t.revoked_at", "is", null)
@@ -80,10 +82,11 @@ export async function createSession(db: Db, accountId: string, days: number, use
   return token;
 }
 
-export async function findOrCreateAccount(db: Db, email: string, displayName?: string): Promise<{ account: AccountRow; created: boolean }> {
+/** `sandboxOnly` marks an account that is created here as let in by a sandbox invitation alone; an existing account is left as it is. */
+export async function findOrCreateAccount(db: Db, email: string, displayName?: string, sandboxOnly = false): Promise<{ account: AccountRow; created: boolean }> {
   const existing = await db
     .selectFrom("accounts")
-    .select(["account_id", "email", "display_name"])
+    .select(["account_id", "email", "display_name", "sandbox_only"])
     .where(sql<boolean>`lower(email) = lower(${email})`)
     .where("deleted_at", "is", null)
     .executeTakeFirst();
@@ -93,7 +96,7 @@ export async function findOrCreateAccount(db: Db, email: string, displayName?: s
   }
   const local = email.split("@")[0] ?? "Someone";
   const name = (displayName?.trim() || local.replace(/[._-]+/g, " ").replace(/\b\w/g, (m) => m.toUpperCase())).slice(0, 100);
-  const account = { account_id: newId(), email, display_name: name };
+  const account = { account_id: newId(), email, display_name: name, sandbox_only: sandboxOnly };
   await db.insertInto("accounts").values({ ...account, email_verified_at: new Date().toISOString() }).execute();
   return { account, created: true };
 }

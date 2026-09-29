@@ -12,7 +12,7 @@ const step = (s) => console.log("✓", s);
 await page.goto(`${base}/signin`);
 await page.getByRole("button", { name: /Sam Okafor/ }).click();
 await page.waitForURL((u) => u.pathname === "/");
-await page.getByRole("heading", { name: "WhatBuild" }).waitFor();
+await page.getByRole("heading", { name: "WhatBuild", exact: true }).waitFor();
 step("signed in as an editor, onto the overview");
 await page.getByRole("navigation", { name: /Crewboard/ }).getByRole("link", { name: /^Idea/ }).click();
 await page.waitForURL(/idea/);

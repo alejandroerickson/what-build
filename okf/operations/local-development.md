@@ -3,7 +3,7 @@ type: System Concept
 title: Running WhatBuild locally, testing it, and checking the interface
 description: The one-command development setup, the test and build commands, and the browser scripts.
 tags: [development, testing, local]
-generated: {by: agent:claude, at: 2026-09-29T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-29}
 status: stable
 ---
 
@@ -28,6 +28,20 @@ Environment overrides: `DATABASE_URL` (your own Postgres instead of the embedded
 beside the first (another checkout, for example), change `PORT`, `WHATBUILD_WEB_PORT` and
 `WHATBUILD_PG_PORT`; in the same checkout, also point `DATABASE_URL` at a fresh database. The web
 app proxies to its own instance's API (`WHATBUILD_API` overrides it).
+
+## The public sandbox, locally
+
+```sh
+WHATBUILD_SANDBOX_TENANT=harbor-labs WHATBUILD_SIGNUP_ALLOWLIST=@example.com corepack pnpm dev
+```
+
+makes the sample organization the public sandbox ([§9.7](../spec/09-data-lifecycle.md)), saves
+its content as the first baseline, and prints one invitation link, once. Riley Chen owns the
+organization, so the development sign-in as Riley opens its controls at
+`/t/harbor-labs/sandbox`. Sam Okafor is an editor there and so is treated as a visitor. To enter
+as a stranger, open the invitation link signed out and use the development sign-in's "As the email
+above" with any address outside the allowlist; the account is then one made for the sandbox.
+Leave the variable out again and restart, and the organization is an ordinary one.
 
 ## Checks
 

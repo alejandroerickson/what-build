@@ -1,5 +1,5 @@
 import {
-  AppError, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, json, notFound, toAppError, tooLarge, UPLOAD_GRANT_HEADER,
+  AppError, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, json, lockSandbox, notFound, sandboxForAccount, toAppError, tooLarge, UPLOAD_GRANT_HEADER,
   type ActorSnapshot, type Env, type OpContext, type Tx,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
@@ -57,6 +57,10 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       if (!grant) throw notFound("No such upload grant.");
       if (grant.uploaded_at) throw conflict("already_uploaded", `Bytes for ${grant.path} already arrived under this grant. Call files(action="complete_upload") to attach them.`);
       if (Date.parse(grant.expires_at) < Date.now()) throw new AppError(401, "invalid_grant", "The upload grant has expired. Request a new one.");
+      // A grant given to a visitor before the public sandbox stopped their writes takes no bytes after.
+      const sandbox = await sandboxForAccount(env.db, tenantId, grant.principal.account_id);
+      if (sandbox?.visitor && sandbox.settings.visitor_access !== "write")
+        throw new AppError(403, sandbox.settings.visitor_access === "closed" ? "sandbox_closed" : "sandbox_read_only", "This public sandbox is not taking visitors' uploads for now. Nothing was stored; try again later with a new grant.");
       const max = Math.min(Number(grant.max_bytes), env.config.relayMaxBytes);
       const declared = c.req.header("content-length");
       if (declared !== undefined && (!/^\d+$/.test(declared))) throw new AppError(400, "invalid_length", "Content-Length is not a number.");
@@ -67,6 +71,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       const stored = await env.ports.blobs.putStream(grant.blob_key!, body, { contentType: grant.media_type ?? "application/octet-stream", maxBytes: max });
       const enqueued = { value: false };
       const entry = await inTenant(env, tenantId, async (trx) => {
+        await lockSandbox(trx, tenantId, "shared");
         await trx.updateTable("upload_grants").set({ uploaded_at: new Date().toISOString(), size: stored.size, sha256: stored.sha256 }).where("grant_id", "=", grant.grant_id).execute();
         const ctx = await grantContext(env, trx, grant.product_id, grant.principal, enqueued);
         return completeGrant(ctx, grant.grant_id);

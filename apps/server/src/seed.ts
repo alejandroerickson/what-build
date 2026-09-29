@@ -1,10 +1,11 @@
-import { createTenantWithTeam, execute, houseStyle, OPERATIONS_BY_NAME, type Env, type Principal, type ScopeRef } from "@whatbuild/core";
+import { createTenantWithTeam, execute, houseStyle, loadSandbox, OPERATIONS_BY_NAME, type Env, type Principal, type ScopeRef } from "@whatbuild/core";
 import { sql } from "kysely";
 import { findOrCreateAccount } from "./auth/identity.ts";
 import {
   HANDOFF_HTML, HANDOFF_NOTES, INSIGHT, INSIGHT_ERRORS, INSIGHT_KNOWLEDGE, INTERVIEW_AGENT_NOTES, INTERVIEW_RECORDER_EXPORT, INTERVIEW_TXT, INTERVIEW_VTT, OVERVIEW_NOTES, OWNER_NOTES_MD, RESEARCH_EXPORT_MD, SAMPLE, STORY_HTML,
   type SourceLink,
 } from "./seed-content.ts";
+import { syncSandboxTenant } from "./public-sandbox.ts";
 import type { Worker } from "./worker.ts";
 
 export const SEED_ACCOUNTS = [
@@ -196,4 +197,33 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
   }
   await call(env, riley, "sources.annotate", { record_id: vtt, note: "This is the moment to design for: the typed message, not the spreadsheet.", seq_start: 8, seq_end: 8, tags: ["hand-off"] }, ref);
   log(`seed: created ${SAMPLE.tenant} / ${SAMPLE.team} / ${SAMPLE.product} with ${SEED_ACCOUNTS.map((a) => a.email).join(" and ")}.`);
+}
+
+/**
+ * For local development with WHATBUILD_SANDBOX_TENANT set: make the named organization the public
+ * sandbox, save its content as the first baseline, and make one invitation to try it with. Each
+ * step is skipped once it has been done.
+ */
+export async function seedSandbox(env: Env, slug: string, log: (m: string) => void = console.log) {
+  const tenantId = await syncSandboxTenant(env.db, slug, log);
+  if (!tenantId) return;
+  const owner = await env.db
+    .selectFrom("memberships as m")
+    .innerJoin("accounts as a", "a.account_id", "m.account_id")
+    .select(["a.account_id", "a.email", "a.display_name"])
+    .where("m.tenant_id", "=", tenantId)
+    .where("m.scope_type", "=", "tenant")
+    .where("m.role", "=", "owner")
+    .executeTakeFirst();
+  if (!owner) return;
+  const who: Principal = { ...owner, auth_kind: "dev", surface: "web", client: null };
+  if (!(await loadSandbox(env.db, tenantId)).baseline_id) {
+    await call(env, who, "sandbox.save_baseline", { tenant: slug, note: "The sample content, as seeded" });
+    log(`seed: saved the sandbox's first baseline.`);
+  }
+  const invited = await env.db.selectFrom("sandbox_invites").select("invite_id").where("tenant_id", "=", tenantId).executeTakeFirst();
+  if (!invited) {
+    const inv = await call(env, who, "sandbox.create_invite", { tenant: slug, label: "Local development", places: 25 });
+    log(`seed: an invitation to the sandbox, shown this once: ${String(inv["invite_link"])}`);
+  }
 }

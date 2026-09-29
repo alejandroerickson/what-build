@@ -1,9 +1,9 @@
 ---
 type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
-description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete, closing an organization, and the operator runbooks.
-tags: [spec, lifecycle, quotas, backups, export, archive, delete]
-generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
+description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete, closing an organization, the operator runbooks, and the public sandbox with its limits, baseline and reset.
+tags: [spec, lifecycle, quotas, backups, export, archive, delete, sandbox]
+generated: {by: agent:claude, at: 2026-09-29}
 status: stable
 ---
 
@@ -38,6 +38,11 @@ Supporting commitments, each of which is a rule elsewhere in this spec:
 | Export is complete and always available | [§9.4](#94-taking-it-with-you) and [§1.5](01-product.md) |
 | We name our sub-processors | **Planned:** a public page listing the container host, database, object store and email provider, updated before a provider changes. The statement already refers to it. |
 
+**In the public sandbox** the statement above is not the whole truth, so every screen there says
+the rest ([§9.7](#97-the-public-sandbox)): what is added is seen by other visitors and erased at
+the next reset. The words come from the server (`sandboxNotice`), so the web app, the invitation
+page and an agent say the same thing.
+
 **About agents.** What a connected agent reads goes to whoever runs it, under their terms, not
 ours. The Connect page says so above the address a person is about to paste ([§6.8](06-operations-and-adapters.md)). We make no claims on
 behalf of any third-party processor, including the ones our own users choose.
@@ -65,8 +70,8 @@ running on free tiers without a compliance program.
 | Active products | 3 per organization | Planned |
 | Sources | 300 per organization | Planned |
 | Stored bytes (files + sidecars) | 1 GB per organization | Planned |
-| Writes | 60 / minute / member | Planned — `429 rate_limited` |
-| Requests | 600 / minute / member | Planned — `429 rate_limited` |
+| Writes | 60 / minute / member | Planned — `429 rate_limited`. Built for visitors to the public sandbox (§9.7) |
+| Requests | 600 / minute / member | Planned — `429 rate_limited`. Built for visitors to the public sandbox (§9.7) |
 | Organization exports | 2 / day | Planned |
 
 Rules:
@@ -83,13 +88,15 @@ Rules:
 4. **Planned:** counters maintained transactionally with the mutations that change them
    ([§6.1](06-operations-and-adapters.md)), a nightly job reconciling stored bytes against the
    object store, and quota and rate limiting in one layer shared by both adapters, so REST and MCP
-   cannot drift.
+   cannot drift. The layer exists, in `execute`, and today it serves the public sandbox only
+   (§9.7).
 5. Archiving does not free storage; deleting does. The UI says so where it matters.
 6. ◆ Decision: **no billing code.** The tenant's `plan` field (always `free`) and the `owner` role
    reserve the seam; nothing else anticipates it.
 
-**Abuse limits**, which are not quotas but belong beside them. Built: the sign-in link limit, and
-invite-only mode (`WHATBUILD_SIGNUP_ALLOWLIST`, [§3.2](03-accounts-teams-and-identity.md)).
+**Abuse limits**, which are not quotas but belong beside them. Built: the sign-in link limit,
+invite-only mode (`WHATBUILD_SIGNUP_ALLOWLIST`, [§3.2](03-accounts-teams-and-identity.md)), and
+in the public sandbox a cap on seats and on each invitation's places (§9.7).
 Planned: per-IP sign-up limits, a cap on outstanding invitations, and an operator view of usage by
 organization before public sign-up opens.
 
@@ -262,3 +269,135 @@ deployment, sign-in configuration. Planned, each a deliverable of [Phase 6](10-r
 - **erasure** — the support path for the few cases the product deliberately does not automate: a
   closed organization inside the 7-day window, and content that must be removed from a snapshot a
   reviewed register entry froze.
+
+## 9.7 The public sandbox
+
+One organization, open to anyone holding an invitation, put back to a saved state every day
+([§3.10](03-accounts-teams-and-identity.md) says who is who;
+◆ [decision](../decisions/the-public-sandbox-is-one-organization-with-pseudonymous-visitors.md)).
+The code is [`packages/core/src/public-sandbox.ts`](../../packages/core/src/public-sandbox.ts) (settings, limits,
+the schedule), [`public-sandbox-baseline.ts`](../../packages/core/src/public-sandbox-baseline.ts) (baseline and
+reset) and [`apps/server/src/public-sandbox.ts`](../../apps/server/src/public-sandbox.ts) (running a reset that is
+due).
+
+### Settings
+
+Every setting is a field of `sandbox.update_settings`, guarded by the settings' `etag`. A change
+applies to the next call a visitor makes. Stored settings are read through their schema, so a
+missing or unreadable value is its default.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `visitor_access` | `write` | `read`: a visitor's writes are refused with `403 sandbox_read_only`, except export. `closed`: every call a visitor makes in the organization is refused with `403 sandbox_closed`, except `sandbox.status`. Neither takes a seat away. |
+| `visitor_agents` | `true` | `false` refuses a visitor's calls over MCP with `403 sandbox_restricted`. |
+| `reset_enabled` | `true` | Whether the sandbox resets by itself. |
+| `reset_time`, `reset_timezone` | `02:00`, `America/Los_Angeles` | The local hour of the daily reset, and the IANA zone it is in. |
+| `max_visitors` | 200 | Seats. |
+| `visitor_idle_days` | 30 | Days without a sign-in or an agent's call before a visitor gives up their seat at a reset; `0` keeps every seat. |
+
+### Limits on what a visitor does
+
+They apply to visitors only. Staff meet the limits every organization has (§9.2), and so does a
+visitor, who meets whichever is lower. `sandbox.settings` returns all of them as `limits`, with
+each one's value, default, what it is counted over and the error it answers with; `sandbox.status`
+returns them to a visitor with what is used today.
+
+| Limit | Setting | Default | Counted over | Refusal |
+|---|---|---|---|---|
+| Calls, reads included | `requests_per_minute` | 120 | each visitor, each minute | `429 rate_limited` |
+| Writes | `writes_per_minute` | 30 | each visitor, each minute | `429 rate_limited` |
+| Writes | `writes_per_day` | 300 | each visitor, each day | `409 quota_exceeded` |
+| Sources created or copied in | `sources_per_day` | 10 | each visitor, each day | `409 quota_exceeded` |
+| Exports | `exports_per_day` | 2 | each visitor, each day | `409 quota_exceeded` |
+| Writes by all visitors | `org_writes_per_day` | 20,000 | all visitors, each day | `409 quota_exceeded` |
+| File size | `file_max_bytes` | 5 MB | each file | `413 too_large` |
+| Bytes uploaded | `bytes_per_day` | 50 MB | each visitor, each day | `409 quota_exceeded` |
+| Bytes uploaded by all visitors | `org_bytes_per_day` | 2 GB | all visitors, each day | `409 quota_exceeded` |
+| Text in one field | `text_max_chars` | 200,000 | each text field | `413 too_large` |
+| Sources in one archive or restore call | `batch_max` | 25 | each call | `413 too_large` |
+| Fetching a file from a URL | `fetch_url` | off | each visitor | `403 sandbox_restricted` |
+| Uploads limited to formats the parsers read | `documents_only` | on | each visitor | `403 sandbox_restricted` |
+
+Rules:
+
+1. **A write is an operation that mutates.** A call is any operation, a read included.
+2. **A minute is a clock minute. A day runs from one scheduled reset to the next**, whether or not
+   resets are turned on, and a reset by hand starts the day's counts again.
+3. **A refused call counts as a call, and takes nothing from a day's allowance.** The minute's
+   counters are written before the input is read. The day's are written inside the operation's
+   transaction, so they go back if the call fails.
+4. **A day's allowance never stops a read or a search** (§9.2 rule 1). Export is counted by
+   `exports_per_day` alone: neither the day's writes nor `visitor_access: "read"` stops it.
+5. **A visitor uploads through the relay only**, where the size is enforced as the bytes arrive; no
+   direct-to-store URL is issued. A grant's `max_bytes` is the lowest of the file limit and what
+   is left of the day's bytes. Bytes are counted when the file is attached, against whoever asked
+   for the grant.
+6. **A call that names no organization** (`products.list`, `get_skill`, `submit_feedback`) is
+   counted too, for a `sandbox_only` account that is a visitor. It meets only the limits on how
+   often.
+7. **The routes that serve bytes are calls too.** A file, an export and a Story page's HTML are
+   served outside the registry ([§6.4](06-operations-and-adapters.md)); for a visitor each counts
+   as a call and is refused while the sandbox is closed. The upload relay takes no bytes from a
+   visitor while `visitor_access` is not `write`, whenever the grant was given.
+8. **Setting a limit to 0 refuses everything it counts.**
+
+### The baseline
+
+`sandbox.save_baseline` saves the organization's content as it is: every row carrying its
+`tenant_id` in `teams`, `products`, `records`, `files`, `file_versions`, `derivations`,
+`segments`, `annotations`, `agent_notes`, `lineage`, `outcomes`, `insights`, `revisions`,
+`register_entries`, `reviews`, `story_pages`, `story_versions`, `story_hierarchies`,
+`story_styles`, `tombstones`, and the activity events that belong to a product. Each row is held
+as JSON, without its generated columns, with its ids.
+
+- **Not in a baseline:** memberships and invitations of either kind, because access is not
+  content; the sandbox's own settings, counters and baselines; jobs, uploads in progress and
+  exports; and the organization's own activity events. A test requires every table with a
+  `tenant_id` to be on one list or the other.
+- **Blobs are referred to, never copied.** They are immutable and keyed by file version.
+- **It holds what is there**, what visitors added included. Staff who want it clean reset first,
+  or set `visitor_access` to `read` while they work.
+- **The newest three are kept.** `sandbox.baselines` lists them, and the one in use is the newest
+  unless staff reset to an earlier one.
+- Saving the first baseline of a sandbox that has never been reset counts as its reset, so the
+  next one comes at the next scheduled hour.
+
+### The reset
+
+`sandbox.reset` (staff, with `confirm: "reset the sandbox"`, and optionally a `baseline_id`) and
+the scheduled reset do the same thing, in one transaction that runs alone in the organization:
+
+1. Delete every row of content the organization holds, the uploads in progress, the exports, the
+   jobs that have not run, and the day's counters.
+2. Insert the baseline's rows. Only the columns the baseline holds are written, so a column added
+   since keeps its default.
+3. Remove a grant on a team or product the baseline does not hold, and the seat of a visitor idle
+   past `visitor_idle_days`. Nothing else about people changes: a reset never gives back access
+   that was taken away.
+4. Queue the deletion of every blob that no row and no kept baseline refers to.
+5. Record when, which baseline, who or the schedule, and the counts, as `last_reset`.
+
+Afterwards the organization's content equals the baseline row for row, links to what the baseline
+holds still work, and no other organization's rows or blobs have changed
+(`apps/server/test/public-sandbox.test.ts`).
+
+**When the scheduled reset runs.** It is due when `reset_enabled` is true, a baseline exists, and
+the last reset is earlier than the most recent `reset_time` in `reset_timezone`. The hour is local,
+so it holds through the clock changes; a time the clocks skip lands just after the skip. The
+service scales to nothing, so no timer can promise the hour. Instead:
+
+- every request to the API, MCP or sign-in first runs a reset that is due, so nobody is served what
+  the hour should have erased;
+- an instance that is awake looks every minute;
+- a scheduler may call `POST /api/v1/sandbox/reset-if-due` at the hour, so that what visitors
+  added does not sit until the next visit ([Cloud Run](../operations/cloud-run.md)).
+
+An instance trusts what it last read about the schedule for at most 30 seconds. A reset that fails
+is logged and tried again at the next request; it never stops the request.
+
+**Deleting in a sandbox.** A visitor cannot delete permanently. When staff delete a source that a
+baseline holds, its rows go and its blobs stay, because a reset would bring the source back; the
+blobs go once no kept baseline refers to them.
+
+**Not built:** a baseline that can be taken out of the database and put into another deployment.
+A baseline lives in the database it was saved in, beside blobs in that deployment's store.

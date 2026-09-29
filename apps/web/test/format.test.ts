@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { citationCheckWords, fileTypeName, nestQuotes } from "../src/lib/format.ts";
+import { citationCheckWords, fileTypeName, nestQuotes, untilTime } from "../src/lib/format.ts";
+
+describe("untilTime", () => {
+  const now = Date.parse("2026-09-29T10:00:00Z");
+  it("says how long until a moment, coarsely", () => {
+    expect(untilTime("2026-09-29T10:00:20Z", now)).toBe("in a moment");
+    expect(untilTime("2026-09-29T10:25:00Z", now)).toBe("in 25 min");
+    expect(untilTime("2026-09-29T15:10:00Z", now)).toBe("in 5 h");
+    expect(untilTime("2026-10-02T10:00:00Z", now)).toBe("in 3 d");
+    expect(untilTime(null, now)).toBe("—");
+  });
+});
 
 describe("nestQuotes", () => {
   it("leaves text without quotation marks alone", () => {

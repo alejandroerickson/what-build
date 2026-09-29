@@ -3,7 +3,7 @@ type: Decision
 title: Access is decided in the application, per product, by role
 description: Roles at organization, team and product level; the highest applies; there are no per-object permissions.
 tags: [decision, access, security, roles]
-generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-29}
 status: stable
 ---
 
@@ -16,6 +16,7 @@ Teams are small and work together on a product. Per-object permissions would mak
 ## Decision
 
 - Roles: organization owner, admin, member; team and product admin, editor, viewer. Organization owners and admins are admins everywhere in it; a team role applies to all its products.
+- A fourth organization role, visitor, exists only in the [public sandbox](the-public-sandbox-is-one-organization-with-pseudonymous-visitors.md): an editor of every product there. In a sandbox nobody but its owners and admins holds more than editor.
 - The effective role is the highest that applies. There are no negative overrides.
 - Viewers read, editors write (including reviews and the Story), admins also manage the product and its people.
 - No role: `404`. Too low a role: `403` naming the role held and the role needed.

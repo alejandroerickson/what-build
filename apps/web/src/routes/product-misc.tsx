@@ -233,7 +233,7 @@ function ProductDetails() {
 
 type Role = "admin" | "editor" | "viewer";
 const ROLES: Role[] = ["admin", "editor", "viewer"];
-const ROLE_WORD: Record<string, string> = { admin: "Admin", editor: "Editor", viewer: "Viewer", owner: "Owner", member: "Member" };
+const ROLE_WORD: Record<string, string> = { admin: "Admin", editor: "Editor", viewer: "Viewer", owner: "Owner", member: "Member", visitor: "Visitor" };
 const ROLE_HINT: Record<Role, string> = { admin: "Also manages people and settings", editor: "Reads and writes", viewer: "Reads" };
 
 interface Grant {
@@ -265,6 +265,8 @@ interface ProductMembers {
   product: { product_id: string; name: string; team_id: string; team: string | null };
   members: ProductMember[];
   invitations: Invitation[];
+  /** In a public sandbox a visitor is shown only themselves. */
+  sandbox?: { only_you: boolean; visitors?: number };
 }
 interface OrgMembers {
   members: { account_id: string; display_name: string; email: string; grants: Grant[] }[];
@@ -319,7 +321,15 @@ function PeopleSheet() {
         id="people-title"
         title="People on this product"
         count={count}
-        end={isAdmin ? <Button icon="user-plus" onClick={() => setAdding(true)}>Add people</Button> : <Link className="quiet-link" to={membersLink}>Organization members</Link>}
+        end={
+          isAdmin ? (
+            <Button icon="user-plus" onClick={() => setAdding(true)}>Add people</Button>
+          ) : q.data?.sandbox?.only_you ? (
+            <Link className="quiet-link" to={`/t/${tenant}/sandbox`}>About this sandbox</Link>
+          ) : (
+            <Link className="quiet-link" to={membersLink}>Organization members</Link>
+          )
+        }
       />
       {q.isPending ? (
         <Loading label="Loading people…" lines={3} />
@@ -412,10 +422,15 @@ function PeopleSheet() {
               </li>
             ))}
           </ul>
-          <p className="people-foot">
-            Admins also manage people and settings, editors read and write, viewers read. Roles given on the team or the organization reach every product in it; change those in{" "}
-            <Link to={membersLink}>{product.tenant.name} members</Link>.
-          </p>
+          {q.data.sandbox?.only_you ? (
+            <p className="people-foot">{product.tenant.name} is a public sandbox: visitors never see each other, so only you are listed, under the name you write with.</p>
+          ) : (
+            <p className="people-foot">
+              Admins also manage people and settings, editors read and write, viewers read. Roles given on the team or the organization reach every product in it; change those in{" "}
+              <Link to={membersLink}>{product.tenant.name} members</Link>.
+              {q.data.sandbox ? ` ${product.tenant.name} is a public sandbox, and its ${(q.data.sandbox.visitors ?? 0).toLocaleString("en-US")} visitors edit this product too; they are in the sandbox's controls.` : ""}
+            </p>
+          )}
         </>
       )}
       {isAdmin && adding ? <AddPeopleDialog onClose={() => setAdding(false)} existing={q.data?.members.map((m) => m.account_id) ?? []} /> : null}

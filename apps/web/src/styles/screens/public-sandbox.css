@@ -1,0 +1,307 @@
+/* The public sandbox: its notice on every screen, the control panel, and the page behind an invitation link. */
+
+/* The notice, once read: one line above the content. */
+.sandbox-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-2);
+  margin-top: 0;
+  padding: 0 var(--s-1);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-ui);
+}
+.sandbox-line > .glyph {
+  color: var(--warn);
+}
+.sandbox-line b {
+  color: var(--text);
+  font-weight: var(--fw-medium);
+}
+.sandbox-line .btn {
+  margin-left: auto;
+}
+.stage[data-focus="on"] .sandbox-line,
+.stage[data-focus="on"] .sandbox-notice {
+  display: none;
+}
+
+/* State at a glance: a label column and what it says. */
+.sandbox-about {
+  display: grid;
+  gap: var(--s-3);
+}
+.sandbox-about > p {
+  margin: 0;
+  max-width: var(--measure);
+  line-height: var(--lh-body);
+}
+.sandbox-facts {
+  display: grid;
+  margin: 0;
+  border-top: 1px solid var(--line);
+}
+.sandbox-facts > div {
+  display: grid;
+  grid-template-columns: var(--col-label) minmax(0, 1fr);
+  gap: var(--s-4);
+  align-items: baseline;
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--line);
+}
+.sandbox-facts > div:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.sandbox-facts dt {
+  color: var(--muted);
+  font-weight: var(--fw-medium);
+}
+.sandbox-facts dd {
+  margin: 0;
+  line-height: var(--lh-body);
+}
+.sandbox-facts b {
+  font-weight: var(--fw-semibold);
+}
+.sandbox-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1h) var(--s-3);
+}
+
+/* Every limit in one table. */
+.sandbox-scroll {
+  overflow-x: auto;
+}
+.sandbox-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.sandbox-table th,
+.sandbox-table td {
+  padding: var(--s-2) var(--s-3);
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  line-height: var(--lh-ui);
+}
+.sandbox-table th:first-child,
+.sandbox-table td:first-child {
+  padding-left: var(--sheet-px);
+}
+.sandbox-table th:last-child,
+.sandbox-table td:last-child {
+  padding-right: var(--sheet-px);
+}
+.sandbox-table thead th {
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+.sandbox-table tbody th {
+  min-width: 200px;
+  font-weight: var(--fw-medium);
+}
+.sandbox-table .sandbox-num {
+  text-align: right;
+  white-space: nowrap;
+}
+.sandbox-table code {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+.sandbox-help {
+  display: block;
+  margin-top: 1px;
+  max-width: 44ch;
+  color: var(--faint);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-regular);
+}
+.sandbox-limits td:nth-child(2),
+.sandbox-limits td:nth-child(4) {
+  white-space: nowrap;
+}
+.sandbox-number {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1h);
+}
+.sandbox-number .input {
+  width: 104px;
+  text-align: right;
+}
+.sandbox-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1h);
+  min-height: var(--h-md);
+}
+.sandbox-form {
+  padding: var(--s-3h) var(--sheet-px);
+  border-top: 1px solid var(--line);
+}
+.sandbox-form .input {
+  max-width: 260px;
+}
+.sandbox-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 0 var(--sheet-px) var(--s-3h) calc(var(--sheet-px) + var(--col-label) + var(--s-4));
+}
+.sandbox-saved {
+  margin-left: auto;
+  color: var(--faint);
+  font-size: var(--fs-sm);
+}
+
+/* Baselines, invitations, visitors: one row each. */
+.sandbox-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sandbox-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s-3);
+  align-items: center;
+  min-height: 44px;
+  padding: var(--s-2) var(--sheet-px);
+  border-bottom: 1px solid var(--line);
+}
+.sandbox-visitor {
+  grid-template-columns: var(--col-face) minmax(0, 1fr) auto;
+}
+.sandbox-row-main {
+  min-width: 0;
+}
+.sandbox-row-title {
+  display: block;
+  font-weight: var(--fw-medium);
+  overflow-wrap: anywhere;
+}
+.sandbox-row-sub {
+  display: block;
+  margin-top: 1px;
+  color: var(--faint);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-ui);
+  overflow-wrap: anywhere;
+}
+.sandbox-row-end {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.sandbox-more {
+  padding: var(--s-2h) var(--sheet-px);
+  border-bottom: 1px solid var(--line);
+}
+.sandbox-foot {
+  margin: 0;
+  padding: var(--s-3) var(--sheet-px);
+  max-width: calc(var(--measure) + 2 * var(--sheet-px));
+  color: var(--faint);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+}
+.sandbox-losing {
+  margin: 0;
+  padding-left: 1.2em;
+  line-height: var(--lh-body);
+}
+
+/* The page behind an invitation link. */
+.join-terms {
+  display: grid;
+  gap: var(--s-1h);
+  margin: 0;
+  padding-left: 1.2em;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+@media (max-width: 760px) {
+  /* A table's row becomes a block: its name, then its cells two to a line, each named. */
+  .sandbox-table,
+  .sandbox-table tbody,
+  .sandbox-table th,
+  .sandbox-table td {
+    display: block;
+  }
+  .sandbox-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .sandbox-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--s-1) var(--s-3);
+    align-items: center;
+    padding: var(--s-2h) var(--sheet-px);
+    border-bottom: 1px solid var(--line);
+  }
+  .sandbox-table th,
+  .sandbox-table td,
+  .sandbox-table th:first-child,
+  .sandbox-table td:last-child {
+    padding: 0;
+    border: 0;
+  }
+  .sandbox-table tbody th {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+  .sandbox-table .sandbox-num {
+    text-align: left;
+  }
+  .sandbox-table td[data-label]::before {
+    content: attr(data-label) ": ";
+    color: var(--faint);
+    font-family: var(--font);
+  }
+  .sandbox-notice .callout {
+    grid-template-columns: 16px minmax(0, 1fr);
+  }
+  .sandbox-notice .callout-action {
+    grid-column: 2;
+    flex-wrap: wrap;
+  }
+  .sandbox-facts > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s-0);
+  }
+  .sandbox-actions {
+    padding-left: var(--sheet-px);
+  }
+  .sandbox-saved {
+    margin-left: 0;
+    flex-basis: 100%;
+  }
+  .sandbox-row,
+  .sandbox-visitor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sandbox-visitor > .avatar {
+    display: none;
+  }
+  .sandbox-row-end {
+    justify-content: flex-start;
+  }
+  .sandbox-line .btn {
+    margin-left: 0;
+  }
+}

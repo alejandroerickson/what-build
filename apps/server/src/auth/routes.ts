@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
-import { AppError, gone, invalid, newId, notFound, randomToken, sha256Hex, unauthenticated, type Db, type Mailer } from "@whatbuild/core";
+import { AppError, gone, invalid, newId, notFound, randomToken, sha256Hex, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type Mailer } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { sql } from "kysely";
 import { z } from "zod";
 import type { ServerConfig } from "../config.ts";
+import { inviteCodeIn, inviteInfo } from "../public-sandbox.ts";
 import { acceptInvitation, acceptInvitationsForEmail, createSession, findOrCreateAccount, restPrincipal, SESSION_COOKIE } from "./identity.ts";
 
 function safeNext(next: string | undefined | null): string {
@@ -39,6 +40,18 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     return Boolean(invited);
   };
 
+  /**
+   * How an address may come to have an account: "open" where sign-up allows it, or "sandbox" when
+   * all that lets it in is an invitation to the public sandbox that still has a place, which is
+   * where the sign-in is returning to.
+   */
+  const admission = async (email: string, next: string | null | undefined): Promise<"open" | "sandbox" | null> => {
+    if (await mayJoin(email)) return "open";
+    const code = inviteCodeIn(next);
+    const invite = code ? await inviteInfo(db, code) : null;
+    return invite?.status === "open" ? "sandbox" : null;
+  };
+
   const startSession = async (c: Context, accountId: string) => {
     const token = await createSession(db, accountId, config.sessionDays, c.req.header("user-agent"));
     setCookie(c, SESSION_COOKIE, token, { httpOnly: true, secure, sameSite: "Lax", path: "/", maxAge: config.sessionDays * 86400 });
@@ -56,14 +69,14 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     const body = z.strictObject({ email: z.string().trim().email().max(320), next: z.string().max(2000).optional() }).safeParse(await c.req.json().catch(() => ({})));
     if (!body.success) throw invalid("invalid_input", "Enter an email address.");
     const email = body.data.email;
-    if (!(await mayJoin(email))) throw new AppError(403, "invite_only", "WhatBuild is invite-only for now. Ask someone who uses it to invite this address.");
+    if (!(await admission(email, body.data.next))) throw new AppError(403, "invite_only", "WhatBuild is invite-only for now. Ask someone who uses it to invite this address.");
     const recent = await db
       .selectFrom("email_tokens")
       .select((eb) => eb.fn.countAll<number>().as("n"))
       .where(sql<boolean>`lower(email) = lower(${email})`)
       .where("created_at", ">", new Date(Date.now() - 3600_000).toISOString())
       .executeTakeFirst();
-    if (Number(recent?.n ?? 0) >= 5) throw new AppError(429, "rate_limited", "Too many sign-in links for this address in the last hour. Use the latest one, or try again later.");
+    if (Number(recent?.n ?? 0) >= SIGN_IN_LINKS_PER_HOUR) throw new AppError(429, "rate_limited", "Too many sign-in links for this address in the last hour. Use the latest one, or try again later.");
     const token = randomToken();
     await db
       .insertInto("email_tokens")
@@ -79,7 +92,10 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     const row = await db.selectFrom("email_tokens").selectAll().where("token_hash", "=", sha256Hex(token)).executeTakeFirst();
     if (!row || row.used_at || Date.parse(row.expires_at) < Date.now()) return c.redirect("/signin?error=link_expired");
     await db.updateTable("email_tokens").set({ used_at: new Date().toISOString() }).where("token_hash", "=", row.token_hash).execute();
-    const { account } = await findOrCreateAccount(db, row.email);
+    // The place the link was sent for may have gone since: an invitation can fill while the email is in transit.
+    const how = await admission(row.email, row.redirect);
+    if (!how) return c.redirect("/signin?error=invite_only");
+    const { account } = await findOrCreateAccount(db, row.email, undefined, how === "sandbox");
     await acceptInvitationsForEmail(db, account);
     await startSession(c, account.account_id);
     return c.redirect(safeNext(row.redirect));
@@ -90,7 +106,9 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     if (!config.devAuth) throw notFound("Not available.");
     const body = z.strictObject({ email: z.string().trim().email(), display_name: z.string().max(100).optional(), next: z.string().optional() }).safeParse(await c.req.json().catch(() => ({})));
     if (!body.success) throw invalid("invalid_input", "Enter an email address.");
-    const { account } = await findOrCreateAccount(db, body.data.email, body.data.display_name);
+    // Development lets any address in; it still marks the account a sandbox invitation alone would have admitted.
+    const how = await admission(body.data.email, body.data.next);
+    const { account } = await findOrCreateAccount(db, body.data.email, body.data.display_name, how === "sandbox");
     await acceptInvitationsForEmail(db, account);
     await startSession(c, account.account_id);
     return c.json({ signed_in: true, account, next: safeNext(body.data.next) });
@@ -139,8 +157,9 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     // Received directly from Google's token endpoint over TLS, so its claims can be read as issued.
     const claims = JSON.parse(Buffer.from((tokens.id_token ?? "..").split(".")[1] ?? "", "base64url").toString("utf8") || "{}") as { email?: string; email_verified?: boolean; name?: string; aud?: string };
     if (!claims.email || !claims.email_verified || claims.aud !== config.googleClientId) return c.redirect("/signin?error=google_unverified");
-    if (!(await mayJoin(claims.email))) return c.redirect("/signin?error=invite_only");
-    const { account } = await findOrCreateAccount(db, claims.email, claims.name);
+    const how = await admission(claims.email, saved.next);
+    if (!how) return c.redirect("/signin?error=invite_only");
+    const { account } = await findOrCreateAccount(db, claims.email, claims.name, how === "sandbox");
     await acceptInvitationsForEmail(db, account);
     await startSession(c, account.account_id);
     return c.redirect(saved.next);
@@ -163,7 +182,7 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
 
   app.get("/api/v1/me", async (c) => {
     const p = await requirePrincipal(c);
-    return c.json({ account_id: p.account_id, email: p.email, display_name: p.display_name, auth_kind: p.auth_kind });
+    return c.json({ account_id: p.account_id, email: p.email, display_name: p.display_name, auth_kind: p.auth_kind, ...(p.sandbox_only ? { sandbox_only: true } : {}) });
   });
 
   app.patch("/api/v1/me", async (c) => {

@@ -35,6 +35,16 @@ export function relativeTime(iso: string | null | undefined, now = Date.now()): 
   return formatDate(new Date(iso).toISOString());
 }
 
+/** How long until a moment, coarse enough to stay true while it is on screen: "in 25 min", "in 5 h". */
+export function untilTime(iso: string | null | undefined, now = Date.now()): string {
+  if (!iso) return "—";
+  const s = Math.round((Date.parse(iso) - now) / 1000);
+  if (s < 45) return "in a moment";
+  if (s < 3600) return `in ${Math.round(s / 60)} min`;
+  if (s < 86400) return `in ${Math.round(s / 3600)} h`;
+  return `in ${Math.round(s / 86400)} d`;
+}
+
 export function formatBytes(n: number | null | undefined): string {
   if (n === null || n === undefined) return "—";
   if (n < 1024) return `${n} B`;
@@ -75,7 +85,7 @@ export function attribution(actor: { display_name?: string; surface?: string | n
   return name;
 }
 
-export const ROLE_WORD: Record<string, string> = { owner: "Owner", admin: "Admin", member: "Member", editor: "Editor", viewer: "Viewer" };
+export const ROLE_WORD: Record<string, string> = { owner: "Owner", admin: "Admin", member: "Member", visitor: "Visitor", editor: "Editor", viewer: "Viewer" };
 
 /** A role with its article, for sentences: "an editor", "a viewer". */
 export function aRole(role: string): string {

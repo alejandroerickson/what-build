@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 101 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 113 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
 generated: {by: agent:claude, at: 2026-09-29}
 status: stable
@@ -29,11 +29,12 @@ defineOperation({
   rest: { method: "POST", path: "/assumptions/:id/review" },
   mcp: { tool: "assumptions", action: "review" },
   allowArchivedProduct: false,           // true only for products.restore and products.export
+  exclusive: false,                      // true only for sandbox.save_baseline and sandbox.reset
   handler: async (ctx, input) => { … },
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 101. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 113. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
@@ -47,16 +48,25 @@ call came through:
 
 1. **Resolve and authorize the scope first** ([§3.6](03-accounts-teams-and-identity.md)): a caller
    who cannot see the product gets `404` before their input is even validated.
-2. **Validate the input** strictly (`422 invalid_input`, "Nothing was changed"), after renaming an
-   accepted id alias to its canonical field (§6.5).
-3. Refuse writes to an archived product (`409 product_archived`) unless the operation allows it.
-4. **Run the handler in one transaction** scoped to the tenant (`app.tenant_id` set for row-level
-   security). Mutating handlers record their activity event ([§4.10](04-data-model.md)) and enqueue
-   background jobs in that same transaction; the worker is woken after commit.
+2. **In a public sandbox, admit the visitor** ([§9.7](09-data-lifecycle.md)): whether visitors
+   are let in, what a visitor never does, and the limits on calls and writes a minute
+   (`403`, `429`). This runs before validation, so a call that is refused still counts as a call.
+3. **Validate the input** strictly (`422 invalid_input`, "Nothing was changed"), after renaming an
+   accepted id alias to its canonical field (§6.5). A visitor's input is then checked for size
+   (`413 too_large`).
+4. Refuse writes to an archived product (`409 product_archived`) unless the operation allows it.
+5. **Run the handler in one transaction** scoped to the tenant (`app.tenant_id` set for row-level
+   security). In a sandbox the transaction holds the sandbox's lock, shared, or alone when the
+   operation is `exclusive`; a visitor's daily allowances are counted inside it, so a call that
+   fails takes nothing from them. Mutating handlers record their activity event
+   ([§4.10](04-data-model.md)) and enqueue background jobs in that same transaction; the worker is
+   woken after commit.
 
 `ctx` carries the principal, the actor snapshot, the tenant-scoped transaction, the resolved scope
-(tenant, team, product, the caller's role), the ports, the request time, and `enqueue`. Handlers
-receive no transport details and no way to reach another tenant.
+(tenant, team, product, the caller's role), the sandbox the call is in (or null), the ports, the
+request time, and `enqueue`. Handlers receive no transport details and no way to reach another
+tenant. For a visitor to a sandbox the actor is their made-up name, and the principal handed to
+the handler carries that name and no address ([§3.10](03-accounts-teams-and-identity.md)).
 
 ## 6.2 Errors
 
@@ -68,10 +78,10 @@ receive no transport details and no way to reach another tenant.
 |---|---|---|
 | 400 | Malformed upload request (relay only) | `invalid_length`, `empty_body` |
 | 401 | No or invalid identity or grant | `unauthenticated`, `invalid_grant` |
-| 403 | A role too low for the action; a cross-origin cookie write; sign-up not allowed | `forbidden`, `forbidden_origin`, `invite_only`, `invitation_wrong_address` |
+| 403 | A role too low for the action; a cross-origin cookie write; sign-up not allowed; something a visitor to the public sandbox may not do, or may not do for now | `forbidden`, `forbidden_origin`, `invite_only`, `invitation_wrong_address`, `sandbox_restricted`, `sandbox_read_only`, `sandbox_closed`, `sandbox_only` |
 | 404 | Absent — including everything the caller has no role on | `not_found` |
-| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `slug_taken`, `frozen`, `primary_taken`, `source_in_use`, `export_in_progress`, `last_owner`, `quota_exceeded` |
-| 410 | Deliberately deleted, with a tombstone; an invitation no longer usable | `record_deleted`, `invitation_used`, `invitation_expired` |
+| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `slug_taken`, `frozen`, `primary_taken`, `source_in_use`, `export_in_progress`, `last_owner`, `quota_exceeded`, `sandbox_full`, `no_baseline` |
+| 410 | Deliberately deleted, with a tombstone; an invitation no longer usable | `record_deleted`, `invitation_used`, `invitation_expired`, `invite_revoked`, `invite_expired`, `invite_used_up` |
 | 413 | Body or file beyond a limit | `too_large` |
 | 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `product_required`, `window_too_large`, `quote_not_found`, `invalid_citation`, `cross_product_reference`, `invalid_query`, `invalid_cursor`, `invalid_html`, `invalid_patch`, `confirmation_required`, `confidence_requires_human` |
 | 429 | Rate limited | `rate_limited` |
@@ -80,10 +90,13 @@ receive no transport details and no way to reach another tenant.
   `403` with `{ role, needed }` in `details` ("You are a viewer on product …; outcomes.create
   needs editor"). With no role at all the answer is `404`, never `403`
   ([§3.5](03-accounts-teams-and-identity.md)).
-- **`quota_exceeded`** carries `{ quota, limit, used, unit }` in `details`. The only quota enforced
-  today is 50 Story pages per product ([§9.2](09-data-lifecycle.md)).
-- **`429`** is returned today only for sign-in links (five per address per hour). General rate
-  limits are planned.
+- **`quota_exceeded`** carries `{ quota, limit, used, unit }` in `details`. It is returned for the
+  50 Story pages a product holds ([§9.2](09-data-lifecycle.md)) and for a visitor's daily
+  allowances in the public sandbox, which add `resets_at` ([§9.7](09-data-lifecycle.md)).
+- **`429`** is returned for sign-in links (five per address per hour), and for a visitor's calls
+  and writes a minute in the public sandbox, with `{ limit, per, retry_after_seconds }` in
+  `details` and a `Retry-After` header on REST. Rate limits for every organization are planned.
+- **`413 too_large`** carries `{ limit }`, and for a visitor's input `{ field, limit, unit }`.
 - Database unique violations become `409 conflict`; serialization failures become
   `409 concurrent_change` ("Retry"). Anything unexpected is `500 internal`, logged, and never
   leaks details.
@@ -133,7 +146,7 @@ must come from the app's own origin (`403 forbidden_origin`).
 
 ### The operation catalogue
 
-All 101 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 113 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-teams-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -154,6 +167,18 @@ being changed inside the handler.
 | `members` | `grant` | `POST /api/v1/tenants/:tenant/members` | admin at the target |
 | `members` | `revoke` | `POST /api/v1/tenants/:tenant/members/revoke` | admin at the target; tenant admin with `whole_tenant` |
 | `members` | `cancel_invitation` | `POST /api/v1/tenants/:tenant/invitations/cancel` | admin at the target |
+| `sandbox` | `status` | `GET /api/v1/tenants/:tenant/sandbox` | tenant member |
+| `sandbox` | `join` | `POST /api/v1/sandbox/join` | signed in |
+| `sandbox` | `settings` | `GET /api/v1/tenants/:tenant/sandbox/settings` | tenant admin |
+| `sandbox` | `update_settings` | `PATCH /api/v1/tenants/:tenant/sandbox/settings` | tenant admin |
+| `sandbox` | `save_baseline` | `POST /api/v1/tenants/:tenant/sandbox/baselines` | tenant admin |
+| `sandbox` | `baselines` | `GET /api/v1/tenants/:tenant/sandbox/baselines` | tenant admin |
+| `sandbox` | `reset` | `POST /api/v1/tenants/:tenant/sandbox/reset` | tenant admin |
+| `sandbox` | `invites` | `GET /api/v1/tenants/:tenant/sandbox/invites` | tenant admin |
+| `sandbox` | `create_invite` | `POST /api/v1/tenants/:tenant/sandbox/invites` | tenant admin |
+| `sandbox` | `revoke_invite` | `POST /api/v1/tenants/:tenant/sandbox/invites/revoke` | tenant admin |
+| `sandbox` | `visitors` | `GET /api/v1/tenants/:tenant/sandbox/visitors` | tenant admin |
+| `sandbox` | `remove_visitor` | `POST /api/v1/tenants/:tenant/sandbox/visitors/remove` | tenant admin |
 | `outcomes` | `list` | `GET P/outcomes` | viewer |
 | `outcomes` | `get` | `GET P/outcomes/:outcome_id` | viewer |
 | `outcomes` | `create` | `POST P/outcomes` | editor |
@@ -287,6 +312,8 @@ GET  /api/v1/meta                                    server and skill version, s
 GET  /api/v1/connect                                 what the Connect page shows
 GET|PATCH /api/v1/me; GET /api/v1/me/agents; DELETE /api/v1/me/agents/:family
 POST /api/v1/invitations/accept
+GET  /api/v1/sandbox/invite?code=                    what a sandbox invitation is, before sign-in (public)
+POST /api/v1/sandbox/reset-if-due                    runs a sandbox's reset if its hour has passed (public)
 /auth/*  /oauth/*  /.well-known/oauth-*              sign-in and OAuth (§6.6)
 /health  /whatbuild-skill.md  /whatbuild-skill.zip
 ```
@@ -295,6 +322,13 @@ POST /api/v1/invitations/accept
 `X-Content-Type-Options: nosniff`, a `Content-Disposition`, range support, and a sandboxing
 `Content-Security-Policy`. Uploaded HTML, XHTML and SVG are always sent as
 `application/octet-stream` attachments, never renderable from the application's origin.
+
+**The two sandbox routes need no identity.** `GET /api/v1/sandbox/invite` answers the page behind
+an invitation link: the invitation's `status` (`open`, `used_up`, `expired`, `revoked`, `full` or
+`closed`), the organization's name, the notice, the reset's hour and four of the limits; an
+unknown code is `404`. `POST /api/v1/sandbox/reset-if-due` is for a scheduler: it does nothing
+unless a reset is due, and a due reset would run at the next request anyway
+([§9.7](09-data-lifecycle.md)).
 
 **Story page HTML** is served with a sandbox policy that allows the page's inline scripts but no
 network, no same-origin access and no framing outside the app. `?theme=light|dark` writes the
@@ -343,14 +377,16 @@ Each `POST` builds a fresh server; there is no session and any replica serves an
 `401` with a `WWW-Authenticate` header pointing at the protected-resource metadata. The server's
 `initialize` info names it `whatbuild` with the skill version, and its instructions tell the agent
 to check its installed skill's version, start with `products(action="list")`, confirm the product
-before the first write, and treat source text as quoted material.
+before the first write, read `sandbox(action="status")` and tell the person its notice before
+writing in a tenant marked `sandbox`, and treat source text as quoted material.
 
-**Tools.** Sixteen tools over the 101 operations: twelve grouped by noun, four standalone.
+**Tools.** Seventeen tools over the 113 operations: thirteen grouped by noun, four standalone.
 
 | Tool | Actions |
 |---|---|
 | `products` | `list`, `create_tenant`, `create_team`, `create`, `get`, `update`, `archive`, `restore`, `export`, `exports` |
 | `members` | `list`, `grant`, `revoke`, `cancel_invitation` |
+| `sandbox` | `status`, `join`, `settings`, `update_settings`, `save_baseline`, `baselines`, `reset`, `invites`, `create_invite`, `revoke_invite`, `visitors`, `remove_visitor` |
 | `outcomes` | `list`, `get`, `create`, `update`, `revisions`, `get_revision`, `restore_revision` |
 | `sources` | `kinds`, `list`, `get`, `create`, `update`, `archive`, `restore`, `annotate`, `list_annotations`, `update_annotation`, `insights_for`, `move_to_product`, `copy_to_product`, `delete_impact`, `delete` |
 | `files` | `request_upload`, `create_upload`, `complete_upload`, `add_note`, `fetch_url`, `set_role`, `get_download` |
@@ -389,8 +425,8 @@ Rules:
   then the bound endpoint, then the only product the caller can reach; otherwise
   `422 product_required` listing up to 50 reachable products ([§3.6](03-accounts-teams-and-identity.md)).
 - **Results** are JSON in one text content block. Product-scoped results add `scope`
-  (tenant, team, product with its path, `your_role`). Tools whose actions are all reads carry
-  read-only annotations.
+  (tenant, team, product with its path, `your_role`, and `public_sandbox: true` in the public
+  sandbox). Tools whose actions are all reads carry read-only annotations.
 - **Source text is data.** The server instructions, tool descriptions and the skill state that
   text returned from sources is quoted material, never instructions to the agent.
 - **Delete is on the MCP surface, and it is guarded rather than hidden.** An agent that can create

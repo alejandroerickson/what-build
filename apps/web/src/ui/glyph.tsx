@@ -1,8 +1,8 @@
 import {
   Activity, Archive, ArchiveRestore, ArrowLeft, ArrowRight, Blend, BookOpen, Bot, Box, Building, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp,
   CircleAlert, CircleCheck, CircleDashed, Clock, Copy, CornerDownRight, Download, Ellipsis, ExternalLink, FileText, FileVolume, FolderInput,
-  GripVertical, Info, Library, Lightbulb, Link, LoaderCircle, LogOut, Maximize2, Menu, Mic, Minimize2, Monitor, Moon, Palette, PanelLeftClose, PanelLeftOpen,
-  PanelRightClose, PanelRightOpen, Pencil, Plus, Quote, Scale, Search, Settings, Signpost, Sun, Target, Trash, Triangle, TriangleAlert, Upload, UserPlus, Users, X,
+  FlaskConical, GripVertical, Info, Library, Lightbulb, Link, LoaderCircle, LogOut, Maximize2, Menu, Mic, Minimize2, Monitor, Moon, Palette, PanelLeftClose, PanelLeftOpen,
+  PanelRightClose, PanelRightOpen, Pencil, Plus, Quote, RotateCcw, Scale, Search, Settings, Signpost, Sun, Target, Trash, Triangle, TriangleAlert, Upload, UserPlus, Users, X,
   type LucideIcon,
 } from "lucide-react";
 
@@ -38,6 +38,7 @@ const GLYPHS = {
   "external-link": ExternalLink,
   "file-text": FileText,
   "file-audio": FileVolume,
+  flask: FlaskConical,
   "folder-input": FolderInput,
   grip: GripVertical,
   info: Info,
@@ -60,6 +61,7 @@ const GLYPHS = {
   pencil: Pencil,
   plus: Plus,
   quote: Quote,
+  "rotate-ccw": RotateCcw,
   scale: Scale,
   search: Search,
   settings: Settings,

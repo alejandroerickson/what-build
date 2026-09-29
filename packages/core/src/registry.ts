@@ -1,9 +1,11 @@
 import type { z } from "zod";
 import type { ActorSnapshot, Tx } from "./db.ts";
 import type { Ports } from "./ports.ts";
+import type { SandboxContext } from "./public-sandbox.ts";
 
 export type ProductRole = "viewer" | "editor" | "admin";
-export type TenantRole = "member" | "admin" | "owner";
+/** `visitor` exists only in a public sandbox: an editor of every product there, and nothing more. */
+export type TenantRole = "visitor" | "member" | "admin" | "owner";
 
 /** The authenticated caller. No input field can set or alter it. */
 export interface Principal {
@@ -13,12 +15,16 @@ export interface Principal {
   auth_kind: "session" | "oauth" | "upload_grant" | "system" | "dev";
   surface: "web" | "rest" | "mcp" | null;
   client: string | null;
+  /** The account was created on a sandbox invitation alone, so the sandbox's limits follow it everywhere. */
+  sandbox_only?: boolean;
 }
 
 export interface TenantRef {
   tenant_id: string;
   slug: string;
   name: string;
+  /** The organization is a public sandbox. */
+  sandbox?: boolean;
 }
 export interface TeamRef {
   team_id: string;
@@ -49,6 +55,11 @@ export interface OpContext {
   db: Tx;
   scope: Scope;
   ports: Ports;
+  /**
+   * The public sandbox the call is in, with the caller's place in it; null anywhere else. Absent
+   * when the caller did not come through `execute` (the upload relay), which then looks it up.
+   */
+  sandbox?: SandboxContext | null;
   /** Request time, ISO 8601 UTC. */
   now: string;
   /** Queue background work in this transaction; the worker wakes after commit. */
@@ -75,6 +86,11 @@ export interface OperationDef<I extends z.ZodType = z.ZodType, O = unknown> {
   mcp: { tool: string; action?: string };
   /** Writes allowed while the product is archived (only restore). */
   allowArchivedProduct?: boolean;
+  /**
+   * Runs alone in a public sandbox: it waits for every call in progress there, and holds new ones
+   * until it commits. For saving a baseline and resetting to one.
+   */
+  exclusive?: boolean;
   handler: (ctx: OpContext, input: z.output<I>) => Promise<O>;
 }
 

@@ -9,17 +9,20 @@ import { MemoryMailer } from "../src/adapters/misc.ts";
 import { createApp, createPorts } from "../src/app.ts";
 import { loadConfig, type ServerConfig } from "../src/config.ts";
 import { createDb, migrate } from "../src/database.ts";
+import { SandboxClock } from "../src/public-sandbox.ts";
 import { Worker } from "../src/worker.ts";
 
 export interface Harness {
   baseUrl: string;
   db: ReturnType<typeof createDb>["db"];
   worker: Worker;
+  /** The server's own clock for sandbox resets. `touch()` makes it look again at once. */
+  clock: SandboxClock;
   mailer: MemoryMailer;
   blobs: MemoryBlobStore;
   config: ServerConfig;
-  /** A signed-in browser: fetch with its session cookie and a same-origin Origin header. */
-  signIn(email: string, name?: string): Promise<Browser>;
+  /** A signed-in browser: fetch with its session cookie and a same-origin Origin header. `next` is where the sign-in was returning to. */
+  signIn(email: string, name?: string, next?: string): Promise<Browser>;
   /** An agent connected as this person through the OAuth flow a real MCP client runs; returns its access token. */
   connectAgent(browser: Browser, clientName?: string): Promise<string>;
   close(): Promise<void>;
@@ -58,7 +61,8 @@ export async function startHarness(overrides: Partial<ServerConfig> = {}, opts: 
   // A test that fetches URLs stands in for the network.
   if (opts.fetcher) ports.fetcher = opts.fetcher;
   worker = new Worker({ db, ports }, 60_000, () => {});
-  const app = createApp({ db, ports, config });
+  const clock = new SandboxClock({ db, ports }, () => {});
+  const app = createApp({ db, ports, config, clock });
   server = serve({ fetch: app.fetch, port });
 
   const makeBrowser = (email: string, cookie: string): Browser => ({
@@ -85,14 +89,15 @@ export async function startHarness(overrides: Partial<ServerConfig> = {}, opts: 
     baseUrl,
     db,
     worker: worker!,
+    clock,
     mailer,
     blobs,
     config,
-    async signIn(email, displayName) {
+    async signIn(email, displayName, next) {
       const res = await fetch(`${baseUrl}/auth/dev-sign-in`, {
         method: "POST",
         headers: { "content-type": "application/json", origin: baseUrl },
-        body: JSON.stringify({ email, display_name: displayName }),
+        body: JSON.stringify({ email, display_name: displayName, ...(next ? { next } : {}) }),
       });
       if (res.status !== 200) throw new Error(`sign-in failed: ${res.status} ${await res.text()}`);
       const cookie = (res.headers.get("set-cookie") ?? "").split(";")[0]!;

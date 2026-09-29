@@ -8,6 +8,8 @@ export interface Me {
   account_id: string;
   email: string;
   display_name: string;
+  /** The account was made on an invitation to the public sandbox alone: it cannot start an organization. */
+  sandbox_only?: boolean;
 }
 
 export interface ProductSummary {
@@ -17,7 +19,7 @@ export interface ProductSummary {
   concept: string;
   archived_at: string | null;
   updated_at: string;
-  tenant: { tenant_id: string; slug: string; name: string };
+  tenant: { tenant_id: string; slug: string; name: string; sandbox?: boolean };
   team: { team_id: string; slug: string; name: string };
   your_role: "viewer" | "editor" | "admin";
   counts: Product["counts"];
@@ -25,7 +27,8 @@ export interface ProductSummary {
 
 export interface ProductsResponse {
   items: ProductSummary[];
-  tenants: { tenant_id: string; slug: string; name: string; your_role: string | null; teams: { team_id: string; slug: string; name: string; your_role: string | null }[] }[];
+  /** `sandbox` marks a public sandbox; `your_role` is then "visitor" for everyone but its owners and admins. */
+  tenants: { tenant_id: string; slug: string; name: string; sandbox?: boolean; your_role: string | null; teams: { team_id: string; slug: string; name: string; your_role: string | null }[] }[];
 }
 
 export function useMe() {
@@ -65,7 +68,7 @@ export interface Product {
   archived_at: string | null;
   etag: string;
   path: string;
-  tenant: { tenant_id: string; slug: string; name: string };
+  tenant: { tenant_id: string; slug: string; name: string; sandbox?: boolean };
   team: { team_id: string; slug: string; name: string };
   your_role: "viewer" | "editor" | "admin";
   counts: { sources: number; outcomes: number; insights: number; assumptions: number; decisions: number; story_pages: number };

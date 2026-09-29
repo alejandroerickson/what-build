@@ -79,6 +79,8 @@ export interface AccountsTable {
   email_verified_at: TsNull;
   created_at: Ts;
   deleted_at: TsNull;
+  /** Created on the strength of a sandbox invitation alone; see the public sandbox. */
+  sandbox_only: Def<boolean>;
 }
 
 export interface SessionsTable {
@@ -139,6 +141,8 @@ export interface TenantsTable {
   name: string;
   plan: Def<string>;
   status: Def<string>;
+  /** A public sandbox, as the deployment's configuration says. Set by the server at start-up. */
+  sandbox: Def<boolean>;
   created_at: Ts;
   created_by: Json<ActorSnapshot>;
 }
@@ -569,6 +573,59 @@ export interface ExportsTable {
   expires_at: Ts;
 }
 
+// ---- The public sandbox -------------------------------------------------------------------------
+
+export interface SandboxSettingsTable {
+  tenant_id: string;
+  /** Stored as written; read through the settings schema, which supplies every default. */
+  settings: Json<Record<string, unknown>>;
+  baseline_id: string | null;
+  last_reset_at: TsNull;
+  last_reset: JsonNull<Record<string, unknown>>;
+  etag: string;
+  updated_at: Ts;
+  updated_by: JsonNull<ActorSnapshot>;
+}
+
+export interface SandboxInvitesTable {
+  invite_id: string;
+  tenant_id: string;
+  code_hash: string;
+  label: string;
+  max_uses: number;
+  used: Def<number>;
+  expires_at: TsNull;
+  revoked_at: TsNull;
+  created_at: Ts;
+  created_by: Json<ActorSnapshot>;
+}
+
+export interface SandboxUsageTable {
+  tenant_id: string;
+  /** The visitor, or "" for the whole organization. */
+  account_id: string;
+  bucket: "minute" | "day";
+  starts_at: string;
+  counter: string;
+  n: number;
+}
+
+export interface SandboxBaselinesTable {
+  baseline_id: string;
+  tenant_id: string;
+  note: string;
+  counts: Json<Record<string, number>>;
+  created_at: Ts;
+  created_by: Json<ActorSnapshot>;
+}
+
+export interface SandboxBaselineRowsTable {
+  baseline_id: string;
+  tenant_id: string;
+  table_name: string;
+  row: Json<Record<string, unknown>>;
+}
+
 export interface DB {
   accounts: AccountsTable;
   sessions: SessionsTable;
@@ -604,6 +661,11 @@ export interface DB {
   activity: ActivityTable;
   tombstones: TombstonesTable;
   exports: ExportsTable;
+  sandbox_settings: SandboxSettingsTable;
+  sandbox_invites: SandboxInvitesTable;
+  sandbox_usage: SandboxUsageTable;
+  sandbox_baselines: SandboxBaselinesTable;
+  sandbox_baseline_rows: SandboxBaselineRowsTable;
 }
 
 export type Db = Kysely<DB>;

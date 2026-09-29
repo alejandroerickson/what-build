@@ -1,5 +1,5 @@
 import { hostname } from "node:os";
-import { markExportFailed, runDerivation, runExport, type Env } from "@whatbuild/core";
+import { blobsSafeToDelete, lockSandbox, markExportFailed, runDerivation, runExport, type Env } from "@whatbuild/core";
 import { sql } from "kysely";
 
 const SIDECARS = ["segments.jsonl", "text.md", "outline.md", "manifest.json"];
@@ -81,6 +81,8 @@ export class Worker {
     if (Date.now() - this.lastPrune < 3600_000) return;
     this.lastPrune = Date.now();
     await sql`delete from jobs where done_at < now() - interval '7 days'`.execute(this.env.db);
+    // A sandbox's counters: a minute's are read within that minute, a day's until the next reset.
+    await sql`delete from sandbox_usage where (bucket = 'minute' and starts_at < now() - interval '1 hour') or starts_at < now() - interval '3 days'`.execute(this.env.db);
     const tenants = await sql<{ tenant_id: string }>`select distinct tenant_id from tenants`.execute(this.env.db);
     for (const { tenant_id } of tenants.rows) {
       const stale = await this.env.db.transaction().execute(async (trx) => {
@@ -113,6 +115,8 @@ export class Worker {
     try {
       await this.env.db.transaction().execute(async (trx) => {
         await sql`select set_config('app.tenant_id', ${job.tenant_id}, true)`.execute(trx);
+        // A public sandbox's reset waits for work in progress, and work waits for a reset.
+        await lockSandbox(trx, job.tenant_id, "shared");
         if (job.kind === "derive") {
           const out = await runDerivation(trx, this.env.ports, {
             tenant_id: job.tenant_id,
@@ -125,8 +129,10 @@ export class Worker {
           const out = await runExport(trx, this.env.ports, { tenant_id: job.tenant_id, export_id: String(job.payload["export_id"]) });
           this.log(`job ${job.job_id} export: ${out ? `${out.files} files, ${out.size} bytes` : "skipped"} in ${Date.now() - started} ms`);
         } else if (job.kind === "delete_blobs") {
-          for (const key of (job.payload["keys"] as string[]) ?? []) await this.env.ports.blobs.delete(key);
-          for (const prefix of (job.payload["prefixes"] as string[]) ?? []) for (const s of SIDECARS) await this.env.ports.blobs.delete(`${prefix}/${s}`);
+          // A blob that a sandbox's baseline refers to stays: a reset would bring its source back.
+          const safe = await blobsSafeToDelete(trx, job.tenant_id, (job.payload["keys"] as string[]) ?? [], (job.payload["prefixes"] as string[]) ?? []);
+          for (const key of safe.keys) await this.env.ports.blobs.delete(key);
+          for (const prefix of safe.prefixes) for (const s of SIDECARS) await this.env.ports.blobs.delete(`${prefix}/${s}`);
         } else {
           throw new Error(`unknown job kind ${job.kind}`);
         }

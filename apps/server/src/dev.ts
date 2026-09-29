@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { createBlobStore, createMailer, createPorts } from "./app.ts";
 import { loadConfig } from "./config.ts";
 import { createDb, migrate } from "./database.ts";
-import { seed } from "./seed.ts";
+import { seed, seedSandbox } from "./seed.ts";
 import { startLocalPg, type LocalPg } from "./testing/pg.ts";
 import { Worker } from "./worker.ts";
 
@@ -15,6 +15,9 @@ import { Worker } from "./worker.ts";
  *
  *   pnpm dev                 embedded Postgres on :54329, API on :8787, web app on :5273
  *   DATABASE_URL=… pnpm dev  use your own Postgres instead
+ *   WHATBUILD_SANDBOX_TENANT=harbor-labs pnpm dev
+ *                            the sample organization as the public sandbox, with a baseline saved
+ *                            and an invitation link printed
  */
 const root = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 const API_PORT = Number(process.env["PORT"] ?? 8787);
@@ -44,6 +47,7 @@ async function main() {
   const ports = createPorts(config, await createBlobStore(config), createMailer(config));
   const worker = new Worker({ db, ports }, 60_000, () => {});
   await seed({ db, ports }, worker);
+  if (config.sandboxTenant) await seedSandbox({ db, ports }, config.sandboxTenant);
   await pool.end();
 
   const children: ChildProcess[] = [];

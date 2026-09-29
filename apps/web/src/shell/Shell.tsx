@@ -5,6 +5,7 @@ import { Callout, Glyph } from "../ui/index.tsx";
 import { isTypingTarget, NARROW_QUERY, PHONE_QUERY, shortcutLabel, useMediaQuery } from "../ui/media.ts";
 import { BrandMark } from "./brand.tsx";
 import { AccountMenu, BrandRow, PlainNav, ProductNav, ProductSwitcher, productSection } from "./panel.tsx";
+import { SandboxBanner } from "./PublicSandboxBanner.tsx";
 import { ShellContext, type ShellSlots } from "./slots.tsx";
 
 const NAV_KEY = "whatbuild.nav";
@@ -325,13 +326,16 @@ export function ProductShell({ product, app, children }: { product: Product; app
       section={section.label}
       title={`${section.label} · ${product.name} · WhatBuild`}
       banner={
-        product.archived_at ? (
-          <div className="canvas-banner">
-            <Callout tone="attention" title="This product is archived">
-              It is read-only. An admin can restore it in Settings.
-            </Callout>
-          </div>
-        ) : null
+        <>
+          {product.tenant.sandbox ? <SandboxBanner tenant={product.tenant} /> : null}
+          {product.archived_at ? (
+            <div className="canvas-banner">
+              <Callout tone="attention" title="This product is archived">
+                It is read-only. An admin can restore it in Settings.
+              </Callout>
+            </div>
+          ) : null}
+        </>
       }
       panel={(hide, hideLabel) => (
         <>
@@ -349,7 +353,7 @@ export function ProductShell({ product, app, children }: { product: Product; app
   );
 }
 
-const PLAIN_SECTIONS: Record<string, string> = { connect: "Connect an agent", settings: "Settings", members: "Members", _system: "System" };
+const PLAIN_SECTIONS: Record<string, string> = { connect: "Connect an agent", settings: "Settings", members: "Members", sandbox: "Public sandbox", _system: "System" };
 
 /**
  * Screens outside a product (the overview, Connect an agent, settings, organization members): the
@@ -358,7 +362,7 @@ const PLAIN_SECTIONS: Record<string, string> = { connect: "Connect an agent", se
 export function PlainShell({ children }: { children: ReactNode }) {
   const loc = useLocation();
   const parts = loc.pathname.split("/").filter(Boolean);
-  const key = parts[0] === "t" ? "members" : (parts[0] ?? "home");
+  const key = parts[0] === "t" ? (parts[2] === "sandbox" ? "sandbox" : "members") : (parts[0] ?? "home");
   const section = PLAIN_SECTIONS[key] ?? "WhatBuild";
   const isHome = key === "home";
   return (

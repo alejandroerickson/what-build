@@ -25,6 +25,8 @@ export interface ServerConfig {
   runWorker: boolean;
   /** When set, only these emails (or @domains) may create an account; invited people always may. */
   signupAllowlist: string[] | null;
+  /** The slug of the organization that is the public sandbox, if the deployment has one. */
+  sandboxTenant: string | null;
   relayMaxBytes: number;
   fileMaxBytes: number;
   parseCapBytes: number;
@@ -69,6 +71,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     webDist: env["WHATBUILD_WEB_DIST"] ?? null,
     runWorker: env["WHATBUILD_WORKER"] !== "0",
     signupAllowlist: env["WHATBUILD_SIGNUP_ALLOWLIST"] ? env["WHATBUILD_SIGNUP_ALLOWLIST"].split(",").map((s) => s.trim().toLowerCase()).filter(Boolean) : null,
+    sandboxTenant: env["WHATBUILD_SANDBOX_TENANT"]?.trim().toLowerCase() || null,
     // Cloud Run refuses request bodies over 32 MiB, so the relay stays under that.
     relayMaxBytes: num(env["WHATBUILD_RELAY_MAX_BYTES"], 25 * MiB),
     fileMaxBytes: num(env["WHATBUILD_FILE_MAX_BYTES"], 100 * MiB),

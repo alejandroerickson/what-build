@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
 description: What the production deployment is made of, how deploy/cloud-run/setup.sh creates it, sign-in and continuous deployment, cost, names, and useful commands.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-09-27T06:00:00Z}
+generated: {by: agent:claude, at: 2026-09-29}
 status: stable
 ---
 
@@ -73,6 +73,34 @@ right to sign as itself.
 an account; by default it is only the `gcloud` account that ran the script. Anyone who is invited
 can always join. Widen it when public sign-up opens.
 
+**A public sandbox.** `SANDBOX_TENANT=<slug>` names one organization as the public sandbox
+([§9.7](../spec/09-data-lifecycle.md)); the organization must exist, and the service reads the
+name when it starts. On a service that is already deployed:
+
+```bash
+gcloud run services update whatbuild --region $R --update-env-vars WHATBUILD_SANDBOX_TENANT=<slug>
+```
+
+Then, signed in as an owner or admin of that organization, open `/t/<slug>/sandbox`: get the
+content as visitors should find it, **Save baseline**, check the limits, and make an invitation.
+Removing the variable closes the sandbox to every visitor at the next start, and leaves the
+organization and its staff as they were.
+
+The reset needs nothing more: the first request after its hour runs it. To have it run at the
+hour even when nobody visits, let Cloud Scheduler wake the service. `setup.sh` creates the job
+when `SANDBOX_TENANT` is set, and this creates it by hand:
+
+```bash
+gcloud scheduler jobs create http whatbuild-sandbox-reset --location $R \
+  --schedule "1 2 * * *" --time-zone "America/Los_Angeles" \
+  --http-method POST --uri "https://<your-url>/api/v1/sandbox/reset-if-due"
+```
+
+Keep the schedule a minute after the hour in the sandbox's settings, in the same time zone; if
+you change one, change the other. The address needs no credential: it does nothing unless a reset
+is due. Cloud Scheduler is not offered in every region, so `SCHEDULER_LOCATION` may need to name
+a region near the service's.
+
 **Continuous deployment.** In Cloud Build, connect the GitHub repository and create a trigger on
 pushes to `main` that runs `/cloudbuild.yaml` with the substitution `_REGION` set to the service's
 region. Choose the trigger's region before connecting the repository. Each build
@@ -101,6 +129,7 @@ US$10 a month; a free-tier Postgres elsewhere costs nothing. Storage is cents.
 | Bucket | `<project>-whatbuild-files` | private, uniform access, public access prevented; versioned, noncurrent versions deleted after 30 days |
 | Secrets | `whatbuild-database-url`, `whatbuild-grant-key`, optional `whatbuild-smtp-url`, `whatbuild-google-client-secret` | read by the runtime identity only |
 | Images | Artifact Registry `whatbuild` | the ten most recent always kept; others deleted after 30 days |
+| Scheduler job | `whatbuild-sandbox-reset` (with `SANDBOX_TENANT`) | wakes the service a minute after the sandbox's reset hour |
 
 ## Useful commands
 
