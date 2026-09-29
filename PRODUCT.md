@@ -68,9 +68,7 @@ permissions and one activity log.
   the Story; people read it and export it to PDF. Their styling comes from
   service-provided guidance whose tokens derive from the product's own design system.
 - Vocabulary is fixed: source, passage, segment, outcome, insight, assumption, decision, Story,
-  archive. Never "findings", "claims", "document store" or a storage path in the UI. The one
-  exception is the overview's description of the app, which calls Evidence "an opinionated
-  document store".
+  archive. Never "findings", "claims", "document store" or a storage path in the UI.
 - WCAG 2.2 AA, fully keyboard-operable, usable at phone width.
 
 ## Evidence on Hand
