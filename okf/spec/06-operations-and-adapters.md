@@ -270,10 +270,10 @@ GET  P/story/pages/:page_id/versions/:version/html?theme=light|dark   Story page
 GET  P/story/print?page_ids=…                        the Story print view (HTML)
 GET  /api/v1/meta                                    server and skill version, sign-in methods (public)
 GET  /api/v1/connect                                 what the Connect page shows
-GET|PATCH /api/v1/me; GET|POST /api/v1/me/tokens; DELETE /api/v1/me/tokens/:id; DELETE /api/v1/me/agents/:family
+GET|PATCH /api/v1/me; GET /api/v1/me/agents; DELETE /api/v1/me/agents/:family
 POST /api/v1/invitations/accept
 /auth/*  /oauth/*  /.well-known/oauth-*              sign-in and OAuth (§6.6)
-/health  /whatbuild-skill.md  /whatbuild-skill.zip  /install.sh  /install.ps1
+/health  /whatbuild-skill.md  /whatbuild-skill.zip
 ```
 
 **Bytes are served by the service itself**, streamed from the object store with
@@ -395,11 +395,12 @@ Rules:
   protected-resource metadata, authorization-server metadata, dynamic client registration,
   authorization code with PKCE, resource indicators, rotating refresh tokens. The person consents
   in a browser and the token represents them.
-- **Personal access tokens** (`wbpat_…`) for clients that cannot do OAuth and for REST scripts:
-  created in the web app only (Account and tokens), named, shown once, hashed at rest, listed with
-  last use, revocable at once. Connected OAuth agents are listed and revocable in the same place.
+- **REST answers the browser session only.** There are no personal access tokens: a bearer token
+  on REST is refused, and scripts connect as agents over MCP. Connected agents are listed and
+  disconnected on the Connect an agent page.
 - Both adapters build the actor snapshot from the authenticated identity and the transport
-  (`web`, `rest` or `mcp`, plus the client's name). No input field can set or alter it.
+  (`web` or `mcp`, plus the client's name; activity from before tokens were removed may say
+  `rest`). No input field can set or alter it.
 
 ## 6.7 Getting files in
 
@@ -454,18 +455,21 @@ drifts. One constant, `SKILL_VERSION` in `packages/core/src/ops/meta.ts`, sets t
   to compare versions and, when stale or absent, fetch the new one and *propose* installing it
   through its harness — never to self-install silently.
 
-**The Connect page** (`/connect`, "Agents" in the app) lets a person connect an MCP client with no
-help from anyone who knows the system. It shows, in steps:
+**The Connect page** (`/connect`, "Connect an agent" in the app) lets a person connect an MCP
+client with no help from anyone who knows the system, and nothing to configure but one address. It
+shows:
 
-- the MCP endpoint, the Claude Code command for it, and the product-bound address template;
-- that the client will ask them to sign in (OAuth); personal access tokens are one link away, under
-  Account and tokens;
-- the skill: copy the text, download a ZIP, or install scripts (shell and PowerShell) for Claude
-  Code that write one file and print what they did;
-- connected agents, with when each was last used and a revoke control;
-- **a plain statement about the agent's side of the trip**, beside the endpoint: "Connecting an
-  agent sends your passages to whoever runs that agent, under their terms, not ours."
-  ([§9.1](09-data-lifecycle.md)).
+- the MCP server URL, to copy. A client that supports MCP authorization finds sign-in on its own
+  from the server's OAuth discovery metadata, registers itself and opens the browser;
+- that the client will ask them to sign in, and a suggestion for a first request;
+- the agents connected now, with when each was last used and a disconnect control;
+- **a plain statement about the agent's side of the trip**, above the steps: what the agent reads
+  goes to whoever runs it, under their terms ([§9.1](09-data-lifecycle.md));
+- a note that the server offers the agent the skill (its instructions name the version), with an
+  optional ZIP download for installing it by hand.
+
+The product-bound address (`/mcp/t/<tenant>/<team>/<product>`) still works and is returned by
+`/api/v1/connect`, but the page does not offer it.
 
 ## 6.9 Feedback
 

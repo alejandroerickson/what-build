@@ -21,7 +21,7 @@ let vic: Browser;
 let P: string;
 let productPath: string;
 let recordId: string;
-let pat: string;
+let agentToken: string;
 
 const cite = () => [{ record_id: recordId, seq_start: 0, seq_end: 0 }];
 
@@ -46,7 +46,7 @@ beforeAll(async () => {
   await fetch(up.url, { method: "PUT", headers: up.headers, body: VTT });
   await alice.api("POST", `${P}/sources/${recordId}/uploads/complete`, { record_id: recordId, path: "call.vtt" });
   await h.worker.drain();
-  pat = (await alice.api("POST", "/api/v1/me/tokens", { name: "agent" })).body.token;
+  agentToken = await h.connectAgent(alice);
 });
 afterAll(async () => h?.close());
 
@@ -137,7 +137,7 @@ describe("register edits", () => {
 
   it("says in the review guidance that any review freezes the entry", async () => {
     const client = new Client({ name: "test-agent", version: "1.0.0" });
-    await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${pat}` } } }));
+    await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${agentToken}` } } }));
     const d = text(await client.callTool({ name: "decisions", arguments: { action: "review", describe: true } }));
     expect(d.description).toContain("freezes the entry's statement, body and citations");
     await client.close();
@@ -186,7 +186,7 @@ describe("archived outcomes", () => {
 describe("id aliases", () => {
   it("accept the other id convention on every entity tool, and refuse two different ids", async () => {
     const client = new Client({ name: "test-agent", version: "1.0.0" });
-    await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${pat}` } } }));
+    await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${agentToken}` } } }));
     const call = (name: string, action: string, params: Record<string, unknown>) => client.callTool({ name, arguments: { action, params, product: productPath } });
     const ins = await alice.api("POST", `${P}/insights`, { title: "Alias", body: "Body." });
     const obj = await alice.api("POST", `${P}/outcomes`, { title: "Alias aim" });

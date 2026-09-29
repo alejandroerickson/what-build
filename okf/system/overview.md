@@ -81,7 +81,7 @@ in-app tabs; rows are real links; works in a phone browser, light and dark
 
 ## 100 ft: mechanics
 
-**One request.** Identify the caller (cookie, personal access token or OAuth token → account,
+**One request.** Identify the caller (cookie on REST, OAuth token on MCP → account,
 surface, client) → resolve tenant, team and product → authorize (`404`/`403`) → validate with the
 operation's schema (`422` lists every problem) → open a transaction with `app.tenant_id` set → run
 the handler (etag check, `409 stale_etag`; actor snapshot; activity event) → answer as JSON or MCP

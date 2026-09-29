@@ -4,7 +4,6 @@ import type { Context } from "hono";
 import { getCookie } from "hono/cookie";
 
 export const SESSION_COOKIE = "wb_session";
-export const PAT_PREFIX = "wbpat_";
 export const ACCESS_PREFIX = "wbat_";
 export const REFRESH_PREFIX = "wbrt_";
 
@@ -34,21 +33,6 @@ export async function accountBySession(db: Db, token: string): Promise<AccountRo
   return row;
 }
 
-export async function accountByPat(db: Db, token: string): Promise<AccountRow | null> {
-  const row = await db
-    .selectFrom("personal_access_tokens as t")
-    .innerJoin("accounts as a", "a.account_id", "t.account_id")
-    .select(["a.account_id", "a.email", "a.display_name", "t.token_id", "t.last_used_at"])
-    .where("t.token_hash", "=", sha256Hex(token))
-    .where("t.revoked_at", "is", null)
-    .where("a.deleted_at", "is", null)
-    .executeTakeFirst();
-  if (!row) return null;
-  if (!row.last_used_at || Date.now() - Date.parse(row.last_used_at) > 60_000)
-    await db.updateTable("personal_access_tokens").set({ last_used_at: new Date().toISOString() }).where("token_id", "=", row.token_id).execute();
-  return row;
-}
-
 export async function accountByAccessToken(db: Db, token: string, resourcePrefix: string): Promise<(AccountRow & { client_name: string }) | null> {
   const row = await db
     .selectFrom("oauth_tokens as t")
@@ -67,22 +51,9 @@ export async function accountByAccessToken(db: Db, token: string, resourcePrefix
   return row;
 }
 
-function clientFromUserAgent(ua: string | undefined): string | null {
-  if (!ua) return null;
-  return ua.split(/[\s/]/)[0]?.slice(0, 64) || null;
-}
-
-/** The caller of a REST request: a browser session, or a personal access token. */
+/** The caller of a REST request: a browser session. Agents use MCP, never REST. */
 export async function restPrincipal(c: Context, db: Db): Promise<Principal | null> {
-  const auth = c.req.header("authorization");
-  if (auth?.startsWith("Bearer ")) {
-    const token = auth.slice(7).trim();
-    if (token.startsWith(PAT_PREFIX)) {
-      const a = await accountByPat(db, token);
-      return a ? principalFor(a, "pat", "rest", clientFromUserAgent(c.req.header("user-agent"))) : null;
-    }
-    return null;
-  }
+  if (c.req.header("authorization")?.startsWith("Bearer ")) return null;
   const session = getCookie(c, SESSION_COOKIE);
   if (session) {
     const a = await accountBySession(db, session);
@@ -91,15 +62,11 @@ export async function restPrincipal(c: Context, db: Db): Promise<Principal | nul
   return null;
 }
 
-/** The caller of an MCP request: an OAuth access token issued for this server, or a personal access token. */
+/** The caller of an MCP request: an OAuth access token issued for this server. */
 export async function mcpPrincipal(c: Context, db: Db, resourcePrefix: string): Promise<Principal | null> {
   const auth = c.req.header("authorization");
   if (!auth?.startsWith("Bearer ")) return null;
   const token = auth.slice(7).trim();
-  if (token.startsWith(PAT_PREFIX)) {
-    const a = await accountByPat(db, token);
-    return a ? principalFor(a, "pat", "mcp", clientFromUserAgent(c.req.header("user-agent"))) : null;
-  }
   const a = await accountByAccessToken(db, token, resourcePrefix);
   return a ? principalFor(a, "oauth", "mcp", a.client_name.slice(0, 64)) : null;
 }

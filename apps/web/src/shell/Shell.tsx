@@ -4,7 +4,7 @@ import type { Product } from "../lib/session.tsx";
 import { Callout, Glyph } from "../ui/index.tsx";
 import { isTypingTarget, NARROW_QUERY, PHONE_QUERY, shortcutLabel, useMediaQuery } from "../ui/media.ts";
 import { BrandMark } from "./brand.tsx";
-import { AccountMenu, BrandRow, PlainNav, ProductNav, ProductSwitcher, productSection, useLastProduct } from "./panel.tsx";
+import { AccountMenu, BrandRow, PlainNav, ProductNav, ProductSwitcher, productSection } from "./panel.tsx";
 import { ShellContext, type ShellSlots } from "./slots.tsx";
 
 const NAV_KEY = "whatbuild.nav";
@@ -330,30 +330,25 @@ export function ProductShell({ product, app, children }: { product: Product; app
           </nav>
         </>
       )}
-      panelFoot={<AccountMenu activityTo={`${app}/activity`} />}
+      panelFoot={<AccountMenu />}
     >
       {children}
     </Stage>
   );
 }
 
-const PLAIN_SECTIONS: Record<string, string> = { connect: "Agents", account: "Account", products: "Products", members: "Members", _system: "System" };
+const PLAIN_SECTIONS: Record<string, string> = { connect: "Connect an agent", settings: "Settings", products: "Products", members: "Members", _system: "System" };
 
 /**
- * Screens outside a product (the overview, Agents, account, organization members, all products): the
- * same stage with the non-product panel, which offers "Back to <product>" for the product the person
- * came from, or on the overview lists their products.
+ * Screens outside a product (the overview, Connect an agent, settings, organization members, all
+ * products): the same stage with the non-product panel, which is identical on each of them.
  */
 export function PlainShell({ children }: { children: ReactNode }) {
   const loc = useLocation();
   const params = useParams();
-  const last = useLastProduct();
   const parts = loc.pathname.split("/").filter(Boolean);
   const key = parts[0] === "t" ? "members" : (parts[0] ?? "home");
   const section = PLAIN_SECTIONS[key] ?? "WhatBuild";
-  const sectionId = key === "connect" ? "agents" : key;
-  const tenantSlug = params["tenant"] ?? last?.tenant.slug ?? null;
-  const tenantName = last && last.tenant.slug === tenantSlug ? last.tenant.name : null;
   const isHome = key === "home";
   return (
     <Stage
@@ -364,19 +359,12 @@ export function PlainShell({ children }: { children: ReactNode }) {
       panel={(hide, hideLabel) => (
         <>
           <BrandRow to="/" label="WhatBuild, home" current={isHome} onHide={hide} hideLabel={hideLabel} />
-          <nav className="panel-nav" aria-label={isHome ? "Products, account and organization" : "Account and organization"}>
-            <PlainNav
-              section={sectionId}
-              backTo={last && !isHome ? `/t/${last.path}/idea` : null}
-              backLabel={last?.name ?? null}
-              tenantSlug={isHome ? null : tenantSlug}
-              tenantName={tenantName}
-              showProducts={isHome}
-            />
+          <nav className="panel-nav" aria-label="Products and organization">
+            <PlainNav section={key} tenantSlug={params["tenant"] ?? null} />
           </nav>
         </>
       )}
-      panelFoot={<AccountMenu activityTo={last ? `/t/${last.path}/activity` : null} />}
+      panelFoot={<AccountMenu />}
     >
       {children}
     </Stage>

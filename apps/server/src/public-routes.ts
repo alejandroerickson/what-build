@@ -6,41 +6,6 @@ import { Hono } from "hono";
 import { restPrincipal } from "./auth/identity.ts";
 import type { ServerConfig } from "./config.ts";
 
-function installSh(base: string) {
-  const md = skillMarkdown();
-  return `#!/bin/sh
-# Installs the ${SKILL_NAME} skill (version ${SKILL_VERSION}) for Claude Code, and prints how to connect.
-# It writes one file and changes nothing else. Read it before you run it.
-set -eu
-dir="$HOME/.claude/skills/${SKILL_NAME}"
-mkdir -p "$dir"
-cat > "$dir/SKILL.md" <<'WHATBUILD_SKILL_EOF'
-${md}
-WHATBUILD_SKILL_EOF
-echo "Wrote $dir/SKILL.md (version ${SKILL_VERSION})."
-echo
-echo "Connect Claude Code to WhatBuild (you will sign in in your browser):"
-echo "  claude mcp add --transport http whatbuild ${base}/mcp"
-`;
-}
-
-function installPs1(base: string) {
-  const md = skillMarkdown().replace(/'/g, "''");
-  return `# Installs the ${SKILL_NAME} skill (version ${SKILL_VERSION}) for Claude Code, and prints how to connect.
-# It writes one file and changes nothing else. Read it before you run it.
-$dir = Join-Path $HOME ".claude/skills/${SKILL_NAME}"
-New-Item -ItemType Directory -Force -Path $dir | Out-Null
-$skill = @'
-${md}
-'@
-Set-Content -Path (Join-Path $dir "SKILL.md") -Value $skill -Encoding UTF8
-Write-Output "Wrote $dir/SKILL.md (version ${SKILL_VERSION})."
-Write-Output ""
-Write-Output "Connect Claude Code to WhatBuild (you will sign in in your browser):"
-Write-Output "  claude mcp add --transport http whatbuild ${base}/mcp"
-`;
-}
-
 export function publicRoutes(deps: { db: Db; config: ServerConfig; serverVersion: string }) {
   const { config } = deps;
   const base = config.publicBaseUrl;
@@ -63,8 +28,6 @@ export function publicRoutes(deps: { db: Db; config: ServerConfig; serverVersion
     const zip = zipSync({ [`${SKILL_NAME}/SKILL.md`]: strToU8(skillMarkdown()) });
     return c.body(zip, 200, { ...noStore, "Content-Type": "application/zip", "Content-Disposition": `attachment; filename="${SKILL_NAME}-skill.zip"` });
   });
-  app.get("/install.sh", (c) => c.text(installSh(base), 200, { ...noStore, "Content-Type": "text/x-shellscript; charset=utf-8" }));
-  app.get("/install.ps1", (c) => c.text(installPs1(base), 200, { ...noStore, "Content-Type": "text/plain; charset=utf-8" }));
 
   app.get("/api/v1/connect", async (c) => {
     const p = await restPrincipal(c, deps.db);
@@ -73,8 +36,8 @@ export function publicRoutes(deps: { db: Db; config: ServerConfig; serverVersion
       mcp_url: `${base}/mcp`,
       bound_url_template: `${base}/mcp/t/{tenant}/{team}/{product}`,
       oauth: { authorization_server: base, protected_resource_metadata: `${base}/.well-known/oauth-protected-resource/mcp`, dynamic_client_registration: true },
-      skill: { name: SKILL_NAME, version: SKILL_VERSION, markdown_url: `${base}/${SKILL_NAME}-skill.md`, zip_url: `${base}/${SKILL_NAME}-skill.zip`, install_sh: `${base}/install.sh`, install_ps1: `${base}/install.ps1` },
-      agent_data_statement: "Connecting an agent sends your passages to whoever runs that agent, under their terms, not ours.",
+      skill: { name: SKILL_NAME, version: SKILL_VERSION, markdown_url: `${base}/${SKILL_NAME}-skill.md`, zip_url: `${base}/${SKILL_NAME}-skill.zip` },
+      agent_data_statement: "What your agent reads goes to whoever runs it, under their terms.",
     });
   });
   return app;

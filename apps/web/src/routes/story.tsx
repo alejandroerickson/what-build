@@ -127,7 +127,7 @@ export function StoryPage() {
       <div className="story-view">
         {tree}
         <Crumbs label="Page location" currentAsHeading items={[{ label: "Story" }]} />
-        <EmptyState title="Your Story starts with what you know" action={<ButtonLink to="/connect" variant="primary" icon="plug">Connect an agent</ButtonLink>}>
+        <EmptyState title="Your Story starts with what you know" action={<ButtonLink to="/connect" variant="primary" icon="bot">Connect an agent</ButtonLink>}>
           The Story is a set of pages that tell stakeholders where this discovery stands. Agents write and arrange it from WhatBuild's guidance: connect one and ask it to draft the first page from your outcomes and insights.
         </EmptyState>
         {dialogs}

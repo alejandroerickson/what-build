@@ -2,7 +2,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 const api = process.env["WHATBUILD_API"] ?? "http://localhost:8787";
-const proxied = ["/api", "/auth", "/oauth", "/mcp", "/.well-known", "/install.sh", "/install.ps1", "/whatbuild-skill.md", "/whatbuild-skill.zip", "/health", "/invite-accept"];
+const proxied = ["/api", "/auth", "/oauth", "/mcp", "/.well-known", "/whatbuild-skill.md", "/whatbuild-skill.zip", "/health", "/invite-accept"];
 
 export default defineConfig({
   plugins: [react()],

@@ -9,7 +9,7 @@ import { createRoot } from "react-dom/client";
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, useParams, useRouteError } from "react-router";
 import { ApiError, setUnauthenticatedHandler } from "./lib/api.ts";
 import { ProductProvider, RequireSession } from "./lib/session.tsx";
-import { AccountPage, ConnectPage } from "./routes/connect.tsx";
+import { ConnectPage } from "./routes/connect.tsx";
 import { AcceptInvite, NotFound, SignIn } from "./routes/auth.tsx";
 import { InsightEditPage, InsightPage, InsightsPage } from "./routes/insights.tsx";
 import { IdeaPage } from "./routes/idea.tsx";
@@ -18,6 +18,7 @@ import { OverviewPage } from "./routes/overview.tsx";
 import { ActivityPage, ProductSettingsPage } from "./routes/product-misc.tsx";
 import { RegisterEntryPage, RegisterListPage } from "./routes/registers.tsx";
 import { SearchPage } from "./routes/search.tsx";
+import { SettingsPage } from "./routes/settings.tsx";
 import { SourceDetailPage } from "./routes/source-detail.tsx";
 import { SourceNewPage } from "./routes/source-new.tsx";
 import { EvidencePage } from "./routes/evidence.tsx";
@@ -98,7 +99,7 @@ const router = createBrowserRouter([
         { path: "/", element: <OverviewPage /> },
         { path: "/products", element: <ProductsPage /> },
         { path: "/connect", element: <ConnectPage /> },
-        { path: "/account", element: <AccountPage /> },
+        { path: "/settings", element: <SettingsPage /> },
         { path: "/t/:tenant/members", element: <MembersPage /> },
       ] },
       ...devRoutes,

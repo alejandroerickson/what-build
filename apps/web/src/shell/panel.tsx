@@ -122,7 +122,8 @@ export function ProductNav({ product, app, section }: { product: Product; app: s
         ))}
       </div>
       <div className="nav-quiet">
-        <NavNode to="/connect" icon="plug" label="Agents" quiet />
+        <NavNode to="/connect" icon="bot" label="Connect an agent" quiet />
+        <NavNode to={`${app}/activity`} icon="activity" label="Activity" quiet current={section === "activity"} />
         <NavNode to={`${app}/settings`} icon="settings" label="Settings" quiet current={section === "settings"} />
       </div>
     </>
@@ -130,54 +131,53 @@ export function ProductNav({ product, app, section }: { product: Product; app: s
 }
 
 /**
- * The panel outside a product (Agents, account, members, products): a way back, then these screens.
- * On the overview it lists the person's products instead of the way back.
+ * The panel outside a product (the overview, Connect an agent, members, all products, settings). It is
+ * the same on every one of these screens, so it never depends on where the person came from: their
+ * products, then the organization-level screens, with the current one marked.
  */
-export function PlainNav({ section, backTo, backLabel, tenantSlug, tenantName, showProducts }: {
-  section: string;
-  backTo: string | null;
-  backLabel: string | null;
-  tenantSlug: string | null;
-  tenantName: string | null;
-  showProducts?: boolean;
-}) {
+export function PlainNav({ section, tenantSlug }: { section: string; tenantSlug: string | null }) {
   const products = useProducts();
-  const items = showProducts ? (products.data?.items ?? []) : [];
+  const items = products.data?.items ?? [];
+  const tenants = products.data?.tenants ?? [];
   const orgs = [...new Set(items.map((p) => p.tenant.name))];
+  // With one organization its name is on its members link; with several, it heads each group.
+  const grouped = orgs.length > 1;
   return (
     <>
-      {orgs.map((org) => (
-        <div key={org} className="nav-l1 nav-products" role="group" aria-label={org}>
-          <div className="nav-group-label ellipsis" aria-hidden="true">
-            {org}
+      {items.length ? (
+        <div className="nav-l1 nav-products" role="group" aria-labelledby="nav-products-label">
+          <div id="nav-products-label" className="nav-group-label">
+            Products
           </div>
-          {items
-            .filter((p) => p.tenant.name === org)
-            .map((p) => (
-              <NavNode key={p.product_id} to={`/t/${p.path}/idea`} icon="box" label={p.name} />
-            ))}
-        </div>
-      ))}
-      {backTo && backLabel ? (
-        <div className="nav-back">
-          <Link to={backTo} className="nav-node nav-node-back">
-            <Glyph name="arrow-left" />
-            <span className="nav-label">Back to {backLabel}</span>
-          </Link>
-        </div>
+          {orgs.map((org) => (
+            <div key={org} className="nav-org" role={grouped ? "group" : undefined} aria-label={grouped ? org : undefined}>
+              {grouped ? (
+                <div className="nav-org-label ellipsis" aria-hidden="true">
+                  {org}
+                </div>
+            ) : null}
+            {items
+              .filter((p) => p.tenant.name === org)
+              .map((p) => (
+                <NavNode key={p.product_id} to={`/t/${p.path}/idea`} icon="box" label={p.name} />
+              ))}
+          </div>
+        ))}
+      </div>
       ) : null}
-      <div className={showProducts ? "nav-quiet" : "nav-l1"}>
-        <NavNode to="/connect" icon="plug" label="Agents" quiet={showProducts} current={section === "agents"} />
-        <NavNode to="/account" icon="key" label="Account and tokens" quiet={showProducts} current={section === "account"} />
-        {tenantSlug ? <NavNode to={`/t/${tenantSlug}/members`} icon="users" label={`${tenantName ?? "Organization"} members`} quiet={showProducts} current={section === "members"} /> : null}
-        <NavNode to="/products" icon="library" label="All products" quiet={showProducts} current={section === "products"} />
+      <div className="nav-quiet">
+        <NavNode to="/connect" icon="bot" label="Connect an agent" quiet current={section === "connect"} />
+        {tenants.map((t) => (
+          <NavNode key={t.tenant_id} to={`/t/${t.slug}/members`} icon="users" label={`${t.name} members`} quiet current={section === "members" && t.slug === tenantSlug} />
+        ))}
+        <NavNode to="/products" icon="library" label="All products" quiet current={section === "products"} />
       </div>
     </>
   );
 }
 
-/** The panel footer: the signed-in person, and the account menu (Activity, theme, account, sign out). */
-export function AccountMenu({ activityTo }: { activityTo: string | null }) {
+/** The panel footer: the signed-in person, and the account menu (theme, their settings, sign out). */
+export function AccountMenu() {
   const me = useMe();
   const signOut = useSignOut();
   const [theme, setTheme] = useTheme();
@@ -197,13 +197,12 @@ export function AccountMenu({ activityTo }: { activityTo: string | null }) {
           </>
         }
       >
-        {me.data?.email ? <MenuLabel>{me.data.email}</MenuLabel> : null}
-        {activityTo ? (
-          <MenuItem icon="activity" to={activityTo}>
-            Activity
-          </MenuItem>
+        {me.data?.email ? (
+          <>
+            <MenuLabel>{me.data.email}</MenuLabel>
+            <MenuSeparator />
+          </>
         ) : null}
-        <MenuSeparator />
         <MenuGroup label="Theme">
           <MenuRadio checked={theme === "light"} onSelect={() => setTheme("light")} icon="sun" keepOpen>
             Light
@@ -216,11 +215,8 @@ export function AccountMenu({ activityTo }: { activityTo: string | null }) {
           </MenuRadio>
         </MenuGroup>
         <MenuSeparator />
-        <MenuItem icon="user" to="/account">
-          Account and tokens
-        </MenuItem>
-        <MenuItem icon="library" to="/products">
-          All products
+        <MenuItem icon="settings" to="/settings">
+          Settings
         </MenuItem>
         <MenuSeparator />
         <MenuItem icon="log-out" onSelect={() => void signOut()}>
@@ -231,7 +227,7 @@ export function AccountMenu({ activityTo }: { activityTo: string | null }) {
   );
 }
 
-/** For the plain shell: the product the person was last in, to offer a way back. */
+/** The product the person was last in, if they can still reach it. */
 export function useLastProduct() {
   const products = useProducts();
   const path = lastProduct();

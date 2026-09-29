@@ -117,7 +117,7 @@ export function ProductSettingsPage() {
       <OrganizationSheet />
       {isAdmin ? <ArchiveSheet /> : null}
       <p className="settings-foot">
-        Your own name, connected agents and access tokens are under <Link to="/account">Account and tokens</Link>.
+        These settings belong to this product. Your display name is in <Link to="/settings">your own settings</Link>.
       </p>
     </div>
   );

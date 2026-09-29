@@ -18,7 +18,7 @@ design system: tokens, type, components and the rules for using them — is docu
 - The UI uses only registry operations, through the REST routes of
   [§6.4](06-operations-and-adapters.md) and one small client (`apps/web/src/lib/api.ts`). If the UI
   needs something, it becomes an operation, and agents get it too. The exceptions are the
-  person's own session, tokens and invitations (`/api/v1/me…`), which are not content.
+  person's own session, connected agents and invitations (`/api/v1/me…`), which are not content.
 - **State that matters lives in the URL**: product, screen, filters, search query, selected
   page, passage position. Reload and share always work.
 - Every write path handles `409 stale_etag` explicitly: show what changed, keep the person's
@@ -43,14 +43,16 @@ the browser's back button and "open in new tab" both work.
   product switch, showing the product and its organization and team.
 - **L1**, exactly and in this order: **Idea, Evidence, Synthesis, Story**, each with its count
   (Idea counts outcomes).
-  Below them, quieter: **Agents** (the Connect page) and **Settings**. Synthesis opens on
+  Below them, quieter: **Connect an agent**, **Activity** (§7.9) and the product's **Settings**.
+  Synthesis opens on
   Insights; insights, assumptions and decisions are three lists side by side in its panel.
   Search belongs to Evidence. The app's URLs follow the areas (`/evidence`, `/synthesis/…`); REST
   and MCP name the objects (`sources`, `insights`).
 - **A context slot** under the navigation, which the screen fills: the page tree on Story, find
   and filters on Evidence, the three lists and their filters on Synthesis.
-- **The footer** holds the account menu: Activity (§7.9), the theme (Light, Dark or System, which
-  is the default; remembered per browser), Account and tokens, All products, and Sign out.
+- **The footer** holds the account menu, which is only about the person: their email, the theme
+  (Light, Dark or System, which is the default; remembered per browser), **Settings** (their own
+  display name) and Sign out. Nothing in it is also in the panel.
 - **Hiding.** The panel hides completely, never to an icon rail, with its button or `⌘\` / `Ctrl+\`
   (ignored while typing in a field), and the choice is remembered per browser. While it is hidden
   a small floating pill shows the mark, the product name and the current section, and brings the
@@ -62,11 +64,12 @@ the browser's back button and "open in new tab" both work.
   starts hidden, and it hides again whenever the window crosses 1100px.
 - **On a phone** (760px and below) the panel and the inspector are drawers with a scrim, one open
   at a time: focus is trapped, Esc closes the open one, and it closes on navigation.
-- **Outside a product** (Agents, Account and tokens, organization Members, All products) the panel
-  offers "Back to <product>" for the product the person came from, then those screens. On the
-  overview it lists the person's products under each organization's name instead, with Agents,
-  Account and tokens and All products below as quiet links; each organization's Members link is on
-  the page.
+- **Outside a product** (the overview, Connect an agent, the person's Settings, organization
+  Members, All products) the panel is the same on every screen, whatever the person came from:
+  **Products**, the person's products (under each organization's name when there are several), then
+  quiet links to Connect an agent, each organization's members and All products, with the current
+  screen marked. It never offers a way "back" to a product, because it cannot know the person came
+  from one; the product is in the list.
 - A skip link leads to the content; on a route change focus moves to the new heading and the page
   is announced politely.
 
@@ -85,16 +88,16 @@ place.
 4. The product is in the URL path (`/t/<tenant>/<team>/<product>/…`). Opening a link to another
    product simply works, and becomes the remembered one.
 5. `/` opens the overview for anyone in an organization, and first run for anyone in none. The
-   last-used product is remembered per browser for "Back to <product>" outside a product.
+   last-used product is remembered per browser; Connect an agent names it in its example request.
 6. Archived products appear only in All products, behind a "With archived" filter, read-only, and
    an admin restores them from the product's Settings.
-7. Organization-level screens (the overview, Agents, Account and tokens, Members, All products)
+7. Organization-level screens (the overview, Connect an agent, Settings, Members, All products)
    use a different panel, so they are not mistaken for belonging to one product.
 
 **The overview** (`/`, [decision](../decisions/the-overview-is-the-front-door.md)). The page that
 introduces WhatBuild and is good to share as a screenshot. An intro sheet carries the mark and
 wordmark, the question "What to build?", a sentence on the pressure AI engineering puts on
-product discovery, two sentences on what the app does, and a link to Agents. Beside it, small and
+product discovery, two sentences on what the app does, and a link to Connect an agent. Beside it, small and
 quiet, the counts across the person's active products, laid out as the loop: outcomes (Idea), sources (Evidence),
 insights, assumptions and decisions (Synthesis), and Story pages; they are the counts `products.list` reports, which match each
 product's panel counts. Below, one sheet per organization lists its active products (name,
@@ -110,8 +113,8 @@ product the person can see says so, and says who can create one.
 /                                             the overview: what WhatBuild is, and every product; first run with no organization
 /products           ?archived=1&create=1      every product you can reach, by organization and team; new product
 /t/:tenant/members                            people and roles in an organization
-/connect                                      Agents: connect an agent (MCP URL, the skill, tokens)
-/account                                      display name, tokens, connected agents
+/connect                                      Connect an agent: the MCP server URL and the agents connected now
+/settings                                     Settings: the person's display name
 
 /t/:tenant/:team/:product                     → …/idea
   /idea               ?status                 the product concept, outcomes with counts
@@ -151,8 +154,8 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    inviter's organization.
 3. Invite colleagues from the organization's Members or the product's Settings, by email or a
    single-use link.
-4. **Agents** (`/connect`): paste one endpoint into Claude Desktop or Claude Code, install the
-   skill ([§6.8](06-operations-and-adapters.md)).
+4. **Connect an agent** (`/connect`): paste one address into an MCP client and sign in when it asks
+   ([§6.8](06-operations-and-adapters.md)).
 
 **Planned:** a public, read-only sample product at `/sample`, readable with no account — a
 synthetic discovery, fully derived, with real passages, citations, a filled register and a
@@ -358,7 +361,7 @@ that changes it ([decision](../decisions/agents-maintain-the-story-people-read-i
 ## 7.9 Activity
 
 A quiet **Activity page** (`…/activity`), not a drawer and not a destination: it is reached from
-**Activity** in the account menu, and from a source's details, which open the page filtered to that
+**Activity** in the product's panel, and from a source's details, which open the page filtered to that
 source. It is one log for people and agents together, newest first ([§4.10](04-data-model.md)).
 Each entry reads as a sentence with the actor, the surface, and a link to the object: "Sam, via
 claude-desktop, confirmed an assumption — 14:02". The kind of object changed (`?entity_type=`) or
@@ -399,8 +402,10 @@ never described as deleting. A list row showing an archived object says *Archive
   (organization, team or product, and the role), outstanding invitations ("Waiting to join") with
   their expiry and a cancel control, invite by email or single-use link, and revoke a grant.
   Revoking takes effect at once; the person's writes and their attribution stay.
-- **Agents** (`/connect`). [§6.8](06-operations-and-adapters.md): the endpoint, sign-in, the
-  skill, connected agents, and the plain statement about where an agent sends your passages.
+- **Connect an agent** (`/connect`). [§6.8](06-operations-and-adapters.md): the MCP server URL,
+  sign-in, a first request to try, connected agents with disconnect, the plain statement about
+  where an agent sends what it reads, and an optional skill download. Connected agents appear here
+  and nowhere else.
 - **Product settings** (`…/settings`, in the product's shell): name, slug and product concept; **People**;
   export; the organization; and archive or restore. **People** lists everyone who can reach this
   product and how, in words: a product role, or a role inherited from the team or the
@@ -409,9 +414,9 @@ never described as deleting. A list row showing an archived object says *Archive
   email; `members.grant` with the product scope), Remove (revokes the product role only), and
   outstanding invitations with a cancel control. An inherited role links to the organization's
   Members, where it is changed. Access is per product; nothing is granted per page or per source.
-- **Account and tokens** (`/account`). Display name, email (read-only), personal access tokens
-  with last use and revoke, and connected agents with revoke.
+- **Settings** (`/settings`, from the account menu). Display name, and the email the person signs
+  in with (read-only).
 - **Planned:** organization settings with usage against every limit shown as fractions
   ([§9.2](09-data-lifecycle.md)), the data statement, organization export, and a danger zone
   holding only owner-gated actions (transfer ownership, close the organization), each behind a
-  typed confirmation; active sessions and delete account on the Account screen.
+  typed confirmation; active sessions and delete account in the person's Settings.

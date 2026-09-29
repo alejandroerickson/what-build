@@ -10,7 +10,7 @@ export interface Principal {
   account_id: string;
   email: string;
   display_name: string;
-  auth_kind: "session" | "pat" | "oauth" | "upload_grant" | "system" | "dev";
+  auth_kind: "session" | "oauth" | "upload_grant" | "system" | "dev";
   surface: "web" | "rest" | "mcp" | null;
   client: string | null;
 }

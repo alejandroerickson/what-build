@@ -1,13 +1,8 @@
-/* Agents (connect), account and tokens, and the screens outside the shell: sign-in, welcome, invitations. */
+/* Connect an agent, the person's settings, and the screens outside the shell: sign-in, welcome, invitations. */
 
-/* Agents */
+/* Connect an agent */
 .agents-intro {
   border-bottom: 1px solid var(--line);
-}
-.agents-data {
-  margin-top: var(--s-1h);
-  color: var(--faint);
-  font-size: var(--fs-sm);
 }
 .agents-steps {
   margin: 0;
@@ -45,8 +40,7 @@
 .agents-step-body {
   min-width: 0;
 }
-.agents-step-body > p,
-.agents-more > p {
+.agents-step-body > p {
   margin: var(--s-1) 0 0;
   max-width: 66ch;
   color: var(--muted);
@@ -55,40 +49,6 @@
 .agents-step-body .copy-field {
   margin-top: var(--s-2);
 }
-.agents-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2);
-  margin-top: var(--s-2);
-}
-.agents-more {
-  margin-top: var(--s-2);
-}
-.agents-more > summary {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-1);
-  list-style: none;
-  min-height: var(--h-sm);
-  border-radius: var(--r-xs);
-  color: var(--muted);
-  cursor: pointer;
-}
-.agents-more > summary::-webkit-details-marker {
-  display: none;
-}
-.agents-more > summary:hover {
-  color: var(--text);
-}
-.agents-more > summary .glyph {
-  transition: transform var(--dur-1) var(--ease);
-}
-.agents-more[open] > summary .glyph {
-  transform: rotate(90deg);
-}
-.agents-more > p {
-  font-size: var(--fs-sm);
-}
 .agents-foot {
   margin: var(--s-4) 0 0;
   padding: 0 var(--s-1);
@@ -96,14 +56,11 @@
   font-size: var(--fs-sm);
 }
 
-/* Connected agents and tokens */
+/* Connected agents */
 .account-list {
   margin: 0;
   padding: 0;
   list-style: none;
-}
-.account-list-bordered {
-  border-top: 1px solid var(--line);
 }
 .account-row {
   display: grid;
@@ -129,36 +86,6 @@
   margin-top: 2px;
   color: var(--faint);
   font-size: var(--fs-sm);
-}
-.account-row-revoked .account-name {
-  color: var(--muted);
-}
-.account-face {
-  display: inline-grid;
-  place-items: center;
-  width: var(--avatar);
-  height: var(--avatar);
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-sm);
-  color: var(--muted);
-}
-.account-prefix {
-  font-size: var(--fs-xs);
-}
-.token-form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--s-2);
-  padding-top: var(--s-1);
-}
-.token-form .field {
-  flex: 1 1 240px;
-  max-width: 360px;
-}
-.token-created {
-  display: grid;
-  gap: var(--s-2);
 }
 .account-form {
   padding: var(--s-3h) var(--sheet-px);

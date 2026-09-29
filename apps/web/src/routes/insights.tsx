@@ -85,7 +85,7 @@ export function InsightsPage() {
             title="No insights yet"
             action={
               <>
-                <ButtonLink size="sm" to="/connect" icon="plug">
+                <ButtonLink size="sm" to="/connect" icon="bot">
                   Connect an agent
                 </ButtonLink>
                 {canWrite ? (

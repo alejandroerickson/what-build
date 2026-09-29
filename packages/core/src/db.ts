@@ -100,17 +100,6 @@ export interface EmailTokensTable {
   created_at: Ts;
 }
 
-export interface PersonalAccessTokensTable {
-  token_id: string;
-  account_id: string;
-  name: string;
-  token_hash: string;
-  prefix: string;
-  created_at: Ts;
-  last_used_at: TsNull;
-  revoked_at: TsNull;
-}
-
 export interface OauthClientsTable {
   client_id: string;
   client_name: string;
@@ -567,7 +556,6 @@ export interface DB {
   accounts: AccountsTable;
   sessions: SessionsTable;
   email_tokens: EmailTokensTable;
-  personal_access_tokens: PersonalAccessTokensTable;
   oauth_clients: OauthClientsTable;
   oauth_codes: OauthCodesTable;
   oauth_tokens: OauthTokensTable;

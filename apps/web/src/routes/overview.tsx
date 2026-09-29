@@ -50,7 +50,7 @@ export function OverviewPage() {
             finish line, WhatBuild provides context to your ticket-creation agent so that your team can hit the ground running.
           </p>
           <Link to="/connect" className="overview-agent-link">
-            <Glyph name="plug" size="sm" />
+            <Glyph name="bot" size="sm" />
             Connect an agent
           </Link>
         </div>

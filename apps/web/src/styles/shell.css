@@ -106,6 +106,12 @@ h1[tabindex="-1"]:focus {
 .panel-nav {
   flex: none;
 }
+/* Outside a product there is no context slot, so a long product list scrolls here instead. */
+.stage[data-variant="plain"] .panel-nav {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
 .panel-product {
   padding: var(--s-2h) var(--s-2h) var(--s-2) var(--s-3h);
 }
@@ -146,9 +152,21 @@ h1[tabindex="-1"]:focus {
   gap: 1px;
   padding: var(--s-0) var(--s-1h) var(--s-1);
 }
-/* The overview's panel lists the person's products under each organization's name. */
+/* Outside a product the panel lists the person's products, under each organization's name when there are several. */
 .nav-products {
   padding-top: var(--s-2h);
+}
+.nav-org {
+  display: grid;
+  gap: 1px;
+}
+.nav-org + .nav-org {
+  margin-top: var(--s-1h);
+}
+.nav-org-label {
+  padding: var(--s-1) var(--s-2) var(--s-0);
+  color: var(--faint);
+  font-size: var(--fs-xs);
 }
 .nav-group-label {
   padding: 0 var(--s-2) var(--s-1);
@@ -163,8 +181,8 @@ h1[tabindex="-1"]:focus {
   display: grid;
   padding: var(--s-0) var(--s-1h) var(--s-2);
 }
-.nav-back {
-  padding: var(--s-1h) var(--s-1h) var(--s-1);
+.panel-nav > .nav-quiet:first-child {
+  padding-top: var(--s-2h);
 }
 .nav-node {
   display: flex;
@@ -216,13 +234,6 @@ h1[tabindex="-1"]:focus {
   margin: 0 1px;
 }
 .nav-node-quiet:hover {
-  color: var(--text);
-}
-.nav-node-back {
-  color: var(--muted);
-  font-weight: var(--fw-regular);
-}
-.nav-node-back:hover {
   color: var(--text);
 }
 

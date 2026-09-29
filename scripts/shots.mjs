@@ -156,7 +156,7 @@ for (const device of ["desktop", "phone"]) {
     await shoot("activity", "/activity");
     await shoot("settings", "/settings");
     await shoot("agents", `${base}/connect`);
-    await shoot("account", `${base}/account`);
+    await shoot("settings", `${base}/settings`);
     await shoot("members", `${base}/t/${s.tenant}/members`);
     await shoot("products", `${base}/products`);
     await shoot("not-found", "/no-such-screen", { full: false });
