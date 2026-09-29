@@ -152,21 +152,12 @@ h1[tabindex="-1"]:focus {
   gap: 1px;
   padding: var(--s-0) var(--s-1h) var(--s-1);
 }
-/* Outside a product the panel lists the person's products, under each organization's name when there are several. */
+/* Outside a product the panel lists the person's products under each organization's name. */
 .nav-products {
   padding-top: var(--s-2h);
 }
-.nav-org {
-  display: grid;
-  gap: 1px;
-}
-.nav-org + .nav-org {
-  margin-top: var(--s-1h);
-}
-.nav-org-label {
-  padding: var(--s-1) var(--s-2) var(--s-0);
-  color: var(--faint);
-  font-size: var(--fs-xs);
+.nav-products + .nav-products {
+  padding-top: var(--s-1h);
 }
 .nav-group-label {
   padding: 0 var(--s-2) var(--s-1);

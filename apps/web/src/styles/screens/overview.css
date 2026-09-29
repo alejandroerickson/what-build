@@ -214,9 +214,26 @@
   -webkit-box-orient: vertical;
 }
 .overview-product-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--s-2);
   margin: var(--s-1h) 0 0;
   color: var(--faint);
   font-size: var(--fs-sm);
+}
+/* Archived products stay out of the way until asked for. */
+.overview-org-foot {
+  padding: var(--s-3) var(--sheet-px);
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-sm);
+}
+.overview-org-foot button {
+  padding: 0;
+  font: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
 }
 
 /* One click to each section: the panel's four destinations, as tiles. */

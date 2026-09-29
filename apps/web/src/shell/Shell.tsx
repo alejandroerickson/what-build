@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
-import { useLocation, useParams } from "react-router";
+import { useLocation } from "react-router";
 import type { Product } from "../lib/session.tsx";
 import { Callout, Glyph } from "../ui/index.tsx";
 import { isTypingTarget, NARROW_QUERY, PHONE_QUERY, shortcutLabel, useMediaQuery } from "../ui/media.ts";
@@ -337,15 +337,14 @@ export function ProductShell({ product, app, children }: { product: Product; app
   );
 }
 
-const PLAIN_SECTIONS: Record<string, string> = { connect: "Connect an agent", settings: "Settings", products: "Products", members: "Members", _system: "System" };
+const PLAIN_SECTIONS: Record<string, string> = { connect: "Connect an agent", settings: "Settings", members: "Members", _system: "System" };
 
 /**
- * Screens outside a product (the overview, Connect an agent, settings, organization members, all
- * products): the same stage with the non-product panel, which is identical on each of them.
+ * Screens outside a product (the overview, Connect an agent, settings, organization members): the
+ * same stage with the non-product panel, which is identical on each of them.
  */
 export function PlainShell({ children }: { children: ReactNode }) {
   const loc = useLocation();
-  const params = useParams();
   const parts = loc.pathname.split("/").filter(Boolean);
   const key = parts[0] === "t" ? "members" : (parts[0] ?? "home");
   const section = PLAIN_SECTIONS[key] ?? "WhatBuild";
@@ -360,7 +359,7 @@ export function PlainShell({ children }: { children: ReactNode }) {
         <>
           <BrandRow to="/" label="WhatBuild, home" current={isHome} onHide={hide} hideLabel={hideLabel} />
           <nav className="panel-nav" aria-label="Products and organization">
-            <PlainNav section={key} tenantSlug={params["tenant"] ?? null} />
+            <PlainNav section={key} />
           </nav>
         </>
       )}

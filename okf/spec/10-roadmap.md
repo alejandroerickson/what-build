@@ -3,7 +3,7 @@ type: Roadmap
 title: Phases 0 to 5 are mostly built; durability, data rights and public sign-up come next.
 description: What is built and what is not, phase by phase, with acceptance criteria; the open questions that remain, the ones already settled, and the risks.
 tags: [roadmap, status, phases, open-questions, risks]
-generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-29T00:00:00Z}
 status: stable
 ---
 
@@ -93,7 +93,7 @@ sign-in.
 
 ## Phase 4 — The web application
 
-Organization screens (products, members, Connect an agent, settings); the four product screens; Idea;
+Organization screens (the overview, members, Connect an agent, settings); the four product screens; Idea;
 Evidence (upload, browse, source page, passage reader, annotations, search); Synthesis (insights
 and registers) with revision history; Story reading and export; the Activity page; conflict handling. The
 design system is Studio ([DESIGN.md](../../DESIGN.md)).

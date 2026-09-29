@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Synthesis, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-29T00:00:00Z}
 status: stable
 ---
 
@@ -50,9 +50,10 @@ the browser's back button and "open in new tab" both work.
   and MCP name the objects (`sources`, `insights`).
 - **A context slot** under the navigation, which the screen fills: the page tree on Story, find
   and filters on Evidence, the three lists and their filters on Synthesis.
-- **The footer** holds the account menu, which is only about the person: their email, the theme
-  (Light, Dark or System, which is the default; remembered per browser), **Settings** (their own
-  display name) and Sign out. Nothing in it is also in the panel.
+- **The footer** holds the account menu, which is about the person: their email; each
+  organization they belong to, with their role in it and a link to its **Members**; the theme
+  (Light, Dark or System, which is the default; remembered per browser); **Settings** (their own
+  display name); and Sign out. Nothing in it is also in the panel.
 - **Hiding.** The panel hides completely, never to an icon rail, with its button or `⌘\` / `Ctrl+\`
   (ignored while typing in a field), and the choice is remembered per browser. While it is hidden
   a small floating pill shows the mark, the product name and the current section, and brings the
@@ -65,11 +66,13 @@ the browser's back button and "open in new tab" both work.
 - **On a phone** (760px and below) the panel and the inspector are drawers with a scrim, one open
   at a time: focus is trapped, Esc closes the open one, and it closes on navigation.
 - **Outside a product** (the overview, Connect an agent, the person's Settings, organization
-  Members, All products) the panel is the same on every screen, whatever the person came from:
-  **Products**, the person's products (under each organization's name when there are several), then
-  quiet links to Connect an agent, each organization's members and All products, with the current
+  Members) the panel is the same on every screen, whatever the person came from: each
+  organization's name over its products, then a quiet link to Connect an agent, with the current
   screen marked. It never offers a way "back" to a product, because it cannot know the person came
   from one; the product is in the list.
+- **The panel changes only on entering or leaving a product.** Connect an agent is in both panels,
+  and inside a product it opens in the product's shell (`…/connect`), so the product's navigation
+  stays put.
 - A skip link leads to the content; on a route change focus moves to the new heading and the page
   is announced politely.
 
@@ -80,21 +83,21 @@ place.
 1. The current product, with its organization and team, is shown at the top of the panel on every
    product screen.
 2. The product switch is one interaction away on every product screen. It lists every reachable
-   product grouped by organization and team, and links to New product, the organization's members,
-   and All products.
+   product grouped by organization and team, and offers New product, which opens in place.
 3. **Switching product keeps the section**: from Evidence in product A to Evidence in product B.
-   Idea, Evidence, Synthesis, Story, Activity, Search and Settings carry over; anything else
+   Idea, Evidence, Synthesis, Story, Connect an agent, Activity, Search and Settings carry over; anything else
    (a record id, an insight) lands on Idea.
 4. The product is in the URL path (`/t/<tenant>/<team>/<product>/…`). Opening a link to another
    product simply works, and becomes the remembered one.
 5. `/` opens the overview for anyone in an organization, and first run for anyone in none. The
    last-used product is remembered per browser; Connect an agent names it in its example request.
-6. Archived products appear only in All products, behind a "With archived" filter, read-only, and
-   an admin restores them from the product's Settings.
-7. In All products, an organization where the person has no team or product role says so, and that
+6. Archived products appear only on the overview, behind "Show archived products" (`?archived=1`)
+   under each organization that has any, read-only, and an admin restores them from the product's
+   Settings.
+7. On the overview, an organization where the person has no team or product role says so, and that
    there is nothing to open until an admin gives them one.
-8. Organization-level screens (the overview, Connect an agent, Settings, Members, All products)
-   use a different panel, so they are not mistaken for belonging to one product.
+8. Organization-level screens (the overview, Connect an agent, Settings, Members) use a different
+   panel, so they are not mistaken for belonging to one product.
 
 **The overview** (`/`, [decision](../decisions/the-overview-is-the-front-door.md)). The page that
 introduces WhatBuild and is good to share as a screenshot. An intro sheet carries the mark and
@@ -102,20 +105,23 @@ wordmark, the question "What to build?", a sentence on the pressure AI engineeri
 product discovery, two sentences on what the app does, and a link to Connect an agent. Beside it, small and
 quiet, the counts across the person's active products, laid out as the loop: outcomes (Idea), sources (Evidence),
 insights, assumptions and decisions (Synthesis), and Story pages; they are the counts `products.list` reports, which match each
-product's panel counts. Below, one sheet per organization lists its active products (name,
-product concept, team, role, last update), each with links to Idea, Evidence, Synthesis and Story
-and their counts, so any section of any product is one click away. The sheet links to the
-organization's Members and All products, and team admins get New product. An organization with no
-product the person can see says so, and says who can create one.
+product's panel counts. Below, one sheet per organization, headed by its name alone, lists its active products (name,
+product concept, last update, and the team only when the organization has more than one), each
+with links to Idea, Evidence, Synthesis and Story and their counts, so any section of any product
+is one click away. Team admins get **New product**, a dialog on the overview (`?create=1`), so
+cancelling leaves the person there; it asks for a team only when they can create in more than one.
+An organization with no product the person can see says so, and says who can create one. The
+overview is the only list of products: `/products` redirects to it. Roles are not shown here; the
+person's organization role is in the account menu, and who has which role is on Members.
 
 ## 7.3 Routes
 
 ```
 /signin  /welcome  /invite/:token             sign-in, first run, accepting an invitation
-/                                             the overview: what WhatBuild is, and every product; first run with no organization
-/products           ?archived=1&create=1      every product you can reach, by organization and team; new product
+/                   ?archived=1&create=1      the overview: what WhatBuild is, and every product; new product; first run with no organization
+/products                                     → / (with its query)
 /t/:tenant/members                            people and roles in an organization
-/connect                                      Connect an agent: the MCP server URL and the agents connected now
+/connect            ?product                  Connect an agent: the MCP server URL for a product or all, and the agents connected now
 /settings                                     Settings: the person's display name
 
 /t/:tenant/:team/:product                     → …/idea
@@ -130,6 +136,7 @@ product the person can see says so, and says who can create one.
   /synthesis/assumptions[/:id]  /synthesis/decisions[/:id]   lists take ?show&outcome_id&q
                       (show: unconfirmed, confirmed, refuted, archived; q: title search)
   /story[/:page]      ?v=N
+  /connect            ?product                Connect an agent, in the product's shell, with this product picked
   /activity           ?entity_type &entity_id
   /settings                                   name, slug, people, export, organization, archive
 ```
@@ -400,7 +407,8 @@ never described as deleting. A list row showing an archived object says *Archive
 
 ## 7.11 Organization, product and account screens
 
-- **Members** (`/t/<tenant>/members`). A key to the roles (organization: owner, admin, member;
+- **Members** (`/t/<tenant>/members`, from the organization in the account menu, titled
+  "Members"). A key to the roles (organization: owner, admin, member;
   team or product: admin, editor, viewer), then everyone in the organization in two layers: their
   **organization** role (member when they have none of their own) and their **access**, the team
   and product roles that decide which products they can open. A member with no access says so and
@@ -413,14 +421,14 @@ never described as deleting. A list row showing an archived object says *Archive
   product or the organization itself (teams first; the organization's member role warns that it
   opens no product), and a role described in words; someone without an account gets a
   single-use link. The person's writes and their attribution stay after any removal.
-- **Invitation** (`/invite/:token`). Accepts the invitation and opens All products with a toast
+- **Invitation** (`/invite/:token`). Accepts the invitation and opens the overview with a toast
   naming the organization and role. A link already accepted by the same person (signing in accepts
   it) is the same success. Otherwise it names why the link can't be used and offers signing in
   with another address, which returns to the link; an invitation for another address makes that
   the primary action. Signed out, the link opens sign-in titled "Sign in to accept your
   invitation".
-- **Connect an agent** (`/connect`). [§6.8](06-operations-and-adapters.md): the MCP server URL,
-  sign-in, a first request to try, connected agents with disconnect, the plain statement about
+- **Connect an agent** (`/connect`, or `…/connect` inside a product). [§6.8](06-operations-and-adapters.md):
+  a product picker and the MCP server URL for it, sign-in, a first request to try, connected agents with disconnect, the plain statement about
   where an agent sends what it reads, and an optional skill download. Connected agents appear here
   and nowhere else.
 - **Product settings** (`…/settings`, in the product's shell): name, slug and product concept; **People**;

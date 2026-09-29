@@ -49,6 +49,15 @@
 .agents-step-body .copy-field {
   margin-top: var(--s-2);
 }
+.agents-address .copy-field {
+  margin-top: 0;
+}
+.agents-address {
+  display: grid;
+  gap: var(--s-1);
+  max-width: 66ch;
+  margin-top: var(--s-2);
+}
 .agents-foot {
   margin: var(--s-4) 0 0;
   padding: 0 var(--s-1);

@@ -1,12 +1,11 @@
-import { Link, Navigate } from "react-router";
+import { Link, Navigate, useSearchParams } from "react-router";
 import { plural, relativeTime } from "../lib/format.ts";
 import { useProducts, type ProductsResponse, type ProductSummary } from "../lib/session.tsx";
 import { BrandMark } from "../shell/brand.tsx";
 import { L1 } from "../shell/panel.tsx";
-import { ButtonLink, EmptyState, ErrorCallout, Glyph, Loading, Sheet, SheetHeader, Tag, type GlyphName } from "../ui/index.tsx";
+import { Button, EmptyState, ErrorCallout, Glyph, Loading, Sheet, SheetHeader, StatusBadge, type GlyphName } from "../ui/index.tsx";
+import { CreateProductDialog } from "./new-product.tsx";
 import "../styles/screens/overview.css";
-
-const ROLE_WORD: Record<string, string> = { owner: "Owner", admin: "Admin", member: "Member", editor: "Editor", viewer: "Viewer" };
 
 type Counts = ProductSummary["counts"];
 
@@ -27,12 +26,26 @@ const UNIT: Record<string, [string, string]> = { idea: ["outcome", "outcomes"], 
 
 /**
  * The overview at `/`: what WhatBuild is for, what the person's products hold between them, and every
- * product with a direct link to each of its four sections.
+ * product with a direct link to each of its four sections. It is the one list of products: New
+ * product (`?create=1`) and archived products (`?archived=1`) open here.
  */
 export function OverviewPage() {
-  const products = useProducts();
+  const [params, setParams] = useSearchParams();
+  const products = useProducts(true);
+  const setParam = (key: string, on: boolean) =>
+    setParams(
+      (p) => {
+        const next = new URLSearchParams(p);
+        if (on) next.set(key, "1");
+        else next.delete(key);
+        return next;
+      },
+      { replace: !on },
+    );
   if (products.data && !products.data.tenants.length) return <Navigate to="/welcome" replace />;
-  const items = products.data?.items ?? [];
+  const all = products.data?.items ?? [];
+  const items = all.filter((p) => !p.archived_at);
+  const showArchived = params.get("archived") === "1";
   return (
     <div className="overview">
       <Sheet className="overview-intro" labelledBy="overview-title">
@@ -68,8 +81,18 @@ export function OverviewPage() {
           </div>
         </Sheet>
       ) : (
-        products.data.tenants.map((t) => <Organization key={t.tenant_id} tenant={t} products={items.filter((p) => p.tenant.tenant_id === t.tenant_id)} />)
+        products.data.tenants.map((t) => (
+          <Organization
+            key={t.tenant_id}
+            tenant={t}
+            products={all.filter((p) => p.tenant.tenant_id === t.tenant_id)}
+            showArchived={showArchived}
+            onShowArchived={(on) => setParam("archived", on)}
+            onCreate={() => setParam("create", true)}
+          />
+        ))
       )}
+      {params.get("create") === "1" && products.data ? <CreateProductDialog tenants={products.data.tenants} onClose={() => setParam("create", false)} /> : null}
     </div>
   );
 }
@@ -112,8 +135,19 @@ function Figure({ count, one, many }: { count: number | null; one: string; many:
   );
 }
 
-function Organization({ tenant, products }: { tenant: ProductsResponse["tenants"][number]; products: ProductSummary[] }) {
+function Organization({ tenant, products, showArchived, onShowArchived, onCreate }: {
+  tenant: ProductsResponse["tenants"][number];
+  products: ProductSummary[];
+  showArchived: boolean;
+  onShowArchived: (on: boolean) => void;
+  onCreate: () => void;
+}) {
   const canCreate = tenant.teams.some((tm) => tm.your_role === "admin");
+  const active = products.filter((p) => !p.archived_at);
+  const archived = products.filter((p) => p.archived_at);
+  const shown = showArchived ? [...active, ...archived] : active;
+  // With one team the team's name says nothing the organization's doesn't.
+  const showTeam = tenant.teams.length > 1;
   const headId = `overview-org-${tenant.tenant_id}`;
   return (
     <Sheet className="overview-org" labelledBy={headId}>
@@ -125,40 +159,41 @@ function Organization({ tenant, products }: { tenant: ProductsResponse["tenants"
             {tenant.name}
           </>
         }
-        count={products.length}
         end={
-          <>
-            {tenant.your_role ? <Tag>{ROLE_WORD[tenant.your_role] ?? tenant.your_role}</Tag> : null}
-            <Link to={`/t/${tenant.slug}/members`} className="quiet-link">
-              Members
-            </Link>
-            <Link to="/products" className="quiet-link">
-              All products
-            </Link>
-            {canCreate ? (
-              <ButtonLink to="/products?create=1" icon="plus">
-                New product
-              </ButtonLink>
-            ) : null}
-          </>
+          canCreate ? (
+            <Button icon="plus" onClick={onCreate}>
+              New product
+            </Button>
+          ) : null
         }
       />
-      {products.length ? (
+      {shown.length ? (
         <ul className="overview-products">
-          {products.map((p) => (
-            <ProductEntry key={p.product_id} product={p} />
+          {shown.map((p) => (
+            <ProductEntry key={p.product_id} product={p} showTeam={showTeam} />
           ))}
         </ul>
+      ) : !tenant.teams.length ? (
+        <EmptyState size="inline" title="Nothing here to open yet.">
+          You&rsquo;re a member of {tenant.name}, but you have no role on any of its teams or products. Ask one of its admins to give you one.
+        </EmptyState>
       ) : (
         <EmptyState size="inline" title="No active products you can see.">
           {canCreate ? "Create one to start a discovery." : "Ask a team admin to create one or give you a role."}
         </EmptyState>
       )}
+      {archived.length ? (
+        <div className="overview-org-foot">
+          <button type="button" className="quiet-link" aria-expanded={showArchived} onClick={() => onShowArchived(!showArchived)}>
+            {showArchived ? "Hide archived products" : `Show ${plural(archived.length, "archived product")}`}
+          </button>
+        </div>
+      ) : null}
     </Sheet>
   );
 }
 
-function ProductEntry({ product: p }: { product: ProductSummary }) {
+function ProductEntry({ product: p, showTeam }: { product: ProductSummary; showTeam: boolean }) {
   const nameId = `overview-product-${p.product_id}`;
   return (
     <li className="overview-product" aria-labelledby={nameId}>
@@ -168,7 +203,8 @@ function ProductEntry({ product: p }: { product: ProductSummary }) {
         </h3>
         {p.concept.trim() ? <p className="overview-product-concept">{p.concept}</p> : <p className="overview-product-concept faint">No product concept written yet</p>}
         <p className="overview-product-meta">
-          {p.team.name} · {ROLE_WORD[p.your_role]} · Updated <span className="num">{relativeTime(p.updated_at)}</span>
+          {p.archived_at ? <StatusBadge tone="neutral">Archived</StatusBadge> : null}
+          {showTeam ? `${p.team.name} · ` : null}Updated <span className="num">{relativeTime(p.updated_at)}</span>
         </p>
       </div>
       <nav className="overview-product-go" aria-label={`${p.name}: sections`}>

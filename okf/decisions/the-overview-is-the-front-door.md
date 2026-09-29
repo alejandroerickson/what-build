@@ -3,7 +3,7 @@ type: Decision
 title: The overview is WhatBuild's front door, and the one screen with display type
 description: `/` and the WhatBuild mark open an overview that introduces the product and lists every product with a link to each section; only its intro is set above the 20px ceiling.
 tags: [decision, web, design, navigation]
-generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-29T00:00:00Z}
 status: stable
 ---
 
@@ -15,7 +15,9 @@ The WhatBuild mark used to open the current product's Idea screen, and `/` opene
 used. That left nowhere that says what WhatBuild is, and nowhere to see every product at once and
 jump into any part of one. The page also has to look right when someone shares a screenshot of
 WhatBuild, which the Studio system's 20px type ceiling does not allow for. The maintainer chose the
-overview, its landing role and the type exception on 2026-09-28.
+overview, its landing role and the type exception on 2026-09-28. On 2026-09-29 they removed the
+separate All products screen, which repeated the overview's list in a table, and moved roles and
+the members link off the overview.
 
 ## Decision
 
@@ -24,10 +26,15 @@ overview, its landing role and the type exception on 2026-09-28.
 - The overview introduces WhatBuild, shows the six counts across the person's products, small and
   set out as the loop (Idea, Evidence, Synthesis, Story), and lists each organization's products.
   Each product row links to its four sections with their counts, one click each.
+- The overview is the only list of products. New product opens as a dialog on it, and archived
+  products appear on it only when asked for; `/products` redirects to it. It shows no roles and no
+  product count per organization: the person's organization role is in the account menu, beside
+  that organization's Members.
 - Only the overview's intro, the wordmark and the question "What to build?", is set above 20px
   (tokens `--fs-brand` and `--fs-display`). Every other screen keeps the ceiling.
 - `products.list` returns each product's counts, the same ones `products.get` reports, so the page
   needs one request and agents get the counts too.
+- Rejected: a separate All products screen, which listed the same products a second way.
 - Rejected: keeping `/` on the last product, which is faster for someone working in one product
   every day but leaves the overview reachable only by the mark.
 

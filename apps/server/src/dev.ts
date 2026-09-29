@@ -34,6 +34,8 @@ async function main() {
     DATABASE_URL: databaseUrl,
     PORT: String(API_PORT),
     WHATBUILD_PUBLIC_URL: process.env["WHATBUILD_PUBLIC_URL"] ?? `http://localhost:${WEB_PORT}`,
+    // Vite proxies the API here, so a second instance on other ports talks to its own API.
+    WHATBUILD_API: process.env["WHATBUILD_API"] ?? `http://localhost:${API_PORT}`,
     WHATBUILD_BLOB_DIR: process.env["WHATBUILD_BLOB_DIR"] ?? resolve(root, ".what-build/blobs"),
   };
   const config = loadConfig(env);

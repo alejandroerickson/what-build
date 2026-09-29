@@ -153,7 +153,7 @@ export function AcceptInvite() {
       await qc.invalidateQueries({ queryKey: ["products"] });
       const org = r.tenant?.name ?? "the organization";
       toast(r.scope_type === "tenant" || !r.scope ? `You’re ${aRole(r.role)} of ${org}.` : `You’re in ${org}, as ${aRole(r.role)} on ${r.scope_type} ${r.scope}.`);
-      navigate("/products", { replace: true });
+      navigate("/", { replace: true });
     },
   });
   const wrongAddress = accept.error instanceof ApiError && accept.error.code === "invitation_wrong_address";
@@ -184,11 +184,11 @@ export function AcceptInvite() {
                     <Button variant="primary" onClick={() => void signOut(`/invite/${token}`)}>
                       Sign in with another address
                     </Button>
-                    <ButtonLink to="/products" variant="quiet">Your products</ButtonLink>
+                    <ButtonLink to="/" variant="quiet">Your products</ButtonLink>
                   </>
                 ) : (
                   <>
-                    <ButtonLink to="/products">Your products</ButtonLink>
+                    <ButtonLink to="/">Your products</ButtonLink>
                     <Button variant="quiet" onClick={() => void signOut(`/invite/${token}`)}>
                       Sign in with another address
                     </Button>

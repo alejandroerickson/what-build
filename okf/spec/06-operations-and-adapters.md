@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 99 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
-generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-29T00:00:00Z}
 status: stable
 ---
 
@@ -458,21 +458,22 @@ drifts. One constant, `SKILL_VERSION` in `packages/core/src/ops/meta.ts`, sets t
   to compare versions and, when stale or absent, fetch the new one and *propose* installing it
   through its harness — never to self-install silently.
 
-**The Connect page** (`/connect`, "Connect an agent" in the app) lets a person connect an MCP
-client with no help from anyone who knows the system, and nothing to configure but one address. It
-shows:
+**The Connect page** (`/connect`, and `…/connect` inside a product; "Connect an agent" in the app)
+lets a person connect an MCP client with no help from anyone who knows the system, and nothing to
+configure but one address. It shows:
 
-- the MCP server URL, to copy. A client that supports MCP authorization finds sign-in on its own
-  from the server's OAuth discovery metadata, registers itself and opens the browser;
+- a product picker and the MCP server URL for the choice, to copy. "All your products" gives
+  `/mcp`; a product gives its product-bound address, filled in from the product's path
+  (`bound_url_template` from `/api/v1/connect`), so nobody types a tenant or team. Opened inside a
+  product, that product is picked first; the choice is `?product=` in the URL. A client that
+  supports MCP authorization finds sign-in on its own from the server's OAuth discovery metadata,
+  registers itself and opens the browser;
 - that the client will ask them to sign in, and a suggestion for a first request;
 - the agents connected now, with when each was last used and a disconnect control;
 - **a plain statement about the agent's side of the trip**, above the steps: what the agent reads
   goes to whoever runs it, under their terms ([§9.1](09-data-lifecycle.md));
 - a note that the server offers the agent the skill (its instructions name the version), with an
   optional ZIP download for installing it by hand.
-
-The product-bound address (`/mcp/t/<tenant>/<team>/<product>`) still works and is returned by
-`/api/v1/connect`, but the page does not offer it.
 
 ## 6.9 Feedback
 
