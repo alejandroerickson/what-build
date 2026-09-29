@@ -103,9 +103,8 @@ place.
 introduces WhatBuild and is good to share as a screenshot. An intro sheet carries the mark and
 wordmark, the question "What to build?", a sentence on the pressure AI engineering puts on
 product discovery, two sentences on what the app does, and a link to Connect an agent. Beside it, small and
-quiet, the counts across the person's active products, laid out as the loop: outcomes (Idea), sources (Evidence),
-insights, assumptions and decisions (Synthesis), and Story pages; they are the counts `products.list` reports, which match each
-product's panel counts. Below, one sheet per organization, headed by its name alone, lists its active products (name,
+quiet, the WhatBuild journey: Idea, Evidence, Synthesis and Story, each with a line on what
+it holds. It carries no counts; those are on each product below. Below, one sheet per organization, headed by its name alone, lists its active products (name,
 product concept, last update, and the team only when the organization has more than one), each
 with links to Idea, Evidence, Synthesis and Story and their counts, so any section of any product
 is one click away. Team admins get **New product**, a dialog on the overview (`?create=1`), so

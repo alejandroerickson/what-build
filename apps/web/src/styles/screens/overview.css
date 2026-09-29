@@ -1,6 +1,6 @@
 /*
  * The overview at `/`: the intro (the app's one display moment, above the 20px ceiling on purpose),
- * the loop totals beside it, then each organization's products with a link to every section.
+ * the loop a discovery moves through beside it, then each organization's products with a link to every section.
  */
 
 .overview {
@@ -11,7 +11,7 @@
 
 .overview-intro {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 236px;
+  grid-template-columns: minmax(0, 1fr) 256px;
   grid-template-areas:
     "head head"
     "pitch loop";
@@ -95,12 +95,14 @@
   color: var(--faint);
 }
 
-/* ---- The loop, with the totals ---------------------------------------------------------------- */
+/* ---- The loop -------------------------------------------------------------------------------- */
 
 .overview-loop {
-  padding: var(--s-4) var(--s-4) var(--s-2);
+  padding: var(--s-4) var(--s-4) var(--s-1);
   border-radius: var(--r-md);
   background: var(--hover);
+  animation: overview-rise var(--dur-3) var(--ease) backwards;
+  animation-delay: calc(var(--dur-1) * 2);
 }
 .overview-loop-title {
   margin: 0 0 var(--s-3h);
@@ -117,7 +119,8 @@
 .overview-loop-step {
   position: relative;
   display: grid;
-  grid-template-columns: var(--h-sm) minmax(0, 1fr) auto;
+  grid-template-columns: var(--h-sm) minmax(0, 1fr);
+  grid-template-rows: var(--h-sm) auto;
   column-gap: var(--s-2h);
   align-items: center;
   padding-bottom: var(--s-3h);
@@ -145,22 +148,13 @@
 .overview-loop-name {
   font-weight: var(--fw-medium);
 }
-.overview-loop-figure {
+.overview-loop-about {
+  grid-column: 2;
+  margin-top: -3px;
   color: var(--muted);
   font-size: var(--fs-sm);
-  white-space: nowrap;
-}
-.overview-loop-figure b {
-  color: var(--text);
-  font-size: var(--fs-body);
-  font-weight: var(--fw-semibold);
-}
-/* A stage's further counts (Synthesis: assumptions, decisions) sit on one line under its name. */
-.overview-loop-more {
-  grid-column: 2 / -1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 var(--s-2h);
+  line-height: var(--lh-body);
+  text-wrap: pretty;
 }
 
 /* ---- Organizations and their products --------------------------------------------------------- */
@@ -347,7 +341,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .overview-pitch > * {
+  .overview-pitch > *,
+  .overview-loop {
     animation: none;
   }
 }
