@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useId, useLayoutEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Button, IconButton } from "../ui/index.tsx";
+import { IconButton } from "../ui/index.tsx";
+import { shortcutLabel } from "../ui/media.ts";
 
 /**
  * What a route can put into the shell. A screen renders these anywhere in its own tree; the content is
@@ -8,7 +9,6 @@ import { Button, IconButton } from "../ui/index.tsx";
  *
  *   <PanelContext label="Story pages">…</PanelContext>   the left panel's context slot, under the nav
  *   <Inspector title="…" actions={…}>…</Inspector>       the right-hand inspector (Story page, source)
- *   <InspectorToggle />                                   "Details": opens the inspector at ≤1100px
  *   usePageTitle("…")                                     the document title for this screen
  */
 export interface ShellSlots {
@@ -18,10 +18,11 @@ export interface ShellSlots {
   /** Registers a mounted slot; returns the unregister function. */
   registerPanelContext: () => () => void;
   registerInspector: () => () => void;
-  /** At ≤1100px the inspector is an overlay: whether it is open. */
-  inspectorOverlay: boolean;
+  /** Whether the inspector is showing, at the current width. */
   inspectorOpen: boolean;
   setInspectorOpen: (open: boolean) => void;
+  /** "Hide details", or "Close details" where the inspector is a phone drawer. */
+  inspectorHideLabel: string;
   setPageTitle: (title: string | null) => void;
 }
 
@@ -49,9 +50,9 @@ export function PanelContext({ label, children }: { label: string; children: Rea
 }
 
 /**
- * Fills the inspector, the right-hand panel. Only a Story page and a source page use it. Above 1100px
- * it docks beside the content; at or below, it is an overlay opened by <InspectorToggle />, with a
- * scrim on a phone, a focus trap and Esc to close.
+ * Fills the inspector, the right-hand panel. Only a Story page and a source page use it. The shell
+ * owns showing and hiding it: the hide button in its head, the show button at the top right, and
+ * ⇧⌘\ / Ctrl+Shift+\. It docks beside the content, and on a phone it is a drawer.
  */
 export function Inspector({ title, actions, children }: { title: ReactNode; actions?: ReactNode; children: ReactNode }) {
   const slots = useSlots();
@@ -65,30 +66,17 @@ export function Inspector({ title, actions, children }: { title: ReactNode; acti
           {title}
         </h2>
         {actions}
-        {slots.inspectorOverlay ? <IconButton className="inspector-close" label="Close details" icon="x" onClick={() => slots.setInspectorOpen(false)} /> : null}
+        <IconButton
+          label={slots.inspectorHideLabel}
+          title={`${slots.inspectorHideLabel} (${shortcutLabel("\\", true)})`}
+          icon="panel-right-close"
+          onClick={() => slots.setInspectorOpen(false)}
+          data-inspector-hide=""
+        />
       </header>
       <div className="inspector-body">{children}</div>
     </>,
     slots.inspectorEl,
-  );
-}
-
-/** The "Details" button that opens the inspector overlay. Renders nothing while the inspector is docked. */
-export function InspectorToggle({ label = "Details" }: { label?: string }) {
-  const slots = useSlots();
-  if (!slots?.inspectorOverlay) return null;
-  return (
-    <Button
-      size="sm"
-      variant="quiet"
-      icon="panel-right"
-      aria-expanded={slots.inspectorOpen}
-      aria-controls={slots.inspectorId}
-      data-inspector-toggle=""
-      onClick={() => slots.setInspectorOpen(!slots.inspectorOpen)}
-    >
-      {label}
-    </Button>
   );
 }
 

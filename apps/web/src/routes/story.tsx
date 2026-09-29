@@ -5,7 +5,7 @@ import { api, ApiError } from "../lib/api.ts";
 import { relativeTime } from "../lib/format.ts";
 import { useProduct } from "../lib/session.tsx";
 import { useTheme } from "../shell/theme.ts";
-import { Inspector, InspectorToggle, usePageTitle } from "../shell/slots.tsx";
+import { Inspector, usePageTitle } from "../shell/slots.tsx";
 import { useMediaQuery } from "../ui/media.ts";
 import { Button, ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, Glyph, Loading, Menu, MenuItem, useToast } from "../ui/index.tsx";
 import { AddPageDialog, ExportDialog, MoveDialog, NotesDialog, PublishDialog, refreshStory, RenameDialog } from "./story-dialogs.tsx";
@@ -312,9 +312,6 @@ export function StoryPage() {
             ) : (
               <span>Version {asked}</span>
             )}
-            <span className="story-meta-end">
-              <InspectorToggle />
-            </span>
           </div>
           {p.archived_at ? (
             <Callout

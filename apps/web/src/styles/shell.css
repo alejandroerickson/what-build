@@ -304,6 +304,9 @@ h1[tabindex="-1"]:focus {
   white-space: nowrap;
   animation: pill-in var(--dur-3) var(--ease);
 }
+.stage[data-ins="closed"] .show-pill {
+  max-width: calc(100% - 3 * var(--float-inset) - var(--h-lg));
+}
 .show-pill:hover {
   background: var(--hover);
 }
@@ -325,13 +328,39 @@ h1[tabindex="-1"]:focus {
   }
 }
 
+/* The inspector's counterpart to the pill: a square at the top-right inset that brings it back. */
+.show-ins {
+  position: absolute;
+  right: var(--float-inset);
+  top: var(--float-inset);
+  z-index: var(--z-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--h-lg);
+  height: var(--h-lg);
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--panel);
+  color: var(--muted);
+  box-shadow: var(--shadow);
+  animation: show-ins-in var(--dur-3) var(--ease);
+}
+.show-ins:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+@keyframes show-ins-in {
+  from {
+    opacity: 0;
+    transform: translateX(6px);
+  }
+}
+
 .scrim {
   position: fixed;
   inset: 0;
   z-index: var(--z-scrim);
-  background: transparent;
-}
-.scrim[data-tone="dim"] {
   background: var(--scrim);
   animation: scrim-in var(--dur-3) var(--ease);
 }
@@ -361,6 +390,10 @@ h1[tabindex="-1"]:focus {
 .stage[data-ins="docked"] .canvas {
   padding-right: calc(var(--ins-w) + var(--canvas-px));
 }
+/* A hidden inspector leaves its show button in the corner; the content keeps clear of it. */
+.stage[data-ins="closed"] .canvas {
+  padding-right: calc(var(--float-inset) + var(--h-lg) + var(--s-3));
+}
 .canvas-wrap {
   max-width: var(--content-max);
   margin: 0 auto;
@@ -374,6 +407,16 @@ h1[tabindex="-1"]:focus {
 .inspector {
   right: var(--float-inset);
   width: var(--ins-w);
+}
+.stage[data-ins="closed"] .inspector {
+  transform: translateX(calc(100% + 20px));
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform var(--dur-3) var(--ease),
+    opacity var(--dur-3) var(--ease),
+    visibility 0s var(--dur-3);
 }
 .inspector-head {
   display: flex;
@@ -398,24 +441,10 @@ h1[tabindex="-1"]:focus {
   overflow: auto;
 }
 
+/* Narrower windows tighten the canvas gutters so docked panels leave room for the content. */
 @media (max-width: 1100px) {
-  .canvas,
-  .stage[data-ins="docked"] .canvas {
-    padding-right: var(--s-6);
-  }
-  .inspector {
-    z-index: var(--z-overlay);
-    box-shadow: var(--shadow-2);
-  }
-  .stage[data-ins="closed"] .inspector {
-    transform: translateX(calc(100% + 20px));
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transition:
-      transform var(--dur-3) var(--ease),
-      opacity var(--dur-3) var(--ease),
-      visibility 0s var(--dur-3);
+  :root {
+    --canvas-px: var(--s-6);
   }
 }
 
@@ -436,12 +465,14 @@ h1[tabindex="-1"]:focus {
     top: 0;
     bottom: 0;
     right: 0;
+    z-index: var(--z-overlay);
     width: min(340px, 92vw);
     border-radius: 0;
+    box-shadow: var(--shadow-2);
   }
   .canvas,
   .stage[data-nav="closed"] .canvas,
-  .stage[data-ins="docked"] .canvas {
+  .stage[data-ins] .canvas {
     padding: 56px var(--s-3) 60px;
   }
   /* Sheets run edge to edge on a phone; everything else keeps the 12px gutter. */

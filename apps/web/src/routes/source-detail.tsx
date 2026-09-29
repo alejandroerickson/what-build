@@ -7,9 +7,9 @@ import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { derivedStatus, derivedStatusDetail, PROVENANCE_LABEL, REVIEW_STATUS, ROLE_LABEL } from "../lib/status.ts";
 import type { Actor, FileEntry, RecordFull } from "../lib/types.ts";
-import { Inspector, InspectorToggle, ShellContext, usePageTitle } from "../shell/slots.tsx";
+import { Inspector, ShellContext, usePageTitle } from "../shell/slots.tsx";
 import {
-  AgentFace, Avatar, Button, ButtonLink, Callout, ChoiceRow, Dialog, EmptyState, ErrorCallout, Glyph, Group, KeyValue, Loading, Menu, MenuItem,
+  Button, ButtonLink, Callout, ChoiceRow, Dialog, EmptyState, ErrorCallout, Glyph, Group, KeyValue, Loading, Menu, MenuItem,
   MenuSeparator, PageHeader, Segmented, SelectField, Sheet, SheetHeader, StatusBadge, Tag, TextArea, TextField, useToast, type GlyphName,
 } from "../ui/index.tsx";
 import "../styles/screens/evidence.css";
@@ -130,19 +130,9 @@ export function SourceDetailPage() {
   return (
     <>
       <EvidenceFilters />
-      <PageHeader
-        crumbs={[{ label: "Evidence", to: `${app}/evidence` }, { label: r.title }]}
-        title={r.title}
-        meta={<SourceMeta record={r} />}
-        actions={
-          <>
-            <InspectorToggle />
-            <SourceActions record={r} onDialog={setDialog} />
-          </>
-        }
-      />
+      <PageHeader crumbs={[{ label: "Evidence", to: `${app}/evidence` }, { label: r.title }]} title={r.title} actions={<SourceActions record={r} onDialog={setDialog} />} />
       <SourceDescription note={summary?.data ?? null} loading={Boolean(summary?.isPending && noteKinds.includes("summary"))} />
-      {r.has_lineage ? <ViewLineage recordId={r.record_id} /> : null}
+      {r.has_lineage ? <StaleViewNotice recordId={r.record_id} /> : null}
       {r.archived_at || r.derived_status !== "ready" ? (
         <div className="source-notices">
       {r.archived_at ? (
@@ -187,20 +177,7 @@ function surfaceLabel(actor: Actor) {
   return "the web";
 }
 
-function SourceMeta({ record: r }: { record: SourceRecord }) {
-  return (
-    <span className="source-meta">
-      <span>{r.kind_label}</span>
-      {r.date ? <span className="num">Captured {formatDate(r.date)}</span> : null}
-      {r.organization ? <span>{r.organization}</span> : null}
-      <span className="source-meta-added">
-        Added by {actorName(r.uploaded_by)} · via {surfaceLabel(r.uploaded_by)}, {formatDate(r.uploaded_at)}
-      </span>
-    </span>
-  );
-}
-
-/** The description: the agent's summary of the source, clamped to four lines. */
+/** The description: the agent's summary of the source, clamped to four lines. Nothing when there is none. */
 function SourceDescription({ note, loading }: { note: AgentNote | null; loading: boolean }) {
   const [open, setOpen] = useState(false);
   const [overflows, setOverflows] = useState(false);
@@ -211,12 +188,7 @@ function SourceDescription({ note, loading }: { note: AgentNote | null; loading:
     setOverflows(el.scrollHeight > el.clientHeight + 1);
   }, [note, open]);
   if (loading) return <Loading variant="lines" lines={2} label="Loading the description…" />;
-  if (!note)
-    return (
-      <p className="source-description source-description-empty">
-        No description yet. <Link to="/connect">Ask your agent</Link> to summarize this source.
-      </p>
-    );
+  if (!note) return null;
   return (
     <div className="source-description">
       <div ref={ref} id="source-summary" className={`source-summary${open ? "" : " source-summary-clamped"}`}>
@@ -236,48 +208,158 @@ function SourceDescription({ note, loading }: { note: AgentNote | null; loading:
   );
 }
 
+type LineageStatus = "current" | "changed" | "archived" | "deleted" | "missing";
+interface LineageInputCheck {
+  kind: "record" | "assumption" | "decision";
+  id: string;
+  status: LineageStatus;
+  changed_parts?: string[] | null;
+  last_changed_at?: string | null;
+}
 interface LineageCheck {
   registered_at: string;
   registered_by: Actor;
+  query_spec: { description?: string } | null;
   stale: boolean;
-  input_checks: { kind: string; id: string; status: "current" | "changed" | "archived" | "deleted" | "missing" }[];
+  input_checks: LineageInputCheck[];
 }
 
-/**
- * A view built from other sources and register entries: how many inputs it was built from, and how
- * many have changed since. Nothing is rebuilt automatically, so a stale view says so plainly.
- */
-function ViewLineage({ recordId }: { recordId: string }) {
+function useLineage(recordId: string) {
   const { api: base } = useProduct();
-  const q = useQuery({
+  return useQuery({
     queryKey: ["lineage", base, recordId],
     queryFn: () => api<LineageCheck>("GET", `${base}/sources/${recordId}/lineage`),
     retry: false,
   });
-  if (!q.data) return null;
+}
+
+const INPUT_NOUN = { record: ["source", "sources"], assumption: ["assumption", "assumptions"], decision: ["decision", "decisions"] } as const;
+
+/** "12 sources, 5 assumptions and 3 decisions": what a view was built from, by kind. */
+function describeInputs(checks: LineageInputCheck[]) {
+  const parts = (["record", "assumption", "decision"] as const)
+    .map((k) => [k, checks.filter((c) => c.kind === k).length] as const)
+    .filter(([, n]) => n > 0)
+    .map(([k, n]) => plural(n, INPUT_NOUN[k][0], INPUT_NOUN[k][1]));
+  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : (parts[0] ?? "no inputs");
+}
+
+/**
+ * A view whose inputs changed since it was built says so above its sections, since reading it as
+ * current would mislead. Which inputs changed, and how, is in the inspector's Built from group.
+ */
+function StaleViewNotice({ recordId }: { recordId: string }) {
+  const q = useLineage(recordId);
+  const slots = useContext(ShellContext);
+  if (!q.data?.stale) return null;
   const l = q.data;
-  const n = l.input_checks.length;
-  const moved = l.input_checks.filter((c) => c.status !== "current");
-  const built = `Built from ${plural(n, "input")}`;
-  if (!l.stale)
-    return (
-      <p className="source-lineage">
-        <StatusBadge tone="positive">Up to date</StatusBadge>
-        <span>
-          {built} on {formatDate(l.registered_at)} · none changed since
-        </span>
-      </p>
-    );
-  const counts = (["changed", "archived", "deleted", "missing"] as const)
-    .map((s) => [s, moved.filter((c) => c.status === s).length] as const)
-    .filter(([, k]) => k > 0)
-    .map(([s, k]) => `${k} ${s}`);
+  const moved = l.input_checks.filter((c) => c.status !== "current").length;
+  const seeWhat = () => {
+    slots?.setInspectorOpen(true);
+    requestAnimationFrame(() => document.getElementById("built-from")?.scrollIntoView({ block: "start", behavior: "smooth" }));
+  };
   return (
     <div className="source-notices">
-      <Callout tone="attention" title={`${built} · ${moved.length} changed since`}>
-        Built on {formatDate(l.registered_at)} by {attribution(l.registered_by)}. Since then: {counts.join(", ")}. Nothing is rebuilt automatically; read it as of that date, or ask your agent to
-        rebuild it.
+      <Callout
+        tone="attention"
+        title="This view may be out of date"
+        action={
+          <Button size="sm" onClick={seeWhat}>
+            See what changed
+          </Button>
+        }
+      >
+        It was built on {formatDate(l.registered_at)} from {describeInputs(l.input_checks)}, and {moved === 1 ? "1 of them has" : `${moved} of them have`} changed since.
+        Views are not rebuilt automatically: read it as of that date, or ask your agent to rebuild it.
       </Callout>
+    </div>
+  );
+}
+
+const PART_WORDS: Record<string, string> = {
+  kind: "kind",
+  title: "title",
+  date: "date",
+  organization: "organization",
+  primary_version: "primary file",
+  derivation: "passages",
+  archived: "archived",
+  statement: "statement",
+  body: "body",
+  citations: "citations",
+  status: "status",
+  review_count: "reviews",
+};
+
+/** What happened to one input since the view was built, in words. */
+function inputChange(c: LineageInputCheck) {
+  if (c.status === "archived") return "Archived";
+  if (c.status === "deleted") return "Deleted";
+  if (c.status === "missing") return "No longer found";
+  const parts = (c.changed_parts ?? []).filter((p) => p !== "archived").map((p) => PART_WORDS[p] ?? p);
+  const what = parts.length ? `Changed: ${parts.join(", ")}` : "Changed";
+  return c.last_changed_at ? `${what}, ${formatDate(c.last_changed_at)}` : what;
+}
+
+/** The inspector's account of a view's lineage: what it was built from, when, and what has moved since. */
+function BuiltFrom({ recordId }: { recordId: string }) {
+  const { api: base, app } = useProduct();
+  const q = useLineage(recordId);
+  const moved = (q.data?.input_checks ?? []).filter((c) => c.status !== "current");
+  const names = useQueries({
+    queries: moved.map((c) => ({
+      queryKey: ["lineage-input", base, c.kind, c.id],
+      queryFn: async () => {
+        if (c.kind === "record") return (await api<{ title: string }>("GET", `${base}/sources/${c.id}`)).title;
+        return (await api<{ statement: string }>("GET", `${base}/${c.kind}s/${c.id}`)).statement;
+      },
+      enabled: c.status !== "deleted" && c.status !== "missing",
+      retry: false,
+      staleTime: 60_000,
+    })),
+  });
+  if (!q.data) return null;
+  const l = q.data;
+  const link = (c: LineageInputCheck) => (c.kind === "record" ? `${app}/evidence/${c.id}` : `${app}/synthesis/${c.kind}s/${c.id}`);
+  return (
+    <div id="built-from">
+      <Group title="Built from" count={l.input_checks.length}>
+        <p className="source-built">
+          <StatusBadge tone={l.stale ? "attention" : "positive"}>{l.stale ? `${moved.length} changed since` : "Up to date"}</StatusBadge>
+        </p>
+        <p className="source-inspector-note">
+          {describeInputs(l.input_checks)}, as they stood on {formatDate(l.registered_at)}, when {attribution(l.registered_by)} built it.{" "}
+          {l.stale ? "It is not rebuilt automatically." : "None has changed since."}
+        </p>
+        {l.query_spec?.description ? <p className="source-inspector-note source-built-how">{l.query_spec.description}</p> : null}
+        {moved.length ? (
+          <ul className="source-cited">
+            {moved.map((c, i) => {
+              const name = names[i]?.data;
+              const gone = c.status === "deleted" || c.status === "missing";
+              const glyph: GlyphName = c.kind === "record" ? "file-text" : c.kind === "assumption" ? "scale" : "signpost";
+              const label = name ?? `${INPUT_NOUN[c.kind][0][0]!.toUpperCase()}${INPUT_NOUN[c.kind][0].slice(1)} ${c.id}`;
+              return (
+                <li key={`${c.kind}:${c.id}`}>
+                  <Glyph name={glyph} size="sm" />
+                  <span className="source-cited-main">
+                    {gone ? (
+                      <span className="ellipsis" title={label}>
+                        {label}
+                      </span>
+                    ) : (
+                      <Link to={link(c)} className="ellipsis" title={label}>
+                        {label}
+                      </Link>
+                    )}
+                    <span className="faint">{inputChange(c)}</span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+      </Group>
     </div>
   );
 }
@@ -372,6 +454,19 @@ function searchWords(f: FileEntry) {
   return f.search_status === "pending" ? "Searched once parsed" : "Not searched";
 }
 
+/** A date, then who did it and through which surface: "27 Sept 2026 / by Sam via Claude". */
+function When({ at, by }: { at: string; by: Actor | null | undefined }) {
+  return (
+    <span className="source-when">
+      <span className="num">{formatDate(at)}</span>
+      <small>
+        by {actorName(by)}
+        {by?.surface && by.surface !== "web" ? ` via ${surfaceLabel(by)}` : ""}
+      </small>
+    </span>
+  );
+}
+
 function SourceInspector({ record: r }: { record: SourceRecord }) {
   const { api: base, app, canWrite } = useProduct();
   const archive = useArchive(r);
@@ -384,28 +479,27 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
   const c = cited.data;
   const citedCount = c ? c.insights.length + c.assumptions.length + c.decisions.length + (c.story_pages?.length ?? 0) : undefined;
   return (
-    <Inspector title={r.title}>
+    <Inspector title="Details">
       <div className="source-inspector">
-        <Group title="Details">
+        <Group title="About">
           <KeyValue
             items={[
               { label: "Kind", value: r.kind_label },
-              { label: "Date captured", value: r.date ? <span className="num">{formatDate(r.date)}</span> : "No date" },
-              { label: "Date added", value: <span className="num">{formatDate(r.uploaded_at)}</span> },
+              { label: "Date captured", value: r.date ? <span className="num" title="When the interview or call happened, or the document is dated">{formatDate(r.date)}</span> : "No date" },
+              { label: "Date added", value: <When at={r.uploaded_at} by={r.uploaded_by} /> },
+              { label: "Date updated", value: r.updated_at !== r.uploaded_at ? <When at={r.updated_at} by={r.updated_by} /> : <span className="faint">Not since it was added</span> },
               {
-                label: "Date updated",
-                value: (
-                  <span className="num">
-                    {formatDate(r.updated_at)}
-                    {r.updated_at !== r.uploaded_at ? ` by ${actorName(r.updated_by)}` : null}
-                  </span>
-                ),
+                label: "Organization",
+                value: r.organization ? (
+                  <Link to={`${app}/evidence?organization=${encodeURIComponent(r.organization)}`} className="quiet-link" title={`Every source about ${r.organization}`}>
+                    {r.organization}
+                  </Link>
+                ) : null,
               },
-              { label: "Organization", value: r.organization },
               { label: "Participants", value: r.participants.length ? r.participants.join(", ") : null },
               { label: "Tags", value: r.tags.length ? <span className="chips source-tags">{r.tags.map((t) => <Tag key={t}>{t}</Tag>)}</span> : null },
-              { label: "From", value: r.source_system },
-              { label: "Evidence", value: r.provenance_depth !== "unknown" ? PROVENANCE_LABEL[r.provenance_depth] : null },
+              { label: "Provenance", value: r.provenance_depth !== "unknown" ? PROVENANCE_LABEL[r.provenance_depth] : null },
+              { label: "Came from", value: r.source_system },
               {
                 label: "Filed in",
                 value: (
@@ -414,21 +508,10 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
                   </Link>
                 ),
               },
-              {
-                label: "Added by",
-                value: (
-                  <span className="source-face">
-                    {r.uploaded_by.surface === "mcp" ? <AgentFace /> : <Avatar name={r.uploaded_by.display_name} />}
-                    <span>
-                      {actorName(r.uploaded_by)}
-                      <small>via {surfaceLabel(r.uploaded_by)}</small>
-                    </span>
-                  </span>
-                ),
-              },
             ]}
           />
         </Group>
+        {r.has_lineage ? <BuiltFrom recordId={r.record_id} /> : null}
         <Group title="Files" count={r.files.length} action={<Link to="?view=files" className="quiet-link">All files</Link>}>
           {r.files.length ? (
             <ul className="source-file-summary">
@@ -450,12 +533,7 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
           ) : (
             <EmptyState size="inline">No files yet. {primary ? "" : "The primary file is what gets parsed and searched."}</EmptyState>
           )}
-          {r.files.length ? (
-            <p className="source-inspector-note">
-              {plural(r.files.length, "file")}
-              {versions > r.files.length ? `, ${plural(versions, "stored version")}` : ""}. Only the primary file is searched.
-            </p>
-          ) : null}
+          {versions > r.files.length ? <p className="source-inspector-note">{plural(versions, "stored version")} in all.</p> : null}
         </Group>
         <Group title="Cited in" count={citedCount}>
           {cited.isPending ? (
@@ -632,7 +710,7 @@ function OriginalView({ record }: { record: SourceRecord }) {
         <span className={f.searchable ? "text-ok" : undefined}>{searchWords(f)}.</span>{" "}
         {f.role === "primary"
           ? `${f.path} is the primary file${f.searchable ? `, parsed into ${plural(record.segment_count, "passage")}` : ""}.`
-          : `${f.path} is kept with the source for download and checking; search never reads it.`}{" "}
+          : `${f.path} is ${f.role === "origin" ? "the origin file" : "a supplement"}, kept for download.`}{" "}
         <span className="faint">
           <span title={f.media_type ?? undefined}>{fileTypeName(f.media_type, f.path)}</span> · {formatBytes(f.size)}
           {length ? ` · ${clockLength(length)} long` : ""}
@@ -675,25 +753,19 @@ function NotesView({ record, outline, notes, fileOutline }: { record: SourceReco
   const showFileOutline = Boolean(fileOutline && !outline && !timed && !/\(no headings\)/.test(fileOutline));
   return (
     <>
-      <Sheet labelledBy="agent-notes-h">
-        <SheetHeader id="agent-notes-h" title="From agents" />
-        {!outline && !notes && !showFileOutline ? (
-          <EmptyState size="inline" title="No outline or notes yet." action={<ButtonLink size="sm" to="/connect">Connect an agent</ButtonLink>}>
-            Ask your agent to write an outline and notes for this source, so the next agent need not work them out again.
-          </EmptyState>
-        ) : (
-          <>
-            {outline ? <AgentNoteBlock title="Outline" note={outline} /> : null}
-            {showFileOutline ? (
-              <section className="source-agent-note">
-                <h3>Outline from the file's headings</h3>
-                <FileOutline outline={fileOutline!} />
-              </section>
-            ) : null}
-            {notes ? <AgentNoteBlock title="Notes" note={notes} /> : null}
-          </>
-        )}
-      </Sheet>
+      {outline || notes || showFileOutline ? (
+        <Sheet labelledBy="agent-notes-h">
+          <SheetHeader id="agent-notes-h" title={outline || showFileOutline ? (notes ? "Outline and notes" : "Outline") : "Notes"} />
+          {outline ? <AgentNoteBlock title="Outline" note={outline} /> : null}
+          {showFileOutline ? (
+            <section className="source-agent-note">
+              <h3>From the file's headings</h3>
+              <FileOutline outline={fileOutline!} />
+            </section>
+          ) : null}
+          {notes ? <AgentNoteBlock title="Notes" note={notes} /> : null}
+        </Sheet>
+      ) : null}
       <Sheet labelledBy="comments-h">
         <SheetHeader
           id="comments-h"
@@ -797,7 +869,7 @@ function FilesView({ record, onAdd }: { record: SourceRecord; onAdd?: () => void
           ) : undefined
         }
       />
-      <p className="source-original-line">{record.search_rule}</p>
+      {record.files.some((x) => x.role !== "primary") ? <p className="source-original-line">Only the primary file is searched. The others are kept for download.</p> : null}
       {!record.files.length ? (
         <EmptyState size="inline" title="No files yet." action={onAdd ? <Button size="sm" onClick={onAdd}>Add file</Button> : undefined}>
           This source holds metadata only.

@@ -276,11 +276,6 @@
 .story-meta .quiet-link {
   font-size: inherit;
 }
-.story-meta-end {
-  display: flex;
-  gap: var(--s-1h);
-  margin-left: auto;
-}
 .story-view > .callout {
   margin-bottom: var(--s-3);
 }

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { ApiError } from "../lib/api.ts";
-import { Inspector, InspectorToggle, PanelContext, PanelSection, usePageTitle } from "../shell/slots.tsx";
+import { Inspector, PanelContext, PanelSection, usePageTitle } from "../shell/slots.tsx";
 import { useTheme, type ThemeChoice } from "../shell/theme.ts";
 import {
   AgentFace, Avatar, Button, ButtonLink, Callout, Chip, ChoiceRow, CopyField, Crumbs, Dialog, EmptyState, ErrorCallout, FindField, FormGrid, Glyph,
@@ -27,7 +27,6 @@ export function SystemPage() {
           <>
             <Segmented label="Page theme" value={theme} onChange={(v) => setTheme(v as ThemeChoice)} items={[{ id: "light", label: "Light" }, { id: "dark", label: "Dark" }, { id: "system", label: "System" }]} />
             <Segmented label="Inspector" value={inspector} onChange={setInspector} items={[{ id: "on", label: "Inspector" }, { id: "off", label: "None" }]} />
-            <InspectorToggle />
           </>
         }
       />
@@ -235,7 +234,7 @@ function Specimen() {
             <div className="row">
               <Button size="sm" variant="primary">Save</Button>
               <Button size="sm">Try again</Button>
-              <Button size="sm" variant="quiet" icon="panel-right">Details</Button>
+              <Button size="sm" variant="quiet" icon="pencil">Edit</Button>
               <ButtonLink size="sm" to="/_system">A link as a button</ButtonLink>
             </div>
           </Row>

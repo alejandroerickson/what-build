@@ -281,7 +281,7 @@ One floating panel carries the product's whole story, Idea, Evidence, Synthesis 
 
 The system is dense and quiet. The UI runs at 12px in Inter; text people actually read (passages, quotes, Markdown) steps up to 13 to 13.5px. Hierarchy comes from weight (600) and grey steps rather than size, and nothing in the app is larger than 20px except the overview's intro. Indigo is the only chromatic voice in the chrome, reserved for selection, focus, primary commits and pointing at evidence. Status always pairs a small shaped mark with a word.
 
-The panel can hide (a button or Ctrl/Cmd+\). The canvas widens in a single 200ms motion and a floating pill with the mark, product and section takes its place. Item screens (a Story, a source) add a 272px inspector floating on the right. The shipped Story export is a separate reading surface: it borrows the app's colours, radii and UI face through a derived token set and pairs them with a serif reading face of its own.
+The panel can hide (a button or Ctrl/Cmd+\). The canvas widens in a single 200ms motion and a floating pill with the mark, product and section takes its place. Item screens (a Story, a source) add a 272px inspector floating on the right, which hides and returns the same way: a button in its head or Shift+Ctrl/Cmd+\, and a square at the top-right inset in its place. The shipped Story export is a separate reading surface: it borrows the app's colours, radii and UI face through a derived token set and pairs them with a serif reading face of its own.
 
 **Key Characteristics:**
 - A 264px floating left panel and 272px floating inspector around one scrolling canvas (content max 900px).
@@ -349,15 +349,15 @@ A neutral grey studio with a single indigo accent and three status hues; every v
 
 ## Layout
 
-The stage is fixed to the viewport. The left panel floats at a 10px inset (264px wide, full height), and the canvas is the one page scroller behind it, padded 28px top, 40px sides and 80px bottom, plus the panel's width on the left. Content is centred at a maximum of 900px. On item screens the inspector floats at the right inset (272px), and the canvas adds its width to the right padding while it is docked.
+The stage is fixed to the viewport. The left panel floats at a 10px inset (264px wide, full height), and the canvas is the one page scroller behind it, padded 28px top, 40px sides and 80px bottom, plus the panel's width on the left. Content is centred at a maximum of 900px. On item screens the inspector floats at the right inset (272px), and the canvas adds its width to the right padding while it is docked. While it is hidden, the canvas keeps clear of the square that brings it back.
 
 The panel stacks, top to bottom: brand row (W mark, wordmark, hide button), product switcher, the four ordered sections with counts, quiet Agents and Settings links, a context slot the route fills (Story tree, source filters) that scrolls independently, and the account at the foot. Hairlines separate each block.
 
 Screens are built from sheets. A sheet head (min 52px) holds the title and count, filters or segmented control, and actions at the right. Rows below are inset by an 18px sheet gutter (14px on phones) and divided by hairlines. Stacked sheets and callouts sit 16px apart. Spacing follows a 2px-based scale; 6, 8, 10, 12 and 14px do most of the work.
 
 Responsive behaviour:
-- **1100px and below:** the inspector overlays the canvas with the lifted shadow and slides out when closed. The canvas keeps a 24px right gutter.
-- **760px and below:** the panel becomes a flush overlay drawer (min(320px, 86vw)) with square corners over a dimmed scrim. The inspector goes flush on the right. Sheets run edge to edge with square corners, and the canvas pads 56px top, 12px sides and 60px bottom.
+- **1100px and below:** the inspector starts hidden, and hides again whenever the window crosses 1100px. Shown, it still docks beside the canvas; it never overlays content. The canvas gutters tighten to 24px.
+- **760px and below:** the panel becomes a flush overlay drawer (min(320px, 86vw)) with square corners over a dimmed scrim. The inspector becomes the same kind of drawer, flush on the right; only one drawer is open at a time. Sheets run edge to edge with square corners, and the canvas pads 56px top, 12px sides and 60px bottom.
 
 ### Named Rules
 **The One Scroller Rule.** The canvas scrolls the page. Only the panel's context slot, the inspector body, menus and dialogs scroll on their own.
@@ -370,7 +370,7 @@ Depth is tonal layering plus two shadows. White surfaces lift off the grey canva
 
 ### Shadow Vocabulary
 - **Resting** (`--shadow`: `0 2px 5px rgb(0 0 0 / 0.08), 0 0 0 0.5px rgb(0 0 0 / 0.12)`): panels, sheets, the pill, callouts, and the current segmented item.
-- **Lifted** (`--shadow-2`: `0 10px 28px rgb(0 0 0 / 0.16), 0 0 0 0.5px rgb(0 0 0 / 0.14)`): menus, dialogs, toasts, the skip link, and panels or inspectors once they overlay content at narrow widths.
+- **Lifted** (`--shadow-2`: `0 10px 28px rgb(0 0 0 / 0.16), 0 0 0 0.5px rgb(0 0 0 / 0.14)`): menus, dialogs, toasts, the skip link, and the panel or inspector once it becomes a phone drawer.
 - **Paper** (`--shadow-paper`: `0 0 0 1px rgb(0 0 0 / 0.06), 0 1px 3px rgb(0 0 0 / 0.06)`): the preview frame for an uploaded original, which draws as light paper in both themes.
 
 ### Named Rules
@@ -419,7 +419,7 @@ Compact and calm. Default buttons read as white tiles with a hairline, not as fi
 - **Toast:** a 40px popover row with an 8px radius, hairline border and lifted shadow, holding a tone icon, text, an optional action and a close button.
 
 ### The Floating Pill (signature)
-When the panel hides, a 32px pill takes its place at the top-left inset: panel fill, 8px corners, resting shadow, W mark, product name in 500 and the section in faint 400. It slides in over 200ms while the canvas widens on the same 200ms ease.
+When the panel hides, a 32px pill takes its place at the top-left inset: panel fill, 8px corners, resting shadow, W mark, product name in 500 and the section in faint 400. It slides in over 200ms while the canvas widens on the same 200ms ease. A hidden inspector leaves its counterpart at the top-right inset: a 32px square in the same fill, corners and shadow, holding the panel-right-open glyph.
 
 ### The W Mark
 A rounded square filled with ink, with a W stroked in the panel colour (2.6 stroke, round caps and joins) beside the "WhatBuild" wordmark in 13px semibold. The mark inverts automatically with the theme.

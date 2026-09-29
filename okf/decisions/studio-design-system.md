@@ -19,6 +19,7 @@ People mostly read evidence and synthesis. The interface should stay out of the 
 - One floating left panel holds Idea, Evidence, Synthesis, Story in that order, then Agents and Settings. It hides fully, never to an icon rail.
 - Destinations are named for what they hold: Evidence holds the sources; Synthesis holds Insights (the insight documents) and the assumption and decision registers. The web app's URLs follow the areas (`/evidence/…`, `/synthesis/insights|assumptions|decisions/…`). Objects keep their own nouns (source, insight), and so do REST paths, operations and MCP tools (`sources`, `insights`), because those address objects rather than areas.
 - No in-app tabs, peek drawers or embedded agent chat: rows are real links and the browser owns tabs and history. A right-hand inspector appears only on Story and source pages.
+- The right-hand inspector hides and shows by the same mechanism as the panel: a hide button in its head, a shortcut, and a small button in its place while hidden. Shown, it docks beside the content at every width above a phone, and on a phone it is a drawer like the panel; it never overlays content that should stay usable. At 1100px and below it starts hidden. The maintainer chose this on 2026-09-28, replacing an overlay opened by a "Details" button that appeared only on narrow screens.
 - Activity is reached from the account menu. Menus and popovers follow the light or dark theme; the theme follows the system by default.
 - Inter and Lucide icons are installed with the app (the CSP allows scripts only from the app's origin).
 
