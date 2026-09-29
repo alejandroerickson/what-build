@@ -41,10 +41,19 @@ export function OverviewPage() {
             <BrandMark size={34} />
             <span>WhatBuild</span>
           </h1>
+          <p className="overview-origin">It all starts with an idea: someone you could help, and a problem worth solving.</p>
         </div>
         <div className="overview-pitch">
           <p className="overview-question">What to build?</p>
-          <p className="overview-lead">Turn interviews, calls and documents into reviewed decisions, with every claim cited to the passage it came from.</p>
+          <p className="overview-pressure">
+            AI made building fast. Deciding what to build did not get any faster. Teams are expected to keep up anyway: to agree, stay
+            aligned, and understand what they are building well enough to ship it, while every interview, call and document pulls a
+            different way.
+          </p>
+          <p className="overview-about">
+            WhatBuild is where your team and your agents work it out. Bring in the evidence, reach decisions a person has reviewed, and
+            share a Story in which every claim points to the passage it came from.
+          </p>
           <Link to="/connect" className="overview-agent-link">
             <Glyph name="plug" size="sm" />
             Connect an agent

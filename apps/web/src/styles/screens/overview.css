@@ -54,6 +54,13 @@
   line-height: 1;
   letter-spacing: var(--tracking-brand);
 }
+.overview-origin {
+  max-width: 44ch;
+  margin: var(--s-5) 0 0;
+  color: var(--muted);
+  font-size: var(--fs-lead);
+  line-height: var(--lh-body);
+}
 .overview-question {
   margin: 0;
   font-size: var(--fs-display);
@@ -62,12 +69,19 @@
   letter-spacing: var(--tracking-display);
   text-wrap: balance;
 }
-.overview-lead {
-  max-width: 46ch;
+.overview-pressure {
+  max-width: 54ch;
   margin: var(--s-4) 0 0;
-  color: var(--muted);
   font-size: var(--fs-lead);
   line-height: var(--lh-body);
+  text-wrap: pretty;
+}
+.overview-about {
+  max-width: 60ch;
+  margin: var(--s-3) 0 0;
+  color: var(--muted);
+  font-size: var(--fs-prose);
+  line-height: 1.62;
   text-wrap: pretty;
 }
 .overview-agent-link {
