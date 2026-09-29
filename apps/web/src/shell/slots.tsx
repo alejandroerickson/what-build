@@ -25,11 +25,14 @@ export interface ShellSlots {
   /** "Hide details", or "Close details" where the inspector is a phone drawer. */
   inspectorHideLabel: string;
   setPageTitle: (title: string | null) => void;
+  /** Focus mode: both panels hidden so the content has the whole window. Leaving it restores them as they were. */
+  focus: boolean;
+  setFocus: (on: boolean) => void;
 }
 
 export const ShellContext = createContext<ShellSlots | null>(null);
 
-function useSlots(): ShellSlots | null {
+export function useSlots(): ShellSlots | null {
   return useContext(ShellContext);
 }
 

@@ -15,6 +15,7 @@ export type EntityType =
   | "decision"
   | "story_page"
   | "story_hierarchy"
+  | "story_style"
   | "annotation"
   | "feedback";
 

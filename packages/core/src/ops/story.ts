@@ -6,11 +6,13 @@ import { json, type Refs, type StoryNode } from "../db.ts";
 import { conflict, invalid, notFound } from "../errors.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag, id } from "../schemas.ts";
-import { escapeHtml, inspectStoryHtml, STORY_HTML_MAX } from "../story-html.ts";
+import { escapeHtml, inspectStoryCss, inspectStoryHtml, STORY_CSS_MAX, STORY_HTML_MAX } from "../story-html.ts";
 import { composePrintDocument, PRINT_MAX_PAGES, printOrder } from "../story-print.ts";
 import {
-  CHECKLIST, components, CONTENT_RULES, DESIGN_RULES, GUIDANCE_VERSION, layouts, linkTemplates, starterHtml, STYLESHEET, TOKENS, WORKFLOW, WRITING,
+  ANTI_PATTERNS, catalogue, CHECKLIST, components, COMPOSITIONS, CONTENT_RULES, DESIGN_PASSES, DESIGN_TOOLS, GUIDANCE_VERSION, linkTemplates, SANDBOX_RULES,
+  starterHtml, STYLE_WORKFLOW, TASTE, VOCABULARY, WORKFLOW, WRITING,
 } from "../story-guidance.ts";
+import { HOUSE_STYLE_IDS, houseStyle, PLAIN_STYLESHEET } from "../story-styles.ts";
 import { newEtag, newId, randomToken, sha256Hex, uniq } from "../util.ts";
 
 export const MAX_PAGES = 50;
@@ -47,44 +49,161 @@ function pageSummary(p: { page_id: string; title: string; summary: string; versi
   return { page_id: p.page_id, title: p.title, summary: p.summary, current_version: p.version_count, current_version_id: p.current_version_id, archived_at: p.archived_at, etag: p.etag, updated_at: p.updated_at, updated_by: p.updated_by };
 }
 
+type StyleRow = { name: string; summary: string; based_on: string | null; rules: string; stylesheet: string; specimen_html: string | null; etag: string; updated_at: string; updated_by: unknown };
+
+async function loadStyle(ctx: OpContext, lock = false) {
+  let q = ctx.db.selectFrom("story_styles").selectAll().where("product_id", "=", productId(ctx));
+  if (lock) q = q.forUpdate();
+  return q.executeTakeFirst();
+}
+
+function styleView(s: StyleRow, withCss: boolean) {
+  const base = houseStyle(s.based_on ?? "");
+  return {
+    name: s.name,
+    summary: s.summary,
+    based_on: s.based_on,
+    based_on_name: base?.name ?? null,
+    kind: s.based_on ? ("house" as const) : ("team" as const),
+    rules: s.rules,
+    ...(withCss ? { stylesheet: s.stylesheet } : { stylesheet_chars: s.stylesheet.length }),
+    has_own_specimen: s.specimen_html !== null,
+    etag: s.etag,
+    updated_at: s.updated_at,
+    updated_by: s.updated_by,
+  };
+}
+
+const GUIDANCE_SECTIONS = ["all", "style", "design", "components", "writing", "checklist"] as const;
+
 export const guidance = defineOperation({
   name: "story.guidance",
   scope: "product",
   access: "read",
   mutates: false,
-  summary: "Design and writing guidance for Story pages: tokens, stylesheet, recipes, layouts, editorial passes, checklist and a starter page.",
+  summary: "How to write and design Story pages: choosing the product's Story style, taste, anti-patterns, design passes, recipes, compositions, writing rules and a checklist.",
   description:
-    "Read this before publishing. Pages render in a sandbox with no network and cannot use the app's components or theme, so use the returned native HTML and CSS. section narrows the response: all, design, components, layouts, writing, checklist. Every section keeps the rendering rules, link templates and limits.",
-  input: z.strictObject({ section: z.enum(["all", "design", "components", "layouts", "writing", "checklist"]).default("all") }),
+    "Read this before publishing. The Story follows the product's Story style (get_style), never WhatBuild's app look: the team's own design system, or a house style adopted for the product. house_style returns that style's full stylesheet, rules and a starter page, so you can show it or adopt it. section narrows the response: all, style, design, components, writing, checklist. Every section keeps the rendering rules, link templates and limits.",
+  input: z.strictObject({
+    section: z.enum(GUIDANCE_SECTIONS).default("all"),
+    house_style: z.enum(HOUSE_STYLE_IDS).optional().describe("A house style to return in full: broadsheet, tufte, swiss or briefing."),
+  }),
   rest: { method: "GET", path: "/story/guidance" },
   mcp: { tool: "story", action: "guidance" },
   async handler(ctx, input) {
     const links = linkTemplates(ctx.ports.config.publicBaseUrl, productPath(ctx));
+    const current = await loadStyle(ctx);
+    const picked = input.house_style ? houseStyle(input.house_style)! : undefined;
     const base = {
       section: input.section,
       version: GUIDANCE_VERSION,
-      available_sections: ["all", "design", "components", "layouts", "writing", "checklist"],
+      available_sections: GUIDANCE_SECTIONS,
       format: "One self-contained HTML document with inline CSS and optional bounded inline JavaScript; no remote resources.",
       rendering:
         "HTML is untrusted and shown in a sandboxed frame. Bounded inline scripts run; forms, frames, remote resources, same-origin access and navigating the parent are blocked. Use target=\"_blank\" rel=\"noopener noreferrer\" on evidence and related-page links. Replace every REPLACE placeholder and adapt recipes to the content.",
+      product_style: current
+        ? { name: current.name, based_on: current.based_on, summary: current.summary, etag: current.etag, read_with: 'story(action="get_style")' }
+        : { none: true, next: "Settle the Story style with the person before the first page: see style_workflow." },
       links,
-      limits: { html_characters: STORY_HTML_MAX, inline_scripts: 10, script_characters: 32000, pages_per_product: MAX_PAGES, hierarchy_depth: MAX_DEPTH },
+      limits: { html_characters: STORY_HTML_MAX, stylesheet_characters: STORY_CSS_MAX, inline_scripts: 10, script_characters: 32000, pages_per_product: MAX_PAGES, hierarchy_depth: MAX_DEPTH },
+      ...(picked ? { house_style: { ...picked, starter_html: starterHtml(picked.stylesheet) } } : {}),
     };
-    const design = { tokens: TOKENS, rules: DESIGN_RULES, integration: "The frame cannot inherit the app's stylesheet, so paste the stylesheet once into a <style> element; it embeds resolved values, not a runtime import." };
+    const style = { style_workflow: STYLE_WORKFLOW, house_styles: catalogue(), vocabulary: VOCABULARY };
+    const design = { taste: TASTE, anti_patterns: ANTI_PATTERNS, design_passes: DESIGN_PASSES, design_tools: DESIGN_TOOLS, sandbox_rules: SANDBOX_RULES, compositions: COMPOSITIONS };
     switch (input.section) {
+      case "style":
+        return { ...base, ...style };
       case "design":
-        return { ...base, design, stylesheet: STYLESHEET };
+        return { ...base, ...design };
       case "components":
-        return { ...base, components: components(links), stylesheet: STYLESHEET };
-      case "layouts":
-        return { ...base, layouts: layouts(), stylesheet: STYLESHEET };
+        return { ...base, vocabulary: VOCABULARY, components: components(links), compositions: COMPOSITIONS };
       case "writing":
         return { ...base, workflow: WORKFLOW, content: CONTENT_RULES, writing: WRITING };
       case "checklist":
-        return { ...base, checklist: CHECKLIST };
+        return { ...base, checklist: CHECKLIST, anti_patterns: ANTI_PATTERNS };
       default:
-        return { ...base, workflow: WORKFLOW, content: CONTENT_RULES, design, stylesheet: STYLESHEET, components: components(links), layouts: layouts(), writing: WRITING, checklist: CHECKLIST, starter_html: starterHtml() };
+        return { ...base, workflow: WORKFLOW, ...style, ...design, content: CONTENT_RULES, components: components(links), writing: WRITING, checklist: CHECKLIST };
     }
+  },
+});
+
+export const STYLE_RULES_MAX = 20_000;
+
+export const getStyle = defineOperation({
+  name: "story.get_style",
+  scope: "product",
+  access: "read",
+  mutates: false,
+  summary: "The product's Story style: the design system every Story page follows, with its rules and stylesheet. Also lists the house styles.",
+  description:
+    "Read this before writing or restyling any page, and paste the stylesheet into the page's <style>. style is null until someone sets one: then ask the person whether their company has a design system to follow, or offer a house style (guidance with house_style shows one in full), and save the choice with set_style. kind is house (adopted from a house style, possibly adapted) or team (the team's own design system). include_stylesheet false leaves the CSS out.",
+  input: z.strictObject({ include_stylesheet: z.boolean().default(true) }),
+  rest: { method: "GET", path: "/story/style" },
+  mcp: { tool: "story", action: "get_style" },
+  async handler(ctx, input) {
+    const s = await loadStyle(ctx);
+    return { style: s ? styleView(s, input.include_stylesheet) : null, house_styles: catalogue() };
+  },
+});
+
+export const setStyle = defineOperation({
+  name: "story.set_style",
+  scope: "product",
+  access: "write",
+  mutates: true,
+  summary: "Set the product's Story style: adopt a house style, or save the team's own design system as one stylesheet and its rules.",
+  description:
+    "house_style adopts a house style whole (broadsheet, tufte, swiss or briefing); pass other fields with it to adapt it. Without house_style, fields you omit carry forward from the current style; the first style needs name, rules and stylesheet, and is the team's own. Pass based_on: null when you replace an adopted house style with the team's own design system. A team stylesheet should style the shared vocabulary (guidance → vocabulary) so pages can move between styles; the app previews it on a sample page unless you pass specimen_html, a page in the style, validated like a Story page. The stylesheet follows the same rules as a page's <style>: no @import and data: URIs only. expected_etag is the style's etag, required once a style exists. Setting a style does not restyle published pages: republish them in the new style.",
+  input: z.strictObject({
+    house_style: z.enum(HOUSE_STYLE_IDS).optional().describe("Adopt this house style."),
+    name: z.string().trim().min(1).max(80).optional(),
+    summary: z.string().trim().max(300).optional(),
+    rules: z.string().min(1).max(STYLE_RULES_MAX).optional().describe("Markdown: the style's character, type, colour, signature moves and what to avoid."),
+    stylesheet: z.string().min(1).max(STORY_CSS_MAX).optional(),
+    specimen_html: z.string().max(STORY_HTML_MAX).nullable().optional().describe("A page that shows the style; null returns to the sample page."),
+    based_on: z.enum(HOUSE_STYLE_IDS).nullable().optional().describe("The house style this adapts, or null when it is the team's own design system. Carried forward when omitted."),
+    expected_etag: expectedEtag.optional().describe("The style's etag from get_style. Required once a style exists."),
+  }),
+  rest: { method: "PUT", path: "/story/style" },
+  mcp: { tool: "story", action: "set_style" },
+  async handler(ctx, input) {
+    const current = await loadStyle(ctx, true);
+    if (current) {
+      if (input.expected_etag === undefined) throw conflict("stale_etag", "This product already has a Story style; read it with get_style and pass its etag as expected_etag.", { current_etag: current.etag });
+      checkEtag(input.expected_etag, current.etag, "Story style");
+    }
+    const house = input.house_style ? houseStyle(input.house_style)! : undefined;
+    const start = house
+      ? { name: house.name, summary: house.summary, based_on: house.id as string | null, rules: house.rules, stylesheet: house.stylesheet, specimen_html: null as string | null }
+      : current
+        ? { name: current.name, summary: current.summary, based_on: current.based_on, rules: current.rules, stylesheet: current.stylesheet, specimen_html: current.specimen_html }
+        : null;
+    if (!start && (!input.name || !input.rules || !input.stylesheet))
+      throw invalid("invalid_input", "The first Story style needs house_style, or name, rules and stylesheet for the team's own design system.");
+    const next = {
+      name: input.name ?? start!.name,
+      summary: input.summary ?? start?.summary ?? "",
+      based_on: input.based_on !== undefined ? input.based_on : (start?.based_on ?? null),
+      rules: input.rules ?? start!.rules,
+      stylesheet: input.stylesheet ?? start!.stylesheet,
+      specimen_html: input.specimen_html !== undefined ? input.specimen_html : (start?.specimen_html ?? null),
+    };
+    const problems = [...inspectStoryCss(next.stylesheet), ...(next.specimen_html !== null ? inspectStoryHtml(next.specimen_html).map((p) => `Specimen: ${p}`) : [])];
+    if (problems.length) throw invalid("invalid_style", `The Story style was not saved: ${problems.join(" ")}`, { problems });
+    if (current && (["name", "summary", "based_on", "rules", "stylesheet", "specimen_html"] as const).every((k) => current[k] === next[k]))
+      return { style: styleView(current, false), changed: false };
+    const etag = newEtag();
+    const row = { ...next, etag, updated_at: ctx.now, updated_by: json(ctx.actor) };
+    if (current) await ctx.db.updateTable("story_styles").set(row).where("product_id", "=", productId(ctx)).execute();
+    else await ctx.db.insertInto("story_styles").values({ ...row, product_id: productId(ctx), tenant_id: tenantId(ctx) }).execute();
+    await recordActivity(ctx, {
+      action: current ? "updated" : "created",
+      entity_type: "story_style",
+      entity_id: productId(ctx),
+      entity_title: next.name,
+      summary: house ? `Adopted the ${house.name} house style for the Story` : current ? "Updated the Story style" : "Set the team's design system as the Story style",
+    });
+    return { style: styleView((await loadStyle(ctx))!, false), changed: true };
   },
 });
 
@@ -233,15 +352,28 @@ export const getVersion = defineOperation({
   },
 });
 
-/** The page generated when a first version omits html: its title and summary on the Story stylesheet. */
-function titlePageHtml(title: string, summary: string) {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)}</title><style>${STYLESHEET}</style></head><body><main class="wb-page wb-prose"><h1>${escapeHtml(title)}</h1>${summary ? `<p class="wb-lead">${escapeHtml(summary)}</p>` : ""}</main></body></html>`;
+/**
+ * The page generated when a first version omits html: its title and summary, in the product's Story
+ * style when it has one and in a plain page otherwise.
+ */
+function titlePageHtml(title: string, summary: string, stylesheet: string) {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)}</title><style>${stylesheet}</style></head><body><main class="page"><header class="opening"><h1>${escapeHtml(title)}</h1>${summary ? `<p class="lead">${escapeHtml(summary)}</p>` : ""}</header></main></body></html>`;
 }
 
-/** Whether html is the generated title page for this title and summary, under any version of the stylesheet. */
+/** The title page as it was generated before Story styles, so an old one is still recognised. */
+function legacyTitlePageHtml(title: string, summary: string) {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)}</title><style></style></head><body><main class="wb-page wb-prose"><h1>${escapeHtml(title)}</h1>${summary ? `<p class="wb-lead">${escapeHtml(summary)}</p>` : ""}</main></body></html>`;
+}
+
+/** Whether html is a generated title page for this title and summary, under any stylesheet. */
 function isTitlePage(html: string, title: string, summary: string) {
   const unstyled = (h: string) => h.replace(/<style>[\s\S]*?<\/style>/, "<style></style>");
-  return unstyled(html) === unstyled(titlePageHtml(title, summary));
+  const u = unstyled(html);
+  return u === unstyled(titlePageHtml(title, summary, "")) || u === legacyTitlePageHtml(title, summary);
+}
+
+async function titleStylesheet(ctx: OpContext) {
+  return (await loadStyle(ctx))?.stylesheet ?? PLAIN_STYLESHEET;
 }
 
 /** Apply exact find/replace edits in order; each find must occur exactly once in the text it meets. */
@@ -302,7 +434,7 @@ export const publish = defineOperation({
       if (!input.title) throw invalid("invalid_input", "A page's first version needs a title.");
       if (input.patch_html) throw invalid("invalid_input", "patch_html edits an earlier version; a page's first version needs html.");
       const summary = input.summary ?? "";
-      const html = input.html ?? titlePageHtml(input.title, summary);
+      const html = input.html ?? titlePageHtml(input.title, summary, await titleStylesheet(ctx));
       const problems = inspectStoryHtml(html);
       if (problems.length) throw invalid("invalid_html", `The page was not published: ${problems.join(" ")}`, { problems });
       const refs = await validateRefs(ctx, input.refs ?? EMPTY_REFS);
@@ -333,7 +465,7 @@ export const publish = defineOperation({
       // A generated title page follows a new title or summary rather than keeping the old one.
       const html =
         input.html ??
-        (input.patch_html ? patchHtml(from.html, input.patch_html) : isTitlePage(from.html, from.title, from.summary) ? titlePageHtml(title, summary) : from.html);
+        (input.patch_html ? patchHtml(from.html, input.patch_html) : isTitlePage(from.html, from.title, from.summary) ? titlePageHtml(title, summary, await titleStylesheet(ctx)) : from.html);
       const problems = inspectStoryHtml(html);
       if (problems.length) throw invalid("invalid_html", `The page was not published: ${problems.join(" ")}`, { problems });
       const refs = input.refs ? await validateRefs(ctx, input.refs) : from.refs;
@@ -645,4 +777,5 @@ export const printDocument = defineOperation({
   },
 });
 
-export const storyOps = [guidance, listPages, getPage, listVersions, getVersion, publish, writeNotes, checkStoryCitations, printView, getHierarchy, setHierarchy, archivePage, restorePage];
+export const storyOps = [guidance, getStyle, setStyle, listPages, getPage, listVersions, getVersion, publish, writeNotes, checkStoryCitations, printView, getHierarchy, setHierarchy, archivePage, restorePage];
+

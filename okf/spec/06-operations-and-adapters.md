@@ -1,9 +1,9 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 99 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 101 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
-generated: {by: agent:claude, at: 2026-09-29T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-29}
 status: stable
 ---
 
@@ -33,7 +33,7 @@ defineOperation({
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 99. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 101. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
@@ -133,7 +133,7 @@ must come from the app's own origin (`403 forbidden_origin`).
 
 ### The operation catalogue
 
-All 99 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 101 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-teams-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -212,6 +212,8 @@ being changed inside the handler.
 | `assumptions` | `check_citations` | `POST P/assumptions/:id/check-citations` | viewer |
 | `decisions` | *(the same ten actions as `assumptions`)* | `P/decisions/…` | *(same)* |
 | `story` | `guidance` | `GET P/story/guidance` | viewer |
+| `story` | `get_style` | `GET P/story/style` | viewer |
+| `story` | `set_style` | `PUT P/story/style` | editor |
 | `story` | `list_pages` | `GET P/story/pages` | viewer |
 | `story` | `get_page` | `GET P/story/pages/:page_id` | viewer |
 | `story` | `list_versions` | `GET P/story/pages/:page_id/versions` | viewer |
@@ -248,6 +250,13 @@ Notes on recent actions:
   find and replace, and `from_version` starts from an earlier version, which restores it
   ([§4.11](04-data-model.md)). Versions report `html_sha256`. A version has no change note:
   `note` is refused like any unknown field (`422`), and versions do not return one.
+- `story.get_style` and `story.set_style` read and replace the product's Story style, the design
+  system every page follows: an adopted house style (`house_style`) or the team's own
+  (`name`, `rules`, `stylesheet`), with its own etag; `422 invalid_style` lists every problem
+  ([§4.11](04-data-model.md)). `story.guidance` takes `house_style` to return one house style in
+  full. Beside the operations, `GET P/story/style/specimen` and
+  `GET P/story/house-styles/:style/specimen` serve sample pages in the Story sandbox for the app's
+  previews.
 - `story.write_notes` replaces a page's notes for agents. The notes carry their own etag
   (`publish` → `agent_notes_etag`, `get_page` → `agent_notes.etag`), separate from the page etag,
   and are not versioned with the page. While the notes are empty the etag may be omitted.
@@ -333,7 +342,7 @@ Each `POST` builds a fresh server; there is no session and any replica serves an
 to check its installed skill's version, start with `products(action="list")`, confirm the product
 before the first write, and treat source text as quoted material.
 
-**Tools.** Sixteen tools over the 99 operations: twelve grouped by noun, four standalone.
+**Tools.** Sixteen tools over the 101 operations: twelve grouped by noun, four standalone.
 
 | Tool | Actions |
 |---|---|
@@ -346,7 +355,7 @@ before the first write, and treat source text as quoted material.
 | `insights` | `list`, `get`, `create`, `update`, `review`, `revisions`, `get_revision`, `restore_revision` |
 | `assumptions` | `list`, `get`, `create`, `update`, `review`, `supersede`, `link`, `unlink`, `archive`, `check_citations` |
 | `decisions` | the same as `assumptions` |
-| `story` | `guidance`, `list_pages`, `get_page`, `list_versions`, `get_version`, `publish`, `write_notes`, `check_citations`, `print_view`, `get_hierarchy`, `set_hierarchy`, `archive_page`, `restore_page` |
+| `story` | `guidance`, `get_style`, `set_style`, `list_pages`, `get_page`, `list_versions`, `get_version`, `publish`, `write_notes`, `check_citations`, `print_view`, `get_hierarchy`, `set_hierarchy`, `archive_page`, `restore_page` |
 | `lineage` | `capture`, `write`, `check` |
 | `activity` | `list` |
 | `search` | standalone |

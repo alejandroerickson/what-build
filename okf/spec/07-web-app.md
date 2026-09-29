@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Synthesis, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-09-29T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-29}
 status: stable
 ---
 
@@ -349,17 +349,36 @@ the right. Agents write, arrange, archive and restore it; the screen reads it an
 that changes it ([decision](../decisions/agents-maintain-the-story-people-read-it.md)).
 
 - **Reader first.** The page tree sits in the panel's context slot, and the canvas holds the crumbs
-  (the current one is the screen's heading) and then the page, with nothing between them. Opens
+  (the current one is the screen's heading), the focus mode control, and then the page, with
+  nothing between them. Opens
   the last page this browser read in this product, otherwise the first root page. Pages render
   only in the sandboxed frame ([§4.11](04-data-model.md)); the frame follows the app's theme.
   Until the frame has its document, skeleton lines stand in for the page. A callout appears above
-  the page only for a state the reader must know: the page is archived, or an earlier version is
-  shown (with **Show the current version**).
+  the page only for a state the reader must know: the page is archived, an earlier version is
+  shown (with **Show the current version**), or the page tried to open another address in its
+  place, and was put back.
+- **Focus mode.** Both side panels and their show buttons step aside, and the page may run wider
+  (`--content-max-focus`). **F** toggles it and **Esc** leaves it, from the app or from inside the
+  page (the frame passes the two keys on); not while typing or with a dialog or menu open. The
+  first time a browser opens a Story that has a page, focus mode turns on by itself, with a hint
+  beside the control that F or Esc brings the panels back; after that the browser remembers the
+  last choice (`whatbuild.story.focus`). The control beside the crumbs (**Focus**, or **Show
+  panels** in focus mode, each with an F keycap) is always there. The panel shortcuts (⌘\ and
+  ⇧⌘\) also leave focus mode, and leaving the Story ends it; the panels come back as they were.
+  At phone width, where the panels are drawers already, there is no focus mode.
 - **The tree.** A keyboard tree (one tab stop, arrow keys to move and to open or close a branch)
   with "Find a page", the current page marked and its ancestors kept open, and sections for
   **Unplaced pages** (published, not yet placed by an agent) and **Archived pages**. The only row
   action is export: each row's menu offers **Export this page to PDF…** and, for a page with
-  subpages, **Export with its subpages…**.
+  subpages, **Export with its subpages…**. Under the tree, **Story style** names the product's
+  Story style ("A house style", "Adapted from Tufte", "Your design system", or "None yet") and
+  opens the style dialog.
+- **The style dialog** lists the style in use and the four house styles, and shows the chosen one
+  on the same sample page, in the Story sandbox, laid out at desktop width and scaled to fit, with
+  a link to open it full size. For a house style it says what it is best for and its character,
+  and gives a sentence to copy and send to an agent ("Adopt the Tufte house style for our
+  WhatBuild Story."); a second sentence asks an agent to follow the company's own design system.
+  The dialog changes nothing itself ([decision](../decisions/story-pages-follow-the-teams-design-system.md)).
 - **The inspector** carries everything else about the page:
   - **About:** who published the shown version and when, and its version number. With more than
     one version, the number is a menu of every version with its date, and choosing one shows it
@@ -382,7 +401,8 @@ that changes it ([decision](../decisions/agents-maintain-the-story-people-read-i
   opens the print view in a new tab ([§7.3](#73-routes)), which opens the browser's print dialog to
   save it as PDF.
 - An empty Story uses the first-use state ([§7.5](#75-idea)): agents write it, so the request to
-  copy is the only path.
+  copy is the only path. It says pages follow the company's design system or a house style, and
+  offers **Preview Story styles**.
 
 ## 7.9 Activity
 

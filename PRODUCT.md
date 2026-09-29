@@ -65,8 +65,9 @@ permissions and one activity log.
 - Citations snapshot the exact text; drift is reported, never repaired silently.
 - Archive is the reversible default everywhere; delete is permanent, explicit and guarded.
 - Story pages are agent-authored, self-contained HTML shown in a sandbox. Agents write and arrange
-  the Story; people read it and export it to PDF. Their styling comes from
-  service-provided guidance whose tokens derive from the product's own design system.
+  the Story; people read it and export it to PDF. Pages follow the product's Story style: the
+  company's own design system, or a house style an agent adopted for the product. Never
+  WhatBuild's own look, since a Story is often read outside the team.
 - Vocabulary is fixed: source, passage, segment, outcome, insight, assumption, decision, Story,
   archive. Never "findings", "claims", "document store" or a storage path in the UI.
 - WCAG 2.2 AA, fully keyboard-operable, usable at phone width.

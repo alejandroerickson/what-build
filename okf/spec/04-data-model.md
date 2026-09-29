@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their taxonomy, files, annotations, insights and insight review, the registers and citations, views and lineage, activity, Story, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, citations, revisions, story, export]
-generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-29}
 status: stable
 ---
 
@@ -472,6 +472,15 @@ data:; media-src data:; connect-src 'none'; …`), and the web app shows it in a
 reaches nothing of the application. Validation is a courtesy to authors; the sandbox is the
 security boundary. This matters because the author of a Story page and its reader are routinely
 different people.
+The route takes `?theme=light|dark` (written onto the page's `<html>` as `data-wb-theme` for that
+response) and `?frame=1`, which the app's frame always sends: it appends one inline script, inside
+the sandbox, that posts only the name of an F or Esc key press to the parent (focus mode,
+[§7.8](07-web-app.md)) and turns a click on a link that would replace the page in its frame into a
+new tab. The stored HTML is never changed. The app resets a frame that loads a second document (a
+page navigating itself by script) and says so, and the app's own pages send
+`Cross-Origin-Opener-Policy: same-origin`, so a Story page cannot keep a handle to an app tab it
+opened and redirect it later. The print view drops scripts, event handlers and every element
+publishing refuses, whatever a stored page holds.
 
 **Citations.** A version may carry up to 20 `citations`, `{ record_id, seq_start, seq_end,
 quote? }`, snapshotted exactly as register citations are (§4.8), with the same quote budget of
@@ -500,16 +509,43 @@ it; placing a page never publishes it. Unplaced pages are listed for editors and
 reader's navigation. Archived pages are dropped from the rendered navigation but keep their place
 if restored.
 
-**Guidance.** `story.guidance` returns versioned design and writing guidance (tokens, a
-stylesheet, recipes, layouts, editorial passes, a checklist and a starter page) so authoring
-quality does not depend on an agent's taste. Its colors, radii and UI fonts are copied from the web
-app's design tokens ([`story-guidance.ts`](../../packages/core/src/story-guidance.ts)), and a
-server test fails when the two drift apart. The stylesheet keeps pages readable at phone width
-(about 390 px): tables sit in a scrolling `.wb-table-wrap`, cells keep a minimum width so a fourth
-column scrolls rather than squeezes, and status labels never wrap. The writing guidance asks for
-source-level quoting rules honoured (attribution by role where a source
-limits naming people), derived views labelled as analysis rather than evidence, and pages placed in
-the hierarchy unless the author's instructions say otherwise.
+**Story style.** A product has at most one: the design system every Story page follows, either the
+company's own or a **house style** adopted for the product
+([decision](../decisions/story-pages-follow-the-teams-design-system.md)). Fields: `name` (1–80),
+`summary` (≤ 300), `based_on` (a house style id, or null for the team's own), `rules` (Markdown,
+≤ 20,000), `stylesheet` (≤ 200,000 chars, the same rules as a page's `<style>`: no `@import`, `url()`
+only to `data:`), an optional `specimen_html` (a page in the style, validated like a Story page),
+`etag`, `updated_at`, `updated_by`. `story.get_style` returns it (or null) with the house style
+catalogue; `story.set_style` replaces it. `house_style` adopts a house style whole, other fields
+adapt it; without `house_style`, omitted fields carry forward, and the first style needs `name`,
+`rules` and `stylesheet`. `expected_etag` is required once a style exists. `422 invalid_style`
+lists every problem. Setting a style changes no published page. The app previews a style on its
+`specimen_html`, or on a sample page in its stylesheet; each house style has a sample page too
+(`GET …/story/style/specimen`, `GET …/story/house-styles/{id}/specimen`, both served like a Story
+version, `?theme=` and `?frame=1` included). A product export holds it as `story/style.json` and
+`story/style.css`.
+
+**House styles** ([`story-styles.ts`](../../packages/core/src/story-styles.ts)): **Broadsheet**
+(an editorial long read), **Tufte** (a book page with a wide margin for notes), **Swiss grid** (a
+twelve-column grotesk grid) and **Briefing deck** (full-screen slides you scroll). Each carries a
+light and a dark scheme, uses system font stacks, and styles one shared semantic vocabulary
+(`.page`, `.opening` with `.kicker`/`.lead`/`.meta`, sections, `.quote`, `.note`, `.callout`,
+`.status`, `.figures`, `.columns`, `.table-wrap`, `.steps`, `details`), so content moves between
+styles unchanged; each adds signature moves of its own.
+
+**Guidance.** `story.guidance { section?, house_style? }` returns versioned authoring guidance
+([`story-guidance.ts`](../../packages/core/src/story-guidance.ts)): how to settle the Story style
+with the person, the house style catalogue and the shared vocabulary, taste principles,
+anti-patterns, compositions, named design passes (critique, distill, bolder, quieter, typeset,
+layout, adapt, polish), a push to use a design skill such as Impeccable when the agent has one and
+to mention it once when it does not, the sandbox rules, recipes, writing rules and a checklist.
+It carries no stylesheet of its own and nothing of the app's look; `house_style` returns that
+style in full with a starter page, and `product_style` says whether the product has a style yet.
+The writing guidance asks for source-level quoting rules honoured (attribution by role where a
+source limits naming people), derived views labelled as analysis rather than evidence, and pages
+placed in the hierarchy unless the author's instructions say otherwise. A first version that
+omits `html` gets a generated title page in the product's Story style, or a plain page when there
+is none.
 
 ## 4.12 Feedback
 

@@ -75,6 +75,8 @@ const VERBS: Record<string, string> = {
   "story_page:restored": "restored the page",
   "story_page:notes_updated": "updated the notes for agents on",
   "story_hierarchy:organized": "rearranged",
+  "story_style:created": "set the Story style to",
+  "story_style:updated": "changed the Story style to",
   "product:created": "created the product",
   "product:updated": "changed the product",
   "product:archived": "archived the product",
@@ -97,6 +99,7 @@ export const ENTITY_LABEL: Record<string, string> = {
   decision: "decisions",
   story_page: "Story pages",
   story_hierarchy: "the Story tree",
+  story_style: "the Story style",
   product: "the product",
   membership: "people and roles",
 };
@@ -117,6 +120,7 @@ function linkFor(app: string, i: ActivityItem): string | null {
     case "story_page":
       return `${app}/story/${i.entity_id}`;
     case "story_hierarchy":
+    case "story_style":
       return `${app}/story`;
     case "product":
       return `${app}/settings`;

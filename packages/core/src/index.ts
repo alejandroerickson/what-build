@@ -32,7 +32,9 @@ export { completeGrant, DOWNLOAD_GRANT_HEADER, UPLOAD_GRANT_HEADER, blobKeyFor }
 export { createTenantWithTeam, uniqueTenantSlug } from "./ops/products.ts";
 export { printDocument } from "./ops/story.ts";
 export { SKILL_NAME, SKILL_VERSION, skillMarkdown } from "./ops/meta.ts";
-export { GUIDANCE_VERSION, STYLESHEET as STORY_STYLESHEET, TOKENS as STORY_TOKENS, withStoryTheme } from "./story-guidance.ts";
+export { GUIDANCE_VERSION } from "./story-guidance.ts";
+export { HOUSE_STYLES, houseSpecimen, houseStyle, pageDocument, specimenBody, styleSpecimen, type HouseStyle } from "./story-styles.ts";
+export { FRAME_SCRIPT, THEME_ATTRIBUTE, withStoryFrame, withStoryTheme } from "./story-theme.ts";
 
 /** Every operation, defined once. REST routes, MCP tools and `describe` are generated from this list. */
 export const OPERATIONS: OperationDef[] = [

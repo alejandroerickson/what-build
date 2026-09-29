@@ -29,6 +29,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Story pages are agent-authored HTML shown only in a sandbox](story-pages-are-sandboxed-agent-html.md)
 - [Each Story page keeps notes for agents, separate from its versions](story-notes-are-agent-memory.md)
 - [Agents write and arrange the Story; the web app reads it](agents-maintain-the-story-people-read-it.md)
+- [Story pages follow the team's design system, never WhatBuild's](story-pages-follow-the-teams-design-system.md)
 - [Marking an insight reviewed applies to the revision that was read](insight-review-marks-a-revision.md)
 - [Story PDF export is a composed print view saved by the browser](pdf-export-uses-browser-print.md)
 - [Archive is the reversible default; delete is permanent and guarded](archive-by-default-delete-guarded.md)

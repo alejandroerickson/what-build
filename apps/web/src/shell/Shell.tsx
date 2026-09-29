@@ -40,6 +40,8 @@ function saveHidden(key: string, hidden: boolean) {
  *   on navigation. Only one drawer is open at a time.
  * - On a route change the canvas scrolls to the top, focus moves to the new h1, and the new page is
  *   announced politely.
+ * - A screen may turn on focus mode (the Story does): both panels and their show buttons go, and the
+ *   canvas takes the window. Turning it off, or either panel shortcut, restores the panels as they were.
  */
 function Stage({ variant, panel, panelFoot, pillName, section, title, banner, children }: {
   variant: "product" | "plain";
@@ -68,15 +70,16 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
   const [inspectorCount, setInspectorCount] = useState(0);
   const [pageTitle, setPageTitle] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  const [focus, setFocus] = useState(false);
   const inspectorId = useId();
   const mainRef = useRef<HTMLElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLButtonElement>(null);
   const insShowRef = useRef<HTMLButtonElement>(null);
 
-  const navOpen = isPhone ? drawerOpen : !navHidden;
+  const navOpen = !focus && (isPhone ? drawerOpen : !navHidden);
   const hasInspector = inspectorCount > 0;
-  const inspectorOpen = hasInspector && (isNarrow ? insSmallOpen : !insHidden);
+  const inspectorOpen = !focus && hasInspector && (isNarrow ? insSmallOpen : !insHidden);
   const insState = !hasInspector ? "none" : !inspectorOpen ? "closed" : isPhone ? "drawer" : "docked";
   const drawerActive = isPhone && drawerOpen;
   const insDrawerActive = insState === "drawer";
@@ -134,10 +137,15 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = (e.metaKey || e.ctrlKey) && !e.altKey && !isTypingTarget(e.target);
-      if (mod && !e.shiftKey && e.key === "\\") {
+      const navKey = mod && !e.shiftKey && e.key === "\\";
+      const insKey = mod && e.shiftKey && (e.key === "|" || e.key === "\\") && hasInspector;
+      if (focus && (navKey || insKey)) {
+        e.preventDefault();
+        setFocus(false);
+      } else if (navKey) {
         e.preventDefault();
         toggleNav();
-      } else if (mod && e.shiftKey && (e.key === "|" || e.key === "\\") && hasInspector) {
+      } else if (insKey) {
         e.preventDefault();
         toggleInspector();
       } else if (e.key === "Escape" && !e.defaultPrevented) {
@@ -150,7 +158,7 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [toggleNav, toggleInspector, hasInspector, drawerActive, insDrawerActive, setInspectorOpen]);
+  }, [toggleNav, toggleInspector, hasInspector, drawerActive, insDrawerActive, setInspectorOpen, focus]);
 
   // Opening a drawer moves focus into it.
   useEffect(() => {
@@ -222,15 +230,17 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
       setInspectorOpen,
       inspectorHideLabel: isPhone ? "Close details" : "Hide details",
       setPageTitle,
+      focus,
+      setFocus,
     }),
-    [panelContextEl, inspectorEl, inspectorId, isPhone, inspectorOpen, setInspectorOpen],
+    [panelContextEl, inspectorEl, inspectorId, isPhone, inspectorOpen, setInspectorOpen, focus],
   );
 
   const hideLabel = isPhone ? "Close navigation" : "Hide panel";
 
   return (
     <ShellContext.Provider value={slots}>
-      <div className="stage" data-nav={navOpen ? "open" : "closed"} data-ins={insState} data-variant={variant}>
+      <div className="stage" data-nav={navOpen ? "open" : "closed"} data-ins={insState} data-variant={variant} data-focus={focus ? "on" : undefined}>
         <a href="#main" className="skip-link">
           Skip to content
         </a>
@@ -238,7 +248,7 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
           ref={pillRef}
           type="button"
           className="show-pill"
-          hidden={navOpen}
+          hidden={navOpen || focus}
           inert={modal}
           title={`Show panel (${shortcutLabel("\\")})`}
           aria-expanded={isPhone ? drawerOpen : undefined}
@@ -254,7 +264,7 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
           ref={insShowRef}
           type="button"
           className="show-ins"
-          hidden={insState !== "closed"}
+          hidden={insState !== "closed" || focus}
           inert={modal}
           aria-label="Show details"
           title={`Show details (${shortcutLabel("\\", true)})`}

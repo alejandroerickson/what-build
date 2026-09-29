@@ -176,6 +176,12 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
   const pages = await db.selectFrom("story_pages").selectAll().where("product_id", "=", pid).execute();
   const hierarchy = await db.selectFrom("story_hierarchies").selectAll().where("product_id", "=", pid).executeTakeFirst();
   add("story/hierarchy.json", j(hierarchy ?? { items: [] }));
+  const style = await db.selectFrom("story_styles").selectAll().where("product_id", "=", pid).executeTakeFirst();
+  if (style) {
+    const { stylesheet, ...meta } = style;
+    add("story/style.json", j(meta));
+    add("story/style.css", stylesheet);
+  }
   for (const p of pages) {
     add(`story/pages/${p.page_id}/page.json`, j(p));
     for (const v of await db.selectFrom("story_versions").selectAll().where("product_id", "=", pid).where("page_id", "=", p.page_id).orderBy("n").execute()) {

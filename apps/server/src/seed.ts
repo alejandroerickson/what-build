@@ -1,4 +1,4 @@
-import { createTenantWithTeam, execute, OPERATIONS_BY_NAME, STORY_STYLESHEET, type Env, type Principal, type ScopeRef } from "@whatbuild/core";
+import { createTenantWithTeam, execute, houseStyle, OPERATIONS_BY_NAME, type Env, type Principal, type ScopeRef } from "@whatbuild/core";
 import { sql } from "kysely";
 import { findOrCreateAccount } from "./auth/identity.ts";
 import {
@@ -148,6 +148,8 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
   const decisionEtag = String(decision["etag"]);
   await call(env, riley, "decisions.review", { id: decision["id"], expected_etag: decisionEtag, status: "confirmed", note: "Agreed in the Thursday review. Sam to set up the two-crew test.", reviewer_type: "human", confidence: "medium" }, ref);
 
+  await call(env, samAgent, "story.set_style", { house_style: "broadsheet" }, ref);
+  const sampleStylesheet = houseStyle("broadsheet")!.stylesheet;
   await call(
     env,
     samAgent,
@@ -162,7 +164,7 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
           assumption: `${base}/t/${path}/synthesis/assumptions/${assumption["id"]}`,
           decision: `${base}/t/${path}/synthesis/decisions/${decision["id"]}`,
         },
-        STORY_STYLESHEET,
+        sampleStylesheet,
       ),
       refs: { outcomes: [outcomeIds[1]!], sources: [vtt, txt, survey], insights: [String(insight["insight_id"])], assumptions: [String(assumption["id"])], decisions: [String(decision["id"])] },
       citations: [
@@ -181,7 +183,7 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
       page_id: "hand-off-test",
       title: "The hand-off test",
       summary: "Two crews get their week as a generated message instead of a typed one.",
-      html: HANDOFF_HTML({ decision: `${base}/t/${path}/synthesis/decisions/${decision["id"]}` }, STORY_STYLESHEET),
+      html: HANDOFF_HTML({ decision: `${base}/t/${path}/synthesis/decisions/${decision["id"]}` }, sampleStylesheet),
       refs: { outcomes: [outcomeIds[1]!], sources: [vtt], decisions: [String(decision["id"])] },
       citations: [{ record_id: vtt, seq_start: 9, seq_end: 10 }],
     },

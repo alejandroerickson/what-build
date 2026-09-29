@@ -1,16 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Navigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
 import { useProduct } from "../lib/session.tsx";
 import { useTheme } from "../shell/theme.ts";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
 import { useMediaQuery } from "../ui/media.ts";
-import { ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, Loading, Sheet } from "../ui/index.tsx";
+import { Button, ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, Loading, Sheet } from "../ui/index.tsx";
 import { FirstUse } from "./first-use.tsx";
 import { ExportDialog } from "./story-export.tsx";
 import { StoryInspectorBody } from "./story-inspector.tsx";
 import { split, trail, type Hierarchy, type PageSummary, type PageView, type VersionItem, type VersionView } from "./story-model.ts";
+import { FocusToggle, useStoryFocus, type StoryKey } from "./story-focus.tsx";
+import { StyleDialog, styleLine, useStoryStyle } from "./story-style.tsx";
 import { StoryTree } from "./story-tree.tsx";
 import "../styles/screens/story.css";
 
@@ -28,19 +30,56 @@ function useScheme(): "light" | "dark" {
 /**
  * The page in its sandbox. Until the frame has its document, skeleton lines stand in for the page,
  * so a slow page reads as loading rather than blank.
+ *
+ * The frame asks for the page with ?frame=1, which adds a small script inside the sandbox: it passes
+ * F and Esc on (keys pressed in a frame never reach the app) and opens links in a new tab. A page
+ * that still manages to load another address in its place (a script, a refresh) is put back, and
+ * the reader is told, so the app never shows someone else's page inside its own frame.
  */
-function StoryFrame({ title, scheme, src }: { title: string; scheme: "light" | "dark"; src: string }) {
+export function StoryFrame({ title, scheme, src, onKey }: { title: string; scheme: "light" | "dark"; src: string; onKey?: (key: StoryKey) => void }) {
   const [loaded, setLoaded] = useState(false);
+  const [reloads, setReloads] = useState(0);
+  const [replaced, setReplaced] = useState(false);
+  const loads = useRef(0);
+  const frame = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    if (!onKey) return;
+    const handle = (e: MessageEvent) => {
+      if (e.source !== frame.current?.contentWindow) return;
+      const data = e.data as { whatbuild?: unknown; key?: unknown } | null;
+      if (data?.whatbuild === "story-key" && (data.key === "f" || data.key === "Escape")) onKey(data.key);
+    };
+    window.addEventListener("message", handle);
+    return () => window.removeEventListener("message", handle);
+  }, [onKey]);
+
   return (
     <div className="story-frame-wrap">
+      {replaced ? (
+        <Callout tone="attention" title="This page tried to open another address in its place">
+          WhatBuild put the page back. Its links open in a new tab.
+        </Callout>
+      ) : null}
       <iframe
+        key={reloads}
+        ref={frame}
         title={title}
         className="story-frame"
         style={{ colorScheme: scheme }}
         sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
         referrerPolicy="no-referrer"
-        src={src}
-        onLoad={() => setLoaded(true)}
+        src={`${src}${src.includes("?") ? "&" : "?"}frame=1`}
+        onLoad={() => {
+          loads.current += 1;
+          if (loads.current > 1) {
+            loads.current = 0;
+            setReplaced(true);
+            setReloads((n) => n + 1);
+            return;
+          }
+          setLoaded(true);
+        }}
       />
       {loaded ? null : (
         <div className="story-frame-status">
@@ -60,6 +99,8 @@ export function StoryPage() {
   const asked = vParam && /^\d+$/.test(vParam) ? Number(vParam) : null;
   /** The pages Export to PDF opens with, while it is open. */
   const [exporting, setExporting] = useState<string[] | null>(null);
+  const [styling, setStyling] = useState(false);
+  const style = useStoryStyle();
 
   const h = useQuery({ queryKey: ["story-tree", base], queryFn: () => api<Hierarchy>("GET", `${base}/story/hierarchy`) });
   const pages = useQuery({ queryKey: ["story-pages", base], queryFn: () => api<{ items: PageSummary[] }>("GET", `${base}/story/pages?include_archived=true`) });
@@ -82,6 +123,8 @@ export function StoryPage() {
     queryFn: () => api<VersionView>("GET", `${base}/story/pages/${pageId}/versions/${asked}?include_html=false`),
   });
 
+  const focusMode = useStoryFocus(page.isSuccess);
+
   const rememberKey = `whatbuild.story.${product.product_id}`;
   useEffect(() => {
     if (!pageId || !page.isSuccess) return;
@@ -99,9 +142,15 @@ export function StoryPage() {
   const arrangement = h.data ? split(h.data) : { placed: [], unplaced: [] };
   const titleOf = (id: string) => all.find((p) => p.page_id === id)?.title ?? id;
 
-  const tree = h.data ? <StoryTree tree={arrangement} archived={archived} current={pageId} onExport={setExporting} /> : null;
+  const styleRow = style.data ? (style.data.style ? { name: style.data.style.name, line: styleLine(style.data.style) } : null) : undefined;
+  const tree = h.data ? <StoryTree tree={arrangement} archived={archived} current={pageId} onExport={setExporting} style={styleRow} onStyle={() => setStyling(true)} /> : null;
 
-  const dialogs = exporting ? <ExportDialog tree={arrangement} archived={archived} preselect={exporting} onClose={() => setExporting(null)} /> : null;
+  const dialogs = (
+    <>
+      {exporting ? <ExportDialog tree={arrangement} archived={archived} preselect={exporting} onClose={() => setExporting(null)} /> : null}
+      {styling && style.data ? <StyleDialog view={style.data} scheme={scheme} onClose={() => setStyling(false)} /> : null}
+    </>
+  );
 
   if (h.isPending) return <Loading variant="lines" />;
   if (h.isError)
@@ -130,7 +179,14 @@ export function StoryPage() {
         <Crumbs label="Page location" currentAsHeading items={[{ label: "Story" }]} />
         <Sheet label="Story">
           <FirstUse title="No Story pages yet" ask={`Draft the first Story page for ${product.name} in WhatBuild from its outcomes and insights.`}>
-            The Story is a set of pages that tells stakeholders where this discovery stands. Agents write and arrange it; you read it here and export it to PDF.
+            The Story is a set of pages that tells stakeholders where this discovery stands, in your company's design system or a house style. Agents write and arrange it; you read it here and export it to PDF.
+            {style.data ? (
+              <p className="story-first-style">
+                <Button size="sm" variant="quiet" icon="palette" onClick={() => setStyling(true)}>
+                  Preview Story styles
+                </Button>
+              </p>
+            ) : null}
           </FirstUse>
         </Sheet>
         {dialogs}
@@ -171,7 +227,10 @@ export function StoryPage() {
   return (
     <div className="story-view">
       {tree}
-      <Crumbs label="Page location" currentAsHeading items={crumbs} />
+      <div className="story-bar">
+        <Crumbs label="Page location" currentAsHeading items={crumbs} />
+        {focusMode.available ? <FocusToggle focus={focusMode.focus} hint={focusMode.hint} onToggle={focusMode.toggle} /> : null}
+      </div>
       {!p ? (
         <Loading variant="lines" />
       ) : (
@@ -199,6 +258,7 @@ export function StoryPage() {
               title={`${shown.title}, shown in a sandbox`}
               scheme={scheme}
               src={`${base}/story/pages/${pageId}/versions/${shown.version}/html?theme=${scheme}`}
+              onKey={focusMode.onKey}
             />
           ) : wantsOld && old.isPending ? (
             <Loading variant="lines" />

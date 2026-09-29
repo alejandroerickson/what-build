@@ -169,13 +169,63 @@
 
 /* ---- Canvas ----------------------------------------------------------------------------------- */
 
-.story-view > .crumbs {
+/* Crumbs on the left, the focus mode control on the right. */
+.story-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+}
+.story-bar > .crumbs {
+  flex: 1;
+  min-width: 0;
   margin-bottom: 0;
+}
+.story-focus {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s-2);
+}
+.story-focus-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+.story-focus-hint:empty {
+  display: none;
+}
+.story-focus-hint kbd,
+.story-focus-kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-xs);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: var(--fw-medium);
+  line-height: 1;
+}
+.story-focus-button {
+  gap: var(--s-1h);
+  color: var(--muted);
+}
+.story-focus-button:hover {
+  color: var(--text);
+}
+@media (max-width: 1100px) {
+  .story-focus-hint {
+    max-width: 22ch;
+  }
 }
 .story-view .crumb-current {
   font-weight: var(--fw-medium);
 }
-.story-view > .callout {
+.story-view > .callout,
+.story-frame-wrap > .callout {
   margin-bottom: var(--s-3);
 }
 .story-frame-wrap {
@@ -363,4 +413,163 @@
 .story-ref-link:hover {
   text-decoration: underline;
   text-decoration-color: currentColor;
+}
+
+/* ---- Story style ------------------------------------------------------------------------------ */
+
+.story-style-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+  min-height: 40px;
+  padding: var(--s-1) var(--s-2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.story-style-row:hover {
+  background: var(--hover);
+}
+.story-style-row > .glyph {
+  flex: none;
+  color: var(--faint);
+}
+.story-style-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+.story-style-sub {
+  color: var(--faint);
+  font-size: var(--fs-xs);
+}
+
+/* The style dialog: styles on the left, the chosen one's sample page and how to adopt it on the right. */
+.dialog:has(.style-picker) {
+  width: min(1120px, calc(100vw - 32px));
+}
+.style-picker {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: var(--s-4);
+}
+.style-list {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+}
+.style-list-label {
+  margin: var(--s-2) 0 var(--s-1);
+  padding: 0 var(--s-2);
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+}
+.style-list-label:first-child {
+  margin-top: 0;
+}
+.style-option {
+  display: grid;
+  gap: 2px;
+  padding: var(--s-2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.style-option:hover {
+  background: var(--hover);
+}
+.style-option[aria-pressed="true"] {
+  background: var(--select);
+  color: var(--select-text);
+}
+.style-option-name {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-weight: var(--fw-medium);
+}
+.style-option-tag {
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-regular);
+}
+.style-option-sub {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+}
+.style-option[aria-pressed="true"] .style-option-sub {
+  color: inherit;
+}
+.style-detail {
+  display: grid;
+  gap: var(--s-3);
+  min-width: 0;
+}
+.style-specimen {
+  position: relative;
+  height: min(420px, 46dvh);
+  overflow: hidden;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--panel);
+}
+.style-specimen-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  transform-origin: 0 0;
+}
+.style-specimen-status {
+  position: absolute;
+  inset: 0;
+  padding: var(--s-6);
+  background: var(--panel);
+  pointer-events: none;
+}
+.style-about {
+  display: grid;
+  gap: var(--s-2);
+}
+.style-about p {
+  margin: 0;
+}
+.style-about-lead strong {
+  font-weight: var(--fw-semibold);
+}
+.style-ask-label {
+  margin: var(--s-1) 0 0;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+.style-open {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  justify-self: start;
+}
+.style-own {
+  display: grid;
+  gap: var(--s-2);
+  margin-top: var(--s-4);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line);
+}
+@media (max-width: 760px) {
+  .style-picker {
+    grid-template-columns: 1fr;
+  }
+  .style-specimen {
+    height: 60dvh;
+  }
+}
+.story-first-style {
+  margin: var(--s-2) 0 0;
 }
