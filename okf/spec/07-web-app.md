@@ -56,8 +56,10 @@ the browser's back button and "open in new tab" both work.
   display name); and Sign out. Nothing in it is also in the panel.
 - **Hiding.** The panel hides completely, never to an icon rail, with its button or `⌘\` / `Ctrl+\`
   (ignored while typing in a field), and the choice is remembered per browser. While it is hidden
-  a small floating pill shows the mark, the product name and the current section, and brings the
-  panel back.
+  a small floating pill with the mark brings the panel back. It is the same size whatever the
+  product is called, and its accessible name gives the product and the current section.
+- **The content does not move up or down** when either panel hides or shows, or in focus mode: the
+  canvas keeps clear of the pill and the square at the sides.
 - **The inspector** hides and shows the way the panel does: a hide button in its head, `⇧⌘\` /
   `Ctrl+Shift+\`, and, while it is hidden, a small square at the top right that brings it back.
   Shown, it docks beside the content at every width above a phone, so the page still scrolls and
@@ -67,7 +69,8 @@ the browser's back button and "open in new tab" both work.
   at a time: focus is trapped, Esc closes the open one, and it closes on navigation.
 - **Outside a product** (the overview, Connect an agent, the person's Settings, organization
   Members) the panel is the same on every screen, whatever the person came from: each
-  organization's name over its products, then a quiet link to Connect an agent, with the current
+  organization's name, over the label "Products" and then its products (a long name ends in an
+  ellipsis), then a quiet link to Connect an agent, with the current
   screen marked. It never offers a way "back" to a product, because it cannot know the person came
   from one; the product is in the list.
 - **The panel changes only on entering or leaving a product.** Connect an agent is in both panels,
@@ -101,8 +104,8 @@ place.
 
 **The overview** (`/`, [decision](../decisions/the-overview-is-the-front-door.md)). The page that
 introduces WhatBuild and is good to share as a screenshot. An intro sheet carries the mark and
-wordmark, the question "What to build?", a sentence on the pressure AI engineering puts on
-product discovery, two sentences on what the app does, and a link to Connect an agent. Beside it, small and
+wordmark, the question "What to build?", the tagline "Product discovery at the speed of AI
+Engineering.", two sentences on what the app does, and a link to Connect an agent. Beside it, small and
 quiet, the WhatBuild journey: Idea, Evidence, Synthesis and Story, each with a line on what
 it holds. It carries no counts; those are on each product below. Below, one sheet per organization, headed by its name alone, lists its active products (name,
 product concept, last update, and the team only when the organization has more than one), each
@@ -350,7 +353,10 @@ that changes it ([decision](../decisions/agents-maintain-the-story-people-read-i
 
 - **Reader first.** The page tree sits in the panel's context slot, and the canvas holds the crumbs
   (the current one is the screen's heading), the focus mode control, and then the page, with
-  nothing between them. Opens
+  nothing between them. The crumbs sit on the line of the panels' heads, and the page fills the
+  window down to the panels' bottom edge and scrolls inside its frame, so the canvas does not
+  scroll and the crumbs stay in view; if the window is too short for the page, the crumbs stay
+  pinned at the top. Opens
   the last page this browser read in this product, otherwise the first root page. Pages render
   only in the sandboxed frame ([§4.11](04-data-model.md)); the frame follows the app's theme.
   Until the frame has its document, skeleton lines stand in for the page. A callout appears above

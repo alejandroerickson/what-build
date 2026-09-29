@@ -64,7 +64,9 @@
   /* Controls and marks */
   --h-sm: 24px;
   --h-md: 28px;
-  --h-lg: 32px; /* the floating pill only */
+  --h-lg: 32px; /* the floating pill and its counterpart square only */
+  --pill-w: 58px; /* the floating pill: the mark and the show glyph, whatever the product's name */
+  --head-h: 48px; /* a panel's head row, and the Story's bar that lines up with it */
   --icon-sm: 12px;
   --icon-md: 14px;
   --icon-stroke: 1.75;

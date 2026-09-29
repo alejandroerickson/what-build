@@ -134,7 +134,7 @@ export function ProductNav({ product, app, section }: { product: Product; app: s
 /**
  * The panel outside a product (the overview, Connect an agent, members, settings). It is the same on
  * every one of these screens, so it never depends on where the person came from: each organization's
- * name over its products, then Connect an agent.
+ * name, headed "Products" over its products, then Connect an agent.
  */
 export function PlainNav({ section }: { section: string }) {
   const products = useProducts();
@@ -143,11 +143,17 @@ export function PlainNav({ section }: { section: string }) {
   return (
     <>
       {tenants.map((t) => {
-        const labelId = `nav-org-${t.tenant_id}`;
+        const orgId = `nav-org-${t.tenant_id}`;
+        const labelId = `nav-org-products-${t.tenant_id}`;
         return (
-          <div key={t.tenant_id} className="nav-l1 nav-products" role="group" aria-labelledby={labelId}>
-            <div id={labelId} className="nav-group-label ellipsis">
-              {t.name}
+          <div key={t.tenant_id} className="nav-l1 nav-products" role="group" aria-labelledby={`${orgId} ${labelId}`}>
+            <div className="nav-org">
+              <div id={orgId} className="nav-org-name ellipsis">
+                {t.name}
+              </div>
+              <div id={labelId} className="nav-org-label">
+                Products
+              </div>
             </div>
             {items
               .filter((p) => p.tenant.tenant_id === t.tenant_id)

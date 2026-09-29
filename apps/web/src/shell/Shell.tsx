@@ -31,7 +31,9 @@ function saveHidden(key: string, hidden: boolean) {
  * and an inspector when a route provides one.
  *
  * - The panel hides fully with its button or ⌘\ / Ctrl+\ (not while typing); the choice is remembered.
- *   While hidden, a pill with the mark, the product and the section brings it back.
+ *   While hidden, a pill with the mark brings it back; it is named for the product and the section.
+ * - Hiding or showing a panel never moves the content up or down: the canvas keeps clear of the
+ *   show buttons at the sides.
  * - The inspector works the same way on the right: it hides with the button in its head or ⇧⌘\ /
  *   Ctrl+Shift+\, and a button at the top right brings it back. Open, it docks beside the canvas at
  *   every width above a phone. Above 1100px the choice is remembered; at or below it starts hidden,
@@ -104,8 +106,8 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
     });
     requestAnimationFrame(() => {
       const pill = pillRef.current;
-      if (pill && !pill.hidden && fromPanel) pill.focus();
-      else if (pill?.hidden && fromPill) panelRef.current?.querySelector<HTMLElement>("[data-panel-hide]")?.focus();
+      if (pill && !pill.hidden && fromPanel) pill.focus({ preventScroll: true });
+      else if (pill?.hidden && fromPill) panelRef.current?.querySelector<HTMLElement>("[data-panel-hide]")?.focus({ preventScroll: true });
     });
   }, []);
 
@@ -127,8 +129,10 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
       setInsHidden(!open);
     }
     requestAnimationFrame(() => {
-      if (!open && fromInspector) insShowRef.current?.focus();
-      else if (open && fromShow) inspector?.querySelector<HTMLElement>("[data-inspector-hide]")?.focus();
+      // The inspector is still sliding in, partly outside the window: focusing without preventScroll
+      // would pull the whole stage sideways to reveal the button.
+      if (!open && fromInspector) insShowRef.current?.focus({ preventScroll: true });
+      else if (open && fromShow) inspector?.querySelector<HTMLElement>("[data-inspector-hide]")?.focus({ preventScroll: true });
     });
   }, [inspectorId]);
   const toggleInspector = useCallback(() => setInspectorOpen(!inspectorOpen), [setInspectorOpen, inspectorOpen]);
@@ -162,10 +166,10 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
 
   // Opening a drawer moves focus into it.
   useEffect(() => {
-    if (drawerActive) panelRef.current?.querySelector<HTMLElement>("a, button")?.focus();
+    if (drawerActive) panelRef.current?.querySelector<HTMLElement>("a, button")?.focus({ preventScroll: true });
   }, [drawerActive]);
   useEffect(() => {
-    if (insDrawerActive) requestAnimationFrame(() => document.getElementById(inspectorId)?.querySelector<HTMLElement>("[data-inspector-hide]")?.focus());
+    if (insDrawerActive) requestAnimationFrame(() => document.getElementById(inspectorId)?.querySelector<HTMLElement>("[data-inspector-hide]")?.focus({ preventScroll: true }));
   }, [insDrawerActive, inspectorId]);
 
   // Route changes: close drawers, scroll to top, move focus to the h1, announce.
@@ -255,9 +259,7 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
           onClick={toggleNav}
         >
           <BrandMark size={18} />
-          {pillName ? <span className="show-pill-name">{pillName}</span> : null}
-          <span className="show-pill-section">{section}</span>
-          <span className="visually-hidden">, show panel</span>
+          <span className="visually-hidden">Show panel: {pillName ? `${pillName}, ` : ""}{section}</span>
           <Glyph name="panel-left-open" />
         </button>
         <button

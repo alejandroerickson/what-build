@@ -62,7 +62,7 @@
   letter-spacing: var(--tracking-display);
   text-wrap: balance;
 }
-.overview-pressure {
+.overview-tagline {
   max-width: 54ch;
   margin: var(--s-4) 0 0;
   font-size: var(--fs-lead);
