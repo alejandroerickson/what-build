@@ -41,20 +41,10 @@ export function OverviewPage() {
             <BrandMark size={34} />
             <span>WhatBuild</span>
           </h1>
-          <p className="overview-origin">It all starts with an idea: someone you could help, and a problem worth solving.</p>
         </div>
         <div className="overview-pitch">
           <p className="overview-question">What to build?</p>
-          <p className="overview-pressure">
-            AI has made building fast. When a working version takes days, the bottleneck moves upstream, to deciding what is worth
-            building. Teams have to move quickly and stay aligned, and still account for every interview, call and document behind the
-            choice.
-          </p>
-          <p className="overview-about">
-            WhatBuild is where your team and your agents work that out. Bring in interviews, sales calls, research and documents, and
-            turn them into outcomes, cited insights, and assumptions and decisions a person has reviewed. The Story tells stakeholders
-            what you learned, and every claim in it points to the exact passage it came from.
-          </p>
+          <p className="overview-lead">Turn interviews, calls and documents into reviewed decisions, with every claim cited to the passage it came from.</p>
           <Link to="/connect" className="overview-agent-link">
             <Glyph name="plug" size="sm" />
             Connect an agent
@@ -86,7 +76,7 @@ function Totals({ items, pending }: { items: ProductSummary[]; pending: boolean 
   return (
     <aside className="overview-loop" aria-labelledby="overview-loop-title" aria-busy={pending || undefined}>
       <h2 id="overview-loop-title" className="overview-loop-title">
-        {pending ? "Across your products" : `Across your ${plural(items.length, "product")}`}
+        {pending ? "Across your products" : `Across ${plural(items.length, "product")}`}
       </h2>
       <ol className="overview-loop-steps">
         {LOOP.map((step) => (
@@ -156,8 +146,8 @@ function Organization({ tenant, products }: { tenant: ProductsResponse["tenants"
           ))}
         </ul>
       ) : (
-        <EmptyState size="inline" title="No active products you can see here.">
-          {canCreate ? "Create one to start a discovery." : "Ask an admin of one of its teams to create one, or to give you a role on theirs."}
+        <EmptyState size="inline" title="No active products you can see.">
+          {canCreate ? "Create one to start a discovery." : "Ask a team admin to create one or give you a role."}
         </EmptyState>
       )}
     </Sheet>

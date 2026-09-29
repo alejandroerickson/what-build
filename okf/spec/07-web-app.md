@@ -38,8 +38,9 @@ takes the full width. There are no in-app tabs: one screen at a time, and rows a
 the browser's back button and "open in new tab" both work.
 
 - **Top of the panel:** the W mark and the "WhatBuild" wordmark, linking to the overview (`/`)
-  from every screen, with the button that hides the panel beside them; then the product switch,
-  showing the product and its organization and team.
+  from every screen, with the button that hides the panel at the row's far end. Only the mark and
+  wordmark are the link, so a click that misses the hide button does not leave the screen. Then the
+  product switch, showing the product and its organization and team.
 - **L1**, exactly and in this order: **Idea, Evidence, Synthesis, Story**, each with its count
   (Idea counts outcomes).
   Below them, quieter: **Agents** (the Connect page) and **Settings**. Synthesis opens on
@@ -92,10 +93,8 @@ place.
 
 **The overview** (`/`, [decision](../decisions/the-overview-is-the-front-door.md)). The page that
 introduces WhatBuild and is good to share as a screenshot. An intro sheet carries the mark and
-wordmark, a line on how a product starts with an idea, the question "What to build?", a short
-statement on why deciding what to build is now the bottleneck, a description of the app, and a
-link to Agents. Beside it, small and quiet, the counts across the person's active products, laid
-out as the loop: outcomes (Idea), sources (Evidence), insights, assumptions and decisions
+wordmark, the question "What to build?", one sentence on what the app does, and a link to Agents.
+Beside it, small and quiet, the counts across the person's active products, laid out as the loop: outcomes (Idea), sources (Evidence), insights, assumptions and decisions
 (Synthesis), and Story pages; they are the counts `products.list` reports, which match each
 product's panel counts. Below, one sheet per organization lists its active products (name,
 product concept, team, role, last update), each with links to Idea, Evidence, Synthesis and Story
