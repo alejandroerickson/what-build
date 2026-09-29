@@ -3,7 +3,7 @@ type: Index
 title: Decisions
 description: Architectural decision records, each with its context, the choice, and what it constrains.
 tags: [index, decisions, adr]
-generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
 status: stable
 ---
 
@@ -31,6 +31,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Story PDF export is a composed print view saved by the browser](pdf-export-uses-browser-print.md)
 - [Archive is the reversible default; delete is permanent and guarded](archive-by-default-delete-guarded.md)
 - [Local development may substitute adapters, never behavior](development-substitutes-adapters-never-behavior.md)
+- [A product starts with its idea, a product concept and the outcomes its users should achieve](a-product-starts-with-an-idea-concept-and-outcomes.md)
 - [The web app uses the Studio design system](studio-design-system.md)
 - [The repository is public; okf/ is the single source of documentation](public-repository-reference-docs.md)
 - [Agent guidance is tool-neutral: AGENTS.md and .agents/skills](agent-guidance-is-tool-neutral.md)

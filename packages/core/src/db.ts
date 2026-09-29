@@ -24,7 +24,7 @@ export interface Dimensions {
 }
 
 export interface Refs {
-  objectives: string[];
+  outcomes: string[];
   sources: string[];
   insights: string[];
   assumptions: string[];
@@ -170,7 +170,7 @@ export interface ProductsTable {
   team_id: string;
   slug: string;
   name: string;
-  idea: string;
+  concept: string;
   archived_at: TsNull;
   etag: string;
   created_at: Ts;
@@ -376,8 +376,8 @@ export interface AgentNotesTable {
   updated_by: Json<ActorSnapshot>;
 }
 
-export interface ObjectivesTable {
-  objective_id: string;
+export interface OutcomesTable {
+  outcome_id: string;
   tenant_id: string;
   product_id: string;
   title: string;
@@ -434,7 +434,7 @@ export interface RegisterEntriesTable {
   body: string;
   citations: Json<CitationSnapshot[]>;
   links: Json<RegisterLink[]>;
-  objective_ids: string[];
+  outcome_ids: string[];
   tags: string[];
   dimensions: Json<Dimensions>;
   provenance_depth: string;
@@ -585,7 +585,7 @@ export interface DB {
   segments: SegmentsTable;
   annotations: AnnotationsTable;
   agent_notes: AgentNotesTable;
-  objectives: ObjectivesTable;
+  outcomes: OutcomesTable;
   insights: InsightsTable;
   revisions: RevisionsTable;
   register_entries: RegisterEntriesTable;

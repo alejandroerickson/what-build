@@ -57,9 +57,9 @@ interface RevisionRow {
   replaced_by: Actor;
 }
 
-/** The same revision control wherever authored text can be overwritten (insights, objectives). */
+/** The same revision control wherever authored text can be overwritten (insights, outcomes). */
 export function HistoryDialog({ tool, id, etag, onClose, render }: {
-  tool: "insights" | "objectives";
+  tool: "insights" | "outcomes";
   id: string;
   etag: string;
   onClose: () => void;
@@ -72,7 +72,7 @@ export function HistoryDialog({ tool, id, etag, onClose, render }: {
   const list = useQuery({ queryKey: ["revisions", base, tool, id], queryFn: () => api<{ items: RevisionRow[] }>("GET", `${base}/${tool}/${id}/revisions`) });
   const one = useQuery({ queryKey: ["revision", base, tool, id, n], enabled: n !== null, queryFn: () => api<{ content: Record<string, unknown> }>("GET", `${base}/${tool}/${id}/revisions/${n}`) });
   const restore = useMutation({
-    mutationFn: () => api("POST", `${base}/${tool}/${id}/revisions/${n}/restore`, { [tool === "insights" ? "insight_id" : "objective_id"]: id, n, expected_etag: etag }),
+    mutationFn: () => api("POST", `${base}/${tool}/${id}/revisions/${n}/restore`, { [tool === "insights" ? "insight_id" : "outcome_id"]: id, n, expected_etag: etag }),
     onSuccess: () => {
       toast("Restored as a new revision. The text it replaced is kept too.");
       void qc.invalidateQueries();

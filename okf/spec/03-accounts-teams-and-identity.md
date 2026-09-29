@@ -3,7 +3,7 @@ type: Specification
 title: Accounts belong to tenants, tenants hold teams, teams run products, and one role check decides every call.
 description: The account → tenant → team → product hierarchy, sign-in, roles and what they grant, addressing and isolation, moving sources between products, caller identity, and attribution.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation]
-generated: {by: agent:claude, at: 2026-09-27T08:00:00Z}
+generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
 status: stable
 ---
 
@@ -21,7 +21,7 @@ account              one person's sign-in; may belong to several tenants
 tenant               an organization: the isolation and (later) billing boundary
 └── team             a group of people and the products they run
     └── product      one discovery
-        ├── objectives
+        ├── outcomes
         ├── sources      records → files → derivations → segments; notes
         ├── insights     with immutable revisions
         ├── assumptions · decisions   (the two registers)
@@ -73,7 +73,7 @@ sign-up opens ([§10 Phase 6](10-roadmap.md)).
 
 Creating a tenant (`products.create_tenant`, open to any signed-in account) creates its first team
 and makes the creator the tenant's **owner**. A new user's first-run flow is: name the
-organization, name the first product and its idea.
+organization, name the first product and its product concept.
 
 ## 3.4 Products
 
@@ -82,7 +82,7 @@ organization, name the first product and its idea.
 | `product_id` | ULID, immutable. |
 | `slug` | 3–50 chars, unique in the team. Mutable. |
 | `name` | 1–100 chars. |
-| `idea` | Markdown, ≤ 2,000 chars, heads the Objectives screen; overwrites keep revisions. |
+| `concept` | The product concept: Markdown, ≤ 2,000 chars, heads the Idea screen; overwrites keep revisions. |
 | `archived_at` | Archived products are hidden from lists and read-only (`409 product_archived`) until restored. |
 
 A product is addressed as `tenant/team/product` (slugs or ids at each level) or by `product_id`.
@@ -96,7 +96,7 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
 | Product | `admin`, `editor`, `viewer` | that product only |
 
 - **Viewer** reads everything in the product. **Editor** also writes: sources, files, notes,
-  objectives, insights, register entries and reviews, the Story, and permanent deletes of sources
+  outcomes, insights, register entries and reviews, the Story, and permanent deletes of sources
   (guarded, [§9.5](09-data-lifecycle.md)). **Admin** also manages the product (rename, archive) and
   its people. Creating a product needs admin of its team (tenant owners and admins are admins of
   every team); creating a team needs tenant admin.
@@ -105,7 +105,7 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   unanswerable at a glance.
 - **Visibility:** with no role on a product, the product does not exist for you: `404`, never
   `403`, from every operation. With a role too low for an action, `403` names the role you have
-  and the one needed ("You are a viewer on product Crewboard; objectives.create needs editor").
+  and the one needed ("You are a viewer on product Crewboard; outcomes.create needs editor").
 - **Membership administration:** admins grant and revoke where they are admin: product admins on
   their product, team admins on their team, tenant admins on the tenant, and only owners grant
   owner. Granting someone without an account creates a 7-day invitation, emailed where mail is
@@ -154,7 +154,7 @@ calls **every** product, team and tenant operation as someone with no membership
   with `409 source_in_use` while anything in the current product cites or references the source
   (insights, register entries, views' lineage, related sources, the current version of a Story
   page), listing what does, because references never cross products. Both products log the move.
-- Both need editor on the source's product and on the target. Moving insights, entries, objectives
+- Both need editor on the source's product and on the target. Moving insights, entries, outcomes
   and Story pages is planned, with the same closure rule.
 
 ## 3.8 Identity of the caller

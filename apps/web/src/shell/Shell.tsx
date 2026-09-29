@@ -282,7 +282,7 @@ export function ProductShell({ product, app, children }: { product: Product; app
       }
       panel={(hide, hideLabel) => (
         <>
-          <BrandRow to={`${app}/objectives`} label={`WhatBuild, ${product.name} objectives`} onHide={hide} hideLabel={hideLabel} />
+          <BrandRow to={`${app}/idea`} label={`WhatBuild, ${product.name} idea`} onHide={hide} hideLabel={hideLabel} />
           <nav className="panel-nav" aria-label={product.name}>
             <ProductSwitcher current={product} />
             <ProductNav product={product} app={app} section={section.id} />
@@ -312,7 +312,7 @@ export function PlainShell({ children }: { children: ReactNode }) {
   const sectionId = key === "connect" ? "agents" : key;
   const tenantSlug = params["tenant"] ?? last?.tenant.slug ?? null;
   const tenantName = last && last.tenant.slug === tenantSlug ? last.tenant.name : null;
-  const home = last ? `/t/${last.path}/objectives` : "/products";
+  const home = last ? `/t/${last.path}/idea` : "/products";
   return (
     <Stage
       variant="plain"
@@ -321,9 +321,9 @@ export function PlainShell({ children }: { children: ReactNode }) {
       title={`${section} · WhatBuild`}
       panel={(hide, hideLabel) => (
         <>
-          <BrandRow to={home} label={last ? `WhatBuild, ${last.name} objectives` : "WhatBuild, all products"} onHide={hide} hideLabel={hideLabel} />
+          <BrandRow to={home} label={last ? `WhatBuild, ${last.name} idea` : "WhatBuild, all products"} onHide={hide} hideLabel={hideLabel} />
           <nav className="panel-nav" aria-label="Account and organization">
-            <PlainNav section={sectionId} backTo={last ? `/t/${last.path}/objectives` : null} backLabel={last?.name ?? null} tenantSlug={tenantSlug} tenantName={tenantName} />
+            <PlainNav section={sectionId} backTo={last ? `/t/${last.path}/idea` : null} backLabel={last?.name ?? null} tenantSlug={tenantSlug} tenantName={tenantName} />
           </nav>
         </>
       )}

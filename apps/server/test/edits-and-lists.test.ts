@@ -162,24 +162,24 @@ describe("register lists", () => {
   });
 });
 
-describe("archived objectives", () => {
+describe("archived outcomes", () => {
   it("are counted when hidden from the list, and flagged where they are referenced", async () => {
-    const live = await alice.api("POST", `${P}/objectives`, { title: "Close faster" });
-    const gone = await alice.api("POST", `${P}/objectives`, { title: "Retired aim", status: "archived" });
-    const list = await alice.api("GET", `${P}/objectives`);
-    expect(list.body.items.map((o: any) => o.objective_id)).toEqual([live.body.objective_id]);
+    const live = await alice.api("POST", `${P}/outcomes`, { title: "Close faster" });
+    const gone = await alice.api("POST", `${P}/outcomes`, { title: "Retired aim", status: "archived" });
+    const list = await alice.api("GET", `${P}/outcomes`);
+    expect(list.body.items.map((o: any) => o.outcome_id)).toEqual([live.body.outcome_id]);
     expect(list.body.archived_hidden).toBe(1);
     expect(list.body.note).toContain('status "archived"');
-    const archived = await alice.api("GET", `${P}/objectives?status=archived`);
+    const archived = await alice.api("GET", `${P}/outcomes?status=archived`);
     expect(archived.body).toMatchObject({ archived_hidden: 0 });
     expect(archived.body.note).toBeUndefined();
 
-    const i = await alice.api("POST", `${P}/insights`, { title: "Linked", body: "Text.", refs: { objectives: [live.body.objective_id, gone.body.objective_id] } });
-    expect(i.body.archived_objective_ids).toEqual([gone.body.objective_id]);
-    const a = await alice.api("POST", `${P}/assumptions`, { statement: "Linked too.", citations: cite(), objective_ids: [gone.body.objective_id] });
-    expect(a.body.archived_objective_ids).toEqual([gone.body.objective_id]);
+    const i = await alice.api("POST", `${P}/insights`, { title: "Linked", body: "Text.", refs: { outcomes: [live.body.outcome_id, gone.body.outcome_id] } });
+    expect(i.body.archived_outcome_ids).toEqual([gone.body.outcome_id]);
+    const a = await alice.api("POST", `${P}/assumptions`, { statement: "Linked too.", citations: cite(), outcome_ids: [gone.body.outcome_id] });
+    expect(a.body.archived_outcome_ids).toEqual([gone.body.outcome_id]);
     const al = await alice.api("GET", `${P}/assumptions?query=Linked`);
-    expect(al.body.items[0].archived_objective_ids).toEqual([gone.body.objective_id]);
+    expect(al.body.items[0].archived_outcome_ids).toEqual([gone.body.outcome_id]);
   });
 });
 
@@ -189,25 +189,25 @@ describe("id aliases", () => {
     await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${pat}` } } }));
     const call = (name: string, action: string, params: Record<string, unknown>) => client.callTool({ name, arguments: { action, params, product: productPath } });
     const ins = await alice.api("POST", `${P}/insights`, { title: "Alias", body: "Body." });
-    const obj = await alice.api("POST", `${P}/objectives`, { title: "Alias aim" });
+    const obj = await alice.api("POST", `${P}/outcomes`, { title: "Alias aim" });
     const as = await alice.api("POST", `${P}/assumptions`, { statement: "Alias premise.", citations: cite() });
     const de = await alice.api("POST", `${P}/decisions`, { statement: "Alias choice.", citations: cite() });
 
     expect(text(await call("insights", "get", { id: ins.body.insight_id })).title).toBe("Alias");
     expect(text(await call("insights", "revisions", { id: ins.body.insight_id })).items).toBeDefined();
-    expect(text(await call("objectives", "get", { id: obj.body.objective_id })).title).toBe("Alias aim");
+    expect(text(await call("outcomes", "get", { id: obj.body.outcome_id })).title).toBe("Alias aim");
     expect(text(await call("assumptions", "get", { assumption_id: as.body.id })).statement).toBe("Alias premise.");
     expect(text(await call("decisions", "get", { decision_id: de.body.id })).statement).toBe("Alias choice.");
     // The canonical names still work.
     expect(text(await call("assumptions", "get", { id: as.body.id })).statement).toBe("Alias premise.");
     expect(text(await call("insights", "get", { insight_id: ins.body.insight_id })).title).toBe("Alias");
 
-    const clash = await call("insights", "get", { id: ins.body.insight_id, insight_id: obj.body.objective_id });
+    const clash = await call("insights", "get", { id: ins.body.insight_id, insight_id: obj.body.outcome_id });
     expect(clash.isError).toBe(true);
     const wrongKind = await call("assumptions", "get", { decision_id: de.body.id });
     expect(wrongKind.isError).toBe(true);
     // Over REST the path carries the canonical id; an agreeing alias in the body is accepted.
-    const u = await alice.api("PATCH", `${P}/objectives/${obj.body.objective_id}`, { id: obj.body.objective_id, expected_etag: obj.body.etag, description: "Faster." });
+    const u = await alice.api("PATCH", `${P}/outcomes/${obj.body.outcome_id}`, { id: obj.body.outcome_id, expected_etag: obj.body.etag, description: "Faster." });
     expect(u.status).toBe(200);
     await client.close();
   });

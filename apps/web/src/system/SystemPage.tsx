@@ -271,7 +271,7 @@ function Specimen() {
               <option value="interview">Interview transcript</option>
               <option value="notes">Interviewer notes</option>
             </SelectField>
-            <TextArea label="Idea" defaultValue="Crew leads spend a Friday afternoon building next week." />
+            <TextArea label="Product concept" defaultValue="Crew leads spend a Friday afternoon building next week." />
           </FormGrid>
         </SheetBody>
       </Sheet>

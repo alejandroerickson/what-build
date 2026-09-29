@@ -30,7 +30,7 @@ describe("the discovery loop through REST", () => {
     const t = await alice.api("POST", "/api/v1/tenants", { name: "Acme Research" });
     expect(t.status).toBe(201);
     expect(t.body.tenant.slug).toBe("acme-research");
-    const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Onboarding", idea: "Make setup take minutes." });
+    const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Onboarding", concept: "Make setup take minutes." });
     expect(p.status).toBe(201);
     expect(p.body.path).toBe("acme-research/product-team/onboarding");
     P = `/api/v1/p/${p.body.path}`;
@@ -39,25 +39,25 @@ describe("the discovery loop through REST", () => {
     expect(list.body.items[0].your_role).toBe("admin");
   });
 
-  it("keeps objectives with etags, refuses stale writes, and keeps revisions", async () => {
-    const o = await alice.api("POST", `${P}/objectives`, { title: "Know how teams plan", description: "First." });
+  it("keeps outcomes with etags, refuses stale writes, and keeps revisions", async () => {
+    const o = await alice.api("POST", `${P}/outcomes`, { title: "Know how teams plan", description: "First." });
     expect(o.status).toBe(201);
-    const stale = await alice.api("PATCH", `${P}/objectives/${o.body.objective_id}`, { expected_etag: "nope", title: "x" });
+    const stale = await alice.api("PATCH", `${P}/outcomes/${o.body.outcome_id}`, { expected_etag: "nope", title: "x" });
     expect(stale.status).toBe(409);
     expect(stale.body.error.code).toBe("stale_etag");
     expect(stale.body.error.details.current_etag).toBe(o.body.etag);
-    const u = await alice.api("PATCH", `${P}/objectives/${o.body.objective_id}`, { title: "Know how teams plan their week" }, { "if-match": `"${o.body.etag}"` });
+    const u = await alice.api("PATCH", `${P}/outcomes/${o.body.outcome_id}`, { title: "Know how teams plan their week" }, { "if-match": `"${o.body.etag}"` });
     expect(u.status).toBe(200);
     expect(u.body.title).toBe("Know how teams plan their week");
     expect(u.body.description).toBe("First.");
-    const revs = await alice.api("GET", `${P}/objectives/${o.body.objective_id}/revisions`);
+    const revs = await alice.api("GET", `${P}/outcomes/${o.body.outcome_id}/revisions`);
     expect(revs.body.items).toHaveLength(1);
-    const rev = await alice.api("GET", `${P}/objectives/${o.body.objective_id}/revisions/1`);
+    const rev = await alice.api("GET", `${P}/outcomes/${o.body.outcome_id}/revisions/1`);
     expect(rev.body.content.title).toBe("Know how teams plan");
   });
 
   it("refuses unknown fields and over-limit pages", async () => {
-    const r = await alice.api("POST", `${P}/objectives`, { title: "x", colour: "red" });
+    const r = await alice.api("POST", `${P}/outcomes`, { title: "x", colour: "red" });
     expect(r.status).toBe(422);
     expect(r.body.error.message).toMatch(/unknown field/);
     const l = await alice.api("GET", `${P}/sources?limit=500`);
@@ -171,20 +171,20 @@ describe("the discovery loop through REST", () => {
   });
 
   it("counts only current assumptions and decisions, as the default lists show them", async () => {
-    const o = await alice.api("POST", `${P}/objectives`, { title: "Know when numbers close" });
+    const o = await alice.api("POST", `${P}/outcomes`, { title: "Know when numbers close" });
     const cite = [{ record_id: recordId, seq_start: 2, seq_end: 2 }];
-    const a = await alice.api("POST", `${P}/assumptions`, { statement: "Numbers close weekly.", citations: cite, objective_ids: [o.body.objective_id] });
+    const a = await alice.api("POST", `${P}/assumptions`, { statement: "Numbers close weekly.", citations: cite, outcome_ids: [o.body.outcome_id] });
     const sup = await alice.api("POST", `${P}/assumptions/${a.body.id}/supersede`, {
-      expected_etag: a.body.etag, note: "Sharper.", statement: "Numbers close every Friday.", citations: cite, objective_ids: [o.body.objective_id],
+      expected_etag: a.body.etag, note: "Sharper.", statement: "Numbers close every Friday.", citations: cite, outcome_ids: [o.body.outcome_id],
     });
     expect(sup.status).toBe(200);
-    const d = await alice.api("POST", `${P}/decisions`, { statement: "Plan around Friday.", citations: cite, objective_ids: [o.body.objective_id] });
+    const d = await alice.api("POST", `${P}/decisions`, { statement: "Plan around Friday.", citations: cite, outcome_ids: [o.body.outcome_id] });
     await alice.api("POST", `${P}/decisions/${d.body.id}/review`, { expected_etag: d.body.etag, status: "refuted", note: "Friday moved." });
-    const objs = await alice.api("GET", `${P}/objectives`);
-    const mine = objs.body.items.find((x: { objective_id: string }) => x.objective_id === o.body.objective_id);
+    const objs = await alice.api("GET", `${P}/outcomes`);
+    const mine = objs.body.items.find((x: { outcome_id: string }) => x.outcome_id === o.body.outcome_id);
     expect(mine.counts).toEqual({ insights: 0, assumptions: 1, decisions: 0 });
-    const onObjective = await alice.api("GET", `${P}/assumptions?status=unconfirmed,confirmed&objective_id=${o.body.objective_id}`);
-    expect(onObjective.body.items).toHaveLength(mine.counts.assumptions);
+    const onOutcome = await alice.api("GET", `${P}/assumptions?status=unconfirmed,confirmed&outcome_id=${o.body.outcome_id}`);
+    expect(onOutcome.body.items).toHaveLength(mine.counts.assumptions);
     const product = await alice.api("GET", P);
     for (const kind of ["assumptions", "decisions"] as const) {
       const current = await alice.api("GET", `${P}/${kind}?status=unconfirmed,confirmed&limit=100`);

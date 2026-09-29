@@ -231,7 +231,7 @@ export interface Actor {
   client: string | null;
 }
 
-export type RefKind = "objectives" | "sources" | "insights" | "assumptions" | "decisions";
+export type RefKind = "outcomes" | "sources" | "insights" | "assumptions" | "decisions";
 export type Refs = Partial<Record<RefKind, string[]>>;
 
 export interface ResolvedRef {

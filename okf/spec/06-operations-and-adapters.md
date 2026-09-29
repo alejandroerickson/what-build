@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 99 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
-generated: {by: agent:claude, at: 2026-09-27}
+generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
 status: stable
 ---
 
@@ -77,7 +77,7 @@ receive no transport details and no way to reach another tenant.
 | 429 | Rate limited | `rate_limited` |
 
 - **`403` names the role.** A caller with a role on the product but too low for the action gets
-  `403` with `{ role, needed }` in `details` ("You are a viewer on product …; objectives.create
+  `403` with `{ role, needed }` in `details` ("You are a viewer on product …; outcomes.create
   needs editor"). With no role at all the answer is `404`, never `403`
   ([§3.5](03-accounts-teams-and-identity.md)).
 - **`quota_exceeded`** carries `{ quota, limit, used, unit }` in `details`. The only quota enforced
@@ -95,7 +95,7 @@ receive no transport details and no way to reach another tenant.
 
 - Lists and search are paged with an opaque `cursor`; responses carry `next_cursor` or `null`.
   Page sizes are per operation: default 50, at most 200 for sources, search, activity and
-  revisions; default 25, at most 100 for insights, register entries and Story versions; objectives
+  revisions; default 25, at most 100 for insights, register entries and Story versions; outcomes
   default to 100. Asking for more than the maximum is `422`, not a silent clamp.
 - `sources.list` orders by `sort`: `added` (newest added first, the default), `date` (the
   source's own date, newest first, undated last) or `title` (A to Z). A cursor belongs to its sort
@@ -150,13 +150,13 @@ being changed inside the handler.
 | `members` | `grant` | `POST /api/v1/tenants/:tenant/members` | admin at the target |
 | `members` | `revoke` | `POST /api/v1/tenants/:tenant/members/revoke` | admin at the target |
 | `members` | `cancel_invitation` | `POST /api/v1/tenants/:tenant/invitations/cancel` | admin at the target |
-| `objectives` | `list` | `GET P/objectives` | viewer |
-| `objectives` | `get` | `GET P/objectives/:objective_id` | viewer |
-| `objectives` | `create` | `POST P/objectives` | editor |
-| `objectives` | `update` | `PATCH P/objectives/:objective_id` | editor |
-| `objectives` | `revisions` | `GET P/objectives/:objective_id/revisions` | viewer |
-| `objectives` | `get_revision` | `GET P/objectives/:objective_id/revisions/:n` | viewer |
-| `objectives` | `restore_revision` | `POST P/objectives/:objective_id/revisions/:n/restore` | editor |
+| `outcomes` | `list` | `GET P/outcomes` | viewer |
+| `outcomes` | `get` | `GET P/outcomes/:outcome_id` | viewer |
+| `outcomes` | `create` | `POST P/outcomes` | editor |
+| `outcomes` | `update` | `PATCH P/outcomes/:outcome_id` | editor |
+| `outcomes` | `revisions` | `GET P/outcomes/:outcome_id/revisions` | viewer |
+| `outcomes` | `get_revision` | `GET P/outcomes/:outcome_id/revisions/:n` | viewer |
+| `outcomes` | `restore_revision` | `POST P/outcomes/:outcome_id/revisions/:n/restore` | editor |
 | `sources` | `kinds` | `GET /api/v1/kinds` | signed in |
 | `sources` | `list` | `GET P/sources` | viewer |
 | `sources` | `get` | `GET P/sources/:record_id` | viewer |
@@ -236,7 +236,7 @@ Notes on recent actions:
   once) and return `changed` and a short `diff` ([§4.1](04-data-model.md)). Register lists return
   `frozen`, `superseded_by` (the ids of the entries whose `supersedes` link points at the entry, newest
   first, so a list can show history under its correction without a `get` per entry),
-  `link_count` and `linked_from_count`; `objectives.list` returns
+  `link_count` and `linked_from_count`; `outcomes.list` returns
   `archived_hidden` ([§4.2](04-data-model.md), [§4.8](04-data-model.md)).
 - `story.publish` takes `citations` (up to 20 exact passages, snapshotted as in the registers)
   beside `refs`; `story.check_citations` checks a version's citations. A later version keeps the
@@ -331,7 +331,7 @@ before the first write, and treat source text as quoted material.
 |---|---|
 | `products` | `list`, `create_tenant`, `create_team`, `create`, `get`, `update`, `archive`, `restore`, `export`, `exports` |
 | `members` | `list`, `grant`, `revoke`, `cancel_invitation` |
-| `objectives` | `list`, `get`, `create`, `update`, `revisions`, `get_revision`, `restore_revision` |
+| `outcomes` | `list`, `get`, `create`, `update`, `revisions`, `get_revision`, `restore_revision` |
 | `sources` | `kinds`, `list`, `get`, `create`, `update`, `archive`, `restore`, `annotate`, `list_annotations`, `update_annotation`, `insights_for`, `move_to_product`, `copy_to_product`, `delete_impact`, `delete` |
 | `files` | `request_upload`, `create_upload`, `complete_upload`, `add_note`, `fetch_url`, `set_role`, `get_download` |
 | `derived` | `manifest`, `outline`, `text`, `list`, `rederive`, `write_note`, `read_note` |
@@ -358,9 +358,9 @@ Rules:
   `params`), it returns that action's scope, access, whether it mutates, its guidance and its
   exact JSON Schema — without executing.
 - **Strict.** Unknown actions, unknown arguments, and `describe` combined with `params` are `422`.
-- **One alias for each entity id.** The id is `insight_id` and `objective_id` on those tools but
+- **One alias for each entity id.** The id is `insight_id` and `outcome_id` on those tools but
   `id` on the registers. Each tool also accepts the other convention for its own entity: `id` on
-  `insights` and `objectives`, `assumption_id` on `assumptions`, `decision_id` on `decisions`.
+  `insights` and `outcomes`, `assumption_id` on `assumptions`, `decision_id` on `decisions`.
   `execute` renames the alias before strict validation
   ([`id-aliases.ts`](../../packages/core/src/id-aliases.ts)), so it works over REST and MCP alike;
   sending both with different values is `422`. ◆ Decision: aliases, not a rename, so no existing

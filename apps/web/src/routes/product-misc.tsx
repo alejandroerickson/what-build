@@ -24,7 +24,7 @@ const WHO = [
 const TYPE_FILTERS = [
   { id: "", label: "Everything" },
   { id: "source", label: "Sources" },
-  { id: "objective", label: "Objectives" },
+  { id: "outcome", label: "Outcomes" },
   { id: "insight", label: "Insights" },
   { id: "assumption", label: "Assumptions" },
   { id: "decision", label: "Decisions" },
@@ -140,17 +140,17 @@ function ProductDetails() {
   const navigate = useNavigate();
   const [name, setName] = useState(product.name);
   const [slug, setSlug] = useState(product.slug);
-  const [idea, setIdea] = useState(product.idea);
+  const [concept, setConcept] = useState(product.concept);
   const archived = Boolean(product.archived_at);
   const editable = isAdmin && !archived;
-  const dirty = name !== product.name || slug !== product.slug || idea !== product.idea;
+  const dirty = name !== product.name || slug !== product.slug || concept !== product.concept;
   const save = useMutation({
     mutationFn: () =>
       api<{ path: string }>("PATCH", base, {
         expected_etag: product.etag,
         ...(name !== product.name ? { name } : {}),
         ...(slug !== product.slug ? { slug } : {}),
-        ...(idea !== product.idea ? { idea } : {}),
+        ...(concept !== product.concept ? { concept } : {}),
       }),
     onSuccess: (p) => {
       toast("Saved.");
@@ -193,10 +193,10 @@ function ProductDetails() {
         />
         <TextField label="Team" value={`${product.team.name} · ${product.tenant.name}`} readOnly />
         <TextArea
-          label="The idea"
-          hint={editable ? "What the product could be, in a few sentences. It heads the Objectives screen." : undefined}
-          value={idea}
-          onChange={(e) => setIdea(e.target.value)}
+          label="Product concept"
+          hint={editable ? "Who it is for, the problem they have, and how the product solves it, in a few sentences. It heads the Idea screen." : undefined}
+          value={concept}
+          onChange={(e) => setConcept(e.target.value)}
           readOnly={!editable}
           maxLength={2000}
           rows={3}
@@ -224,7 +224,7 @@ function ProductDetails() {
               onClick={() => {
                 setName(product.name);
                 setSlug(product.slug);
-                setIdea(product.idea);
+                setConcept(product.concept);
                 save.reset();
               }}
             >

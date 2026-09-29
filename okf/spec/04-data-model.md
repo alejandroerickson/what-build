@@ -1,9 +1,9 @@
 ---
 type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
-description: The common envelope (ids, etags, attribution, revisions), objectives, sources and their taxonomy, files, annotations, insights and insight review, the registers and citations, views and lineage, activity, Story, feedback, the product bundle, and the storage layout.
+description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their taxonomy, files, annotations, insights and insight review, the registers and citations, views and lineage, activity, Story, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, citations, revisions, story, export]
-generated: {by: agent:claude, at: 2026-09-27}
+generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
 status: stable
 ---
 
@@ -25,7 +25,7 @@ Every editable object carries:
 | `etag` | Opaque string; changes on every successful mutation. |
 | `created_at`, `created_by` | Timestamp and actor snapshot ([§3.9](03-accounts-teams-and-identity.md)). Sources say `uploaded_at`, `uploaded_by`. |
 | `updated_at`, `updated_by` | Same, for the latest mutation. |
-| `archived_at` | Where the type supports archive (sources, annotations, register entries, Story pages). Objectives and insights archive through `status: "archived"` instead. Archived objects are excluded from lists and search unless asked for, and remain readable by id. |
+| `archived_at` | Where the type supports archive (sources, annotations, register entries, Story pages). Outcomes and insights archive through `status: "archived"` instead. Archived objects are excluded from lists and search unless asked for, and remain readable by id. |
 
 **Concurrency.** Every update, review, link, single-object archive and restore, and every Story
 publish after a page's first version requires the current etag (`expected_etag` in the input, or
@@ -49,15 +49,15 @@ appended to an immutable revision list with who wrote it and who replaced it
 
 | Object | Revised fields |
 |---|---|
-| Product | `idea` |
-| Objective | `title`, `description` |
+| Product | `concept` |
+| Outcome | `title`, `description` |
 | Source | — (metadata only; the activity log names the operation and the actor) |
 | Annotation | `note` |
 | Insight | `title`, `summary`, `body` |
 | Assumption, Decision | `statement`, `body`, `citations` (while still editable, §4.8) |
 | Story page | — (it has explicit, numbered, reader-visible versions instead, §4.11) |
 
-Insights and objectives have operations to read and restore revisions: `revisions` (list, bounded,
+Insights and outcomes have operations to read and restore revisions: `revisions` (list, bounded,
 no bodies), `get_revision`, and `restore_revision` (writes the old content as a **new** update,
 recorded like any other; it never rewinds history). Revisions of the other types are kept and
 exported; operations to read them are planned.
@@ -78,26 +78,29 @@ return `changed` (the fields that changed) and `diff`: per changed text field, o
 characters of unchanged context each side and the changed parts clipped at 300 characters, so a
 slip in a re-sent text shows up in the result.
 
-## 4.2 Objectives
+## 4.2 Outcomes
+
+An outcome is what the product's users should be able to achieve with it. Outcomes sit under the
+product concept ([§3.4](03-accounts-teams-and-identity.md)) on the Idea screen.
 
 | Field | Rule |
 |---|---|
-| `objective_id` | |
+| `outcome_id` | |
 | `title` | 1–200 chars. |
 | `description` | Markdown, 0–2,000 chars. |
 | `status` | `active` (default), `achieved`, `archived`. |
-| `position` | Ordering key within the product; new objectives go last; reorder is an update. |
+| `position` | Ordering key within the product; new outcomes go last; reorder is an update. |
 
-Insights, register entries and Story versions point *to* objectives; objectives hold no outgoing
+Insights, register entries and Story versions point *to* outcomes; outcomes hold no outgoing
 references. Reads return counts of the insights, assumptions and decisions that point at each:
 unarchived insights, and current (`unconfirmed` or `confirmed`) register entries. Superseded and
 refuted entries are not counted, so a count matches the register's default view. `products.get`
 counts assumptions and decisions the same way.
 
-`objectives.list` leaves archived objectives out unless asked for `status: "archived"`, and says
+`outcomes.list` leaves archived outcomes out unless asked for `status: "archived"`, and says
 how many it left out: `archived_hidden` (the count, honouring `query`) and, when it is not zero, a
-`note`. An archived objective can still be referenced. Insights (`refs.objectives`) and register
-entries (`objective_ids`) return `archived_objective_ids`: the referenced objectives that are
+`note`. An archived outcome can still be referenced. Insights (`refs.outcomes`) and register
+entries (`outcome_ids`) return `archived_outcome_ids`: the referenced outcomes that are
 archived, so a link to one is visible rather than accidental.
 
 ## 4.3 Sources
@@ -226,7 +229,7 @@ labelled so.
 | `body` | Markdown without HTML, 1–100,000 chars. |
 | `status` | `draft` (default), `published` or `archived`. Publishing is an explicit action. |
 | `revision` | Integer, starts at 1, increments on every change to title, summary or body. |
-| `refs` | `{ objectives[] ≤ 50, sources[] ≤ 100, insights[] ≤ 100, assumptions[] ≤ 100, decisions[] ≤ 100 }`, same product, validated to exist (`422 unknown_reference`, `422 cross_product_reference`). |
+| `refs` | `{ outcomes[] ≤ 50, sources[] ≤ 100, insights[] ≤ 100, assumptions[] ≤ 100, decisions[] ≤ 100 }`, same product, validated to exist (`422 unknown_reference`, `422 cross_product_reference`). |
 
 - Lists return everything except `body` (with `body_chars` and `body_words`, a count of runs of
   letters and digits that ignores Markdown punctuation). `get` returns the body in bounded
@@ -276,7 +279,7 @@ register is `404`.
 | `statement` | 1–1,000 chars. The premise or choice in one sentence. |
 | `body` | Markdown, 0–10,000 chars: reasoning, stakes, alternatives considered. |
 | `citations` | 1–20 (below). |
-| `objective_ids` | ≤ 20 objective ids. |
+| `outcome_ids` | ≤ 20 outcome ids. |
 | `links` | ≤ 50 of `{ id, type }` to entries in **either** register; `type` is `supports`, `contradicts`, or `supersedes`. Reads also return `linked_from` and `superseded_by` (the ids of entries that supersede this one, newest first). |
 | `tags`, `dimensions`, `provenance_depth` | As sources. |
 | `author`, `author_type` | Actor snapshot, and a declared `human` or `agent` ([§3.9](03-accounts-teams-and-identity.md)). |
@@ -286,7 +289,7 @@ register is `404`.
 
 List items carry the entry's state without a `get` per entry: `status`, `frozen`,
 `superseded_by`, `link_count` (links out), `linked_from_count` (links in), `review_count`,
-`human_review` and `archived_objective_ids`. The list filters by one or more statuses.
+`human_review` and `archived_outcome_ids`. The list filters by one or more statuses.
 
 ### Citations
 
@@ -365,7 +368,7 @@ down, not a copy of the source ([§9.5](09-data-lifecycle.md)).
   one that leaves it `unconfirmed` — they are frozen (`409 frozen`); the `review` guidance says
   so: a correction is a **new entry**
   created with `supersede`, which links `supersedes` → the old entry and records a `superseded`
-  review on the old entry in the same atomic operation. `tags`, `objective_ids`, and `links` stay
+  review on the old entry in the same atomic operation. `tags`, `outcome_ids`, and `links` stay
   editable.
 - Links are type-checked **before** any mutation: the target must exist in the same product, a
   self-link is rejected, a duplicate `{id, type}` is rejected, and `supersedes` must be acyclic.
@@ -518,7 +521,7 @@ job builds it; it can be downloaded for seven days ([`export.ts`](../../packages
 ```
 bundle.json                 format and format version, exported_at/by, server version, tenant, team, product
 README.txt
-objectives.json
+outcomes.json
 records/<record_id>/record.json                  the source with its files and versions
 records/<record_id>/files/<file_version_id>/<path>
 records/<record_id>/derived/<derivation_id>/{segments.jsonl,text.md,outline.md,manifest.json}

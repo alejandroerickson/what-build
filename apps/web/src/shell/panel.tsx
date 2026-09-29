@@ -7,7 +7,7 @@ import { useTheme } from "./theme.ts";
 
 /** The four L1 destinations, in the order that tells the product's story. */
 export const L1 = [
-  { id: "objectives", label: "Objectives", icon: "target", count: "objectives" },
+  { id: "idea", label: "Idea", icon: "target", count: "outcomes" },
   { id: "evidence", label: "Evidence", icon: "library", count: "sources" },
   { id: "synthesis", label: "Synthesis", icon: "lightbulb", count: "insights" },
   { id: "story", label: "Story", icon: "book-open", count: "story_pages" },
@@ -28,12 +28,12 @@ export function productSection(segment: string | undefined): { id: string; label
     case "settings":
       return { id: "settings", label: "Settings" };
     default:
-      return { id: "objectives", label: "Objectives" };
+      return { id: "idea", label: "Idea" };
   }
 }
 
 /** Screens that exist in every product, so switching product can keep the person on the same one. */
-const KEEP_ON_SWITCH = new Set(["objectives", "evidence", "synthesis", "story", "activity", "search", "settings"]);
+const KEEP_ON_SWITCH = new Set(["idea", "evidence", "synthesis", "story", "activity", "search", "settings"]);
 
 export function BrandRow({ to, label, onHide, hideLabel }: { to: string; label: string; onHide: () => void; hideLabel: string }) {
   return (
@@ -51,8 +51,8 @@ export function ProductSwitcher({ current }: { current: Product }) {
   const products = useProducts();
   const loc = useLocation();
   const navigate = useNavigate();
-  const segment = loc.pathname.split("/")[5] ?? "objectives";
-  const keep = KEEP_ON_SWITCH.has(segment) ? segment : "objectives";
+  const segment = loc.pathname.split("/")[5] ?? "idea";
+  const keep = KEEP_ON_SWITCH.has(segment) ? segment : "idea";
   const items = products.data?.items ?? [];
   const groups = new Map<string, typeof items>();
   for (const p of items) {

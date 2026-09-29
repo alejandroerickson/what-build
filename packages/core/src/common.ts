@@ -9,7 +9,7 @@ export type EntityType =
   | "tenant"
   | "membership"
   | "source"
-  | "objective"
+  | "outcome"
   | "insight"
   | "assumption"
   | "decision"
@@ -106,7 +106,7 @@ export function normalizeTags(tags: string[] | undefined): string[] {
   return uniq((tags ?? []).map((t) => normalizeKey(t)).filter(Boolean));
 }
 
-export const EMPTY_REFS: Refs = { objectives: [], sources: [], insights: [], assumptions: [], decisions: [] };
+export const EMPTY_REFS: Refs = { outcomes: [], sources: [], insights: [], assumptions: [], decisions: [] };
 
 /**
  * Check that every referenced id exists in this product and is of the named kind. References never
@@ -115,7 +115,7 @@ export const EMPTY_REFS: Refs = { objectives: [], sources: [], insights: [], ass
 export async function validateRefs(ctx: OpContext, refs: Partial<Refs>, selfId?: string): Promise<Refs> {
   const pid = productId(ctx);
   const out: Refs = {
-    objectives: uniq(refs.objectives ?? []),
+    outcomes: uniq(refs.outcomes ?? []),
     sources: uniq(refs.sources ?? []),
     insights: uniq(refs.insights ?? []).filter((i) => i !== selfId),
     assumptions: uniq(refs.assumptions ?? []),
@@ -133,9 +133,9 @@ export async function validateRefs(ctx: OpContext, refs: Partial<Refs>, selfId?:
     }
   };
   await check(
-    out.objectives,
-    ctx.db.selectFrom("objectives").select(["objective_id as id", "product_id"]).where("objective_id", "in", out.objectives.length ? out.objectives : [""]).execute(),
-    "objective",
+    out.outcomes,
+    ctx.db.selectFrom("outcomes").select(["outcome_id as id", "product_id"]).where("outcome_id", "in", out.outcomes.length ? out.outcomes : [""]).execute(),
+    "outcome",
   );
   await check(
     out.sources,

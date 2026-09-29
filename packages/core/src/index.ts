@@ -5,7 +5,7 @@ import { fileOps } from "./ops/files.ts";
 import { insightOps } from "./ops/insights.ts";
 import { lineageOps } from "./ops/lineage.ts";
 import { metaOps } from "./ops/meta.ts";
-import { objectiveOps } from "./ops/objectives.ts";
+import { outcomeOps } from "./ops/outcomes.ts";
 import { productOps } from "./ops/products.ts";
 import { registerOpsList } from "./ops/registers.ts";
 import { revisionOpsList } from "./ops/revisions.ts";
@@ -38,7 +38,7 @@ export { GUIDANCE_VERSION, STYLESHEET as STORY_STYLESHEET, TOKENS as STORY_TOKEN
 export const OPERATIONS: OperationDef[] = [
   ...productOps,
   ...exportOps,
-  ...objectiveOps,
+  ...outcomeOps,
   ...sourceOps,
   ...fileOps,
   ...derivedOps,

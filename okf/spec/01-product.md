@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild turns a team's discovery material into cited insight and a story, with agents as first-class contributors.
 description: Who the product is for, the core loop, the four screens, the vocabulary, the non-negotiable behaviors, and what the product is not.
 tags: [spec, product, vocabulary, principles]
-generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
 status: stable
 ---
 
@@ -28,8 +28,9 @@ status: stable
 
 ## 1.2 The core loop
 
-1. **Establish objectives.** Start a product with an idea; write down the short goals that
-   discovery work must serve.
+1. **State the idea.** Start a product with its **product concept**: who it is for, the problem
+   they have, and how the product solves it. Then write its **outcomes**: what its users should be
+   able to achieve with it.
 2. **Gather evidence.** Upload material into an opinionated taxonomy. The application asks what a
    document *is* before it places it. A contributor describes the material and never chooses or
    learns a storage path.
@@ -52,7 +53,7 @@ of one of them.
 
 | Screen | Purpose |
 |---|---|
-| **Objectives** | Short strategic goals. The landing screen of a product: where a product idea becomes explicit direction. |
+| **Idea** | The product concept, then the outcomes. The landing screen of a product: where a product idea becomes explicit direction. |
 | **Evidence** | The sources: kind-first upload, browse with filters, source pages, the passage reader, notes, search. |
 | **Synthesis** | Insights (the insight documents), the assumption register, the decision register. |
 | **Story** | The outward-facing report: an ordered hierarchy of versioned, sandboxed HTML pages. |
@@ -67,7 +68,8 @@ Outside a product there are only: the product list, **Members** of an organizati
 
 ## 1.4 Vocabulary
 
-One word per concept, used identically in the UI, REST, MCP, the skill, and documentation.
+One word per concept, used identically in the UI, REST, MCP, the skill, and documentation. The
+Idea screen's terms are a decision: [A product starts with its idea](../decisions/a-product-starts-with-an-idea-concept-and-outcomes.md).
 
 | Term | Meaning |
 |---|---|
@@ -80,7 +82,8 @@ One word per concept, used identically in the UI, REST, MCP, the skill, and docu
 | **file** | A stored file belonging to a source, with a role: `primary`, `origin`, or `supplement`. The role is **origin**, not "source", so it cannot be confused with the destination. |
 | **segment** | The atomic unit of derived text: a paragraph or a cue, with offsets. |
 | **passage** | A contiguous range of segments in one source. What citations and reads address. |
-| **objective** | A short strategic goal. |
+| **product concept** | Who the product is for, the problem they have, and how the product solves it. A product's `concept` field; it heads the **Idea** screen. |
+| **outcome** | What the product's users should be able to achieve with it, written from their side ("The crew lead plans next week in minutes"), not a feature or a task. Not the discovery's own goals. The destination that holds the product concept and the outcomes is **Idea**. |
 | **insight** | A readable Markdown synthesis document. The destination that holds insights and the two registers is **Synthesis**; within it, the list of insights is **Insights**. |
 | **revision** | The previous text of an authored body, kept immutably whenever that body is overwritten. |
 | **assumption**, **decision** | Entries in the two reviewed **registers**. |
@@ -112,7 +115,7 @@ One word per concept, used identically in the UI, REST, MCP, the skill, and docu
    it happens, and always leaves a tombstone so nothing that pointed at the object is left guessing
    ([§9.5](09-data-lifecycle.md)).
 4. **Authored text is never lost to an overwrite.** Every object with a body a person or an agent
-   writes (the product idea, objectives, annotations, insights, and register entries while still
+   writes (the product concept, outcomes, annotations, insights, and register entries while still
    editable) keeps immutable **revisions** ([§4.1](04-data-model.md)). A well-meaning agent
    rewriting a paragraph must never be the way a team loses it.
 5. **Citations outlive edits.** Citation snapshots are immutable, derivations are immutable and

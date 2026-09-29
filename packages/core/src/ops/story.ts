@@ -23,7 +23,7 @@ const pageId = z
 
 const refsInput = z
   .strictObject({
-    objectives: z.array(id("objective")).max(50).optional(),
+    outcomes: z.array(id("outcome")).max(50).optional(),
     sources: z.array(id("source")).max(100).optional(),
     insights: z.array(id("insight")).max(100).optional(),
     assumptions: z.array(id("assumption")).max(100).optional(),
@@ -118,8 +118,8 @@ type ResolvedRef = { id: string; title: string | null; status: string | null; ki
 async function resolveRefs(ctx: OpContext, refs: Refs): Promise<Record<keyof Refs, ResolvedRef[]>> {
   const pid = productId(ctx);
   const some = (ids: string[] | undefined) => (ids?.length ? ids : [""]);
-  const [objectives, sources, insights, entries] = await Promise.all([
-    ctx.db.selectFrom("objectives").select(["objective_id as id", "title", "status"]).where("product_id", "=", pid).where("objective_id", "in", some(refs.objectives)).execute(),
+  const [outcomes, sources, insights, entries] = await Promise.all([
+    ctx.db.selectFrom("outcomes").select(["outcome_id as id", "title", "status"]).where("product_id", "=", pid).where("outcome_id", "in", some(refs.outcomes)).execute(),
     ctx.db.selectFrom("records").select(["record_id as id", "title", "kind", "archived_at"]).where("product_id", "=", pid).where("record_id", "in", some(refs.sources)).execute(),
     ctx.db.selectFrom("insights").select(["insight_id as id", "title", "status"]).where("product_id", "=", pid).where("insight_id", "in", some(refs.insights)).execute(),
     ctx.db
@@ -131,8 +131,8 @@ async function resolveRefs(ctx: OpContext, refs: Refs): Promise<Record<keyof Ref
   ]);
   const missing = (id: string): ResolvedRef => ({ id, title: null, status: null, archived: false, missing: true });
   return {
-    objectives: (refs.objectives ?? []).map((i) => {
-      const o = objectives.find((x) => x.id === i);
+    outcomes: (refs.outcomes ?? []).map((i) => {
+      const o = outcomes.find((x) => x.id === i);
       return o ? { id: i, title: o.title, status: o.status, archived: o.status === "archived", missing: false } : missing(i);
     }),
     sources: (refs.sources ?? []).map((i) => {

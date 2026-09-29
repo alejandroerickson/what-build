@@ -1,7 +1,7 @@
 # WhatBuild
 
 **Turn a pile of discovery material into something you can act on.** Interviews, sales calls,
-research exports, documents and decks go in; objectives, cited insights, reviewed assumptions and
+research exports, documents and decks go in; outcomes, cited insights, reviewed assumptions and
 decisions, and a stakeholder-readable story come out — with every claim pointing at the exact
 passage it came from.
 

@@ -39,7 +39,7 @@
 .products-org:not(:last-child) .products-team:last-child .products-row:last-child {
   border-bottom: 0;
 }
-.products-idea {
+.products-concept {
   display: block;
   max-width: 72ch;
   overflow: hidden;
@@ -130,7 +130,7 @@
 }
 
 @media (max-width: 760px) {
-  .products-idea {
+  .products-concept {
     white-space: normal;
     display: -webkit-box;
     -webkit-line-clamp: 2;

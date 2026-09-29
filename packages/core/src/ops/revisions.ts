@@ -98,7 +98,7 @@ function revisionOps(cfg: {
 }
 
 import { updateInsight } from "./insights.ts";
-import { updateObjective } from "./objectives.ts";
+import { updateOutcome } from "./outcomes.ts";
 
 export const revisionOpsList = [
   ...revisionOps({
@@ -111,12 +111,12 @@ export const revisionOpsList = [
     toUpdate: (c) => ({ title: c["title"], summary: c["summary"], body: c["body"] }),
   }),
   ...revisionOps({
-    tool: "objectives",
-    objectType: "objective",
-    idField: "objective_id",
-    label: "objective",
-    exists: async (ctx, oid) => Boolean(await ctx.db.selectFrom("objectives").select("objective_id").where("objective_id", "=", oid).where("product_id", "=", productId(ctx)).executeTakeFirst()),
-    update: updateObjective as unknown as OperationDef,
+    tool: "outcomes",
+    objectType: "outcome",
+    idField: "outcome_id",
+    label: "outcome",
+    exists: async (ctx, oid) => Boolean(await ctx.db.selectFrom("outcomes").select("outcome_id").where("outcome_id", "=", oid).where("product_id", "=", productId(ctx)).executeTakeFirst()),
+    update: updateOutcome as unknown as OperationDef,
     toUpdate: (c) => ({ title: c["title"], description: c["description"] }),
   }),
 ];

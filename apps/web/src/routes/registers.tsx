@@ -71,27 +71,27 @@ export function RegisterListPage({ kind }: { kind: Kind }) {
   const [params, setParams] = useSearchParams();
   const show = params.get("show") ?? "";
   const view = SHOW.find((s) => s.id === show) ?? SHOW[0]!;
-  const objective = params.get("objective_id") ?? "";
+  const outcome = params.get("outcome_id") ?? "";
   const path = `${app}/synthesis/${kind}`;
   usePageTitle(TITLE[kind]);
-  const objectives = useQuery({
-    queryKey: ["objectives", base, ""],
-    enabled: Boolean(objective),
-    queryFn: () => api<{ items: { objective_id: string; title: string }[] }>("GET", `${base}/objectives`),
+  const outcomes = useQuery({
+    queryKey: ["outcomes", base, ""],
+    enabled: Boolean(outcome),
+    queryFn: () => api<{ items: { outcome_id: string; title: string }[] }>("GET", `${base}/outcomes`),
   });
   const q = useInfiniteQuery({
-    queryKey: ["register", base, kind, show, objective],
+    queryKey: ["register", base, kind, show, outcome],
     queryFn: ({ pageParam }) =>
-      api<{ items: RegisterSummary[]; next_cursor: string | null }>("GET", `${base}/${kind}${qs({ status: view.status, objective_id: objective, cursor: pageParam })}`),
+      api<{ items: RegisterSummary[]; next_cursor: string | null }>("GET", `${base}/${kind}${qs({ status: view.status, outcome_id: outcome, cursor: pageParam })}`),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (l) => l.next_cursor ?? undefined,
   });
   const items = q.data?.pages.flatMap((p) => p.items) ?? [];
-  const filtered = Boolean(show || objective);
+  const filtered = Boolean(show || outcome);
   // The number of rows this view lists. The product's count is used only while more pages remain,
   // and only for the default "Current" view, which is what it counts.
   const count = !q.data ? undefined : !q.hasNextPage ? items.length : filtered ? `${items.length}+` : product.counts[kind];
-  const objTitle = objectives.data?.items.find((o) => o.objective_id === objective)?.title;
+  const outcomeTitle = outcomes.data?.items.find((o) => o.outcome_id === outcome)?.title;
   const setShow = (id: string) => {
     const n = new URLSearchParams(params);
     if (id) n.set("show", id);
@@ -142,13 +142,13 @@ export function RegisterListPage({ kind }: { kind: Kind }) {
         />
         <div className="register-intro">
           <p>{MEANING[kind]}</p>
-          {objective ? (
+          {outcome ? (
             <p className="insights-scope">
               <span className="ellipsis">
-                For <strong>{objTitle ?? "one objective"}</strong>
+                For <strong>{outcomeTitle ?? "one outcome"}</strong>
               </span>
-              <Link className="quiet-link" to={searchWith(path, params, { objective_id: null })}>
-                Show all objectives
+              <Link className="quiet-link" to={searchWith(path, params, { outcome_id: null })}>
+                Show all outcomes
               </Link>
             </p>
           ) : null}

@@ -11,9 +11,9 @@ const step = (s) => console.log("✓", s);
 
 await page.goto(`${base}/signin`);
 await page.getByRole("button", { name: /Sam Okafor/ }).click();
-await page.waitForURL(/objectives/);
+await page.waitForURL(/idea/);
 step("signed in as an editor");
-const app = page.url().replace(/\/objectives.*$/, "");
+const app = page.url().replace(/\/idea.*$/, "");
 
 await page.goto(`${app}/evidence/new`);
 await page.getByLabel(/Interview transcript/).check();
@@ -27,7 +27,7 @@ writeFileSync(".what-build/e2e/dispatch.txt", "Interviewer: How do crews learn t
 await page.locator('input[type="file"]').first().setInputFiles(".what-build/e2e/dispatch.txt");
 await page.getByRole("button", { name: "Continue" }).click();
 await page.getByRole("button", { name: "Create source" }).click();
-await page.waitForURL(/sources\/[0-9A-Z]{26}/);
+await page.waitForURL(/evidence\/[0-9A-Z]{26}/);
 step("created a source through the kind-first wizard and uploaded its file");
 await page.getByRole("link", { name: /^Passages\s*4$/ }).waitFor({ timeout: 15000 });
 step("the worker parsed it into 4 passages (the page updated itself)");

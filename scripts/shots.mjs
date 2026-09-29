@@ -2,7 +2,7 @@
 // download), in light and dark, on a desktop (1440×900) and a phone (390×844).
 //
 //   node scripts/shots.mjs <outdir> [baseUrl]
-//   SHOTS=objectives,story node scripts/shots.mjs <outdir>     only these screens
+//   SHOTS=idea,story node scripts/shots.mjs <outdir>     only these screens
 //
 // Files are named <screen>-<theme>-<desktop|phone>.png. The canvas is the page's only scroller, so a
 // capture grows the viewport to the canvas's content height (up to a cap) instead of fullPage.
@@ -41,7 +41,7 @@ async function context(theme, device, signIn = true) {
   if (signIn) {
     await page.goto(`${base}/signin`);
     await page.getByRole("button", { name: /Sam Okafor/ }).click();
-    await page.waitForURL(/objectives/);
+    await page.waitForURL(/idea/);
   }
   return { ctx, page };
 }
@@ -76,7 +76,7 @@ const wanted = (screen) => !only.length || only.includes(screen);
 
 /** Resolve the sample product's ids through the API, with the signed-in session. */
 async function sample(page) {
-  const app = page.url().replace(/\/objectives.*$/, "");
+  const app = page.url().replace(/\/idea.*$/, "");
   const path = app.replace(/^.*\/t\//, "");
   const P = `${base}/api/v1/p/${path}`;
   const get = async (url) => (await page.request.get(url)).json();
@@ -109,7 +109,7 @@ for (const device of ["desktop", "phone"]) {
       await capture(page, name(screen), opts);
     };
 
-    await shoot("objectives", "/objectives");
+    await shoot("idea", "/idea");
     await shoot("evidence", "/evidence");
     for (const view of ["passages", "original", "notes", "files"]) await shoot(`source-${view}`, `/evidence/${s.source}?view=${view}`);
     await shoot("search", "/search?q=spreadsheet");
@@ -169,7 +169,7 @@ for (const device of ["desktop", "phone"]) {
       await page.locator(".show-pill").click();
     }
     if (device === "phone" && wanted("drawer")) {
-      await page.goto(`${s.app}/objectives`);
+      await page.goto(`${s.app}/idea`);
       await settle(page);
       await page.locator(".show-pill").click();
       await page.waitForTimeout(400);

@@ -33,7 +33,7 @@ Google Cloud Run. Recorded in `okf/spec/02-architecture.md`.
 ## Product Purpose
 
 Turn a pile of discovery material — interviews, sales calls, research exports, documents, decks —
-into something a team can act on: objectives, readable insights, reviewed assumptions and
+into something a team can act on: outcomes, readable insights, reviewed assumptions and
 decisions, and a stakeholder Story, with every claim pointing at the exact passage it came from.
 Success is that anyone can answer "where did we hear that?" precisely, and that an agent's work is
 visible, attributed and reviewable rather than lost in a chat.
@@ -55,7 +55,7 @@ permissions and one activity log.
 
 ## Capabilities and Constraints
 
-- Four destinations inside a product: **Objectives, Evidence, Synthesis, Story**. Everything else is
+- Four destinations inside a product: **Idea, Evidence, Synthesis, Story**. Everything else is
   a sub-view.
 - Hierarchy: tenant (organization) → team → product (one discovery). Roles at each level; a person
   without a role on a product cannot see it at all.
@@ -66,14 +66,14 @@ permissions and one activity log.
 - Archive is the reversible default everywhere; delete is permanent, explicit and guarded.
 - Story pages are agent-authored, self-contained HTML shown in a sandbox. Their styling comes from
   service-provided guidance whose tokens derive from the product's own design system.
-- Vocabulary is fixed: source, passage, segment, objective, insight, assumption, decision, Story,
+- Vocabulary is fixed: source, passage, segment, outcome, insight, assumption, decision, Story,
   archive. Never "findings", "claims", "document store" or a storage path in the UI.
 - WCAG 2.2 AA, fully keyboard-operable, usable at phone width.
 
 ## Evidence on Hand
 
 - A synthetic sample product ("Crewboard", in `apps/server/src/seed-content.ts`): four sources,
-  objectives, an insight, register entries and a Story page. All people and organizations are
+  outcomes, an insight, register entries and a Story page. All people and organizations are
   invented; no real customer material exists in this repository and none may be fabricated as real.
 - The brand is the W mark (`apps/web/public/favicon.svg`) with the wordmark "WhatBuild". The type
   is Inter and the accent is indigo, in the Studio design system documented in `DESIGN.md`. The

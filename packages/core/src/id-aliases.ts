@@ -2,13 +2,13 @@ import { invalid } from "./errors.ts";
 import type { OperationDef } from "./registry.ts";
 
 /**
- * The entity id goes by `insight_id` and `objective_id` on those tools but by `id` on the
+ * The entity id goes by `insight_id` and `outcome_id` on those tools but by `id` on the
  * registers. Each tool also accepts the other convention for its own entity id, so a caller who
  * guesses either name is understood. Canonical names stay as they are, so no caller breaks.
  */
 const ALIASES: Record<string, { canonical: string; alias: string }> = {
   insights: { canonical: "insight_id", alias: "id" },
-  objectives: { canonical: "objective_id", alias: "id" },
+  outcomes: { canonical: "outcome_id", alias: "id" },
   assumptions: { canonical: "id", alias: "assumption_id" },
   decisions: { canonical: "id", alias: "decision_id" },
 };

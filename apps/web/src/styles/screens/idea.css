@@ -1,44 +1,44 @@
-/* Objectives: the product idea first, then the ordered list of outcomes. */
+/* Idea: the product concept first, then the ordered list of outcomes. */
 
-.objective-list {
+.outcome-list {
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.objective-row {
+.outcome-row {
   grid-template-columns: minmax(0, 1fr) auto;
 }
-.objective-title {
+.outcome-title {
   margin: 0;
   font-size: var(--fs-base);
   font-weight: var(--fw-medium);
   line-height: var(--lh-ui);
   letter-spacing: 0;
 }
-.objective-description {
+.outcome-description {
   margin-top: 3px;
   color: var(--muted);
   line-height: 1.5;
 }
-.objective-description > * {
+.outcome-description > * {
   max-width: 64ch;
 }
-.objective-description > * + * {
+.outcome-description > * + * {
   margin-top: var(--s-1h);
 }
-.objective-description ul,
-.objective-description ol {
+.outcome-description ul,
+.outcome-description ol {
   padding-left: 1.4em;
 }
-.objective-chips {
+.outcome-chips {
   margin-top: var(--s-2);
 }
-.objective-none {
+.outcome-none {
   margin-top: var(--s-1h);
   color: var(--faint);
   font-size: var(--fs-sm);
 }
-.objective-side {
+.outcome-side {
   display: flex;
   align-items: center;
   gap: var(--s-1h);
@@ -46,52 +46,52 @@
   /* Line the badge up with the title's first line. */
   margin-top: -3px;
 }
-.objective-editing {
+.outcome-editing {
   border-bottom: 1px solid var(--line);
 }
-.objective-editing:last-child {
+.outcome-editing:last-child {
   border-bottom: 0;
 }
 
 /* The inline create/edit form inside the sheet. */
-.objective-form {
+.outcome-form {
   display: grid;
   gap: var(--s-3);
   padding: var(--s-3h) var(--sheet-px) var(--s-4);
   border-bottom: 1px solid var(--line);
   background: color-mix(in srgb, var(--hover) 45%, var(--panel));
 }
-.objectives-idea .objective-form {
+.idea-concept .outcome-form {
   border-bottom: 0;
 }
-.objective-form-title {
+.outcome-form-title {
   margin: 0;
   font-size: var(--fs-base);
   font-weight: var(--fw-semibold);
 }
-.objective-form .input {
+.outcome-form .input {
   max-width: 560px;
 }
-.objective-form-actions {
+.outcome-form-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--s-1h);
   padding-left: calc(var(--col-label) + var(--s-4));
 }
 
-.objectives-idea-text {
+.idea-concept-text {
   font-size: var(--fs-prose);
 }
 
 @media (max-width: 760px) {
-  .objective-row {
+  .outcome-row {
     grid-template-columns: minmax(0, 1fr);
   }
-  .objective-side {
+  .outcome-side {
     grid-column: 1;
     margin-top: var(--s-1);
   }
-  .objective-form-actions {
+  .outcome-form-actions {
     padding-left: 0;
   }
 }

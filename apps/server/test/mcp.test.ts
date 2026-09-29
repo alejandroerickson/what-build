@@ -76,7 +76,7 @@ describe("MCP", () => {
     const bad = await client.callTool({ name: "insights", arguments: { action: "explode" } });
     expect(bad.isError).toBe(true);
     expect((bad.content as { text: string }[])[0]!.text).toMatch(/^422: Unknown insights action/);
-    const field = await client.callTool({ name: "objectives", arguments: { action: "create", product: path, params: { title: "x", colour: "red" } } });
+    const field = await client.callTool({ name: "outcomes", arguments: { action: "create", product: path, params: { title: "x", colour: "red" } } });
     expect((field.content as { text: string }[])[0]!.text).toMatch(/^422: .*unknown field/);
     await client.close();
   });
@@ -116,14 +116,14 @@ describe("MCP", () => {
     const team = t.body.items[0].team.slug;
     await alice.api("POST", `/api/v1/teams/${tenant}/${team}/products`, { name: "Second" });
     const client = await connect(pat);
-    const r = await client.callTool({ name: "objectives", arguments: { action: "list", params: {} } });
+    const r = await client.callTool({ name: "outcomes", arguments: { action: "list", params: {} } });
     expect(r.isError).toBe(true);
     const body = (r.content as { text: string }[])[0]!.text;
     expect(body).toMatch(/^422: Say which product/);
     expect(body).toContain(path);
     // A connector bound to one product needs no `product`.
     const bound = await connect(pat, `${h.baseUrl}/mcp/t/${path}`);
-    const ok = await bound.callTool({ name: "objectives", arguments: { action: "list", params: {} } });
+    const ok = await bound.callTool({ name: "outcomes", arguments: { action: "list", params: {} } });
     expect(ok.isError).toBeFalsy();
     await client.close();
     await bound.close();

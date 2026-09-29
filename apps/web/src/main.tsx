@@ -12,7 +12,7 @@ import { ProductProvider, RequireSession } from "./lib/session.tsx";
 import { AccountPage, ConnectPage } from "./routes/connect.tsx";
 import { AcceptInvite, Home, NotFound, SignIn } from "./routes/auth.tsx";
 import { InsightEditPage, InsightPage, InsightsPage } from "./routes/insights.tsx";
-import { ObjectivesPage } from "./routes/objectives.tsx";
+import { IdeaPage } from "./routes/idea.tsx";
 import { MembersPage, ProductsPage, Welcome } from "./routes/org.tsx";
 import { ActivityPage, ProductSettingsPage } from "./routes/product-misc.tsx";
 import { RegisterEntryPage, RegisterListPage } from "./routes/registers.tsx";
@@ -112,8 +112,8 @@ const router = createBrowserRouter([
           </ProductProvider>
         ),
         children: [
-          { index: true, element: <Navigate to="objectives" replace /> },
-          { path: "objectives", element: <ObjectivesPage /> },
+          { index: true, element: <Navigate to="idea" replace /> },
+          { path: "idea", element: <IdeaPage /> },
           { path: "evidence", element: <EvidencePage /> },
           { path: "evidence/new", element: <SourceNewPage /> },
           { path: "evidence/:recordId", element: <SourceDetailPage /> },

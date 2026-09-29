@@ -3,7 +3,7 @@ type: Charter
 title: WhatBuild, a hosted product-discovery workspace for teams and their agents
 description: What the product and this repository are for, and what they are not.
 tags: [charter]
-generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
 status: stable
 ---
 
@@ -11,7 +11,7 @@ status: stable
 
 ## What it is
 
-- **A hosted, multi-tenant web product** that turns discovery material into objectives, cited
+- **A hosted, multi-tenant web product** that turns discovery material into outcomes, cited
   insights, reviewed assumptions and decisions, and a Story for stakeholders, with every claim
   pointing at the exact passage it came from. Who it serves and why: [`PRODUCT.md`](../../PRODUCT.md)
   and the [product specification](../spec/01-product.md).

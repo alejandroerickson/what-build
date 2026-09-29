@@ -26,7 +26,7 @@ function productView(p: {
   product_id: string;
   slug: string;
   name: string;
-  idea: string;
+  concept: string;
   archived_at: string | null;
   etag: string;
   created_at: string;
@@ -36,7 +36,7 @@ function productView(p: {
     product_id: p.product_id,
     slug: p.slug,
     name: p.name,
-    idea: p.idea,
+    concept: p.concept,
     archived_at: p.archived_at,
     etag: p.etag,
     created_at: p.created_at,
@@ -70,7 +70,7 @@ export const listProducts = defineOperation({
       .innerJoin("teams as tm", "tm.team_id", "p.team_id")
       .innerJoin("tenants as tn", "tn.tenant_id", "p.tenant_id")
       .select([
-        "p.product_id", "p.slug", "p.name", "p.idea", "p.archived_at", "p.updated_at",
+        "p.product_id", "p.slug", "p.name", "p.concept", "p.archived_at", "p.updated_at",
         "tm.team_id", "tm.slug as team_slug", "tm.name as team_name",
         "tn.tenant_id", "tn.slug as tenant_slug", "tn.name as tenant_name",
       ])
@@ -85,7 +85,7 @@ export const listProducts = defineOperation({
               product_id: r.product_id,
               path: `${r.tenant_slug}/${r.team_slug}/${r.slug}`,
               name: r.name,
-              idea: r.idea.slice(0, 300),
+              concept: r.concept.slice(0, 300),
               archived_at: r.archived_at,
               updated_at: r.updated_at,
               tenant: { tenant_id: r.tenant_id, slug: r.tenant_slug, name: r.tenant_name },
@@ -202,15 +202,15 @@ export const createProduct = defineOperation({
   scope: "team",
   access: "admin",
   mutates: true,
-  summary: "Create a product: one discovery, with its own objectives, sources, insights and Story (team admins).",
+  summary: "Create a product: one discovery, with its own outcomes, sources, insights and Story (team admins).",
   description:
-    "A product holds one discovery. Give it a name and the product idea it serves (Markdown, up to 2,000 characters); the idea heads the Objectives screen. Returns the product with its `path`.",
+    "A product holds one discovery. Give it a name and its product concept: who it is for, the problem they have, and how the product solves it (Markdown, up to 2,000 characters). The concept heads the Idea screen. Returns the product with its `path`.",
   input: z.strictObject({
     tenant: z.string().min(1).describe("Tenant slug or id."),
     team: z.string().min(1).describe("Team slug or id."),
     name: z.string().trim().min(1).max(100),
     slug: slug.optional(),
-    idea: z.string().max(2000).default(""),
+    concept: z.string().max(2000).default(""),
   }),
   rest: { method: "POST", path: "/products" },
   mcp: { tool: "products", action: "create" },
@@ -224,7 +224,7 @@ export const createProduct = defineOperation({
     await ctx.db
       .insertInto("products")
       .values({
-        product_id, tenant_id: ctx.scope.tenant!.tenant_id, team_id: teamId, slug: s, name: input.name, idea: input.idea,
+        product_id, tenant_id: ctx.scope.tenant!.tenant_id, team_id: teamId, slug: s, name: input.name, concept: input.concept,
         etag: newEtag(), created_by: json(ctx.actor), updated_by: json(ctx.actor),
       })
       .execute();
@@ -242,7 +242,7 @@ export const getProduct = defineOperation({
   scope: "product",
   access: "read",
   mutates: false,
-  summary: "Read a product: its idea, etag, your role, and counts of what it holds.",
+  summary: "Read a product: its concept, etag, your role, and counts of what it holds.",
   description: "Use the counts to decide where to look first. They leave out archived items, and assumptions and decisions count only current (unconfirmed or confirmed) entries, not superseded or refuted ones. The etag guards products(action=\"update\").",
   input: z.strictObject({}),
   rest: { method: "GET", path: "" },
@@ -250,7 +250,7 @@ export const getProduct = defineOperation({
   async handler(ctx) {
     const pid = ctx.scope.product!.product_id;
     const row = await ctx.db.selectFrom("products").selectAll().where("product_id", "=", pid).executeTakeFirstOrThrow();
-    const count = async (table: "records" | "objectives" | "insights" | "story_pages", archivedCol: "archived_at" | null) => {
+    const count = async (table: "records" | "outcomes" | "insights" | "story_pages", archivedCol: "archived_at" | null) => {
       let q = ctx.db.selectFrom(table).select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid);
       if (archivedCol) q = q.where(archivedCol, "is", null);
       return Number((await q.executeTakeFirst())?.n ?? 0);
@@ -267,8 +267,8 @@ export const getProduct = defineOperation({
       ...productView(row, ctx),
       counts: {
         sources: await count("records", "archived_at"),
-        objectives: Number(
-          (await ctx.db.selectFrom("objectives").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).where("status", "!=", "archived").executeTakeFirst())?.n ?? 0,
+        outcomes: Number(
+          (await ctx.db.selectFrom("outcomes").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).where("status", "!=", "archived").executeTakeFirst())?.n ?? 0,
         ),
         insights: Number(
           (await ctx.db.selectFrom("insights").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).where("status", "!=", "archived").executeTakeFirst())?.n ?? 0,
@@ -286,14 +286,14 @@ export const updateProduct = defineOperation({
   scope: "product",
   access: "admin",
   mutates: true,
-  summary: "Rename a product, change its slug, or rewrite its idea (product admins).",
+  summary: "Rename a product, change its slug, or rewrite its product concept (product admins).",
   description:
-    "Pass only the fields that change, plus expected_etag. The previous idea is kept as a revision, so an overwrite never loses text.",
+    "Pass only the fields that change, plus expected_etag. The previous product concept is kept as a revision, so an overwrite never loses text.",
   input: z.strictObject({
     expected_etag: expectedEtag,
     name: z.string().trim().min(1).max(100).optional(),
     slug: slug.optional(),
-    idea: z.string().max(2000).optional(),
+    concept: z.string().max(2000).optional(),
   }),
   rest: { method: "PATCH", path: "" },
   mcp: { tool: "products", action: "update" },
@@ -305,17 +305,17 @@ export const updateProduct = defineOperation({
       const taken = await ctx.db.selectFrom("products").select("product_id").where("team_id", "=", row.team_id).where("slug", "=", input.slug).executeTakeFirst();
       if (taken) throw conflict("slug_taken", `A product with slug "${input.slug}" exists in this team.`);
     }
-    if (input.idea !== undefined && input.idea !== row.idea) {
-      await keepRevision(ctx, "product", pid, { idea: row.idea }, row.updated_at, row.updated_by);
+    if (input.concept !== undefined && input.concept !== row.concept) {
+      await keepRevision(ctx, "product", pid, { concept: row.concept }, row.updated_at, row.updated_by);
     }
-    const changed = (["name", "slug", "idea"] as const).filter((k) => input[k] !== undefined && input[k] !== row[k]);
+    const changed = (["name", "slug", "concept"] as const).filter((k) => input[k] !== undefined && input[k] !== row[k]);
     if (!changed.length) return productView(row, ctx);
     await ctx.db
       .updateTable("products")
       .set({
         name: input.name ?? row.name,
         slug: input.slug ?? row.slug,
-        idea: input.idea ?? row.idea,
+        concept: input.concept ?? row.concept,
         etag: newEtag(),
         updated_at: ctx.now,
         updated_by: json(ctx.actor),

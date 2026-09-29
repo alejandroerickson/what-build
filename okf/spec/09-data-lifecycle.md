@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete, closing an organization, and the operator runbooks.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete]
-generated: {by: agent:claude, at: 2026-09-27}
+generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
 status: stable
 ---
 
@@ -118,10 +118,10 @@ from backup on request. The product-level answer to "I broke it" is:
 | File versions — every upload to the same path | [§4.5](04-data-model.md) |
 | Derivations — every parse, retained and readable by id | [§5.1](05-derived-layer.md) |
 | Story page versions — immutable, numbered | [§4.11](04-data-model.md) |
-| Insight and objective revisions — the previous text, on every content change | [§4.7](04-data-model.md), [§4.2](04-data-model.md) |
+| Insight and outcome revisions — the previous text, on every content change | [§4.7](04-data-model.md), [§4.2](04-data-model.md) |
 | Reviews — append-only, never edited | [§4.8](04-data-model.md) |
 | Superseded register entries — corrections never overwrite | [§4.8](04-data-model.md) |
-| Archive and restore — for sources, insights, register entries, annotations, objectives, Story pages, products | §9.5 |
+| Archive and restore — for sources, insights, register entries, annotations, outcomes, Story pages, products | §9.5 |
 | Activity — who changed what, when, through which surface | [§4.10](04-data-model.md) |
 
 Not versioned, deliberately: source metadata edits (the activity log names the operation and the
@@ -136,7 +136,7 @@ download grant for each ready one. Any role may export, through **both adapters*
 **never blocked** — not by a quota, and not by archiving the product. A ready export is listed for
 seven days. The bundle holds a manifest with its format name and version, every source's metadata,
 every file version's original bytes, every derivation's sidecars, annotations and agent notes,
-lineage, objectives, insights (JSON and Markdown), register entries with their reviews, revisions,
+lineage, outcomes, insights (JSON and Markdown), register entries with their reviews, revisions,
 the Story hierarchy and every page version (JSON and HTML), tombstones, and the activity log
 ([§4.13](04-data-model.md)). It is readable with a ZIP tool and nothing else; no proprietary
 format, no API required to make sense of it.
@@ -170,7 +170,7 @@ been here".
 | Insights | `insights.update { status: "archived" }`, and back |
 | Assumptions, decisions | `<register>.archive { archived: true | false }` |
 | Annotations | `sources.update_annotation { archived, archive_reason? }` |
-| Objectives | `objectives.update { status: "archived" }`, and back |
+| Outcomes | `outcomes.update { status: "archived" }`, and back |
 | Story pages | `story.archive_page` / `story.restore_page` (subpages move up into its place) |
 | Products | `products.archive` / `products.restore` (admin); an archived product is read-only |
 
@@ -186,7 +186,7 @@ been here".
 ### Delete — permanent, and said plainly
 
 Built for **sources**: `sources.delete { record_id, expected_etag, reason, confirm }`. Planned for
-insights, register entries, annotations, Story pages, objectives and products, in the same shape.
+insights, register entries, annotations, Story pages, outcomes and products, in the same shape.
 
 - **Available to editors, through both adapters** — REST and MCP alike
   ([§3.5](03-accounts-teams-and-identity.md)). Adapter parity is not suspended for the operations

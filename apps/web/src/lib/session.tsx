@@ -14,7 +14,7 @@ export interface ProductSummary {
   product_id: string;
   path: string;
   name: string;
-  idea: string;
+  concept: string;
   archived_at: string | null;
   updated_at: string;
   tenant: { tenant_id: string; slug: string; name: string };
@@ -59,14 +59,14 @@ export interface Product {
   product_id: string;
   slug: string;
   name: string;
-  idea: string;
+  concept: string;
   archived_at: string | null;
   etag: string;
   path: string;
   tenant: { tenant_id: string; slug: string; name: string };
   team: { team_id: string; slug: string; name: string };
   your_role: "viewer" | "editor" | "admin";
-  counts: { sources: number; objectives: number; insights: number; assumptions: number; decisions: number; story_pages: number };
+  counts: { sources: number; outcomes: number; insights: number; assumptions: number; decisions: number; story_pages: number };
 }
 
 interface ProductCtx {

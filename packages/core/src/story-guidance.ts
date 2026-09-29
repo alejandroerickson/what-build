@@ -150,7 +150,7 @@ export function linkTemplates(base: string, path: string) {
     source: `${p}/evidence/{record_id}`,
     passage: `${p}/evidence/{record_id}?view=passages&seq={seq}`,
     insight: `${p}/synthesis/insights/{insight_id}`,
-    objective: `${p}/objectives`,
+    outcome: `${p}/idea`,
     assumption: `${p}/synthesis/assumptions/{id}`,
     decision: `${p}/synthesis/decisions/{id}`,
     story_page: `${p}/story/{page_id}`,
@@ -203,7 +203,7 @@ export const WRITING = {
     { pass: "Distill", checks: ["Remove repeated introductions and decorative panels.", "Remove empty forward-looking statements.", "Keep caveats, decision criteria and uncertainty.", "One visual role per section; a table only when criteria recur."] },
     { pass: "Polish", checks: ["Read it in rendered order.", "Check headings, links, table labels and narrow reflow.", "Replace inflated or vague phrasing without adding facts.", "Check every quotation, count, date, owner and decision against the linked material."] },
   ],
-  voice: ["Plain, direct sentences.", "The product's vocabulary: objective, source, insight, assumption, decision, Story.", "Calm: no sales language and no generic optimistic closing.", "Sentence-case headings.", "Link text that makes sense out of context.", "Never colour alone."],
+  voice: ["Plain, direct sentences.", "The product's vocabulary: outcome, source, insight, assumption, decision, Story.", "Calm: no sales language and no generic optimistic closing.", "Sentence-case headings.", "Link text that makes sense out of context.", "Never colour alone."],
   fact_guardrails: [
     "Never add a person, owner, date, source, quote, count, measurement, customer claim, commitment or decision the linked material does not establish.",
     "Never turn a working interpretation into agreement, or an unconfirmed assumption into a settled one.",
@@ -240,7 +240,7 @@ ${layouts()[1]!.html}
 }
 
 export const WORKFLOW = [
-  "Read the objectives, the relevant sources, insights, assumptions and decisions first.",
+  "Read the outcomes, the relevant sources, insights, assumptions and decisions first.",
   "Read the current version of the page and its notes for agents (get_page → agent_notes) before revising it, keep what is useful, and pass its etag.",
   "Cite the exact passages the page rests on in citations (up to 20), and list the objects it draws on in refs. When you pass either list, pass it in full: it replaces the previous one.",
   "On a later version send only what changes: html, refs and citations you omit carry forward from the current version. patch_html fixes a sentence by exact find and replace; from_version restores an earlier version as a new one. Compare html_sha256 to confirm identical HTML.",
@@ -252,7 +252,7 @@ export const WORKFLOW = [
 ];
 
 export const CONTENT_RULES = [
-  "Explain the objectives, current understanding, choices and next steps.",
+  "Explain the outcomes, current understanding, choices and next steps.",
   "Write for a busy stakeholder.",
   "Link the sources, insights and the few assumptions or decisions that shape the account.",
   "Separate observed evidence, interpretation and agreement.",

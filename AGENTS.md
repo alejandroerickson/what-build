@@ -17,7 +17,7 @@ message, is published.
 
 ## What this is
 
-WhatBuild turns a product team's discovery material into objectives, cited insights, reviewed
+WhatBuild turns a product team's discovery material into outcomes, cited insights, reviewed
 assumptions and decisions, and a Story for stakeholders. People use a React web app; agents use an
 MCP server exposing the same 99 operations. There is no AI inside. One stateless image on Cloud Run,
 Postgres, and object storage.

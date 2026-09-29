@@ -8,7 +8,7 @@ import { defineOperation, type OpContext, type OperationDef } from "../registry.
 import { authorType, dimensions, expectedEtag, id, provenanceDepth, tags } from "../schemas.ts";
 import { applyEdits, editsInput, textDiff } from "../text-edits.ts";
 import { newEtag, newId, uniq } from "../util.ts";
-import { archivedObjectiveIds } from "./objectives.ts";
+import { archivedOutcomeIds } from "./outcomes.ts";
 
 export type RegisterKind = "assumption" | "decision";
 type Row = Selectable<RegisterEntriesTable>;
@@ -82,7 +82,7 @@ async function detail(ctx: OpContext, row: Row) {
     .where(sql<boolean>`links @> ${JSON.stringify([{ id: row.entry_id }])}::jsonb`)
     .orderBy("entry_id", "desc")
     .execute();
-  const archivedObjectives = await archivedObjectiveIds(ctx, row.objective_ids);
+  const archivedOutcomes = await archivedOutcomeIds(ctx, row.outcome_ids);
   return {
     id: row.entry_id,
     kind: row.kind,
@@ -94,8 +94,8 @@ async function detail(ctx: OpContext, row: Row) {
     links: row.links.map((l) => ({ ...l, ...(() => { const e = linked.find((x) => x.entry_id === l.id); return e ? { kind: e.kind, statement: e.statement, status: e.status } : {}; })() })),
     linked_from: incoming.flatMap((e) => e.links.filter((l) => l.id === row.entry_id).map((l) => ({ id: e.entry_id, kind: e.kind, statement: e.statement, status: e.status, type: l.type }))),
     superseded_by: incoming.filter((e) => e.links.some((l) => l.id === row.entry_id && l.type === "supersedes")).map((e) => e.entry_id),
-    objective_ids: row.objective_ids,
-    archived_objective_ids: row.objective_ids.filter((o) => archivedObjectives.has(o)),
+    outcome_ids: row.outcome_ids,
+    archived_outcome_ids: row.outcome_ids.filter((o) => archivedOutcomes.has(o)),
     tags: row.tags,
     dimensions: row.dimensions,
     provenance_depth: row.provenance_depth,
@@ -150,7 +150,7 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
     statement: z.string().trim().min(1).max(1000).describe("The premise or choice in one sentence. Frozen after the first review."),
     body: z.string().max(10_000).default("").describe("Markdown: reasoning, stakes, alternatives considered."),
     citations: z.array(citationInput).min(1).max(CITATION_MAX_COUNT).describe("1 to 20 exact passages: {record_id, seq_start, seq_end, quote?}. Read each passage first."),
-    objective_ids: z.array(id("objective")).max(20).optional(),
+    outcome_ids: z.array(id("outcome")).max(20).optional(),
     links: z.array(linkInput).max(50).optional(),
     tags: tags.optional(),
     dimensions: dimensions.optional(),
@@ -163,16 +163,16 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
     const citations = await snapshotAll(ctx, input.citations);
     const links = input.links ?? [];
     await checkLinks(ctx, entry_id, links);
-    if (input.objective_ids?.length) {
-      const found = await ctx.db.selectFrom("objectives").select("objective_id").where("product_id", "=", productId(ctx)).where("objective_id", "in", input.objective_ids).execute();
-      const missing = input.objective_ids.filter((o) => !found.some((f) => f.objective_id === o));
-      if (missing.length) throw invalid("unknown_reference", `No such objectives in this product: ${missing.join(", ")}.`);
+    if (input.outcome_ids?.length) {
+      const found = await ctx.db.selectFrom("outcomes").select("outcome_id").where("product_id", "=", productId(ctx)).where("outcome_id", "in", input.outcome_ids).execute();
+      const missing = input.outcome_ids.filter((o) => !found.some((f) => f.outcome_id === o));
+      if (missing.length) throw invalid("unknown_reference", `No such outcomes in this product: ${missing.join(", ")}.`);
     }
     await ctx.db
       .insertInto("register_entries")
       .values({
         entry_id, tenant_id: tenantId(ctx), product_id: productId(ctx), kind, statement: input.statement, body: input.body,
-        citations: json(citations), links: json(links), objective_ids: uniq(input.objective_ids ?? []), tags: normalizeTags(input.tags),
+        citations: json(citations), links: json(links), outcome_ids: uniq(input.outcome_ids ?? []), tags: normalizeTags(input.tags),
         dimensions: json(normalizeDimensions(input.dimensions)), provenance_depth: input.provenance_depth ?? "unknown",
         author: json(ctx.actor), author_type: input.author_type ?? defaultReviewerType(ctx), status: "unconfirmed",
         etag: newEtag(), updated_by: json(ctx.actor),
@@ -188,11 +188,11 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
     access: "read",
     mutates: false,
     summary: `List ${kind}s, newest first, without quotes or review notes.`,
-    description: `${meaning} Filter by review status (one or more of unconfirmed, confirmed, refuted, superseded), a cited source, an objective, a tag, human confidence or dimensions. Archived entries are left out unless include_archived. Each item says whether it is frozen (reviewed, so its statement, body and citations can no longer be edited), which entries supersede it (superseded_by, newest first), and how many links it has out (link_count) and in (linked_from_count); get returns the links themselves.`,
+    description: `${meaning} Filter by review status (one or more of unconfirmed, confirmed, refuted, superseded), a cited source, an outcome, a tag, human confidence or dimensions. Archived entries are left out unless include_archived. Each item says whether it is frozen (reviewed, so its statement, body and citations can no longer be edited), which entries supersede it (superseded_by, newest first), and how many links it has out (link_count) and in (linked_from_count); get returns the links themselves.`,
     input: z.strictObject({
       status: z.array(STATUS).max(4).optional(),
       record_id: id("source").optional(),
-      objective_id: id("objective").optional(),
+      outcome_id: id("outcome").optional(),
       tag: z.string().max(50).optional(),
       human_confidence: z.enum(["unreviewed", "low", "medium", "high"]).optional(),
       provenance_depth: provenanceDepth.optional(),
@@ -208,7 +208,7 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
       if (!input.include_archived) q = q.where("archived_at", "is", null);
       if (input.status?.length) q = q.where("status", "in", input.status);
       if (input.record_id) q = q.where(sql<boolean>`citations @> ${JSON.stringify([{ record_id: input.record_id }])}::jsonb`);
-      if (input.objective_id) q = q.where(sql<boolean>`${input.objective_id} = any(objective_ids)`);
+      if (input.outcome_id) q = q.where(sql<boolean>`${input.outcome_id} = any(outcome_ids)`);
       if (input.tag) q = q.where(sql<boolean>`${normalizeTags([input.tag])[0]!} = any(tags)`);
       if (input.provenance_depth) q = q.where("provenance_depth", "=", input.provenance_depth);
       if (input.query) q = q.where(sql<boolean>`(statement ilike ${"%" + input.query + "%"} or body ilike ${"%" + input.query + "%"})`);
@@ -220,13 +220,13 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
       const rows = await q.orderBy("entry_id", "desc").limit(input.limit + 1).execute();
       const page = rows.slice(0, input.limit);
       const incoming = await incomingLinks(ctx, page.map((r) => r.entry_id));
-      const archivedObjectives = await archivedObjectiveIds(ctx, page.flatMap((r) => r.objective_ids));
+      const archivedOutcomes = await archivedOutcomeIds(ctx, page.flatMap((r) => r.outcome_ids));
       const items = [];
       for (const r of page)
         items.push({
           id: r.entry_id, kind: r.kind, statement: r.statement, status: r.status, author: r.author, author_type: r.author_type,
           created_at: r.created_at, updated_at: r.updated_at, dimensions: r.dimensions, provenance_depth: r.provenance_depth, tags: r.tags,
-          objective_ids: r.objective_ids, archived_objective_ids: r.objective_ids.filter((o) => archivedObjectives.has(o)),
+          outcome_ids: r.outcome_ids, archived_outcome_ids: r.outcome_ids.filter((o) => archivedOutcomes.has(o)),
           citation_count: r.citations.length, record_ids: uniq(r.citations.map((c) => c.record_id)),
           frozen: r.review_count > 0, superseded_by: incoming.get(r.entry_id)!.superseded_by,
           link_count: r.links.length, linked_from_count: incoming.get(r.entry_id)!.linked_from,
@@ -272,7 +272,7 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
     scope: "product",
     access: "write",
     mutates: true,
-    summary: `Edit a ${kind}. Statement, body and citations only until its first review; tags, objectives, links and dimensions always.`,
+    summary: `Edit a ${kind}. Statement, body and citations only until its first review; tags, outcomes, links and dimensions always.`,
     description:
       "After the first review the statement, body and citations are frozen, because a confirmation must refer to the exact words reviewed; correct a reviewed entry with supersede. For a small correction before then, pass edits (exact replacements in the statement or body that must each match once) instead of re-sending the whole text. Earlier text is kept as a revision. The result lists changed fields and a short diff of each changed text; check it.",
     input: z.strictObject({
@@ -282,7 +282,7 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
       body: z.string().max(10_000).optional(),
       edits: editsInput(["body", "statement"] as const, "body").optional(),
       citations: createFields.citations.optional(),
-      objective_ids: createFields.objective_ids,
+      outcome_ids: createFields.outcome_ids,
       links: createFields.links,
       tags: createFields.tags,
       dimensions: createFields.dimensions,
@@ -314,7 +314,7 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
           body: next.body,
           citations: json(citations),
           links: json(links),
-          objective_ids: input.objective_ids ? uniq(input.objective_ids) : row.objective_ids,
+          outcome_ids: input.outcome_ids ? uniq(input.outcome_ids) : row.outcome_ids,
           tags: input.tags ? normalizeTags(input.tags) : row.tags,
           dimensions: json(normalizeDimensions(input.dimensions, row.dimensions)),
           provenance_depth: input.provenance_depth ?? row.provenance_depth,
@@ -329,7 +329,7 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
       const changed = [
         ...(["statement", "body"] as const).filter((k) => next[k] !== row[k]),
         ...(input.citations && !same(after.citations.map((c) => [c.record_id, c.seq_start, c.seq_end, c.quote]), row.citations.map((c) => [c.record_id, c.seq_start, c.seq_end, c.quote])) ? ["citations"] : []),
-        ...(["links", "objective_ids", "tags", "dimensions", "provenance_depth"] as const).filter((k) => !same(after[k], row[k])),
+        ...(["links", "outcome_ids", "tags", "dimensions", "provenance_depth"] as const).filter((k) => !same(after[k], row[k])),
       ];
       const diff = (["statement", "body"] as const).filter((k) => next[k] !== row[k]).map((k) => textDiff(k, row[k], next[k])!);
       await recordActivity(ctx, { action: "updated", entity_type: kind, entity_id: row.entry_id, entity_title: next.statement, summary: changed.length ? `Changed ${changed.join(", ")}` : "Edited the entry" });

@@ -3,7 +3,7 @@ type: Process
 title: How to change this repository
 description: The rules every change follows, for people and agents, including what may never be committed.
 tags: [process, agents, contributing, public]
-generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
 status: stable
 ---
 
@@ -42,7 +42,7 @@ Everything committed, including history, is published
    permission), keyboard and screen-reader support, WCAG 2.2 AA, phone width, light and dark. If the
    design tokens change, the Story guidance drift test tells you to update `story-guidance.ts`.
 6. **Vocabulary** is fixed ([product spec](../spec/01-product.md)): source, passage, segment,
-   objective, insight, assumption, decision, Story, archive. Archive is never called deleting.
+   outcome, insight, assumption, decision, Story, archive. Archive is never called deleting.
 
 ## Before you finish
 

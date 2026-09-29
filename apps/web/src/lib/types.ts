@@ -148,7 +148,7 @@ export interface RegisterEntry {
   citations: CitationView[];
   links: { id: string; type: string; kind?: string; statement?: string; status?: string }[];
   linked_from: { id: string; type: string; kind: string; statement: string; status: string }[];
-  objective_ids: string[];
+  outcome_ids: string[];
   tags: string[];
   dimensions: Record<string, string | null>;
   provenance_depth: string;
@@ -181,7 +181,7 @@ export interface RegisterSummary {
 }
 
 export interface Refs {
-  objectives: string[];
+  outcomes: string[];
   sources: string[];
   insights: string[];
   assumptions: string[];

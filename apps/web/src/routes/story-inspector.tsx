@@ -9,7 +9,7 @@ import { Button, EmptyState, Glyph, Group, KeyValue, Menu, MenuRadio, StatusBadg
 import type { CitationCheck, PageView, RefKind, ResolvedRef, StoryNode, VersionItem, VersionView } from "./story-model.ts";
 
 const REF_KINDS: { kind: RefKind; label: string }[] = [
-  { kind: "objectives", label: "Objectives" },
+  { kind: "outcomes", label: "Outcomes" },
   { kind: "sources", label: "Sources" },
   { kind: "insights", label: "Insights" },
   { kind: "assumptions", label: "Assumptions" },
@@ -18,8 +18,8 @@ const REF_KINDS: { kind: RefKind; label: string }[] = [
 
 function refLink(app: string, kind: RefKind, id: string): string {
   switch (kind) {
-    case "objectives":
-      return `${app}/objectives`;
+    case "outcomes":
+      return `${app}/idea`;
     case "sources":
       return `${app}/evidence/${id}`;
     case "insights":
@@ -36,7 +36,7 @@ function refStatus(kind: RefKind, r: ResolvedRef): string | null {
   if (r.archived) return "Archived";
   if ((kind === "assumptions" || kind === "decisions") && r.status) return REVIEW_STATUS[r.status]?.label ?? r.status;
   if (kind === "insights" && r.status === "draft") return "Draft";
-  if (kind === "objectives" && r.status === "achieved") return "Achieved";
+  if (kind === "outcomes" && r.status === "achieved") return "Achieved";
   return null;
 }
 
@@ -189,7 +189,7 @@ export function StoryInspectorBody({ page, shown, versions, parent, placed, subp
             ))}
           </div>
         ) : (
-          <EmptyState size="inline">This version lists nothing it draws on. Agents list objectives, sources, insights, assumptions and decisions when they publish.</EmptyState>
+          <EmptyState size="inline">This version lists nothing it draws on. Agents list outcomes, sources, insights, assumptions and decisions when they publish.</EmptyState>
         )}
       </Group>
 

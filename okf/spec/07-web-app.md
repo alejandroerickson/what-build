@@ -1,9 +1,9 @@
 ---
 type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
-description: Principles, the shell and product switching, routes, first run, and the behavior of every screen (Objectives, Evidence, Synthesis, Story, Activity, archive and delete, organization and account screens).
+description: Principles, the shell and product switching, routes, first run, and the behavior of every screen (Idea, Evidence, Synthesis, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-09-27}
+generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
 status: stable
 ---
 
@@ -38,9 +38,10 @@ takes the full width. There are no in-app tabs: one screen at a time, and rows a
 the browser's back button and "open in new tab" both work.
 
 - **Top of the panel:** the W mark and the "WhatBuild" wordmark, linking to the product's
-  Objectives, with the button that hides the panel beside them; then the product switch, showing
+  Idea screen, with the button that hides the panel beside them; then the product switch, showing
   the product and its organization and team.
-- **L1**, exactly and in this order: **Objectives, Evidence, Synthesis, Story**, each with its count.
+- **L1**, exactly and in this order: **Idea, Evidence, Synthesis, Story**, each with its count
+  (Idea counts outcomes).
   Below them, quieter: **Agents** (the Connect page) and **Settings**. Synthesis opens on
   Insights; assumptions and decisions are its other sub-views, reached as quiet links from it.
   Search belongs to Evidence. The app's URLs follow the areas (`/evidence`, `/synthesis/…`); REST
@@ -72,8 +73,8 @@ place.
    product grouped by organization and team, and links to New product, the organization's members,
    and All products.
 3. **Switching product keeps the section**: from Evidence in product A to Evidence in product B.
-   Objectives, Evidence, Synthesis, Story, Activity, Search and Settings carry over; anything else
-   (a record id, an insight) lands on Objectives.
+   Idea, Evidence, Synthesis, Story, Activity, Search and Settings carry over; anything else
+   (a record id, an insight) lands on Idea.
 4. The product is in the URL path (`/t/<tenant>/<team>/<product>/…`). Opening a link to another
    product simply works, and becomes the remembered one.
 5. The last-used product is remembered per browser. `/` opens it; otherwise the first reachable
@@ -93,16 +94,16 @@ place.
 /connect                                      Agents: connect an agent (MCP URL, the skill, tokens)
 /account                                      display name, tokens, connected agents
 
-/t/:tenant/:team/:product                     → …/objectives
-  /objectives         ?status                 the idea, objectives with counts
+/t/:tenant/:team/:product                     → …/idea
+  /idea               ?status                 the product concept, outcomes with counts
   /evidence           ?folder&kind&organization&date_from&date_to&tags&query&include_archived
   /evidence/new       ?kind                   kind-first intake
   /evidence/:record   ?view=passages|original|notes|files &seq=N
   /search             ?q&mode&scope&record_id
   /synthesis                                  → …/synthesis/insights
-  /synthesis/insights ?review=unreviewed|reviewed &objective_id&source_id&status&query
+  /synthesis/insights ?review=unreviewed|reviewed &outcome_id&source_id&status&query
   /synthesis/insights/new  /synthesis/insights/:id  /synthesis/insights/:id/edit
-  /synthesis/assumptions[/:id]  /synthesis/decisions[/:id]   lists take ?show&objective_id
+  /synthesis/assumptions[/:id]  /synthesis/decisions[/:id]   lists take ?show&outcome_id
                       (show: current, unconfirmed, confirmed, all)
   /story[/:page]      ?v=N
   /activity           ?who=people|agents &entity_type&entity_id
@@ -140,14 +141,16 @@ published Story, every write control absent except one "copy this into my own or
 to action. Today the synthetic sample is created by `pnpm db:seed` and is visible only to its
 seeded accounts.
 
-## 7.5 Objectives
+## 7.5 Idea
 
-The landing screen. The product's idea first; then objectives as aligned cards in a centered
+The screen's model and names are a decision: [A product starts with its idea](../decisions/a-product-starts-with-an-idea-concept-and-outcomes.md).
+
+The landing screen. The product concept first; then outcomes as aligned cards in a centered
 content band that adapts to narrow screens. Create, edit inline, reorder, change status. Each card
 shows how many insights, assumptions, and decisions point at it, linking into Synthesis filtered by
-that objective; each number is the one the linked list shows (current entries, [§4.2](04-data-model.md)). The default view, **Current**, lists active and achieved objectives; Active, Achieved and
+that outcome; each number is the one the linked list shows (current entries, [§4.2](04-data-model.md)). The default view, **Current**, lists active and achieved outcomes; Active, Achieved and
 Archived are filters (`?status=`). An empty product presents this screen as
-the first step of the loop: write the idea, then the first objective, then add material.
+the first step of the loop: write the product concept, then the first outcome, then add material.
 
 ## 7.6 Evidence
 
@@ -232,7 +235,7 @@ reached from it.
 
 
 - **Insight documents:** list with status, summary, and reference counts; a reader with rendered
-  Markdown; an editor with preview and a reference picker for objectives, sources, insights,
+  Markdown; an editor with preview and a reference picker for outcomes, sources, insights,
   assumptions, decisions; explicit publish and unpublish.
 - **Insight review** ([§4.7](04-data-model.md)): a person marks an insight **reviewed**; an insight
   edited after its review shows as **changed since review** until it is reviewed again. The list
@@ -245,12 +248,12 @@ reached from it.
 - **Revision history** ([§4.1](04-data-model.md)): a list of revisions with author, surface and
   time; a read-only view of any revision; and a restore that writes the old content as a new
   revision. The entry point is visible on the reader, because the most likely reason to look is
-  that an agent rewrote something. It exists for insights and objectives, the two objects whose
+  that an agent rewrote something. It exists for insights and outcomes, the two objects whose
   revisions the operations expose, and looks and behaves identically in both. Planned: a diff
-  against the current text, and the same control for the product idea, annotations and unreviewed
+  against the current text, and the same control for the product concept, annotations and unreviewed
   register entries once their revisions are exposed.
 - **Registers:** two lists, filterable by review status (`?show=`: Current, Unconfirmed,
-  Confirmed, All statuses — named after the status chips on the rows) and objective; the default
+  Confirmed, All statuses — named after the status chips on the rows) and outcome; the default
   is current entries, and the header counts the rows the view lists. Where a view lists superseded
   entries, each sits under the entry that replaced it, muted, marked "Replaced by the entry
   above". An
@@ -286,7 +289,7 @@ reached from it.
   - **About:** who published this version and when, the version selector (`?v=N`) listing each
     version's change note, the parent page, subpages as links, "Activity on this page", and
     Archive.
-  - **Draws on:** the version's references — objectives, sources, insights, assumptions,
+  - **Draws on:** the version's references — outcomes, sources, insights, assumptions,
     decisions — each linked.
   - **Cited passages:** each citation as the source title, its address (¶8–9, linking to the
     passage) and a snapshot quote, with its `story.check_citations` status in words, worded as
@@ -355,7 +358,7 @@ never described as deleting. A list row showing an archived object says *Archive
   Revoking takes effect at once; the person's writes and their attribution stay.
 - **Agents** (`/connect`). [§6.8](06-operations-and-adapters.md): the endpoint, sign-in, the
   skill, connected agents, and the plain statement about where an agent sends your passages.
-- **Product settings** (`…/settings`, in the product's shell): name, slug and idea; **People**;
+- **Product settings** (`…/settings`, in the product's shell): name, slug and product concept; **People**;
   export; the organization; and archive or restore. **People** lists everyone who can reach this
   product and how, in words: a product role, or a role inherited from the team or the
   organization (`members.list` with `product`). Product admins get a role picker (admin, editor,

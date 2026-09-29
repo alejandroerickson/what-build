@@ -22,7 +22,7 @@ beforeAll(async () => {
   teamSlug = t.body.team.slug;
   const p = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Secret product" });
   path = p.body.path;
-  await alice.api("POST", `/api/v1/p/${path}/objectives`, { title: "Private goal" });
+  await alice.api("POST", `/api/v1/p/${path}/outcomes`, { title: "Private goal" });
   await bob.api("POST", "/api/v1/tenants", { name: "Beta" });
 });
 afterAll(async () => h?.close());
@@ -56,7 +56,7 @@ describe("isolation", () => {
   it("enforces tenant isolation in the database itself (row-level security)", async () => {
     const leaked = await h.db.transaction().execute(async (trx) => {
       await sql`select set_config('app.tenant_id', 'some-other-tenant', true)`.execute(trx);
-      return trx.selectFrom("objectives").selectAll().execute();
+      return trx.selectFrom("outcomes").selectAll().execute();
     });
     expect(leaked).toHaveLength(0);
     const unscoped = await h.db.selectFrom("activity").selectAll().execute();
@@ -68,14 +68,14 @@ describe("roles", () => {
   it("lets a viewer read, refuses their writes with 403 naming the role, and lets an editor write", async () => {
     const g = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: path.split("/")[2], email: "vic@example.com", role: "viewer" });
     expect(g.status).toBe(201);
-    const read = await vic.api("GET", `/api/v1/p/${path}/objectives`);
+    const read = await vic.api("GET", `/api/v1/p/${path}/outcomes`);
     expect(read.status).toBe(200);
     expect(read.body.items).toHaveLength(1);
-    const write = await vic.api("POST", `/api/v1/p/${path}/objectives`, { title: "Nope" });
+    const write = await vic.api("POST", `/api/v1/p/${path}/outcomes`, { title: "Nope" });
     expect(write.status).toBe(403);
     expect(write.body.error.message).toMatch(/viewer.*needs editor/);
     await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, email: "vic@example.com", role: "editor" });
-    const now = await vic.api("POST", `/api/v1/p/${path}/objectives`, { title: "Now allowed" });
+    const now = await vic.api("POST", `/api/v1/p/${path}/outcomes`, { title: "Now allowed" });
     expect(now.status).toBe(201);
     // A team editor is not a product admin.
     const admin = await vic.api("POST", `/api/v1/p/${path}/archive`, { expected_etag: "x" });
@@ -103,22 +103,22 @@ describe("roles", () => {
 
 describe("identity", () => {
   it("answers 401 to anonymous calls before looking at the body", async () => {
-    const r = await fetch(`${h.baseUrl}/api/v1/p/${path}/objectives`, { method: "POST", headers: { "content-type": "application/json" }, body: "not json" });
+    const r = await fetch(`${h.baseUrl}/api/v1/p/${path}/outcomes`, { method: "POST", headers: { "content-type": "application/json" }, body: "not json" });
     expect(r.status).toBe(401);
   });
 
   it("refuses cross-origin cookie writes", async () => {
-    const r = await alice.api("POST", `/api/v1/p/${path}/objectives`, { title: "x" }, { origin: "https://evil.example" });
+    const r = await alice.api("POST", `/api/v1/p/${path}/outcomes`, { title: "x" }, { origin: "https://evil.example" });
     expect(r.status).toBe(403);
   });
 
   it("issues personal access tokens that act as the person, and stop at once when revoked", async () => {
     const t = await alice.api("POST", "/api/v1/me/tokens", { name: "script" });
     expect(t.body.token).toMatch(/^wbpat_/);
-    const call = await fetch(`${h.baseUrl}/api/v1/p/${path}/objectives`, { headers: { authorization: `Bearer ${t.body.token}` } });
+    const call = await fetch(`${h.baseUrl}/api/v1/p/${path}/outcomes`, { headers: { authorization: `Bearer ${t.body.token}` } });
     expect(call.status).toBe(200);
     await alice.api("DELETE", `/api/v1/me/tokens/${t.body.token_id}`);
-    const after = await fetch(`${h.baseUrl}/api/v1/p/${path}/objectives`, { headers: { authorization: `Bearer ${t.body.token}` } });
+    const after = await fetch(`${h.baseUrl}/api/v1/p/${path}/outcomes`, { headers: { authorization: `Bearer ${t.body.token}` } });
     expect(after.status).toBe(401);
   });
 });

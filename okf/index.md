@@ -3,14 +3,14 @@ type: Index
 title: WhatBuild knowledge bundle
 description: The map of the documentation; start here.
 tags: [index, okf]
-generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
 status: stable
 okf_version: "0.2"
 ---
 
 # WhatBuild knowledge bundle
 
-WhatBuild turns a product team's discovery material into objectives, cited insights, reviewed
+WhatBuild turns a product team's discovery material into outcomes, cited insights, reviewed
 assumptions and decisions, and a Story for stakeholders. People use a web app; agents use an MCP
 server with the same operations. There is no AI inside.
 

@@ -241,7 +241,7 @@ export function StoryPage() {
         {tree}
         <Crumbs label="Page location" currentAsHeading items={[{ label: "Story" }]} />
         <EmptyState title="Your Story starts with what you know" action={<ButtonLink to="/connect" variant="primary" icon="plug">Connect an agent</ButtonLink>}>
-          The Story is a set of pages that tell stakeholders where this discovery stands. Agents write it from WhatBuild's guidance: connect one and ask it to draft the first page from your objectives and insights.
+          The Story is a set of pages that tell stakeholders where this discovery stands. Agents write it from WhatBuild's guidance: connect one and ask it to draft the first page from your outcomes and insights.
           {canWrite ? " You can also add a title page with + in the panel and let an agent fill it in." : ""}
         </EmptyState>
         {dialogs}

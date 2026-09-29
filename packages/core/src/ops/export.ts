@@ -119,11 +119,11 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
       server_version: ports.config.serverVersion,
       tenant,
       team,
-      product: { product_id: product.product_id, slug: product.slug, name: product.name, idea: product.idea, created_at: product.created_at, archived_at: product.archived_at },
+      product: { product_id: product.product_id, slug: product.slug, name: product.name, concept: product.concept, created_at: product.created_at, archived_at: product.archived_at },
       layout: "records/<record_id>/record.json · files/<file_version_id>/<path> · derived/<derivation_id>/* · insights/<id>.md · registers/*.json · story/*",
     }),
   );
-  add("objectives.json", j(await db.selectFrom("objectives").selectAll().where("product_id", "=", pid).orderBy("position").execute()));
+  add("outcomes.json", j(await db.selectFrom("outcomes").selectAll().where("product_id", "=", pid).orderBy("position").execute()));
 
   const records = await db.selectFrom("records").selectAll().where("product_id", "=", pid).orderBy("record_id").execute();
   for (const r of records) {
@@ -168,9 +168,9 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
     add(`registers/${kind}s.json`, j(entries.filter((e) => e.kind === kind).map((e) => ({ ...e, reviews: reviews.filter((r) => r.entry_id === e.entry_id) }))));
 
   const objectIds = [...insights.map((i) => i.insight_id), ...entries.map((e) => e.entry_id), pid];
-  const objectives = await db.selectFrom("objectives").select("objective_id").where("product_id", "=", pid).execute();
+  const outcomes = await db.selectFrom("outcomes").select("outcome_id").where("product_id", "=", pid).execute();
   const noteIds = (await db.selectFrom("annotations").select("annotation_id").where("product_id", "=", pid).execute()).map((a) => a.annotation_id);
-  const revs = await db.selectFrom("revisions").selectAll().where("object_id", "in", [...objectIds, ...objectives.map((o) => o.objective_id), ...noteIds]).orderBy("object_id").orderBy("n").execute();
+  const revs = await db.selectFrom("revisions").selectAll().where("object_id", "in", [...objectIds, ...outcomes.map((o) => o.outcome_id), ...noteIds]).orderBy("object_id").orderBy("n").execute();
   add("revisions.json", j(revs));
 
   const pages = await db.selectFrom("story_pages").selectAll().where("product_id", "=", pid).execute();

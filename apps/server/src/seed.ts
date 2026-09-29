@@ -50,11 +50,11 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
   const tenant = created.tenant.slug;
   const team = created.team.slug;
   await call(env, riley, "members.grant", { tenant, team, email: accounts[1]!.email, role: "editor" });
-  const product = (await call(env, riley, "products.create", { tenant, team, name: SAMPLE.product, slug: "crewboard", idea: SAMPLE.idea })) as { product_id: string };
+  const product = (await call(env, riley, "products.create", { tenant, team, name: SAMPLE.product, slug: "crewboard", concept: SAMPLE.concept })) as { product_id: string };
   const ref: ScopeRef = { product: product.product_id };
 
-  const objectiveIds: string[] = [];
-  for (const o of SAMPLE.objectives) objectiveIds.push(String((await call(env, riley, "objectives.create", o, ref))["objective_id"]));
+  const outcomeIds: string[] = [];
+  for (const o of SAMPLE.outcomes) outcomeIds.push(String((await call(env, riley, "outcomes.create", o, ref))["outcome_id"]));
 
   const mk = async (who: Principal, meta: Record<string, unknown>, path: string, text: string) => {
     const r = await call(env, who, "sources.create", meta, ref);
@@ -85,7 +85,7 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
     env,
     samAgent,
     "insights.create",
-    { title: INSIGHT.title, summary: INSIGHT.summary, body: INSIGHT.body(at), status: "published", refs: { objectives: [objectiveIds[0]!, objectiveIds[1]!], sources: [vtt, txt, notes, survey] } },
+    { title: INSIGHT.title, summary: INSIGHT.summary, body: INSIGHT.body(at), status: "published", refs: { outcomes: [outcomeIds[0]!, outcomeIds[1]!], sources: [vtt, txt, notes, survey] } },
     ref,
   );
   // A person reviews the first insight; the second is left for review.
@@ -94,7 +94,7 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
     env,
     samAgent,
     "insights.create",
-    { title: INSIGHT_KNOWLEDGE.title, summary: INSIGHT_KNOWLEDGE.summary, body: INSIGHT_KNOWLEDGE.body(at), status: "published", refs: { objectives: [objectiveIds[0]!], sources: [vtt, notes] } },
+    { title: INSIGHT_KNOWLEDGE.title, summary: INSIGHT_KNOWLEDGE.summary, body: INSIGHT_KNOWLEDGE.body(at), status: "published", refs: { outcomes: [outcomeIds[0]!], sources: [vtt, notes] } },
     ref,
   );
   // The third is reviewed, then revised by the agent, so it reads "changed since review".
@@ -102,7 +102,7 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
     env,
     samAgent,
     "insights.create",
-    { title: INSIGHT_ERRORS.title, summary: INSIGHT_ERRORS.summary, body: INSIGHT_ERRORS.body(at), status: "published", refs: { objectives: [objectiveIds[1]!], sources: [txt] } },
+    { title: INSIGHT_ERRORS.title, summary: INSIGHT_ERRORS.summary, body: INSIGHT_ERRORS.body(at), status: "published", refs: { outcomes: [outcomeIds[1]!], sources: [txt] } },
     ref,
   );
   const errorsReviewed = await call(env, riley, "insights.review", { insight_id: errors["insight_id"], reviewed: true, expected_etag: errors["etag"] }, ref);
@@ -124,7 +124,7 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
         { record_id: vtt, seq_start: 7, seq_end: 7 },
         { record_id: txt, seq_start: 8, seq_end: 9, quote: "By the day, if I'm honest." },
       ],
-      objective_ids: [objectiveIds[2]!],
+      outcome_ids: [outcomeIds[2]!],
       tags: ["planning-model"],
       author_type: "agent",
       provenance_depth: "primary",
@@ -139,7 +139,7 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
       statement: "Test generating each crew's message from the plan before building the planning grid.",
       body: "The hand-off is where mistakes reach customers. A message generator is small, testable with two crews in a week, and useful whichever planning model wins.",
       citations: [{ record_id: vtt, seq_start: 8, seq_end: 10 }],
-      objective_ids: [objectiveIds[1]!],
+      outcome_ids: [outcomeIds[1]!],
       author_type: "human",
       provenance_depth: "primary",
     },
@@ -165,7 +165,7 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
         STORY_STYLESHEET,
       ),
       note: "First version.",
-      refs: { objectives: [objectiveIds[1]!], sources: [vtt, txt, survey], insights: [String(insight["insight_id"])], assumptions: [String(assumption["id"])], decisions: [String(decision["id"])] },
+      refs: { outcomes: [outcomeIds[1]!], sources: [vtt, txt, survey], insights: [String(insight["insight_id"])], assumptions: [String(assumption["id"])], decisions: [String(decision["id"])] },
       citations: [
         { record_id: vtt, seq_start: 8, seq_end: 8, quote: "The texts are the worst part honestly. Every crew lead gets a message with their jobs and addresses, and I type those by hand." },
         { record_id: vtt, seq_start: 3, seq_end: 3, quote: "Two hours if nothing's weird." },
@@ -184,7 +184,7 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
       summary: "Two crews get their week as a generated message instead of a typed one.",
       html: HANDOFF_HTML({ decision: `${base}/t/${path}/synthesis/decisions/${decision["id"]}` }, STORY_STYLESHEET),
       note: "First version.",
-      refs: { objectives: [objectiveIds[1]!], sources: [vtt], decisions: [String(decision["id"])] },
+      refs: { outcomes: [outcomeIds[1]!], sources: [vtt], decisions: [String(decision["id"])] },
       citations: [{ record_id: vtt, seq_start: 9, seq_end: 10 }],
     },
     ref,

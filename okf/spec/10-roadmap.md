@@ -3,7 +3,7 @@ type: Roadmap
 title: Phases 0 to 5 are mostly built; durability, data rights and public sign-up come next.
 description: What is built and what is not, phase by phase, with acceptance criteria; the open questions that remain, the ones already settled, and the risks.
 tags: [roadmap, status, phases, open-questions, risks]
-generated: {by: agent:claude, at: 2026-09-27}
+generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
 status: stable
 ---
 
@@ -22,7 +22,7 @@ Observed in the code on this date.
 | 1 | Done | registry → REST and MCP (99 operations, 16 tools); row-level security in the first migration; ETags; paging; `describe`; activity in the same transaction; the isolation test over every operation; the parity test | — |
 | 2 | Mostly done | upload grants (relay, optional direct signed URLs); parsers for plain text, Markdown, VTT, SRT, HTML, DOCX, PDF, XLSX, CSV and TSV; derivation on the Postgres queue; passages by segment and time; substring and ranked search with coverage; archive and restore; guarded delete of sources with tombstones; a synthetic sample product in the seed | usage metering; golden-file tests per format; a blob-store conformance suite (no test exercises the Cloud Storage adapter); legacy `.doc` |
 | 3 | Mostly done | tenants, teams, products, roles; email-link, Google and development sign-in; invitations by email and link; personal access tokens; invite-only mode; sign-in link rate limit | quotas and their `409 quota_exceeded` (only the Story page limit exists); general rate limits; account deletion |
-| 4 | Mostly done | the design system (Studio, [DESIGN.md](../../DESIGN.md)) across every screen of the loop: Objectives, Evidence (browse, kind-first intake, the source page with sections and inspector, passage reader, notes, files, search), Synthesis (the insight editor, revision history, insight review, assumptions and decisions with review, confidence, citation checks), Story (reader, arranging by drag, keyboard and Move to…, the inspector with citations and notes for agents, the print view for PDF, the page following the app's theme), Activity with People/Agents filter, organization members, product people, Agents, account | an accessibility audit; Playwright in CI (a browser walk-through exists in `scripts/e2e.mjs`); the public sample at `/sample`; links in a Story page that stay in the app (the sandboxed frame opens every link, including one to another Story page, in a new tab) |
+| 4 | Mostly done | the design system (Studio, [DESIGN.md](../../DESIGN.md)) across every screen of the loop: Idea, Evidence (browse, kind-first intake, the source page with sections and inspector, passage reader, notes, files, search), Synthesis (the insight editor, revision history, insight review, assumptions and decisions with review, confidence, citation checks), Story (reader, arranging by drag, keyboard and Move to…, the inspector with citations and notes for agents, the print view for PDF, the page following the app's theme), Activity with People/Agents filter, organization members, product people, Agents, account | an accessibility audit; Playwright in CI (a browser walk-through exists in `scripts/e2e.mjs`); the public sample at `/sample`; links in a Story page that stay in the app (the sandboxed frame opens every link, including one to another Story page, in a new tab) |
 | 5 | Mostly done | OAuth 2.1 for MCP, tokens, the versioned skill, `get_skill`, the Agents (Connect) page, installers, feedback, Story guidance derived from the design tokens (with a drift test) | the stdio transport |
 | 6 | Started | the Cloud Run deployment ([cloud-run.md](../operations/cloud-run.md)) with Cloud Build continuous deployment; product export (`products.export`) | a rehearsed restore; import; organization export; closing an organization; the sub-processors page; abuse tests |
 
@@ -50,7 +50,7 @@ row-level security **in the first migration**; the error model; ETags; paging; `
 activity log.
 
 *Accept:*
-- A caller lists, reads, and writes products, objectives, and sources through **both** adapters.
+- A caller lists, reads, and writes products, outcomes, and sources through **both** adapters.
 - The parity test passes; an unregistered tool action fails it.
 - Stale ETag → `409`; unknown field → `422`; over-limit page → `422`.
 - Product resolution over MCP follows [§3.6](03-accounts-teams-and-identity.md), including
@@ -93,7 +93,7 @@ sign-in.
 
 ## Phase 4 — The web application
 
-Organization screens (products, members, Agents, account); the four product screens; Objectives;
+Organization screens (products, members, Agents, account); the four product screens; Idea;
 Evidence (upload, browse, source page, passage reader, annotations, search); Synthesis (insights
 and registers) with revision history; Story reading and arranging; the Activity page; conflict handling. The
 design system is Studio ([DESIGN.md](../../DESIGN.md)).
@@ -163,11 +163,11 @@ Each has a default so work is not blocked.
 | 3 | **Closing an organization** — content leaves live systems within 7 days, backups within 35. | As written; the 7-day window is deliberate room to reverse a mistake. |
 | 4 | **Restore-drill cadence** ([§9.3](09-data-lifecycle.md)). | A rehearsed restore before public sign-up and quarterly after, as a phase acceptance criterion. |
 | 5 | **Activity log retention** ([§4.10](04-data-model.md)). | For the life of the product; events are small and carry no content. Nothing prunes them today. |
-| 6 | **Revision scope** ([§4.1](04-data-model.md)) — which objects expose their revisions. | Insights and objectives today; the product idea, annotations and register entries while still editable are next. Retained for the life of the object. |
+| 6 | **Revision scope** ([§4.1](04-data-model.md)) — which objects expose their revisions. | Insights and outcomes today; the product concept, annotations and register entries while still editable are next. Retained for the life of the object. |
 | 7 | **The public sample** — a synthetic discovery readable at `/sample` with no account. | Built from the seed's synthetic content; read-only, with one "copy into my organization" action. |
 | 8 | **The tenant's name in the UI.** Sources already have an `organization` field (the organization a source concerns), so the API says `tenant` and the UI says "organization". | As built; rename the source field (for example `about_organization`) if one word is wanted. |
 | 9 | **Stakeholders who read only the Story** — a Story-only role, or share links? | Open. Viewers can read the Story today. |
-| 10 | **Delete beyond sources** — insights, register entries, annotations, Story pages, objectives, products. | The same guards and tombstones as sources; a register entry's delete is also how a citation snapshot is removed. |
+| 10 | **Delete beyond sources** — insights, register entries, annotations, Story pages, outcomes, products. | The same guards and tombstones as sources; a register entry's delete is also how a citation snapshot is removed. |
 
 **Settled**, and where:
 

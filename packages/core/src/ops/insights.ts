@@ -6,7 +6,7 @@ import { invalid, notFound } from "../errors.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag, id } from "../schemas.ts";
 import { applyEdits, editsInput, textDiff, wordCount } from "../text-edits.ts";
-import { archivedObjectiveIds } from "./objectives.ts";
+import { archivedOutcomeIds } from "./outcomes.ts";
 import { newEtag, newId } from "../util.ts";
 
 export const BODY_MAX = 100_000;
@@ -16,7 +16,7 @@ export type ReviewState = z.output<typeof REVIEW_STATE>;
 
 const refsInput = z
   .strictObject({
-    objectives: z.array(id("objective")).max(50).optional(),
+    outcomes: z.array(id("outcome")).max(50).optional(),
     sources: z.array(id("source")).max(100).optional(),
     insights: z.array(id("insight")).max(100).optional(),
     assumptions: z.array(id("assumption")).max(100).optional(),
@@ -66,8 +66,8 @@ function summaryOf(r: Row) {
 }
 
 async function summaries(ctx: OpContext, rows: Row[]) {
-  const archived = await archivedObjectiveIds(ctx, rows.flatMap((r) => r.refs.objectives ?? []));
-  return rows.map((r) => ({ ...summaryOf(r), archived_objective_ids: (r.refs.objectives ?? []).filter((o) => archived.has(o)) }));
+  const archived = await archivedOutcomeIds(ctx, rows.flatMap((r) => r.refs.outcomes ?? []));
+  return rows.map((r) => ({ ...summaryOf(r), archived_outcome_ids: (r.refs.outcomes ?? []).filter((o) => archived.has(o)) }));
 }
 
 async function summary(ctx: OpContext, r: Row) {
@@ -81,11 +81,11 @@ export const listInsights = defineOperation({
   mutates: false,
   summary: "List insights, newest first, without bodies.",
   description:
-    "Filter by status, by an objective or a source they reference, by review_state (one or more of unreviewed, reviewed, changed — changed means edited since its review), or by a substring of title, summary or body. Archived insights are left out unless status is \"archived\". Use get for the body.",
+    "Filter by status, by an outcome or a source they reference, by review_state (one or more of unreviewed, reviewed, changed — changed means edited since its review), or by a substring of title, summary or body. Archived insights are left out unless status is \"archived\". Use get for the body.",
   input: z.strictObject({
     status: STATUS.optional(),
     review_state: z.array(REVIEW_STATE).min(1).max(3).optional().describe("Only insights in these review states."),
-    objective_id: id("objective").optional(),
+    outcome_id: id("outcome").optional(),
     source_id: id("source").optional(),
     query: z.string().max(500).optional(),
     limit: z.number().int().min(1).max(100).default(25),
@@ -96,7 +96,7 @@ export const listInsights = defineOperation({
   async handler(ctx, input) {
     let q = ctx.db.selectFrom("insights").selectAll().where("product_id", "=", productId(ctx));
     q = input.status ? q.where("status", "=", input.status) : q.where("status", "!=", "archived");
-    if (input.objective_id) q = q.where(sql<boolean>`refs->'objectives' ? ${input.objective_id}`);
+    if (input.outcome_id) q = q.where(sql<boolean>`refs->'outcomes' ? ${input.outcome_id}`);
     if (input.source_id) q = q.where(sql<boolean>`refs->'sources' ? ${input.source_id}`);
     if (input.review_state?.length) {
       const states = new Set(input.review_state);
@@ -123,7 +123,7 @@ export const getInsight = defineOperation({
   access: "read",
   mutates: false,
   summary: "Read an insight, with its body in a bounded window.",
-  description: `The body comes back in a window (offset and limit, default 20,000 characters, at most ${BODY_MAX}) with truncated, body_chars and body_words (the whole body's length in characters and in words); page through long bodies. archived_objective_ids lists referenced objectives that are archived. The etag guards update.`,
+  description: `The body comes back in a window (offset and limit, default 20,000 characters, at most ${BODY_MAX}) with truncated, body_chars and body_words (the whole body's length in characters and in words); page through long bodies. archived_outcome_ids lists referenced outcomes that are archived. The etag guards update.`,
   input: z.strictObject({ insight_id: insightId, offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(BODY_MAX).default(20_000) }),
   rest: { method: "GET", path: "/insights/:insight_id" },
   mcp: { tool: "insights", action: "get" },

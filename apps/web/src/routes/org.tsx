@@ -23,16 +23,16 @@ export function Welcome() {
   const navigate = useNavigate();
   const [org, setOrg] = useState("");
   const [product, setProduct] = useState("");
-  const [idea, setIdea] = useState("");
+  const [concept, setConcept] = useState("");
   const create = useMutation({
     mutationFn: async () => {
       const t = await api<{ tenant: { slug: string }; team: { slug: string } }>("POST", "/api/v1/tenants", { name: org.trim() });
-      const p = await api<{ path: string }>("POST", `/api/v1/teams/${t.tenant.slug}/${t.team.slug}/products`, { name: product.trim(), idea });
+      const p = await api<{ path: string }>("POST", `/api/v1/teams/${t.tenant.slug}/${t.team.slug}/products`, { name: product.trim(), concept });
       return p.path;
     },
     onSuccess: async (path) => {
       await qc.invalidateQueries({ queryKey: ["products"] });
-      navigate(`/t/${path}/objectives`);
+      navigate(`/t/${path}/idea`);
     },
   });
   const first = me.data?.display_name.split(" ")[0];
@@ -50,7 +50,7 @@ export function Welcome() {
           <p className="muted">Name your organization and the product you are exploring. You can invite colleagues and connect an agent next.</p>
           <TextField label="Organization" hint="Your company or group. Nothing in it is visible to any other organization." required maxLength={100} value={org} onChange={(e) => setOrg(e.target.value)} />
           <TextField label="Product" hint="The product this discovery is about. You can run several side by side." required maxLength={100} value={product} onChange={(e) => setProduct(e.target.value)} />
-          <TextArea label="The idea" optional hint="What you think the product could be, in a few sentences. It heads the Objectives screen." maxLength={2000} rows={3} value={idea} onChange={(e) => setIdea(e.target.value)} />
+          <TextArea label="Product concept" optional hint="Who it is for, the problem they have, and how the product solves it, in a few sentences. It heads the Idea screen." maxLength={2000} rows={3} value={concept} onChange={(e) => setConcept(e.target.value)} />
           {create.isError ? <ErrorCallout inset error={create.error} /> : null}
           <Button type="submit" variant="primary" busy={create.isPending} busyLabel="Creating…" disabled={!org.trim() || !product.trim()}>
             Create and continue
@@ -145,10 +145,10 @@ export function ProductsPage() {
                       ps.map((p) => (
                         <ListRow
                           key={p.product_id}
-                          to={`/t/${p.path}/objectives`}
+                          to={`/t/${p.path}/idea`}
                           className="products-row"
                           title={p.name}
-                          sub={p.idea ? <span className="products-idea">{p.idea}</span> : <span className="faint">No idea written yet</span>}
+                          sub={p.concept ? <span className="products-concept">{p.concept}</span> : <span className="faint">No product concept written yet</span>}
                           end={
                             <span className="products-end">
                               {p.archived_at ? <StatusBadge tone="neutral">Archived</StatusBadge> : null}
@@ -179,12 +179,12 @@ function CreateProductDialog({ onClose, tenants }: { onClose: () => void; tenant
   const teams = tenants.flatMap((t) => t.teams.filter((tm) => tm.your_role === "admin").map((tm) => ({ key: `${t.slug}/${tm.slug}`, label: `${t.name} · ${tm.name}` })));
   const [team, setTeam] = useState(teams[0]?.key ?? "");
   const [name, setName] = useState("");
-  const [idea, setIdea] = useState("");
+  const [concept, setConcept] = useState("");
   const create = useMutation({
-    mutationFn: () => api<{ path: string }>("POST", `/api/v1/teams/${team}/products`, { name: name.trim(), idea }),
+    mutationFn: () => api<{ path: string }>("POST", `/api/v1/teams/${team}/products`, { name: name.trim(), concept }),
     onSuccess: async (p) => {
       await qc.invalidateQueries({ queryKey: ["products"] });
-      navigate(`/t/${p.path}/objectives`);
+      navigate(`/t/${p.path}/idea`);
     },
   });
   return (
@@ -193,7 +193,7 @@ function CreateProductDialog({ onClose, tenants }: { onClose: () => void; tenant
       onClose={onClose}
       dismissable={!create.isPending}
       title="New product"
-      description={teams.length ? "Each product is one discovery, with its own objectives, sources, insights and Story." : undefined}
+      description={teams.length ? "Each product is one discovery, with its own outcomes, sources, insights and Story." : undefined}
       footer={
         teams.length ? (
           <>
@@ -225,7 +225,7 @@ function CreateProductDialog({ onClose, tenants }: { onClose: () => void; tenant
             ))}
           </SelectField>
           <TextField label="Name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
-          <TextArea label="The idea" optional rows={3} maxLength={2000} value={idea} onChange={(e) => setIdea(e.target.value)} hint="It heads the Objectives screen. You can change it later in Settings." />
+          <TextArea label="Product concept" optional rows={3} maxLength={2000} value={concept} onChange={(e) => setConcept(e.target.value)} hint="It heads the Idea screen. You can change it later in Settings." />
           {create.isError ? <ErrorCallout inset error={create.error} /> : null}
         </form>
       ) : (

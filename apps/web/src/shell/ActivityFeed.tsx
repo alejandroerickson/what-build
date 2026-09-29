@@ -46,13 +46,13 @@ const VERBS: Record<string, string> = {
   "source:moved_out": "moved out",
   "source:agent_note_written": "wrote agent notes for",
   "source:lineage_registered": "registered the inputs of",
-  "objective:created": "added the objective",
-  "objective:updated": "edited the objective",
-  "objective:reordered": "reordered the objective",
-  "objective:achieved": "marked achieved",
-  "objective:active": "reopened the objective",
-  "objective:archived": "archived the objective",
-  "objective:restored": "restored the objective",
+  "outcome:created": "added the outcome",
+  "outcome:updated": "edited the outcome",
+  "outcome:reordered": "reordered the outcome",
+  "outcome:achieved": "marked achieved",
+  "outcome:active": "reopened the outcome",
+  "outcome:archived": "archived the outcome",
+  "outcome:restored": "restored the outcome",
   "insight:created": "wrote",
   "insight:updated": "revised",
   "insight:published": "published",
@@ -92,7 +92,7 @@ const VERBS: Record<string, string> = {
 /** What an entity type is called when the log is filtered to it: "Showing activity on sources". */
 export const ENTITY_LABEL: Record<string, string> = {
   source: "sources",
-  objective: "objectives",
+  outcome: "outcomes",
   insight: "insights",
   assumption: "assumptions",
   decision: "decisions",
@@ -113,8 +113,8 @@ function linkFor(app: string, i: ActivityItem): string | null {
       return `${app}/synthesis/assumptions/${i.entity_id}`;
     case "decision":
       return `${app}/synthesis/decisions/${i.entity_id}`;
-    case "objective":
-      return `${app}/objectives`;
+    case "outcome":
+      return `${app}/idea`;
     case "story_page":
       return `${app}/story/${i.entity_id}`;
     case "story_hierarchy":

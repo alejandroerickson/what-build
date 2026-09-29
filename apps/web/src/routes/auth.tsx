@@ -155,8 +155,8 @@ export function Home() {
     );
   const last = lastProduct();
   const items = products.data.items;
-  if (last && items.some((p) => p.path === last)) return <Navigate to={`/t/${last}/objectives`} replace />;
-  if (items[0]) return <Navigate to={`/t/${items[0].path}/objectives`} replace />;
+  if (last && items.some((p) => p.path === last)) return <Navigate to={`/t/${last}/idea`} replace />;
+  if (items[0]) return <Navigate to={`/t/${items[0].path}/idea`} replace />;
   if (products.data.tenants.length) return <Navigate to="/products" replace />;
   return <Navigate to="/welcome" replace />;
 }

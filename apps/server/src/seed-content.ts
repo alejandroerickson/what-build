@@ -1,6 +1,6 @@
 /**
  * The sample discovery. Entirely synthetic: the people, organizations and product are invented.
- * It exists so a new install shows the whole loop — sources, passages, objectives, an insight,
+ * It exists so a new install shows the whole loop — sources, passages, outcomes, an insight,
  * register entries and a Story page — before anyone uploads anything.
  */
 
@@ -8,22 +8,22 @@ export const SAMPLE = {
   tenant: "Harbor Labs",
   team: "Product team",
   product: "Crewboard",
-  idea:
+  concept:
     "Crewboard helps small field-service crews — landscaping, cleaning, repair — plan their week without a spreadsheet. " +
     "We think crew leads lose Friday afternoons rebuilding next week's schedule by hand, and that a planner built around jobs, " +
     "not calendars, could give that time back.",
-  objectives: [
+  outcomes: [
     {
-      title: "Know how crews plan their week today",
-      description: "Map the planning ritual end to end: who does it, when, with what tools, and where it breaks. Success is a map we can point at with evidence behind each step.",
+      title: "Plan next week in minutes, not an afternoon",
+      description: "A crew lead builds next week's schedule, repeat clients included, without rebuilding it by hand. Success is Friday planning that takes under half an hour.",
     },
     {
-      title: "Find the moment planning costs the most",
-      description: "Identify the single most expensive step, in time or in mistakes, that a planner could remove. Success is one step we can name and measure.",
+      title: "Send every crew the right week, with no mix-ups",
+      description: "Each crew knows its jobs, times and addresses before Monday, and a mistake is caught before the client calls. Success is a week with no job missed or double-booked.",
     },
     {
-      title: "Decide whether jobs-first beats calendar-first",
-      description: "Learn whether crew leads think in jobs or in time slots, so the first version is built around the right object.",
+      title: "Fit a new job into the week without starting over",
+      description: "When a client books late, the crew lead places the job and sees what it moves. Success is a late booking handled in minutes, from a phone.",
     },
   ],
 };
