@@ -50,6 +50,18 @@ colors:
   avatar-bg-dark: "#5a4a30"
   avatar-text-dark: "#f3e6cc"
 typography:
+  display:
+    fontFamily: "Inter Variable, Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "48px"
+    fontWeight: 600
+    lineHeight: 1.05
+    letterSpacing: "-0.035em"
+  brand:
+    fontFamily: "Inter Variable, Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "28px"
+    fontWeight: 600
+    lineHeight: 1
+    letterSpacing: "-0.02em"
   headline:
     fontFamily: "Inter Variable, Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
     fontSize: "20px"
@@ -267,14 +279,14 @@ components:
 
 One floating panel carries the product's whole story, Idea, Evidence, Synthesis and Story in that order, and the content takes the rest of the canvas. Studio is a tool-maker's workspace: a light grey canvas (near-black in dark), white panels with 12px corners floating 10px in from the window edge, hairline rules, and a soft two-layer shadow. There is no top bar, no persistent rail beside the panel, and no app-level tab strip. One screen shows at a time, links are real links, and the browser owns tabs.
 
-The system is dense and quiet. The UI runs at 12px in Inter; text people actually read (passages, quotes, Markdown) steps up to 13 to 13.5px. Hierarchy comes from weight (600) and grey steps rather than size, and nothing in the app is larger than 20px. Indigo is the only chromatic voice in the chrome, reserved for selection, focus, primary commits and pointing at evidence. Status always pairs a small shaped mark with a word.
+The system is dense and quiet. The UI runs at 12px in Inter; text people actually read (passages, quotes, Markdown) steps up to 13 to 13.5px. Hierarchy comes from weight (600) and grey steps rather than size, and nothing in the app is larger than 20px except the overview's intro. Indigo is the only chromatic voice in the chrome, reserved for selection, focus, primary commits and pointing at evidence. Status always pairs a small shaped mark with a word.
 
 The panel can hide (a button or Ctrl/Cmd+\). The canvas widens in a single 200ms motion and a floating pill with the mark, product and section takes its place. Item screens (a Story, a source) add a 272px inspector floating on the right. The shipped Story export is a separate reading surface: it borrows the app's colours, radii and UI face through a derived token set and pairs them with a serif reading face of its own.
 
 **Key Characteristics:**
 - A 264px floating left panel and 272px floating inspector around one scrolling canvas (content max 900px).
 - White-on-grey tonal layering; the shadow's 0.5px ring stands in for a panel border.
-- Inter at 11 to 15px for the UI, 20px as the ceiling; 600 is the heading weight.
+- Inter at 11 to 15px for the UI, 20px as the ceiling outside the overview's intro; 600 is the heading weight.
 - 24px and 28px controls; radius steps 4, 6, 8, 12.
 - Indigo for selection, focus, primary commits and evidence only.
 - Lucide icons at 12 or 14px with a 1.75 stroke, through one glyph map.
@@ -315,9 +327,11 @@ A neutral grey studio with a single indigo accent and three status hues; every v
 **Mono Font:** the system monospace stack (ui-monospace, SF Mono, Menlo), used for codes, token prefixes and commands
 **Story reading face (export only):** a serif system stack (ui-serif, Charter, Georgia). It lives in the Story's own page tokens and never appears in the app.
 
-**Character:** One humanist sans at small, exact sizes, in the manner of a design tool rather than a website. There is no display type. Titles earn their place with weight 600 and slight negative tracking.
+**Character:** One humanist sans at small, exact sizes, in the manner of a design tool rather than a website. There is no display face, and one display line: the overview's question, in the same Inter. Titles earn their place with weight 600 and slight negative tracking.
 
 ### Hierarchy
+- **Display** (600, 48px, 1.05, -0.035em; 36px on a narrow canvas): the overview's question, "What to build?", and nowhere else.
+- **Brand** (600, 28px, 1, -0.02em; 22px on a narrow canvas): the overview's wordmark beside a 34px W mark, its page h1.
 - **Headline** (600, 20px, 1.25, -0.01em): the h1 of an item screen, such as an insight or a source.
 - **Lead** (400, 15px, 1.55): a single summary paragraph above prose.
 - **Title** (600, 14px, 1.25): the sheet title, which is the h1 of a list screen, followed by its count in faint 400.
@@ -329,7 +343,7 @@ A neutral grey studio with a single indigo accent and three status hues; every v
 - **Label** (500, 11px): counts, panel section labels, captions, keyboard hints.
 
 ### Named Rules
-**The Twenty Pixel Ceiling Rule.** Nothing in the app exceeds 20px. When something needs more emphasis, raise its weight or darken its grey.
+**The Twenty Pixel Ceiling Rule.** Nothing in the app exceeds 20px. When something needs more emphasis, raise its weight or darken its grey. The one exception is the overview's intro (Brand and Display above, tokens `--fs-brand`, `--fs-display` and their `-sm` narrow sizes, `--tracking-brand`, `--tracking-display`), the page people share as a screenshot of WhatBuild; no other screen earns it ([decision](okf/decisions/the-overview-is-the-front-door.md)).
 
 **The Read Up Rule.** Chrome stays at 12px. Anything a person reads as content (passages, quotes, prose) steps up to 13 to 13.5px with a looser line height and a 68ch measure.
 
@@ -423,7 +437,7 @@ A rounded square filled with ink, with a W stroked in the panel colour (2.6 stro
 
 ### Don't:
 - **Don't** add a top bar, a second rail, an app-level tab strip or extra drawers beside the panel. On phones the panel itself is the drawer.
-- **Don't** set app type above 20px, and don't add a display face to the app.
+- **Don't** set app type above 20px outside the overview's intro, and don't add a display face to the app: the display step is Inter at 600.
 - **Don't** use the accent for decoration, category colour, large fills or more than one filled button in a view.
 - **Don't** use shadows outside the resting, lifted and paper set, including hard offset, coloured or glow shadows.
 - **Don't** add small uppercase labels above titles. Section labels are 11px sentence case in faint 500.

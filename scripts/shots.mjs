@@ -41,7 +41,7 @@ async function context(theme, device, signIn = true) {
   if (signIn) {
     await page.goto(`${base}/signin`);
     await page.getByRole("button", { name: /Sam Okafor/ }).click();
-    await page.waitForURL(/idea/);
+    await page.waitForURL((u) => u.pathname === "/");
   }
   return { ctx, page };
 }
@@ -76,10 +76,11 @@ const wanted = (screen) => !only.length || only.includes(screen);
 
 /** Resolve the sample product's ids through the API, with the signed-in session. */
 async function sample(page) {
-  const app = page.url().replace(/\/idea.*$/, "");
-  const path = app.replace(/^.*\/t\//, "");
-  const P = `${base}/api/v1/p/${path}`;
   const get = async (url) => (await page.request.get(url)).json();
+  const products = await get(`${base}/api/v1/me/products`);
+  const path = (products.items.find((p) => p.name === "Crewboard") ?? products.items[0]).path;
+  const app = `${base}/t/${path}`;
+  const P = `${base}/api/v1/p/${path}`;
   const sources = await get(`${P}/sources?limit=200`);
   const source = sources.records.find((r) => r.title.startsWith("Crew lead interview")) ?? sources.records[0];
   const insights = await get(`${P}/insights`);
@@ -109,6 +110,7 @@ for (const device of ["desktop", "phone"]) {
       await capture(page, name(screen), opts);
     };
 
+    await shoot("overview", `${base}/`);
     await shoot("idea", "/idea");
     await shoot("evidence", "/evidence");
     for (const view of ["passages", "original", "notes", "files"]) await shoot(`source-${view}`, `/evidence/${s.source}?view=${view}`);

@@ -11,8 +11,12 @@ const step = (s) => console.log("✓", s);
 
 await page.goto(`${base}/signin`);
 await page.getByRole("button", { name: /Sam Okafor/ }).click();
+await page.waitForURL((u) => u.pathname === "/");
+await page.getByRole("heading", { name: "WhatBuild" }).waitFor();
+step("signed in as an editor, onto the overview");
+await page.getByRole("navigation", { name: /Crewboard/ }).getByRole("link", { name: /^Idea/ }).click();
 await page.waitForURL(/idea/);
-step("signed in as an editor");
+step("opened the sample product's Idea from the overview");
 const app = page.url().replace(/\/idea.*$/, "");
 
 await page.goto(`${app}/evidence/new`);

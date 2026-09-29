@@ -301,4 +301,19 @@ describe("the discovery loop through REST", () => {
     await h.worker.drain();
     expect([...h.blobs.blobs.keys()].some((k) => k.includes(recordId))).toBe(false);
   });
+  it("lists each product with the counts products.get reports, across organizations", async () => {
+    const t = await alice.api("POST", "/api/v1/tenants", { name: "Beacon Labs" });
+    const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Dispatch" });
+    await alice.api("POST", `/api/v1/p/${p.body.path}/outcomes`, { title: "Know who is on call" });
+    const list = await alice.api("GET", "/api/v1/me/products");
+    expect(list.body.items).toHaveLength(2);
+    for (const item of list.body.items) {
+      const one = await alice.api("GET", `/api/v1/p/${item.path}`);
+      expect(item.counts).toEqual(one.body.counts);
+    }
+    const dispatch = list.body.items.find((i: { path: string }) => i.path === p.body.path);
+    expect(dispatch.counts).toEqual({ sources: 0, outcomes: 1, insights: 0, assumptions: 0, decisions: 0, story_pages: 0 });
+    const onboarding = list.body.items.find((i: { path: string }) => i.path !== p.body.path);
+    expect(onboarding.counts.outcomes).toBeGreaterThan(1);
+  });
 });

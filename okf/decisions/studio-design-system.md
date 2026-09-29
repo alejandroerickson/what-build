@@ -29,5 +29,6 @@ People mostly read evidence and synthesis. The interface should stay out of the 
 ## Constrains
 
 - UI changes follow DESIGN.md. A new visual direction is a maintainer decision.
+- The overview's intro is the one place type exceeds 20px ([decision](the-overview-is-the-front-door.md)).
 
 Specified in: [07-web-app](../spec/07-web-app.md).

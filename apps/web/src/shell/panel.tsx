@@ -35,10 +35,10 @@ export function productSection(segment: string | undefined): { id: string; label
 /** Screens that exist in every product, so switching product can keep the person on the same one. */
 const KEEP_ON_SWITCH = new Set(["idea", "evidence", "synthesis", "story", "activity", "search", "settings"]);
 
-export function BrandRow({ to, label, onHide, hideLabel }: { to: string; label: string; onHide: () => void; hideLabel: string }) {
+export function BrandRow({ to, label, current, onHide, hideLabel }: { to: string; label: string; current?: boolean; onHide: () => void; hideLabel: string }) {
   return (
     <div className="panel-brand">
-      <Link to={to} className="brand" aria-label={label}>
+      <Link to={to} className="brand" aria-label={label} aria-current={current ? "page" : undefined}>
         <BrandMark />
         <span className="brand-word">WhatBuild</span>
       </Link>
@@ -129,10 +129,35 @@ export function ProductNav({ product, app, section }: { product: Product; app: s
   );
 }
 
-/** The panel outside a product (Agents, account, members, products): a way back, then these screens. */
-export function PlainNav({ section, backTo, backLabel, tenantSlug, tenantName }: { section: string; backTo: string | null; backLabel: string | null; tenantSlug: string | null; tenantName: string | null }) {
+/**
+ * The panel outside a product (Agents, account, members, products): a way back, then these screens.
+ * On the overview it lists the person's products instead of the way back.
+ */
+export function PlainNav({ section, backTo, backLabel, tenantSlug, tenantName, showProducts }: {
+  section: string;
+  backTo: string | null;
+  backLabel: string | null;
+  tenantSlug: string | null;
+  tenantName: string | null;
+  showProducts?: boolean;
+}) {
+  const products = useProducts();
+  const items = showProducts ? (products.data?.items ?? []) : [];
+  const orgs = [...new Set(items.map((p) => p.tenant.name))];
   return (
     <>
+      {orgs.map((org) => (
+        <div key={org} className="nav-l1 nav-products" role="group" aria-label={org}>
+          <div className="nav-group-label ellipsis" aria-hidden="true">
+            {org}
+          </div>
+          {items
+            .filter((p) => p.tenant.name === org)
+            .map((p) => (
+              <NavNode key={p.product_id} to={`/t/${p.path}/idea`} icon="box" label={p.name} />
+            ))}
+        </div>
+      ))}
       {backTo && backLabel ? (
         <div className="nav-back">
           <Link to={backTo} className="nav-node nav-node-back">
@@ -141,11 +166,11 @@ export function PlainNav({ section, backTo, backLabel, tenantSlug, tenantName }:
           </Link>
         </div>
       ) : null}
-      <div className="nav-l1">
-        <NavNode to="/connect" icon="plug" label="Agents" current={section === "agents"} />
-        <NavNode to="/account" icon="key" label="Account and tokens" current={section === "account"} />
-        {tenantSlug ? <NavNode to={`/t/${tenantSlug}/members`} icon="users" label={`${tenantName ?? "Organization"} members`} current={section === "members"} /> : null}
-        <NavNode to="/products" icon="library" label="All products" current={section === "products"} />
+      <div className={showProducts ? "nav-quiet" : "nav-l1"}>
+        <NavNode to="/connect" icon="plug" label="Agents" quiet={showProducts} current={section === "agents"} />
+        <NavNode to="/account" icon="key" label="Account and tokens" quiet={showProducts} current={section === "account"} />
+        {tenantSlug ? <NavNode to={`/t/${tenantSlug}/members`} icon="users" label={`${tenantName ?? "Organization"} members`} quiet={showProducts} current={section === "members"} /> : null}
+        <NavNode to="/products" icon="library" label="All products" quiet={showProducts} current={section === "products"} />
       </div>
     </>
   );

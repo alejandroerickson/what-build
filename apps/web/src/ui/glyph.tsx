@@ -1,5 +1,5 @@
 import {
-  Activity, Archive, ArchiveRestore, ArrowLeft, ArrowRight, BookOpen, Bot, Building, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp,
+  Activity, Archive, ArchiveRestore, ArrowLeft, ArrowRight, BookOpen, Bot, Box, Building, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp,
   CircleAlert, CircleCheck, CircleDashed, Clock, Copy, CornerDownRight, Download, Ellipsis, ExternalLink, FileText, FileVolume, FolderInput,
   GripVertical, Info, KeyRound, Library, Lightbulb, Link, LoaderCircle, LogOut, Menu, Mic, Monitor, Moon, PanelLeftClose, PanelLeftOpen,
   PanelRight, Pencil, Plug, Plus, Quote, Scale, Search, Settings, Signpost, Sun, Target, Trash, TriangleAlert, Upload, User, UserPlus, Users, X,
@@ -18,6 +18,7 @@ const GLYPHS = {
   "arrow-left": ArrowLeft,
   "arrow-right": ArrowRight,
   "book-open": BookOpen,
+  box: Box,
   bot: Bot,
   building: Building,
   check: Check,

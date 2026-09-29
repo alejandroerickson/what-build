@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api } from "../lib/api.ts";
-import { lastProduct, useMe, useProducts, useSignOut } from "../lib/session.tsx";
+import { useMe, useSignOut } from "../lib/session.tsx";
 import { BrandMark } from "../shell/brand.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import { Button, ButtonLink, Callout, EmptyState, ErrorCallout, Loading, Sheet, SheetBody, SheetHeader, TextField } from "../ui/index.tsx";
@@ -138,29 +138,6 @@ export function SignIn() {
 }
 
 /** `/`: the last product this browser used, else the first product, else first-run setup. */
-export function Home() {
-  const products = useProducts();
-  if (products.isPending)
-    return (
-      <EntryPage title="WhatBuild">
-        <Loading label="Opening your last product…" />
-      </EntryPage>
-    );
-  if (products.isError)
-    return (
-      <EntryPage title="WhatBuild">
-        <h1 className="visually-hidden">WhatBuild</h1>
-        <ErrorCallout title="Your products could not be loaded" error={products.error} onRetry={() => products.refetch()} />
-      </EntryPage>
-    );
-  const last = lastProduct();
-  const items = products.data.items;
-  if (last && items.some((p) => p.path === last)) return <Navigate to={`/t/${last}/idea`} replace />;
-  if (items[0]) return <Navigate to={`/t/${items[0].path}/idea`} replace />;
-  if (products.data.tenants.length) return <Navigate to="/products" replace />;
-  return <Navigate to="/welcome" replace />;
-}
-
 export function AcceptInvite() {
   const { token = "" } = useParams();
   const qc = useQueryClient();
