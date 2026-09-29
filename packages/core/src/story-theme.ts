@@ -24,16 +24,23 @@ export function withStoryTheme(html: string, theme: "light" | "dark"): string {
 
 /**
  * The script the app's frame adds to a page it shows. It runs inside the page's sandbox, in the
- * page's opaque origin, and does two things:
+ * page's opaque origin, and does three things:
  *
  * - Passes F and Esc to the app (focus mode), since keys pressed inside a frame never reach the
  *   page around it. Only the key's name is sent; the app checks the message came from its frame.
+ * - Hands a plain click on a link to another page of the same Story to the app, which shows that
+ *   page in place: a Story is a set of pages, and a reader moving between them should not collect
+ *   tabs. The app tells the frame where its Story lives; only a page's slug is sent back, and the
+ *   app checks it. A click with a modifier key, or on any other link, is left alone.
  * - Opens a link that would replace the page inside the frame in a new tab instead, so an ordinary
  *   link to evidence works, and the app never shows another address inside its own frame.
  */
 export const FRAME_SCRIPT =
   "(function(){" +
+  "var story=null;" +
   "function typing(t){return t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));}" +
+  'addEventListener("message",function(e){' +
+  'if(e.source===parent&&e.data&&e.data.whatbuild==="story-base"&&typeof e.data.base==="string")story=e.data.base;});' +
   'addEventListener("keydown",function(e){' +
   "if(e.defaultPrevented||e.metaKey||e.ctrlKey||e.altKey||typing(e.target))return;" +
   'var k=e.key==="Escape"?"Escape":(e.key==="f"||e.key==="F")?"f":null;' +
@@ -41,6 +48,9 @@ export const FRAME_SCRIPT =
   'addEventListener("click",function(e){' +
   'var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;' +
   'if(!a||a.getAttribute("href").charAt(0)==="#")return;' +
+  'if(story&&!e.defaultPrevented&&e.button===0&&!e.metaKey&&!e.ctrlKey&&!e.shiftKey&&!e.altKey&&!a.hasAttribute("download")&&a.href.indexOf(story)===0){' +
+  "var m=/^([a-z0-9][a-z0-9-]{0,79})\\/?(?:[?#].*)?$/.exec(a.href.slice(story.length));" +
+  'if(m){e.preventDefault();parent.postMessage({whatbuild:"story-page",page:m[1]},"*");return;}}' +
   'var t=(a.getAttribute("target")||"").toLowerCase();' +
   'if(!t||t==="_self"||t==="_parent"||t==="_top"){a.setAttribute("target","_blank");a.setAttribute("rel","noopener noreferrer");}' +
   "},true);" +

@@ -33,6 +33,42 @@ describe("house styles", () => {
       expect(s.rules, s.id).toMatch(/^# /);
     }
   });
+
+  it("each style the whole vocabulary, plans and landing pages included", () => {
+    for (const s of HOUSE_STYLES) {
+      for (const selector of [".timeline", ".lines", ".facts", ".pages a", ".tag", "h2[data-label]::before", "::selection"])
+        expect(s.stylesheet, `${s.id} ${selector}`).toContain(selector);
+      // A step may hold a link or bold text, so its number is placed beside the text, not in a grid.
+      expect(s.stylesheet, s.id).not.toMatch(/\.steps li \{[^}]*display: grid/);
+    }
+    const specimen = houseSpecimen(HOUSE_STYLES[2]!);
+    for (const markup of ['<section class="wide"', '<ol class="timeline">', '<ul class="lines">', '<dl class="facts">', '<nav class="pages"'])
+      expect(specimen, markup).toContain(markup);
+  });
+
+  it("name each typeface once, so a page's stylesheet stays small", () => {
+    for (const s of HOUSE_STYLES) {
+      expect(s.stylesheet.match(/Helvetica Neue/g)?.length ?? 0, s.id).toBeLessThanOrEqual(1);
+      expect(s.stylesheet.length, s.id).toBeLessThan(16_000);
+    }
+  });
+});
+
+describe("what a stylesheet may load", () => {
+  it("accepts a data: URI, quoted or not, and a fragment", () => {
+    expect(inspectStoryCss(".a { background: url(data:image/svg+xml,%3Csvg/%3E); }")).toEqual([]);
+    expect(inspectStoryCss(`.a { background: url("data:image/svg+xml,%3Csvg/%3E"); }`)).toEqual([]);
+    expect(inspectStoryCss("@font-face { font-family: X; src: url('data:font/woff2;base64,AAAA') format('woff2'); }")).toEqual([]);
+    expect(inspectStoryCss(".a { fill: url(#grad); }")).toEqual([]);
+  });
+
+  it("refuses anything that would reach the network, quoted or not", () => {
+    for (const css of ["url(https://example.com/a.png)", `url("https://example.com/a.png")`, "url( 'https://example.com/a.png' )", "url(//example.com/a.png)", "url(a.png)"])
+      expect(inspectStoryCss(`.a { background: ${css}; }`), css).toHaveLength(1);
+    const page = (style: string) => `<!doctype html><html lang="en"><head><title>T</title><style>${style}</style></head><body><p style="background: url('https://example.com/a.png')">x</p></body></html>`;
+    expect(inspectStoryHtml(page(`.a { background: url("data:image/png;base64,AAAA"); }`))).toHaveLength(1);
+    expect(inspectStoryHtml(page(`.a { background: url("https://example.com/a.png"); }`))).toHaveLength(2);
+  });
 });
 
 describe("Story guidance", () => {
@@ -140,10 +176,96 @@ describe("the app's frame", () => {
     expect(framed.body.endsWith(`<script>${FRAME_SCRIPT}</script>`)).toBe(true);
   });
 
-  it("sends only key names to the app and opens in-frame links in a new tab", () => {
+  it("sends only key names and page slugs to the app, and opens other in-frame links in a new tab", () => {
     expect(FRAME_SCRIPT).toContain('whatbuild:"story-key"');
+    expect(FRAME_SCRIPT).toContain('whatbuild:"story-page"');
     expect(FRAME_SCRIPT).toContain('setAttribute("target","_blank")');
     expect(FRAME_SCRIPT).not.toMatch(/innerHTML|textContent|document\.cookie|location/);
+    expect(() => new Function(FRAME_SCRIPT)).not.toThrow();
+  });
+
+  it("hands a plain click on a link to another page of the Story to the app, and nothing else", () => {
+    const base = "https://app.example/t/acme/core/planner/story/";
+    const run = (href: string, click: Record<string, unknown> = {}, told = true) => {
+      const listeners: Record<string, (e: unknown) => void> = {};
+      const sent: unknown[] = [];
+      const parent = { postMessage: (m: unknown) => sent.push(m) };
+      const attrs: Record<string, string> = { href };
+      const a = {
+        href,
+        getAttribute: (n: string) => attrs[n] ?? null,
+        setAttribute: (n: string, v: string) => void (attrs[n] = v),
+        hasAttribute: (n: string) => n in attrs,
+      };
+      new Function("addEventListener", "parent", FRAME_SCRIPT)((type: string, fn: (e: unknown) => void) => void (listeners[type] = fn), parent);
+      if (told) listeners["message"]!({ source: parent, data: { whatbuild: "story-base", base } });
+      let prevented = false;
+      listeners["click"]!({ target: { closest: () => a }, button: 0, defaultPrevented: false, preventDefault: () => void (prevented = true), ...click });
+      return { sent, prevented, target: attrs["target"] };
+    };
+    expect(run(`${base}release-plan`)).toEqual({ sent: [{ whatbuild: "story-page", page: "release-plan" }], prevented: true, target: undefined });
+    expect(run(`${base}epics?v=2#matrix`).sent).toEqual([{ whatbuild: "story-page", page: "epics" }]);
+    // A modifier key, another part of the app, another product, another site: the link opens in a new tab.
+    for (const [href, click] of [
+      [`${base}release-plan`, { metaKey: true }],
+      [`${base}release-plan`, { button: 1 }],
+      ["https://app.example/t/acme/core/planner/evidence/01ABC", {}],
+      ["https://app.example/t/acme/core/other/story/overview", {}],
+      [`${base}Not-A-Slug/more`, {}],
+      ["https://example.com/story/overview", {}],
+    ] as const)
+      expect(run(href, click), href).toEqual({ sent: [], prevented: false, target: "_blank" });
+    // Until the app has said where its Story lives, nothing is handed over; and only the app may say.
+    expect(run(`${base}release-plan`, {}, false)).toEqual({ sent: [], prevented: false, target: "_blank" });
+  });
+});
+
+describe("publishing a page from its body", () => {
+  const body = '<main class="page"><header class="opening"><h1>Plan</h1></header><section><h2>One</h2><p>Text.</p></section></main>';
+  let etag: string;
+
+  it("wraps the body in the product's Story style, so the stylesheet is never sent", async () => {
+    const style = (await vic.api("GET", `${P}/story/style`)).body.style;
+    const pub = await alice.api("POST", `${P}/story/pages/plan/versions`, { title: "The <plan>", body });
+    expect(pub.status).toBeLessThan(300);
+    etag = pub.body.etag;
+    const html = (await vic.api("GET", `${P}/story/pages/plan/versions/1/html`)).body as string;
+    expect(html).toContain(`<style>\n${style.stylesheet}</style>`);
+    expect(html).toContain(`<body>\n${body}\n</body>`);
+    expect(html).toContain("<title>The &#60;plan&#62;</title>");
+    expect(inspectStoryHtml(html)).toEqual([]);
+  });
+
+  it("takes a body only, and one way of giving the page at a time", async () => {
+    const whole = await alice.api("POST", `${P}/story/pages/plan/versions`, { body: `<!doctype html><html><body>${body}</body></html>`, expected_etag: etag });
+    expect(whole.status).toBe(422);
+    expect(whole.body.error.message).toContain("inside <body>");
+    const both = await alice.api("POST", `${P}/story/pages/plan/versions`, { body, restyle: true, expected_etag: etag });
+    expect(both.status).toBe(422);
+    expect(both.body.error.message).toContain("body and restyle");
+    expect((await alice.api("POST", `${P}/story/pages/fresh/versions`, { title: "Fresh", restyle: true })).status).toBe(422);
+    const external = await alice.api("POST", `${P}/story/pages/plan/versions`, { body: '<main class="page"><img src="https://example.com/a.png" alt=""></main>', expected_etag: etag });
+    expect(external.status).toBe(422);
+    expect(external.body.error.code).toBe("invalid_html");
+  });
+
+  it("gives a page the product's new style and keeps its content", async () => {
+    const current = (await vic.api("GET", `${P}/story/style`)).body.style;
+    const swiss = await alice.api("PUT", `${P}/story/style`, { house_style: "swiss", expected_etag: current.etag });
+    expect(swiss.status).toBe(200);
+    const pub = await alice.api("POST", `${P}/story/pages/plan/versions`, { restyle: true, expected_etag: etag });
+    expect(pub.status).toBeLessThan(300);
+    expect(pub.body.current_version).toBe(2);
+    expect(pub.body.carried_forward).toEqual(["title", "summary", "refs", "citations"]);
+    const html = (await vic.api("GET", `${P}/story/pages/plan/versions/2/html`)).body as string;
+    expect(html).toContain(`<style>\n${HOUSE_STYLES[2]!.stylesheet}</style>`);
+    expect(html).not.toContain(current.stylesheet);
+    expect(html).toContain(`<body>\n${body}\n</body>`);
+    // A page with no stylesheet of its own has nothing to replace.
+    const bare = await alice.api("GET", `${P}/story/pages/hello`);
+    const none = await alice.api("POST", `${P}/story/pages/hello/versions`, { restyle: true, expected_etag: bare.body.etag });
+    expect(none.status).toBe(422);
+    expect(none.body.error.message).toContain("no <style> block");
   });
 });
 

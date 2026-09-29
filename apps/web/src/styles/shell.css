@@ -547,12 +547,10 @@ h1[tabindex="-1"]:focus {
 
 /* ---- Focus mode ------------------------------------------------------------------------------- */
 
-/* Both panels are away and so are their show buttons: the canvas takes the window, and the content
-   may run wider than an ordinary screen. */
+/* Both panels are away and so are their show buttons, and the canvas takes the window. The content
+   keeps its ordinary measure: on a wide screen the page stays as it was and only the app around it
+   falls away, so the page does not reflow. */
 .stage[data-focus] .canvas,
 .stage[data-focus][data-ins] .canvas {
   padding: var(--canvas-pt) var(--canvas-px) var(--canvas-pb);
-}
-.stage[data-focus] .canvas-wrap {
-  max-width: var(--content-max-focus);
 }

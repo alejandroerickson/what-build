@@ -357,8 +357,13 @@ that changes it ([decision](../decisions/agents-maintain-the-story-people-read-i
   the page only for a state the reader must know: the page is archived, an earlier version is
   shown (with **Show the current version**), or the page tried to open another address in its
   place, and was put back.
-- **Focus mode.** Both side panels and their show buttons step aside, and the page may run wider
-  (`--content-max-focus`). **F** toggles it and **Esc** leaves it, from the app or from inside the
+- **Links.** A link in a page to another page of the same Story shows that page in place: the
+  address, the tree and the inspector follow, and focus mode stays as it was. A click with a
+  modifier key, and every other link, opens in a new tab ([§4.11](04-data-model.md)).
+- **Focus mode.** Both side panels and their show buttons step aside so the rest of the app falls
+  away. The page keeps the canvas's ordinary measure (`--content-max`): on a wide screen it stays
+  the width it was and does not reflow, and on a narrow one it gains only the room the panels
+  held. **F** toggles it and **Esc** leaves it, from the app or from inside the
   page (the frame passes the two keys on); not while typing or with a dialog or menu open. The
   first time a browser opens a Story that has a page, focus mode turns on by itself, with a hint
   beside the control that F or Esc brings the panels back; after that the browser remembers the

@@ -12,7 +12,7 @@ import {
   ANTI_PATTERNS, catalogue, CHECKLIST, components, COMPOSITIONS, CONTENT_RULES, DESIGN_PASSES, DESIGN_TOOLS, GUIDANCE_VERSION, linkTemplates, SANDBOX_RULES,
   starterHtml, STYLE_WORKFLOW, TASTE, VOCABULARY, WORKFLOW, WRITING,
 } from "../story-guidance.ts";
-import { HOUSE_STYLE_IDS, houseStyle, PLAIN_STYLESHEET } from "../story-styles.ts";
+import { HOUSE_STYLE_IDS, houseStyle, pageDocument, PLAIN_STYLESHEET } from "../story-styles.ts";
 import { newEtag, newId, randomToken, sha256Hex, uniq } from "../util.ts";
 
 export const MAX_PAGES = 50;
@@ -100,7 +100,7 @@ export const guidance = defineOperation({
       available_sections: GUIDANCE_SECTIONS,
       format: "One self-contained HTML document with inline CSS and optional bounded inline JavaScript; no remote resources.",
       rendering:
-        "HTML is untrusted and shown in a sandboxed frame. Bounded inline scripts run; forms, frames, remote resources, same-origin access and navigating the parent are blocked. Use target=\"_blank\" rel=\"noopener noreferrer\" on evidence and related-page links. Replace every REPLACE placeholder and adapt recipes to the content.",
+        "HTML is untrusted and shown in a sandboxed frame. Bounded inline scripts run; forms, frames, remote resources, same-origin access and navigating the parent are blocked. Use target=\"_blank\" rel=\"noopener noreferrer\" on every link; a link to another page of this Story (links.story_page) is shown in place by the app. Replace every REPLACE placeholder and adapt recipes to the content.",
       product_style: current
         ? { name: current.name, based_on: current.based_on, summary: current.summary, etag: current.etag, read_with: 'story(action="get_style")' }
         : { none: true, next: "Settle the Story style with the person before the first page: see style_workflow." },
@@ -376,6 +376,23 @@ async function titleStylesheet(ctx: OpContext) {
   return (await loadStyle(ctx))?.stylesheet ?? PLAIN_STYLESHEET;
 }
 
+/**
+ * A page from its body alone: the markup that goes inside <body>, wrapped in a document that carries
+ * the product's Story style. An agent then never sends the stylesheet, and every page has the same one.
+ */
+function bodyDocument(title: string, stylesheet: string, body: string) {
+  if (/<!doctype|<\/?(?:html|head|body)[\s>]/i.test(body))
+    throw invalid("invalid_input", "body is the markup inside <body>, usually one <main class=\"page\">: leave out the doctype, <html>, <head> and <body>. Send html for a whole document.");
+  return pageDocument(title, stylesheet, body.trim());
+}
+
+/** The same page under another stylesheet: the first <style> block is replaced, the rest kept. */
+function restyled(html: string, stylesheet: string) {
+  const block = /<style>[\s\S]*?<\/style>/;
+  if (!block.test(html)) throw invalid("invalid_input", "This page has no <style> block to replace. Publish it again with body, which takes the product's Story style.");
+  return html.replace(block, () => `<style>\n${stylesheet}</style>`);
+}
+
 /** Apply exact find/replace edits in order; each find must occur exactly once in the text it meets. */
 function patchHtml(html: string, edits: { find: string; replace: string }[]) {
   const problems: string[] = [];
@@ -400,12 +417,19 @@ export const publish = defineOperation({
   mutates: true,
   summary: "Publish a new version of a Story page (creating the page on its first version). A later version keeps whatever you omit.",
   description:
-    `Call guidance first, and get_page before revising (read its agent_notes too). A page's first version: omit expected_etag, give a title, and give html (or omit it for a generated title page). A later version: pass the page etag and send only what changes — the title, summary, html, refs and citations you omit are taken from the current version, and carried_forward in the result names them. To change a sentence, patch_html applies exact find/replace edits instead of re-sending the page. from_version: N starts from that earlier version instead, so from_version alone restores it as a new version; compare html_sha256 to confirm the HTML is identical. Pass an empty list to clear refs or citations. The HTML is validated and every problem is listed at once (422). citations lists up to ${CITATION_MAX_COUNT} exact passages the page draws on, {record_id, seq_start, seq_end, quote?}, each frozen as a snapshot as in the registers; carried citations keep their snapshots. summary describes the page itself. Publishing never places the page in the navigation: call set_hierarchy afterwards, and update the page's notes with write_notes (agent_notes_etag is in the result). Never invent facts, owners or dates, and never present an unconfirmed assumption as settled.`,
+    `Call guidance first, and get_page before revising (read its agent_notes too). A page's first version: omit expected_etag, give a title, and give body (or html for a whole document of your own, or neither for a generated title page). Prefer body: it is only the markup inside <body>, and WhatBuild puts the product's Story style around it, so the stylesheet is never sent and every page carries the same one. A later version: pass the page etag and send only what changes — the title, summary, html, refs and citations you omit are taken from the current version, and carried_forward in the result names them. To change a sentence, patch_html applies exact find/replace edits instead of re-sending the page. After set_style, restyle: true gives a page the new stylesheet and keeps its content. from_version: N starts from that earlier version instead, so from_version alone restores it as a new version; compare html_sha256 to confirm the HTML is identical. Pass an empty list to clear refs or citations. The HTML is validated and every problem is listed at once (422). citations lists up to ${CITATION_MAX_COUNT} exact passages the page draws on, {record_id, seq_start, seq_end, quote?}, each frozen as a snapshot as in the registers; carried citations keep their snapshots. summary describes the page itself. Publishing never places the page in the navigation: call set_hierarchy afterwards, and update the page's notes with write_notes (agent_notes_etag is in the result). Never invent facts, owners or dates, and never present an unconfirmed assumption as settled.`,
   input: z.strictObject({
     page_id: pageId.default("overview"),
     title: z.string().trim().min(1).max(200).optional().describe("Required on a page's first version; omit it later to keep the title."),
     summary: z.string().max(2000).optional().describe("A short description of the page, shown in navigation and lists. Omit it on a later version to keep it."),
     html: z.string().min(1).max(STORY_HTML_MAX).optional().describe("The whole page. On a first version, omit it for a generated title page; on a later version, omit it to keep the HTML."),
+    body: z
+      .string()
+      .min(1)
+      .max(STORY_HTML_MAX)
+      .optional()
+      .describe('Instead of html: only the markup inside <body>, usually one <main class="page">. WhatBuild wraps it in a document with the product\'s Story style stylesheet, so you never send the stylesheet.'),
+    restyle: z.boolean().optional().describe("A later version only, instead of html, body or patch_html: keep the page and replace its stylesheet with the product's current Story style. Use it on each page after set_style."),
     patch_html: z
       .array(z.strictObject({ find: z.string().min(1).max(20_000), replace: z.string().max(100_000) }))
       .min(1)
@@ -428,13 +452,16 @@ export const publish = defineOperation({
     const existing = await ctx.db.selectFrom("story_pages").selectAll().where("product_id", "=", pid).where("page_id", "=", input.page_id).forUpdate().executeTakeFirst();
     const version_id = newId();
     let carried: (typeof CARRIED)[number][] = [];
+    const ways = [input.html !== undefined && "html", input.body !== undefined && "body", input.patch_html && "patch_html", input.restyle && "restyle"].filter(Boolean);
+    if (ways.length > 1) throw invalid("invalid_input", `Pass one of html, body, patch_html and restyle, not ${ways.join(" and ")}.`);
     if (!existing) {
       if (input.expected_etag) throw conflict("stale_etag", `Page "${input.page_id}" does not exist yet; omit expected_etag for its first version.`);
       if (input.from_version) throw notFound(`Page "${input.page_id}" has never been published, so it has no version ${input.from_version}.`);
       if (!input.title) throw invalid("invalid_input", "A page's first version needs a title.");
-      if (input.patch_html) throw invalid("invalid_input", "patch_html edits an earlier version; a page's first version needs html.");
+      if (input.patch_html) throw invalid("invalid_input", "patch_html edits an earlier version; a page's first version needs html or body.");
+      if (input.restyle) throw invalid("invalid_input", "restyle changes an earlier version's stylesheet; a page's first version needs html or body.");
       const summary = input.summary ?? "";
-      const html = input.html ?? titlePageHtml(input.title, summary, await titleStylesheet(ctx));
+      const html = input.html ?? (input.body !== undefined ? bodyDocument(input.title, await titleStylesheet(ctx), input.body) : titlePageHtml(input.title, summary, await titleStylesheet(ctx)));
       const problems = inspectStoryHtml(html);
       if (problems.length) throw invalid("invalid_html", `The page was not published: ${problems.join(" ")}`, { problems });
       const refs = await validateRefs(ctx, input.refs ?? EMPTY_REFS);
@@ -458,14 +485,22 @@ export const publish = defineOperation({
       base = input.from_version ? base.where("n", "=", input.from_version) : base.where("version_id", "=", existing.current_version_id);
       const from = await base.executeTakeFirst();
       if (!from) throw notFound(`Page "${input.page_id}" has no version ${input.from_version}; its versions run from 1 to ${existing.version_count}.`, { version_count: existing.version_count });
-      if (input.html !== undefined && input.patch_html) throw invalid("invalid_input", "Pass html or patch_html, not both.");
-      carried = CARRIED.filter((f) => input[f] === undefined && !(f === "html" && input.patch_html));
+      carried = CARRIED.filter((f) => input[f] === undefined && !(f === "html" && ways.length > 0));
       const title = input.title ?? from.title;
       const summary = input.summary ?? from.summary;
+      if (input.restyle && !(await loadStyle(ctx))) throw conflict("no_story_style", "This product has no Story style to restyle the page in. Set one with set_style first.");
       // A generated title page follows a new title or summary rather than keeping the old one.
       const html =
         input.html ??
-        (input.patch_html ? patchHtml(from.html, input.patch_html) : isTitlePage(from.html, from.title, from.summary) ? titlePageHtml(title, summary, await titleStylesheet(ctx)) : from.html);
+        (input.body !== undefined
+          ? bodyDocument(title, await titleStylesheet(ctx), input.body)
+          : input.patch_html
+            ? patchHtml(from.html, input.patch_html)
+            : input.restyle
+              ? restyled(from.html, await titleStylesheet(ctx))
+              : isTitlePage(from.html, from.title, from.summary)
+                ? titlePageHtml(title, summary, await titleStylesheet(ctx))
+                : from.html);
       const problems = inspectStoryHtml(html);
       if (problems.length) throw invalid("invalid_html", `The page was not published: ${problems.join(" ")}`, { problems });
       const refs = input.refs ? await validateRefs(ctx, input.refs) : from.refs;

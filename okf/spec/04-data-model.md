@@ -427,7 +427,10 @@ An append-only event log, written in the same transaction as the mutation that c
 
 **Pages.** `page_id` (a slug the author chooses, `[a-z0-9][a-z0-9-]*`, ≤ 80 chars, e.g.
 `overview`), `title` (1–200), `summary` (≤ 2,000), `archived_at`, `current_version`, and an
-append-only list of **versions**. The first publish creates the page and needs a `title`. A
+append-only list of **versions**. The first publish creates the page and needs a `title`. The
+page itself is given in one of three ways: `body` (only the markup inside `<body>`, which the
+server wraps in a document carrying the product's Story style), `html` (a whole document), or
+neither (a generated title page). A
 version is immutable: `version` (1, 2, 3…), `title`, `summary` (describes the page), `html`,
 `refs`, `citations`, `published_at`, `published_by`, and `html_sha256` (computed on read, so
 identical HTML can be recognised without reading it). Readers see the latest version; any version
@@ -445,12 +448,21 @@ takes every field it omits (`title`, `summary`, `html`, `refs`, `citations`) fro
 the result lists them in `carried_forward`, with `based_on_version`. Carried citations keep their
 snapshots. `patch_html: [{find, replace}]` edits the base HTML instead of replacing it: each `find`
 must occur exactly once when its turn comes, or nothing is published (`422 invalid_patch` listing
-every failed edit). A generated title page follows a new title or summary. `from_version` alone
+every failed edit). `body` replaces the page's content and takes the product's current stylesheet.
+`restyle: true` keeps the page and replaces its first `<style>` block with the product's current
+stylesheet, for use on each page after the Story style changes; it is refused on a page with no
+`<style>` block (`422`) and in a product with no Story style (`409 no_story_style`). `html`, `body`,
+`patch_html` and `restyle` exclude one another (`422`). A `body` that holds a doctype, `<html>`,
+`<head>` or `<body>` is refused (`422`). A generated title page follows a new title or summary. `from_version` alone
 restores the base as a new version, and the activity log records "Published version N from
 version M". An unknown `from_version` is `404`.
 ◆ Decision: a later version carries forward what it omits, so changing a sentence or reverting a
 page never means re-sending the whole page. A list that is passed replaces the previous list in
 full; an empty list clears it.
+◆ Decision: an agent publishes a page's body and the server adds the stylesheet. A stylesheet sent
+with every page costs an agent its length each time and lets pages drift apart; one the server
+adds is the same on every page and changes in one place. `html` stays for a document that is not
+in the product's style.
 
 **HTML rules**, validated at publish (`422 invalid_html` listing every problem at once;
 [`story-html.ts`](../../packages/core/src/story-html.ts)):
@@ -458,8 +470,8 @@ full; an empty list clears it.
 - One self-contained document, ≤ 1,000,000 chars; inline CSS; at most 10 inline scripts, and
   inline scripts and event handlers together ≤ 32,000 chars.
 - No external references of any kind: `src`, `srcset`, `poster` and similar attributes, style
-  `url()` and CSS must use `data:` URIs; no `@import`; `<script src>` is refused. Ordinary
-  `<a href>` links are allowed.
+  `url()` and CSS must use `data:` URIs, quoted or not (a stylesheet may also name a fragment,
+  `url(#id)`); no `@import`; `<script src>` is refused. Ordinary `<a href>` links are allowed.
 - No `<iframe>`, `<frame>`, `<frameset>`, `<object>`, `<embed>`, `<portal>`, `<form>`, `<link>`,
   `<base>`, or `<meta http-equiv>`.
 
@@ -475,8 +487,12 @@ different people.
 The route takes `?theme=light|dark` (written onto the page's `<html>` as `data-wb-theme` for that
 response) and `?frame=1`, which the app's frame always sends: it appends one inline script, inside
 the sandbox, that posts only the name of an F or Esc key press to the parent (focus mode,
-[§7.8](07-web-app.md)) and turns a click on a link that would replace the page in its frame into a
-new tab. The stored HTML is never changed. The app resets a frame that loads a second document (a
+[§7.8](07-web-app.md)), hands a link to another page of the same Story to the app, and turns a
+click on any other link that would replace the page in its frame into a new tab. For the second,
+the app tells the frame the address its Story's pages live under once the frame has loaded; on a
+plain click (no modifier key, the main button) on a link under that address the script stops the
+click and posts only the page's slug, which the app checks against the slug pattern before it
+shows that page in place. The stored HTML is never changed. The app resets a frame that loads a second document (a
 page navigating itself by script) and says so, and the app's own pages send
 `Cross-Origin-Opener-Policy: same-origin`, so a Story page cannot keep a handle to an app tab it
 opened and redirect it later. The print view drops scripts, event handlers and every element
@@ -528,24 +544,30 @@ version, `?theme=` and `?frame=1` included). A product export holds it as `story
 **House styles** ([`story-styles.ts`](../../packages/core/src/story-styles.ts)): **Broadsheet**
 (an editorial long read), **Tufte** (a book page with a wide margin for notes), **Swiss grid** (a
 twelve-column grotesk grid) and **Briefing deck** (full-screen slides you scroll). Each carries a
-light and a dark scheme, uses system font stacks, and styles one shared semantic vocabulary
-(`.page`, `.opening` with `.kicker`/`.lead`/`.meta`, sections, `.quote`, `.note`, `.callout`,
-`.status`, `.figures`, `.columns`, `.table-wrap`, `.steps`, `details`), so content moves between
-styles unchanged; each adds signature moves of its own.
+light and a dark scheme, uses system font stacks named once as custom properties (`--sans`,
+`--text`, `--display`), and styles one shared semantic vocabulary
+(`.page`, `.opening` with an optional `.kicker`, `.lead` and `.meta`, sections, `.quote`, `.note`,
+`.callout`, `.status`, `.figures`, `.columns`, `.table-wrap`, `.steps`, `details`; and for plans
+and front pages `section.wide`, `h2[data-label]`, `ol.timeline`, `ul.lines` with `.tag`,
+`dl.facts` and `nav.pages`), so content moves between
+styles unchanged; each adds signature moves of its own. They also set what a browser draws for
+itself: the selection, the scrollbar, the focus ring, and where a printed page may break.
 
 **Guidance.** `story.guidance { section?, house_style? }` returns versioned authoring guidance
 ([`story-guidance.ts`](../../packages/core/src/story-guidance.ts)): how to settle the Story style
 with the person, the house style catalogue and the shared vocabulary, taste principles,
-anti-patterns, compositions, named design passes (critique, distill, bolder, quieter, typeset,
+anti-patterns, compositions (a narrative, a decision, a front page, a plan, a scope and others), named design passes (critique, distill, bolder, quieter, typeset,
 layout, adapt, polish), a push to use a design skill such as Impeccable when the agent has one and
 to mention it once when it does not, the sandbox rules, recipes, writing rules and a checklist.
 It carries no stylesheet of its own and nothing of the app's look; `house_style` returns that
 style in full with a starter page, and `product_style` says whether the product has a style yet.
 The writing guidance asks for source-level quoting rules honoured (attribution by role where a
-source limits naming people), derived views labelled as analysis rather than evidence, and pages
+source limits naming people, looked for before the first page), derived views labelled as
+analysis rather than evidence, a plan's dates presented as the team's plan with their origin kept
+in the page's notes, and pages
 placed in the hierarchy unless the author's instructions say otherwise. A first version that
-omits `html` gets a generated title page in the product's Story style, or a plain page when there
-is none.
+omits both `body` and `html` gets a generated title page in the product's Story style, or a plain
+page when there is none.
 
 ## 4.12 Feedback
 
