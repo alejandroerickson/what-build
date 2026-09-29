@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { Navigate, useParams, useSearchParams } from "react-router";
+import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
 import { useProduct } from "../lib/session.tsx";
 import { useTheme } from "../shell/theme.ts";
@@ -32,11 +32,31 @@ function useScheme(): "light" | "dark" {
  * so a slow page reads as loading rather than blank.
  *
  * The frame asks for the page with ?frame=1, which adds a small script inside the sandbox: it passes
- * F and Esc on (keys pressed in a frame never reach the app) and opens links in a new tab. A page
- * that still manages to load another address in its place (a script, a refresh) is put back, and
- * the reader is told, so the app never shows someone else's page inside its own frame.
+ * F and Esc on (keys pressed in a frame never reach the app), hands a link to another page of this
+ * Story to the app, and opens every other link in a new tab. A page that still manages to load
+ * another address in its place (a script, a refresh) is put back, and the reader is told, so the
+ * app never shows someone else's page inside its own frame.
+ *
+ * storyBase is the address this Story's pages live under. The frame is told it once its document
+ * has loaded; all it ever sends back is a page's slug, which is checked again here.
  */
-export function StoryFrame({ title, scheme, src, onKey }: { title: string; scheme: "light" | "dark"; src: string; onKey?: (key: StoryKey) => void }) {
+const PAGE_SLUG = /^[a-z0-9][a-z0-9-]{0,79}$/;
+
+export function StoryFrame({
+  title,
+  scheme,
+  src,
+  onKey,
+  storyBase,
+  onPage,
+}: {
+  title: string;
+  scheme: "light" | "dark";
+  src: string;
+  onKey?: (key: StoryKey) => void;
+  storyBase?: string;
+  onPage?: (pageId: string) => void;
+}) {
   const [loaded, setLoaded] = useState(false);
   const [reloads, setReloads] = useState(0);
   const [replaced, setReplaced] = useState(false);
@@ -44,15 +64,16 @@ export function StoryFrame({ title, scheme, src, onKey }: { title: string; schem
   const frame = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
-    if (!onKey) return;
+    if (!onKey && !onPage) return;
     const handle = (e: MessageEvent) => {
       if (e.source !== frame.current?.contentWindow) return;
-      const data = e.data as { whatbuild?: unknown; key?: unknown } | null;
-      if (data?.whatbuild === "story-key" && (data.key === "f" || data.key === "Escape")) onKey(data.key);
+      const data = e.data as { whatbuild?: unknown; key?: unknown; page?: unknown } | null;
+      if (data?.whatbuild === "story-key" && (data.key === "f" || data.key === "Escape")) onKey?.(data.key);
+      if (data?.whatbuild === "story-page" && typeof data.page === "string" && PAGE_SLUG.test(data.page)) onPage?.(data.page);
     };
     window.addEventListener("message", handle);
     return () => window.removeEventListener("message", handle);
-  }, [onKey]);
+  }, [onKey, onPage]);
 
   return (
     <div className="story-frame-wrap">
@@ -79,6 +100,8 @@ export function StoryFrame({ title, scheme, src, onKey }: { title: string; schem
             return;
           }
           setLoaded(true);
+          // The sandboxed page has an opaque origin, so the message cannot be addressed to one.
+          if (storyBase && onPage) frame.current?.contentWindow?.postMessage({ whatbuild: "story-base", base: storyBase }, "*");
         }}
       />
       {loaded ? null : (
@@ -93,6 +116,7 @@ export function StoryFrame({ title, scheme, src, onKey }: { title: string; schem
 export function StoryPage() {
   const { pageId } = useParams();
   const { api: base, app, product } = useProduct();
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const scheme = useScheme();
   const vParam = params.get("v");
@@ -259,6 +283,8 @@ export function StoryPage() {
               scheme={scheme}
               src={`${base}/story/pages/${pageId}/versions/${shown.version}/html?theme=${scheme}`}
               onKey={focusMode.onKey}
+              storyBase={`${window.location.origin}${app}/story/`}
+              onPage={(id) => navigate(`${app}/story/${id}`)}
             />
           ) : wantsOld && old.isPending ? (
             <Loading variant="lines" />

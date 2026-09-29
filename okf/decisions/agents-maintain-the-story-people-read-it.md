@@ -3,7 +3,7 @@ type: Decision
 title: Agents write and arrange the Story; the web app reads it
 description: Every change to a Story page or its tree goes through an agent over MCP; the web app shows pages, versions and their evidence, and exports them.
 tags: [decision, story, agents, web]
-generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-29}
 status: stable
 ---
 
@@ -38,6 +38,6 @@ chose on 2026-09-28 to make the Story read-only in the web app.
 - Story write controls stay out of `apps/web/src/routes/story*.tsx`; the skill tells agents they
   maintain the Story for people.
 - The skill version (`SKILL_VERSION`) moves whenever an operation's input changes shape, as it did
-  when `note` left `story.publish`.
+  when `note` left `story.publish` and when `body` and `restyle` joined it.
 
 Specified in: [07-web-app §7.8](../spec/07-web-app.md), [04-data-model §4.11](../spec/04-data-model.md).

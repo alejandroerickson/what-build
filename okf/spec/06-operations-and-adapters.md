@@ -245,9 +245,12 @@ Notes on recent actions:
   `link_count` and `linked_from_count`; `outcomes.list` returns
   `archived_hidden` ([§4.2](04-data-model.md), [§4.8](04-data-model.md)).
 - `story.publish` takes `citations` (up to 20 exact passages, snapshotted as in the registers)
-  beside `refs`; `story.check_citations` checks a version's citations. A later version keeps the
-  `title`, `summary`, `html`, `refs` and `citations` it omits, `patch_html` edits the HTML by exact
-  find and replace, and `from_version` starts from an earlier version, which restores it
+  beside `refs`; `story.check_citations` checks a version's citations. The page is given as
+  `body` (the markup inside `<body>`; the server adds the product's Story style) or as `html` (a
+  whole document). A later version keeps the
+  `title`, `summary`, page, `refs` and `citations` it omits, `patch_html` edits the HTML by exact
+  find and replace, `restyle` replaces the page's stylesheet with the product's current one, and
+  `from_version` starts from an earlier version, which restores it
   ([§4.11](04-data-model.md)). Versions report `html_sha256`. A version has no change note:
   `note` is refused like any unknown field (`422`), and versions do not return one.
 - `story.get_style` and `story.set_style` read and replace the product's Story style, the design

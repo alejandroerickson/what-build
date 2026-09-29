@@ -1,4 +1,4 @@
-import { composePrintDocument, headingLevel, prepareStoryPage, printCsp, printOrder, scopeStoryCss } from "@whatbuild/core";
+import { composePrintDocument, headingLevel, HOUSE_STYLES, prepareStoryPage, printCsp, printOrder, scopeStoryCss } from "@whatbuild/core";
 import { describe, expect, it } from "vitest";
 
 const page = (title: string, body: string, head = "") =>
@@ -46,6 +46,14 @@ describe("stylesheet scoping", () => {
     expect(scopeStoryCss("html body .x { a: b }")).toBe(":host .x { a: b }");
     expect(scopeStoryCss("body.dark p { a: b }")).toBe(":host(.dark) p { a: b }");
     expect(scopeStoryCss(':root[data-theme="dark"] { a: b }')).toBe(':host([data-theme="dark"]) { a: b }');
+  });
+
+  it("keeps what a selector's arguments say, attribute selectors and arguments within arguments included", () => {
+    expect(scopeStoryCss(':root:not([data-wb-theme="light"]) { --x: 2 }')).toBe(':host(:not([data-wb-theme="light"])) { --x: 2 }');
+    expect(scopeStoryCss(".lines > li > :last-child:not(strong):not(:nth-child(2)) { a: b }")).toBe(".lines > li > :last-child:not(strong):not(:nth-child(2)) { a: b }");
+    expect(scopeStoryCss("section.wide > :is(.timeline, .lines) { a: b }")).toBe("section.wide > :is(.timeline, .lines) { a: b }");
+    expect(scopeStoryCss('body:has(a[href="x,y"]) p { a: b }')).toBe(':host(:has(a[href="x,y"])) p { a: b }');
+    for (const s of HOUSE_STYLES) expect(scopeStoryCss(s.stylesheet), s.id).not.toContain("undefined");
   });
 
   it("leaves classes, ids, attribute values and declarations alone", () => {

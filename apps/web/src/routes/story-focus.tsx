@@ -25,7 +25,8 @@ function saveChoice(on: boolean) {
 }
 
 /**
- * Focus mode on the Story: the shell's panels step aside so the page has the window.
+ * Focus mode on the Story: the shell's panels step aside so the app falls away around the page.
+ * The page keeps the canvas's ordinary measure, so it does not reflow on a wide screen.
  *
  * - The first time this browser opens a Story that has a page, the panels fall away on their own,
  *   with a hint that F or Esc brings them back. After that the last choice holds: someone who left
@@ -107,7 +108,7 @@ export function FocusToggle({ focus, hint, onToggle }: { focus: boolean; hint: b
       <p className="story-focus-hint" role="status">
         {hint ? (
           <>
-            Panels hidden so the page has room. <kbd>F</kbd> or <kbd>Esc</kbd> brings them back.
+            Panels hidden so the page stands alone. <kbd>F</kbd> or <kbd>Esc</kbd> brings them back.
           </>
         ) : null}
       </p>

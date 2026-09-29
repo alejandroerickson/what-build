@@ -5,6 +5,13 @@ export const STORY_SCRIPT_BUDGET = 32_000;
 export const STORY_MAX_SCRIPTS = 10;
 
 const FORBIDDEN = new Set(["base", "embed", "form", "frame", "frameset", "iframe", "link", "object", "portal"]);
+/**
+ * A CSS url() that is neither a data: URI nor a fragment. The quote is optional, and the lookahead
+ * sits before it, so a quoted data: URI (the usual way to embed a font or an SVG) is accepted.
+ */
+const EXTERNAL_URL = /url\(\s*(?!['"]?\s*(?:data:|#))/i;
+/** The same for a style attribute, where only a data: URI is accepted. */
+const EXTERNAL_URL_INLINE = /url\(\s*(?!['"]?\s*data:)/i;
 const MEDIA_ATTRS = new Set(["src", "srcset", "poster", "data", "background", "xlink:href"]);
 
 type Node = {
@@ -57,12 +64,12 @@ export function inspectStoryHtml(html: string): string[] {
         if (/^javascript:/i.test(value)) budget += value.length;
         if (MEDIA_ATTRS.has(name) && tag !== "script" && value && !/^data:/i.test(value) && !(name === "srcset" && value.split(",").every((p) => /^\s*data:/i.test(p))))
           add(`<${tag} ${name}="${value.slice(0, 60)}"> loads an external resource; embed images, fonts and media as data: URIs.`);
-        if (name === "style" && /url\(\s*['"]?(?!data:)/i.test(value)) add(`A style attribute on <${tag}> loads an external resource; use data: URIs.`);
+        if (name === "style" && EXTERNAL_URL_INLINE.test(value)) add(`A style attribute on <${tag}> loads an external resource; use data: URIs.`);
       }
       if (tag === "style") {
         const css = (n.childNodes ?? []).map((c) => c.value ?? "").join("");
         if (/@import/i.test(css)) add("@import is not allowed in a <style> block: keep the page self-contained.");
-        if (/url\(\s*['"]?(?!data:|#)/i.test(css)) add("A <style> block loads an external resource with url(); use data: URIs.");
+        if (EXTERNAL_URL.test(css)) add("A <style> block loads an external resource with url(); use data: URIs.");
       }
     }
     for (const c of n.childNodes ?? []) walk(c);
@@ -81,7 +88,7 @@ export function inspectStoryCss(css: string): string[] {
   const problems: string[] = [];
   if (css.length > STORY_CSS_MAX) problems.push(`The stylesheet is ${css.length} characters; the limit is ${STORY_CSS_MAX}.`);
   if (/@import/i.test(css)) problems.push("@import is not allowed: a Story style is one self-contained stylesheet.");
-  if (/url\(\s*['"]?(?!data:|#)/i.test(css)) problems.push("The stylesheet loads an external resource with url(); embed fonts and images as data: URIs.");
+  if (EXTERNAL_URL.test(css)) problems.push("The stylesheet loads an external resource with url(); embed fonts and images as data: URIs.");
   if (/<\/style/i.test(css)) problems.push("The stylesheet contains </style, which would end the <style> element it is pasted into.");
   return problems;
 }

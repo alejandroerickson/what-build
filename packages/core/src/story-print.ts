@@ -141,29 +141,35 @@ const HOST_QUALIFIERS = /:host((?:[.#][-\w]+|\u0000\d+\u0000|:(?!:)(?!host\b)[-\
 /** Rewrite one selector so what the page said of its document applies to its shadow host. */
 export function scopeSelector(selector: string): string {
   // Mask attribute selectors, strings and parenthesised arguments so only real type selectors change.
+  // One set of masks serves the whole selector, arguments within arguments included: an argument is
+  // scoped while its own masks are still in place, and everything is put back at the end.
   const masks: string[] = [];
   const parens: string[] = [];
-  let s = selector.replace(/\[[^\]]*\]|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, (m) => `\u0000${masks.push(m) - 1}\u0000`);
-  let prev = "";
-  while (prev !== s) {
-    prev = s;
-    s = s.replace(/\(([^()]*)\)/g, (_m, inner: string) => `\u0001${parens.push(`(${scopeSelectorList(inner)})`) - 1}\u0001`);
-  }
-  s = s.replace(/:root(?![-\w])/g, ":host");
-  s = s.replace(/(^|[\s>+~])(?:html|body)(?![-\w])/gi, "$1:host");
-  s = s.replace(HOST_QUALIFIERS, (_m, q: string) => `:host(${q})`);
-  // `html body` and `:root > body` both name the host twice; one host is meant.
-  prev = "";
-  while (prev !== s) {
-    prev = s;
-    s = s.replace(/:host(\(([^()]*)\))?\s*>?\s*:host(\(([^()]*)\))?/, (_m, _a, qa: string | undefined, _b, qb: string | undefined) => {
-      const q = `${qa ?? ""}${qb ?? ""}`;
-      return q ? `:host(${q})` : ":host";
-    });
-  }
+  const masked = selector.replace(/\[[^\]]*\]|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, (m) => `\u0000${masks.push(m) - 1}\u0000`);
+  const scope = (sel: string): string => {
+    let s = sel;
+    let prev = "";
+    while (prev !== s) {
+      prev = s;
+      s = s.replace(/\(([^()]*)\)/g, (_m, inner: string) => `\u0001${parens.push(`(${splitTopLevel(inner, ",").map(scope).join(",")})`) - 1}\u0001`);
+    }
+    s = s.replace(/:root(?![-\w])/g, ":host");
+    s = s.replace(/(^|[\s>+~])(?:html|body)(?![-\w])/gi, "$1:host");
+    s = s.replace(HOST_QUALIFIERS, (_m, q: string) => `:host(${q})`);
+    // `html body` and `:root > body` both name the host twice; one host is meant.
+    prev = "";
+    while (prev !== s) {
+      prev = s;
+      s = s.replace(/:host(\(([^()]*)\))?\s*>?\s*:host(\(([^()]*)\))?/, (_m, _a, qa: string | undefined, _b, qb: string | undefined) => {
+        const q = `${qa ?? ""}${qb ?? ""}`;
+        return q ? `:host(${q})` : ":host";
+      });
+    }
+    return s;
+  };
   const unmask = (t: string): string =>
     t.replace(/\u0001(\d+)\u0001/g, (_m, n: string) => unmask(parens[Number(n)]!)).replace(/\u0000(\d+)\u0000/g, (_m, n: string) => masks[Number(n)]!);
-  return unmask(s);
+  return unmask(scope(masked));
 }
 
 function scopeSelectorList(list: string): string {

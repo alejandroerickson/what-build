@@ -26,6 +26,12 @@ taste and design tools they may already have.
 - Four **house styles** ship with the server (`packages/core/src/story-styles.ts`): Broadsheet,
   Tufte, Swiss grid and Briefing deck. They style one shared semantic vocabulary, so content moves
   between styles unchanged. None uses WhatBuild's tokens.
+- The vocabulary covers what stakeholders are told, not only what was found: an account of the
+  evidence (quotes, notes, figures, comparisons) and a plan (dated milestones, a line per item,
+  labelled facts, links to the pages beneath a page).
+- An agent publishes a page's body and the server puts the product's stylesheet around it
+  (`story.publish { body }`), so every page carries the same stylesheet and an agent never sends
+  it. What a Story needs beyond the vocabulary goes into the product's style, not into one page.
 - `story.guidance` serves no stylesheet of its own. It gives the style workflow, taste principles,
   anti-patterns, compositions, named design passes, and asks agents to use a design skill such as
   Impeccable when they have one and to mention it once when they do not. Guidance text is
@@ -37,7 +43,8 @@ taste and design tools they may already have.
 ## Consequences
 
 - Stories can match a company's documents, and different products can look different.
-- Changing the style does not restyle published pages; an agent republishes them.
+- Changing the style does not restyle published pages; an agent publishes each again with
+  `restyle`, which replaces the stylesheet and keeps the content.
 - There is no drift test between the app's tokens and the Story guidance any more.
 
 ## Constrains
