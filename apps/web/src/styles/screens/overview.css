@@ -54,13 +54,6 @@
   line-height: 1;
   letter-spacing: var(--tracking-brand);
 }
-.overview-origin {
-  max-width: 44ch;
-  margin: var(--s-5) 0 0;
-  color: var(--muted);
-  font-size: var(--fs-lead);
-  line-height: var(--lh-body);
-}
 .overview-question {
   margin: 0;
   font-size: var(--fs-display);

@@ -41,18 +41,18 @@ export function OverviewPage() {
             <BrandMark size={34} />
             <span>WhatBuild</span>
           </h1>
-          <p className="overview-origin">It all starts with an idea: someone you could help, and a problem worth solving.</p>
         </div>
         <div className="overview-pitch">
           <p className="overview-question">What to build?</p>
           <p className="overview-pressure">
-            AI made building fast. Deciding what to build did not get any faster. Teams are expected to keep up anyway: to agree, stay
-            aligned, and understand what they are building well enough to ship it, while every interview, call and document pulls a
-            different way.
+            The speed of AI Engineering forces product discovery teams to move impossibly fast while fighting to organize the
+            evidence, understand users, and align on an awesome well-defined idea.
           </p>
           <p className="overview-about">
-            WhatBuild is where your team and your agents work it out. Bring in the evidence, reach decisions a person has reviewed, and
-            share a Story in which every claim points to the passage it came from.
+            WhatBuild accelerates product discovery by indexing the evidence in an opinionated document store and surfacing it via
+            MCP to your AI agents for analysis. Together you will work out the details faster and tell the story of your build. At the
+            other end of the discovery, WhatBuild provides rich context to your ticket-creation agent so that your team can hit the
+            ground running.
           </p>
           <Link to="/connect" className="overview-agent-link">
             <Glyph name="plug" size="sm" />

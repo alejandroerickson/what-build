@@ -93,9 +93,8 @@ place.
 
 **The overview** (`/`, [decision](../decisions/the-overview-is-the-front-door.md)). The page that
 introduces WhatBuild and is good to share as a screenshot. An intro sheet carries the mark and
-wordmark, a line on how a product starts with an idea, the question "What to build?", a short
-statement on why deciding what to build is now the bottleneck and what that asks of a team, two
-sentences on what the app does, and a link to Agents. Beside it, small and quiet, the counts
+wordmark, the question "What to build?", a sentence on the pressure AI engineering puts on
+discovery teams, three sentences on what the app does, and a link to Agents. Beside it, small and quiet, the counts
 across the person's active products, laid out as the loop: outcomes (Idea), sources (Evidence),
 insights, assumptions and decisions (Synthesis), and Story pages; they are the counts `products.list` reports, which match each
 product's panel counts. Below, one sheet per organization lists its active products (name,
