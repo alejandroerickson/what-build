@@ -105,7 +105,7 @@ function SpecimenInspector() {
       </Group>
       <Group title="Cited in" count={2}>
         <div className="chips">
-          <Chip to="/_system" icon="lightbulb">I-1 Planning is a weekly ritual</Chip>
+          <Chip to="/_system" icon="blend">I-1 Planning is a weekly ritual</Chip>
           <Chip icon="scale">A-2</Chip>
         </div>
       </Group>
@@ -349,7 +349,7 @@ function Specimen() {
             <div className="row">
               <Tag>Interview</Tag>
               <Tag>admin</Tag>
-              <Chip to="/_system" icon="lightbulb">I-1</Chip>
+              <Chip to="/_system" icon="blend">I-1</Chip>
               <Chip icon="scale">3 assumptions</Chip>
               <a className="system-inline-link" href="#main">A link inside a sentence</a>
             </div>

@@ -234,7 +234,7 @@ export function SearchPage() {
                   {d.insights.map((i) => (
                     <li key={i.id}>
                       <Link to={`${app}/synthesis/insights/${i.id}`} className="search-entry">
-                        <Glyph name="lightbulb" />
+                        <Glyph name="blend" />
                         <span className="search-entry-main">
                           <span className="search-entry-title">{highlight(i.title, q, exact)}</span>
                           {i.summary || i.status !== "published" ? (

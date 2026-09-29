@@ -546,7 +546,7 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
             <ul className="source-cited">
               {c!.insights.map((i) => (
                 <li key={i.insight_id}>
-                  <Glyph name="lightbulb" size="sm" />
+                  <Glyph name="blend" size="sm" />
                   <Link to={`${app}/synthesis/insights/${i.insight_id}`} className="ellipsis" title={i.title}>
                     {i.title}
                   </Link>

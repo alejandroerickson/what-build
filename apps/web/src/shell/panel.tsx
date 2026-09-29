@@ -7,9 +7,9 @@ import { useTheme } from "./theme.ts";
 
 /** The four L1 destinations, in the order that tells the product's story. */
 export const L1 = [
-  { id: "idea", label: "Idea", icon: "target", count: "outcomes" },
+  { id: "idea", label: "Idea", icon: "lightbulb", count: "outcomes" },
   { id: "evidence", label: "Evidence", icon: "library", count: "sources" },
-  { id: "synthesis", label: "Synthesis", icon: "lightbulb", count: "insights" },
+  { id: "synthesis", label: "Synthesis", icon: "blend", count: "insights" },
   { id: "story", label: "Story", icon: "book-open", count: "story_pages" },
 ] as const satisfies readonly { id: string; label: string; icon: GlyphName; count: keyof Product["counts"] }[];
 

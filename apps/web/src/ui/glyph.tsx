@@ -1,5 +1,5 @@
 import {
-  Activity, Archive, ArchiveRestore, ArrowLeft, ArrowRight, BookOpen, Bot, Box, Building, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp,
+  Activity, Archive, ArchiveRestore, ArrowLeft, ArrowRight, Blend, BookOpen, Bot, Box, Building, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp,
   CircleAlert, CircleCheck, CircleDashed, Clock, Copy, CornerDownRight, Download, Ellipsis, ExternalLink, FileText, FileVolume, FolderInput,
   GripVertical, Info, KeyRound, Library, Lightbulb, Link, LoaderCircle, LogOut, Menu, Mic, Monitor, Moon, PanelLeftClose, PanelLeftOpen,
   PanelRightClose, PanelRightOpen, Pencil, Plug, Plus, Quote, Scale, Search, Settings, Signpost, Sun, Target, Trash, Triangle, TriangleAlert, Upload, User, UserPlus, Users, X,
@@ -17,6 +17,7 @@ const GLYPHS = {
   "archive-restore": ArchiveRestore,
   "arrow-left": ArrowLeft,
   "arrow-right": ArrowRight,
+  blend: Blend,
   "book-open": BookOpen,
   box: Box,
   bot: Bot,

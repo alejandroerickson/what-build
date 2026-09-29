@@ -74,9 +74,10 @@ h1[tabindex="-1"]:focus {
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
-  flex: 1;
   min-width: 0;
-  margin: -2px -4px;
+  /* Only the mark and wordmark link to the overview; the rest of the row is dead space, so a
+     click that misses the hide button stays on the screen. */
+  margin: -2px auto -2px -4px;
   padding: 2px 4px;
   border-radius: var(--r-sm);
   color: var(--text);
