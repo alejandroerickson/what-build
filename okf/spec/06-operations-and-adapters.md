@@ -68,10 +68,10 @@ receive no transport details and no way to reach another tenant.
 |---|---|---|
 | 400 | Malformed upload request (relay only) | `invalid_length`, `empty_body` |
 | 401 | No or invalid identity or grant | `unauthenticated`, `invalid_grant` |
-| 403 | A role too low for the action; a cross-origin cookie write; sign-up not allowed | `forbidden`, `forbidden_origin`, `invite_only` |
+| 403 | A role too low for the action; a cross-origin cookie write; sign-up not allowed | `forbidden`, `forbidden_origin`, `invite_only`, `invitation_wrong_address` |
 | 404 | Absent — including everything the caller has no role on | `not_found` |
 | 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `slug_taken`, `frozen`, `primary_taken`, `source_in_use`, `export_in_progress`, `last_owner`, `quota_exceeded` |
-| 410 | Deliberately deleted, with a tombstone | `record_deleted` |
+| 410 | Deliberately deleted, with a tombstone; an invitation no longer usable | `record_deleted`, `invitation_used`, `invitation_expired` |
 | 413 | Body or file beyond a limit | `too_large` |
 | 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `product_required`, `window_too_large`, `quote_not_found`, `invalid_citation`, `cross_product_reference`, `invalid_query`, `invalid_cursor`, `invalid_html`, `invalid_patch`, `confirmation_required`, `confidence_requires_human` |
 | 429 | Rate limited | `rate_limited` |
@@ -152,7 +152,7 @@ being changed inside the handler.
 | `products` | `exports` | `GET P/exports` | viewer |
 | `members` | `list` | `GET /api/v1/tenants/:tenant/members` | tenant member |
 | `members` | `grant` | `POST /api/v1/tenants/:tenant/members` | admin at the target |
-| `members` | `revoke` | `POST /api/v1/tenants/:tenant/members/revoke` | admin at the target |
+| `members` | `revoke` | `POST /api/v1/tenants/:tenant/members/revoke` | admin at the target; tenant admin with `whole_tenant` |
 | `members` | `cancel_invitation` | `POST /api/v1/tenants/:tenant/invitations/cancel` | admin at the target |
 | `outcomes` | `list` | `GET P/outcomes` | viewer |
 | `outcomes` | `get` | `GET P/outcomes/:outcome_id` | viewer |
@@ -253,6 +253,9 @@ Notes on recent actions:
   and are not versioned with the page. While the notes are empty the etag may be omitted.
 - `members.list` takes an optional `product` to list only the people who can reach it, each with
   `product_access { role, via }`.
+- `members.revoke` removes the grant at exactly the scope named; with `whole_tenant: true` (and no
+  team or product) it removes every grant the person holds in the tenant, which takes them out of
+  it. That needs tenant admin, or owner when they are an owner.
 - `activity.list` takes `by: "people" | "agents"` (agents = calls over MCP), besides
   `entity_type`, `entity_id`, `actor`, `channel` and `since`.
 

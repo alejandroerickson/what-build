@@ -598,12 +598,32 @@ export const revokeMember = defineOperation({
   scope: "tenant",
   access: "any",
   mutates: true,
-  summary: "Remove someone's role at one scope. Their past writes and attribution stay.",
-  description: "Revokes the grant at exactly the scope named. Other grants the person holds (on other teams or products) are untouched. A tenant keeps at least one owner.",
-  input: grantScope.extend({ account_id: z.string().min(1) }),
+  summary: "Remove someone's role at one scope, or remove them from the tenant entirely. Their past writes and attribution stay.",
+  description:
+    "Revokes the grant at exactly the scope named. Other grants the person holds (on other teams or products) are untouched; a person whose last grant goes is no longer in the tenant. With whole_tenant, revokes every grant they hold in the tenant at once (needs tenant admin, and owner if they are an owner). A tenant keeps at least one owner.",
+  input: grantScope.extend({
+    account_id: z.string().min(1),
+    whole_tenant: z.boolean().default(false).describe("Remove the person from the tenant: every grant they hold, on the tenant, its teams and its products. Leave team and product out."),
+  }),
   rest: { method: "POST", path: "/members/revoke" },
   mcp: { tool: "members", action: "revoke" },
   async handler(ctx, input) {
+    const tid = ctx.scope.tenant!.tenant_id;
+    if (input.whole_tenant) {
+      if (input.team || input.product) throw invalid("invalid_input", "whole_tenant removes every grant; leave team and product out.");
+      const grants = await ctx.db.selectFrom("memberships").select(["membership_id", "role"]).where("tenant_id", "=", tid).where("account_id", "=", input.account_id).execute();
+      if (!grants.length) throw notFound("That person is not in this tenant.");
+      const tenantTarget = await resolveGrantTarget(ctx, {});
+      await requireAdminOf(ctx, tenantTarget, grants.some((g) => g.role === "owner") ? "owner" : "admin");
+      if (grants.some((g) => g.role === "owner")) {
+        const owners = await ctx.db.selectFrom("memberships").select("membership_id").where("scope_type", "=", "tenant").where("scope_id", "=", tid).where("role", "=", "owner").execute();
+        if (owners.length <= 1) throw conflict("last_owner", "A tenant keeps at least one owner.");
+      }
+      await ctx.db.deleteFrom("memberships").where("tenant_id", "=", tid).where("account_id", "=", input.account_id).execute();
+      const acct = await ctx.db.selectFrom("accounts").select("display_name").where("account_id", "=", input.account_id).executeTakeFirst();
+      await recordActivity(ctx, { action: "revoked", entity_type: "membership", entity_id: input.account_id, entity_title: acct?.display_name ?? null, summary: `Removed from ${ctx.scope.tenant!.name} (${grants.length} ${grants.length === 1 ? "role" : "roles"})` });
+      return { revoked: true, account_id: input.account_id, scope_type: "tenant" as const, scope: ctx.scope.tenant!.name, removed: grants.length };
+    }
     const target = await resolveGrantTarget(ctx, input);
     const m = await ctx.db.selectFrom("memberships").select(["membership_id", "role"]).where("scope_type", "=", target.scope_type).where("scope_id", "=", target.scope_id).where("account_id", "=", input.account_id).executeTakeFirst();
     if (!m) throw notFound("That person holds no role at that scope.");

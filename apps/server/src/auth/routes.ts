@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { AppError, invalid, newId, notFound, randomToken, sha256Hex, unauthenticated, type Db, type Mailer } from "@whatbuild/core";
+import { AppError, gone, invalid, newId, notFound, randomToken, sha256Hex, unauthenticated, type Db, type Mailer } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { sql } from "kysely";
@@ -11,6 +11,12 @@ function safeNext(next: string | undefined | null): string {
   // Only same-origin paths: never an open redirect.
   if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) return "/";
   return next;
+}
+
+/** Enough of an address for its owner to recognize it, not enough to harvest it from a forwarded link: "l••••@example.com". */
+function maskEmail(email: string): string {
+  const [local = "", domain = ""] = email.split("@");
+  return `${local.slice(0, 1)}••••@${domain}`;
 }
 
 function errorJson(c: Context, e: AppError) {
@@ -194,10 +200,30 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     const body = z.strictObject({ token: z.string().min(10) }).safeParse(await c.req.json().catch(() => ({})));
     if (!body.success) throw invalid("invalid_input", "Missing invitation token.");
     const inv = await db.selectFrom("invitations").selectAll().where("token_hash", "=", sha256Hex(body.data.token)).executeTakeFirst();
-    if (!inv || inv.accepted_at || Date.parse(inv.expires_at) < Date.now()) throw notFound("This invitation has expired or was already used. Ask for a new one.");
-    await acceptInvitation(db, inv.invitation_id, { account_id: p.account_id, email: p.email, display_name: p.display_name });
+    if (!inv) throw notFound("This invitation link is not valid. Check that the whole link was copied, or ask for a new one.");
     const tenant = await db.selectFrom("tenants").select(["slug", "name"]).where("tenant_id", "=", inv.tenant_id).executeTakeFirst();
-    return c.json({ accepted: true, tenant, scope_type: inv.scope_type, role: inv.role });
+    const scope =
+      inv.scope_type === "team"
+        ? await db.selectFrom("teams").select("name").where("team_id", "=", inv.scope_id).executeTakeFirst()
+        : inv.scope_type === "product"
+          ? await db.selectFrom("products").select("name").where("product_id", "=", inv.scope_id).executeTakeFirst()
+          : tenant;
+    const accepted = { tenant, scope_type: inv.scope_type, scope: scope?.name ?? null, role: inv.role };
+    if (inv.accepted_at) {
+      // Signing in accepts every invitation to that address, so the link often arrives already used by this same person.
+      if (inv.accepted_by !== p.account_id) throw gone("invitation_used", "This invitation was already accepted by a different account. Ask whoever invited you for a new link.");
+      const held = await db.selectFrom("memberships").select("membership_id").where("scope_type", "=", inv.scope_type).where("scope_id", "=", inv.scope_id).where("account_id", "=", p.account_id).executeTakeFirst();
+      if (!held) throw gone("invitation_used", `You accepted this invitation earlier, and that access has since been removed. Ask an admin of ${tenant?.name ?? "the organization"} to give it back.`);
+      return c.json({ accepted: true, already: true, ...accepted });
+    }
+    if (Date.parse(inv.expires_at) < Date.now()) throw gone("invitation_expired", "This invitation expired or was cancelled. Ask whoever invited you for a new link.");
+    // An invitation belongs to the address it was sent to: the link is a pointer, not a bearer credential.
+    if (inv.email.toLowerCase() !== p.email.toLowerCase())
+      throw new AppError(403, "invitation_wrong_address", `This invitation was sent to ${maskEmail(inv.email)}, and you are signed in as ${p.email}. Sign in with the address it was sent to; that accepts it.`, {
+        invited: maskEmail(inv.email),
+      });
+    await acceptInvitation(db, inv.invitation_id, { account_id: p.account_id, email: p.email, display_name: p.display_name });
+    return c.json({ accepted: true, already: false, ...accepted });
   });
 
   return app;
