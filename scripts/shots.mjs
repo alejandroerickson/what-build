@@ -138,7 +138,7 @@ for (const device of ["desktop", "phone"]) {
       // The inspector scrolled to "Notes for agents", with its Edit control in view.
       await page.goto(`${s.app}/story/overview`);
       await settle(page);
-      const toggle = page.locator("[data-inspector-toggle]");
+      const toggle = page.locator(".show-ins");
       if (await toggle.isVisible()) {
         await toggle.click();
         await page.waitForTimeout(400);

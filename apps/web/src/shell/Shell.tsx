@@ -8,12 +8,21 @@ import { AccountMenu, BrandRow, PlainNav, ProductNav, ProductSwitcher, productSe
 import { ShellContext, type ShellSlots } from "./slots.tsx";
 
 const NAV_KEY = "whatbuild.nav";
+const INS_KEY = "whatbuild.inspector";
 
-function readNavHidden(): boolean {
+function readHidden(key: string): boolean {
   try {
-    return localStorage.getItem(NAV_KEY) === "closed";
+    return localStorage.getItem(key) === "closed";
   } catch {
     return false;
+  }
+}
+
+function saveHidden(key: string, hidden: boolean) {
+  try {
+    localStorage.setItem(key, hidden ? "closed" : "open");
+  } catch {
+    // The choice lasts for this visit.
   }
 }
 
@@ -23,9 +32,12 @@ function readNavHidden(): boolean {
  *
  * - The panel hides fully with its button or ⌘\ / Ctrl+\ (not while typing); the choice is remembered.
  *   While hidden, a pill with the mark, the product and the section brings it back.
- * - At ≤760px the panel is a drawer with a scrim: focus is trapped, Esc closes it, and it closes on
- *   navigation.
- * - The inspector docks at the right above 1100px; at or below it is an overlay (focus trapped, Esc).
+ * - The inspector works the same way on the right: it hides with the button in its head or ⇧⌘\ /
+ *   Ctrl+Shift+\, and a button at the top right brings it back. Open, it docks beside the canvas at
+ *   every width above a phone. Above 1100px the choice is remembered; at or below it starts hidden,
+ *   so a narrowing window hands the space to the content.
+ * - At ≤760px either panel is a drawer with a scrim: focus is trapped, Esc closes it, and it closes
+ *   on navigation. Only one drawer is open at a time.
  * - On a route change the canvas scrolls to the top, focus moves to the new h1, and the new page is
  *   announced politely.
  */
@@ -45,29 +57,36 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
   const isPhone = useMediaQuery(PHONE_QUERY);
   const isNarrow = useMediaQuery(NARROW_QUERY);
   const loc = useLocation();
-  const [navHidden, setNavHidden] = useState(readNavHidden);
+  const [navHidden, setNavHidden] = useState(() => readHidden(NAV_KEY));
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [insHidden, setInsHidden] = useState(() => readHidden(INS_KEY));
+  // At ≤1100px the inspector starts hidden, and hides again whenever the window crosses 1100px.
+  const [insSmallOpen, setInsSmallOpen] = useState(false);
   const [panelContextEl, setPanelContextEl] = useState<HTMLElement | null>(null);
   const [inspectorEl, setInspectorEl] = useState<HTMLElement | null>(null);
   const [contextCount, setContextCount] = useState(0);
   const [inspectorCount, setInspectorCount] = useState(0);
-  const [inspectorOpen, setInspectorOpenState] = useState(false);
   const [pageTitle, setPageTitle] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const inspectorId = useId();
   const mainRef = useRef<HTMLElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLButtonElement>(null);
-  const inspectorReturn = useRef<HTMLElement | null>(null);
+  const insShowRef = useRef<HTMLButtonElement>(null);
 
   const navOpen = isPhone ? drawerOpen : !navHidden;
   const hasInspector = inspectorCount > 0;
-  const insState = !hasInspector ? "none" : !isNarrow ? "docked" : inspectorOpen ? "open" : "closed";
+  const inspectorOpen = hasInspector && (isNarrow ? insSmallOpen : !insHidden);
+  const insState = !hasInspector ? "none" : !inspectorOpen ? "closed" : isPhone ? "drawer" : "docked";
   const drawerActive = isPhone && drawerOpen;
-  const overlayActive = insState === "open";
+  const insDrawerActive = insState === "drawer";
+  const modal = drawerActive || insDrawerActive;
+
+  useEffect(() => setInsSmallOpen(false), [isNarrow]);
 
   const toggleNav = useCallback(() => {
     if (window.matchMedia(PHONE_QUERY).matches) {
+      setInsSmallOpen(false);
       setDrawerOpen((o) => !o);
       return;
     }
@@ -77,11 +96,7 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
     const fromPanel = !active || active === document.body || Boolean(panelRef.current?.contains(active));
     const fromPill = active === pillRef.current;
     setNavHidden((h) => {
-      try {
-        localStorage.setItem(NAV_KEY, h ? "open" : "closed");
-      } catch {
-        // The choice lasts for this visit.
-      }
+      saveHidden(NAV_KEY, !h);
       return !h;
     });
     requestAnimationFrame(() => {
@@ -91,46 +106,65 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
     });
   }, []);
 
+  /**
+   * Shows or hides the inspector at the current width. Focus follows the control, as with the left
+   * panel: hiding from inside the inspector lands on the button that brings it back, and showing it
+   * lands on its hide button.
+   */
   const setInspectorOpen = useCallback((open: boolean) => {
-    if (open) inspectorReturn.current = document.activeElement as HTMLElement | null;
-    setInspectorOpenState(open);
-    if (!open) {
-      const back = inspectorReturn.current;
-      requestAnimationFrame(() => (back?.isConnected ? back : document.querySelector<HTMLElement>("[data-inspector-toggle]"))?.focus());
+    const active = document.activeElement;
+    const inspector = document.getElementById(inspectorId);
+    const fromInspector = !active || active === document.body || Boolean(inspector?.contains(active));
+    const fromShow = active === insShowRef.current;
+    if (window.matchMedia(NARROW_QUERY).matches) {
+      if (open && window.matchMedia(PHONE_QUERY).matches) setDrawerOpen(false);
+      setInsSmallOpen(open);
+    } else {
+      saveHidden(INS_KEY, !open);
+      setInsHidden(!open);
     }
-  }, []);
+    requestAnimationFrame(() => {
+      if (!open && fromInspector) insShowRef.current?.focus();
+      else if (open && fromShow) inspector?.querySelector<HTMLElement>("[data-inspector-hide]")?.focus();
+    });
+  }, [inspectorId]);
+  const toggleInspector = useCallback(() => setInspectorOpen(!inspectorOpen), [setInspectorOpen, inspectorOpen]);
 
-  // Global keys: the panel shortcut, and Esc for the open overlay.
+  // Global keys: the two panel shortcuts, and Esc for an open drawer.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "\\" && (e.metaKey || e.ctrlKey) && !e.altKey && !isTypingTarget(e.target)) {
+      const mod = (e.metaKey || e.ctrlKey) && !e.altKey && !isTypingTarget(e.target);
+      if (mod && !e.shiftKey && e.key === "\\") {
         e.preventDefault();
         toggleNav();
+      } else if (mod && e.shiftKey && (e.key === "|" || e.key === "\\") && hasInspector) {
+        e.preventDefault();
+        toggleInspector();
       } else if (e.key === "Escape" && !e.defaultPrevented) {
         if (document.querySelector("dialog[open], .menu")) return;
         if (drawerActive) {
           setDrawerOpen(false);
           pillRef.current?.focus();
-        } else if (overlayActive) setInspectorOpen(false);
+        } else if (insDrawerActive) setInspectorOpen(false);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [toggleNav, drawerActive, overlayActive, setInspectorOpen]);
+  }, [toggleNav, toggleInspector, hasInspector, drawerActive, insDrawerActive, setInspectorOpen]);
 
-  // Opening the drawer moves focus into it; opening the inspector overlay focuses its close button.
+  // Opening a drawer moves focus into it.
   useEffect(() => {
     if (drawerActive) panelRef.current?.querySelector<HTMLElement>("a, button")?.focus();
   }, [drawerActive]);
   useEffect(() => {
-    if (overlayActive) requestAnimationFrame(() => document.getElementById(inspectorId)?.querySelector<HTMLElement>(".inspector-close, button, a")?.focus());
-  }, [overlayActive, inspectorId]);
+    if (insDrawerActive) requestAnimationFrame(() => document.getElementById(inspectorId)?.querySelector<HTMLElement>("[data-inspector-hide]")?.focus());
+  }, [insDrawerActive, inspectorId]);
 
-  // Route changes: close overlays, scroll to top, move focus to the h1, announce.
+  // Route changes: close drawers, scroll to top, move focus to the h1, announce.
   const firstPath = useRef(true);
   useEffect(() => {
     setDrawerOpen(false);
-    setInspectorOpenState(false);
+    if (window.matchMedia(PHONE_QUERY).matches) setInsSmallOpen(false);
     if (firstPath.current) {
       firstPath.current = false;
       return;
@@ -184,16 +218,15 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
         setInspectorCount((n) => n + 1);
         return () => setInspectorCount((n) => n - 1);
       },
-      inspectorOverlay: isNarrow,
       inspectorOpen,
       setInspectorOpen,
+      inspectorHideLabel: isPhone ? "Close details" : "Hide details",
       setPageTitle,
     }),
-    [panelContextEl, inspectorEl, inspectorId, isNarrow, inspectorOpen, setInspectorOpen],
+    [panelContextEl, inspectorEl, inspectorId, isPhone, inspectorOpen, setInspectorOpen],
   );
 
   const hideLabel = isPhone ? "Close navigation" : "Hide panel";
-  const scrim = drawerActive || overlayActive;
 
   return (
     <ShellContext.Provider value={slots}>
@@ -206,7 +239,7 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
           type="button"
           className="show-pill"
           hidden={navOpen}
-          inert={drawerActive || overlayActive}
+          inert={modal}
           title={`Show panel (${shortcutLabel("\\")})`}
           aria-expanded={isPhone ? drawerOpen : undefined}
           onClick={toggleNav}
@@ -217,27 +250,35 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
           <span className="visually-hidden">, show panel</span>
           <Glyph name="panel-left-open" />
         </button>
-        <div
-          className="scrim"
-          hidden={!scrim}
-          data-tone={drawerActive || isPhone ? "dim" : "clear"}
-          aria-hidden="true"
-          onClick={() => (drawerActive ? setDrawerOpen(false) : setInspectorOpen(false))}
-        />
+        <button
+          ref={insShowRef}
+          type="button"
+          className="show-ins"
+          hidden={insState !== "closed"}
+          inert={modal}
+          aria-label="Show details"
+          title={`Show details (${shortcutLabel("\\", true)})`}
+          aria-controls={inspectorId}
+          aria-expanded={isPhone ? false : undefined}
+          onClick={() => setInspectorOpen(true)}
+        >
+          <Glyph name="panel-right-open" />
+        </button>
+        <div className="scrim" hidden={!modal} aria-hidden="true" onClick={() => (drawerActive ? setDrawerOpen(false) : setInspectorOpen(false))} />
         <div
           ref={panelRef}
           className="panel panel-left"
           role={drawerActive ? "dialog" : undefined}
           aria-modal={drawerActive || undefined}
           aria-label={drawerActive ? "Navigation" : undefined}
-          inert={!navOpen || overlayActive}
+          inert={!navOpen || insDrawerActive}
         >
           {panel(toggleNav, hideLabel)}
           <div className="panel-context" ref={setPanelContextEl} hidden={contextCount === 0} />
           {contextCount === 0 ? <div className="panel-spacer" /> : null}
           {panelFoot}
         </div>
-        <main id="main" ref={mainRef} className="canvas" tabIndex={-1} inert={drawerActive || overlayActive}>
+        <main id="main" ref={mainRef} className="canvas" tabIndex={-1} inert={modal}>
           <div className="canvas-wrap">
             {banner}
             {children}
@@ -249,8 +290,8 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
           className="panel inspector"
           hidden={!hasInspector}
           inert={insState === "closed" || drawerActive}
-          role={overlayActive ? "dialog" : undefined}
-          aria-modal={overlayActive || undefined}
+          role={insDrawerActive ? "dialog" : undefined}
+          aria-modal={insDrawerActive || undefined}
           aria-labelledby={`${inspectorId}-title`}
         />
         <div className="visually-hidden" aria-live="polite" aria-atomic="true">

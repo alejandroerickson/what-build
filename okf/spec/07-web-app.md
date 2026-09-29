@@ -54,10 +54,13 @@ the browser's back button and "open in new tab" both work.
   (ignored while typing in a field), and the choice is remembered per browser. While it is hidden
   a small floating pill shows the mark, the product name and the current section, and brings the
   panel back.
-- **The inspector** docks at the right on wide screens. At 1100px and below it becomes an overlay,
-  opened by a "Details" button, with a focus trap and Esc to close.
-- **On a phone** (760px and below) the panel is a drawer with a scrim: focus is trapped, Esc
-  closes it, and it closes on navigation.
+- **The inspector** hides and shows the way the panel does: a hide button in its head, `⇧⌘\` /
+  `Ctrl+Shift+\`, and, while it is hidden, a small square at the top right that brings it back.
+  Shown, it docks beside the content at every width above a phone, so the page still scrolls and
+  works beside it. Above 1100px the choice is remembered per browser; at 1100px and below it
+  starts hidden, and it hides again whenever the window crosses 1100px.
+- **On a phone** (760px and below) the panel and the inspector are drawers with a scrim, one open
+  at a time: focus is trapped, Esc closes the open one, and it closes on navigation.
 - **Outside a product** (Agents, Account and tokens, organization Members, All products) the panel
   offers "Back to <product>" for the product the person came from, then those screens. On the
   overview it lists the person's products under each organization's name instead, with Agents,
@@ -196,36 +199,43 @@ The sources, and everything for reading them.
   another listed row also name their primary file, so the twins can be told apart. A folder filter
   below a kind group (from a source's "Filed in") reads as the group and the rest of the path.
 - **Source page.** A source is the busiest object in the app, so the page is dense on purpose.
-  - **Header:** the title, then a meta line (kind, "Captured <date>", organization, and "Added by <who> · via
-    <surface>, <date>"). Below it the **description**: the agent's summary note when there is one,
-    rendered Markdown clamped to four lines with "Show all"; otherwise "No description yet. Ask your
-    agent to summarize this source." linking to Agents. Editing the details (including kind —
-    "reorganize" — without any mention of paths), adding files, archive, restore and delete
-    (§7.10) are in the page's actions menu.
+  - **Header:** the title and the actions menu, nothing else; every property is in the inspector.
+    Below it the **description**: the agent's summary note, rendered Markdown clamped to four
+    lines with "Show all" and attributed, and nothing at all when there is none. Editing the
+    details (including kind — "reorganize" — without any mention of paths), adding files,
+    archive, restore and delete (§7.10) are in the page's actions menu.
   - **Sections**, a segmented control held in the URL as `?view=` (links, not tabs):
     **Passages** (the default once the source is parsed), **Original** (a preview of the origin
     file, or of the primary when there is no origin, with a line saying whether it is searched and
     naming its type in words, such as "Word document", not its media type),
-    **Notes** (the agent's outline and notes, then every comment on the source, each linking to its
-    passage; with no agent outline, a document's own headings, each linking to its passage — a
-    timed transcript's speaker-turn outline is left out, since the passages already show speaker
-    and time) and **Files** (every file with its role, "Searched" or "Kept, not searched",
-    versions, download, and add file). A non-primary file's role changes from its row menu,
+    **Notes** (an "Outline and notes" sheet with the agent's outline and notes — with no agent
+    outline, a document's own headings, each linking to its passage; a timed transcript's
+    speaker-turn outline is left out, since the passages already show speaker and time; the sheet
+    is left out when there is nothing to show — then every comment on the source, each linking to
+    its passage) and **Files** (every file with its role, "Searched" or "Kept, not searched",
+    versions, download, and add file; with files besides the primary, one line: "Only the
+    primary file is searched. The others are kept for download."). A non-primary file's role changes from its row menu,
     confirmed in a dialog that says what the change does. Original states a recording's length
     beside the player when the parse read one.
-  - **Inspector:** **Details** (kind, the three dates together — date captured, date added, date
-    updated, with who updated it when it has changed since it was added — organization,
-    participants, tags, source system, evidence, where it is filed — a link to the list filtered to
-    that folder — and added by), a **Files** summary ("2 files", adding stored versions only when there are more
-    versions than files; only the primary is searched), **Cited in** (insights, assumptions,
-    decisions and Story pages, each citation linking to its exact passage or range; a Story page
-    is judged by its current version, and says so), "Activity on this source", and Archive. On a
-    narrow screen the page stacks header, description and sections, and the inspector opens from
-    "Details".
-  - **Lineage:** a view with lineage says what it was built from: "Built from 17 inputs · none
-    changed since" with an Up to date mark, or, when `lineage.check` finds inputs changed,
-    archived, deleted or missing, an attention callout "Built from 17 inputs · 10 changed since"
-    with the counts and when it was built. Nothing is rebuilt automatically.
+  - **Inspector,** titled Details: **About** (Kind; the three dates together — Date captured
+    (or "No date"), Date added and Date updated, the last two each with "by <who>", adding "via
+    <surface>" when it was not the web, and Date updated saying "Not since it was added" when
+    nothing changed; Organization, a link to the list filtered to it; Participants; Tags;
+    Provenance; Came from, the source system; Filed in, a link to the list filtered to that
+    folder), **Built from** for a view with lineage
+    (below), a **Files** summary (each file's role and whether it is searched, adding the number
+    of stored versions only when there are more versions than files), **Cited in** (insights,
+    assumptions, decisions and Story pages, each citation linking to its exact passage or range;
+    a Story page is judged by its current version, and says so), "Activity on this source", and
+    Archive.
+  - **Lineage:** a view's **Built from** group says what it was built from, by kind ("12 sources
+    and 3 decisions"), when and by whom, how the inputs were chosen, and whether it is Up to date
+    or how many inputs changed since. Each changed input is listed by name, linked, with what
+    changed ("Changed: title, 28 Sept 2026", "Archived", "Deleted"). When `lineage.check` finds any
+    input changed, archived, deleted or missing, the page also shows an attention callout, "This
+    view may be out of date", saying when it was built, from what, how many inputs changed since,
+    that views are not rebuilt automatically, and "See what changed", which opens the inspector
+    at Built from.
   - **Status:** a source that is not `ready` shows a callout with the status's explanation and next
     step. The server's `status_detail` is added only where it says more (a size or an error).
 - **Passage reader.** Paged segments with address (¶n), speaker and cue time; heading passages

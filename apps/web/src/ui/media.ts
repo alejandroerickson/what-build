@@ -32,9 +32,10 @@ export function isApplePlatform(): boolean {
   return /mac|iphone|ipad|ipod/i.test(platform);
 }
 
-/** A shortcut written the way the platform writes it: "⌘\" on Apple, "Ctrl+\" elsewhere. */
-export function shortcutLabel(key: string): string {
-  return isApplePlatform() ? `⌘${key}` : `Ctrl+${key}`;
+/** A shortcut written the way the platform writes it: "⌘\" or "⇧⌘\" on Apple, "Ctrl+\" or "Ctrl+Shift+\" elsewhere. */
+export function shortcutLabel(key: string, shift = false): string {
+  if (isApplePlatform()) return `${shift ? "⇧" : ""}⌘${key}`;
+  return `Ctrl+${shift ? "Shift+" : ""}${key}`;
 }
 
 /** Whether a key event comes from somewhere a person types, where global shortcuts must not fire. */

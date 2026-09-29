@@ -112,25 +112,10 @@
 
 /* ---- A source's page -------------------------------------------------------------------------- */
 
-.source-meta {
-  display: contents;
-}
-.source-meta > span + span:not(.source-meta-added)::before {
-  content: "·";
-  margin-right: var(--s-2);
-  color: var(--faint);
-}
-.source-meta-added {
-  flex-basis: 100%;
-}
 .source-description {
   max-width: var(--measure);
   margin: calc(-1 * var(--s-1)) 0 var(--s-4) var(--crumb-inset);
   color: var(--muted);
-}
-.source-description-empty {
-  color: var(--faint);
-  font-size: var(--fs-sm);
 }
 .source-summary .prose {
   color: var(--text);
@@ -171,15 +156,6 @@
   gap: var(--s-2);
   margin-bottom: var(--s-3);
 }
-.source-lineage {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-1) var(--s-2);
-  margin: calc(-1 * var(--s-2)) 0 var(--s-3) var(--crumb-inset);
-  color: var(--muted);
-  font-size: var(--fs-sm);
-}
 
 /* Inspector */
 .source-inspector .kv-row {
@@ -188,20 +164,20 @@
 .source-tags {
   margin-top: 0;
 }
-.source-face {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-1h);
-  min-width: 0;
-}
-.source-face > span:last-child {
+/* "27 Sept 2026", then "by Sam via Claude" under it. */
+.source-when {
   display: grid;
   min-width: 0;
-  line-height: var(--lh-tight);
 }
-.source-face small {
+.source-when small {
   color: var(--faint);
   font-size: var(--fs-xs);
+}
+.source-built {
+  margin: 0 0 var(--s-1);
+}
+.source-built-how {
+  color: var(--muted);
 }
 .source-file-summary,
 .source-cited {
