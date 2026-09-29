@@ -44,15 +44,10 @@ export function OverviewPage() {
         </div>
         <div className="overview-pitch">
           <p className="overview-question">What to build?</p>
-          <p className="overview-pressure">
-            The speed of AI Engineering forces product discovery teams to move impossibly fast while fighting to organize the
-            evidence, understand users, and align on an awesome well-defined idea.
-          </p>
+          <p className="overview-pressure">The speed of AI Engineering forces product discovery to move impossibly fast.</p>
           <p className="overview-about">
-            WhatBuild accelerates product discovery by indexing the evidence in an opinionated document store and surfacing it via
-            MCP to your AI agents for analysis. Together you will work out the details faster and tell the story of your build. At the
-            other end of the discovery, WhatBuild provides rich context to your ticket-creation agent so that your team can hit the
-            ground running.
+            WhatBuild accelerates collaborative agentic discovery, facilitates alignment, and tells the story of your build. At the
+            finish line, WhatBuild provides context to your ticket-creation agent so that your team can hit the ground running.
           </p>
           <Link to="/connect" className="overview-agent-link">
             <Glyph name="plug" size="sm" />

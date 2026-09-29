@@ -78,7 +78,7 @@ Idea screen's terms are a decision: [A product starts with its idea](../decision
 | **team** | A group inside a tenant and the products it runs. Roles granted on a team apply to its products. Never "workspace". |
 | **product** | One discovery. Owns all of the objects below. |
 | **role** | viewer, editor or admin on a team or product; owner, admin or member of a tenant. |
-| **source** | One discovery event or document, with metadata and one or more files. Stored as a record: `record_id` in the API. The destination that holds them is **Evidence**; never "library", "document store", "bucket" or a storage path, except in the overview's one-line description of the app ("an opinionated document store"). |
+| **source** | One discovery event or document, with metadata and one or more files. Stored as a record: `record_id` in the API. The destination that holds them is **Evidence**; never "library", "document store", "bucket" or a storage path. |
 | **file** | A stored file belonging to a source, with a role: `primary`, `origin`, or `supplement`. The role is **origin**, not "source", so it cannot be confused with the destination. |
 | **segment** | The atomic unit of derived text: a paragraph or a cue, with offsets. |
 | **passage** | A contiguous range of segments in one source. What citations and reads address. |
