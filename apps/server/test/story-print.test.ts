@@ -72,6 +72,15 @@ describe("page preparation", () => {
     expect(p.host).toEqual(expect.arrayContaining([{ name: "lang", value: "en" }, { name: "class", value: "theme wb" }, { name: "data-mode", value: "print" }]));
   });
 
+  it("drops refresh metadata, frames, forms and links a stored page should never hold", () => {
+    const p = prepareStoryPage(
+      page("Plan", `<meta http-equiv="refresh" content="0;url=https://example.com"><p>Hi</p><iframe src="https://example.com"></iframe><form><input></form><link rel="stylesheet" href="https://example.com/a.css"><base href="https://example.com/">`),
+      "Plan",
+    );
+    expect(p.body).toContain("<p>Hi</p>");
+    for (const tag of ["<meta", "<iframe", "<form", "<link", "<base"]) expect(p.body).not.toContain(tag);
+  });
+
   it("drops a leading h1 only when it repeats the page title", () => {
     const same = prepareStoryPage(page("The hand-off test", "<main><h1>The  Hand-off test</h1><p>Body</p></main>"), "The hand-off test");
     expect(same.dropped_title).toBe(true);

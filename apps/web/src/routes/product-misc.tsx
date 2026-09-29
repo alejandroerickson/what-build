@@ -24,6 +24,7 @@ const TYPE_FILTERS = [
   { id: "decision", label: "Decisions" },
   { id: "story_page", label: "Story pages" },
   { id: "story_hierarchy", label: "Story tree" },
+  { id: "story_style", label: "Story style" },
   { id: "membership", label: "People and roles" },
   { id: "product", label: "Product settings" },
 ];

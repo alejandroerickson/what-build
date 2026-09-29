@@ -252,7 +252,9 @@ function findChild(n: Node | undefined, tag: string): Node | undefined {
   return n?.childNodes?.find((c) => c.tagName === tag);
 }
 
-/** Remove the first <h1> when no text comes before it and it repeats the page title. */
+const isKicker = (n: Node) => n.attrs?.some((a) => a.name === "class" && a.value.split(/\s+/).includes("kicker")) ?? false;
+
+/** Remove the first <h1> when no text but a kicker comes before it and it repeats the page title. */
 function dropLeadingTitle(body: Node, title: string): boolean {
   let found: { node: Node; parent: Node } | null = null;
   let blocked = false;
@@ -267,6 +269,7 @@ function dropLeadingTitle(body: Node, title: string): boolean {
         found = { node: c, parent: n };
         return;
       }
+      if (isKicker(c)) continue;
       if (c.tagName && !["style", "script", "template"].includes(c.tagName)) walk(c);
       if (c.tagName && ["img", "svg", "picture", "video", "audio", "canvas", "table"].includes(c.tagName)) blocked = true;
     }
@@ -278,9 +281,16 @@ function dropLeadingTitle(body: Node, title: string): boolean {
   return true;
 }
 
-/** Remove scripts and inline event handlers, and scope every <style> left in the body. */
+/**
+ * Elements a print view never carries, whatever a stored page holds: scripts, and everything
+ * publishing refuses (refresh and policy metadata, frames, forms, external resources). The print
+ * view is a top-level document, so this is defence in depth behind its policy.
+ */
+const DROPPED = new Set(["script", "meta", "base", "link", "iframe", "frame", "frameset", "object", "embed", "portal", "form"]);
+
+/** Remove scripts, refused elements and inline event handlers, and scope every <style> left in the body. */
 function sanitize(n: Node) {
-  if (n.childNodes) n.childNodes = n.childNodes.filter((c) => c.tagName !== "script");
+  if (n.childNodes) n.childNodes = n.childNodes.filter((c) => !DROPPED.has(c.tagName ?? ""));
   if (n.attrs) n.attrs = n.attrs.filter((a) => !a.name.toLowerCase().startsWith("on"));
   if (n.tagName === "style") for (const c of n.childNodes ?? []) if (c.nodeName === "#text") c.value = scopeStoryCss(c.value ?? "");
   for (const c of n.childNodes ?? []) sanitize(c);

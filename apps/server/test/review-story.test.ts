@@ -1,6 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { STORY_STYLESHEET, withStoryTheme } from "@whatbuild/core";
+import { houseStyle, withStoryTheme } from "@whatbuild/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createPorts } from "../src/app.ts";
 import { seed } from "../src/seed.ts";
@@ -31,7 +31,7 @@ let teamSlug: string;
 let recordId: string;
 
 const html = (title: string, body: string) =>
-  `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title><style>${STORY_STYLESHEET}</style></head><body><main class="wb-page wb-prose">${body}</main></body></html>`;
+  `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title><style>${houseStyle("tufte")!.stylesheet}</style></head><body><main class="page">${body}</main></body></html>`;
 
 beforeAll(async () => {
   h = await startHarness();

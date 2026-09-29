@@ -189,25 +189,25 @@ export const STORY_HTML = (links: { insight: string; assumption: string; decisio
 ${css}</style>
 </head>
 <body>
-<main class="wb-page wb-split">
-<article class="wb-prose">
-<header class="wb-stack">
+<main class="page">
+<header class="opening">
+<p class="kicker">Crewboard · Where discovery stands</p>
 <h1>The costly part of planning is sending the plan, not making it</h1>
-<p class="wb-lead">Crew leads spend a Friday afternoon building next week. The mistakes that reach customers happen afterwards, when the plan is typed out to each crew.</p>
-<p class="wb-meta">Sample discovery · Working interpretation</p>
+<p class="lead">Crew leads spend a Friday afternoon building next week. The mistakes that reach customers happen afterwards, when the plan is typed out to each crew.</p>
+<p class="meta">Sample discovery · Working interpretation</p>
 </header>
-<h2>What we heard</h2>
-<p>Planning is a weekly ritual of two to three hours, in a spreadsheet or on paper. The errors crews feel — a wrong address, a double booking — enter when the plan is copied into messages by hand.</p>
-<figure class="wb-quote"><blockquote><p>The texts are the worst part honestly. Every crew lead gets a message with their jobs and addresses, and I type those by hand.</p></blockquote><figcaption>Crew lead, landscaping · interview · <a href="${links.insight}" target="_blank" rel="noopener noreferrer">Read the insight</a></figcaption></figure>
-<h2>What we are doing next</h2>
-<ol><li>Prototype a message generated from the plan, and test it with two crews.</li><li>Interview two more cleaning-crew owners about how they think about the week.</li></ol>
-</article>
-<aside class="wb-stack" aria-labelledby="limits">
-<h2 id="limits">Evidence and limits</h2>
-<p><span class="wb-status" data-state="open">Unconfirmed</span> Whether leads think in jobs or in days is <a href="${links.assumption}" target="_blank" rel="noopener noreferrer">an open assumption</a>.</p>
-<p><span class="wb-status" data-state="evidence">Decided</span> <a href="${links.decision}" target="_blank" rel="noopener noreferrer">Test the hand-off first</a>, before the planning grid.</p>
-<p class="wb-meta">Four sources: two interviews, owner-call notes, a survey export of 23 responses. All synthetic.</p>
-</aside>
+<section aria-labelledby="heard">
+<h2 id="heard">What we heard</h2>
+<aside class="note">Four sources: two interviews, owner-call notes and a survey export of 23 responses. Every person and company here is invented.</aside>
+<p>Planning is a weekly ritual of two to three hours, in a spreadsheet or on paper. The errors crews feel, a wrong address or a double booking, enter when the plan is copied into messages by hand.</p>
+<figure class="quote"><blockquote><p>The texts are the worst part honestly. Every crew lead gets a message with their jobs and addresses, and I type those by hand.</p></blockquote><figcaption>Crew lead, landscaping · interview · <a href="${links.insight}" target="_blank" rel="noopener noreferrer">Read the insight</a></figcaption></figure>
+</section>
+<section aria-labelledby="next">
+<h2 id="next">What we are doing next</h2>
+<p><span class="status" data-state="evidence">Decided</span> <a href="${links.decision}" target="_blank" rel="noopener noreferrer">Test the hand-off first</a>, before the planning grid.</p>
+<ol class="steps"><li>Prototype a message generated from the plan, and test it with two crews.</li><li>Interview two more cleaning-crew owners about how they think about the week.</li></ol>
+<aside class="callout" data-tone="caution"><p><strong>Assumption, unconfirmed.</strong> Whether leads think in jobs or in days is <a href="${links.assumption}" target="_blank" rel="noopener noreferrer">an open assumption</a>.</p></aside>
+</section>
 </main>
 </body>
 </html>`;
@@ -302,16 +302,23 @@ export const HANDOFF_HTML = (links: { decision: string }, css: string) => `<!doc
 ${css}</style>
 </head>
 <body>
-<main class="wb-page wb-prose">
+<main class="page">
+<header class="opening">
+<p class="kicker">Crewboard · Planned test</p>
 <h1>The hand-off test</h1>
-<p class="wb-lead">Two crews will get their week as a message generated from the plan, instead of one typed by hand.</p>
-<p class="wb-meta">Sample discovery · Planned test</p>
-<h2>Why this first</h2>
+<p class="lead">Two crews will get their week as a message generated from the plan, instead of one typed by hand.</p>
+<p class="meta">Sample discovery · Planned test</p>
+</header>
+<section aria-labelledby="why">
+<h2 id="why">Why this first</h2>
 <p>Typed messages are where wrong addresses and gate codes enter, and a wrong address reaches a crew about once a week. A generated message is small to build and useful whichever planning model wins.</p>
-<figure class="wb-quote"><blockquote><p>Maybe once a week. Somebody drives to the wrong side of town.</p></blockquote><figcaption>Crew lead, landscaping · interview</figcaption></figure>
-<h2>What we will look at</h2>
-<ol><li>Whether the crews notice anything missing from the generated message.</li><li>How long the planner spends sending the week, before and after.</li></ol>
-<aside class="wb-callout"><p><strong>Decided, not yet run.</strong> <a href="${links.decision}" target="_blank" rel="noopener noreferrer">Read the decision</a>.</p></aside>
+<figure class="quote"><blockquote><p>Maybe once a week. Somebody drives to the wrong side of town.</p></blockquote><figcaption>Crew lead, landscaping · interview</figcaption></figure>
+</section>
+<section aria-labelledby="look">
+<h2 id="look">What we will look at</h2>
+<ol class="steps"><li>Whether the crews notice anything missing from the generated message.</li><li>How long the planner spends sending the week, before and after.</li></ol>
+<aside class="callout"><p><strong>Decided, not yet run.</strong> <a href="${links.decision}" target="_blank" rel="noopener noreferrer">Read the decision</a>.</p></aside>
+</section>
 </main>
 </body>
 </html>`;

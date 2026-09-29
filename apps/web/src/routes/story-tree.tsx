@@ -36,11 +36,14 @@ function Highlight({ text, query }: { text: string; query: string }) {
   );
 }
 
-export function StoryTree({ tree, archived, current, onExport }: {
+export function StoryTree({ tree, archived, current, onExport, style, onStyle }: {
   tree: Arrangement;
   archived: ArchivedPage[];
   current: string | undefined;
   onExport: ExportPages;
+  /** The Story style's name and how it reads, or null before an agent sets one; undefined while loading. */
+  style: { name: string; line: string } | null | undefined;
+  onStyle: () => void;
 }) {
   const { app, product } = useProduct();
   const [query, setQuery] = useState("");
@@ -140,6 +143,18 @@ export function StoryTree({ tree, archived, current, onExport }: {
               </ul>
             ) : null}
           </div>
+        ) : null}
+        {style !== undefined ? (
+          <PanelSection title="Story style">
+            <button type="button" className="story-style-row" onClick={onStyle}>
+              <Glyph name="palette" />
+              <span className="story-style-text">
+                <span className="ellipsis">{style ? style.name : "None yet"}</span>
+                <span className="story-style-sub ellipsis">{style ? style.line : "Preview house styles"}</span>
+              </span>
+              <Glyph name="chevron-right" size="sm" />
+            </button>
+          </PanelSection>
         ) : null}
       </div>
     </PanelContext>

@@ -181,8 +181,25 @@ analysis as direct evidence; unknown provenance stays `unknown`.
 ## The Story
 
 Call `story(action="guidance")` first. Pages are self-contained HTML shown in a sandbox with no
-network: use the returned stylesheet and recipes — the app's components and theme are not available
-there. Read a page with `get_page` before revising and pass its etag; omit the etag only for a new
+network; the app's components and theme are not available there, and a Story never uses
+WhatBuild's own look — it is the team's document, often read outside the team.
+
+- **Settle the Story style first.** `get_style` returns the product's Story style: the design
+  system every page follows, with its rules and stylesheet. Paste the stylesheet into each page's
+  `<style>` and follow its rules. When there is none, ask the person whether their company has a
+  design system or brand guide for reports like this. If it does, build a stylesheet from it and
+  save it with `set_style` (name, rules, stylesheet). If not, offer the house styles — Broadsheet,
+  Tufte, Swiss grid, Briefing deck (`guidance` with `house_style` shows one in full) — and adopt
+  their pick with `set_style { house_style }`. People can preview every house style in the web app
+  (the Story style section under the Story's page tree). After a style change, republish the pages.
+- **Design with taste, and check it.** The guidance gives taste principles, anti-patterns to
+  avoid, compositions and named design passes (critique, distill, bolder, quieter, typeset, layout,
+  adapt, polish). Compose each page for its content rather than stacking the same recipes. If you
+  have a design skill such as Impeccable, run its commands on the page before publishing; if you
+  can render HTML, look at the page at desktop and phone width in light and dark. If no design
+  skill is installed, tell the person once that one would improve their Story pages.
+
+Read a page with `get_page` before revising and pass its etag; omit the etag only for a new
 page. Publishing never places a page: then call `set_hierarchy` with the hierarchy's own etag. Do not
 invent owners, dates, measurements, commitments or agreement, and never present an unconfirmed
 assumption as settled.

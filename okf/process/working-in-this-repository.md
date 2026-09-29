@@ -3,7 +3,7 @@ type: Process
 title: How to change this repository
 description: The rules every change follows, for people and agents, including what may never be committed.
 tags: [process, agents, contributing, public]
-generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-29}
 status: stable
 ---
 
@@ -39,8 +39,8 @@ Everything committed, including history, is published
 5. **Interface changes** follow [`DESIGN.md`](../../DESIGN.md) and the
    [Studio decision](../decisions/studio-design-system.md): plain CSS on the tokens, primitives from
    `apps/web/src/ui/`, state in the URL, every state designed (loading, empty, error, archived, no
-   permission), keyboard and screen-reader support, WCAG 2.2 AA, phone width, light and dark. If the
-   design tokens change, the Story guidance drift test tells you to update `story-guidance.ts`.
+   permission), keyboard and screen-reader support, WCAG 2.2 AA, phone width, light and dark. Story pages
+   never follow the app's tokens ([decision](../decisions/story-pages-follow-the-teams-design-system.md)).
 6. **Vocabulary** is fixed ([product spec](../spec/01-product.md)): source, passage, segment,
    outcome, insight, assumption, decision, Story, archive. Archive is never called deleting.
 

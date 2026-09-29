@@ -74,6 +74,18 @@ export function inspectStoryHtml(html: string): string[] {
   return problems;
 }
 
+export const STORY_CSS_MAX = 200_000;
+
+/** Validate a Story style's stylesheet: the rules a page's <style> block must meet, plus a size limit. */
+export function inspectStoryCss(css: string): string[] {
+  const problems: string[] = [];
+  if (css.length > STORY_CSS_MAX) problems.push(`The stylesheet is ${css.length} characters; the limit is ${STORY_CSS_MAX}.`);
+  if (/@import/i.test(css)) problems.push("@import is not allowed: a Story style is one self-contained stylesheet.");
+  if (/url\(\s*['"]?(?!data:|#)/i.test(css)) problems.push("The stylesheet loads an external resource with url(); embed fonts and images as data: URIs.");
+  if (/<\/style/i.test(css)) problems.push("The stylesheet contains </style, which would end the <style> element it is pasted into.");
+  return problems;
+}
+
 /** The headers every response that serves Story HTML carries. The page runs in an opaque origin. */
 export const STORY_RESPONSE_HEADERS: Record<string, string> = {
   "Content-Security-Policy":

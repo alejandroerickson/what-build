@@ -15,7 +15,7 @@ adding a near-duplicate.
    staged files.
 2. **Find the affected concepts** with the impact map below. Also grep the bundle for names you
    renamed or removed, and for counts you changed:
-   `grep -rn "old_name\|99 operations" okf AGENTS.md README.md`.
+   `grep -rn "old_name\|101 operations" okf AGENTS.md README.md`.
 3. **Read each affected concept, then correct it in place.** Describe the system as it now is,
    in the present tense. Do not describe how it came to be.
 4. **Decide where new knowledge belongs** (see the table under Where knowledge goes). Put it in an
@@ -57,7 +57,7 @@ adding a near-duplicate.
 | `apps/server/src/auth/**`, sessions, tokens | `spec/03`, decision `built-in-identity-and-oauth` |
 | `apps/server/src/migrations/*.sql`, `packages/core/src/db.ts` | `spec/04`; tenancy or row-level security changes: decision `shared-schema-tenancy-with-row-level-security`; retention: `spec/09` |
 | `citations.ts` | `spec/04` (citations), decision `citations-snapshot-and-report-drift` |
-| `story-html.ts`, `story-guidance.ts`, `story-print.ts`, `ops/story.ts` | `spec/04` and `spec/07` (Story), decisions `story-pages-are-sandboxed-agent-html`, `story-notes-are-agent-memory` and `pdf-export-uses-browser-print` |
+| `story-html.ts`, `story-guidance.ts`, `story-styles.ts`, `story-theme.ts`, `story-print.ts`, `ops/story.ts` | `spec/04` and `spec/07` (Story), decisions `story-pages-are-sandboxed-agent-html`, `story-pages-follow-the-teams-design-system`, `story-notes-are-agent-memory` and `pdf-export-uses-browser-print` |
 | `packages/parsers/**`, `kinds.ts`, `media.ts`, `worker.ts` | `spec/05`, decision `only-the-primary-file-is-searched`, the parser list in `spec/10` |
 | `ops/search.ts` | `spec/08` |
 | Archive, delete, export (`ops/export.ts`) | `spec/09`, decision `archive-by-default-delete-guarded` |
@@ -66,7 +66,7 @@ adding a near-duplicate.
 | `.github/workflows/**` | `operations/local-development.md` (CI), the phase 0 row in `spec/10` |
 | `Dockerfile`, `cloudbuild.yaml`, `deploy/**` | `operations/cloud-run.md`, decision `one-stateless-image` |
 | `apps/web/src/routes/**`, `main.tsx`, `shell/**` | `spec/07`, the phase 4 row in `spec/10` |
-| `apps/web/src/styles/tokens.css`, `ui/**` | `DESIGN.md`, `.impeccable/design.json`, decision `studio-design-system`; token changes: `story-guidance.ts` (a drift test enforces it) |
+| `apps/web/src/styles/tokens.css`, `ui/**` | `DESIGN.md`, `.impeccable/design.json`, decision `studio-design-system` (Story pages do not follow the app's tokens) |
 | `seed.ts`, `seed-content.ts` | usually nothing; `process/working-in-this-repository.md` if the sample product changes |
 | A new top-level directory, package, or moved file | `system/repository-map.md`, the `AGENTS.md` path table |
 | Product scope or vocabulary | `project/charter.md`, `spec/01`, `PRODUCT.md` |

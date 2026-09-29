@@ -544,3 +544,15 @@ h1[tabindex="-1"]:focus {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* ---- Focus mode ------------------------------------------------------------------------------- */
+
+/* Both panels are away and so are their show buttons: the canvas takes the window, and the content
+   may run wider than an ordinary screen. */
+.stage[data-focus] .canvas,
+.stage[data-focus][data-ins] .canvas {
+  padding: var(--canvas-pt) var(--canvas-px) var(--canvas-pb);
+}
+.stage[data-focus] .canvas-wrap {
+  max-width: var(--content-max-focus);
+}

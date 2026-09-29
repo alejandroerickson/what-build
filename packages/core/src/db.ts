@@ -498,6 +498,23 @@ export interface StoryHierarchiesTable {
   updated_by: Json<ActorSnapshot>;
 }
 
+/** A product's Story style: the design system every Story page follows. One per product. */
+export interface StoryStylesTable {
+  product_id: string;
+  tenant_id: string;
+  name: string;
+  summary: string;
+  /** The house style it was adopted from, or null for the team's own design system. */
+  based_on: string | null;
+  rules: string;
+  stylesheet: string;
+  /** A page that shows the style; null means the shared-vocabulary specimen in this stylesheet. */
+  specimen_html: string | null;
+  etag: string;
+  updated_at: Ts;
+  updated_by: Json<ActorSnapshot>;
+}
+
 export interface LineageTable {
   record_id: string;
   tenant_id: string;
@@ -582,6 +599,7 @@ export interface DB {
   story_pages: StoryPagesTable;
   story_versions: StoryVersionsTable;
   story_hierarchies: StoryHierarchiesTable;
+  story_styles: StoryStylesTable;
   lineage: LineageTable;
   activity: ActivityTable;
   tombstones: TombstonesTable;

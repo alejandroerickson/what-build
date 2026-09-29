@@ -1,5 +1,5 @@
 import {
-  AppError, execute, OPERATIONS, printDocument, printResponseHeaders, resolveScope, STORY_RESPONSE_HEADERS, toAppError, unauthenticated, withStoryTheme,
+  AppError, execute, OPERATIONS, printDocument, printResponseHeaders, resolveScope, STORY_RESPONSE_HEADERS, toAppError, unauthenticated, withStoryFrame, withStoryTheme, houseSpecimen, houseStyle, styleSpecimen,
   type Env, type OperationDef, type Principal, type ScopeRef,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
@@ -49,6 +49,17 @@ export function coerceQuery(op: OperationDef, query: Record<string, string>): Re
 function errorResponse(c: Context, e: AppError) {
   if (e.status === 401) c.header("WWW-Authenticate", 'Bearer realm="whatbuild"');
   return c.json({ error: e.toJSON() }, e.status as 400);
+}
+
+function storyTheme(theme: string | undefined): "light" | "dark" | undefined {
+  if (theme !== undefined && theme !== "light" && theme !== "dark") throw new AppError(422, "invalid_input", "theme must be light or dark.");
+  return theme;
+}
+
+/** Story HTML as the sandbox serves it: the sandboxing headers, the theme, and the frame script when the app's frame asks. */
+function storyHtml(c: Context, html: string, theme: "light" | "dark" | undefined, frame: boolean) {
+  for (const [k, val] of Object.entries(STORY_RESPONSE_HEADERS)) c.header(k, val);
+  return c.body(frame ? withStoryFrame(html, theme) : theme ? withStoryTheme(html, theme) : html);
 }
 
 /** Cookie-authenticated writes must come from our own origin. SameSite=Lax does most of this; this closes the rest. */
@@ -160,10 +171,11 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
   app.get(`${SCOPE_PREFIX.product}/story/pages/:page_id/versions/:version/html`, async (c) => {
     try {
       // ?theme=light|dark: the app's resolved theme, written onto the page's <html> for this
-      // response only, so the page follows the app rather than only the system.
+      // response only, so the page follows the app rather than only the system. ?frame=1: the app's
+      // frame is showing it, so the frame script goes in too (focus keys, links open in a new tab).
       const scope = await scoped(c);
-      const theme = c.req.query("theme");
-      if (theme !== undefined && theme !== "light" && theme !== "dark") throw new AppError(422, "invalid_input", "theme must be light or dark.");
+      const theme = storyTheme(c.req.query("theme"));
+      const frame = c.req.query("frame") === "1";
       const v = await inTenant(scope.tenant!.tenant_id, (trx) =>
         trx
           .selectFrom("story_versions")
@@ -174,8 +186,34 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
           .executeTakeFirst(),
       );
       if (!v) throw new AppError(404, "not_found", "No such Story version.");
-      for (const [k, val] of Object.entries(STORY_RESPONSE_HEADERS)) c.header(k, val);
-      return c.body(theme ? withStoryTheme(v.html, theme) : v.html);
+      return storyHtml(c, v.html, theme, frame);
+    } catch (e) {
+      return errorResponse(c, toAppError(e));
+    }
+  });
+
+  // Specimens: a sample page in the product's Story style, or in a house style, shown in the app
+  // exactly as Story pages are (the same sandbox and headers) so a person can preview a style.
+  app.get(`${SCOPE_PREFIX.product}/story/style/specimen`, async (c) => {
+    try {
+      const scope = await scoped(c);
+      const theme = storyTheme(c.req.query("theme"));
+      const s = await inTenant(scope.tenant!.tenant_id, (trx) =>
+        trx.selectFrom("story_styles").select(["name", "stylesheet", "specimen_html"]).where("product_id", "=", scope.product!.product_id).executeTakeFirst(),
+      );
+      if (!s) throw new AppError(404, "not_found", "This product has no Story style yet.");
+      return storyHtml(c, styleSpecimen(s), theme, c.req.query("frame") === "1");
+    } catch (e) {
+      return errorResponse(c, toAppError(e));
+    }
+  });
+  app.get(`${SCOPE_PREFIX.product}/story/house-styles/:style/specimen`, async (c) => {
+    try {
+      await scoped(c);
+      const theme = storyTheme(c.req.query("theme"));
+      const style = houseStyle(c.req.param("style")!);
+      if (!style) throw new AppError(404, "not_found", "No such house style: broadsheet, tufte, swiss or briefing.");
+      return storyHtml(c, houseSpecimen(style), theme, c.req.query("frame") === "1");
     } catch (e) {
       return errorResponse(c, toAppError(e));
     }

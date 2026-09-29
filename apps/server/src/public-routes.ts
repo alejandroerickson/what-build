@@ -71,6 +71,9 @@ export function staticRoutes(dist: string) {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "X-Frame-Options": "DENY",
+    // A Story page runs in an opaque origin and may open app pages in new tabs. This cuts the
+    // handle it would keep to them, so it can never later send such a tab somewhere else.
+    "Cross-Origin-Opener-Policy": "same-origin",
     "Content-Security-Policy":
       "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; media-src 'self' blob:; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'",
   };

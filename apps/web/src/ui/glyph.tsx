@@ -1,7 +1,7 @@
 import {
   Activity, Archive, ArchiveRestore, ArrowLeft, ArrowRight, Blend, BookOpen, Bot, Box, Building, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp,
   CircleAlert, CircleCheck, CircleDashed, Clock, Copy, CornerDownRight, Download, Ellipsis, ExternalLink, FileText, FileVolume, FolderInput,
-  GripVertical, Info, Library, Lightbulb, Link, LoaderCircle, LogOut, Menu, Mic, Monitor, Moon, PanelLeftClose, PanelLeftOpen,
+  GripVertical, Info, Library, Lightbulb, Link, LoaderCircle, LogOut, Maximize2, Menu, Mic, Minimize2, Monitor, Moon, Palette, PanelLeftClose, PanelLeftOpen,
   PanelRightClose, PanelRightOpen, Pencil, Plus, Quote, Scale, Search, Settings, Signpost, Sun, Target, Trash, Triangle, TriangleAlert, Upload, UserPlus, Users, X,
   type LucideIcon,
 } from "lucide-react";
@@ -46,10 +46,13 @@ const GLYPHS = {
   link: Link,
   loader: LoaderCircle,
   "log-out": LogOut,
+  maximize: Maximize2,
   menu: Menu,
   mic: Mic,
+  minimize: Minimize2,
   monitor: Monitor,
   moon: Moon,
+  palette: Palette,
   "panel-left-close": PanelLeftClose,
   "panel-left-open": PanelLeftOpen,
   "panel-right-close": PanelRightClose,
