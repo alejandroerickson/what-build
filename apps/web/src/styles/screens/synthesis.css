@@ -136,9 +136,15 @@
 
 /* ---- Editor ----------------------------------------------------------------------------------- */
 
-.insight-form {
+/* A statement is one sentence: two lines, growing only if the person drags it. */
+.entry-form .entry-statement {
+  min-height: 0;
+}
+.insight-form,
+.entry-form {
   padding: var(--s-4) var(--sheet-px);
 }
+.entry-form .input,
 .insight-form .input:not(.insight-textarea) {
   max-width: 560px;
 }

@@ -14,6 +14,7 @@ import {
   PageHeader, Segmented, SelectField, Sheet, SheetBody, SheetHeader, StatusBadge, TextArea, TextField, useToast,
 } from "../ui/index.tsx";
 import { Byline, HistoryDialog, ReviewBadge, searchWith, STATUS_WORD, useCopyLink } from "./insights-common.tsx";
+import { FirstUse } from "./first-use.tsx";
 import { INSIGHT_VIEWS, Marked, TitleFind, useInsightList } from "./synthesis-panel.tsx";
 import "../styles/screens/synthesis.css";
 
@@ -39,7 +40,7 @@ export function InsightsPage() {
   const rows = findByTitle(inView, find, (i) => i.title);
   const narrowed = Boolean(view.id || outcome || find.trim());
   // "of N" compares with the product's insights, so it is left out for the archived ones.
-  const count = !list.data ? undefined : narrowed && !archived ? `${rows.length} of ${product.counts.insights}` : rows.length;
+  const count = !list.data ? undefined : narrowed && !archived && list.data.items.length ? `${rows.length} of ${product.counts.insights}` : rows.length;
   const outcomeTitle = outcomes.data?.items.find((o) => o.outcome_id === outcome)?.title;
   const chips: { label: string; to: string }[] = [];
   if (view.id) chips.push({ label: view.label, to: searchWith(path, params, { show: null }) });
@@ -73,31 +74,16 @@ export function InsightsPage() {
           <EmptyState size="inline" title={`No insight titles match “${find.trim()}”.`} action={<ButtonLink size="sm" to={searchWith(path, params, { q: null })}>Clear the search</ButtonLink>} />
         ) : archived ? (
           <EmptyState size="inline" title="No archived insights." />
-        ) : narrowed ? (
+        ) : narrowed && list.data.items.length ? (
           <EmptyState
             size="inline"
             title={view.id === "unreviewed" && !outcome ? "Every insight has been reviewed." : "No insights match these filters."}
             action={<ButtonLink size="sm" to={path}>Show all insights</ButtonLink>}
           />
         ) : (
-          <EmptyState
-            size="inline"
-            title="No insights yet"
-            action={
-              <>
-                <ButtonLink size="sm" to="/connect" icon="bot">
-                  Connect an agent
-                </ButtonLink>
-                {canWrite ? (
-                  <ButtonLink size="sm" to={`${app}/synthesis/insights/new`}>
-                    Write one yourself
-                  </ButtonLink>
-                ) : null}
-              </>
-            }
-          >
-            An insight brings several sources together into one readable argument. Ask your agent to draft one from the evidence, then review it here.
-          </EmptyState>
+          <FirstUse title="No insights yet" ask={`Read the sources in ${product.name} in WhatBuild and draft an insight for each outcome, citing the passages.`}>
+            An insight brings several sources together into one readable argument, citing the passages it rests on. You review it here once it is written.
+          </FirstUse>
         )
       ) : (
         <div className="insight-rows">

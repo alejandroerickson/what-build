@@ -149,7 +149,11 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
   const createFields = {
     statement: z.string().trim().min(1).max(1000).describe("The premise or choice in one sentence. Frozen after the first review."),
     body: z.string().max(10_000).default("").describe("Markdown: reasoning, stakes, alternatives considered."),
-    citations: z.array(citationInput).min(1).max(CITATION_MAX_COUNT).describe("1 to 20 exact passages: {record_id, seq_start, seq_end, quote?}. Read each passage first."),
+    citations: z
+      .array(citationInput)
+      .max(CITATION_MAX_COUNT)
+      .default([])
+      .describe("Up to 20 exact passages the entry rests on: {record_id, seq_start, seq_end, quote?}. Optional: an entry may start with none and gain them before its first review. Read each passage first."),
     outcome_ids: z.array(id("outcome")).max(20).optional(),
     links: z.array(linkInput).max(50).optional(),
     tags: tags.optional(),
@@ -178,7 +182,7 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
         etag: newEtag(), updated_by: json(ctx.actor),
       })
       .execute();
-    await recordActivity(ctx, { action: "created", entity_type: kind, entity_id: entry_id, entity_title: input.statement, summary: `Recorded an unconfirmed ${kind} citing ${citations.length} passage${citations.length === 1 ? "" : "s"}` });
+    await recordActivity(ctx, { action: "created", entity_type: kind, entity_id: entry_id, entity_title: input.statement, summary: citations.length ? `Recorded an unconfirmed ${kind} citing ${citations.length} passage${citations.length === 1 ? "" : "s"}` : `Recorded an unconfirmed ${kind} with no citations yet` });
     return entry_id;
   }
 
@@ -256,8 +260,8 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
     scope: "product",
     access: "write",
     mutates: true,
-    summary: `Record a ${kind}, cited to exact passages. Starts unconfirmed.`,
-    description: `${meaning} Create one only when the team needs to track this specific premise or choice; keep the register small and put everything else in an insight. Each citation is resolved against the source's current passages and frozen as a snapshot. Label author_type honestly: ordinary conversational agreement is not a person's authorship.`,
+    summary: `Record a ${kind}, optionally cited to exact passages. Starts unconfirmed.`,
+    description: `${meaning} Create one only when the team needs to track this specific premise or choice; keep the register small and put everything else in an insight. Citations are optional: an entry can be recorded before any evidence exists and cited later, until its first review. Each citation is resolved against the source's current passages and frozen as a snapshot. Label author_type honestly: ordinary conversational agreement is not a person's authorship.`,
     input: z.strictObject(createFields),
     rest: { method: "POST", path: `/${tool}` },
     mcp: { tool, action: "create" },
@@ -281,7 +285,7 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
       statement: createFields.statement.optional(),
       body: z.string().max(10_000).optional(),
       edits: editsInput(["body", "statement"] as const, "body").optional(),
-      citations: createFields.citations.optional(),
+      citations: z.array(citationInput).max(CITATION_MAX_COUNT).optional().describe("The full list of citations, replacing the current one; [] removes them all."),
       outcome_ids: createFields.outcome_ids,
       links: createFields.links,
       tags: createFields.tags,

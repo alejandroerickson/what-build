@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
 import { attribution, citationCheckWords, formatCue, nestQuotes, plural, relativeTime } from "../lib/format.ts";
 import { findByTitle } from "../lib/fuzzy.ts";
@@ -10,10 +10,11 @@ import { PROVENANCE_LABEL, REVIEW_STATUS, toneFor } from "../lib/status.ts";
 import type { CitationView, RegisterEntry, RegisterSummary } from "../lib/types.ts";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
-  Button, ButtonLink, Callout, EmptyState, ErrorCallout, FiltersInUse, FormGrid, Glyph, ListRow, Loading, Menu, MenuItem, MenuNote, PageHeader, SelectField, Sheet,
+  Button, ButtonLink, Callout, ChoiceRow, EmptyState, ErrorCallout, FiltersInUse, FormGrid, Glyph, ListRow, Loading, Menu, MenuItem, MenuNote, PageHeader, SelectField, Sheet,
   SheetBody, SheetHeader, StatusBadge, Tag, TextArea, useToast,
 } from "../ui/index.tsx";
 import { Byline, searchWith, useCopyLink } from "./insights-common.tsx";
+import { FirstUse } from "./first-use.tsx";
 import { entryViews, Marked, TitleFind, useEntryList } from "./synthesis-panel.tsx";
 import "../styles/screens/synthesis.css";
 
@@ -55,8 +56,14 @@ function withHistory(items: RegisterSummary[]): { e: RegisterSummary; nested: bo
 
 // ---- Register list ------------------------------------------------------------------------------
 
+/** What each register holds, said once for its empty list and its form. */
+const MEANING: Record<Kind, string> = {
+  assumptions: "An assumption is something the team treats as true before the evidence settles it.",
+  decisions: "A decision records a choice the team made and why. Recording one does not mean everyone agreed; reviews say that.",
+};
+
 export function RegisterListPage({ kind }: { kind: Kind }) {
-  const { product, api: base, app } = useProduct();
+  const { product, api: base, app, canWrite } = useProduct();
   const [params] = useSearchParams();
   const views = entryViews(kind);
   const view = views.find((v) => v.id === params.get("show")) ?? views[0]!;
@@ -78,7 +85,7 @@ export function RegisterListPage({ kind }: { kind: Kind }) {
   const rows = find.trim() ? found.map((f) => ({ e: f.item, nested: false })) : withHistory(inView);
   const narrowed = Boolean(view.id || outcome || find.trim());
   // "of N" compares with the product's count, which counts the ones "All" lists.
-  const count = !list.data ? undefined : narrowed && view.id !== "refuted" && !archived ? `${rows.length} of ${product.counts[kind]}` : rows.length;
+  const count = !list.data ? undefined : narrowed && view.id !== "refuted" && !archived && list.data.items.length ? `${rows.length} of ${product.counts[kind]}` : rows.length;
   const outcomeTitle = outcomes.data?.items.find((o) => o.outcome_id === outcome)?.title;
   const chips: { label: string; to: string }[] = [];
   if (view.id) chips.push({ label: view.label, to: searchWith(path, params, { show: null }) });
@@ -86,7 +93,20 @@ export function RegisterListPage({ kind }: { kind: Kind }) {
 
   return (
     <Sheet labelledBy="register-h">
-      <SheetHeader level={1} id="register-h" title={archived ? `Archived ${kind}` : TITLE[kind]} count={count} filter={<TitleFind label="Find by title" />} />
+      <SheetHeader
+        level={1}
+        id="register-h"
+        title={archived ? `Archived ${kind}` : TITLE[kind]}
+        count={count}
+        filter={<TitleFind label="Find by title" />}
+        end={
+          canWrite ? (
+            <ButtonLink to={`${path}/new${outcome ? `?outcome_id=${outcome}` : ""}`} icon="plus">
+              New {ONE[kind].toLowerCase()}
+            </ButtonLink>
+          ) : undefined
+        }
+      />
       <FiltersInUse chips={chips} clearTo={searchWith(path, params, { show: null, outcome_id: null })} />
       {list.isPending ? (
         <Loading lines={3} />
@@ -99,11 +119,26 @@ export function RegisterListPage({ kind }: { kind: Kind }) {
           <EmptyState size="inline" title={`No ${kind} match “${find.trim()}”.`} action={<ButtonLink size="sm" to={searchWith(path, params, { q: null })}>Clear the search</ButtonLink>} />
         ) : archived ? (
           <EmptyState size="inline" title={`No archived ${kind}.`} />
+        ) : !list.data.items.length ? (
+          <FirstUse
+            title={`No ${kind} yet`}
+            ask={
+              kind === "assumptions"
+                ? `List the assumptions ${product.name} depends on, and record the riskiest few in WhatBuild, citing passages where the evidence speaks to them.`
+                : `Record the decisions we have made on ${product.name} in WhatBuild, with the reasoning behind each.`
+            }
+          >
+            {MEANING[kind]} Record the few the team relies on; anything else belongs in an insight. Start with a sentence, and cite passages when there are some.
+          </FirstUse>
         ) : narrowed ? (
           <EmptyState size="inline" title={`No ${kind} match these filters.`} action={<ButtonLink size="sm" to={path}>Show all {kind}</ButtonLink>} />
         ) : (
-          <EmptyState size="inline" title={`No ${kind} yet`} action={<ButtonLink size="sm" to="/connect" icon="bot">Connect an agent</ButtonLink>}>
-            Ask your agent to record the few {kind} the team relies on, with citations to the passages behind them. Everything else belongs in an insight.
+          <EmptyState
+            size="inline"
+            title={`No current ${kind}.`}
+            action={<ButtonLink size="sm" to={searchWith(path, params, { show: "refuted" })}>Show refuted or replaced</ButtonLink>}
+          >
+            Every {ONE[kind].toLowerCase()} here has been refuted or replaced.
           </EmptyState>
         )
       ) : (
@@ -320,6 +355,7 @@ function ReviewForm({ entry, kind, onSaved }: { entry: RegisterEntry; kind: Kind
 export function RegisterEntryPage({ kind }: { kind: Kind }) {
   const { id = "" } = useParams();
   const { api: base, app, canWrite } = useProduct();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const copyLink = useCopyLink();
   const q = useQuery({ queryKey: ["entry", base, kind, id], queryFn: () => api<RegisterEntry>("GET", `${base}/${kind}/${id}`) });
@@ -394,6 +430,11 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
             </Button>
             {canWrite && !archived ? (
               <Menu label="More actions" triggerClassName="icon-btn icon-btn-md" trigger={<Glyph name="ellipsis" />} align="end">
+                {!e.frozen ? (
+                  <MenuItem icon="pencil" onSelect={() => navigate(`${listPath}/${e.id}/edit`)}>
+                    Edit
+                  </MenuItem>
+                ) : null}
                 <MenuItem icon="archive" onSelect={() => setArchived.mutate({ archived: true, etag: e.etag, undo: true })}>
                   Archive
                 </MenuItem>
@@ -474,7 +515,11 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
             ))}
           </ol>
         ) : (
-          <EmptyState size="inline">No passages cited yet. Ask your agent to cite the passages behind this {ONE[kind].toLowerCase()}.</EmptyState>
+          <EmptyState size="inline">
+            {e.frozen
+              ? `No passages cited. The wording was reviewed without them.`
+              : `No passages cited yet. Your agent can cite the passages this ${ONE[kind].toLowerCase()} rests on, until someone reviews it.`}
+          </EmptyState>
         )}
       </Sheet>
 
@@ -541,5 +586,187 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
         ) : null}
       </Sheet>
     </>
+  );
+}
+
+// ---- New or edit --------------------------------------------------------------------------------
+
+const WHY_HINT: Record<Kind, string> = {
+  assumptions: "What it rests on, and what would change if it turned out false. Markdown.",
+  decisions: "The reasoning, and the alternatives the team set aside. Markdown.",
+};
+
+/**
+ * A new entry, or an edit to one nobody has reviewed yet. A person writes the statement, why, and
+ * the outcomes it bears on; citations are optional and an agent adds them, until the first review
+ * freezes the wording.
+ */
+export function EntryEditPage({ kind }: { kind: Kind }) {
+  const { id } = useParams();
+  const [params] = useSearchParams();
+  const { api: base, app, canWrite } = useProduct();
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const existing = useQuery({ queryKey: ["entry", base, kind, id], enabled: Boolean(id), queryFn: () => api<RegisterEntry>("GET", `${base}/${kind}/${id}`) });
+  const outcomes = useQuery({ queryKey: ["outcomes", base, ""], queryFn: () => api<{ items: { outcome_id: string; title: string }[] }>("GET", `${base}/outcomes`) });
+  const heading = id ? `Edit ${ONE[kind].toLowerCase()}` : `New ${ONE[kind].toLowerCase()}`;
+  usePageTitle(heading);
+  const listPath = `${app}/synthesis/${kind}`;
+  const crumbs = [{ label: TITLE[kind], to: listPath }, ...(existing.data ? [{ label: existing.data.statement, to: `${listPath}/${existing.data.id}` }] : []), { label: id ? "Edit" : heading }];
+  if (!canWrite)
+    return (
+      <>
+        <PageHeader crumbs={crumbs} title={heading} />
+        <Callout tone="info" title={`You can read ${kind} here, but not record them`}>
+          Your role in this product is viewer, or the product is archived. An admin of the product can change your role.
+        </Callout>
+      </>
+    );
+  if (id && existing.isPending) return <Loading lines={6} variant="lines" />;
+  if (existing.isError)
+    return (
+      <>
+        <PageHeader crumbs={crumbs} title={heading} />
+        <ErrorCallout error={existing.error} onRetry={() => existing.refetch()} />
+      </>
+    );
+  if (existing.data?.frozen)
+    return (
+      <>
+        <PageHeader crumbs={crumbs} title={heading} />
+        <Callout tone="info" title="This entry has been reviewed, so its wording is frozen" action={<ButtonLink size="sm" to={`${listPath}/${existing.data.id}`}>Back to the entry</ButtonLink>}>
+          A review refers to the exact words reviewed. To correct it, ask your agent to supersede it with a corrected entry.
+        </Callout>
+      </>
+    );
+  return (
+    <EntryForm
+      key={id ?? "new"}
+      kind={kind}
+      crumbs={crumbs}
+      heading={heading}
+      initial={existing.data}
+      outcomes={outcomes.data?.items ?? []}
+      preselect={params.get("outcome_id")}
+      onSaved={(saved) => {
+        void qc.invalidateQueries({ queryKey: ["register", base, kind] });
+        void qc.invalidateQueries({ queryKey: ["entry", base, kind, saved] });
+        void qc.invalidateQueries({ queryKey: ["outcomes", base] });
+        void qc.invalidateQueries({ queryKey: ["product"] });
+        navigate(`${listPath}/${saved}`);
+      }}
+    />
+  );
+}
+
+function EntryForm({ kind, crumbs, heading, initial, outcomes, preselect, onSaved }: {
+  kind: Kind;
+  crumbs: { label: string; to?: string }[];
+  heading: string;
+  initial?: RegisterEntry;
+  outcomes: { outcome_id: string; title: string }[];
+  preselect: string | null;
+  onSaved: (id: string) => void;
+}) {
+  const { api: base, app } = useProduct();
+  const [statement, setStatement] = useState(initial?.statement ?? "");
+  const [body, setBody] = useState(initial?.body ?? "");
+  const [objs, setObjs] = useState<string[]>(initial?.outcome_ids ?? (preselect ? [preselect] : []));
+  // After a 409 the newer version is loaded here; saving again writes over it (theirs stays in history).
+  const [theirs, setTheirs] = useState<RegisterEntry | null>(null);
+  const save = useMutation({
+    mutationFn: async () => {
+      if (initial) {
+        await api("PATCH", `${base}/${kind}/${initial.id}`, { expected_etag: theirs?.etag ?? initial.etag, statement, body, outcome_ids: objs });
+        return initial.id;
+      }
+      const r = await api<RegisterEntry>("POST", `${base}/${kind}`, { statement, body, outcome_ids: objs });
+      return r.id;
+    },
+    onSuccess: onSaved,
+    onError: async (e) => {
+      if (initial && e instanceof ApiError && e.code === "stale_etag") setTheirs(await api<RegisterEntry>("GET", `${base}/${kind}/${initial.id}`).catch(() => null));
+    },
+  });
+  const stale = save.error instanceof ApiError && save.error.code === "stale_etag";
+  const frozenNow = theirs?.frozen;
+  const one = ONE[kind].toLowerCase();
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        save.mutate();
+      }}
+    >
+      <PageHeader crumbs={crumbs} title={heading} description={MEANING[kind]} />
+      <Sheet label={ONE[kind]} className="entry-form">
+        <FormGrid>
+          <TextArea
+            label="Statement"
+            required
+            maxLength={1000}
+            rows={2}
+            className="entry-statement"
+            value={statement}
+            onChange={(e) => setStatement(e.target.value)}
+            autoFocus={!initial}
+            hint={`The ${one} in one sentence. You can edit it until someone reviews it.`}
+          />
+          <TextArea label="Why" optional maxLength={10_000} rows={6} value={body} onChange={(e) => setBody(e.target.value)} hint={WHY_HINT[kind]} />
+          <div className="field" role="group" aria-labelledby="entry-outcomes">
+            <span className="field-label" id="entry-outcomes">
+              Outcomes it bears on
+            </span>
+            <div className="field-control insight-choices">
+              {outcomes.length ? (
+                outcomes.map((o) => (
+                  <ChoiceRow
+                    key={o.outcome_id}
+                    label={o.title}
+                    checked={objs.includes(o.outcome_id)}
+                    onChange={(e) => setObjs(e.target.checked ? [...objs, o.outcome_id] : objs.filter((x) => x !== o.outcome_id))}
+                  />
+                ))
+              ) : (
+                <p className="faint insight-choice-empty">
+                  No outcomes yet. <Link to={`${app}/idea`}>Add them on Idea</Link>.
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="field">
+            <span className="field-label">Cited passages</span>
+            <div className="field-control">
+              <p className="field-hint entry-form-cites">
+                {initial?.citations.length
+                  ? `${plural(initial.citations.length, "passage")} cited. Your agent can change them until someone reviews this ${one}.`
+                  : `None yet. Your agent can cite the passages this rests on, until someone reviews it.`}
+              </p>
+            </div>
+          </div>
+        </FormGrid>
+        {stale ? (
+          <div className="insight-form-notice">
+            <Callout tone="attention" inset title={frozenNow ? "Someone reviewed this entry while you were editing" : "Someone changed this entry while you were editing"}>
+              {frozenNow
+                ? "Its wording is now frozen, so your change can't be saved. Copy what you need; a correction supersedes the entry."
+                : theirs
+                  ? <>Their version: <strong>{theirs.statement}</strong>. Your text is still here. Saving again replaces theirs; their text is kept as an earlier version.</>
+                  : "Your text is still here. Copy what you need, reload to see their version, and apply your change again."}
+            </Callout>
+          </div>
+        ) : save.isError ? (
+          <div className="insight-form-notice">
+            <ErrorCallout error={save.error} inset />
+          </div>
+        ) : null}
+        <div className="insight-form-actions">
+          <Button type="submit" variant="primary" disabled={!statement.trim() || Boolean(frozenNow)} busy={save.isPending} busyLabel="Saving…">
+            {stale && theirs ? "Save mine over theirs" : initial ? "Save changes" : `Save ${one}`}
+          </Button>
+          <ButtonLink to={initial ? `${app}/synthesis/${kind}/${initial.id}` : `${app}/synthesis/${kind}`}>Cancel</ButtonLink>
+        </div>
+      </Sheet>
+    </form>
   );
 }

@@ -37,7 +37,7 @@ status: stable
 3. **Derive.** Every source's primary file is parsed into passage-addressable text: segments with
    speakers, cue timestamps where they exist, and exact character offsets.
 4. **Synthesize.** Write insights (substantial Markdown documents) and register consequential
-   assumptions and decisions, each cited to exact source passages.
+   assumptions and decisions, cited to exact source passages where the evidence exists.
 5. **Tell the story.** Publish an outward-facing, stakeholder-readable set of versioned HTML pages
    organized in a hierarchy.
 6. **Iterate together.** Teammates and their agents keep adding material and revising synthesis in

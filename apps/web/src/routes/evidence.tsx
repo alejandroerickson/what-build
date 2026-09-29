@@ -11,6 +11,7 @@ import {
   Button, ButtonLink, EmptyState, ErrorCallout, FiltersInUse, FindField, Glyph, ListRow, Loading, Menu, MenuGroup, MenuItem, MenuNote, MenuRadio, MenuSeparator, Segmented, Sheet,
   SheetHeader, StatusBadge, type GlyphName,
 } from "../ui/index.tsx";
+import { FirstUse } from "./first-use.tsx";
 import "../styles/screens/evidence.css";
 
 export function useKinds() {
@@ -72,7 +73,7 @@ export function AddSourceMenu() {
           Add source
         </>
       }
-      triggerClassName="btn btn-primary btn-md"
+      triggerClassName="btn btn-secondary btn-md"
       align="end"
       minWidth={260}
     >
@@ -371,21 +372,12 @@ export function EvidencePage() {
             <ErrorCallout inset title="Sources could not be loaded" error={q.error} onRetry={() => q.refetch()} />
           </div>
         ) : !records.length ? (
-          active.length ? (
+          active.length && product.counts.sources > 0 ? (
             <EmptyState size="inline" title="No sources match these filters." action={<ButtonLink to={`${app}/evidence`}>Clear filters</ButtonLink>} />
           ) : (
-            <EmptyState
-              size="inline"
-              title="No sources yet."
-              action={
-                <div className="row">
-                  {canWrite ? <AddSourceMenu /> : null}
-                  <ButtonLink to="/connect">Connect an agent</ButtonLink>
-                </div>
-              }
-            >
-              Interviews, sales calls, research exports and documents. Add one here and WhatBuild files it and parses it into passages, or ask your agent to add them.
-            </EmptyState>
+            <FirstUse title="No sources yet" ask={`Add these interview notes to ${product.name} in WhatBuild as sources.`}>
+              Interviews, sales calls, research exports and documents. WhatBuild parses each one into passages that insights, assumptions and decisions can cite.
+            </FirstUse>
           )
         ) : (
           <>

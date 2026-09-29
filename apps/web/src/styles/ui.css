@@ -743,6 +743,31 @@ a.chip:hover {
   flex-wrap: wrap;
 }
 
+/* A first-use list: what belongs here, then the request to give an agent. */
+.first-use {
+  padding-block: var(--s-5);
+}
+.first-use-agent {
+  margin-top: var(--s-4);
+  max-width: var(--measure);
+}
+.first-use-lead {
+  color: var(--muted);
+  font-weight: var(--fw-medium);
+}
+.first-use-request {
+  margin-top: var(--s-1h);
+  padding: var(--s-2h) var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--hover);
+  color: var(--text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.first-use .empty-action {
+  margin-top: var(--s-2h);
+}
+
 .loading {
   display: grid;
   gap: 0;

@@ -132,7 +132,8 @@ person's organization role is in the account menu, and who has which role is on 
   /synthesis                                  → …/synthesis/insights
   /synthesis/insights ?show=unreviewed|reviewed|archived &outcome_id&q
   /synthesis/insights/new  /synthesis/insights/:id  /synthesis/insights/:id/edit
-  /synthesis/assumptions[/:id]  /synthesis/decisions[/:id]   lists take ?show&outcome_id&q
+  /synthesis/assumptions[/new|/:id|/:id/edit]  /synthesis/decisions[/new|/:id|/:id/edit]
+                      lists take ?show&outcome_id&q; new takes ?outcome_id
                       (show: unconfirmed, confirmed, refuted, archived; q: title search)
   /story[/:page]      ?v=N
   /connect            ?product                Connect an agent, in the product's shell, with this product picked
@@ -179,8 +180,17 @@ The landing screen. The product concept first; then outcomes as aligned cards in
 content band that adapts to narrow screens. Create, edit inline, reorder, change status. Each card
 shows how many insights, assumptions, and decisions point at it, linking into Synthesis filtered by
 that outcome; each number is the one the linked list shows (current entries, [§4.2](04-data-model.md)). The default view, **Current**, lists active and achieved outcomes; Active, Achieved and
-Archived are filters (`?status=`). An empty product presents this screen as
-the first step of the loop: write the product concept, then the first outcome, then add material.
+Archived are filters (`?status=`). With no outcomes, the list says what an outcome is and gives
+the request to copy for an agent (interview the person, then write the concept and outcomes); New
+outcome and Write the product concept stay in their headers. Nothing on the screen prescribes an
+order of steps.
+
+**Empty lists** ([decision](../decisions/empty-lists-lead-with-the-agent.md)). Outcomes, Sources,
+Insights, Assumptions, Decisions and the Story share one first-use state: "No … yet", what belongs
+there, and a request naming the product for the person to copy to their agent, with Connect an
+agent (opening Connect an agent for this product) until they have one connected. Adding by hand is
+the header's create action, a default button, as when the list has items. A filter over a list
+with nothing in it shows the same state. Viewers see the words without the request.
 
 ## 7.6 Evidence
 
@@ -286,7 +296,7 @@ one set of filters and a count on every filter, laid out like Evidence's filters
 
 Each list has one filter dimension, its review state; working drafts are marked on their rows,
 not filtered. A list's header holds only its title, its count ("n of N" once narrowed), a title
-search and, for insights, New insight. The search (`?q=`) matches titles as you type, forgiving
+search and its create action: New insight, New assumption or New decision. The search (`?q=`) matches titles as you type, forgiving
 case, accents, punctuation and one wrong, missing or extra letter in a longer word, puts the best
 matches first and marks the matched words. There are no filters in a list's header: where a
 table has controls above it they sort, as Evidence's do, or search. Under the header, chips name
@@ -324,6 +334,13 @@ counts, filters and search work on what is loaded.
   freezes the statement, body and citations), link, supersede (opens a prefilled new entry).
   Frozen fields ([§4.8](04-data-model.md)) are shown as such, with "supersede" as the path to
   change them.
+- **New and edit entries** ([decision](../decisions/register-entries-may-start-uncited.md)):
+  New assumption and New decision (`…/assumptions/new`, `…/decisions/new`, with `?outcome_id=`
+  preselecting an outcome) take a statement, an optional why (Markdown) and the outcomes it bears
+  on, and need no citation. An entry nobody has reviewed has Edit in its actions menu
+  (`…/:id/edit`); a reviewed one is frozen. Citations come from agents; an entry without any says
+  "No passages cited yet" on its page and its row. When every entry in the default view is refuted
+  or replaced, the list says so and links to that view.
 
 ## 7.8 Story
 
@@ -364,7 +381,8 @@ that changes it ([decision](../decisions/agents-maintain-the-story-people-read-i
   passages and notes, earlier versions, and anything a page draws with scripts. **Open print view**
   opens the print view in a new tab ([§7.3](#73-routes)), which opens the browser's print dialog to
   save it as PDF.
-- An empty Story explains that agents write it, and links to connecting one.
+- An empty Story uses the first-use state ([§7.5](#75-idea)): agents write it, so the request to
+  copy is the only path.
 
 ## 7.9 Activity
 

@@ -20,7 +20,7 @@ organization). A product has four parts, named as the person sees them in the we
 - **Evidence** — the **sources**: interviews, calls, research exports, documents, decks. Each
   source's primary file is parsed into **passages** you can address exactly.
 - **Synthesis** — **insights** (readable Markdown synthesis), plus two small reviewed
-  **registers**: assumptions and decisions, each cited to exact passages.
+  **registers**: assumptions and decisions, cited to exact passages where evidence exists.
 - **Story** — versioned HTML pages that tell stakeholders where the discovery stands.
 
 ## Before anything else
@@ -140,8 +140,11 @@ can review it again.
 
 - An **assumption** is what the team treats as true while evidence is incomplete. A **decision**
   records a choice and why. Creating one does not mean the team agreed.
-- Each cites 1 to 20 passages: `{record_id, seq_start, seq_end, quote?}`. Read every passage before
-  citing it. A quote must occur exactly within the range. WhatBuild freezes a snapshot of the text.
+- Citations are optional, up to 20 passages: `{record_id, seq_start, seq_end, quote?}`. People
+  record assumptions and decisions before any evidence exists; cite the passages an entry rests on
+  when there are some, and add them with `update` before the first review. Read every passage
+  before citing it. A quote must occur exactly within the range. WhatBuild freezes a snapshot of the
+  text. Never cite a passage only to make an entry look supported.
 - New entries start `unconfirmed`. **Any review** — yours or a person's, whatever the status, even
   one that keeps it `unconfirmed` — freezes the statement, body and citations. Make every edit
   (`edits` works here too) before reviewing; after that, correct an entry only with `supersede`.

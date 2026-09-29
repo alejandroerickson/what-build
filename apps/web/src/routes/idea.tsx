@@ -10,6 +10,7 @@ import {
   Button, ButtonLink, Callout, Chip, EmptyState, ErrorCallout, FormGrid, Glyph, Loading, Menu, MenuItem, MenuSeparator, Segmented, SelectField, Sheet,
   SheetBody, SheetHeader, StatusBadge, TextArea, TextField, useToast,
 } from "../ui/index.tsx";
+import { FirstUse } from "./first-use.tsx";
 import { HistoryDialog } from "./insights-common.tsx";
 import "../styles/screens/idea.css";
 
@@ -159,7 +160,7 @@ function ConceptSheet() {
           {product.concept ? (
             <Markdown source={product.concept} className="prose idea-concept-text" headingShift={2} />
           ) : (
-            <p className="faint">No product concept written yet.{canEdit ? " Say who the product is for and the problem it solves." : " An admin of this product can write it."}</p>
+            <p className="faint">No product concept yet. {canEdit ? "Say who the product is for, the problem they have, and how it solves it." : "An admin of this product can write it."}</p>
           )}
         </SheetBody>
       )}
@@ -255,16 +256,19 @@ export function IdeaPage() {
             <ErrorCallout error={q.error} onRetry={() => q.refetch()} inset />
           </SheetBody>
         ) : !items.length ? (
-          editing === "new" ? null : status ? (
+          editing === "new" ? null : status && (status === "archived" || product.counts.outcomes > 0) ? (
             <EmptyState size="inline" title={`No ${STATUS_WORD[status as Outcome["status"]]?.toLowerCase() ?? ""} outcomes.`} action={<ButtonLink to={`${app}/idea`} size="sm">Show current outcomes</ButtonLink>} />
           ) : (
-            <EmptyState
-              size="inline"
-              title="What should your users achieve?"
-              action={canWrite ? <Button variant="primary" icon="plus" onClick={() => setEditing("new")}>Add the first outcome</Button> : null}
+            <FirstUse
+              title="No outcomes yet"
+              ask={
+                product.concept.trim()
+                  ? `Read the product concept of ${product.name} in WhatBuild and propose two or three outcomes. Add them once I agree.`
+                  : `Interview me about ${product.name}, then write its product concept and two or three outcomes in WhatBuild.`
+              }
             >
-              Write two or three outcomes: what the people this product serves should be able to achieve with it. Then add sources, and ask your agent to develop insights against them.
-            </EmptyState>
+              An outcome is what the people this product serves should be able to achieve with it, written from their side rather than as a feature. Two or three are enough to start.
+            </FirstUse>
           )
         ) : (
           <ol className="outcome-list">
@@ -330,11 +334,6 @@ export function IdeaPage() {
           </ol>
         )}
       </Sheet>
-      {product.counts.sources === 0 && canWrite ? (
-        <Callout tone="info" title="Next: add material" action={<ButtonLink to={`${app}/evidence/new`} size="sm">Add a source</ButtonLink>}>
-          Interviews, calls, research exports, documents. Or connect an agent and let it do the uploading.
-        </Callout>
-      ) : null}
       {history ? (
         <HistoryDialog
           tool="outcomes"

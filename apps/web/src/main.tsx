@@ -16,7 +16,7 @@ import { IdeaPage } from "./routes/idea.tsx";
 import { MembersPage, Welcome } from "./routes/org.tsx";
 import { OverviewPage } from "./routes/overview.tsx";
 import { ActivityPage, ProductSettingsPage } from "./routes/product-misc.tsx";
-import { RegisterEntryPage, RegisterListPage } from "./routes/registers.tsx";
+import { EntryEditPage, RegisterEntryPage, RegisterListPage } from "./routes/registers.tsx";
 import { SearchPage } from "./routes/search.tsx";
 import { SettingsPage } from "./routes/settings.tsx";
 import { SourceDetailPage } from "./routes/source-detail.tsx";
@@ -137,9 +137,13 @@ const router = createBrowserRouter([
               { path: "insights/:insightId", element: <InsightPage /> },
               { path: "insights/:insightId/edit", element: <InsightEditPage /> },
               { path: "assumptions", element: <RegisterListPage kind="assumptions" /> },
+              { path: "assumptions/new", element: <EntryEditPage kind="assumptions" /> },
               { path: "assumptions/:id", element: <RegisterEntryPage kind="assumptions" /> },
+              { path: "assumptions/:id/edit", element: <EntryEditPage kind="assumptions" /> },
               { path: "decisions", element: <RegisterListPage kind="decisions" /> },
+              { path: "decisions/new", element: <EntryEditPage kind="decisions" /> },
               { path: "decisions/:id", element: <RegisterEntryPage kind="decisions" /> },
+              { path: "decisions/:id/edit", element: <EntryEditPage kind="decisions" /> },
             ],
           },
           { path: "story", element: <StoryPage /> },
