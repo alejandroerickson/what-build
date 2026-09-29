@@ -8,7 +8,7 @@ import { derivedStatus } from "../lib/status.ts";
 import type { KindsResponse, RecordSummary } from "../lib/types.ts";
 import { PanelContext, PanelSection, usePageTitle } from "../shell/slots.tsx";
 import {
-  Button, ButtonLink, EmptyState, ErrorCallout, FindField, Glyph, ListRow, Loading, Menu, MenuGroup, MenuItem, MenuNote, MenuSeparator, Segmented, Sheet,
+  Button, ButtonLink, EmptyState, ErrorCallout, FindField, Glyph, ListRow, Loading, Menu, MenuGroup, MenuItem, MenuNote, MenuRadio, MenuSeparator, Segmented, Sheet,
   SheetHeader, StatusBadge, type GlyphName,
 } from "../ui/index.tsx";
 import "../styles/screens/evidence.css";
@@ -38,7 +38,7 @@ function iso(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
-/** Date presets for the event date (when the interview happened, not when it was added). */
+/** Date presets for the date captured (when the interview happened, not when it was added). */
 function datePresets(now = new Date()) {
   const y = now.getFullYear();
   const back = (days: number) => iso(new Date(now.getTime() - days * 86400000));
@@ -207,7 +207,7 @@ export function EvidenceFilters() {
           ))}
         </PanelSection>
       ) : null}
-      <PanelSection title="Date">
+      <PanelSection title="Date captured">
         {presets.map((p) => (
           <FilterLink key={p.id} to={href({ date_from: p.from, date_to: p.to })} current={onList && datePreset?.id === p.id}>
             {p.label}
@@ -231,13 +231,76 @@ export function EvidenceFilters() {
   );
 }
 
-/** List orders: the source's own date is the default, since that is when the evidence happened. */
+/**
+ * List orders. Three are dates, each named as one: captured (the source's own date, when the
+ * evidence happened, and the default), added to WhatBuild, and updated (its details last edited).
+ * Choosing the current order again reverses it.
+ */
 const SORTS = [
-  { id: "date", label: "Date" },
-  { id: "added", label: "Added" },
-  { id: "title", label: "Title" },
+  { id: "date", label: "Date captured", first: "desc", desc: "newest first", asc: "oldest first" },
+  { id: "added", label: "Date added", first: "desc", desc: "newest first", asc: "oldest first" },
+  { id: "updated", label: "Date updated", first: "desc", desc: "newest first", asc: "oldest first" },
+  { id: "title", label: "Title", first: "asc", desc: "Z to A", asc: "A to Z" },
 ] as const;
 type Sort = (typeof SORTS)[number]["id"];
+type Order = "asc" | "desc";
+
+/** The direction mark beside the current order: up for ascending, down for descending. */
+function OrderMark({ order }: { order: Order }) {
+  return <Glyph name="triangle" size="sm" className={`sort-mark${order === "desc" ? " is-desc" : ""}`} />;
+}
+
+/**
+ * "Sort by" and the orders as a segmented control; on the narrowest screens, the same choices in a
+ * menu. Each choice is a link: the current one reverses the direction.
+ */
+function SortControl({ sort, order, link }: { sort: Sort; order: Order; link: (id: Sort) => string }) {
+  const navigate = useNavigate();
+  const current = SORTS.find((s) => s.id === sort)!;
+  return (
+    <div className="sources-sort">
+      <span className="sources-sort-key" aria-hidden="true">
+        Sort by
+      </span>
+      <Segmented
+        label="Sort sources by"
+        className="sources-sort-wide"
+        value={sort}
+        items={SORTS.map((s) => ({
+          id: s.id,
+          to: link(s.id),
+          label:
+            s.id === sort ? (
+              <>
+                {s.label}
+                <OrderMark order={order} />
+                <span className="visually-hidden">, {s[order]}</span>
+              </>
+            ) : (
+              s.label
+            ),
+        }))}
+      />
+      <Menu
+        label={`Sort sources by ${current.label.toLowerCase()}, ${current[order]}`}
+        trigger={
+          <>
+            {current.label}
+            <OrderMark order={order} />
+          </>
+        }
+        triggerClassName="menu-trigger sources-sort-narrow"
+        align="start"
+      >
+        {SORTS.map((s) => (
+          <MenuRadio key={s.id} checked={s.id === sort} meta={s.id === sort ? <OrderMark order={order} /> : undefined} onSelect={() => navigate(link(s.id))}>
+            {s.label}
+          </MenuRadio>
+        ))}
+      </Menu>
+    </div>
+  );
+}
 
 export function EvidencePage() {
   const { api: base, app, canWrite, product } = useProduct();
@@ -245,13 +308,15 @@ export function EvidencePage() {
   const [params] = useSearchParams();
   const f = readFilters(params);
   const sort: Sort = SORTS.find((s) => s.id === params.get("sort"))?.id ?? "date";
-  usePageTitle("Evidence");
+  const first: Order = SORTS.find((s) => s.id === sort)!.first;
+  const order: Order = params.get("order") === "asc" || params.get("order") === "desc" ? (params.get("order") as Order) : first;
+  usePageTitle("Sources");
   const q = useInfiniteQuery({
-    queryKey: ["sources", base, f, sort],
+    queryKey: ["sources", base, f, sort, order],
     queryFn: ({ pageParam }) =>
       api<{ records: RecordSummary[]; next_cursor: string | null }>(
         "GET",
-        `${base}/sources${qs({ ...f, include_archived: f.include_archived === "1" ? "true" : "", sort, cursor: pageParam, limit: 50 })}`,
+        `${base}/sources${qs({ ...f, include_archived: f.include_archived === "1" ? "true" : "", sort, order, cursor: pageParam, limit: 50 })}`,
       ),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_cursor ?? undefined,
@@ -260,10 +325,14 @@ export function EvidencePage() {
   // Titles shared by more than one listed source: those rows also name their primary file.
   const titleCount = new Map<string, number>();
   for (const r of records) titleCount.set(r.title.trim().toLowerCase(), (titleCount.get(r.title.trim().toLowerCase()) ?? 0) + 1);
+  // The current order's link reverses it; another order starts from its usual direction.
   const sortLink = (id: Sort) => {
     const next = new URLSearchParams(params);
     if (id === "date") next.delete("sort");
     else next.set("sort", id);
+    const flip = order === "asc" ? "desc" : "asc";
+    if (id === sort && flip !== first) next.set("order", flip);
+    else next.delete("order");
     const s = next.toString();
     return `${app}/evidence${s ? `?${s}` : ""}`;
   };
@@ -286,7 +355,7 @@ export function EvidencePage() {
   if (f.kind) chips.push({ label: kindLabel(f.kind), to: clear(["kind"]) });
   else if (f.folder) chips.push({ label: groupLabel(f.folder), to: clear(["folder"]) });
   if (f.organization) chips.push({ label: f.organization, to: clear(["organization"]) });
-  if (f.date_from || f.date_to) chips.push({ label: `${f.date_from ? formatDate(f.date_from) : "Any time"} to ${f.date_to ? formatDate(f.date_to) : "now"}`, to: clear(["date_from", "date_to"]) });
+  if (f.date_from || f.date_to) chips.push({ label: `Captured ${f.date_from ? formatDate(f.date_from) : "any time"} to ${f.date_to ? formatDate(f.date_to) : "now"}`, to: clear(["date_from", "date_to"]) });
   if (f.tags) chips.push({ label: `Tagged ${f.tags}`, to: clear(["tags"]) });
   if (f.query) chips.push({ label: `Matching “${f.query}”`, to: clear(["query"]) });
   if (f.include_archived === "1") chips.push({ label: "Including archived", to: clear(["include_archived"]) });
@@ -299,9 +368,9 @@ export function EvidencePage() {
       <Sheet className="sources-sheet">
         <SheetHeader
           level={1}
-          title="Evidence"
+          title="Sources"
           count={count}
-          filter={<Segmented label="Sort sources by" value={sort} items={SORTS.map((s) => ({ id: s.id, label: s.label, to: sortLink(s.id) }))} />}
+          filter={<SortControl sort={sort} order={order} link={sortLink} />}
           end={canWrite ? <AddSourceMenu /> : undefined}
         />
         {chips.length ? (
@@ -321,7 +390,7 @@ export function EvidencePage() {
           <Loading label="Loading sources…" lines={6} />
         ) : q.isError ? (
           <div className="sheet-body">
-            <ErrorCallout inset title="Evidence could not be loaded" error={q.error} onRetry={() => q.refetch()} />
+            <ErrorCallout inset title="Sources could not be loaded" error={q.error} onRetry={() => q.refetch()} />
           </div>
         ) : !records.length ? (
           active.length ? (
@@ -355,7 +424,7 @@ export function EvidencePage() {
                     sub={[
                       kinds.data?.kinds.find((k) => k.kind === r.kind)?.short ?? r.kind_label,
                       r.organization,
-                      r.date ? formatDate(r.date) : sort === "date" ? "No date" : null,
+                      r.date ? formatDate(r.date) : sort === "date" ? "No capture date" : null,
                       twin ? (r.primary_file ? r.primary_file.split("/").pop() : "No file yet") : null,
                     ]
                       .filter(Boolean)
@@ -366,7 +435,7 @@ export function EvidencePage() {
                           {r.archived_at ? <StatusBadge tone="neutral">Archived</StatusBadge> : status ? <StatusBadge tone={status.tone}>{status.label}</StatusBadge> : plural(r.segment_count, "passage")}
                         </span>
                         <span className="source-row-added">
-                          {actorName(r.uploaded_by)}, {relativeTime(r.uploaded_at)}
+                          Updated {relativeTime(r.updated_at)} by {actorName(r.updated_by)}
                         </span>
                       </>
                     }

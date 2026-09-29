@@ -147,7 +147,7 @@ export function SourceNewPage() {
   }, [kinds.data]);
   const errors = {
     title: !title.trim() ? "Say what this source is." : null,
-    date: info?.dated && !date ? "This kind of source needs its date: when it happened, not today." : null,
+    date: info?.dated && !date ? "This kind of source needs the date it was captured: when it happened, not today." : null,
     organization: info?.organizational && !organization.trim() ? "Name the organization this concerns." : null,
   };
   const describeOk = !errors.title && !errors.date && !errors.organization;
@@ -352,7 +352,7 @@ export function SourceNewPage() {
               items={[
                 { label: "Kind", value: info.label },
                 { label: "Title", value: title },
-                { label: "Date", value: date ? formatDate(date) : "No date" },
+                { label: "Captured", value: date ? formatDate(date) : "No date" },
                 { label: "Organization", value: organization || null },
                 { label: "Tags", value: tags ? splitList(tags).join(", ") : null },
                 { label: "Filed under", value: destination(info, date) },
@@ -425,7 +425,7 @@ function DescribeForm({ info, touched, errors, fields: v, set }: {
     <div className="intake-describe">
       <FormGrid>
         <TextField label="Title" hint="How the team refers to it: who, what, when. Not the file name." required maxLength={300} value={v.title} onChange={(e) => set.title(e.target.value)} error={touched ? errors.title : null} autoFocus />
-        <TextField label="Date" type="date" hint="When the interview or call happened, or the document is dated. Not today." optional={!info.dated} value={v.date} onChange={(e) => set.date(e.target.value)} error={touched ? errors.date : null} />
+        <TextField label="Date captured" type="date" hint="When the interview or call happened, or the document is dated. Not today." optional={!info.dated} value={v.date} onChange={(e) => set.date(e.target.value)} error={touched ? errors.date : null} />
         <TextField label="Organization" hint="The customer or organization the material concerns." optional={!info.organizational} value={v.organization} onChange={(e) => set.organization(e.target.value)} error={touched ? errors.organization : null} />
         <TextField label="Tags" optional hint="Comma-separated. Domain terms belong here." value={v.tags} onChange={(e) => set.tags(e.target.value)} />
         {more ? (

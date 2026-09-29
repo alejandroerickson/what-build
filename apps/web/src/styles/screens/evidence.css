@@ -41,6 +41,31 @@
 
 /* ---- The list --------------------------------------------------------------------------------- */
 
+.sources-sort {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+.sources-sort-key {
+  color: var(--faint);
+  white-space: nowrap;
+}
+.sources-sort-narrow {
+  display: none;
+  height: var(--h-sm);
+  font-weight: var(--fw-medium);
+}
+/* The direction mark: a small filled triangle, pointing down for descending. */
+.sort-mark {
+  width: 7px;
+  height: 7px;
+  fill: currentColor;
+  color: var(--muted);
+}
+.sort-mark.is-desc {
+  transform: rotate(180deg);
+}
 .sources-active {
   display: flex;
   flex-wrap: wrap;
@@ -74,7 +99,7 @@
   text-align: right;
 }
 .source-row-added {
-  width: 150px;
+  width: 196px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -158,7 +183,7 @@
 
 /* Inspector */
 .source-inspector .kv-row {
-  grid-template-columns: calc(var(--col-key) + var(--s-3)) minmax(0, 1fr);
+  grid-template-columns: calc(var(--col-key) + var(--s-6)) minmax(0, 1fr);
 }
 .source-tags {
   margin-top: 0;
@@ -1014,6 +1039,19 @@
 }
 
 /* ---- Phone ------------------------------------------------------------------------------------ */
+
+/* The segmented sort needs the sheet's width; a narrower sheet offers the same choices in a menu. */
+.sources-sheet {
+  container-type: inline-size;
+}
+@container (max-width: 680px) {
+  .sources-sort-wide {
+    display: none;
+  }
+  .sources-sort-narrow {
+    display: inline-flex;
+  }
+}
 
 @media (max-width: 760px) {
   .source-row .list-end {

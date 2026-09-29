@@ -191,7 +191,7 @@ function SourceMeta({ record: r }: { record: SourceRecord }) {
   return (
     <span className="source-meta">
       <span>{r.kind_label}</span>
-      {r.date ? <span className="num">{formatDate(r.date)}</span> : null}
+      {r.date ? <span className="num">Captured {formatDate(r.date)}</span> : null}
       {r.organization ? <span>{r.organization}</span> : null}
       <span className="source-meta-added">
         Added by {actorName(r.uploaded_by)} · via {surfaceLabel(r.uploaded_by)}, {formatDate(r.uploaded_at)}
@@ -390,7 +390,17 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
           <KeyValue
             items={[
               { label: "Kind", value: r.kind_label },
-              { label: "Date", value: r.date ? formatDate(r.date) : "No date" },
+              { label: "Date captured", value: r.date ? <span className="num">{formatDate(r.date)}</span> : "No date" },
+              { label: "Date added", value: <span className="num">{formatDate(r.uploaded_at)}</span> },
+              {
+                label: "Date updated",
+                value: (
+                  <span className="num">
+                    {formatDate(r.updated_at)}
+                    {r.updated_at !== r.uploaded_at ? ` by ${actorName(r.updated_by)}` : null}
+                  </span>
+                ),
+              },
               { label: "Organization", value: r.organization },
               { label: "Participants", value: r.participants.length ? r.participants.join(", ") : null },
               { label: "Tags", value: r.tags.length ? <span className="chips source-tags">{r.tags.map((t) => <Tag key={t}>{t}</Tag>)}</span> : null },
@@ -415,11 +425,6 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
                     </span>
                   </span>
                 ),
-              },
-              { label: "Added", value: <span className="num">{formatDate(r.uploaded_at)}</span> },
-              {
-                label: "Updated",
-                value: r.updated_at !== r.uploaded_at ? `${relativeTime(r.updated_at)} by ${actorName(r.updated_by)}` : null,
               },
             ]}
           />
@@ -953,7 +958,7 @@ function EditDetails({ record, onClose, onReload }: { record: SourceRecord; onCl
         ))}
       </SelectField>
       <TextField label="Title" value={f.title} onChange={set("title")} required maxLength={300} />
-      <TextField label="Date" type="date" value={f.date} onChange={set("date")} optional />
+      <TextField label="Date captured" type="date" hint="When the interview or call happened, or the document is dated. Not when it was added." value={f.date} onChange={set("date")} optional />
       <TextField label="Organization" value={f.organization} onChange={set("organization")} optional />
       <TextField label="Tags" value={f.tags} onChange={set("tags")} optional hint="Comma-separated." />
       <TextField label="Participants" value={f.participants} onChange={set("participants")} optional hint="Comma-separated." />

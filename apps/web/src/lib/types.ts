@@ -19,6 +19,8 @@ export interface RecordSummary {
   folder_label: string;
   uploaded_by: Actor;
   uploaded_at: string;
+  updated_at: string;
+  updated_by: Actor;
   archived_at: string | null;
   derived_status: string;
   segment_count: number;
@@ -52,8 +54,6 @@ export interface RecordFull extends RecordSummary {
   participants: string[];
   source_system: string | null;
   related_records: string[];
-  updated_at: string;
-  updated_by: Actor;
   pending_primary_path: string | null;
   files: FileEntry[];
   search_rule: string;

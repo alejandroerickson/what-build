@@ -174,7 +174,7 @@ The sources, and everything for reading them.
 
 
 - **Upload, kind-first.** Step 1 asks what the material *is* (kinds grouped as in
-  [§4.4](04-data-model.md), in plain language). Step 2 asks for title, the **event date** (with
+  [§4.4](04-data-model.md), in plain language). Step 2 asks for title, the **date captured** (with
   help text distinguishing it from today), and optional metadata relevant to that kind. Step 3
   takes files and assigns roles with sensible defaults (a transcript beside a recording becomes
   primary). The person never sees or chooses a folder. Multi-file drag-and-drop is supported;
@@ -182,14 +182,21 @@ The sources, and everything for reading them.
   plain-language explanation and next step (`needs_transcript` → "add a transcript").
 - **Browse.** Filters held in the URL: folder, kind, organization, date range, tags, title
   substring, archived — set from the panel's context slot, each a link that sets URL params.
-  Paged. A segmented control in the header orders the list by the source's own **Date** (the
-  default, undated last), when it was **Added**, or **Title** (`?sort=`). The header counts the
-  sources listed, with "of N" live sources while filters narrow the list (left out once archived
+  Paged. The sheet is titled **Sources** (the section stays Evidence). Three dates are named as
+  dates everywhere: **date captured** (the source's own date: when the interview or call
+  happened, or the date the document carries), **date added** (when it came into WhatBuild) and
+  **date updated** (when its details were last edited). "Sort by" and a segmented control in the
+  header order the list by date captured (the default, undated last), date added, date updated or
+  title (`?sort=date|added|updated|title`). A small triangle beside the current order shows its
+  direction; choosing it again reverses it (`?order=asc|desc`; dates start newest first, title A
+  to Z). When the sheet is narrower than 680px the same choices sit in a menu. The panel's date
+  filter is headed "Date captured". Each row's end says "Updated <when> by <who>". The header
+  counts the sources listed, with "of N" live sources while filters narrow the list (left out once archived
   sources are included). Archived rows are muted and marked Archived. Rows whose titles match
   another listed row also name their primary file, so the twins can be told apart. A folder filter
   below a kind group (from a source's "Filed in") reads as the group and the rest of the path.
 - **Source page.** A source is the busiest object in the app, so the page is dense on purpose.
-  - **Header:** the title, then a meta line (kind, date, organization, and "Added by <who> · via
+  - **Header:** the title, then a meta line (kind, "Captured <date>", organization, and "Added by <who> · via
     <surface>, <date>"). Below it the **description**: the agent's summary note when there is one,
     rendered Markdown clamped to four lines with "Show all"; otherwise "No description yet. Ask your
     agent to summarize this source." linking to Agents. Editing the details (including kind —
@@ -206,9 +213,10 @@ The sources, and everything for reading them.
     versions, download, and add file). A non-primary file's role changes from its row menu,
     confirmed in a dialog that says what the change does. Original states a recording's length
     beside the player when the parse read one.
-  - **Inspector:** **Details** (kind, date, organization, participants, tags, source system,
-    evidence, where it is filed — a link to the list filtered to that folder — added by, added,
-    updated), a **Files** summary ("2 files", adding stored versions only when there are more
+  - **Inspector:** **Details** (kind, the three dates together — date captured, date added, date
+    updated, with who updated it when it has changed since it was added — organization,
+    participants, tags, source system, evidence, where it is filed — a link to the list filtered to
+    that folder — and added by), a **Files** summary ("2 files", adding stored versions only when there are more
     versions than files; only the primary is searched), **Cited in** (insights, assumptions,
     decisions and Story pages, each citation linking to its exact passage or range; a Story page
     is judged by its current version, and says so), "Activity on this source", and Archive. On a

@@ -113,7 +113,7 @@ A source is one discovery event or document. It is stored as a **record**, so it
 | `record_id` | Never changes, whatever else does (including a move to another product). |
 | `kind` | One of the kinds in §4.4. Required. |
 | `title` | 1–300 chars. Says what it is (who, what, when), never a file name. |
-| `date` | `YYYY-MM-DD`: the date of the **event or document** the discovery question turns on, never the upload date. `null` when genuinely unknown. |
+| `date` | `YYYY-MM-DD`: the date of the **event or document** the discovery question turns on, never the upload date. `null` when genuinely unknown. The web app calls it the **date captured**. |
 | `slug` | Derived from the title. |
 | `folder` | Derived, read-only: the source's logical placement (§4.4). |
 | `organization` | Optional, ≤ 200 chars. The external organization the material concerns. |
@@ -124,7 +124,8 @@ A source is one discovery event or document. It is stored as a **record**, so it
 | `dimensions` | `{ customer?, product_area?, lifecycle_stage? }`; `customer` and `product_area` are strings ≤ 120 chars normalized for case and spacing; `lifecycle_stage` is `discovery`, `sales` or `research` ([§8.3](08-search.md)). |
 | `provenance_depth` | `primary`, `derived`, `analysis_of_analysis`, `unknown` (default). |
 | `copied_from` | `{ product_id, record_id }` when the source is a copy ([§3.7](03-accounts-teams-and-identity.md)). |
-| `uploaded_by`, `uploaded_at` | Actor snapshot and time of creation. |
+| `uploaded_by`, `uploaded_at` | Actor snapshot and time of creation: the **date added**. |
+| `updated_by`, `updated_at` | Actor snapshot and time of the last change to the source's details, archive or restore: the **date updated**. Adding a file changes the etag but not this. |
 | files | §4.5. |
 | `derived_status` and counts | The current derivation's status, or `pending` before one exists ([§5](05-derived-layer.md)). |
 

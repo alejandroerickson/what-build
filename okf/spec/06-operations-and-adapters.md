@@ -98,9 +98,13 @@ receive no transport details and no way to reach another tenant.
   revisions; default 25, at most 100 for insights, register entries and Story versions; outcomes
   default to 100. Asking for more than the maximum is `422`, not a silent clamp.
 - `sources.list` orders by `sort`: `added` (newest added first, the default), `date` (the
-  source's own date, newest first, undated last) or `title` (A to Z). A cursor belongs to its sort
-  and filters: pass it back with both unchanged. With `date` or `title`, a cursor the sort did not issue is `422 invalid_cursor`. Each
-  summary in the list also names its primary file (`primary_file`, or `null`).
+  source's own date, newest first, undated last), `updated` (details most recently changed first)
+  or `title` (A to Z). `order` (`asc` or `desc`) reverses a sort; it defaults to `desc` for the
+  three dates and `asc` for title, and undated sources stay last either way. A cursor belongs to
+  its sort, order and filters: pass it back with all of them unchanged.
+  With `date`, `updated` or `title`, a cursor the sort did not issue is `422 invalid_cursor`. Each
+  summary in the list also names its primary file (`primary_file`, or `null`). Every source
+  summary carries `uploaded_at` and `updated_at` with their actors.
 - Text windows (`derived.text`, insight bodies): at most 20,000 characters per call by default,
   with `truncated` and totals.
 - Passages: at most 200 segments and 10 minutes per read ([§5.4](05-derived-layer.md)).
