@@ -96,6 +96,27 @@ export function ListRow({ to, lead, title, sub, children, end, className = "" }:
   );
 }
 
+/**
+ * The filters a list is narrowed by, under its sheet head: one chip per filter that removes it, and
+ * a way to clear them all. It keeps the view legible while the panel that set it is hidden.
+ */
+export function FiltersInUse({ chips, clearTo }: { chips: { label: string; to: string }[]; clearTo: string }) {
+  if (!chips.length) return null;
+  return (
+    <div className="filters-in-use" aria-label="Filters in use">
+      {chips.map((c) => (
+        <Link key={c.label} to={c.to} className="chip filters-in-use-chip" replace aria-label={`Remove filter: ${c.label}`}>
+          <span className="ellipsis">{c.label}</span>
+          <Glyph name="x" size="sm" />
+        </Link>
+      ))}
+      <Link to={clearTo} className="quiet-link" replace>
+        Clear filters
+      </Link>
+    </div>
+  );
+}
+
 // ---- Page chrome --------------------------------------------------------------------------------
 
 export interface Crumb {

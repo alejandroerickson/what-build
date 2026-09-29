@@ -43,11 +43,11 @@ the browser's back button and "open in new tab" both work.
 - **L1**, exactly and in this order: **Idea, Evidence, Synthesis, Story**, each with its count
   (Idea counts outcomes).
   Below them, quieter: **Agents** (the Connect page) and **Settings**. Synthesis opens on
-  Insights; assumptions and decisions are its other sub-views, reached as quiet links from it.
+  Insights; insights, assumptions and decisions are three lists side by side in its panel.
   Search belongs to Evidence. The app's URLs follow the areas (`/evidence`, `/synthesis/…`); REST
   and MCP name the objects (`sources`, `insights`).
 - **A context slot** under the navigation, which the screen fills: the page tree on Story, find
-  and filters on Evidence.
+  and filters on Evidence, the three lists and their filters on Synthesis.
 - **The footer** holds the account menu: Activity (§7.9), the theme (Light, Dark or System, which
   is the default; remembered per browser), Account and tokens, All products, and Sign out.
 - **Hiding.** The panel hides completely, never to an icon rail, with its button or `⌘\` / `Ctrl+\`
@@ -120,10 +120,10 @@ product the person can see says so, and says who can create one.
   /evidence/:record   ?view=passages|original|notes|files &seq=N
   /search             ?q&mode&scope&record_id
   /synthesis                                  → …/synthesis/insights
-  /synthesis/insights ?review=unreviewed|reviewed &outcome_id&source_id&status&query
+  /synthesis/insights ?show=unreviewed|reviewed|archived &outcome_id&q
   /synthesis/insights/new  /synthesis/insights/:id  /synthesis/insights/:id/edit
-  /synthesis/assumptions[/:id]  /synthesis/decisions[/:id]   lists take ?show&outcome_id
-                      (show: current, unconfirmed, confirmed, all)
+  /synthesis/assumptions[/:id]  /synthesis/decisions[/:id]   lists take ?show&outcome_id&q
+                      (show: unconfirmed, confirmed, refuted, archived; q: title search)
   /story[/:page]      ?v=N
   /activity           ?who=people|agents &entity_type&entity_id
   /settings                                   name, slug, people, export, organization, archive
@@ -264,18 +264,33 @@ The sources, and everything for reading them.
 
 ## 7.7 Synthesis
 
-Insights, the list of insight documents, is the landing view. Assumptions and decisions are
-reached from it.
+([decision](../decisions/lists-filter-from-the-panel.md)) Synthesis is three lists of equal standing: **insights**, **assumptions** and **decisions**.
+Insights is the landing view. The panel's context slot names all three, each as a section with
+one set of filters and a count on every filter, laid out like Evidence's filters:
 
+- **Insights:** All insights, Unreviewed (which includes changed since review), Reviewed,
+  Archived.
+- **Assumptions** and **Decisions:** All, Unconfirmed, Confirmed, Refuted or replaced, Archived.
+  "All" is the unconfirmed and confirmed entries, the ones every count of them in the app counts.
+
+Each list has one filter dimension, its review state; working drafts are marked on their rows,
+not filtered. A list's header holds only its title, its count ("n of N" once narrowed), a title
+search and, for insights, New insight. The search (`?q=`) matches titles as you type, forgiving
+case, accents, punctuation and one wrong, missing or extra letter in a longer word, puts the best
+matches first and marks the matched words. There are no filters in a list's header: where a
+table has controls above it they sort, as Evidence's do, or search. Under the header, chips name
+the filter and outcome in use, each removable, so the view stays legible while the panel is
+hidden. Following an outcome's links from Idea lists the entries for that outcome, and the
+panel's counts follow it. A product holds dozens of each object, so each list loads whole and the
+counts, filters and search work on what is loaded.
 
 - **Insight documents:** list with status, summary, and reference counts; a reader with rendered
   Markdown; an editor with preview and a reference picker for outcomes, sources, insights,
   assumptions, decisions; explicit publish and unpublish.
 - **Insight review** ([§4.7](04-data-model.md)): a person marks an insight **reviewed**; an insight
-  edited after its review shows as **changed since review** until it is reviewed again. The list
-  has a segmented filter **All / Unreviewed / Reviewed** (`?review=`; Unreviewed includes changed
-  since review, and shows how many wait) and a review badge on each row. The insight page shows the
-  state in words with who reviewed it and when, a **Mark reviewed** button, and Undo on a reviewed
+  edited after its review shows as **changed since review** until it is reviewed again. The panel
+  filters the list by it (Unreviewed includes changed since review), and each row carries a review
+  badge. The insight page shows the state in words with who reviewed it and when, a **Mark reviewed** button, and Undo on a reviewed
   insight. Its **Connected** list marks each reference's state in words where the reader should
   know it (Archived, Achieved, a register entry's status, No longer in this product), as the Story
   inspector's Draws on does.
@@ -286,11 +301,10 @@ reached from it.
   revisions the operations expose, and looks and behaves identically in both. Planned: a diff
   against the current text, and the same control for the product concept, annotations and unreviewed
   register entries once their revisions are exposed.
-- **Registers:** two lists, filterable by review status (`?show=`: Current, Unconfirmed,
-  Confirmed, All statuses — named after the status chips on the rows) and outcome; the default
-  is current entries, and the header counts the rows the view lists. Where a view lists superseded
-  entries, each sits under the entry that replaced it, muted, marked "Replaced by the entry
-  above". An
+- **Registers:** the assumptions and decisions lists, filtered from the panel as above; the
+  default lists unconfirmed and confirmed entries. Where a view lists a superseded entry under the
+  entry that replaced it, it sits there, muted, marked "Replaced by the entry above"; while a
+  search is typed, rows are in match order instead. An
   entry page shows the statement, body, citations with their **snapshot text** and live
   `check_citations` status in words (which also says when a quote matched only ignoring
   formatting, when the primary file has a newer version, and when the source was parsed again

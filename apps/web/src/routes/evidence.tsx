@@ -1,14 +1,14 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { api, qs } from "../lib/api.ts";
 import { actorName, formatDate, plural, relativeTime } from "../lib/format.ts";
 import { useProduct } from "../lib/session.tsx";
 import { derivedStatus } from "../lib/status.ts";
 import type { KindsResponse, RecordSummary } from "../lib/types.ts";
-import { PanelContext, PanelSection, usePageTitle } from "../shell/slots.tsx";
+import { PanelContext, PanelFilter, PanelSection, usePageTitle } from "../shell/slots.tsx";
 import {
-  Button, ButtonLink, EmptyState, ErrorCallout, FindField, Glyph, ListRow, Loading, Menu, MenuGroup, MenuItem, MenuNote, MenuRadio, MenuSeparator, Segmented, Sheet,
+  Button, ButtonLink, EmptyState, ErrorCallout, FiltersInUse, FindField, Glyph, ListRow, Loading, Menu, MenuGroup, MenuItem, MenuNote, MenuRadio, MenuSeparator, Segmented, Sheet,
   SheetHeader, StatusBadge, type GlyphName,
 } from "../ui/index.tsx";
 import "../styles/screens/evidence.css";
@@ -92,16 +92,6 @@ export function AddSourceMenu() {
   );
 }
 
-/** One single-select filter value in the panel: a real link that sets a URL parameter. */
-function FilterLink({ to, current, children, depth = 0 }: { to: string; current: boolean; children: ReactNode; depth?: 0 | 1 }) {
-  return (
-    <Link to={to} className={`source-filter${depth ? " source-filter-sub" : ""}`} aria-current={current ? "true" : undefined} replace>
-      <span className="source-filter-label">{children}</span>
-      {current ? <Glyph name="check" size="sm" /> : null}
-    </Link>
-  );
-}
-
 /**
  * The Evidence panel context: "Search passages", then single-select filters as links. Used on the
  * list (where the links change the list in place) and on a source page (where they lead back to it).
@@ -162,24 +152,24 @@ export function EvidenceFilters() {
           ) : undefined
         }
       >
-        <FilterLink to={href({ folder: "", kind: "" })} current={onList && !f.folder && !f.kind}>
+        <PanelFilter to={href({ folder: "", kind: "" })} current={onList && !f.folder && !f.kind}>
           All kinds
-        </FilterLink>
+        </PanelFilter>
         {kinds.data?.groups.map((g) => {
           const folder = folderForGroup(g.group);
           const open = openFolder === folder;
           return (
             <div key={g.group}>
-              <FilterLink to={href({ folder, kind: "" })} current={onList && f.folder === folder && !f.kind}>
+              <PanelFilter to={href({ folder, kind: "" })} current={onList && f.folder === folder && !f.kind}>
                 {g.label}
-              </FilterLink>
+              </PanelFilter>
               {open && onList
                 ? kinds.data.kinds
                     .filter((k) => k.group === g.group)
                     .map((k) => (
-                      <FilterLink key={k.kind} depth={1} to={href({ folder, kind: k.kind })} current={f.kind === k.kind}>
+                      <PanelFilter key={k.kind} sub to={href({ folder, kind: k.kind })} current={f.kind === k.kind}>
                         {k.label}
-                      </FilterLink>
+                      </PanelFilter>
                     ))
                 : null}
             </div>
@@ -197,35 +187,35 @@ export function EvidenceFilters() {
             ) : undefined
           }
         >
-          <FilterLink to={href({ organization: "" })} current={onList && !f.organization}>
+          <PanelFilter to={href({ organization: "" })} current={onList && !f.organization}>
             Any organization
-          </FilterLink>
+          </PanelFilter>
           {shownOrgs.map((o) => (
-            <FilterLink key={o} to={href({ organization: o })} current={onList && f.organization.toLowerCase() === o.toLowerCase()}>
+            <PanelFilter key={o} to={href({ organization: o })} current={onList && f.organization.toLowerCase() === o.toLowerCase()}>
               {o}
-            </FilterLink>
+            </PanelFilter>
           ))}
         </PanelSection>
       ) : null}
       <PanelSection title="Date captured">
         {presets.map((p) => (
-          <FilterLink key={p.id} to={href({ date_from: p.from, date_to: p.to })} current={onList && datePreset?.id === p.id}>
+          <PanelFilter key={p.id} to={href({ date_from: p.from, date_to: p.to })} current={onList && datePreset?.id === p.id}>
             {p.label}
-          </FilterLink>
+          </PanelFilter>
         ))}
         {onList && !datePreset ? (
-          <FilterLink to={href({})} current>
+          <PanelFilter to={href({})} current>
             {f.date_from ? formatDate(f.date_from) : "Any time"} to {f.date_to ? formatDate(f.date_to) : "now"}
-          </FilterLink>
+          </PanelFilter>
         ) : null}
       </PanelSection>
       <PanelSection title="Archived">
-        <FilterLink to={href({ include_archived: "" })} current={onList && f.include_archived !== "1"}>
+        <PanelFilter to={href({ include_archived: "" })} current={onList && f.include_archived !== "1"}>
           Leave out archived
-        </FilterLink>
-        <FilterLink to={href({ include_archived: "1" })} current={onList && f.include_archived === "1"}>
+        </PanelFilter>
+        <PanelFilter to={href({ include_archived: "1" })} current={onList && f.include_archived === "1"}>
           Include archived
-        </FilterLink>
+        </PanelFilter>
       </PanelSection>
     </PanelContext>
   );
@@ -373,19 +363,7 @@ export function EvidencePage() {
           filter={<SortControl sort={sort} order={order} link={sortLink} />}
           end={canWrite ? <AddSourceMenu /> : undefined}
         />
-        {chips.length ? (
-          <div className="sources-active" aria-label="Filters in use">
-            {chips.map((c) => (
-              <Link key={c.label} to={c.to} className="chip sources-active-chip" replace aria-label={`Remove filter: ${c.label}`}>
-                <span className="ellipsis">{c.label}</span>
-                <Glyph name="x" size="sm" />
-              </Link>
-            ))}
-            <Link to={`${app}/evidence`} className="quiet-link" replace>
-              Clear filters
-            </Link>
-          </div>
-        ) : null}
+        <FiltersInUse chips={chips} clearTo={`${app}/evidence`} />
         {q.isPending ? (
           <Loading label="Loading sources…" lines={6} />
         ) : q.isError ? (

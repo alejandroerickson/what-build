@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useId, useLayoutEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { IconButton } from "../ui/index.tsx";
+import { Link } from "react-router";
+import { Glyph, IconButton } from "../ui/index.tsx";
 import { shortcutLabel } from "../ui/media.ts";
 
 /**
@@ -33,7 +34,8 @@ function useSlots(): ShellSlots | null {
 }
 
 /**
- * Fills the left panel's context slot (under L1 and the quiet group): the Story tree, source filters.
+ * Fills the left panel's context slot (under L1 and the quiet group): the Story tree, source
+ * filters, Synthesis's three lists.
  * It scrolls on its own. Give it a label; it becomes the region's accessible name.
  */
 export function PanelContext({ label, children }: { label: string; children: ReactNode }) {
@@ -102,5 +104,28 @@ export function PanelSection({ title, end, children }: { title: ReactNode; end?:
       </div>
       {children}
     </div>
+  );
+}
+
+/**
+ * One single-select filter in a panel section: a real link that sets URL parameters. The current
+ * one is marked with a check or, where the filters carry counts, the way the nav marks its current
+ * section: the selection fill, with the count beside it.
+ */
+export function PanelFilter({ to, current, count, sub, replace = true, children }: {
+  to: string;
+  current: boolean;
+  count?: ReactNode;
+  /** Indented under the filter before it (a kind under its group). */
+  sub?: boolean;
+  /** Filters that narrow the same list replace the history entry; ones that open another list add one. */
+  replace?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <Link to={to} className={`panel-filter${sub ? " panel-filter-sub" : ""}`} aria-current={current ? "true" : undefined} replace={replace}>
+      <span className="panel-filter-label">{children}</span>
+      {count !== undefined ? <span className="panel-filter-count num">{count}</span> : current ? <Glyph name="check" size="sm" /> : null}
+    </Link>
   );
 }
