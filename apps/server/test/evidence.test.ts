@@ -106,7 +106,7 @@ describe("what upload, read and search say about a source", () => {
 });
 
 describe("listing sources in order", () => {
-  it("sorts by date (undated last) or title, pages without skipping, and names each primary file", async () => {
+  it("sorts by date (undated last), last update or title, either way round, pages without skipping, and names each primary file", async () => {
     const make = async (title: string, date: string | null) => {
       const r = await alice.api("POST", `${P}/sources`, { kind: "other", title, ...(date ? { date } : {}) });
       expect(r.status).toBe(201);
@@ -132,6 +132,18 @@ describe("listing sources in order", () => {
     expect(await walk("date")).toEqual([sept, sameDay, aug, june, undated]);
     expect(await walk("title")).toEqual([sept, aug, undated, june, sameDay]);
     expect(await walk("added")).toEqual([sameDay, aug, undated, sept, june]);
+    // order reverses a sort; undated sources stay last.
+    expect(await walk("date&order=asc")).toEqual([june, aug, sameDay, sept, undated]);
+    expect(await walk("title&order=desc")).toEqual([sameDay, june, undated, aug, sept]);
+    expect(await walk("added&order=asc")).toEqual([june, sept, undated, aug, sameDay]);
+    // Editing a source's details moves it to the top of "updated", and its summary says when.
+    const got = await alice.api("GET", `${P}/sources/${june}`);
+    const edited = await alice.api("PATCH", `${P}/sources/${june}`, { expected_etag: got.body.etag, organization: "Sortable Co" });
+    expect(edited.status).toBe(200);
+    expect(await walk("updated")).toEqual([june, sameDay, aug, undated, sept]);
+    expect(await walk("updated&order=asc")).toEqual([sept, undated, aug, sameDay, june]);
+    const first = await alice.api("GET", `${P}/sources?query=Sortable&sort=updated&limit=1`);
+    expect(first.body.records[0].updated_at).toBe(edited.body.updated_at);
 
     const { recordId } = await upload("other", "sortable-deck.pptx", new Uint8Array([80, 75, 3, 4]));
     const listed = await alice.api("GET", `${P}/sources?query=sortable-deck`);
@@ -142,6 +154,10 @@ describe("listing sources in order", () => {
     const bad = await alice.api("GET", `${P}/sources?sort=date&cursor=${june}`);
     expect(bad.status).toBe(422);
     expect(bad.body.error.code).toBe("invalid_cursor");
+    const notATime = Buffer.from(JSON.stringify({ v: "2026-06-05", id: june })).toString("base64url");
+    const badUpdated = await alice.api("GET", `${P}/sources?sort=updated&cursor=${notATime}`);
+    expect(badUpdated.status).toBe(422);
+    expect(badUpdated.body.error.code).toBe("invalid_cursor");
   });
 });
 

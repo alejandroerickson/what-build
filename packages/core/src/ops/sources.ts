@@ -123,6 +123,8 @@ export function recordSummary(r: RecordRow, s?: { derived_status: string; segmen
     folder_label: describeFolder(r.folder),
     uploaded_by: r.uploaded_by,
     uploaded_at: r.uploaded_at,
+    updated_at: r.updated_at,
+    updated_by: r.updated_by,
     archived_at: r.archived_at,
     derived_status: s?.derived_status ?? "pending",
     segment_count: s?.segment_count ?? 0,
@@ -131,7 +133,7 @@ export function recordSummary(r: RecordRow, s?: { derived_status: string; segmen
   };
 }
 
-/** A date or title cursor from sources.list: the last row's sort key and id. */
+/** A date, update-time or title cursor from sources.list: the last row's sort key and id. */
 function readSortCursor(cursor: string): { v: string | null; id: string } {
   try {
     const c = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")) as { v?: unknown; id?: unknown };
@@ -139,7 +141,11 @@ function readSortCursor(cursor: string): { v: string | null; id: string } {
   } catch {
     // Not ours; refused below.
   }
-  throw invalid("invalid_cursor", "This cursor does not belong to this sort. Pass next_cursor back with the same filters and sort.");
+  throw badCursor();
+}
+
+function badCursor() {
+  return invalid("invalid_cursor", "This cursor does not belong to this sort. Pass next_cursor back with the same filters and sort.");
 }
 
 // ---- Taxonomy-----------------------------------------------------------------------------------
@@ -167,9 +173,9 @@ export const listSources = defineOperation({
   scope: "product",
   access: "read",
   mutates: false,
-  summary: "List sources by metadata: newest added first, or by date or title. For passage content use search.",
+  summary: "List sources by metadata: newest added first, or by date, last update or title, either way round. For passage content use search.",
   description:
-    "Filters combine. `query` is a case-insensitive substring over metadata only — title, organization, participants, source system, tags and file names — never passage text; use `search` for content. `sort`: added (newest added first, the default), date (the source's own date, newest first, undated last) or title (A to Z). Returns summaries with derived_status, the primary file's path (primary_file) and next_cursor; pass the cursor back with the same filters and sort.",
+    "Filters combine. `query` is a case-insensitive substring over metadata only — title, organization, participants, source system, tags and file names — never passage text; use `search` for content. `sort`: added (newest added first, the default), date (the source's own date, newest first, undated last), updated (details most recently changed first) or title (A to Z). `order` reverses it: asc or desc, defaulting to desc for the three dates and asc for title; undated sources stay last either way. Returns summaries with derived_status, the primary file's path (primary_file) and next_cursor; pass the cursor back with the same filters, sort and order.",
   input: z.strictObject({
     folder: z.string().max(100).optional().describe("A folder root such as interviews or documents/decks, or a prefix under it."),
     kind: kind.optional(),
@@ -183,7 +189,8 @@ export const listSources = defineOperation({
     lifecycle_stage: z.enum(["discovery", "sales", "research"]).optional(),
     provenance_depth: provenanceDepth.optional(),
     include_archived: z.boolean().default(false),
-    sort: z.enum(["added", "date", "title"]).default("added"),
+    sort: z.enum(["added", "date", "updated", "title"]).default("added"),
+    order: z.enum(["asc", "desc"]).optional().describe("Defaults to desc for added, date and updated, and asc for title."),
     limit: z.number().int().min(1).max(200).default(50),
     cursor: z.string().optional(),
   }),
@@ -214,26 +221,33 @@ export const listSources = defineOperation({
           or exists (select 1 from files f where f.record_id = records.record_id and f.path ilike ${like}))`,
       );
     }
-    // Keyset paging. "added" keeps the bare record id as its cursor; date and title carry the sort
-    // key as well, as opaque base64url JSON, so a page boundary never skips or repeats a row.
+    // Keyset paging. "added" keeps the bare record id as its cursor; the other sorts carry the sort
+    // key as well, as opaque base64url JSON, so a page boundary never skips or repeats a row. The
+    // update time travels as Postgres text, which keeps its microseconds.
+    const dir = input.order ?? (input.sort === "title" ? "asc" : "desc");
+    const past = sql.raw(dir === "desc" ? "<" : ">");
     const after = input.cursor && input.sort !== "added" ? readSortCursor(input.cursor) : null;
-    let sorted = q.select(sql<string>`lower(title)`.as("sort_title"));
+    let sorted = q.select([sql<string>`lower(title)`.as("sort_title"), sql<string>`updated_at::text`.as("sort_updated")]);
     if (input.sort === "added") {
-      if (input.cursor) sorted = sorted.where("record_id", "<", input.cursor);
-      sorted = sorted.orderBy("record_id", "desc");
+      if (input.cursor) sorted = sorted.where(sql<boolean>`record_id ${past} ${input.cursor}`);
     } else if (input.sort === "date") {
       if (after)
         sorted = sorted.where(
           after.v === null
-            ? sql<boolean>`(date is null and record_id < ${after.id})`
-            : sql<boolean>`(date < ${after.v}::date or (date = ${after.v}::date and record_id < ${after.id}) or date is null)`,
+            ? sql<boolean>`(date is null and record_id ${past} ${after.id})`
+            : sql<boolean>`(date ${past} ${after.v}::date or (date = ${after.v}::date and record_id ${past} ${after.id}) or date is null)`,
         );
-      sorted = sorted.orderBy(sql`date desc nulls last`).orderBy("record_id", "desc");
+      sorted = sorted.orderBy(sql`date ${sql.raw(dir)} nulls last`);
+    } else if (input.sort === "updated") {
+      if (after && !/^\d{4}-\d{2}-\d{2} [\d:.]+[+-][\d:]+$/.test(after.v ?? "")) throw badCursor();
+      if (after) sorted = sorted.where(sql<boolean>`(updated_at ${past} ${after.v}::timestamptz or (updated_at = ${after.v}::timestamptz and record_id ${past} ${after.id}))`);
+      sorted = sorted.orderBy("updated_at", dir);
     } else {
       const v = after?.v ?? "";
-      if (after) sorted = sorted.where(sql<boolean>`(lower(title) > ${v} or (lower(title) = ${v} and record_id > ${after.id}))`);
-      sorted = sorted.orderBy(sql`lower(title)`).orderBy("record_id", "asc");
+      if (after) sorted = sorted.where(sql<boolean>`(lower(title) ${past} ${v} or (lower(title) = ${v} and record_id ${past} ${after.id}))`);
+      sorted = sorted.orderBy(sql`lower(title) ${sql.raw(dir)}`);
     }
+    sorted = sorted.orderBy("record_id", dir);
     const rows = await sorted.limit(input.limit + 1).execute();
     const page = rows.slice(0, input.limit);
     const statuses = await derivedStatuses(ctx, page.map((r) => r.record_id));
@@ -247,7 +261,7 @@ export const listSources = defineOperation({
       next =
         input.sort === "added"
           ? last.record_id
-          : Buffer.from(JSON.stringify({ v: input.sort === "date" ? last.date : last.sort_title, id: last.record_id })).toString("base64url");
+          : Buffer.from(JSON.stringify({ v: input.sort === "date" ? last.date : input.sort === "updated" ? last.sort_updated : last.sort_title, id: last.record_id })).toString("base64url");
     return {
       records: page.map((r) => ({ ...recordSummary(r, statuses.get(r.record_id)), primary_file: primaryOf.get(r.record_id) ?? null })),
       next_cursor: next,
