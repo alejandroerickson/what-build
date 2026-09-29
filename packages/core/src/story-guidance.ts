@@ -10,7 +10,7 @@
  * a serif system stack: it is the Story's own, not the app's.
  */
 
-export const GUIDANCE_VERSION = "1.2.0";
+export const GUIDANCE_VERSION = "1.3.0";
 
 /** The web design token each derived guidance token copies, in both schemes. */
 export const WEB_TOKEN: Record<string, string> = {
@@ -220,7 +220,7 @@ export const CHECKLIST = [
   { check: "Scope", question: "Does each section do one job, and is everything here needed?" },
   { check: "Editorial pass", question: "Did you clarify, distill and polish?" },
   { check: "Structure and access", question: "One H1, logical headings, labelled tables, links that say where they go, no colour-only meaning?" },
-  { check: "Publishing", question: "Did you read the current version, pass its etag, send refs and citations in full when they change, write a one-line change note for readers, and place the page in the hierarchy (unless your instructions say not to)?" },
+  { check: "Publishing", question: "Did you read the current version, pass its etag, send refs and citations in full when they change, and place the page in the hierarchy (unless your instructions say not to)?" },
 ];
 
 export function starterHtml(title = "REPLACE: page title") {
@@ -245,7 +245,7 @@ export const WORKFLOW = [
   "Cite the exact passages the page rests on in citations (up to 20), and list the objects it draws on in refs. When you pass either list, pass it in full: it replaces the previous one.",
   "On a later version send only what changes: html, refs and citations you omit carry forward from the current version. patch_html fixes a sentence by exact find and replace; from_version restores an earlier version as a new one. Compare html_sha256 to confirm identical HTML.",
   "Use the hierarchy to find related pages; give each page a short lower-case page_id; link related pages inline.",
-  "Give each version a note: one line, for readers, on what changed for them (it appears in the page's history), e.g. \"Added what the finance interviews showed about month-end.\" Mechanics — citation ranges, merges to stay within the citation limit, ids — belong in the notes for agents. summary is different: it describes the page itself and shows in navigation.",
+  "summary describes the page itself and shows in navigation. Keep mechanics — citation ranges, merges to stay within the citation limit, ids — in the notes for agents; the activity log already records each version.",
   "Publishing does not place a page: set_hierarchy does, with its own etag. Place each new page unless your instructions say otherwise; then leave it unplaced and say so.",
   "After publishing, update the page's notes for agents with write_notes: its purpose, what is still to fold in, and structural decisions. publish returns agent_notes_etag; while the notes are empty you may omit the etag.",
   "Archiving a page takes it out of navigation and promotes its sub-pages; restoring returns it unplaced.",

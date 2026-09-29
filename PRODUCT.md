@@ -64,7 +64,8 @@ permissions and one activity log.
   searched, and the UI says so.
 - Citations snapshot the exact text; drift is reported, never repaired silently.
 - Archive is the reversible default everywhere; delete is permanent, explicit and guarded.
-- Story pages are agent-authored, self-contained HTML shown in a sandbox. Their styling comes from
+- Story pages are agent-authored, self-contained HTML shown in a sandbox. Agents write and arrange
+  the Story; people read it and export it to PDF. Their styling comes from
   service-provided guidance whose tokens derive from the product's own design system.
 - Vocabulary is fixed: source, passage, segment, outcome, insight, assumption, decision, Story,
   archive. Never "findings", "claims", "document store" or a storage path in the UI.

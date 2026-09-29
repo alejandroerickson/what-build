@@ -222,7 +222,7 @@ describe("the discovery loop through REST", () => {
     expect(v1.body.placed).toBe(false);
     const noEtag = await alice.api("POST", `${P}/story/pages/overview/versions`, { title: "Again" });
     expect(noEtag.status).toBe(409);
-    const v2 = await alice.api("POST", `${P}/story/pages/overview/versions`, { title: "Where we stand now", note: "Retitled", expected_etag: v1.body.etag });
+    const v2 = await alice.api("POST", `${P}/story/pages/overview/versions`, { title: "Where we stand now", expected_etag: v1.body.etag });
     expect(v2.body.current.version).toBe(2);
     const tree = await alice.api("GET", `${P}/story/hierarchy`);
     expect(tree.body.etag).toBeNull();

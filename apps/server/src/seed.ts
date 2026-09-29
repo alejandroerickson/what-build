@@ -164,7 +164,6 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
         },
         STORY_STYLESHEET,
       ),
-      note: "First version.",
       refs: { outcomes: [outcomeIds[1]!], sources: [vtt, txt, survey], insights: [String(insight["insight_id"])], assumptions: [String(assumption["id"])], decisions: [String(decision["id"])] },
       citations: [
         { record_id: vtt, seq_start: 8, seq_end: 8, quote: "The texts are the worst part honestly. Every crew lead gets a message with their jobs and addresses, and I type those by hand." },
@@ -183,7 +182,6 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
       title: "The hand-off test",
       summary: "Two crews get their week as a generated message instead of a typed one.",
       html: HANDOFF_HTML({ decision: `${base}/t/${path}/synthesis/decisions/${decision["id"]}` }, STORY_STYLESHEET),
-      note: "First version.",
       refs: { outcomes: [outcomeIds[1]!], sources: [vtt], decisions: [String(decision["id"])] },
       citations: [{ record_id: vtt, seq_start: 9, seq_end: 10 }],
     },
