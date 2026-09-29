@@ -6,7 +6,7 @@ import { Markdown, passageHref } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { REVIEW_STATUS, toneFor } from "../lib/status.ts";
 import { Button, EmptyState, Glyph, Group, KeyValue, Menu, MenuRadio, StatusBadge } from "../ui/index.tsx";
-import type { CitationCheck, PageView, RefKind, ResolvedRef, StoryNode, VersionItem, VersionView } from "./story-model.ts";
+import type { CitationCheck, PageView, RefKind, ResolvedRef, VersionItem, VersionView } from "./story-model.ts";
 
 const REF_KINDS: { kind: RefKind; label: string }[] = [
   { kind: "outcomes", label: "Outcomes" },
@@ -57,19 +57,13 @@ function address(a: number, b: number) {
   return a === b ? `¶${a}` : `¶${a}–${b}`;
 }
 
-export function StoryInspectorBody({ page, shown, versions, parent, placed, subpages, onArchive, onRestore, onEditNotes, busy }: {
+export function StoryInspectorBody({ page, shown, versions, onExport }: {
   page: PageView;
   shown: VersionView;
   versions: VersionItem[] | undefined;
-  parent: StoryNode | null;
-  placed: boolean;
-  subpages: StoryNode[];
-  onArchive: () => void;
-  onRestore: () => void;
-  onEditNotes: () => void;
-  busy: boolean;
+  onExport: () => void;
 }) {
-  const { app, api: base, canWrite } = useProduct();
+  const { app, api: base } = useProduct();
   const [params, setParams] = useSearchParams();
   const checks = useQuery({
     queryKey: ["story-citations", base, page.page_id, shown.version],
@@ -85,6 +79,7 @@ export function StoryInspectorBody({ page, shown, versions, parent, placed, subp
   };
   const refCount = REF_KINDS.reduce((n, k) => n + (shown.resolved_refs[k.kind]?.length ?? 0), 0);
   const notes = page.agent_notes;
+  const numbered = isCurrent ? String(shown.version) : `${shown.version} of ${page.current_version}`;
   return (
     <div className="story-inspector">
       <Group title="About">
@@ -97,75 +92,34 @@ export function StoryInspectorBody({ page, shown, versions, parent, placed, subp
               value:
                 versions && versions.length > 1 ? (
                   <Menu
-                    label={`Version shown: ${shown.version}${isCurrent ? ", current" : ""}. Choose another version`}
+                    label={`Version ${numbered}. Choose a version to read`}
                     triggerClassName="field-button"
                     align="start"
-                    minWidth={240}
+                    minWidth={220}
                     trigger={
                       <>
-                        <span className="ellipsis grow">
-                          Version {shown.version}
-                          {isCurrent ? " · current" : ` of ${page.current_version}`}
-                        </span>
+                        <span className="ellipsis grow num">{numbered}</span>
                         <Glyph name="chevron-down" size="sm" />
                       </>
                     }
                   >
                     {versions.map((v) => (
                       <MenuRadio key={v.version} checked={v.version === shown.version} meta={formatDate(v.published_at)} onSelect={() => pickVersion(v.version)}>
-                        <span className="story-version-item">
-                          <span>
-                            Version {v.version}
-                            {v.version === page.current_version ? " · current" : ""}
-                          </span>
-                          {v.note ? <span className="story-version-note">{v.note}</span> : null}
-                        </span>
+                        Version {v.version}
+                        {v.version === page.current_version ? " · current" : ""}
                       </MenuRadio>
                     ))}
                   </Menu>
                 ) : (
-                  `Version ${shown.version}`
+                  <span className="num">{numbered}</span>
                 ),
-            },
-            { label: "Change", value: shown.note ? <span className="story-change-note">{shown.note}</span> : null },
-            {
-              label: "Parent",
-              value: page.archived_at ? null : parent ? <Link className="story-ref-link" to={`${app}/story/${parent.page_id}`}>{parent.title}</Link> : placed ? "Top level" : "Not in the navigation yet",
-            },
-            {
-              label: "Subpages",
-              value: subpages.length ? (
-                <ul className="story-subpages">
-                  {subpages.map((s) => (
-                    <li key={s.page_id}>
-                      <Link className="story-ref-link" to={`${app}/story/${s.page_id}`}>
-                        {s.title}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              ) : page.archived_at ? null : (
-                <span className="faint">None</span>
-              ),
             },
           ]}
         />
-        <div className="story-about-end">
-          <Link className="quiet-link" to={`${app}/activity?entity_type=story_page&entity_id=${page.page_id}`}>
-            <Glyph name="activity" size="sm" /> Activity on this page
-          </Link>
-          {canWrite ? (
-            page.archived_at ? (
-              <Button size="sm" icon="archive-restore" busy={busy} busyLabel="Restoring…" onClick={onRestore}>
-                Restore
-              </Button>
-            ) : (
-              <Button size="sm" variant="quiet" icon="archive" busy={busy} busyLabel="Archiving…" onClick={onArchive}>
-                Archive
-              </Button>
-            )
-          ) : null}
-        </div>
+        <p className="story-about-note">Agents write and maintain the Story. You can read any version.</p>
+        <Button size="sm" icon="download" className="story-export-button" onClick={onExport}>
+          Export to PDF…
+        </Button>
       </Group>
 
       <Group title="Draws on" count={refCount}>
@@ -227,16 +181,7 @@ export function StoryInspectorBody({ page, shown, versions, parent, placed, subp
         )}
       </Group>
 
-      <Group
-        title="Notes for agents"
-        action={
-          canWrite ? (
-            <Button size="sm" variant="quiet" icon="pencil" onClick={onEditNotes}>
-              Edit
-            </Button>
-          ) : undefined
-        }
-      >
+      <Group title="Notes for agents">
         {notes.content ? (
           <>
             <Markdown source={notes.content} className="prose story-notes" headingShift={3} />

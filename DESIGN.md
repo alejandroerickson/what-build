@@ -297,7 +297,7 @@ The panel can hide (a button or Ctrl/Cmd+\). The canvas widens in a single 200ms
 A neutral grey studio with a single indigo accent and three status hues; every value lives in the token file, in a light and a dark set.
 
 ### Primary
-- **Studio Indigo** (accent; accent-dark in dark): primary commit buttons, the focus ring (2px solid, 1px offset), the text caret, drop indicators in the Story tree, and the base of every accent tint.
+- **Studio Indigo** (accent; accent-dark in dark): primary commit buttons, the focus ring (2px solid, 1px offset), the text caret, and the base of every accent tint.
 - **Indigo Pressed** (accent-hover): hover on primary buttons. It darkens in light and lightens in dark.
 - **Selection Wash** (select) with **Selection Ink** (select-text): the current nav item, text selection, and the colour of evidence tokens in prose. Evidence tokens and search highlights are accent mixed at 7 to 22% into transparent, not separate hues.
 

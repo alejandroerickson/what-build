@@ -184,6 +184,10 @@ page. Publishing never places a page: then call `set_hierarchy` with the hierarc
 invent owners, dates, measurements, commitments or agreement, and never present an unconfirmed
 assumption as settled.
 
+**You maintain the Story; people read it.** The web app shows pages, their versions, what they
+draw on and their notes, and exports them to PDF, but it cannot write, rename, move, archive or
+restore a page. When a person wants any of that, you do it for them.
+
 - **Cite what the page rests on.** `publish` takes `citations` — up to 20 exact passages,
   `{record_id, seq_start, seq_end, quote?}`, snapshotted like register citations — beside `refs`.
   Read each passage before citing it. Both belong to the version: when you pass either list, pass
@@ -193,9 +197,8 @@ assumption as settled.
   `citations` you omit carry forward from the current version (`carried_forward` names them).
   `patch_html` fixes a sentence by exact find and replace; `from_version: N` restores an earlier
   version as a new one. `html_sha256` on every version confirms identical HTML without reading it.
-- **`note` is for readers.** Each version's `note` is one line on what changed for the reader,
-  shown in the page's history. Put mechanics (citation ranges, merges, ids) in the page's notes.
-  `summary` describes the page itself, not the change.
+- **`summary` describes the page itself**, and shows in navigation. Put mechanics (citation
+  ranges, merges, ids) in the page's notes.
 - **Keep the page's notes.** Each page has notes for agents (`get_page` → `agent_notes`): Markdown
   memory about what the page is for and who reads it, sources still to fold in, and decisions about
   its structure. Readers do not see them. Read them before revising a page, and after publishing

@@ -18,11 +18,10 @@ export interface ActivityItem {
   summary: string;
 }
 
-/** Filters the activity log understands. `by: "agents"` is everything agents did over MCP; "people" is the rest. */
+/** Narrows the one log, of people and agents together, to a kind of item or one item. */
 export interface ActivityFilter {
   entityType?: string;
   entityId?: string;
-  by?: "people" | "agents";
 }
 
 const VERBS: Record<string, string> = {
@@ -151,11 +150,11 @@ export function surfaceWords(i: Pick<ActivityItem, "through_agent" | "channel" |
 export function useActivity(filter: ActivityFilter) {
   const { api: base } = useProduct();
   return useInfiniteQuery({
-    queryKey: ["activity", base, filter.entityId ?? null, filter.entityType ?? null, filter.by ?? null],
+    queryKey: ["activity", base, filter.entityId ?? null, filter.entityType ?? null],
     queryFn: ({ pageParam }) =>
       api<{ items: ActivityItem[]; next_cursor: string | null }>(
         "GET",
-        `${base}/activity${qs({ entity_id: filter.entityId, entity_type: filter.entityType, by: filter.by, cursor: pageParam, limit: 50 })}`,
+        `${base}/activity${qs({ entity_id: filter.entityId, entity_type: filter.entityType, cursor: pageParam, limit: 50 })}`,
       ),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_cursor ?? undefined,
@@ -179,18 +178,14 @@ export function ActivityFeed(filter: ActivityFilter & { query?: ReturnType<typeo
     );
   const items = q.data.pages.flatMap((p) => p.items);
   if (!items.length) {
-    const filtered = Boolean(filter.entityId || filter.entityType || filter.by);
+    const filtered = Boolean(filter.entityId || filter.entityType);
     return (
       <EmptyState
         size="inline"
-        title={filter.by === "agents" ? "No agent has changed anything here yet" : filtered ? "Nothing matches this view yet" : "Nothing has changed yet"}
-        action={filter.by === "agents" || !filtered ? <ButtonLink to="/connect" size="sm" icon="plug">Connect an agent</ButtonLink> : undefined}
+        title={filtered ? "Nothing matches this view yet" : "Nothing has changed yet"}
+        action={filtered ? undefined : <ButtonLink to="/connect" size="sm" icon="plug">Connect an agent</ButtonLink>}
       >
-        {filter.by === "agents"
-          ? "Connect the agent you already use; everything it does here is listed with its name."
-          : filtered
-            ? "Changes show up here as soon as someone makes them."
-            : "Adding a source, writing an insight or publishing the Story, in the app or through your agent, shows up here."}
+        {filtered ? "Changes show up here as soon as someone makes them." : "Adding a source, writing an insight or publishing the Story, in the app or through your agent, shows up here."}
       </EmptyState>
     );
   }

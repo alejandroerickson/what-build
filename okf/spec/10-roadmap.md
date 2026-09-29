@@ -12,7 +12,7 @@ status: stable
 The ethos: the smallest implementation that proves the full path wins. Each phase ends in
 something demonstrable, and each acceptance list is a test plan.
 
-## Status on 2026-09-27
+## Status on 2026-09-28
 
 Observed in the code on this date.
 
@@ -22,7 +22,7 @@ Observed in the code on this date.
 | 1 | Done | registry → REST and MCP (99 operations, 16 tools); row-level security in the first migration; ETags; paging; `describe`; activity in the same transaction; the isolation test over every operation; the parity test | — |
 | 2 | Mostly done | upload grants (relay, optional direct signed URLs); parsers for plain text, Markdown, VTT, SRT, HTML, DOCX, PDF, XLSX, CSV and TSV; derivation on the Postgres queue; passages by segment and time; substring and ranked search with coverage; archive and restore; guarded delete of sources with tombstones; a synthetic sample product in the seed | usage metering; golden-file tests per format; a blob-store conformance suite (no test exercises the Cloud Storage adapter); legacy `.doc` |
 | 3 | Mostly done | tenants, teams, products, roles; email-link, Google and development sign-in; invitations by email and link; personal access tokens; invite-only mode; sign-in link rate limit | quotas and their `409 quota_exceeded` (only the Story page limit exists); general rate limits; account deletion |
-| 4 | Mostly done | the design system (Studio, [DESIGN.md](../../DESIGN.md)) across every screen of the loop: Idea, Evidence (browse, kind-first intake, the source page with sections and inspector, passage reader, notes, files, search), Synthesis (the insight editor, revision history, insight review, assumptions and decisions with review, confidence, citation checks), Story (reader, arranging by drag, keyboard and Move to…, the inspector with citations and notes for agents, the print view for PDF, the page following the app's theme), Activity with People/Agents filter, organization members, product people, Agents, account | an accessibility audit; Playwright in CI (a browser walk-through exists in `scripts/e2e.mjs`); the public sample at `/sample`; links in a Story page that stay in the app (the sandboxed frame opens every link, including one to another Story page, in a new tab) |
+| 4 | Mostly done | the design system (Studio, [DESIGN.md](../../DESIGN.md)) across every screen of the loop: Idea, Evidence (browse, kind-first intake, the source page with sections and inspector, passage reader, notes, files, search), Synthesis (the insight editor, revision history, insight review, assumptions and decisions with review, confidence, citation checks), Story (a read-only reader with the page tree, crumbs, the inspector with versions, citations and notes for agents, the print view for PDF, the page following the app's theme), Activity as one log for people and agents, organization members, product people, Agents, account | an accessibility audit; Playwright in CI (a browser walk-through exists in `scripts/e2e.mjs`); the public sample at `/sample`; links in a Story page that stay in the app (the sandboxed frame opens every link, including one to another Story page, in a new tab) |
 | 5 | Mostly done | OAuth 2.1 for MCP, tokens, the versioned skill, `get_skill`, the Agents (Connect) page, installers, feedback, Story guidance derived from the design tokens (with a drift test) | the stdio transport |
 | 6 | Started | the Cloud Run deployment ([cloud-run.md](../operations/cloud-run.md)) with Cloud Build continuous deployment; product export (`products.export`) | a rehearsed restore; import; organization export; closing an organization; the sub-processors page; abuse tests |
 
@@ -95,7 +95,7 @@ sign-in.
 
 Organization screens (products, members, Agents, account); the four product screens; Idea;
 Evidence (upload, browse, source page, passage reader, annotations, search); Synthesis (insights
-and registers) with revision history; Story reading and arranging; the Activity page; conflict handling. The
+and registers) with revision history; Story reading and export; the Activity page; conflict handling. The
 design system is Studio ([DESIGN.md](../../DESIGN.md)).
 
 *Accept:* a person completes the loop from sign-in to a published Story page with no terminal use;

@@ -125,7 +125,7 @@ product the person can see says so, and says who can create one.
   /synthesis/assumptions[/:id]  /synthesis/decisions[/:id]   lists take ?show&outcome_id&q
                       (show: unconfirmed, confirmed, refuted, archived; q: title search)
   /story[/:page]      ?v=N
-  /activity           ?who=people|agents &entity_type&entity_id
+  /activity           ?entity_type &entity_id
   /settings                                   name, slug, people, export, organization, archive
 ```
 
@@ -316,58 +316,53 @@ counts, filters and search work on what is loaded.
 
 ## 7.8 Story
 
-- **Reader first.** The page tree sits in the panel's context slot, and the canvas holds the page
-  nearly on its own: the crumbs (the current one is the screen's heading), a quiet meta line
-  "Version n · updated <date>", then the page. Nothing else is on the canvas. Opens the last page
-  this browser read in this product, otherwise the first root page. Pages render only in the
-  sandboxed frame ([§4.11](04-data-model.md)); the frame resizes to content and follows the app's
-  theme. Until the frame has its document, skeleton lines stand in for the page.
-- **The tree.** A keyboard tree (one tab stop, arrow keys) with "Find a page", expand and collapse
-  all, the current page marked, add a page, and sections for **Unplaced pages** (published, not yet
-  in the navigation) and **Archived pages**. Each row's menu: Rename… (a republish that creates a
-  version, and the dialog says so), Add child page…, Move to…, Copy link, Export to PDF…, and
-  Archive (reversible; its subpages move up into its place) or Restore.
-- **Arrange:** drag a page by its handle to reorder or nest it, or with the page focused use Alt +
-  arrow keys, or Move to… (a dialog picking the parent and the position — the single-pointer
-  alternative to dragging). Drag and Move to… offer Undo. Every move saves the whole tree through
-  `story.set_hierarchy` against the hierarchy's ETag. On `409` the tree is read again, the
-  person's pending moves are re-applied and saved once more; if that fails too, the other
-  arrangement is shown and the screen says what happened. The limits hold: 50 pages, depth 6.
+The Story reads like a wiki: the page tree on the left, the page in the middle, its details on
+the right. Agents write, arrange, archive and restore it; the screen reads it and offers nothing
+that changes it ([decision](../decisions/agents-maintain-the-story-people-read-it.md)).
+
+- **Reader first.** The page tree sits in the panel's context slot, and the canvas holds the crumbs
+  (the current one is the screen's heading) and then the page, with nothing between them. Opens
+  the last page this browser read in this product, otherwise the first root page. Pages render
+  only in the sandboxed frame ([§4.11](04-data-model.md)); the frame follows the app's theme.
+  Until the frame has its document, skeleton lines stand in for the page. A callout appears above
+  the page only for a state the reader must know: the page is archived, or an earlier version is
+  shown (with **Show the current version**).
+- **The tree.** A keyboard tree (one tab stop, arrow keys to move and to open or close a branch)
+  with "Find a page", the current page marked and its ancestors kept open, and sections for
+  **Unplaced pages** (published, not yet placed by an agent) and **Archived pages**. The only row
+  action is export: each row's menu offers **Export this page to PDF…** and, for a page with
+  subpages, **Export with its subpages…**.
 - **The inspector** carries everything else about the page:
-  - **About:** who published this version and when, the version selector (`?v=N`) listing each
-    version's change note, the parent page, subpages as links, "Activity on this page", and
-    Archive.
+  - **About:** who published the shown version and when, and its version number. With more than
+    one version, the number is a menu of every version with its date, and choosing one shows it
+    (`?v=N`). A line says that agents write and maintain the Story, and **Export to PDF…** opens
+    the export with this page selected.
   - **Draws on:** the version's references — outcomes, sources, insights, assumptions,
     decisions — each linked.
   - **Cited passages:** each citation as the source title, its address (¶8–9, linking to the
     passage) and a snapshot quote, with its `story.check_citations` status in words, worded as
     on a register entry.
-  - **Notes for agents:** the page's Markdown note, which agents read before revising the page and
+  - **Notes for agents:** the page's Markdown notes, which agents read before revising the page and
     update after publishing (what it is for, sources still to fold in, decisions about structure).
-    Not versioned with the page. People with write access edit it in a dialog; a `409` keeps their
-    text.
-- **Export to PDF.** "Export to PDF…" is in the tree's header menu and in each page's menu, with
-  that page preselected. The dialog lists the tree as checkboxes, with Select all, Clear and a
-  count; the person picks exactly the pages they want — subpages are never added for them. **Open
-  print view** is a link that opens the print view in a new tab ([§7.3](#73-routes)): a title block
-  with the product name and the export date, a contents list, then the chosen pages in tree order
-  (unplaced pages after, by title), each under its title as a heading whose level follows the
-  outline, at its current version. The person saves it as PDF from the browser's print dialog.
-  Page scripts do not run there, and the dialog says that content drawn by a page's scripts is
-  left out.
-- Authoring HTML is primarily an agent task. The UI offers "Publish a new version…" by paste or
-  file for people who want it, with validation errors shown precisely. No WYSIWYG editor.
-- An empty Story explains how to ask a connected agent to draft it, and links to Agents.
+    Read-only here, and not versioned with the page.
+- **Export to PDF.** The dialog lists every page as checkboxes, in tree order, then unplaced and
+  archived pages, with Select all, Clear and a count; it opens with the page or pages it was
+  asked for already selected, and the person can change the selection. It says what the PDF holds:
+  a contents list, then each selected page at its current version under its title, with its
+  version number and publish date. It says what it leaves out: what a page draws on, its cited
+  passages and notes, earlier versions, and anything a page draws with scripts. **Open print view**
+  opens the print view in a new tab ([§7.3](#73-routes)), which opens the browser's print dialog to
+  save it as PDF.
+- An empty Story explains that agents write it, and links to connecting one.
 
 ## 7.9 Activity
 
 A quiet **Activity page** (`…/activity`), not a drawer and not a destination: it is reached from
-**Activity** in the account menu, and from an item through its "Activity on this …" link (a Story
-page, a source), which opens the page filtered to that item. It lists events newest first
-([§4.10](04-data-model.md)). Each entry reads as a sentence with the actor, the surface, and a link
-to the object: "Sam, via claude-desktop, confirmed an assumption — 14:02". Filters, held in the
-URL: **All / People / Agents** (`?who=`; Agents means everything done over MCP), and the kind of
-object changed (`?entity_type=`), or one object (`&entity_id=`).
+**Activity** in the account menu, and from a source's details, which open the page filtered to that
+source. It is one log for people and agents together, newest first ([§4.10](04-data-model.md)).
+Each entry reads as a sentence with the actor, the surface, and a link to the object: "Sam, via
+claude-desktop, confirmed an assumption — 14:02". The kind of object changed (`?entity_type=`) or
+one object (`&entity_id=`) narrows it, held in the URL.
 
 This is how a person answers "what did my colleague's agent just do to my product" without reading
 a diff. It is also the first place to look when a `409` surprises someone.

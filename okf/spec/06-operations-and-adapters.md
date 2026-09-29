@@ -246,7 +246,8 @@ Notes on recent actions:
   beside `refs`; `story.check_citations` checks a version's citations. A later version keeps the
   `title`, `summary`, `html`, `refs` and `citations` it omits, `patch_html` edits the HTML by exact
   find and replace, and `from_version` starts from an earlier version, which restores it
-  ([§4.11](04-data-model.md)). Versions report `html_sha256`.
+  ([§4.11](04-data-model.md)). Versions report `html_sha256`. A version has no change note:
+  `note` is refused like any unknown field (`422`), and versions do not return one.
 - `story.write_notes` replaces a page's notes for agents. The notes carry their own etag
   (`publish` → `agent_notes_etag`, `get_page` → `agent_notes.etag`), separate from the page etag,
   and are not versioned with the page. While the notes are empty the etag may be omitted.

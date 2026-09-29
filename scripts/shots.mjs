@@ -128,14 +128,14 @@ for (const device of ["desktop", "phone"]) {
         await page.locator(".show-pill").click();
         await page.waitForTimeout(300);
       }
-      await page.getByRole("button", { name: "Story page options" }).click();
-      await page.getByRole("menuitem", { name: /Export to PDF/ }).click();
+      await page.getByRole("button", { name: "Export “Where Crewboard's discovery stands”" }).click();
+      await page.getByRole("menuitem", { name: /Export with its subpages/ }).click();
       await page.getByRole("dialog", { name: "Export to PDF" }).waitFor();
       await page.waitForTimeout(300);
       await capture(page, name("export-dialog"), { full: false });
     }
     if (wanted("story-notes")) {
-      // The inspector scrolled to "Notes for agents", with its Edit control in view.
+      // The inspector scrolled to "Notes for agents", which people read and agents write.
       await page.goto(`${s.app}/story/overview`);
       await settle(page);
       const toggle = page.locator(".show-ins");
@@ -144,7 +144,6 @@ for (const device of ["desktop", "phone"]) {
         await page.waitForTimeout(400);
       }
       await page.locator(".inspector .group-title", { hasText: "Notes for agents" }).evaluate((el) => el.closest(".group").scrollIntoView({ block: "start" }));
-      await page.locator(".inspector .group-title", { hasText: "Notes for agents" }).getByRole("button", { name: "Edit" }).waitFor();
       await page.waitForTimeout(200);
       await capture(page, name("story-notes"), { full: false });
     }

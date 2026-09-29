@@ -162,7 +162,6 @@ async function versionView(ctx: OpContext, versionId: string, withHtml: boolean)
     page_id: v.page_id,
     title: v.title,
     summary: v.summary,
-    note: v.note,
     refs: v.refs,
     resolved_refs: await resolveRefs(ctx, v.refs),
     citations: await citationViews(ctx, v.citations),
@@ -205,13 +204,13 @@ export const listVersions = defineOperation({
     await loadPage(ctx, input.page_id);
     let q = ctx.db
       .selectFrom("story_versions")
-      .select(["version_id", "n", "title", "summary", "note", "created_at", "created_by", "citations"])
+      .select(["version_id", "n", "title", "summary", "created_at", "created_by", "citations"])
       .select(sql<string>`encode(sha256(convert_to(html, 'UTF8')), 'hex')`.as("html_sha256"))
       .where("product_id", "=", productId(ctx))
       .where("page_id", "=", input.page_id);
     if (input.before) q = q.where("n", "<", input.before);
     const rows = await q.orderBy("n", "desc").limit(input.limit + 1).execute();
-    const items = rows.slice(0, input.limit).map((v) => ({ version_id: v.version_id, version: v.n, title: v.title, summary: v.summary, note: v.note, citation_count: v.citations.length, html_sha256: v.html_sha256, published_at: v.created_at, published_by: v.created_by }));
+    const items = rows.slice(0, input.limit).map((v) => ({ version_id: v.version_id, version: v.n, title: v.title, summary: v.summary, citation_count: v.citations.length, html_sha256: v.html_sha256, published_at: v.created_at, published_by: v.created_by }));
     return { items, next_before: rows.length > input.limit ? items[items.length - 1]!.version : null };
   },
 });
@@ -269,11 +268,11 @@ export const publish = defineOperation({
   mutates: true,
   summary: "Publish a new version of a Story page (creating the page on its first version). A later version keeps whatever you omit.",
   description:
-    `Call guidance first, and get_page before revising (read its agent_notes too). A page's first version: omit expected_etag, give a title, and give html (or omit it for a generated title page). A later version: pass the page etag and send only what changes — the title, summary, html, refs and citations you omit are taken from the current version, and carried_forward in the result names them. To change a sentence, patch_html applies exact find/replace edits instead of re-sending the page. from_version: N starts from that earlier version instead, so from_version alone restores it as a new version; compare html_sha256 to confirm the HTML is identical. Pass an empty list to clear refs or citations. The HTML is validated and every problem is listed at once (422). citations lists up to ${CITATION_MAX_COUNT} exact passages the page draws on, {record_id, seq_start, seq_end, quote?}, each frozen as a snapshot as in the registers; carried citations keep their snapshots. note is one reader-facing line on what changed, shown in the page's history; summary describes the page itself. Publishing never places the page in the navigation: call set_hierarchy afterwards, and update the page's notes with write_notes (agent_notes_etag is in the result). Never invent facts, owners or dates, and never present an unconfirmed assumption as settled.`,
+    `Call guidance first, and get_page before revising (read its agent_notes too). A page's first version: omit expected_etag, give a title, and give html (or omit it for a generated title page). A later version: pass the page etag and send only what changes — the title, summary, html, refs and citations you omit are taken from the current version, and carried_forward in the result names them. To change a sentence, patch_html applies exact find/replace edits instead of re-sending the page. from_version: N starts from that earlier version instead, so from_version alone restores it as a new version; compare html_sha256 to confirm the HTML is identical. Pass an empty list to clear refs or citations. The HTML is validated and every problem is listed at once (422). citations lists up to ${CITATION_MAX_COUNT} exact passages the page draws on, {record_id, seq_start, seq_end, quote?}, each frozen as a snapshot as in the registers; carried citations keep their snapshots. summary describes the page itself. Publishing never places the page in the navigation: call set_hierarchy afterwards, and update the page's notes with write_notes (agent_notes_etag is in the result). Never invent facts, owners or dates, and never present an unconfirmed assumption as settled.`,
   input: z.strictObject({
     page_id: pageId.default("overview"),
     title: z.string().trim().min(1).max(200).optional().describe("Required on a page's first version; omit it later to keep the title."),
-    summary: z.string().max(2000).optional().describe("A short description of the page, shown in navigation and lists; not the change note. Omit it on a later version to keep it."),
+    summary: z.string().max(2000).optional().describe("A short description of the page, shown in navigation and lists. Omit it on a later version to keep it."),
     html: z.string().min(1).max(STORY_HTML_MAX).optional().describe("The whole page. On a first version, omit it for a generated title page; on a later version, omit it to keep the HTML."),
     patch_html: z
       .array(z.strictObject({ find: z.string().min(1).max(20_000), replace: z.string().max(100_000) }))
@@ -281,7 +280,6 @@ export const publish = defineOperation({
       .max(50)
       .optional()
       .describe("A later version only, instead of html: exact find/replace edits applied in order to the base version's HTML. Each find must occur exactly once, or nothing is published."),
-    note: z.string().max(500).default("").describe("One reader-facing line on what changed in this version, shown to readers in the page's history. Keep mechanics (citation ranges, merges) in the notes for agents."),
     refs: refsInput.describe("The objects the page draws on, in full. Omit it on a later version to keep the refs."),
     citations: z
       .array(citationInput)
@@ -313,7 +311,7 @@ export const publish = defineOperation({
       if (Number(count?.n ?? 0) >= MAX_PAGES) throw conflict("quota_exceeded", `A product's Story holds at most ${MAX_PAGES} pages.`, { quota: "story_pages", limit: MAX_PAGES, used: Number(count?.n ?? 0), unit: "pages" });
       await ctx.db
         .insertInto("story_versions")
-        .values({ version_id, tenant_id: tenantId(ctx), product_id: pid, page_id: input.page_id, n: 1, title: input.title, summary, html, note: input.note, refs: json(refs), citations: json(citations), previous_version_id: null, created_by: json(ctx.actor) })
+        .values({ version_id, tenant_id: tenantId(ctx), product_id: pid, page_id: input.page_id, n: 1, title: input.title, summary, html, refs: json(refs), citations: json(citations), previous_version_id: null, created_by: json(ctx.actor) })
         .execute();
       await ctx.db
         .insertInto("story_pages")
@@ -340,12 +338,10 @@ export const publish = defineOperation({
       if (problems.length) throw invalid("invalid_html", `The page was not published: ${problems.join(" ")}`, { problems });
       const refs = input.refs ? await validateRefs(ctx, input.refs) : from.refs;
       const citations = input.citations ? await snapshotAll(ctx, input.citations, "page version") : from.citations;
-      const restored = input.from_version !== undefined && carried.length === CARRIED.length;
-      const note = input.note || (restored ? `Restored version ${input.from_version}.` : "");
       const n = existing.version_count + 1;
       await ctx.db
         .insertInto("story_versions")
-        .values({ version_id, tenant_id: tenantId(ctx), product_id: pid, page_id: input.page_id, n, title, summary, html, note, refs: json(refs), citations: json(citations), previous_version_id: existing.current_version_id, created_by: json(ctx.actor) })
+        .values({ version_id, tenant_id: tenantId(ctx), product_id: pid, page_id: input.page_id, n, title, summary, html, refs: json(refs), citations: json(citations), previous_version_id: existing.current_version_id, created_by: json(ctx.actor) })
         .execute();
       await ctx.db
         .updateTable("story_pages")
@@ -353,7 +349,7 @@ export const publish = defineOperation({
         .where("product_id", "=", pid)
         .where("page_id", "=", input.page_id)
         .execute();
-      await recordActivity(ctx, { action: "updated", entity_type: "story_page", entity_id: input.page_id, entity_title: title, summary: `Published version ${n}${input.from_version ? ` from version ${input.from_version}` : ""}${note ? `: ${note}` : ""}` });
+      await recordActivity(ctx, { action: "updated", entity_type: "story_page", entity_id: input.page_id, entity_title: title, summary: `Published version ${n}${input.from_version ? ` from version ${input.from_version}` : ""}` });
     }
     const p = await loadPage(ctx, input.page_id);
     return {

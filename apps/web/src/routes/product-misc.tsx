@@ -15,12 +15,6 @@ import "../styles/screens/settings.css";
 
 // ---- Activity -----------------------------------------------------------------------------------
 
-const WHO = [
-  { id: "all", label: "All" },
-  { id: "people", label: "People" },
-  { id: "agents", label: "Agents" },
-] as const;
-
 const TYPE_FILTERS = [
   { id: "", label: "Everything" },
   { id: "source", label: "Sources" },
@@ -35,18 +29,17 @@ const TYPE_FILTERS = [
 ];
 
 /**
- * The product's log, reached from the account menu and from items ("Activity on this page").
- * URL: ?who=people|agents (Agents = everything done over MCP), ?entity_type and ?entity_id.
+ * The product's log: one feed of what people and agents changed, reached from the account menu
+ * and from a source's details. URL: ?entity_type and ?entity_id.
  */
 export function ActivityPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const loc = useLocation();
   usePageTitle("Activity");
-  const who = params.get("who") === "people" ? "people" : params.get("who") === "agents" ? "agents" : "all";
   const entityType = params.get("entity_type") ?? undefined;
   const entityId = params.get("entity_id") ?? undefined;
-  const filter: ActivityFilter = { entityType, entityId, by: who === "all" ? undefined : who };
+  const filter: ActivityFilter = { entityType, entityId };
   const q = useActivity(filter);
   const href = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams(params);
@@ -66,7 +59,6 @@ export function ActivityPage() {
         level={1}
         id="activity-title"
         title="Activity"
-        filter={<Segmented label="Show changes by" value={who} items={WHO.map((w) => ({ id: w.id, label: w.label, to: href({ who: w.id === "all" ? null : w.id }) }))} />}
         end={
           entityId ? null : (
             <Menu
@@ -99,9 +91,7 @@ export function ActivityPage() {
           <Link to={href({ entity_type: null, entity_id: null })}>Show all</Link>
         </p>
       ) : (
-        <p className="activity-scope activity-scope-quiet">
-          {who === "agents" ? "Changes agents made over MCP, each on behalf of a person." : who === "people" ? "Changes people made in the app." : "People and agents share one log."}
-        </p>
+        <p className="activity-scope activity-scope-quiet">People and agents share one log.</p>
       )}
       <ActivityFeed {...filter} query={q} />
     </Sheet>

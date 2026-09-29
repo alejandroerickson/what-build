@@ -429,10 +429,15 @@ An append-only event log, written in the same transaction as the mutation that c
 `overview`), `title` (1–200), `summary` (≤ 2,000), `archived_at`, `current_version`, and an
 append-only list of **versions**. The first publish creates the page and needs a `title`. A
 version is immutable: `version` (1, 2, 3…), `title`, `summary` (describes the page), `html`,
-`note` (one reader-facing line on what changed, ≤ 500 chars, shown in the page's history), `refs`,
-`citations`, `published_at`, `published_by`, and `html_sha256` (computed on read, so identical HTML
-can be recognised without reading it). Readers see the latest version; any version can be read by
-number. Limit: 50 pages per product (`409 quota_exceeded`).
+`refs`, `citations`, `published_at`, `published_by`, and `html_sha256` (computed on read, so
+identical HTML can be recognised without reading it). Readers see the latest version; any version
+can be read by number. Limit: 50 pages per product (`409 quota_exceeded`). Agents write, arrange,
+archive and restore pages; the web app reads them
+([decision](../decisions/agents-maintain-the-story-people-read-it.md)).
+◆ Decision: a version has no change note. What changed is in the activity log, and an agent's
+working context is in the page's notes. The `story_versions.note` column stays for versions
+published before the note was removed, and is neither written nor returned; a product export
+still includes it.
 
 **Later versions.** Publishing a new version of an existing page requires the page's current etag.
 It starts from a **base version**, the current one unless `from_version: N` names another, and
@@ -441,8 +446,8 @@ the result lists them in `carried_forward`, with `based_on_version`. Carried cit
 snapshots. `patch_html: [{find, replace}]` edits the base HTML instead of replacing it: each `find`
 must occur exactly once when its turn comes, or nothing is published (`422 invalid_patch` listing
 every failed edit). A generated title page follows a new title or summary. `from_version` alone
-restores the base as a new version, with the note "Restored version N." when none is given. An
-unknown `from_version` is `404`.
+restores the base as a new version, and the activity log records "Published version N from
+version M". An unknown `from_version` is `404`.
 ◆ Decision: a later version carries forward what it omits, so changing a sentence or reverting a
 page never means re-sending the whole page. A list that is passed replaces the previous list in
 full; an empty list clears it.
@@ -501,8 +506,8 @@ quality does not depend on an agent's taste. Its colors, radii and UI fonts are 
 app's design tokens ([`story-guidance.ts`](../../packages/core/src/story-guidance.ts)), and a
 server test fails when the two drift apart. The stylesheet keeps pages readable at phone width
 (about 390 px): tables sit in a scrolling `.wb-table-wrap`, cells keep a minimum width so a fourth
-column scrolls rather than squeezes, and status labels never wrap. The writing guidance asks for a
-reader-facing change note, source-level quoting rules honoured (attribution by role where a source
+column scrolls rather than squeezes, and status labels never wrap. The writing guidance asks for
+source-level quoting rules honoured (attribution by role where a source
 limits naming people), derived views labelled as analysis rather than evidence, and pages placed in
 the hierarchy unless the author's instructions say otherwise.
 

@@ -491,7 +491,8 @@ export interface StoryVersionsTable {
   title: string;
   summary: string;
   html: string;
-  note: string;
+  /** No longer written or read; kept so older versions keep their row as it was. */
+  note: Def<string>;
   refs: Json<Refs>;
   citations: ColumnType<CitationSnapshot[], string | undefined, string>;
   previous_version_id: string | null;
