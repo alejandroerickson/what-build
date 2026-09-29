@@ -3,7 +3,7 @@ type: System Concept
 title: Running WhatBuild locally, testing it, and checking the interface
 description: The one-command development setup, the test and build commands, and the browser scripts.
 tags: [development, testing, local]
-generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
+generated: {by: agent:claude, at: 2026-09-29T00:00:00Z}
 status: stable
 ---
 
@@ -24,8 +24,10 @@ development sign-in (Riley Chen or Sam Okafor). Files go to `.what-build/blobs`;
 printed to the terminal.
 
 Environment overrides: `DATABASE_URL` (your own Postgres instead of the embedded one), `PORT`,
-`WHATBUILD_WEB_PORT`, `WHATBUILD_PG_PORT`, `WHATBUILD_BLOB_DIR`. To run a second, clean instance
-beside the first, point `DATABASE_URL` at a fresh database and change the two ports.
+`WHATBUILD_WEB_PORT`, `WHATBUILD_PG_PORT`, `WHATBUILD_BLOB_DIR`. To run a second instance
+beside the first (another checkout, for example), change `PORT`, `WHATBUILD_WEB_PORT` and
+`WHATBUILD_PG_PORT`; in the same checkout, also point `DATABASE_URL` at a fresh database. The web
+app proxies to its own instance's API (`WHATBUILD_API` overrides it).
 
 ## Checks
 

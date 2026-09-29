@@ -1,19 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { api } from "../lib/api.ts";
-import { aRole, formatDate, relativeTime } from "../lib/format.ts";
-import { useMe, useProducts, type ProductsResponse } from "../lib/session.tsx";
+import { aRole, formatDate, ROLE_WORD } from "../lib/format.ts";
+import { useMe, useProducts } from "../lib/session.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
-  Avatar, Button, ButtonLink, Callout, CopyField, Dialog, EmptyState, ErrorCallout, Glyph, ListRow, Loading, Menu, MenuGroup, MenuItem, MenuRadio, MenuSeparator,
-  Segmented, SelectField, Sheet, SheetBody, SheetHeader, StatusBadge, Tag, TextArea, TextField, useToast,
+  Avatar, Button, Callout, CopyField, Dialog, ErrorCallout, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio, MenuSeparator,
+  SelectField, Sheet, SheetBody, SheetHeader, StatusBadge, TextArea, TextField, useToast,
 } from "../ui/index.tsx";
 import { EntryPage } from "./auth.tsx";
 import "../styles/screens/account.css";
 import "../styles/screens/org.css";
 
-const ROLE_WORD: Record<string, string> = { owner: "Owner", admin: "Admin", member: "Member", editor: "Editor", viewer: "Viewer" };
+
 
 // ---- First run ----------------------------------------------------------------------------------
 
@@ -58,187 +58,9 @@ export function Welcome() {
         </form>
       </Sheet>
       <p className="entry-foot">
-        Invited by someone? Open the link in their invitation to join their organization instead. Already set up? <Link to="/products">See your products</Link>.
+        Invited by someone? Open the link in their invitation to join their organization instead. Already set up? <Link to="/">See your products</Link>.
       </p>
     </EntryPage>
-  );
-}
-
-// ---- Products -----------------------------------------------------------------------------------
-
-type Tenants = ProductsResponse["tenants"];
-
-export function ProductsPage() {
-  const [params, setParams] = useSearchParams();
-  const showArchived = params.get("archived") === "1";
-  const products = useProducts(showArchived);
-  const creating = params.get("create") === "1";
-  usePageTitle("All products");
-  const setCreating = (open: boolean) =>
-    setParams(
-      (p) => {
-        const next = new URLSearchParams(p);
-        if (open) next.set("create", "1");
-        else next.delete("create");
-        return next;
-      },
-      { replace: !open },
-    );
-  const tenants = products.data?.tenants ?? [];
-  const items = products.data?.items ?? [];
-  const canCreate = tenants.some((t) => t.teams.some((tm) => tm.your_role === "admin"));
-  return (
-    <>
-      <Sheet className="products-sheet" labelledBy="products-title">
-        <SheetHeader
-          level={1}
-          id="products-title"
-          title="Products"
-          count={products.data ? items.length : undefined}
-          filter={
-            <Segmented
-              label="Which products"
-              value={showArchived ? "all" : "active"}
-              items={[
-                { id: "active", label: "Active", to: "/products" },
-                { id: "all", label: "With archived", to: "/products?archived=1" },
-              ]}
-            />
-          }
-          end={
-            canCreate ? (
-              <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>
-                New product
-              </Button>
-            ) : null
-          }
-        />
-        {products.isPending ? (
-          <Loading label="Loading products…" lines={4} />
-        ) : products.isError ? (
-          <SheetBody>
-            <ErrorCallout inset error={products.error} onRetry={() => products.refetch()} />
-          </SheetBody>
-        ) : !tenants.length ? (
-          <EmptyState size="inline" title="You are not in any organization yet." action={<ButtonLink to="/welcome" variant="primary">Set one up</ButtonLink>}>
-            Create an organization, or ask a colleague to invite you to theirs.
-          </EmptyState>
-        ) : (
-          tenants.map((t) => (
-            <section key={t.tenant_id} className="products-org" aria-labelledby={`org-${t.tenant_id}`}>
-              <header className="products-org-head">
-                <h2 id={`org-${t.tenant_id}`} className="products-org-name">
-                  <Glyph name="building" size="sm" />
-                  {t.name}
-                </h2>
-                {t.your_role ? <Tag>{ROLE_WORD[t.your_role] ?? t.your_role}</Tag> : null}
-                <Link to={`/t/${t.slug}/members`} className="quiet-link products-org-link">
-                  Members and roles
-                </Link>
-              </header>
-              {!t.teams.length ? (
-                <p className="products-none">
-                  You&rsquo;re a member of {t.name}, but you have no role on any of its teams or products yet, so there&rsquo;s nothing here to open. Ask one of its admins to give you one.
-                </p>
-              ) : null}
-              {t.teams.map((team) => {
-                const ps = items.filter((p) => p.team.team_id === team.team_id);
-                return (
-                  <div key={team.team_id} className="products-team" role="group" aria-label={`Team ${team.name}`}>
-                    <div className="products-team-name">{team.name}</div>
-                    {ps.length ? (
-                      ps.map((p) => (
-                        <ListRow
-                          key={p.product_id}
-                          to={`/t/${p.path}/idea`}
-                          className="products-row"
-                          title={p.name}
-                          sub={p.concept ? <span className="products-concept">{p.concept}</span> : <span className="faint">No product concept written yet</span>}
-                          end={
-                            <span className="products-end">
-                              {p.archived_at ? <StatusBadge tone="neutral">Archived</StatusBadge> : null}
-                              <span>{ROLE_WORD[p.your_role]}</span>
-                              <span className="num">{relativeTime(p.updated_at)}</span>
-                            </span>
-                          }
-                        />
-                      ))
-                    ) : (
-                      <p className="products-none">{showArchived ? "No products you can see in this team." : "No active products you can see in this team."}</p>
-                    )}
-                  </div>
-                );
-              })}
-            </section>
-          ))
-        )}
-      </Sheet>
-      {creating && products.data ? <CreateProductDialog onClose={() => setCreating(false)} tenants={tenants} /> : null}
-    </>
-  );
-}
-
-function CreateProductDialog({ onClose, tenants }: { onClose: () => void; tenants: Tenants }) {
-  const qc = useQueryClient();
-  const navigate = useNavigate();
-  const teams = tenants.flatMap((t) => t.teams.filter((tm) => tm.your_role === "admin").map((tm) => ({ key: `${t.slug}/${tm.slug}`, label: `${t.name} · ${tm.name}` })));
-  const [team, setTeam] = useState(teams[0]?.key ?? "");
-  const [name, setName] = useState("");
-  const [concept, setConcept] = useState("");
-  const create = useMutation({
-    mutationFn: () => api<{ path: string }>("POST", `/api/v1/teams/${team}/products`, { name: name.trim(), concept }),
-    onSuccess: async (p) => {
-      await qc.invalidateQueries({ queryKey: ["products"] });
-      navigate(`/t/${p.path}/idea`);
-    },
-  });
-  return (
-    <Dialog
-      open
-      onClose={onClose}
-      dismissable={!create.isPending}
-      title="New product"
-      description={teams.length ? "Each product is one discovery, with its own outcomes, sources, insights and Story." : undefined}
-      footer={
-        teams.length ? (
-          <>
-            <Button onClick={onClose} disabled={create.isPending}>
-              Cancel
-            </Button>
-            <Button variant="primary" busy={create.isPending} busyLabel="Creating…" disabled={!team || !name.trim()} onClick={() => create.mutate()}>
-              Create product
-            </Button>
-          </>
-        ) : (
-          <Button onClick={onClose}>Close</Button>
-        )
-      }
-    >
-      {teams.length ? (
-        <form
-          className="stack"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (team && name.trim()) create.mutate();
-          }}
-        >
-          <SelectField label="Team" value={team} onChange={(e) => setTeam(e.target.value)}>
-            {teams.map((t) => (
-              <option key={t.key} value={t.key}>
-                {t.label}
-              </option>
-            ))}
-          </SelectField>
-          <TextField label="Name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
-          <TextArea label="Product concept" optional rows={3} maxLength={2000} value={concept} onChange={(e) => setConcept(e.target.value)} hint="It heads the Idea screen. You can change it later in Settings." />
-          {create.isError ? <ErrorCallout inset error={create.error} /> : null}
-        </form>
-      ) : (
-        <Callout inset tone="info">
-          Creating a product needs an admin role on a team. Ask a team admin, or <Link to="/welcome">set up your own organization</Link>.
-        </Callout>
-      )}
-    </Dialog>
   );
 }
 
@@ -290,7 +112,7 @@ export function MembersPage() {
   const q = useQuery({ queryKey: ["members", tenant], queryFn: () => api<MembersResponse>("GET", `/api/v1/tenants/${tenant}/members`) });
   const t = products.data?.tenants.find((x) => x.slug === tenant);
   const orgName = t?.name ?? tenant;
-  usePageTitle(`${orgName} members`);
+  usePageTitle("Members");
   const tenantAdmin = t?.your_role === "owner" || t?.your_role === "admin";
   const inOrg = (products.data?.items ?? []).filter((p) => p.tenant.slug === tenant);
   const canManage = (g: { scope_type: string; scope_id: string; role: string }) => {
@@ -345,7 +167,7 @@ export function MembersPage() {
         <SheetHeader
           level={1}
           id="members-title"
-          title={`${orgName} members`}
+          title="Members"
           count={q.data?.members.length}
           end={canGive ? <Button variant="primary" icon="user-plus" onClick={() => setGiving({})}>Give access</Button> : null}
         />

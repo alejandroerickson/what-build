@@ -20,7 +20,7 @@ export function SystemPage() {
   return (
     <div className="system">
       <PageHeader
-        crumbs={[{ label: "WhatBuild", to: "/products" }, { label: "Development" }, { label: "Design system" }]}
+        crumbs={[{ label: "WhatBuild", to: "/" }, { label: "Development" }, { label: "Design system" }]}
         title="Design system"
         meta={<span>Every token and primitive, in both themes. Development builds only.</span>}
         actions={

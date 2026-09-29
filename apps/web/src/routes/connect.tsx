@@ -1,15 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
+import { useParams, useSearchParams } from "react-router";
 import { api } from "../lib/api.ts";
 import { formatDate, relativeTime } from "../lib/format.ts";
-import { useMe } from "../lib/session.tsx";
+import { useMe, useProducts } from "../lib/session.tsx";
 import { useLastProduct } from "../shell/panel.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
-import { AgentFace, Button, CopyField, Dialog, EmptyState, ErrorCallout, Loading, Sheet, SheetBody, SheetHeader, useToast } from "../ui/index.tsx";
+import { AgentFace, Button, CopyField, Dialog, EmptyState, ErrorCallout, Loading, SelectField, Sheet, SheetBody, SheetHeader, useToast } from "../ui/index.tsx";
 import "../styles/screens/account.css";
 
 interface ConnectInfo {
   mcp_url: string;
+  /** The address bound to one product, with `{tenant}/{team}/{product}` to fill in. */
+  bound_url_template: string;
   skill: { name: string; version: string; zip_url: string };
 }
 
@@ -38,14 +41,35 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
 }
 
 /**
- * `/connect`: the one address an MCP client needs, and the agents connected now. The client finds
- * sign-in on its own (OAuth discovery), and the server tells the agent which skill version to use.
+ * `/connect`, and `…/connect` inside a product: the one address an MCP client needs, and the agents
+ * connected now. The person picks a product, or all of them, and gets the address for it; inside a
+ * product that product is picked first. The client finds sign-in on its own (OAuth discovery), and
+ * the server tells the agent which skill version to use.
  */
 export function ConnectPage() {
   const info = useQuery({ queryKey: ["connect"], queryFn: () => api<ConnectInfo>("GET", "/api/v1/connect") });
+  const products = useProducts();
   const last = useLastProduct();
+  const here = useParams();
+  const [params, setParams] = useSearchParams();
   usePageTitle("Connect an agent");
   const c = info.data;
+  const items = products.data?.items ?? [];
+  const orgs = new Set(items.map((p) => p.tenant.tenant_id)).size;
+  // ?product=all or a product path; without it, the product the page was opened in, else all.
+  const picked = params.get("product") ?? (here["product"] ? `${here["tenant"]}/${here["team"]}/${here["product"]}` : "all");
+  const product = items.find((p) => p.path === picked);
+  const url = c ? (product ? c.bound_url_template.replace("{tenant}/{team}/{product}", product.path) : c.mcp_url) : "";
+  const pick = (value: string) =>
+    setParams(
+      (p) => {
+        const next = new URLSearchParams(p);
+        next.set("product", value);
+        return next;
+      },
+      { replace: true },
+    );
+  const named = product ?? last;
   return (
     <>
       <Sheet className="agents-sheet" labelledBy="agents-title">
@@ -62,14 +86,29 @@ export function ConnectPage() {
         ) : c ? (
           <ol className="agents-steps">
             <Step n={1} title="Add this MCP server to your agent">
-              <CopyField label="MCP server URL" value={c.mcp_url} />
+              <div className="agents-address">
+                <SelectField
+                  label="Product"
+                  value={product ? product.path : "all"}
+                  onChange={(e) => pick(e.target.value)}
+                  hint={product ? `Your agent works in ${product.name} unless you ask for another.` : "Your agent can reach every product you can, and asks which one when it isn't clear."}
+                >
+                  <option value="all">All your products</option>
+                  {items.map((p) => (
+                    <option key={p.product_id} value={p.path}>
+                      {orgs > 1 ? `${p.name} (${p.tenant.name})` : p.name}
+                    </option>
+                  ))}
+                </SelectField>
+                <CopyField label="MCP server URL" value={url} />
+              </div>
             </Step>
             <Step n={2} title="Sign in when it asks">
               <p>Your browser opens WhatBuild so you can approve the connection.</p>
             </Step>
             <Step n={3} title="Ask it to start">
               <p>
-                For example: &ldquo;Add the interview notes in my downloads to {last?.name ?? "my product"} as a source, then list the passages about how people plan their week.&rdquo;
+                For example: &ldquo;Add the interview notes in my downloads to {named?.name ?? "my product"} as a source, then list the passages about how people plan their week.&rdquo;
               </p>
             </Step>
           </ol>

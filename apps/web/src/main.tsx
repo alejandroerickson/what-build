@@ -13,7 +13,7 @@ import { ConnectPage } from "./routes/connect.tsx";
 import { AcceptInvite, NotFound, SignIn } from "./routes/auth.tsx";
 import { InsightEditPage, InsightPage, InsightsPage } from "./routes/insights.tsx";
 import { IdeaPage } from "./routes/idea.tsx";
-import { MembersPage, ProductsPage, Welcome } from "./routes/org.tsx";
+import { MembersPage, Welcome } from "./routes/org.tsx";
 import { OverviewPage } from "./routes/overview.tsx";
 import { ActivityPage, ProductSettingsPage } from "./routes/product-misc.tsx";
 import { RegisterEntryPage, RegisterListPage } from "./routes/registers.tsx";
@@ -59,12 +59,18 @@ function ProductNotFound({ error }: { error: unknown }) {
     <PlainShell>
       <Sheet labelledBy="product-missing-title">
         <SheetHeader level={1} id="product-missing-title" title={status === 404 ? "This product does not exist, or you cannot see it" : "This product could not be loaded"} />
-        <EmptyState size="inline" action={<ButtonLink to="/products">Your products</ButtonLink>}>
+        <EmptyState size="inline" action={<ButtonLink to="/">Your products</ButtonLink>}>
           {status === 404 ? "If you expected to see it, ask one of its admins to give you a role." : error instanceof Error ? error.message : "Reload the page to try again."}
         </EmptyState>
       </Sheet>
     </PlainShell>
   );
+}
+
+/** The old list of products: the overview is the one list now, with New product and archived ones. */
+function ProductsRedirect() {
+  const { search } = useLocation();
+  return <Navigate replace to={`/${search}`} />;
 }
 
 /**
@@ -97,7 +103,7 @@ const router = createBrowserRouter([
       { path: "/invite/:token", element: <AcceptInvite /> },
       { element: <PlainShell><Outlet /></PlainShell>, children: [
         { path: "/", element: <OverviewPage /> },
-        { path: "/products", element: <ProductsPage /> },
+        { path: "/products", element: <ProductsRedirect /> },
         { path: "/connect", element: <ConnectPage /> },
         { path: "/settings", element: <SettingsPage /> },
         { path: "/t/:tenant/members", element: <MembersPage /> },
@@ -138,6 +144,7 @@ const router = createBrowserRouter([
           },
           { path: "story", element: <StoryPage /> },
           { path: "story/:pageId", element: <StoryPage /> },
+          { path: "connect", element: <ConnectPage /> },
           { path: "activity", element: <ActivityPage /> },
           { path: "settings", element: <ProductSettingsPage /> },
         ],

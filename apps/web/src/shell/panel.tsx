@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
+import { ROLE_WORD } from "../lib/format.ts";
 import { lastProduct, useMe, useProducts, useSignOut, type Product } from "../lib/session.tsx";
 import { Avatar, Glyph, IconButton, Menu, MenuGroup, MenuItem, MenuLabel, MenuRadio, MenuSeparator, type GlyphName } from "../ui/index.tsx";
 import { shortcutLabel } from "../ui/media.ts";
+import { CreateProductDialog } from "../routes/new-product.tsx";
 import { BrandMark } from "./brand.tsx";
 import { useTheme } from "./theme.ts";
 
@@ -23,6 +26,8 @@ export function productSection(segment: string | undefined): { id: string; label
       return { id: "synthesis", label: "Synthesis" };
     case "story":
       return { id: "story", label: "Story" };
+    case "connect":
+      return { id: "connect", label: "Connect an agent" };
     case "activity":
       return { id: "activity", label: "Activity" };
     case "settings":
@@ -33,7 +38,7 @@ export function productSection(segment: string | undefined): { id: string; label
 }
 
 /** Screens that exist in every product, so switching product can keep the person on the same one. */
-const KEEP_ON_SWITCH = new Set(["idea", "evidence", "synthesis", "story", "activity", "search", "settings"]);
+const KEEP_ON_SWITCH = new Set(["idea", "evidence", "synthesis", "story", "connect", "activity", "search", "settings"]);
 
 export function BrandRow({ to, label, current, onHide, hideLabel }: { to: string; label: string; current?: boolean; onHide: () => void; hideLabel: string }) {
   return (
@@ -51,6 +56,7 @@ export function ProductSwitcher({ current }: { current: Product }) {
   const products = useProducts();
   const loc = useLocation();
   const navigate = useNavigate();
+  const [creating, setCreating] = useState(false);
   const segment = loc.pathname.split("/")[5] ?? "idea";
   const keep = KEEP_ON_SWITCH.has(segment) ? segment : "idea";
   const items = products.data?.items ?? [];
@@ -89,16 +95,11 @@ export function ProductSwitcher({ current }: { current: Product }) {
         ))}
         {products.isPending ? <MenuLabel>Loading products…</MenuLabel> : null}
         <MenuSeparator />
-        <MenuItem icon="plus" to="/products?create=1">
+        <MenuItem icon="plus" onSelect={() => setCreating(true)}>
           New product
         </MenuItem>
-        <MenuItem icon="building" to={`/t/${current.tenant.slug}/members`}>
-          {current.tenant.name} members
-        </MenuItem>
-        <MenuItem icon="library" to="/products">
-          All products
-        </MenuItem>
       </Menu>
+      {creating && products.data ? <CreateProductDialog tenants={products.data.tenants} onClose={() => setCreating(false)} /> : null}
     </div>
   );
 }
@@ -122,7 +123,7 @@ export function ProductNav({ product, app, section }: { product: Product; app: s
         ))}
       </div>
       <div className="nav-quiet">
-        <NavNode to="/connect" icon="bot" label="Connect an agent" quiet />
+        <NavNode to={`${app}/connect`} icon="bot" label="Connect an agent" quiet current={section === "connect"} />
         <NavNode to={`${app}/activity`} icon="activity" label="Activity" quiet current={section === "activity"} />
         <NavNode to={`${app}/settings`} icon="settings" label="Settings" quiet current={section === "settings"} />
       </div>
@@ -131,56 +132,47 @@ export function ProductNav({ product, app, section }: { product: Product; app: s
 }
 
 /**
- * The panel outside a product (the overview, Connect an agent, members, all products, settings). It is
- * the same on every one of these screens, so it never depends on where the person came from: their
- * products, then the organization-level screens, with the current one marked.
+ * The panel outside a product (the overview, Connect an agent, members, settings). It is the same on
+ * every one of these screens, so it never depends on where the person came from: each organization's
+ * name over its products, then Connect an agent.
  */
-export function PlainNav({ section, tenantSlug }: { section: string; tenantSlug: string | null }) {
+export function PlainNav({ section }: { section: string }) {
   const products = useProducts();
   const items = products.data?.items ?? [];
   const tenants = products.data?.tenants ?? [];
-  const orgs = [...new Set(items.map((p) => p.tenant.name))];
-  // With one organization its name is on its members link; with several, it heads each group.
-  const grouped = orgs.length > 1;
   return (
     <>
-      {items.length ? (
-        <div className="nav-l1 nav-products" role="group" aria-labelledby="nav-products-label">
-          <div id="nav-products-label" className="nav-group-label">
-            Products
-          </div>
-          {orgs.map((org) => (
-            <div key={org} className="nav-org" role={grouped ? "group" : undefined} aria-label={grouped ? org : undefined}>
-              {grouped ? (
-                <div className="nav-org-label ellipsis" aria-hidden="true">
-                  {org}
-                </div>
-            ) : null}
+      {tenants.map((t) => {
+        const labelId = `nav-org-${t.tenant_id}`;
+        return (
+          <div key={t.tenant_id} className="nav-l1 nav-products" role="group" aria-labelledby={labelId}>
+            <div id={labelId} className="nav-group-label ellipsis">
+              {t.name}
+            </div>
             {items
-              .filter((p) => p.tenant.name === org)
+              .filter((p) => p.tenant.tenant_id === t.tenant_id)
               .map((p) => (
                 <NavNode key={p.product_id} to={`/t/${p.path}/idea`} icon="box" label={p.name} />
               ))}
           </div>
-        ))}
-      </div>
-      ) : null}
+        );
+      })}
       <div className="nav-quiet">
         <NavNode to="/connect" icon="bot" label="Connect an agent" quiet current={section === "connect"} />
-        {tenants.map((t) => (
-          <NavNode key={t.tenant_id} to={`/t/${t.slug}/members`} icon="users" label={`${t.name} members`} quiet current={section === "members" && t.slug === tenantSlug} />
-        ))}
-        <NavNode to="/products" icon="library" label="All products" quiet current={section === "products"} />
       </div>
     </>
   );
 }
 
-/** The panel footer: the signed-in person, and the account menu (theme, their settings, sign out). */
+/**
+ * The panel footer: the signed-in person, and the account menu: their email, their role in each
+ * organization with its members, the theme, their settings, and sign out.
+ */
 export function AccountMenu() {
   const me = useMe();
   const signOut = useSignOut();
   const [theme, setTheme] = useTheme();
+  const tenants = useProducts().data?.tenants ?? [];
   const name = me.data?.display_name ?? "Signed in";
   return (
     <div className="panel-foot">
@@ -203,6 +195,14 @@ export function AccountMenu() {
             <MenuSeparator />
           </>
         ) : null}
+        {tenants.map((t) => (
+          <MenuGroup key={t.tenant_id} label={t.your_role ? `${t.name} · ${ROLE_WORD[t.your_role] ?? t.your_role}` : t.name}>
+            <MenuItem icon="users" to={`/t/${t.slug}/members`}>
+              Members
+            </MenuItem>
+          </MenuGroup>
+        ))}
+        {tenants.length ? <MenuSeparator /> : null}
         <MenuGroup label="Theme">
           <MenuRadio checked={theme === "light"} onSelect={() => setTheme("light")} icon="sun" keepOpen>
             Light
