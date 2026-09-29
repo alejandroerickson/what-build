@@ -6,7 +6,8 @@ import { useProduct } from "../lib/session.tsx";
 import { useTheme } from "../shell/theme.ts";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
 import { useMediaQuery } from "../ui/media.ts";
-import { ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, Loading } from "../ui/index.tsx";
+import { ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, Loading, Sheet } from "../ui/index.tsx";
+import { FirstUse } from "./first-use.tsx";
 import { ExportDialog } from "./story-export.tsx";
 import { StoryInspectorBody } from "./story-inspector.tsx";
 import { split, trail, type Hierarchy, type PageSummary, type PageView, type VersionItem, type VersionView } from "./story-model.ts";
@@ -127,9 +128,11 @@ export function StoryPage() {
       <div className="story-view">
         {tree}
         <Crumbs label="Page location" currentAsHeading items={[{ label: "Story" }]} />
-        <EmptyState title="Your Story starts with what you know" action={<ButtonLink to="/connect" variant="primary" icon="bot">Connect an agent</ButtonLink>}>
-          The Story is a set of pages that tell stakeholders where this discovery stands. Agents write and arrange it from WhatBuild's guidance: connect one and ask it to draft the first page from your outcomes and insights.
-        </EmptyState>
+        <Sheet label="Story">
+          <FirstUse title="No Story pages yet" ask={`Draft the first Story page for ${product.name} in WhatBuild from its outcomes and insights.`}>
+            The Story is a set of pages that tells stakeholders where this discovery stands. Agents write and arrange it; you read it here and export it to PDF.
+          </FirstUse>
+        </Sheet>
         {dialogs}
       </div>
     );

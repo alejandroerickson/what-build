@@ -279,7 +279,7 @@ register is `404`.
 | `id` | |
 | `statement` | 1–1,000 chars. The premise or choice in one sentence. |
 | `body` | Markdown, 0–10,000 chars: reasoning, stakes, alternatives considered. |
-| `citations` | 1–20 (below). |
+| `citations` | 0–20 (below). An entry may be recorded before any evidence cites it ([decision](../decisions/register-entries-may-start-uncited.md)). |
 | `outcome_ids` | ≤ 20 outcome ids. |
 | `links` | ≤ 50 of `{ id, type }` to entries in **either** register; `type` is `supports`, `contradicts`, or `supersedes`. Reads also return `linked_from` and `superseded_by` (the ids of entries that supersede this one, newest first). |
 | `tags`, `dimensions`, `provenance_depth` | As sources. |

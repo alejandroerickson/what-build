@@ -37,5 +37,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [The web app uses the Studio design system](studio-design-system.md)
 - [The overview is WhatBuild's front door, and the one screen with display type](the-overview-is-the-front-door.md)
 - [Lists filter from the panel; a table's header only sorts or searches](lists-filter-from-the-panel.md)
+- [An empty list says what belongs in it and what to ask an agent; adding by hand stays in the header](empty-lists-lead-with-the-agent.md)
+- [An assumption or decision may be recorded before any evidence cites it](register-entries-may-start-uncited.md)
 - [The repository is public; okf/ is the single source of documentation](public-repository-reference-docs.md)
 - [Agent guidance is tool-neutral: AGENTS.md and .agents/skills](agent-guidance-is-tool-neutral.md)

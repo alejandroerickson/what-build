@@ -315,7 +315,7 @@ A neutral grey studio with a single indigo accent and three status hues; every v
 - **Avatar Sand** (avatar-bg with avatar-text): the one warm neutral, used only behind people's initials.
 
 ### Named Rules
-**The Earned Accent Rule.** Indigo means "selected, focused, commit, or evidence". It never decorates, never fills a header, and never marks a category. A view carries at most one accent-filled button, usually the commit in a form or dialog or the first-creation action in an empty state. A populated sheet header's create action stays a default button.
+**The Earned Accent Rule.** Indigo means "selected, focused, commit, or evidence". It never decorates, never fills a header, and never marks a category. A view carries at most one accent-filled button, usually the commit in a form or dialog, or Connect an agent in a first-use list. A sheet header's create action stays a default button, empty or not.
 
 **The Mark And Word Rule.** Status is a 7px mark followed by a word, both in the status colour. The mark's shape carries the state on its own: a filled dot for positive, a ring for attention, a small diamond for negative, a spinning open arc for progress and a faint ring for neutral. Colour is never the only signal.
 
@@ -400,6 +400,7 @@ Compact and calm. Default buttons read as white tiles with a hairline, not as fi
 - **Sheet:** panel fill, 12px corners, resting shadow, content clipped. A hairline separates the head from the rows.
 - **List row:** a three-column grid (48px id, title and sub, right-aligned end meta) padded 11px by the sheet gutter, with a hairline between rows and Hover fill when it is a link.
 - **Callout:** an 8px floating note with a resting shadow and a 16px icon column tinted by tone. The inset variant uses Hover fill with no shadow.
+- **First-use state:** an empty list inside its sheet, padded 20px by the sheet gutter: a 13px medium title ("No insights yet"), muted text at the 68ch measure, then "Connect an agent and ask it:" over the request in a 6px Hover-filled well at 13px ink, with Connect an agent (primary, until an agent is connected) and Copy below it ([decision](okf/decisions/empty-lists-lead-with-the-agent.md)).
 - **Inspector group:** padded 12px by 14px, 11.5px semibold title with a faint count, key-value rows on a 64px key column.
 
 ### Inputs / Fields

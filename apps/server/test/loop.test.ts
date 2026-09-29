@@ -170,6 +170,25 @@ describe("the discovery loop through REST", () => {
     expect(wrongKind.status).toBe(404);
   });
 
+  it("records assumptions and decisions before there is evidence, and cites it later", async () => {
+    const a = await alice.api("POST", `${P}/assumptions`, { statement: "Crew leads plan on Sunday evenings." });
+    expect(a.status).toBe(201);
+    expect(a.body.citations).toEqual([]);
+    expect(a.body.status).toBe("unconfirmed");
+    const d = await alice.api("POST", `${P}/decisions`, { statement: "Start with crews of up to ten.", body: "Small crews first.", citations: [] });
+    expect(d.status).toBe(201);
+    const check = await alice.api("POST", `${P}/assumptions/${a.body.id}/check-citations`, {});
+    expect(check.body.valid).toBe(true);
+    const log = await alice.api("GET", `${P}/activity?entity_id=${a.body.id}`);
+    expect(log.body.items[0].summary).toBe("Recorded an unconfirmed assumption with no citations yet");
+    const cited = await alice.api("PATCH", `${P}/assumptions/${a.body.id}`, { expected_etag: a.body.etag, citations: [{ record_id: recordId, seq_start: 2, seq_end: 2 }] });
+    expect(cited.status).toBe(200);
+    expect(cited.body.changed).toEqual(["citations"]);
+    expect(cited.body.citations).toHaveLength(1);
+    const tooMany = await alice.api("POST", `${P}/decisions`, { statement: "x", citations: Array.from({ length: 21 }, () => ({ record_id: recordId, seq_start: 2, seq_end: 2 })) });
+    expect(tooMany.status).toBe(422);
+  });
+
   it("counts only current assumptions and decisions, as the default lists show them", async () => {
     const o = await alice.api("POST", `${P}/outcomes`, { title: "Know when numbers close" });
     const cite = [{ record_id: recordId, seq_start: 2, seq_end: 2 }];
