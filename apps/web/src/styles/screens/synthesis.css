@@ -20,61 +20,11 @@
   height: 11px;
 }
 
-/* Assumptions / Decisions as quiet links in a sheet header. */
-.insights-quick {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  margin-right: var(--s-1);
-}
-.insights-quick .quiet-link {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-1);
-  min-height: var(--h-sm);
-  padding: 0 2px;
-}
+/* ---- The lists: insights, assumptions and decisions -------------------------------------------- */
 
-/* ---- Insights list ---------------------------------------------------------------------------- */
-
-.insights-tools {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-2);
-  padding: var(--s-2) var(--s-3) var(--s-2) var(--sheet-px);
-  border-bottom: 1px solid var(--line);
-}
-.insights-find {
-  flex: 0 1 260px;
-  min-width: 180px;
-}
-.insights-status {
-  width: auto;
-  max-width: 220px;
-}
-.insights-scope {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  min-width: 0;
-  margin: 0;
-  color: var(--muted);
-  font-size: var(--fs-sm);
-}
-.insights-scope strong {
-  color: var(--text);
-  font-weight: var(--fw-medium);
-}
-.insights-scope .quiet-link {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--h-sm);
-}
-.insights-tools .insights-scope {
-  flex: 1 1 240px;
-  justify-content: flex-end;
+.synthesis-find {
+  width: 240px;
+  max-width: 100%;
 }
 .insight-row-summary {
   display: -webkit-box;
@@ -310,27 +260,6 @@
 
 /* ---- Registers -------------------------------------------------------------------------------- */
 
-.register-crumbs {
-  margin: var(--s-1) 0 var(--s-1h);
-}
-.register-show {
-  width: auto;
-  max-width: 220px;
-}
-.register-intro {
-  display: grid;
-  gap: var(--s-1h);
-  padding: var(--s-3h) var(--sheet-px);
-  border-bottom: 1px solid var(--line);
-}
-.register-intro > p:first-child {
-  max-width: 70ch;
-  color: var(--muted);
-  line-height: 1.55;
-}
-.register-intro .insights-scope {
-  justify-content: flex-start;
-}
 /* History: a superseded entry sits under the entry that replaced it, quieter than the live rows. */
 .register-row-replaced .list-title {
   color: var(--muted);
@@ -474,16 +403,14 @@
 }
 
 @media (max-width: 760px) {
-  .insights-sheet .sheet-end {
-    justify-content: space-between;
-    width: 100%;
+  /* The search takes its own line under the title and the create action. */
+  .sheet-filter:has(> .synthesis-find) {
+    order: 1;
+    flex: 1 1 100%;
     margin-left: 0;
   }
-  .insights-find {
-    flex: 1 1 100%;
-  }
-  .insights-tools .insights-scope {
-    justify-content: flex-start;
+  .synthesis-find {
+    width: 100%;
   }
   .insight-prose {
     padding: var(--s-4) var(--sheet-px);

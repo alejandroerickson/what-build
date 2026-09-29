@@ -22,6 +22,7 @@ import { SourceDetailPage } from "./routes/source-detail.tsx";
 import { SourceNewPage } from "./routes/source-new.tsx";
 import { EvidencePage } from "./routes/evidence.tsx";
 import { StoryPage } from "./routes/story.tsx";
+import { SynthesisSection } from "./routes/synthesis-panel.tsx";
 import { PlainShell, ProductShell } from "./shell/Shell.tsx";
 import { ButtonLink, EmptyState, Sheet, SheetHeader, ToastProvider } from "./ui/index.tsx";
 
@@ -119,15 +120,21 @@ const router = createBrowserRouter([
           { path: "evidence/new", element: <SourceNewPage /> },
           { path: "evidence/:recordId", element: <SourceDetailPage /> },
           { path: "search", element: <SearchPage /> },
-          { path: "synthesis", element: <Navigate to="insights" replace /> },
-          { path: "synthesis/insights", element: <InsightsPage /> },
-          { path: "synthesis/insights/new", element: <InsightEditPage /> },
-          { path: "synthesis/insights/:insightId", element: <InsightPage /> },
-          { path: "synthesis/insights/:insightId/edit", element: <InsightEditPage /> },
-          { path: "synthesis/assumptions", element: <RegisterListPage kind="assumptions" /> },
-          { path: "synthesis/assumptions/:id", element: <RegisterEntryPage kind="assumptions" /> },
-          { path: "synthesis/decisions", element: <RegisterListPage kind="decisions" /> },
-          { path: "synthesis/decisions/:id", element: <RegisterEntryPage kind="decisions" /> },
+          {
+            path: "synthesis",
+            element: <SynthesisSection />,
+            children: [
+              { index: true, element: <Navigate to="insights" replace /> },
+              { path: "insights", element: <InsightsPage /> },
+              { path: "insights/new", element: <InsightEditPage /> },
+              { path: "insights/:insightId", element: <InsightPage /> },
+              { path: "insights/:insightId/edit", element: <InsightEditPage /> },
+              { path: "assumptions", element: <RegisterListPage kind="assumptions" /> },
+              { path: "assumptions/:id", element: <RegisterEntryPage kind="assumptions" /> },
+              { path: "decisions", element: <RegisterListPage kind="decisions" /> },
+              { path: "decisions/:id", element: <RegisterEntryPage kind="decisions" /> },
+            ],
+          },
           { path: "story", element: <StoryPage /> },
           { path: "story/:pageId", element: <StoryPage /> },
           { path: "activity", element: <ActivityPage /> },

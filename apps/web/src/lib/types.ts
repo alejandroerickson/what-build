@@ -172,6 +172,7 @@ export interface RegisterSummary {
   author_type: "human" | "agent";
   citation_count: number;
   record_ids: string[];
+  outcome_ids: string[];
   review_count: number;
   human_review: RegisterEntry["human_review"];
   /** The entries that supersede this one, newest first. */

@@ -1,37 +1,26 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
 import { attribution, citationCheckWords, formatCue, nestQuotes, plural, relativeTime } from "../lib/format.ts";
+import { findByTitle } from "../lib/fuzzy.ts";
 import { Markdown, passageHref } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { PROVENANCE_LABEL, REVIEW_STATUS, toneFor } from "../lib/status.ts";
 import type { CitationView, RegisterEntry, RegisterSummary } from "../lib/types.ts";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
-  Button, ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, FormGrid, Glyph, ListRow, Loading, Menu, MenuItem, MenuNote, MenuRadio, PageHeader, Segmented,
-  SelectField, Sheet, SheetBody, SheetHeader, StatusBadge, Tag, TextArea, useToast,
+  Button, ButtonLink, Callout, EmptyState, ErrorCallout, FiltersInUse, FormGrid, Glyph, ListRow, Loading, Menu, MenuItem, MenuNote, PageHeader, SelectField, Sheet,
+  SheetBody, SheetHeader, StatusBadge, Tag, TextArea, useToast,
 } from "../ui/index.tsx";
 import { Byline, searchWith, useCopyLink } from "./insights-common.tsx";
+import { entryViews, Marked, TitleFind, useEntryList } from "./synthesis-panel.tsx";
 import "../styles/screens/synthesis.css";
 
 type Kind = "assumptions" | "decisions";
 
 const TITLE: Record<Kind, string> = { assumptions: "Assumptions", decisions: "Decisions" };
 const ONE: Record<Kind, string> = { assumptions: "Assumption", decisions: "Decision" };
-
-const MEANING: Record<Kind, string> = {
-  assumptions: "What we are treating as true while the evidence is incomplete. Agents record them with citations; people review them here.",
-  decisions: "The choices we agree to act on, and the evidence behind them. Recording one does not mean the team agreed.",
-};
-
-// Named after the status chips the rows carry, so a filter and the rows it shows use the same words.
-const SHOW: { id: string; label: string; status: string[] }[] = [
-  { id: "", label: "Current", status: ["unconfirmed", "confirmed"] },
-  { id: "unconfirmed", label: "Unconfirmed", status: ["unconfirmed"] },
-  { id: "confirmed", label: "Confirmed", status: ["confirmed"] },
-  { id: "all", label: "All statuses", status: [] },
-];
 
 function statusOf(status: string) {
   return REVIEW_STATUS[status] ?? { label: status, tone: "neutral" as const };
@@ -68,10 +57,11 @@ function withHistory(items: RegisterSummary[]): { e: RegisterSummary; nested: bo
 
 export function RegisterListPage({ kind }: { kind: Kind }) {
   const { product, api: base, app } = useProduct();
-  const [params, setParams] = useSearchParams();
-  const show = params.get("show") ?? "";
-  const view = SHOW.find((s) => s.id === show) ?? SHOW[0]!;
+  const [params] = useSearchParams();
+  const views = entryViews(kind);
+  const view = views.find((v) => v.id === params.get("show")) ?? views[0]!;
   const outcome = params.get("outcome_id") ?? "";
+  const find = params.get("q") ?? "";
   const path = `${app}/synthesis/${kind}`;
   usePageTitle(TITLE[kind]);
   const outcomes = useQuery({
@@ -79,144 +69,85 @@ export function RegisterListPage({ kind }: { kind: Kind }) {
     enabled: Boolean(outcome),
     queryFn: () => api<{ items: { outcome_id: string; title: string }[] }>("GET", `${base}/outcomes`),
   });
-  const q = useInfiniteQuery({
-    queryKey: ["register", base, kind, show, outcome],
-    queryFn: ({ pageParam }) =>
-      api<{ items: RegisterSummary[]; next_cursor: string | null }>("GET", `${base}/${kind}${qs({ status: view.status, outcome_id: outcome, cursor: pageParam })}`),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (l) => l.next_cursor ?? undefined,
-  });
-  const items = q.data?.pages.flatMap((p) => p.items) ?? [];
-  const filtered = Boolean(show || outcome);
-  // The number of rows this view lists. The product's count is used only while more pages remain,
-  // and only for the default "Current" view, which is what it counts.
-  const count = !q.data ? undefined : !q.hasNextPage ? items.length : filtered ? `${items.length}+` : product.counts[kind];
+  const archived = view.id === "archived";
+  const list = useEntryList(kind, archived);
+  const inView = (list.data?.items ?? []).filter((e) => (view.test?.(e) ?? true) && (!outcome || e.outcome_ids.includes(outcome)));
+  const found = findByTitle(inView, find, (e) => e.statement);
+  const ranges = new Map(found.map((f) => [f.item.id, f.ranges]));
+  // While searching, the best match leads; otherwise replaced entries sit under their replacements.
+  const rows = find.trim() ? found.map((f) => ({ e: f.item, nested: false })) : withHistory(inView);
+  const narrowed = Boolean(view.id || outcome || find.trim());
+  // "of N" compares with the product's count, which counts the ones "All" lists.
+  const count = !list.data ? undefined : narrowed && view.id !== "refuted" && !archived ? `${rows.length} of ${product.counts[kind]}` : rows.length;
   const outcomeTitle = outcomes.data?.items.find((o) => o.outcome_id === outcome)?.title;
-  const setShow = (id: string) => {
-    const n = new URLSearchParams(params);
-    if (id) n.set("show", id);
-    else n.delete("show");
-    setParams(n);
-  };
+  const chips: { label: string; to: string }[] = [];
+  if (view.id) chips.push({ label: view.label, to: searchWith(path, params, { show: null }) });
+  if (outcome) chips.push({ label: `For ${outcomeTitle ?? "one outcome"}`, to: searchWith(path, params, { outcome_id: null }) });
 
   return (
-    <>
-      <div className="register-crumbs">
-        <Crumbs items={[{ label: "Synthesis", to: `${app}/synthesis/insights` }, { label: TITLE[kind] }]} />
-      </div>
-      <Sheet labelledBy="register-h">
-        <SheetHeader
-          level={1}
-          id="register-h"
-          title={TITLE[kind]}
-          count={count}
-          filter={
-            <Segmented
-              label="Register"
-              value={kind}
-              items={[
-                { id: "assumptions", label: "Assumptions", to: `${app}/synthesis/assumptions` },
-                { id: "decisions", label: "Decisions", to: `${app}/synthesis/decisions` },
-              ]}
-            />
-          }
-          end={
-            <Menu
-              label={`Show ${kind} by status`}
-              triggerClassName="field-button register-show"
-              align="end"
-              trigger={
-                <>
-                  <span>{view.label}</span>
-                  <Glyph name="chevron-down" size="sm" />
-                </>
-              }
-            >
-              {SHOW.map((s) => (
-                <MenuRadio key={s.id} checked={s.id === view.id} onSelect={() => setShow(s.id)}>
-                  {s.label}
-                </MenuRadio>
-              ))}
-            </Menu>
-          }
-        />
-        <div className="register-intro">
-          <p>{MEANING[kind]}</p>
-          {outcome ? (
-            <p className="insights-scope">
-              <span className="ellipsis">
-                For <strong>{outcomeTitle ?? "one outcome"}</strong>
-              </span>
-              <Link className="quiet-link" to={searchWith(path, params, { outcome_id: null })}>
-                Show all outcomes
-              </Link>
-            </p>
-          ) : null}
-        </div>
-        {q.isPending ? (
-          <Loading lines={3} />
-        ) : q.isError ? (
-          <SheetBody>
-            <ErrorCallout error={q.error} onRetry={() => q.refetch()} inset />
-          </SheetBody>
-        ) : !items.length ? (
-          filtered ? (
-            <EmptyState size="inline" title={`No ${kind} in this view.`} action={<ButtonLink size="sm" to={path}>Show current {kind}</ButtonLink>} />
-          ) : (
-            <EmptyState size="inline" title={`No ${kind} yet`} action={<ButtonLink size="sm" to="/connect" icon="plug">Connect an agent</ButtonLink>}>
-              Ask your agent to record the few {kind} the team relies on, with citations to the passages behind them. Everything else belongs in an insight.
-            </EmptyState>
-          )
+    <Sheet labelledBy="register-h">
+      <SheetHeader level={1} id="register-h" title={archived ? `Archived ${kind}` : TITLE[kind]} count={count} filter={<TitleFind label="Find by title" />} />
+      <FiltersInUse chips={chips} clearTo={searchWith(path, params, { show: null, outcome_id: null })} />
+      {list.isPending ? (
+        <Loading lines={3} />
+      ) : list.isError ? (
+        <SheetBody>
+          <ErrorCallout error={list.error} onRetry={() => list.refetch()} inset />
+        </SheetBody>
+      ) : !rows.length ? (
+        find.trim() && inView.length ? (
+          <EmptyState size="inline" title={`No ${kind} match “${find.trim()}”.`} action={<ButtonLink size="sm" to={searchWith(path, params, { q: null })}>Clear the search</ButtonLink>} />
+        ) : archived ? (
+          <EmptyState size="inline" title={`No archived ${kind}.`} />
+        ) : narrowed ? (
+          <EmptyState size="inline" title={`No ${kind} match these filters.`} action={<ButtonLink size="sm" to={path}>Show all {kind}</ButtonLink>} />
         ) : (
-          <div>
-            {withHistory(items).map(({ e, nested }) => {
-              const s = statusOf(e.status);
-              const sources = new Set(e.record_ids).size;
-              const replaced = e.status === "superseded";
-              return (
-                <ListRow
-                  key={e.id}
-                  to={`${path}/${e.id}`}
-                  className={`register-row${replaced ? " register-row-replaced" : ""}${nested ? " register-row-nested" : ""}`}
-                  lead={nested ? <Glyph name="corner-down-right" size="sm" /> : undefined}
-                  title={e.statement}
-                  end={<StatusBadge tone={s.tone}>{s.label}</StatusBadge>}
-                >
-                  {replaced ? (
-                    <span className="list-sub register-replaced-by">
-                      {nested ? "Replaced by the entry above" : e.superseded_by?.length ? "Replaced by a newer entry" : "Replaced by a correction"}
-                    </span>
-                  ) : null}
-                  <span className="list-sub">
-                    {e.author_type === "agent" ? "Drafted by " : "Recorded by "}
-                    {attribution(e.author)} · {relativeTime(e.updated_at)}
+          <EmptyState size="inline" title={`No ${kind} yet`} action={<ButtonLink size="sm" to="/connect" icon="plug">Connect an agent</ButtonLink>}>
+            Ask your agent to record the few {kind} the team relies on, with citations to the passages behind them. Everything else belongs in an insight.
+          </EmptyState>
+        )
+      ) : (
+        <div>
+          {rows.map(({ e, nested }) => {
+            const s = statusOf(e.status);
+            const sources = new Set(e.record_ids).size;
+            const replaced = e.status === "superseded";
+            return (
+              <ListRow
+                key={e.id}
+                to={`${path}/${e.id}`}
+                className={`register-row${replaced ? " register-row-replaced" : ""}${nested ? " register-row-nested" : ""}`}
+                lead={nested ? <Glyph name="corner-down-right" size="sm" /> : undefined}
+                title={<Marked text={e.statement} ranges={ranges.get(e.id) ?? []} />}
+                end={archived ? <StatusBadge tone="neutral">Archived</StatusBadge> : <StatusBadge tone={s.tone}>{s.label}</StatusBadge>}
+              >
+                {replaced ? (
+                  <span className="list-sub register-replaced-by">
+                    {nested ? "Replaced by the entry above" : e.superseded_by?.length ? "Replaced by a newer entry" : "Replaced by a correction"}
                   </span>
-                  <span className="list-sub">
-                    {e.citation_count ? (
-                      <>
-                        <span className="num">{plural(e.citation_count, "cited passage")}</span> from <span className="num">{plural(sources, "source")}</span>
-                      </>
-                    ) : (
-                      "No passages cited yet"
-                    )}
-                    {" · "}
-                    {e.human_review.confidence === "unreviewed" ? "no human confidence yet" : `${e.human_review.confidence} confidence`}
-                    {e.archived_at ? " · Archived" : ""}
-                  </span>
-                </ListRow>
-              );
-            })}
-            {q.hasNextPage ? (
-              <div className="insight-more">
-                <Button size="sm" onClick={() => q.fetchNextPage()} busy={q.isFetchingNextPage} busyLabel="Loading…">
-                  More {kind}
-                </Button>
-              </div>
-            ) : null}
-          </div>
-        )}
-      </Sheet>
-    </>
+                ) : null}
+                <span className="list-sub">
+                  {e.author_type === "agent" ? "Drafted by " : "Recorded by "}
+                  {attribution(e.author)} · {relativeTime(e.updated_at)}
+                </span>
+                <span className="list-sub">
+                  {e.citation_count ? (
+                    <>
+                      <span className="num">{plural(e.citation_count, "cited passage")}</span> from <span className="num">{plural(sources, "source")}</span>
+                    </>
+                  ) : (
+                    "No passages cited yet"
+                  )}
+                  {" · "}
+                  {e.human_review.confidence === "unreviewed" ? "no human confidence yet" : `${e.human_review.confidence} confidence`}
+                </span>
+              </ListRow>
+            );
+          })}
+          {list.data.more ? <p className="insight-more faint">Showing the first {list.data.items.length} {kind}.</p> : null}
+        </div>
+      )}
+    </Sheet>
   );
 }
 
@@ -412,11 +343,7 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
   });
   usePageTitle(q.data?.statement);
   const listPath = `${app}/synthesis/${kind}`;
-  const crumbsFor = (label: string) => [
-    { label: "Synthesis", to: `${app}/synthesis/insights` },
-    { label: TITLE[kind], to: listPath },
-    { label },
-  ];
+  const crumbsFor = (label: string) => [{ label: TITLE[kind], to: listPath }, { label }];
   if (q.isPending) return <Loading lines={6} variant="lines" />;
   if (q.isError)
     return (

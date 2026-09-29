@@ -644,6 +644,21 @@ a.chip:hover {
   flex-wrap: wrap;
   gap: var(--s-1);
 }
+/* The filters a list is narrowed by, under its sheet head. */
+.filters-in-use {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-2);
+  padding: var(--s-2) var(--s-3) var(--s-2) var(--sheet-px);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--fs-sm);
+}
+.filters-in-use-chip {
+  max-width: 260px;
+  min-height: var(--h-sm);
+  gap: var(--s-1);
+}
 
 /* ---- Callouts, empty, loading ----------------------------------------------------------------- */
 

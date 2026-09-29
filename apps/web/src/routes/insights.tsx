@@ -1,175 +1,83 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
 import { attribution, plural, relativeTime } from "../lib/format.ts";
+import { findByTitle } from "../lib/fuzzy.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { REVIEW_STATUS, toneFor } from "../lib/status.ts";
 import type { Insight, InsightSummary, RecordSummary, Refs } from "../lib/types.ts";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
-  Button, ButtonLink, Callout, ChoiceRow, EmptyState, ErrorCallout, FindField, FormGrid, Glyph, ListRow, Loading, Menu, MenuItem, MenuRadio, MenuSeparator,
+  Button, ButtonLink, Callout, ChoiceRow, EmptyState, ErrorCallout, FiltersInUse, FindField, FormGrid, Glyph, ListRow, Loading, Menu, MenuItem, MenuSeparator,
   PageHeader, Segmented, SelectField, Sheet, SheetBody, SheetHeader, StatusBadge, TextArea, TextField, useToast,
 } from "../ui/index.tsx";
 import { Byline, HistoryDialog, ReviewBadge, searchWith, STATUS_WORD, useCopyLink } from "./insights-common.tsx";
+import { INSIGHT_VIEWS, Marked, TitleFind, useInsightList } from "./synthesis-panel.tsx";
 import "../styles/screens/synthesis.css";
 
 export { HistoryDialog } from "./insights-common.tsx";
-
-
-
-/** The Segmented filter: All, Unreviewed (includes changed since review), Reviewed. */
-const REVIEW_FILTER: Record<string, string[] | undefined> = { "": undefined, unreviewed: ["unreviewed", "changed"], reviewed: ["reviewed"] };
-
-const STATUS_FILTER = [
-  { id: "", label: "Drafts and published" },
-  { id: "published", label: "Published" },
-  { id: "draft", label: "Working drafts" },
-  { id: "archived", label: "Archived" },
-];
 
 // ---- Insights list ------------------------------------------------------------------------------
 
 export function InsightsPage() {
   const { product, api: base, app, canWrite } = useProduct();
-  const [params, setParams] = useSearchParams();
-  const review = params.get("review") ?? "";
-  const reviewStates = REVIEW_FILTER[review];
+  const [params] = useSearchParams();
+  const view = INSIGHT_VIEWS.find((v) => v.id === params.get("show")) ?? INSIGHT_VIEWS[0]!;
+  const archived = view.id === "archived";
   const outcome = params.get("outcome_id") ?? "";
-  const status = params.get("status") ?? "";
-  const query = params.get("query") ?? "";
-  const [text, setText] = useState(query);
+  const find = params.get("q") ?? "";
+  const list = useInsightList(archived);
   const outcomes = useQuery({
     queryKey: ["outcomes", base, ""],
     enabled: Boolean(outcome),
     queryFn: () => api<{ items: { outcome_id: string; title: string }[] }>("GET", `${base}/outcomes`),
   });
-  const q = useInfiniteQuery({
-    queryKey: ["insights", base, review, outcome, status, query],
-    queryFn: ({ pageParam }) =>
-      api<{ items: InsightSummary[]; next_cursor: string | null }>("GET", `${base}/insights${qs({ review_state: reviewStates, outcome_id: outcome, status, query, cursor: pageParam })}`),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (l) => l.next_cursor ?? undefined,
-  });
-  // How many wait for a person, in the same view (ignoring the review filter itself).
-  const waiting = useQuery({
-    queryKey: ["insights", base, "count-unreviewed", outcome, status, query],
-    queryFn: () =>
-      api<{ items: unknown[]; next_cursor: string | null }>("GET", `${base}/insights${qs({ review_state: REVIEW_FILTER["unreviewed"], outcome_id: outcome, status, query, limit: 100 })}`),
-  });
-  const items = q.data?.pages.flatMap((p) => p.items) ?? [];
-  const filtered = Boolean(review || outcome || status || query);
-  const count = !q.data ? undefined : !filtered ? product.counts.insights : q.hasNextPage ? `${items.length}+` : items.length;
-  const waitingCount = waiting.data ? `${waiting.data.items.length}${waiting.data.next_cursor ? "+" : ""}` : undefined;
+  const path = `${app}/synthesis/insights`;
+  const inView = (list.data?.items ?? []).filter((i) => (view.test?.(i) ?? true) && (!outcome || i.refs.outcomes.includes(outcome)));
+  const rows = findByTitle(inView, find, (i) => i.title);
+  const narrowed = Boolean(view.id || outcome || find.trim());
+  // "of N" compares with the product's insights, so it is left out for the archived ones.
+  const count = !list.data ? undefined : narrowed && !archived ? `${rows.length} of ${product.counts.insights}` : rows.length;
   const outcomeTitle = outcomes.data?.items.find((o) => o.outcome_id === outcome)?.title;
-  const statusLabel = STATUS_FILTER.find((s) => s.id === status)?.label ?? STATUS_FILTER[0]!.label;
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    const n = new URLSearchParams(params);
-    if (text.trim()) n.set("query", text.trim());
-    else n.delete("query");
-    setParams(n);
-  };
-  const setStatus = (id: string) => {
-    const n = new URLSearchParams(params);
-    if (id) n.set("status", id);
-    else n.delete("status");
-    setParams(n);
-  };
+  const chips: { label: string; to: string }[] = [];
+  if (view.id) chips.push({ label: view.label, to: searchWith(path, params, { show: null }) });
+  if (outcome) chips.push({ label: `For ${outcomeTitle ?? "one outcome"}`, to: searchWith(path, params, { outcome_id: null }) });
 
   return (
     <Sheet labelledBy="insights-h" className="insights-sheet">
       <SheetHeader
         level={1}
         id="insights-h"
-        title="Insights"
+        title={archived ? "Archived insights" : "Insights"}
         count={count}
-        filter={
-          <Segmented
-            label="Review"
-            value={review}
-            items={[
-              { id: "", label: "All", to: searchWith(`${app}/synthesis/insights`, params, { review: null }) },
-              { id: "unreviewed", label: "Unreviewed", count: waitingCount, to: searchWith(`${app}/synthesis/insights`, params, { review: "unreviewed" }) },
-              { id: "reviewed", label: "Reviewed", to: searchWith(`${app}/synthesis/insights`, params, { review: "reviewed" }) },
-            ]}
-          />
-        }
+        filter={<TitleFind label="Find by title" />}
         end={
-          <>
-            <nav className="insights-quick" aria-label="Registers">
-              <Link className="quiet-link" to={`${app}/synthesis/assumptions`}>
-                Assumptions <span className="num faint">{product.counts.assumptions}</span>
-              </Link>
-              <Link className="quiet-link" to={`${app}/synthesis/decisions`}>
-                Decisions <span className="num faint">{product.counts.decisions}</span>
-              </Link>
-            </nav>
-            {canWrite ? (
-              <ButtonLink to={`${app}/synthesis/insights/new${outcome ? `?outcome_id=${outcome}` : ""}`} icon="plus">
-                New insight
-              </ButtonLink>
-            ) : null}
-          </>
+          canWrite ? (
+            <ButtonLink to={`${app}/synthesis/insights/new${outcome ? `?outcome_id=${outcome}` : ""}`} icon="plus">
+              New insight
+            </ButtonLink>
+          ) : undefined
         }
       />
-      <div className="insights-tools">
-        <form role="search" className="insights-find" onSubmit={submit}>
-          <FindField
-            label="Find an insight"
-            value={text}
-            onChange={(e) => {
-              setText(e.target.value);
-              // Clearing the field (or its cancel button) clears the search.
-              if (!e.target.value && query) {
-                const n = new URLSearchParams(params);
-                n.delete("query");
-                setParams(n);
-              }
-            }}
-          />
-        </form>
-        <Menu
-          label="Show insights by status"
-          triggerClassName="field-button insights-status"
-          align="start"
-          trigger={
-            <>
-              <span>{statusLabel}</span>
-              <Glyph name="chevron-down" size="sm" />
-            </>
-          }
-        >
-          {STATUS_FILTER.map((s) => (
-            <MenuRadio key={s.id} checked={s.id === status} onSelect={() => setStatus(s.id)}>
-              {s.label}
-            </MenuRadio>
-          ))}
-        </Menu>
-        {outcome ? (
-          <p className="insights-scope">
-            <span className="ellipsis">
-              For <strong>{outcomeTitle ?? "one outcome"}</strong>
-            </span>
-            <Link className="quiet-link" to={searchWith(`${app}/synthesis/insights`, params, { outcome_id: null })}>
-              Show all outcomes
-            </Link>
-          </p>
-        ) : null}
-      </div>
-      {q.isPending ? (
+      <FiltersInUse chips={chips} clearTo={searchWith(path, params, { show: null, outcome_id: null })} />
+      {list.isPending ? (
         <Loading lines={4} />
-      ) : q.isError ? (
+      ) : list.isError ? (
         <SheetBody>
-          <ErrorCallout error={q.error} onRetry={() => q.refetch()} inset />
+          <ErrorCallout error={list.error} onRetry={() => list.refetch()} inset />
         </SheetBody>
-      ) : !items.length ? (
-        filtered ? (
+      ) : !rows.length ? (
+        find.trim() && inView.length ? (
+          <EmptyState size="inline" title={`No insight titles match “${find.trim()}”.`} action={<ButtonLink size="sm" to={searchWith(path, params, { q: null })}>Clear the search</ButtonLink>} />
+        ) : archived ? (
+          <EmptyState size="inline" title="No archived insights." />
+        ) : narrowed ? (
           <EmptyState
             size="inline"
-            title={review === "unreviewed" && !outcome && !status && !query ? "Every insight has been reviewed." : "No insights match this view."}
-            action={<ButtonLink size="sm" to={`${app}/synthesis/insights`}>Show all insights</ButtonLink>}
+            title={view.id === "unreviewed" && !outcome ? "Every insight has been reviewed." : "No insights match these filters."}
+            action={<ButtonLink size="sm" to={path}>Show all insights</ButtonLink>}
           />
         ) : (
           <EmptyState
@@ -193,29 +101,23 @@ export function InsightsPage() {
         )
       ) : (
         <div className="insight-rows">
-          {items.map((i) => (
+          {rows.map(({ item: i, ranges }) => (
             <ListRow
               key={i.insight_id}
               to={`${app}/synthesis/insights/${i.insight_id}`}
               className="insight-row"
-              title={i.title}
-              end={<ReviewBadge state={i.review_state} />}
+              title={<Marked text={i.title} ranges={ranges} />}
+              end={archived ? <StatusBadge tone="neutral">Archived</StatusBadge> : <ReviewBadge state={i.review_state} />}
             >
               {i.summary ? <span className="list-sub insight-row-summary">{i.summary}</span> : null}
               <span className="list-sub">
-                {i.status !== "published" ? <>{STATUS_WORD[i.status]} · </> : null}
+                {i.status === "draft" ? <>{STATUS_WORD[i.status]} · </> : null}
                 {attribution(i.updated_by)} · {relativeTime(i.updated_at)} · <span className="num">{plural(i.refs.sources.length, "source")}</span>
                 {i.refs.outcomes.length ? <> · <span className="num">{plural(i.refs.outcomes.length, "outcome")}</span></> : null}
               </span>
             </ListRow>
           ))}
-          {q.hasNextPage ? (
-            <div className="insight-more">
-              <Button size="sm" onClick={() => q.fetchNextPage()} busy={q.isFetchingNextPage} busyLabel="Loading…">
-                More insights
-              </Button>
-            </div>
-          ) : null}
+          {list.data.more ? <p className="insight-more faint">Showing the first {list.data.items.length} insights.</p> : null}
         </div>
       )}
     </Sheet>
@@ -430,20 +332,7 @@ export function InsightPage() {
         </div>
       </Sheet>
       <Sheet labelledBy="connected-h">
-        <SheetHeader
-          id="connected-h"
-          title="Connected"
-          end={
-            <nav className="insights-quick" aria-label="Registers">
-              <Link className="quiet-link" to={`${app}/synthesis/assumptions`}>
-                All assumptions
-              </Link>
-              <Link className="quiet-link" to={`${app}/synthesis/decisions`}>
-                All decisions
-              </Link>
-            </nav>
-          }
-        />
+        <SheetHeader id="connected-h" title="Connected" />
         {connected.length ? (
           <dl className="insight-refs">
             {connected.map((r) => (

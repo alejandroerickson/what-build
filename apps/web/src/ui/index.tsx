@@ -9,7 +9,7 @@ export { Callout, Chip, EmptyState, ErrorCallout, Loading, StatusBadge, Tag, typ
 export { ToastProvider, useToast, type ToastTone } from "./toast.tsx";
 export { Dialog } from "./dialog.tsx";
 export {
-  AgentFace, Avatar, Card, CopyField, Crumbs, Group, initials, KeyValue, ListRow, PageHeader, Segmented, Sheet, SheetBody, SheetHeader,
+  AgentFace, Avatar, Card, CopyField, Crumbs, FiltersInUse, Group, initials, KeyValue, ListRow, PageHeader, Segmented, Sheet, SheetBody, SheetHeader,
   type Crumb, type SegmentedItem,
 } from "./layout.tsx";
 export { Glyph, type GlyphName } from "./glyph.tsx";
