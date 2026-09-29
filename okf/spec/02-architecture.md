@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-09-27}
+generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
 status: stable
 ---
 
@@ -44,7 +44,7 @@ Observed in the `package.json` files, the [`Dockerfile`](../../Dockerfile) and
 | Full-text | **Postgres** `tsvector` (`simple` configuration) + GIN; `pg_trgm` for substring | No second search engine, no external index. |
 | Queue | **Postgres** `jobs` table (`SELECT … FOR UPDATE SKIP LOCKED`) | No broker to run, pay for, or install to contribute. The worker ships in the same image. |
 | Blobs | `BlobStore` port with filesystem, in-memory and Google Cloud Storage adapters | Files and derived sidecars are immutable, create-only blobs everywhere. |
-| Identity | **Built in** ([`apps/server/src/auth`](../../apps/server/src/auth)): email links, Google OpenID Connect, sessions, personal access tokens, and WhatBuild's own OAuth 2.1 authorization server for MCP | Fewer moving parts and fully under test; no auth library. See [§3.8](03-accounts-teams-and-identity.md). |
+| Identity | **Built in** ([`apps/server/src/auth`](../../apps/server/src/auth)): email links, Google OpenID Connect, sessions, and WhatBuild's own OAuth 2.1 authorization server for MCP | Fewer moving parts and fully under test; no auth library. See [§3.8](03-accounts-teams-and-identity.md). |
 | Mail | `nodemailer` over SMTP, or the console in development | Any SMTP provider; no provider SDK. |
 | Web UI | **React 19 + Vite**, SPA; **React Router 7** and **TanStack Query**; `lucide-react` icons | Static assets served by the same process; URL-held state through the router. |
 | Parsing | Own code for text/Markdown/VTT/SRT/CSV; `pdfjs-dist` for PDF; `fflate` + `saxes` for DOCX and XLSX; `parse5` for HTML | Pure functions of bytes → sidecars with no native dependencies: a small image, a fast cold start, and a contributor install that cannot fail on a toolchain. |

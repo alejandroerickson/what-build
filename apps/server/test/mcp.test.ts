@@ -8,7 +8,7 @@ import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 let h: Harness;
 let alice: Browser;
-let pat: string;
+let agentToken: string;
 let path: string;
 
 function text(r: unknown): any {
@@ -29,7 +29,7 @@ beforeAll(async () => {
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Acme" });
   const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Onboarding" });
   path = p.body.path;
-  pat = (await alice.api("POST", "/api/v1/me/tokens", { name: "agent" })).body.token;
+  agentToken = await h.connectAgent(alice);
 });
 afterAll(async () => h?.close());
 
@@ -58,7 +58,7 @@ describe("MCP", () => {
   });
 
   it("advertises the skill version and a small grouped tool list", async () => {
-    const client = await connect(pat);
+    const client = await connect(agentToken);
     expect(client.getServerVersion()?.version).toBe(SKILL_VERSION);
     expect(client.getInstructions()).toContain(`version ${SKILL_VERSION}`);
     const { tools } = await client.listTools();
@@ -69,7 +69,7 @@ describe("MCP", () => {
   });
 
   it("describes an action without running it, and refuses unknown actions and fields", async () => {
-    const client = await connect(pat);
+    const client = await connect(agentToken);
     const d = text(await client.callTool({ name: "insights", arguments: { action: "create", describe: true } }));
     expect(d.input_schema.properties.title).toBeDefined();
     expect(d.input_schema.additionalProperties).toBe(false);
@@ -82,7 +82,7 @@ describe("MCP", () => {
   });
 
   it("runs the agent path: create with upload, PUT, complete, derive, search, read, cite", async () => {
-    const client = await connect(pat);
+    const client = await connect(agentToken);
     // Only one product is reachable, so `product` may be omitted.
     const created = text(await client.callTool({
       name: "files",
@@ -115,14 +115,14 @@ describe("MCP", () => {
     const tenant = t.body.items[0].tenant.slug;
     const team = t.body.items[0].team.slug;
     await alice.api("POST", `/api/v1/teams/${tenant}/${team}/products`, { name: "Second" });
-    const client = await connect(pat);
+    const client = await connect(agentToken);
     const r = await client.callTool({ name: "outcomes", arguments: { action: "list", params: {} } });
     expect(r.isError).toBe(true);
     const body = (r.content as { text: string }[])[0]!.text;
     expect(body).toMatch(/^422: Say which product/);
     expect(body).toContain(path);
     // A connector bound to one product needs no `product`.
-    const bound = await connect(pat, `${h.baseUrl}/mcp/t/${path}`);
+    const bound = await connect(agentToken, `${h.baseUrl}/mcp/t/${path}`);
     const ok = await bound.callTool({ name: "outcomes", arguments: { action: "list", params: {} } });
     expect(ok.isError).toBeFalsy();
     await client.close();

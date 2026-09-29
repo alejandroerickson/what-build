@@ -1,3 +1,5 @@
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { STORY_STYLESHEET, withStoryTheme } from "@whatbuild/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createPorts } from "../src/app.ts";
@@ -333,18 +335,20 @@ describe("Story page theme", () => {
 });
 
 describe("activity by people or agents", () => {
-  it("splits what people did (app and REST) from what agents did (MCP)", async () => {
-    const pat = (await alice.api("POST", "/api/v1/me/tokens", { name: "script" })).body.token as string;
-    const viaRest = await fetch(`${h.baseUrl}${P}/insights`, { method: "POST", headers: { authorization: `Bearer ${pat}`, "content-type": "application/json" }, body: JSON.stringify({ title: "Written through the API", body: "Through a script." }) });
-    expect(viaRest.status).toBe(201);
+  it("splits what people did (the app) from what agents did (MCP)", async () => {
+    const client = new Client({ name: "test-agent", version: "1.0.0" });
+    await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(alice)}` } } }));
+    const viaMcp = await client.callTool({ name: "insights", arguments: { action: "create", product: productPath, params: { title: "Written by an agent", body: "Through MCP." } } });
+    expect(viaMcp.isError).toBeFalsy();
+    await client.close();
     const people = await alice.api("GET", `${P}/activity?by=people&limit=200`);
     expect(people.status).toBe(200);
     const channels = new Set(people.body.items.map((a: { channel: string | null }) => a.channel));
     expect(channels.has("web")).toBe(true);
-    expect(channels.has("rest")).toBe(true);
     expect(channels.has("mcp")).toBe(false);
     const agents = await alice.api("GET", `${P}/activity?by=agents`);
     expect(agents.status).toBe(200);
+    expect(agents.body.items.some((a: { entity_title: string }) => a.entity_title === "Written by an agent")).toBe(true);
     for (const a of agents.body.items) expect(a.channel).toBe("mcp");
     expect((await alice.api("GET", `${P}/activity?by=robots`)).status).toBe(422);
   });

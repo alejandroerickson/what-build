@@ -162,8 +162,7 @@ calls **every** product, team and tenant operation as someone with no membership
 | Surface | Credential | Recorded surface |
 |---|---|---|
 | Web | Session cookie (`HttpOnly`, `SameSite=Lax`, `Secure` on HTTPS), 30 days; cookie writes must come from the app's own origin | `web` |
-| REST (scripts) | Personal access token (`wbpat_…`) | `rest` |
-| MCP | OAuth 2.1 access token issued by WhatBuild for its MCP endpoint, or a personal access token | `mcp` |
+| MCP | OAuth 2.1 access token issued by WhatBuild for its MCP endpoint | `mcp` |
 | Upload relay | A signed, single-file grant; the file is attributed to whoever requested the grant | as requested |
 | Job worker | none — internal | none; the actor is `WhatBuild` (system) |
 
@@ -178,16 +177,17 @@ MCP client registers itself, so no client is configured in advance. The consent 
 allows its form to reach only WhatBuild and that client's registered callback, the one place Allow
 redirects to. A
 token is the person: it never widens or narrows what they can do. Connected agents are listed and
-revoked from the Account page.
+disconnected on the Connect an agent page.
 
-**Personal access tokens** are created in the web app only (a signed-in session is required),
-shown once, stored hashed, listed with last use, and revoked immediately.
+**No personal access tokens.** REST answers the web app's session only, and refuses any bearer
+token; an agent connects over MCP with OAuth, so every agent connection is one a person approved in
+a browser and can see and disconnect ([decision](../decisions/built-in-identity-and-oauth.md)).
+Activity written through REST by earlier token holders keeps its recorded surface, `rest`.
 
 ## 3.9 Attribution
 
 Every mutation stores an actor snapshot — `{ account_id, display_name, surface, client }` — copied,
-not joined, so attribution survives renames and removals. `client` is the OAuth client's name or a
-token's user agent. It never holds an email address.
+not joined, so attribution survives renames and removals. `client` is the OAuth client's name. It never holds an email address.
 
 Authenticated identity says which account wrote; it does not say whether a person exercised
 judgment, because an agent writes with its person's credentials. Register entries and reviews

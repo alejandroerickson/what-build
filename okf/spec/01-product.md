@@ -58,12 +58,13 @@ of one of them.
 | **Synthesis** | Insights (the insight documents), the assumption register, the decision register. |
 | **Story** | The outward-facing report: an ordered hierarchy of versioned, sandboxed HTML pages. |
 
-**Activity** is not a fifth destination: it is a quiet page reached from the account menu, and from
+**Activity** is not a fifth destination: it is a quiet page reached from the product's panel, and from
 an item's "Activity on this …" link, filtered to that item ([§7](07-web-app.md)). Product settings
 (details, people, export, archive) are a page inside the product.
 
-Outside a product there are only: the product list, **Members** of an organization, **Connect**
-(agent onboarding), and **Account** (name, connected agents, access tokens). Routes are in
+Outside a product there are only: the product list, **Members** of an organization, **Connect an
+agent** (the MCP address and the agents connected now), and the person's **Settings** (their display
+name). Routes are in
 [`apps/web/src/main.tsx`](../../apps/web/src/main.tsx).
 
 ## 1.4 Vocabulary

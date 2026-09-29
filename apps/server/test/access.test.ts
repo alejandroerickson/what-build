@@ -112,13 +112,22 @@ describe("identity", () => {
     expect(r.status).toBe(403);
   });
 
-  it("issues personal access tokens that act as the person, and stop at once when revoked", async () => {
-    const t = await alice.api("POST", "/api/v1/me/tokens", { name: "script" });
-    expect(t.body.token).toMatch(/^wbpat_/);
-    const call = await fetch(`${h.baseUrl}/api/v1/p/${path}/outcomes`, { headers: { authorization: `Bearer ${t.body.token}` } });
-    expect(call.status).toBe(200);
-    await alice.api("DELETE", `/api/v1/me/tokens/${t.body.token_id}`);
-    const after = await fetch(`${h.baseUrl}/api/v1/p/${path}/outcomes`, { headers: { authorization: `Bearer ${t.body.token}` } });
-    expect(after.status).toBe(401);
+  it("answers REST only to the browser session: a bearer token is refused, even an agent's", async () => {
+    const token = await h.connectAgent(alice);
+    const call = await fetch(`${h.baseUrl}/api/v1/p/${path}/outcomes`, { headers: { authorization: `Bearer ${token}` } });
+    expect(call.status).toBe(401);
+    expect((await fetch(`${h.baseUrl}/api/v1/me/tokens`, { headers: { cookie: alice.cookie } })).status).toBe(404);
+  });
+
+  it("lists the agents connected as a person, and disconnects one at once", async () => {
+    const token = await h.connectAgent(alice, "Revocable Agent");
+    const listed = await alice.api("GET", "/api/v1/me/agents");
+    const agent = listed.body.items.find((a: { client_name: string }) => a.client_name === "Revocable Agent");
+    expect(agent).toBeTruthy();
+    const mcp = (t: string) => fetch(`${h.baseUrl}/mcp`, { method: "POST", headers: { authorization: `Bearer ${t}`, "content-type": "application/json", accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) });
+    expect((await mcp(token)).status).toBe(200);
+    await alice.api("DELETE", `/api/v1/me/agents/${agent.family_id}`);
+    expect((await mcp(token)).status).toBe(401);
+    expect((await alice.api("GET", "/api/v1/me/agents")).body.items.some((a: { family_id: string }) => a.family_id === agent.family_id)).toBe(false);
   });
 });

@@ -5,7 +5,7 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { sql } from "kysely";
 import { z } from "zod";
 import type { ServerConfig } from "../config.ts";
-import { acceptInvitation, acceptInvitationsForEmail, createSession, findOrCreateAccount, PAT_PREFIX, restPrincipal, SESSION_COOKIE } from "./identity.ts";
+import { acceptInvitation, acceptInvitationsForEmail, createSession, findOrCreateAccount, restPrincipal, SESSION_COOKIE } from "./identity.ts";
 
 function safeNext(next: string | undefined | null): string {
   // Only same-origin paths: never an open redirect.
@@ -168,10 +168,10 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     return c.json({ account_id: p.account_id, email: p.email, display_name: body.data.display_name });
   });
 
-  app.get("/api/v1/me/tokens", async (c) => {
+  /** The agents signed in as this person over OAuth: one entry per connection. */
+  app.get("/api/v1/me/agents", async (c) => {
     const p = await requirePrincipal(c);
-    const rows = await db.selectFrom("personal_access_tokens").select(["token_id", "name", "prefix", "created_at", "last_used_at", "revoked_at"]).where("account_id", "=", p.account_id).orderBy("created_at", "desc").execute();
-    const clients = await db
+    const agents = await db
       .selectFrom("oauth_tokens as t")
       .innerJoin("oauth_clients as c", "c.client_id", "t.client_id")
       .select(["c.client_name", "t.family_id", (eb) => eb.fn.max("t.last_used_at").as("last_used_at"), (eb) => eb.fn.min("t.created_at").as("created_at")])
@@ -180,25 +180,7 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
       .where("t.expires_at", ">", new Date().toISOString())
       .groupBy(["c.client_name", "t.family_id"])
       .execute();
-    return c.json({ tokens: rows, connected_agents: clients });
-  });
-
-  app.post("/api/v1/me/tokens", async (c) => {
-    const p = await requirePrincipal(c);
-    if (p.auth_kind !== "session") throw new AppError(403, "forbidden", "Create personal access tokens in the web app.");
-    const body = z.strictObject({ name: z.string().trim().min(1).max(100) }).safeParse(await c.req.json().catch(() => ({})));
-    if (!body.success) throw invalid("invalid_input", "Name the token (1 to 100 characters), after the client that will use it.");
-    const token = `${PAT_PREFIX}${randomToken(30)}`;
-    const token_id = newId();
-    await db.insertInto("personal_access_tokens").values({ token_id, account_id: p.account_id, name: body.data.name, token_hash: sha256Hex(token), prefix: token.slice(0, 12) }).execute();
-    return c.json({ token_id, name: body.data.name, token, note: "Shown once. It acts as you, with exactly your access; revoke it here when done." }, 201);
-  });
-
-  app.delete("/api/v1/me/tokens/:id", async (c) => {
-    const p = await requirePrincipal(c);
-    const r = await db.updateTable("personal_access_tokens").set({ revoked_at: new Date().toISOString() }).where("token_id", "=", c.req.param("id")).where("account_id", "=", p.account_id).executeTakeFirst();
-    if (!Number(r.numUpdatedRows)) throw notFound("No such token.");
-    return c.json({ revoked: true });
+    return c.json({ items: agents });
   });
 
   app.delete("/api/v1/me/agents/:family", async (c) => {

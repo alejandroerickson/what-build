@@ -38,9 +38,8 @@ Supporting commitments, each of which is a rule elsewhere in this spec:
 | Export is complete and always available | [§9.4](#94-taking-it-with-you) and [§1.5](01-product.md) |
 | We name our sub-processors | **Planned:** a public page listing the container host, database, object store and email provider, updated before a provider changes. The statement already refers to it. |
 
-**About agents.** Connecting an agent sends your passages to whoever runs that agent, under their
-terms, not ours. The Connect page says exactly that, in those words, immediately beside the
-endpoint a person is about to paste ([§6.8](06-operations-and-adapters.md)). We make no claims on
+**About agents.** What a connected agent reads goes to whoever runs it, under their terms, not
+ours. The Connect page says so above the address a person is about to paste ([§6.8](06-operations-and-adapters.md)). We make no claims on
 behalf of any third-party processor, including the ones our own users choose.
 
 **What not to upload.** The statement asks people not to send material whose loss or exposure

@@ -197,7 +197,7 @@ export function mcpRoutes(env: Env & { config: ServerConfig }) {
     const principal = await mcpPrincipal(c, env.db, `${base}/mcp`).catch(() => null);
     if (!principal) {
       c.header("WWW-Authenticate", `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource${c.req.path}"`);
-      return c.json({ error: { code: "unauthenticated", status: 401, message: "Connect with OAuth, or send a personal access token as a Bearer token." } }, 401);
+      return c.json({ error: { code: "unauthenticated", status: 401, message: "Connect with OAuth: add this server to your MCP client and sign in when it asks." } }, 401);
     }
     if (c.req.method === "GET" || c.req.method === "DELETE") {
       // Stateless: no server-initiated stream and no session to end.

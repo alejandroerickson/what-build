@@ -351,7 +351,7 @@ A neutral grey studio with a single indigo accent and three status hues; every v
 
 The stage is fixed to the viewport. The left panel floats at a 10px inset (264px wide, full height), and the canvas is the one page scroller behind it, padded 28px top, 40px sides and 80px bottom, plus the panel's width on the left. Content is centred at a maximum of 900px. On item screens the inspector floats at the right inset (272px), and the canvas adds its width to the right padding while it is docked. While it is hidden, the canvas keeps clear of the square that brings it back.
 
-The panel stacks, top to bottom: brand row (W mark, wordmark, hide button), product switcher, the four ordered sections with counts, quiet Agents and Settings links, a context slot the route fills (Story tree, Evidence's filters, Synthesis's three lists and their filters) that scrolls independently, and the account at the foot. Hairlines separate each block.
+The panel stacks, top to bottom: brand row (W mark, wordmark, hide button), product switcher, the four ordered sections with counts, quiet links to Connect an agent, Activity and Settings, a context slot the route fills (Story tree, Evidence's filters, Synthesis's three lists and their filters) that scrolls independently, and the account at the foot. Hairlines separate each block. Outside a product the same panel lists the person's products under a "Products" label, then quiet links to Connect an agent, members and All products; it is identical on each of those screens, so it never depends on where the person came from.
 
 Screens are built from sheets. A sheet head (min 52px) holds the title and count, filters or segmented control, and actions at the right. Rows below are inset by an 18px sheet gutter (14px on phones) and divided by hairlines. Stacked sheets and callouts sit 16px apart. Spacing follows a 2px-based scale; 6, 8, 10, 12 and 14px do most of the work.
 
@@ -408,7 +408,7 @@ Compact and calm. Default buttons read as white tiles with a hairline, not as fi
 - **Labels:** muted 500 above the control. Hints are faint 11.5px, capped at the 68ch measure.
 
 ### Navigation
-- **Panel nav:** 28px rows with 6px corners, a 14px faint glyph, a 500-weight label and a faint count pushed right. The current section fills with Selection Wash and switches glyph, label and count to Selection Ink. Quiet links (Agents, Settings) are 26px, 11.5px, muted, and carry 12px glyphs.
+- **Panel nav:** 28px rows with 6px corners, a 14px faint glyph, a 500-weight label and a faint count pushed right. The current section fills with Selection Wash and switches glyph, label and count to Selection Ink. Quiet links (Connect an agent, Activity, Settings) are 26px, 11.5px, muted, and carry 12px glyphs.
 - **Crumbs:** 24px muted segments with 4px corners, separated by a faint slash.
 - **Segmented control:** a Hover-filled track with a 2px pad. The current item is a white 4px tile with the resting shadow and a Line 2 ring. It serves in-sheet sort orders and item sub-views. A list is filtered from the panel, never from its sheet head: panel filters are 26px links in a labelled section, marked current with the selection wash, and carry either a check or, where they have counts, the count in the nav's place.
 - **Phone:** the same panel becomes the drawer, opened from the floating pill.

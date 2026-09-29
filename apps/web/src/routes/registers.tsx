@@ -102,7 +102,7 @@ export function RegisterListPage({ kind }: { kind: Kind }) {
         ) : narrowed ? (
           <EmptyState size="inline" title={`No ${kind} match these filters.`} action={<ButtonLink size="sm" to={path}>Show all {kind}</ButtonLink>} />
         ) : (
-          <EmptyState size="inline" title={`No ${kind} yet`} action={<ButtonLink size="sm" to="/connect" icon="plug">Connect an agent</ButtonLink>}>
+          <EmptyState size="inline" title={`No ${kind} yet`} action={<ButtonLink size="sm" to="/connect" icon="bot">Connect an agent</ButtonLink>}>
             Ask your agent to record the few {kind} the team relies on, with citations to the passages behind them. Everything else belongs in an insight.
           </EmptyState>
         )

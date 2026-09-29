@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { serve, type ServerType } from "@hono/node-server";
 import pg from "pg";
@@ -20,6 +20,8 @@ export interface Harness {
   config: ServerConfig;
   /** A signed-in browser: fetch with its session cookie and a same-origin Origin header. */
   signIn(email: string, name?: string): Promise<Browser>;
+  /** An agent connected as this person through the OAuth flow a real MCP client runs; returns its access token. */
+  connectAgent(browser: Browser, clientName?: string): Promise<string>;
   close(): Promise<void>;
 }
 
@@ -95,6 +97,33 @@ export async function startHarness(overrides: Partial<ServerConfig> = {}, opts: 
       if (res.status !== 200) throw new Error(`sign-in failed: ${res.status} ${await res.text()}`);
       const cookie = (res.headers.get("set-cookie") ?? "").split(";")[0]!;
       return makeBrowser(email, cookie);
+    },
+    async connectAgent(browser, clientName = "test-agent") {
+      const redirect = "http://127.0.0.1:9999/callback";
+      const reg = (await (await fetch(`${baseUrl}/oauth/register`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ client_name: clientName, redirect_uris: [redirect] }) })).json()) as { client_id: string };
+      const verifier = randomBytes(32).toString("base64url");
+      const challenge = createHash("sha256").update(verifier).digest("base64url");
+      const authUrl = `${baseUrl}/oauth/authorize?response_type=code&client_id=${reg.client_id}&redirect_uri=${encodeURIComponent(redirect)}&code_challenge=${challenge}&code_challenge_method=S256&state=s&resource=${encodeURIComponent(`${baseUrl}/mcp`)}`;
+      const page = await fetch(authUrl, { headers: { cookie: browser.cookie } });
+      const html = await page.text();
+      const consent = (page.headers.get("set-cookie") ?? "").split(";")[0]!;
+      const csrf = /name="csrf" value="([^"]+)"/.exec(html)![1]!;
+      const fields = Object.fromEntries([...html.matchAll(/type="hidden" name="([^"]+)" value="([^"]*)"/g)].map((m) => [m[1]!, m[2]!.replace(/&amp;/g, "&")]));
+      const decide = await fetch(`${baseUrl}/oauth/authorize`, {
+        method: "POST",
+        redirect: "manual",
+        headers: { cookie: `${browser.cookie}; ${consent}`, "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ ...fields, csrf, decision: "allow" }),
+      });
+      const code = new URL(decide.headers.get("location")!).searchParams.get("code")!;
+      const tokens = (await (
+        await fetch(`${baseUrl}/oauth/token`, {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ grant_type: "authorization_code", code, client_id: reg.client_id, redirect_uri: redirect, code_verifier: verifier }),
+        })
+      ).json()) as { access_token: string };
+      return tokens.access_token;
     },
     async close() {
       worker?.stop();

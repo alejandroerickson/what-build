@@ -21,9 +21,9 @@ Observed in the code on this date.
 | 0 | Mostly done | pnpm workspace, strict TypeScript, `pnpm dev` with **no Docker** (embedded Postgres), forward-only migrations, seed, `pnpm test` (parsers, server against real Postgres, web), GitHub Actions CI (documentation bundle check, install, skill drift check, typecheck, test, build) | contribution guide, code of conduct, security policy; lint and format config |
 | 1 | Done | registry → REST and MCP (99 operations, 16 tools); row-level security in the first migration; ETags; paging; `describe`; activity in the same transaction; the isolation test over every operation; the parity test | — |
 | 2 | Mostly done | upload grants (relay, optional direct signed URLs); parsers for plain text, Markdown, VTT, SRT, HTML, DOCX, PDF, XLSX, CSV and TSV; derivation on the Postgres queue; passages by segment and time; substring and ranked search with coverage; archive and restore; guarded delete of sources with tombstones; a synthetic sample product in the seed | usage metering; golden-file tests per format; a blob-store conformance suite (no test exercises the Cloud Storage adapter); legacy `.doc` |
-| 3 | Mostly done | tenants, teams, products, roles; email-link, Google and development sign-in; invitations by email and link; personal access tokens; invite-only mode; sign-in link rate limit | quotas and their `409 quota_exceeded` (only the Story page limit exists); general rate limits; account deletion |
-| 4 | Mostly done | the design system (Studio, [DESIGN.md](../../DESIGN.md)) across every screen of the loop: Idea, Evidence (browse, kind-first intake, the source page with sections and inspector, passage reader, notes, files, search), Synthesis (the insight editor, revision history, insight review, assumptions and decisions with review, confidence, citation checks), Story (a read-only reader with the page tree, crumbs, the inspector with versions, citations and notes for agents, the print view for PDF, the page following the app's theme), Activity as one log for people and agents, organization members, product people, Agents, account | an accessibility audit; Playwright in CI (a browser walk-through exists in `scripts/e2e.mjs`); the public sample at `/sample`; links in a Story page that stay in the app (the sandboxed frame opens every link, including one to another Story page, in a new tab) |
-| 5 | Mostly done | OAuth 2.1 for MCP, tokens, the versioned skill, `get_skill`, the Agents (Connect) page, installers, feedback, Story guidance derived from the design tokens (with a drift test) | the stdio transport |
+| 3 | Mostly done | tenants, teams, products, roles; email-link, Google and development sign-in; invitations by email and link; invite-only mode; sign-in link rate limit | quotas and their `409 quota_exceeded` (only the Story page limit exists); general rate limits; account deletion |
+| 4 | Mostly done | the design system (Studio, [DESIGN.md](../../DESIGN.md)) across every screen of the loop: Idea, Evidence (browse, kind-first intake, the source page with sections and inspector, passage reader, notes, files, search), Synthesis (the insight editor, revision history, insight review, assumptions and decisions with review, confidence, citation checks), Story (a read-only reader with the page tree, crumbs, the inspector with versions, citations and notes for agents, the print view for PDF, the page following the app's theme), Activity as one log for people and agents, organization members, product people, Connect an agent, the person's settings | an accessibility audit; Playwright in CI (a browser walk-through exists in `scripts/e2e.mjs`); the public sample at `/sample`; links in a Story page that stay in the app (the sandboxed frame opens every link, including one to another Story page, in a new tab) |
+| 5 | Mostly done | OAuth 2.1 for MCP, the versioned skill, `get_skill` and the version in the server instructions, the Connect an agent page, feedback, Story guidance derived from the design tokens (with a drift test) | the stdio transport |
 | 6 | Started | the Cloud Run deployment ([cloud-run.md](../operations/cloud-run.md)) with Cloud Build continuous deployment; product export (`products.export`) | a rehearsed restore; import; organization export; closing an organization; the sub-processors page; abuse tests |
 
 **Deploy early.** A deployment exists as soon as there is something to deploy, is redeployed on
@@ -93,7 +93,7 @@ sign-in.
 
 ## Phase 4 — The web application
 
-Organization screens (products, members, Agents, account); the four product screens; Idea;
+Organization screens (products, members, Connect an agent, settings); the four product screens; Idea;
 Evidence (upload, browse, source page, passage reader, annotations, search); Synthesis (insights
 and registers) with revision history; Story reading and export; the Activity page; conflict handling. The
 design system is Studio ([DESIGN.md](../../DESIGN.md)).
@@ -104,12 +104,12 @@ text; Playwright covers the loop; accessibility checks pass.
 
 ## Phase 5 — The agent path
 
-MCP OAuth; personal access tokens; the product skill; `get_skill` and version advertisement; the
-Agents page; installers; the stdio transport; `story.guidance` derived from the design system;
+MCP OAuth; the product skill; `get_skill` and version advertisement; the Connect an agent page;
+the stdio transport; `story.guidance` derived from the design system;
 feedback capture.
 
 *Accept:* someone who has never seen the product connects Claude Desktop and Claude Code from the
-Agents page alone; an agent with only the skill and `describe` completes: create source → upload
+Connect an agent page alone; an agent with only the skill and `describe` completes: create source → upload
 via grant → read passages → register a cited assumption → draft and publish a Story page; a token
 cannot reach a tenant its person is not in through any tool; a revoked token stops working
 immediately; permanent delete over MCP happens only with every guard of
@@ -180,7 +180,8 @@ Each has a default so work is not blocked.
   SDK outside its adapter ([§2.2](02-architecture.md)).
 - Authentication is WhatBuild's own: email links, Google, and its own OAuth 2.1 server for MCP; no
   passwords ([§3.2](03-accounts-teams-and-identity.md), [§3.8](03-accounts-teams-and-identity.md)).
-- Personal access tokens exist, for clients that cannot do OAuth.
+- There are no personal access tokens: agents connect over MCP with OAuth, and REST answers the
+  web app's session only ([decision](../decisions/built-in-identity-and-oauth.md)).
 - Roles: highest applicable role wins, no negative overrides, editors review and delete, no
   separate reviewer role, every role reads the activity log; `403` names the role
   ([§3.5](03-accounts-teams-and-identity.md)).
