@@ -91,7 +91,9 @@ place.
    last-used product is remembered per browser; Connect an agent names it in its example request.
 6. Archived products appear only in All products, behind a "With archived" filter, read-only, and
    an admin restores them from the product's Settings.
-7. Organization-level screens (the overview, Connect an agent, Settings, Members, All products)
+7. In All products, an organization where the person has no team or product role says so, and that
+   there is nothing to open until an admin gives them one.
+8. Organization-level screens (the overview, Connect an agent, Settings, Members, All products)
    use a different panel, so they are not mistaken for belonging to one product.
 
 **The overview** (`/`, [decision](../decisions/the-overview-is-the-front-door.md)). The page that
@@ -398,10 +400,25 @@ never described as deleting. A list row showing an archived object says *Archive
 
 ## 7.11 Organization, product and account screens
 
-- **Members** (`/t/<tenant>/members`). Everyone in the organization with every grant they hold
-  (organization, team or product, and the role), outstanding invitations ("Waiting to join") with
-  their expiry and a cancel control, invite by email or single-use link, and revoke a grant.
-  Revoking takes effect at once; the person's writes and their attribution stay.
+- **Members** (`/t/<tenant>/members`). A key to the roles (organization: owner, admin, member;
+  team or product: admin, editor, viewer), then everyone in the organization in two layers: their
+  **organization** role (member when they have none of their own) and their **access**, the team
+  and product roles that decide which products they can open. A member with no access says so and
+  offers Give access. Removing a team or product role takes effect at once with Undo, except a
+  person's only role: that asks first, because it also takes them out of the organization, and a
+  tenant admin may instead keep them as a member. Tenant admins get a menu per person: give access,
+  change the organization role, and **Remove from the organization**, which asks first and lists
+  every role they lose (`members.revoke` with `whole_tenant`). Outstanding invitations ("Waiting
+  to join") show their expiry and a cancel control. **Give access** takes an email, a team,
+  product or the organization itself (teams first; the organization's member role warns that it
+  opens no product), and a role described in words; someone without an account gets a
+  single-use link. The person's writes and their attribution stay after any removal.
+- **Invitation** (`/invite/:token`). Accepts the invitation and opens All products with a toast
+  naming the organization and role. A link already accepted by the same person (signing in accepts
+  it) is the same success. Otherwise it names why the link can't be used and offers signing in
+  with another address, which returns to the link; an invitation for another address makes that
+  the primary action. Signed out, the link opens sign-in titled "Sign in to accept your
+  invitation".
 - **Connect an agent** (`/connect`). [§6.8](06-operations-and-adapters.md): the MCP server URL,
   sign-in, a first request to try, connected agents with disconnect, the plain statement about
   where an agent sends what it reads, and an optional skill download. Connected agents appear here

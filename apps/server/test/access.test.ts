@@ -93,6 +93,51 @@ describe("roles", () => {
     expect(list.body.items.map((i: { path: string }) => i.path)).toContain(path);
   });
 
+  it("accepts an invitation link that signing in already used, for the same person, and refuses it to anyone else", async () => {
+    const inv = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, email: "linked@example.com", role: "editor" });
+    const token = String(inv.body.invite_link).split("/invite/")[1];
+    // Signing in with the invited address accepts the invitation; the link then lands on /invite/:token.
+    const linked = await h.signIn("linked@example.com");
+    const again = await linked.api("POST", "/api/v1/invitations/accept", { token });
+    expect(again.status).toBe(200);
+    expect(again.body).toMatchObject({ accepted: true, already: true, scope_type: "team", role: "editor", tenant: { slug: tenantSlug } });
+    const other = await vic.api("POST", "/api/v1/invitations/accept", { token });
+    expect(other.status).toBe(410);
+    expect(other.body.error.code).toBe("invitation_used");
+    const bogus = await linked.api("POST", "/api/v1/invitations/accept", { token: "not-a-real-token" });
+    expect(bogus.status).toBe(404);
+  });
+
+  it("accepts an invitation link only for the address it was sent to", async () => {
+    const inv = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, email: "Intended@Example.com", role: "viewer" });
+    const token = String(inv.body.invite_link).split("/invite/")[1];
+    const wrong = await vic.api("POST", "/api/v1/invitations/accept", { token });
+    expect(wrong.status).toBe(403);
+    expect(wrong.body.error.code).toBe("invitation_wrong_address");
+    expect(wrong.body.error.details.invited).toBe("I••••@Example.com");
+    expect(JSON.stringify(wrong.body)).not.toContain("Intended@");
+    // The refusal leaves it unused: the invited person joins on signing in, whatever the letter case, and the link then confirms it.
+    const intended = await h.signIn("intended@example.com");
+    const right = await intended.api("POST", "/api/v1/invitations/accept", { token });
+    expect(right.status).toBe(200);
+    expect(right.body.already).toBe(true);
+  });
+
+  it("removes someone from the tenant with every grant they hold", async () => {
+    await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { email: "leaver@example.com", role: "member" });
+    const leaver = await h.signIn("leaver@example.com");
+    const id = (await leaver.api("GET", "/api/v1/me")).body.account_id;
+    await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, email: "leaver@example.com", role: "editor" });
+    const mixed = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members/revoke`, { account_id: id, team: teamSlug, whole_tenant: true });
+    expect(mixed.status).toBe(422);
+    const r = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members/revoke`, { account_id: id, whole_tenant: true });
+    expect(r.status).toBe(200);
+    expect(r.body.removed).toBe(2);
+    const members = await alice.api("GET", `/api/v1/tenants/${tenantSlug}/members`);
+    expect(members.body.members.some((m: { account_id: string }) => m.account_id === id)).toBe(false);
+    expect((await leaver.api("GET", "/api/v1/me/products")).body.items).toHaveLength(0);
+  });
+
   it("keeps at least one tenant owner", async () => {
     const me = await alice.api("GET", "/api/v1/me");
     const r = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members/revoke`, { account_id: me.body.account_id });

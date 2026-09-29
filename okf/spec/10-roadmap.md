@@ -150,6 +150,97 @@ explicitly **not scheduled**. No billing code is written before it; the `plan` f
 
 Phases 6 and 7 are independent of each other.
 
+## Proposed — a public demo organization
+
+**Not decided; proposed for discussion.** One organization, chosen by the operator, that anyone
+can enter without an invitation to try WhatBuild on a real, fully derived discovery, with its data
+put back every night and tight limits on what visitors add. It is the richer form of the public
+sample (open question 7) and the answer to the zero-install-demo risk. Joining any other
+organization stays invite-only.
+
+**The organization and its baseline.** `WHATBUILD_DEMO_TENANT` names the demo organization. Its
+**baseline** is a snapshot of every row that carries its `tenant_id` (teams, products, memberships,
+records, files, derivations, segments, insights, registers, reviews, the Story, lineage, activity),
+taken by an operator command or by its owner from the web app (**Save as the demo baseline**).
+File blobs are immutable and keyed by tenant and file version, so a snapshot keeps rows and
+references blobs rather than copying them. Ids are preserved, so links to passages, insights and
+Story pages keep working across resets.
+
+**Who gets in.** Proposed: **Try the demo** on the sign-in page and at `/demo` creates a **guest
+account** — no email, no password, a name like "Visitor 4F2A" — signs it in until the next reset,
+and opens the demo. A guest account (`accounts.guest_until`, a reserved `.invalid` address that no
+mail is ever sent to) can connect an agent over OAuth, but cannot create an organization or be
+granted a role anywhere else. Someone already signed in may enter the demo too, as themselves. This does not open sign-up: invite-only mode keeps governing real
+accounts.
+
+**What a visitor can do.** Two shapes; the choice is the main question to settle.
+
+- **A. One shared product.** Visitors are editors on the demo's products: they write insights,
+  review assumptions and upload, next to every other visitor, until the reset. Simplest, and the
+  whole loop works on rich data. But every visitor sees every other visitor's uploads for up to a
+  day, and one visitor can archive or rewrite what the next one came to see.
+- **B. Showcase plus a private sandbox (recommended).** Visitors are **viewers** of the showcase
+  products, which stay intact all day. Each guest also gets their own sandbox product, as its
+  editor, in the showcase's team. Every grant is per product, never per team, so no visitor has a
+  role on another's sandbox and it does not exist for them (the existing `404` rule). The visitor
+  brings showcase sources into the sandbox and there (or through their agent) derives, searches,
+  cites, writes insights and publishes a Story. Uploads are never visible to strangers.
+  `sources.copy_to_product` needs editor on the source's product and works within one team, so
+  this needs one demo rule: a visitor may copy from a product they can read into their own
+  sandbox. A later improvement copies a whole product at once, which needs product cloning (close
+  to the planned import).
+
+In both shapes: no permanent delete in the demo organization (archive only), no managing people,
+no renaming or archiving products, and admin rights stay with the organization's real members.
+
+**Limits in the demo organization**, on top of [§9.2](09-data-lifecycle.md), all refused with
+`409 quota_exceeded` or `429 rate_limited` and never blocking a read:
+
+| Limit | Proposed value |
+|---|---|
+| Guest accounts created | 5 per IP address per hour; 500 per day in total |
+| File size | 5 MB per file, through the relay only (no direct upload URLs) |
+| File types | text, Markdown, transcripts (VTT, SRT), DOCX, PDF, CSV; no audio, video or archives |
+| Sources added | 10 per visitor per day |
+| Stored bytes added | 50 MB per visitor, 2 GB across the organization per day |
+| `files.fetch_url` | off |
+| Story pages | 10 per sandbox |
+| Writes | 30 / minute / visitor |
+| Exports | 1 per visitor per day |
+
+**The nightly reset.** At a configured hour (default 03:00 UTC), in one transaction: delete every
+row carrying the demo's `tenant_id`, re-insert the baseline, and delete the guest accounts along
+with their sessions and OAuth tokens; afterwards, a `delete_blobs` job removes blobs that no
+baseline row references. The service scales to zero, so a queued job cannot promise to run at
+03:00. Proposed: Cloud Scheduler calls an operator endpoint authenticated by a secret, and the first
+request that reaches the demo after the hour runs an overdue reset before it is served. A real
+member's edits to the demo are erased like anyone's unless they save a new baseline first; the
+owner sees when the last baseline was saved and what has changed since.
+
+**What visitors are told.** A banner on every demo screen: "This is a public demo. Everything you
+add is erased at 03:00 UTC [and is visible to other visitors, in shape A]. Don't upload anything
+private." The same words sit on the Try-the-demo button and in the data statement.
+
+**What it takes to build.** A migration (`accounts.guest_until`, demo settings, the baseline store);
+guest sign-in and its limits; the snapshot and reset, with a test that a reset restores a baseline
+byte for byte and leaves other tenants untouched; the limits as one layer shared by REST and MCP
+(which is the planned quota layer, [§9.2](09-data-lifecycle.md) rule 4); in shape B, sandbox
+provisioning at guest sign-in; the banner, the entry point and the baseline control in the web app;
+an operations guide for the scheduler and the secret.
+
+*Accept (proposed):*
+- A person with no account reaches the demo in one click and can connect an agent to it.
+- A guest cannot see any other organization, create one, or keep access past the reset.
+- After a reset, the demo equals its baseline exactly, and no other tenant's rows or blobs changed.
+- Every demo limit is refused with a usable error through both REST and MCP, and reads, searches
+  and exports within limits still work.
+- In shape B, one visitor's sandbox answers `404` to every other visitor.
+
+**Questions to settle:** shape A or B; guest accounts, or sign-in required (which means opening
+account creation to anyone, and so the Phase 6 abuse limits first); whether guests may connect
+agents over MCP; the reset hour; the limit values; whether visitors may export; and whether the
+demo replaces the `/sample` idea.
+
 ---
 
 ## Open questions
@@ -164,7 +255,7 @@ Each has a default so work is not blocked.
 | 4 | **Restore-drill cadence** ([§9.3](09-data-lifecycle.md)). | A rehearsed restore before public sign-up and quarterly after, as a phase acceptance criterion. |
 | 5 | **Activity log retention** ([§4.10](04-data-model.md)). | For the life of the product; events are small and carry no content. Nothing prunes them today. |
 | 6 | **Revision scope** ([§4.1](04-data-model.md)) — which objects expose their revisions. | Insights and outcomes today; the product concept, annotations and register entries while still editable are next. Retained for the life of the object. |
-| 7 | **The public sample** — a synthetic discovery readable at `/sample` with no account. | Built from the seed's synthetic content; read-only, with one "copy into my organization" action. |
+| 7 | **The public sample** — a synthetic discovery readable at `/sample` with no account. | Built from the seed's synthetic content; read-only, with one "copy into my organization" action. The [public demo organization](#proposed--a-public-demo-organization) may replace it. |
 | 8 | **The tenant's name in the UI.** Sources already have an `organization` field (the organization a source concerns), so the API says `tenant` and the UI says "organization". | As built; rename the source field (for example `about_organization`) if one word is wanted. |
 | 9 | **Stakeholders who read only the Story** — a Story-only role, or share links? | Open. Viewers can read the Story today. |
 | 10 | **Delete beyond sources** — insights, register entries, annotations, Story pages, outcomes, products. | The same guards and tombstones as sources; a register entry's delete is also how a citation snapshot is removed. |
@@ -201,6 +292,6 @@ Each has a default so work is not blocked.
 | **We are a custodian.** Other people's research on rented infrastructure with no revenue. | Small limits, plain words at sign-in, complete export, a rehearsed restore, and asking people not to send anything we would be sorry to lose. |
 | **Hosting costs move.** A free tier changes or disappears. | Plain Postgres, a Postgres queue, the object store behind a port, no provider SDK outside its adapter — moving is a redeploy, not a rewrite. The service scales to zero when idle. |
 | **Sign-up is an attack surface.** Abuse, spam accounts, storage burned by strangers. | Invite-only until the Phase 6 abuse limits exist; sign-in link limits today; per-member write limits, small caps and an operator usage view before public sign-up. |
-| **No zero-install demo.** A stranger cannot touch the product without an email address. | The planned public read-only sample, and a sign-in that takes under a minute. Re-examine if adoption stalls. |
+| **No zero-install demo.** A stranger cannot touch the product without an email address. | The proposed [public demo organization](#proposed--a-public-demo-organization) with guest access, or the planned public read-only sample; a sign-in that takes under a minute. |
 | **Contributor setup rot.** A local environment nobody runs stops working. | CI uses the same path a contributor does, so a broken `pnpm dev` breaks the build. |
 | **Public-repo hygiene.** | Sample content fully synthetic; no private names or material in code, docs, or history. |

@@ -38,10 +38,11 @@ export function useProducts(includeArchived = false) {
 
 export function useSignOut() {
   const qc = useQueryClient();
-  return async () => {
+  /** `next` brings the person back after signing in again, e.g. to the invitation they were opening. */
+  return async (next?: string) => {
     await api("POST", "/auth/sign-out").catch(() => undefined);
     qc.clear();
-    window.location.assign("/signin");
+    window.location.assign(next ? `/signin?next=${encodeURIComponent(next)}` : "/signin");
   };
 }
 

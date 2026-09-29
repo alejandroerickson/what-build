@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
-import { formatBytes, formatDate, formatDateTime, relativeTime } from "../lib/format.ts";
+import { aRole, formatBytes, formatDate, formatDateTime, relativeTime } from "../lib/format.ts";
 import { useProduct, useProducts } from "../lib/session.tsx";
 import { ActivityFeed, ENTITY_LABEL, useActivity, type ActivityFilter } from "../shell/ActivityFeed.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
@@ -448,7 +448,7 @@ function AddPeopleDialog({ onClose, existing }: { onClose: () => void; existing:
         setLink(r.invite_link ?? null);
         toast(`Invitation created for ${email.trim()}.`);
       } else {
-        toast(`${target?.display_name ?? email.trim()} is now ${role === "admin" ? "an admin" : `a ${role}`} on ${product.name}.`);
+        toast(`${target?.display_name ?? email.trim()} is now ${aRole(role)} on ${product.name}.`);
         onClose();
       }
     },

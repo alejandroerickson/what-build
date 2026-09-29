@@ -75,6 +75,11 @@ export function attribution(actor: { display_name?: string; surface?: string | n
   return name;
 }
 
+/** A role with its article, for sentences: "an editor", "a viewer". */
+export function aRole(role: string): string {
+  return `${/^[aeiou]/.test(role) ? "an" : "a"} ${role}`;
+}
+
 export function plural(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`;
 }

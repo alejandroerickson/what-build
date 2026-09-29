@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
-import { api } from "../lib/api.ts";
+import { api, ApiError } from "../lib/api.ts";
+import { aRole } from "../lib/format.ts";
 import { useMe, useSignOut } from "../lib/session.tsx";
 import { BrandMark } from "../shell/brand.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
-import { Button, ButtonLink, Callout, EmptyState, ErrorCallout, Loading, Sheet, SheetBody, SheetHeader, TextField } from "../ui/index.tsx";
+import { Button, ButtonLink, Callout, EmptyState, ErrorCallout, Loading, Sheet, SheetBody, SheetHeader, TextField, useToast } from "../ui/index.tsx";
 import "../styles/screens/account.css";
 
 const DATA_STATEMENT =
@@ -59,8 +60,9 @@ export function SignIn() {
   return (
     <EntryPage title="Sign in · WhatBuild">
       <Sheet labelledBy="signin-title">
-        <SheetHeader level={1} id="signin-title" title="Sign in to WhatBuild" />
+        <SheetHeader level={1} id="signin-title" title={next.startsWith("/invite/") ? "Sign in to accept your invitation" : "Sign in to WhatBuild"} />
         <SheetBody className="entry-form">
+          {next.startsWith("/invite/") && !error ? <p className="muted">Use the address the invitation was sent to, and you join as soon as you&rsquo;re signed in.</p> : null}
           {error ? (
             <Callout inset tone="attention" title="That sign-in did not work">
               {error === "link_expired"
@@ -137,40 +139,61 @@ export function SignIn() {
   );
 }
 
-/** `/`: the last product this browser used, else the first product, else first-run setup. */
 export function AcceptInvite() {
   const { token = "" } = useParams();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const me = useMe();
   const signOut = useSignOut();
+  const toast = useToast();
   const accept = useMutation({
-    mutationFn: () => api<{ tenant: { slug: string; name: string }; role: string }>("POST", "/api/v1/invitations/accept", { token }),
-    onSuccess: async () => {
+    mutationFn: () =>
+      api<{ already: boolean; tenant: { slug: string; name: string } | null; scope_type: "tenant" | "team" | "product"; scope: string | null; role: string }>("POST", "/api/v1/invitations/accept", { token }),
+    onSuccess: async (r) => {
       await qc.invalidateQueries({ queryKey: ["products"] });
+      const org = r.tenant?.name ?? "the organization";
+      toast(r.scope_type === "tenant" || !r.scope ? `You’re ${aRole(r.role)} of ${org}.` : `You’re in ${org}, as ${aRole(r.role)} on ${r.scope_type} ${r.scope}.`);
       navigate("/products", { replace: true });
     },
   });
+  const wrongAddress = accept.error instanceof ApiError && accept.error.code === "invitation_wrong_address";
+  // Once per token, even when a development build mounts the page twice.
+  const sent = useRef<string | null>(null);
   useEffect(() => {
+    if (sent.current === token) return;
+    sent.current = token;
     accept.mutate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
   return (
     <EntryPage title="Accept invitation · WhatBuild">
       <Sheet labelledBy="invite-title">
-        <SheetHeader level={1} id="invite-title" title={accept.isError ? "This invitation could not be used" : "Joining…"} />
+        <SheetHeader level={1} id="invite-title" title={accept.isError ? "This invitation can’t be used" : "Joining…"} />
         <SheetBody className="entry-form">
           {accept.isError ? (
             <>
-              <ErrorCallout inset title="The link did not work" error={accept.error} />
+              <ErrorCallout inset title={wrongAddress ? "This invitation is for another address" : "The link didn’t work"} error={accept.error} />
               <p className="muted">
-                Invitations work once, for 7 days, and only for the address they were sent to{me.data ? ` (you are signed in as ${me.data.email})` : ""}. Ask whoever invited you for a new link.
+                {wrongAddress
+                  ? "Invitations work only for the address they were sent to. If that address is yours, sign in with it and you join at once."
+                  : "Invitations work once, within 7 days, and only for the address they were sent to."}
               </p>
               <div className="entry-actions">
-                <ButtonLink to="/products">Your products</ButtonLink>
-                <Button variant="quiet" onClick={() => void signOut()}>
-                  Sign in with another address
-                </Button>
+                {wrongAddress ? (
+                  <>
+                    <Button variant="primary" onClick={() => void signOut(`/invite/${token}`)}>
+                      Sign in with another address
+                    </Button>
+                    <ButtonLink to="/products" variant="quiet">Your products</ButtonLink>
+                  </>
+                ) : (
+                  <>
+                    <ButtonLink to="/products">Your products</ButtonLink>
+                    <Button variant="quiet" onClick={() => void signOut(`/invite/${token}`)}>
+                      Sign in with another address
+                    </Button>
+                  </>
+                )}
               </div>
             </>
           ) : (

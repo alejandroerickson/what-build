@@ -60,6 +60,15 @@ Sign-in methods, each optional per deployment:
 There is no password. First sign-in creates the account; every invitation addressed to that email
 is accepted at once, because the verified address is the proof.
 
+An invitation link (`/invite/:token`, `POST /api/v1/invitations/accept`) is single-use, lasts
+7 days, and works only for the account whose email is the invited address, ignoring letter case
+(◆ [decision](../decisions/invitations-belong-to-their-address.md)). Opened by any other account it
+answers `403 invitation_wrong_address` with the invited address masked, and stays unused. Because
+signing in with the invited address already accepts it, the link usually arrives accepted by that
+same person: that answers with the invitation's role and `already: true`, not an error. Opened by a
+different account once used, it answers `410 invitation_used`; expired or cancelled,
+`410 invitation_expired`; an unknown token, `404`.
+
 **Invite-only mode.** `WHATBUILD_SIGNUP_ALLOWLIST` (emails and `@domains`) limits who may create an
 account. Existing accounts and invited addresses always may. Staging runs invite-only until public
 sign-up opens ([§10 Phase 6](10-roadmap.md)).
@@ -111,6 +120,10 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   owner. Granting someone without an account creates a 7-day invitation, emailed where mail is
   configured and always returned to the inviter as a single-use link. A tenant keeps at least one
   owner (`409 last_owner`).
+- **Being in a tenant** means holding at least one grant in it: a tenant role, or a role on one of
+  its teams or products. A tenant `member` grant adds nothing to that by itself. Revoking a person's
+  last grant takes them out of the tenant; `members.revoke` with `whole_tenant` removes every grant
+  at once.
 - ◆ Decision: reviewing (confirm, refute) is an editor right; there is no separate reviewer role.
 - ◆ Decision: every role can read the product's activity log.
 
