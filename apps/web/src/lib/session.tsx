@@ -20,6 +20,7 @@ export interface ProductSummary {
   tenant: { tenant_id: string; slug: string; name: string };
   team: { team_id: string; slug: string; name: string };
   your_role: "viewer" | "editor" | "admin";
+  counts: Product["counts"];
 }
 
 export interface ProductsResponse {

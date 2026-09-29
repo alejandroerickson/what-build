@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
-description: Principles, the shell and product switching, routes, first run, and the behavior of every screen (Idea, Evidence, Synthesis, Story, Activity, archive and delete, organization and account screens).
+description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Synthesis, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
 generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
 status: stable
@@ -37,9 +37,9 @@ only on a Story page and a source page — an inspector on the right. Everywhere
 takes the full width. There are no in-app tabs: one screen at a time, and rows are real links, so
 the browser's back button and "open in new tab" both work.
 
-- **Top of the panel:** the W mark and the "WhatBuild" wordmark, linking to the product's
-  Idea screen, with the button that hides the panel beside them; then the product switch, showing
-  the product and its organization and team.
+- **Top of the panel:** the W mark and the "WhatBuild" wordmark, linking to the overview (`/`)
+  from every screen, with the button that hides the panel beside them; then the product switch,
+  showing the product and its organization and team.
 - **L1**, exactly and in this order: **Idea, Evidence, Synthesis, Story**, each with its count
   (Idea counts outcomes).
   Below them, quieter: **Agents** (the Connect page) and **Settings**. Synthesis opens on
@@ -59,7 +59,10 @@ the browser's back button and "open in new tab" both work.
 - **On a phone** (760px and below) the panel is a drawer with a scrim: focus is trapped, Esc
   closes it, and it closes on navigation.
 - **Outside a product** (Agents, Account and tokens, organization Members, All products) the panel
-  offers "Back to <product>" for the product the person came from, then those screens.
+  offers "Back to <product>" for the product the person came from, then those screens. On the
+  overview it lists the person's products under each organization's name instead, with Agents,
+  Account and tokens and All products below as quiet links; each organization's Members link is on
+  the page.
 - A skip link leads to the content; on a route change focus moves to the new heading and the page
   is announced politely.
 
@@ -77,18 +80,31 @@ place.
    (a record id, an insight) lands on Idea.
 4. The product is in the URL path (`/t/<tenant>/<team>/<product>/…`). Opening a link to another
    product simply works, and becomes the remembered one.
-5. The last-used product is remembered per browser. `/` opens it; otherwise the first reachable
-   product; otherwise All products if the person belongs to an organization; otherwise first run.
+5. `/` opens the overview for anyone in an organization, and first run for anyone in none. The
+   last-used product is remembered per browser for "Back to <product>" outside a product.
 6. Archived products appear only in All products, behind a "With archived" filter, read-only, and
    an admin restores them from the product's Settings.
-7. Organization-level screens (Agents, Account and tokens, Members, All products) use a different
-   panel, so they are not mistaken for belonging to one product.
+7. Organization-level screens (the overview, Agents, Account and tokens, Members, All products)
+   use a different panel, so they are not mistaken for belonging to one product.
+
+**The overview** (`/`, [decision](../decisions/the-overview-is-the-front-door.md)). The page that
+introduces WhatBuild and is good to share as a screenshot. An intro sheet carries the mark and
+wordmark, a line on how a product starts with an idea, the question "What to build?", a short
+statement on why deciding what to build is now the bottleneck, a description of the app, and a
+link to Agents. Beside it, small and quiet, the counts across the person's active products, laid
+out as the loop: outcomes (Idea), sources (Evidence), insights, assumptions and decisions
+(Synthesis), and Story pages; they are the counts `products.list` reports, which match each
+product's panel counts. Below, one sheet per organization lists its active products (name,
+product concept, team, role, last update), each with links to Idea, Evidence, Synthesis and Story
+and their counts, so any section of any product is one click away. The sheet links to the
+organization's Members and All products, and team admins get New product. An organization with no
+product the person can see says so, and says who can create one.
 
 ## 7.3 Routes
 
 ```
 /signin  /welcome  /invite/:token             sign-in, first run, accepting an invitation
-/                                             the last product this browser used, else the first, else first run
+/                                             the overview: what WhatBuild is, and every product; first run with no organization
 /products           ?archived=1&create=1      every product you can reach, by organization and team; new product
 /t/:tenant/members                            people and roles in an organization
 /connect                                      Agents: connect an agent (MCP URL, the skill, tokens)

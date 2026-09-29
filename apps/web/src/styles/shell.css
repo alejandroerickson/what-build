@@ -145,6 +145,19 @@ h1[tabindex="-1"]:focus {
   gap: 1px;
   padding: var(--s-0) var(--s-1h) var(--s-1);
 }
+/* The overview's panel lists the person's products under each organization's name. */
+.nav-products {
+  padding-top: var(--s-2h);
+}
+.nav-group-label {
+  padding: 0 var(--s-2) var(--s-1);
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+}
+.nav-products + .nav-quiet {
+  padding-top: var(--s-2);
+}
 .nav-quiet {
   display: grid;
   padding: var(--s-0) var(--s-1h) var(--s-2);

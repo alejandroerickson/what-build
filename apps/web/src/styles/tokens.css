@@ -18,7 +18,11 @@
   --fs-prose: 13.5px; /* long-form Markdown */
   --fs-title: 14px; /* sheet title; the h1 of a list screen */
   --fs-lead: 15px; /* a summary paragraph above prose */
-  --fs-h1: 20px; /* the h1 of an item screen */
+  --fs-h1: 20px; /* the h1 of an item screen; the ceiling everywhere except the overview's intro */
+  --fs-brand: 28px; /* the overview's wordmark */
+  --fs-display: 48px; /* the overview's question, the app's one display line */
+  --fs-brand-sm: 22px; /* the overview's wordmark on a narrow canvas */
+  --fs-display-sm: 36px; /* the overview's question on a narrow canvas */
   --lh-tight: 1.25;
   --lh-ui: 1.4;
   --lh-body: 1.55;
@@ -26,6 +30,8 @@
   --fw-medium: 500;
   --fw-semibold: 600;
   --tracking-title: -0.01em;
+  --tracking-brand: -0.02em;
+  --tracking-display: -0.035em;
   --measure: 68ch;
 
   /* Space: a 2px-based scale for dense UI */

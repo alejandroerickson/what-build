@@ -282,7 +282,7 @@ export function ProductShell({ product, app, children }: { product: Product; app
       }
       panel={(hide, hideLabel) => (
         <>
-          <BrandRow to={`${app}/idea`} label={`WhatBuild, ${product.name} idea`} onHide={hide} hideLabel={hideLabel} />
+          <BrandRow to="/" label="WhatBuild, home" onHide={hide} hideLabel={hideLabel} />
           <nav className="panel-nav" aria-label={product.name}>
             <ProductSwitcher current={product} />
             <ProductNav product={product} app={app} section={section.id} />
@@ -299,20 +299,21 @@ export function ProductShell({ product, app, children }: { product: Product; app
 const PLAIN_SECTIONS: Record<string, string> = { connect: "Agents", account: "Account", products: "Products", members: "Members", _system: "System" };
 
 /**
- * Screens outside a product (Agents, account, organization members, all products): the same stage
- * with the non-product panel, which offers "Back to <product>" for the product the person came from.
+ * Screens outside a product (the overview, Agents, account, organization members, all products): the
+ * same stage with the non-product panel, which offers "Back to <product>" for the product the person
+ * came from, or on the overview lists their products.
  */
 export function PlainShell({ children }: { children: ReactNode }) {
   const loc = useLocation();
   const params = useParams();
   const last = useLastProduct();
   const parts = loc.pathname.split("/").filter(Boolean);
-  const key = parts[0] === "t" ? "members" : (parts[0] ?? "products");
+  const key = parts[0] === "t" ? "members" : (parts[0] ?? "home");
   const section = PLAIN_SECTIONS[key] ?? "WhatBuild";
   const sectionId = key === "connect" ? "agents" : key;
   const tenantSlug = params["tenant"] ?? last?.tenant.slug ?? null;
   const tenantName = last && last.tenant.slug === tenantSlug ? last.tenant.name : null;
-  const home = last ? `/t/${last.path}/idea` : "/products";
+  const isHome = key === "home";
   return (
     <Stage
       variant="plain"
@@ -321,9 +322,16 @@ export function PlainShell({ children }: { children: ReactNode }) {
       title={`${section} · WhatBuild`}
       panel={(hide, hideLabel) => (
         <>
-          <BrandRow to={home} label={last ? `WhatBuild, ${last.name} idea` : "WhatBuild, all products"} onHide={hide} hideLabel={hideLabel} />
-          <nav className="panel-nav" aria-label="Account and organization">
-            <PlainNav section={sectionId} backTo={last ? `/t/${last.path}/idea` : null} backLabel={last?.name ?? null} tenantSlug={tenantSlug} tenantName={tenantName} />
+          <BrandRow to="/" label="WhatBuild, home" current={isHome} onHide={hide} hideLabel={hideLabel} />
+          <nav className="panel-nav" aria-label={isHome ? "Products, account and organization" : "Account and organization"}>
+            <PlainNav
+              section={sectionId}
+              backTo={last && !isHome ? `/t/${last.path}/idea` : null}
+              backLabel={last?.name ?? null}
+              tenantSlug={isHome ? null : tenantSlug}
+              tenantName={tenantName}
+              showProducts={isHome}
+            />
           </nav>
         </>
       )}

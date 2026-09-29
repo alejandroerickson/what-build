@@ -10,10 +10,11 @@ import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, use
 import { ApiError, setUnauthenticatedHandler } from "./lib/api.ts";
 import { ProductProvider, RequireSession } from "./lib/session.tsx";
 import { AccountPage, ConnectPage } from "./routes/connect.tsx";
-import { AcceptInvite, Home, NotFound, SignIn } from "./routes/auth.tsx";
+import { AcceptInvite, NotFound, SignIn } from "./routes/auth.tsx";
 import { InsightEditPage, InsightPage, InsightsPage } from "./routes/insights.tsx";
 import { IdeaPage } from "./routes/idea.tsx";
 import { MembersPage, ProductsPage, Welcome } from "./routes/org.tsx";
+import { OverviewPage } from "./routes/overview.tsx";
 import { ActivityPage, ProductSettingsPage } from "./routes/product-misc.tsx";
 import { RegisterEntryPage, RegisterListPage } from "./routes/registers.tsx";
 import { SearchPage } from "./routes/search.tsx";
@@ -90,10 +91,10 @@ const router = createBrowserRouter([
     ),
     errorElement: <RouteError />,
     children: [
-      { path: "/", element: <Home /> },
       { path: "/welcome", element: <Welcome /> },
       { path: "/invite/:token", element: <AcceptInvite /> },
       { element: <PlainShell><Outlet /></PlainShell>, children: [
+        { path: "/", element: <OverviewPage /> },
         { path: "/products", element: <ProductsPage /> },
         { path: "/connect", element: <ConnectPage /> },
         { path: "/account", element: <AccountPage /> },

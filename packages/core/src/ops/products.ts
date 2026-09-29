@@ -48,6 +48,62 @@ function productView(p: {
   };
 }
 
+// ---- Counts -------------------------------------------------------------------------------------
+
+interface ProductCounts {
+  sources: number;
+  outcomes: number;
+  insights: number;
+  assumptions: number;
+  decisions: number;
+  story_pages: number;
+}
+
+/**
+ * What each product holds, as products.get and products.list report it: archived items are left out,
+ * and assumptions and decisions count only current (unconfirmed or confirmed) entries. Content tables
+ * are tenant-isolated, so the caller's transaction must already be scoped to the products' tenant.
+ */
+async function countProducts(db: Db, productIds: string[]): Promise<Map<string, ProductCounts>> {
+  const counts = new Map<string, ProductCounts>(
+    productIds.map((id) => [id, { sources: 0, outcomes: 0, insights: 0, assumptions: 0, decisions: 0, story_pages: 0 }]),
+  );
+  if (!productIds.length) return counts;
+  const add = (rows: { product_id: string; n: number | string | bigint }[], key: keyof ProductCounts) => {
+    for (const r of rows) {
+      const c = counts.get(r.product_id);
+      if (c) c[key] = Number(r.n);
+    }
+  };
+  // One transaction is one connection, so these run one after another.
+  add(
+    await db.selectFrom("records").select(["product_id", (eb) => eb.fn.countAll<number>().as("n")])
+      .where("product_id", "in", productIds).where("archived_at", "is", null).groupBy("product_id").execute(),
+    "sources",
+  );
+  add(
+    await db.selectFrom("outcomes").select(["product_id", (eb) => eb.fn.countAll<number>().as("n")])
+      .where("product_id", "in", productIds).where("status", "!=", "archived").groupBy("product_id").execute(),
+    "outcomes",
+  );
+  add(
+    await db.selectFrom("insights").select(["product_id", (eb) => eb.fn.countAll<number>().as("n")])
+      .where("product_id", "in", productIds).where("status", "!=", "archived").groupBy("product_id").execute(),
+    "insights",
+  );
+  add(
+    await db.selectFrom("story_pages").select(["product_id", (eb) => eb.fn.countAll<number>().as("n")])
+      .where("product_id", "in", productIds).where("archived_at", "is", null).groupBy("product_id").execute(),
+    "story_pages",
+  );
+  const registers = await db.selectFrom("register_entries").select(["product_id", "kind", (eb) => eb.fn.countAll<number>().as("n")])
+    .where("product_id", "in", productIds).where("archived_at", "is", null).where("status", "in", ["unconfirmed", "confirmed"])
+    .groupBy(["product_id", "kind"]).execute();
+  add(registers.filter((r) => r.kind === "assumption"), "assumptions");
+  add(registers.filter((r) => r.kind === "decision"), "decisions");
+  return counts;
+}
+
 // ---- Account scope ------------------------------------------------------------------------------
 
 export const listProducts = defineOperation({
@@ -55,9 +111,9 @@ export const listProducts = defineOperation({
   scope: "account",
   access: "any",
   mutates: false,
-  summary: "List every product you can reach, across your tenants and teams, with your role.",
+  summary: "List every product you can reach, across your tenants and teams, with your role and counts of what each holds.",
   description:
-    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true.",
+    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` are the ones products(action=\"get\") reports.",
   input: z.strictObject({ include_archived: z.boolean().default(false) }),
   rest: { method: "GET", path: "/me/products" },
   mcp: { tool: "products", action: "list" },
@@ -95,10 +151,18 @@ export const listProducts = defineOperation({
           : null;
       })
       .filter((x): x is NonNullable<typeof x> => x !== null && (input.include_archived || !x.archived_at));
+    // Content tables are tenant-isolated: count each tenant's products inside that tenant's scope.
+    const counts = new Map<string, ProductCounts>();
+    for (const tenantId of new Set(items.map((i) => i.tenant.tenant_id))) {
+      await sql`select set_config('app.tenant_id', ${tenantId}, true)`.execute(ctx.db);
+      const ids = items.filter((i) => i.tenant.tenant_id === tenantId).map((i) => i.product_id);
+      for (const [id, c] of await countProducts(ctx.db, ids)) counts.set(id, c);
+    }
+    await sql`select set_config('app.tenant_id', '', true)`.execute(ctx.db);
     const tenants = await ctx.db.selectFrom("tenants").select(["tenant_id", "slug", "name"]).where("tenant_id", "in", tenantIds).orderBy("name").execute();
     const teams = await ctx.db.selectFrom("teams").select(["team_id", "tenant_id", "slug", "name", "archived_at"]).where("tenant_id", "in", tenantIds).orderBy("name").execute();
     return {
-      items,
+      items: items.map((i) => ({ ...i, counts: counts.get(i.product_id)! })),
       tenants: tenants.map((t) => {
         const tr = memberships.find((m) => m.scope_type === "tenant" && m.scope_id === t.tenant_id)?.role ?? null;
         return {
@@ -250,34 +314,8 @@ export const getProduct = defineOperation({
   async handler(ctx) {
     const pid = ctx.scope.product!.product_id;
     const row = await ctx.db.selectFrom("products").selectAll().where("product_id", "=", pid).executeTakeFirstOrThrow();
-    const count = async (table: "records" | "outcomes" | "insights" | "story_pages", archivedCol: "archived_at" | null) => {
-      let q = ctx.db.selectFrom(table).select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid);
-      if (archivedCol) q = q.where(archivedCol, "is", null);
-      return Number((await q.executeTakeFirst())?.n ?? 0);
-    };
-    const registers = await ctx.db
-      .selectFrom("register_entries")
-      .select(["kind", (eb) => eb.fn.countAll<number>().as("n")])
-      .where("product_id", "=", pid)
-      .where("archived_at", "is", null)
-      .where("status", "in", ["unconfirmed", "confirmed"])
-      .groupBy("kind")
-      .execute();
-    return {
-      ...productView(row, ctx),
-      counts: {
-        sources: await count("records", "archived_at"),
-        outcomes: Number(
-          (await ctx.db.selectFrom("outcomes").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).where("status", "!=", "archived").executeTakeFirst())?.n ?? 0,
-        ),
-        insights: Number(
-          (await ctx.db.selectFrom("insights").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).where("status", "!=", "archived").executeTakeFirst())?.n ?? 0,
-        ),
-        assumptions: Number(registers.find((r) => r.kind === "assumption")?.n ?? 0),
-        decisions: Number(registers.find((r) => r.kind === "decision")?.n ?? 0),
-        story_pages: await count("story_pages", "archived_at"),
-      },
-    };
+    const counts = (await countProducts(ctx.db, [pid])).get(pid)!;
+    return { ...productView(row, ctx), counts };
   },
 });
 
