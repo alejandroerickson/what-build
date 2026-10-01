@@ -39,6 +39,8 @@ export interface ServerConfig {
   grantTtlSeconds: number;
   urlFetchMaxBytes: number;
   sessionDays: number;
+  /** A Google Analytics measurement ID (G-…). The app loads analytics only for a person who accepts it; null for none. */
+  analyticsId: string | null;
   accessTokenSeconds: number;
   refreshTokenDays: number;
 }
@@ -88,6 +90,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     grantTtlSeconds: num(env["WHATBUILD_GRANT_TTL_SECONDS"], 30 * 60),
     urlFetchMaxBytes: num(env["WHATBUILD_URL_FETCH_MAX_BYTES"], 25 * MiB),
     sessionDays: num(env["WHATBUILD_SESSION_DAYS"], 30),
+    analyticsId: /^G-[A-Z0-9]+$/.test(env["WHATBUILD_ANALYTICS_ID"]?.trim() ?? "") ? env["WHATBUILD_ANALYTICS_ID"]!.trim() : null,
     accessTokenSeconds: num(env["WHATBUILD_ACCESS_TOKEN_SECONDS"], 3600),
     refreshTokenDays: num(env["WHATBUILD_REFRESH_TOKEN_DAYS"], 30),
   };

@@ -277,4 +277,15 @@ describe("the web app's headers", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("cross-origin-opener-policy")).toBe("same-origin");
   });
+
+  it("let Google Analytics in only when the deployment uses it", async () => {
+    const dist = mkdtempSync(join(tmpdir(), "wb-dist-"));
+    writeFileSync(join(dist, "index.html"), "<!doctype html><title>WhatBuild</title>");
+    const without = (await staticRoutes(dist).request("/")).headers.get("content-security-policy") ?? "";
+    const withIt = (await staticRoutes(dist, { analytics: true }).request("/")).headers.get("content-security-policy") ?? "";
+    expect(without).not.toContain("google-analytics");
+    expect(withIt).toContain("script-src 'self' https://*.googletagmanager.com;");
+    expect(withIt).toContain("https://*.google-analytics.com");
+    expect(withIt).toContain("object-src 'none'");
+  });
 });

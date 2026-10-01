@@ -1,14 +1,19 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { pageView, startAnalytics, useCookieChoice } from "../lib/analytics.ts";
 import { api } from "../lib/api.ts";
 import { BrandMark } from "../shell/brand.tsx";
+import { CookieChoice } from "../shell/CookieChoice.tsx";
 import { Journey } from "../shell/journey.tsx";
-import { Button } from "../ui/button.tsx";
+import { Button, buttonClass } from "../ui/button.tsx";
 import { Callout, ErrorCallout } from "../ui/feedback.tsx";
 import { FormGrid, TextArea, TextField } from "../ui/field.tsx";
 import { Glyph } from "../ui/glyph.tsx";
 import { Sheet, SheetBody, SheetHeader } from "../ui/layout.tsx";
 
 const EMPTY = { email: "", name: "", organization: "", note: "", website: "" };
+
+/** The Google Analytics measurement ID, which whoever serves the page writes into it; null for none. */
+const ANALYTICS_ID = document.querySelector<HTMLMetaElement>('meta[name="whatbuild-analytics"]')?.content || null;
 
 /**
  * The public site's one page, at the site's own domain: the overview's intro, then a form to hear
@@ -18,6 +23,9 @@ const EMPTY = { email: "", name: "", organization: "", note: "", website: "" };
 export function SitePage() {
   const [form, setForm] = useState(EMPTY);
   const [state, setState] = useState<{ status: "idle" | "sending" | "sent" } | { status: "error"; error: unknown }>({ status: "idle" });
+  const [cookiesOpen, setCookiesOpen] = useState(false);
+  const choice = useCookieChoice();
+  const accepted = Boolean(ANALYTICS_ID) && choice === "accepted";
   const set = (key: keyof typeof EMPTY) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
   // The theme follows the system here: the site has no setting for it.
@@ -27,6 +35,12 @@ export function SitePage() {
     media.addEventListener("change", apply);
     return () => media.removeEventListener("change", apply);
   }, []);
+
+  useEffect(() => {
+    if (!accepted || !ANALYTICS_ID) return;
+    startAnalytics(ANALYTICS_ID);
+    pageView(location.pathname);
+  }, [accepted]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -106,9 +120,28 @@ export function SitePage() {
           <span>
             Already invited? <a href="/signin">Sign in</a>
           </span>
-          <a href="https://github.com/alejandroerickson/what-build">Source on GitHub</a>
+          <span className="site-foot-end">
+            {ANALYTICS_ID ? (
+              <button type="button" className="site-foot-link" onClick={() => setCookiesOpen(true)}>
+                Cookies
+              </button>
+            ) : null}
+            <a href="https://github.com/alejandroerickson/what-build">Source on GitHub</a>
+          </span>
         </footer>
       </main>
+      {ANALYTICS_ID ? (
+        <CookieChoice
+          purpose="to see how the site is used and remember your choice."
+          link={
+            <a href="/cookies" className={buttonClass("quiet", "sm")}>
+              Cookies
+            </a>
+          }
+          open={cookiesOpen}
+          onClose={() => setCookiesOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

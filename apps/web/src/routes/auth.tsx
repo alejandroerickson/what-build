@@ -10,7 +10,7 @@ import { Button, ButtonLink, Callout, EmptyState, ErrorCallout, Loading, Sheet, 
 import "../styles/screens/account.css";
 
 const DATA_STATEMENT =
-  "WhatBuild is a free, pre-1.0 demonstration service. Your content sits in a managed Postgres database and an object store we rent from providers named on our sub-processors page. It is encrypted in transit, encrypted at rest as far as those providers do it, and isolated per organization by the application and by the database. We take no analytics about what you do in the app, show no ads, sell nothing, and train no model on your content; there is no AI in the product to train one with. We do not promise uptime or durability, and we cannot promise anything on behalf of our providers. Export is always available and always complete. Please don't put anything here whose loss or exposure would hurt.";
+  "WhatBuild is a free, pre-1.0 demonstration service. Your content sits in a managed Postgres database and an object store we rent from providers named on our sub-processors page. It is encrypted in transit, encrypted at rest as far as those providers do it, and isolated per organization by the application and by the database. We show no ads, sell nothing, and train no model on your content; there is no AI in the product to train one with. We do not promise uptime or durability, and we cannot promise anything on behalf of our providers. Export is always available and always complete. Please don't put anything here whose loss or exposure would hurt.";
 
 /**
  * A screen outside the shell (sign-in, first run, accepting an invitation): the mark and wordmark
@@ -140,7 +140,7 @@ export function SignIn() {
         <h2 id="data-h">What we do with your data</h2>
         <p>{DATA_STATEMENT}</p>
         <p className="entry-fine-more">
-          The only cookies are the ones that keep you signed in. <Link to="/cookies">See what&rsquo;s stored</Link>.
+          WhatBuild uses cookies to keep you signed in. <Link to="/cookies">Cookies</Link>.
         </p>
       </section>
     </EntryPage>

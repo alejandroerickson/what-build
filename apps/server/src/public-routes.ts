@@ -68,12 +68,30 @@ export const PAGE_SECURITY_HEADERS = {
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; media-src 'self' blob:; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'",
 };
 
+/** Google Analytics' hosts, by directive. The app loads it only for a person who accepted it. */
+const ANALYTICS_SOURCES = {
+  "script-src": "https://*.googletagmanager.com",
+  "img-src": "https://*.google-analytics.com https://*.googletagmanager.com",
+  "connect-src": "https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com",
+};
+
+/** PAGE_SECURITY_HEADERS, letting Google Analytics in when the deployment uses it. */
+export function pageHeaders(analytics: boolean) {
+  if (!analytics) return PAGE_SECURITY_HEADERS;
+  const csp = PAGE_SECURITY_HEADERS["Content-Security-Policy"].split("; ").map((d) => {
+    const name = d.split(" ")[0] as keyof typeof ANALYTICS_SOURCES;
+    return ANALYTICS_SOURCES[name] ? `${d} ${ANALYTICS_SOURCES[name]}` : d;
+  });
+  return { ...PAGE_SECURITY_HEADERS, "Content-Security-Policy": csp.join("; ") };
+}
+
 /**
  * The web app, served from the same origin as the API: no CORS, one sign-in boundary. Hashed assets
  * are cached forever; index.html never. An unknown path without an extension is the app shell; an
  * unknown path with one is a 404, so a stale chunk after a deploy is never answered with HTML.
  */
-export function staticRoutes(dist: string) {
+export function staticRoutes(dist: string, opts: { analytics?: boolean } = {}) {
+  const headers = pageHeaders(Boolean(opts.analytics));
   const root = resolve(dist);
   const app = new Hono();
   const indexPath = join(root, "index.html");
@@ -86,13 +104,13 @@ export function staticRoutes(dist: string) {
     if (file.startsWith(root) && rel && existsSync(file) && statSync(file).isFile()) {
       const immutable = rel.startsWith("assets/");
       return c.body(readFileSync(file), 200, {
-        ...PAGE_SECURITY_HEADERS,
+        ...headers,
         "Content-Type": TYPES[extname(file)] ?? "application/octet-stream",
         "Cache-Control": immutable ? "public, max-age=31536000, immutable" : "no-cache",
       });
     }
     if (extname(rel)) return c.notFound();
-    return c.body(readFileSync(indexPath), 200, { ...PAGE_SECURITY_HEADERS, "Content-Type": TYPES[".html"]!, "Cache-Control": "no-cache" });
+    return c.body(readFileSync(indexPath), 200, { ...headers, "Content-Type": TYPES[".html"]!, "Cache-Control": "no-cache" });
   });
   return app;
 }

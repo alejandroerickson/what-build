@@ -22,9 +22,8 @@ repository (`apps/web/src/routes/auth.tsx`) so a change to it is a reviewable co
 > WhatBuild is a free, pre-1.0 demonstration service. Your content sits in a managed Postgres
 > database and an object store we rent from providers named on our sub-processors page. It is
 > encrypted in transit, encrypted at rest as far as those providers do it, and isolated per
-> organization by the application and by the database. We take no analytics about what you do in
-> the app, show no ads, sell nothing, and train no model on your content; there is no AI in the
-> product to train one with. We do not promise uptime or durability, and we cannot promise anything
+> organization by the application and by the database. We show no ads, sell nothing, and train no
+> model on your content; there is no AI in the product to train one with. We do not promise uptime or durability, and we cannot promise anything
 > on behalf of our providers. Export is always available and always complete. Please don't put
 > anything here whose loss or exposure would hurt.
 
@@ -32,24 +31,29 @@ Supporting commitments, each of which is a rule elsewhere in this spec:
 
 | We say | Enforced by |
 |---|---|
-| No product analytics; operational telemetry only | [§2.8](02-architecture.md) — request logs carry method, path with ids masked, status and duration; never content, email addresses or tokens (`apps/server/src/app.ts`) |
+| Operational telemetry stays about the service | [§2.8](02-architecture.md) — request logs carry method, path with ids masked, status and duration; never content, email addresses or tokens (`apps/server/src/app.ts`) |
 | No model training on your content | [§2.8](02-architecture.md) — there is no language model in the product (`/api/v1/meta` says so) |
 | Isolation per organization | [§3.6](03-accounts-teams-and-identity.md) — three layers, tested on every operation |
 | Export is complete and always available | [§9.4](#94-taking-it-with-you) and [§1.5](01-product.md) |
-| Only the cookies the app needs | The notice and `/cookies` ([§7.11](07-web-app.md)); a new cookie or storage key adds a row there, and an optional one needs a consent choice first |
+| Analytics only for people who accept | The notice and `/cookies` ([§7.11](07-web-app.md)); Google's script loads only after Accept (`apps/web/src/lib/analytics.ts`) |
 | We name our sub-processors | **Planned:** a public page listing the container host, database, object store and email provider, updated before a provider changes. The statement already refers to it. |
 
-**Cookies and browser storage.** WhatBuild sets only cookies that are strictly needed for the
-service a person asked for: the session cookie that keeps them signed in, and two short-lived ones
+**Cookies and browser storage.** WhatBuild uses cookies and browser storage of two kinds. The
+needed kind is always on: the session cookie that keeps a person signed in, two short-lived ones
 that protect a Google sign-in and an agent's connection while they happen
-([§3.8](03-accounts-teams-and-identity.md)). The browser also keeps display choices the person
-made (theme, hidden panels, the last product, the Story page and its focus mode and collapsed
-sections, notices read). Nothing measures, tracks or advertises, no third party sets or reads
-anything, and the font is served by WhatBuild itself. Because nothing is optional there is no
-consent prompt: a notice on every screen says this once, and `/cookies` lists each item
-([§7.11](07-web-app.md)). Anything optional added later, such as analytics, stays off until the
-person agrees and can be turned off again
-([decision](../decisions/only-necessary-cookies-and-optional-ones-wait-for-consent.md)).
+([§3.8](03-accounts-teams-and-identity.md)), display choices kept in the browser under
+`whatbuild.*`, and `wb_cookies`, which remembers the person's answer below. The optional kind is
+analytics. A deployment with a Google Analytics measurement ID asks every person once, on the
+public site or in the app, with Accept and Decline of equal weight; `wb_cookies` sits on the parent
+domain, so one answer covers both. Google Analytics loads only after Accept. Everything works the
+same either way, and `/cookies` (or Cookies in the site's footer) changes the answer later
+([§7.11](07-web-app.md)). What reaches Google names the page and the action, never the
+organization, product, record or content: page views carry a masked path such as
+`/t/:org/:team/:product/story/:id` and a fixed title; each change the app makes is an event named
+from a fixed word list, such as `insights_create`; a request to hear from us is `generate_lead`.
+Advertising and Google signals are off. The public site's page also counts every visit,
+whatever the answer, with Cloudflare Web Analytics, which sets no cookie
+([decision](../decisions/analytics-only-for-people-who-accept-cookies.md)).
 
 **In the public sandbox** the statement above is not the whole truth, so every screen there says
 the rest ([§9.7](#97-the-public-sandbox)): what is added is seen by other visitors and erased at

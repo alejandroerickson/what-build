@@ -5,10 +5,16 @@ import { Hono } from "hono";
 import { sql } from "kysely";
 import { z } from "zod";
 import type { ServerConfig } from "./config.ts";
-import { PAGE_SECURITY_HEADERS } from "./public-routes.ts";
+import { pageHeaders } from "./public-routes.ts";
 
 /** What the site's own origin serves; any other path there belongs to the app and is sent to it. */
 const SITE_PATHS = new Set(["/", "/api/v1/interest", "/favicon.svg", "/theme-boot.js", "/health"]);
+
+/** The site's page, carrying the deployment's Google Analytics ID for the page to load once a visitor accepts. */
+function sitePage(path: string, analyticsId: string | null): string {
+  const page = readFileSync(path, "utf8");
+  return analyticsId ? page.replace("</head>", `<meta name="whatbuild-analytics" content="${analyticsId}" />\n</head>`) : page;
+}
 
 /** New requests to hear from us accepted per hour across the whole site, a crude guard against floods. */
 const INTEREST_PER_HOUR = 200;
@@ -44,7 +50,7 @@ export function siteRoutes(deps: { db: Db; config: ServerConfig }) {
       if (host === `www.${site.host}`) return c.redirect(`${site.origin}${url.pathname}${url.search}`, 301);
       if (host !== site.host) return next();
       if (c.req.path === "/" && pagePath && existsSync(pagePath) && (c.req.method === "GET" || c.req.method === "HEAD"))
-        return c.body(readFileSync(pagePath), 200, { ...PAGE_SECURITY_HEADERS, "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" });
+        return c.body(sitePage(pagePath, config.analyticsId), 200, { ...pageHeaders(Boolean(config.analyticsId)), "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" });
       if (SITE_PATHS.has(c.req.path) || c.req.path.startsWith("/assets/")) return next();
       // Temporary, not permanent: the site may grow pages of its own at these paths.
       return c.redirect(`${config.publicBaseUrl}${url.pathname}${url.search}`, 302);

@@ -1,54 +1,45 @@
-import { useState } from "react";
+import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "react-router";
-import { Button, ButtonLink, Glyph } from "../ui/index.tsx";
-import { prefersReducedMotion } from "../ui/media.ts";
-import "../styles/screens/cookies.css";
+import { api } from "../lib/api.ts";
+import { pageView, startAnalytics, useCookieChoice } from "../lib/analytics.ts";
+import { ButtonLink } from "../ui/index.tsx";
+import { CookieChoice } from "./CookieChoice.tsx";
 
-export const COOKIE_NOTICE_KEY = "whatbuild.cookie-notice";
-
-function readSeen(): boolean {
-  try {
-    return localStorage.getItem(COOKIE_NOTICE_KEY) === "seen";
-  } catch {
-    return false;
-  }
+/** The deployment's Google Analytics measurement ID, null when it has none, undefined until known. */
+export function useAnalyticsId(): string | null | undefined {
+  const methods = useQuery({ queryKey: ["auth-methods"], queryFn: () => api<{ analytics_id?: string | null }>("GET", "/auth/methods"), staleTime: Infinity });
+  return methods.isPending ? undefined : (methods.data?.analytics_id ?? null);
 }
 
 /**
- * What WhatBuild keeps in the browser, said once in the bottom corner of every screen until the
- * person dismisses it. It blocks nothing and never takes focus, so the app works the same whether
- * anyone reads it. It offers no choice because there is none to make: everything stored is needed
- * for the service or remembers a choice the person made. `/cookies` lists each item.
+ * The app's cookie choice, on every screen until the person accepts or declines, and analytics
+ * behind it: loaded once they accept, with a page view for each screen they open. The app works
+ * the same either way. A deployment without analytics has nothing to ask, so it shows nothing.
+ * `/cookies` explains, and changes the choice later.
  */
 export function CookieNotice() {
-  const [state, setState] = useState<"open" | "closing" | "gone">(() => (readSeen() ? "gone" : "open"));
+  const id = useAnalyticsId();
+  const choice = useCookieChoice();
   const { pathname } = useLocation();
-  if (state === "gone") return null;
-  const dismiss = () => {
-    try {
-      localStorage.setItem(COOKIE_NOTICE_KEY, "seen");
-    } catch {
-      // Storage is blocked: the notice comes back on the next visit.
-    }
-    setState("closing");
-    setTimeout(() => setState("gone"), prefersReducedMotion() ? 0 : 160);
-  };
+  const on = Boolean(id) && choice === "accepted";
+  useEffect(() => {
+    if (on && id) startAnalytics(id);
+  }, [on, id]);
+  useEffect(() => {
+    if (on) pageView(pathname);
+  }, [on, pathname]);
+  if (!id) return null;
   return (
-    <aside className="cookie-notice" aria-label="Cookies" data-state={state}>
-      <Glyph name="cookie" className="cookie-notice-glyph" />
-      <p className="cookie-notice-text">
-        <b>Only the cookies WhatBuild needs.</b> One keeps you signed in, and this browser remembers display choices such as the theme. No analytics, no ads.
-      </p>
-      <div className="cookie-notice-actions">
-        {pathname === "/cookies" ? null : (
+    <CookieChoice
+      purpose="to keep you signed in, remember your settings and see how the site is used."
+      link={
+        pathname === "/cookies" ? null : (
           <ButtonLink to="/cookies" size="sm" variant="quiet">
-            What&rsquo;s stored
+            Cookies
           </ButtonLink>
-        )}
-        <Button size="sm" onClick={dismiss}>
-          Got it
-        </Button>
-      </div>
-    </aside>
+        )
+      }
+    />
   );
 }

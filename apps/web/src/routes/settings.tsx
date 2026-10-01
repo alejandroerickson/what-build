@@ -61,7 +61,7 @@ export function SettingsPage() {
         </form>
       </Sheet>
       <p className="agents-foot">
-        <Link to="/cookies">Cookies and browser storage</Link>: what WhatBuild keeps in this browser, and why.
+        <Link to="/cookies">Cookies</Link>: what they are for, and your choice about analytics.
       </p>
     </>
   );

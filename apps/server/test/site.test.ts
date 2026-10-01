@@ -3,6 +3,8 @@ import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { loadConfig } from "../src/config.ts";
+import { siteRoutes } from "../src/site.ts";
 import { startHarness, type Harness } from "./harness.ts";
 
 /** A request with a Host header of our choosing, which fetch does not allow. */
@@ -81,5 +83,24 @@ describe("the public site", () => {
     expect(await bot.json()).toEqual({ received: true });
     const rows = await h.db.selectFrom("interest").select("email").where("email", "=", "bot@example.com").execute();
     expect(rows).toHaveLength(0);
+  });
+});
+
+describe("the public site with Google Analytics", () => {
+  it("carries the measurement ID and lets Google's hosts in, only when the deployment sets one", async () => {
+    const dist = mkdtempSync(join(tmpdir(), "wb-web-"));
+    mkdirSync(join(dist, "site"));
+    writeFileSync(join(dist, "site", "index.html"), "<html><head><title>site</title></head><body></body></html>");
+    const page = async (analyticsId: string | null) => {
+      const config = { ...loadConfig({ NODE_ENV: "test", WHATBUILD_PUBLIC_URL: "https://app.what-build.test" }), siteUrl: "https://what-build.test", webDist: dist, analyticsId };
+      const res = await siteRoutes({ db: null as never, config }).request("/", { headers: { host: "what-build.test" } });
+      return { text: await res.text(), csp: res.headers.get("content-security-policy") ?? "" };
+    };
+    const without = await page(null);
+    expect(without.text).not.toContain("whatbuild-analytics");
+    expect(without.csp).not.toContain("googletagmanager");
+    const withIt = await page("G-TEST123");
+    expect(withIt.text).toContain('<meta name="whatbuild-analytics" content="G-TEST123" />');
+    expect(withIt.csp).toContain("https://*.googletagmanager.com");
   });
 });

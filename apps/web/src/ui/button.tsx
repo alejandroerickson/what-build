@@ -18,7 +18,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   wide?: boolean;
 };
 
-function buttonClass(variant: ButtonVariant, size: ControlSize, wide?: boolean, extra = "") {
+export function buttonClass(variant: ButtonVariant, size: ControlSize, wide?: boolean, extra = "") {
   return `btn btn-${variant} btn-${size}${wide ? " btn-wide" : ""}${extra ? ` ${extra}` : ""}`;
 }
 

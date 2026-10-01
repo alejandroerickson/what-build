@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-09-29}
+generated: {by: agent:claude, at: 2026-10-01}
 status: stable
 ---
 
@@ -225,8 +225,9 @@ self-hosters. This keeps the promise cheap to make and impossible to break by ac
 - **Observability:** one structured log line per request with method, path (ids masked), status
   and duration. **Never** log source content, Markdown bodies, passage text, email addresses, or
   tokens. Request ids, principal and tenant ids, operation names and counters are planned.
-  ◆ Decision: operational telemetry about the *service* yes; product analytics about what a team
-  *does* in the app, no, and the data statement says exactly that ([§9.1](09-data-lifecycle.md)).
+  ◆ Decision: operational telemetry about the *service* in the logs; usage analytics only in the
+  browser, only for people who accept it, and only by screen, never by content or name
+  ([§9.1](09-data-lifecycle.md)).
 - **Rate limits and quotas** are to be enforced in one middleware shared by both adapters, so
   neither can drift from the other ([§9.2](09-data-lifecycle.md)). Planned: today only sign-in
   links are rate-limited (five per address per hour) and the only enforced quota is 50 Story pages
