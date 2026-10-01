@@ -19,11 +19,11 @@ export class ApiError extends Error {
 
 const DEFAULT_MESSAGES: Record<number, string> = {
   0: "WhatBuild could not be reached. Check your connection and try again.",
-  401: "Your sign-in has expired.",
-  403: "You don't have access to do that.",
-  404: "That does not exist, or you cannot see it.",
+  401: "Your sign-in has expired. Sign in again.",
+  403: "You don’t have access to do that.",
+  404: "That doesn’t exist, or you don’t have access to it.",
   409: "That changed since you loaded it.",
-  422: "WhatBuild did not accept that.",
+  422: "WhatBuild couldn’t accept that. Check what you entered.",
   500: "WhatBuild ran into a problem. Try again in a moment.",
 };
 

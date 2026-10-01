@@ -203,7 +203,7 @@ export function StoryPage() {
         <Crumbs label="Page location" currentAsHeading items={[{ label: "Story" }]} />
         <Sheet label="Story">
           <FirstUse title="No Story pages yet" ask={`Draft the first Story page for ${product.name} in WhatBuild from its outcomes and insights.`}>
-            The Story is a set of pages that tells stakeholders where this discovery stands, in your company's design system or a house style. Agents write and arrange it; you read it here and export it to PDF.
+            The Story is a set of pages that tells stakeholders where this discovery stands, in your company&rsquo;s design system or a house style. Agents write and arrange it. You read it here and export it to PDF.
             {style.data ? (
               <p className="story-first-style">
                 <Button size="sm" variant="quiet" icon="palette" onClick={() => setStyling(true)}>
@@ -235,7 +235,7 @@ export function StoryPage() {
         <Crumbs label="Page location" currentAsHeading items={crumbs} />
         {gone ? (
           <EmptyState title="This page is not in the Story" action={root ? <ButtonLink to={`${app}/story/${root}`}>Open the Story</ButtonLink> : undefined}>
-            It was never published here, or its address changed. Pages keep their address for good, even when archived.
+            The link may be mistyped, or the page was never published here. A published page keeps its link for good, even when archived.
           </EmptyState>
         ) : (
           <ErrorCallout title="This Story page could not be loaded" error={page.error} onRetry={() => page.refetch()} />
@@ -261,7 +261,7 @@ export function StoryPage() {
         <>
           {p.archived_at ? (
             <Callout tone="attention" title="This page is archived">
-              An agent took it out of the Story's navigation. Its versions stay readable here.
+              An agent took it out of the Story&rsquo;s navigation. You can still read its versions here.
             </Callout>
           ) : null}
           {wantsOld && old.data ? (

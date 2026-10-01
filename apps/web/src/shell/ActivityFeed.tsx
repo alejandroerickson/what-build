@@ -189,7 +189,7 @@ export function ActivityFeed(filter: ActivityFilter & { query?: ReturnType<typeo
         title={filtered ? "Nothing matches this view yet" : "Nothing has changed yet"}
         action={filtered ? undefined : <ButtonLink to="/connect" size="sm" icon="bot">Connect an agent</ButtonLink>}
       >
-        {filtered ? "Changes show up here as soon as someone makes them." : "Adding a source, writing an insight or publishing the Story, in the app or through your agent, shows up here."}
+        {filtered ? "Changes appear here as soon as someone makes them." : "Every change appears here, whether a person or an agent made it: a source added, an insight written, a Story page published."}
       </EmptyState>
     );
   }

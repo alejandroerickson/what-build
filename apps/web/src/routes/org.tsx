@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { api } from "../lib/api.ts";
-import { aRole, formatDate, ROLE_WORD } from "../lib/format.ts";
+import { aRole, formatDate, ROLE_WORD, scopeWords } from "../lib/format.ts";
 import { useMe, useProducts } from "../lib/session.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
@@ -49,15 +49,19 @@ export function Welcome() {
           <SheetBody className="entry-form">
             {sandboxOnly ? (
               <p>
-                Your account was made for the WhatBuild public sandbox. To enter it, open the invitation link you were given. If you were in it before, your seat was given up after a long time away, or taken away by the people who run it.
+                Your account works only in the public sandbox. To enter, open your invitation link. If you were in before, your seat was freed after a long time away, or removed by the sandbox&rsquo;s admins.
               </p>
             ) : !hasOrgs ? (
-              <p>You&rsquo;re signed in, but not in any organization yet. When someone who uses WhatBuild invites you to theirs, its products appear here.</p>
-            ) : null}
-            <p className="muted">
-              {allowance.allowed ? `You have started ${allowance.created === 1 ? "an organization" : `${allowance.created} organizations`}, which is all this account may start. ` : ""}
-              The people who run this WhatBuild decide who may start organizations, and how many; being in one doesn&rsquo;t let anyone start one. Ask them, or ask someone who uses WhatBuild to invite you to theirs.
-            </p>
+              <>
+                <p>You&rsquo;re signed in, but not in an organization yet. Ask someone who uses WhatBuild to invite you, and their products appear here.</p>
+                <p className="muted">To start an organization of your own, ask this WhatBuild&rsquo;s owners.</p>
+              </>
+            ) : (
+              <p className="muted">
+                {allowance.allowed ? `You’ve started ${allowance.created === 1 ? "one organization" : `${allowance.created} organizations`}, the most this account can. ` : ""}
+                This WhatBuild&rsquo;s owners decide who can start organizations, and how many.
+              </p>
+            )}
           </SheetBody>
         </Sheet>
         <p className="entry-foot">
@@ -78,22 +82,22 @@ export function Welcome() {
           }}
         >
           <p className="muted">
-            Name your organization and the product you are exploring. You can invite colleagues and connect an agent next.
+            Name your organization and the first product you&rsquo;re exploring. You can invite colleagues and connect an agent next.
             {allowance?.remaining
-              ? ` This account may start ${allowance.remaining === 1 ? "one" : allowance.remaining}${allowance.created ? " more" : ""} organization${allowance.remaining === 1 ? "" : "s"}.`
+              ? ` This account can start ${allowance.remaining === 1 ? "one" : allowance.remaining}${allowance.created ? " more" : ""} organization${allowance.remaining === 1 ? "" : "s"}.`
               : ""}
           </p>
-          <TextField label="Organization" hint="Your company or group. Nothing in it is visible to any other organization." required maxLength={100} value={org} onChange={(e) => setOrg(e.target.value)} />
-          <TextField label="Product" hint="The product this discovery is about. You can run several side by side." required maxLength={100} value={product} onChange={(e) => setProduct(e.target.value)} />
-          <TextArea label="Product concept" optional hint="Who it is for, the problem they have, and how the product solves it, in a few sentences. It heads the Idea screen." maxLength={2000} rows={3} value={concept} onChange={(e) => setConcept(e.target.value)} />
+          <TextField label="Organization" hint="Your company or group. Other organizations can’t see anything in it." required maxLength={100} value={org} onChange={(e) => setOrg(e.target.value)} />
+          <TextField label="Product" hint="What this discovery is about. You can add more products later." required maxLength={100} value={product} onChange={(e) => setProduct(e.target.value)} />
+          <TextArea label="Product concept" optional hint="Who it’s for, the problem they have, and how the product solves it. Shown at the top of Idea." maxLength={2000} rows={3} value={concept} onChange={(e) => setConcept(e.target.value)} />
           {create.isError ? <ErrorCallout inset error={create.error} /> : null}
           <Button type="submit" variant="primary" busy={create.isPending} busyLabel="Creating…" disabled={!org.trim() || !product.trim()}>
-            Create and continue
+            Create organization
           </Button>
         </form>
       </Sheet>
       <p className="entry-foot">
-        Invited by someone? Open the link in their invitation to join their organization instead. Already set up? <Link to="/">See your products</Link>.
+        Have an invitation? Open its link to join that organization instead.{hasOrgs ? <> <Link to="/">Back to your products</Link></> : null}
       </p>
     </EntryPage>
   );
@@ -117,10 +121,6 @@ interface MembersResponse {
 }
 
 type Member = MembersResponse["members"][number];
-
-function scopeWords(type: string, name: string) {
-  return type === "tenant" ? "the organization" : `${type === "team" ? "team" : "product"} ${name}`;
-}
 
 /** The request body that names a grant's scope; the organization itself needs neither team nor product. */
 function scopeBody(g: { scope_type: string; scope_id: string }) {
@@ -165,17 +165,17 @@ export function MembersPage() {
     mutationFn: (v: { email: string; role: string; scope_type: string; scope_id: string }) =>
       api("POST", `/api/v1/tenants/${tenant}/members`, { email: v.email, role: v.role, ...scopeBody(v) }),
     onSuccess: refresh,
-    onError: (e) => toast(`Couldn't change the role. ${(e as Error).message}`, { tone: "negative" }),
+    onError: (e) => toast(`Couldn’t change the role. ${(e as Error).message}`, { tone: "negative" }),
   });
   const revoke = useMutation({
     mutationFn: (v: { m: Member; g: MemberGrant }) => api("POST", `/api/v1/tenants/${tenant}/members/revoke`, { account_id: v.m.account_id, ...scopeBody(v.g) }),
     onSuccess: (_r, { m, g }) => {
       refresh();
-      toast(`Removed ${m.display_name}'s ${g.role} role on ${scopeWords(g.scope_type, g.scope.name)}.`, {
+      toast(`Removed ${m.display_name}’s ${g.role} role on ${scopeWords(g.scope_type, g.scope.name)}.`, {
         action: { label: "Undo", onClick: () => grant.mutate({ email: m.email, role: g.role, scope_type: g.scope_type, scope_id: g.scope_id }) },
       });
     },
-    onError: (e) => toast(`Couldn't remove that role. ${(e as Error).message}`, { tone: "negative" }),
+    onError: (e) => toast(`Couldn’t remove that role. ${(e as Error).message}`, { tone: "negative" }),
   });
   // A person's last role is their place in the organization: removing it takes them out, so it asks first.
   const removeGrant = (m: Member, g: MemberGrant) => (m.grants.length === 1 ? setRemoving({ m, g }) : revoke.mutate({ m, g }));
@@ -198,7 +198,7 @@ export function MembersPage() {
       refresh();
       toast("Invitation cancelled. Its link no longer works.");
     },
-    onError: (e) => toast(`Couldn't cancel the invitation. ${(e as Error).message}`, { tone: "negative" }),
+    onError: (e) => toast(`Couldn’t cancel the invitation. ${(e as Error).message}`, { tone: "negative" }),
   });
   return (
     <>
@@ -213,17 +213,17 @@ export function MembersPage() {
         <SheetBody className="members-intro">
           {sandbox?.only_you ? (
             <Callout inset tone="info" title={`${orgName} is a public sandbox`}>
-              Visitors never see each other, so this list holds only you, under the name you write with. <Link to={`/t/${tenant}/sandbox`}>About this sandbox</Link>
+              Visitors never see each other, so only you are listed, under your made-up name. <Link to={`/t/${tenant}/sandbox`}>About this sandbox</Link>
             </Callout>
           ) : sandbox ? (
             <Callout inset tone="info" title={`${orgName} is a public sandbox`} action={<ButtonLink size="sm" to={`/t/${tenant}/sandbox`}>Sandbox controls</ButtonLink>}>
-              {!sandbox.visitors ? "No visitor holds a seat yet" : sandbox.visitors === 1 ? "One visitor holds a seat" : `${sandbox.visitors.toLocaleString("en-US")} visitors hold a seat`}. Visitors are listed and managed in the sandbox&rsquo;s controls, not here, and none of them sees this list.
+              {!sandbox.visitors ? "No visitors yet" : sandbox.visitors === 1 ? "1 visitor has a seat" : `${sandbox.visitors.toLocaleString("en-US")} visitors have seats`}. Visitors are managed in Sandbox controls, and can&rsquo;t see this list.
             </Callout>
           ) : null}
           {sandbox?.only_you ? null : (
           <>
           <p className="muted">
-            People join {orgName} when someone gives them access; signing in to WhatBuild doesn&rsquo;t add anyone. Everyone here has a role in the organization, and their team and product roles decide which products they can open.
+            People join {orgName} only when someone gives them access. Everyone has an organization role; team and product roles decide which products they can open.
           </p>
           <div className="members-legend">
             <div className="members-legend-group">
@@ -247,7 +247,7 @@ export function MembersPage() {
             </div>
           </div>
           <p className="members-legend-foot">
-            A team role reaches every product in the team, and the highest role that applies wins. With no role on a product, a person can&rsquo;t see it at all.
+            A team role covers every product in the team, and the highest role wins. With no role on a product, a person can&rsquo;t see it.
           </p>
           </>
           )}
@@ -289,7 +289,7 @@ export function MembersPage() {
                         {orgAdmin ? <span className="members-grant muted">Admin of every team and product, as an organization {orgRole}</span> : null}
                         {orgRole === "visitor" ? <span className="members-grant muted">Editor of every product, as a visitor to the sandbox</span> : null}
                         {access.length ? (
-                          <ul className="members-grants" aria-label={`${m.display_name}'s team and product roles`}>
+                          <ul className="members-grants" aria-label={`${m.display_name}’s team and product roles`}>
                             {access.map((g) => (
                               <li key={g.membership_id} className="members-grant">
                                 <span>
@@ -299,7 +299,7 @@ export function MembersPage() {
                                   <Button
                                     size="sm"
                                     variant="quiet"
-                                    aria-label={`Remove ${m.display_name}'s ${g.role} role on ${scopeWords(g.scope_type, g.scope.name)}`}
+                                    aria-label={`Remove ${m.display_name}’s ${g.role} role on ${scopeWords(g.scope_type, g.scope.name)}`}
                                     busy={revoke.isPending && revoke.variables?.g.membership_id === g.membership_id}
                                     onClick={() => removeGrant(m, g)}
                                   >
@@ -408,7 +408,7 @@ function RemoveMemberDialog({ tenant, orgName, member: m, lastGrant, tenantAdmin
     },
     onSuccess: (_r, keepAsMember) => {
       void qc.invalidateQueries({ queryKey: ["members", tenant] });
-      toast(keepAsMember ? `Removed ${m.display_name}'s role. They stay in ${orgName} as a member.` : `Removed ${m.display_name} from ${orgName}.`);
+      toast(keepAsMember ? `Removed ${m.display_name}’s role. They stay in ${orgName} as a member.` : `Removed ${m.display_name} from ${orgName}.`);
       onClose();
     },
   });
@@ -421,8 +421,8 @@ function RemoveMemberDialog({ tenant, orgName, member: m, lastGrant, tenantAdmin
       title={`Remove ${m.display_name} from ${orgName}?`}
       description={
         lastGrant
-          ? `${grantWords(lastGrant)} is ${m.display_name}'s only role here, so removing it also takes them out of the organization. They leave this list and can no longer open any of its products.`
-          : `${m.display_name} loses every role here at once, leaves this list, and can no longer open any of its products.`
+          ? `${grantWords(lastGrant)} is ${m.display_name}’s only role here, so removing it removes them from the organization. They can no longer open any of its products.`
+          : `${m.display_name} loses every role here and can no longer open any of its products.`
       }
       footer={
         <>
@@ -452,8 +452,8 @@ function RemoveMemberDialog({ tenant, orgName, member: m, lastGrant, tenantAdmin
           <ErrorCallout inset error={remove.error} />
         ) : (
           <p className="muted">
-            What they already wrote stays, attributed to them. You can give them access again at any time.
-            {lastGrant && tenantAdmin ? " To keep them in the organization without any product access, remove the role and keep them as a member." : ""}
+            What they wrote stays, attributed to them. You can give them access again any time.
+            {lastGrant && tenantAdmin ? " To keep them in the organization with no product access, choose Remove role, keep as member." : ""}
           </p>
         )}
       </div>
@@ -487,11 +487,11 @@ function GiveAccessDialog({ tenant, orgName, initialEmail, onClose, canManage, t
   const t = products.data?.tenants.find((x) => x.slug === tenant);
   // Teams and products first: they are what lets someone open a product. The organization role comes last.
   const targets = [
-    ...(t?.teams ?? []).filter((tm) => canManage({ scope_type: "team", scope_id: tm.team_id, role: "editor" })).map((tm) => ({ value: tm.slug, label: `Team ${tm.name} (every product in it)`, words: `team ${tm.name}`, roles: ["viewer", "editor", "admin"] })),
+    ...(t?.teams ?? []).filter((tm) => canManage({ scope_type: "team", scope_id: tm.team_id, role: "editor" })).map((tm) => ({ value: tm.slug, label: `Team: ${tm.name} (every product in it)`, words: scopeWords("team", tm.name), roles: ["viewer", "editor", "admin"] })),
     ...(products.data?.items ?? [])
       .filter((p) => p.tenant.slug === tenant && canManage({ scope_type: "product", scope_id: p.product_id, role: "editor" }))
-      .map((p) => ({ value: `${p.team.slug}/${p.path.split("/")[2]}`, label: `Product ${p.name}`, words: `product ${p.name}`, roles: ["viewer", "editor", "admin"] })),
-    ...(tenantAdmin ? [{ value: "", label: `${orgName}, the organization itself`, words: orgName, roles: ownerHere ? ["member", "admin", "owner"] : ["member", "admin"] }] : []),
+      .map((p) => ({ value: `${p.team.slug}/${p.path.split("/")[2]}`, label: `Product: ${p.name}`, words: p.name, roles: ["viewer", "editor", "admin"] })),
+    ...(tenantAdmin ? [{ value: "", label: `Organization: ${orgName}`, words: orgName, roles: ownerHere ? ["member", "admin", "owner"] : ["member", "admin"] }] : []),
   ];
   const [email, setEmail] = useState(initialEmail ?? "");
   const [target, setTarget] = useState(targets[0]?.value ?? "");
@@ -523,7 +523,7 @@ function GiveAccessDialog({ tenant, orgName, initialEmail, onClose, canManage, t
       onClose={onClose}
       dismissable={!grant.isPending}
       title="Give someone access"
-      description={`People who already use WhatBuild get the role at once. Anyone else gets an invitation link, valid for 7 days. Either way, they join ${orgName}.`}
+      description={`People already on WhatBuild get the role right away. Anyone else gets an invitation link that works for 7 days. Either way, they join ${orgName}.`}
       footer={
         link ? (
           <Button variant="primary" onClick={onClose}>
@@ -544,7 +544,7 @@ function GiveAccessDialog({ tenant, orgName, initialEmail, onClose, canManage, t
       {link ? (
         <div className="stack-sm">
           <Callout inset tone="positive" title="Invitation created">
-            We email it where email is set up. You can also send the link yourself: it works once, within 7 days, and only for {email.trim()}. Signing in with that address also accepts it.
+            We email it where email is set up. You can also share the link yourself: it works once, within 7 days, and only for {email.trim()}.
           </Callout>
           <CopyField label="Invitation link" value={link} />
         </div>
@@ -580,7 +580,7 @@ function GiveAccessDialog({ tenant, orgName, initialEmail, onClose, canManage, t
           </SelectField>
           {!target && role === "member" ? (
             <Callout inset tone="attention" title="A member can’t open any product yet">
-              They belong to the organization and nothing more. To let them read or write, pick a team or product under Give access to instead.
+              To let them read or write, choose a team or product under Give access to instead.
             </Callout>
           ) : null}
           {grant.isError ? <ErrorCallout inset error={grant.error} /> : null}

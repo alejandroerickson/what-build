@@ -123,12 +123,12 @@ function Organization({ tenant, products, showArchived, onShowArchived, onCreate
           ))}
         </ul>
       ) : !tenant.teams.length ? (
-        <EmptyState size="inline" title="Nothing here to open yet.">
-          You&rsquo;re a member of {tenant.name}, but you have no role on any of its teams or products. Ask one of its admins to give you one.
+        <EmptyState size="inline" title="Nothing to open yet">
+          You&rsquo;re in {tenant.name} without a role on any team or product. Ask one of its admins for one.
         </EmptyState>
       ) : (
-        <EmptyState size="inline" title="No active products you can see.">
-          {canCreate ? "Create one to start a discovery." : "Ask a team admin to create one or give you a role."}
+        <EmptyState size="inline" title="No products to open">
+          {canCreate ? "Create one to start a discovery." : "Ask a team admin to create one, or to give you a role on one."}
         </EmptyState>
       )}
       {archived.length ? (
@@ -150,7 +150,7 @@ function ProductEntry({ product: p, showTeam }: { product: ProductSummary; showT
         <h3 id={nameId} className="overview-product-name">
           <Link to={`/t/${p.path}/idea`}>{p.name}</Link>
         </h3>
-        {p.concept.trim() ? <p className="overview-product-concept">{p.concept}</p> : <p className="overview-product-concept faint">No product concept written yet</p>}
+        {p.concept.trim() ? <p className="overview-product-concept">{p.concept}</p> : <p className="overview-product-concept faint">No product concept yet</p>}
         <p className="overview-product-meta">
           {p.archived_at ? <StatusBadge tone="neutral">Archived</StatusBadge> : null}
           {showTeam ? `${p.team.name} · ` : null}Updated <span className="num">{relativeTime(p.updated_at)}</span>

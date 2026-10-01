@@ -71,18 +71,18 @@ export function InsightsPage() {
         </SheetBody>
       ) : !rows.length ? (
         find.trim() && inView.length ? (
-          <EmptyState size="inline" title={`No insight titles match “${find.trim()}”.`} action={<ButtonLink size="sm" to={searchWith(path, params, { q: null })}>Clear the search</ButtonLink>} />
+          <EmptyState size="inline" title={`No insight titles match “${find.trim()}”`} action={<ButtonLink size="sm" to={searchWith(path, params, { q: null })}>Clear the search</ButtonLink>} />
         ) : archived ? (
-          <EmptyState size="inline" title="No archived insights." />
+          <EmptyState size="inline" title="No archived insights" />
         ) : narrowed && list.data.items.length ? (
           <EmptyState
             size="inline"
-            title={view.id === "unreviewed" && !outcome ? "Every insight has been reviewed." : "No insights match these filters."}
+            title={view.id === "unreviewed" && !outcome ? "Every insight has been reviewed" : "No insights match these filters"}
             action={<ButtonLink size="sm" to={path}>Show all insights</ButtonLink>}
           />
         ) : (
           <FirstUse title="No insights yet" ask={`Read the sources in ${product.name} in WhatBuild and draft an insight for each outcome, citing the passages.`}>
-            An insight brings several sources together into one readable argument, citing the passages it rests on. You review it here once it is written.
+            An insight draws several sources into one readable argument and cites the passages it rests on. You review it here.
           </FirstUse>
         )
       ) : (
@@ -189,7 +189,7 @@ function ReviewLine({ i }: { i: Insight }) {
           {undo.isPending ? "Undoing…" : "Undo"}
         </button>
       ) : null}
-      {undo.isError ? <span className="text-bad">{undo.error instanceof ApiError && undo.error.code === "stale_etag" ? "It changed; reloaded. Try again." : "Couldn't undo."}</span> : null}
+      {undo.isError ? <span className="text-bad">{undo.error instanceof ApiError && undo.error.code === "stale_etag" ? "It changed and was reloaded. Try again." : "Couldn’t undo."}</span> : null}
     </span>
   );
 }
@@ -518,7 +518,7 @@ function InsightForm({ crumbs, initial, outcomes, preselect, onSaved }: {
               </div>
             </div>
           </div>
-          <SelectField label="Status" value={status} onChange={(e) => setStatus(e.target.value as typeof status)} hint="A working draft is visible to the team but not yet something to rely on.">
+          <SelectField label="Status" value={status} onChange={(e) => setStatus(e.target.value as typeof status)} hint="A working draft is visible to the team, but not yet something to rely on.">
             <option value="draft">Working draft</option>
             <option value="published">Published</option>
             {initial ? <option value="archived">Archived</option> : null}

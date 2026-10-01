@@ -146,8 +146,8 @@ export function SourceNewPage() {
     preset.current = null;
   }, [kinds.data]);
   const errors = {
-    title: !title.trim() ? "Say what this source is." : null,
-    date: info?.dated && !date ? "This kind of source needs the date it was captured: when it happened, not today." : null,
+    title: !title.trim() ? "Give the source a title." : null,
+    date: info?.dated && !date ? "Add the date it was captured: when it happened, not today." : null,
     organization: info?.organizational && !organization.trim() ? "Name the organization this concerns." : null,
   };
   const describeOk = !errors.title && !errors.date && !errors.organization;
@@ -190,7 +190,7 @@ export function SourceNewPage() {
     return (
       <>
         {header}
-        <EmptyState title="You can't add sources to this product." action={<ButtonLink to={`${app}/evidence`}>Back to Evidence</ButtonLink>}>
+        <EmptyState title="You can’t add sources to this product" action={<ButtonLink to={`${app}/evidence`}>Back to Evidence</ButtonLink>}>
           Viewers can read and search sources. An admin of the product can make you an editor.
         </EmptyState>
       </>
@@ -301,7 +301,7 @@ export function SourceNewPage() {
         <Sheet as="section" labelledBy="intake-h" className="intake-sheet">
           <SheetHeader id="intake-h" title="Add files" end={<span className="faint small">Optional. You or your agent can add them later.</span>} />
           <SheetBody>
-            <p className="muted">The primary file is the source itself: WhatBuild parses it into passages and search covers it. {kinds.data.search_rule}</p>
+            <p className="muted">The primary file is the source itself: WhatBuild parses it into passages. {kinds.data.search_rule}</p>
           </SheetBody>
           <div className="intake-files">
             {primary ? (
@@ -322,7 +322,7 @@ export function SourceNewPage() {
                 Add a short digest of what bears on your questions as the primary, and attach this file as an origin.
               </Callout>
             ) : null}
-            <DropZone label="Origin files: kept, not searched" hint="The full originals behind a digest, kept in full for download and checking." multiple onFiles={(f) => setItems([...items, ...f.map((file) => ({ file, role: "origin" as const, state: "waiting" as const, loaded: 0 }))])} />
+            <DropZone label="Origin files: kept, not searched" hint="The full originals behind a digest, kept for download and checking." multiple onFiles={(f) => setItems([...items, ...f.map((file) => ({ file, role: "origin" as const, state: "waiting" as const, loaded: 0 }))])} />
             <DropZone label="Supplements: kept, not searched" hint="Slides for a call, an appendix, a screenshot." multiple onFiles={(f) => setItems([...items, ...f.map((file) => ({ file, role: "supplement" as const, state: "waiting" as const, loaded: 0 }))])} />
             {items.some((i) => i.role !== "primary") ? (
               <ul className="intake-file-list">
@@ -367,7 +367,7 @@ export function SourceNewPage() {
             </ul>
           ) : (
             <SheetBody>
-              <p className="muted">No files: the source holds metadata only until a file is added.</p>
+              <p className="muted">No files. The source holds only its details until you add one.</p>
             </SheetBody>
           )}
           {run.isPending && total ? (

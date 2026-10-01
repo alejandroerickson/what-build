@@ -27,6 +27,13 @@ design system: tokens, type, components and the rules for using them — is docu
 - `409 quota_exceeded` is shown as a fact with a number and a next step, never as a failure of the
   person. (The only quota enforced today is Story pages per product, [§9.2](09-data-lifecycle.md).)
 - Works on narrow screens. Meets WCAG 2.2 AA. Fully keyboard-operable.
+- **Interface text says one thing once.** A heading states the fact, the body adds only what the
+  heading did not, and a rule is explained where it applies, not ahead of time. Words are plain and
+  the same everywhere: an email address is an "email", a URL given to a person is a "link" (a
+  passage keeps its "address"), people "start" an organization and "can" do things, and something
+  happens "right away". Contractions and typographic apostrophes are used throughout. A role's
+  place is written as a person would say it: "editor on the Core team", "editor on Crewboard"
+  (`scopeWords` in `apps/web/src/lib/format.ts`).
 - Agents are teammates: attribution in the UI shows who wrote something **and through which
   surface** (for example "Sam · via claude-desktop").
 
@@ -516,8 +523,9 @@ never described as deleting. A list row showing an archived object says *Archive
   analytics ID (`analytics_id` from `GET /auth/methods`), every screen, signed in or not, carries a
   small note at the bottom-right inset (flush along the bottom on phones) until the person presses
   Accept or Decline, which carry equal weight and are remembered in the `wb_cookies` cookie, shared
-  with the public site: WhatBuild uses cookies to keep people signed in, remember settings and see
-  how the site is used, with a Cookies link to `/cookies`. It blocks nothing and never takes focus;
+  with the public site. It says that cookies keep the person signed in and asks whether analytics
+  cookies may also be used to see how WhatBuild is used, so Accept and Decline plainly answer the
+  analytics question, with a Cookies link to `/cookies`. It blocks nothing and never takes focus;
   the app works the same whichever is pressed. Without an analytics ID it does not appear. After
   Accept, each screen is a page view with its path masked, and each change the app makes is an
   event named from a fixed word list (`apps/web/src/lib/analytics.ts`, [§9.1](09-data-lifecycle.md)).

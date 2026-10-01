@@ -193,7 +193,7 @@ export function StoryInspectorBody({ page, shown, versions, onExport }: {
           </>
         ) : (
           <EmptyState size="inline">
-            Agents keep notes here while they write and maintain this page: what it is for, sources still to fold in, decisions about its structure. They read them before revising it.
+            Agents keep notes here as they write and maintain this page: what it&rsquo;s for, sources still to fold in, decisions about its structure. They read them before revising it.
           </EmptyState>
         )}
       </Group>

@@ -92,6 +92,16 @@ export function aRole(role: string): string {
   return `${/^[aeiou]/.test(role) ? "an" : "a"} ${role}`;
 }
 
+/**
+ * Where a role applies, for sentences: "the organization", "the Core team" (a team already named
+ * "Product team" is not called a team twice), or a product by its name alone.
+ */
+export function scopeWords(type: string, name: string): string {
+  if (type === "tenant") return "the organization";
+  if (type === "team") return /\bteam$/i.test(name.trim()) ? `the ${name}` : `the ${name} team`;
+  return name;
+}
+
 export function plural(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`;
 }

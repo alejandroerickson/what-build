@@ -141,13 +141,13 @@ export function SearchPage() {
       </Sheet>
 
       {!q ? (
-        <EmptyState title="Search the evidence">Only each source's primary file is searched; originals and supplements are kept but never searched. An empty result does not prove the evidence is absent.</EmptyState>
+        <EmptyState title="Search the evidence">Search covers each source&rsquo;s primary file, not its origin or supplement files. No results doesn&rsquo;t prove the evidence is absent.</EmptyState>
       ) : res.isPending ? (
         <Sheet>
           <Loading label="Searching…" lines={6} />
         </Sheet>
       ) : res.isError ? (
-        <ErrorCallout title="Search did not finish" error={res.error} onRetry={() => res.refetch()} />
+        <ErrorCallout title="Search didn’t finish" error={res.error} onRetry={() => res.refetch()} />
       ) : d ? (
         <div className="search-results" aria-live="polite" aria-busy={busy || undefined}>
           {d.coverage ? (
@@ -160,7 +160,7 @@ export function SearchPage() {
             <Sheet labelledBy="hits-h">
               <SheetHeader id="hits-h" title="Passages" count={`${d.hits.length}${d.next_cursor ? "+" : ""}`} />
               {!d.hits.length ? (
-                <EmptyState size="inline" title="No passages match.">
+                <EmptyState size="inline" title="No passages match">
                   {mode === "ranked" ? "Try fewer terms or a broader query." : "Try fewer words, or a ranked query."}
                 </EmptyState>
               ) : (

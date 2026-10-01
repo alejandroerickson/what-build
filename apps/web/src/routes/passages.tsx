@@ -204,7 +204,7 @@ export function PassageReader({ record }: { record: RecordFull }) {
               navigator.clipboard
                 .writeText(ref)
                 .then(() => toast("Citation copied. Paste it to your agent."))
-                .catch(() => toast("Couldn't copy the citation.", { tone: "negative" }));
+                .catch(() => toast("Couldn’t copy the citation.", { tone: "negative" }));
             }}
           >
             Copy citation

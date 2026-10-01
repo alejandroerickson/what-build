@@ -45,7 +45,7 @@ export function useCopyLink() {
     navigator.clipboard
       .writeText(window.location.href)
       .then(() => toast("Link copied."))
-      .catch(() => toast("Couldn't copy. Copy the address from the browser instead.", { tone: "negative" }));
+      .catch(() => toast("Couldn’t copy. Copy the link from your browser’s address bar instead.", { tone: "negative" }));
   };
 }
 
@@ -85,7 +85,7 @@ export function HistoryDialog({ tool, id, etag, onClose, render }: {
       open
       onClose={onClose}
       title="Earlier versions"
-      description="Every overwrite keeps the text it replaced. Restoring writes the old text as a new revision; nothing is rewound."
+      description="Every edit keeps the text it replaced. Restoring saves the old text as a new revision, so nothing is lost."
       wide
     >
       {list.isPending ? (
@@ -93,7 +93,7 @@ export function HistoryDialog({ tool, id, etag, onClose, render }: {
       ) : list.isError ? (
         <ErrorCallout error={list.error} onRetry={() => list.refetch()} inset />
       ) : !items.length ? (
-        <EmptyState size="inline">No earlier versions yet. The first edit will keep the text it replaces here.</EmptyState>
+        <EmptyState size="inline">No earlier versions yet. The first edit keeps the text it replaces here.</EmptyState>
       ) : (
         <div className="history">
           <ul className="history-list" aria-label="Versions">
