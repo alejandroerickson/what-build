@@ -19,6 +19,7 @@ import { ActivityPage, ProductSettingsPage } from "./routes/product-misc.tsx";
 import { EntryEditPage, RegisterEntryPage, RegisterListPage } from "./routes/registers.tsx";
 import { JoinSandbox, SandboxPage } from "./routes/public-sandbox.tsx";
 import { SearchPage } from "./routes/search.tsx";
+import { InstancePage } from "./routes/instance.tsx";
 import { SettingsPage } from "./routes/settings.tsx";
 import { SourceDetailPage } from "./routes/source-detail.tsx";
 import { SourceNewPage } from "./routes/source-new.tsx";
@@ -109,6 +110,7 @@ const router = createBrowserRouter([
         { path: "/products", element: <ProductsRedirect /> },
         { path: "/connect", element: <ConnectPage /> },
         { path: "/settings", element: <SettingsPage /> },
+        { path: "/instance", element: <InstancePage /> },
         { path: "/t/:tenant/members", element: <MembersPage /> },
         { path: "/t/:tenant/sandbox", element: <SandboxPage /> },
       ] },

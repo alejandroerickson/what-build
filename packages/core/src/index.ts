@@ -13,6 +13,7 @@ import { sandboxOps } from "./ops/public-sandbox.ts";
 import { searchOps } from "./ops/search.ts";
 import { sourceOps } from "./ops/sources.ts";
 import { storyOps } from "./ops/story.ts";
+import { tenantAllowanceOps } from "./ops/tenant-allowances.ts";
 import type { OperationDef } from "./registry.ts";
 
 export * from "./db.ts";
@@ -33,6 +34,7 @@ export { runDerivation } from "./ops/derived.ts";
 export { markExportFailed, runExport } from "./ops/export.ts";
 export { completeGrant, DOWNLOAD_GRANT_HEADER, UPLOAD_GRANT_HEADER, blobKeyFor } from "./ops/files.ts";
 export { createTenantWithTeam, uniqueTenantSlug } from "./ops/products.ts";
+export { isInstanceOwner, tenantAllowanceOf, type TenantAllowance } from "./tenant-allowance.ts";
 export { RESET_CONFIRMATION, sandboxNotice } from "./ops/public-sandbox.ts";
 export { printDocument } from "./ops/story.ts";
 export { SKILL_NAME, SKILL_VERSION, skillMarkdown } from "./ops/meta.ts";
@@ -43,6 +45,7 @@ export { FRAME_SCRIPT, THEME_ATTRIBUTE, withStoryFrame, withStoryTheme } from ".
 /** Every operation, defined once. REST routes, MCP tools and `describe` are generated from this list. */
 export const OPERATIONS: OperationDef[] = [
   ...productOps,
+  ...tenantAllowanceOps,
   ...sandboxOps,
   ...exportOps,
   ...outcomeOps,

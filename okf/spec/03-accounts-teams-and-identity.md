@@ -70,7 +70,8 @@ different account once used, it answers `410 invitation_used`; expired or cancel
 `410 invitation_expired`; an unknown token, `404`.
 
 **Invite-only mode.** `WHATBUILD_SIGNUP_ALLOWLIST` (emails and `@domains`) limits who may create an
-account. Existing accounts and invited addresses always may. Staging runs invite-only until public
+account. Existing accounts, invited addresses, the instance's owners and addresses with an
+allowance above 0 to create organizations ([§3.3](#33-tenants-and-teams)) always may. Staging runs invite-only until public
 sign-up opens ([§10 Phase 6](10-roadmap.md)).
 
 **An invitation to the public sandbox** ([§3.10](#310-the-public-sandbox)) also lets an address
@@ -79,10 +80,9 @@ create an account in invite-only mode, when the sign-in is returning to the invi
 is asked for and again when it is followed, since an invitation can fill in between. An account
 created this way is marked `sandbox_only`.
 
-**A `sandbox_only` account is for the sandbox.** While sign-up is limited,
-`products.create_tenant` answers it `403 sandbox_only`, unless its address is one the allowlist
-admits or it holds a role in an organization that is not a sandbox. With sign-up open the mark
-changes nothing.
+**A `sandbox_only` account is for the sandbox.** The mark brings the sandbox's limits to the calls
+it makes outside any organization ([§9.7](09-data-lifecycle.md)). Like every account, it creates
+organizations only as far as its allowance lets it ([§3.3](#33-tenants-and-teams)).
 
 ## 3.3 Tenants and teams
 
@@ -91,9 +91,30 @@ changes nothing.
 | Tenant | `tenant_id`, `slug` (3–50, `[a-z0-9-]`, globally unique), `name`, `plan` (`free`), `status` |
 | Team | `team_id`, `tenant_id`, `slug` (unique in the tenant), `name`, `archived_at` |
 
-Creating a tenant (`products.create_tenant`, open to any signed-in account) creates its first team
-and makes the creator the tenant's **owner**. A new user's first-run flow is: name the
-organization, name the first product and its product concept.
+Creating a tenant (`products.create_tenant`) creates its first team and makes the creator the
+tenant's **owner**. A new user's first-run flow is: name the organization, name the first product
+and its product concept.
+
+**Who may create a tenant** (◆ [decision](../decisions/only-instance-owners-decide-who-creates-organizations.md)):
+
+- **The instance's owners**, the addresses in `WHATBUILD_INSTANCE_OWNERS`, create any number.
+  Nothing else makes someone an instance owner: a tenant owner is not one.
+- **Everyone else creates as many as their allowance**, counted against the tenants their account
+  created (`tenants.created_by`). The tenants they belong to, however they came to belong, never
+  count and never give an allowance. An allowance belongs to an address
+  (`tenant_allowances`), like an invitation, so it can be given before the account exists, and an
+  allowance above 0 lets that address sign up while sign-up is limited ([§3.2](#32-accounts-and-sign-in)).
+- **An address without one has the deployment's default**, `WHATBUILD_TENANT_ALLOWANCE`, which is 0.
+- Over it, `products.create_tenant` answers `403 tenant_allowance` with `allowed` and `created`.
+  The check holds a lock on the account for the transaction, so two creations at once cannot both
+  take the last place.
+- Only instance owners read and change allowances: `products.tenant_allowances`,
+  `products.set_tenant_allowance` (guarded by the row's etag once it exists; with `notify`, an
+  address whose allowance grows is emailed a link to `/welcome`) and
+  `products.remove_tenant_allowance`, which returns an address to the default. These belong to no
+  tenant, so they write no activity event; each row keeps who gave it and who last changed it.
+  `GET /api/v1/me` returns the caller's own `tenant_allowance`.
+- Taking an allowance away or lowering it never touches the tenants already created.
 
 ## 3.4 Products
 

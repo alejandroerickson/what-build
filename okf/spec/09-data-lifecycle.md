@@ -308,7 +308,7 @@ returns them to a visitor with what is used today.
 | Writes | `writes_per_minute` | 30 | each visitor, each minute | `429 rate_limited` |
 | Writes | `writes_per_day` | 300 | each visitor, each day | `409 quota_exceeded` |
 | Sources created or copied in | `sources_per_day` | 10 | each visitor, each day | `409 quota_exceeded` |
-| Exports | `exports_per_day` | 2 | each visitor, each day | `409 quota_exceeded` |
+| Exports | `exports_per_day` | 0 (none) | each visitor, each day | `409 quota_exceeded` |
 | Writes by all visitors | `org_writes_per_day` | 20,000 | all visitors, each day | `409 quota_exceeded` |
 | File size | `file_max_bytes` | 5 MB | each file | `413 too_large` |
 | Bytes uploaded | `bytes_per_day` | 50 MB | each visitor, each day | `409 quota_exceeded` |
@@ -327,7 +327,10 @@ Rules:
    counters are written before the input is read. The day's are written inside the operation's
    transaction, so they go back if the call fails.
 4. **A day's allowance never stops a read or a search** (§9.2 rule 1). Export is counted by
-   `exports_per_day` alone: neither the day's writes nor `visitor_access: "read"` stops it.
+   `exports_per_day` alone: neither the day's writes nor `visitor_access: "read"` stops it. Its
+   default is 0, so visitors export nothing: the sandbox's content is a demonstration that belongs
+   to its staff, not work a visitor could lose, so the promise that nothing is trapped (§9.1) does
+   not reach it. Staff may raise it.
 5. **A visitor uploads through the relay only**, where the size is enforced as the bytes arrive; no
    direct-to-store URL is issued. A grant's `max_bytes` is the lowest of the file limit and what
    is left of the day's bytes. Bytes are counted when the file is attached, against whoever asked

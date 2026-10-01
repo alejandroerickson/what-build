@@ -53,7 +53,7 @@ export async function startHarness(overrides: Partial<ServerConfig> = {}, opts: 
     });
   });
   const baseUrl = `http://localhost:${port}`;
-  const config: ServerConfig = { ...loadConfig({ NODE_ENV: "test", WHATBUILD_PUBLIC_URL: baseUrl, DATABASE_URL: url }), mailer: "memory", blobStore: "memory", ...overrides };
+  const config: ServerConfig = { ...loadConfig({ NODE_ENV: "test", WHATBUILD_PUBLIC_URL: baseUrl, DATABASE_URL: url }), mailer: "memory", blobStore: "memory", defaultTenantAllowance: 100, ...overrides };
   const blobs = new MemoryBlobStore();
   const mailer = new MemoryMailer();
   let worker: Worker | null = null;

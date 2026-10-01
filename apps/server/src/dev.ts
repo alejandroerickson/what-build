@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { createBlobStore, createMailer, createPorts } from "./app.ts";
 import { loadConfig } from "./config.ts";
 import { createDb, migrate } from "./database.ts";
-import { seed, seedSandbox } from "./seed.ts";
+import { SEED_ACCOUNTS, seed, seedSandbox } from "./seed.ts";
 import { startLocalPg, type LocalPg } from "./testing/pg.ts";
 import { Worker } from "./worker.ts";
 
@@ -40,6 +40,8 @@ async function main() {
     // Vite proxies the API here, so a second instance on other ports talks to its own API.
     WHATBUILD_API: process.env["WHATBUILD_API"] ?? `http://localhost:${API_PORT}`,
     WHATBUILD_BLOB_DIR: process.env["WHATBUILD_BLOB_DIR"] ?? resolve(root, ".what-build/blobs"),
+    // The sample owner runs this instance, so the instance owner's page has someone to show it to.
+    WHATBUILD_INSTANCE_OWNERS: process.env["WHATBUILD_INSTANCE_OWNERS"] ?? SEED_ACCOUNTS[0].email,
   };
   const config = loadConfig(env);
   const { db, pool } = createDb(databaseUrl, 3);
@@ -67,7 +69,8 @@ async function main() {
   WhatBuild is starting.
 
     App            http://localhost:${WEB_PORT}
-    Sign in as     riley@example.com (owner) or sam@example.com (editor) — one click on the sign-in page
+    Sign in as     riley@example.com (owner, and owner of this instance) or sam@example.com (editor,
+                   who may start one organization) — one click on the sign-in page
     MCP endpoint   http://localhost:${WEB_PORT}/mcp   (claude mcp add --transport http whatbuild-dev http://localhost:${WEB_PORT}/mcp)
     Database       ${pg ? "embedded Postgres in .what-build/pg" : "DATABASE_URL"}
     Files          .what-build/blobs

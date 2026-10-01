@@ -57,8 +57,8 @@ async function contentOf(tenant: string): Promise<Record<string, string[]>> {
 }
 
 beforeAll(async () => {
-  // Sign-up is limited, as on a deployment that is not open to everyone.
-  h = await startHarness({ signupAllowlist: ["@staff.example"] });
+  // Sign-up is limited, as on a deployment that is not open to everyone, and only its owners create organizations.
+  h = await startHarness({ signupAllowlist: ["@staff.example"], instanceOwners: ["olive@staff.example", "pat@staff.example"], defaultTenantAllowance: 0 });
   olive = await h.signIn("olive@staff.example", "Olive Owner");
   const t = await olive.api("POST", "/api/v1/tenants", { name: "Sample Sandbox" });
   org = t.body.tenant.slug;
@@ -187,7 +187,7 @@ describe("the public sandbox", () => {
     vera = await h.signIn("vera@visitor.example");
     const own = await vera.api("POST", "/api/v1/tenants", { name: "Vera's own" });
     expect(own.status).toBe(403);
-    expect(own.body.error.code).toBe("sandbox_only");
+    expect(own.body.error.code).toBe("tenant_allowance");
     // Signing in did not put them in the sandbox: that takes the invitation.
     expect((await vera.api("GET", "/api/v1/me/products")).body.items).toHaveLength(0);
     expect((await vera.api("GET", `${T}/sandbox`)).status).toBe(404);
@@ -371,16 +371,21 @@ describe("limits on what a visitor does", () => {
     expect(over.status).toBe(409);
     expect(over.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "writes_per_day", limit: before + 1, used: before + 1, unit: "writes" } });
     expect(Date.parse(over.body.error.details.resets_at)).toBeGreaterThan(Date.now());
-    // A refused write took nothing from the allowance, and reads, search and export go on.
+    // A refused write took nothing from the allowance, and reads and search go on.
     expect((await viktor.api("GET", `${T}/sandbox`)).body.allowances.find((a: { key: string }) => a.key === "writes_per_day").used).toBe(before + 1);
     expect((await viktor.api("GET", `${P}/search?query=crews`)).status).toBe(200);
+    // Visitors export nothing until staff allow it; then the day's writes do not stop it.
+    const off = await viktor.api("POST", `${P}/exports`, {});
+    expect(off.status).toBe(409);
+    expect(off.body.error.details).toMatchObject({ quota: "exports_per_day", limit: 0, used: 0 });
+    await set({ exports_per_day: 1 });
     expect((await viktor.api("POST", `${P}/exports`, {})).status).toBe(201);
     await h.worker.drain();
     await set({ writes_per_day: 100000, sources_per_day: 0 });
     const source = await viktor.api("POST", `${P}/sources`, { kind: "other", title: "Sample source over the allowance" });
     expect(source.status).toBe(409);
     expect(source.body.error.details).toMatchObject({ quota: "sources_per_day", limit: 0, used: 0 });
-    await set({ sources_per_day: 100, exports_per_day: 1 });
+    await set({ sources_per_day: 100 });
     const again = await viktor.api("POST", `${P}/exports`, {});
     expect(again.status).toBe(409);
     expect(again.body.error.details).toMatchObject({ quota: "exports_per_day", limit: 1, used: 1 });

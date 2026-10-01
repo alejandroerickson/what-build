@@ -353,7 +353,7 @@ export function ProductShell({ product, app, children }: { product: Product; app
   );
 }
 
-const PLAIN_SECTIONS: Record<string, string> = { connect: "Connect an agent", settings: "Settings", members: "Members", sandbox: "Public sandbox", _system: "System" };
+const PLAIN_SECTIONS: Record<string, string> = { connect: "Connect an agent", settings: "Settings", instance: "Organization creators", members: "Members", sandbox: "Public sandbox", _system: "System" };
 
 /**
  * Screens outside a product (the overview, Connect an agent, settings, organization members): the

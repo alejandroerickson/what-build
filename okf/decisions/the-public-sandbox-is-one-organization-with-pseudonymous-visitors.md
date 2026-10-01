@@ -3,7 +3,7 @@ type: Decision
 title: The public sandbox is one organization the deployment names, where invited visitors edit under made-up names and a daily reset puts a saved baseline back
 description: One shared organization instead of a copy per visitor; admission by invitation links with places and a cap on seats; visitors never see each other; limits are settings enforced in one layer.
 tags: [decision, sandbox, tenancy, roles, privacy, limits, invitations]
-generated: {by: agent:claude, at: 2026-09-29}
+generated: {by: agent:claude, at: 2026-10-01}
 status: stable
 ---
 
@@ -33,8 +33,12 @@ of every row and a product-cloning feature that does not exist.
   [rejected for ordinary invitations](invitations-belong-to-their-address.md), made here because
   the link gives the least role there is, in a place that is public by design, and a link for forty
   people cannot name forty addresses.
-- **An account that an invitation alone created is for the sandbox.** While sign-up is limited it
-  cannot create an organization.
+- **An account that an invitation alone created is for the sandbox.** Like every account, it
+  creates organizations only as far as an instance owner's allowance lets it
+  ([decision](only-instance-owners-decide-who-creates-organizations.md)).
+- **Visitors export nothing unless staff allow it** (`exports_per_day` defaults to 0). The content
+  is a demonstration that belongs to the staff, so the promise that nothing is trapped does not
+  reach it. The maintainer chose this on 2026-10-01.
 - **A baseline is the organization's content held as JSON rows; a reset deletes the content and
   inserts the baseline**, ids included. People and access are never part of a baseline.
 - **Limits are settings, enforced in `execute`**, so REST and MCP cannot differ.

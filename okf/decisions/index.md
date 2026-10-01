@@ -24,6 +24,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [WhatBuild runs its own sign-in and its own OAuth 2.1 server for agents](built-in-identity-and-oauth.md)
 - [An invitation is accepted only by the account with the address it was sent to](invitations-belong-to-their-address.md)
 - [The public sandbox is one organization the deployment names, where invited visitors edit under made-up names and a daily reset puts a saved baseline back](the-public-sandbox-is-one-organization-with-pseudonymous-visitors.md)
+- [Only the instance's owners decide who may create organizations, and how many](only-instance-owners-decide-who-creates-organizations.md)
 - [Every write is attributed, and human or agent authorship is declared](attribution-and-declared-authorship.md)
 - [Only a source's primary file is parsed and searched](only-the-primary-file-is-searched.md)
 - [Citations freeze a snapshot and report drift; they are never repaired silently](citations-snapshot-and-report-drift.md)

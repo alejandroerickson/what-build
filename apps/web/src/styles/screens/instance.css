@@ -1,0 +1,16 @@
+/* Organization creators: the instance owner's list of who may create organizations. */
+
+.instance-intro {
+  display: grid;
+  gap: var(--s-2);
+  border-bottom: 1px solid var(--line);
+}
+.instance-intro p {
+  margin: 0;
+  max-width: 72ch;
+}
+.instance-row-end {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+}

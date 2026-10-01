@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { api } from "../lib/api.ts";
-import type { ProductsResponse } from "../lib/session.tsx";
+import { useMe, type ProductsResponse } from "../lib/session.tsx";
 import { Button, Callout, Dialog, ErrorCallout, SelectField, TextArea, TextField } from "../ui/index.tsx";
 
 /**
@@ -11,6 +11,7 @@ import { Button, Callout, Dialog, ErrorCallout, SelectField, TextArea, TextField
  */
 export function CreateProductDialog({ onClose, tenants }: { onClose: () => void; tenants: ProductsResponse["tenants"] }) {
   const qc = useQueryClient();
+  const me = useMe();
   const navigate = useNavigate();
   const orgs = tenants.filter((t) => t.teams.some((tm) => tm.your_role === "admin")).length;
   const teams = tenants.flatMap((t) =>
@@ -71,7 +72,13 @@ export function CreateProductDialog({ onClose, tenants }: { onClose: () => void;
         </form>
       ) : (
         <Callout inset tone="info">
-          Creating a product needs an admin role on a team. Ask a team admin, or <Link to="/welcome">set up your own organization</Link>.
+          Creating a product needs an admin role on a team. Ask a team admin
+          {me.data?.tenant_allowance.remaining !== 0 ? (
+            <>
+              , or <Link to="/welcome">set up your own organization</Link>
+            </>
+          ) : null}
+          .
         </Callout>
       )}
     </Dialog>

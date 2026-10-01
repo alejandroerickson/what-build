@@ -24,6 +24,10 @@
 #                       default: the service's run.app URL
 #   SIGNUP_ALLOWLIST    comma-separated emails or @domains allowed to create accounts; default: the
 #                       gcloud account running this script. Invited people can always join.
+#   INSTANCE_OWNERS     comma-separated emails of the people who run this instance: they create any
+#                       number of organizations and decide who else may; default: the gcloud
+#                       account running this script
+#   TENANT_ALLOWANCE    how many organizations any other address may create (optional; default 0)
 #   SMTP_URL            smtp(s)://user:pass@host:port for sign-in links and invitations (optional)
 #   MAIL_FROM           e.g. "WhatBuild <hello@what-build.com>"
 #   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET   an OAuth web client for "Continue with Google" (optional).
@@ -153,7 +157,9 @@ step "First image (Cloud Build)"
 $G builds submit --region "$REGION" --tag "$IMAGE" .
 
 ALLOW="${SIGNUP_ALLOWLIST:-$(gcloud config get-value account 2>/dev/null)}"
-ENV_VARS="WHATBUILD_GCS_BUCKET=$BUCKET,WHATBUILD_SIGNUP_ALLOWLIST=${ALLOW//,/;}"
+OWNERS="${INSTANCE_OWNERS:-$(gcloud config get-value account 2>/dev/null)}"
+ENV_VARS="WHATBUILD_GCS_BUCKET=$BUCKET,WHATBUILD_SIGNUP_ALLOWLIST=${ALLOW//,/;},WHATBUILD_INSTANCE_OWNERS=${OWNERS//,/;}"
+[ -n "${TENANT_ALLOWANCE:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_TENANT_ALLOWANCE=$TENANT_ALLOWANCE"
 [ -n "${MAIL_FROM:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_MAIL_FROM=$MAIL_FROM"
 [ -n "${GOOGLE_CLIENT_ID:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID"
 [ -n "${SIGNED_URLS:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_GCS_SIGNED_URLS=1"
@@ -207,6 +213,7 @@ Next:
      an OAuth web client with redirect URI $URL/auth/google/callback and re-run with
      GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET. For email links, re-run with SMTP_URL and MAIL_FROM.
   3. Only $ALLOW (and anyone invited) can create an account. Change SIGNUP_ALLOWLIST to widen it.
+     Only $OWNERS can create organizations, and lets others at $URL/instance.
   4. Connect an agent: $URL/connect
   5. A public sandbox: create the organization in the app, re-run with SANDBOX_TENANT=<its slug>,
      then open $URL/t/<its slug>/sandbox to save a baseline and make an invitation.

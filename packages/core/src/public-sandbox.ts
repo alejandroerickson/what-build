@@ -37,7 +37,7 @@ const count = (max: number) => z.number().int().min(0).max(max);
 
 /** Every setting, without its default, so an update changes only what it names. */
 const FIELDS = {
-  visitor_access: z.enum(["write", "read", "closed"]).describe("write: visitors edit. read: they read and export only. closed: they are refused everything."),
+  visitor_access: z.enum(["write", "read", "closed"]).describe("write: visitors edit. read: they read only, and export as far as exports_per_day allows. closed: they are refused everything."),
   visitor_agents: z.boolean().describe("Whether a visitor's agent may work here over MCP."),
   reset_enabled: z.boolean().describe("Whether the sandbox resets itself every day at reset_time."),
   reset_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "a time as HH:MM, 24-hour").describe("The local time of the daily reset, HH:MM."),
@@ -74,7 +74,8 @@ export const SANDBOX_DEFAULTS: SandboxSettings = {
   writes_per_minute: 30,
   writes_per_day: 300,
   sources_per_day: 10,
-  exports_per_day: 2,
+  // Off: the sandbox's content is a demonstration, not the visitor's to take away.
+  exports_per_day: 0,
   org_writes_per_day: 20_000,
   file_max_bytes: 5 * MiB,
   bytes_per_day: 50 * MiB,
@@ -119,7 +120,7 @@ export const SANDBOX_LIMITS: LimitInfo[] = [
   { key: "writes_per_minute", group: "frequency", label: "Writes", unit: "writes", per: "Each visitor, each minute", refusal: "429 rate_limited", help: "Calls that change something." },
   { key: "writes_per_day", group: "frequency", label: "Writes", unit: "writes", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "A day runs from one scheduled reset to the next." },
   { key: "sources_per_day", group: "frequency", label: "Sources added", unit: "sources", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "Sources created or copied in." },
-  { key: "exports_per_day", group: "frequency", label: "Exports", unit: "exports", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "Product exports a visitor asks for." },
+  { key: "exports_per_day", group: "frequency", label: "Exports", unit: "exports", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "Product exports a visitor asks for. 0, the default, keeps the sandbox's content from leaving it." },
   { key: "org_writes_per_day", group: "frequency", label: "Writes by all visitors", unit: "writes", per: "All visitors, each day", refusal: "409 quota_exceeded", help: "A ceiling on every visitor's writes together." },
   { key: "file_max_bytes", group: "size", label: "File size", unit: "bytes", per: "Each file", refusal: "413 too_large", help: "Visitors upload through the relay only, so this is enforced as the bytes arrive." },
   { key: "bytes_per_day", group: "size", label: "Bytes uploaded", unit: "bytes", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "Counted when a file is attached." },
@@ -353,7 +354,7 @@ export async function admitVisitor(db: Db, sandbox: SandboxContext, principal: P
       throw restricted("Agents are turned off for visitors in this public sandbox. Use the web app instead.");
     // Export is never blocked by a read-only state; its own daily allowance still applies.
     if (op.mutates && s.visitor_access === "read" && op.name !== "products.export")
-      throw new AppError(403, "sandbox_read_only", `This public sandbox is read-only for visitors for now, so ${op.name} was refused. Reading, searching and exporting still work.`);
+      throw new AppError(403, "sandbox_read_only", `This public sandbox is read-only for visitors for now, so ${op.name} was refused. Reading and searching still work.`);
     const refused = VISITOR_REFUSED[op.name];
     if (refused) throw restricted(refused);
   }

@@ -587,6 +587,18 @@ export interface SandboxSettingsTable {
   updated_by: JsonNull<ActorSnapshot>;
 }
 
+/** How many organizations an address may create, given by an instance owner. Keyed by the lower-cased address. */
+export interface TenantAllowancesTable {
+  email: string;
+  allowed: number;
+  note: Def<string>;
+  etag: string;
+  created_at: Ts;
+  created_by: Json<ActorSnapshot>;
+  updated_at: Ts;
+  updated_by: Json<ActorSnapshot>;
+}
+
 export interface SandboxInvitesTable {
   invite_id: string;
   tenant_id: string;
@@ -666,6 +678,7 @@ export interface DB {
   sandbox_usage: SandboxUsageTable;
   sandbox_baselines: SandboxBaselinesTable;
   sandbox_baseline_rows: SandboxBaselineRowsTable;
+  tenant_allowances: TenantAllowancesTable;
 }
 
 export type Db = Kysely<DB>;

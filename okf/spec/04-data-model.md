@@ -627,6 +627,11 @@ activity.jsonl
   behind the limits, keyed by tenant, account, `minute` or `day` bucket, its start, and counter).
   Two hold content and have the policy: `sandbox_baselines` and `sandbox_baseline_rows`, which
   keeps each row of a baseline as JSONB beside its table's name.
+- **Allowances to create organizations** ([§3.3](03-accounts-teams-and-identity.md),
+  [`0010_tenant_allowances.sql`](../../apps/server/src/migrations/0010_tenant_allowances.sql)):
+  `tenant_allowances`, a directory table without row-level security keyed by the lower-cased
+  address (`allowed`, `note`, `etag`, who gave it and who last changed it), and an index on
+  `tenants.created_by->>'account_id'`, which is what an allowance is counted against.
 - **Blobs** are immutable and keyed opaquely: `t/<tenant_id>/r/<record_id>/f/<file_version_id>`
   for files, `t/<tenant_id>/r/<record_id>/d/<derivation_id>/<sidecar>` for derived sidecars, and
   `t/<tenant_id>/exports/<export_id>.zip` for exports. Keys never encode titles, kinds, or folders,

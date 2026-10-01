@@ -52,8 +52,9 @@ the browser's back button and "open in new tab" both work.
   and filters on Evidence, the three lists and their filters on Synthesis.
 - **The footer** holds the account menu, which is about the person: their email; each
   organization they belong to, with their role in it and a link to its **Members**; the theme
-  (Light, Dark or System, which is the default; remembered per browser); **Settings** (their own
-  display name); and Sign out. Nothing in it is also in the panel.
+  (Light, Dark or System, which is the default; remembered per browser); **New organization**,
+  while they may still create one; **Organization creators**, for an owner of the instance;
+  **Settings** (their own display name); and Sign out. Nothing in it is also in the panel.
 - **Hiding.** The panel hides completely, never to an icon rail, with its button or `⌘\` / `Ctrl+\`
   (ignored while typing in a field), and the choice is remembered per browser. While it is hidden
   a small floating pill with the mark brings the panel back. It is the same size whatever the
@@ -127,6 +128,7 @@ person's organization role is in the account menu, and who has which role is on 
 /t/:tenant/sandbox  ?visitor                  the public sandbox: its controls for staff, what it is for a visitor
 /connect            ?product                  Connect an agent: the MCP server URL for a product or all, and the agents connected now
 /settings                                     Settings: the person's display name
+/instance                                     Organization creators: who may create organizations (instance owners)
 
 /t/:tenant/:team/:product                     → …/idea
   /idea               ?status                 the product concept, outcomes with counts
@@ -163,9 +165,11 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
 1. **Sign in** (`/signin`) with an email link or Google, whichever the deployment configures
    ([§3.2](03-accounts-teams-and-identity.md)); in development, "sign in as" a seeded account. The
    data statement ([§9.1](09-data-lifecycle.md)) is on the sign-in page, in full, not behind a link.
-2. **First run** (`/welcome`): name the organization and the first product in one form. A person
-   who was invited follows their invitation link (`/invite/:token`) instead and lands in the
-   inviter's organization.
+2. **First run** (`/welcome`): name the organization and the first product in one form, for an
+   account that may create one ([§3.3](03-accounts-teams-and-identity.md)). The same form, titled
+   New organization, starts another. An account that may not says so: the people who run the
+   instance decide who may, and someone can invite them instead. A person who was invited follows
+   their invitation link (`/invite/:token`) and lands in the inviter's organization.
 3. Invite colleagues from the organization's Members or the product's Settings, by email or a
    single-use link.
 4. **Connect an agent** (`/connect`): paste one address into an MCP client and sign in when it asks
@@ -491,6 +495,14 @@ never described as deleting. A list row showing an archived object says *Archive
   Members, where it is changed. Access is per product; nothing is granted per page or per source.
 - **Settings** (`/settings`, from the account menu). Display name, and the email the person signs
   in with (read-only).
+- **Organization creators** (`/instance`, from the account menu, for the instance's owners only;
+  `apps/web/src/routes/instance.tsx`). What the rule is, the default for every other address and
+  who the owners are; then each address with an allowance: its person or "no account yet", how
+  many it may create and has created, who gave it and when, the note, and what is left.
+  **Let someone create organizations** opens a dialog for an address, a number, a note and whether
+  to tell them by email; Change edits the number and note under the row's etag; Remove returns the
+  address to the default after a confirmation. Anyone else reaching the address is told only
+  instance owners decide this.
 - **The public sandbox** ([§3.10](03-accounts-teams-and-identity.md),
   [§9.7](09-data-lifecycle.md)), in `apps/web/src/routes/public-sandbox.tsx` and
   `apps/web/src/shell/PublicSandboxBanner.tsx`:
@@ -521,8 +533,8 @@ never described as deleting. A list row showing an archived object says *Archive
     organization's own people with the visitors as a count and a link to the controls. The account
     menu leaves Members out for a visitor. An organization that is a sandbox is tagged Public
     sandbox on the overview.
-  - **First run** (`/welcome`) for an account made for the sandbox that is not in it says so, and
-    offers no organization to create.
+  - **First run** (`/welcome`) for an account made for the sandbox that is not in it says so, and,
+    unless an instance owner gave it an allowance, offers no organization to create.
 - **Planned:** organization settings with usage against every limit shown as fractions
   ([§9.2](09-data-lifecycle.md)), the data statement, organization export, and a danger zone
   holding only owner-gated actions (transfer ownership, close the organization), each behind a

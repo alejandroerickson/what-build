@@ -73,6 +73,19 @@ right to sign as itself.
 an account; by default it is only the `gcloud` account that ran the script. Anyone who is invited
 can always join. Widen it when public sign-up opens.
 
+**Who can create organizations.** `INSTANCE_OWNERS` (emails, comma-separated; by default the
+`gcloud` account that ran the script) names the people who run the instance. They create any
+number of organizations, and on **Organization creators** (`/instance`, in the account menu) let
+anyone else create a number of their own; being in an organization never lets anyone create one
+([§3.3](../spec/03-accounts-teams-and-identity.md#33-tenants-and-teams)). An address given an
+allowance may also sign up. `TENANT_ALLOWANCE` sets how many any other address may create (0 by
+default). **A service deployed before this setting existed has no instance owner**, so nobody can
+create an organization until it is set:
+
+```bash
+gcloud run services update whatbuild --region $R --update-env-vars WHATBUILD_INSTANCE_OWNERS=you@example.com
+```
+
 **A public sandbox.** `SANDBOX_TENANT=<slug>` names one organization as the public sandbox
 ([§9.7](../spec/09-data-lifecycle.md)); the organization must exist, and the service reads the
 name when it starts. On a service that is already deployed:
