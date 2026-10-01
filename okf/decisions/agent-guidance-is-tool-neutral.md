@@ -3,7 +3,7 @@ type: Decision
 title: "Agent guidance is tool-neutral: AGENTS.md and .agents/skills"
 description: Orientation and the documentation procedures live in files any agent can read, with links for tools that look elsewhere.
 tags: [decision, agents, skills, okf, process]
-generated: {by: agent:claude, at: 2026-09-26}
+generated: {by: agent:claude, at: 2026-10-01}
 status: stable
 ---
 
@@ -24,6 +24,8 @@ after, whichever tool it runs in.
 - There are three skills for the bundle: `okf-orient` (what to read), `okf-update` (keep it true,
   with an impact map from code to concepts and a template per type) and `okf-decision` (record
   decisions).
+- A procedure for operating a deployment is a skill of the same kind: `azure-self-host` conducts
+  [hosting on Azure](../operations/azure.md).
 - Skills hold procedure. Knowledge about the system stays in `okf/`, and a skill links to it
   rather than copying it.
 

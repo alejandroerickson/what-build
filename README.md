@@ -54,6 +54,11 @@ One image on Google Cloud Run, Postgres, and a Cloud Storage bucket. The
 up from nothing. Once you add the Cloud Build trigger the guide describes, every push to `main`
 builds, migrates and deploys; without it, a deploy is one `gcloud builds submit`.
 
+To run your own copy on Azure (Container Apps, Azure Database for PostgreSQL, Key Vault and a file
+share), point an agent with a signed-in Azure CLI at this repository: the
+[Azure guide](okf/operations/azure.md) and the `azure-self-host` skill tell it what to create and
+how to adapt to your organization.
+
 ## Layout
 
 ```
@@ -62,6 +67,7 @@ packages/core      every operation, defined once: schemas, access policy, handle
 apps/server        Hono: REST and MCP generated from the operations, OAuth, uploads, worker, CLI
 apps/web           React: the web app, on the Studio design system (see DESIGN.md)
 deploy/cloud-run   Cloud Run setup script (the guide is in okf/operations)
+deploy/azure       the container app's definition for self-hosting on Azure (the guide is in okf/operations)
 okf                all documentation: overview, decisions, specification, operations
 .agents/skills     skills for agents working on this repository (.claude/skills links here)
 ```

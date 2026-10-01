@@ -54,17 +54,18 @@ adding a near-duplicate.
 | `packages/core/src/ops/**`, `registry.ts`, `schemas.ts`, `errors.ts` | `spec/06` (the operation table and error codes); the operation and tool counts in `AGENTS.md`, `system/overview.md`, `system/repository-map.md`, `spec/10`; the decisions `one-registry-two-front-doors` and `mcp-tools-grouped-by-noun`; the product `SKILL.md` |
 | `apps/server/src/mcp.ts`, `rest.ts`, `public-routes.ts` | `spec/06`, `spec/02`, `system/overview.md` |
 | `packages/core/src/policy.ts`, roles, membership | `spec/03`, decision `access-is-per-product-roles`, `system/overview.md` |
-| `apps/server/src/auth/**`, sessions, tokens | `spec/03`, decision `built-in-identity-and-oauth` |
+| `apps/server/src/auth/**`, sessions, tokens | `spec/03`, decision `built-in-identity-and-oauth`; a sign-in method also the Sign-in sections of `operations/cloud-run.md` and `operations/azure.md` |
 | `apps/server/src/migrations/*.sql`, `packages/core/src/db.ts` | `spec/04`; tenancy or row-level security changes: decision `shared-schema-tenancy-with-row-level-security`; retention: `spec/09` |
 | `citations.ts` | `spec/04` (citations), decision `citations-snapshot-and-report-drift` |
 | `story-html.ts`, `story-guidance.ts`, `story-styles.ts`, `story-theme.ts`, `story-print.ts`, `ops/story.ts` | `spec/04` and `spec/07` (Story), decisions `story-pages-are-sandboxed-agent-html`, `story-pages-follow-the-teams-design-system`, `story-notes-are-agent-memory` and `pdf-export-uses-browser-print` |
 | `packages/parsers/**`, `kinds.ts`, `media.ts`, `worker.ts` | `spec/05`, decision `only-the-primary-file-is-searched`, the parser list in `spec/10` |
 | `ops/search.ts` | `spec/08` |
 | Archive, delete, export (`ops/export.ts`) | `spec/09`, decision `archive-by-default-delete-guarded` |
-| `uploads.ts`, `adapters/**`, `ports.ts`, `config.ts` | `spec/02` (adapters, configuration), `spec/05`, `operations/cloud-run.md` if an environment variable changed |
+| `uploads.ts`, `adapters/**`, `ports.ts`, `config.ts` | `spec/02` (adapters, configuration), `spec/05`, `operations/cloud-run.md` and `operations/azure.md` (with `deploy/azure/containerapp.yaml`) if an environment variable changed |
 | `dev.ts`, root `package.json` scripts, ports, `.nvmrc`, `scripts/*.mjs` | `operations/local-development.md`, decision `development-substitutes-adapters-never-behavior` |
 | `.github/workflows/**` | `operations/local-development.md` (CI), the phase 0 row in `spec/10` |
-| `Dockerfile`, `cloudbuild.yaml`, `deploy/**` | `operations/cloud-run.md`, decision `one-stateless-image` |
+| `Dockerfile`, `cloudbuild.yaml`, `deploy/cloud-run/**`, `deploy/cloudflare/**` | `operations/cloud-run.md`, decision `one-stateless-image`; a `Dockerfile` change also `operations/azure.md` (the image is built from it there too) |
+| `deploy/azure/**`, `.agents/skills/azure-self-host/**` | `operations/azure.md`, decision `self-hosting-on-azure-is-agent-led-and-shares-nothing-with-cloud-run` |
 | `apps/web/src/routes/**`, `main.tsx`, `shell/**` | `spec/07`, the phase 4 row in `spec/10` |
 | `apps/web/src/styles/tokens.css`, `ui/**` | `DESIGN.md`, `.impeccable/design.json`, decision `studio-design-system` (Story pages do not follow the app's tokens) |
 | A cookie (`setCookie`), a `whatbuild.*` browser storage key, or analytics (`apps/web/src/lib/analytics.ts`, the Worker's analytics settings) | the kinds on `apps/web/src/routes/cookies.tsx`, `spec/09` §9.1, decision `analytics-only-for-people-who-accept-cookies`, `operations/analytics.md` |

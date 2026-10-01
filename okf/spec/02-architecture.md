@@ -128,6 +128,29 @@ Rules:
 - A conformance suite that runs unchanged against every blob adapter is planned; today the GCS
   adapter is exercised only in deployment.
 
+**An Azure Blob Storage adapter (Planned).** Not built; the
+[roadmap](10-roadmap.md#self-hosting-on-azure) says where it stands. A deployment on Azure stores
+files through the filesystem adapter on a mounted file share today
+([Azure guide](../operations/azure.md)), which needs the storage account's key and sends every
+upload through the service. The adapter is `apps/server/src/adapters/blobs-azure.ts`, the only
+file that imports the Azure SDK, chosen by `WHATBUILD_BLOB_STORE=azure`, or by default when
+`WHATBUILD_AZURE_STORAGE_ACCOUNT` is set, as `gcs` is by its bucket. Its container is named by
+`WHATBUILD_AZURE_STORAGE_CONTAINER`. It MUST:
+
+- authenticate as the runtime's own identity (a managed identity), with no account key or
+  connection string in configuration;
+- make every write create-only (the `If-None-Match: *` condition), answering `409 blob_exists` to
+  a second write of a key as the other adapters do;
+- enforce `maxBytes` while it streams, keep the `sha256` as the blob's metadata and report it
+  from `stat`, and answer a range past the end with an empty body;
+- pass the conformance suite when there is one.
+
+It MAY offer signed upload and download URLs when `WHATBUILD_AZURE_SIGNED_URLS=1`: a user
+delegation signature that grants create and not write, so a URL can add a blob and never replace
+one, with the headers the upload needs returned beside it as the GCS adapter returns its own.
+Blob keys are the same in every adapter, so a deployment moves off the mounted share by copying
+each file to the same key with the content type and hash from the `.meta.json` beside it.
+
 ## 2.5 One operation protocol, two transports
 
 Every operation is defined once in the registry
@@ -203,6 +226,12 @@ WhatBuild is MIT-licensed. Anyone may run the same container image against their
 bucket, using the same deployment guide we use. It is **not a separate mode**: there is no
 single-user build, no loopback-means-no-sign-in rule, and no code path that exists only for
 self-hosters. This keeps the promise cheap to make and impossible to break by accident.
+
+On Azure the same image runs on Container Apps with Azure Database for PostgreSQL, and files go
+to a mounted file share through the filesystem adapter. An agent sets it up with the Azure CLI
+from the [Azure guide](../operations/azure.md); there is no script, and nothing of the Cloud Run
+deployment is involved
+([decision](../decisions/self-hosting-on-azure-is-agent-led-and-shares-nothing-with-cloud-run.md)).
 
 ## 2.8 Cross-cutting rules
 

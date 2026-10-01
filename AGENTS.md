@@ -44,6 +44,7 @@ that folder. If your tool does not load skills, read the `SKILL.md` files direct
 | `okf-orient` | At the start of a task: what to read in `okf/` and where each answer lives. |
 | `okf-update` | Before finishing any change: which concepts it affects, and how to write each type. |
 | `okf-decision` | When a change makes, revises or reverses a durable choice. |
+| `azure-self-host` | When asked to host, update or repair a self-hosted copy on Azure with the Azure CLI. |
 
 ## Before you change anything
 
@@ -61,6 +62,13 @@ Deploying, the Cloudflare Worker and analytics are in `okf/operations/` (start w
 `cloud-run.md`). The deployment's values and credentials are in `.env` at the root of the
 maintainer's clone, never in the repository; production secrets are in Google Secret Manager and
 `.env` names them. Read `.env` before asking the maintainer for an ID or a token.
+
+## Self-hosting on Azure
+
+A separate deployment an organization runs for itself, set up by an agent with the Azure CLI. Use
+the `azure-self-host` skill, which reads `okf/operations/azure.md`. Its values are in `.env.azure`
+(gitignored), its secrets in that deployment's Key Vault, and it never touches the Cloud Run
+deployment, `.env`, or `gcloud`.
 
 ## Keep the documentation true
 
