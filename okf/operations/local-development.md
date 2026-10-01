@@ -20,7 +20,9 @@ corepack pnpm dev
 `pnpm dev` (`apps/server/src/dev.ts`) starts an embedded Postgres on `:54329` (data in
 `.what-build/pg`), runs migrations and seeds the synthetic Crewboard product, then runs the API on
 `:8787`, the job worker in-process, and Vite on `:5273`. Open http://localhost:5273 and use the
-development sign-in (Riley Chen or Sam Okafor). Files go to `.what-build/blobs`; sign-in links are
+development sign-in (Riley Chen or Sam Okafor). Riley is the instance's owner
+(`WHATBUILD_INSTANCE_OWNERS` defaults to Riley's address here), so Riley sees **Organization
+creators**, where the seed lets Sam create one organization. Files go to `.what-build/blobs`; sign-in links are
 printed to the terminal.
 
 Environment overrides: `DATABASE_URL` (your own Postgres instead of the embedded one), `PORT`,

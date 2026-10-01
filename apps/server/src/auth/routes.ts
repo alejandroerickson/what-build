@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { AppError, gone, invalid, newId, notFound, randomToken, sha256Hex, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type Mailer } from "@whatbuild/core";
+import { AppError, gone, invalid, tenantAllowanceOf, newId, notFound, randomToken, sha256Hex, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type Mailer } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { sql } from "kysely";
@@ -29,11 +29,17 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
   const app = new Hono();
   const secure = config.publicBaseUrl.startsWith("https://");
 
-  /** Invite-only mode: new accounts only for listed emails or domains, or someone with an invitation. */
+  /**
+   * Invite-only mode: new accounts only for listed emails or domains, the instance's owners,
+   * someone with an invitation, or an address an instance owner has let create an organization.
+   */
   const mayJoin = async (email: string) => {
     if (!config.signupAllowlist) return true;
     const e = email.toLowerCase();
     if (config.signupAllowlist.some((a) => (a.startsWith("@") ? e.endsWith(a) : e === a))) return true;
+    if (config.instanceOwners.includes(e)) return true;
+    const allowance = await db.selectFrom("tenant_allowances").select("allowed").where("email", "=", e).where("allowed", ">", 0).executeTakeFirst();
+    if (allowance) return true;
     const existing = await db.selectFrom("accounts").select("account_id").where(sql<boolean>`lower(email) = ${e}`).where("deleted_at", "is", null).executeTakeFirst();
     if (existing) return true;
     const invited = await db.selectFrom("invitations").select("invitation_id").where(sql<boolean>`lower(email) = ${e}`).where("accepted_at", "is", null).where("expires_at", ">", new Date().toISOString()).executeTakeFirst();
@@ -182,7 +188,8 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
 
   app.get("/api/v1/me", async (c) => {
     const p = await requirePrincipal(c);
-    return c.json({ account_id: p.account_id, email: p.email, display_name: p.display_name, auth_kind: p.auth_kind, ...(p.sandbox_only ? { sandbox_only: true } : {}) });
+    const tenant_allowance = await tenantAllowanceOf(db, config, p);
+    return c.json({ account_id: p.account_id, email: p.email, display_name: p.display_name, auth_kind: p.auth_kind, ...(p.sandbox_only ? { sandbox_only: true } : {}), tenant_allowance });
   });
 
   app.patch("/api/v1/me", async (c) => {

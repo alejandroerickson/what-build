@@ -274,7 +274,12 @@ current product cites or references the source, because references never cross p
 
 `products(action="export")` builds a ZIP of the whole product — files, passages, notes, insights,
 entries, reviews, Story versions, activity — and `products(action="exports")` gives a download
-grant when it is ready. Anyone with access can export, at any time.
+grant when it is ready. Anyone with access can export, at any time, except a visitor to a public
+sandbox, whose exports are off unless its staff allow them.
+
+Starting a new organization (`products(action="create_tenant")`) needs an allowance from whoever
+runs this WhatBuild; belonging to an organization never gives one. If it is refused with
+`403 tenant_allowance`, tell the person to ask them, or to ask someone to invite them.
 
 ## In a public sandbox
 
@@ -290,7 +295,7 @@ hear the first two before anything of theirs goes in.
   caller. Do not try to find out who another visitor is, and do not write a person's name,
   address or employer into the content to make up for it.
 - **A visitor edits and nothing more.** No managing products or people, no permanent delete
-  (archive instead), and no fetching a file from a URL.
+  (archive instead), no fetching a file from a URL, and usually no export.
 
 Before your first write, call `sandbox(action="status", params={"tenant": "…"})` and tell the
 person its `notice` in your own words. Its `allowances` list every limit with what is used today.

@@ -55,6 +55,8 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
       grantTtlSeconds: config.grantTtlSeconds,
       urlFetchMaxBytes: config.urlFetchMaxBytes,
       signupAllowlist: config.signupAllowlist,
+      instanceOwners: config.instanceOwners,
+      defaultTenantAllowance: config.defaultTenantAllowance,
     },
   };
 }

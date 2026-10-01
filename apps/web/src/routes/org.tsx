@@ -19,6 +19,7 @@ import "../styles/screens/org.css";
 
 export function Welcome() {
   const me = useMe();
+  const products = useProducts();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [org, setOrg] = useState("");
@@ -36,28 +37,39 @@ export function Welcome() {
     },
   });
   const first = me.data?.display_name.split(" ")[0];
-  // Let in to the public sandbox, and not in it now: there is nothing here for them to set up.
-  if (me.data?.sandbox_only)
+  const allowance = me.data?.tenant_allowance;
+  const hasOrgs = Boolean(products.data?.tenants.length);
+  // Nothing here for them to set up: only the people who run this WhatBuild let anyone start an organization.
+  if (me.data && allowance?.remaining === 0) {
+    const sandboxOnly = me.data.sandbox_only && !hasOrgs;
     return (
       <EntryPage title="Welcome · WhatBuild" wide>
         <Sheet labelledBy="welcome-title">
-          <SheetHeader level={1} id="welcome-title" title="You’re not in the sandbox right now" />
+          <SheetHeader level={1} id="welcome-title" title={sandboxOnly ? "You’re not in the sandbox right now" : hasOrgs ? "You can’t start another organization" : first ? `Welcome, ${first}` : "Welcome"} />
           <SheetBody className="entry-form">
-            <p>
-              Your account was made for the WhatBuild public sandbox. To enter it, open the invitation link you were given. If you were in it before, your seat was given up after a long time away, or taken away by the people who run it.
+            {sandboxOnly ? (
+              <p>
+                Your account was made for the WhatBuild public sandbox. To enter it, open the invitation link you were given. If you were in it before, your seat was given up after a long time away, or taken away by the people who run it.
+              </p>
+            ) : !hasOrgs ? (
+              <p>You&rsquo;re signed in, but not in any organization yet. When someone who uses WhatBuild invites you to theirs, its products appear here.</p>
+            ) : null}
+            <p className="muted">
+              {allowance.allowed ? `You have started ${allowance.created === 1 ? "an organization" : `${allowance.created} organizations`}, which is all this account may start. ` : ""}
+              The people who run this WhatBuild decide who may start organizations, and how many; being in one doesn&rsquo;t let anyone start one. Ask them, or ask someone who uses WhatBuild to invite you to theirs.
             </p>
-            <p className="muted">WhatBuild is invite-only for now, so this account can&rsquo;t start an organization of its own. Someone who uses WhatBuild can invite you to theirs.</p>
           </SheetBody>
         </Sheet>
         <p className="entry-foot">
-          Signed in as {me.data.email}. <Link to="/settings">Your settings</Link>.
+          Signed in as {me.data.email}. {hasOrgs ? <Link to="/">See your products</Link> : <Link to="/settings">Your settings</Link>}.
         </p>
       </EntryPage>
     );
+  }
   return (
     <EntryPage title="Welcome · WhatBuild" wide>
       <Sheet labelledBy="welcome-title">
-        <SheetHeader level={1} id="welcome-title" title={first ? `Welcome, ${first}` : "Welcome"} />
+        <SheetHeader level={1} id="welcome-title" title={hasOrgs ? "New organization" : first ? `Welcome, ${first}` : "Welcome"} />
         <form
           className="sheet-body entry-form"
           onSubmit={(e) => {
@@ -65,7 +77,12 @@ export function Welcome() {
             if (org.trim() && product.trim()) create.mutate();
           }}
         >
-          <p className="muted">Name your organization and the product you are exploring. You can invite colleagues and connect an agent next.</p>
+          <p className="muted">
+            Name your organization and the product you are exploring. You can invite colleagues and connect an agent next.
+            {allowance?.remaining
+              ? ` This account may start ${allowance.remaining === 1 ? "one" : allowance.remaining}${allowance.created ? " more" : ""} organization${allowance.remaining === 1 ? "" : "s"}.`
+              : ""}
+          </p>
           <TextField label="Organization" hint="Your company or group. Nothing in it is visible to any other organization." required maxLength={100} value={org} onChange={(e) => setOrg(e.target.value)} />
           <TextField label="Product" hint="The product this discovery is about. You can run several side by side." required maxLength={100} value={product} onChange={(e) => setProduct(e.target.value)} />
           <TextArea label="Product concept" optional hint="Who it is for, the problem they have, and how the product solves it, in a few sentences. It heads the Idea screen." maxLength={2000} rows={3} value={concept} onChange={(e) => setConcept(e.target.value)} />

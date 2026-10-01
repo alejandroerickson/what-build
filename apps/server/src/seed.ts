@@ -1,4 +1,4 @@
-import { createTenantWithTeam, execute, houseStyle, loadSandbox, OPERATIONS_BY_NAME, type Env, type Principal, type ScopeRef } from "@whatbuild/core";
+import { actorOf, createTenantWithTeam, execute, houseStyle, json, loadSandbox, newEtag, OPERATIONS_BY_NAME, type Env, type Principal, type ScopeRef } from "@whatbuild/core";
 import { sql } from "kysely";
 import { findOrCreateAccount } from "./auth/identity.ts";
 import {
@@ -11,7 +11,7 @@ import type { Worker } from "./worker.ts";
 export const SEED_ACCOUNTS = [
   { email: "riley@example.com", display_name: "Riley Chen" },
   { email: "sam@example.com", display_name: "Sam Okafor" },
-];
+] as const;
 
 async function call(env: Env, who: Principal, name: string, input: Record<string, unknown>, ref: ScopeRef = {}) {
   const op = OPERATIONS_BY_NAME.get(name);
@@ -196,6 +196,13 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
     await call(env, samAgent, "story.write_notes", { page_id, notes: notesText, expected_etag: page.agent_notes.etag }, ref);
   }
   await call(env, riley, "sources.annotate", { record_id: vtt, note: "This is the moment to design for: the typed message, not the spreadsheet.", seq_start: 8, seq_end: 8, tags: ["hand-off"] }, ref);
+  // Sam may start one organization of their own; Riley, the instance's owner in development, gave it.
+  const sam = SEED_ACCOUNTS[1].email;
+  await env.db
+    .insertInto("tenant_allowances")
+    .values({ email: sam, allowed: 1, note: "Sample: may start one organization", etag: newEtag(), created_by: json(actorOf(riley)), updated_by: json(actorOf(riley)) })
+    .onConflict((oc) => oc.column("email").doNothing())
+    .execute();
   log(`seed: created ${SAMPLE.tenant} / ${SAMPLE.team} / ${SAMPLE.product} with ${SEED_ACCOUNTS.map((a) => a.email).join(" and ")}.`);
 }
 

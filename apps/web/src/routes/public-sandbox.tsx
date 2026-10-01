@@ -283,7 +283,7 @@ function ControlPanel({ tenant }: { tenant: string }) {
                   value={s.visitor_access}
                   onChange={(v) => v !== s.visitor_access && now({ visitor_access: v }, v === "write" ? "Visitors can write again." : v === "read" ? "Visitors are reading only. Nobody lost their seat." : "Closed to visitors. Nobody lost their seat.")}
                 />
-                <span className="muted">{s.visitor_access === "write" ? "Reading and writing." : s.visitor_access === "read" ? "Reading, searching and exporting; every other write is refused." : "Refused everything, until you open it again."}</span>
+                <span className="muted">{s.visitor_access === "write" ? "Reading and writing." : s.visitor_access === "read" ? "Reading and searching, and exporting where its limit allows; every other write is refused." : "Refused everything, until you open it again."}</span>
               </dd>
             </div>
             <div>
@@ -1027,7 +1027,7 @@ export function JoinSandbox() {
                 <li>
                   Each day you can add {plural(i!.limits.sources_per_day, "source")} and {formatBytes(i!.limits.bytes_per_day)}, in files of up to {formatBytes(i!.limits.file_max_bytes)}, and make {plural(i!.limits.writes_per_day, "change")}.
                 </li>
-                <li>Your account is for the sandbox. It can&rsquo;t start an organization of its own unless someone invites you to theirs.</li>
+                <li>Your account is for the sandbox. Being in it doesn&rsquo;t let you start an organization of your own.</li>
               </ul>
               {i!.status !== "open" && !join.isSuccess ? (
                 <Callout inset tone="negative" title={NOT_OPEN[i!.status].title}>

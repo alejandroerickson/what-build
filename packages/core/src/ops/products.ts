@@ -5,6 +5,7 @@ import { json, type Db } from "../db.ts";
 import { AppError, conflict, forbidden, invalid, notFound } from "../errors.ts";
 import { effectiveRole, isSandboxStaff, membershipsFor, PRODUCT_ROLES, roleAtLeast, tenantRoleAtLeast } from "../policy.ts";
 import { defineOperation, type OpContext, type ProductRole, type TenantRole } from "../registry.ts";
+import { requireTenantAllowance } from "../tenant-allowance.ts";
 import { expectedEtag, slug } from "../schemas.ts";
 import { newEtag, newId, randomToken, sha256Hex, slugify } from "../util.ts";
 
@@ -185,9 +186,9 @@ export const createTenant = defineOperation({
   scope: "account",
   access: "any",
   mutates: true,
-  summary: "Create a tenant (an organization) with its first team; you become its owner.",
+  summary: "Create a tenant (an organization) with its first team; you become its owner. Needs an allowance.",
   description:
-    "A tenant is the isolation boundary: nothing in it is visible to any other tenant. It starts with one team; create products in that team with products(action=\"create\").",
+    "A tenant is the isolation boundary: nothing in it is visible to any other tenant. It starts with one team; create products in that team with products(action=\"create\"). Only an instance owner, or an account whose allowance has room, may create one; belonging to a tenant never lets anyone create one. Refused with 403 tenant_allowance otherwise: tell the person to ask whoever runs this WhatBuild.",
   input: z.strictObject({
     name: z.string().trim().min(1).max(100),
     slug: slug.optional(),
@@ -196,31 +197,10 @@ export const createTenant = defineOperation({
   rest: { method: "POST", path: "/tenants" },
   mcp: { tool: "products", action: "create_tenant" },
   async handler(ctx, input) {
-    await mayCreateTenant(ctx);
+    await requireTenantAllowance(ctx.db, ctx.ports.config, ctx.principal);
     return createTenantWithTeam(ctx.db, ctx.actor, input);
   },
 });
-
-/**
- * An account that a sandbox invitation created was let in to the sandbox, not to WhatBuild. While
- * sign-up is limited it starts no organization, unless its address is one sign-up allows or
- * someone has given it a role outside a sandbox.
- */
-async function mayCreateTenant(ctx: OpContext) {
-  const allow = ctx.ports.config.signupAllowlist;
-  if (!ctx.principal.sandbox_only || !allow) return;
-  const email = ctx.principal.email.toLowerCase();
-  if (allow.some((a) => (a.startsWith("@") ? email.endsWith(a) : email === a))) return;
-  const outside = await ctx.db
-    .selectFrom("memberships as m")
-    .innerJoin("tenants as t", "t.tenant_id", "m.tenant_id")
-    .select("m.membership_id")
-    .where("m.account_id", "=", ctx.principal.account_id)
-    .where("t.sandbox", "=", false)
-    .executeTakeFirst();
-  if (outside) return;
-  throw new AppError(403, "sandbox_only", "Your account was made for the public sandbox, and WhatBuild is invite-only for now, so it cannot start an organization of its own. Ask someone who uses WhatBuild to invite you to theirs.");
-}
 
 export async function createTenantWithTeam(
   db: Db,

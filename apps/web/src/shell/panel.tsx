@@ -233,6 +233,16 @@ export function AccountMenu() {
           </MenuRadio>
         </MenuGroup>
         <MenuSeparator />
+        {me.data && me.data.tenant_allowance.remaining !== 0 ? (
+          <MenuItem icon="plus" to="/welcome">
+            New organization
+          </MenuItem>
+        ) : null}
+        {me.data?.tenant_allowance.instance_owner ? (
+          <MenuItem icon="users" to="/instance">
+            Organization creators
+          </MenuItem>
+        ) : null}
         <MenuItem icon="settings" to="/settings">
           Settings
         </MenuItem>

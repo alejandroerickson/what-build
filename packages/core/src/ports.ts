@@ -63,6 +63,10 @@ export interface CoreConfig {
   urlFetchMaxBytes: number;
   /** When set, only these emails (or @domains) may create an account without an invitation. */
   signupAllowlist?: string[] | null;
+  /** Lower-cased addresses of the instance's owners: they create any number of organizations and give others an allowance. */
+  instanceOwners?: string[];
+  /** Organizations an address may create when no instance owner has given it an allowance. 0 when absent. */
+  defaultTenantAllowance?: number;
 }
 
 export interface Ports {

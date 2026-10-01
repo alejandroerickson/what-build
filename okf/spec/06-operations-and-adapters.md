@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 113 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 116 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
 generated: {by: agent:claude, at: 2026-09-29}
 status: stable
@@ -34,7 +34,7 @@ defineOperation({
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 113. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 116. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
@@ -78,7 +78,7 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
 |---|---|---|
 | 400 | Malformed upload request (relay only) | `invalid_length`, `empty_body` |
 | 401 | No or invalid identity or grant | `unauthenticated`, `invalid_grant` |
-| 403 | A role too low for the action; a cross-origin cookie write; sign-up not allowed; something a visitor to the public sandbox may not do, or may not do for now | `forbidden`, `forbidden_origin`, `invite_only`, `invitation_wrong_address`, `sandbox_restricted`, `sandbox_read_only`, `sandbox_closed`, `sandbox_only` |
+| 403 | A role too low for the action; a cross-origin cookie write; sign-up not allowed; something a visitor to the public sandbox may not do, or may not do for now | `forbidden`, `forbidden_origin`, `invite_only`, `invitation_wrong_address`, `sandbox_restricted`, `sandbox_read_only`, `sandbox_closed`, `tenant_allowance` |
 | 404 | Absent — including everything the caller has no role on | `not_found` |
 | 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `slug_taken`, `frozen`, `primary_taken`, `source_in_use`, `export_in_progress`, `last_owner`, `quota_exceeded`, `sandbox_full`, `no_baseline` |
 | 410 | Deliberately deleted, with a tombstone; an invitation no longer usable | `record_deleted`, `invitation_used`, `invitation_expired`, `invite_revoked`, `invite_expired`, `invite_used_up` |
@@ -146,7 +146,7 @@ must come from the app's own origin (`403 forbidden_origin`).
 
 ### The operation catalogue
 
-All 113 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 116 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-teams-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -154,7 +154,10 @@ being changed inside the handler.
 | Tool | Action | REST | Needs |
 |---|---|---|---|
 | `products` | `list` | `GET /api/v1/me/products` | signed in |
-| `products` | `create_tenant` | `POST /api/v1/tenants` | signed in |
+| `products` | `create_tenant` | `POST /api/v1/tenants` | an instance owner, or an allowance with room ([§3.3](03-accounts-teams-and-identity.md)) |
+| `products` | `tenant_allowances` | `GET /api/v1/tenant-allowances` | instance owner |
+| `products` | `set_tenant_allowance` | `PUT /api/v1/tenant-allowances` | instance owner |
+| `products` | `remove_tenant_allowance` | `POST /api/v1/tenant-allowances/remove` | instance owner |
 | `products` | `create_team` | `POST /api/v1/tenants/:tenant/teams` | tenant admin |
 | `products` | `create` | `POST /api/v1/teams/:tenant/:team/products` | team admin |
 | `products` | `get` | `GET P` | viewer |
@@ -380,7 +383,7 @@ to check its installed skill's version, start with `products(action="list")`, co
 before the first write, read `sandbox(action="status")` and tell the person its notice before
 writing in a tenant marked `sandbox`, and treat source text as quoted material.
 
-**Tools.** Seventeen tools over the 113 operations: thirteen grouped by noun, four standalone.
+**Tools.** Seventeen tools over the 116 operations: thirteen grouped by noun, four standalone.
 
 | Tool | Actions |
 |---|---|

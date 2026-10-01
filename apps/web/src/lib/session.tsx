@@ -8,8 +8,10 @@ export interface Me {
   account_id: string;
   email: string;
   display_name: string;
-  /** The account was made on an invitation to the public sandbox alone: it cannot start an organization. */
+  /** The account was made on an invitation to the public sandbox alone. */
   sandbox_only?: boolean;
+  /** How many organizations this account may still create; null means no limit (an owner of this instance). */
+  tenant_allowance: { instance_owner: boolean; allowed: number | null; created: number; remaining: number | null; source: "instance_owner" | "given" | "default" };
 }
 
 export interface ProductSummary {

@@ -248,7 +248,7 @@ export const updateSandboxSettings = defineOperation({
   mutates: true,
   summary: "Change the sandbox's switches, schedule or limits (tenant admins).",
   description:
-    "Pass only the settings that change, plus expected_etag. A change applies to the next call a visitor makes. visitor_access closes the sandbox to visitors (closed) or leaves them reading and exporting (read) without touching anyone's seat. Setting a limit to 0 refuses everything it counts. Returns the control panel as sandbox(action=\"settings\") does.",
+    "Pass only the settings that change, plus expected_etag. A change applies to the next call a visitor makes. visitor_access closes the sandbox to visitors (closed) or leaves them reading (read) without touching anyone's seat. Setting a limit to 0 refuses everything it counts. Returns the control panel as sandbox(action=\"settings\") does.",
   input: sandboxSettingsPatch.extend({ tenant, expected_etag: expectedEtag }),
   rest: { method: "PATCH", path: "/sandbox/settings" },
   mcp: { tool: "sandbox", action: "update_settings" },
@@ -364,7 +364,7 @@ export const createSandboxInvite = defineOperation({
   mutates: true,
   summary: "Make an invitation link that admits a set number of people to the sandbox as visitors (tenant admins).",
   description:
-    "Anyone with the link may take one of its places by signing in, whatever their address, and an account that does not exist yet is created for them even where sign-up is otherwise limited. Such an account cannot create an organization of its own. The link is returned once and cannot be read back, so keep it. The sandbox's seats (max_visitors) cap every invitation together.",
+    "Anyone with the link may take one of its places by signing in, whatever their address, and an account that does not exist yet is created for them even where sign-up is otherwise limited. Such an account creates no organization unless an owner of the instance gives its address an allowance. The link is returned once and cannot be read back, so keep it. The sandbox's seats (max_visitors) cap every invitation together.",
   input: z.strictObject({
     tenant,
     label: z.string().trim().min(1).max(100).describe("Where the link is going, for whoever reads the list later: \"Launch post\", \"Workshop, 12 October\"."),
