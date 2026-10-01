@@ -3,7 +3,7 @@ type: Index
 title: WhatBuild knowledge bundle
 description: The map of the documentation; start here.
 tags: [index, okf]
-generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
+generated: {by: agent:claude, at: 2026-10-01}
 status: stable
 okf_version: "0.2"
 ---
@@ -22,7 +22,8 @@ server with the same operations. There is no AI inside.
 - [Decisions](decisions/index.md): the architectural decision records.
 - [Specification](spec/index.md): product, architecture, identity and tenancy, data model, derived
   layer, operations and MCP, web app, search, data lifecycle, and the [roadmap](spec/10-roadmap.md).
-- [Local development](operations/local-development.md) and [Cloud Run](operations/cloud-run.md).
+- [Local development](operations/local-development.md), [Cloud Run](operations/cloud-run.md) and
+  [Analytics](operations/analytics.md).
 - [Working in this repository](process/working-in-this-repository.md).
 - [Ontology](ontology.md), [bundle guide](README.md), [tools](tools/index.md).
 
