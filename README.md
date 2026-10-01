@@ -51,7 +51,8 @@ claude mcp add --transport http whatbuild-dev http://localhost:5273/mcp
 
 One image on Google Cloud Run, Postgres, and a Cloud Storage bucket. The
 [deployment guide](okf/operations/cloud-run.md) and [`setup.sh`](deploy/cloud-run/setup.sh) set it
-up from nothing; afterwards every push to `main` builds, migrates and deploys.
+up from nothing. Once you add the Cloud Build trigger the guide describes, every push to `main`
+builds, migrates and deploys; without it, a deploy is one `gcloud builds submit`.
 
 ## Layout
 

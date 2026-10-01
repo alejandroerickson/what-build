@@ -3,7 +3,7 @@ type: Roadmap
 title: Phases 0 to 5 are mostly built, and a public sandbox; durability, data rights and public sign-up come next.
 description: What is built and what is not, phase by phase, with acceptance criteria; the open questions that remain, the ones already settled, and the risks.
 tags: [roadmap, status, phases, open-questions, risks]
-generated: {by: agent:claude, at: 2026-09-29}
+generated: {by: agent:claude, at: 2026-09-30}
 status: stable
 ---
 
@@ -12,7 +12,7 @@ status: stable
 The ethos: the smallest implementation that proves the full path wins. Each phase ends in
 something demonstrable, and each acceptance list is a test plan.
 
-## Status on 2026-09-29
+## Status on 2026-09-30
 
 Observed in the code on this date.
 
@@ -24,10 +24,11 @@ Observed in the code on this date.
 | 3 | Mostly done | tenants, teams, products, roles; email-link, Google and development sign-in; invitations by email and link; invite-only mode; who may create organizations (instance owners, and allowances they give); sign-in link rate limit; the [public sandbox](#the-public-sandbox) with its invitations, seats, visitor role and limits | quotas and rate limits for every organization (they exist for visitors to the sandbox, and for Story pages); account deletion |
 | 4 | Mostly done | the design system (Studio, [DESIGN.md](../../DESIGN.md)) across every screen of the loop: Idea, Evidence (browse, kind-first intake, the source page with sections and inspector, passage reader, notes, files, search), Synthesis (the insight editor, revision history, insight review, assumptions and decisions with review, confidence, citation checks), Story (a read-only reader with the page tree, crumbs, focus mode, the inspector with versions, citations and notes for agents, the Story style with house-style previews, the print view for PDF, the page following the app's theme), Activity as one log for people and agents, organization members, product people, Connect an agent, the person's settings | an accessibility audit; Playwright in CI (a browser walk-through exists in `scripts/e2e.mjs`); the public sample at `/sample` |
 | 5 | Mostly done | OAuth 2.1 for MCP, the versioned skill, `get_skill` and the version in the server instructions, the Connect an agent page, feedback, the product's Story style (the team's design system or a house style), Story guidance with taste, anti-patterns and design passes, a vocabulary and compositions for plans and front pages, and publishing a page from its body | the stdio transport |
-| 6 | Started | the Cloud Run deployment ([cloud-run.md](../operations/cloud-run.md)) with Cloud Build continuous deployment; product export (`products.export`); a sandbox's baseline and reset | a rehearsed restore; import; organization export; closing an organization; the sub-processors page; abuse tests |
+| 6 | Started | the Cloud Run deployment ([cloud-run.md](../operations/cloud-run.md)) and the Cloud Build file for continuous deployment; product export (`products.export`); a sandbox's baseline and reset | a rehearsed restore; import; organization export; `setup.sh` creating the Cloud Build trigger (made by hand in the console, so a deployment without one deploys nothing on a push); closing an organization; the sub-processors page; abuse tests |
 
 **Deploy early.** A deployment exists as soon as there is something to deploy, is redeployed on
-every push to `main` through Cloud Build, and is invite-only until Phase 6. The first public
+every push to `main` through a Cloud Build trigger (made by hand; see
+[cloud-run.md](../operations/cloud-run.md)), and is invite-only until Phase 6. The first public
 deploy is then a configuration change, not a milestone that can go wrong.
 
 ## Phase 0 — Repository and local development

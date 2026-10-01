@@ -1,7 +1,9 @@
 # Cloud Build: build the image, migrate the database, then deploy the service.
 #
 # A trigger on pushes to main runs this file (configuration type "Cloud Build configuration file",
-# location /cloudbuild.yaml). deploy/cloud-run/setup.sh creates everything it refers to by name.
+# location /cloudbuild.yaml). setup.sh does not create the trigger; without one, nothing deploys on a
+# push, and `gcloud builds submit` runs this file by hand (okf/operations/cloud-run.md).
+# deploy/cloud-run/setup.sh creates everything else it refers to by name.
 # Nothing here holds a credential: the database URL and keys live in Secret Manager.
 #
 # Migrations run as a Cloud Run Job from the new image before the service moves to it, so a new
