@@ -141,8 +141,9 @@ counts too; one web stream covers both hosts. Google sees only people who accept
 count of the site's visits add it in Cloudflare (Analytics & Logs, Web Analytics, add the site's
 domain, manual setup) and give the Worker the token from its snippet
 (`--var CF_ANALYTICS_TOKEN:…`); the beacon sets no cookie. In that stream's enhanced measurement settings, turn
-off "Page changes based on browser history events": the app sends page views itself, with names and
-ids masked. Mark `generate_lead` (a request to hear from us) as a key event, and set data retention
+off page changes based on browser history events, outbound clicks, file downloads and form
+interactions: the app sends page views itself, with names and ids masked, and the others would send
+real addresses, source links or file names. Mark `generate_lead` (a request to hear from us) as a key event, and set data retention
 to 14 months to compare returning people over time.
 
 ```bash
