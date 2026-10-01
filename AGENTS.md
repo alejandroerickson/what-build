@@ -22,6 +22,9 @@ assumptions and decisions, and a Story for stakeholders. People use a React web 
 MCP server exposing the same 116 operations. There is no AI inside. One stateless image on Cloud Run,
 Postgres, and object storage.
 
+The domain is **what-build.com**, with a hyphen: the public site at `what-build.com`, the app at
+`app.what-build.com`. Never write `whatbuild.com`. The product name, WhatBuild, has no hyphen.
+
 | Path | What it is |
 |---|---|
 | `okf/` | **All documentation.** Start at `okf/index.md`, then `okf/system/overview.md`. |
