@@ -34,6 +34,8 @@
 #                       The secret may instead be created in Secret Manager as
 #                       whatbuild-google-client-secret, and only GOOGLE_CLIENT_ID passed.
 #   SIGNED_URLS=1       also hand agents direct-to-bucket upload URLs for files over 25 MB
+#   MAX_INSTANCES       the most instances that run at once, default 1; each one kept busy all month
+#                       costs roughly US$45, so this is also the ceiling on the service's bill
 #   SANDBOX_TENANT      the slug of the organization that is the public sandbox (optional). The
 #                       organization must exist: create it in the app, then re-run with this.
 #                       Also creates a Cloud Scheduler job that wakes the service for the reset.
@@ -97,6 +99,16 @@ $G iam service-accounts add-iam-policy-binding "$RUNTIME_SA" --member "serviceAc
 for role in run.admin artifactregistry.writer logging.logWriter; do
   $G projects add-iam-policy-binding "$PROJECT_ID" --member "serviceAccount:$BUILD_SA" --role "roles/$role" --condition None >/dev/null
 done
+# Builds read their uploaded source from this bucket (gcloud creates it on first use; make it now).
+SOURCE_BUCKET="${PROJECT_ID}_cloudbuild"
+$G storage buckets describe "gs://$SOURCE_BUCKET" >/dev/null 2>&1 ||
+  $G storage buckets create "gs://$SOURCE_BUCKET" --location us --uniform-bucket-level-access --public-access-prevention
+$G storage buckets add-iam-policy-binding "gs://$SOURCE_BUCKET" --member "serviceAccount:$BUILD_SA" --role roles/storage.objectViewer >/dev/null
+# Google gives the default compute identity Editor on the whole project, which would let anything
+# acting as it start machines. Builds need only the roles above, so take it away.
+if [ "$BUILD_SA" = "$PROJECT_NUMBER-compute@developer.gserviceaccount.com" ]; then
+  $G projects remove-iam-policy-binding "$PROJECT_ID" --member "serviceAccount:$BUILD_SA" --role roles/editor --condition None >/dev/null 2>&1 || true
+fi
 
 step "Bucket gs://$BUCKET"
 if ! $G storage buckets describe "gs://$BUCKET" >/dev/null 2>&1; then
@@ -183,7 +195,7 @@ step "Service $SERVICE"
 # CPU stays allocated so the in-process worker parses uploads after the response returns;
 # with min-instances 0 an idle service still scales to nothing and costs nothing.
 $G run deploy "$SERVICE" --region "$REGION" --image "$IMAGE" --service-account "$RUNTIME_SA" \
-  --allow-unauthenticated --no-cpu-throttling --min-instances 0 --max-instances 3 --memory 1Gi --cpu 1 \
+  --allow-unauthenticated --no-cpu-throttling --min-instances 0 --max-instances "${MAX_INSTANCES:-1}" --memory 1Gi --cpu 1 \
   --concurrency 40 --timeout 300 --set-secrets "$SECRETS" --set-env-vars "$ENV_ARG" ${CLOUDSQL_FLAGS[@]+"${CLOUDSQL_FLAGS[@]}"}
 # The stable run.app address, named by project number (status.url is the older, hashed one).
 URL="${PUBLIC_URL:-https://$SERVICE-$PROJECT_NUMBER.$REGION.run.app}"
