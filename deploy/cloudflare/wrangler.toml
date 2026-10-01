@@ -1,0 +1,16 @@
+# The Cloudflare Worker in front of WhatBuild (worker.js). Build the web app first, then deploy
+# with this deployment's addresses; the custom domains are attached to the Worker in Cloudflare:
+#
+#   corepack pnpm build
+#   npx wrangler deploy --config deploy/cloudflare/wrangler.toml \
+#     --var ORIGIN:https://<service>-<project number>.<region>.run.app \
+#     --var SITE_HOST:example.com --var APP_URL:https://app.example.com
+name = "whatbuild-edge"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+
+[assets]
+directory = "../../apps/web/dist"
+binding = "ASSETS"
+# The Worker decides every request: the app's index.html must come from the service, never here.
+run_worker_first = true

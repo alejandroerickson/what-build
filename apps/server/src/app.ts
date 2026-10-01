@@ -10,6 +10,7 @@ import { mcpRoutes } from "./mcp.ts";
 import { publicRoutes, staticRoutes } from "./public-routes.ts";
 import { restRoutes } from "./rest.ts";
 import { SandboxClock, sandboxRoutes } from "./public-sandbox.ts";
+import { siteRoutes } from "./site.ts";
 import { uploadRoutes } from "./uploads.ts";
 
 export const SERVER_VERSION = process.env["WHATBUILD_RELEASE"] ?? `dev-${SKILL_VERSION}`;
@@ -61,7 +62,7 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
   };
 }
 
-/** One application: static web app, REST, MCP, OAuth and the upload relay, all on one origin. */
+/** One application: static web app, REST, MCP, OAuth and the upload relay on one origin, and the public site on its own host. */
 export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; clock?: SandboxClock }) {
   const env: Env & { config: ServerConfig } = { db: deps.db, ports: deps.ports, config: deps.config };
   const clock = deps.clock ?? new SandboxClock(env, deps.config.env === "test" ? () => {} : undefined);
@@ -98,6 +99,8 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; cl
     return next();
   });
 
+  // First, so the public site's host never reaches the app's routes.
+  app.route("/", siteRoutes({ db: deps.db, config: deps.config }));
   app.route("/", publicRoutes({ db: deps.db, config: deps.config, serverVersion: SERVER_VERSION }));
   app.route("/", sandboxRoutes({ db: deps.db, clock }));
   app.route("/", oauthRoutes({ db: deps.db, config: deps.config }));

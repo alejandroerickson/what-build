@@ -6,6 +6,8 @@ export interface ServerConfig {
   env: "development" | "test" | "production";
   port: number;
   publicBaseUrl: string;
+  /** The public site's origin (e.g. https://what-build.com), served by host beside the app; null for none. */
+  siteUrl: string | null;
   databaseUrl: string;
   /** Allow the development-only "sign in as" control. Never on in production. */
   devAuth: boolean;
@@ -60,6 +62,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     env: mode,
     port,
     publicBaseUrl,
+    siteUrl: env["WHATBUILD_SITE_URL"] ? env["WHATBUILD_SITE_URL"].replace(/\/+$/, "") : null,
     databaseUrl: env["DATABASE_URL"] ?? "",
     devAuth,
     blobStore,

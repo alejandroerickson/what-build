@@ -90,6 +90,11 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
   most 30 seconds; whether a reset is due is read from Postgres, under a lock, so two instances
   never run one twice. `WHATBUILD_SANDBOX_TENANT` names the organization, and is copied to
   `tenants.sandbox` at start-up.
+- **The public site rides along.** Behind Cloudflare the Worker serves its page from the edge and
+  passes on only its form. Otherwise, with `WHATBUILD_SITE_URL` set (for example
+  `https://what-build.com`), requests whose Host is that site get its one page and its interest
+  form; `www.` redirects to it and every other path redirects to the app at `WHATBUILD_PUBLIC_URL`
+  ([decision](../decisions/the-public-site-is-one-page-built-with-the-app.md)).
 - **One upload path for everyone.** An upload grant always points at the service's own relay
   (at most 25 MiB, under Cloud Run's 32 MiB request cap), because agents' sandboxes often cannot
   reach the object store. When the bucket can sign URLs (`WHATBUILD_GCS_SIGNED_URLS=1`), the grant

@@ -224,6 +224,17 @@ export interface FeedbackTable {
   received_at: Ts;
 }
 
+/** A request, from the public site, to hear when WhatBuild opens. Write-only; operators read it directly. */
+export interface InterestTable {
+  interest_id: string;
+  email: string;
+  name: string | null;
+  organization: string | null;
+  note: string | null;
+  created_at: Ts;
+  updated_at: Ts;
+}
+
 // ---- Content tables (row-level security on tenant_id) -------------------------------------------
 
 export interface RecordsTable {
@@ -652,6 +663,7 @@ export interface DB {
   invitations: InvitationsTable;
   jobs: JobsTable;
   feedback: FeedbackTable;
+  interest: InterestTable;
   records: RecordsTable;
   files: FilesTable;
   file_versions: FileVersionsTable;

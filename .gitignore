@@ -12,6 +12,7 @@ coverage/
 # Local data and secrets
 /data/
 .what-build/
+.wrangler/
 .env
 .env.*
 !.env.example

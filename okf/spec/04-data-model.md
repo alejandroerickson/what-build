@@ -580,6 +580,15 @@ chars. Account-level (not tied to a tenant), attributed, stored with the server 
 **write-only**: there is no read operation in either adapter. Operators read feedback from the
 store directly.
 
+**Interest.** The public site's form (`POST /api/v1/interest { email, name?, organization?,
+note? }`, no sign-in) records someone asking to hear when WhatBuild opens: `email` ≤ 320 chars,
+`name` and `organization` ≤ 200, `note` ≤ 2,000. One row per address, compared without case; a
+repeat updates the fields it sends. The answer is the same `{ received: true }` for a new address,
+a repeat and a bot (a hidden `website` field), so it never reveals who asked. New rows are limited
+to 200 an hour across the site (`429 rate_limited`). Not tenant content and not an operation;
+write-only like feedback
+([decision](../decisions/the-public-site-is-one-page-built-with-the-app.md)).
+
 ## 4.13 The product bundle
 
 A product exports to a single ZIP (`products.export`, open to every role on the product). A worker
