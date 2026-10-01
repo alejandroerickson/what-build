@@ -20,8 +20,10 @@
 #   SERVICE             default whatbuild
 #   CLOUD_SQL=1         create a Cloud SQL instance (about US$10/month for the smallest) instead of
 #   DATABASE_URL        …using this connection string for an existing Postgres
-#   PUBLIC_URL          the public origin if you map a domain (e.g. https://app.what-build.com);
+#   PUBLIC_URL          the app's public origin if you map a domain (e.g. https://app.what-build.com);
 #                       default: the service's run.app URL
+#   SITE_URL            the public site's origin (e.g. https://what-build.com), served by the same
+#                       service on that host; optional
 #   SIGNUP_ALLOWLIST    comma-separated emails or @domains allowed to create accounts; default: the
 #                       gcloud account running this script. Invited people can always join.
 #   INSTANCE_OWNERS     comma-separated emails of the people who run this instance: they create any
@@ -176,6 +178,7 @@ ENV_VARS="WHATBUILD_GCS_BUCKET=$BUCKET,WHATBUILD_SIGNUP_ALLOWLIST=${ALLOW//,/;},
 [ -n "${GOOGLE_CLIENT_ID:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID"
 [ -n "${SIGNED_URLS:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_GCS_SIGNED_URLS=1"
 [ -n "${SANDBOX_TENANT:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_SANDBOX_TENANT=$SANDBOX_TENANT"
+[ -n "${SITE_URL:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_SITE_URL=$SITE_URL"
 # A list inside a --set-env-vars value needs gcloud's alternate delimiter syntax. The delimiter is "|",
 # which no email, domain or sender name contains ("@" would split the allowlist).
 ENV_ARG="^|^${ENV_VARS//,/|}"

@@ -149,6 +149,13 @@ person's organization role is in the account menu, and who has which role is on 
   /settings                                   name, slug, people, export, organization, archive
 ```
 
+**The public site** is not part of the app: on the site's domain (served by the Cloudflare Worker,
+or by the image on the host named by `WHATBUILD_SITE_URL`), `/` is a
+page with the overview's intro and a form to hear when WhatBuild opens, and every other path
+redirects to the app. Without a site host it is at `/site/` (in development,
+`http://localhost:5273/site/`)
+([decision](../decisions/the-public-site-is-one-page-built-with-the-app.md)).
+
 Source links with `?tab=` resolve too: `passages`, `preview`, `files` and `notes` become
 `?view=passages|original|files|notes`, and `connected` opens the inspector, where "Cited in"
 lives. A product path without the `/t/` prefix (`/<tenant>/<team>/<product>[/…]`, as people type

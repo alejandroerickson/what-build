@@ -1,4 +1,5 @@
 import react from "@vitejs/plugin-react";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 
 const api = process.env["WHATBUILD_API"] ?? "http://localhost:8787";
@@ -11,6 +12,11 @@ export default defineConfig({
     strictPort: true,
     proxy: Object.fromEntries(proxied.map((p) => [p, { target: api, changeOrigin: false }])),
   },
-  build: { outDir: "dist", sourcemap: true },
+  build: {
+    outDir: "dist",
+    sourcemap: true,
+    // The app, and the public site's page (dist/site/index.html), which the server serves on the site's own host.
+    rollupOptions: { input: { app: fileURLToPath(new URL("index.html", import.meta.url)), site: fileURLToPath(new URL("site/index.html", import.meta.url)) } },
+  },
   test: { name: "web", environment: "jsdom", include: ["test/**/*.test.ts?(x)"] },
 } as never);

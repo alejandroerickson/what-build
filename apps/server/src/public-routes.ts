@@ -56,6 +56,18 @@ const TYPES: Record<string, string> = {
   ".webmanifest": "application/manifest+json",
 };
 
+/** Headers on every HTML page and file the image serves: the web app's and the public site's. */
+export const PAGE_SECURITY_HEADERS = {
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "X-Frame-Options": "DENY",
+  // A Story page runs in an opaque origin and may open app pages in new tabs. This cuts the
+  // handle it would keep to them, so it can never later send such a tab somewhere else.
+  "Cross-Origin-Opener-Policy": "same-origin",
+  "Content-Security-Policy":
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; media-src 'self' blob:; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'",
+};
+
 /**
  * The web app, served from the same origin as the API: no CORS, one sign-in boundary. Hashed assets
  * are cached forever; index.html never. An unknown path without an extension is the app shell; an
@@ -67,16 +79,6 @@ export function staticRoutes(dist: string) {
   const indexPath = join(root, "index.html");
   const hasIndex = existsSync(indexPath);
   if (!hasIndex) console.warn(`No web app at ${root}: serving the API and MCP only.`);
-  const security = {
-    "X-Content-Type-Options": "nosniff",
-    "Referrer-Policy": "strict-origin-when-cross-origin",
-    "X-Frame-Options": "DENY",
-    // A Story page runs in an opaque origin and may open app pages in new tabs. This cuts the
-    // handle it would keep to them, so it can never later send such a tab somewhere else.
-    "Cross-Origin-Opener-Policy": "same-origin",
-    "Content-Security-Policy":
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; media-src 'self' blob:; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'",
-  };
   app.get("*", (c) => {
     if (!hasIndex) return c.notFound();
     const rel = normalize(decodeURIComponent(c.req.path)).replace(/^([/\\])+/, "");
@@ -84,13 +86,13 @@ export function staticRoutes(dist: string) {
     if (file.startsWith(root) && rel && existsSync(file) && statSync(file).isFile()) {
       const immutable = rel.startsWith("assets/");
       return c.body(readFileSync(file), 200, {
-        ...security,
+        ...PAGE_SECURITY_HEADERS,
         "Content-Type": TYPES[extname(file)] ?? "application/octet-stream",
         "Cache-Control": immutable ? "public, max-age=31536000, immutable" : "no-cache",
       });
     }
     if (extname(rel)) return c.notFound();
-    return c.body(readFileSync(indexPath), 200, { ...security, "Content-Type": TYPES[".html"]!, "Cache-Control": "no-cache" });
+    return c.body(readFileSync(indexPath), 200, { ...PAGE_SECURITY_HEADERS, "Content-Type": TYPES[".html"]!, "Cache-Control": "no-cache" });
   });
   return app;
 }

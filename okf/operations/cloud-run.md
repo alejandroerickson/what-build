@@ -137,8 +137,44 @@ gcloud builds submit --project $P --region $R --config cloudbuild.yaml \
 A deploy changes only the image and `WHATBUILD_RELEASE`; every other setting on the service, such
 as `WHATBUILD_INSTANCE_OWNERS`, stays as it was.
 
-**A custom domain.** Map it with Cloud Run domain mappings (or a load balancer), then re-run with
-`PUBLIC_URL=https://app.what-build.com`: OAuth metadata, upload grants and links all use it.
+**A custom domain.** The app answers at a subdomain (`app.example.com`) and the public site at the
+domain itself (`example.com`, with `www.` redirecting to it); both reach the same service, which
+tells them apart by Host. Put them in front of the service one of three ways:
+
+- **Cloudflare** (free, any region). Move the domain's DNS to Cloudflare (the registration stays
+  where it is; only the nameservers change), build the web app and deploy the Worker in
+  [`deploy/cloudflare/`](../../deploy/cloudflare/wrangler.toml) with `ORIGIN` (the service's
+  `run.app` URL), `SITE_HOST` and `APP_URL`, as `wrangler.toml` shows, and give the Worker the
+  custom domains `example.com`, `www.example.com` and `app.example.com`. Cloudflare issues the
+  certificates. The Worker serves the public site from the build it was deployed with, so
+  visitors never wake the service, and passes on only the site's form; redeploy it when the page
+  changes. Everything for the app goes to the service: Cloud Run picks a service by Host and the
+  free plan cannot rewrite it, so the Worker sends each request to the `run.app` name and passes
+  the browser's domain in `X-Forwarded-Host`. The free plan allows 100,000 Worker requests a day;
+  the `run.app` address keeps serving. Most of WhatBuild's callers are agents, which Cloudflare's bot defences take for
+  bots, so in the zone: leave Bot Fight Mode off; turn off blocking of AI bots and crawlers; skip
+  Browser Integrity Check for `/mcp`, `/oauth`, `/.well-known` and `/api` with a configuration
+  rule; and turn off Email Address Obfuscation and Rocket Loader, which rewrite HTML. A request
+  that sends nothing for 100 seconds is cut off; no WhatBuild operation runs that long.
+
+- **Cloud Run domain mappings** (free), only in the regions that support them (`us-central1`,
+  `us-east1`, `us-east4`, `us-west1`, `europe-west1`, `europe-west4`, `europe-north1`,
+  `asia-east1`, `asia-northeast1`, `asia-southeast1`). Verify the domain in Google Search Console,
+  create a mapping per host, and add the DNS records each mapping lists.
+- **A global external Application Load Balancer** in any region (about US$18 a month for its
+  forwarding rule): a serverless network endpoint group for the service, a backend service, a
+  URL map, a Google-managed certificate for all three hosts, and one static IP. At the DNS
+  provider, point `@`, `www` and `app` at that IP with `A` records. The certificate turns active
+  once DNS resolves to the IP, usually within an hour. With a load balancer in front, set the
+  service's ingress to `internal-and-cloud-load-balancing` so the `run.app` address stops serving.
+
+Then re-run with `PUBLIC_URL=https://app.example.com SITE_URL=https://example.com`: OAuth metadata,
+upload grants and links use the first; the site's host is the second. Add
+`https://app.example.com/auth/google/callback` to the Google sign-in client's redirect URIs.
+
+**Who asked to hear from us.** The site's form writes to the `interest` table
+([§4.12](../spec/04-data-model.md)); nothing sends mail yet. Read it with Cloud SQL Studio or
+`psql`: `SELECT email, name, organization, note, created_at FROM interest ORDER BY created_at DESC;`
 
 ## What it costs
 
@@ -159,7 +195,7 @@ sends out costs about US$0.12 a GB, and is the one cost that grows with download
 
 | Thing | Name | Notes |
 |---|---|---|
-| Service | `whatbuild` | public; WhatBuild's own sign-in guards everything but the web app's static files, sign-in, OAuth discovery, `/api/v1/meta`, `/health`, and the skill and its installers |
+| Service | `whatbuild` | public; WhatBuild's own sign-in guards everything but the web app's static files, sign-in, OAuth discovery, `/api/v1/meta`, `/health`, the skill and its installers, and the public site with its interest form |
 | Migration job | `whatbuild-migrate` | same image, `node main.js migrate` |
 | Runtime identity | `whatbuild-runtime` | the bucket, the secrets, Cloud SQL client — nothing else |
 | Build identity | the project's default compute identity, or `BUILD_SA` | deploy to Cloud Run, push images, write logs, read `<project>_cloudbuild`; `setup.sh` takes away the Editor role Google gives it |

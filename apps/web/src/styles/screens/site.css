@@ -1,0 +1,91 @@
+/*
+ * The public site: the overview's intro (overview.css) on the canvas without the app's panel, then
+ * the form to hear when WhatBuild opens. Its display type is the overview's exception, reused.
+ */
+
+.site {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 8vh var(--s-4) var(--s-12);
+  background: var(--canvas);
+}
+.site-main {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  outline: none;
+}
+
+.site-interest {
+  position: relative;
+}
+/* The target of "Coming soon", above the sheet so the header is not tucked under the window edge. */
+.site-anchor {
+  position: absolute;
+  top: calc(-1 * var(--s-6));
+}
+.site-interest-body {
+  padding-bottom: var(--s-5);
+}
+.site-form {
+  display: grid;
+  gap: var(--s-4);
+}
+.site-lede {
+  margin: 0;
+  color: var(--muted);
+}
+.site-form .input {
+  max-width: 480px;
+}
+/* Under the fields, where a .form-grid row puts its control. */
+.site-actions {
+  padding-left: calc(var(--col-label) + var(--s-1h));
+}
+
+/* Off-screen rather than display:none, which some bots skip. */
+.site-trap {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.site-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--s-2) var(--s-6);
+  margin-top: var(--s-5);
+  padding: 0 var(--s-1);
+  color: var(--faint);
+  font-size: var(--fs-sm);
+}
+.site-foot a {
+  color: var(--muted);
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
+}
+.site-foot a:hover {
+  color: var(--text);
+  text-decoration-color: currentColor;
+}
+
+/* Where .form-grid puts labels above their fields. */
+@media (max-width: 760px) {
+  .site-actions {
+    padding-left: 0;
+  }
+}
+@media (max-width: 600px) {
+  .site {
+    padding: var(--s-4) 0 var(--s-10);
+  }
+  .site-main .sheet {
+    border-radius: 0;
+  }
+  .site-foot {
+    padding: 0 var(--sheet-px);
+  }
+}
