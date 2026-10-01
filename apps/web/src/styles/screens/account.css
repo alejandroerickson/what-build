@@ -197,6 +197,9 @@
 .entry-fine p {
   margin: 0;
 }
+.entry-fine .entry-fine-more {
+  margin-top: var(--s-2);
+}
 
 @media (max-width: 760px) {
   .account-actions {

@@ -1,0 +1,136 @@
+/* The cookie notice in the corner of every screen, and the /cookies page it points to. */
+
+/* The notice: a lifted note at the bottom-right inset that blocks nothing. */
+.cookie-notice {
+  position: fixed;
+  right: var(--float-inset);
+  bottom: var(--float-inset);
+  z-index: var(--z-notice);
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  column-gap: var(--s-2h);
+  row-gap: var(--s-2h);
+  width: min(344px, calc(100vw - 2 * var(--float-inset)));
+  padding: var(--s-3) var(--s-3) var(--s-2h) var(--s-3h);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--popover);
+  color: var(--muted);
+  box-shadow: var(--shadow-2);
+  /* It arrives after the screen has settled, so it never competes with the first paint. */
+  animation: cookie-notice-in var(--dur-3) var(--ease) 600ms backwards;
+}
+:root[data-theme="dark"] .cookie-notice,
+.theme-dark .cookie-notice {
+  border-color: var(--line-2);
+}
+.cookie-notice[data-state="closing"] {
+  animation: cookie-notice-out var(--dur-2) var(--ease) forwards;
+}
+@keyframes cookie-notice-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes cookie-notice-out {
+  to {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.cookie-notice-glyph {
+  margin-top: 1px;
+  color: var(--faint);
+}
+.cookie-notice-text {
+  margin: 0;
+  font-size: var(--fs-base);
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+.cookie-notice-text b {
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+}
+.cookie-notice-actions {
+  grid-column: 2;
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-1h);
+  margin-right: calc(-1 * var(--s-0));
+}
+
+@media (max-width: 760px) {
+  /* Flush along the bottom edge on phones, like every other floating surface there. */
+  .cookie-notice {
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    padding: var(--s-3) var(--s-3h) calc(var(--s-3) + env(safe-area-inset-bottom));
+    border-width: 1px 0 0;
+    border-radius: 0;
+  }
+  /* While it shows, the end of every page can still scroll clear of it. */
+  :root:has(.cookie-notice) .canvas,
+  :root:has(.cookie-notice) .entry {
+    padding-bottom: 168px;
+  }
+}
+
+@media print {
+  .cookie-notice {
+    display: none;
+  }
+}
+
+/* The /cookies page */
+.cookie-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cookie-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--s-3);
+  row-gap: var(--s-0);
+  align-items: baseline;
+  padding: var(--s-2h) var(--sheet-px) var(--s-3);
+  border-bottom: 1px solid var(--line);
+}
+.cookie-item:last-child {
+  border-bottom: 0;
+}
+.cookie-item-name {
+  min-width: 0;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+.cookie-item-lasts {
+  color: var(--faint);
+  font-size: var(--fs-sm);
+  text-align: right;
+}
+.cookie-item-purpose {
+  grid-column: 1 / -1;
+  max-width: 68ch;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.cookie-back {
+  margin-top: var(--s-5);
+}
+
+@media (max-width: 760px) {
+  .cookie-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .cookie-item-lasts {
+    text-align: left;
+  }
+}

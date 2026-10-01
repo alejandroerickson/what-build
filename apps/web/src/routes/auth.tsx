@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
 import { aRole } from "../lib/format.ts";
 import { useMe, useSignOut } from "../lib/session.tsx";
@@ -139,6 +139,9 @@ export function SignIn() {
       <section className="entry-fine" aria-labelledby="data-h">
         <h2 id="data-h">What we do with your data</h2>
         <p>{DATA_STATEMENT}</p>
+        <p className="entry-fine-more">
+          The only cookies are the ones that keep you signed in. <Link to="/cookies">See what&rsquo;s stored</Link>.
+        </p>
       </section>
     </EntryPage>
   );

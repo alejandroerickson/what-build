@@ -152,6 +152,18 @@ describe("identity", () => {
     expect(r.status).toBe(401);
   });
 
+  it("says before sign-in how long the session cookie lasts, as long as the cookie it sets", async () => {
+    const methods = (await (await fetch(`${h.baseUrl}/auth/methods`)).json()) as { session_days: number };
+    const res = await fetch(`${h.baseUrl}/auth/dev-sign-in`, {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: h.baseUrl },
+      body: JSON.stringify({ email: "cookie@example.com", display_name: "Cookie" }),
+    });
+    const maxAge = Number(/Max-Age=(\d+)/i.exec(res.headers.get("set-cookie") ?? "")?.[1]);
+    expect(methods.session_days).toBeGreaterThan(0);
+    expect(maxAge).toBe(methods.session_days * 86400);
+  });
+
   it("refuses cross-origin cookie writes", async () => {
     const r = await alice.api("POST", `/api/v1/p/${path}/outcomes`, { title: "x" }, { origin: "https://evil.example" });
     expect(r.status).toBe(403);

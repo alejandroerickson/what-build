@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete, closing an organization, the operator runbooks, and the public sandbox with its limits, baseline and reset.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, sandbox]
-generated: {by: agent:claude, at: 2026-09-29}
+generated: {by: agent:claude, at: 2026-09-30}
 status: stable
 ---
 
@@ -36,7 +36,20 @@ Supporting commitments, each of which is a rule elsewhere in this spec:
 | No model training on your content | [§2.8](02-architecture.md) — there is no language model in the product (`/api/v1/meta` says so) |
 | Isolation per organization | [§3.6](03-accounts-teams-and-identity.md) — three layers, tested on every operation |
 | Export is complete and always available | [§9.4](#94-taking-it-with-you) and [§1.5](01-product.md) |
+| Only the cookies the app needs | The notice and `/cookies` ([§7.11](07-web-app.md)); a new cookie or storage key adds a row there, and an optional one needs a consent choice first |
 | We name our sub-processors | **Planned:** a public page listing the container host, database, object store and email provider, updated before a provider changes. The statement already refers to it. |
+
+**Cookies and browser storage.** WhatBuild sets only cookies that are strictly needed for the
+service a person asked for: the session cookie that keeps them signed in, and two short-lived ones
+that protect a Google sign-in and an agent's connection while they happen
+([§3.8](03-accounts-teams-and-identity.md)). The browser also keeps display choices the person
+made (theme, hidden panels, the last product, the Story page and its focus mode and collapsed
+sections, notices read). Nothing measures, tracks or advertises, no third party sets or reads
+anything, and the font is served by WhatBuild itself. Because nothing is optional there is no
+consent prompt: a notice on every screen says this once, and `/cookies` lists each item
+([§7.11](07-web-app.md)). Anything optional added later, such as analytics, stays off until the
+person agrees and can be turned off again
+([decision](../decisions/only-necessary-cookies-and-optional-ones-wait-for-consent.md)).
 
 **In the public sandbox** the statement above is not the whole truth, so every screen there says
 the rest ([§9.7](#97-the-public-sandbox)): what is added is seen by other visitors and erased at

@@ -67,6 +67,7 @@ adding a near-duplicate.
 | `Dockerfile`, `cloudbuild.yaml`, `deploy/**` | `operations/cloud-run.md`, decision `one-stateless-image` |
 | `apps/web/src/routes/**`, `main.tsx`, `shell/**` | `spec/07`, the phase 4 row in `spec/10` |
 | `apps/web/src/styles/tokens.css`, `ui/**` | `DESIGN.md`, `.impeccable/design.json`, decision `studio-design-system` (Story pages do not follow the app's tokens) |
+| A cookie (`setCookie`) or a `whatbuild.*` browser storage key, added, renamed or removed | the list in `apps/web/src/routes/cookies.tsx`, `spec/09` §9.1, decision `only-necessary-cookies-and-optional-ones-wait-for-consent` |
 | `seed.ts`, `seed-content.ts` | usually nothing; `process/working-in-this-repository.md` if the sample product changes |
 | A new top-level directory, package, or moved file | `system/repository-map.md`, the `AGENTS.md` path table |
 | Product scope or vocabulary | `project/charter.md`, `spec/01`, `PRODUCT.md` |

@@ -3,7 +3,7 @@ type: Index
 title: Decisions
 description: Architectural decision records, each with its context, the choice, and what it constrains.
 tags: [index, decisions, adr]
-generated: {by: agent:claude, at: 2026-09-29}
+generated: {by: agent:claude, at: 2026-09-30}
 status: stable
 ---
 
@@ -25,6 +25,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [An invitation is accepted only by the account with the address it was sent to](invitations-belong-to-their-address.md)
 - [The public sandbox is one organization the deployment names, where invited visitors edit under made-up names and a daily reset puts a saved baseline back](the-public-sandbox-is-one-organization-with-pseudonymous-visitors.md)
 - [Only the instance's owners decide who may create organizations, and how many](only-instance-owners-decide-who-creates-organizations.md)
+- [WhatBuild stores only what it needs, says so once, and keeps anything optional off until a person agrees](only-necessary-cookies-and-optional-ones-wait-for-consent.md)
 - [Every write is attributed, and human or agent authorship is declared](attribution-and-declared-authorship.md)
 - [Only a source's primary file is parsed and searched](only-the-primary-file-is-searched.md)
 - [Citations freeze a snapshot and report drift; they are never repaired silently](citations-snapshot-and-report-drift.md)
