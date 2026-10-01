@@ -24,7 +24,7 @@ Observed in the code on this date.
 | 3 | Mostly done | tenants, teams, products, roles; email-link, Google and development sign-in; invitations by email and link; invite-only mode; who may create organizations (instance owners, and allowances they give); sign-in link rate limit; the [public sandbox](#the-public-sandbox) with its invitations, seats, visitor role and limits | quotas and rate limits for every organization (they exist for visitors to the sandbox, and for Story pages); account deletion |
 | 4 | Mostly done | the design system (Studio, [DESIGN.md](../../DESIGN.md)) across every screen of the loop: Idea, Evidence (browse, kind-first intake, the source page with sections and inspector, passage reader, notes, files, search), Synthesis (the insight editor, revision history, insight review, assumptions and decisions with review, confidence, citation checks), Story (a read-only reader with the page tree, crumbs, focus mode, the inspector with versions, citations and notes for agents, the Story style with house-style previews, the print view for PDF, the page following the app's theme), Activity as one log for people and agents, organization members, product people, Connect an agent, the person's settings, the cookie notice and `/cookies` | an accessibility audit; Playwright in CI (a browser walk-through exists in `scripts/e2e.mjs`); the public sample at `/sample` |
 | 5 | Mostly done | OAuth 2.1 for MCP, the versioned skill, `get_skill` and the version in the server instructions, the Connect an agent page, feedback, the product's Story style (the team's design system or a house style), Story guidance with taste, anti-patterns and design passes, a vocabulary and compositions for plans and front pages, and publishing a page from its body | the stdio transport |
-| 6 | Started | the Cloud Run deployment ([cloud-run.md](../operations/cloud-run.md)) and the Cloud Build file for continuous deployment; product export (`products.export`); a sandbox's baseline and reset; the public site with its interest form, served by host | a rehearsed restore; import; organization export; `setup.sh` creating the Cloud Build trigger (made by hand in the console, so a deployment without one deploys nothing on a push); closing an organization; the sub-processors page; abuse tests; mail to the operator when someone asks to hear from us |
+| 6 | Started | the Cloud Run deployment ([cloud-run.md](../operations/cloud-run.md)) and the Cloud Build file for continuous deployment; product export (`products.export`); a sandbox's baseline and reset; the public site with its interest form, served from Cloudflare's edge or by host; the service capped at one instance | a rehearsed restore; import; organization export; `setup.sh` creating the Cloud Build trigger (made by hand in the console, so a deployment without one deploys nothing on a push); closing an organization; the sub-processors page; abuse tests; mail to the operator when someone asks to hear from us; running on a free-tier Postgres (Postgres 18 in the tests, a scheduled logical backup to the bucket); a cap on bytes served per member a day |
 
 **Deploy early.** A deployment exists as soon as there is something to deploy, is redeployed on
 every push to `main` through a Cloud Build trigger (made by hand; see
@@ -121,6 +121,14 @@ immediately; permanent delete over MCP happens only with every guard of
 Backup configuration and a **rehearsed restore**; product export (built) and import; organization
 export; closing an organization; account deletion; the sub-processors page; abuse limits; the
 operator runbooks ([§9.6](09-data-lifecycle.md)).
+
+**Running for next to nothing.** A deployment for a few teams should cost only what it stores:
+Cloudflare's free plan in front of the service ([cloud-run.md](../operations/cloud-run.md)), one
+instance at most, and a free-tier Postgres instead of Cloud SQL. That needs the tests to run on
+the Postgres versions such providers offer (18 today; the suite runs 17), and, because their
+restore windows are hours rather than days, a scheduled logical backup (`pg_dump`) into the
+bucket. Data the service sends out is the one cost that grows with use, so a daily cap on bytes
+served per member belongs with the planned quotas ([§9.2](09-data-lifecycle.md)).
 
 Delete itself is **not** here: it ships with the objects it destroys, because a product that can
 only accumulate is not one people will put real material into.
