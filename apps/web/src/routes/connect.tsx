@@ -75,7 +75,7 @@ export function ConnectPage() {
       <Sheet className="agents-sheet" labelledBy="agents-title">
         <SheetHeader level={1} id="agents-title" title="Connect an agent" />
         <SheetBody className="agents-intro">
-          <p className="muted">Your agent works as you, with your access, and Activity shows what it changes. What it reads goes to whoever runs it, under their terms.</p>
+          <p className="muted">Your agent works as you, with your access, and Activity shows what it changes. What it reads goes to whoever runs the agent, under their terms.</p>
         </SheetBody>
         {info.isPending ? (
           <Loading lines={3} variant="lines" label="Loading the server address…" />
@@ -91,7 +91,7 @@ export function ConnectPage() {
                   label="Product"
                   value={product ? product.path : "all"}
                   onChange={(e) => pick(e.target.value)}
-                  hint={product ? `Your agent works in ${product.name} unless you ask for another.` : "Your agent can reach every product you can, and asks which one when it isn't clear."}
+                  hint={product ? `Your agent works in ${product.name} unless you ask for another.` : "Your agent can reach all your products, and asks which one when it isn’t clear."}
                 >
                   <option value="all">All your products</option>
                   {items.map((p) => (
@@ -117,7 +117,7 @@ export function ConnectPage() {
       <ConnectedSheet />
       {c ? (
         <p className="agents-foot">
-          The server offers your agent the {c.skill.name} skill, version {c.skill.version}. Optional: <a href={c.skill.zip_url}>download it</a> to install it yourself.
+          Your agent gets the {c.skill.name} skill (version {c.skill.version}) from the server. You can also <a href={c.skill.zip_url}>download it</a> to install yourself.
         </p>
       ) : null}
     </>
@@ -132,7 +132,7 @@ function DisconnectDialog({ name, onConfirm, onClose, busy, error }: { name: str
       onClose={onClose}
       dismissable={!busy}
       title={`Disconnect ${name}?`}
-      description={`${name} stops working in WhatBuild at once. To use it again, connect it again.`}
+      description={`${name} stops working in WhatBuild right away. You can connect it again later.`}
       footer={
         <>
           <Button onClick={onClose} disabled={busy}>
@@ -144,7 +144,7 @@ function DisconnectDialog({ name, onConfirm, onClose, busy, error }: { name: str
         </>
       }
     >
-      {error ? <ErrorCallout inset error={error} /> : <p className="muted">What it already did stays in Activity, attributed as before.</p>}
+      {error ? <ErrorCallout inset error={error} /> : <p className="muted">What it already did stays in Activity.</p>}
     </Dialog>
   );
 }
@@ -193,8 +193,8 @@ function ConnectedSheet() {
           ))}
         </ul>
       ) : (
-        <EmptyState size="inline" title="No agent is connected yet.">
-          Your agent appears here once it signs in.
+        <EmptyState size="inline" title="No agent connected yet">
+          Yours appears here once it signs in.
         </EmptyState>
       )}
       {target ? (

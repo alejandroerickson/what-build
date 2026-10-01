@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { ApiError } from "../lib/api.ts";
+import { formatDateTime } from "../lib/format.ts";
 import { Button } from "./button.tsx";
 import { Glyph, type GlyphName } from "./glyph.tsx";
 
@@ -80,17 +81,17 @@ export function ErrorCallout({ error, onRetry, title, inset, retryLabel }: { err
         title={title ?? "This changed while you were working"}
         action={onRetry ? <Button size="sm" onClick={onRetry}>{retryLabel ?? "Load their version"}</Button> : undefined}
       >
-        Someone else saved a newer version. Your input is still here; load their version, check what changed, then save again.
+        Someone else saved a newer version. Your input is still here: load theirs, check what changed, then save again.
       </Callout>
     );
   if (api?.code === "quota_exceeded")
     return (
       <Callout tone="attention" inset={inset} title={title ?? "A limit was reached"}>
-        {msg} An admin of the organization can tell you what the limit is for.
+        {msg.replace(/\d{4}-\d{2}-\d{2}T[\d:.]+Z/g, (iso) => formatDateTime(iso))}
       </Callout>
     );
   return (
-    <Callout tone="negative" inset={inset} title={title ?? "That did not work"} action={onRetry ? <Button size="sm" onClick={onRetry}>{retryLabel ?? "Try again"}</Button> : undefined}>
+    <Callout tone="negative" inset={inset} title={title ?? "That didn’t work"} action={onRetry ? <Button size="sm" onClick={onRetry}>{retryLabel ?? "Try again"}</Button> : undefined}>
       {msg}
     </Callout>
   );

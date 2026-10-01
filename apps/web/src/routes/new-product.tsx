@@ -67,7 +67,7 @@ export function CreateProductDialog({ onClose, tenants }: { onClose: () => void;
             </SelectField>
           ) : null}
           <TextField label="Name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
-          <TextArea label="Product concept" optional rows={3} maxLength={2000} value={concept} onChange={(e) => setConcept(e.target.value)} hint="It heads the Idea screen. You can change it later in Settings." />
+          <TextArea label="Product concept" optional rows={3} maxLength={2000} value={concept} onChange={(e) => setConcept(e.target.value)} hint="Who it’s for, the problem they have, and how the product solves it. Shown at the top of Idea." />
           {create.isError ? <ErrorCallout inset error={create.error} /> : null}
         </form>
       ) : (

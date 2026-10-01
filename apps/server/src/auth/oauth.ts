@@ -63,8 +63,8 @@ button[value=allow]:hover{background:var(--accent-hover);border-color:var(--acce
 </style></head><body><main>
 <h1>Let ${escapeHtml(p.client)} work in WhatBuild as you?</h1>
 <p>Signed in as <strong>${escapeHtml(p.account)}</strong> (${escapeHtml(p.email)}).</p>
-<p>The agent will be able to read and change everything you can, in every product you can reach. Every change it makes is recorded as yours, through the agent.</p>
-<p class="muted">Connecting an agent sends the passages it reads to whoever runs that agent, under their terms, not ours.</p>
+<p>It can read and change everything you can, in every product you can open. Its changes are recorded as yours, made through the agent.</p>
+<p class="muted">What it reads goes to whoever runs the agent, under their terms, not ours.</p>
 <form method="post" action="/oauth/authorize">${inputs}<input type="hidden" name="csrf" value="${escapeHtml(p.csrf)}">
 <div class="row"><button type="submit" name="decision" value="allow">Allow</button><button type="submit" name="decision" value="deny">Deny</button></div>
 </form></main></body></html>`;

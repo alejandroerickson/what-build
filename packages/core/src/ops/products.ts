@@ -581,7 +581,10 @@ export const grantMember = defineOperation({
       await ctx.ports.mailer?.send({
         to: input.email,
         subject: `${ctx.actor.display_name} invited you to ${target.name} on WhatBuild`,
-        text: `${ctx.actor.display_name} invited you to ${target.name} as ${input.role}.\n\nAccept within 7 days: ${link}\n`,
+        text:
+          `${ctx.actor.display_name} invited you to ${target.name} on WhatBuild, as ${/^[aeiou]/.test(input.role) ? "an" : "a"} ${input.role}.\n\n` +
+          `Accept the invitation:\n${link}\n\n` +
+          `The link works once, within 7 days, when you sign in with this email address.\n`,
       });
       await recordActivity(ctx, { action: "invited", entity_type: "membership", entity_id: invitation_id, entity_title: target.name, summary: `Invited someone as ${input.role}` });
       // The link is returned to the inviter too, so an invitation works even where no email is sent.

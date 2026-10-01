@@ -331,7 +331,7 @@ export function ProductShell({ product, app, children }: { product: Product; app
           {product.archived_at ? (
             <div className="canvas-banner">
               <Callout tone="attention" title="This product is archived">
-                It is read-only. An admin can restore it in Settings.
+                It&rsquo;s read-only. An admin can restore it in Settings.
               </Callout>
             </div>
           ) : null}

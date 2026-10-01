@@ -89,7 +89,7 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
       .values({ token_hash: sha256Hex(token), email, purpose: "sign_in", redirect: safeNext(body.data.next), expires_at: new Date(Date.now() + 15 * 60_000).toISOString() })
       .execute();
     const link = `${config.publicBaseUrl}/auth/verify?token=${token}`;
-    await mailer.send({ to: email, subject: "Your WhatBuild sign-in link", text: `Sign in to WhatBuild:\n\n${link}\n\nThe link works once and expires in 15 minutes. If you did not ask for it, ignore this message.\n` });
+    await mailer.send({ to: email, subject: "Your WhatBuild sign-in link", text: `Sign in to WhatBuild:\n\n${link}\n\nThe link works once and expires in 15 minutes. If you didn't ask for it, you can ignore this email.\n` });
     return c.json({ sent: true, ...(config.env !== "production" && config.mailer === "console" ? { dev_note: "In development the link is printed in the server's terminal." } : {}) });
   });
 
@@ -245,7 +245,7 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     if (Date.parse(inv.expires_at) < Date.now()) throw gone("invitation_expired", "This invitation expired or was cancelled. Ask whoever invited you for a new link.");
     // An invitation belongs to the address it was sent to: the link is a pointer, not a bearer credential.
     if (inv.email.toLowerCase() !== p.email.toLowerCase())
-      throw new AppError(403, "invitation_wrong_address", `This invitation was sent to ${maskEmail(inv.email)}, and you are signed in as ${p.email}. Sign in with the address it was sent to; that accepts it.`, {
+      throw new AppError(403, "invitation_wrong_address", `This invitation was sent to ${maskEmail(inv.email)}, and you are signed in as ${p.email}. Sign in with the email it was sent to, and you join right away.`, {
         invited: maskEmail(inv.email),
       });
     await acceptInvitation(db, inv.invitation_id, { account_id: p.account_id, email: p.email, display_name: p.display_name });

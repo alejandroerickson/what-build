@@ -59,7 +59,7 @@ function withHistory(items: RegisterSummary[]): { e: RegisterSummary; nested: bo
 /** What each register holds, said once for its empty list and its form. */
 const MEANING: Record<Kind, string> = {
   assumptions: "An assumption is something the team treats as true before the evidence settles it.",
-  decisions: "A decision records a choice the team made and why. Recording one does not mean everyone agreed; reviews say that.",
+  decisions: "A decision records a choice the team made and why. Recording one doesn’t mean everyone agreed: reviews show that.",
 };
 
 export function RegisterListPage({ kind }: { kind: Kind }) {
@@ -116,9 +116,9 @@ export function RegisterListPage({ kind }: { kind: Kind }) {
         </SheetBody>
       ) : !rows.length ? (
         find.trim() && inView.length ? (
-          <EmptyState size="inline" title={`No ${kind} match “${find.trim()}”.`} action={<ButtonLink size="sm" to={searchWith(path, params, { q: null })}>Clear the search</ButtonLink>} />
+          <EmptyState size="inline" title={`No ${kind} match “${find.trim()}”`} action={<ButtonLink size="sm" to={searchWith(path, params, { q: null })}>Clear the search</ButtonLink>} />
         ) : archived ? (
-          <EmptyState size="inline" title={`No archived ${kind}.`} />
+          <EmptyState size="inline" title={`No archived ${kind}`} />
         ) : !list.data.items.length ? (
           <FirstUse
             title={`No ${kind} yet`}
@@ -128,14 +128,14 @@ export function RegisterListPage({ kind }: { kind: Kind }) {
                 : `Record the decisions we have made on ${product.name} in WhatBuild, with the reasoning behind each.`
             }
           >
-            {MEANING[kind]} Record the few the team relies on; anything else belongs in an insight. Start with a sentence, and cite passages when there are some.
+            {MEANING[kind]} Record the few the team relies on; anything else belongs in an insight. Start with one sentence, and cite passages when you have them.
           </FirstUse>
         ) : narrowed ? (
-          <EmptyState size="inline" title={`No ${kind} match these filters.`} action={<ButtonLink size="sm" to={path}>Show all {kind}</ButtonLink>} />
+          <EmptyState size="inline" title={`No ${kind} match these filters`} action={<ButtonLink size="sm" to={path}>Show all {kind}</ButtonLink>} />
         ) : (
           <EmptyState
             size="inline"
-            title={`No current ${kind}.`}
+            title={`No current ${kind}`}
             action={<ButtonLink size="sm" to={searchWith(path, params, { show: "refuted" })}>Show refuted or replaced</ButtonLink>}
           >
             Every {ONE[kind].toLowerCase()} here has been refuted or replaced.
@@ -301,7 +301,7 @@ function ReviewForm({ entry, kind, onSaved }: { entry: RegisterEntry; kind: Kind
       }}
     >
       <FormGrid>
-        <SelectField label="Status" value={status} onChange={(ev) => setStatus(ev.target.value)} hint="Any review may change the status. A correction is recorded by superseding the entry.">
+        <SelectField label="Status" value={status} onChange={(ev) => setStatus(ev.target.value)} hint="A review can change the status. To correct the wording, supersede the entry.">
           <option value={entry.status}>Keep: {current}</option>
           {entry.status !== "confirmed" ? <option value="confirmed">{kind === "decisions" ? "Agree: confirmed" : "Confirm"}</option> : null}
           {entry.status !== "refuted" ? <option value="refuted">Refute</option> : null}
@@ -341,7 +341,7 @@ function ReviewForm({ entry, kind, onSaved }: { entry: RegisterEntry; kind: Kind
         <ErrorCallout title="The review was not saved" error={review.error} inset />
       ) : null}
       {!entry.frozen ? (
-        <p className="small muted register-freeze-note">Saving a review freezes this entry's statement, body and citations; a later correction supersedes it.</p>
+        <p className="small muted register-freeze-note">Saving a review freezes this entry&rsquo;s statement, body and citations. After that, a correction supersedes it.</p>
       ) : null}
       <div className="register-form-actions">
         <Button type="submit" variant="primary" disabled={!note.trim()} busy={review.isPending} busyLabel="Saving…">
@@ -415,7 +415,7 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
             {e.frozen ? (
               <>
                 <span className="sep-dot" aria-hidden="true" />
-                <span title="The wording is frozen after the first review; a correction supersedes the entry.">Wording frozen</span>
+                <span title="The wording froze at the first review. A correction supersedes the entry.">Wording frozen</span>
               </>
             ) : null}
             {e.tags.map((t) => (
@@ -749,7 +749,7 @@ function EntryForm({ kind, crumbs, heading, initial, outcomes, preselect, onSave
           <div className="insight-form-notice">
             <Callout tone="attention" inset title={frozenNow ? "Someone reviewed this entry while you were editing" : "Someone changed this entry while you were editing"}>
               {frozenNow
-                ? "Its wording is now frozen, so your change can't be saved. Copy what you need; a correction supersedes the entry."
+                ? "Its wording is now frozen, so your change can’t be saved. Copy what you need. A correction supersedes the entry."
                 : theirs
                   ? <>Their version: <strong>{theirs.statement}</strong>. Your text is still here. Saving again replaces theirs; their text is kept as an earlier version.</>
                   : "Your text is still here. Copy what you need, reload to see their version, and apply your change again."}

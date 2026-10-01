@@ -49,7 +49,7 @@ export function InstancePage() {
     mutationFn: (a: Allowance) => api("POST", `${A}/remove`, { email: a.email, expected_etag: a.etag }),
     onSuccess: (_r, a) => {
       void qc.invalidateQueries({ queryKey: ["tenant-allowances"] });
-      toast(`${a.email} is back to the default. The organizations it created stay.`);
+      toast(`${a.email} is back to the default. The organizations they started stay.`);
       setRemoving(null);
     },
   });
@@ -65,7 +65,7 @@ export function InstancePage() {
       <Sheet labelledBy="instance-title">
         <SheetHeader level={1} id="instance-title" title="Organization creators" />
         <EmptyState size="inline" action={<ButtonLink to="/">Your products</ButtonLink>}>
-          Only the owners of this WhatBuild decide who may create organizations. The deployment names them.
+          Only this WhatBuild&rsquo;s owners decide who can start organizations.
         </EmptyState>
       </Sheet>
     );
@@ -80,17 +80,17 @@ export function InstancePage() {
         count={q.data ? items.length : undefined}
         end={
           <Button size="sm" variant="primary" icon="plus" onClick={() => setEditing("new")}>
-            Let someone create organizations
+            Let someone start organizations
           </Button>
         }
       />
       <SheetBody className="instance-intro">
         <p className="muted">
-          You own this WhatBuild. Belonging to an organization never lets anyone create one: only its owners may create any number, and the addresses below as many as each is given, counting the ones they already created. The organizations they are invited to don&rsquo;t count.
+          Only the people listed here can start organizations, each up to the number they&rsquo;re given. As an owner of this WhatBuild, you can start any number. Organizations someone is invited to don&rsquo;t count.
         </p>
         {q.data ? (
           <p className="muted">
-            Every other address may create {q.data.default_allowed ? organizations(q.data.default_allowed) : "none"}. Owners of this instance: {q.data.instance_owners.join(", ")}. Both are set where the service is deployed.
+            Everyone else can start {q.data.default_allowed ? organizations(q.data.default_allowed) : "none"}. Owners: {q.data.instance_owners.join(", ")}. Both are set where the service is deployed.
           </p>
         ) : null}
       </SheetBody>
@@ -101,8 +101,8 @@ export function InstancePage() {
           <ErrorCallout inset error={q.error} onRetry={() => q.refetch()} />
         </SheetBody>
       ) : !items.length ? (
-        <EmptyState size="inline" title="Nobody else may create one yet">
-          Give an address an allowance to let its owner start organizations of their own. They needn&rsquo;t have an account: while sign-up is limited, an allowance also lets them sign up.
+        <EmptyState size="inline" title="Nobody else can start one yet">
+          Add someone&rsquo;s email to let them start organizations. They don&rsquo;t need an account yet: while sign-up is invite-only, this also lets them sign up.
         </EmptyState>
       ) : (
         <div className="instance-rows">
@@ -118,14 +118,14 @@ export function InstancePage() {
               }
               sub={
                 <>
-                  May create {a.allowed ? organizations(a.allowed) : "none"}, has created {a.created}. Given by {a.updated_by.display_name}, {formatDate(a.updated_at)}.
+                  Can start {a.allowed ? organizations(a.allowed) : "none"}; has started {a.created}. Set by {a.updated_by.display_name}, {formatDate(a.updated_at)}.
                   {a.note ? ` ${a.note}` : ""}
                 </>
               }
               end={
                 <span className="instance-row-end">
                   {a.allowed && !a.remaining ? <StatusBadge tone="neutral">All used</StatusBadge> : a.remaining ? <StatusBadge tone="positive">{a.remaining} left</StatusBadge> : null}
-                  <Button size="sm" variant="quiet" onClick={() => setEditing(a)} aria-label={`Change how many ${a.email} may create`}>
+                  <Button size="sm" variant="quiet" onClick={() => setEditing(a)} aria-label={`Change how many ${a.email} can start`}>
                     Change
                   </Button>
                   <Button size="sm" variant="quiet" onClick={() => setRemoving(a)} aria-label={`Return ${a.email} to the default`}>
@@ -144,7 +144,7 @@ export function InstancePage() {
           onClose={() => setRemoving(null)}
           dismissable={!remove.isPending}
           title={`Return ${removing.email} to the default?`}
-          description={`It may then create ${q.data?.default_allowed ? organizations(q.data.default_allowed) : "no organization"}, counting the ${removing.created} it created. Those stay as they are.`}
+          description={`They can then start ${q.data?.default_allowed ? organizations(q.data.default_allowed) : "no organizations"}, counting the ${removing.created} they’ve started. Those stay as they are.`}
           footer={
             <>
               <Button onClick={() => setRemoving(null)} disabled={remove.isPending}>
@@ -177,7 +177,7 @@ function AllowanceDialog({ current, onClose }: { current: Allowance | null; onCl
       api<Allowance & { notified: boolean }>("PUT", A, { email: email.trim(), allowed: n, note: note.trim(), notify, ...(current ? { expected_etag: current.etag } : {}) }),
     onSuccess: (a) => {
       void qc.invalidateQueries({ queryKey: ["tenant-allowances"] });
-      toast(`${a.email} may create ${a.allowed ? organizations(a.allowed) : "none"}${a.notified ? ", and was told by email" : ""}.`);
+      toast(`${a.email} can start ${a.allowed ? organizations(a.allowed) : "none"}${a.notified ? ", and has been emailed" : ""}.`);
       onClose();
     },
   });
@@ -187,8 +187,8 @@ function AllowanceDialog({ current, onClose }: { current: Allowance | null; onCl
       open
       onClose={onClose}
       dismissable={!save.isPending}
-      title={current ? `How many may ${current.email} create?` : "Let someone create organizations"}
-      description="Counted against every organization the address's account created. Organizations it is invited to don't count."
+      title={current ? `How many can ${current.email} start?` : "Let someone start organizations"}
+      description="The number counts every organization their account has started. Organizations they’re invited to don’t count."
       footer={
         <>
           <Button onClick={onClose} disabled={save.isPending}>
@@ -207,10 +207,10 @@ function AllowanceDialog({ current, onClose }: { current: Allowance | null; onCl
           if (valid) save.mutate();
         }}
       >
-        {current ? null : <TextField label="Email" type="email" required maxLength={320} value={email} onChange={(e) => setEmail(e.target.value)} hint="The address they sign in with. They needn't have an account yet." />}
-        <TextField label="Organizations they may create" type="number" required min={0} max={1000} step={1} value={allowed} onChange={(e) => setAllowed(e.target.value)} hint={current ? `They have created ${current.created}. 0 lets them create none.` : "0 lets them create none, whatever the default."} />
-        <TextField label="Note" optional maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} hint="Why, for the owners of this instance. They don't see it." />
-        <ChoiceRow label="Tell them by email" hint="Only when the number goes up and they have one left to create." checked={notify} onChange={(e) => setNotify(e.target.checked)} />
+        {current ? null : <TextField label="Email" type="email" required maxLength={320} value={email} onChange={(e) => setEmail(e.target.value)} hint="The email they sign in with. They don’t need an account yet." />}
+        <TextField label="Organizations they can start" type="number" required min={0} max={1000} step={1} value={allowed} onChange={(e) => setAllowed(e.target.value)} hint={current ? `They’ve started ${current.created}. 0 stops them starting more.` : "0 means none, whatever the default."} />
+        <TextField label="Note" optional maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} hint="For this WhatBuild’s owners. The person doesn’t see it." />
+        <ChoiceRow label="Tell them by email" hint="Sent only when the number goes up and they can still start one." checked={notify} onChange={(e) => setNotify(e.target.checked)} />
         {taken ? <ErrorCallout inset error={new Error("This address already has an allowance. Close this and use Change on its row.")} /> : save.isError ? <ErrorCallout inset error={save.error} /> : null}
       </form>
     </Dialog>

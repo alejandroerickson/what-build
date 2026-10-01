@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
-import { aRole, formatBytes, formatDate, formatDateTime, relativeTime } from "../lib/format.ts";
+import { aRole, formatBytes, formatDate, formatDateTime, relativeTime, scopeWords } from "../lib/format.ts";
 import { useProduct, useProducts } from "../lib/session.tsx";
 import { ActivityFeed, ENTITY_LABEL, useActivity, type ActivityFilter } from "../shell/ActivityFeed.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
@@ -168,7 +168,7 @@ function ProductDetails() {
         </div>
       ) : archived ? (
         <div className="settings-note">
-          <Callout inset tone="attention">This product is archived, so it is read-only. Restore it below to change it.</Callout>
+          <Callout inset tone="attention">This product is archived and read-only. Restore it below to change it.</Callout>
         </div>
       ) : null}
       <FormGrid className="settings-form">
@@ -294,16 +294,16 @@ function PeopleSheet() {
   const grant = useMutation({
     mutationFn: (v: { email: string; role: Role }) => api<{ invited: boolean; invite_link?: string }>("POST", `/api/v1/tenants/${tenant}/members`, { product: product.product_id, ...v }),
     onSuccess: refresh,
-    onError: (e) => toast(`Couldn't change the role. ${(e as Error).message}`, { tone: "negative" }),
+    onError: (e) => toast(`Couldn’t change the role. ${(e as Error).message}`, { tone: "negative" }),
   });
   const revoke = useMutation({
     mutationFn: (m: ProductMember) => api("POST", `/api/v1/tenants/${tenant}/members/revoke`, { product: product.product_id, account_id: m.account_id }),
     onSuccess: (_r, m) => {
       refresh();
       const role = m.grants.find((g) => g.scope_type === "product")?.role as Role | undefined;
-      toast(`Removed ${m.display_name}'s role on ${product.name}.`, role ? { action: { label: "Undo", onClick: () => grant.mutate({ email: m.email, role }) } } : undefined);
+      toast(`Removed ${m.display_name}’s role on ${product.name}.`, role ? { action: { label: "Undo", onClick: () => grant.mutate({ email: m.email, role }) } } : undefined);
     },
-    onError: (e) => toast(`Couldn't remove that role. ${(e as Error).message}`, { tone: "negative" }),
+    onError: (e) => toast(`Couldn’t remove that role. ${(e as Error).message}`, { tone: "negative" }),
   });
   const cancel = useMutation({
     mutationFn: (id: string) => api("POST", `/api/v1/tenants/${tenant}/invitations/cancel`, { invitation_id: id }),
@@ -311,7 +311,7 @@ function PeopleSheet() {
       refresh();
       toast("Invitation cancelled. Its link no longer works.");
     },
-    onError: (e) => toast(`Couldn't cancel the invitation. ${(e as Error).message}`, { tone: "negative" }),
+    onError: (e) => toast(`Couldn’t cancel the invitation. ${(e as Error).message}`, { tone: "negative" }),
   });
   const count = q.data ? q.data.members.length : undefined;
   return (
@@ -354,7 +354,7 @@ function PeopleSheet() {
                     <span className="people-sub">
                       {inherited ? (
                         <>
-                          {ROLE_WORD[m.product_access.role]} from {via === "team" ? "team" : "organization"}{" "}
+                          {ROLE_WORD[m.product_access.role]} through{" "}
                           <Link to={membersLink} title={`Change it in ${product.tenant.name} members`}>
                             {from.scope.name}
                           </Link>
@@ -407,7 +407,7 @@ function PeopleSheet() {
                   <span className="people-name">{i.email}</span>
                   <span className="people-sub">
                     Invited as {i.role}
-                    {i.scope_type !== "product" ? ` on ${i.scope_type === "team" ? "team" : "organization"} ${i.scope.name}` : ""} · expires {formatDate(i.expires_at)}
+                    {i.scope_type !== "product" ? ` on ${i.scope_type === "team" ? scopeWords("team", i.scope.name) : i.scope.name}` : ""} · expires {formatDate(i.expires_at)}
                   </span>
                 </div>
                 <div className="people-end">
@@ -423,12 +423,12 @@ function PeopleSheet() {
             ))}
           </ul>
           {q.data.sandbox?.only_you ? (
-            <p className="people-foot">{product.tenant.name} is a public sandbox: visitors never see each other, so only you are listed, under the name you write with.</p>
+            <p className="people-foot">{product.tenant.name} is a public sandbox. Visitors never see each other, so only you are listed, under your made-up name.</p>
           ) : (
             <p className="people-foot">
-              Admins also manage people and settings, editors read and write, viewers read. Roles given on the team or the organization reach every product in it; change those in{" "}
+              Admins also manage people and settings, editors read and write, viewers read. Team and organization roles cover every product in them; change those in{" "}
               <Link to={membersLink}>{product.tenant.name} members</Link>.
-              {q.data.sandbox ? ` ${product.tenant.name} is a public sandbox, and its ${(q.data.sandbox.visitors ?? 0).toLocaleString("en-US")} visitors edit this product too; they are in the sandbox's controls.` : ""}
+              {q.data.sandbox ? ` ${product.tenant.name} is a public sandbox, so its ${(q.data.sandbox.visitors ?? 0).toLocaleString("en-US")} visitors can edit this product too. They’re listed in Sandbox controls.` : ""}
             </p>
           )}
         </>
@@ -475,7 +475,7 @@ function AddPeopleDialog({ onClose, existing }: { onClose: () => void; existing:
       open
       onClose={onClose}
       title={`Add people to ${product.name}`}
-      description="They get this role on this product only. Someone without an account gets an invitation link, valid for 7 days."
+      description="They get this role on this product only. Someone without an account gets an invitation link that works for 7 days."
       footer={
         link ? (
           <Button variant="primary" onClick={onClose}>
@@ -494,7 +494,7 @@ function AddPeopleDialog({ onClose, existing }: { onClose: () => void; existing:
       {link ? (
         <div className="stack-sm">
           <Callout inset tone="positive" title="Invitation created">
-            We email it where email is set up. You can also send the link yourself; it works once, for 7 days.
+            We email it where email is set up. You can also share the link yourself: it works once, within 7 days.
           </Callout>
           <CopyField label="Invitation link" value={link} />
         </div>
@@ -526,7 +526,7 @@ function AddPeopleDialog({ onClose, existing }: { onClose: () => void; existing:
               </SelectField>
             )
           ) : (
-            <TextField label="Email" type="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} hint="People already in WhatBuild get access at once; anyone else gets an invitation." />
+            <TextField label="Email" type="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} hint="People already on WhatBuild get access right away. Anyone else gets an invitation." />
           )}
           <SelectField label="Role" value={role} onChange={(e) => setRole(e.target.value as Role)}>
             {ROLES.map((r) => (
@@ -576,8 +576,8 @@ function ExportSheet() {
       />
       <SheetBody>
         <p className="muted">
-          Everything in this product as one ZIP: every source file and version, the passages, notes, insights and their earlier versions, assumptions and decisions with their reviews, every Story version, and the
-          activity log. Plain JSON, Markdown and HTML, readable without WhatBuild. Anyone with access can export, always.
+          Everything in this product as one ZIP: every source file and version, passages, notes, insights with their earlier versions, assumptions and decisions with their reviews, every Story version, and
+          the activity log. It&rsquo;s plain JSON, Markdown and HTML, readable without WhatBuild. Anyone with access can export, at any time.
         </p>
         {start.isError ? <ErrorCallout inset error={start.error} /> : null}
         {list.isError ? <ErrorCallout inset error={list.error} onRetry={() => list.refetch()} /> : null}

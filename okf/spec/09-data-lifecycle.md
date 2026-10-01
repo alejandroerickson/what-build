@@ -16,16 +16,22 @@ of it is not built yet, it says so.
 
 ## 9.1 What we tell people
 
-This text — not a paraphrase of it — is shown in full on the sign-in page, and kept in the
-repository (`apps/web/src/routes/auth.tsx`) so a change to it is a reviewable commit.
+This text — not a paraphrase of it — is shown in full on the sign-in page, under the heading
+"Your data in WhatBuild", and kept in the repository (`apps/web/src/routes/auth.tsx`) so a change
+to it is a reviewable commit. It is four short statements, each under a lead-in, so a person can
+take it in at a glance.
 
-> WhatBuild is a free, pre-1.0 demonstration service. Your content sits in a managed Postgres
-> database and an object store we rent from providers named on our sub-processors page. It is
-> encrypted in transit, encrypted at rest as far as those providers do it, and isolated per
-> organization by the application and by the database. We show no ads, sell nothing, and train no
-> model on your content; there is no AI in the product to train one with. We do not promise uptime or durability, and we cannot promise anything
-> on behalf of our providers. Export is always available and always complete. Please don't put
-> anything here whose loss or exposure would hurt.
+> **A free preview.** We don’t promise uptime or durability, so don’t keep anything here whose
+> loss or exposure would hurt.
+>
+> **Kept apart.** Your content is isolated per organization, encrypted in transit, and encrypted
+> at rest as far as our providers do it. We rent the database and the file store, and can’t
+> promise anything on their behalf.
+>
+> **Never sold or trained on.** No ads, nothing sold, and no model trained on your content. There
+> is no AI in WhatBuild.
+>
+> **Yours to take.** Export is always available and always complete.
 
 Supporting commitments, each of which is a rule elsewhere in this spec:
 
@@ -36,7 +42,7 @@ Supporting commitments, each of which is a rule elsewhere in this spec:
 | Isolation per organization | [§3.6](03-accounts-teams-and-identity.md) — three layers, tested on every operation |
 | Export is complete and always available | [§9.4](#94-taking-it-with-you) and [§1.5](01-product.md) |
 | Analytics only for people who accept | The notice and `/cookies` ([§7.11](07-web-app.md)); Google's script loads only after Accept (`apps/web/src/lib/analytics.ts`) |
-| We name our sub-processors | **Planned:** a public page listing the container host, database, object store and email provider, updated before a provider changes. The statement already refers to it. |
+| We name our sub-processors | **Planned:** a public page listing the container host, database, object store and email provider, updated before a provider changes. The statement says the database and file store are rented, and links to the page once it exists. |
 
 **Cookies and browser storage.** WhatBuild uses cookies and browser storage of two kinds. The
 needed kind is always on: the session cookie that keeps a person signed in, two short-lived ones
@@ -332,8 +338,8 @@ returns them to a visitor with what is used today.
 | Exports | `exports_per_day` | 0 (none) | each visitor, each day | `409 quota_exceeded` |
 | Writes by all visitors | `org_writes_per_day` | 20,000 | all visitors, each day | `409 quota_exceeded` |
 | File size | `file_max_bytes` | 5 MB | each file | `413 too_large` |
-| Bytes uploaded | `bytes_per_day` | 50 MB | each visitor, each day | `409 quota_exceeded` |
-| Bytes uploaded by all visitors | `org_bytes_per_day` | 2 GB | all visitors, each day | `409 quota_exceeded` |
+| Uploads | `bytes_per_day` | 50 MB | each visitor, each day | `409 quota_exceeded` |
+| Uploads by all visitors | `org_bytes_per_day` | 2 GB | all visitors, each day | `409 quota_exceeded` |
 | Text in one field | `text_max_chars` | 200,000 | each text field | `413 too_large` |
 | Sources in one archive or restore call | `batch_max` | 25 | each call | `413 too_large` |
 | Fetching a file from a URL | `fetch_url` | off | each visitor | `403 sandbox_restricted` |

@@ -2,15 +2,20 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
-import { aRole } from "../lib/format.ts";
+import { aRole, scopeWords } from "../lib/format.ts";
 import { useMe, useSignOut } from "../lib/session.tsx";
 import { BrandMark } from "../shell/brand.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import { Button, ButtonLink, Callout, EmptyState, ErrorCallout, Loading, Sheet, SheetBody, SheetHeader, TextField, useToast } from "../ui/index.tsx";
 import "../styles/screens/account.css";
 
-const DATA_STATEMENT =
-  "WhatBuild is a free, pre-1.0 demonstration service. Your content sits in a managed Postgres database and an object store we rent from providers named on our sub-processors page. It is encrypted in transit, encrypted at rest as far as those providers do it, and isolated per organization by the application and by the database. We show no ads, sell nothing, and train no model on your content; there is no AI in the product to train one with. We do not promise uptime or durability, and we cannot promise anything on behalf of our providers. Export is always available and always complete. Please don't put anything here whose loss or exposure would hurt.";
+/** The data statement (okf/spec/09-data-lifecycle.md §9.1): each promise under a lead-in a person can scan. */
+const DATA_STATEMENT: [lead: string, rest: string][] = [
+  ["A free preview.", "We don’t promise uptime or durability, so don’t keep anything here whose loss or exposure would hurt."],
+  ["Kept apart.", "Your content is isolated per organization, encrypted in transit, and encrypted at rest as far as our providers do it. We rent the database and the file store, and can’t promise anything on their behalf."],
+  ["Never sold or trained on.", "No ads, nothing sold, and no model trained on your content. There is no AI in WhatBuild."],
+  ["Yours to take.", "Export is always available and always complete."],
+];
 
 /**
  * A screen outside the shell (sign-in, first run, accepting an invitation): the mark and wordmark
@@ -64,22 +69,28 @@ export function SignIn() {
       <Sheet labelledBy="signin-title">
         <SheetHeader level={1} id="signin-title" title={next.startsWith("/invite/") ? "Sign in to accept your invitation" : toSandbox ? "Sign in to enter the sandbox" : "Sign in to WhatBuild"} />
         <SheetBody className="entry-form">
-          {next.startsWith("/invite/") && !error ? <p className="muted">Use the address the invitation was sent to, and you join as soon as you&rsquo;re signed in.</p> : null}
-          {toSandbox && !error ? <p className="muted">Any address of yours will do. Nobody in the sandbox sees it: there you write under a made-up name.</p> : null}
-          {error ? (
-            <Callout inset tone="attention" title="That sign-in did not work">
-              {error === "link_expired"
-                ? "The link expired or was already used. Ask for a new one."
-                : error === "invite_only"
-                  ? toSandbox
-                    ? "The invitation you came with has no place left, so it could not make you an account. Ask whoever sent it for a new link."
-                    : "WhatBuild is invite-only for now. Ask someone who uses it to invite you."
-                  : "Try again, or use the email link."}
+          {next.startsWith("/invite/") && !error ? <p className="muted">Use the email your invitation was sent to.</p> : null}
+          {toSandbox && !error ? <p className="muted">Any email works. Nobody in the sandbox sees it: you write under a made-up name.</p> : null}
+          {error === "link_expired" ? (
+            <Callout inset tone="attention" title="That sign-in link has expired">
+              Links work once, for 15 minutes. Enter your email for a new one.
+            </Callout>
+          ) : error === "invite_only" && toSandbox ? (
+            <Callout inset tone="attention" title="That invitation has no places left">
+              Ask whoever sent it for a new link.
+            </Callout>
+          ) : error === "invite_only" ? (
+            <Callout inset tone="attention" title="WhatBuild is invite-only for now">
+              Ask someone who uses it to invite you.
+            </Callout>
+          ) : error ? (
+            <Callout inset tone="attention" title="That sign-in didn’t work">
+              Try again, or use an email link.
             </Callout>
           ) : null}
           {emailLink ? (
             send.isSuccess ? (
-              <Callout inset tone="positive" title="Check your email" action={<Button size="sm" variant="quiet" onClick={() => send.reset()}>Use another address</Button>}>
+              <Callout inset tone="positive" title="Check your email" action={<Button size="sm" variant="quiet" onClick={() => send.reset()}>Use another email</Button>}>
                 We sent a sign-in link to {email.trim()}. It works once, for 15 minutes.{send.data.dev_note ? ` ${send.data.dev_note}` : ""}
               </Callout>
             ) : (
@@ -90,8 +101,7 @@ export function SignIn() {
                   send.mutate();
                 }}
               >
-                <p className="muted">We email you a link that signs you in. There is no password to remember.</p>
-                <TextField label="Email address" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                <TextField label="Email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
                 {send.isError ? <ErrorCallout inset error={send.error} /> : null}
                 <Button type="submit" variant="primary" wide busy={send.isPending} busyLabel="Sending…">
                   Email me a sign-in link
@@ -126,7 +136,7 @@ export function SignIn() {
               <Button size="sm" onClick={() => email.trim() && dev.mutate(email.trim())} disabled={!email.trim()}>
                 As the email above
               </Button>
-              <span className="entry-person-role">Any account: type its address above</span>
+              <span className="entry-person-role">Any account: type its email above</span>
             </li>
           </ul>
           {dev.isError ? (
@@ -137,10 +147,16 @@ export function SignIn() {
         </Sheet>
       ) : null}
       <section className="entry-fine" aria-labelledby="data-h">
-        <h2 id="data-h">What we do with your data</h2>
-        <p>{DATA_STATEMENT}</p>
+        <h2 id="data-h">Your data in WhatBuild</h2>
+        <ul className="entry-promises">
+          {DATA_STATEMENT.map(([lead, rest]) => (
+            <li key={lead}>
+              <b>{lead}</b> {rest}
+            </li>
+          ))}
+        </ul>
         <p className="entry-fine-more">
-          WhatBuild uses cookies to keep you signed in. <Link to="/cookies">Cookies</Link>.
+          A cookie keeps you signed in. <Link to="/cookies">About cookies</Link>
         </p>
       </section>
     </EntryPage>
@@ -160,7 +176,7 @@ export function AcceptInvite() {
     onSuccess: async (r) => {
       await qc.invalidateQueries({ queryKey: ["products"] });
       const org = r.tenant?.name ?? "the organization";
-      toast(r.scope_type === "tenant" || !r.scope ? `You’re ${aRole(r.role)} of ${org}.` : `You’re in ${org}, as ${aRole(r.role)} on ${r.scope_type} ${r.scope}.`);
+      toast(r.scope_type === "tenant" || !r.scope ? `You’re ${aRole(r.role)} of ${org}.` : `You’re in ${org}, as ${aRole(r.role)} on ${scopeWords(r.scope_type, r.scope)}.`);
       navigate("/", { replace: true });
     },
   });
@@ -176,21 +192,17 @@ export function AcceptInvite() {
   return (
     <EntryPage title="Accept invitation · WhatBuild">
       <Sheet labelledBy="invite-title">
-        <SheetHeader level={1} id="invite-title" title={accept.isError ? "This invitation can’t be used" : "Joining…"} />
+        <SheetHeader level={1} id="invite-title" title={accept.isError ? (wrongAddress ? "This invitation is for another email" : "This invitation didn’t work") : "Joining…"} />
         <SheetBody className="entry-form">
           {accept.isError ? (
             <>
-              <ErrorCallout inset title={wrongAddress ? "This invitation is for another address" : "The link didn’t work"} error={accept.error} />
-              <p className="muted">
-                {wrongAddress
-                  ? "Invitations work only for the address they were sent to. If that address is yours, sign in with it and you join at once."
-                  : "Invitations work once, within 7 days, and only for the address they were sent to."}
-              </p>
+              <ErrorCallout inset title="" error={accept.error} />
+              {wrongAddress ? null : <p className="muted">An invitation works once, within 7 days, for the email it was sent to.</p>}
               <div className="entry-actions">
                 {wrongAddress ? (
                   <>
                     <Button variant="primary" onClick={() => void signOut(`/invite/${token}`)}>
-                      Sign in with another address
+                      Sign in with that email
                     </Button>
                     <ButtonLink to="/" variant="quiet">Your products</ButtonLink>
                   </>
@@ -198,7 +210,7 @@ export function AcceptInvite() {
                   <>
                     <ButtonLink to="/">Your products</ButtonLink>
                     <Button variant="quiet" onClick={() => void signOut(`/invite/${token}`)}>
-                      Sign in with another address
+                      Sign in with another email
                     </Button>
                   </>
                 )}
@@ -218,9 +230,9 @@ export function NotFound() {
   usePageTitle("Not found");
   return (
     <Sheet labelledBy="notfound-title">
-      <SheetHeader level={1} id="notfound-title" title="Nothing lives here" />
+      <SheetHeader level={1} id="notfound-title" title="Page not found" />
       <EmptyState size="inline" action={<ButtonLink to="/" variant="primary">Go to your products</ButtonLink>}>
-        The address may be mistyped, or the page may have moved. Links to sources, insights and Story pages keep working as long as you have access to their product.
+        The link may be mistyped, or you may not have access to its product.
       </EmptyState>
     </Sheet>
   );

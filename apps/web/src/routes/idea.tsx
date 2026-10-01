@@ -171,7 +171,7 @@ function ConceptSheet() {
 function LinkedChips({ o }: { o: Outcome }) {
   const { app } = useProduct();
   const { insights, assumptions, decisions } = o.counts;
-  if (!insights && !assumptions && !decisions) return <p className="outcome-none">Nothing points here yet.</p>;
+  if (!insights && !assumptions && !decisions) return <p className="outcome-none">Nothing linked yet.</p>;
   return (
     <div className="chips outcome-chips">
       {insights ? (
@@ -257,7 +257,7 @@ export function IdeaPage() {
           </SheetBody>
         ) : !items.length ? (
           editing === "new" ? null : status && (status === "archived" || product.counts.outcomes > 0) ? (
-            <EmptyState size="inline" title={`No ${STATUS_WORD[status as Outcome["status"]]?.toLowerCase() ?? ""} outcomes.`} action={<ButtonLink to={`${app}/idea`} size="sm">Show current outcomes</ButtonLink>} />
+            <EmptyState size="inline" title={`No ${STATUS_WORD[status as Outcome["status"]]?.toLowerCase() ?? ""} outcomes`} action={<ButtonLink to={`${app}/idea`} size="sm">Show current outcomes</ButtonLink>} />
           ) : (
             <FirstUse
               title="No outcomes yet"
@@ -267,7 +267,7 @@ export function IdeaPage() {
                   : `Interview me about ${product.name}, then write its product concept and two or three outcomes in WhatBuild.`
               }
             >
-              An outcome is what the people this product serves should be able to achieve with it, written from their side rather than as a feature. Two or three are enough to start.
+              An outcome is something the product&rsquo;s users should be able to achieve, written from their side, not as a feature. Two or three are enough to start.
             </FirstUse>
           )
         ) : (

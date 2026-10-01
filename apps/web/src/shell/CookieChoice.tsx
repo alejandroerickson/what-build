@@ -10,7 +10,7 @@ import "../styles/screens/cookies.css";
  * Accept, of equal weight, until the person picks one. It blocks nothing and never takes focus.
  * `open` shows it again after a choice, for changing it.
  */
-export function CookieChoice({ purpose, link, open = false, onClose }: { purpose: string; link?: ReactNode; open?: boolean; onClose?: () => void }) {
+export function CookieChoice({ lead, ask, link, open = false, onClose }: { lead: string; ask: string; link?: ReactNode; open?: boolean; onClose?: () => void }) {
   const choice = useCookieChoice();
   const [closing, setClosing] = useState(false);
   if (choice && !open && !closing) return null;
@@ -26,7 +26,7 @@ export function CookieChoice({ purpose, link, open = false, onClose }: { purpose
     <aside className="cookie-notice" aria-label="Cookies" data-state={closing ? "closing" : "open"}>
       <Glyph name="cookie" className="cookie-notice-glyph" />
       <p className="cookie-notice-text">
-        <b>WhatBuild uses cookies</b> {purpose}
+        <b>{lead}</b> {ask}
       </p>
       <div className="cookie-notice-actions">
         {link}

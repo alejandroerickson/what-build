@@ -30,9 +30,9 @@ function sandboxOf(ctx: OpContext): SandboxContext {
 export function sandboxNotice(state: Pick<SandboxState, "settings" | "baseline_id">): string {
   const s = state.settings;
   const erased = s.reset_enabled && state.baseline_id
-    ? `everything added is erased every day at ${s.reset_time} (${s.reset_timezone}), when the sandbox is put back as it was`
-    : "everything added may be erased at any time, when the sandbox is put back as it was";
-  return `This is a public sandbox. Other visitors see what you add, under a made-up name, and ${erased}. Don't add anything private.`;
+    ? `Everything added is erased every day at ${s.reset_time} (${s.reset_timezone.replace(/_/g, " ")} time)`
+    : "Everything added may be erased at any time";
+  return `This is a public sandbox. Other visitors see what you add, under a made-up name. ${erased}. Don’t add anything private.`;
 }
 
 async function seatsUsed(ctx: OpContext, tenantId: string): Promise<number> {
@@ -89,8 +89,8 @@ export const sandboxStatus = defineOperation({
         role: sb.visitor ? "visitor" : "staff",
         appears_as: sb.appears_as,
         can: sb.visitor
-          ? "Read, search, and add or change content in every product here. Not: manage products or people, see who else is here, or delete anything permanently."
-          : "Everything an owner or admin can do, under your own name. The limits below apply to visitors, not to you.",
+          ? "Read, search, and add or change content in every product here. You can’t manage products or people, see who else is here, or delete anything permanently."
+          : "Everything an owner or admin can, under your own name. The limits below apply only to visitors.",
       },
       allowances: SANDBOX_LIMITS.map((l) => ({
         key: l.key,

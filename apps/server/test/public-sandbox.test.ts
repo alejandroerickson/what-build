@@ -230,7 +230,7 @@ describe("the public sandbox", () => {
   it("lets a visitor read and write content, under a made-up name", async () => {
     const status = (await vera.api("GET", `${T}/sandbox`)).body;
     expect(status.you).toMatchObject({ role: "visitor", appears_as: visitorName(tenantId, (await vera.api("GET", "/api/v1/me")).body.account_id) });
-    expect(status.notice).toMatch(/Don't add anything private/);
+    expect(status.notice).toMatch(/Don’t add anything private/);
     const product = await vera.api("GET", P);
     expect(product.body).toMatchObject({ your_role: "editor", tenant: { sandbox: true } });
     const made = await vera.api("POST", `${P}/outcomes`, { title: "Try the hand-off" });

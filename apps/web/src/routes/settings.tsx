@@ -46,7 +46,7 @@ export function SettingsPage() {
               maxLength={100}
               required
             />
-            <TextField label="Email" value={me.data?.email ?? ""} readOnly hint="You sign in with this address." />
+            <TextField label="Email" value={me.data?.email ?? ""} readOnly hint="You sign in with this email." />
           </FormGrid>
           {save.isError ? (
             <div className="account-note">

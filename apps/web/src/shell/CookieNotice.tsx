@@ -32,7 +32,8 @@ export function CookieNotice() {
   if (!id) return null;
   return (
     <CookieChoice
-      purpose="to keep you signed in, remember your settings and see how the site is used."
+      lead="Cookies keep you signed in."
+      ask="Can we also use analytics cookies to see how WhatBuild is used?"
       link={
         pathname === "/cookies" ? null : (
           <ButtonLink to="/cookies" size="sm" variant="quiet">

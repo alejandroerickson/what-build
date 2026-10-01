@@ -212,7 +212,7 @@ export function EvidenceFilters() {
       </PanelSection>
       <PanelSection title="Archived">
         <PanelFilter to={href({ include_archived: "" })} current={onList && f.include_archived !== "1"}>
-          Leave out archived
+          Hide archived
         </PanelFilter>
         <PanelFilter to={href({ include_archived: "1" })} current={onList && f.include_archived === "1"}>
           Include archived
@@ -373,7 +373,7 @@ export function EvidencePage() {
           </div>
         ) : !records.length ? (
           active.length && product.counts.sources > 0 ? (
-            <EmptyState size="inline" title="No sources match these filters." action={<ButtonLink to={`${app}/evidence`}>Clear filters</ButtonLink>} />
+            <EmptyState size="inline" title="No sources match these filters" action={<ButtonLink to={`${app}/evidence`}>Clear filters</ButtonLink>} />
           ) : (
             <FirstUse title="No sources yet" ask={`Add these interview notes to ${product.name} in WhatBuild as sources.`}>
               Interviews, sales calls, research exports and documents. WhatBuild parses each one into passages that insights, assumptions and decisions can cite.

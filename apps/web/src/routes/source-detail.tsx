@@ -111,7 +111,7 @@ export function SourceDetailPage() {
         <EvidenceFilters />
         <PageHeader crumbs={[{ label: "Evidence", to: `${app}/evidence` }, { label: "Source" }]} title={e.status === 404 ? "Source not found" : "This source could not be loaded"} />
         {e.status === 404 ? (
-          <EmptyState action={<ButtonLink to={`${app}/evidence`}>Back to Evidence</ButtonLink>}>It does not exist in this product, or you cannot see it.</EmptyState>
+          <EmptyState action={<ButtonLink to={`${app}/evidence`}>Back to Evidence</ButtonLink>}>It doesn’t exist in this product, or you don’t have access to it.</EmptyState>
         ) : (
           <ErrorCallout error={q.error} onRetry={() => q.refetch()} />
         )}
@@ -137,7 +137,7 @@ export function SourceDetailPage() {
         <div className="source-notices">
       {r.archived_at ? (
         <Callout tone="attention" title={`Archived ${relativeTime(r.archived_at)}`} action={canWrite ? <RestoreButton record={r} /> : undefined}>
-          Read-only. Its files and passages stay stored and citable, but lists and search, including your agents', leave it out until it is restored.
+          Read-only. Its files and passages are kept and can still be cited, but lists and search, including your agents&rsquo;, leave it out until it&rsquo;s restored.
         </Callout>
       ) : null}
       {r.derived_status !== "ready" ? (
@@ -270,7 +270,7 @@ function StaleViewNotice({ recordId }: { recordId: string }) {
         }
       >
         It was built on {formatDate(l.registered_at)} from {describeInputs(l.input_checks)}, and {moved === 1 ? "1 of them has" : `${moved} of them have`} changed since.
-        Views are not rebuilt automatically: read it as of that date, or ask your agent to rebuild it.
+        Views aren&rsquo;t rebuilt automatically: read it as of that date, or ask your agent to rebuild it.
       </Callout>
     </div>
   );
@@ -375,7 +375,7 @@ function useArchive(record: SourceRecord) {
       void qc.invalidateQueries({ queryKey: ["sources", base] });
       void qc.invalidateQueries({ queryKey: ["product"] });
       toast(
-        restore ? "Restored. It is back in lists and search." : "Archived. It is out of lists and search, including your agents'. Nothing was erased.",
+        restore ? "Restored. It’s back in lists and search." : "Archived. It’s out of lists and search, including your agents’. Nothing was erased.",
         restore ? {} : { action: { label: "Undo", onClick: () => m.mutate(true) } },
       );
     },
@@ -415,7 +415,7 @@ function SourceActions({ record: r, onDialog }: { record: SourceRecord; onDialog
           void navigator.clipboard
             .writeText(`${location.origin}${location.pathname}`)
             .then(() => toast("Link copied."))
-            .catch(() => toast("Couldn't copy the link.", { tone: "negative" }))
+            .catch(() => toast("Couldn’t copy the link.", { tone: "negative" }))
         }
       >
         Copy link
@@ -581,7 +581,7 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
                       {p.title}
                     </Link>
                     <span className="faint">
-                      <span title={`Version ${p.version}, the page's current version`}>Story page, current version</span>
+                      <span title={`Version ${p.version}, the page’s current version`}>Story page, current version</span>
                       {p.citations.length ? "" : " · lists it"}
                       {p.citations.map((x, i) => (
                         <span key={i}>
@@ -607,7 +607,7 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
         {canWrite ? (
           <Group title={r.archived_at ? "Archived" : "Archive"}>
             <p className="source-inspector-note">
-              {r.archived_at ? "Out of lists and search. Nothing was erased." : "Takes it out of lists and search, including your agents'. Nothing is erased; restore it any time."}
+              {r.archived_at ? "Out of lists and search. Nothing was erased." : "Takes it out of lists and search, including your agents’. Nothing is erased, and you can restore it any time."}
             </p>
             <Button
               size="sm"
@@ -675,7 +675,7 @@ function OriginalView({ record }: { record: SourceRecord }) {
     return (
       <Sheet>
         <SheetHeader title="Original" />
-        <EmptyState size="inline" title="No file on this source yet.">
+        <EmptyState size="inline" title="No file on this source yet">
           Add the file from the menu, or ask your agent to upload it.
         </EmptyState>
       </Sheet>
@@ -718,7 +718,7 @@ function OriginalView({ record }: { record: SourceRecord }) {
       </p>
       <div className="source-original-body">
         {tooBig || kind === "download" ? (
-          <EmptyState size="inline" title="No preview for this format." action={<a className="btn btn-secondary btn-sm" href={fileUrl(base, record.record_id, f.path, true)}>Download {formatBytes(f.size)}</a>} />
+          <EmptyState size="inline" title="No preview for this format" action={<a className="btn btn-secondary btn-sm" href={fileUrl(base, record.record_id, f.path, true)}>Download {formatBytes(f.size)}</a>} />
         ) : kind === "pdf" ? (
           <iframe title={f.path} src={url} className="source-preview-frame" />
         ) : kind === "audio" ? (
@@ -759,7 +759,7 @@ function NotesView({ record, outline, notes, fileOutline }: { record: SourceReco
           {outline ? <AgentNoteBlock title="Outline" note={outline} /> : null}
           {showFileOutline ? (
             <section className="source-agent-note">
-              <h3>From the file's headings</h3>
+              <h3>From the file&rsquo;s headings</h3>
               <FileOutline outline={fileOutline!} />
             </section>
           ) : null}
@@ -785,7 +785,7 @@ function NotesView({ record, outline, notes, fileOutline }: { record: SourceReco
           </div>
         ) : null}
         {!record.annotations.length ? (
-          <EmptyState size="inline" title="No comments yet.">
+          <EmptyState size="inline" title="No comments yet">
             {writable ? "Select passages in Passages and choose Comment, or comment on the whole source." : "Comments people write on passages appear here."}
           </EmptyState>
         ) : (
@@ -871,8 +871,8 @@ function FilesView({ record, onAdd }: { record: SourceRecord; onAdd?: () => void
       />
       {record.files.some((x) => x.role !== "primary") ? <p className="source-original-line">Only the primary file is searched. The others are kept for download.</p> : null}
       {!record.files.length ? (
-        <EmptyState size="inline" title="No files yet." action={onAdd ? <Button size="sm" onClick={onAdd}>Add file</Button> : undefined}>
-          This source holds metadata only.
+        <EmptyState size="inline" title="No files yet" action={onAdd ? <Button size="sm" onClick={onAdd}>Add file</Button> : undefined}>
+          This source holds only its details.
           {record.pending_primary_path ? ` An upload of ${record.pending_primary_path} is in progress.` : ""}
         </EmptyState>
       ) : (
@@ -952,11 +952,11 @@ function FilesView({ record, onAdd }: { record: SourceRecord; onAdd?: () => void
           <p>
             <b>{change.path}</b>{" "}
             {change.role === "primary"
-              ? "will be parsed into passages and searched. A primary file's role can't be changed afterwards; to use a different primary, create a new source."
+              ? "will be parsed into passages and searched. A primary file’s role can’t be changed afterwards. To use a different primary, create a new source."
               : change.role === "origin"
-                ? "will be kept as an original behind this source's primary text. It stays kept, not searched."
-                : "will be kept beside the source as supporting material. It stays kept, not searched."}{" "}
-            No bytes move, and the change is recorded in the source's activity.
+                ? "will be kept as an original behind this source’s primary text. It’s still kept, not searched."
+                : "will be kept beside the source as supporting material. It’s still kept, not searched."}{" "}
+            The file itself doesn&rsquo;t change, and the source&rsquo;s activity records the new role.
           </p>
           {setRole.isError ? <ErrorCallout inset error={setRole.error} title="The role was not changed" /> : null}
         </Dialog>
@@ -999,7 +999,7 @@ function EditDetails({ record, onClose, onReload }: { record: SourceRecord; onCl
     onSuccess: (res) => {
       void qc.invalidateQueries({ queryKey: key });
       void qc.invalidateQueries({ queryKey: ["sources", base] });
-      toast(res.changed.length ? `Saved. Filed under ${res.folder_label}; its id, passages and citations are unchanged.` : "Nothing changed.");
+      toast(res.changed.length ? `Saved. Filed under ${res.folder_label}. Its passages and citations are unchanged.` : "Nothing changed.");
       onClose();
     },
   });
@@ -1009,7 +1009,7 @@ function EditDetails({ record, onClose, onReload }: { record: SourceRecord; onCl
       open
       onClose={onClose}
       title="Edit details"
-      description="Fix mistakes here. The source keeps its id, so every passage address and citation still resolves."
+      description="Fix mistakes here. Every passage address and citation keeps working."
       dismissable={!save.isPending}
       footer={
         <>
@@ -1128,7 +1128,7 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
       open
       onClose={onClose}
       title="Delete permanently"
-      description="This cannot be undone. Archiving takes it out of lists and search and erases nothing."
+      description="This can’t be undone. Archiving takes it out of lists and search and erases nothing."
       dismissable={!del.isPending}
       footer={
         <>
@@ -1184,7 +1184,7 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
           ) : pages.length ? (
             <p>{plural(pages.length, "Story page")} cite it; their quotes are kept.</p>
           ) : null}
-          {i.insights_referencing.length ? <p>{plural(i.insights_referencing.length, "insight")} reference it and will keep a dead reference.</p> : null}
+          {i.insights_referencing.length ? <p>{plural(i.insights_referencing.length, "insight")} link to it, and those links will stop opening.</p> : null}
         </div>
       ) : null}
       <TextArea label="Why is it being deleted?" required maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} hint="Recorded with the deletion." />

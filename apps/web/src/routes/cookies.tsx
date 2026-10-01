@@ -17,8 +17,8 @@ export function CookiesPage() {
         <SheetHeader level={1} id="cookies-title" title="Cookies" />
         <SheetBody className="entry-form">
           <p>
-            WhatBuild uses cookies and storage in your browser to keep you signed in and remember your settings
-            {analytics ? ", and, if you accept, to understand how WhatBuild is used so we can make it better" : ""}.
+            WhatBuild uses cookies and browser storage to keep you signed in and remember your settings
+            {analytics ? ", and, if you accept, to see how WhatBuild is used" : ""}.
           </p>
         </SheetBody>
       </Sheet>
@@ -56,7 +56,7 @@ export function CookiesPage() {
       ) : null}
       <section className="entry-fine" aria-labelledby="cookies-clear">
         <h2 id="cookies-clear">Clearing them</h2>
-        <p>Signing out removes the sign-in cookie. Clearing this site&rsquo;s data in your browser removes the rest; your work in WhatBuild is not affected.</p>
+        <p>Signing out removes the sign-in cookie. Clearing this site&rsquo;s data in your browser removes the rest. Your work in WhatBuild isn&rsquo;t affected.</p>
       </section>
       <div className="cookie-back">
         <ButtonLink to="/" size="sm" icon="arrow-left">

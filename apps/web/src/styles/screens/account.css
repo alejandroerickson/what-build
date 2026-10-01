@@ -188,7 +188,7 @@
   line-height: 1.55;
 }
 .entry-fine h2 {
-  margin: 0 0 var(--s-1);
+  margin: 0 0 var(--s-1h);
   color: var(--muted);
   font-size: var(--fs-sm);
   font-weight: var(--fw-semibold);
@@ -197,8 +197,19 @@
 .entry-fine p {
   margin: 0;
 }
+.entry-promises {
+  display: grid;
+  gap: var(--s-1h);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.entry-promises b {
+  color: var(--muted);
+  font-weight: var(--fw-semibold);
+}
 .entry-fine .entry-fine-more {
-  margin-top: var(--s-2);
+  margin-top: var(--s-3);
 }
 
 @media (max-width: 760px) {

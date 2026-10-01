@@ -333,7 +333,7 @@ export function CopyField({ value, label }: { value: string; label: string }) {
               setTimeout(() => setCopied(false), 1600);
               toast("Copied.");
             })
-            .catch(() => toast("Couldn't copy. Select the text and copy it yourself.", { tone: "negative" }));
+            .catch(() => toast("Couldn’t copy. Select the text and copy it yourself.", { tone: "negative" }));
         }}
       >
         {copied ? "Copied" : "Copy"}

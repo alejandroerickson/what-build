@@ -104,7 +104,7 @@ export function StyleDialog({ view, scheme, onClose }: { view: StyleView; scheme
       wide
       onClose={onClose}
       title="Story style"
-      description="Every Story page follows one design system for this product: your company's own, or a house style. Preview them here. Your agent makes the change."
+      description="Every Story page in this product follows one design system: your company’s own, or a house style. Preview them here, then ask your agent to switch."
       footer={<Button onClick={onClose}>Close</Button>}
     >
       <div className="style-picker">

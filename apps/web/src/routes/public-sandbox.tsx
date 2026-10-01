@@ -89,6 +89,10 @@ interface Visitor {
   joined_at: string;
 }
 
+function capital(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 /** A number as a person reads it: bytes as a size, anything else with its thousands marked. */
 function amount(value: number | boolean, unit: string): string {
   if (typeof value === "boolean") return value ? "On" : "Off";
@@ -118,7 +122,7 @@ export function SandboxPage() {
         <SheetHeader level={1} id="sandbox-missing" title={status.error instanceof ApiError && status.error.status === 404 ? "This organization is not a public sandbox" : "The sandbox could not be loaded"} />
         <EmptyState size="inline" action={<ButtonLink to="/">Your products</ButtonLink>}>
           {status.error instanceof ApiError && status.error.status === 404
-            ? "A deployment names one organization as its public sandbox. This is not it, or you are not in it."
+            ? "Only one organization here is the public sandbox. This isn’t it, or you aren’t in it."
             : status.error instanceof Error
               ? status.error.message
               : "Reload the page to try again."}
@@ -142,7 +146,7 @@ function VisitorView({ status: s }: { status: SandboxStatus }) {
               <dt>You write as</dt>
               <dd>
                 <b>{s.you.appears_as}</b>
-                <span className="muted"> Nobody here sees your name or address, and you see nobody else&rsquo;s.</span>
+                <span className="muted"> Nobody here sees your name or email, and you see nobody else&rsquo;s.</span>
               </dd>
             </div>
             <div>
@@ -150,14 +154,14 @@ function VisitorView({ status: s }: { status: SandboxStatus }) {
               <dd>{s.you.can}</dd>
             </div>
             <div>
-              <dt>It is erased</dt>
+              <dt>Erased</dt>
               <dd>
                 {s.resets.next_at ? (
                   <>
-                    {resetWords(s.resets)}. Next <span title={formatDateTime(s.resets.next_at)}>{untilTime(s.resets.next_at)}</span>.
+                    {capital(resetWords(s.resets))}. Next <span title={formatDateTime(s.resets.next_at)}>{untilTime(s.resets.next_at)}</span>.
                   </>
                 ) : (
-                  "Whenever the people who run it put it back as it was."
+                  "Whenever its admins reset it."
                 )}
               </dd>
             </div>
@@ -165,7 +169,7 @@ function VisitorView({ status: s }: { status: SandboxStatus }) {
               <div>
                 <dt>Right now</dt>
                 <dd>
-                  <StatusBadge tone="attention">{s.visitor_access === "read" ? "Visitors are reading only" : "Closed to visitors"}</StatusBadge>
+                  <StatusBadge tone="attention">{s.visitor_access === "read" ? "Visitors can only read" : "Closed to visitors"}</StatusBadge>
                 </dd>
               </div>
             ) : null}
@@ -173,20 +177,20 @@ function VisitorView({ status: s }: { status: SandboxStatus }) {
         </SheetBody>
       </Sheet>
       <Sheet labelledBy="allowances-title">
-        <SheetHeader id="allowances-title" title="What you can use" />
+        <SheetHeader id="allowances-title" title="Your limits" />
         <div className="sandbox-scroll">
           <Table head={["Limit", "Counted over", { label: "Allowed", num: true }, { label: "Used today", num: true }]}>
             {counted.map((a) => (
               <Row key={a.key} label={a.label}>
                 <Cell className="muted">{a.per}</Cell>
                 <Cell label="Allowed" num>{amount(a.limit, a.unit)}</Cell>
-                <Cell label="Used today" num>{a.used === undefined ? <span className="faint">Not counted by the day</span> : amount(a.used, a.unit)}</Cell>
+                <Cell label="Used today" num>{a.used === undefined ? <span className="faint" title="Not a daily limit"><span aria-hidden="true">–</span><span className="visually-hidden">Not a daily limit</span></span> : amount(a.used, a.unit)}</Cell>
               </Row>
             ))}
           </Table>
         </div>
         <p className="sandbox-foot">
-          A day runs to the next reset, <span title={formatDateTime(s.allowances_restart_at)}>{untilTime(s.allowances_restart_at)}</span>. Reading and searching are never stopped by a day&rsquo;s allowance.
+          Daily counts start over at the next reset, <span title={formatDateTime(s.allowances_restart_at)}>{untilTime(s.allowances_restart_at)}</span>. Reading and searching are never limited by the day.
           {off.map((a) => ` ${a.label}: ${a.limit ? "on" : "off"}.`).join("")}
         </p>
       </Sheet>
@@ -197,8 +201,8 @@ function VisitorView({ status: s }: { status: SandboxStatus }) {
 // ---- The control panel --------------------------------------------------------------------------
 
 const ACCESS: { id: Settings["visitor_access"]; label: string }[] = [
-  { id: "write", label: "Writing" },
-  { id: "read", label: "Reading only" },
+  { id: "write", label: "Read and write" },
+  { id: "read", label: "Read only" },
   { id: "closed", label: "Closed" },
 ];
 
@@ -223,8 +227,8 @@ function ControlPanel({ tenant }: { tenant: string }) {
   });
   if (q.isPending)
     return (
-      <Sheet label="Loading the sandbox's controls">
-        <Loading label="Loading the sandbox's controls…" lines={4} />
+      <Sheet label="Loading the sandbox’s controls">
+        <Loading label="Loading the sandbox’s controls…" lines={4} />
       </Sheet>
     );
   if (q.isError)
@@ -241,12 +245,12 @@ function ControlPanel({ tenant }: { tenant: string }) {
   const changed = Object.keys(draft).filter((k) => draft[k] !== s[k]);
   const invalid = changed.filter((k) => typeof draft[k] === "number" && (!Number.isFinite(draft[k]) || (draft[k] as number) < 0));
   const set = (k: string, v: number | boolean | string) => setDraft((d) => ({ ...d, [k]: v }));
-  const now = (changes: Record<string, unknown>, said: string) => patch.mutate(changes, { onSuccess: () => toast(said), onError: (e) => toast(`Couldn't change that. ${(e as Error).message}`, { tone: "negative" }) });
+  const now = (changes: Record<string, unknown>, said: string) => patch.mutate(changes, { onSuccess: () => toast(said), onError: (e) => toast(`Couldn’t change that. ${(e as Error).message}`, { tone: "negative" }) });
   const save = () =>
     patch.mutate(Object.fromEntries(changed.map((k) => [k, draft[k]])), {
       onSuccess: () => {
         setDraft({});
-        toast("Saved. The changes apply to the next call a visitor makes.");
+        toast("Saved. Changes apply from each visitor’s next request.");
       },
     });
   const t = p.today;
@@ -271,31 +275,31 @@ function ControlPanel({ tenant }: { tenant: string }) {
         />
         <SheetBody className="sandbox-about">
           <p className="muted">
-            Anyone with an invitation works in {p.organization.name} as a visitor: they edit content under a made-up name, see nobody else, and administer nothing. You and the other owners and admins work under your own names, without these limits.
+            Anyone with an invitation works in {p.organization.name} as a visitor: they edit content under a made-up name and see nobody else. Owners and admins work under their own names, without these limits.
           </p>
           <dl className="sandbox-facts">
             <div>
-              <dt>Visitors are</dt>
+              <dt>Visitor access</dt>
               <dd className="sandbox-control">
                 <Segmented
                   label="What visitors may do"
                   items={ACCESS}
                   value={s.visitor_access}
-                  onChange={(v) => v !== s.visitor_access && now({ visitor_access: v }, v === "write" ? "Visitors can write again." : v === "read" ? "Visitors are reading only. Nobody lost their seat." : "Closed to visitors. Nobody lost their seat.")}
+                  onChange={(v) => v !== s.visitor_access && now({ visitor_access: v }, v === "write" ? "Visitors can write again." : v === "read" ? "Visitors can only read now. Everyone keeps their seat." : "Closed to visitors. Everyone keeps their seat.")}
                 />
-                <span className="muted">{s.visitor_access === "write" ? "Reading and writing." : s.visitor_access === "read" ? "Reading and searching, and exporting where its limit allows; every other write is refused." : "Refused everything, until you open it again."}</span>
+                {s.visitor_access === "write" ? null : <span className="muted">{s.visitor_access === "read" ? "Visitors can read, search, and export if the export limit allows." : "Visitors can’t open the sandbox until you reopen it."}</span>}
               </dd>
             </div>
             <div>
-              <dt>Their agents</dt>
+              <dt>Visitors&rsquo; agents</dt>
               <dd className="sandbox-control">
                 <Segmented
                   label="Whether visitors' agents may work here"
                   items={[{ id: "on", label: "Allowed" }, { id: "off", label: "Off" }]}
                   value={s.visitor_agents ? "on" : "off"}
-                  onChange={(v) => (v === "on") !== s.visitor_agents && now({ visitor_agents: v === "on" }, v === "on" ? "Visitors' agents can connect." : "Visitors' agents are refused. The web app still works for them.")}
+                  onChange={(v) => (v === "on") !== s.visitor_agents && now({ visitor_agents: v === "on" }, v === "on" ? "Visitors’ agents can connect." : "Visitors’ agents are off. Visitors can still use the web app.")}
                 />
-                <span className="muted">Over MCP, with the same limits as the person.</span>
+                <span className="muted">Over MCP, under the same limits as the visitor.</span>
               </dd>
             </div>
             <div>
@@ -329,7 +333,7 @@ function ControlPanel({ tenant }: { tenant: string }) {
                   <>
                     {formatDateTime(p.resets.last_at)}
                     <span className="muted">
-                      {p.resets.last ? `, ${p.resets.last.scheduled ? "on schedule" : `by ${p.resets.last.by.display_name}`}: ${plural(p.resets.last.rows, "row")} put back, ${plural(p.resets.last.blobs_dropped, "stored file")} dropped${p.resets.last.visitors_removed ? `, ${plural(p.resets.last.visitors_removed, "idle visitor")} removed` : ""}.` : "."}
+                      {p.resets.last ? `, ${p.resets.last.scheduled ? "on schedule" : `by ${p.resets.last.by.display_name}`}: ${plural(p.resets.last.rows, "row")} restored, ${plural(p.resets.last.blobs_dropped, "stored file")} removed${p.resets.last.visitors_removed ? `, ${plural(p.resets.last.visitors_removed, "idle visitor")} removed` : ""}.` : "."}
                     </span>
                   </>
                 ) : (
@@ -364,12 +368,12 @@ function ControlPanel({ tenant }: { tenant: string }) {
           }}
         >
         <div className="sandbox-scroll">
-          <Table className="sandbox-limits" head={["Limit", "Counted over", "Value", "Default", "A call over it gets"]}>
-              <LimitRow label="Seats" help="How many visitors the sandbox holds at once. Invitations cannot admit more." per="The sandbox" refusal="409 sandbox_full" fallback={amount(p.defaults.max_visitors, "")}>
+          <Table className="sandbox-limits" head={["Limit", "Counted over", "Value", "Default", "Over the limit"]}>
+              <LimitRow label="Seats" help="How many visitors the sandbox holds. Invitations can’t admit more." per="The sandbox" refusal="409 sandbox_full" fallback={amount(p.defaults.max_visitors, "")}>
                 <NumberCell label="Seats" value={value("max_visitors") as number} onChange={(v) => set("max_visitors", v)} />
               </LimitRow>
-              <LimitRow label="Days away before a seat is given up" help="A visitor who has not signed in or used an agent for this long loses their seat at the next reset. 0 keeps every seat." per="Each visitor" refusal="" fallback={amount(p.defaults.visitor_idle_days, "")}>
-                <NumberCell label="Days away before a seat is given up" value={value("visitor_idle_days") as number} onChange={(v) => set("visitor_idle_days", v)} />
+              <LimitRow label="Idle days before a seat is freed" help="A visitor who hasn’t signed in or used an agent for this long loses their seat at the next reset. 0 keeps every seat." per="Each visitor" refusal="" fallback={amount(p.defaults.visitor_idle_days, "")}>
+                <NumberCell label="Idle days before a seat is freed" value={value("visitor_idle_days") as number} onChange={(v) => set("visitor_idle_days", v)} />
               </LimitRow>
               {p.limits.map((l) => (
                 <LimitRow key={l.key} label={l.label} help={l.help} per={l.per} refusal={l.refusal} fallback={amount(l.default, l.unit)}>
@@ -393,22 +397,22 @@ function ControlPanel({ tenant }: { tenant: string }) {
             type="time"
             value={String(value("reset_time"))}
             onChange={(e) => e.target.value && set("reset_time", e.target.value)}
-            hint="The service may be asleep at the hour. The reset then runs before the first request after it, so nobody is served what it should have erased."
+            hint="If the service is asleep at that time, the reset runs before the next request is served."
           />
           <TextField
-            label="In the time zone"
+            label="Time zone"
             value={String(value("reset_timezone"))}
             onChange={(e) => set("reset_timezone", e.target.value.trim())}
             list="sandbox-zones"
             spellCheck={false}
-            hint="An IANA name, such as America/Los_Angeles. The reset keeps its local hour when the clocks change."
+            hint="An IANA name, such as America/Los_Angeles. The reset keeps its local time when the clocks change."
           />
           <div className="field">
             <span className="field-label">Resets</span>
             <div className="field-control">
               <label className="sandbox-switch">
                 <input type="checkbox" checked={Boolean(value("reset_enabled"))} onChange={(e) => set("reset_enabled", e.target.checked)} />
-                <span>{value("reset_enabled") ? "On: the sandbox puts itself back every day" : "Off: it changes only when you reset it"}</span>
+                <span>{value("reset_enabled") ? "On: the sandbox resets every day" : "Off: it resets only when you choose Reset now"}</span>
               </label>
             </div>
           </div>
@@ -470,7 +474,7 @@ function ControlPanel({ tenant }: { tenant: string }) {
             ))}
           </Table>
         </div>
-        <p className="sandbox-foot">These apply to every organization, staff included, and are changed where the service is deployed. A visitor meets whichever limit is lower.</p>
+        <p className="sandbox-foot">These apply to every organization, admins included, and are set where the service is deployed. Visitors get whichever limit is lower.</p>
       </Sheet>
 
       {saving ? <SaveBaselineDialog tenant={tenant} today={t} access={s.visitor_access} onClose={() => setSaving(false)} onSaved={refreshAll} /> : null}
@@ -530,7 +534,7 @@ function LimitRow({ label, help, per, refusal, fallback, children }: { label: st
       <Cell className="muted">{per}</Cell>
       <Cell className="sandbox-value">{children}</Cell>
       <Cell label="Default" className="num muted">{fallback}</Cell>
-      <Cell label="Over it" className="sandbox-refusal">{refusal ? <code>{refusal}</code> : <span className="faint">Nothing is refused</span>}</Cell>
+      <Cell label="Over the limit" className="sandbox-refusal">{refusal ? <code>{refusal}</code> : <span className="faint">Nothing is refused</span>}</Cell>
     </Row>
   );
 }
@@ -573,7 +577,7 @@ function Baselines({ tenant, inUse, onReset }: { tenant: string; inUse: Baseline
         </SheetBody>
       ) : !q.data.items.length ? (
         <EmptyState size="inline" title="No baseline yet">
-          A baseline is the organization&rsquo;s content as it is at one moment. Until one is saved, a reset has nothing to put back, so what visitors add stays. Get the content as you want visitors to find it, then Save baseline.
+          A baseline is a snapshot of the organization&rsquo;s content, and every reset returns to it. Until you save one, nothing resets. Set the content up as visitors should find it, then choose Save baseline.
         </EmptyState>
       ) : (
         <ul className="sandbox-list">
@@ -601,7 +605,7 @@ function Baselines({ tenant, inUse, onReset }: { tenant: string; inUse: Baseline
           ))}
         </ul>
       )}
-      <p className="sandbox-foot">The newest three are kept. A baseline refers to stored files and does not copy them. People and their roles are not part of one: a reset never gives back access that was taken away.</p>
+      <p className="sandbox-foot">The newest three are kept. A baseline holds content, not people or roles, so a reset never restores access that was removed.</p>
     </Sheet>
   );
 }
@@ -622,8 +626,8 @@ function SaveBaselineDialog({ tenant, today, access, onClose, onSaved }: { tenan
       open
       onClose={onClose}
       dismissable={!save.isPending}
-      title="Save the content as it is now?"
-      description="Every reset from now on puts the organization back to this moment: its products, sources, passages, insights, assumptions, decisions and Story."
+      title="Save a new baseline?"
+      description="Every reset from now on returns the organization to its content as it is now."
       footer={
         <>
           <Button onClick={onClose} disabled={save.isPending}>
@@ -644,8 +648,8 @@ function SaveBaselineDialog({ tenant, today, access, onClose, onSaved }: { tenan
       >
         {today.writes ? (
           <Callout inset tone="attention" title={`Visitors have made ${plural(today.writes, "write")} today`}>
-            A baseline holds what is there, visitors&rsquo; additions included. To leave them out, reset first, make your changes, then save.
-            {access === "write" ? " Set visitors to reading only while you work, so nothing new arrives in between." : ""}
+            The baseline will include what they added. To leave it out, reset first, make your changes, then save.
+            {access === "write" ? " Set visitors to read only while you work, so nothing new arrives." : ""}
           </Callout>
         ) : null}
         <TextField label="Note" optional maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} hint="What this baseline is, for whoever reads the list later." />
@@ -665,7 +669,7 @@ function ResetDialog({ tenant, name, baseline, today, onClose, onDone }: { tenan
       // Every product in the organization is as the baseline has it.
       void qc.invalidateQueries({ queryKey: ["product"] });
       void qc.invalidateQueries({ queryKey: ["products"] });
-      toast(`${name} is back to its baseline: ${plural(r.rows, "row")} put back.`);
+      toast(`${name} is back to its baseline.`);
       onClose();
     },
   });
@@ -675,7 +679,7 @@ function ResetDialog({ tenant, name, baseline, today, onClose, onDone }: { tenan
       onClose={onClose}
       dismissable={!reset.isPending}
       title={`Reset ${name} now?`}
-      description={`Everything added or changed since the baseline${baseline ? ` of ${formatDateTime(baseline.created_at)}` : ""} is erased, for everyone, at once. This cannot be undone.`}
+      description={`Everything added or changed since the baseline${baseline ? ` of ${formatDateTime(baseline.created_at)}` : ""} is erased for everyone. This can’t be undone.`}
       footer={
         <>
           <Button onClick={onClose} disabled={reset.isPending}>
@@ -690,10 +694,10 @@ function ResetDialog({ tenant, name, baseline, today, onClose, onDone }: { tenan
       <div className="stack-sm">
         <ul className="sandbox-losing">
           <li>{today.writes ? `What visitors added today: ${plural(today.writes, "write")}, ${plural(today.sources, "source")}, ${formatBytes(today.bytes)}.` : "Visitors have added nothing today."}</li>
-          <li>What you and the other owners and admins changed since the baseline, unless you save a new baseline first.</li>
+          <li>What owners and admins changed since the baseline, unless you save a new baseline first.</li>
           <li>Uploads and exports in progress, and the day&rsquo;s counts.</li>
         </ul>
-        {reset.isError ? <ErrorCallout inset error={reset.error} /> : <p className="muted">Visitors keep their seats, and everyone keeps their role. Links to what the baseline holds keep working.</p>}
+        {reset.isError ? <ErrorCallout inset error={reset.error} /> : <p className="muted">Visitors keep their seats and everyone keeps their role. Links to anything in the baseline keep working.</p>}
       </div>
     </Dialog>
   );
@@ -702,7 +706,7 @@ function ResetDialog({ tenant, name, baseline, today, onClose, onDone }: { tenan
 // ---- Invitations --------------------------------------------------------------------------------
 
 const INVITE_TONE: Record<Invite["status"], StatusTone> = { open: "positive", full: "neutral", expired: "neutral", revoked: "negative" };
-const INVITE_WORD: Record<Invite["status"], string> = { open: "Open", full: "Every place taken", expired: "Expired", revoked: "Withdrawn" };
+const INVITE_WORD: Record<Invite["status"], string> = { open: "Open", full: "Full", expired: "Expired", revoked: "Withdrawn" };
 
 function Invitations({ tenant, seats }: { tenant: string; seats: Panel["seats"] }) {
   const base = `/api/v1/tenants/${tenant}/sandbox/invites`;
@@ -714,9 +718,9 @@ function Invitations({ tenant, seats }: { tenant: string; seats: Panel["seats"] 
     mutationFn: (id: string) => api("POST", `${base}/revoke`, { invite_id: id }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["sandbox", tenant] });
-      toast("Invitation withdrawn. Its link admits nobody else; the visitors it admitted keep their seats.");
+      toast("Invitation withdrawn. Visitors who already entered keep their seats.");
     },
-    onError: (e) => toast(`Couldn't withdraw the invitation. ${(e as Error).message}`, { tone: "negative" }),
+    onError: (e) => toast(`Couldn’t withdraw the invitation. ${(e as Error).message}`, { tone: "negative" }),
   });
   return (
     <Sheet labelledBy="invites-title">
@@ -738,7 +742,7 @@ function Invitations({ tenant, seats }: { tenant: string; seats: Panel["seats"] 
         </SheetBody>
       ) : !q.data.items.length ? (
         <EmptyState size="inline" title="No invitations yet">
-          The sandbox is invite-only. An invitation is a link that admits a number of people you choose: post one where a group will see it, or make one for a single person.
+          The sandbox is invite-only. An invitation is one link for as many people as you choose: share it with a group, or create one for a single person.
         </EmptyState>
       ) : (
         <ul className="sandbox-list">
@@ -747,7 +751,7 @@ function Invitations({ tenant, seats }: { tenant: string; seats: Panel["seats"] 
               <div className="sandbox-row-main">
                 <span className="sandbox-row-title">{i.label}</span>
                 <span className="sandbox-row-sub">
-                  <span className="num">{i.used.toLocaleString("en-US")}</span> of <span className="num">{i.places.toLocaleString("en-US")}</span> {i.places === 1 ? "place" : "places"} taken · made {formatDate(i.created_at)} by {i.created_by.display_name}
+                  <span className="num">{i.used.toLocaleString("en-US")}</span> of <span className="num">{i.places.toLocaleString("en-US")}</span> {i.places === 1 ? "place" : "places"} taken · created {formatDate(i.created_at)} by {i.created_by.display_name}
                   {i.expires_at ? ` · ${i.status === "expired" ? "expired" : "expires"} ${formatDate(i.expires_at)}` : ""}
                 </span>
               </div>
@@ -786,8 +790,8 @@ function InviteDialog({ tenant, seats, onClose }: { tenant: string; seats: Panel
       open
       onClose={onClose}
       dismissable={!make.isPending}
-      title={make.data ? "Invitation made" : "New invitation"}
-      description={make.data ? undefined : "A link that admits a number of people as visitors. Anyone who has it can take a place by signing in, with any address."}
+      title={make.data ? "Invitation created" : "New invitation"}
+      description={make.data ? undefined : "Anyone with the link can enter as a visitor, with any email, until its places run out."}
       footer={
         make.data ? (
           <Button variant="primary" onClick={onClose}>
@@ -798,8 +802,8 @@ function InviteDialog({ tenant, seats, onClose }: { tenant: string; seats: Panel
             <Button onClick={onClose} disabled={make.isPending}>
               Cancel
             </Button>
-            <Button variant="primary" busy={make.isPending} busyLabel="Making…" disabled={!valid} onClick={() => make.mutate()}>
-              Make the invitation
+            <Button variant="primary" busy={make.isPending} busyLabel="Creating…" disabled={!valid} onClick={() => make.mutate()}>
+              Create invitation
             </Button>
           </>
         )
@@ -808,7 +812,7 @@ function InviteDialog({ tenant, seats, onClose }: { tenant: string; seats: Panel
       {make.data ? (
         <div className="stack-sm">
           <Callout inset tone="positive" title={`${make.data.label}: ${plural(make.data.places, "place")}`}>
-            Copy the link now. It is shown once and is not kept, so it cannot be read back later; if it is lost, withdraw the invitation and make another.
+            Copy the link now: it&rsquo;s shown only once. If you lose it, withdraw the invitation and create another.
           </Callout>
           <CopyField label="Invitation link" value={make.data.invite_link} />
           {make.data.warnings.map((w) => (
@@ -825,7 +829,7 @@ function InviteDialog({ tenant, seats, onClose }: { tenant: string; seats: Panel
             if (valid) make.mutate();
           }}
         >
-          <TextField label="Where it is going" required maxLength={100} value={label} onChange={(e) => setLabel(e.target.value)} hint="For whoever reads the list later: “Launch post”, “Workshop, 12 October”." />
+          <TextField label="Where you’ll share it" required maxLength={100} value={label} onChange={(e) => setLabel(e.target.value)} hint="Names the invitation in the list: “Launch post”, “Workshop, 12 October”." />
           <TextField
             label="Places"
             type="number"
@@ -834,9 +838,9 @@ function InviteDialog({ tenant, seats, onClose }: { tenant: string; seats: Panel
             required
             value={places}
             onChange={(e) => setPlaces(e.target.value)}
-            hint={`How many people the link admits. The sandbox has ${plural(free, "seat")} free of ${seats.limit.toLocaleString("en-US")}.`}
+            hint={`How many people the link admits. ${free.toLocaleString("en-US")} of ${plural(seats.limit, "seat")} ${free === 1 ? "is" : "are"} free.`}
           />
-          <TextField label="Days until it expires" optional type="number" inputMode="numeric" min={1} max={365} value={days} onChange={(e) => setDays(e.target.value)} hint="Leave it empty for a link that does not expire." />
+          <TextField label="Days until it expires" optional type="number" inputMode="numeric" min={1} max={365} value={days} onChange={(e) => setDays(e.target.value)} hint="Leave empty for a link that never expires." />
           {make.isError ? <ErrorCallout inset error={make.error} /> : null}
         </form>
       )}
@@ -900,7 +904,7 @@ function Visitors({ tenant, seats }: { tenant: string; seats: Panel["seats"] }) 
         </SheetBody>
       ) : !items.length ? (
         <EmptyState size="inline" title={query ? `No visitor matches “${query}”` : "No visitors yet"}>
-          {query ? "Search by name, by address, or by the name on something they wrote, such as Visitor 4F2A9C." : "Make an invitation and send its link. Everyone who enters with it is listed here."}
+          {query ? "Search by name, email, or made-up name, such as Visitor 4F2A9C." : "Create an invitation and share its link. Everyone who enters is listed here."}
         </EmptyState>
       ) : (
         <ul className="sandbox-list">
@@ -930,7 +934,7 @@ function Visitors({ tenant, seats }: { tenant: string; seats: Panel["seats"] }) 
         </div>
       ) : null}
       <p className="sandbox-foot">
-        Only you and the other owners and admins see this list. A visitor sees no other person: in the content each one appears under a made-up name, which you can search for here. The organization&rsquo;s own people are in <Link to={`/t/${tenant}/members`}>Members</Link>.
+        Only owners and admins see this list. Visitors see each other only under made-up names, which you can search for here. The organization&rsquo;s own people are in <Link to={`/t/${tenant}/members`}>Members</Link>.
       </p>
       {removing ? (
         <Dialog
@@ -938,7 +942,7 @@ function Visitors({ tenant, seats }: { tenant: string; seats: Panel["seats"] }) 
           onClose={() => setRemoving(null)}
           dismissable={!remove.isPending}
           title={`Remove ${removing.display_name} from the sandbox?`}
-          description={`They can no longer open it, and their seat is free. What they wrote as ${removing.appears_as} stays until the next reset. They can enter again with an invitation that has a place left.`}
+          description={`They lose their seat and can’t open the sandbox. What they wrote as ${removing.appears_as} stays until the next reset. An invitation with a place left lets them back in.`}
           footer={
             <>
               <Button onClick={() => setRemoving(null)} disabled={remove.isPending}>
@@ -968,11 +972,11 @@ interface InviteInfo {
 }
 
 const NOT_OPEN: Record<Exclude<InviteInfo["status"], "open">, { title: string; text: string }> = {
-  used_up: { title: "Every place on this invitation has been taken", text: "Ask whoever sent it for a new link." },
+  used_up: { title: "This invitation has no places left", text: "Ask whoever sent it for a new link." },
   expired: { title: "This invitation has expired", text: "Ask whoever sent it for a new link." },
   revoked: { title: "This invitation was withdrawn", text: "Ask whoever sent it for a new link." },
-  full: { title: "The sandbox is full for now", text: "Your invitation is still good. Try again later, when a seat has come free." },
-  closed: { title: "The sandbox is closed to visitors for now", text: "Your invitation is still good. Try again later." },
+  full: { title: "The sandbox is full for now", text: "Your invitation still works. Try again when a seat is free." },
+  closed: { title: "The sandbox is closed to visitors for now", text: "Your invitation still works. Try again later." },
 };
 
 /**
@@ -1003,9 +1007,9 @@ export function JoinSandbox() {
           <Loading label="Looking up the invitation…" lines={2} variant="lines" />
         ) : info.isError ? (
           <>
-            <SheetHeader level={1} id="join-title" title="This invitation link can’t be used" />
+            <SheetHeader level={1} id="join-title" title="This invitation link didn’t work" />
             <SheetBody className="entry-form">
-              <ErrorCallout inset title="The link didn’t work" error={info.error} />
+              <ErrorCallout inset title="" error={info.error} />
               <div className="entry-actions">
                 <ButtonLink to="/">Go to WhatBuild</ButtonLink>
               </div>
@@ -1013,26 +1017,26 @@ export function JoinSandbox() {
           </>
         ) : (
           <>
-            <SheetHeader level={1} id="join-title" title={`You’re invited to try WhatBuild in ${i!.organization}`} />
+            <SheetHeader level={1} id="join-title" title="You’re invited to try WhatBuild" />
             <SheetBody className="entry-form">
               <p>
-                {i!.organization} is a worked example of a product discovery: sources, the passages in them, insights, assumptions, decisions and a Story. You can read it, search it, change it and add to it, by hand or with your own agent.
+                {i!.organization} is a worked example of a product discovery, from its sources to its Story. Read it, search it and change it, by hand or with your own agent.
               </p>
-              <Callout inset tone="attention" title="It is public, and it is erased">
+              <Callout inset tone="attention" title="Public, and erased">
                 {i!.notice.replace(/^This is a public sandbox\.\s*/, "")}
               </Callout>
               <ul className="join-terms">
-                <li>You write under a made-up name, such as Visitor 4F2A9C. Nobody there sees your name or address, and you see nobody else&rsquo;s.</li>
-                <li>You can edit content. You can&rsquo;t manage products or people, or delete anything permanently.</li>
+                <li>Your made-up name looks like Visitor 4F2A9C. Nobody sees your real name or email, and you see nobody else&rsquo;s.</li>
+                <li>You can edit content, but not manage products or people, or delete anything permanently.</li>
                 <li>
-                  Each day you can add {plural(i!.limits.sources_per_day, "source")} and {formatBytes(i!.limits.bytes_per_day)}, in files of up to {formatBytes(i!.limits.file_max_bytes)}, and make {plural(i!.limits.writes_per_day, "change")}.
+                  Each day you can add {plural(i!.limits.sources_per_day, "source")} ({formatBytes(i!.limits.bytes_per_day)} in all, {formatBytes(i!.limits.file_max_bytes)} a file) and make {plural(i!.limits.writes_per_day, "change")}.
                 </li>
-                <li>Your account is for the sandbox. Being in it doesn&rsquo;t let you start an organization of your own.</li>
+                <li>Your account works only in the sandbox. It can&rsquo;t start an organization.</li>
               </ul>
               {i!.status !== "open" && !join.isSuccess ? (
                 <Callout inset tone="negative" title={NOT_OPEN[i!.status].title}>
                   {NOT_OPEN[i!.status].text}
-                  {signedIn ? " If you entered with it before, you can still open the sandbox." : ""}
+                  {signedIn ? " If you’ve entered before, you can still open the sandbox." : ""}
                 </Callout>
               ) : null}
               {join.isError ? <ErrorCallout inset error={join.error} /> : null}

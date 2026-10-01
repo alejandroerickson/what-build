@@ -72,7 +72,7 @@ export function SitePage() {
             </p>
             <a href="#interest" className="overview-agent-link">
               <Glyph name="arrow-right" size="sm" />
-              Coming soon: hear when it opens
+              Hear when it opens
             </a>
           </div>
           <Journey />
@@ -80,7 +80,7 @@ export function SitePage() {
 
         <Sheet className="site-interest" labelledBy="interest-title">
           <span id="interest" className="site-anchor" />
-          <SheetHeader level={2} id="interest-title" title="Coming soon" />
+          <SheetHeader level={2} id="interest-title" title="In private preview" />
           <SheetBody className="site-interest-body">
             {state.status === "sent" ? (
               <Callout inset tone="positive" title="Thank you">
@@ -89,14 +89,13 @@ export function SitePage() {
             ) : (
               <form className="site-form" onSubmit={submit}>
                 <p className="site-lede">
-                  WhatBuild is in private preview. Leave your address and we’ll write when your team can start. We use it for nothing
-                  else.
+                  Leave your email and we’ll write when your team can start. We use it for nothing else.
                 </p>
                 <FormGrid>
-                  <TextField label="Email address" type="email" autoComplete="email" required maxLength={320} value={form.email} onChange={set("email")} />
+                  <TextField label="Email" type="email" autoComplete="email" required maxLength={320} value={form.email} onChange={set("email")} />
                   <TextField label="Name" optional autoComplete="name" maxLength={200} value={form.name} onChange={set("name")} />
                   <TextField label="Team or company" optional autoComplete="organization" maxLength={200} value={form.organization} onChange={set("organization")} />
-                  <TextArea label="What are you deciding?" optional rows={3} maxLength={2000} value={form.note} onChange={set("note")} hint="The product question on your team’s mind, if you’d like to share it." />
+                  <TextArea label="What are you deciding?" optional rows={3} maxLength={2000} value={form.note} onChange={set("note")} hint="The product question on your team’s mind." />
                 </FormGrid>
                 {/* People never see this field; bots fill it in and are ignored. */}
                 <div className="site-trap" aria-hidden="true">
@@ -132,7 +131,8 @@ export function SitePage() {
       </main>
       {ANALYTICS_ID ? (
         <CookieChoice
-          purpose="to see how the site is used and remember your choice."
+          lead="Analytics cookies?"
+          ask="They show us how this site is used. A cookie remembers your answer either way."
           link={
             <a href="/cookies" className={buttonClass("quiet", "sm")}>
               Cookies
