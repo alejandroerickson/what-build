@@ -22,8 +22,8 @@ server with the same operations. There is no AI inside.
 - [Decisions](decisions/index.md): the architectural decision records.
 - [Specification](spec/index.md): product, architecture, identity and tenancy, data model, derived
   layer, operations and MCP, web app, search, data lifecycle, and the [roadmap](spec/10-roadmap.md).
-- [Local development](operations/local-development.md), [Cloud Run](operations/cloud-run.md) and
-  [Analytics](operations/analytics.md).
+- [Local development](operations/local-development.md), [Cloud Run](operations/cloud-run.md),
+  [self-hosting on Azure](operations/azure.md) and [Analytics](operations/analytics.md).
 - [Working in this repository](process/working-in-this-repository.md).
 - [Ontology](ontology.md), [bundle guide](README.md), [tools](tools/index.md).
 
@@ -32,8 +32,10 @@ server with the same operations. There is no AI inside.
 - `README.md`: the human-facing introduction.
 - `AGENTS.md`: agent orientation (`CLAUDE.md` links to it).
 - `.agents/skills/`: skills for agents working on the repository: reading this bundle
-  (`okf-orient`), keeping it true (`okf-update`) and recording decisions (`okf-decision`).
+  (`okf-orient`), keeping it true (`okf-update`), recording decisions (`okf-decision`), and
+  hosting a copy on Azure (`azure-self-host`).
 - `PRODUCT.md`: users, purpose and principles. `DESIGN.md` and `.impeccable/design.json`: the
   Studio design system. Both stay at the root because design tooling reads them there.
 - `packages/core/src/skill/SKILL.md`: the agent skill the product serves to connected agents.
-- `deploy/cloud-run/README.md`: a pointer next to `setup.sh`.
+- `deploy/cloud-run/README.md`: a pointer next to `setup.sh`. `deploy/azure/README.md`: a pointer
+  next to the container app's definition.

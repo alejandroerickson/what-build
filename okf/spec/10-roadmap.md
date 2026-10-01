@@ -12,7 +12,7 @@ status: stable
 The ethos: the smallest implementation that proves the full path wins. Each phase ends in
 something demonstrable, and each acceptance list is a test plan.
 
-## Status on 2026-09-30
+## Status on 2026-10-01
 
 Observed in the code on this date.
 
@@ -21,10 +21,10 @@ Observed in the code on this date.
 | 0 | Mostly done | pnpm workspace, strict TypeScript, `pnpm dev` with **no Docker** (embedded Postgres), forward-only migrations, seed, `pnpm test` (parsers, server against real Postgres, web), GitHub Actions CI (documentation bundle check, install, skill drift check, typecheck, test, build) | contribution guide, code of conduct, security policy; lint and format config |
 | 1 | Done | registry → REST and MCP (116 operations, 17 tools); row-level security in the first migration; ETags; paging; `describe`; activity in the same transaction; the isolation test over every operation; the parity test | — |
 | 2 | Mostly done | upload grants (relay, optional direct signed URLs); parsers for plain text, Markdown, VTT, SRT, HTML, DOCX, PDF, XLSX, CSV and TSV; derivation on the Postgres queue; passages by segment and time; substring and ranked search with coverage; archive and restore; guarded delete of sources with tombstones; a synthetic sample product in the seed | usage metering; golden-file tests per format; a blob-store conformance suite (no test exercises the Cloud Storage adapter); legacy `.doc` |
-| 3 | Mostly done | tenants, teams, products, roles; email-link, Google and development sign-in; invitations by email and link; invite-only mode; who may create organizations (instance owners, and allowances they give); sign-in link rate limit; the [public sandbox](#the-public-sandbox) with its invitations, seats, visitor role and limits | quotas and rate limits for every organization (they exist for visitors to the sandbox, and for Story pages); account deletion |
+| 3 | Mostly done | tenants, teams, products, roles; email-link, Google and development sign-in; invitations by email and link; invite-only mode; who may create organizations (instance owners, and allowances they give); sign-in link rate limit; the [public sandbox](#the-public-sandbox) with its invitations, seats, visitor role and limits | quotas and rate limits for every organization (they exist for visitors to the sandbox, and for Story pages); account deletion; sign-in with Microsoft work accounts ([below](#self-hosting-on-azure)) |
 | 4 | Mostly done | the design system (Studio, [DESIGN.md](../../DESIGN.md)) across every screen of the loop: Idea, Evidence (browse, kind-first intake, the source page with sections and inspector, passage reader, notes, files, search), Synthesis (the insight editor, revision history, insight review, assumptions and decisions with review, confidence, citation checks), Story (a read-only reader with the page tree, crumbs, focus mode, the inspector with versions, citations and notes for agents, the Story style with house-style previews, the print view for PDF, the page following the app's theme), Activity as one log for people and agents, organization members, product people, Connect an agent, the person's settings, the cookie choice and `/cookies` | an accessibility audit; Playwright in CI (a browser walk-through exists in `scripts/e2e.mjs`); the public sample at `/sample` |
 | 5 | Mostly done | OAuth 2.1 for MCP, the versioned skill, `get_skill` and the version in the server instructions, the Connect an agent page, feedback, the product's Story style (the team's design system or a house style), Story guidance with taste, anti-patterns and design passes, a vocabulary and compositions for plans and front pages, and publishing a page from its body | the stdio transport |
-| 6 | Started | the Cloud Run deployment ([cloud-run.md](../operations/cloud-run.md)) and the Cloud Build file for continuous deployment; product export (`products.export`); a sandbox's baseline and reset; the public site with its interest form, served from Cloudflare's edge or by host; the service capped at one instance; running on a free-tier Postgres (the suite passes against 18) with a nightly logical backup to a bucket, set up by hand | a rehearsed restore; import; organization export; `setup.sh` creating the Cloud Build trigger (made by hand in the console, so a deployment without one deploys nothing on a push); closing an organization; the sub-processors page; abuse tests; mail to the operator when someone asks to hear from us; Postgres 18 in CI and the embedded test server; `setup.sh` creating the nightly backup; a cap on bytes served per member a day |
+| 6 | Started | the Cloud Run deployment ([cloud-run.md](../operations/cloud-run.md)) and the Cloud Build file for continuous deployment; product export (`products.export`); a sandbox's baseline and reset; the public site with its interest form, served from Cloudflare's edge or by host; the service capped at one instance; running on a free-tier Postgres (the suite passes against 18) with a nightly logical backup to a bucket, set up by hand; instructions for an agent to self-host on Azure ([below](#self-hosting-on-azure)) | a rehearsed restore; import; organization export; `setup.sh` creating the Cloud Build trigger (made by hand in the console, so a deployment without one deploys nothing on a push); closing an organization; the sub-processors page; abuse tests; mail to the operator when someone asks to hear from us; Postgres 18 in CI and the embedded test server; `setup.sh` creating the nightly backup; a cap on bytes served per member a day |
 
 **Deploy early.** A deployment exists as soon as there is something to deploy, is redeployed on
 every push to `main` through a Cloud Build trigger (made by hand; see
@@ -210,6 +210,34 @@ Not built yet:
 | A private copy of a product for each visitor | One visitor can archive or rewrite what the next came to see, within the limits and until the next reset. It needs product cloning, which is close to import. |
 | A test of the limits under real load | The counters are one row per visitor per minute in Postgres, tested for correctness and not for throughput. |
 
+## Self-hosting on Azure
+
+An organization runs its own copy on Azure Container Apps, with Azure Database for PostgreSQL, Key
+Vault and a file share, and signs its people in with Microsoft work accounts. An agent sets it up
+with the Azure CLI from [the guide](../operations/azure.md), following the `azure-self-host` skill
+([decision](../decisions/self-hosting-on-azure-is-agent-led-and-shares-nothing-with-cloud-run.md)).
+
+Built: the guide, the skill, and the container app's definition in `deploy/azure/`. They need no
+change to the server: files go through the filesystem adapter to a mounted share, and email links
+are the sign-in that works today.
+
+Not built yet:
+
+| Gap | Where it is specified | What it touches |
+|---|---|---|
+| A deployment made by following the guide end to end | [azure.md](../operations/azure.md) is a draft: its commands were checked against the Azure CLI reference and its database statements against a local Postgres, and nothing has yet been created in a subscription with them | the guide and the skill, corrected by whoever runs them first |
+| Sign-in with Microsoft work accounts | [§3.2](03-accounts-teams-and-identity.md#sign-in-with-microsoft-work-accounts-planned) | `apps/server/src/config.ts` (three settings); `auth/routes.ts` (two routes, and `microsoft` in `/auth/methods`); `public-routes.ts` (`auth.microsoft` in `/api/v1/meta`); server tests; `apps/web/src/routes/auth.tsx` (the method on the sign-in screen) |
+| Text and documents that name Google as the only provider of sign-in | the same section | the sign-in screen's message for a failed sign-in, which points to the email link whether or not the deployment has one; the necessary-cookies wording ([§9.1](09-data-lifecycle.md)), which names a Google sign-in for the cookie every provider's sign-in uses; the sign-in step in [§7](07-web-app.md); the Identity row in [§2.2](02-architecture.md); the [identity decision](../decisions/built-in-identity-and-oauth.md); Phase 3 and the settled list here |
+| An Azure Blob Storage adapter | [§2.4](02-architecture.md) | a new adapter file, `config.ts`, `createBlobStore` in `app.ts`, the server's dependencies; then the guide moves from the share to a container, the storage account's key leaves the deployment, and large uploads can go direct |
+| A reset on the hour for a public sandbox on Azure | not specified | the guide; a scheduled Container Apps job calling `POST /api/v1/sandbox/reset-if-due`, as Cloud Scheduler does on Cloud Run |
+
+*Accept:*
+- An agent given only the repository and a signed-in Azure CLI brings up a deployment in which a
+  person signs in with a work account, uploads a document and reads its passages, and an agent
+  connects over MCP.
+- The same with the app registration in a different directory from the resources.
+- A deployment of the Cloud Run service before and after is unchanged.
+
 ---
 
 ## Open questions
@@ -238,6 +266,9 @@ Each has a default so work is not blocked.
   citation snapshots survive it ([§9.5](09-data-lifecycle.md)).
 - Providers: Cloud Run, Cloud Storage, Cloud SQL or any Postgres 15+, any SMTP server; no provider
   SDK outside its adapter ([§2.2](02-architecture.md)).
+- Self-hosting on Azure is the same image, set up by an agent with the Azure CLI, sharing nothing
+  with the Cloud Run deployment
+  ([decision](../decisions/self-hosting-on-azure-is-agent-led-and-shares-nothing-with-cloud-run.md)).
 - Authentication is WhatBuild's own: email links, Google, and its own OAuth 2.1 server for MCP; no
   passwords ([§3.2](03-accounts-teams-and-identity.md), [§3.8](03-accounts-teams-and-identity.md)).
 - There are no personal access tokens: agents connect over MCP with OAuth, and REST answers the

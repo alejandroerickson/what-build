@@ -17,6 +17,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [WhatBuild contains no AI; agents bring the intelligence over MCP](no-ai-in-the-product.md)
 - [Postgres is the only database: rows, search and the job queue](postgres-is-the-only-database.md)
 - [One stateless container image serves everything and runs the worker](one-stateless-image.md)
+- [Self-hosting on Azure is done by an agent with the Azure CLI, from instructions in the repository, and shares nothing with the Cloud Run deployment](self-hosting-on-azure-is-agent-led-and-shares-nothing-with-cloud-run.md)
 - [Every capability is one registered operation, exposed through both REST and MCP](one-registry-two-front-doors.md)
 - [MCP exposes 17 tools, grouped by the kind of object, with an action parameter](mcp-tools-grouped-by-noun.md)
 - [Tenants share one schema, partitioned by key and enforced three times](shared-schema-tenancy-with-row-level-security.md)

@@ -3,7 +3,7 @@ type: Specification
 title: Accounts belong to tenants, tenants hold teams, teams run products, and one role check decides every call.
 description: The account → tenant → team → product hierarchy, sign-in, roles and what they grant, addressing and isolation, moving sources between products, caller identity, attribution, and who is who in the public sandbox.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, sandbox]
-generated: {by: agent:claude, at: 2026-09-30}
+generated: {by: agent:claude, at: 2026-10-01}
 status: stable
 ---
 
@@ -54,6 +54,9 @@ Sign-in methods, each optional per deployment:
   with no mail provider disables it rather than log a link; in development the console mailer
   prints it.
 - **Google** — OpenID Connect, when a client id and secret are configured.
+- **Microsoft work accounts** — **Planned.** OpenID Connect against one Microsoft Entra directory,
+  when the directory, a client id and a secret are configured. Specified
+  [below](#sign-in-with-microsoft-work-accounts-planned); not in the server yet.
 - **Development** — "sign in as" an email, only when `NODE_ENV` is not `production` and
   `WHATBUILD_DEV_AUTH` is not `0`.
 
@@ -83,6 +86,74 @@ created this way is marked `sandbox_only`.
 **A `sandbox_only` account is for the sandbox.** The mark brings the sandbox's limits to the calls
 it makes outside any organization ([§9.7](09-data-lifecycle.md)). Like every account, it creates
 organizations only as far as its allowance lets it ([§3.3](#33-tenants-and-teams)).
+
+### Sign-in with Microsoft work accounts (Planned)
+
+Not built; the [roadmap](10-roadmap.md#self-hosting-on-azure) says where it stands. A deployment
+inside a Microsoft organization signs its people in with their work accounts
+([Azure guide](../operations/azure.md#sign-in)). It is a third built-in method beside the email
+link and Google, of the same shape as Google's
+([`auth/routes.ts`](../../apps/server/src/auth/routes.ts)), and it changes nothing about sessions,
+invitations, admission or the OAuth server for agents.
+
+**Configuration.** Three settings, and the method is on only when all three are set:
+
+| Variable | Value |
+|---|---|
+| `WHATBUILD_MICROSOFT_TENANT` | The directory's ID, a GUID. The server MUST refuse to start on any other value (`common`, `organizations`, `consumers`, a domain name). |
+| `WHATBUILD_MICROSOFT_CLIENT_ID` | The app registration's application (client) ID. |
+| `WHATBUILD_MICROSOFT_CLIENT_SECRET` | One of its client secrets. |
+
+The app registration is a single-tenant web application whose redirect URI is
+`<WHATBUILD_PUBLIC_URL>/auth/microsoft/callback`.
+
+**Flow.** `GET /auth/microsoft?next=<path>` and `GET /auth/microsoft/callback`: the authorization
+code flow with PKCE (`S256`) and a random `state`, both kept with the safe `next` in the `HttpOnly`
+cookie `wb_oidc`, scoped to `/auth/microsoft`, for ten minutes. The endpoints are the directory's
+own, `https://login.microsoftonline.com/<tenant>/oauth2/v2.0/authorize` and `…/token`; the scope
+is `openid email profile`; `prompt=select_account`. A request to `/auth/microsoft` on a server
+without the method answers `404`.
+
+**What the callback accepts.** The ID token arrives from the token endpoint over TLS, so its
+claims are read as issued, as Google's are. The callback MUST refuse the sign-in unless:
+
+- `aud` is the client ID,
+- `tid` is the configured directory, and `iss` is
+  `https://login.microsoftonline.com/<tenant>/v2.0`,
+- there is an address: the `email` claim, or, when the token has none, `preferred_username` if it
+  has the form of an email address.
+
+Entra issues no `email_verified` claim and describes `email` as changeable. What stands in for
+verification is the directory: only its administrators set these attributes for its accounts, so
+an address is taken on that directory's word and on no other's. The server therefore MUST NOT
+accept a token from any other directory, and MUST NOT offer a mode that admits many.
+
+A refusal for a missing or mismatched claim redirects to `/signin?error=microsoft_unverified`; a
+missing cookie, a wrong `state`, a missing `code` or a failed token request, to
+`/signin?error=microsoft_failed`. An accepted sign-in then does exactly what the others do:
+admission (invite-only mode, invitations, a sandbox invitation), `findOrCreateAccount` with the
+address and the `name` claim, acceptance of the invitations addressed to it, a session, and a
+redirect to `next`.
+
+**What reports it.** `GET /auth/methods` and the `auth` object of `GET /api/v1/meta` each gain
+`microsoft: boolean`, true when the method is on.
+
+**The sign-in screen** ([§7](07-web-app.md)) offers the method as it offers Google: a link to
+`/auth/microsoft?next=…`. Its message for a failed sign-in MUST NOT point to the email link on a
+deployment that has none.
+
+◆ Decision: a named method bound to one directory, not a general OpenID Connect setting, because
+what makes an address trustworthy differs between providers (Google says `email_verified`; Entra
+says nothing, and the directory binding does the work), and a general setting could not know.
+
+◆ Decision: accounts stay keyed by address, as for every other method; the directory's object ID
+(`oid`) is not stored. An address the directory gives to a different person later reaches the
+earlier person's account, which is equally true of an email link.
+
+*Accept:* with the token endpoint stubbed, server tests show a sign-in creating an account and
+accepting its invitations; each refusal above (`aud`, `tid`, `iss`, no address, wrong `state`);
+invite-only mode refusing an address outside the allowlist; `404` when not configured; start-up
+refusing a tenant that is not a GUID; and `microsoft` reported by both endpoints.
 
 ## 3.3 Tenants and teams
 

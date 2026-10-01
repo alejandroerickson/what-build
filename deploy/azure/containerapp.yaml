@@ -1,0 +1,94 @@
+# The WhatBuild container app on Azure Container Apps: one image serving the web app, REST, MCP and
+# OAuth, and running the job worker, with files on a mounted Azure Files share.
+#
+# A template, not a deployable file: every ${NAME} is replaced before it is used, and the rendered
+# copy is written outside the repository. okf/operations/azure.md says where each value comes from
+# and gives the command that renders it. A definition file is needed because the Azure CLI has no
+# flag for a volume mount.
+#
+# Nothing here is a credential. The two secrets are references to Key Vault, read by the app's
+# managed identity.
+location: ${AZ_LOCATION}
+type: Microsoft.App/containerApps
+identity:
+  type: UserAssigned
+  userAssignedIdentities:
+    ${AZ_IDENTITY_ID}: {}
+properties:
+  managedEnvironmentId: ${AZ_ENV_ID}
+  configuration:
+    activeRevisionsMode: Single
+    ingress:
+      external: true
+      targetPort: 8080
+      transport: auto
+      allowInsecure: false
+    registries:
+      - server: ${AZ_ACR}.azurecr.io
+        identity: ${AZ_IDENTITY_ID}
+    secrets:
+      - name: database-url
+        keyVaultUrl: https://${AZ_KEYVAULT}.vault.azure.net/secrets/whatbuild-database-url
+        identity: ${AZ_IDENTITY_ID}
+      - name: grant-key
+        keyVaultUrl: https://${AZ_KEYVAULT}.vault.azure.net/secrets/whatbuild-grant-key
+        identity: ${AZ_IDENTITY_ID}
+      # Email links and invitations by mail (okf/operations/azure.md, "Sign-in"). Uncomment with its
+      # env entry below once the secret exists in the vault.
+      # - name: smtp-url
+      #   keyVaultUrl: https://${AZ_KEYVAULT}.vault.azure.net/secrets/whatbuild-smtp-url
+      #   identity: ${AZ_IDENTITY_ID}
+      # Microsoft sign-in, for a build that has it (okf/spec/03-accounts-teams-and-identity.md §3.2).
+      # - name: microsoft-client-secret
+      #   keyVaultUrl: https://${AZ_KEYVAULT}.vault.azure.net/secrets/whatbuild-microsoft-client-secret
+      #   identity: ${AZ_IDENTITY_ID}
+  template:
+    containers:
+      - name: whatbuild
+        image: ${AZ_ACR}.azurecr.io/whatbuild:${WB_IMAGE_TAG}
+        resources:
+          cpu: 1.0
+          memory: 2Gi
+        env:
+          - name: DATABASE_URL
+            secretRef: database-url
+          - name: WHATBUILD_GRANT_KEY
+            secretRef: grant-key
+          - name: WHATBUILD_PUBLIC_URL
+            value: ${WB_PUBLIC_URL}
+          - name: WHATBUILD_RELEASE
+            value: "${WB_IMAGE_TAG}"
+          # Files go to the mounted share through the filesystem adapter.
+          - name: WHATBUILD_BLOB_STORE
+            value: fs
+          - name: WHATBUILD_BLOB_DIR
+            value: /data/blobs
+          # Every upload passes through the service here, so the relay takes files up to the
+          # per-file limit instead of the 25 MiB that suits Cloud Run.
+          - name: WHATBUILD_RELAY_MAX_BYTES
+            value: "104857600"
+          - name: WHATBUILD_SIGNUP_ALLOWLIST
+            value: "${WB_ALLOWLIST}"
+          - name: WHATBUILD_INSTANCE_OWNERS
+            value: "${WB_OWNERS}"
+          # - name: WHATBUILD_SMTP_URL
+          #   secretRef: smtp-url
+          # - name: WHATBUILD_MAIL_FROM
+          #   value: "WhatBuild <no-reply@example.com>"
+          # - name: WHATBUILD_MICROSOFT_TENANT
+          #   value: ${AZ_IDENTITY_TENANT}
+          # - name: WHATBUILD_MICROSOFT_CLIENT_ID
+          #   value: ${WB_MICROSOFT_CLIENT_ID}
+          # - name: WHATBUILD_MICROSOFT_CLIENT_SECRET
+          #   secretRef: microsoft-client-secret
+        volumeMounts:
+          - volumeName: files
+            mountPath: /data/blobs
+    scale:
+      # One replica at most, and none when idle: the first request after a quiet spell waits for a start.
+      minReplicas: 0
+      maxReplicas: 1
+    volumes:
+      - name: files
+        storageType: AzureFile
+        storageName: ${AZ_SHARE}

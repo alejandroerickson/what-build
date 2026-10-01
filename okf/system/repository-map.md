@@ -3,7 +3,7 @@ type: System Concept
 title: Where things are in the repository
 description: The workspace layout and the files an engineer or agent reaches for first.
 tags: [repository, layout, orientation]
-generated: {by: agent:claude, at: 2026-09-29}
+generated: {by: agent:claude, at: 2026-10-01}
 status: stable
 ---
 
@@ -20,8 +20,9 @@ A pnpm workspace: two apps and two libraries.
 | `apps/web/src/` | The React app. `main.tsx` (routes), `routes/` (screens), `shell/` (panel, inspector, theme), `ui/` (primitives; `glyph.tsx` wraps the icons), `styles/` (`tokens.css`, `base.css`, `ui.css`, `shell.css`, `screens/*.css`), `lib/` (API client, session, formatting, Markdown), `system/` (a development-only specimen of every primitive at `/_system`), `site/` (the public site's page; its HTML entry is `apps/web/site/index.html`). |
 | `scripts/` | `e2e.mjs` and `shots.mjs` (Playwright scripts against a running `pnpm dev`), `gen-skill.mjs` (embeds `SKILL.md` into core). |
 | `deploy/cloud-run/` | `setup.sh` for the Cloud Run deployment ([guide](../operations/cloud-run.md)). |
+| `deploy/azure/` | `containerapp.yaml`, the container app's definition for a self-hosted deployment on Azure, which an agent sets up with the Azure CLI ([guide](../operations/azure.md)). |
 | `deploy/cloudflare/` | `worker.js` and `wrangler.toml`: on Cloudflare's free plan, the public site from the edge and the app's domain from the Cloud Run service. |
 | `Dockerfile`, `cloudbuild.yaml` | The production image and its build. |
 | `okf/` | This bundle: all documentation. |
-| `.agents/skills/` | Skills for agents working on this repository: `okf-orient`, `okf-update`, `okf-decision` ([decision](../decisions/agent-guidance-is-tool-neutral.md)). `.claude/skills` links here. |
+| `.agents/skills/` | Skills for agents working on this repository: `okf-orient`, `okf-update`, `okf-decision` ([decision](../decisions/agent-guidance-is-tool-neutral.md)), and `azure-self-host`, the procedure for [hosting on Azure](../operations/azure.md). `.claude/skills` links here. |
 | `PRODUCT.md`, `DESIGN.md`, `.impeccable/design.json` | Product and design records, read by design tooling. |
