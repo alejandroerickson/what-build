@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete, closing an organization, the operator runbooks, and the public sandbox with its limits, baseline and reset.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, sandbox]
-generated: {by: agent:claude, at: 2026-09-30}
+generated: {by: agent:claude, at: 2026-10-01}
 status: stable
 ---
 
@@ -117,7 +117,11 @@ organization before public sign-up opens.
 
 **Postgres.** In the Cloud Run deployment with Cloud SQL
 ([cloud-run.md](../operations/cloud-run.md)), `setup.sh` turns on automated daily backups with seven
-retained, and point-in-time recovery. With another Postgres, the provider's backups apply.
+retained, and point-in-time recovery. With another Postgres, whose free tiers keep only hours of
+restore history, a nightly `pg_dump` runs as a role that reads everything and changes nothing, into
+a bucket of its own where dumps expire after 35 days ([cloud-run.md](../operations/cloud-run.md)).
+◆ Decision: the backup identity may add and read dumps but not delete them, so a fault in the job
+cannot erase the backups it would be needed to replace.
 ◆ Decision: a restore into a scratch environment is **performed and written up before public
 sign-up opens**, and repeated quarterly. An untested backup is not a backup, and this is the item
 most likely to be skipped under time pressure, so it is an acceptance criterion of a phase
