@@ -3,7 +3,7 @@ type: Roadmap
 title: Phases 0 to 5 are mostly built, and a public sandbox; durability, data rights and public sign-up come next.
 description: What is built and what is not, phase by phase, with acceptance criteria; the open questions that remain, the ones already settled, and the risks.
 tags: [roadmap, status, phases, open-questions, risks]
-generated: {by: agent:claude, at: 2026-09-30}
+generated: {by: agent:claude, at: 2026-10-01}
 status: stable
 ---
 
@@ -124,11 +124,13 @@ operator runbooks ([§9.6](09-data-lifecycle.md)).
 
 **Running for next to nothing.** A deployment for a few teams should cost only what it stores:
 Cloudflare's free plan in front of the service ([cloud-run.md](../operations/cloud-run.md)), one
-instance at most, and a free-tier Postgres instead of Cloud SQL. That needs the tests to run on
-the Postgres versions such providers offer (18 today; the suite runs 17), and, because their
-restore windows are hours rather than days, a scheduled logical backup (`pg_dump`) into the
-bucket. Data the service sends out is the one cost that grows with use, so a daily cap on bytes
-served per member belongs with the planned quotas ([§9.2](09-data-lifecycle.md)).
+instance at most, and a free-tier Postgres instead of Cloud SQL. That needs the tests to run on the
+Postgres versions such providers offer (18 today: the suite passes against 18 when pointed at one,
+as [local-development.md](../operations/local-development.md) describes, but its embedded server and
+CI run 17), and, because their restore windows are hours rather than days, a nightly logical backup
+(`pg_dump`), which [cloud-run.md](../operations/cloud-run.md) sets up by hand and `setup.sh` does
+not create yet. Data the service sends out is the one cost that grows with use, so a daily cap on
+bytes served per member belongs with the planned quotas ([§9.2](09-data-lifecycle.md)).
 
 Delete itself is **not** here: it ships with the objects it destroys, because a product that can
 only accumulate is not one people will put real material into.

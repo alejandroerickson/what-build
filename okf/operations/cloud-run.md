@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
 description: What the production deployment is made of, how deploy/cloud-run/setup.sh creates it, sign-in and continuous deployment, cost, names, and useful commands.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-09-30}
+generated: {by: agent:claude, at: 2026-10-01}
 status: stable
 ---
 
@@ -46,6 +46,53 @@ that is a superuser or has `BYPASSRLS`, because the second layer would silently 
 Cloud SQL path creates an ordinary user. On a hosted Postgres whose default role bypasses RLS,
 create one for WhatBuild: `CREATE ROLE whatbuild LOGIN PASSWORD '…'; CREATE DATABASE whatbuild
 OWNER whatbuild;` and use that in `DATABASE_URL`.
+
+**Backups with another Postgres.** Cloud SQL keeps its own backups; a free tier keeps only hours
+of restore history, so add a nightly logical backup. `setup.sh` does not create it yet. `pg_dump`
+cannot run as the `whatbuild` role, whose own rows the policies hide, so give it a role of its own
+that reads everything and can change nothing: `CREATE ROLE whatbuild_backup LOGIN PASSWORD '…'
+BYPASSRLS; GRANT pg_read_all_data TO whatbuild_backup;` (run by a role that has `BYPASSRLS`
+itself). The dumps go to a bucket of their own, which the backup identity may add to and read but
+not delete from, so a fault in the job cannot erase the dumps before it; they expire after 35 days.
+The job runs the stock `postgres` image, of the same major version as the database:
+
+```bash
+P=my-whatbuild R=northamerica-northeast2 SA=whatbuild-backup@$P.iam.gserviceaccount.com
+gcloud iam service-accounts create whatbuild-backup --project $P
+gcloud storage buckets create gs://$P-backups --project $P --location $R \
+  --uniform-bucket-level-access --public-access-prevention
+echo '{"rule":[{"action":{"type":"Delete"},"condition":{"age":35}}]}' > lifecycle.json
+gcloud storage buckets update gs://$P-backups --lifecycle-file lifecycle.json
+for r in objectCreator objectViewer; do
+  gcloud storage buckets add-iam-policy-binding gs://$P-backups --member serviceAccount:$SA --role roles/storage.$r
+done
+# libpq verifies the certificate against the system's roots only when asked:
+printf '%s' 'postgres://whatbuild_backup:…@host/whatbuild?sslmode=verify-full&sslrootcert=system' |
+  gcloud secrets create whatbuild-backup-database-url --project $P --data-file=-
+gcloud secrets add-iam-policy-binding whatbuild-backup-database-url --project $P \
+  --member serviceAccount:$SA --role roles/secretmanager.secretAccessor
+gcloud run jobs create whatbuild-backup --project $P --region $R --image docker.io/library/postgres:18-alpine \
+  --service-account $SA --set-secrets DATABASE_URL=whatbuild-backup-database-url:latest \
+  --add-volume name=backups,type=cloud-storage,bucket=$P-backups --add-volume-mount volume=backups,mount-path=/backups \
+  --memory 512Mi --max-retries 1 --task-timeout 15m --command sh \
+  --args=-c,'set -eu; f="whatbuild-$(date -u +%Y-%m-%dT%H%MZ).dump"; pg_dump "$DATABASE_URL" --format=custom --file="/tmp/$f"; cp "/tmp/$f" "/backups/$f"'
+gcloud run jobs add-iam-policy-binding whatbuild-backup --project $P --region $R --member serviceAccount:$SA --role roles/run.invoker
+gcloud services enable cloudscheduler.googleapis.com --project $P
+gcloud scheduler jobs create http whatbuild-backup-nightly --project $P --location $R \
+  --schedule '30 1 * * *' --time-zone America/Los_Angeles --http-method POST \
+  --uri https://run.googleapis.com/v2/projects/$P/locations/$R/jobs/whatbuild-backup:run \
+  --oauth-service-account-email $SA
+```
+
+To restore one, create an empty database owned by `whatbuild` and `pg_trgm` in it (as an
+administrator), then restore as `whatbuild` itself, which needs no bypass because the dump turns
+row-level security on after it loads the rows. Leave out the extension's comment, which only the
+extension's owner may set:
+
+```bash
+pg_restore -l whatbuild-….dump | grep -v 'COMMENT - EXTENSION' > restore.list
+pg_restore -d 'postgres://whatbuild:…@host/whatbuild' --no-owner --exit-on-error -L restore.list whatbuild-….dump
+```
 
 The script is safe to re-run; every step checks before it creates. It enables the APIs, creates the
 image repository, the runtime identity, the bucket, the secrets and (with `CLOUD_SQL=1`) a Cloud SQL
@@ -204,6 +251,7 @@ sends out costs about US$0.12 a GB, and is the one cost that grows with download
 | Secrets | `whatbuild-database-url`, `whatbuild-grant-key`, optional `whatbuild-smtp-url`, `whatbuild-google-client-secret` | read by the runtime identity only |
 | Images | Artifact Registry `whatbuild` | the ten most recent always kept; others deleted after 30 days |
 | Scheduler job | `whatbuild-sandbox-reset` (with `SANDBOX_TENANT`) | wakes the service a minute after the sandbox's reset hour |
+| Backup (another Postgres, set up by hand) | job `whatbuild-backup`, scheduler job `whatbuild-backup-nightly`, identity `whatbuild-backup`, bucket `<project>-backups`, secret `whatbuild-backup-database-url` | a `pg_dump` each night as a read-only role that bypasses row-level security; the identity adds and reads dumps, never deletes; dumps expire after 35 days |
 
 ## Useful commands
 
