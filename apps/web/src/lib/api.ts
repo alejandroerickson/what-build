@@ -32,6 +32,12 @@ export function setUnauthenticatedHandler(fn: () => void) {
   onUnauthenticated = fn;
 }
 
+let onChange: ((method: string, path: string) => void) | null = null;
+/** Told of every change the server accepted (any method but GET), for counting what people do. */
+export function setChangeListener(fn: (method: string, path: string) => void) {
+  onChange = fn;
+}
+
 export async function api<T = unknown>(method: string, path: string, body?: unknown, init: RequestInit = {}): Promise<T> {
   let res: Response;
   try {
@@ -57,6 +63,7 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
     if (res.status === 401) onUnauthenticated?.();
     throw new ApiError(res.status, err?.code ?? "error", err?.message ?? DEFAULT_MESSAGES[res.status] ?? `WhatBuild answered with status ${res.status}.`, err?.details);
   }
+  if (method !== "GET") onChange?.(method, path);
   return data as T;
 }
 

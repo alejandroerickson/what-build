@@ -8,7 +8,10 @@
 // responses pass through untouched. See okf/operations/cloud-run.md, "A custom domain".
 //
 // Settings (wrangler --var): ORIGIN, the service's run.app URL; SITE_HOST, the site's domain
-// (e.g. example.com); APP_URL, the app's origin (e.g. https://app.example.com).
+// (e.g. example.com); APP_URL, the app's origin (e.g. https://app.example.com); and, optionally,
+// ANALYTICS_ID, a Google Analytics measurement ID the site's page loads once a visitor accepts, and
+// CF_ANALYTICS_TOKEN, a Cloudflare Web Analytics site token: its beacon sets no cookie, so it
+// counts every visit to the site's page, those who decline included.
 
 /** The site's own paths. Every other path on its domain belongs to the app. */
 const SITE_FILES = /^\/(assets\/.+|favicon\.svg|theme-boot\.js)$/;
@@ -28,10 +31,40 @@ function forward(request, url, env) {
   return fetch(forwarded, { redirect: "manual" });
 }
 
+/** Google Analytics' hosts, by directive (ANALYTICS_SOURCES in apps/server/src/public-routes.ts). */
+const ANALYTICS_SOURCES = {
+  "script-src": "https://*.googletagmanager.com",
+  "img-src": "https://*.google-analytics.com https://*.googletagmanager.com",
+  "connect-src": "https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com",
+};
+
+/** Cloudflare Web Analytics' hosts: its beacon script, and where it reports. */
+const BEACON_SOURCES = {
+  "script-src": "https://static.cloudflareinsights.com",
+  "connect-src": "https://cloudflareinsights.com",
+};
+
+function pageHeaders(analytics, beacon) {
+  const sources = [analytics ? ANALYTICS_SOURCES : {}, beacon ? BEACON_SOURCES : {}];
+  const csp = PAGE_HEADERS["Content-Security-Policy"].split("; ").map((d) => {
+    const extra = sources.map((s) => s[d.split(" ")[0]]).filter(Boolean);
+    return extra.length ? `${d} ${extra.join(" ")}` : d;
+  });
+  return { ...PAGE_HEADERS, "Content-Security-Policy": csp.join("; ") };
+}
+
 async function sitePage(request, url, env) {
   const page = await env.ASSETS.fetch(new Request(new URL("/site/", url), request));
-  const response = new Response(page.body, page);
-  for (const [name, value] of Object.entries(PAGE_HEADERS)) response.headers.set(name, value);
+  const id = /^G-[A-Z0-9]+$/.test(env.ANALYTICS_ID ?? "") ? env.ANALYTICS_ID : null;
+  const beacon = /^[0-9a-f]{32}$/.test(env.CF_ANALYTICS_TOKEN ?? "") ? env.CF_ANALYTICS_TOKEN : null;
+  const head = [
+    id ? `<meta name="whatbuild-analytics" content="${id}" />` : "",
+    beacon ? `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "${beacon}"}'></script>` : "",
+  ].join("");
+  const body = head ? (await page.text()).replace("</head>", `${head}\n</head>`) : page.body;
+  const response = new Response(body, page);
+  for (const [name, value] of Object.entries(pageHeaders(Boolean(id), Boolean(beacon)))) response.headers.set(name, value);
+  if (head) response.headers.delete("Content-Length");
   response.headers.set("Cache-Control", "no-cache");
   return response;
 }

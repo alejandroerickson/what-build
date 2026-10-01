@@ -86,51 +86,17 @@
 }
 
 /* The /cookies page */
-.cookie-items {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.cookie-item {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  column-gap: var(--s-3);
-  row-gap: var(--s-0);
-  align-items: baseline;
-  padding: var(--s-2h) var(--sheet-px) var(--s-3);
-  border-bottom: 1px solid var(--line);
-}
-.cookie-item:last-child {
-  border-bottom: 0;
-}
-.cookie-item-name {
-  min-width: 0;
-  color: var(--text);
-  font-family: var(--mono);
-  font-size: var(--fs-sm);
-  overflow-wrap: anywhere;
-}
-.cookie-item-lasts {
-  color: var(--faint);
-  font-size: var(--fs-sm);
-  text-align: right;
-}
-.cookie-item-purpose {
-  grid-column: 1 / -1;
+.cookie-kind {
   max-width: 68ch;
   margin: 0;
   color: var(--muted);
   line-height: 1.5;
 }
+.cookie-choice {
+  display: flex;
+  gap: var(--s-1h);
+  margin-top: var(--s-3);
+}
 .cookie-back {
   margin-top: var(--s-5);
-}
-
-@media (max-width: 760px) {
-  .cookie-item {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .cookie-item-lasts {
-    text-align: left;
-  }
 }

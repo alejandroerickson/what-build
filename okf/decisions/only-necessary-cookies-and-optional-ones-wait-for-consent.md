@@ -3,11 +3,13 @@ type: Decision
 title: WhatBuild stores only what it needs, says so once, and keeps anything optional off until a person agrees
 description: Only strictly necessary cookies and the person's own display choices, so a notice replaces a consent prompt; anything optional added later is opt-in.
 tags: [decision, privacy, cookies, web, compliance]
-generated: {by: agent:claude, at: 2026-09-30}
-status: stable
+generated: {by: agent:claude, at: 2026-10-01}
+status: deprecated
 ---
 
 # WhatBuild stores only what it needs, says so once, and keeps anything optional off until a person agrees
+
+Superseded on 2026-10-01 by [WhatBuild asks once whether a person accepts cookies, and runs Google Analytics only for those who do](analytics-only-for-people-who-accept-cookies.md).
 
 ## Context
 

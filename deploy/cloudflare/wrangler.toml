@@ -4,7 +4,12 @@
 #   corepack pnpm build
 #   npx wrangler deploy --config deploy/cloudflare/wrangler.toml \
 #     --var ORIGIN:https://<service>-<project number>.<region>.run.app \
-#     --var SITE_HOST:example.com --var APP_URL:https://app.example.com
+#     --var SITE_HOST:example.com --var APP_URL:https://app.example.com \
+#     --var ANALYTICS_ID:G-XXXXXXXXXX --var CF_ANALYTICS_TOKEN:<token>
+#
+# The last two are optional. ANALYTICS_ID is Google Analytics, loaded on the site's page once a
+# visitor accepts; CF_ANALYTICS_TOKEN is a Cloudflare Web Analytics site token, whose beacon sets
+# no cookie and so counts every visit.
 name = "whatbuild-edge"
 main = "worker.js"
 compatibility_date = "2026-09-01"

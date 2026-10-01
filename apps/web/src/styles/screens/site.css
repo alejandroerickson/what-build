@@ -61,13 +61,27 @@
   color: var(--faint);
   font-size: var(--fs-sm);
 }
-.site-foot a {
+.site-foot a,
+.site-foot-link {
   color: var(--muted);
   text-decoration: underline;
   text-decoration-color: var(--line-strong);
   text-underline-offset: 3px;
 }
-.site-foot a:hover {
+.site-foot-end {
+  display: flex;
+  gap: var(--s-4);
+}
+.site-foot a,
+.site-foot-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+.site-foot a:hover,
+.site-foot-link:hover {
   color: var(--text);
   text-decoration-color: currentColor;
 }

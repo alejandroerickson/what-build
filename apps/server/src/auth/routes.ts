@@ -121,7 +121,7 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
   });
 
   app.get("/auth/methods", (c) =>
-    c.json({ email_link: config.mailer !== "none", google: Boolean(config.googleClientId && config.googleClientSecret), dev: config.devAuth, session_days: config.sessionDays }),
+    c.json({ email_link: config.mailer !== "none", google: Boolean(config.googleClientId && config.googleClientSecret), dev: config.devAuth, session_days: config.sessionDays, analytics_id: config.analyticsId }),
   );
 
   // ---- Google sign-in (optional; on when a client id and secret are configured) ---------------

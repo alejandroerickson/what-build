@@ -153,7 +153,8 @@ describe("identity", () => {
   });
 
   it("says before sign-in how long the session cookie lasts, as long as the cookie it sets", async () => {
-    const methods = (await (await fetch(`${h.baseUrl}/auth/methods`)).json()) as { session_days: number };
+    const methods = (await (await fetch(`${h.baseUrl}/auth/methods`)).json()) as { session_days: number; analytics_id: string | null };
+    expect(methods.analytics_id).toBeNull();
     const res = await fetch(`${h.baseUrl}/auth/dev-sign-in`, {
       method: "POST",
       headers: { "content-type": "application/json", origin: h.baseUrl },
