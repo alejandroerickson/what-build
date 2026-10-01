@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Synthesis, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-09-29}
+generated: {by: agent:claude, at: 2026-09-30}
 status: stable
 ---
 
@@ -122,6 +122,7 @@ person's organization role is in the account menu, and who has which role is on 
 ```
 /signin  /welcome  /invite/:token             sign-in, first run, accepting an invitation
 /join/:code                                   the page behind an invitation to the public sandbox
+/cookies                                      Cookies and browser storage: every item kept, and why; readable signed out
 /                   ?archived=1&create=1      the overview: what WhatBuild is, and every product; new product; first run with no organization
 /products                                     → / (with its query)
 /t/:tenant/members                            people and roles in an organization
@@ -164,7 +165,8 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
 
 1. **Sign in** (`/signin`) with an email link or Google, whichever the deployment configures
    ([§3.2](03-accounts-teams-and-identity.md)); in development, "sign in as" a seeded account. The
-   data statement ([§9.1](09-data-lifecycle.md)) is on the sign-in page, in full, not behind a link.
+   data statement ([§9.1](09-data-lifecycle.md)) is on the sign-in page, in full, not behind a link,
+   followed by one line on cookies that links to `/cookies`.
 2. **First run** (`/welcome`): name the organization and the first product in one form, for an
    account that may create one ([§3.3](03-accounts-teams-and-identity.md)). The same form, titled
    New organization, starts another. An account that may not says so: the people who run the
@@ -494,7 +496,18 @@ never described as deleting. A list row showing an archived object says *Archive
   outstanding invitations with a cancel control. An inherited role links to the organization's
   Members, where it is changed. Access is per product; nothing is granted per page or per source.
 - **Settings** (`/settings`, from the account menu). Display name, and the email the person signs
-  in with (read-only).
+  in with (read-only); below them, a link to Cookies and browser storage.
+- **Cookies and browser storage** (`/cookies`, readable signed out;
+  `apps/web/src/routes/cookies.tsx`). Every cookie the server sets and every item the app keeps in
+  the browser, each with what it is for and how long it lasts; the session's length comes from
+  `GET /auth/methods` (`session_days`). It says there is nothing to switch off, how to clear them,
+  and that anything optional would stay off until the person agrees ([§9.1](09-data-lifecycle.md)).
+  The list is kept in step with the code by hand: a new cookie or storage key adds a row.
+- **The cookie notice** (`apps/web/src/shell/CookieNotice.tsx`). Every screen, signed in or not,
+  carries a small note at the bottom-right inset (flush along the bottom on phones) until the
+  person presses Got it, remembered in the browser: only the cookies WhatBuild needs, what they
+  are for, no analytics or ads, and What's stored, which opens `/cookies`. It offers no choice,
+  blocks nothing and never takes focus; the app works the same whether anyone reads it.
 - **Organization creators** (`/instance`, from the account menu, for the instance's owners only;
   `apps/web/src/routes/instance.tsx`). What the rule is, the default for every other address and
   who the owners are; then each address with an allowance: its person or "no account yet", how

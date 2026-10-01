@@ -89,6 +89,7 @@
   /* Layers */
   --z-panel: 5;
   --z-pill: 6;
+  --z-notice: 7; /* the cookie notice: above the panels, under a phone drawer's scrim */
   --z-scrim: 8;
   --z-overlay: 9;
   --z-dialog: 50;

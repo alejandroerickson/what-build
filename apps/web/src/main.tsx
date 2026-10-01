@@ -10,6 +10,7 @@ import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, use
 import { ApiError, setUnauthenticatedHandler } from "./lib/api.ts";
 import { ProductProvider, RequireSession } from "./lib/session.tsx";
 import { ConnectPage } from "./routes/connect.tsx";
+import { CookiesPage } from "./routes/cookies.tsx";
 import { AcceptInvite, NotFound, SignIn } from "./routes/auth.tsx";
 import { InsightEditPage, InsightPage, InsightsPage } from "./routes/insights.tsx";
 import { IdeaPage } from "./routes/idea.tsx";
@@ -26,6 +27,7 @@ import { SourceNewPage } from "./routes/source-new.tsx";
 import { EvidencePage } from "./routes/evidence.tsx";
 import { StoryPage } from "./routes/story.tsx";
 import { SynthesisSection } from "./routes/synthesis-panel.tsx";
+import { CookieNotice } from "./shell/CookieNotice.tsx";
 import { PlainShell, ProductShell } from "./shell/Shell.tsx";
 import { ButtonLink, EmptyState, Sheet, SheetHeader, ToastProvider } from "./ui/index.tsx";
 
@@ -92,8 +94,19 @@ function BareProductPath() {
   return <Navigate replace to={`/t/${tenant}/${team}/${product}${rest ? `/${rest}` : ""}${search}${hash}`} />;
 }
 
-const router = createBrowserRouter([
+/** Every screen, signed in or not, with the cookie notice in its corner until it is dismissed. */
+function Root() {
+  return (
+    <>
+      <Outlet />
+      <CookieNotice />
+    </>
+  );
+}
+
+const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteError />, children: [
   { path: "/signin", element: <SignIn />, errorElement: <RouteError /> },
+  { path: "/cookies", element: <CookiesPage />, errorElement: <RouteError /> },
   { path: "/join/:code", element: <JoinSandbox />, errorElement: <RouteError /> },
   {
     element: (
@@ -163,7 +176,7 @@ const router = createBrowserRouter([
       { path: "*", element: <PlainShell><NotFound /></PlainShell> },
     ],
   },
-]);
+] }]);
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

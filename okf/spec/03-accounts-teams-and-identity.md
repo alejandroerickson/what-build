@@ -3,7 +3,7 @@ type: Specification
 title: Accounts belong to tenants, tenants hold teams, teams run products, and one role check decides every call.
 description: The account → tenant → team → product hierarchy, sign-in, roles and what they grant, addressing and isolation, moving sources between products, caller identity, attribution, and who is who in the public sandbox.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, sandbox]
-generated: {by: agent:claude, at: 2026-09-29}
+generated: {by: agent:claude, at: 2026-09-30}
 status: stable
 ---
 
@@ -206,7 +206,7 @@ calls **every** product, team and tenant operation as someone with no membership
 
 | Surface | Credential | Recorded surface |
 |---|---|---|
-| Web | Session cookie (`HttpOnly`, `SameSite=Lax`, `Secure` on HTTPS), 30 days; cookie writes must come from the app's own origin | `web` |
+| Web | Session cookie `wb_session` (`HttpOnly`, `SameSite=Lax`, `Secure` on HTTPS), 30 days by default (`WHATBUILD_SESSION_DAYS`, reported as `session_days` by `GET /auth/methods`); cookie writes must come from the app's own origin | `web` |
 | MCP | OAuth 2.1 access token issued by WhatBuild for its MCP endpoint | `mcp` |
 | Upload relay | A signed, single-file grant; the file is attributed to whoever requested the grant | as requested |
 | Job worker | none — internal | none; the actor is `WhatBuild` (system) |

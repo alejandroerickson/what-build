@@ -1,6 +1,6 @@
 import {
   Activity, Archive, ArchiveRestore, ArrowLeft, ArrowRight, Blend, BookOpen, Bot, Box, Building, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp,
-  CircleAlert, CircleCheck, CircleDashed, Clock, Copy, CornerDownRight, Download, Ellipsis, ExternalLink, FileText, FileVolume, FolderInput,
+  CircleAlert, CircleCheck, CircleDashed, Clock, Cookie, Copy, CornerDownRight, Download, Ellipsis, ExternalLink, FileText, FileVolume, FolderInput,
   FlaskConical, GripVertical, Info, Library, Lightbulb, Link, LoaderCircle, LogOut, Maximize2, Menu, Mic, Minimize2, Monitor, Moon, Palette, PanelLeftClose, PanelLeftOpen,
   PanelRightClose, PanelRightOpen, Pencil, Plus, Quote, RotateCcw, Scale, Search, Settings, Signpost, Sun, Target, Trash, Triangle, TriangleAlert, Upload, UserPlus, Users, X,
   type LucideIcon,
@@ -31,6 +31,7 @@ const GLYPHS = {
   "circle-check": CircleCheck,
   "circle-dashed": CircleDashed,
   clock: Clock,
+  cookie: Cookie,
   copy: Copy,
   "corner-down-right": CornerDownRight,
   download: Download,
