@@ -144,9 +144,16 @@ as `WHATBUILD_INSTANCE_OWNERS`, stays as it was.
 
 At a handful of people looking in bursts, the service itself fits in Cloud Run's free grant. CPU
 stays allocated while an instance is alive (`--no-cpu-throttling`) so the worker can parse an upload
-after the response returns, and `--min-instances 0` lets it scale to nothing when idle (at most
-three instances run); the first request after a quiet spell waits a few seconds. The smallest Cloud SQL instance is roughly
-US$10 a month; a free-tier Postgres elsewhere costs nothing. Storage is cents.
+after the response returns, and `--min-instances 0` lets it scale to nothing when idle; the first
+request after a quiet spell waits a few seconds. An instance stays alive for up to about 15 minutes
+after its last request and is billed for all of it, so anything that calls every few minutes,
+crawlers included, keeps one running: roughly US$45 a month for each instance kept busy. One
+instance runs at most (`MAX_INSTANCES`, default 1), which is ample for a few teams and makes that
+the ceiling. Builds deploy a new image and keep the setting. The smallest Cloud SQL instance is roughly
+US$10 a month; a free-tier Postgres elsewhere costs nothing, but holds about 0.5 GB, so lower a
+public sandbox's upload allowances to match (`bytes_per_day`, `org_bytes_per_day`;
+[§9.7](../spec/09-data-lifecycle.md)): visitors' text and its search index land in Postgres. Storage is cents; data the service
+sends out costs about US$0.12 a GB, and is the one cost that grows with downloads.
 
 ## What is where
 
@@ -155,6 +162,7 @@ US$10 a month; a free-tier Postgres elsewhere costs nothing. Storage is cents.
 | Service | `whatbuild` | public; WhatBuild's own sign-in guards everything but the web app's static files, sign-in, OAuth discovery, `/api/v1/meta`, `/health`, and the skill and its installers |
 | Migration job | `whatbuild-migrate` | same image, `node main.js migrate` |
 | Runtime identity | `whatbuild-runtime` | the bucket, the secrets, Cloud SQL client — nothing else |
+| Build identity | the project's default compute identity, or `BUILD_SA` | deploy to Cloud Run, push images, write logs, read `<project>_cloudbuild`; `setup.sh` takes away the Editor role Google gives it |
 | Database | Cloud SQL instance `whatbuild-db`, database and user `whatbuild` (with `CLOUD_SQL=1`) | or the Postgres named by `DATABASE_URL` |
 | Bucket | `<project>-whatbuild-files` | private, uniform access, public access prevented; versioned, noncurrent versions deleted after 30 days |
 | Secrets | `whatbuild-database-url`, `whatbuild-grant-key`, optional `whatbuild-smtp-url`, `whatbuild-google-client-secret` | read by the runtime identity only |
