@@ -55,6 +55,13 @@ the vocabulary is fixed; and `pnpm typecheck`, `pnpm test` and `pnpm build` pass
 corepack pnpm install && corepack pnpm dev   # http://localhost:5273, one-click dev sign-in
 ```
 
+## Operating production
+
+Deploying, the Cloudflare Worker and analytics are in `okf/operations/` (start with
+`cloud-run.md`). The deployment's values and credentials are in `.env` at the root of the
+maintainer's clone, never in the repository; production secrets are in Google Secret Manager and
+`.env` names them. Read `.env` before asking the maintainer for an ID or a token.
+
 ## Keep the documentation true
 
 When a change makes something in `okf/` untrue, fix it in the same change. Use `okf-update`. A new

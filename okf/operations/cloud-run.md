@@ -135,16 +135,9 @@ gcloud run services update whatbuild --region $R --update-env-vars WHATBUILD_INS
 
 **Analytics.** `ANALYTICS_ID=G-…` is a Google Analytics 4 measurement ID. With it, the app asks
 every person to accept or decline cookies and loads Google Analytics only for those who accept
-([§9.1](../spec/09-data-lifecycle.md)); the page headers let Google's hosts in. Give the Cloudflare
-Worker the same ID (`--var ANALYTICS_ID:G-…`, see `wrangler.toml`) so the public site asks and
-counts too; one web stream covers both hosts. Google sees only people who accept, so for a full
-count of the site's visits add it in Cloudflare (Analytics & Logs, Web Analytics, add the site's
-domain, manual setup) and give the Worker the token from its snippet
-(`--var CF_ANALYTICS_TOKEN:…`); the beacon sets no cookie. In that stream's enhanced measurement settings, turn
-off page changes based on browser history events, outbound clicks, file downloads and form
-interactions: the app sends page views itself, with names and ids masked, and the others would send
-real addresses, source links or file names. Mark `generate_lead` (a request to hear from us) as a key event, and set data retention
-to 14 months to compare returning people over time.
+([§9.1](../spec/09-data-lifecycle.md)); the page headers let Google's hosts in. The same ID and a
+Cloudflare Web Analytics token go to the Worker for the public site. [Analytics](analytics.md) has
+the stream settings to keep, the Worker command and how to read reports.
 
 ```bash
 gcloud run services update whatbuild --region $R --update-env-vars WHATBUILD_ANALYTICS_ID=G-XXXXXXXXXX

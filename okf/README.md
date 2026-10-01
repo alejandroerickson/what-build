@@ -3,7 +3,7 @@ type: Bundle Guide
 title: How to read and keep this documentation bundle
 description: What okf/ is, how it is laid out, the reading order, and how to keep it accurate.
 tags: [guide, okf]
-generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
+generated: {by: agent:claude, at: 2026-10-01}
 status: stable
 ---
 
@@ -34,7 +34,7 @@ Stop as soon as you have what the task needs.
 - [system/](system/index.md): the overview and the repository map.
 - [decisions/](decisions/index.md): architectural decision records.
 - [spec/](spec/index.md): the detailed specification and the roadmap.
-- [operations/](operations/index.md): local development and the Cloud Run deployment.
+- [operations/](operations/index.md): local development, the Cloud Run deployment, and analytics.
 - [process/](process/index.md): how work on the repository is done.
 - [ontology.md](ontology.md): concept types, frontmatter and editing rules.
 - [tools/](tools/index.md): the validator.
