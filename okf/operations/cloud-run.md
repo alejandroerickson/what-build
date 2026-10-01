@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
 description: What the production deployment is made of, how deploy/cloud-run/setup.sh creates it, sign-in and continuous deployment, cost, names, and useful commands.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-09-29}
+generated: {by: agent:claude, at: 2026-09-30}
 status: stable
 ---
 
@@ -114,11 +114,28 @@ you change one, change the other. The address needs no credential: it does nothi
 is due. Cloud Scheduler is not offered in every region, so `SCHEDULER_LOCATION` may need to name
 a region near the service's.
 
-**Continuous deployment.** In Cloud Build, connect the GitHub repository and create a trigger on
-pushes to `main` that runs `/cloudbuild.yaml` with the substitution `_REGION` set to the service's
-region. Choose the trigger's region before connecting the repository. Each build
+**Continuous deployment.** It needs a Cloud Build trigger that `setup.sh` does not create; until
+one exists, **a push to `main` deploys nothing**. In Cloud Build, connect the GitHub repository and create a trigger on pushes to
+`main` that runs `/cloudbuild.yaml` with the substitution `_REGION` set to the service's region.
+Choose the trigger's region before connecting the repository. Each build
 ([`cloudbuild.yaml`](../../cloudbuild.yaml)) builds and pushes the image, points the migration job
-at it, runs it, then deploys the service with `WHATBUILD_RELEASE` set to the commit.
+at it, runs it, then deploys the service with `WHATBUILD_RELEASE` set to the commit. Before
+assuming a merge is live, check that a trigger exists and compare the release:
+
+```bash
+gcloud builds triggers list --project $P --region $R             # empty: nothing deploys on push
+curl -s https://<your-url>/api/v1/meta                            # server_version is the deployed commit
+```
+
+Without a trigger, deploy a commit by hand from a clean checkout of it; the build is the same:
+
+```bash
+gcloud builds submit --project $P --region $R --config cloudbuild.yaml \
+  --substitutions COMMIT_SHA=$(git rev-parse HEAD),SHORT_SHA=$(git rev-parse --short=7 HEAD) .
+```
+
+A deploy changes only the image and `WHATBUILD_RELEASE`; every other setting on the service, such
+as `WHATBUILD_INSTANCE_OWNERS`, stays as it was.
 
 **A custom domain.** Map it with Cloud Run domain mappings (or a load balancer), then re-run with
 `PUBLIC_URL=https://app.what-build.com`: OAuth metadata, upload grants and links all use it.
@@ -147,6 +164,7 @@ US$10 a month; a free-tier Postgres elsewhere costs nothing. Storage is cents.
 ## Useful commands
 
 ```bash
+P=my-whatbuild              # the PROJECT_ID; never gcloud's current project
 R=northamerica-northeast2   # the default REGION; use yours
 gcloud run services logs read whatbuild --region $R --limit 100     # structured request logs; no content, no tokens
 gcloud run jobs execute whatbuild-migrate --region $R --wait         # migrate by hand

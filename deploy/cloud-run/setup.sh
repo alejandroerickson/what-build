@@ -209,6 +209,8 @@ Next:
   1. Continuous deployment: Cloud Build > Triggers > Connect repository (GitHub), then a trigger on
      pushes to main with configuration file /cloudbuild.yaml and substitution _REGION=$REGION.
      Pick the trigger's region once, before connecting; it runs builds for this service.
+     Until the trigger exists, a push to main deploys nothing; deploy by hand with gcloud builds
+     submit (see okf/operations/cloud-run.md).
   2. Sign-in: without SMTP_URL or GOOGLE_CLIENT_ID there is no way to sign in yet. For Google, create
      an OAuth web client with redirect URI $URL/auth/google/callback and re-run with
      GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET. For email links, re-run with SMTP_URL and MAIL_FROM.
