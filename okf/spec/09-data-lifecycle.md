@@ -46,7 +46,7 @@ Supporting commitments, each of which is a rule elsewhere in this spec:
 
 **Cookies and browser storage.** WhatBuild uses cookies and browser storage of two kinds. The
 needed kind is always on: the session cookie that keeps a person signed in, two short-lived ones
-that protect a Google sign-in and an agent's connection while they happen
+that protect a sign-in with Google or Microsoft and an agent's connection while they happen
 ([§3.8](03-accounts-teams-and-identity.md)), display choices kept in the browser under
 `whatbuild.*`, and `wb_cookies`, which remembers the person's answer below. The optional kind is
 analytics. A deployment with a Google Analytics measurement ID asks every person once, on the

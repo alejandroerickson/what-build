@@ -23,6 +23,10 @@ export interface ServerConfig {
   mailFrom: string;
   googleClientId: string | null;
   googleClientSecret: string | null;
+  /** The one Microsoft Entra directory whose work accounts may sign in, by its ID (a GUID); null for none. */
+  microsoftTenant: string | null;
+  microsoftClientId: string | null;
+  microsoftClientSecret: string | null;
   webDist: string | null;
   runWorker: boolean;
   /** When set, only these emails (or @domains) may create an account; invited people always may. */
@@ -47,6 +51,13 @@ export interface ServerConfig {
 
 const MiB = 1024 * 1024;
 
+/** Microsoft sign-in is on only when the directory, the client ID and the secret are all set. */
+export function microsoftSignIn(config: ServerConfig): boolean {
+  return Boolean(config.microsoftTenant && config.microsoftClientId && config.microsoftClientSecret);
+}
+
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function num(v: string | undefined, fallback: number): number {
   const n = v === undefined || v === "" ? NaN : Number(v);
   return Number.isFinite(n) ? n : fallback;
@@ -60,6 +71,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   if (mode === "production" && grantKey.length < 32) throw new Error("WHATBUILD_GRANT_KEY must be set to at least 32 random characters in production.");
   const blobStore = (env["WHATBUILD_BLOB_STORE"] ?? (env["WHATBUILD_GCS_BUCKET"] ? "gcs" : "fs")) as ServerConfig["blobStore"];
   const devAuth = mode !== "production" && env["WHATBUILD_DEV_AUTH"] !== "0";
+  // One directory, by ID: never common, organizations, consumers or a domain, which would admit other directories' accounts.
+  const microsoftTenant = env["WHATBUILD_MICROSOFT_TENANT"]?.trim() || null;
+  if (microsoftTenant && !GUID.test(microsoftTenant)) throw new Error("WHATBUILD_MICROSOFT_TENANT must be the directory's ID, a GUID.");
   return {
     env: mode,
     port,
@@ -77,6 +91,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     mailFrom: env["WHATBUILD_MAIL_FROM"] ?? "WhatBuild <no-reply@localhost>",
     googleClientId: env["WHATBUILD_GOOGLE_CLIENT_ID"] ?? null,
     googleClientSecret: env["WHATBUILD_GOOGLE_CLIENT_SECRET"] ?? null,
+    microsoftTenant: microsoftTenant?.toLowerCase() ?? null,
+    microsoftClientId: env["WHATBUILD_MICROSOFT_CLIENT_ID"]?.trim() || null,
+    microsoftClientSecret: env["WHATBUILD_MICROSOFT_CLIENT_SECRET"] || null,
     webDist: env["WHATBUILD_WEB_DIST"] ?? null,
     runWorker: env["WHATBUILD_WORKER"] !== "0",
     signupAllowlist: env["WHATBUILD_SIGNUP_ALLOWLIST"] ? env["WHATBUILD_SIGNUP_ALLOWLIST"].split(",").map((s) => s.trim().toLowerCase()).filter(Boolean) : null,

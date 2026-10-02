@@ -181,7 +181,7 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
 
 ## 7.4 Sign-in, and the first ten minutes
 
-1. **Sign in** (`/signin`) with an email link or Google, whichever the deployment configures
+1. **Sign in** (`/signin`) with an email link, Microsoft or Google, whichever the deployment configures
    ([§3.2](03-accounts-teams-and-identity.md)); in development, "sign in as" a seeded account. The
    data statement ([§9.1](09-data-lifecycle.md)) is on the sign-in page, in full, not behind a link,
    followed by one line on cookies that links to `/cookies`.

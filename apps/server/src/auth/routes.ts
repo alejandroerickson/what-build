@@ -4,7 +4,7 @@ import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { sql } from "kysely";
 import { z } from "zod";
-import type { ServerConfig } from "../config.ts";
+import { microsoftSignIn, type ServerConfig } from "../config.ts";
 import { inviteCodeIn, inviteInfo } from "../public-sandbox.ts";
 import { acceptInvitation, acceptInvitationsForEmail, createSession, findOrCreateAccount, restPrincipal, SESSION_COOKIE } from "./identity.ts";
 
@@ -18,6 +18,15 @@ function safeNext(next: string | undefined | null): string {
 function maskEmail(email: string): string {
   const [local = "", domain = ""] = email.split("@");
   return `${local.slice(0, 1)}••••@${domain}`;
+}
+
+/** The payload of an ID token received straight from a token endpoint over TLS; {} when it cannot be read. */
+function idTokenClaims<T>(idToken: string | undefined): Partial<T> {
+  try {
+    return JSON.parse(Buffer.from((idToken ?? "").split(".")[1] ?? "", "base64url").toString("utf8")) as Partial<T>;
+  } catch {
+    return {};
+  }
 }
 
 function errorJson(c: Context, e: AppError) {
@@ -121,54 +130,96 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
   });
 
   app.get("/auth/methods", (c) =>
-    c.json({ email_link: config.mailer !== "none", google: Boolean(config.googleClientId && config.googleClientSecret), dev: config.devAuth, session_days: config.sessionDays, analytics_id: config.analyticsId }),
+    c.json({ email_link: config.mailer !== "none", google: Boolean(config.googleClientId && config.googleClientSecret), microsoft: microsoftSignIn(config), dev: config.devAuth, session_days: config.sessionDays, analytics_id: config.analyticsId }),
   );
+
+  // ---- OpenID Connect sign-in: the code flow with PKCE, its state kept in a short-lived cookie --
+
+  type OidcState = { state: string; verifier: string; next: string };
+
+  /** Redirect to a provider's authorization endpoint, keeping state, verifier and the safe `next` in `wb_oidc` for ten minutes. */
+  const beginOidc = (c: Context, path: string, authorize: string, params: Record<string, string>) => {
+    const state = randomToken(16);
+    const verifier = randomToken(32);
+    const challenge = createHash("sha256").update(verifier).digest("base64url");
+    setCookie(c, "wb_oidc", JSON.stringify({ state, verifier, next: safeNext(c.req.query("next")) } satisfies OidcState), { httpOnly: true, secure, sameSite: "Lax", path, maxAge: 600 });
+    const u = new URL(authorize);
+    u.search = new URLSearchParams({
+      ...params, response_type: "code", scope: "openid email profile", redirect_uri: `${config.publicBaseUrl}${path}/callback`,
+      state, code_challenge: challenge, code_challenge_method: "S256", prompt: "select_account",
+    }).toString();
+    return c.redirect(u.toString());
+  };
+
+  /** On the callback: the saved state, once, and the ID token from the token endpoint; null when any of it is missing or wrong. */
+  const finishOidc = async (c: Context, path: string, tokenUrl: string, client: Record<string, string>): Promise<{ saved: OidcState; idToken: string | undefined } | null> => {
+    const saved = (() => {
+      try {
+        return JSON.parse(getCookie(c, "wb_oidc") ?? "") as OidcState;
+      } catch {
+        return null;
+      }
+    })();
+    deleteCookie(c, "wb_oidc", { path });
+    if (!saved || c.req.query("state") !== saved.state || !c.req.query("code")) return null;
+    const res = await fetch(tokenUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ ...client, code: c.req.query("code")!, redirect_uri: `${config.publicBaseUrl}${path}/callback`, grant_type: "authorization_code", code_verifier: saved.verifier }),
+    }).catch(() => null);
+    if (!res?.ok) return null;
+    const tokens = (await res.json().catch(() => ({}))) as { id_token?: string };
+    return { saved, idToken: tokens.id_token };
+  };
+
+  /** What every method does once it has an address it trusts: admission, the account, its invitations, a session. */
+  const completeSignIn = async (c: Context, email: string, name: string | undefined, next: string) => {
+    const how = await admission(email, next);
+    if (!how) return c.redirect("/signin?error=invite_only");
+    const { account } = await findOrCreateAccount(db, email, name, how === "sandbox");
+    await acceptInvitationsForEmail(db, account);
+    await startSession(c, account.account_id);
+    return c.redirect(next);
+  };
 
   // ---- Google sign-in (optional; on when a client id and secret are configured) ---------------
 
   app.get("/auth/google", async (c) => {
     if (!config.googleClientId) throw notFound("Google sign-in is not configured.");
-    const state = randomToken(16);
-    const verifier = randomToken(32);
-    const challenge = createHash("sha256").update(verifier).digest("base64url");
-    setCookie(c, "wb_oidc", JSON.stringify({ state, verifier, next: safeNext(c.req.query("next")) }), { httpOnly: true, secure, sameSite: "Lax", path: "/auth/google", maxAge: 600 });
-    const u = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-    u.search = new URLSearchParams({
-      client_id: config.googleClientId, response_type: "code", scope: "openid email profile", redirect_uri: `${config.publicBaseUrl}/auth/google/callback`,
-      state, code_challenge: challenge, code_challenge_method: "S256", prompt: "select_account",
-    }).toString();
-    return c.redirect(u.toString());
+    return beginOidc(c, "/auth/google", "https://accounts.google.com/o/oauth2/v2/auth", { client_id: config.googleClientId });
   });
 
   app.get("/auth/google/callback", async (c) => {
-    const saved = (() => {
-      try {
-        return JSON.parse(getCookie(c, "wb_oidc") ?? "") as { state: string; verifier: string; next: string };
-      } catch {
-        return null;
-      }
-    })();
-    deleteCookie(c, "wb_oidc", { path: "/auth/google" });
-    if (!saved || c.req.query("state") !== saved.state || !c.req.query("code")) return c.redirect("/signin?error=google_failed");
-    const res = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        code: c.req.query("code")!, client_id: config.googleClientId!, client_secret: config.googleClientSecret!,
-        redirect_uri: `${config.publicBaseUrl}/auth/google/callback`, grant_type: "authorization_code", code_verifier: saved.verifier,
-      }),
-    });
-    if (!res.ok) return c.redirect("/signin?error=google_failed");
-    const tokens = (await res.json()) as { id_token?: string };
+    const done = await finishOidc(c, "/auth/google", "https://oauth2.googleapis.com/token", { client_id: config.googleClientId!, client_secret: config.googleClientSecret! });
+    if (!done) return c.redirect("/signin?error=google_failed");
     // Received directly from Google's token endpoint over TLS, so its claims can be read as issued.
-    const claims = JSON.parse(Buffer.from((tokens.id_token ?? "..").split(".")[1] ?? "", "base64url").toString("utf8") || "{}") as { email?: string; email_verified?: boolean; name?: string; aud?: string };
+    const claims = idTokenClaims<{ email: string; email_verified: boolean; name: string; aud: string }>(done.idToken);
     if (!claims.email || !claims.email_verified || claims.aud !== config.googleClientId) return c.redirect("/signin?error=google_unverified");
-    const how = await admission(claims.email, saved.next);
-    if (!how) return c.redirect("/signin?error=invite_only");
-    const { account } = await findOrCreateAccount(db, claims.email, claims.name, how === "sandbox");
-    await acceptInvitationsForEmail(db, account);
-    await startSession(c, account.account_id);
-    return c.redirect(saved.next);
+    return completeSignIn(c, claims.email, claims.name, done.saved.next);
+  });
+
+  // ---- Microsoft sign-in (optional; one Entra directory, on when it, a client id and a secret are configured)
+
+  const MICROSOFT_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  app.get("/auth/microsoft", async (c) => {
+    if (!microsoftSignIn(config)) throw notFound("Microsoft sign-in is not configured.");
+    return beginOidc(c, "/auth/microsoft", `https://login.microsoftonline.com/${config.microsoftTenant}/oauth2/v2.0/authorize`, { client_id: config.microsoftClientId! });
+  });
+
+  app.get("/auth/microsoft/callback", async (c) => {
+    if (!microsoftSignIn(config)) throw notFound("Microsoft sign-in is not configured.");
+    const tenant = config.microsoftTenant!;
+    const done = await finishOidc(c, "/auth/microsoft", `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, { client_id: config.microsoftClientId!, client_secret: config.microsoftClientSecret! });
+    if (!done) return c.redirect("/signin?error=microsoft_failed");
+    // Received directly from the directory's token endpoint over TLS, so its claims can be read as issued.
+    const claims = idTokenClaims<{ aud: string; iss: string; tid: string; email: string; preferred_username: string; name: string }>(done.idToken);
+    // Entra says nothing about whether an address is verified: the directory's administrators set it, so it is
+    // taken only from this one directory.
+    const fromDirectory = claims.aud === config.microsoftClientId && claims.tid?.toLowerCase() === tenant && claims.iss?.toLowerCase() === `https://login.microsoftonline.com/${tenant}/v2.0`;
+    const email = claims.email || (claims.preferred_username && MICROSOFT_EMAIL.test(claims.preferred_username) ? claims.preferred_username : undefined);
+    if (!fromDirectory || !email) return c.redirect("/signin?error=microsoft_unverified");
+    return completeSignIn(c, email, claims.name, done.saved.next);
   });
 
   app.post("/auth/sign-out", async (c) => {

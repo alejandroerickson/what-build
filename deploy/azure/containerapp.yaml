@@ -38,7 +38,7 @@ properties:
       # - name: smtp-url
       #   keyVaultUrl: https://${AZ_KEYVAULT}.vault.azure.net/secrets/whatbuild-smtp-url
       #   identity: ${AZ_IDENTITY_ID}
-      # Microsoft sign-in, for a build that has it (okf/spec/03-accounts-teams-and-identity.md §3.2).
+      # Microsoft sign-in (okf/operations/azure.md, "Sign-in"). Uncomment with its three env entries below.
       # - name: microsoft-client-secret
       #   keyVaultUrl: https://${AZ_KEYVAULT}.vault.azure.net/secrets/whatbuild-microsoft-client-secret
       #   identity: ${AZ_IDENTITY_ID}

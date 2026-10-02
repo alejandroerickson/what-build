@@ -22,9 +22,9 @@ guide, because what differs between organizations (directories, policies, networ
 what) is easier to ask about and adapt to than to parameterize. Agents: the
 `azure-self-host` skill in `.agents/skills/` is the procedure; this guide is what it reads.
 
-**Draft.** The commands were written against the Azure CLI reference of October 2026 and have not
-yet been run end to end ([roadmap](../spec/10-roadmap.md#self-hosting-on-azure)). Flags move
-between CLI versions: when a command refuses one, read `az <command> --help` and adapt. Whoever
+**Draft.** The commands have been run once, into a subscription with Azure CLI 2.86, with the app
+registration in another directory; the last check, a sign-in and an upload, waits on its operator
+([roadmap](../spec/10-roadmap.md#self-hosting-on-azure)). Flags move between CLI versions: when a command refuses one, read `az <command> --help` and adapt. Whoever
 finds a step wrong corrects it here and sends the correction back as a pull request; the skill
 says how, and what must not travel with it.
 
@@ -106,7 +106,8 @@ Settle these with the person; each changes what is built.
    [§3.3](../spec/03-accounts-teams-and-identity.md)).
 7. **The address.** The Container Apps address (`https://whatbuild.<generated>.<region>.azurecontainerapps.io`)
    or [a domain of the organization's](#a-custom-domain).
-8. **Sign-in.** See [Sign-in](#sign-in): what works depends on the build being deployed.
+8. **Sign-in**, and **which directory** holds the app registration ([Sign-in](#sign-in)): Microsoft
+   work accounts, with or without email links.
 
 ## The values file
 
@@ -208,9 +209,10 @@ openssl rand -base64 48 | put whatbuild-grant-key
 
 ### 4. Postgres
 
-`--public-access None` creates the server reachable over the internet with no address allowed
-yet. The rule named for `0.0.0.0` then lets connections come from inside Azure, which is how the
-app reaches it; the password and TLS guard the rest. Organizations that forbid this use
+The server is created with public access off, then turned on with no address allowed yet: a server
+created with `--public-access None` refuses firewall rules until it is. The rule named for
+`0.0.0.0` then lets connections come from inside Azure, which is how the app reaches it; the
+password and TLS guard the rest. Organizations that forbid this use
 [private networking](#private-networking).
 
 ```bash
@@ -219,23 +221,30 @@ PG_ADMIN_PW=$(az keyvault secret show --subscription "$AZ_SUBSCRIPTION" --vault-
 az postgres flexible-server create --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_POSTGRES" -l "$AZ_LOCATION" \
   --tier Burstable --sku-name Standard_B1ms --storage-size 32 --version 17 --backup-retention 14 \
   --admin-user wbadmin --admin-password "$PG_ADMIN_PW" --public-access None --yes -o none
+az postgres flexible-server update --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_POSTGRES" --public-access Enabled -o none
 az postgres flexible-server parameter set --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" --server-name "$AZ_POSTGRES" \
   --name azure.extensions --value pg_trgm -o none
-az postgres flexible-server firewall-rule create --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" --server-name "$AZ_POSTGRES" \
-  --name azure-services --start-ip-address 0.0.0.0 --end-ip-address 0.0.0.0 -o none
+az postgres flexible-server firewall-rule create --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_POSTGRES" \
+  --rule-name azure-services --start-ip-address 0.0.0.0 --end-ip-address 0.0.0.0 -o none
 ```
+
+In CLI 2.86 the firewall-rule commands take the server as `-n` and the rule as `--rule-name`, and
+warn that a later release swaps them for `--server-name` and `--name`; follow `--help`.
 
 **The role must not bypass row-level security.** WhatBuild refuses to start in production as a
 superuser or a role with `BYPASSRLS` ([cloud-run.md](cloud-run.md#setting-it-up) says why), so it
 gets a role of its own that owns its database. Azure lets only an administrator create an
 extension, so the administrator creates `pg_trgm`, and the first migration's
-`CREATE EXTENSION IF NOT EXISTS` then finds it. Open the server to the operator's address for as
+`CREATE EXTENSION IF NOT EXISTS` then finds it. Azure also gives the new database's `public` schema
+to `azure_pg_admin`, not to the database's owner, so the role is given the schema; without it the
+migrations stop at `permission denied for schema public`. Open the server to the operator's address for as
 long as this takes:
 
 ```bash
 PG_HOST="$AZ_POSTGRES.postgres.database.azure.com"
-az postgres flexible-server firewall-rule create --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" --server-name "$AZ_POSTGRES" \
-  --name setup-operator --start-ip-address "$(curl -s https://api.ipify.org)" -o none
+MY_IP=$(curl -s https://api.ipify.org)
+az postgres flexible-server firewall-rule create --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_POSTGRES" \
+  --rule-name setup-operator --start-ip-address "$MY_IP" --end-ip-address "$MY_IP" -o none
 openssl rand -base64 30 | tr -d '/+=' | cut -c1-32 | put whatbuild-postgres-password
 WB_DB_PW=$(az keyvault secret show --subscription "$AZ_SUBSCRIPTION" --vault-name "$AZ_KEYVAULT" --name whatbuild-postgres-password --query value -o tsv)
 PGPASSWORD="$PG_ADMIN_PW" psql "host=$PG_HOST dbname=postgres user=wbadmin sslmode=require" -v ON_ERROR_STOP=1 -v pw="$WB_DB_PW" <<'SQL'
@@ -244,15 +253,18 @@ GRANT whatbuild TO CURRENT_USER;          -- naming an owner needs membership in
 CREATE DATABASE whatbuild OWNER whatbuild;
 \connect whatbuild
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
+ALTER SCHEMA public OWNER TO whatbuild;   -- Azure gives it to azure_pg_admin
 SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = 'whatbuild';   -- f | f
 SQL
 printf 'postgres://whatbuild:%s@%s:5432/whatbuild?sslmode=verify-full' "$WB_DB_PW" "$PG_HOST" | put whatbuild-database-url
-az postgres flexible-server firewall-rule delete --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" --server-name "$AZ_POSTGRES" \
-  --name setup-operator --yes
+az postgres flexible-server firewall-rule delete --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_POSTGRES" \
+  --rule-name setup-operator --yes
 ```
 
-Without `psql`, `az postgres flexible-server execute` (extension `rdbms-connect`) runs the same
-statements, one per call, since `CREATE DATABASE` cannot share a call with another statement.
+Without `psql`, any Postgres client runs the same statements: `az postgres flexible-server execute`
+(extension `rdbms-connect`), one statement per call since `CREATE DATABASE` cannot share a call, or a
+few lines of Python with `psycopg` (`uvx --with 'psycopg[binary]' python …`), reading the passwords
+from the environment.
 On a second run the role exists: `ALTER ROLE whatbuild PASSWORD :'pw'` in place of creating it.
 With **a Postgres that already exists** (15 or later, anywhere), skip the server, apply the same
 role rule and `pg_trgm`, and store its URL as `whatbuild-database-url`.
@@ -364,11 +376,10 @@ A production server never logs a sign-in link, so one of these must be on before
 in. `GET /api/v1/meta` reports which are.
 
 **Microsoft work accounts** is the method a self-hosted deployment in a Microsoft organization
-wants. It is specified and not yet in the server
-([§3.2](../spec/03-accounts-teams-and-identity.md#sign-in-with-microsoft-work-accounts-planned)); a build has it when
-`grep -q WHATBUILD_MICROSOFT_CLIENT_ID apps/server/src/config.ts` succeeds. The app registration
-can be made before that, and costs nothing while unused. With the identity directory active
-(`az account set`; `az ad` takes no `--subscription`):
+wants ([§3.2](../spec/03-accounts-teams-and-identity.md#sign-in-with-microsoft-work-accounts)).
+It admits accounts of one directory only, the one whose ID is `WHATBUILD_MICROSOFT_TENANT`; a
+workforce directory and an Entra External ID directory work alike, and so do guests invited into
+either. With the identity directory active (`az account set`; `az ad` takes no `--subscription`):
 
 ```bash
 T=$(mktemp -d)
@@ -400,8 +411,15 @@ rm -rf "$T"
 - The secret expires (a directory may allow less than a year; use `--end-date`). Note the date in
   `.env.azure`. Renewing is the same `credential reset --append` into the same vault secret; the
   app picks a new version up within half an hour, or at once when its revision is restarted.
-- With the build that has it, uncomment the `microsoft-client-secret` secret and the three
-  `WHATBUILD_MICROSOFT_*` entries in the definition, or on a running app:
+- The identity directory may be reachable only with another sign-in than the resource
+  subscription's: a guest account, or an account signed in to the directory alone
+  (`az login --tenant <id> --allow-no-subscriptions`). `az account get-access-token --tenant <id>
+  --resource-type ms-graph` then gives a token for Microsoft Graph in that directory, and the same
+  objects can be created through Graph (`/applications`, `/servicePrincipals`,
+  `/oauth2PermissionGrants`, `/applications/<object id>/addPassword`) without changing the active
+  account.
+- Uncomment the `microsoft-client-secret` secret and the three `WHATBUILD_MICROSOFT_*` entries in
+  the definition before creating the app, or on a running app:
 
 ```bash
 az containerapp secret set --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP" -o none --secrets \
@@ -418,8 +436,8 @@ and one of that application's client secrets as the password
 ([Microsoft's guide](https://learn.microsoft.com/azure/communication-services/quickstarts/email/send-email-smtp/smtp-authentication)).
 Store `smtp://<username>:<password>@<host>:587`, with both parts percent-encoded, as
 `whatbuild-smtp-url`, and uncomment the `smtp-url` secret, `WHATBUILD_SMTP_URL` and
-`WHATBUILD_MAIL_FROM` in the definition. Until Microsoft sign-in is in the build, this is the
-way in.
+`WHATBUILD_MAIL_FROM` in the definition. Without mail, invitations are links that whoever invites
+copies and sends.
 
 **Google sign-in** works as on Cloud Run ([cloud-run.md](cloud-run.md)), with
 `WHATBUILD_GOOGLE_CLIENT_ID` and a vault secret for `WHATBUILD_GOOGLE_CLIENT_SECRET`; a Microsoft
