@@ -128,7 +128,7 @@ export const SANDBOX_LIMITS: LimitInfo[] = [
   { key: "text_max_chars", group: "size", label: "Text in one field", unit: "characters", per: "Each text field", refusal: "413 too_large", help: "The longest body, note or Story page a visitor may send." },
   { key: "batch_max", group: "size", label: "Sources in one call", unit: "sources", per: "Each call", refusal: "413 too_large", help: "How many sources one archive or restore call may name." },
   { key: "fetch_url", group: "switch", label: "Fetching a file from a URL", unit: "", per: "Each visitor", refusal: "403 sandbox_restricted", help: "Off stops the server fetching links a visitor names." },
-  { key: "documents_only", group: "switch", label: "Uploads limited to formats the parsers read", unit: "", per: "Each visitor", refusal: "403 sandbox_restricted", help: "On refuses recordings, archives and images, and allows text, Markdown, transcripts, HTML, DOCX, PDF, spreadsheets and XML." },
+  { key: "documents_only", group: "switch", label: "Uploads limited to formats the parsers read", unit: "", per: "Each visitor", refusal: "403 sandbox_restricted", help: "On refuses recordings, archives and images, and allows text, Markdown, transcripts, HTML, Word (DOC, DOCX), PDF, spreadsheets and XML." },
 ];
 
 // ---- The schedule -------------------------------------------------------------------------------
@@ -424,7 +424,7 @@ export async function countVisitorWrite(trx: Db, sandbox: SandboxContext, princi
 export async function visitorUploadLimit(trx: Db, sandbox: SandboxContext, accountId: string, file: { path: string; media_type?: string | null | undefined; size?: number | undefined }, fileMaxBytes: number): Promise<number> {
   const s = sandbox.settings;
   if (s.documents_only && !parserFor(file.path, mediaTypeFor(file.path, file.media_type)))
-    throw restricted(`This public sandbox takes only files its parsers read: text, Markdown, transcripts (VTT, SRT), HTML, DOCX, PDF, spreadsheets and XML. ${file.path} is not one of them.`, { path: file.path });
+    throw restricted(`This public sandbox takes only files its parsers read: text, Markdown, transcripts (VTT, SRT), HTML, Word (DOC, DOCX), PDF, spreadsheets and XML. ${file.path} is not one of them.`, { path: file.path });
   const used = await usageToday(trx, sandbox, accountId);
   if (used.bytes >= s.bytes_per_day) throw quota(sandbox, "bytes_per_day", used.bytes, "bytes", `each visitor ${s.bytes_per_day} bytes of uploads a day`);
   if (used.org_bytes >= s.org_bytes_per_day) throw quota(sandbox, "org_bytes_per_day", used.org_bytes, "bytes", `${s.org_bytes_per_day} bytes of uploads a day from all visitors together`);

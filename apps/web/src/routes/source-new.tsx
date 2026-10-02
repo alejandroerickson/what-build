@@ -311,7 +311,7 @@ export function SourceNewPage() {
             ) : (
               <DropZone
                 label="Primary file: searched"
-                hint="VTT, SRT, text, Markdown, DOCX, XLSX, PDF or HTML parse into passages. Audio and video are stored and marked as needing a transcript."
+                hint="VTT, SRT, text, Markdown, DOC, DOCX, XLSX, PDF or HTML parse into passages. Audio and video are stored and marked as needing a transcript."
                 multiple={false}
                 onFiles={(f) => f[0] && setItems([...items, { file: f[0], role: "primary", state: "waiting", loaded: 0 }])}
               />
