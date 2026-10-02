@@ -3,7 +3,7 @@ type: System Concept
 title: Running WhatBuild locally, testing it, and checking the interface
 description: The one-command development setup, the test and build commands, and the browser scripts.
 tags: [development, testing, local]
-generated: {by: agent:claude, at: 2026-10-01}
+generated: {by: agent:claude, at: 2026-10-02}
 status: stable
 ---
 
@@ -57,7 +57,9 @@ Leave the variable out again and restart, and the organization is an ordinary on
 | `python3 okf/tools/validate_okf.py` | Checks the documentation bundle: frontmatter, types, links, indexes. |
 
 CI (`.github/workflows/ci.yml`) runs the documentation check, the skill check, typecheck, test and build on every push to
-`main` and every pull request.
+`main` and every pull request. A tag `v*` runs the Release workflow (`.github/workflows/release.yml`),
+which publishes the image as `ghcr.io/<owner>/what-build:<tag>` and makes a GitHub release
+([decision](../decisions/releases-are-tags-with-a-published-image.md)).
 
 ## In the browser
 
