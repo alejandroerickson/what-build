@@ -142,7 +142,7 @@ person's organization role is in the account menu, and who has which role is on 
   /idea               ?status                 the product concept, outcomes with counts
   /evidence           ?folder&kind&organization&date_from&date_to&tags&query&include_archived
   /evidence/new       ?kind                   kind-first intake
-  /evidence/:record   ?view=passages|original|notes|files &seq=N
+  /evidence/:record   ?view=passages|original|notes|files &seq=N &file=<path>
   /search             ?q&mode&scope&record_id
   /synthesis                                  → …/synthesis/insights
   /synthesis/insights ?show=unreviewed|reviewed|archived &outcome_id&q
@@ -257,13 +257,18 @@ The sources, and everything for reading them.
   - **Sections**, a segmented control held in the URL as `?view=` (links, not tabs):
     **Passages** (the default once the source is parsed), **Original** (a preview of the origin
     file, or of the primary when there is no origin, with a line saying whether it is searched and
-    naming its type in words, such as "Word document", not its media type),
+    naming its type in words, such as "Word document", not its media type; the file shown is held
+    in the URL as `&file=`, and an image opens in a viewer with zoom (buttons, `+` `-`, `0` to fit,
+    `1` for actual size, double-click, a pinch or Ctrl/Cmd and the wheel), drag to pan, full screen
+    (`F`), and, when the source has several images, previous and next (the arrow keys) and a strip
+    of thumbnails),
     **Notes** (an "Outline and notes" sheet with the agent's outline and notes — with no agent
     outline, a document's own headings, each linking to its passage; a timed transcript's
     speaker-turn outline is left out, since the passages already show speaker and time; the sheet
     is left out when there is nothing to show — then every comment on the source, each linking to
     its passage) and **Files** (every file with its role, "Searched" or "Kept, not searched",
-    versions, download, and add file; with files besides the primary, one line: "Only the
+    versions, download, and add file, each previewable file's name opening it in Original; with
+    files besides the primary, one line: "Only the
     primary file is searched. The others are kept for download."). A non-primary file's role changes from its row menu,
     confirmed in a dialog that says what the change does. Original states a recording's length
     beside the player when the parse read one.
