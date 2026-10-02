@@ -1,5 +1,6 @@
 import { srtParser, vttParser } from "./cues.ts";
 import { csvParser } from "./csv.ts";
+import { docParser } from "./doc.ts";
 import { docxParser } from "./docx.ts";
 import { htmlParser } from "./html.ts";
 import { bytesReader, recordingDurationMs } from "./media.ts";
@@ -30,6 +31,7 @@ const PARSERS: Record<string, FormatParser> = {
   ".html": htmlParser,
   ".htm": htmlParser,
   ".docx": docxParser,
+  ".doc": docParser,
   ".pdf": pdfParser,
   ".xlsx": xlsxParser,
   ".csv": csvParser,
@@ -57,6 +59,7 @@ const MEDIA_TYPE_EXTENSIONS: Record<string, string> = {
   "text/html": ".html",
   "application/pdf": ".pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+  "application/msword": ".doc",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
 };
 

@@ -6,6 +6,7 @@ import { splitLong } from "../src/text.ts";
 import { stripInlineMarkdown } from "../src/plaintext.ts";
 import { dateFormatOf } from "../src/xlsx.ts";
 import { makeDocx, makeDocxList, makeDocxParagraphs, makeFlac, makeMp3, makeMp4, makePdf, makeWav, makeXlsx, makeXlsxSheet, utf8 } from "./fixtures.ts";
+import { makeCompoundFile, makeWordDoc } from "./word-fixtures.ts";
 
 /** The offset invariant every derivation must hold: text[char_start:char_end] == segment.text, in code points. */
 function expectOffsetsExact(r: ParseResult) {
@@ -348,6 +349,209 @@ describe("DOCX", () => {
   it("reports failed for a file that is not a Word document", async () => {
     const r = await derive(utf8("not a zip"), "x.docx");
     expect(r.status).toBe("failed");
+  });
+});
+
+describe("DOC", () => {
+  const texts = async (bytes: Uint8Array) => (await derive(bytes, "notes.doc")).segments.map((s) => s.text);
+  const failure = async (bytes: Uint8Array) => {
+    const r = await derive(bytes, "notes.doc");
+    expect(r.status).toBe("failed");
+    expect(r.parser).toBe("doc");
+    expect(r.segments).toEqual([]);
+    return r.status_detail ?? "";
+  };
+
+  it("reads a Word 97 document's paragraphs, headings and table rows", async () => {
+    const bytes = makeWordDoc(
+      [
+        ["Crew planning review\rWhy crews call the office\rDispatchers re-plan the day by phone.\r", true],
+        ["Crew\x07Shift\x07\x07North\rteam\x07Early\x07\x07", true],
+        ["After the table.\r", true],
+      ],
+      {
+        styles: [0, 1, 62],
+        paragraphs: [
+          { istd: 2 },
+          { istd: 1 },
+          {},
+          { inTable: true },
+          { inTable: true },
+          { inTable: true, rowEnd: true },
+          { inTable: true },
+          { inTable: true },
+          { inTable: true },
+          { inTable: true, rowEnd: true },
+          {},
+        ],
+      },
+    );
+    const r = await derive(bytes, "review.doc");
+    expect(r.status).toBe("ready");
+    expect(r.parser).toBe("doc");
+    expect(r.segments.map((s) => s.text)).toEqual([
+      "# Crew planning review",
+      "## Why crews call the office",
+      "Dispatchers re-plan the day by phone.",
+      "Crew | Shift",
+      "Crew: North team | Shift: Early",
+      "After the table.",
+    ]);
+    expect(r.segments.map((s) => s.heading_level ?? null)).toEqual([1, 2, null, null, null, null]);
+    expect(r.facts).toEqual({ doc_format: "word97", table_count: 1 });
+    expect(r.outline).toContain("Why crews call the office");
+    expectOffsetsExact(r);
+  });
+
+  it("decodes 8-bit Windows-1252 and UTF-16 pieces into one text", async () => {
+    const bytes = makeWordDoc([
+      ["The café budget – ", true],
+      ["reviewed in 日本 ", false],
+      ["“quarterly”.\r", true],
+    ]);
+    expect(await texts(bytes)).toEqual(["The café budget – reviewed in 日本 “quarterly”."]);
+  });
+
+  it("keeps field results and drops field codes, nested or not", async () => {
+    const bytes = makeWordDoc([
+      ['See \x13 HYPERLINK "https://example.com/plan" \x14the plan\x15 today.\r', true],
+      ["Page \x13 PAGE \x145\x15 of \x13 NUMPAGES \x15.\r", true],
+      ["Nested \x13 IF \x13 DATE \x142026\x15 \x14kept\x15 result.\r", true],
+    ]);
+    expect(await texts(bytes)).toEqual(["See the plan today.", "Page 5 of .", "Nested kept result."]);
+  });
+
+  it("turns breaks into spaces or new paragraphs and drops object marks", async () => {
+    const bytes = makeWordDoc([
+      ["Line one\x0bline two\x0cNext page\r", true],
+      ["co\x1eowner and re\x1fview\x01 with\xa0space\tand tab\r", true],
+    ]);
+    expect(await texts(bytes)).toEqual(["Line one line two", "Next page", "co-owner and review with space and tab"]);
+  });
+
+  it("reads only the main story, not the footnotes and headers after it", async () => {
+    expect(await texts(makeWordDoc([["Main text only.\r", true]], { tail: "A footnote.\r" }))).toEqual(["Main text only."]);
+  });
+
+  it("finds table rows from cell marks alone, keeping empty cells in their columns", async () => {
+    const bytes = makeWordDoc([
+      ["Asset\x07Risk\x07Cost\x07\x07", true],
+      ["Feeder 7\x07\x07300\x07\x07", true],
+      ["Pump\x07Low\x07\x07\x07", true],
+      ["After.\r", true],
+    ]);
+    expect(await texts(bytes)).toEqual(["Asset | Risk | Cost", "Asset: Feeder 7 | Cost: 300", "Asset: Pump | Risk: Low", "After."]);
+  });
+
+  it("reads speaker turns in a transcript saved as Word 97", async () => {
+    const r = await derive(
+      makeWordDoc([["Dana: We export every Friday.\rLee: Why Friday?\rDana: The tool cannot.\rLee: Thanks.\r", true]]),
+      "call.doc",
+    );
+    expect(r.segments.map((s) => [s.speaker, s.text])).toEqual([
+      ["Dana", "We export every Friday."],
+      ["Lee", "Why Friday?"],
+      ["Dana", "The tool cannot."],
+      ["Lee", "Thanks."],
+    ]);
+    expect(r.facts["transcript_turns"]).toBe(4);
+  });
+
+  it("reads a Word 6 or Word 95 document's text and headings", async () => {
+    const bytes = makeWordDoc([["Site visit\rCrews keep a paper log – always.\rTool\x07Use\x07\x07Radio\x07Daily\x07\x07Done.\r", true]], {
+      word6: true,
+      styles: [0, 1],
+      paragraphs: [{ istd: 1 }, {}, {}, {}, {}, {}, {}, {}, {}],
+    });
+    const r = await derive(bytes, "visit.doc");
+    expect(r.status).toBe("ready");
+    expect(r.segments.map((s) => s.text)).toEqual(["# Site visit", "Crews keep a paper log – always.", "Tool | Use", "Tool: Radio | Use: Daily", "Done."]);
+    expect(r.facts).toEqual({ doc_format: "word6", table_count: 1 });
+    expectOffsetsExact(r);
+  });
+
+  it("reports why a Word binary document cannot be read", async () => {
+    expect(await failure(makeWordDoc([["Secret.\r", true]], { encrypted: true }))).toContain("encrypted");
+    expect(await failure(makeWordDoc([["Old.\r", true]], { word6: true, nFib: 0x2d }))).toContain("Word 2");
+    expect(await failure(makeWordDoc([["Fast.\r", true]], { word6: true, fastSaved: true }))).toContain("fast-saved");
+    expect(await failure(makeCompoundFile({ Workbook: new Uint8Array(100) }))).toContain("no WordDocument stream");
+  });
+
+  it("refuses hostile structure instead of repeating or overrunning text", async () => {
+    // Every piece claims the same characters, which an unchecked reader would copy once per piece.
+    const pieces: [string, boolean][] = Array.from({ length: 40 }, () => ["Repeated text. ", true]);
+    const whole = pieces.length * pieces[0]![0].length;
+    expect(await failure(makeWordDoc(pieces, { cps: [0, ...Array.from({ length: 40 }, (_, i) => (i % 2 ? 0 : whole))], ccpText: whole }))).toContain("piece table is malformed");
+    expect(await failure(makeWordDoc([["Text.\r", true]], { cps: [3, 9] }))).toContain("piece table is malformed");
+    expect(await failure(makeWordDoc([["Text.\r", true]], { ccpText: 10 ** 9 }))).toContain("main text length is out of range");
+    expect(await failure(makeWordDoc([["Text.\r", true]], { fcShift: 0x10000 }))).toContain("outside the WordDocument stream");
+    expect(await failure(makeWordDoc([["Text.\r", false]], { fcShift: 0x10000 }))).toContain("outside the WordDocument stream");
+    expect(await failure(makeCompoundFile({ WordDocument: new Uint8Array(8192) }, { loopFat: true }))).toContain("loops");
+  });
+
+  it("reads a DOCX package saved as .doc with the DOCX parser", async () => {
+    const asDoc = await derive(makeDocx(), "review.doc");
+    const asDocx = await derive(makeDocx(), "review.docx");
+    expect(asDoc.parser).toBe("doc");
+    expect(asDoc.segments).toEqual(asDocx.segments);
+    expect(asDoc.facts).toEqual({ doc_format: "docx", ...asDocx.facts });
+  });
+
+  it("reads the HTML part of a MIME HTML export saved as .doc", async () => {
+    const mhtml = [
+      "Date: Thu, 14 May 2026 20:53:04 +0000 (UTC)",
+      "Subject: Exported page",
+      "MIME-Version: 1.0",
+      "Content-Type: multipart/related;",
+      '\tboundary="----=_Part_7_1"',
+      "",
+      "------=_Part_7_1",
+      "Content-Type: text/html; charset=UTF-8",
+      "Content-Transfer-Encoding: quoted-printable",
+      "",
+      '<html><body><h1>Crew notes</h1><p class=3D"x">Planners need a caf=C3=A9 view of the =',
+      "week.</p></body></html>",
+      "------=_Part_7_1",
+      "Content-Type: image/png",
+      "Content-Transfer-Encoding: base64",
+      "",
+      "iVBORw0KGgo=",
+      "------=_Part_7_1--",
+      "",
+    ].join("\r\n");
+    const r = await derive(utf8(mhtml), "export.doc");
+    expect(r.segments.map((s) => s.text)).toEqual(["# Crew notes", "Planners need a café view of the week."]);
+    expect(r.facts["doc_format"]).toBe("mhtml");
+    expectOffsetsExact(r);
+  });
+
+  it("decodes a base64 HTML part in its declared character set", async () => {
+    const html = Uint8Array.from([..."<p>Caf", 0xe9, ..." \u0093menu\u0094</p>"].map((c) => (typeof c === "number" ? c : c.charCodeAt(0))));
+    const mhtml = `MIME-Version: 1.0\nContent-Type: multipart/related; boundary=b1\n\n--b1\nContent-Type: text/html; charset="windows-1252"\nContent-Transfer-Encoding: base64\n\n${btoa(String.fromCharCode(...html))}\n--b1--\n`;
+    expect(await texts(utf8(mhtml))).toEqual(["Café “menu”"]);
+  });
+
+  it("reads plain HTML saved as .doc, in the character set its meta tag declares", async () => {
+    const head = utf8('<html><head><meta http-equiv=Content-Type content="text/html; charset=windows-1252"></head><body><p>Caf');
+    const tail = utf8(" plan</p></body></html>");
+    const bytes = new Uint8Array([...head, 0xe9, ...tail]);
+    const r = await derive(bytes, "page.doc");
+    expect(r.segments.map((s) => s.text)).toEqual(["Café plan"]);
+    expect(r.facts["doc_format"]).toBe("html");
+  });
+
+  it("reports failed for other files named .doc, and for HTML with no text", async () => {
+    expect(await failure(utf8("{\\rtf1\\ansi Hello}"))).toContain("Rich Text Format");
+    expect(await failure(utf8("plain bytes, not a document"))).toContain("not a Word document");
+    expect(await failure(utf8("<html><body><script>render()</script></body></html>"))).toContain("no readable text");
+    expect(await failure(utf8("MIME-Version: 1.0\nContent-Type: multipart/related; boundary=b\n\n--b\nContent-Type: image/png\n\nxx\n--b--\n"))).toContain("no HTML part");
+  });
+
+  it("is chosen for application/msword when the name has no known extension", async () => {
+    const r = await derive(makeWordDoc([["Routed by type.\r", true]]), "upload", { mediaType: "application/msword" });
+    expect(r.parser).toBe("doc");
+    expect(r.segments.map((s) => s.text)).toEqual(["Routed by type."]);
+    expect((await derive(makeWordDoc([["Upper case.\r", true]]), "OLD.DOC")).parser).toBe("doc");
   });
 });
 

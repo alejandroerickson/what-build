@@ -5,7 +5,7 @@ import type { Block, FormatParser } from "./types.ts";
 import { descendants, elements, first, parseXml, textOf, type XmlElement } from "./xml.ts";
 
 /** A heading style: the document title, its subtitle, or a numbered heading. */
-type HeadingStyle = { kind: "title" } | { kind: "subtitle" } | { kind: "heading"; n: number };
+export type HeadingStyle = { kind: "title" } | { kind: "subtitle" } | { kind: "heading"; n: number };
 
 /** One level of a Word list: its number format (`decimal`, `bullet`, …), start and label pattern. */
 interface ListLevel {
@@ -117,7 +117,7 @@ function headingStyle(p: XmlElement, st: DocxState): HeadingStyle | undefined {
  * Markdown `#` title sits above `##` sections: Title 1, Subtitle 2, Heading n at n + 1 (at most 6).
  * Without a Title, Heading n is level n.
  */
-function levelOf(style: HeadingStyle, hasTitle: boolean): number {
+export function levelOf(style: HeadingStyle, hasTitle: boolean): number {
   if (style.kind === "title") return 1;
   if (style.kind === "subtitle") return 2;
   return hasTitle ? Math.min(style.n + 1, 6) : style.n;

@@ -62,7 +62,7 @@ how to adapt to your organization.
 ## Layout
 
 ```
-packages/parsers   bytes → passages with exact offsets (text, Markdown, VTT, SRT, HTML, DOCX, PDF, XLSX)
+packages/parsers   bytes → passages with exact offsets (text, Markdown, VTT, SRT, HTML, DOC, DOCX, PDF, XLSX)
 packages/core      every operation, defined once: schemas, access policy, handlers, the skill
 apps/server        Hono: REST and MCP generated from the operations, OAuth, uploads, worker, CLI
 apps/web           React: the web app, on the Studio design system (see DESIGN.md)

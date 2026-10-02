@@ -1,5 +1,6 @@
 import { connect, createServer, type AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { makeWordDoc } from "../../../packages/parsers/test/word-fixtures.ts";
 import { publicOnlyLookup } from "../src/adapters/misc.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
@@ -253,5 +254,52 @@ describe("what derivation records beyond passages", () => {
     const s = await bob.api("GET", `${Q}/sources/${shell}`);
     expect(s.body).toMatchObject({ derived_status: "failed", segment_count: 0 });
     expect(s.body.status_detail).toMatch(/no readable text/);
+  });
+
+});
+
+describe("Word .doc uploads", () => {
+  // A product of its own, so these sources stay out of the counts the other tests check.
+  let R: string;
+
+  beforeAll(async () => {
+    const t = await alice.api("POST", "/api/v1/tenants", { name: "Example Archive Research" });
+    const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Rostering" });
+    R = `/api/v1/p/${p.body.path}`;
+  });
+
+  async function upload(kind: string, path: string, body: string | Uint8Array) {
+    const created = await alice.api("POST", `${R}/sources/with-upload`, { kind, title: `Sample ${path}`, path, role: "primary" });
+    expect(created.status).toBe(201);
+    const recordId: string = created.body.record.record_id;
+    expect((await fetch(created.body.upload.url, { method: "PUT", headers: created.body.upload.headers, body })).status).toBe(201);
+    expect((await alice.api("POST", `${R}/sources/${recordId}/uploads/complete`, { record_id: recordId, path })).status).toBe(200);
+    return recordId;
+  }
+
+  it("parses a .doc upload, whether Word 97 or a web page saved under that name", async () => {
+    const binary = await upload("other", "crew-notes.doc", makeWordDoc([["Crew notes\rDispatchers replan routes by radio.\r", true]]));
+    const mhtml = [
+      "MIME-Version: 1.0",
+      'Content-Type: multipart/related; boundary="part"',
+      "",
+      "--part",
+      "Content-Type: text/html; charset=UTF-8",
+      "Content-Transfer-Encoding: quoted-printable",
+      "",
+      "<html><body><p>Supervisors print the roster every morning.</p></body></html>",
+      "--part--",
+      "",
+    ].join("\r\n");
+    const page = await upload("other", "roster-export.doc", mhtml);
+    await h.worker.drain();
+    for (const id of [binary, page]) {
+      const s = await alice.api("GET", `${R}/sources/${id}`);
+      expect(s.body).toMatchObject({ derived_status: "ready", segment_count: id === binary ? 2 : 1 });
+    }
+    const radio = await alice.api("GET", `${R}/search?query=replan routes`);
+    expect(radio.body.hits.map((hit: { record_id: string }) => hit.record_id)).toEqual([binary]);
+    const roster = await alice.api("GET", `${R}/search?query=print the roster`);
+    expect(roster.body.hits.map((hit: { record_id: string }) => hit.record_id)).toEqual([page]);
   });
 });

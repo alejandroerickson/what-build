@@ -3,7 +3,7 @@ type: Specification
 title: Every source's primary file is parsed into immutable, passage-addressable text that any client can read by segment or time.
 description: Derivations and when they run, the four sidecars, derivation statuses, the parsers by format, the read_passage contract, and the other derived reads.
 tags: [spec, derived-layer, parsers, passages, sidecars]
-generated: {by: agent:claude, at: 2026-09-27}
+generated: {by: agent:claude, at: 2026-10-01}
 status: stable
 ---
 
@@ -115,8 +115,9 @@ sources and for a container that cannot be read. A recording over the parse cap 
 only the byte ranges holding those headers are read.
 
 `facts` holds format-specific counts (pages and text-layer characters for PDF; tables, tracked
-changes and comments for DOCX; sheets for XLSX; rows and the delimiter for CSV; skipped cues for VTT
-and SRT; `transcript_turns` for a text, Markdown or DOCX file read as a transcript). `inference: "none"`
+changes and comments for DOCX; `doc_format` and tables for DOC; sheets for XLSX; rows and the
+delimiter for CSV; skipped cues for VTT and SRT; `transcript_turns` for a text, Markdown, DOCX or DOC
+file read as a transcript). `inference: "none"`
 states that no model produced or altered the text.
 
 | `status` | Meaning |
@@ -141,14 +142,15 @@ extension ([`packages/parsers/src/index.ts`](../../packages/parsers/src/index.ts
 | Markdown (`.md`, `.markdown`) | Everything plain text does, plus setext headings; blockquote markers and thematic breaks dropped; inline emphasis and code markers (`**`, `__`, `*`, `_`, backticks) stripped where they are clearly markup, never inside words or code spans. `**Name:** words` is a speaker turn. |
 | WebVTT, SRT | Cue timing; speakers from `<v Name>` voice tags and from `Name:` prefixes; caption markup stripped. |
 | DOCX | Headings (a Title above Heading 1), paragraphs, tables, the accepted view of tracked changes, comments. A paragraph in a decimal Word list (numbered directly or by its style) starts with its number as Word counts it (`2.`, `1.1.`); bullets and other number formats (letters, roman numerals) get no marker. `Name: words` paragraphs, including a bold `Name:` run, are speaker turns in a transcript (below). |
+| DOC (`.doc`, `application/msword`) | The format is read from the file's first bytes, never from its name, and the `doc_format` fact records it. A **Word binary document** (an OLE2 compound file) from Word 97-2003 (`word97`), or from Word 6.0 or Word 95 (`word6`), gives its main text through the piece table, with 8-bit Windows-1252 and UTF-16 pieces: one segment per paragraph, built-in heading styles (Title, Subtitle, Heading 1-9) as headings at DOCX's levels, tables one segment per row with the header repeated as in DOCX, field results kept and field codes dropped, page and section breaks as paragraph breaks, and `Name: words` paragraphs as speaker turns in a transcript. Word 97 tables come from the paragraphs' table flags; Word 6 tables are inferred from cell marks, the first row setting the width. Headers, footnotes, comments and list numbers are not read. Encrypted documents, fast-saved Word 6 and Word 95 documents and Word 2 and older documents fail with the reason. A **DOCX package** under a `.doc` name is read by the DOCX parser (`docx`); a **MIME HTML** file (Word's "Web Page" save, wiki Word exports) has its first `text/html` part, quoted-printable or base64, read by the HTML parser (`mhtml`); **plain HTML** is read by the HTML parser in the character set its `<meta>` declares (`html`). Rich Text Format and anything else fail with the reason, as does HTML with no readable text. |
 | XLSX | Sheets and rows; the first all-text row with two or more cells near the top becomes the header, and later rows render `label: value` pairs in column order. A header column that a row leaves empty renders `label: (blank)`, so a missing value reads differently from a column that does not exist; this applies to a row that fills at least one header column, and a lone cell outside the header columns (a side note) stays unlabelled. A number whose cell format is a date or time (the built-in formats 14–22 and 45–47, or a custom format with day, month, year, hour or second codes outside quotes and brackets) renders in ISO 8601: `2026-04-10`, `2026-04-10 12:00`, `13:30`, or elapsed hours `30:00:00`, in the workbook's 1900 or 1904 date system. Other numbers keep their stored value, not their displayed format. |
 | CSV, TSV (`.csv`, `.tsv`) | Read like a one-sheet workbook, with the same header rule and `label: value` rows, including `(blank)` for an empty header column. Quoted fields may hold delimiters and line breaks; the delimiter (comma, semicolon or tab) is taken from the first line. |
 | PDF | Text layer only, per page. No OCR. |
 | HTML | Main-content text with headings; scripts, styles, navigation, forms and frames dropped; tables one segment per row with header pairs; adjacent elements (labels, breadcrumbs) kept apart by a space. |
 
-**Untimed transcripts.** Plain text, Markdown and DOCX share one rule
+**Untimed transcripts.** Plain text, Markdown, DOCX and DOC share one rule
 ([`speakers.ts`](../../packages/parsers/src/speakers.ts)), so a transcript reads the same whatever
-it was saved as. A file is a transcript when it has at least four lines (paragraphs, for DOCX), at
+it was saved as. A file is a transcript when it has at least four lines (paragraphs, for DOCX and DOC), at
 least 60% of them are `Name:` turns (a capitalised name of up to 41 characters, or a bracketed
 label, optionally after a timestamp), and at least half of those turns come from a name that speaks
 more than once. The last condition keeps field lines such as `Project:`, `Date:` and `Location:`, and
