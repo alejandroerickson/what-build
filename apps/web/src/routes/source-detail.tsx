@@ -16,6 +16,7 @@ import "../styles/screens/evidence.css";
 import { address, Comment, CommentForm, PassageReader } from "./passages.tsx";
 import { uploadFiles } from "./source-new.tsx";
 import { EvidenceFilters, useKinds } from "./evidence.tsx";
+import { ImageViewer } from "./image-viewer.tsx";
 
 type View = "passages" | "original" | "notes" | "files";
 type AgentNoteKind = "summary" | "outline" | "notes";
@@ -444,7 +445,8 @@ function SourceActions({ record: r, onDialog }: { record: SourceRecord; onDialog
 // ---- Inspector ----------------------------------------------------------------------------------
 
 function fileGlyph(f: FileEntry): GlyphName {
-  return /^(audio|video)\//.test(f.media_type ?? "") ? "file-audio" : "file-text";
+  const t = f.media_type ?? "";
+  return /^(audio|video)\//.test(t) ? "file-audio" : t.startsWith("image/") ? "image" : "file-text";
 }
 
 /** "Searched", "Kept, not searched" or the primary's parsing state, in words. */
@@ -654,11 +656,24 @@ function clockLength(ms: number) {
   return h ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
 }
 
-/** The origin file (or the primary, when there is no origin), shown as it was uploaded. */
+/**
+ * The origin file (or the primary, when there is no origin), shown as it was uploaded. The file
+ * shown is held in the URL as `?file=`, so a link can open any of them.
+ */
 function OriginalView({ record }: { record: SourceRecord }) {
   const { api: base } = useProduct();
+  const [params, setParams] = useSearchParams();
   const initial = record.files.find((f) => f.role === "origin") ?? record.files.find((f) => f.role === "primary") ?? record.files[0];
-  const [path, setPath] = useState(initial?.path ?? "");
+  const path = params.get("file") ?? initial?.path ?? "";
+  const setPath = (next: string) =>
+    setParams(
+      (prev) => {
+        const out = new URLSearchParams(prev);
+        out.set("file", next);
+        return out;
+      },
+      { replace: true },
+    );
   const f = record.files.find((x) => x.path === path) ?? initial;
   const kind = f ? previewKind(f) : "download";
   const tooBig = (f?.size ?? 0) > 4 * 1024 * 1024 && ["html", "markdown", "text"].includes(kind);
@@ -726,7 +741,12 @@ function OriginalView({ record }: { record: SourceRecord }) {
         ) : kind === "video" ? (
           <video controls preload="metadata" src={url} className="source-preview-media" />
         ) : kind === "image" ? (
-          <img src={url} alt={f.path} className="source-preview-image" />
+          <ImageViewer
+            images={record.files.filter((x) => previewKind(x) === "image").map((x) => ({ path: x.path, url: fileUrl(base, record.record_id, x.path) }))}
+            current={f.path}
+            onSelect={setPath}
+            downloadUrl={fileUrl(base, record.record_id, f.path, true)}
+          />
         ) : text.isPending ? (
           <Loading label="Loading the file…" variant="lines" lines={5} />
         ) : text.isError ? (
@@ -881,9 +901,15 @@ function FilesView({ record, onAdd }: { record: SourceRecord; onAdd?: () => void
             <li key={f.path} className="source-file">
               <Glyph name={fileGlyph(f)} />
               <span className="source-file-main">
-                <b className="ellipsis" title={f.path}>
-                  {f.path}
-                </b>
+                {previewKind(f) !== "download" ? (
+                  <Link to={`?view=original&file=${encodeURIComponent(f.path)}`} className="ellipsis source-file-name" title={`Show ${f.path}`}>
+                    {f.path}
+                  </Link>
+                ) : (
+                  <b className="ellipsis" title={f.path}>
+                    {f.path}
+                  </b>
+                )}
                 <span className="source-file-sub">
                   <StatusBadge tone={f.searchable ? "positive" : "neutral"}>{searchWords(f)}</StatusBadge>
                   <span>

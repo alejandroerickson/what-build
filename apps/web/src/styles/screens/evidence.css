@@ -226,9 +226,166 @@
 .source-preview-media {
   width: 100%;
 }
-.source-preview-image {
-  max-width: 100%;
-  border-radius: var(--r-xs);
+
+/* Image viewer: zoom, pan, full screen and the source's other images a step away. */
+.image-viewer {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--panel);
+}
+.image-viewer-fullscreen {
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+}
+.image-viewer-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding: var(--s-1h) var(--s-2);
+  border-bottom: 1px solid var(--line);
+}
+.image-viewer-group {
+  display: flex;
+  align-items: center;
+  gap: var(--s-0);
+  min-width: 0;
+}
+.image-viewer-position {
+  min-width: 7ch;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  text-align: center;
+  white-space: nowrap;
+}
+.image-viewer-zoom {
+  min-width: 7ch;
+  justify-content: center;
+}
+.image-viewer-name {
+  margin-left: var(--s-2);
+  font-weight: var(--fw-medium);
+}
+.image-viewer-divider {
+  width: 1px;
+  height: 16px;
+  margin: 0 var(--s-1);
+  background: var(--line);
+}
+.image-viewer .icon-btn[aria-pressed="true"] {
+  background: var(--hover-strong);
+  color: var(--text);
+}
+.image-viewer-stage {
+  position: relative;
+  height: clamp(280px, 60vh, 820px);
+  overflow: hidden;
+  background: var(--canvas);
+  user-select: none;
+  touch-action: pan-y;
+}
+.image-viewer-stage:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.image-viewer-fullscreen .image-viewer-stage {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  touch-action: none;
+}
+.image-viewer-pannable {
+  cursor: grab;
+  touch-action: none;
+}
+.image-viewer-dragging {
+  cursor: grabbing;
+}
+.image-viewer-image {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  max-width: none;
+  transform-origin: center;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+.image-viewer-ready {
+  opacity: 1;
+  transition: opacity var(--dur-3) var(--ease);
+}
+.image-viewer-easing {
+  transition: opacity var(--dur-3) var(--ease), transform var(--dur-3) var(--ease);
+}
+.image-viewer-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  padding: var(--s-6);
+}
+.image-viewer-strip {
+  display: flex;
+  gap: var(--s-2);
+  padding: var(--s-2);
+  overflow-x: auto;
+  border-top: 1px solid var(--line);
+  scrollbar-width: thin;
+}
+.image-viewer-fullscreen .image-viewer-strip {
+  justify-content: safe center;
+}
+.image-viewer-thumb {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--canvas);
+  color: var(--faint);
+  cursor: pointer;
+  opacity: 0.64;
+  transition: opacity var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+}
+.image-viewer-thumb:hover,
+.image-viewer-thumb:focus-visible {
+  opacity: 1;
+}
+.image-viewer-thumb:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.image-viewer-thumb-current {
+  opacity: 1;
+  border-color: var(--line-strong);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.image-viewer-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+@media (prefers-reduced-motion: reduce) {
+  .image-viewer-ready,
+  .image-viewer-easing,
+  .image-viewer-thumb {
+    transition: none;
+  }
 }
 .source-preview-prose {
   max-width: var(--measure);
@@ -331,8 +488,17 @@
   gap: 2px;
   min-width: 0;
 }
-.source-file-main b {
+.source-file-main b,
+.source-file-name {
   font-weight: var(--fw-medium);
+}
+.source-file-name {
+  color: inherit;
+  text-decoration: none;
+}
+.source-file-name:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 .source-file-sub {
   display: flex;
