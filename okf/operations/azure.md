@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild self-hosts on Azure Container Apps with Azure Database for PostgreSQL and a mounted file share, set up by an agent with the Azure CLI.
 description: What a self-hosted deployment on Azure is made of, how each resource is configured, the commands that create it, sign-in with a Microsoft work account, the variations between organizations, deploying a new version, cost and removal.
 tags: [operations, deployment, azure, self-hosting, container-apps, entra]
-generated: {by: agent:claude, at: 2026-10-01}
+generated: {by: agent:claude, at: 2026-10-02}
 status: draft
 ---
 
@@ -450,13 +450,28 @@ image and `WHATBUILD_RELEASE`; every other setting stays.
 
 ```bash
 WB_IMAGE_TAG=$(git rev-parse --short=7 HEAD)
-# build it: step 6
+# build it: step 6, or import a released image (below)
 az containerapp job update --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_JOB" --image "$AZ_ACR.azurecr.io/whatbuild:$WB_IMAGE_TAG" -o none
 # start the job and wait for Succeeded: step 7
 az containerapp update --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP" \
   --image "$AZ_ACR.azurecr.io/whatbuild:$WB_IMAGE_TAG" --set-env-vars "WHATBUILD_RELEASE=$WB_IMAGE_TAG" -o none
 curl -s "$WB_PUBLIC_URL/api/v1/meta"    # server_version is the new tag
 ```
+
+**From a released image.** A tag `v*` on the repository publishes the image as
+`ghcr.io/<owner>/what-build:<tag>` ([decision](../decisions/releases-are-tags-with-a-published-image.md)).
+Importing it into the registry replaces the build, and the tag is then the version:
+
+```bash
+WB_IMAGE_TAG=v0.1.0
+az acr import --subscription "$AZ_SUBSCRIPTION" -n "$AZ_ACR" --source "ghcr.io/<owner>/what-build:$WB_IMAGE_TAG" --image "whatbuild:$WB_IMAGE_TAG"
+```
+
+**A pipeline of your own.** The three commands above are all a deploy is, so the usual shape is a
+small repository of the organization's that pins a release, runs them from a workflow signed in
+by OIDC to an identity with `AcrPush` and `Container Registry Tasks Contributor` on the registry
+and `Container Apps Contributor` and `Container Apps Jobs Contributor` on the resource group, and
+holds the approvals. That repository is the organization's; this one documents the steps.
 
 Changing a setting is `az containerapp update --set-env-vars NAME=value` (the same variables as
 [cloud-run.md](cloud-run.md), with the `WHATBUILD_` prefix); a secret is a new version in the
@@ -502,8 +517,11 @@ the `postgres` image, given the admin password as a vault secret.
 ### More than one replica, or none idle
 
 `maxReplicas: 1` matches Cloud Run's cap and is ample for a few teams; the image is stateless and
-the share is common, so more is a number. `minReplicas: 1` removes the wait on the first request
-and bills a replica all month.
+the share is common, so more is a number. With none idle, the app is stopped about five minutes
+after its last request, and the next one waits some twenty seconds: most of it for a replica to
+be scheduled, a few seconds to pull the image, under one for the server to listen.
+`minReplicas: 1` removes that wait and bills a replica all month; a deploy keeps whichever is
+set.
 
 ## What it costs
 

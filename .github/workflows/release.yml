@@ -1,0 +1,43 @@
+name: Release
+
+# A tag v* on a commit of main is a release: the image is built from the Dockerfile and published
+# to the GitHub container registry as ghcr.io/<owner>/what-build:<tag>, and a GitHub release with
+# generated notes is made for the tag. A deployment then pulls a released image rather than
+# building one; what a deployment does with it is the deployment's own business.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # the release
+  packages: write # the image
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: The GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes \
+            --notes "Image: \`ghcr.io/$GITHUB_REPOSITORY:$GITHUB_REF_NAME\` (linux/amd64), built from \`$GITHUB_SHA\`."

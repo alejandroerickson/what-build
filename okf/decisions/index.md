@@ -3,7 +3,7 @@ type: Index
 title: Decisions
 description: Architectural decision records, each with its context, the choice, and what it constrains.
 tags: [index, decisions, adr]
-generated: {by: agent:claude, at: 2026-10-01}
+generated: {by: agent:claude, at: 2026-10-02}
 status: stable
 ---
 
@@ -48,3 +48,4 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [An assumption or decision may be recorded before any evidence cites it](register-entries-may-start-uncited.md)
 - [The repository is public; okf/ is the single source of documentation](public-repository-reference-docs.md)
 - [Agent guidance is tool-neutral: AGENTS.md and .agents/skills](agent-guidance-is-tool-neutral.md)
+- [A release is a tag on main with its image published; deploying it is the deployment's own pipeline](releases-are-tags-with-a-published-image.md)
