@@ -16,8 +16,7 @@ first command. This file is how to conduct the work.
   `deploy/cloudflare/`, or `.env` (it holds another deployment's values). Never run `gcloud`.
   Azure's values go in `.env.azure`.
 - **The application.** Hosting needs no change to `apps/` or `packages/`. If something seems to
-  need one, stop and say so. What the server lacks is already specified: Microsoft sign-in
-  (`okf/spec/03-accounts-teams-and-identity.md` §3.2) and an Azure Blob adapter
+  need one, stop and say so. What the server lacks is already specified: an Azure Blob adapter
   (`okf/spec/02-architecture.md` §2.4).
 - **The repository.** It is public. Subscription, tenant and client IDs, resource names, addresses
   and anything about the organization stay in `.env.azure` (gitignored) and in your own notes.
@@ -44,9 +43,10 @@ first command. This file is how to conduct the work.
 4. **Write `.env.azure`**, then create in the guide's order. Each step depends on the one before:
    providers and group; registry and identity; vault and secrets; Postgres and its role; share
    and environment; image; migration job; app; checks.
-5. **Sign-in.** Check what the build supports (the guide gives the test). Make the app
-   registration in the identity directory either way. If the build has no Microsoft sign-in yet,
-   say so plainly, and set up email links if the person wants to use the deployment before then.
+5. **Sign-in.** Make the app registration in the identity directory, store its secret in the
+   vault, and turn on the three `WHATBUILD_MICROSOFT_*` settings. Find the directory by what it
+   holds (the people who will sign in), not by its name: `GET /organization` in Microsoft Graph
+   names it, and `GET /users` shows who is in it. Set up email links too if the person wants them.
 6. **Prove it works**: `/health`, `/api/v1/meta`, a sign-in, an upload that parses, and the file in
    the share. A deployment nobody has signed in to is not done; say which of these you could not
    do yourself and need the person for.
@@ -109,6 +109,6 @@ organization, which is where care is needed.
 - **A new version**: "Deploying a new version" in the guide. Build the commit, run the migration
   job and see it succeed, then move the app; check `server_version`.
 - **A setting**: `az containerapp update --set-env-vars`; a secret is a new version in the vault.
-- **Microsoft sign-in arrives in the build**: deploy that build, then add the secret reference and
-  the three `WHATBUILD_MICROSOFT_*` settings, and check `/api/v1/meta` reports it.
+- **Microsoft sign-in on a deployment made without it**: add the secret reference and the three
+  `WHATBUILD_MICROSOFT_*` settings, and check `/api/v1/meta` reports `microsoft: true`.
 - **Removal**: only when asked, after an export, with the resource group's name confirmed.

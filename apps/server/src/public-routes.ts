@@ -4,7 +4,7 @@ import { SKILL_NAME, SKILL_VERSION, skillMarkdown, unauthenticated, type Db } fr
 import { strToU8, zipSync } from "fflate";
 import { Hono } from "hono";
 import { restPrincipal } from "./auth/identity.ts";
-import type { ServerConfig } from "./config.ts";
+import { microsoftSignIn, type ServerConfig } from "./config.ts";
 
 export function publicRoutes(deps: { db: Db; config: ServerConfig; serverVersion: string }) {
   const { config } = deps;
@@ -19,7 +19,7 @@ export function publicRoutes(deps: { db: Db; config: ServerConfig; serverVersion
       product: "WhatBuild",
       server_version: deps.serverVersion,
       skill: { name: SKILL_NAME, version: SKILL_VERSION },
-      auth: { email_link: config.mailer !== "none", google: Boolean(config.googleClientId && config.googleClientSecret), dev: config.devAuth },
+      auth: { email_link: config.mailer !== "none", google: Boolean(config.googleClientId && config.googleClientSecret), microsoft: microsoftSignIn(config), dev: config.devAuth },
       inference: "none: WhatBuild runs no language model; intelligence comes from the agent you connect",
     }),
   );

@@ -30,8 +30,9 @@ none of it may disturb the hosted service's deployments.
   Cloud Run deployment uses (`deploy/cloud-run/`, `cloudbuild.yaml`, `deploy/cloudflare/`, `.env`).
 - The same image runs, unchanged. Until the server has an Azure Blob adapter, files go through the
   filesystem adapter to a mounted file share.
-- What self-hosting needs from the server is specified before it is built: sign-in with Microsoft
-  work accounts and the Azure Blob adapter.
+- What self-hosting needs from the server is specified before it is built, and built as a
+  general feature of the one image: sign-in with Microsoft work accounts is in the server, off
+  unless configured; the Azure Blob adapter is specified.
 
 ## Consequences
 

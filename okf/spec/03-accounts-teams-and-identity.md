@@ -54,9 +54,8 @@ Sign-in methods, each optional per deployment:
   with no mail provider disables it rather than log a link; in development the console mailer
   prints it.
 - **Google** — OpenID Connect, when a client id and secret are configured.
-- **Microsoft work accounts** — **Planned.** OpenID Connect against one Microsoft Entra directory,
-  when the directory, a client id and a secret are configured. Specified
-  [below](#sign-in-with-microsoft-work-accounts-planned); not in the server yet.
+- **Microsoft work accounts** — OpenID Connect against one Microsoft Entra directory, when the
+  directory, a client id and a secret are configured ([below](#sign-in-with-microsoft-work-accounts)).
 - **Development** — "sign in as" an email, only when `NODE_ENV` is not `production` and
   `WHATBUILD_DEV_AUTH` is not `0`.
 
@@ -87,12 +86,12 @@ created this way is marked `sandbox_only`.
 it makes outside any organization ([§9.7](09-data-lifecycle.md)). Like every account, it creates
 organizations only as far as its allowance lets it ([§3.3](#33-tenants-and-teams)).
 
-### Sign-in with Microsoft work accounts (Planned)
+### Sign-in with Microsoft work accounts
 
-Not built; the [roadmap](10-roadmap.md#self-hosting-on-azure) says where it stands. A deployment
+A deployment
 inside a Microsoft organization signs its people in with their work accounts
 ([Azure guide](../operations/azure.md#sign-in)). It is a third built-in method beside the email
-link and Google, of the same shape as Google's
+link and Google, of the same shape as Google's, sharing its code flow
 ([`auth/routes.ts`](../../apps/server/src/auth/routes.ts)), and it changes nothing about sessions,
 invitations, admission or the OAuth server for agents.
 
@@ -105,7 +104,8 @@ invitations, admission or the OAuth server for agents.
 | `WHATBUILD_MICROSOFT_CLIENT_SECRET` | One of its client secrets. |
 
 The app registration is a single-tenant web application whose redirect URI is
-`<WHATBUILD_PUBLIC_URL>/auth/microsoft/callback`.
+`<WHATBUILD_PUBLIC_URL>/auth/microsoft/callback`. The directory may be a workforce directory or an
+Entra External ID one; guests invited to it sign in through it, and their tokens carry its `tid`.
 
 **Flow.** `GET /auth/microsoft?next=<path>` and `GET /auth/microsoft/callback`: the authorization
 code flow with PKCE (`S256`) and a random `state`, both kept with the safe `next` in the `HttpOnly`
@@ -150,7 +150,7 @@ says nothing, and the directory binding does the work), and a general setting co
 (`oid`) is not stored. An address the directory gives to a different person later reaches the
 earlier person's account, which is equally true of an email link.
 
-*Accept:* with the token endpoint stubbed, server tests show a sign-in creating an account and
+*Accept* (`apps/server/test/microsoft-sign-in.test.ts`): with the token endpoint stubbed, server tests show a sign-in creating an account and
 accepting its invitations; each refusal above (`aud`, `tid`, `iss`, no address, wrong `state`);
 invite-only mode refusing an address outside the allowlist; `404` when not configured; start-up
 refusing a tenant that is not a GUID; and `microsoft` reported by both endpoints.

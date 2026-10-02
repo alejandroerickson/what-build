@@ -47,7 +47,7 @@ export function SignIn() {
   const [params] = useSearchParams();
   const next = params.get("next") ?? "/";
   const [email, setEmail] = useState("");
-  const methods = useQuery({ queryKey: ["auth-methods"], queryFn: () => api<{ email_link: boolean; google: boolean; dev: boolean }>("GET", "/auth/methods") });
+  const methods = useQuery({ queryKey: ["auth-methods"], queryFn: () => api<{ email_link: boolean; google: boolean; microsoft?: boolean; dev: boolean }>("GET", "/auth/methods") });
   const me = useMe();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -83,9 +83,13 @@ export function SignIn() {
             <Callout inset tone="attention" title="WhatBuild is invite-only for now">
               Ask someone who uses it to invite you.
             </Callout>
+          ) : error === "microsoft_unverified" ? (
+            <Callout inset tone="attention" title="That Microsoft account can’t sign in here">
+              Use your work account in this organization’s directory{emailLink ? ", or an email link" : ""}.
+            </Callout>
           ) : error ? (
             <Callout inset tone="attention" title="That sign-in didn’t work">
-              Try again, or use an email link.
+              {emailLink ? "Try again, or use an email link." : "Try again."}
             </Callout>
           ) : null}
           {emailLink ? (
@@ -109,9 +113,17 @@ export function SignIn() {
               </form>
             )
           ) : null}
-          {methods.data?.google ? (
+          {methods.data?.microsoft ? (
             <>
               {emailLink ? <div className="entry-or">or</div> : null}
+              <a className={`btn ${emailLink ? "btn-secondary" : "btn-primary"} btn-md btn-wide`} href={`/auth/microsoft?next=${encodeURIComponent(next)}`}>
+                Continue with Microsoft
+              </a>
+            </>
+          ) : null}
+          {methods.data?.google ? (
+            <>
+              {emailLink && !methods.data.microsoft ? <div className="entry-or">or</div> : null}
               <a className="btn btn-secondary btn-md btn-wide" href={`/auth/google?next=${encodeURIComponent(next)}`}>
                 Continue with Google
               </a>
