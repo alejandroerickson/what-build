@@ -8,11 +8,18 @@
 #
 # Migrations run as a Cloud Run Job from the new image before the service moves to it, so a new
 # revision never serves traffic against an old schema. Migrations are forward-only.
+#
+# On a Neon database, set _NEON_PROJECT (the project's ID) and each build first branches the
+# database as a restore point, keeping the newest _NEON_KEEP of them; the Neon API key is the
+# secret whatbuild-neon-api-key. Left empty, the step does nothing (okf/operations/cloud-run.md).
 substitutions:
   _REGION: northamerica-northeast2
   _SERVICE: whatbuild
   _MIGRATE_JOB: whatbuild-migrate
   _REPO: whatbuild
+  _NEON_PROJECT: ""
+  _NEON_BRANCH: production
+  _NEON_KEEP: "3"
   _IMAGE: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/whatbuild:${COMMIT_SHA}
 
 steps:
@@ -23,6 +30,71 @@ steps:
   - id: push
     name: gcr.io/cloud-builders/docker
     args: ["push", "${_IMAGE}"]
+
+  # A restore point: a branch of the database as it is before this build's migrations, named
+  # pre-migrate-<time>-<commit>. The build waits until Neon has made it, and fails if it cannot.
+  - id: restore-point
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    env: ["NEON_PROJECT=${_NEON_PROJECT}", "NEON_BRANCH=${_NEON_BRANCH}", "NEON_KEEP=${_NEON_KEEP}", "COMMIT=${SHORT_SHA}"]
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        if [ -z "$$NEON_PROJECT" ]; then echo "No _NEON_PROJECT: no restore point."; exit 0; fi
+        NEON_API_KEY="$$(gcloud secrets versions access latest --secret whatbuild-neon-api-key)"
+        export NEON_API_KEY
+        python3 - <<'PY'
+        import datetime, json, os, time, urllib.error, urllib.request
+
+        API = "https://console.neon.tech/api/v2/projects/" + os.environ["NEON_PROJECT"]
+
+        def call(method, path, body=None):
+            # 423: another operation on the project is still running; try again shortly.
+            for _ in range(60):
+                req = urllib.request.Request(API + path, method=method, data=None if body is None else json.dumps(body).encode(), headers={
+                    "Authorization": "Bearer " + os.environ["NEON_API_KEY"], "Accept": "application/json", "Content-Type": "application/json"})
+                try:
+                    with urllib.request.urlopen(req, timeout=30) as res:
+                        return json.load(res)
+                except urllib.error.HTTPError as e:
+                    if e.code != 423:
+                        raise SystemExit("Neon " + method + " " + path + ": " + str(e.code) + " " + e.read().decode()[:300])
+                    time.sleep(2)
+            raise SystemExit("Neon " + method + " " + path + ": still locked")
+
+        def settle(ops):
+            for op in ops:
+                for _ in range(90):
+                    status = call("GET", "/operations/" + op["id"])["operation"]["status"]
+                    if status == "finished":
+                        break
+                    if status in ("failed", "error", "cancelled", "skipped"):
+                        raise SystemExit("Neon operation " + op["action"] + " " + status)
+                    time.sleep(2)
+                else:
+                    raise SystemExit("Neon operation " + op["action"] + " did not finish")
+
+        branches = call("GET", "/branches")["branches"]
+        parent = next((b for b in branches if b["name"] == os.environ["NEON_BRANCH"]), None)
+        if parent is None:
+            raise SystemExit("No branch named " + os.environ["NEON_BRANCH"])
+        stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        name = "pre-migrate-" + stamp + "-" + os.environ["COMMIT"]
+        made = call("POST", "/branches", {"branch": {"parent_id": parent["id"], "name": name}})
+        settle(made.get("operations", []))
+        print("Restore point:", name, made["branch"]["id"])
+
+        # Keep the newest NEON_KEEP restore points, this one included. One that cannot go (after a
+        # restore, the branch hangs from it) stays, with a warning; it never stops the deploy.
+        older = sorted((b for b in branches if b["name"].startswith("pre-migrate-") and b.get("parent_id") == parent["id"]), key=lambda b: b["created_at"])
+        for b in older[: max(0, len(older) + 1 - int(os.environ["NEON_KEEP"]))]:
+            try:
+                settle(call("DELETE", "/branches/" + b["id"]).get("operations", []))
+                print("Removed", b["name"])
+            except SystemExit as e:
+                print("Kept", b["name"] + ":", e)
+        PY
 
   # The migration job keeps the settings setup.sh gave it; each build only points it at the new image.
   - id: migrate

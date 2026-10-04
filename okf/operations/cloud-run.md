@@ -1,7 +1,7 @@
 ---
 type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
-description: What the production deployment is made of, how deploy/cloud-run/setup.sh creates it, sign-in and continuous deployment, cost, names, and useful commands.
+description: What the production deployment is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, cost, names, and useful commands.
 tags: [operations, deployment, cloud-run, gcp]
 generated: {by: agent:claude, at: 2026-10-01}
 status: stable
@@ -196,6 +196,44 @@ gcloud builds submit --project $P --region $R --config cloudbuild.yaml \
 A deploy changes only the image and `WHATBUILD_RELEASE`; every other setting on the service, such
 as `WHATBUILD_INSTANCE_OWNERS`, stays as it was.
 
+**A restore point before migrating (Neon).** A migration that fails rolls back in its own
+transaction, but one that succeeds and is wrong can only be undone by going back to the database
+as it was. On Neon, each deploy can first branch the database: a branch is a copy at that moment,
+made in about a second whatever the size, that shares storage with its parent until they differ
+([decision](../decisions/each-deploy-branches-the-neon-database-before-migrating.md)). Give the
+build a Neon API key that can reach only the project, and name the project in each deploy:
+
+```bash
+neon api-keys create --name whatbuild-deploy-restore-points --project-id <neon-project> -o json \
+  | python3 -c 'import json,sys; sys.stdout.write(json.load(sys.stdin)["key"])' \
+  | gcloud secrets create whatbuild-neon-api-key --project $P --data-file=-
+gcloud secrets add-iam-policy-binding whatbuild-neon-api-key --project $P \
+  --member serviceAccount:<build identity> --role roles/secretmanager.secretAccessor
+gcloud builds submit … --substitutions COMMIT_SHA=…,SHORT_SHA=…,_NEON_PROJECT=<neon-project> .
+```
+
+The build's `restore-point` step branches `_NEON_BRANCH` (default `production`) as
+`pre-migrate-<UTC time>-<commit>`, waits until Neon has made it, and stops the deploy if it cannot,
+so nothing migrates without one. It keeps the newest `_NEON_KEEP` (default 3) and removes older
+ones; a free Neon plan allows ten branches. Without `_NEON_PROJECT` the step does nothing.
+
+To go back, restore the branch to the restore point. The branch keeps its ID and its connection
+string, so `DATABASE_URL` stays as it is, and its state just before the restore is kept under the
+name given. Then send traffic to the revision that matches the older schema:
+
+```bash
+neon branches restore production pre-migrate-<time>-<commit> --project-id <neon-project> \
+  --preserve-under-name production-before-restore
+gcloud run revisions list --service whatbuild --project $P --region $R
+gcloud run services update-traffic whatbuild --project $P --region $R --to-revisions <revision>=100
+```
+
+Writes made after the restore point are lost, apart from the preserved branch, which can be read
+for them. After a restore, `production` hangs from the restore point, which therefore cannot be
+deleted: the build keeps it and says so. Delete the preserved branch when it is no longer needed,
+then that restore point, and deploy a fixed migration as a new commit; the restored database has no
+record of the reverted migration, so it runs again.
+
 **A custom domain.** The app answers at a subdomain (`app.example.com`) and the public site at the
 domain itself (`example.com`, with `www.` redirecting to it); both reach the same service, which
 tells them apart by Host. Put them in front of the service one of three ways:
@@ -263,6 +301,7 @@ sends out costs about US$0.12 a GB, and is the one cost that grows with download
 | Secrets | `whatbuild-database-url`, `whatbuild-grant-key`, optional `whatbuild-smtp-url`, `whatbuild-google-client-secret` | read by the runtime identity only |
 | Images | Artifact Registry `whatbuild` | the ten most recent always kept; others deleted after 30 days |
 | Scheduler job | `whatbuild-sandbox-reset` (with `SANDBOX_TENANT`) | wakes the service a minute after the sandbox's reset hour |
+| Restore points (Neon, optional) | branches `pre-migrate-<time>-<commit>`, secret `whatbuild-neon-api-key` | one per deploy before migrating, the newest three kept; the key reaches only the Neon project and is read by the build identity |
 | Backup (another Postgres, set up by hand) | job `whatbuild-backup`, scheduler job `whatbuild-backup-nightly`, identity `whatbuild-backup`, bucket `<project>-backups`, secret `whatbuild-backup-database-url` | a `pg_dump` each night as a read-only role that bypasses row-level security; the identity adds and reads dumps, never deletes; dumps expire after 35 days |
 
 ## Useful commands
