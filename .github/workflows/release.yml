@@ -1,9 +1,12 @@
 name: Release
 
 # A tag v* on a commit of main is a release: the image is built from the Dockerfile and published
-# to the GitHub container registry as ghcr.io/<owner>/what-build:<tag>, and a GitHub release with
-# generated notes is made for the tag. A deployment then pulls a released image rather than
-# building one; what a deployment does with it is the deployment's own business.
+# to the GitHub container registry as ghcr.io/<owner>/what-build:<tag>, and the tag's GitHub
+# release gets the image and the migrations at the top of its notes. A release published on GitHub
+# (in the browser or with `gh release create`) makes its tag and so starts this workflow; a tag
+# pushed alone gets a release with generated notes. A deployment then pulls a released image rather
+# than building one; what a deployment does with it is the deployment's own business
+# (okf/operations/releasing.md).
 on:
   push:
     tags: ["v*"]
@@ -17,6 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the previous tag, for the migrations since it
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -41,6 +46,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         # The notes say which migrations the release adds since the previous tag: going back past a
         # release that adds one needs the database restored (okf/operations/recovering-from-a-bad-release.md).
+        # A release that already exists keeps its notes, under ours; a re-run adds nothing twice.
         run: |
           prev=$(git describe --tags --abbrev=0 --match 'v*' "$GITHUB_SHA^" 2>/dev/null || true)
           added=$(git diff --name-only --diff-filter=A ${prev:-$(git rev-list --max-parents=0 HEAD)} "$GITHUB_SHA" -- apps/server/src/migrations/ | xargs -r -n1 basename | sed 's/^/- `/; s/$/`/')
@@ -49,5 +55,14 @@ jobs:
           else
             migrations="**Migrations.** None${prev:+ since $prev}: going back to the previous release needs only the previous image."
           fi
-          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes \
-            --notes "Image: \`ghcr.io/$GITHUB_REPOSITORY:$GITHUB_REF_NAME\` (linux/amd64), built from \`$GITHUB_SHA\`."$'\n\n'"$migrations"$'\n\n'"If a release breaks your deployment: [recovering from a bad release](https://github.com/$GITHUB_REPOSITORY/blob/main/okf/operations/recovering-from-a-bad-release.md)."
+          image="Image: \`ghcr.io/$GITHUB_REPOSITORY:$GITHUB_REF_NAME\` (linux/amd64), built from \`$GITHUB_SHA\`."
+          notes="$image"$'\n\n'"$migrations"$'\n\n'"If a release breaks your deployment: [recovering from a bad release](https://github.com/$GITHUB_REPOSITORY/blob/main/okf/operations/recovering-from-a-bad-release.md)."
+          if body=$(gh release view "$GITHUB_REF_NAME" --json body --jq .body 2>/dev/null); then
+            case "$body" in *"$image"*) echo "The release already has its notes."; exit 0 ;; esac
+            if [ -z "$body" ]; then
+              body=$(gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$GITHUB_REF_NAME" ${prev:+-f previous_tag_name="$prev"} --jq .body)
+            fi
+            gh release edit "$GITHUB_REF_NAME" --notes "$notes"$'\n\n'"$body"
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --notes "$notes"
+          fi

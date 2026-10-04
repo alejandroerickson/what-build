@@ -45,8 +45,9 @@ Stop as soon as you have what the task needs.
 When a change makes a concept untrue, correct the concept in the same change and bump its
 `generated.at`. Agents follow the skills in `.agents/skills/`: `okf-orient` to find what to read,
 `okf-update` to keep the bundle true (with an impact map from code to concepts and a template per
-type), and `okf-decision` to record decisions. Two more skills are procedures for operating a deployment:
-`azure-self-host` for [hosting on Azure](operations/azure.md), and `recover-a-deployment` for
+type), and `okf-decision` to record decisions. Three more skills are procedures for operating a deployment:
+`azure-self-host` for [hosting on Azure](operations/azure.md), `make-a-release` for
+[releasing](operations/releasing.md), and `recover-a-deployment` for
 [recovering from a bad release](operations/recovering-from-a-bad-release.md). Prefer correcting a concept to adding a near-duplicate. Validate before committing:
 
 ```sh

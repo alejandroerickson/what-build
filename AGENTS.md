@@ -45,6 +45,7 @@ that folder. If your tool does not load skills, read the `SKILL.md` files direct
 | `okf-update` | Before finishing any change: which concepts it affects, and how to write each type. |
 | `okf-decision` | When a change makes, revises or reverses a durable choice. |
 | `azure-self-host` | When asked to host, update or repair a self-hosted copy on Azure with the Azure CLI. |
+| `make-a-release` | When asked to release a version or move production: publish the release, approve the deploy. |
 | `recover-a-deployment` | When a new version broke a deployment (Cloud Run or Azure): roll back, restore the database. |
 
 ## Before you change anything
@@ -60,7 +61,8 @@ corepack pnpm install && corepack pnpm dev   # http://localhost:5273, one-click 
 ## Operating production
 
 Deploying, the Cloudflare Worker and analytics are in `okf/operations/` (start with
-`cloud-run.md`). The deployment's values and credentials are in `.env` at the root of the
+`cloud-run.md`). Production runs releases only: it moves when a release is published and its
+build approved, never on a merge (`okf/operations/releasing.md`). The deployment's values and credentials are in `.env` at the root of the
 maintainer's clone, never in the repository; production secrets are in Google Secret Manager and
 `.env` names them. Read `.env` before asking the maintainer for an ID or a token.
 

@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild self-hosts on Azure Container Apps with Azure Database for PostgreSQL and a mounted file share, set up by an agent with the Azure CLI.
 description: What a self-hosted deployment on Azure is made of, how each resource is configured, the commands that create it, sign-in with a Microsoft work account, the variations between organizations, deploying a new version, cost and removal.
 tags: [operations, deployment, azure, self-hosting, container-apps, entra]
-generated: {by: agent:claude, at: 2026-10-02}
+generated: {by: agent:claude, at: 2026-10-03}
 status: draft
 ---
 
@@ -466,7 +466,7 @@ curl -s "$WB_PUBLIC_URL/api/v1/meta"    # server_version is the new tag
 Importing it into the registry replaces the build, and the tag is then the version:
 
 ```bash
-WB_IMAGE_TAG=v0.1.0
+WB_IMAGE_TAG=v0.2.0
 az acr import --subscription "$AZ_SUBSCRIPTION" -n "$AZ_ACR" --source "ghcr.io/<owner>/what-build:$WB_IMAGE_TAG" --image "whatbuild:$WB_IMAGE_TAG"
 ```
 

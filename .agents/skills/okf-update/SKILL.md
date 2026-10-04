@@ -64,6 +64,7 @@ adding a near-duplicate.
 | `uploads.ts`, `adapters/**`, `ports.ts`, `config.ts` | `spec/02` (adapters, configuration), `spec/05`, `operations/cloud-run.md` and `operations/azure.md` (with `deploy/azure/containerapp.yaml`) if an environment variable changed |
 | `dev.ts`, root `package.json` scripts, ports, `.nvmrc`, `scripts/*.mjs` | `operations/local-development.md`, decision `development-substitutes-adapters-never-behavior` |
 | `.github/workflows/**` | `operations/local-development.md` (CI), the phase 0 row in `spec/10` |
+| `.github/workflows/release.yml`, `.agents/skills/make-a-release/**`, how versions are numbered or how production is deployed | `operations/releasing.md`, decisions `releases-are-tags-with-a-published-image` and `production-runs-releases-after-approval` |
 | `Dockerfile`, `cloudbuild.yaml`, `deploy/cloud-run/**`, `deploy/cloudflare/**` | `operations/cloud-run.md`, decision `one-stateless-image`; a `Dockerfile` change also `operations/azure.md` (the image is built from it there too) |
 | `apps/server/src/migrations/**`, `apps/server/src/database.ts`, `.github/workflows/release.yml`, `.agents/skills/recover-a-deployment/**`, or how a deployment migrates, backs up or rolls back | `operations/recovering-from-a-bad-release.md` |
 | `deploy/azure/**`, `.agents/skills/azure-self-host/**` | `operations/azure.md`, decision `self-hosting-on-azure-is-agent-led-and-shares-nothing-with-cloud-run` |

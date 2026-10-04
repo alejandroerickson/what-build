@@ -39,9 +39,9 @@ hash. The maintainer chose this shape on 2026-10-02.
 - A deployment names what it runs (`v0.3.1`), can go back to it, and can take a released image
   without building from source.
 - Tags are not moved: a tag names one commit for ever, and a fix is a new tag.
-- The Cloud Run deployment is unchanged: it still builds a commit of `main` from source, deployed
-  by hand with `gcloud builds submit`; no trigger deploys a push
-  ([Cloud Run](../operations/cloud-run.md)).
+- The Cloud Run deployment builds each release's tag from source, started by the tag and approved
+  by a person; a merge to `main` deploys nothing
+  ([decision](production-runs-releases-after-approval.md), [Cloud Run](../operations/cloud-run.md)).
 
 ## Constrains
 
