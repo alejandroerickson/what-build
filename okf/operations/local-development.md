@@ -3,7 +3,7 @@ type: System Concept
 title: Running WhatBuild locally, testing it, and checking the interface
 description: The one-command development setup, the test and build commands, and the browser scripts.
 tags: [development, testing, local]
-generated: {by: agent:claude, at: 2026-10-02}
+generated: {by: agent:claude, at: 2026-10-03}
 status: stable
 ---
 
@@ -61,7 +61,8 @@ CI (`.github/workflows/ci.yml`) runs the documentation check, the skill check, t
 which publishes the image as `ghcr.io/<owner>/what-build:<tag>` and makes a GitHub release
 ([decision](../decisions/releases-are-tags-with-a-published-image.md)) whose notes list the
 migrations it adds since the previous tag, the fact an operator needs to
-[recover from a bad release](recovering-from-a-bad-release.md).
+[recover from a bad release](recovering-from-a-bad-release.md). A release published on GitHub makes
+its tag and so starts the same workflow; [releasing](releasing.md) is how to make one.
 
 ## In the browser
 

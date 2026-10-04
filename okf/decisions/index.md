@@ -49,4 +49,5 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [The repository is public; okf/ is the single source of documentation](public-repository-reference-docs.md)
 - [Agent guidance is tool-neutral: AGENTS.md and .agents/skills](agent-guidance-is-tool-neutral.md)
 - [A release is a tag on main with its image published; deploying it is the deployment's own pipeline](releases-are-tags-with-a-published-image.md)
+- [The Cloud Run deployment runs releases only; a release's tag starts its deploy, which waits for approval](production-runs-releases-after-approval.md)
 - [Each Cloud Run deploy on Neon branches the database before migrating, as a restore point](each-deploy-branches-the-neon-database-before-migrating.md)

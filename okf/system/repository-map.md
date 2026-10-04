@@ -24,5 +24,5 @@ A pnpm workspace: two apps and two libraries.
 | `deploy/cloudflare/` | `worker.js` and `wrangler.toml`: on Cloudflare's free plan, the public site from the edge and the app's domain from the Cloud Run service. |
 | `Dockerfile`, `cloudbuild.yaml` | The production image and its build. |
 | `okf/` | This bundle: all documentation. |
-| `.agents/skills/` | Skills for agents working on this repository: `okf-orient`, `okf-update`, `okf-decision` ([decision](../decisions/agent-guidance-is-tool-neutral.md)), `azure-self-host`, the procedure for [hosting on Azure](../operations/azure.md), and `recover-a-deployment`, for [recovering from a bad release](../operations/recovering-from-a-bad-release.md). `.claude/skills` links here. |
+| `.agents/skills/` | Skills for agents working on this repository: `okf-orient`, `okf-update`, `okf-decision` ([decision](../decisions/agent-guidance-is-tool-neutral.md)), `azure-self-host`, the procedure for [hosting on Azure](../operations/azure.md), `make-a-release`, for [releasing](../operations/releasing.md), and `recover-a-deployment`, for [recovering from a bad release](../operations/recovering-from-a-bad-release.md). `.claude/skills` links here. |
 | `PRODUCT.md`, `DESIGN.md`, `.impeccable/design.json` | Product and design records, read by design tooling. |

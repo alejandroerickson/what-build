@@ -40,8 +40,8 @@ hand, delete rows from `schema_migrations`, or edit a migration file to undo it.
 
 ## 2. What runs now, and what ran before
 
-The release is in the account menu's last row ("Release v0.3.1" or "Commit 1a2b3c4", with the day
-it was built) and in `GET /api/v1/meta`, which needs no sign-in:
+The release is in the account menu's last row ("Release v0.3.1" or "Commit 1a2b3c4") and, with its
+commit and the day it was built, in `GET /api/v1/meta`, which needs no sign-in:
 
 ```bash
 curl -s https://<app-host>/api/v1/meta     # release: { version, commit, built_at }

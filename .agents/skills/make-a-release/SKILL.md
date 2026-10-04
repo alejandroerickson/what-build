@@ -1,0 +1,34 @@
+---
+name: make-a-release
+description: Publish a WhatBuild release (a version tag on main, its GitHub release and its image) and, when asked, move the Cloud Run production deployment to it by approving the deploy the tag starts. Use when asked to release, cut, tag or publish a version, to make the next release, or to move, update or deploy production.
+---
+
+# Make a release
+
+You are giving a commit of `main` a version and, when asked, putting it into production. The
+knowledge, with every command, is in `okf/operations/releasing.md`. Read it before the first
+command. This file is how to conduct the work.
+
+## What must stay true
+
+- **A tag is permanent.** Never move, delete or reuse a tag, and never force-push one. A mistake is
+  fixed by the next version.
+- **Only a commit of `main` on which CI passed** gets a release.
+- **Ask before publishing.** Tell the person the version, the commit, what it contains and the
+  migrations it adds, and wait for their yes.
+- **Approve the production deploy only when the person asked for production to move**, and only
+  after the Release workflow passed. Otherwise tell them it waits for approval in Cloud Build.
+- **Read the deployment's values from `.env`** in the maintainer's clone; never write them into
+  the repository, which is public.
+
+## Procedure
+
+1. **Find the latest tag and the commit** (the head of `main` unless the person named one).
+2. **Choose the version** by the rules in the guide: minor for features or any migration, patch
+   for fixes only. Use the version the person named if they named one.
+3. **Show the person** the version, commit, changes and migrations; wait for yes.
+4. **Publish** with `gh release create`, then watch the Release workflow to the end.
+5. **Production, if asked:** approve the pending Cloud Build, follow its log, and check that
+   `/api/v1/meta` reports the new version.
+6. **Report** the release page's address, whether the image was published, and what production
+   runs now. If the deploy broke something, use the `recover-a-deployment` skill.

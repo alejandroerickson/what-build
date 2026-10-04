@@ -51,8 +51,10 @@ claude mcp add --transport http whatbuild-dev http://localhost:5273/mcp
 
 One image on Google Cloud Run, Postgres, and a Cloud Storage bucket. The
 [deployment guide](okf/operations/cloud-run.md) and [`setup.sh`](deploy/cloud-run/setup.sh) set it
-up from nothing. Once you add the Cloud Build trigger the guide describes, every push to `main`
-builds, migrates and deploys; without it, a deploy is one `gcloud builds submit`.
+up from nothing. Once you add the Cloud Build trigger the guide describes, publishing a release
+builds, migrates and deploys it after someone approves the build; without it, a deploy is one
+`gcloud builds submit`. A release is a version tag on `main` with its notes and image; an agent
+makes one with the `make-a-release` skill ([releasing](okf/operations/releasing.md)).
 
 To run your own copy on Azure (Container Apps, Azure Database for PostgreSQL, Key Vault and a file
 share), point an agent with a signed-in Azure CLI at this repository: the

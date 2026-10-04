@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
 description: What the production deployment is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, cost, names, and useful commands.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-10-01}
+generated: {by: agent:claude, at: 2026-10-03}
 status: stable
 ---
 
@@ -171,27 +171,43 @@ you change one, change the other. The address needs no credential: it does nothi
 is due. Cloud Scheduler is not offered in every region, so `SCHEDULER_LOCATION` may need to name
 a region near the service's.
 
-**Continuous deployment.** It needs a Cloud Build trigger that `setup.sh` does not create; until
-one exists, **a push to `main` deploys nothing**. In Cloud Build, connect the GitHub repository and create a trigger on pushes to
-`main` that runs `/cloudbuild.yaml` with the substitution `_REGION` set to the service's region.
-Choose the trigger's region before connecting the repository. Each build
-([`cloudbuild.yaml`](../../cloudbuild.yaml)) builds and pushes the image, points the migration job
-at it, runs it, then deploys the service with `WHATBUILD_RELEASE` set to the commit and sends
-traffic to it. The build
-passes the commit to the image as `WHATBUILD_COMMIT`, and the image records it with the build time,
-so `/api/v1/meta` reports `release` (version, commit, `built_at`) and the account menu shows it.
-Before assuming a merge is live, check that a trigger exists and compare the release:
+**Deploying releases.** A deployment that follows releases has a Cloud Build trigger, which
+`setup.sh` does not create; until one exists, **nothing deploys on its own**, and a merge to `main`
+never does ([decision](../decisions/production-runs-releases-after-approval.md)). Choose the
+trigger's region first, connect the GitHub repository there (installing the Cloud Build GitHub app
+on it), and create a trigger on new tags that waits for approval:
 
 ```bash
-gcloud builds triggers list --project $P --region $R             # empty: nothing deploys on push
-curl -s https://<your-url>/api/v1/meta                            # server_version is the deployed commit
+gcloud builds connections create github github --project $P --region $R   # prints a link: install the app, then run it again
+gcloud builds repositories create what-build --connection github --project $P --region $R \
+  --remote-uri https://github.com/<owner>/what-build.git
+gcloud builds triggers create github --name deploy-release --project $P --region $R \
+  --repository projects/$P/locations/$R/connections/github/repositories/what-build \
+  --tag-pattern '^v\d+\.\d+\.\d+$' --build-config cloudbuild.yaml --require-approval \
+  --service-account projects/$P/serviceAccounts/<build identity> \
+  --substitutions _REGION=$R,_NEON_PROJECT=<neon-project>
 ```
 
-Without a trigger, deploy a commit by hand from a clean checkout of it; the build is the same:
+Publishing a release then starts a build that waits in Cloud Build's history until someone
+approves it ([releasing](releasing.md)). Each build ([`cloudbuild.yaml`](../../cloudbuild.yaml))
+builds and pushes the image, points the migration job at it, runs it, then deploys the service
+with `WHATBUILD_RELEASE` set to the tag and sends traffic to it. The build passes the commit to
+the image as `WHATBUILD_COMMIT`, and the image records it with the build time, so
+`/api/v1/meta` reports `release` (version, commit, `built_at`) and the account menu shows
+"Release v0.2.0", linked to the release's page on GitHub. Before assuming a release is live, check
+that a trigger exists and compare the release:
+
+```bash
+gcloud builds triggers list --project $P --region $R             # empty: nothing deploys on its own
+curl -s https://<your-url>/api/v1/meta                            # server_version is the deployed release
+```
+
+Without a trigger, deploy by hand from a clean checkout of the tag; the build is the same. Leave
+out `TAG_NAME` to deploy a commit that is not a release, which is then named by its hash:
 
 ```bash
 gcloud builds submit --project $P --region $R --config cloudbuild.yaml \
-  --substitutions COMMIT_SHA=$(git rev-parse HEAD),SHORT_SHA=$(git rev-parse --short=7 HEAD) .
+  --substitutions TAG_NAME=v0.2.0,COMMIT_SHA=$(git rev-parse HEAD),SHORT_SHA=$(git rev-parse --short=7 HEAD) .
 ```
 
 A deploy changes only the image and `WHATBUILD_RELEASE`; every other setting on the service, such
@@ -202,7 +218,8 @@ transaction, but one that succeeds and is wrong can only be undone by going back
 as it was. On Neon, each deploy can first branch the database: a branch is a copy at that moment,
 made in about a second whatever the size, that shares storage with its parent until they differ
 ([decision](../decisions/each-deploy-branches-the-neon-database-before-migrating.md)). Give the
-build a Neon API key that can reach only the project, and name the project in each deploy:
+build a Neon API key that can reach only the project, and name the project in the trigger's
+substitutions (above) or in each deploy by hand:
 
 ```bash
 neon api-keys create --name whatbuild-deploy-restore-points --project-id <neon-project> -o json \
