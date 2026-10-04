@@ -6,6 +6,7 @@ import { Avatar, Glyph, IconButton, Menu, MenuGroup, MenuItem, MenuLabel, MenuRa
 import { shortcutLabel } from "../ui/media.ts";
 import { CreateProductDialog } from "../routes/new-product.tsx";
 import { BrandMark } from "./brand.tsx";
+import { ReleaseItem, useRelease } from "./release.tsx";
 import { useTheme } from "./theme.ts";
 
 /** The four L1 destinations, in the order that tells the product's story. */
@@ -179,6 +180,7 @@ export function AccountMenu() {
   const signOut = useSignOut();
   const [theme, setTheme] = useTheme();
   const tenants = useProducts().data?.tenants ?? [];
+  const release = useRelease();
   const name = me.data?.display_name ?? "Signed in";
   return (
     <div className="panel-foot">
@@ -250,6 +252,7 @@ export function AccountMenu() {
         <MenuItem icon="log-out" onSelect={() => void signOut()}>
           Sign out
         </MenuItem>
+        <ReleaseItem release={release} />
       </Menu>
     </div>
   );

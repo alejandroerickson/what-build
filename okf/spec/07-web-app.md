@@ -61,7 +61,11 @@ the browser's back button and "open in new tab" both work.
   organization they belong to, with their role in it and a link to its **Members**; the theme
   (Light, Dark or System, which is the default; remembered per browser); **New organization**,
   while they may still create one; **Organization creators**, for an owner of the instance;
-  **Settings** (their own display name); and Sign out. Nothing in it is also in the panel.
+  **Settings** (their own display name); and Sign out. Last, under a hairline, is the release this
+  WhatBuild runs, from `/api/v1/meta`: "Release v0.3.1" with its short commit, or "Commit 1a2b3c4"
+  for a build of a commit, over the day the image was built, linking to the release notes or the
+  commit on GitHub in a new tab; the full commit and the build time are its tooltip. A development
+  server says so instead. Nothing in it is also in the panel.
 - **Hiding.** The panel hides completely, never to an icon rail, with its button or `⌘\` / `Ctrl+\`
   (ignored while typing in a field), and the choice is remembered per browser. While it is hidden
   a small floating pill with the mark brings the panel back. It is the same size whatever the

@@ -182,16 +182,25 @@ interface ItemSlots {
   kbd?: string;
   /** A short description, shown right-aligned in faint text ("Reversible", "3 people"). */
   meta?: ReactNode;
+  /** A second line under the text, in faint meta type. */
+  detail?: ReactNode;
   disabled?: boolean;
   children: ReactNode;
 }
 
-function Slots({ icon, kbd, meta, children, check }: ItemSlots & { check?: boolean }) {
+function Slots({ icon, kbd, meta, detail, children, check }: ItemSlots & { check?: boolean }) {
   return (
     <>
       {check !== undefined ? <Glyph name="check" className="menu-check" /> : null}
       {icon ? <Glyph name={icon} /> : null}
-      <span className="menu-text">{children}</span>
+      {detail ? (
+        <span className="menu-text">
+          <span className="menu-text-line">{children}</span>
+          <span className="menu-detail">{detail}</span>
+        </span>
+      ) : (
+        <span className="menu-text">{children}</span>
+      )}
       {meta ? <span className="menu-meta">{meta}</span> : null}
       {kbd ? <kbd className="menu-kbd">{kbd}</kbd> : null}
     </>
@@ -199,18 +208,20 @@ function Slots({ icon, kbd, meta, children, check }: ItemSlots & { check?: boole
 }
 
 /** A command or a link. Choosing it closes the menu. */
-export function MenuItem({ onSelect, to, href, download, tone, keepOpen, ...slots }: ItemSlots & {
+export function MenuItem({ onSelect, to, href, download, newTab, tone, keepOpen, ...slots }: ItemSlots & {
   onSelect?: () => void;
   /** An in-app route. */
   to?: string;
   /** An external or file URL. */
   href?: string;
   download?: boolean;
+  /** Open `href` in a new tab. */
+  newTab?: boolean;
   tone?: "danger";
   keepOpen?: boolean;
 }) {
   const menu = useMenu();
-  const cls = `menu-item${tone === "danger" ? " menu-item-danger" : ""}`;
+  const cls = `menu-item${tone === "danger" ? " menu-item-danger" : ""}${slots.detail ? " menu-item-2" : ""}`;
   const activate = (e: { preventDefault: () => void }) => {
     if (slots.disabled) {
       e.preventDefault();
@@ -227,7 +238,7 @@ export function MenuItem({ onSelect, to, href, download, tone, keepOpen, ...slot
     );
   if (href && !slots.disabled)
     return (
-      <a role="menuitem" href={href} download={download} className={cls} tabIndex={-1} onClick={activate}>
+      <a role="menuitem" href={href} download={download} target={newTab ? "_blank" : undefined} rel={newTab ? "noreferrer" : undefined} className={cls} tabIndex={-1} onClick={activate}>
         <Slots {...slots} />
       </a>
     );

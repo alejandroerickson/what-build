@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { AppError, REST_BODY_MAX_BYTES, SKILL_VERSION, type BlobStore, type Db, type Env, type Mailer, type Ports } from "@whatbuild/core";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -14,6 +15,27 @@ import { siteRoutes } from "./site.ts";
 import { uploadRoutes } from "./uploads.ts";
 
 export const SERVER_VERSION = process.env["WHATBUILD_RELEASE"] ?? `dev-${SKILL_VERSION}`;
+
+export interface Release {
+  /** WHATBUILD_RELEASE: a tag such as v0.3.1, a commit, or dev-<skill version> on a development server. */
+  version: string;
+  /** The full commit the image was built from, and when; null on a development server. */
+  commit: string | null;
+  built_at: string | null;
+}
+
+/** What this server runs: the deployment names the version, and the image records its build in build.json. */
+export const RELEASE: Release = { version: SERVER_VERSION, ...readBuild() };
+
+function readBuild(): Pick<Release, "commit" | "built_at"> {
+  try {
+    const b = JSON.parse(readFileSync(new URL("./build.json", import.meta.url), "utf8")) as Record<string, unknown>;
+    return { commit: typeof b["commit"] === "string" ? b["commit"] : null, built_at: typeof b["built_at"] === "string" ? b["built_at"] : null };
+  } catch {
+    // A development server, which runs from source.
+    return { commit: null, built_at: null };
+  }
+}
 
 export async function createBlobStore(config: ServerConfig): Promise<BlobStore> {
   if (config.blobStore === "memory") return new MemoryBlobStore();
@@ -101,7 +123,7 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; cl
 
   // First, so the public site's host never reaches the app's routes.
   app.route("/", siteRoutes({ db: deps.db, config: deps.config }));
-  app.route("/", publicRoutes({ db: deps.db, config: deps.config, serverVersion: SERVER_VERSION }));
+  app.route("/", publicRoutes({ db: deps.db, config: deps.config, release: RELEASE }));
   app.route("/", sandboxRoutes({ db: deps.db, clock }));
   app.route("/", oauthRoutes({ db: deps.db, config: deps.config }));
   app.route("/", authRoutes({ db: deps.db, config: deps.config, mailer: deps.ports.mailer ?? new ConsoleMailer() }));

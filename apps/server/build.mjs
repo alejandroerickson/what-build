@@ -1,7 +1,8 @@
 // Bundle the server for production: our own TypeScript (server, core, parsers) into dist/main.js,
 // with the few npm packages that do not bundle cleanly left external and listed in dist/package.json
 // for `npm install --omit=dev` in the image. Migrations are copied beside the bundle, where the
-// migration runner looks for them.
+// migration runner looks for them, and build.json records the commit (WHATBUILD_COMMIT, which the
+// image build passes in) and when the bundle was built, for the release the server reports.
 import { build } from "esbuild";
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -29,6 +30,8 @@ await build({
   logLevel: "info",
 });
 cpSync(join(here, "src/migrations"), join(dist, "migrations"), { recursive: true });
+const commit = /^[0-9a-f]{40}$/.test(process.env.WHATBUILD_COMMIT ?? "") ? process.env.WHATBUILD_COMMIT : null;
+writeFileSync(join(dist, "build.json"), JSON.stringify({ commit, built_at: new Date().toISOString() }) + "\n");
 
 const req = createRequire(join(here, "../../packages/parsers/package.json"));
 const reqServer = createRequire(join(here, "package.json"));

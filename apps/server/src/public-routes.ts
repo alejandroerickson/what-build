@@ -3,10 +3,11 @@ import { extname, join, normalize, resolve } from "node:path";
 import { SKILL_NAME, SKILL_VERSION, skillMarkdown, unauthenticated, type Db } from "@whatbuild/core";
 import { strToU8, zipSync } from "fflate";
 import { Hono } from "hono";
+import type { Release } from "./app.ts";
 import { restPrincipal } from "./auth/identity.ts";
 import { microsoftSignIn, type ServerConfig } from "./config.ts";
 
-export function publicRoutes(deps: { db: Db; config: ServerConfig; serverVersion: string }) {
+export function publicRoutes(deps: { db: Db; config: ServerConfig; release: Release }) {
   const { config } = deps;
   const base = config.publicBaseUrl;
   const app = new Hono();
@@ -17,7 +18,8 @@ export function publicRoutes(deps: { db: Db; config: ServerConfig; serverVersion
   app.get("/api/v1/meta", (c) =>
     c.json({
       product: "WhatBuild",
-      server_version: deps.serverVersion,
+      server_version: deps.release.version,
+      release: deps.release,
       skill: { name: SKILL_NAME, version: SKILL_VERSION },
       auth: { email_link: config.mailer !== "none", google: Boolean(config.googleClientId && config.googleClientSecret), microsoft: microsoftSignIn(config), dev: config.devAuth },
       inference: "none: WhatBuild runs no language model; intelligence comes from the agent you connect",

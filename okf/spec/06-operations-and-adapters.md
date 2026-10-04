@@ -311,7 +311,7 @@ GET  P/sources/:record_id/file?path=&version=&download=1   file bytes for the we
 GET  P/exports/:export_id/file                       an export ZIP for the web app
 GET  P/story/pages/:page_id/versions/:version/html?theme=light|dark   Story page HTML
 GET  P/story/print?page_ids=…                        the Story print view (HTML)
-GET  /api/v1/meta                                    server and skill version, sign-in methods (public)
+GET  /api/v1/meta                                    server and skill version, release, sign-in methods (public)
 GET  /api/v1/connect                                 what the Connect page shows
 GET|PATCH /api/v1/me; GET /api/v1/me/agents; DELETE /api/v1/me/agents/:family
 POST /api/v1/invitations/accept

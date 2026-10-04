@@ -306,7 +306,8 @@ protecting.
 ```bash
 WB_IMAGE_TAG=$(git rev-parse --short=7 HEAD)
 SRC=$(mktemp -d); git archive HEAD | tar -x -C "$SRC"; rm "$SRC/.dockerignore"
-az acr build --subscription "$AZ_SUBSCRIPTION" -r "$AZ_ACR" -t "whatbuild:$WB_IMAGE_TAG" "$SRC"
+az acr build --subscription "$AZ_SUBSCRIPTION" -r "$AZ_ACR" -t "whatbuild:$WB_IMAGE_TAG" \
+  --build-arg "WHATBUILD_COMMIT=$(git rev-parse HEAD)" "$SRC"
 rm -rf "$SRC"
 ```
 
