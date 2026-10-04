@@ -86,11 +86,16 @@ from `.env`:
 ```bash
 gcloud builds list --project $P --region $R --filter 'approval.state=PENDING' \
   --format 'table(id,substitutions.TAG_NAME,createTime)'
-gcloud builds approve <build id> --project $P --region $R
-gcloud builds log <build id> --project $P --region $R --stream
+B=<build id>
+curl -s -X POST -H "Authorization: Bearer $(gcloud auth print-access-token)" -H 'Content-Type: application/json' \
+  "https://cloudbuild.googleapis.com/v1/projects/${P}/locations/${R}/builds/${B}:approve" \
+  -d '{"approvalResult":{"decision":"APPROVED","comment":"<version>, asked for by <who>"}}'
+gcloud builds log $B --project $P --region $R --stream
 curl -s https://app.what-build.com/api/v1/meta                    # release.version is the tag
 ```
 
-A release nobody wants deployed is rejected (`gcloud builds reject`); the release stays, and a
-later one deploys over it. If the new version breaks the deployment, follow
+`gcloud builds` has no `approve` outside the beta component (`gcloud beta builds approve`), so
+the call above goes to the Cloud Build API. Write `${B}:approve` with braces: in zsh, `$B:a` is a
+modifier, not the variable followed by text. A release nobody wants deployed is rejected the same
+way with `"decision":"REJECTED"`; the release stays, and a later one deploys over it. If the new version breaks the deployment, follow
 [recovering from a bad release](recovering-from-a-bad-release.md).
