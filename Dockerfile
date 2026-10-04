@@ -17,6 +17,8 @@ RUN pnpm install --frozen-lockfile
 COPY packages/ packages/
 COPY apps/ apps/
 COPY scripts/gen-skill.mjs scripts/
+# The commit being built, recorded in build.json; Cloud Build and the Release workflow pass it.
+ARG WHATBUILD_COMMIT=""
 RUN node scripts/gen-skill.mjs \
  && pnpm --filter @whatbuild/web build \
  && node apps/server/build.mjs \

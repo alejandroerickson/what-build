@@ -18,7 +18,7 @@ substitutions:
 steps:
   - id: build
     name: gcr.io/cloud-builders/docker
-    args: ["build", "-t", "${_IMAGE}", "."]
+    args: ["build", "--build-arg", "WHATBUILD_COMMIT=${COMMIT_SHA}", "-t", "${_IMAGE}", "."]
 
   - id: push
     name: gcr.io/cloud-builders/docker

@@ -1,8 +1,8 @@
 import {
   Activity, Archive, ArchiveRestore, ArrowLeft, ArrowRight, Blend, BookOpen, Bot, Box, Building, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp,
   CircleAlert, CircleCheck, CircleDashed, Clock, Cookie, Copy, CornerDownRight, Download, Ellipsis, ExternalLink, FileText, FileVolume, FolderInput,
-  FlaskConical, GripVertical, Image, Info, Library, Lightbulb, Link, LoaderCircle, LogOut, Maximize2, Menu, Mic, Minimize2, Minus, Monitor, Moon, Palette, PanelLeftClose, PanelLeftOpen,
-  PanelRightClose, PanelRightOpen, Pencil, Plus, Quote, RotateCcw, Scale, Search, Settings, Signpost, Sun, Target, Trash, Triangle, TriangleAlert, Upload, UserPlus, Users, X,
+  FlaskConical, GitCommitHorizontal, GripVertical, Image, Info, Library, Lightbulb, Link, LoaderCircle, LogOut, Maximize2, Menu, Mic, Minimize2, Minus, Monitor, Moon, Palette, PanelLeftClose, PanelLeftOpen,
+  PanelRightClose, PanelRightOpen, Pencil, Plus, Quote, RotateCcw, Scale, Search, Settings, Signpost, Sun, Tag, Target, Trash, Triangle, TriangleAlert, Upload, UserPlus, Users, X,
   type LucideIcon,
 } from "lucide-react";
 
@@ -41,6 +41,7 @@ const GLYPHS = {
   "file-audio": FileVolume,
   flask: FlaskConical,
   "folder-input": FolderInput,
+  "git-commit": GitCommitHorizontal,
   grip: GripVertical,
   image: Image,
   info: Info,
@@ -70,6 +71,7 @@ const GLYPHS = {
   settings: Settings,
   signpost: Signpost,
   sun: Sun,
+  tag: Tag,
   target: Target,
   trash: Trash,
   triangle: Triangle,

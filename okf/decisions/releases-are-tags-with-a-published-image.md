@@ -11,8 +11,8 @@ status: stable
 
 ## Context
 
-The repository runs one deployment of its own (Cloud Run, redeployed from source on every push to
-`main`) and is meant to be self-hosted by organizations with their own clouds, review rules and
+The repository runs one deployment of its own (Cloud Run, built from source at a commit of `main`
+and deployed by hand) and is meant to be self-hosted by organizations with their own clouds, review rules and
 change windows. Each of those wants a pipeline of its own shape: what it deploys, who approves,
 and when. A pipeline for every platform in this repository would be code that only one operator
 runs, and a self-hoster building from `main` has no way to say which version runs except a commit
@@ -39,11 +39,14 @@ hash. The maintainer chose this shape on 2026-10-02.
 - A deployment names what it runs (`v0.3.1`), can go back to it, and can take a released image
   without building from source.
 - Tags are not moved: a tag names one commit for ever, and a fix is a new tag.
-- The Cloud Run deployment is unchanged: it still deploys every push to `main` from source.
+- The Cloud Run deployment is unchanged: it still builds a commit of `main` from source, deployed
+  by hand with `gcloud builds submit`; no trigger deploys a push
+  ([Cloud Run](../operations/cloud-run.md)).
 
 ## Constrains
 
-- The image is built from the one Dockerfile; a release has no build flags of its own
+- The image is built from the one Dockerfile; a release has no build flags of its own (every build
+  passes the commit, `WHATBUILD_COMMIT`, which the image records and reports)
   ([one stateless image](one-stateless-image.md), [§2.7](../spec/02-architecture.md)).
 - The guides describe commands and the contract, never a particular operator's pipeline
   ([self-hosting on Azure](self-hosting-on-azure-is-agent-led-and-shares-nothing-with-cloud-run.md)).

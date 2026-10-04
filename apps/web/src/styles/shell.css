@@ -341,6 +341,17 @@ h1[tabindex="-1"]:focus {
 .account-button[aria-expanded="true"] {
   background: var(--hover);
 }
+/* The account menu's last row: "Release v0.3.1" or "Commit 1a2b3c4", the build under it. */
+.release-lead {
+  color: var(--muted);
+}
+.menu-item:hover .release-lead,
+.menu-item:focus .release-lead {
+  color: inherit;
+}
+.menu .mono {
+  font-size: var(--fs-sm);
+}
 
 /* ---- The pill that brings the hidden panel back ----------------------------------------------- */
 

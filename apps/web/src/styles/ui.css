@@ -518,6 +518,31 @@ input[type="file"]::file-selector-button {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* A two-line item: the text, then a faint detail line under it. */
+.menu-item-2 {
+  align-items: flex-start;
+  height: auto;
+  min-height: var(--h-md);
+  padding-block: var(--s-1h);
+}
+.menu-item-2 > .glyph {
+  margin-top: 1px;
+}
+.menu-text-line,
+.menu-detail {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.menu-detail {
+  margin-top: var(--s-0);
+  color: var(--faint);
+  font-size: var(--fs-xs);
+}
+.menu-item:hover .menu-detail,
+.menu-item:focus .menu-detail {
+  color: color-mix(in srgb, var(--select-text) 72%, transparent);
+}
 .menu-meta,
 .menu-kbd {
   margin-left: auto;
