@@ -106,8 +106,9 @@ organization, which is where care is needed.
 
 ## Later tasks
 
-- **A new version**: "Deploying a new version" in the guide. Build the commit, run the migration
-  job and see it succeed, then move the app; check `server_version`.
+- **A new version**: "Deploying a new version" in the guide. Note the time in UTC, build the
+  commit, run the migration job and see it succeed, then move the app; check `server_version`.
+- **A new version broke it**: the `recover-a-deployment` skill.
 - **A setting**: `az containerapp update --set-env-vars`; a secret is a new version in the vault.
 - **Microsoft sign-in on a deployment made without it**: add the secret reference and the three
   `WHATBUILD_MICROSOFT_*` settings, and check `/api/v1/meta` reports `microsoft: true`.

@@ -31,7 +31,9 @@ Everything committed, including history, is published
    writes ([decision](../decisions/one-registry-two-front-doors.md)). Add server tests in
    `apps/server/test/`, including permission and `409 stale_etag` cases.
 2. **Schema changes** are a new forward-only file in `apps/server/src/migrations/`. Never edit an
-   applied migration. New content tables carry `tenant_id` and the row-level security policy
+   applied migration: deployments that ran it keep it, and deployments that restored past it run
+   it again, so a fix is a new file after it
+   ([recovering from a bad release](../operations/recovering-from-a-bad-release.md)). New content tables carry `tenant_id` and the row-level security policy
    ([decision](../decisions/shared-schema-tenancy-with-row-level-security.md)).
 3. **Agents learn from the skill.** If agents should use a new operation differently, update
    `packages/core/src/skill/SKILL.md` and run `pnpm gen:skill`.

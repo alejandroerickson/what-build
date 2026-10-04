@@ -43,4 +43,5 @@ grows slower with the data and restores into a new database. The maintainer chos
   time, not committed.
 - The nightly logical backup stays ([Cloud Run](../operations/cloud-run.md)).
 
-Specified in: [Cloud Run](../operations/cloud-run.md) (a restore point before migrating).
+Specified in: [Cloud Run](../operations/cloud-run.md) (a restore point before migrating),
+[recovering from a bad release](../operations/recovering-from-a-bad-release.md).

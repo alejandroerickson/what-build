@@ -12,6 +12,8 @@
 # On a Neon database, set _NEON_PROJECT (the project's ID) and each build first branches the
 # database as a restore point, keeping the newest _NEON_KEEP of them; the Neon API key is the
 # secret whatbuild-neon-api-key. Left empty, the step does nothing (okf/operations/cloud-run.md).
+#
+# If a deploy breaks the deployment, okf/operations/recovering-from-a-bad-release.md is the runbook.
 substitutions:
   _REGION: northamerica-northeast2
   _SERVICE: whatbuild
@@ -111,6 +113,12 @@ steps:
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: gcloud
     args: ["run", "deploy", "${_SERVICE}", "--image", "${_IMAGE}", "--region", "${_REGION}", "--update-env-vars", "WHATBUILD_RELEASE=${SHORT_SHA}", "--quiet"]
+
+  # A deploy serves its new revision even after traffic was pinned to an older one in a rollback.
+  - id: serve
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args: ["run", "services", "update-traffic", "${_SERVICE}", "--to-latest", "--region", "${_REGION}", "--quiet"]
 
 images: ["${_IMAGE}"]
 

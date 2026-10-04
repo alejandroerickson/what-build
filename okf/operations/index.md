@@ -11,5 +11,6 @@ status: stable
 
 - [Local development](local-development.md): one command, the checks, and the browser scripts.
 - [Cloud Run](cloud-run.md): the production deployment, its setup and its routines.
+- [Recovering from a bad release](recovering-from-a-bad-release.md): when a new version breaks a deployment, on Cloud Run or Azure: what runs, whether it migrated, going back, restoring the database, checking, fixing forward.
 - [Azure](azure.md): a self-hosted deployment on Azure, set up by an agent with the Azure CLI; resources, commands, sign-in with Microsoft work accounts, and the variations.
 - [Analytics](analytics.md): Google Analytics and Cloudflare Web Analytics, their settings, and reading reports.

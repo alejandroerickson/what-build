@@ -25,7 +25,8 @@ after, whichever tool it runs in.
   with an impact map from code to concepts and a template per type) and `okf-decision` (record
   decisions).
 - A procedure for operating a deployment is a skill of the same kind: `azure-self-host` conducts
-  [hosting on Azure](../operations/azure.md).
+  [hosting on Azure](../operations/azure.md), and `recover-a-deployment` conducts
+  [recovering from a bad release](../operations/recovering-from-a-bad-release.md).
 - Skills hold procedure. Knowledge about the system stays in `okf/`, and a skill links to it
   rather than copying it.
 

@@ -447,7 +447,9 @@ organization rarely wants it.
 ## Deploying a new version
 
 From a clean checkout of the commit: build, migrate, then move the app. A deploy changes the
-image and `WHATBUILD_RELEASE`; every other setting stays.
+image and `WHATBUILD_RELEASE`; every other setting stays. Note the time in UTC before migrating:
+the database's point-in-time restore goes back to a moment, and if the new version breaks the
+deployment, [recovering from a bad release](recovering-from-a-bad-release.md) takes it back.
 
 ```bash
 WB_IMAGE_TAG=$(git rev-parse --short=7 HEAD)

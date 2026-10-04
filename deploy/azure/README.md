@@ -4,7 +4,8 @@
 `${NAME}` placeholders. There is no setup script: an agent creates the deployment with the Azure
 CLI by following the `azure-self-host` skill (`.agents/skills/azure-self-host/SKILL.md`), and
 everything it needs to know is in [okf/operations/azure.md](../../okf/operations/azure.md): the
-resources, their settings, the commands, sign-in and the variations.
+resources, their settings, the commands, sign-in and the variations. If a new version breaks it:
+[okf/operations/recovering-from-a-bad-release.md](../../okf/operations/recovering-from-a-bad-release.md).
 
 Nothing here is used by the Cloud Run deployment in `deploy/cloud-run/`, and nothing there is used
 here.
