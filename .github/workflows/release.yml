@@ -39,6 +39,15 @@ jobs:
       - name: The GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+        # The notes say which migrations the release adds since the previous tag: going back past a
+        # release that adds one needs the database restored (okf/operations/recovering-from-a-bad-release.md).
         run: |
+          prev=$(git describe --tags --abbrev=0 --match 'v*' "$GITHUB_SHA^" 2>/dev/null || true)
+          added=$(git diff --name-only --diff-filter=A ${prev:-$(git rev-list --max-parents=0 HEAD)} "$GITHUB_SHA" -- apps/server/src/migrations/ | xargs -r -n1 basename | sed 's/^/- `/; s/$/`/')
+          if [ -n "$added" ]; then
+            migrations="**Migrations.** This release changes the database schema${prev:+ since $prev}:"$'\n'"$added"$'\n\n'"Going back to an earlier release needs the database restored to before these ran. Take a restore point before deploying."
+          else
+            migrations="**Migrations.** None${prev:+ since $prev}: going back to the previous release needs only the previous image."
+          fi
           gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes \
-            --notes "Image: \`ghcr.io/$GITHUB_REPOSITORY:$GITHUB_REF_NAME\` (linux/amd64), built from \`$GITHUB_SHA\`."
+            --notes "Image: \`ghcr.io/$GITHUB_REPOSITORY:$GITHUB_REF_NAME\` (linux/amd64), built from \`$GITHUB_SHA\`."$'\n\n'"$migrations"$'\n\n'"If a release breaks your deployment: [recovering from a bad release](https://github.com/$GITHUB_REPOSITORY/blob/main/okf/operations/recovering-from-a-bad-release.md)."

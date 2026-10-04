@@ -65,6 +65,7 @@ adding a near-duplicate.
 | `dev.ts`, root `package.json` scripts, ports, `.nvmrc`, `scripts/*.mjs` | `operations/local-development.md`, decision `development-substitutes-adapters-never-behavior` |
 | `.github/workflows/**` | `operations/local-development.md` (CI), the phase 0 row in `spec/10` |
 | `Dockerfile`, `cloudbuild.yaml`, `deploy/cloud-run/**`, `deploy/cloudflare/**` | `operations/cloud-run.md`, decision `one-stateless-image`; a `Dockerfile` change also `operations/azure.md` (the image is built from it there too) |
+| `apps/server/src/migrations/**`, `apps/server/src/database.ts`, `.github/workflows/release.yml`, `.agents/skills/recover-a-deployment/**`, or how a deployment migrates, backs up or rolls back | `operations/recovering-from-a-bad-release.md` |
 | `deploy/azure/**`, `.agents/skills/azure-self-host/**` | `operations/azure.md`, decision `self-hosting-on-azure-is-agent-led-and-shares-nothing-with-cloud-run` |
 | `apps/web/src/routes/**`, `main.tsx`, `shell/**` | `spec/07`, the phase 4 row in `spec/10` |
 | `apps/web/src/styles/tokens.css`, `ui/**` | `DESIGN.md`, `.impeccable/design.json`, decision `studio-design-system` (Story pages do not follow the app's tokens) |

@@ -45,6 +45,7 @@ that folder. If your tool does not load skills, read the `SKILL.md` files direct
 | `okf-update` | Before finishing any change: which concepts it affects, and how to write each type. |
 | `okf-decision` | When a change makes, revises or reverses a durable choice. |
 | `azure-self-host` | When asked to host, update or repair a self-hosted copy on Azure with the Azure CLI. |
+| `recover-a-deployment` | When a new version broke a deployment (Cloud Run or Azure): roll back, restore the database. |
 
 ## Before you change anything
 
@@ -62,6 +63,13 @@ Deploying, the Cloudflare Worker and analytics are in `okf/operations/` (start w
 `cloud-run.md`). The deployment's values and credentials are in `.env` at the root of the
 maintainer's clone, never in the repository; production secrets are in Google Secret Manager and
 `.env` names them. Read `.env` before asking the maintainer for an ID or a token.
+
+## When a release breaks a deployment
+
+Any deployment, the maintainer's or someone else's: use the `recover-a-deployment` skill, which
+follows `okf/operations/recovering-from-a-bad-release.md`. Code goes back by running the previous
+image; the schema goes back only by restoring the database, so first find out whether the bad
+release ran a migration.
 
 ## Self-hosting on Azure
 

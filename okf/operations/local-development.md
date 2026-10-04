@@ -59,7 +59,9 @@ Leave the variable out again and restart, and the organization is an ordinary on
 CI (`.github/workflows/ci.yml`) runs the documentation check, the skill check, typecheck, test and build on every push to
 `main` and every pull request. A tag `v*` runs the Release workflow (`.github/workflows/release.yml`),
 which publishes the image as `ghcr.io/<owner>/what-build:<tag>` and makes a GitHub release
-([decision](../decisions/releases-are-tags-with-a-published-image.md)).
+([decision](../decisions/releases-are-tags-with-a-published-image.md)) whose notes list the
+migrations it adds since the previous tag, the fact an operator needs to
+[recover from a bad release](recovering-from-a-bad-release.md).
 
 ## In the browser
 

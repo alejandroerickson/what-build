@@ -59,6 +59,13 @@ share), point an agent with a signed-in Azure CLI at this repository: the
 [Azure guide](okf/operations/azure.md) and the `azure-self-host` skill tell it what to create and
 how to adapt to your organization.
 
+If a new version breaks your deployment, wherever it runs, ask your agent to recover it: the
+`recover-a-deployment` skill and the runbook,
+[recovering from a bad release](okf/operations/recovering-from-a-bad-release.md), take it back to
+the last good release and, when the bad one changed the database, restore the database first. Each
+[release's notes](https://github.com/alejandroerickson/what-build/releases) say whether it changes
+the database.
+
 ## Layout
 
 ```

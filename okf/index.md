@@ -24,6 +24,7 @@ server with the same operations. There is no AI inside.
   layer, operations and MCP, web app, search, data lifecycle, and the [roadmap](spec/10-roadmap.md).
 - [Local development](operations/local-development.md), [Cloud Run](operations/cloud-run.md),
   [self-hosting on Azure](operations/azure.md) and [Analytics](operations/analytics.md).
+- **A release broke a deployment?** [Recovering from a bad release](operations/recovering-from-a-bad-release.md).
 - [Working in this repository](process/working-in-this-repository.md).
 - [Ontology](ontology.md), [bundle guide](README.md), [tools](tools/index.md).
 
@@ -32,8 +33,9 @@ server with the same operations. There is no AI inside.
 - `README.md`: the human-facing introduction.
 - `AGENTS.md`: agent orientation (`CLAUDE.md` links to it).
 - `.agents/skills/`: skills for agents working on the repository: reading this bundle
-  (`okf-orient`), keeping it true (`okf-update`), recording decisions (`okf-decision`), and
-  hosting a copy on Azure (`azure-self-host`).
+  (`okf-orient`), keeping it true (`okf-update`), recording decisions (`okf-decision`),
+  hosting a copy on Azure (`azure-self-host`), and recovering a deployment a release broke
+  (`recover-a-deployment`).
 - `PRODUCT.md`: users, purpose and principles. `DESIGN.md` and `.impeccable/design.json`: the
   Studio design system. Both stay at the root because design tooling reads them there.
 - `packages/core/src/skill/SKILL.md`: the agent skill the product serves to connected agents.

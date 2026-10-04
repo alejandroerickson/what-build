@@ -176,7 +176,8 @@ one exists, **a push to `main` deploys nothing**. In Cloud Build, connect the Gi
 `main` that runs `/cloudbuild.yaml` with the substitution `_REGION` set to the service's region.
 Choose the trigger's region before connecting the repository. Each build
 ([`cloudbuild.yaml`](../../cloudbuild.yaml)) builds and pushes the image, points the migration job
-at it, runs it, then deploys the service with `WHATBUILD_RELEASE` set to the commit. The build
+at it, runs it, then deploys the service with `WHATBUILD_RELEASE` set to the commit and sends
+traffic to it. The build
 passes the commit to the image as `WHATBUILD_COMMIT`, and the image records it with the build time,
 so `/api/v1/meta` reports `release` (version, commit, `built_at`) and the account menu shows it.
 Before assuming a merge is live, check that a trigger exists and compare the release:
@@ -217,7 +218,8 @@ The build's `restore-point` step branches `_NEON_BRANCH` (default `production`) 
 so nothing migrates without one. It keeps the newest `_NEON_KEEP` (default 3) and removes older
 ones; a free Neon plan allows ten branches. Without `_NEON_PROJECT` the step does nothing.
 
-To go back, restore the branch to the restore point. The branch keeps its ID and its connection
+To go back, restore the branch to the restore point; the whole procedure, for every database, is
+[recovering from a bad release](recovering-from-a-bad-release.md). The branch keeps its ID and its connection
 string, so `DATABASE_URL` stays as it is, and its state just before the restore is kept under the
 name given. Then send traffic to the revision that matches the older schema:
 
