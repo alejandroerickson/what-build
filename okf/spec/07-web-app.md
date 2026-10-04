@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Synthesis, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-10-01}
+generated: {by: agent:claude, at: 2026-10-03}
 status: stable
 ---
 
@@ -62,9 +62,9 @@ the browser's back button and "open in new tab" both work.
   (Light, Dark or System, which is the default; remembered per browser); **New organization**,
   while they may still create one; **Organization creators**, for an owner of the instance;
   **Settings** (their own display name); and Sign out. Last, under a hairline, is the release this
-  WhatBuild runs, from `/api/v1/meta`: "Release v0.3.1" with its short commit, or "Commit 1a2b3c4"
-  for a build of a commit, over the day the image was built, linking to the release notes or the
-  commit on GitHub in a new tab; the full commit and the build time are its tooltip. A development
+  WhatBuild runs, from `/api/v1/meta`: "Release v0.3.1", or "Commit 1a2b3c4" for a
+  build that is not a release, linking to the release notes or the commit on GitHub in a new tab;
+  the commit and build time stay in `/api/v1/meta`. A development
   server says so instead. Nothing in it is also in the panel.
 - **Hiding.** The panel hides completely, never to an icon rail, with its button or `⌘\` / `Ctrl+\`
   (ignored while typing in a field), and the choice is remembered per browser. While it is hidden
