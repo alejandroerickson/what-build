@@ -31,10 +31,15 @@ organization). A product has four parts, named as the person sees them in the we
    way to propose installing or updating it — never install silently, and keep unrelated skills and
    local changes. If installing is declined, use the fetched text for this session.
 2. **Establish the product.** Call `products(action="list")`. Every product-scoped call takes
-   `product`: a `product_id` or its `path` (`tenant/team/product`). If the connector URL was bound to
+   `product`: a `product_id` or its `path` (`tenant/team/product`). If the connector is scoped to
    one product you may omit it. **Confirm the product with the person before your first write in a
    conversation.** Every product-scoped result echoes `scope`, so you and the person can see where a
    write landed.
+   A connector may be **scoped** to one organization (`…/mcp/t/<tenant>`) or one product
+   (`…/mcp/t/<tenant>/<team>/<product>`); the server's instructions say so. It lists only what is
+   inside its scope and refuses everything else with `403 outside_connector_scope`. That refusal is
+   the person's choice, not a fault: tell them the work belongs elsewhere and ask them to use a
+   connector scoped there (or the unscoped one). Never look for a way around it.
 3. **Know your role.** Each product lists `your_role`: viewer (read only), editor (read and write),
    admin (also membership and product settings). A 403 names the role you have and the one needed;
    do not retry a forbidden write — tell the person who can grant access.

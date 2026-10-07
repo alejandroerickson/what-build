@@ -1,6 +1,7 @@
 import { sql } from "kysely";
 import type { z } from "zod";
 import { json, type ActorSnapshot, type Db } from "./db.ts";
+import { checkConnectorScope, type ConnectorScope } from "./connector-scope.ts";
 import { AppError, conflict, invalid } from "./errors.ts";
 import { resolveIdAlias } from "./id-aliases.ts";
 import { resolveScope, type ScopeRef } from "./policy.ts";
@@ -71,12 +72,20 @@ export async function admitRead(env: Env, principal: Principal, scope: Scope, na
  * The one way an operation runs, whichever door the call came through: resolve and authorize the
  * scope, apply a public sandbox's limits to a visitor, validate the input strictly, then run the
  * handler in one transaction that is scoped to the tenant (row-level security) and writes its
- * activity event alongside the change.
+ * activity event alongside the change. A call through a scoped MCP connector also stays inside it.
  */
-export async function execute(env: Env, principal: Principal, op: OperationDef, rawInput: unknown, ref: ScopeRef = {}): Promise<{ result: unknown; scope: Scope }> {
+export async function execute(
+  env: Env,
+  principal: Principal,
+  op: OperationDef,
+  rawInput: unknown,
+  ref: ScopeRef = {},
+  connector: ConnectorScope | null = null,
+): Promise<{ result: unknown; scope: Scope }> {
   // Scope first: a caller who cannot see the product learns nothing, not even whether their input was valid.
   const raw = (rawInput && typeof rawInput === "object" ? rawInput : {}) as Record<string, unknown>;
   const scope = await resolveScope(env.db, principal, op.scope, op.access, refFromInput(op, raw, ref), op.name);
+  if (connector) checkConnectorScope(connector, op, scope);
   const sandbox = await sandboxOf(env, principal, scope);
   const visitor = sandbox?.visitor ? sandbox : null;
   if (visitor) await admitVisitor(env.db, visitor, principal, op, Boolean(scope.tenant));

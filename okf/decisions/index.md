@@ -3,7 +3,7 @@ type: Index
 title: Decisions
 description: Architectural decision records, each with its context, the choice, and what it constrains.
 tags: [index, decisions, adr]
-generated: {by: agent:claude, at: 2026-10-02}
+generated: {by: agent:claude, at: 2026-10-07}
 status: stable
 ---
 
@@ -23,6 +23,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Tenants share one schema, partitioned by key and enforced three times](shared-schema-tenancy-with-row-level-security.md)
 - [Access is decided in the application, per product, by role](access-is-per-product-roles.md)
 - [WhatBuild runs its own sign-in and its own OAuth 2.1 server for agents](built-in-identity-and-oauth.md)
+- [A scoped MCP connector is a fence, not a default](a-scoped-mcp-connector-is-a-fence.md)
 - [An invitation is accepted only by the account with the address it was sent to](invitations-belong-to-their-address.md)
 - [The public sandbox is one organization the deployment names, where invited visitors edit under made-up names and a daily reset puts a saved baseline back](the-public-sandbox-is-one-organization-with-pseudonymous-visitors.md)
 - [Only the instance's owners decide who may create organizations, and how many](only-instance-owners-decide-who-creates-organizations.md)

@@ -3,6 +3,7 @@ import { escapeHtml, json, newId, randomToken, sha256Hex, type Db } from "@whatb
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import type { ServerConfig } from "../config.ts";
+import { connectorBound, connectorReach, type ConnectorReach } from "./connector-reach.ts";
 import { accountBySession, ACCESS_PREFIX, REFRESH_PREFIX, SESSION_COOKIE } from "./identity.ts";
 
 /**
@@ -40,7 +41,16 @@ function formTarget(u: string): string {
   return url.protocol === "https:" || url.protocol === "http:" ? url.origin : url.protocol;
 }
 
-function consentPage(p: { client: string; account: string; email: string; hidden: Record<string, string>; csrf: string }) {
+/** What the consent page says the agent may reach. */
+function reachSentence(r: ConnectorReach): string {
+  if (r.kind === "all") return "It can read and change everything you can, in every product you can open.";
+  if (r.kind === "tenant")
+    return `It can read and change everything you can in the organization <strong>${escapeHtml(r.name ?? r.path)}</strong>, and nothing outside it.`;
+  const where = r.name ? `${escapeHtml(r.name)}</strong>${r.tenant_name ? ` (${escapeHtml(r.tenant_name)})` : ""}` : `${escapeHtml(r.path)}</strong>`;
+  return `It can read and change everything you can in the product <strong>${where}, and nothing outside it.`;
+}
+
+function consentPage(p: { client: string; account: string; email: string; reach: ConnectorReach; hidden: Record<string, string>; csrf: string }) {
   const inputs = Object.entries(p.hidden)
     .map(([k, v]) => `<input type="hidden" name="${escapeHtml(k)}" value="${escapeHtml(v)}">`)
     .join("");
@@ -63,7 +73,7 @@ button[value=allow]:hover{background:var(--accent-hover);border-color:var(--acce
 </style></head><body><main>
 <h1>Let ${escapeHtml(p.client)} work in WhatBuild as you?</h1>
 <p>Signed in as <strong>${escapeHtml(p.account)}</strong> (${escapeHtml(p.email)}).</p>
-<p>It can read and change everything you can, in every product you can open. Its changes are recorded as yours, made through the agent.</p>
+<p>${reachSentence(p.reach)} Its changes are recorded as yours, made through the agent.</p>
 <p class="muted">What it reads goes to whoever runs the agent, under their terms, not ours.</p>
 <form method="post" action="/oauth/authorize">${inputs}<input type="hidden" name="csrf" value="${escapeHtml(p.csrf)}">
 <div class="row"><button type="submit" name="decision" value="allow">Allow</button><button type="submit" name="decision" value="deny">Deny</button></div>
@@ -150,7 +160,8 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
     if (q["response_type"] !== "code") return back({ error: "unsupported_response_type" });
     if (!q["code_challenge"] || q["code_challenge_method"] !== "S256") return back({ error: "invalid_request", error_description: "PKCE with S256 is required." });
     const resource = q["resource"] ?? `${base}/mcp`;
-    if (!resource.startsWith(`${base}/mcp`)) return back({ error: "invalid_target", error_description: "This server issues tokens only for its MCP endpoint." });
+    if (!resource.startsWith(`${base}/mcp`) || connectorBound(new URL(resource).pathname) === undefined)
+      return back({ error: "invalid_target", error_description: "This server issues tokens only for its MCP endpoints: /mcp, /mcp/t/<organization> and /mcp/t/<organization>/<team>/<product>." });
     const session = getCookie(c, SESSION_COOKIE);
     const account = session ? await accountBySession(db, session) : null;
     if (!account) return c.redirect(`/signin?next=${encodeURIComponent(c.req.url.replace(/^https?:\/\/[^/]+/, ""))}`);
@@ -165,6 +176,7 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
         client: client.client_name,
         account: account.display_name,
         email: account.email,
+        reach: await connectorReach(db, account.account_id, resource),
         csrf,
         hidden: { client_id: client.client_id, redirect_uri: redirect, code_challenge: q["code_challenge"], state: q["state"] ?? "", resource, scope: q["scope"] ?? SCOPE },
       }),

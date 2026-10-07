@@ -6,6 +6,7 @@ import { sql } from "kysely";
 import { z } from "zod";
 import { microsoftSignIn, type ServerConfig } from "../config.ts";
 import { inviteCodeIn, inviteInfo } from "../public-sandbox.ts";
+import { connectorReach } from "./connector-reach.ts";
 import { acceptInvitation, acceptInvitationsForEmail, createSession, findOrCreateAccount, restPrincipal, SESSION_COOKIE } from "./identity.ts";
 
 function safeNext(next: string | undefined | null): string {
@@ -257,13 +258,15 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     const agents = await db
       .selectFrom("oauth_tokens as t")
       .innerJoin("oauth_clients as c", "c.client_id", "t.client_id")
-      .select(["c.client_name", "t.family_id", (eb) => eb.fn.max("t.last_used_at").as("last_used_at"), (eb) => eb.fn.min("t.created_at").as("created_at")])
+      .select(["c.client_name", "t.family_id", "t.resource", (eb) => eb.fn.max("t.last_used_at").as("last_used_at"), (eb) => eb.fn.min("t.created_at").as("created_at")])
       .where("t.account_id", "=", p.account_id)
       .where("t.revoked_at", "is", null)
       .where("t.expires_at", ">", new Date().toISOString())
-      .groupBy(["c.client_name", "t.family_id"])
+      .groupBy(["c.client_name", "t.family_id", "t.resource"])
       .execute();
-    return c.json({ items: agents });
+    // A connection keeps the resource it was approved for, so each one reaches one scope.
+    const items = await Promise.all(agents.map(async ({ resource, ...a }) => ({ ...a, reach: await connectorReach(db, p.account_id, resource) })));
+    return c.json({ items });
   });
 
   app.delete("/api/v1/me/agents/:family", async (c) => {

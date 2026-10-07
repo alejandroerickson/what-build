@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild at three altitudes
 description: The whole system from the top down, the major parts, and the mechanics underneath, with links to the detail.
 tags: [overview, architecture, tenancy, access, mcp]
-generated: {by: agent:claude, at: 2026-09-29}
+generated: {by: agent:claude, at: 2026-10-07}
 status: stable
 ---
 
@@ -74,8 +74,10 @@ nothing, and meets limits on how often and how much. Its owners and admins save 
 baseline, and a reset every day puts the baseline back
 ([decision](../decisions/the-public-sandbox-is-one-organization-with-pseudonymous-visitors.md)).
 
-**MCP.** `/mcp` for every product the account can reach, or `/mcp/t/<tenant>/<team>/<product>`
-bound to one. 17 tools: 13 grouped by noun with `action`, `params`, `describe` and `product`, plus
+**MCP.** `/mcp` for every product the account can reach, `/mcp/t/<tenant>` for one organization,
+or `/mcp/t/<tenant>/<team>/<product>` for one product. A scoped endpoint is a fence: it refuses
+every call outside its scope, and its token works nowhere wider
+([decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). 17 tools: 13 grouped by noun with `action`, `params`, `describe` and `product`, plus
 `search`, `read_passage`, `get_skill` and `submit_feedback`
 ([decision](../decisions/mcp-tools-grouped-by-noun.md)). The server's instructions tell agents to
 check the skill version, start with `products list`, confirm the product before writing, and

@@ -2,6 +2,7 @@ import { json, newId, randomToken, sha256Hex, type Db, type Principal } from "@w
 import { sql } from "kysely";
 import type { Context } from "hono";
 import { getCookie } from "hono/cookie";
+import { resourceCovers } from "./connector-reach.ts";
 
 export const SESSION_COOKIE = "wb_session";
 export const ACCESS_PREFIX = "wbat_";
@@ -35,7 +36,8 @@ export async function accountBySession(db: Db, token: string): Promise<AccountRo
   return row;
 }
 
-export async function accountByAccessToken(db: Db, token: string, resourcePrefix: string): Promise<(AccountRow & { client_name: string }) | null> {
+/** The account behind an access token, when the token was issued for `endpoint` or an endpoint containing it. */
+export async function accountByAccessToken(db: Db, token: string, endpoint: string): Promise<(AccountRow & { client_name: string }) | null> {
   const row = await db
     .selectFrom("oauth_tokens as t")
     .innerJoin("accounts as a", "a.account_id", "t.account_id")
@@ -47,7 +49,7 @@ export async function accountByAccessToken(db: Db, token: string, resourcePrefix
     .where("t.expires_at", ">", new Date().toISOString())
     .where("a.deleted_at", "is", null)
     .executeTakeFirst();
-  if (!row || !row.resource.startsWith(resourcePrefix)) return null;
+  if (!row || !resourceCovers(row.resource, endpoint)) return null;
   if (!row.last_used_at || Date.now() - Date.parse(row.last_used_at) > 60_000)
     await db.updateTable("oauth_tokens").set({ last_used_at: new Date().toISOString() }).where("token_hash", "=", row.token_hash).execute();
   return row;
@@ -64,12 +66,12 @@ export async function restPrincipal(c: Context, db: Db): Promise<Principal | nul
   return null;
 }
 
-/** The caller of an MCP request: an OAuth access token issued for this server. */
-export async function mcpPrincipal(c: Context, db: Db, resourcePrefix: string): Promise<Principal | null> {
+/** The caller of an MCP request: an OAuth access token issued for this endpoint, or for one that contains it. */
+export async function mcpPrincipal(c: Context, db: Db, endpoint: string): Promise<Principal | null> {
   const auth = c.req.header("authorization");
   if (!auth?.startsWith("Bearer ")) return null;
   const token = auth.slice(7).trim();
-  const a = await accountByAccessToken(db, token, resourcePrefix);
+  const a = await accountByAccessToken(db, token, endpoint);
   return a ? principalFor(a, "oauth", "mcp", a.client_name.slice(0, 64)) : null;
 }
 
