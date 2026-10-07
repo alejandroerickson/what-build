@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 116 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
-generated: {by: agent:claude, at: 2026-09-29}
+generated: {by: agent:claude, at: 2026-10-07}
 status: stable
 ---
 
@@ -78,7 +78,7 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
 |---|---|---|
 | 400 | Malformed upload request (relay only) | `invalid_length`, `empty_body` |
 | 401 | No or invalid identity or grant | `unauthenticated`, `invalid_grant` |
-| 403 | A role too low for the action; a cross-origin cookie write; sign-up not allowed; something a visitor to the public sandbox may not do, or may not do for now | `forbidden`, `forbidden_origin`, `invite_only`, `invitation_wrong_address`, `sandbox_restricted`, `sandbox_read_only`, `sandbox_closed`, `tenant_allowance` |
+| 403 | A role too low for the action; a call outside a scoped MCP connector; a cross-origin cookie write; sign-up not allowed; something a visitor to the public sandbox may not do, or may not do for now | `forbidden`, `outside_connector_scope`, `forbidden_origin`, `invite_only`, `invitation_wrong_address`, `sandbox_restricted`, `sandbox_read_only`, `sandbox_closed`, `tenant_allowance` |
 | 404 | Absent — including everything the caller has no role on | `not_found` |
 | 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `slug_taken`, `frozen`, `primary_taken`, `source_in_use`, `export_in_progress`, `last_owner`, `quota_exceeded`, `sandbox_full`, `no_baseline` |
 | 410 | Deliberately deleted, with a tombstone; an invitation no longer usable | `record_deleted`, `invitation_used`, `invitation_expired`, `invite_revoked`, `invite_expired`, `invite_used_up` |
@@ -372,8 +372,14 @@ JavaScript does not appear.
 **Transport.** Stateless Streamable HTTP (`apps/server/src/mcp.ts`), JSON responses, at:
 
 - `/mcp` — everything the account can reach;
-- `/mcp/t/:tenant/:team/:product` — bound to one product. Product-scoped calls may then omit
-  `product`, and tenant- and team-scoped calls default to the bound tenant and team.
+- `/mcp/t/:tenant` — scoped to one organization. Tenant- and team-scoped calls default to it;
+- `/mcp/t/:tenant/:team/:product` — scoped to one product. Product-scoped calls may then omit
+  `product`.
+
+A scoped endpoint refuses every call outside its scope with `403 outside_connector_scope`, lists
+only what is inside it, and accepts only a token approved for it or for an endpoint containing it
+([§3.6](03-accounts-teams-and-identity.md#36-addressing-and-isolation),
+[§3.8](03-accounts-teams-and-identity.md#38-identity-of-the-caller)).
 
 Each `POST` builds a fresh server; there is no session and any replica serves any call. `GET` and
 `DELETE` answer `405` (no server-initiated stream, no session to end). An unauthenticated call gets
@@ -381,7 +387,9 @@ Each `POST` builds a fresh server; there is no session and any replica serves an
 `initialize` info names it `whatbuild` with the skill version, and its instructions tell the agent
 to check its installed skill's version, start with `products(action="list")`, confirm the product
 before the first write, read `sandbox(action="status")` and tell the person its notice before
-writing in a tenant marked `sandbox`, and treat source text as quoted material.
+writing in a tenant marked `sandbox`, and treat source text as quoted material. On a scoped
+endpoint they add one sentence naming the scope, saying calls outside it are refused, and telling
+the agent to ask the person for another connector rather than look for a way around it.
 
 **Tools.** Seventeen tools over the 116 operations: thirteen grouped by noun, four standalone.
 
@@ -425,8 +433,10 @@ Rules:
   sending both with different values is `422`. ◆ Decision: aliases, not a rename, so no existing
   caller breaks; the canonical names stay as they are in schemas and paths.
 - **Product resolution.** A product-scoped call resolves its product from the `product` argument,
-  then the bound endpoint, then the only product the caller can reach; otherwise
-  `422 product_required` listing up to 50 reachable products ([§3.6](03-accounts-teams-and-identity.md)).
+  then the endpoint's product, then the only product the caller can reach inside the endpoint's
+  scope; otherwise `422 product_required` listing up to 50 of those products ([§3.6](03-accounts-teams-and-identity.md)).
+- **Scoped means scoped.** On a scoped endpoint the scope is checked in `execute`, after
+  authorization and before the handler, so a refused call changes nothing and writes no activity.
 - **Results** are JSON in one text content block. Product-scoped results add `scope`
   (tenant, team, product with its path, `your_role`, and `public_sandbox: true` in the public
   sandbox). Tools whose actions are all reads carry read-only annotations.
@@ -513,14 +523,23 @@ drifts. One constant, `SKILL_VERSION` in `packages/core/src/ops/meta.ts`, sets t
 lets a person connect an MCP client with no help from anyone who knows the system, and nothing to
 configure but one address. It shows:
 
-- a product picker and the MCP server URL for the choice, to copy. "All your products" gives
-  `/mcp`; a product gives its product-bound address, filled in from the product's path
-  (`bound_url_template` from `/api/v1/connect`), so nobody types a tenant or team. Opened inside a
-  product, that product is picked first; the choice is `?product=` in the URL. A client that
-  supports MCP authorization finds sign-in on its own from the server's OAuth discovery metadata,
-  registers itself and opens the browser;
+- a choice of what the agent can reach: **One product**, **One organization** or **Everything you
+  can reach**, with a product or organization picker for the first two. The MCP server URL for the
+  choice follows, to copy: everything gives `/mcp`; an organization gives `/mcp/t/<tenant>`
+  (`tenant_url_template` from `/api/v1/connect`); a product gives its address
+  (`bound_url_template`), filled in from the product's path, so nobody types a tenant or team.
+  Under the URL, a sentence says where the agent can work and that WhatBuild refuses anything
+  elsewhere, and suggests naming the connector after its scope so the person can tell connectors
+  apart and turn one off in their agent. Opened inside a product, that product is chosen first;
+  elsewhere, the organization of the last product opened, or everything for someone with no
+  product. The choice is in the URL: `?reach=product|organization|all` with `?product=<path>` or
+  `?org=<slug>` (an older `?product=all` means everything). A client that supports MCP
+  authorization finds sign-in on its own from the server's OAuth discovery metadata, registers
+  itself and opens the browser;
 - that the client will ask them to sign in, and a suggestion for a first request;
-- the agents connected now, with when each was last used and a disconnect control;
+- the agents connected now, each with what it can reach ("Only the organization Acme", "Only the
+  product Crewboard in Acme", "Every product you can open", from `reach` in
+  `GET /api/v1/me/agents`), when it was last used and a disconnect control;
 - **a plain statement about the agent's side of the trip**, above the steps: what the agent reads
   goes to whoever runs it, under their terms ([§9.1](09-data-lifecycle.md));
 - a note that the server offers the agent the skill (its instructions name the version), with an

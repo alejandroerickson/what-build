@@ -3,7 +3,7 @@ type: Specification
 title: Accounts belong to tenants, tenants hold teams, teams run products, and one role check decides every call.
 description: The account → tenant → team → product hierarchy, sign-in, roles and what they grant, addressing and isolation, moving sources between products, caller identity, attribution, and who is who in the public sandbox.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, sandbox]
-generated: {by: agent:claude, at: 2026-10-01}
+generated: {by: agent:claude, at: 2026-10-07}
 status: stable
 ---
 
@@ -239,14 +239,31 @@ The addressed tenant, team and product are always explicit. Nothing on the serve
 |---|---|
 | Web | `/t/<tenant>/<team>/<product>/<screen>` |
 | REST | `/api/v1/p/<tenant>/<team>/<product>/…` for product operations; `/api/v1/teams/<tenant>/<team>/…`, `/api/v1/tenants/<tenant>/…` and `/api/v1/…` for the rest |
-| MCP | `/mcp` for everything the account can reach, or `/mcp/t/<tenant>/<team>/<product>` bound to one product |
+| MCP | `/mcp` for everything the account can reach; `/mcp/t/<tenant>` scoped to one organization; `/mcp/t/<tenant>/<team>/<product>` scoped to one product |
 
 On MCP a product-scoped call resolves its product in this order: the `product` argument (an id or
-`tenant/team/product`); the product the endpoint is bound to; the only unarchived product the
-caller can reach; otherwise `422 product_required` listing the reachable products
-([`apps/server/src/mcp.ts`](../../apps/server/src/mcp.ts)). Every product-scoped MCP result echoes
-`scope` (tenant, team, product, `your_role`) so an agent and the person reading its transcript can
-see where a write landed.
+`tenant/team/product`); the product the endpoint is scoped to; the only unarchived product the
+caller can reach inside the endpoint's scope; otherwise `422 product_required` listing those
+products ([`apps/server/src/mcp.ts`](../../apps/server/src/mcp.ts)). Every product-scoped MCP
+result echoes `scope` (tenant, team, product, `your_role`) so an agent and the person reading its
+transcript can see where a write landed.
+
+**A scoped endpoint is a fence, not a default**
+(◆ [decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). Whatever roles the person holds
+elsewhere, a call through `/mcp/t/<tenant>` or `/mcp/t/<tenant>/<team>/<product>` that lands
+outside it is refused with `403 outside_connector_scope` before any handler runs
+([`connector-scope.ts`](../../packages/core/src/connector-scope.ts)), and the message names the
+scope. A person who works in several organizations adds one connector per organization in their
+agent and turns off the ones they are not using; for everything at once there is the unscoped
+`/mcp`.
+
+| Through | Answers | Refuses |
+|---|---|---|
+| an organization's endpoint | every product, team and tenant operation in that organization; `products.list` (narrowed to it), `sources.kinds`, `get_skill`, `submit_feedback` | another organization; the other account-level operations (`products.create_tenant`, `sandbox.join`, the instance's allowances) |
+| a product's endpoint | that product's operations; `products.list` (narrowed to it); `sandbox.status` for its organization; the account reads above | every other product; team and tenant operations (`members.*`, `products.create`, `products.create_team`, the sandbox's control panel); moving or copying a source to another product |
+
+The scope is resolved for the caller on the first tool call; an endpoint naming an organization or
+product they cannot reach answers `404` to every call, saying so.
 
 Isolation is enforced three times:
 
@@ -288,12 +305,17 @@ dynamic client registration (RFC 7591), authorization code with PKCE S256, resou
 (RFC 8707) limited to the MCP endpoint, one-hour access tokens and rotating 30-day refresh tokens
 (both configurable; reusing a rotated refresh token revokes the whole connection)
 ([`apps/server/src/auth/oauth.ts`](../../apps/server/src/auth/oauth.ts)). The consent page tells the
-person the agent will act as them and that the passages it reads go to whoever runs the agent. Any
+person the agent will act as them, what it can reach (everything, one organization or one
+product, named), and that the passages it reads go to whoever runs the agent. Any
 MCP client registers itself, so no client is configured in advance. The consent page's security policy
 allows its form to reach only WhatBuild and that client's registered callback, the one place Allow
 redirects to. A
-token is the person: it never widens or narrows what they can do. Connected agents are listed and
-disconnected on the Connect an agent page.
+token is the person: it never widens what they can do. It is bound to the resource it was approved
+for, which must be one of the MCP endpoints (`invalid_target` otherwise), and serves that endpoint
+and the ones inside it only: a token approved for `/mcp/t/acme` works on `/mcp/t/acme` and on
+Acme's product endpoints, and answers `401` on `/mcp` and on any other organization. A refresh
+keeps the resource. Connected agents are listed, each with what it can reach, and disconnected on
+the Connect an agent page.
 
 **No personal access tokens.** REST answers the web app's session only, and refuses any bearer
 token; an agent connects over MCP with OAuth, so every agent connection is one a person approved in

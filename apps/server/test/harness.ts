@@ -24,7 +24,8 @@ export interface Harness {
   /** A signed-in browser: fetch with its session cookie and a same-origin Origin header. `next` is where the sign-in was returning to. */
   signIn(email: string, name?: string, next?: string): Promise<Browser>;
   /** An agent connected as this person through the OAuth flow a real MCP client runs; returns its access token. */
-  connectAgent(browser: Browser, clientName?: string): Promise<string>;
+  /** An access token approved by `browser`, for the MCP endpoint at `resourcePath` (by default `/mcp`). */
+  connectAgent(browser: Browser, clientName?: string, resourcePath?: string): Promise<string>;
   close(): Promise<void>;
 }
 
@@ -103,12 +104,12 @@ export async function startHarness(overrides: Partial<ServerConfig> = {}, opts: 
       const cookie = (res.headers.get("set-cookie") ?? "").split(";")[0]!;
       return makeBrowser(email, cookie);
     },
-    async connectAgent(browser, clientName = "test-agent") {
+    async connectAgent(browser, clientName = "test-agent", resourcePath = "/mcp") {
       const redirect = "http://127.0.0.1:9999/callback";
       const reg = (await (await fetch(`${baseUrl}/oauth/register`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ client_name: clientName, redirect_uris: [redirect] }) })).json()) as { client_id: string };
       const verifier = randomBytes(32).toString("base64url");
       const challenge = createHash("sha256").update(verifier).digest("base64url");
-      const authUrl = `${baseUrl}/oauth/authorize?response_type=code&client_id=${reg.client_id}&redirect_uri=${encodeURIComponent(redirect)}&code_challenge=${challenge}&code_challenge_method=S256&state=s&resource=${encodeURIComponent(`${baseUrl}/mcp`)}`;
+      const authUrl = `${baseUrl}/oauth/authorize?response_type=code&client_id=${reg.client_id}&redirect_uri=${encodeURIComponent(redirect)}&code_challenge=${challenge}&code_challenge_method=S256&state=s&resource=${encodeURIComponent(`${baseUrl}${resourcePath}`)}`;
       const page = await fetch(authUrl, { headers: { cookie: browser.cookie } });
       const html = await page.text();
       const consent = (page.headers.get("set-cookie") ?? "").split(";")[0]!;

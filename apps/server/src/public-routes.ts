@@ -36,6 +36,7 @@ export function publicRoutes(deps: { db: Db; config: ServerConfig; release: Rele
     if (!p) throw unauthenticated();
     return c.json({
       mcp_url: `${base}/mcp`,
+      tenant_url_template: `${base}/mcp/t/{tenant}`,
       bound_url_template: `${base}/mcp/t/{tenant}/{team}/{product}`,
       oauth: { authorization_server: base, protected_resource_metadata: `${base}/.well-known/oauth-protected-resource/mcp`, dynamic_client_registration: true },
       skill: { name: SKILL_NAME, version: SKILL_VERSION, markdown_url: `${base}/${SKILL_NAME}-skill.md`, zip_url: `${base}/${SKILL_NAME}-skill.zip` },

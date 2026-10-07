@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Synthesis, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-10-03}
+generated: {by: agent:claude, at: 2026-10-07}
 status: stable
 ---
 
@@ -511,7 +511,9 @@ never described as deleting. A list row showing an archived object says *Archive
   the primary action. Signed out, the link opens sign-in titled "Sign in to accept your
   invitation".
 - **Connect an agent** (`/connect`, or `…/connect` inside a product). [§6.8](06-operations-and-adapters.md):
-  a product picker and the MCP server URL for it, sign-in, a first request to try, connected agents with disconnect, the plain statement about
+  what the agent can reach (one product, one organization, or everything) and the MCP server URL for
+  that scope, with a sentence saying WhatBuild refuses anything outside it; sign-in; a first request
+  to try; connected agents, each with what it can reach, and disconnect; the plain statement about
   where an agent sends what it reads, and an optional skill download. Connected agents appear here
   and nowhere else.
 - **Product settings** (`…/settings`, in the product's shell): name, slug and product concept; **People**;

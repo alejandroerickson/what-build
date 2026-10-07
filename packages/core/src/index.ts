@@ -16,6 +16,7 @@ import { storyOps } from "./ops/story.ts";
 import { tenantAllowanceOps } from "./ops/tenant-allowances.ts";
 import type { OperationDef } from "./registry.ts";
 
+export * from "./connector-scope.ts";
 export * from "./db.ts";
 export * from "./errors.ts";
 export * from "./execute.ts";

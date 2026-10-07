@@ -6,21 +6,38 @@ import { formatDate, relativeTime } from "../lib/format.ts";
 import { useMe, useProducts } from "../lib/session.tsx";
 import { useLastProduct } from "../shell/panel.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
-import { AgentFace, Button, CopyField, Dialog, EmptyState, ErrorCallout, Loading, SelectField, Sheet, SheetBody, SheetHeader, useToast } from "../ui/index.tsx";
+import { AgentFace, Button, ChoiceRow, CopyField, Dialog, EmptyState, ErrorCallout, Loading, SelectField, Sheet, SheetBody, SheetHeader, useToast } from "../ui/index.tsx";
 import "../styles/screens/account.css";
 
 interface ConnectInfo {
   mcp_url: string;
-  /** The address bound to one product, with `{tenant}/{team}/{product}` to fill in. */
+  /** The address scoped to one organization, with `{tenant}` to fill in. */
+  tenant_url_template: string;
+  /** The address scoped to one product, with `{tenant}/{team}/{product}` to fill in. */
   bound_url_template: string;
   skill: { name: string; version: string; zip_url: string };
 }
 
+/** What a connection may reach: names where the person can see them, else the address's path. */
+type Reach =
+  | { kind: "all" }
+  | { kind: "tenant"; path: string; name: string | null }
+  | { kind: "product"; path: string; name: string | null; tenant_name: string | null };
+
 interface ConnectedAgent {
   client_name: string;
   family_id: string;
+  reach: Reach;
   last_used_at: string | null;
   created_at: string;
+}
+
+type ReachKind = "product" | "organization" | "all";
+
+function reachLabel(r: Reach): string {
+  if (r.kind === "all") return "Every product you can open";
+  if (r.kind === "tenant") return `Only the organization ${r.name ?? r.path}`;
+  return `Only the product ${r.name ?? r.path}${r.name && r.tenant_name ? ` in ${r.tenant_name}` : ""}`;
 }
 
 function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {
@@ -42,9 +59,11 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
 
 /**
  * `/connect`, and `…/connect` inside a product: the one address an MCP client needs, and the agents
- * connected now. The person picks a product, or all of them, and gets the address for it; inside a
- * product that product is picked first. The client finds sign-in on its own (OAuth discovery), and
- * the server tells the agent which skill version to use.
+ * connected now. The person chooses what the agent can reach (one product, one organization, or
+ * everything) and gets the address for it. A scoped address is a fence: the server refuses every
+ * call outside it. Inside a product that product is chosen first; elsewhere, the organization of the
+ * last product opened. The client finds sign-in on its own (OAuth discovery), and the server tells
+ * the agent which skill version to use.
  */
 export function ConnectPage() {
   const info = useQuery({ queryKey: ["connect"], queryFn: () => api<ConnectInfo>("GET", "/api/v1/connect") });
@@ -55,21 +74,46 @@ export function ConnectPage() {
   usePageTitle("Connect an agent");
   const c = info.data;
   const items = products.data?.items ?? [];
+  const tenants = products.data?.tenants ?? [];
   const orgs = new Set(items.map((p) => p.tenant.tenant_id)).size;
-  // ?product=all or a product path; without it, the product the page was opened in, else all.
-  const picked = params.get("product") ?? (here["product"] ? `${here["tenant"]}/${here["team"]}/${here["product"]}` : "all");
-  const product = items.find((p) => p.path === picked);
-  const url = c ? (product ? c.bound_url_template.replace("{tenant}/{team}/{product}", product.path) : c.mcp_url) : "";
-  const pick = (value: string) =>
+  const herePath = here["product"] ? `${here["tenant"]}/${here["team"]}/${here["product"]}` : null;
+  // The URL holds the choice: ?reach=product|organization|all, with ?product=<path> or ?org=<slug>.
+  // An older ?product=all means everything.
+  const productParam = params.get("product");
+  const orgParam = params.get("org");
+  const reachParam = params.get("reach");
+  const reach: ReachKind =
+    reachParam === "product" || reachParam === "organization" || reachParam === "all"
+      ? reachParam
+      : productParam === "all"
+        ? "all"
+        : productParam || herePath
+          ? "product"
+          : orgParam || last || items.length
+            ? "organization"
+            : "all";
+  const product = items.find((p) => p.path === (productParam && productParam !== "all" ? productParam : herePath)) ?? (herePath ? undefined : last) ?? items[0];
+  const org = tenants.find((t) => t.slug === orgParam) ?? tenants.find((t) => t.tenant_id === (product ?? last)?.tenant.tenant_id) ?? tenants[0];
+  const url = !c
+    ? ""
+    : reach === "product" && product
+      ? c.bound_url_template.replace("{tenant}/{team}/{product}", product.path)
+      : reach === "organization" && org
+        ? c.tenant_url_template.replace("{tenant}", org.slug)
+        : c.mcp_url;
+  const pick = (next: Record<string, string>) =>
     setParams(
       (p) => {
-        const next = new URLSearchParams(p);
-        next.set("product", value);
-        return next;
+        const q = new URLSearchParams(p);
+        for (const [k, v] of Object.entries(next)) q.set(k, v);
+        if (q.get("reach") !== "product") q.delete("product");
+        if (q.get("reach") !== "organization") q.delete("org");
+        return q;
       },
       { replace: true },
     );
-  const named = product ?? last;
+  const scopedName = reach === "product" && product ? product.name : reach === "organization" && org ? org.name : null;
+  const named = (reach === "product" ? product : undefined) ?? (reach === "organization" ? items.find((p) => p.tenant.tenant_id === org?.tenant_id) : undefined) ?? product ?? last;
   return (
     <>
       <Sheet className="agents-sheet" labelledBy="agents-title">
@@ -85,28 +129,91 @@ export function ConnectPage() {
           </SheetBody>
         ) : c ? (
           <ol className="agents-steps">
-            <Step n={1} title="Add this MCP server to your agent">
+            <Step n={1} title="Choose what it can reach">
+              <fieldset className="agents-reach">
+                <legend className="visually-hidden">What your agent can reach</legend>
+                <ChoiceRow
+                  type="radio"
+                  variant="boxed"
+                  name="reach"
+                  checked={reach === "product"}
+                  disabled={!items.length}
+                  onChange={() => pick({ reach: "product", ...(product ? { product: product.path } : {}) })}
+                  label="One product"
+                  hint={items.length ? "Only the product you choose." : "You have no product yet."}
+                />
+                <ChoiceRow
+                  type="radio"
+                  variant="boxed"
+                  name="reach"
+                  checked={reach === "organization"}
+                  disabled={!tenants.length}
+                  onChange={() => pick({ reach: "organization", ...(org ? { org: org.slug } : {}) })}
+                  label="One organization"
+                  hint="Every product in the organization you choose."
+                />
+                <ChoiceRow
+                  type="radio"
+                  variant="boxed"
+                  name="reach"
+                  checked={reach === "all"}
+                  onChange={() => pick({ reach: "all" })}
+                  label="Everything you can reach"
+                  hint={orgs > 1 ? `Every product you can open, across all ${orgs} of your organizations.` : "Every product you can open, including in organizations you join later."}
+                />
+              </fieldset>
+              {reach === "product" && product ? (
+                <div className="agents-address">
+                  <SelectField label="Product" value={product.path} onChange={(e) => pick({ reach: "product", product: e.target.value })}>
+                    {orgs > 1
+                      ? tenants.map((t) => (
+                          <optgroup key={t.tenant_id} label={t.name}>
+                            {items
+                              .filter((p) => p.tenant.tenant_id === t.tenant_id)
+                              .map((p) => (
+                                <option key={p.product_id} value={p.path}>
+                                  {p.name}
+                                </option>
+                              ))}
+                          </optgroup>
+                        ))
+                      : items.map((p) => (
+                          <option key={p.product_id} value={p.path}>
+                            {p.name}
+                          </option>
+                        ))}
+                  </SelectField>
+                </div>
+              ) : reach === "organization" && org ? (
+                <div className="agents-address">
+                  <SelectField label="Organization" value={org.slug} onChange={(e) => pick({ reach: "organization", org: e.target.value })}>
+                    {tenants.map((t) => (
+                      <option key={t.tenant_id} value={t.slug}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </SelectField>
+                </div>
+              ) : null}
+            </Step>
+            <Step n={2} title="Add this MCP server to your agent">
               <div className="agents-address">
-                <SelectField
-                  label="Product"
-                  value={product ? product.path : "all"}
-                  onChange={(e) => pick(e.target.value)}
-                  hint={product ? `Your agent works in ${product.name} unless you ask for another.` : "Your agent can reach all your products, and asks which one when it isn’t clear."}
-                >
-                  <option value="all">All your products</option>
-                  {items.map((p) => (
-                    <option key={p.product_id} value={p.path}>
-                      {orgs > 1 ? `${p.name} (${p.tenant.name})` : p.name}
-                    </option>
-                  ))}
-                </SelectField>
                 <CopyField label="MCP server URL" value={url} />
               </div>
+              <p className="agents-fence" aria-live="polite">
+                {scopedName ? (
+                  <>
+                    Your agent can work only in <strong>{scopedName}</strong>. WhatBuild refuses anything it tries elsewhere, so nothing lands in another {reach === "product" ? "product" : "organization"} by mistake. Name the connector after {scopedName}, so you can tell your connectors apart and turn one off.
+                  </>
+                ) : (
+                  <>Your agent can work in every product you can open. For one that stays in a single organization or product, choose that above and add it as its own connector.</>
+                )}
+              </p>
             </Step>
-            <Step n={2} title="Sign in when it asks">
+            <Step n={3} title="Sign in when it asks">
               <p>Your browser opens WhatBuild so you can approve the connection.</p>
             </Step>
-            <Step n={3} title="Ask it to start">
+            <Step n={4} title="Ask it to start">
               <p>
                 For example: &ldquo;Add the interview notes in my downloads to {named?.name ?? "my product"} as a source, then list the passages about how people plan their week.&rdquo;
               </p>
@@ -181,6 +288,7 @@ function ConnectedSheet() {
               <AgentFace />
               <div className="account-main">
                 <span className="account-name">{a.client_name}</span>
+                <span className="account-reach">{reachLabel(a.reach)}</span>
                 <span className="account-sub">
                   Acting as {me.data?.display_name ?? "you"} · connected {formatDate(a.created_at)}
                 </span>
