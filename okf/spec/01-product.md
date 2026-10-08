@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild turns a team's discovery material into cited insight and a story, with agents as first-class contributors.
 description: Who the product is for, the core loop, the four screens, the vocabulary, the non-negotiable behaviors, and what the product is not.
 tags: [spec, product, vocabulary, principles]
-generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
+generated: {by: agent:claude, at: 2026-10-07}
 status: stable
 ---
 
@@ -78,7 +78,7 @@ Idea screen's terms are a decision: [A product starts with its idea](../decision
 | **tenant** | An organization: the isolation and billing boundary. Shown as "organization" in the UI. |
 | **team** | A group inside a tenant and the products it runs. Roles granted on a team apply to its products. Never "workspace". |
 | **product** | One discovery. Owns all of the objects below. |
-| **role** | viewer, editor or admin on a team or product; owner, admin or member of a tenant. |
+| **role** | reader, viewer, editor or admin on a team or product; owner, admin or member of a tenant. A reader reads only the Story. |
 | **source** | One discovery event or document, with metadata and one or more files. Stored as a record: `record_id` in the API. The destination that holds them is **Evidence**; never "library", "document store", "bucket" or a storage path. |
 | **file** | A stored file belonging to a source, with a role: `primary`, `origin`, or `supplement`. The role is **origin**, not "source", so it cannot be confused with the destination. |
 | **segment** | The atomic unit of derived text: a paragraph or a cue, with offsets. |
@@ -98,8 +98,8 @@ Idea screen's terms are a decision: [A product starts with its idea](../decision
 
 ## 1.5 Non-negotiable behaviors
 
-1. **Roles, and nothing finer.** Access is a role on a tenant, team or product (viewer, editor,
-   admin), checked in one policy module for both front doors
+1. **Roles, and nothing finer.** Access is a role on a tenant, team or product (reader, viewer,
+   editor, admin), checked in one policy module for both front doors
    ([`packages/core/src/policy.ts`](../../packages/core/src/policy.ts)). No per-folder or
    per-object permissions, and no token that widens or narrows its person's role. An agent has
    exactly its person's role. What you cannot see is `404`; what you may see but not change is a

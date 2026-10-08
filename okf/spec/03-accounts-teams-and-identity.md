@@ -204,9 +204,17 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
 | Level | Roles | What the role grants |
 |---|---|---|
 | Tenant | `owner`, `admin`, `member`, `visitor` | owner and admin: admin of every team and product in the tenant; owner: tenant lifecycle. member: nothing by itself. visitor: editor of every product, in the public sandbox only ([§3.10](#310-the-public-sandbox)) |
-| Team | `admin`, `editor`, `viewer` | the same role on every product in the team |
-| Product | `admin`, `editor`, `viewer` | that product only |
+| Team | `admin`, `editor`, `viewer`, `reader` | the same role on every product in the team |
+| Product | `admin`, `editor`, `viewer`, `reader` | that product only |
 
+- **Reader** reads only the Story: its pages, every version of them, the hierarchy, and the print
+  view to export it (◆ [decision](../decisions/a-reader-reads-only-the-story.md)). These
+  operations, and `products.list` and `products.get`, declare the access level `story`; every
+  other product operation needs viewer and answers a reader `403` ("You are a reader on product
+  Crewboard; sources.list needs viewer"), and so do a source's file, an export's file and a Story
+  style specimen. A reader's Story reads leave out `refs`, `resolved_refs`, `citations`,
+  `citation_count` and `agent_notes`; their product reads leave out `concept` and count only
+  `story_pages`. A page's HTML is served to a reader exactly as published.
 - **Viewer** reads everything in the product. **Editor** also writes: sources, files, notes,
   outcomes, insights, register entries and reviews, the Story, and permanent deletes of sources
   (guarded, [§9.5](09-data-lifecycle.md)). **Admin** also manages the product (rename, archive) and
@@ -228,7 +236,7 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   last grant takes them out of the tenant; `members.revoke` with `whole_tenant` removes every grant
   at once.
 - ◆ Decision: reviewing (confirm, refute) is an editor right; there is no separate reviewer role.
-- ◆ Decision: every role can read the product's activity log.
+- ◆ Decision: every role but reader can read the product's activity log.
 
 ## 3.6 Addressing and isolation
 

@@ -123,10 +123,11 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
 
   // ---- Bytes: file downloads and Story HTML (the two non-JSON responses) ---------------------
 
-  const scoped = async (c: Context) => {
+  // A Story page's HTML is a Story read, open to readers; files, exports and style specimens are not.
+  const scoped = async (c: Context, access: "story" | "read" = "read") => {
     const principal = await principalOf(c);
     const { tenant, team, product } = c.req.param() as Record<string, string>;
-    const scope = await resolveScope(env.db, principal, "product", "read", { tenant, team, product }, "read");
+    const scope = await resolveScope(env.db, principal, "product", access, { tenant, team, product }, "read");
     await admitRead(env, principal, scope, "files.read");
     return scope;
   };
@@ -176,7 +177,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       // ?theme=light|dark: the app's resolved theme, written onto the page's <html> for this
       // response only, so the page follows the app rather than only the system. ?frame=1: the app's
       // frame is showing it, so the frame script goes in too (focus keys, links open in a new tab).
-      const scope = await scoped(c);
+      const scope = await scoped(c, "story");
       const theme = storyTheme(c.req.query("theme"));
       const frame = c.req.query("frame") === "1";
       const v = await inTenant(scope.tenant!.tenant_id, (trx) =>

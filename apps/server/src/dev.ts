@@ -69,8 +69,9 @@ async function main() {
   WhatBuild is starting.
 
     App            http://localhost:${WEB_PORT}
-    Sign in as     riley@example.com (owner, and owner of this instance) or sam@example.com (editor,
-                   who may start one organization) — one click on the sign-in page
+    Sign in as     riley@example.com (owner, and owner of this instance), sam@example.com (editor,
+                   who may start one organization) or jordan@example.com (reads only the Story)
+                   — one click on the sign-in page
     MCP endpoint   http://localhost:${WEB_PORT}/mcp   (claude mcp add --transport http whatbuild-dev http://localhost:${WEB_PORT}/mcp)
     Database       ${pg ? "embedded Postgres in .what-build/pg" : "DATABASE_URL"}
     Files          .what-build/blobs

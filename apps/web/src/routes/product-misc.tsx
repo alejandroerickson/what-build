@@ -131,17 +131,17 @@ function ProductDetails() {
   const navigate = useNavigate();
   const [name, setName] = useState(product.name);
   const [slug, setSlug] = useState(product.slug);
-  const [concept, setConcept] = useState(product.concept);
+  const [concept, setConcept] = useState(product.concept ?? "");
   const archived = Boolean(product.archived_at);
   const editable = isAdmin && !archived;
-  const dirty = name !== product.name || slug !== product.slug || concept !== product.concept;
+  const dirty = name !== product.name || slug !== product.slug || concept !== (product.concept ?? "");
   const save = useMutation({
     mutationFn: () =>
       api<{ path: string }>("PATCH", base, {
         expected_etag: product.etag,
         ...(name !== product.name ? { name } : {}),
         ...(slug !== product.slug ? { slug } : {}),
-        ...(concept !== product.concept ? { concept } : {}),
+        ...(concept !== (product.concept ?? "") ? { concept } : {}),
       }),
     onSuccess: (p) => {
       toast("Saved.");
@@ -215,7 +215,7 @@ function ProductDetails() {
               onClick={() => {
                 setName(product.name);
                 setSlug(product.slug);
-                setConcept(product.concept);
+                setConcept(product.concept ?? "");
                 save.reset();
               }}
             >
@@ -231,10 +231,10 @@ function ProductDetails() {
 
 // ---- People on this product ---------------------------------------------------------------------
 
-type Role = "admin" | "editor" | "viewer";
-const ROLES: Role[] = ["admin", "editor", "viewer"];
-const ROLE_WORD: Record<string, string> = { admin: "Admin", editor: "Editor", viewer: "Viewer", owner: "Owner", member: "Member", visitor: "Visitor" };
-const ROLE_HINT: Record<Role, string> = { admin: "Also manages people and settings", editor: "Reads and writes", viewer: "Reads" };
+type Role = "admin" | "editor" | "viewer" | "reader";
+const ROLES: Role[] = ["admin", "editor", "viewer", "reader"];
+const ROLE_WORD: Record<string, string> = { admin: "Admin", editor: "Editor", viewer: "Viewer", reader: "Reader", owner: "Owner", member: "Member", visitor: "Visitor" };
+const ROLE_HINT: Record<Role, string> = { admin: "Also manages people and settings", editor: "Reads and writes", viewer: "Reads", reader: "Reads only the Story" };
 
 interface Grant {
   membership_id: string;
@@ -426,7 +426,7 @@ function PeopleSheet() {
             <p className="people-foot">{product.tenant.name} is a public sandbox. Visitors never see each other, so only you are listed, under your made-up name.</p>
           ) : (
             <p className="people-foot">
-              Admins also manage people and settings, editors read and write, viewers read. Team and organization roles cover every product in them; change those in{" "}
+              Admins also manage people and settings, editors read and write, viewers read, and readers read only the Story. Team and organization roles cover every product in them; change those in{" "}
               <Link to={membersLink}>{product.tenant.name} members</Link>.
               {q.data.sandbox ? ` ${product.tenant.name} is a public sandbox, so its ${(q.data.sandbox.visitors ?? 0).toLocaleString("en-US")} visitors can edit this product too. They’re listed in Sandbox controls.` : ""}
             </p>

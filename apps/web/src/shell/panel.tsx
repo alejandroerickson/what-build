@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import { ROLE_WORD } from "../lib/format.ts";
-import { lastProduct, useMe, useProducts, useSignOut, type Product } from "../lib/session.tsx";
+import { lastProduct, productHome, useMe, useProducts, useSignOut, type Product } from "../lib/session.tsx";
 import { Avatar, Glyph, IconButton, Menu, MenuGroup, MenuItem, MenuLabel, MenuRadio, MenuSeparator, type GlyphName } from "../ui/index.tsx";
 import { shortcutLabel } from "../ui/media.ts";
 import { CreateProductDialog } from "../routes/new-product.tsx";
@@ -88,7 +88,7 @@ export function ProductSwitcher({ current }: { current: Product }) {
         {[...groups.entries()].map(([label, list]) => (
           <MenuGroup key={label} label={label}>
             {list.map((p) => (
-              <MenuRadio key={p.product_id} checked={p.product_id === current.product_id} onSelect={() => navigate(`/t/${p.path}/${keep}`)}>
+              <MenuRadio key={p.product_id} checked={p.product_id === current.product_id} onSelect={() => navigate(`/t/${p.path}/${p.your_role === "reader" ? "story" : keep}`)}>
                 {p.name}
               </MenuRadio>
             ))}
@@ -116,6 +116,13 @@ function NavNode({ to, icon, label, count, quiet, current }: { to: string; icon:
 }
 
 export function ProductNav({ product, app, section }: { product: Product; app: string; section: string }) {
+  // A reader has only the Story: no other stage, and nothing in the quiet group.
+  if (product.your_role === "reader")
+    return (
+      <div className="nav-l1">
+        <NavNode to={`${app}/story`} icon="book-open" label="Story" count={product.counts.story_pages} current={section === "story"} />
+      </div>
+    );
   return (
     <>
       <div className="nav-l1">
@@ -159,7 +166,7 @@ export function PlainNav({ section }: { section: string }) {
             {items
               .filter((p) => p.tenant.tenant_id === t.tenant_id)
               .map((p) => (
-                <NavNode key={p.product_id} to={`/t/${p.path}/idea`} icon="box" label={p.name} />
+                <NavNode key={p.product_id} to={`/t/${p.path}/${productHome(p.your_role)}`} icon="box" label={p.name} />
               ))}
           </div>
         );

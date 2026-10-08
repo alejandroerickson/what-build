@@ -3,7 +3,7 @@ import { z } from "zod";
 import { checkEtag, keepRevision, recordActivity } from "../common.ts";
 import { json, type Db } from "../db.ts";
 import { AppError, conflict, forbidden, invalid, notFound } from "../errors.ts";
-import { effectiveRole, isSandboxStaff, membershipsFor, PRODUCT_ROLES, roleAtLeast, tenantRoleAtLeast } from "../policy.ts";
+import { effectiveRole, isSandboxStaff, membershipsFor, PRODUCT_ROLES, readsOnlyTheStory, roleAtLeast, tenantRoleAtLeast } from "../policy.ts";
 import { defineOperation, type OpContext, type ProductRole, type TenantRole } from "../registry.ts";
 import { requireTenantAllowance } from "../tenant-allowance.ts";
 import { expectedEtag, slug } from "../schemas.ts";
@@ -37,7 +37,7 @@ function productView(p: {
     product_id: p.product_id,
     slug: p.slug,
     name: p.name,
-    concept: p.concept,
+    ...(readsOnlyTheStory(ctx.scope.role) ? {} : { concept: p.concept }),
     archived_at: p.archived_at,
     etag: p.etag,
     created_at: p.created_at,
@@ -105,6 +105,11 @@ async function countProducts(db: Db, productIds: string[]): Promise<Map<string, 
   return counts;
 }
 
+/** What a role may count: a reader sees only how many Story pages there are, never what the evidence holds. */
+function countsFor(role: ProductRole | null, c: ProductCounts) {
+  return readsOnlyTheStory(role) ? { story_pages: c.story_pages } : c;
+}
+
 // ---- Account scope ------------------------------------------------------------------------------
 
 export const listProducts = defineOperation({
@@ -114,7 +119,7 @@ export const listProducts = defineOperation({
   mutates: false,
   summary: "List every product you can reach, across your tenants and teams, with your role and counts of what each holds.",
   description:
-    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` are the ones products(action=\"get\") reports. A tenant with `sandbox: true` is a public sandbox: what is added there is seen by other visitors and erased at its next reset, so read sandbox(action=\"status\") and tell the person before writing.",
+    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` are the ones products(action=\"get\") reports. Where your_role is reader you may read only the Story: such an item has no concept and counts only story_pages. A tenant with `sandbox: true` is a public sandbox: what is added there is seen by other visitors and erased at its next reset, so read sandbox(action=\"status\") and tell the person before writing.",
   input: z.strictObject({ include_archived: z.boolean().default(false) }),
   rest: { method: "GET", path: "/me/products" },
   mcp: { tool: "products", action: "list" },
@@ -142,7 +147,7 @@ export const listProducts = defineOperation({
               product_id: r.product_id,
               path: `${r.tenant_slug}/${r.team_slug}/${r.slug}`,
               name: r.name,
-              concept: r.concept.slice(0, 300),
+              ...(readsOnlyTheStory(role) ? {} : { concept: r.concept.slice(0, 300) }),
               archived_at: r.archived_at,
               updated_at: r.updated_at,
               tenant: { tenant_id: r.tenant_id, slug: r.tenant_slug, name: r.tenant_name, ...(r.sandbox ? { sandbox: true } : {}) },
@@ -163,7 +168,7 @@ export const listProducts = defineOperation({
     const tenants = await ctx.db.selectFrom("tenants").select(["tenant_id", "slug", "name", "sandbox"]).where("tenant_id", "in", tenantIds).orderBy("name").execute();
     const teams = await ctx.db.selectFrom("teams").select(["team_id", "tenant_id", "slug", "name", "archived_at"]).where("tenant_id", "in", tenantIds).orderBy("name").execute();
     return {
-      items: items.map((i) => ({ ...i, counts: counts.get(i.product_id)! })),
+      items: items.map((i) => ({ ...i, counts: countsFor(i.your_role, counts.get(i.product_id)!) })),
       tenants: tenants.map(({ sandbox, ...t }) => {
         const tr = memberships.find((m) => m.scope_type === "tenant" && m.scope_id === t.tenant_id)?.role ?? null;
         return {
@@ -308,10 +313,10 @@ export const createProduct = defineOperation({
 export const getProduct = defineOperation({
   name: "products.get",
   scope: "product",
-  access: "read",
+  access: "story",
   mutates: false,
   summary: "Read a product: its concept, etag, your role, and counts of what it holds.",
-  description: "Use the counts to decide where to look first. They leave out archived items, and assumptions and decisions count only current (unconfirmed or confirmed) entries, not superseded or refuted ones. The etag guards products(action=\"update\").",
+  description: "Use the counts to decide where to look first. They leave out archived items, and assumptions and decisions count only current (unconfirmed or confirmed) entries, not superseded or refuted ones. The etag guards products(action=\"update\"). A reader (the Story-only role) gets no concept, and counts of Story pages only.",
   input: z.strictObject({}),
   rest: { method: "GET", path: "" },
   mcp: { tool: "products", action: "get" },
@@ -319,7 +324,7 @@ export const getProduct = defineOperation({
     const pid = ctx.scope.product!.product_id;
     const row = await ctx.db.selectFrom("products").selectAll().where("product_id", "=", pid).executeTakeFirstOrThrow();
     const counts = (await countProducts(ctx.db, [pid])).get(pid)!;
-    return { ...productView(row, ctx), counts };
+    return { ...productView(row, ctx), counts: countsFor(ctx.scope.role, counts) };
   },
 });
 
@@ -455,7 +460,7 @@ async function requireAdminOf(ctx: OpContext, target: Awaited<ReturnType<typeof 
   }
 }
 
-const RANK: Record<string, number> = { viewer: 1, editor: 2, admin: 3 };
+const RANK: Record<string, number> = { reader: 0, viewer: 1, editor: 2, admin: 3 };
 
 export const listMembers = defineOperation({
   name: "members.list",
@@ -555,10 +560,10 @@ export const grantMember = defineOperation({
   mutates: true,
   summary: "Give someone a role on the tenant, a team, or a product; invites them by email if they have no account.",
   description:
-    "Admins of the target grant roles there: product admins on their product, team admins on their team, tenant admins on the tenant (owners for owner). Roles: tenant owner|admin|member; team and product admin|editor|viewer. Granting again replaces the role at that scope. Someone without an account gets an invitation link by email, valid 7 days.",
+    "Admins of the target grant roles there: product admins on their product, team admins on their team, tenant admins on the tenant (owners for owner). Roles: tenant owner|admin|member; team and product admin|editor|viewer|reader. A reader reads only the Story: its pages, their versions and their export, without the evidence, insights, assumptions and decisions behind them. Granting again replaces the role at that scope. Someone without an account gets an invitation link by email, valid 7 days.",
   input: grantScope.extend({
     email: z.string().email().max(320),
-    role: z.enum(["owner", "admin", "member", "editor", "viewer"]),
+    role: z.enum(["owner", "admin", "member", "editor", "viewer", "reader"]),
   }),
   rest: { method: "POST", path: "/members" },
   mcp: { tool: "members", action: "grant" },

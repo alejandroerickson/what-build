@@ -31,8 +31,9 @@ export interface StyleView {
 }
 
 export function useStoryStyle() {
-  const { api: base } = useProduct();
-  return useQuery({ queryKey: ["story-style", base], queryFn: () => api<StyleView>("GET", `${base}/story/style?include_stylesheet=false`) });
+  const { api: base, storyOnly } = useProduct();
+  // A reader reads pages in their style but does not manage it, so the Story style row never shows for them.
+  return useQuery({ queryKey: ["story-style", base], enabled: !storyOnly, queryFn: () => api<StyleView>("GET", `${base}/story/style?include_stylesheet=false`) });
 }
 
 /** How the style reads in one line: "Broadsheet, a house style" or "Acme reports, your design system". */

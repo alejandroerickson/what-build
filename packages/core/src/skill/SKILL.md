@@ -40,8 +40,9 @@ organization). A product has four parts, named as the person sees them in the we
    inside its scope and refuses everything else with `403 outside_connector_scope`. That refusal is
    the person's choice, not a fault: tell them the work belongs elsewhere and ask them to use a
    connector scoped there (or the unscoped one). Never look for a way around it.
-3. **Know your role.** Each product lists `your_role`: viewer (read only), editor (read and write),
-   admin (also membership and product settings). A 403 names the role you have and the one needed;
+3. **Know your role.** Each product lists `your_role`: reader (the Story only, without what its
+   pages draw on), viewer (read only), editor (read and write), admin (also membership and product
+   settings). A 403 names the role you have and the one needed;
    do not retry a forbidden write — tell the person who can grant access.
 4. **Notice a public sandbox.** A tenant that `products(action="list")` marks `sandbox: true` is
    public, and is erased every day. Read "In a public sandbox" below before you write there.

@@ -107,7 +107,7 @@ function ConceptSheet() {
   const { product, api: base, isAdmin } = useProduct();
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
-  const [concept, setConcept] = useState(product.concept);
+  const [concept, setConcept] = useState(product.concept ?? "");
   const save = useMutation({
     mutationFn: () => api("PATCH", base, { expected_etag: product.etag, concept }),
     onSuccess: async () => {
@@ -127,7 +127,7 @@ function ConceptSheet() {
               size="sm"
               icon="pencil"
               onClick={() => {
-                setConcept(product.concept);
+                setConcept(product.concept ?? "");
                 setEditing(true);
               }}
             >
@@ -256,13 +256,13 @@ export function IdeaPage() {
             <ErrorCallout error={q.error} onRetry={() => q.refetch()} inset />
           </SheetBody>
         ) : !items.length ? (
-          editing === "new" ? null : status && (status === "archived" || product.counts.outcomes > 0) ? (
+          editing === "new" ? null : status && (status === "archived" || (product.counts.outcomes ?? 0) > 0) ? (
             <EmptyState size="inline" title={`No ${STATUS_WORD[status as Outcome["status"]]?.toLowerCase() ?? ""} outcomes`} action={<ButtonLink to={`${app}/idea`} size="sm">Show current outcomes</ButtonLink>} />
           ) : (
             <FirstUse
               title="No outcomes yet"
               ask={
-                product.concept.trim()
+                product.concept?.trim()
                   ? `Read the product concept of ${product.name} in WhatBuild and propose two or three outcomes. Add them once I agree.`
                   : `Interview me about ${product.name}, then write its product concept and two or three outcomes in WhatBuild.`
               }

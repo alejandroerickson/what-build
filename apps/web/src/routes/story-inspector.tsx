@@ -65,9 +65,10 @@ export function StoryInspectorBody({ page, shown, versions, onExport }: {
 }) {
   const { app, api: base } = useProduct();
   const [params, setParams] = useSearchParams();
+  const citations = shown.citations ?? [];
   const checks = useQuery({
     queryKey: ["story-citations", base, page.page_id, shown.version],
-    enabled: shown.citations.length > 0,
+    enabled: citations.length > 0,
     queryFn: () => api<{ citations: CitationCheck[] }>("GET", `${base}/story/pages/${page.page_id}/check-citations?version=${shown.version}`),
   });
   const isCurrent = shown.version === page.current_version;
@@ -77,7 +78,8 @@ export function StoryInspectorBody({ page, shown, versions, onExport }: {
     else next.set("v", String(n));
     setParams(next);
   };
-  const refCount = REF_KINDS.reduce((n, k) => n + (shown.resolved_refs[k.kind]?.length ?? 0), 0);
+  const refs = shown.resolved_refs;
+  const refCount = REF_KINDS.reduce((n, k) => n + (refs?.[k.kind]?.length ?? 0), 0);
   const notes = page.agent_notes;
   const numbered = isCurrent ? String(shown.version) : `${shown.version} of ${page.current_version}`;
   return (
@@ -122,73 +124,79 @@ export function StoryInspectorBody({ page, shown, versions, onExport }: {
         </Button>
       </Group>
 
-      <Group title="Draws on" count={refCount}>
-        {refCount ? (
-          <div className="story-refs">
-            {REF_KINDS.filter((k) => shown.resolved_refs[k.kind]?.length).map((k) => (
-              <div key={k.kind} className="story-ref-kind">
-                <h4 className="story-ref-label">{k.label}</h4>
-                <ul>
-                  {shown.resolved_refs[k.kind].map((r) => {
-                    const status = refStatus(k.kind, r);
-                    return (
-                      <li key={r.id}>
-                        {r.missing ? <span className="faint">{r.id}</span> : <Link className="story-ref-link" to={refLink(app, k.kind, r.id)}>{r.title ?? r.id}</Link>}
-                        {status ? <span className="story-ref-status"> · {status}</span> : null}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <EmptyState size="inline">This version lists nothing it draws on. Agents list outcomes, sources, insights, assumptions and decisions when they publish.</EmptyState>
-        )}
-      </Group>
+      {/* A reader gets none of what follows: what the page draws on, its cited passages, its notes for agents. */}
+      {refs ? (
+        <Group title="Draws on" count={refCount}>
+          {refCount ? (
+            <div className="story-refs">
+              {REF_KINDS.filter((k) => refs[k.kind]?.length).map((k) => (
+                <div key={k.kind} className="story-ref-kind">
+                  <h4 className="story-ref-label">{k.label}</h4>
+                  <ul>
+                    {refs[k.kind].map((r) => {
+                      const status = refStatus(k.kind, r);
+                      return (
+                        <li key={r.id}>
+                          {r.missing ? <span className="faint">{r.id}</span> : <Link className="story-ref-link" to={refLink(app, k.kind, r.id)}>{r.title ?? r.id}</Link>}
+                          {status ? <span className="story-ref-status"> · {status}</span> : null}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState size="inline">This version lists nothing it draws on. Agents list outcomes, sources, insights, assumptions and decisions when they publish.</EmptyState>
+          )}
+        </Group>
+      ) : null}
 
-      <Group title="Cited passages" count={shown.citations.length}>
-        {shown.citations.length ? (
-          <ol className="story-cites">
-            {shown.citations.map((c) => {
-              const check = checks.data?.citations.find((x) => x.index === c.index);
-              return (
-                <li key={c.index} className="story-cite">
-                  <div className="story-cite-head">
-                    <Link className="story-cite-source story-ref-link" to={`${app}/evidence/${c.record_id}`}>
-                      {c.source_title ?? "Source"}
-                    </Link>
-                    <Link className="story-cite-address num" to={passageHref(app, c.record_id, c.seq_start, c.seq_end)} aria-label={`Passage ${address(c.seq_start, c.seq_end)} in ${c.source_title ?? "the source"}`}>
-                      {address(c.seq_start, c.seq_end)}
-                    </Link>
-                  </div>
-                  <q className="story-cite-quote">{nestQuotes(c.quote)}</q>
-                  <div className="story-cite-status">
-                    {check ? (
-                      <StatusBadge tone={check.version_drift && check.status === "ok" ? "attention" : toneFor("citation", check.status)}>{driftWords(check)}</StatusBadge>
-                    ) : checks.isError ? (
-                      <span className="faint">Could not check against the source</span>
-                    ) : (
-                      <span className="faint">Checking against the source…</span>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        ) : (
-          <EmptyState size="inline">No passages cited on this version. Agents cite the exact passages a page rests on when they publish it.</EmptyState>
-        )}
-      </Group>
+      {shown.citations ? (
+        <Group title="Cited passages" count={citations.length}>
+          {citations.length ? (
+            <ol className="story-cites">
+              {citations.map((c) => {
+                const check = checks.data?.citations.find((x) => x.index === c.index);
+                return (
+                  <li key={c.index} className="story-cite">
+                    <div className="story-cite-head">
+                      <Link className="story-cite-source story-ref-link" to={`${app}/evidence/${c.record_id}`}>
+                        {c.source_title ?? "Source"}
+                      </Link>
+                      <Link className="story-cite-address num" to={passageHref(app, c.record_id, c.seq_start, c.seq_end)} aria-label={`Passage ${address(c.seq_start, c.seq_end)} in ${c.source_title ?? "the source"}`}>
+                        {address(c.seq_start, c.seq_end)}
+                      </Link>
+                    </div>
+                    <q className="story-cite-quote">{nestQuotes(c.quote)}</q>
+                    <div className="story-cite-status">
+                      {check ? (
+                        <StatusBadge tone={check.version_drift && check.status === "ok" ? "attention" : toneFor("citation", check.status)}>{driftWords(check)}</StatusBadge>
+                      ) : checks.isError ? (
+                        <span className="faint">Could not check against the source</span>
+                      ) : (
+                        <span className="faint">Checking against the source…</span>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          ) : (
+            <EmptyState size="inline">No passages cited on this version. Agents cite the exact passages a page rests on when they publish it.</EmptyState>
+          )}
+        </Group>
+      ) : null}
 
-      <Group title="Notes for agents">
-        {notes.content ? (
-          <>
-            <Markdown source={notes.content} className="prose story-notes" headingShift={3} />
-            {notes.updated_at ? (
-              <p className="story-notes-meta">
-                Updated by {attribution(notes.updated_by)}, <time dateTime={notes.updated_at}>{relativeTime(notes.updated_at)}</time>
-              </p>
+      {notes ? (
+        <Group title="Notes for agents">
+          {notes.content ? (
+            <>
+              <Markdown source={notes.content} className="prose story-notes" headingShift={3} />
+              {notes.updated_at ? (
+                <p className="story-notes-meta">
+                  Updated by {attribution(notes.updated_by)}, <time dateTime={notes.updated_at}>{relativeTime(notes.updated_at)}</time>
+                </p>
             ) : null}
           </>
         ) : (
@@ -197,6 +205,7 @@ export function StoryInspectorBody({ page, shown, versions, onExport }: {
           </EmptyState>
         )}
       </Group>
+      ) : null}
     </div>
   );
 }

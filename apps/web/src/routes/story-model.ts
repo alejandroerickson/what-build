@@ -127,9 +127,10 @@ export interface VersionView {
   page_id: string;
   title: string;
   summary: string;
-  refs: Refs;
-  resolved_refs: Record<RefKind, ResolvedRef[]>;
-  citations: CitationView[];
+  /** What the version draws on: absent for a reader, who reads the page without it. */
+  refs?: Refs;
+  resolved_refs?: Record<RefKind, ResolvedRef[]>;
+  citations?: CitationView[];
   published_at: string;
   published_by: Actor;
   html?: string;
@@ -150,7 +151,8 @@ export interface PageView {
   archived_at: string | null;
   etag: string;
   updated_at: string;
-  agent_notes: AgentNotes;
+  /** Absent for a reader. */
+  agent_notes?: AgentNotes;
   current: VersionView;
 }
 
@@ -163,7 +165,8 @@ export interface PageSummary {
 export interface VersionItem {
   version: number;
   title: string;
-  citation_count: number;
+  /** Absent for a reader. */
+  citation_count?: number;
   published_at: string;
   published_by: Actor;
 }

@@ -1,6 +1,6 @@
 import { Link, Navigate, useSearchParams } from "react-router";
 import { plural, relativeTime } from "../lib/format.ts";
-import { useProducts, type ProductsResponse, type ProductSummary } from "../lib/session.tsx";
+import { productHome, useProducts, type ProductsResponse, type ProductSummary } from "../lib/session.tsx";
 import { BrandMark } from "../shell/brand.tsx";
 import { Journey } from "../shell/journey.tsx";
 import { L1 } from "../shell/panel.tsx";
@@ -144,21 +144,30 @@ function Organization({ tenant, products, showArchived, onShowArchived, onCreate
 
 function ProductEntry({ product: p, showTeam }: { product: ProductSummary; showTeam: boolean }) {
   const nameId = `overview-product-${p.product_id}`;
+  // A reader has only the Story, so the other stages are neither linked nor counted.
+  const reader = p.your_role === "reader";
+  const stages = reader ? L1.filter((d) => d.id === "story") : L1;
   return (
     <li className="overview-product" aria-labelledby={nameId}>
       <div className="overview-product-main">
         <h3 id={nameId} className="overview-product-name">
-          <Link to={`/t/${p.path}/idea`}>{p.name}</Link>
+          <Link to={`/t/${p.path}/${productHome(p.your_role)}`}>{p.name}</Link>
         </h3>
-        {p.concept.trim() ? <p className="overview-product-concept">{p.concept}</p> : <p className="overview-product-concept faint">No product concept yet</p>}
+        {reader ? (
+          <p className="overview-product-concept faint">You read this product&rsquo;s Story.</p>
+        ) : p.concept?.trim() ? (
+          <p className="overview-product-concept">{p.concept}</p>
+        ) : (
+          <p className="overview-product-concept faint">No product concept yet</p>
+        )}
         <p className="overview-product-meta">
           {p.archived_at ? <StatusBadge tone="neutral">Archived</StatusBadge> : null}
           {showTeam ? `${p.team.name} · ` : null}Updated <span className="num">{relativeTime(p.updated_at)}</span>
         </p>
       </div>
       <nav className="overview-product-go" aria-label={`${p.name}: sections`}>
-        {L1.map((d) => {
-          const n = p.counts[d.count];
+        {stages.map((d) => {
+          const n = p.counts[d.count] ?? 0;
           const [one, many] = UNIT[d.id]!;
           return (
             <Link key={d.id} to={`/t/${p.path}/${d.id}`} className="overview-go">

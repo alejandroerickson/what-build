@@ -10,21 +10,22 @@ import { ULID_PATTERN } from "./util.ts";
  * | Level   | Roles                         | Grants                                                     |
  * |---------|-------------------------------|------------------------------------------------------------|
  * | Tenant  | owner, admin, member, visitor | owner/admin: admin of every team and product in the tenant |
- * | Team    | admin, editor, viewer         | the same role on every product in the team                 |
- * | Product | admin, editor, viewer         | that product only                                          |
+ * | Team    | admin, editor, viewer, reader | the same role on every product in the team                 |
+ * | Product | admin, editor, viewer, reader | that product only                                          |
  *
  * The effective role is the highest that applies; a product grant can raise access but never
  * lower an inherited one. A caller with no role on a product cannot see it at all: 404, never 403.
  * A caller who can see it but lacks the role gets 403 naming the role they have and the one needed.
+ * A `reader` reaches only the operations whose access is `story`: the Story, never the evidence.
  *
  * In a public sandbox only the tenant's owners and admins administer. A `visitor` is an editor of
  * every product there, and anyone else's role stops at editor.
  */
 
-const RANK: Record<ProductRole, number> = { viewer: 1, editor: 2, admin: 3 };
+const RANK: Record<ProductRole, number> = { reader: 0, viewer: 1, editor: 2, admin: 3 };
 const TENANT_RANK: Record<TenantRole, number> = { visitor: 0, member: 1, admin: 2, owner: 3 };
 
-export const PRODUCT_ROLES: ProductRole[] = ["viewer", "editor", "admin"];
+export const PRODUCT_ROLES: ProductRole[] = ["reader", "viewer", "editor", "admin"];
 export const TENANT_ROLES: TenantRole[] = ["member", "admin", "owner"];
 
 export function maxRole(a: ProductRole | null, b: ProductRole | null): ProductRole | null {
@@ -35,6 +36,11 @@ export function maxRole(a: ProductRole | null, b: ProductRole | null): ProductRo
 
 export function roleAtLeast(role: ProductRole | null, needed: ProductRole): boolean {
   return role !== null && RANK[role] >= RANK[needed];
+}
+
+/** A reader sees the Story without what it draws on: no references, cited passages or notes for agents. */
+export function readsOnlyTheStory(role: ProductRole | null): boolean {
+  return role === "reader";
 }
 
 export function tenantRoleAtLeast(role: TenantRole | null, needed: TenantRole): boolean {
@@ -100,7 +106,7 @@ export interface ScopeRef {
   product?: string;
 }
 
-const ACCESS_ROLE: Record<"read" | "write" | "admin", ProductRole> = { read: "viewer", write: "editor", admin: "admin" };
+const ACCESS_ROLE: Record<"story" | "read" | "write" | "admin", ProductRole> = { story: "reader", read: "viewer", write: "editor", admin: "admin" };
 
 /** Parse "tenant/team/product" or a bare product id. */
 export function parseProductRef(ref: string): ScopeRef {
@@ -209,7 +215,7 @@ export async function resolveScope(
       }
       throw hidden();
     }
-    if (access === "read" || access === "write" || access === "admin") {
+    if (access === "story" || access === "read" || access === "write" || access === "admin") {
       const needed = ACCESS_ROLE[access];
       if (!roleAtLeast(role, needed)) {
         const what = opScope === "product" ? `product ${product!.name}` : `team ${team!.name}`;
