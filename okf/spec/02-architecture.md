@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-10-01}
+generated: {by: agent:claude, at: 2026-10-07}
 status: stable
 ---
 
@@ -189,7 +189,7 @@ pnpm dev
 | Command | What it does |
 |---|---|
 | `pnpm install` | Node packages only. The Postgres server binaries arrive as an npm dependency (`embedded-postgres`). |
-| `pnpm dev` | Starts embedded Postgres in `.what-build/pg` (port 54329), runs migrations, seeds two accounts and the fully derived sample product, then runs the API with the worker in-process (port 8787) and Vite (port 5273), which proxies `/api`, `/auth`, `/oauth`, `/mcp` and `/.well-known` to the API ([`dev.ts`](../../apps/server/src/dev.ts)). |
+| `pnpm dev` | Starts embedded Postgres in `.what-build/pg` (port 54329), runs migrations, seeds three accounts and the fully derived sample product, then runs the API with the worker in-process (port 8787) and Vite (port 5273), which proxies `/api`, `/auth`, `/oauth`, `/mcp` and `/.well-known` to the API ([`dev.ts`](../../apps/server/src/dev.ts)). |
 | `DATABASE_URL=… pnpm dev` | Uses that Postgres instead of starting one. |
 | `pnpm test` | Vitest over three projects: parsers; the server, against a real embedded Postgres with a database per test file; and the web app under jsdom. |
 | `pnpm typecheck`, `pnpm build` | `tsc` over every package; the production web bundle and server bundle. |
@@ -199,7 +199,7 @@ Requirements this places on the design:
 
 - **No account anywhere.** Not for the database, the object store, email, or a model provider.
   There is no LLM in the product, so there is nothing to key ([§2.8](#28-cross-cutting-rules)).
-- **Sign-in is exercised, not bypassed.** The seed creates real accounts (an owner and an editor);
+- **Sign-in is exercised, not bypassed.** The seed creates real accounts (an owner, an editor and a Story reader);
   the console mailer prints sign-in links and invitations to the terminal. A development-only
   "sign in as" control exists and is refused unless `NODE_ENV` is not `production` (and
   `WHATBUILD_DEV_AUTH` is not `0`).

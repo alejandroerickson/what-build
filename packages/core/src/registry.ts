@@ -3,7 +3,8 @@ import type { ActorSnapshot, Tx } from "./db.ts";
 import type { Ports } from "./ports.ts";
 import type { SandboxContext } from "./public-sandbox.ts";
 
-export type ProductRole = "viewer" | "editor" | "admin";
+/** `reader` reads only the Story: its pages, their versions and their export. */
+export type ProductRole = "reader" | "viewer" | "editor" | "admin";
 /** `visitor` exists only in a public sandbox: an editor of every product there, and nothing more. */
 export type TenantRole = "visitor" | "member" | "admin" | "owner";
 
@@ -67,7 +68,8 @@ export interface OpContext {
 }
 
 export type OpScope = "product" | "team" | "tenant" | "account";
-export type OpAccess = "read" | "write" | "admin" | "owner" | "any";
+/** `story`: a Story read, open to readers; `read`: everything else a viewer may read. */
+export type OpAccess = "story" | "read" | "write" | "admin" | "owner" | "any";
 
 export interface OperationDef<I extends z.ZodType = z.ZodType, O = unknown> {
   /** `<group>.<action>`. The MCP tool and action default to the two halves. */

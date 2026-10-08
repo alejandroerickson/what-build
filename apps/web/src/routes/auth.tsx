@@ -41,6 +41,7 @@ export function EntryPage({ title, wide, children }: { title: string; wide?: boo
 const DEV_PEOPLE = [
   { email: "riley@example.com", name: "Riley Chen", role: "Owner of the sample organization" },
   { email: "sam@example.com", name: "Sam Okafor", role: "Editor on the sample products" },
+  { email: "jordan@example.com", name: "Jordan Ellis", role: "Reads only the Crewboard Story" },
 ];
 
 export function SignIn() {

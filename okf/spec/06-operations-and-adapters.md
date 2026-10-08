@@ -21,7 +21,7 @@ Every operation is declared once in `core` (`packages/core/src/registry.ts`):
 defineOperation({
   name: "assumptions.review",            // <tool>.<action>, or a bare name for a standalone tool
   scope: "product",                      // "product" | "team" | "tenant" | "account"
-  access: "write",                       // "read" | "write" | "admin" | "owner" | "any"
+  access: "write",                       // "story" | "read" | "write" | "admin" | "owner" | "any"
   mutates: true,                         // writes an activity event
   summary: "One line, shown in the tool's action list.",
   description: "Guidance returned by describe: when to use it, what it returns, pitfalls.",
@@ -160,7 +160,7 @@ being changed inside the handler.
 | `products` | `remove_tenant_allowance` | `POST /api/v1/tenant-allowances/remove` | instance owner |
 | `products` | `create_team` | `POST /api/v1/tenants/:tenant/teams` | tenant admin |
 | `products` | `create` | `POST /api/v1/teams/:tenant/:team/products` | team admin |
-| `products` | `get` | `GET P` | viewer |
+| `products` | `get` | `GET P` | reader |
 | `products` | `update` | `PATCH P` | admin |
 | `products` | `archive` | `POST P/archive` | admin |
 | `products` | `restore` | `POST P/restore` | admin |
@@ -242,15 +242,15 @@ being changed inside the handler.
 | `story` | `guidance` | `GET P/story/guidance` | viewer |
 | `story` | `get_style` | `GET P/story/style` | viewer |
 | `story` | `set_style` | `PUT P/story/style` | editor |
-| `story` | `list_pages` | `GET P/story/pages` | viewer |
-| `story` | `get_page` | `GET P/story/pages/:page_id` | viewer |
-| `story` | `list_versions` | `GET P/story/pages/:page_id/versions` | viewer |
-| `story` | `get_version` | `GET P/story/pages/:page_id/versions/:version` | viewer |
+| `story` | `list_pages` | `GET P/story/pages` | reader |
+| `story` | `get_page` | `GET P/story/pages/:page_id` | reader |
+| `story` | `list_versions` | `GET P/story/pages/:page_id/versions` | reader |
+| `story` | `get_version` | `GET P/story/pages/:page_id/versions/:version` | reader |
 | `story` | `publish` | `POST P/story/pages/:page_id/versions` | editor |
 | `story` | `write_notes` | `PUT P/story/pages/:page_id/notes` | editor |
 | `story` | `check_citations` | `GET P/story/pages/:page_id/check-citations` | viewer |
-| `story` | `print_view` | `GET P/story/print-view` | viewer |
-| `story` | `get_hierarchy` | `GET P/story/hierarchy` | viewer |
+| `story` | `print_view` | `GET P/story/print-view` | reader |
+| `story` | `get_hierarchy` | `GET P/story/hierarchy` | reader |
 | `story` | `set_hierarchy` | `PUT P/story/hierarchy` | editor |
 | `story` | `archive_page` | `POST P/story/pages/:page_id/archive` | editor |
 | `story` | `restore_page` | `POST P/story/pages/:page_id/restore` | editor |
@@ -291,6 +291,10 @@ Notes on recent actions:
 - `story.write_notes` replaces a page's notes for agents. The notes carry their own etag
   (`publish` → `agent_notes_etag`, `get_page` → `agent_notes.etag`), separate from the page etag,
   and are not versioned with the page. While the notes are empty the etag may be omitted.
+- A reader's `story.get_page`, `story.list_versions` and `story.get_version` leave out `refs`,
+  `resolved_refs`, `citations`, `citation_count` and `agent_notes`, and their `products.get` and
+  `products.list` leave out `concept` and count only `story_pages`
+  ([§3.5](03-accounts-teams-and-identity.md)).
 - `members.list` takes an optional `product` to list only the people who can reach it, each with
   `product_access { role, via }`.
 - `members.revoke` removes the grant at exactly the scope named; with `whole_tenant: true` (and no
@@ -336,7 +340,8 @@ unless a reset is due, and a due reset would run at the next request anyway
 **Story page HTML** is served with a sandbox policy that allows the page's inline scripts but no
 network, no same-origin access and no framing outside the app. `?theme=light|dark` writes the
 app's resolved theme onto the page's `<html>` for that response only; the stored HTML is
-unchanged.
+unchanged. It is a Story read, so a reader reaches it; a source's file, an export's file and the
+style specimens need viewer.
 
 ### The Story print view
 

@@ -53,7 +53,7 @@ adding a near-duplicate.
 |---|---|
 | `packages/core/src/ops/**`, `registry.ts`, `schemas.ts`, `errors.ts` | `spec/06` (the operation table and error codes); the operation and tool counts in `AGENTS.md`, `system/overview.md`, `system/repository-map.md`, `spec/10`; the decisions `one-registry-two-front-doors` and `mcp-tools-grouped-by-noun`; the product `SKILL.md` |
 | `apps/server/src/mcp.ts`, `rest.ts`, `public-routes.ts` | `spec/06`, `spec/02`, `system/overview.md` |
-| `packages/core/src/policy.ts`, roles, membership | `spec/03`, decision `access-is-per-product-roles`, `system/overview.md` |
+| `packages/core/src/policy.ts`, roles, membership | `spec/03`, decisions `access-is-per-product-roles` and `a-reader-reads-only-the-story`, `system/overview.md` |
 | `packages/core/src/connector-scope.ts`, `apps/server/src/auth/connector-reach.ts`, MCP endpoint paths | `spec/03` §3.6 and §3.8, `spec/06` §6.5 and §6.8, decision `a-scoped-mcp-connector-is-a-fence`, the product `SKILL.md` |
 | `apps/server/src/auth/**`, sessions, tokens | `spec/03`, decision `built-in-identity-and-oauth`; a sign-in method also the Sign-in sections of `operations/cloud-run.md` and `operations/azure.md` |
 | `apps/server/src/migrations/*.sql`, `packages/core/src/db.ts` | `spec/04`; tenancy or row-level security changes: decision `shared-schema-tenancy-with-row-level-security`; retention: `spec/09` |

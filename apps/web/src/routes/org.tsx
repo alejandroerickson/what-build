@@ -243,6 +243,7 @@ export function MembersPage() {
                 <div><dt>Admin</dt><dd>Also manages its settings and people</dd></div>
                 <div><dt>Editor</dt><dd>Reads and writes</dd></div>
                 <div><dt>Viewer</dt><dd>Reads</dd></div>
+                <div><dt>Reader</dt><dd>Reads only the Story</dd></div>
               </dl>
             </div>
           </div>
@@ -468,6 +469,7 @@ const ROLE_MEANING: Record<string, string> = {
 };
 const SCOPE_ROLE_MEANING: Record<string, string> = {
   viewer: "Reads everything, changes nothing.",
+  reader: "Reads only the Story: its pages, their versions and their export. Sees no evidence, insights, assumptions or decisions.",
   editor: "Reads and writes everything in the product, including the Story.",
   admin: "Reads and writes, and also manages settings and people.",
 };
@@ -487,15 +489,15 @@ function GiveAccessDialog({ tenant, orgName, initialEmail, onClose, canManage, t
   const t = products.data?.tenants.find((x) => x.slug === tenant);
   // Teams and products first: they are what lets someone open a product. The organization role comes last.
   const targets = [
-    ...(t?.teams ?? []).filter((tm) => canManage({ scope_type: "team", scope_id: tm.team_id, role: "editor" })).map((tm) => ({ value: tm.slug, label: `Team: ${tm.name} (every product in it)`, words: scopeWords("team", tm.name), roles: ["viewer", "editor", "admin"] })),
+    ...(t?.teams ?? []).filter((tm) => canManage({ scope_type: "team", scope_id: tm.team_id, role: "editor" })).map((tm) => ({ value: tm.slug, label: `Team: ${tm.name} (every product in it)`, words: scopeWords("team", tm.name), roles: ["reader", "viewer", "editor", "admin"] })),
     ...(products.data?.items ?? [])
       .filter((p) => p.tenant.slug === tenant && canManage({ scope_type: "product", scope_id: p.product_id, role: "editor" }))
-      .map((p) => ({ value: `${p.team.slug}/${p.path.split("/")[2]}`, label: `Product: ${p.name}`, words: p.name, roles: ["viewer", "editor", "admin"] })),
+      .map((p) => ({ value: `${p.team.slug}/${p.path.split("/")[2]}`, label: `Product: ${p.name}`, words: p.name, roles: ["reader", "viewer", "editor", "admin"] })),
     ...(tenantAdmin ? [{ value: "", label: `Organization: ${orgName}`, words: orgName, roles: ownerHere ? ["member", "admin", "owner"] : ["member", "admin"] }] : []),
   ];
   const [email, setEmail] = useState(initialEmail ?? "");
   const [target, setTarget] = useState(targets[0]?.value ?? "");
-  const roles = targets.find((x) => x.value === target)?.roles ?? ["viewer", "editor", "admin"];
+  const roles = targets.find((x) => x.value === target)?.roles ?? ["reader", "viewer", "editor", "admin"];
   const [role, setRole] = useState(target ? "editor" : "member");
   const [link, setLink] = useState<string | null>(null);
   const meaning = (target ? SCOPE_ROLE_MEANING : ROLE_MEANING)[role];

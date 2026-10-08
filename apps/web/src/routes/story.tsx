@@ -115,7 +115,7 @@ export function StoryFrame({
 
 export function StoryPage() {
   const { pageId } = useParams();
-  const { api: base, app, product } = useProduct();
+  const { api: base, app, product, storyOnly } = useProduct();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const scheme = useScheme();
@@ -202,16 +202,22 @@ export function StoryPage() {
         {tree}
         <Crumbs label="Page location" currentAsHeading items={[{ label: "Story" }]} />
         <Sheet label="Story">
-          <FirstUse title="No Story pages yet" ask={`Draft the first Story page for ${product.name} in WhatBuild from its outcomes and insights.`}>
-            The Story is a set of pages that tells stakeholders where this discovery stands, in your company&rsquo;s design system or a house style. Agents write and arrange it. You read it here and export it to PDF.
-            {style.data ? (
-              <p className="story-first-style">
-                <Button size="sm" variant="quiet" icon="palette" onClick={() => setStyling(true)}>
-                  Preview Story styles
-                </Button>
-              </p>
-            ) : null}
-          </FirstUse>
+          {storyOnly ? (
+            <EmptyState title="No Story pages yet">
+              The Story is a set of pages that tells stakeholders where this discovery stands. Its pages appear here once the product&rsquo;s team publishes them.
+            </EmptyState>
+          ) : (
+            <FirstUse title="No Story pages yet" ask={`Draft the first Story page for ${product.name} in WhatBuild from its outcomes and insights.`}>
+              The Story is a set of pages that tells stakeholders where this discovery stands, in your company&rsquo;s design system or a house style. Agents write and arrange it. You read it here and export it to PDF.
+              {style.data ? (
+                <p className="story-first-style">
+                  <Button size="sm" variant="quiet" icon="palette" onClick={() => setStyling(true)}>
+                    Preview Story styles
+                  </Button>
+                </p>
+              ) : null}
+            </FirstUse>
+          )}
         </Sheet>
         {dialogs}
       </div>

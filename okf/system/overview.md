@@ -63,8 +63,10 @@ row-level security. Blob keys start with the tenant. References never cross prod
 ([decision](../decisions/shared-schema-tenancy-with-row-level-security.md)).
 
 **Access.** Application-level, per product: roles at organization, team and product level, the
-highest applies, no per-object permissions. The database enforces only the tenant boundary. A
-token is the person ([decision](../decisions/access-is-per-product-roles.md),
+highest applies, no per-object permissions. A reader, the lowest team or product role, reaches
+only the Story ([decision](../decisions/a-reader-reads-only-the-story.md)). The database enforces
+only the tenant boundary. A token is the person
+([decision](../decisions/access-is-per-product-roles.md),
 [decision](../decisions/built-in-identity-and-oauth.md)).
 
 **The public sandbox.** A deployment may name one organization as its public sandbox

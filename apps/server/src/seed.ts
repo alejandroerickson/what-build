@@ -11,6 +11,7 @@ import type { Worker } from "./worker.ts";
 export const SEED_ACCOUNTS = [
   { email: "riley@example.com", display_name: "Riley Chen" },
   { email: "sam@example.com", display_name: "Sam Okafor" },
+  { email: "jordan@example.com", display_name: "Jordan Ellis" },
 ] as const;
 
 async function call(env: Env, who: Principal, name: string, input: Record<string, unknown>, ref: ScopeRef = {}) {
@@ -30,7 +31,7 @@ async function upload(env: Env, who: Principal, ref: ScopeRef, tenantId: string,
 }
 
 /**
- * Seed two accounts and a fully derived sample product, through the same operations the adapters
+ * Seed three accounts (an owner, an editor and a Story reader) and a fully derived sample product, through the same operations the adapters
  * use, so paths, attribution and activity match production. Idempotent: it does nothing if the
  * sample tenant already exists.
  */
@@ -53,6 +54,7 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
   await call(env, riley, "members.grant", { tenant, team, email: accounts[1]!.email, role: "editor" });
   const product = (await call(env, riley, "products.create", { tenant, team, name: SAMPLE.product, slug: "crewboard", concept: SAMPLE.concept })) as { product_id: string };
   const ref: ScopeRef = { product: product.product_id };
+  await call(env, riley, "members.grant", { tenant, team, product: "crewboard", email: accounts[2]!.email, role: "reader" });
 
   const outcomeIds: string[] = [];
   for (const o of SAMPLE.outcomes) outcomeIds.push(String((await call(env, riley, "outcomes.create", o, ref))["outcome_id"]));

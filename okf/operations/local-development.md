@@ -3,7 +3,7 @@ type: System Concept
 title: Running WhatBuild locally, testing it, and checking the interface
 description: The one-command development setup, the test and build commands, and the browser scripts.
 tags: [development, testing, local]
-generated: {by: agent:claude, at: 2026-10-03}
+generated: {by: agent:claude, at: 2026-10-07}
 status: stable
 ---
 
@@ -20,7 +20,8 @@ corepack pnpm dev
 `pnpm dev` (`apps/server/src/dev.ts`) starts an embedded Postgres on `:54329` (data in
 `.what-build/pg`), runs migrations and seeds the synthetic Crewboard product, then runs the API on
 `:8787`, the job worker in-process, and Vite on `:5273`. Open http://localhost:5273 and use the
-development sign-in (Riley Chen or Sam Okafor). Riley is the instance's owner
+development sign-in (Riley Chen, Sam Okafor, or Jordan Ellis, a reader who sees only Crewboard's
+Story). Riley is the instance's owner
 (`WHATBUILD_INSTANCE_OWNERS` defaults to Riley's address here), so Riley sees **Organization
 creators**, where the seed lets Sam create one organization. Files go to `.what-build/blobs`; sign-in links are
 printed to the terminal.

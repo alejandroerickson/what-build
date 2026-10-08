@@ -14,16 +14,24 @@ export interface Me {
   tenant_allowance: { instance_owner: boolean; allowed: number | null; created: number; remaining: number | null; source: "instance_owner" | "given" | "default" };
 }
 
+/** `reader` reads only the Story: the server sends it no concept, and counts of Story pages only. */
+export type ProductRole = "reader" | "viewer" | "editor" | "admin";
+
+/** Where a product opens for this role: a reader has only the Story. */
+export function productHome(role: ProductRole): "story" | "idea" {
+  return role === "reader" ? "story" : "idea";
+}
+
 export interface ProductSummary {
   product_id: string;
   path: string;
   name: string;
-  concept: string;
+  concept?: string;
   archived_at: string | null;
   updated_at: string;
   tenant: { tenant_id: string; slug: string; name: string; sandbox?: boolean };
   team: { team_id: string; slug: string; name: string };
-  your_role: "viewer" | "editor" | "admin";
+  your_role: ProductRole;
   counts: Product["counts"];
 }
 
@@ -66,14 +74,16 @@ export interface Product {
   product_id: string;
   slug: string;
   name: string;
-  concept: string;
+  /** Absent for a reader. */
+  concept?: string;
   archived_at: string | null;
   etag: string;
   path: string;
   tenant: { tenant_id: string; slug: string; name: string; sandbox?: boolean };
   team: { team_id: string; slug: string; name: string };
-  your_role: "viewer" | "editor" | "admin";
-  counts: { sources: number; outcomes: number; insights: number; assumptions: number; decisions: number; story_pages: number };
+  your_role: ProductRole;
+  /** A reader gets story_pages only. */
+  counts: { story_pages: number } & Partial<Record<"sources" | "outcomes" | "insights" | "assumptions" | "decisions", number>>;
 }
 
 interface ProductCtx {
@@ -84,6 +94,8 @@ interface ProductCtx {
   app: string;
   canWrite: boolean;
   isAdmin: boolean;
+  /** A reader: the Story is all there is of the product for them. */
+  storyOnly: boolean;
 }
 
 const ProductContext = createContext<ProductCtx | null>(null);
@@ -104,6 +116,7 @@ export function ProductProvider({ children, fallback }: { children: (ctx: Produc
     app: `/t/${path}`,
     canWrite: (q.data.your_role === "editor" || q.data.your_role === "admin") && !q.data.archived_at,
     isAdmin: q.data.your_role === "admin",
+    storyOnly: q.data.your_role === "reader",
   };
   try {
     localStorage.setItem("whatbuild.last-product", path);

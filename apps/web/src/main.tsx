@@ -8,7 +8,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, useParams, useRouteError } from "react-router";
 import { ApiError, setUnauthenticatedHandler } from "./lib/api.ts";
-import { ProductProvider, RequireSession } from "./lib/session.tsx";
+import { productHome, ProductProvider, RequireSession, useProduct } from "./lib/session.tsx";
 import { ConnectPage } from "./routes/connect.tsx";
 import { CookiesPage } from "./routes/cookies.tsx";
 import { AcceptInvite, NotFound, SignIn } from "./routes/auth.tsx";
@@ -94,6 +94,18 @@ function BareProductPath() {
   return <Navigate replace to={`/t/${tenant}/${team}/${product}${rest ? `/${rest}` : ""}${search}${hash}`} />;
 }
 
+/** A product opens on Idea, or on the Story for a reader. */
+function ProductHome() {
+  const { product } = useProduct();
+  return <Navigate to={productHome(product.your_role)} replace />;
+}
+
+/** Every screen of a product but the Story: a reader, who has only the Story, is taken there. */
+function NotForStoryReaders() {
+  const { app, storyOnly } = useProduct();
+  return storyOnly ? <Navigate to={`${app}/story`} replace /> : <Outlet />;
+}
+
 /** Every screen, signed in or not, with the cookie notice in its corner until it is dismissed. */
 function Root() {
   return (
@@ -140,36 +152,41 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
           </ProductProvider>
         ),
         children: [
-          { index: true, element: <Navigate to="idea" replace /> },
-          { path: "idea", element: <IdeaPage /> },
-          { path: "evidence", element: <EvidencePage /> },
-          { path: "evidence/new", element: <SourceNewPage /> },
-          { path: "evidence/:recordId", element: <SourceDetailPage /> },
-          { path: "search", element: <SearchPage /> },
-          {
-            path: "synthesis",
-            element: <SynthesisSection />,
-            children: [
-              { index: true, element: <Navigate to="insights" replace /> },
-              { path: "insights", element: <InsightsPage /> },
-              { path: "insights/new", element: <InsightEditPage /> },
-              { path: "insights/:insightId", element: <InsightPage /> },
-              { path: "insights/:insightId/edit", element: <InsightEditPage /> },
-              { path: "assumptions", element: <RegisterListPage kind="assumptions" /> },
-              { path: "assumptions/new", element: <EntryEditPage kind="assumptions" /> },
-              { path: "assumptions/:id", element: <RegisterEntryPage kind="assumptions" /> },
-              { path: "assumptions/:id/edit", element: <EntryEditPage kind="assumptions" /> },
-              { path: "decisions", element: <RegisterListPage kind="decisions" /> },
-              { path: "decisions/new", element: <EntryEditPage kind="decisions" /> },
-              { path: "decisions/:id", element: <RegisterEntryPage kind="decisions" /> },
-              { path: "decisions/:id/edit", element: <EntryEditPage kind="decisions" /> },
-            ],
-          },
+          { index: true, element: <ProductHome /> },
           { path: "story", element: <StoryPage /> },
           { path: "story/:pageId", element: <StoryPage /> },
-          { path: "connect", element: <ConnectPage /> },
-          { path: "activity", element: <ActivityPage /> },
-          { path: "settings", element: <ProductSettingsPage /> },
+          {
+            element: <NotForStoryReaders />,
+            children: [
+              { path: "idea", element: <IdeaPage /> },
+              { path: "evidence", element: <EvidencePage /> },
+              { path: "evidence/new", element: <SourceNewPage /> },
+              { path: "evidence/:recordId", element: <SourceDetailPage /> },
+              { path: "search", element: <SearchPage /> },
+              {
+                path: "synthesis",
+                element: <SynthesisSection />,
+                children: [
+                  { index: true, element: <Navigate to="insights" replace /> },
+                  { path: "insights", element: <InsightsPage /> },
+                  { path: "insights/new", element: <InsightEditPage /> },
+                  { path: "insights/:insightId", element: <InsightPage /> },
+                  { path: "insights/:insightId/edit", element: <InsightEditPage /> },
+                  { path: "assumptions", element: <RegisterListPage kind="assumptions" /> },
+                  { path: "assumptions/new", element: <EntryEditPage kind="assumptions" /> },
+                  { path: "assumptions/:id", element: <RegisterEntryPage kind="assumptions" /> },
+                  { path: "assumptions/:id/edit", element: <EntryEditPage kind="assumptions" /> },
+                  { path: "decisions", element: <RegisterListPage kind="decisions" /> },
+                  { path: "decisions/new", element: <EntryEditPage kind="decisions" /> },
+                  { path: "decisions/:id", element: <RegisterEntryPage kind="decisions" /> },
+                  { path: "decisions/:id/edit", element: <EntryEditPage kind="decisions" /> },
+                ],
+              },
+              { path: "connect", element: <ConnectPage /> },
+              { path: "activity", element: <ActivityPage /> },
+              { path: "settings", element: <ProductSettingsPage /> },
+            ],
+          },
         ],
       },
       { path: "/:tenant/:team/:product/*", element: <BareProductPath /> },

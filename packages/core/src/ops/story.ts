@@ -4,6 +4,7 @@ import { checkEtag, EMPTY_REFS, productId, recordActivity, tenantId, validateRef
 import { checkCitationList, CITATION_MAX_COUNT, citationInput, citationViews, snapshotAll } from "../citations.ts";
 import { json, type Refs, type StoryNode } from "../db.ts";
 import { conflict, invalid, notFound } from "../errors.ts";
+import { readsOnlyTheStory } from "../policy.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag, id } from "../schemas.ts";
 import { escapeHtml, inspectStoryCss, inspectStoryHtml, STORY_CSS_MAX, STORY_HTML_MAX } from "../story-html.ts";
@@ -210,7 +211,7 @@ export const setStyle = defineOperation({
 export const listPages = defineOperation({
   name: "story.list_pages",
   scope: "product",
-  access: "read",
+  access: "story",
   mutates: false,
   summary: "The Story's pages, without HTML: title, summary, current version and etag.",
   description: "Archived pages are left out unless include_archived. The hierarchy (get_hierarchy) is the reader's navigation.",
@@ -273,17 +274,22 @@ async function resolveRefs(ctx: OpContext, refs: Refs): Promise<Record<keyof Ref
   };
 }
 
+/**
+ * A version as its reader may see it. A Story reader gets the page itself and how it was published;
+ * what it draws on (refs, cited passages) belongs to the evidence, which a reader does not browse.
+ */
 async function versionView(ctx: OpContext, versionId: string, withHtml: boolean) {
   const v = await ctx.db.selectFrom("story_versions").selectAll().where("version_id", "=", versionId).where("product_id", "=", productId(ctx)).executeTakeFirstOrThrow();
+  const drawsOn = readsOnlyTheStory(ctx.scope.role)
+    ? {}
+    : { refs: v.refs, resolved_refs: await resolveRefs(ctx, v.refs), citations: await citationViews(ctx, v.citations) };
   return {
     version_id: v.version_id,
     version: v.n,
     page_id: v.page_id,
     title: v.title,
     summary: v.summary,
-    refs: v.refs,
-    resolved_refs: await resolveRefs(ctx, v.refs),
-    citations: await citationViews(ctx, v.citations),
+    ...drawsOn,
     published_at: v.created_at,
     published_by: v.created_by,
     html_sha256: sha256Hex(v.html),
@@ -294,24 +300,25 @@ async function versionView(ctx: OpContext, versionId: string, withHtml: boolean)
 export const getPage = defineOperation({
   name: "story.get_page",
   scope: "product",
-  access: "read",
+  access: "story",
   mutates: false,
   summary: "Read a Story page's current version, with its HTML, citations, notes for agents, and the page etag you need to publish again.",
   description:
-    "404 means the page has never been published. An archived page stays readable here. Read this before revising a page, and keep what is useful. agent_notes holds what agents keep about the page — its purpose, sources still to fold in, structural decisions — with its own etag for write_notes; read it before revising. include_html false leaves out the HTML (html_chars and html_sha256 stay).",
+    "404 means the page has never been published. An archived page stays readable here. Read this before revising a page, and keep what is useful. agent_notes holds what agents keep about the page — its purpose, sources still to fold in, structural decisions — with its own etag for write_notes; read it before revising. include_html false leaves out the HTML (html_chars and html_sha256 stay). A reader (the Story-only role) gets the page without agent_notes, refs, resolved_refs or citations.",
   input: z.strictObject({ page_id: pageId, include_html: z.boolean().default(true) }),
   rest: { method: "GET", path: "/story/pages/:page_id" },
   mcp: { tool: "story", action: "get_page" },
   async handler(ctx, input) {
     const p = await loadPage(ctx, input.page_id);
-    return { ...pageSummary(p), agent_notes: notesView(p), current: await versionView(ctx, p.current_version_id, input.include_html) };
+    const notes = readsOnlyTheStory(ctx.scope.role) ? {} : { agent_notes: notesView(p) };
+    return { ...pageSummary(p), ...notes, current: await versionView(ctx, p.current_version_id, input.include_html) };
   },
 });
 
 export const listVersions = defineOperation({
   name: "story.list_versions",
   scope: "product",
-  access: "read",
+  access: "story",
   mutates: false,
   summary: "A page's published versions, newest first, without HTML.",
   description:
@@ -329,7 +336,8 @@ export const listVersions = defineOperation({
       .where("page_id", "=", input.page_id);
     if (input.before) q = q.where("n", "<", input.before);
     const rows = await q.orderBy("n", "desc").limit(input.limit + 1).execute();
-    const items = rows.slice(0, input.limit).map((v) => ({ version_id: v.version_id, version: v.n, title: v.title, summary: v.summary, citation_count: v.citations.length, html_sha256: v.html_sha256, published_at: v.created_at, published_by: v.created_by }));
+    const reader = readsOnlyTheStory(ctx.scope.role);
+    const items = rows.slice(0, input.limit).map((v) => ({ version_id: v.version_id, version: v.n, title: v.title, summary: v.summary, ...(reader ? {} : { citation_count: v.citations.length }), html_sha256: v.html_sha256, published_at: v.created_at, published_by: v.created_by }));
     return { items, next_before: rows.length > input.limit ? items[items.length - 1]!.version : null };
   },
 });
@@ -337,10 +345,10 @@ export const listVersions = defineOperation({
 export const getVersion = defineOperation({
   name: "story.get_version",
   scope: "product",
-  access: "read",
+  access: "story",
   mutates: false,
   summary: "Read one published version of a page, by number.",
-  description: "Includes the page's current archived_at, so a reader browsing history still sees an archive notice.",
+  description: "Includes the page's current archived_at, so a reader browsing history still sees an archive notice. A reader (the Story-only role) gets it without refs, resolved_refs or citations.",
   input: z.strictObject({ page_id: pageId, version: z.number().int().min(1), include_html: z.boolean().default(true) }),
   rest: { method: "GET", path: "/story/pages/:page_id/versions/:version" },
   mcp: { tool: "story", action: "get_version" },
@@ -546,7 +554,7 @@ async function isPlaced(ctx: OpContext, page: string) {
 export const getHierarchy = defineOperation({
   name: "story.get_hierarchy",
   scope: "product",
-  access: "read",
+  access: "story",
   mutates: false,
   summary: "The Story's navigation tree with its own etag, enriched with each page's current title and summary.",
   description:
@@ -770,7 +778,7 @@ function printPath(ctx: OpContext, ids: string[]) {
 export const printView = defineOperation({
   name: "story.print_view",
   scope: "product",
-  access: "read",
+  access: "story",
   mutates: false,
   summary: "Plan a print view of chosen Story pages, to save as PDF from a browser: their order, heading levels and the view's address.",
   description:
@@ -797,7 +805,7 @@ export const printView = defineOperation({
 export const printDocument = defineOperation({
   name: "story.print_view",
   scope: "product",
-  access: "read",
+  access: "story",
   mutates: false,
   summary: printView.summary,
   description: printView.description,

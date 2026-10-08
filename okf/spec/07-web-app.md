@@ -55,6 +55,9 @@ the browser's back button and "open in new tab" both work.
   Insights; insights, assumptions and decisions are three lists side by side in its panel.
   Search belongs to Evidence. The app's URLs follow the areas (`/evidence`, `/synthesis/…`); REST
   and MCP name the objects (`sources`, `insights`).
+- **A reader** ([§3.5](03-accounts-teams-and-identity.md)) has only the Story: L1 is **Story**
+  alone with its count, and the quiet group is gone. The product opens on the Story, and any other
+  product screen, opened by a link or typed, takes a reader to the Story.
 - **A context slot** under the navigation, which the screen fills: the page tree on Story, find
   and filters on Evidence, the three lists and their filters on Synthesis.
 - **The footer** holds the account menu, which is about the person: their email; each
@@ -101,7 +104,8 @@ place.
    product grouped by organization and team, and offers New product, which opens in place.
 3. **Switching product keeps the section**: from Evidence in product A to Evidence in product B.
    Idea, Evidence, Synthesis, Story, Connect an agent, Activity, Search and Settings carry over; anything else
-   (a record id, an insight) lands on Idea.
+   (a record id, an insight) lands on Idea. Switching to a product where the person is a reader
+   lands on its Story.
 4. The product is in the URL path (`/t/<tenant>/<team>/<product>/…`). Opening a link to another
    product simply works, and becomes the remembered one.
 5. `/` opens the overview for anyone in an organization, and first run for anyone in none. The
@@ -122,7 +126,8 @@ quiet, the WhatBuild journey: Idea, Evidence, Synthesis and Story, each with a l
 it holds. It carries no counts; those are on each product below. Below, one sheet per organization, headed by its name alone, lists its active products (name,
 product concept, last update, and the team only when the organization has more than one), each
 with links to Idea, Evidence, Synthesis and Story and their counts, so any section of any product
-is one click away. Team admins get **New product**, a dialog on the overview (`?create=1`), so
+is one click away. A product where the person is a reader says "You read this product's Story."
+in place of its concept, and links to the Story alone, with its count. Team admins get **New product**, a dialog on the overview (`?create=1`), so
 cancelling leaves the person there; it asks for a team only when they can create in more than one.
 An organization with no product the person can see says so, and says who can create one. The
 overview is the only list of products: `/products` redirects to it. Roles are not shown here; the
@@ -438,6 +443,10 @@ that changes it ([decision](../decisions/agents-maintain-the-story-people-read-i
   - **Notes for agents:** the page's Markdown notes, which agents read before revising the page and
     update after publishing (what it is for, sources still to fold in, decisions about structure).
     Read-only here, and not versioned with the page.
+  - A reader gets About alone: Draws on, Cited passages and Notes for agents are left out, since
+    the server sends a reader none of them ([§3.5](03-accounts-teams-and-identity.md)). The Story
+    style row under the tree is left out too, and a Story with no pages says that they appear once
+    the product's team publishes them.
 - **Export to PDF.** The dialog lists every page as checkboxes, in tree order, then unplaced and
   archived pages, with Select all, Clear and a count; it opens with the page or pages it was
   asked for already selected, and the person can change the selection. It says what the PDF holds:
@@ -492,7 +501,7 @@ never described as deleting. A list row showing an archived object says *Archive
 
 - **Members** (`/t/<tenant>/members`, from the organization in the account menu, titled
   "Members"). A key to the roles (organization: owner, admin, member;
-  team or product: admin, editor, viewer), then everyone in the organization in two layers: their
+  team or product: admin, editor, viewer, reader), then everyone in the organization in two layers: their
   **organization** role (member when they have none of their own) and their **access**, the team
   and product roles that decide which products they can open. A member with no access says so and
   offers Give access. Removing a team or product role takes effect at once with Undo, except a
@@ -520,7 +529,7 @@ never described as deleting. A list row showing an archived object says *Archive
   export; the organization; and archive or restore. **People** lists everyone who can reach this
   product and how, in words: a product role, or a role inherited from the team or the
   organization (`members.list` with `product`). Product admins get a role picker (admin, editor,
-  viewer) for product roles, **Add people** (pick someone already in the organization, or invite by
+  viewer, reader) for product roles, **Add people** (pick someone already in the organization, or invite by
   email; `members.grant` with the product scope), Remove (revokes the product role only), and
   outstanding invitations with a cancel control. An inherited role links to the organization's
   Members, where it is changed. Access is per product; nothing is granted per page or per source.

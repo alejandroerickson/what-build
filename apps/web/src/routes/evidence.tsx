@@ -372,7 +372,7 @@ export function EvidencePage() {
             <ErrorCallout inset title="Sources could not be loaded" error={q.error} onRetry={() => q.refetch()} />
           </div>
         ) : !records.length ? (
-          active.length && product.counts.sources > 0 ? (
+          active.length && (product.counts.sources ?? 0) > 0 ? (
             <EmptyState size="inline" title="No sources match these filters" action={<ButtonLink to={`${app}/evidence`}>Clear filters</ButtonLink>} />
           ) : (
             <FirstUse title="No sources yet" ask={`Add these interview notes to ${product.name} in WhatBuild as sources.`}>

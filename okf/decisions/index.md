@@ -22,6 +22,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [MCP exposes 17 tools, grouped by the kind of object, with an action parameter](mcp-tools-grouped-by-noun.md)
 - [Tenants share one schema, partitioned by key and enforced three times](shared-schema-tenancy-with-row-level-security.md)
 - [Access is decided in the application, per product, by role](access-is-per-product-roles.md)
+- [A reader reads only the Story, never the evidence behind it](a-reader-reads-only-the-story.md)
 - [WhatBuild runs its own sign-in and its own OAuth 2.1 server for agents](built-in-identity-and-oauth.md)
 - [A scoped MCP connector is a fence, not a default](a-scoped-mcp-connector-is-a-fence.md)
 - [An invitation is accepted only by the account with the address it was sent to](invitations-belong-to-their-address.md)
