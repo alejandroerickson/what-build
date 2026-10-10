@@ -1,0 +1,147 @@
+import { BASELINE_TABLES, hashParts, inputFingerprint, isCurrent, json, newId, partHash, type Db, type LineageInput } from "@whatbuild/core";
+import type pg from "pg";
+
+/**
+ * Shaping a restored copy of production into the end-to-end golden master
+ * (okf/operations/end-to-end-tests.md): only the public sandbox's organization stays, and a second
+ * organization, not a sandbox, gets a copy of its content under new ids, so every plan can run the
+ * same products both ways. Run as the embedded server's superuser, which row-level security does
+ * not restrict.
+ */
+
+const ID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
+
+/** Columns that hold file storage keys. The copy shares the files: blobs are immutable, and keys are never parsed back into ids. */
+const SHARED = (column: string) => column.includes("blob");
+
+async function tablesWith(c: pg.Client, column: string) {
+  const r = await c.query<{ table_name: string }>(
+    "select table_name from information_schema.columns where table_schema = 'public' and column_name = $1 and table_name <> 'tenants' order by 1",
+    [column],
+  );
+  return r.rows.map((x) => x.table_name);
+}
+
+async function storedColumns(c: pg.Client, table: string) {
+  const r = await c.query<{ attname: string }>(
+    "select attname from pg_attribute where attrelid = to_regclass($1) and attnum > 0 and not attisdropped and attgenerated = '' order by attnum",
+    [`public.${table}`],
+  );
+  return r.rows.map((x) => x.attname);
+}
+
+/**
+ * Remove every organization but one, the accounts that belong to none of what is left, and what
+ * only a running deployment needs: sessions, tokens, sign-in links, the public site's interest
+ * list. Foreign keys are checked once at the end rather than ordered table by table.
+ */
+export async function keepOnlyTenant(c: pg.Client, tenantId: string) {
+  await c.query("begin");
+  try {
+    await c.query("set local session_replication_role = replica");
+    for (const t of await tablesWith(c, "tenant_id")) await c.query(`delete from ${t} where tenant_id is distinct from $1`, [tenantId]);
+    await c.query("delete from tenants where tenant_id <> $1", [tenantId]);
+    for (const t of ["sessions", "oauth_codes", "oauth_tokens", "oauth_clients", "email_tokens", "interest"]) await c.query(`delete from ${t}`);
+    await c.query("delete from accounts a where not exists (select 1 from memberships m where m.account_id = a.account_id)");
+    await c.query("delete from tenant_allowances t where not exists (select 1 from accounts a where lower(a.email) = lower(t.email))");
+    await c.query("commit");
+  } catch (e) {
+    await c.query("rollback");
+    throw e;
+  }
+  await checkReferences(c);
+}
+
+/** Every foreign key holds: a deletion with checks off left nothing pointing at a row that is gone. */
+export async function checkReferences(c: pg.Client) {
+  const fks = await c.query<{ child: string; parent: string; cols: string[]; pcols: string[] }>(`
+    select conrelid::regclass::text as child, confrelid::regclass::text as parent,
+      array(select attname::text from pg_attribute where attrelid = conrelid and attnum = any(conkey) order by array_position(conkey, attnum)) as cols,
+      array(select attname::text from pg_attribute where attrelid = confrelid and attnum = any(confkey) order by array_position(confkey, attnum)) as pcols
+    from pg_constraint where contype = 'f' and connamespace = 'public'::regnamespace`);
+  const broken: string[] = [];
+  for (const fk of fks.rows) {
+    const notNull = fk.cols.map((col) => `c.${col} is not null`).join(" and ");
+    const match = fk.cols.map((col, i) => `p.${fk.pcols[i]} = c.${col}`).join(" and ");
+    const r = await c.query<{ n: number }>(`select count(*)::int as n from ${fk.child} c where ${notNull} and not exists (select 1 from ${fk.parent} p where ${match})`);
+    if (r.rows[0]!.n) broken.push(`${r.rows[0]!.n} rows of ${fk.child} (${fk.cols.join(", ")}) point at missing ${fk.parent}`);
+  }
+  if (broken.length) throw new Error(`The golden master would have broken references:\n  ${broken.join("\n  ")}`);
+}
+
+/**
+ * Copy one organization's content into a new organization that is not a sandbox: its teams,
+ * products and everything in them, the activity log and the memberships, with every id made new and
+ * every reference to an old id, in any column or JSON, pointing at the new one. Files are shared.
+ */
+export async function copyTenant(c: pg.Client, fromTenantId: string, slug: string, name: string) {
+  // The copy may be from before some of these tables existed: its own migrations come later.
+  const present = new Set(await tablesWith(c, "tenant_id"));
+  const tables = [...BASELINE_TABLES, "memberships"].filter((t) => present.has(t));
+  const people = (await c.query<{ account_id: string; sandbox_only: boolean }>("select account_id, sandbox_only from accounts")).rows;
+  const accounts = new Set(people.map((p) => p.account_id));
+  // An account made for the sandbox belongs to nothing else.
+  const visitors = new Set(people.filter((p) => p.sandbox_only).map((p) => p.account_id));
+  const rows = new Map<string, Record<string, unknown>[]>();
+  for (const t of tables) rows.set(t, (await c.query<{ row: Record<string, unknown> }>(`select to_jsonb(x) as row from ${t} x where tenant_id = $1`, [fromTenantId])).rows.map((r) => r.row));
+
+  // Every id the organization's rows name, other than people's: those are the ones made new.
+  const ids = new Map<string, string>([[fromTenantId, newId()]]);
+  for (const list of rows.values())
+    for (const row of list)
+      for (const [col, v] of Object.entries(row)) if ((col.endsWith("_id") || col === "id") && typeof v === "string" && ID.test(v) && !accounts.has(v) && !ids.has(v)) ids.set(v, newId());
+  const pattern = new RegExp([...ids.keys()].join("|"), "g");
+  const remap = (v: unknown): unknown =>
+    typeof v === "string" ? v.replace(pattern, (m) => ids.get(m)!) : Array.isArray(v) ? v.map(remap) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, remap(x)])) : v;
+
+  await c.query("begin");
+  try {
+    const t = (await c.query<{ row: Record<string, unknown> }>("select to_jsonb(t) as row from tenants t where tenant_id = $1", [fromTenantId])).rows[0]!.row;
+    await c.query("insert into tenants select * from jsonb_populate_record(null::tenants, $1)", [{ ...t, tenant_id: ids.get(fromTenantId), slug, name, sandbox: false }]);
+    for (const table of tables) {
+      const cols = await storedColumns(c, table);
+      const list = rows
+        .get(table)!
+        .map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, SHARED(k) ? v : remap(v)])))
+        .filter((row) => table !== "memberships" || !visitors.has(row["account_id"] as string));
+      for (let i = 0; i < list.length; i += 500)
+        await c.query(`insert into ${table} (${cols.join(", ")}) select ${cols.join(", ")} from jsonb_populate_recordset(null::${table}, $1)`, [JSON.stringify(list.slice(i, i + 500))]);
+    }
+    await c.query("commit");
+  } catch (e) {
+    await c.query("rollback");
+    throw e;
+  }
+  await checkReferences(c);
+  return ids;
+}
+
+/**
+ * A view's lineage fingerprints its inputs, and a fingerprint covers ids (a source's file version and
+ * derivation, an assumption's citations), so the copy's ids would make every view's inputs look
+ * changed. Where an input was current in the original, its fingerprint and parts are taken again
+ * from the copy; where it had changed, it stays changed in the same parts.
+ */
+export async function refreshCopiedLineage(db: Db, ids: Map<string, string>) {
+  const original = new Map([...ids].map(([from, to]) => [to, from]));
+  const rows = await db.selectFrom("lineage").select(["record_id", "product_id", "inputs"]).execute();
+  for (const row of rows.filter((r) => original.has(r.product_id))) {
+    const inputs: LineageInput[] = [];
+    for (const input of row.inputs) {
+      const was = await inputFingerprint(db, original.get(row.product_id)!, { kind: input.kind, id: original.get(input.id) ?? input.id });
+      const now = await inputFingerprint(db, row.product_id, input);
+      if (now.fingerprint && now.parts && isCurrent(input, was)) {
+        // Current in the original, by the same rule check uses: current in the copy, fingerprinted as it is there.
+        inputs.push({ kind: input.kind, id: input.id, fingerprint: now.fingerprint, parts: hashParts(now.parts) });
+        continue;
+      }
+      // Changed in the original: each part that still matched there is taken again from the copy, so
+      // the copy reports the same parts changed.
+      const parts = input.parts && was.parts && now.parts
+        ? Object.fromEntries(Object.entries(input.parts).map(([k, h]) => [k, k in was.parts!.values && h === partHash(was.parts!.values[k]) ? partHash(now.parts!.values[k]) : h]))
+        : input.parts;
+      inputs.push({ ...input, ...(parts ? { parts } : {}) });
+    }
+    await db.updateTable("lineage").set({ inputs: json(inputs) }).where("record_id", "=", row.record_id).execute();
+  }
+}

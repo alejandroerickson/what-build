@@ -43,6 +43,7 @@ The domain is **what-build.com**, with a hyphen: the public site at `what-build.
 | `packages/parsers` | Pure bytes-to-passages parsers. |
 | `apps/server` | Hono server: REST, MCP, identity and OAuth, uploads, worker, migrations, seed. |
 | `apps/web` | React app on the Studio design system. |
+| `e2e/plans` | End-to-end test plans an agent runs through the web app and MCP (`okf/operations/end-to-end-tests.md`). |
 | `PRODUCT.md`, `DESIGN.md` | Product and design records, read by design tooling. |
 
 ## Skills
@@ -62,6 +63,7 @@ that folder. If your tool does not load skills, read the `SKILL.md` files direct
 | `test-on-a-copy-of-production` | When asked to QA or test end to end on real data, or to try migrations on a copy of production. |
 | `audit-for-leaks` | When asked to check the repository or its history for secrets or private material, when something may have leaked, or to make the repository public. |
 | `triage-security-findings` | When `pnpm security`, the Security or CodeQL workflow, or Dependabot reports something; when adding or upgrading a dependency; before a release. |
+| `run-end-to-end-tests` | When asked to run the end-to-end, smoke or acceptance tests or a test plan, to QA the app through the browser and MCP, or to build the golden master. |
 
 ## Before you change anything
 

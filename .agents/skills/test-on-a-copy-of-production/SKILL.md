@@ -47,7 +47,9 @@ Read it before the first command. This file says how to conduct the work.
 
    Prefer them over an account from the copy, so that nothing you do is attributed to a real
    person. In a browser script, use `POST /auth/dev-sign-in` with `{"email": …}` from the page.
-6. **Test** what the person asked about. To start again from the pulled state, stop the server and
+6. **Test** what the person asked about. To run the end-to-end test plans on the copy rather than
+   test by hand, build the golden master from the pull (`pnpm e2e golden`) and use the
+   `run-end-to-end-tests` skill. To start again from the pulled state, stop the server and
    load again.
 7. **Report** to the person:
    - which pull you used;

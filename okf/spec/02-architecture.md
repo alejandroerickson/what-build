@@ -199,6 +199,7 @@ pnpm dev
 | `pnpm test` | Vitest over three projects: parsers; the server, against a real embedded Postgres with a database per test file; and the web app under jsdom. |
 | `pnpm typecheck`, `pnpm build` | `tsc` over every package; the production web bundle and server bundle. |
 | `node scripts/e2e.mjs` | Drives the real UI through the loop against a running `pnpm dev`, with a locally installed Chrome. |
+| `pnpm e2e golden`, `pnpm dev:e2e` | Build a golden master from a pull of production, then serve a fresh copy of it on its own embedded Postgres (port 54339), API (8797) and Vite (5283), where an agent runs the [end-to-end test plans](../operations/end-to-end-tests.md) through the browser and MCP. |
 
 Requirements this places on the design:
 
@@ -286,6 +287,7 @@ apps/
                     CLI commands serve, worker, migrate, seed
   web/              React SPA
 scripts/            gen-skill (embeds SKILL.md), e2e and screenshot scripts
+e2e/plans/          end-to-end test plans an agent runs through the web app and MCP
 deploy/cloud-run/   the setup script (the deployment guide is okf/operations/cloud-run.md)
 Dockerfile · cloudbuild.yaml
 okf/                this knowledge bundle, including this specification (okf/spec/)

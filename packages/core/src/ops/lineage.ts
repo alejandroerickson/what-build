@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { productId, recordActivity, tenantId } from "../common.ts";
-import { json, type LineageInput } from "../db.ts";
+import { json, type Db, type LineageInput } from "../db.ts";
 import { conflict, invalid, notFound } from "../errors.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { id } from "../schemas.ts";
@@ -17,22 +17,26 @@ interface Parts {
   changedAt: Record<string, string | null>;
 }
 
-interface Fingerprint {
+export interface Fingerprint {
   fingerprint: string | null;
   status: Exclude<Status, "changed" | "current"> | "ok";
   parts?: Parts;
 }
 
 /** A short hash of one part's value: enough to tell that it changed, without storing the content. */
-const partHash = (value: unknown) => sha256Hex(canonicalJson(value)).slice(0, 16);
+export const partHash = (value: unknown) => sha256Hex(canonicalJson(value)).slice(0, 16);
 
-const hashParts = (parts: Parts): Record<string, string> => Object.fromEntries(Object.entries(parts.values).map(([k, v]) => [k, partHash(v)]));
+export const hashParts = (parts: Parts): Record<string, string> => Object.fromEntries(Object.entries(parts.values).map(([k, v]) => [k, partHash(v)]));
 
 /** A fingerprint of an input as it is now, or why it cannot be fingerprinted. */
-async function fingerprint(ctx: OpContext, ref: { kind: string; id: string }): Promise<Fingerprint> {
+const fingerprint = (ctx: OpContext, ref: { kind: string; id: string }) => inputFingerprint(ctx.db, productId(ctx), ref);
+
+/** A fingerprint of an input of a view in this product as it is now, or why it cannot be fingerprinted. */
+export async function inputFingerprint(db: Db, product: string, ref: { kind: string; id: string }): Promise<Fingerprint> {
+  const ctx = { db };
   if (ref.kind === "record") {
     const r = await ctx.db.selectFrom("records").selectAll().where("record_id", "=", ref.id).executeTakeFirst();
-    if (!r || r.product_id !== productId(ctx)) {
+    if (!r || r.product_id !== product) {
       const t = await ctx.db.selectFrom("tombstones").select("object_id").where("object_id", "=", ref.id).executeTakeFirst();
       return { fingerprint: null, status: t ? "deleted" : "missing" };
     }
@@ -50,7 +54,7 @@ async function fingerprint(ctx: OpContext, ref: { kind: string; id: string }): P
     return { fingerprint: sha256Hex(canonicalJson(values)), status: r.archived_at ? "archived" : "ok", parts: { values, changedAt } };
   }
   const e = await ctx.db.selectFrom("register_entries").selectAll().where("entry_id", "=", ref.id).executeTakeFirst();
-  if (!e || e.product_id !== productId(ctx) || e.kind !== ref.kind) return { fingerprint: null, status: "missing" };
+  if (!e || e.product_id !== product || e.kind !== ref.kind) return { fingerprint: null, status: "missing" };
   const values = { statement: e.statement, body: e.body, citations: e.citations, status: e.status, review_count: e.review_count, archived: Boolean(e.archived_at) };
   const changedAt = Object.fromEntries(Object.keys(values).map((k) => [k, e.updated_at]));
   return { fingerprint: sha256Hex(canonicalJson(values)), status: e.archived_at ? "archived" : "ok", parts: { values, changedAt } };
@@ -72,7 +76,7 @@ function changedParts(stored: Record<string, string>, now: Parts): string[] {
  * Whether an input still matches its baseline: part by part where the parts were stored, else as a
  * whole, a source with the kind and organization it was fingerprinted with.
  */
-function isCurrent(stored: LineageInput, now: Fingerprint): boolean {
+export function isCurrent(stored: LineageInput, now: Fingerprint): boolean {
   if (stored.parts && now.parts) return changedParts(stored.parts, now.parts).length === 0;
   if (stored.was && now.parts) return sha256Hex(canonicalJson({ ...now.parts.values, ...stored.was })) === stored.fingerprint;
   return now.fingerprint === stored.fingerprint;

@@ -102,7 +102,9 @@ To read the copy directly, `psql postgres://postgres:postgres@localhost:54329/fi
 the embedded server's superuser, which sees every organization's rows.
 
 `scripts/e2e.mjs` and `scripts/shots.mjs` look for the sample product, Crewboard, which the copy
-does not have, so they run on the synthetic data.
+does not have, so they run on the synthetic data. The agent-driven
+[end-to-end tests](end-to-end-tests.md) build their golden master from a pull with
+`pnpm e2e golden`: the public sandbox's organization and a non-sandbox copy of it.
 
 ## Before a release that migrates
 

@@ -27,7 +27,7 @@ const CI = Boolean(process.env.CI);
 const TOP_LEVEL = new Set([
   ".agents", ".claude", ".dockerignore", ".gcloudignore", ".githooks", ".github", ".gitignore",
   ".impeccable", ".nvmrc", "AGENTS.md", "CLAUDE.md", "DESIGN.md", "Dockerfile", "LICENSE",
-  "PRODUCT.md", "README.md", "SECURITY.md", "apps", "cloudbuild.yaml", "deploy", "okf",
+  "PRODUCT.md", "README.md", "SECURITY.md", "apps", "cloudbuild.yaml", "deploy", "e2e", "okf",
   "package.json", "packages", "pnpm-lock.yaml", "pnpm-workspace.yaml", "scripts",
   "tsconfig.base.json", "vitest.config.ts",
 ]);
@@ -43,6 +43,7 @@ const DOC_PLACES = [
   /(^|\/)README\.md$/,
   /^packages\/core\/src\/skill\/SKILL\.md$/,
   /^\.github\//,
+  /^e2e\/plans\/[\w-]+\.md$/,
 ];
 const DOC_EXT = /\.(md|markdown|mdx|txt|log|rst|org)$/i;
 const TEST_DIR = /(^|\/)(test|tests|__fixtures__)\//;

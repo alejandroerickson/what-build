@@ -9,7 +9,9 @@
   "scripts": {
     "dev": "tsx apps/server/src/dev.ts",
     "dev:fixture": "tsx apps/server/src/dev.ts --fixture",
+    "dev:e2e": "tsx apps/server/src/dev.ts --e2e",
     "fixture": "tsx apps/server/src/fixture.ts",
+    "e2e": "tsx apps/server/src/e2e.ts",
     "build": "apps/web/node_modules/.bin/vite build apps/web && node apps/server/build.mjs",
     "start": "node apps/server/dist/main.js serve",
     "test": "vitest run",

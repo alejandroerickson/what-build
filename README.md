@@ -46,6 +46,7 @@ claude mcp add --transport http whatbuild-dev http://localhost:5273/mcp
 | `DATABASE_URL=… pnpm dev` | Use your own Postgres instead of the embedded one |
 | `node scripts/e2e.mjs` | Walk the web app through the loop in headless Chrome, against a running `pnpm dev` |
 | `pnpm security` | Known vulnerabilities in the dependencies and weaknesses in the CI workflows |
+| `pnpm e2e golden`, `pnpm dev:e2e` | Build the golden master from a pull of production and serve a fresh copy of it, for an agent to run the test plans in `e2e/plans/` through the browser and MCP ([guide](okf/operations/end-to-end-tests.md)) |
 
 `pnpm install` also turns on git hooks that refuse a commit or push carrying a secret, a path from
 your machine, a real email address or a stray file: the repository is public

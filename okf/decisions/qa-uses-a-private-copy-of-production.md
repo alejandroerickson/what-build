@@ -45,12 +45,15 @@ agents could use again and again. The repository is public, and the copy is real
 - Pulling needs access to the deployment and Postgres client tools of its server's version.
   Ordinary development still needs neither
   ([decision](development-substitutes-adapters-never-behavior.md)).
-- Tests, the seed and screenshots stay synthetic. A copy is for trying things, never a source of
-  test content.
+- Tests in the repository, the seed and published screenshots stay synthetic. A copy is never a
+  source of committed test content. The end-to-end golden master is made locally from a pull
+  ([decision](end-to-end-tests-are-plans-an-agent-runs-on-a-golden-master.md)), so its plans name
+  nothing in it.
 
 ## Constrains
 
-- `apps/server/src/fixture.ts` (pull and load) and the `--fixture` mode of `apps/server/src/dev.ts`.
+- `apps/server/src/fixture.ts` (pull and load), the `--fixture` mode of `apps/server/src/dev.ts`,
+  and the end-to-end golden master built from a pull (`apps/server/src/e2e.ts`).
   The fixture mode must keep mail printed and files local, and must not seed sample content.
 
 Specified in: [a copy of production](../operations/a-copy-of-production.md).
