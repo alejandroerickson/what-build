@@ -50,9 +50,10 @@ tenant               an organization: the isolation and (later) billing boundary
 
 Sign-in methods, each optional per deployment:
 
-- **Email link** — a single-use link valid 15 minutes, at most five per address per hour. A server
-  with no mail provider disables it rather than log a link; in development the console mailer
-  prints it.
+- **Email link** — a single-use link valid 15 minutes, at most five per address per hour; opened
+  several times at once, it signs in one of them. A server with no mail provider disables it
+  rather than log a link; in development the console mailer prints it, and a production server
+  refuses to start with any mailer but `smtp` or `none`.
 - **Google** — OpenID Connect, when a client id and secret are configured.
 - **Microsoft work accounts** — OpenID Connect against one Microsoft Entra directory, when the
   directory, a client id and a secret are configured ([below](#sign-in-with-microsoft-work-accounts)).
@@ -61,6 +62,12 @@ Sign-in methods, each optional per deployment:
 
 There is no password. First sign-in creates the account; every invitation addressed to that email
 is accepted at once, because the verified address is the proof.
+
+Every method returns to `next`, the path the person was on, only when it is a path on this origin:
+one with a scheme or host, a backslash, whitespace or a control character, an encoded slash,
+backslash, percent sign or control character in its path, or a path that normalizes to begin
+with `//`, returns to `/` instead (`safeNext`). Request bodies to `/auth/*` are limited to 64 KB
+(`413 too_large`).
 
 An invitation link (`/invite/:token`, `POST /api/v1/invitations/accept`) is single-use, lasts
 7 days, and works only for the account whose email is the invited address, ignoring letter case
@@ -236,9 +243,17 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   and the one needed ("You are a viewer on product Crewboard; outcomes.create needs editor").
 - **Membership administration:** admins grant and revoke where they are admin: product admins on
   their product, team admins on their team, tenant admins on the tenant, and only owners grant
-  owner. Granting someone without an account creates a 7-day invitation, emailed where mail is
-  configured and always returned to the inviter as a single-use link. A tenant keeps at least one
-  owner (`409 last_owner`).
+  owner or change or remove an owner's role. Granting someone without an account creates a 7-day
+  invitation, emailed where mail is configured and always returned to the inviter as a
+  single-use link. The email shows the inviter's display name on one line, without control or
+  direction-changing characters, at most 60 characters and in quotation marks, and says it is the
+  name they gave WhatBuild. A tenant keeps at least one owner (`409 last_owner`).
+- **Who sees whom.** The tenant's owners and admins see all its people, their grants and its
+  invitations. Anyone else, with a viewer role or above somewhere in it, sees only the people on
+  the teams and products they read, with only those grants and their tenant role, and only the
+  invitations they could cancel, where they are admin (`members.list` says `partial: true`). A
+  team or product they have no role on stays hidden there too: the `members` operations answer it
+  with the same `404` as one that does not exist.
 - **Being in a tenant** means holding at least one grant in it: a tenant role, or a role on one of
   its teams or products. A tenant `member` grant adds nothing to that by itself. Revoking a person's
   last grant takes them out of the tenant; `members.revoke` with `whole_tenant` removes every grant
@@ -284,7 +299,10 @@ product they cannot reach answers `404` to every call, saying so.
 Isolation is enforced three times:
 
 1. **Authorization** resolves the caller's role for the addressed product, or answers `404`. It runs
-   before input validation, so a non-member learns nothing — not even whether their input was valid.
+   before input validation on both doors, so a non-member learns nothing — not even whether their
+   input was valid. Over MCP a connector's fence also applies first; only a call that names no
+   product, team or tenant at all, and so addresses nothing to hide, is told its input is malformed
+   before it is told to name one (`apps/server/test/mcp.test.ts`).
 2. **The core** receives a transaction already scoped to one tenant; handlers never see another.
 3. **Postgres row-level security** on every content table keys on the transaction-local setting
    `app.tenant_id`, so a query that escaped the first two layers still returns nothing. The server
@@ -293,7 +311,14 @@ Isolation is enforced three times:
 
 Blob keys begin `t/<tenant_id>/…`. A test ([`apps/server/test/access.test.ts`](../../apps/server/test/access.test.ts))
 calls **every** product, team and tenant operation as someone with no membership and requires
-`404` from each.
+`404` from each. [`tenant-isolation.test.ts`](../../apps/server/test/tenant-isolation.test.ts)
+classifies every registered operation and calls each over REST and MCP as a member of another
+organization, both at the other organization's address and from the caller's own with the other's
+real ids, and requires a refusal, none of the other's data in the answer, and every one of its rows
+unchanged; a new operation fails it until it is classified.
+[`row-level-security.test.ts`](../../apps/server/test/row-level-security.test.ts) reads the
+migrated schema and requires forced row-level security and a policy on the current tenant for
+every table with `tenant_id`, except the directory tables it lists with their reasons.
 
 ## 3.7 Moving and copying between products
 
@@ -320,18 +345,38 @@ calls **every** product, team and tenant operation as someone with no membership
 dynamic client registration (RFC 7591), authorization code with PKCE S256, resource indicators
 (RFC 8707) limited to the MCP endpoint, one-hour access tokens and rotating 30-day refresh tokens
 (both configurable; reusing a rotated refresh token revokes the whole connection)
-([`apps/server/src/auth/oauth.ts`](../../apps/server/src/auth/oauth.ts)). The consent page tells the
+([`apps/server/src/auth/oauth.ts`](../../apps/server/src/auth/oauth.ts)). A code is exchanged, and
+a refresh token rotated, once: of requests that arrive together one succeeds, and a refresh
+token's second use, even a concurrent one, is reuse. The consent page tells the
 person the agent will act as them, what it can reach (everything, one organization or one
 product, named), and that the passages it reads go to whoever runs the agent. Any
-MCP client registers itself, so no client is configured in advance. The consent page's security policy
+MCP client registers itself, so no client is configured in advance, and any client may call
+itself anything: the consent page shows the name in quotation marks as the name the agent gave
+itself, which WhatBuild has not verified, and says where Allow hands the connection, the redirect
+URI's host for `https`, or "an app on this computer" for loopback `http` and private-use schemes.
+The consent page's security policy
 allows its form to reach only WhatBuild and that client's registered callback, the one place Allow
-redirects to. A
+and Deny redirect to. Nothing reaches that callback before the person chooses: an authorization
+request in error (a response type other than `code`, no PKCE S256, a resource that is not an MCP
+endpoint) answers `400` on WhatBuild's own page, naming the OAuth error, signed in or not
+([RFC 9700 §4.11.2](https://www.rfc-editor.org/rfc/rfc9700#section-4.11.2)).
+
+Registration is bounded, since anyone may register: at most 10 redirect URIs of at most 500
+characters (`400 invalid_redirect_uri`), and a name of at most 100 characters, with control and
+format characters removed. At most 50 registrations an hour may be waiting for their first
+connection; past that, registration answers `429 rate_limited` with `Retry-After`, and a
+registration that led to a connection stops counting. A registration that never led to a
+connection is removed after seven days; one that ever did is kept. Request bodies to `/oauth/*`
+are limited to 64 KB (`413`, `invalid_request`).
+
+A
 token is the person: it never widens what they can do. It is bound to the resource it was approved
 for, which must be one of the MCP endpoints (`invalid_target` otherwise), and serves that endpoint
 and the ones inside it only: a token approved for `/mcp/t/acme` works on `/mcp/t/acme` and on
 Acme's product endpoints, and answers `401` on `/mcp` and on any other organization. A refresh
-keeps the resource. Connected agents are listed, each with what it can reach, and disconnected on
-the Connect an agent page.
+keeps the resource. Connected agents are listed, each with what it can reach and who holds the
+connection (the hosts of its client's redirect URIs, or an app on the person's computer), and
+disconnected on the Connect an agent page.
 
 **No personal access tokens.** REST answers the web app's session only, and refuses any bearer
 token; an agent connects over MCP with OAuth, so every agent connection is one a person approved in

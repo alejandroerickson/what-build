@@ -1,0 +1,3 @@
+#!/bin/sh
+# Nothing private in the commit being made (okf/operations/security-checks.md). Never skip it with --no-verify.
+exec node scripts/check-publishable.mjs --staged

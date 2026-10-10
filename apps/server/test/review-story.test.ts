@@ -370,7 +370,10 @@ describe("people on one product", () => {
     });
     const bobGrants = r.body.members.find((m: { email: string }) => m.email === "bob@example.com").grants.map((g: { scope_type: string; role: string }) => `${g.scope_type}:${g.role}`);
     expect(bobGrants.sort()).toEqual(["product:viewer", "team:editor"]);
-    expect(r.body.invitations.map((i: { email: string }) => i.email)).toEqual(["invitee@example.com"]);
+    // Invitations are shown to whoever could cancel them: the product's admins, not its viewers.
+    expect(r.body.invitations).toEqual([]);
+    const forAdmin = await alice.api("GET", `/api/v1/tenants/${tenantSlug}/members?team=${teamSlug}&product=planner`);
+    expect(forAdmin.body.invitations.map((i: { email: string }) => i.email)).toEqual(["invitee@example.com"]);
     const all = await carol.api("GET", `/api/v1/tenants/${tenantSlug}/members`);
     expect(all.body.members.map((m: { email: string }) => m.email)).toContain("carol@example.com");
     expect(all.body.product).toBeUndefined();

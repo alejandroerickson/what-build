@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { extname, join, normalize, resolve } from "node:path";
+import { extname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { SKILL_NAME, SKILL_VERSION, skillMarkdown, unauthenticated, type Db } from "@whatbuild/core";
 import { strToU8, zipSync } from "fflate";
 import { Hono } from "hono";
@@ -88,6 +88,12 @@ export function pageHeaders(analytics: boolean) {
   return { ...PAGE_SECURITY_HEADERS, "Content-Security-Policy": csp.join("; ") };
 }
 
+/** Whether `file` lies inside the folder `root` (both absolute): a path below it, never the folder itself or a sibling whose name starts the same. */
+export function insideRoot(root: string, file: string): boolean {
+  const rel = relative(root, file);
+  return rel !== "" && !rel.startsWith(`..${sep}`) && rel !== ".." && !isAbsolute(rel);
+}
+
 /**
  * The web app, served from the same origin as the API: no CORS, one sign-in boundary. Hashed assets
  * are cached forever; index.html never. An unknown path without an extension is the app shell; an
@@ -104,7 +110,7 @@ export function staticRoutes(dist: string, opts: { analytics?: boolean } = {}) {
     if (!hasIndex) return c.notFound();
     const rel = normalize(decodeURIComponent(c.req.path)).replace(/^([/\\])+/, "");
     const file = join(root, rel);
-    if (file.startsWith(root) && rel && existsSync(file) && statSync(file).isFile()) {
+    if (insideRoot(root, file) && existsSync(file) && statSync(file).isFile()) {
       const immutable = rel.startsWith("assets/");
       return c.body(readFileSync(file), 200, {
         ...headers,

@@ -44,6 +44,31 @@ function fromDotEnv(name: string) {
   return line?.slice(name.length + 1).trim().replace(/^["']|["']$/g, "") || undefined;
 }
 
+/**
+ * pg_dump's arguments and environment for a database URL. The password, from the URL's user part
+ * or its query, travels in PGPASSWORD: a command line is visible to every user of the machine.
+ */
+export function pgDumpCommand(url: string, file: string): { args: string[]; env: NodeJS.ProcessEnv } {
+  let password: string | undefined;
+  let rest = url;
+  const user = /^(postgres(?:ql)?:\/\/)([^@/?#]*)@/.exec(rest);
+  const colon = user?.[2]!.indexOf(":") ?? -1;
+  if (user && colon >= 0) {
+    password = decodeURIComponent(user[2]!.slice(colon + 1));
+    rest = `${user[1]}${user[2]!.slice(0, colon)}@${rest.slice(user[0].length)}`;
+  }
+  const q = rest.indexOf("?");
+  if (q >= 0) {
+    const params = new URLSearchParams(rest.slice(q + 1));
+    if (params.has("password")) {
+      password = params.get("password")!;
+      params.delete("password");
+      rest = rest.slice(0, q) + (params.size ? `?${params}` : "");
+    }
+  }
+  return { args: ["--format=custom", `--file=${file}`, `--dbname=${rest}`], env: { ...process.env, ...(password !== undefined ? { PGPASSWORD: password } : {}) } };
+}
+
 async function pull() {
   const project = process.env["GCP_PROJECT"] ?? fromDotEnv("GCP_PROJECT");
   const url =
@@ -56,7 +81,8 @@ async function pull() {
   const dir = join(FIXTURES, name);
   mkdirSync(dir, { recursive: true });
   console.log(`Dumping the database into ${show(dir)}/database.dump…`);
-  execFileSync("pg_dump", ["--format=custom", `--file=${join(dir, "database.dump")}`, url], { stdio: "inherit" });
+  const dump = pgDumpCommand(url, join(dir, "database.dump"));
+  execFileSync("pg_dump", dump.args, { stdio: "inherit", env: dump.env });
 
   if (bucket) {
     // Passages and outlines are files too, so a copy without them opens every source empty.

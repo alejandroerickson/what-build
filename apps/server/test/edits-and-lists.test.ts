@@ -124,6 +124,19 @@ describe("register edits", () => {
     etag = rv.body.etag;
   });
 
+  it("refuses an outcome from another product when outcomes change, as when the entry is created", async () => {
+    const [tenant, team] = productPath.split("/");
+    const other = await alice.api("POST", `/api/v1/teams/${tenant}/${team}/products`, { name: "Elsewhere" });
+    const outcome = await alice.api("POST", `/api/v1/p/${other.body.path}/outcomes`, { title: "Belongs to Elsewhere" });
+    const created = await alice.api("POST", `${P}/assumptions`, { statement: "x", outcome_ids: [outcome.body.outcome_id] });
+    expect(created.body.error.code).toBe("unknown_reference");
+    // Outcomes and tags stay editable after a review, so the check must hold there too.
+    const r = await alice.api("PATCH", `${P}/assumptions/${id}`, { expected_etag: etag, outcome_ids: [outcome.body.outcome_id] });
+    expect(r.status).toBe(422);
+    expect(r.body.error.code).toBe("unknown_reference");
+    expect((await alice.api("GET", `${P}/assumptions/${id}`)).body.outcome_ids).toEqual([]);
+  });
+
   it("says in the review guidance that any review freezes the entry", async () => {
     const client = new Client({ name: "test-agent", version: "1.0.0" });
     await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${agentToken}` } } }));

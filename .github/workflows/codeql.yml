@@ -1,0 +1,46 @@
+name: CodeQL
+
+# GitHub's static analysis of the TypeScript and of the workflows. Code scanning is free for public
+# repositories only, so while the repository is private the job checks its visibility and stops
+# (okf/operations/security-checks.md).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "41 6 * * 1" # Mondays
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # the results
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, actions]
+    steps:
+      - name: Is the repository public?
+        id: visibility
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: echo "visibility=$(gh api "repos/$GITHUB_REPOSITORY" --jq .visibility)" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        if: steps.visibility.outputs.visibility == 'public'
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        if: steps.visibility.outputs.visibility == 'public'
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+      - uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        if: steps.visibility.outputs.visibility == 'public'
+        with:
+          category: /language:${{ matrix.language }}

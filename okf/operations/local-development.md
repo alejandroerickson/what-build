@@ -3,7 +3,7 @@ type: System Concept
 title: Running WhatBuild locally, testing it, and checking the interface
 description: The one-command development setup, the test and build commands, and the browser scripts.
 tags: [development, testing, local]
-generated: {by: agent:claude, at: 2026-10-07}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -58,14 +58,19 @@ access to the deployment; nothing else does.
 | Command | What it does |
 |---|---|
 | `pnpm typecheck` | `tsc` over parsers, core, server and web. |
-| `pnpm test` | Vitest: parsers, server (against an embedded Postgres 17) and web projects. `pnpm vitest run --project web` runs one. To run the server tests on another Postgres, such as the version a host offers, set `TEST_DATABASE_ADMIN_URL` (a superuser, which creates a database per test file) and `TEST_DATABASE_APP_URL_TEMPLATE` (the same server as a role named `whatbuild` without `SUPERUSER` or `BYPASSRLS`, with `{db}` for the database). |
+| `pnpm test` | Vitest: parsers, server (against an embedded Postgres 17) and web projects. `pnpm vitest run --project web` runs one. To run the server tests on another Postgres, such as the version a host offers, set `TEST_DATABASE_ADMIN_URL` (a superuser, which creates a database per test file) and `TEST_DATABASE_APP_URL_TEMPLATE` (the same server as a role named `whatbuild` without `SUPERUSER` or `BYPASSRLS`, with `{db}` for the database). The embedded server listens on `:54331`; `WHATBUILD_TEST_PG_PORT` moves it, so two checkouts can run the suite at once. |
 | `pnpm build` | The web bundle and the server bundle. |
 | `pnpm gen:skill` | Re-embeds `packages/core/src/skill/SKILL.md`; CI fails if it is stale. |
 | `pnpm db:migrate`, `pnpm db:seed` | Run migrations or the seed against `DATABASE_URL`. |
 | `python3 okf/tools/validate_okf.py` | Checks the documentation bundle: frontmatter, types, links, indexes. |
+| `pnpm security` | Known vulnerabilities in the dependencies (osv-scanner) and weaknesses in the workflows (zizmor), with pinned scanners downloaded on first use ([security checks](security-checks.md)). |
+| `pnpm check:publishable --all` | Nothing private in the tree or the history. The git hooks `pnpm install` turns on run it on every commit and push. |
 
 CI (`.github/workflows/ci.yml`) runs the documentation check, the skill check, typecheck, test and build on every push to
-`main` and every pull request. A tag `v*` runs the Release workflow (`.github/workflows/release.yml`),
+`main` and every pull request, and beside them the check that nothing private is published. The
+Security workflow runs `pnpm security` on the same events and weekly, with a weekly OWASP ZAP scan
+of the app and a weekly check of the whole history; CodeQL runs once the repository is public; and
+Dependabot opens updates ([security checks](security-checks.md)). A tag `v*` runs the Release workflow (`.github/workflows/release.yml`),
 which publishes the image as `ghcr.io/<owner>/what-build:<tag>` and makes a GitHub release
 ([decision](../decisions/releases-are-tags-with-a-published-image.md)) whose notes list the
 migrations it adds since the previous tag, the fact an operator needs to

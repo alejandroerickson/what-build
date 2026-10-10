@@ -1,0 +1,10 @@
+# OWASP ZAP baseline rules (.github/workflows/security.yml): <id> <TAB> IGNORE|INFO|WARN|FAIL <TAB> (why).
+# A FAIL fails the weekly scan; anything not listed is a warning in the report.
+10010	FAIL	(A session cookie must be HttpOnly.)
+10020	FAIL	(Every page refuses to be framed by other sites.)
+10021	FAIL	(Every response says X-Content-Type-Options: nosniff.)
+10054	FAIL	(Cookies carry SameSite.)
+10098	FAIL	(No cross-origin access to the API.)
+90022	FAIL	(Errors never show stack traces or internals.)
+10035	IGNORE	(Strict-Transport-Security: the scan runs over plain HTTP on localhost; the server sends it when its public URL is https.)
+10011	IGNORE	(Secure cookies: the scan runs over plain HTTP on localhost.)

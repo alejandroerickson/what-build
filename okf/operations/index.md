@@ -17,4 +17,5 @@ status: stable
 - [Backups](backups.md): what each deployment keeps, where and for how long, the nightly dump, checking that backups run, restoring a dump and checking it, and the restore drill.
 - [Recovering from a bad release](recovering-from-a-bad-release.md): when a new version breaks a deployment, on Cloud Run or Azure: what runs, whether it migrated, going back, restoring the database, checking, fixing forward.
 - [Azure](azure.md): a self-hosted deployment on Azure, set up by an agent with the Azure CLI; resources, commands, sign-in with Microsoft work accounts, and the variations.
+- [Security checks](security-checks.md): what keeps secrets and private material out of the repository, and finds known vulnerabilities; where each check runs, what to do about a finding, auditing everything GitHub holds, and making the repository public.
 - [Analytics](analytics.md): Google Analytics and Cloudflare Web Analytics, their settings, and reading reports.

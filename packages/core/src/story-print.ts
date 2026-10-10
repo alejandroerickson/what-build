@@ -1,4 +1,5 @@
-import { parse, serialize } from "parse5";
+import { parseHtml } from "@whatbuild/parsers";
+import { serialize } from "parse5";
 import type { StoryNode } from "./db.ts";
 import { escapeHtml } from "./story-html.ts";
 
@@ -315,7 +316,7 @@ export interface PreparedPage {
 }
 
 export function prepareStoryPage(html: string, title: string): PreparedPage {
-  const doc = parse(html) as unknown as Node;
+  const doc = parseHtml(html) as unknown as Node;
   const root = findChild(doc, "html");
   const head = findChild(root, "head");
   const body = findChild(root, "body");

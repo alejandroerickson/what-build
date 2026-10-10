@@ -1,6 +1,7 @@
-import { strFromU8, unzipSync } from "fflate";
-import type { Block, FormatParser } from "./types.ts";
+import { strFromU8 } from "fflate";
+import { DEFAULT_PARSE_CAP_BYTES, type Block, type FormatParser } from "./types.ts";
 import { descendants, elements, first, parseXml, textOf } from "./xml.ts";
+import { unzipParts } from "./zip.ts";
 
 export const MAX_ROWS = 50_000;
 export const MAX_COLUMNS = 256;
@@ -85,12 +86,26 @@ export interface DateFormat {
 }
 
 /**
+ * A format code's first section: the text before the first `;` that has an even number of quotes
+ * after it. Counted in one pass, so a long code of semicolons cannot stall the parse.
+ */
+function firstSection(code: string): string {
+  let quotesAfter = 0;
+  for (let i = 0; i < code.length; i++) if (code[i] === '"') quotesAfter++;
+  for (let i = 0; i < code.length; i++) {
+    if (code[i] === '"') quotesAfter--;
+    else if (code[i] === ";" && quotesAfter % 2 === 0) return code.slice(0, i);
+  }
+  return code;
+}
+
+/**
  * Read a number format code as a date format, or undefined when it shows a plain number. Only the
  * first section counts; quoted text, backslash escapes, padding (`_x`, `*x`), colours and locales
  * in brackets and AM/PM markers are ignored. `m` is a month unless it sits with hours or seconds.
  */
 export function dateFormatOf(code: string): DateFormat | undefined {
-  const section = code.split(/;(?=(?:[^"]*"[^"]*")*[^"]*$)/)[0] ?? "";
+  const section = firstSection(code);
   const elapsed = section.match(/\[(h+|m+|s+)\]/i)?.[1]?.[0]?.toLowerCase() as DateFormat["elapsed"] | undefined;
   const bare = section
     .replace(/"[^"]*"/g, "")
@@ -158,16 +173,18 @@ function cellDateFormats(stylesXml: Uint8Array | undefined): (DateFormat | undef
  */
 export const xlsxParser: FormatParser = {
   name: "xlsx",
-  version: "3",
-  parse(bytes) {
-    const files = unzipSync(bytes, {
-      filter: (f) =>
-        f.name === "xl/workbook.xml" ||
-        f.name === "xl/_rels/workbook.xml.rels" ||
-        f.name === "xl/sharedStrings.xml" ||
-        f.name === "xl/styles.xml" ||
-        /^xl\/worksheets\/[^/]+\.xml$/.test(f.name),
-    });
+  version: "4",
+  parse(bytes, _fileName, options = {}) {
+    const files = unzipParts(
+      bytes,
+      (name) =>
+        name === "xl/workbook.xml" ||
+        name === "xl/_rels/workbook.xml.rels" ||
+        name === "xl/sharedStrings.xml" ||
+        name === "xl/styles.xml" ||
+        /^xl\/worksheets\/[^/]+\.xml$/.test(name),
+      options.maxBytes ?? DEFAULT_PARSE_CAP_BYTES,
+    );
     const wb = files["xl/workbook.xml"];
     if (!wb) throw new Error("not a spreadsheet: xl/workbook.xml is missing");
     const shared: string[] = [];

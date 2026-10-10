@@ -327,7 +327,14 @@ function blobRangeReader(ports: Ports, key: string): ByteReader {
 export async function runDerivation(
   db: Tx,
   ports: Ports,
-  job: { tenant_id: string; record_id: string; file_version_id: string; force?: boolean },
+  job: {
+    tenant_id: string;
+    record_id: string;
+    file_version_id: string;
+    force?: boolean;
+    /** Record a failed derivation with this reason instead of parsing: the worker gave the parse up. */
+    failed?: string;
+  },
 ): Promise<{ derivation_id: string; status: string } | null> {
   const record = await db.selectFrom("records").selectAll().where("record_id", "=", job.record_id).forUpdate().executeTakeFirst();
   if (!record) return null;
@@ -339,9 +346,11 @@ export async function runDerivation(
     const cur = await db.selectFrom("derivations").select("file_version_id").where("derivation_id", "=", record.current_derivation_id).executeTakeFirst();
     if (cur?.file_version_id === version.file_version_id) return null;
   }
-  const stat = await ports.blobs.stat(version.blob_key);
+  const stat = job.failed ? null : await ports.blobs.stat(version.blob_key);
   let result: ParseResult;
-  if (stat && stat.size > ports.config.parseCapBytes) {
+  if (job.failed) {
+    result = { status: "failed", parser: "none", parser_version: "0", segments: [], text: "", outline: `- (${job.failed})\n`, duration_ms: null, status_detail: job.failed, facts: {} };
+  } else if (stat && stat.size > ports.config.parseCapBytes) {
     // Too large to read at all: record the status without downloading the file.
     result = await derive(new Uint8Array(0), file.path, { parseCapBytes: -1 });
     result.status_detail = `the file is ${stat.size} bytes; files over ${ports.config.parseCapBytes} bytes are stored but not parsed`;

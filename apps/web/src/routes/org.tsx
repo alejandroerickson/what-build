@@ -118,6 +118,8 @@ interface MembersResponse {
   invitations: { invitation_id: string; email: string; scope_type: "tenant" | "team" | "product"; scope_id: string; scope: { name: string }; role: string; expires_at: string }[];
   /** In a public sandbox: a visitor is shown only themselves, and its staff get its visitors as a count. */
   sandbox?: { only_you: boolean; visitors?: number };
+  /** Below an owner or admin of the organization: only the people, roles and invitations on what this person reads. */
+  partial?: boolean;
 }
 
 type Member = MembersResponse["members"][number];
@@ -184,8 +186,9 @@ export function MembersPage() {
     },
     onError: (e) => toast(`Couldn’t remove that role. ${(e as Error).message}`, { tone: "negative" }),
   });
-  // A person's last role is their place in the organization: removing it takes them out, so it asks first.
-  const removeGrant = (m: Member, g: MemberGrant) => (m.grants.length === 1 ? setRemoving({ m, g }) : revoke.mutate({ m, g }));
+  // A person's last role is their place in the organization: removing it takes them out, so it asks
+  // first. A partial list may not show every role they hold, so it never claims one is their last.
+  const removeGrant = (m: Member, g: MemberGrant) => (m.grants.length === 1 && !q.data?.partial ? setRemoving({ m, g }) : revoke.mutate({ m, g }));
   const setOrgRole = (m: Member, role: string) => {
     const was = orgRoleOf(m);
     if (role === was) return;
@@ -242,6 +245,7 @@ export function MembersPage() {
           <>
           <p className="muted">
             People join {orgName} only when someone gives them access. Everyone has an organization role; team and product roles decide which products they can open.
+            {q.data?.partial ? " You see the people on the teams and products you can open, and the organization’s owners and admins." : ""}
           </p>
           <div className="members-legend">
             <div className="members-legend-group">

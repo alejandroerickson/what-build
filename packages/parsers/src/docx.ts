@@ -1,8 +1,9 @@
-import { strFromU8, unzipSync } from "fflate";
+import { strFromU8 } from "fflate";
 import { looksLikeTranscript, speakerTurn } from "./speakers.ts";
 import { tableBlocks as rowBlocks } from "./tables.ts";
-import type { Block, FormatParser } from "./types.ts";
+import { DEFAULT_PARSE_CAP_BYTES, type Block, type FormatParser } from "./types.ts";
 import { descendants, elements, first, parseXml, textOf, type XmlElement } from "./xml.ts";
+import { unzipParts } from "./zip.ts";
 
 /** A heading style: the document title, its subtitle, or a numbered heading. */
 export type HeadingStyle = { kind: "title" } | { kind: "subtitle" } | { kind: "heading"; n: number };
@@ -216,11 +217,13 @@ function tableBlocks(tbl: XmlElement, st: DocxState): Block[] {
  */
 export const docxParser: FormatParser = {
   name: "docx",
-  version: "5",
-  parse(bytes) {
-    const files = unzipSync(bytes, {
-      filter: (f) => ["word/document.xml", "word/styles.xml", "word/comments.xml", "word/numbering.xml"].includes(f.name),
-    });
+  version: "6",
+  parse(bytes, _fileName, options = {}) {
+    const files = unzipParts(
+      bytes,
+      (name) => ["word/document.xml", "word/styles.xml", "word/comments.xml", "word/numbering.xml"].includes(name),
+      options.maxBytes ?? DEFAULT_PARSE_CAP_BYTES,
+    );
     const docXml = files["word/document.xml"];
     if (!docXml) throw new Error("not a Word document: word/document.xml is missing");
     const st: DocxState = {

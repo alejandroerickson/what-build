@@ -17,7 +17,7 @@ export interface ServerConfig {
   /** Hand out direct-to-bucket signed upload URLs (needs signBlob permission on the runtime identity). */
   gcsSignedUrls: boolean;
   grantKey: string;
-  /** "none" in production without SMTP: email links are then off, and nothing secret is ever logged. */
+  /** "none" in production without SMTP: email links are then off, and nothing secret is ever logged. Production takes only smtp or none. */
   mailer: "console" | "smtp" | "memory" | "none";
   smtpUrl: string | null;
   mailFrom: string;
@@ -58,6 +58,8 @@ export function microsoftSignIn(config: ServerConfig): boolean {
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+const MAILERS: ServerConfig["mailer"][] = ["console", "smtp", "memory", "none"];
+
 function num(v: string | undefined, fallback: number): number {
   const n = v === undefined || v === "" ? NaN : Number(v);
   return Number.isFinite(n) ? n : fallback;
@@ -74,6 +76,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   // One directory, by ID: never common, organizations, consumers or a domain, which would admit other directories' accounts.
   const microsoftTenant = env["WHATBUILD_MICROSOFT_TENANT"]?.trim() || null;
   if (microsoftTenant && !GUID.test(microsoftTenant)) throw new Error("WHATBUILD_MICROSOFT_TENANT must be the directory's ID, a GUID.");
+  const mailer = (env["WHATBUILD_MAILER"]?.trim() || (env["WHATBUILD_SMTP_URL"] ? "smtp" : mode === "production" ? "none" : "console")) as ServerConfig["mailer"];
+  if (!MAILERS.includes(mailer)) throw new Error(`WHATBUILD_MAILER must be one of ${MAILERS.join(", ")}.`);
+  // The console mailer prints every sign-in link to the log, and the memory one delivers nothing.
+  if (mode === "production" && mailer !== "smtp" && mailer !== "none")
+    throw new Error("WHATBUILD_MAILER must be smtp or none in production: set WHATBUILD_SMTP_URL to send mail, or leave email links off.");
   return {
     env: mode,
     port,
@@ -86,7 +93,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     gcsBucket: env["WHATBUILD_GCS_BUCKET"] ?? null,
     gcsSignedUrls: env["WHATBUILD_GCS_SIGNED_URLS"] === "1",
     grantKey,
-    mailer: (env["WHATBUILD_MAILER"] ?? (env["WHATBUILD_SMTP_URL"] ? "smtp" : mode === "production" ? "none" : "console")) as ServerConfig["mailer"],
+    mailer,
     smtpUrl: env["WHATBUILD_SMTP_URL"] ?? null,
     mailFrom: env["WHATBUILD_MAIL_FROM"] ?? "WhatBuild <no-reply@localhost>",
     googleClientId: env["WHATBUILD_GOOGLE_CLIENT_ID"] ?? null,

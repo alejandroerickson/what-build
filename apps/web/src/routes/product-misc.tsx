@@ -269,6 +269,8 @@ interface ProductMembers {
 }
 interface OrgMembers {
   members: { account_id: string; display_name: string; email: string; grants: Grant[] }[];
+  /** Only the people on what this person reads, below an owner or admin of the organization. */
+  partial?: boolean;
 }
 
 function useProductMembers() {
@@ -515,7 +517,7 @@ function AddPeopleDialog({ onClose, existing }: { onClose: () => void; existing:
             ) : org.isError ? (
               <ErrorCallout inset error={org.error} onRetry={() => org.refetch()} />
             ) : (
-              <SelectField label="Person" value={person} onChange={(e) => setPerson(e.target.value)} hint={`People in ${product.tenant.name} who have no access to ${product.name} yet.`}>
+              <SelectField label="Person" value={person} onChange={(e) => setPerson(e.target.value)} hint={`People in ${product.tenant.name}${org.data?.partial ? " on the teams and products you can open" : ""} who have no access to ${product.name} yet.`}>
                 <option value="">Choose someone…</option>
                 {candidates.map((m) => (
                   <option key={m.account_id} value={m.account_id}>

@@ -17,7 +17,10 @@
     "typecheck": "tsc -p packages/parsers && tsc -p packages/core && tsc -p apps/server && tsc -p apps/web",
     "db:migrate": "tsx apps/server/src/main.ts migrate",
     "db:seed": "tsx apps/server/src/main.ts seed",
-    "gen:skill": "node scripts/gen-skill.mjs"
+    "gen:skill": "node scripts/gen-skill.mjs",
+    "security": "node scripts/security.mjs",
+    "check:publishable": "node scripts/check-publishable.mjs",
+    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
     "@types/node": "^24.19.0",

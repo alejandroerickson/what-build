@@ -736,8 +736,11 @@ activity.jsonl
   revisions, activity events, tombstones)
   lives in its own tables and is never updated. Every content table has a row-level security
   policy keyed on the transaction-local `app.tenant_id`. Directory tables (accounts, sessions,
-  tokens, OAuth clients, tenants, teams, products, memberships, invitations) and the job queue and
-  feedback tables have no row-level security and are reached only through the authorization layer.
+  tokens, OAuth clients, tenants, teams, products, memberships, invitations) and the job queue,
+  feedback, the public site's interest form and `schema_migrations` have no row-level security and
+  are reached only through the authorization layer. Policies are forced, because the app's role owns
+  the tables. [`apps/server/test/row-level-security.test.ts`](../../apps/server/test/row-level-security.test.ts)
+  lists each table without the policy with its reason, and fails on any other.
 - **The public sandbox** ([§9.7](09-data-lifecycle.md),
   [`0009_public_sandbox.sql`](../../apps/server/src/migrations/0009_public_sandbox.sql)) adds
   `tenants.sandbox` and `accounts.sandbox_only`, and five tables. Three sit beside the directory

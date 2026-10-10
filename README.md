@@ -45,6 +45,12 @@ claude mcp add --transport http whatbuild-dev http://localhost:5273/mcp
 | `pnpm build` | The web app and the production server bundle |
 | `DATABASE_URL=… pnpm dev` | Use your own Postgres instead of the embedded one |
 | `node scripts/e2e.mjs` | Walk the web app through the loop in headless Chrome, against a running `pnpm dev` |
+| `pnpm security` | Known vulnerabilities in the dependencies and weaknesses in the CI workflows |
+
+`pnpm install` also turns on git hooks that refuse a commit or push carrying a secret, a path from
+your machine, a real email address or a stray file: the repository is public
+([security checks](okf/operations/security-checks.md)). To report a vulnerability, see
+[SECURITY.md](SECURITY.md).
 
 ## Deploying
 

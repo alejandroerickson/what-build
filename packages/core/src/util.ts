@@ -26,6 +26,28 @@ export function sha256Hex(data: string | Uint8Array): string {
   return createHash("sha256").update(data).digest("hex");
 }
 
+/** The SHA-256 of a stream's bytes, read a chunk at a time rather than held in memory. */
+export async function sha256OfStream(stream: ReadableStream<Uint8Array>): Promise<string> {
+  const hash = createHash("sha256");
+  const reader = stream.getReader();
+  for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) hash.update(chunk.value);
+  return hash.digest("hex");
+}
+
+/**
+ * Text someone chose (a name), made safe to put in an email WhatBuild sends: one line, without
+ * control, format or direction-changing characters, at most `max` characters.
+ */
+export function oneLine(text: string, max: number): string {
+  const chars = Array.from(text.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, " ").replace(/\s+/g, " ").trim());
+  return chars.length > max ? `${chars.slice(0, max - 1).join("").trimEnd()}…` : chars.join("");
+}
+
+/** A person's chosen name as an email shows it: on one line, at most 60 characters, in quotation marks it cannot close. */
+export function quotedName(name: string): string {
+  return `"${oneLine(name.replace(/["“”„‟]/g, "'"), 60) || "Someone"}"`;
+}
+
 export function randomToken(bytes = 32): string {
   return randomBytes(bytes).toString("base64url");
 }

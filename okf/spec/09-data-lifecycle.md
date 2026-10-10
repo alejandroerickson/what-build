@@ -88,7 +88,9 @@ running on free tiers without a compliance program.
 | Story pages | 50 per product | Yes — `409 quota_exceeded`, quota `story_pages` |
 | Mockups | 50 per product, archived ones included; 24 pages and 8,000,000 characters of HTML, and 50 files and 2,000,000 characters of files, in a version | Yes — `409 quota_exceeded`, quota `mockups`; `422` for a version |
 | REST request body | 5 MB | Yes — `413 too_large` |
+| Sign-in and OAuth request body | 64 KB | Yes — `413` |
 | Sign-in links | 5 per address per hour | Yes — `429 rate_limited` |
+| OAuth client registrations | 50 an hour waiting for their first connection; one that never connects is removed after 7 days | Yes — `429 rate_limited` |
 | Exports in progress | one per product at a time | Yes — `409 export_in_progress` |
 | Members | 5 per organization | Planned |
 | Active products | 3 per organization | Planned |
@@ -119,7 +121,8 @@ Rules:
    reserve the seam; nothing else anticipates it.
 
 **Abuse limits**, which are not quotas but belong beside them. Built: the sign-in link limit,
-invite-only mode (`WHATBUILD_SIGNUP_ALLOWLIST`, [§3.2](03-accounts-teams-and-identity.md)), and
+the limits on OAuth client registration and on sign-in and OAuth request bodies
+([§3.8](03-accounts-teams-and-identity.md)), invite-only mode (`WHATBUILD_SIGNUP_ALLOWLIST`, [§3.2](03-accounts-teams-and-identity.md)), and
 in the public sandbox a cap on seats and on each invitation's places (§9.7).
 Planned: per-IP sign-up limits, a cap on outstanding invitations, and an operator view of usage by
 organization before public sign-up opens.

@@ -67,11 +67,22 @@ export interface OpContext {
   enqueue(kind: string, payload: Record<string, unknown>): Promise<void>;
 }
 
+/** What an operation's `prepare` step has: the authorized call, and no database connection of its own. */
+export interface PrepareContext {
+  principal: Principal;
+  scope: Scope;
+  ports: Ports;
+  sandbox: SandboxContext | null;
+  now: string;
+  /** Run checks in a short read-only transaction of their own, scoped to the tenant as the handler's is. */
+  read<T>(fn: (ctx: OpContext) => Promise<T>): Promise<T>;
+}
+
 export type OpScope = "product" | "team" | "tenant" | "account";
 /** `story`: a Story read, open to readers; `read`: everything else a viewer may read. */
 export type OpAccess = "story" | "read" | "write" | "admin" | "owner" | "any";
 
-export interface OperationDef<I extends z.ZodType = z.ZodType, O = unknown> {
+export interface OperationDef<I extends z.ZodType = z.ZodType, O = unknown, P = unknown> {
   /** `<group>.<action>`. The MCP tool and action default to the two halves. */
   name: string;
   scope: OpScope;
@@ -93,10 +104,16 @@ export interface OperationDef<I extends z.ZodType = z.ZodType, O = unknown> {
    * until it commits. For saving a baseline and resetting to one.
    */
   exclusive?: boolean;
-  handler: (ctx: OpContext, input: z.output<I>) => Promise<O>;
+  /**
+   * Slow work that must hold no database connection, such as a download. It runs once the call is
+   * authorized and its input valid, outside any transaction, and what it returns reaches the
+   * handler as `prepared`.
+   */
+  prepare?: (ctx: PrepareContext, input: z.output<I>) => Promise<P>;
+  handler: (ctx: OpContext, input: z.output<I>, ...prepared: undefined extends P ? [prepared?: P] : [prepared: P]) => Promise<O>;
 }
 
-export function defineOperation<I extends z.ZodType, O>(def: OperationDef<I, O>): OperationDef<I, O> {
+export function defineOperation<I extends z.ZodType, O, P = undefined>(def: OperationDef<I, O, P>): OperationDef<I, O, P> {
   return def;
 }
 
