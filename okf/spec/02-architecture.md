@@ -267,7 +267,8 @@ deployment is involved
   otherwise, and files served back say `private, no-store`. Every HTML response's
   `Content-Security-Policy` defines `frame-ancestors`, `form-action` and `base-uri`, which have no
   fallback; one whose route set no policy gets `default-src 'none'` and all three at `'none'`.
-- **Request bodies** under `/api/v1` are limited to 5 MB; files travel through upload grants.
+- **Request bodies** under `/api/v1` and to `/mcp` are limited to 5 MB; files travel through
+  upload grants. `/mcp` reads a body only once it knows the caller.
   Under `/auth` and `/oauth`, which anyone may call, they are limited to 64 KB.
 - **URL fetch is SSRF-hardened:** HTTPS only, public addresses only, checked again on every
   redirect: an address written in the URL, in any notation, is checked before connecting, since

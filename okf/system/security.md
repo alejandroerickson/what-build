@@ -196,7 +196,8 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   `default-src 'none'`, except PDFs, which browsers will not render sandboxed; only the app may
   frame them (`frame-ancestors 'self'`); HTML, XHTML and SVG only as an
   `application/octet-stream` attachment (`streamFile` in `apps/server/src/rest.ts`). Agents send
-  download grants in a header, never a URL. REST bodies are limited to 5 MB.
+  download grants in a header, never a URL. REST and MCP bodies are limited to 5 MB; `/mcp`
+  reads one only once the caller's token is checked (`MCP_BODY_MAX_BYTES` in `apps/server/src/mcp.ts`).
 - Source text is quoted material: the MCP server's instructions and the skill tell agents never to
   follow it (`apps/server/src/mcp.ts`).
 

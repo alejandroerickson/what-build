@@ -91,7 +91,7 @@ running on free tiers without a compliance program.
 | Files per source | 50 | Yes — `409 too_many_files` |
 | Story pages | 50 per product | Yes — `409 quota_exceeded`, quota `story_pages` |
 | Mockups | 50 per product, archived ones included; 24 pages and 8,000,000 characters of HTML, and 50 files and 2,000,000 characters of files, in a version | Yes — `409 quota_exceeded`, quota `mockups`; `422` for a version |
-| REST request body | 5 MB | Yes — `413 too_large` |
+| REST or MCP request body | 5 MB | Yes — `413 too_large` (MCP: `413` with a JSON-RPC error) |
 | Sign-in and OAuth request body | 64 KB | Yes — `413` |
 | Sign-in links | 5 per address per hour | Yes — `429 rate_limited` |
 | OAuth client registrations | 50 an hour waiting for their first connection; one that never connects is removed after 7 days | Yes — `429 rate_limited` |
