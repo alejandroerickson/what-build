@@ -17,11 +17,12 @@ the sandbox, where the sandbox's limits apply.
 1. **Run folder.** Write a short synthetic interview transcript as a text file in the run's
    folder: an interviewer and one crew lead named Dana, four or five turns, one of which mentions
    "the van checklist". Search the product first to make sure the phrase appears nowhere yet.
-2. **MCP, as Sam, in the standard organization.** In a product that has sources, create an
-   interview transcript source for the file with an upload (`files.create_upload`), PUT the file's
+2. **MCP, as Sam, in the standard organization.** In a product that has sources, read the
+   product's tags (`sources` `facets`), then create a source for the file, tagged as an interview
+   with the tag the product already uses for interviews, with an upload (`files.create_upload`), PUT the file's
    bytes to the grant's URL with its headers, and complete the upload. *Expect:* each step answers
    as the skill describes, and the completion's note says the primary is being parsed or is ready.
-3. **Web, as Sam.** Open Evidence. *Expect:* the new source is listed with its title and kind;
+3. **Web, as Sam.** Open Evidence. *Expect:* the new source is listed with its title and tags;
    opening it shows its passages, one per turn, with Dana as a speaker, once parsing has finished
    (the page updates by itself).
 4. **Web, as Sam.** Search for "van checklist". *Expect:* the passage from step 1 is found, and only
@@ -31,7 +32,7 @@ the sandbox, where the sandbox's limits apply.
 6. **MCP, as Sam.** List the source's annotations, and read the passage with `read_passage`.
    *Expect:* the comment from step 5, attributed to Sam on the web; the passage text is exactly
    what the file said.
-7. **Web, as Sam.** Create a second source through the kind-first upload flow on the web, with
+7. **Web, as Sam.** Create a second source through the upload flow on the web, with a title and tags, with
    another short synthetic file. *Expect:* it is created, parsed and listed.
 8. **MCP, as Sam.** Search for a phrase from the second file. *Expect:* found, in the right source.
 9. **Web, as Sam.** Open Activity. *Expect:* entries for both sources and the comment, each saying

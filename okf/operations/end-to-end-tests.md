@@ -84,7 +84,8 @@ sandbox, and serves. It also marks the sandbox as reset just now, so that its da
 put the baseline back over the golden master's content when the instance starts; a run that lasts
 past the reset hour in the sandbox's settings would see it happen. Stopping it and starting it again
 is how a test goes back to the golden master; it also ends every session and MCP token, which the
-tools notice and renew. The ports can be moved with `WHATBUILD_E2E_WEB_PORT`,
+tools notice and renew. It refuses to start when another process holds its API or web port, since that server would
+answer the tests instead. The ports can be moved with `WHATBUILD_E2E_WEB_PORT`,
 `WHATBUILD_E2E_API_PORT` and `WHATBUILD_E2E_PG_PORT`; `WHATBUILD_E2E_URL` points the browser and
 MCP tools elsewhere. `GET /mcp 405` lines in its log are expected: MCP clients probe for a
 server-initiated stream, which WhatBuild does not offer.

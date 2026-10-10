@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { createServer } from "node:net";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createBlobStore, createMailer, createPorts } from "./app.ts";
@@ -38,6 +39,9 @@ async function main() {
   let databaseUrl = END_TO_END ? undefined : process.env["DATABASE_URL"];
   let sandboxTenant: string | undefined;
   if (END_TO_END) {
+    // Another server on these ports would answer the tests in its place, with other code and data.
+    for (const [name, port, variable] of [["API", API_PORT, "WHATBUILD_E2E_API_PORT"], ["web", WEB_PORT, "WHATBUILD_E2E_WEB_PORT"]] as const)
+      if (!(await portFree(port))) throw new Error(`The end-to-end instance's ${name} port ${port} is taken by another process. Stop it, or choose another port with ${variable}.`);
     console.log("Starting the end-to-end instance's Postgres (embedded, in .what-build/e2e/pg)…");
     pg = await connectOrStartLocalPg(E2E.pgDir, E2E.pgPort);
     const reset = await resetToGolden(pg).catch(async (e: unknown) => {
@@ -145,6 +149,15 @@ async function main() {
   };
   process.on("SIGINT", () => void stop());
   process.on("SIGTERM", () => void stop());
+}
+
+function portFree(port: number) {
+  return new Promise<boolean>((done) => {
+    const probe = createServer()
+      .once("error", () => done(false))
+      .once("listening", () => probe.close(() => done(true)))
+      .listen(port, "0.0.0.0");
+  });
 }
 
 main().catch(async (e) => {

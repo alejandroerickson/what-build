@@ -26,7 +26,7 @@ export interface Fingerprint {
 /** A short hash of one part's value: enough to tell that it changed, without storing the content. */
 export const partHash = (value: unknown) => sha256Hex(canonicalJson(value)).slice(0, 16);
 
-const hashParts = (parts: Parts): Record<string, string> => Object.fromEntries(Object.entries(parts.values).map(([k, v]) => [k, partHash(v)]));
+export const hashParts = (parts: Parts): Record<string, string> => Object.fromEntries(Object.entries(parts.values).map(([k, v]) => [k, partHash(v)]));
 
 /** A fingerprint of an input as it is now, or why it cannot be fingerprinted. */
 const fingerprint = (ctx: OpContext, ref: { kind: string; id: string }) => inputFingerprint(ctx.db, productId(ctx), ref);
@@ -76,7 +76,7 @@ function changedParts(stored: Record<string, string>, now: Parts): string[] {
  * Whether an input still matches its baseline: part by part where the parts were stored, else as a
  * whole, a source with the kind and organization it was fingerprinted with.
  */
-function isCurrent(stored: LineageInput, now: Fingerprint): boolean {
+export function isCurrent(stored: LineageInput, now: Fingerprint): boolean {
   if (stored.parts && now.parts) return changedParts(stored.parts, now.parts).length === 0;
   if (stored.was && now.parts) return sha256Hex(canonicalJson({ ...now.parts.values, ...stored.was })) === stored.fingerprint;
   return now.fingerprint === stored.fingerprint;
