@@ -708,9 +708,12 @@ never described as deleting. A list row showing an archived object says *Archive
     member whom staff gave a role sees the same page, with the notice and what they can do
     written for a member. A member who reads only the Story sees **You read: The Story** and that
     they write nothing, in place of the name they write under. A daily allowance set to 0 shows as
-    Off. The notice above every screen says who sees what the person adds:
-    other visitors, for a visitor; everyone there, for a member; visitors, under their own name,
-    for staff.
+    Off, and `sandbox.status` gives its refusal as `403 sandbox_restricted`. The notice above every
+    screen says who sees what the person adds: other visitors, for a visitor; everyone there, for a
+    member; visitors, under their own name, for staff. A member who reads only the Story is told
+    instead that they read the Story and write nothing, and its one-line form says "You read the
+    Story." Where exports are set to 0, a product's Export sheet says exporting is off for visitors
+    and offers no Export button, except to staff.
   - **Members** in the sandbox shows anyone but staff only themselves, and shows staff the
     organization's own people with the visitors as a count and a link to the controls; no visitor
     is listed, even one given a role on a team or product. The account

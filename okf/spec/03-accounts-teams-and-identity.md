@@ -473,7 +473,8 @@ treated as a visitor is (the made-up name, the limits, no administering, nobody 
 told so. The notice each is shown says who sees what they add, and under which name. A member
 who reads only the Story there (a reader wherever they hold a role) writes nothing, so they are
 told that instead: `you.story_only` is true, `appears_as` is null, and the notice and `you.can`
-say they read the Story and write nothing.
+say they read the Story and write nothing. Each allowance in the status names the refusal a call
+over it gets; an allowance set to 0 is switched off, so its refusal is `403 sandbox_restricted`.
 
 | A visitor | How |
 |---|---|

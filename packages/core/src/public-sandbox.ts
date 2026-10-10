@@ -347,8 +347,8 @@ const OFF: Partial<Record<SandboxSettingKey, string>> = {
   org_bytes_per_day: "Uploading files",
 };
 
-function off(setting: SandboxSettingKey, op: string) {
-  return restricted(`${OFF[setting]} is off for visitors in this public sandbox, so ${op} was refused. Reading and searching still work.`, { setting, limit: 0 });
+function off(setting: SandboxSettingKey) {
+  return restricted(`${OFF[setting]} is off for visitors in this public sandbox. Reading and searching still work.`, { setting, limit: 0 });
 }
 
 /**
@@ -359,11 +359,11 @@ function switchedOff(sandbox: SandboxContext, op: Pick<OperationDef, "name" | "m
   const s = sandbox.settings;
   if (!op.mutates) return;
   if (op.name !== "products.export") {
-    if (s.writes_per_day === 0) throw off("writes_per_day", op.name);
-    if (s.org_writes_per_day === 0) throw off("org_writes_per_day", op.name);
+    if (s.writes_per_day === 0) throw off("writes_per_day");
+    if (s.org_writes_per_day === 0) throw off("org_writes_per_day");
   }
   const daily = DAILY[op.name];
-  if (daily && s[daily.setting] === 0) throw off(daily.setting, op.name);
+  if (daily && s[daily.setting] === 0) throw off(daily.setting);
 }
 
 /** What a visitor may always ask, so that a person and an agent can learn the state they are refused in. */
@@ -455,8 +455,8 @@ export async function visitorUploadLimit(trx: Db, sandbox: SandboxContext, accou
   const s = sandbox.settings;
   if (s.documents_only && !parserFor(file.path, mediaTypeFor(file.path, file.media_type)))
     throw restricted(`This public sandbox takes only files its parsers read: text, Markdown, transcripts (VTT, SRT), HTML, Word (DOC, DOCX), PDF, spreadsheets and XML. ${file.path} is not one of them.`, { path: file.path });
-  if (s.bytes_per_day === 0) throw off("bytes_per_day", "the upload");
-  if (s.org_bytes_per_day === 0) throw off("org_bytes_per_day", "the upload");
+  if (s.bytes_per_day === 0) throw off("bytes_per_day");
+  if (s.org_bytes_per_day === 0) throw off("org_bytes_per_day");
   const used = await usageToday(trx, sandbox, accountId);
   if (used.bytes >= s.bytes_per_day) throw quota(sandbox, "bytes_per_day", used.bytes, "bytes", `each visitor ${s.bytes_per_day} bytes of uploads a day`);
   if (used.org_bytes >= s.org_bytes_per_day) throw quota(sandbox, "org_bytes_per_day", used.org_bytes, "bytes", `${s.org_bytes_per_day} bytes of uploads a day from all visitors together`);

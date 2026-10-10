@@ -437,6 +437,11 @@ describe("limits on what a visitor does", () => {
     expect(off.body.error).toMatchObject({ code: "sandbox_restricted", details: { setting: "exports_per_day", limit: 0 } });
     expect(off.body.error.message).toMatch(/Exporting a product is off for visitors/);
     expect(off.body.error.message).not.toMatch(/starts again/);
+    expect(off.body.error.message).not.toMatch(/products\.export/);
+    // What sandbox.status tells visitors matches: an allowance of 0 is refused as restricted.
+    const allowances = (await viktor.api("GET", `${T}/sandbox`)).body.allowances as { key: string; refusal: string }[];
+    expect(allowances.find((a) => a.key === "exports_per_day")?.refusal).toBe("403 sandbox_restricted");
+    expect(allowances.find((a) => a.key === "sources_per_day")?.refusal).toBe("409 quota_exceeded");
     // Read-only access does not change how a switched-off export is refused.
     await set({ visitor_access: "read" });
     expect((await viktor.api("POST", `${P}/exports`, {})).body.error.code).toBe("sandbox_restricted");
