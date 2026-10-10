@@ -59,7 +59,10 @@ const TYPES: Record<string, string> = {
   ".webmanifest": "application/manifest+json",
 };
 
-/** Headers on every HTML page and file the image serves: the web app's and the public site's. */
+/**
+ * Headers on every HTML page and file the image serves: the web app's and the public site's. The
+ * app adds the headers every response carries (`RESPONSE_HEADERS` in app.ts).
+ */
 export const PAGE_SECURITY_HEADERS = {
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "strict-origin-when-cross-origin",
@@ -68,7 +71,7 @@ export const PAGE_SECURITY_HEADERS = {
   // handle it would keep to them, so it can never later send such a tab somewhere else.
   "Cross-Origin-Opener-Policy": "same-origin",
   "Content-Security-Policy":
-    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; media-src 'self' blob:; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'",
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; media-src 'self' blob:; frame-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
 };
 
 /** Google Analytics' hosts, by directive. The app loads it only for a person who accepted it. */

@@ -374,8 +374,9 @@ POST /api/v1/sandbox/reset-if-due                    runs a sandbox's reset if i
 ```
 
 **Bytes are served by the service itself**, streamed from the object store with
-`X-Content-Type-Options: nosniff`, a `Content-Disposition`, range support, and a sandboxing
-`Content-Security-Policy`. Uploaded HTML, XHTML and SVG are always sent as
+`X-Content-Type-Options: nosniff`, a `Content-Disposition`, range support,
+`Cache-Control: private, no-store`, and a sandboxing `Content-Security-Policy` that lets only the
+app frame them. Uploaded HTML, XHTML and SVG are always sent as
 `application/octet-stream` attachments, never renderable from the application's origin.
 
 **The two sandbox routes need no identity.** `GET /api/v1/sandbox/invite` answers the page behind

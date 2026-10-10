@@ -1,7 +1,7 @@
 import { parseHtml } from "@whatbuild/parsers";
 import { serialize } from "parse5";
 import type { StoryNode } from "./db.ts";
-import { escapeHtml } from "./story-html.ts";
+import { escapeHtml, PERMISSIONS_POLICY } from "./story-html.ts";
 
 /**
  * The Story print view: chosen pages composed into one HTML document that a browser prints to PDF.
@@ -362,7 +362,7 @@ export function printResponseHeaders(nonce: string): Record<string, string> {
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
-    "Permissions-Policy": "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+    "Permissions-Policy": PERMISSIONS_POLICY,
   };
 }
 

@@ -16,11 +16,18 @@
 /** The site's own paths. Every other path on its domain belongs to the app. */
 const SITE_FILES = /^\/(assets\/.+|favicon\.svg|theme-boot\.js)$/;
 
-/** The server's headers for its pages (PAGE_SECURITY_HEADERS in apps/server/src/public-routes.ts). */
+/**
+ * The server's headers for its pages (PAGE_SECURITY_HEADERS in apps/server/src/public-routes.ts,
+ * with RESPONSE_HEADERS in apps/server/src/app.ts and PERMISSIONS_POLICY in packages/core/src/story-html.ts).
+ */
 const PAGE_HEADERS = {
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "X-Frame-Options": "DENY",
+  "Cross-Origin-Resource-Policy": "same-origin",
+  "Cross-Origin-Embedder-Policy": "credentialless",
+  "Permissions-Policy":
+    "accelerometer=(), browsing-topics=(), camera=(), display-capture=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), magnetometer=(), microphone=(), midi=(), payment=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), usb=(), xr-spatial-tracking=()",
   "Content-Security-Policy":
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
 };

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { AppError, REST_BODY_MAX_BYTES, SKILL_VERSION, type BlobStore, type Db, type Env, type Mailer, type Ports } from "@whatbuild/core";
+import { AppError, PERMISSIONS_POLICY, REST_BODY_MAX_BYTES, SKILL_VERSION, type BlobStore, type Db, type Env, type Mailer, type Ports } from "@whatbuild/core";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { FsBlobStore, MemoryBlobStore } from "./adapters/blobs.ts";
@@ -20,6 +20,26 @@ export const SERVER_VERSION = process.env["WHATBUILD_RELEASE"] ?? `dev-${SKILL_V
 
 /** The largest body sign-in and OAuth read. */
 const AUTH_BODY_MAX_BYTES = 64 * 1024;
+
+/**
+ * Headers every response carries unless its route set its own. No other site may load a response
+ * into its pages, and so into its process (CORP). A page loads from other sites only what it can
+ * fetch without credentials, and frames only documents that say the same (COEP `credentialless`,
+ * so nothing a page loads has to opt in). No response is sniffed for another type, and no page or
+ * frame may use a browser feature WhatBuild never needs.
+ */
+export const RESPONSE_HEADERS: Record<string, string> = {
+  "Cross-Origin-Resource-Policy": "same-origin",
+  "Cross-Origin-Embedder-Policy": "credentialless",
+  "X-Content-Type-Options": "nosniff",
+  "Permissions-Policy": PERMISSIONS_POLICY,
+};
+
+/** The policy of an HTML response whose route set none: it loads nothing, and cannot be framed, rebased or posted from. */
+export const FALLBACK_HTML_POLICY = "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+
+/** The paths whose responses carry people's material, their identity or credentials, which no cache, the browser's included, may keep. */
+const PRIVATE_PATHS = /^\/(api|mcp|auth|oauth)(\/|$)/;
 
 /**
  * A request's path as its log line holds it: ids masked, and the two links that are credentials
@@ -112,6 +132,13 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; cl
     // Operational telemetry only: never content, email addresses or tokens.
     if (deps.config.env !== "test" && !c.req.path.startsWith("/assets/"))
       console.log(JSON.stringify({ at: new Date().toISOString(), method: c.req.method, path: loggedPath(c.req.path), status: c.res.status, ms: Date.now() - started }));
+  });
+
+  app.use("*", async (c, next) => {
+    await next();
+    for (const [name, value] of Object.entries(RESPONSE_HEADERS)) if (!c.res.headers.has(name)) c.header(name, value);
+    if (PRIVATE_PATHS.test(c.req.path) && !c.res.headers.has("Cache-Control")) c.header("Cache-Control", "no-store");
+    if (c.res.headers.get("Content-Type")?.startsWith("text/html") && !c.res.headers.has("Content-Security-Policy")) c.header("Content-Security-Policy", FALLBACK_HTML_POLICY);
   });
 
   // A browser that has reached the app over HTTPS keeps to it for a year. This host only: the

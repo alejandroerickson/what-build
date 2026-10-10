@@ -259,6 +259,14 @@ deployment is involved
   and the MCP server instructions say so.
 - **Cookie-carrying writes must come from the app's own origin**, on every route, because
   `SameSite=Lax` is not enough on a shared parent domain.
+- **Every response** says `Cross-Origin-Resource-Policy: same-origin`,
+  `Cross-Origin-Embedder-Policy: credentialless`, `X-Content-Type-Options: nosniff` and a
+  `Permissions-Policy` that turns off the browser features WhatBuild never uses, unless its route
+  set its own (`RESPONSE_HEADERS` in [`app.ts`](../../apps/server/src/app.ts)). Responses under
+  `/api`, `/mcp`, `/auth` and `/oauth` say `Cache-Control: no-store` unless the route says
+  otherwise, and files served back say `private, no-store`. Every HTML response's
+  `Content-Security-Policy` defines `frame-ancestors`, `form-action` and `base-uri`, which have no
+  fallback; one whose route set no policy gets `default-src 'none'` and all three at `'none'`.
 - **Request bodies** under `/api/v1` are limited to 5 MB; files travel through upload grants.
   Under `/auth` and `/oauth`, which anyone may call, they are limited to 64 KB.
 - **URL fetch is SSRF-hardened:** HTTPS only, public addresses only, checked again on every

@@ -99,8 +99,15 @@ pnpm security workflows   # zizmor over .github/; GH_TOKEN=$(gh auth token) adds
    version in a comment; checkouts set `persist-credentials: false`; permissions are granted per
    job and no wider than the job needs. Ignore a finding only with a
    `# zizmor: ignore[<audit>]` comment that says why.
-4. **The ZAP report** is the run's summary and its `zap-report` artifact. A rule the app should
-   always pass becomes `FAIL` in `.github/zap-rules.tsv`.
+4. **The ZAP report** is the run's summary and its `zap-report` artifact. Fix a warning in the
+   server's headers where WhatBuild should, add a server test that holds it
+   (`apps/server/test/response-headers.test.ts`), and make the rule `FAIL` in
+   `.github/zap-rules.tsv` so it stays fixed. A rule that should not fail the scan is `WARN`,
+   `INFO` or `IGNORE` there, with the reason on its line. The file holds rules by number, and one
+   number can cover several findings (10055 is every check of a page's `Content-Security-Policy`),
+   so a rule is `FAIL` only when the app passes all of them. "ZAP is Out of Date" (10116) is
+   `FAIL`: when ZAP publishes a release, the next weekly scan fails until the image is pinned to
+   it.
 5. **Dependabot** pull requests run the same CI. A grouped update that breaks something is split by
    closing it and updating the culprit alone.
 
@@ -116,8 +123,20 @@ gh api repos/<owner>/<repo>/releases/tags/<tag> --jq '.assets[] | "\(.name) \(.d
 ```
 
 Change the version and all four hashes in one commit, then run `pnpm security` and
-`pnpm check:publishable --all`. The ZAP image is pinned by tag and digest in `security.yml`.
-Dependabot updates the actions.
+`pnpm check:publishable --all`. Dependabot updates the actions.
+
+The ZAP image is pinned by tag and digest in `security.yml`. The tag is the version of the latest
+release of [zaproxy/zaproxy](https://github.com/zaproxy/zaproxy/releases), without its `v`; the
+digest is that of its multi-platform index, from the registry with an anonymous token:
+
+```sh
+tag=2.17.0
+token=$(curl -s "https://ghcr.io/token?scope=repository:zaproxy/zaproxy:pull" | python3 -c 'import sys,json; print(json.load(sys.stdin)["token"])')
+curl -sI -H "Authorization: Bearer $token" -H "Accept: application/vnd.oci.image.index.v1+json" \
+  "https://ghcr.io/v2/zaproxy/zaproxy/manifests/$tag" | grep -i docker-content-digest
+```
+
+Then `node scripts/security.mjs workflows`, and run the scan on a pull request labelled `zap`.
 
 ## Auditing everything GitHub holds
 
