@@ -21,6 +21,9 @@ Read it before the first command. This file says how to conduct the work.
   deployment's database or bucket that changes them.
 - **Leave the synthetic data alone.** The copy is the `fixture` database. Do not drop or reseed
   `whatbuild`.
+- **This copy is local.** Never load a pull into the dev deployment; it takes its own copy from
+  production, with the `rehearse-on-the-dev-deployment` skill, which also rehearses a release's
+  deploy rather than only its code.
 
 ## Procedure
 

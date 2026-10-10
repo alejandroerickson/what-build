@@ -60,6 +60,11 @@ share), point an agent with a signed-in Azure CLI at this repository: the
 [Azure guide](okf/operations/azure.md) and the `azure-self-host` skill tell it what to create and
 how to adapt to your organization.
 
+Before production runs a release that changes the database, the maintainer rehearses it on a
+second deployment that holds a copy of production ([the dev deployment](okf/operations/dev-deployment.md),
+the `rehearse-on-the-dev-deployment` skill). What each deployment backs up, how to check it and
+how to restore a dump are in [backups](okf/operations/backups.md).
+
 If a new version breaks your deployment, wherever it runs, ask your agent to recover it: the
 `recover-a-deployment` skill and the runbook,
 [recovering from a bad release](okf/operations/recovering-from-a-bad-release.md), take it back to

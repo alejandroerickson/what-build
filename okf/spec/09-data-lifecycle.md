@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete, closing an organization, the operator runbooks, the public sandbox with its limits, baseline and reset, and how retired insights and decisions became sources.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, sandbox]
-generated: {by: agent:claude, at: 2026-10-09}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -130,13 +130,16 @@ organization before public sign-up opens.
 ([cloud-run.md](../operations/cloud-run.md)), `setup.sh` turns on automated daily backups with seven
 retained, and point-in-time recovery. With another Postgres, whose free tiers keep only hours of
 restore history, a nightly `pg_dump` runs as a role that reads everything and changes nothing, into
-a bucket of its own where dumps expire after 35 days ([cloud-run.md](../operations/cloud-run.md)).
+a bucket of its own where dumps expire after 35 days ([backups](../operations/backups.md)). On Neon,
+each deploy also branches the database before it migrates, as a restore point.
 ◆ Decision: the backup identity may add and read dumps but not delete them, so a fault in the job
 cannot erase the backups it would be needed to replace.
 ◆ Decision: a restore into a scratch environment is **performed and written up before public
 sign-up opens**, and repeated quarterly. An untested backup is not a backup, and this is the item
 most likely to be skipped under time pressure, so it is an acceptance criterion of a phase
 ([§10 Phase 6](10-roadmap.md)) rather than a good intention. It has not been performed yet.
+[Backups](../operations/backups.md#the-restore-drill) gives the procedure; the scratch environment
+is the [dev deployment](../operations/dev-deployment.md).
 
 **Object storage.** Blobs are immutable and keyed opaquely (`t/<tenant>/r/<record>/f/<file
 version>`), so nothing is ever overwritten in place ([§4.15](04-data-model.md)) — the common cause
@@ -291,11 +294,19 @@ transfer ownership or close the organization first, and the UI says which.
 
 Runbooks live in [`okf/operations/`](../operations/index.md). The deployment runbook is
 [cloud-run.md](../operations/cloud-run.md): setup, migrations before traffic, continuous
-deployment, sign-in configuration. Planned, each a deliverable of [Phase 6](10-roadmap.md):
+deployment, sign-in configuration. [Releasing](../operations/releasing.md) moves production, the
+[dev deployment](../operations/dev-deployment.md) rehearses a release that migrates before it
+does, and [recovering from a bad release](../operations/recovering-from-a-bad-release.md) goes
+back after one.
 
-- **backup** — what is configured, where, with what retention.
-- **restore** — the drill: restore into a scratch environment, verify against the nightly blob
-  manifest, record the date and the elapsed time. Repeated quarterly.
+- **backup** — [backups](../operations/backups.md): what is configured, where, with what
+  retention, and how to check that it runs.
+- **restore** — [backups](../operations/backups.md): restoring a dump and checking it, and the
+  drill: restore into a scratch environment, verify against the nightly blob manifest once it
+  exists, record the date and the elapsed time. Repeated quarterly. Not performed yet.
+
+Planned, each a deliverable of [Phase 6](10-roadmap.md):
+
 - **incident** — what we tell people, and how fast. A plain page and an honest note, no status
   page theatre.
 - **erasure** — the support path for the few cases the product deliberately does not automate: a

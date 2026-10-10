@@ -3,7 +3,7 @@ type: Bundle Guide
 title: How to read and keep this documentation bundle
 description: What okf/ is, how it is laid out, the reading order, and how to keep it accurate.
 tags: [guide, okf]
-generated: {by: agent:claude, at: 2026-10-01}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -34,7 +34,8 @@ Stop as soon as you have what the task needs.
 - [system/](system/index.md): the overview and the repository map.
 - [decisions/](decisions/index.md): architectural decision records.
 - [spec/](spec/index.md): the detailed specification and the roadmap.
-- [operations/](operations/index.md): local development, the Cloud Run deployment, self-hosting
+- [operations/](operations/index.md): local development, a copy of production, the Cloud Run
+  deployment, releasing, the dev deployment, backups, recovering from a bad release, self-hosting
   on Azure, and analytics.
 - [process/](process/index.md): how work on the repository is done.
 - [ontology.md](ontology.md): concept types, frontmatter and editing rules.
@@ -45,10 +46,13 @@ Stop as soon as you have what the task needs.
 When a change makes a concept untrue, correct the concept in the same change and bump its
 `generated.at`. Agents follow the skills in `.agents/skills/`: `okf-orient` to find what to read,
 `okf-update` to keep the bundle true (with an impact map from code to concepts and a template per
-type), and `okf-decision` to record decisions. Three more skills are procedures for operating a deployment:
+type), and `okf-decision` to record decisions. Five more skills are procedures for operating a deployment:
 `azure-self-host` for [hosting on Azure](operations/azure.md), `make-a-release` for
-[releasing](operations/releasing.md), and `recover-a-deployment` for
-[recovering from a bad release](operations/recovering-from-a-bad-release.md). Prefer correcting a concept to adding a near-duplicate. Validate before committing:
+[releasing](operations/releasing.md), `rehearse-on-the-dev-deployment` for
+[the dev deployment](operations/dev-deployment.md) and the restore drill in
+[backups](operations/backups.md), `recover-a-deployment` for
+[recovering from a bad release](operations/recovering-from-a-bad-release.md), and
+`test-on-a-copy-of-production` for [a copy of production](operations/a-copy-of-production.md). Prefer correcting a concept to adding a near-duplicate. Validate before committing:
 
 ```sh
 python3 okf/tools/validate_okf.py

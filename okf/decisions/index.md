@@ -3,7 +3,7 @@ type: Index
 title: Decisions
 description: Architectural decision records, each with its context, the choice, and what it constrains.
 tags: [index, decisions, adr]
-generated: {by: agent:claude, at: 2026-10-09}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -56,3 +56,4 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [A release is a tag on main with its image published; deploying it is the deployment's own pipeline](releases-are-tags-with-a-published-image.md)
 - [The Cloud Run deployment runs releases only; a release's tag starts its deploy, which waits for approval](production-runs-releases-after-approval.md)
 - [Each Cloud Run deploy on Neon branches the database before migrating, as a restore point](each-deploy-branches-the-neon-database-before-migrating.md)
+- [A release that migrates is rehearsed on a dev deployment that holds a copy of production, before production's deploy is approved](releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production.md)

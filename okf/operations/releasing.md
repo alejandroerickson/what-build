@@ -3,7 +3,7 @@ type: System Concept
 title: A release is a version tag on main, published as a GitHub release with its image; a deployment that follows releases moves when one is published.
 description: For the agent asked to release a version or move production; what a release is, how versions are numbered, publishing one with gh, what the Release workflow adds, and approving the Cloud Run deploy it starts.
 tags: [operations, releases, versions, tags, deployment, cloud-run]
-generated: {by: agent:claude, at: 2026-10-03}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -82,9 +82,17 @@ Generate release notes → Publish release.
 ## Moving production
 
 On the Cloud Run deployment, the tag also starts a Cloud Build that waits for approval. Approve it
-when the person has asked for production to move and the Release workflow has passed. In the
-console it is under Cloud Build → History; from the command line, with the project and region
-from `.env`:
+when the person has asked for production to move and the Release workflow has passed.
+
+**Rehearse a release that migrates.** Before approving production's build of a release that adds
+migrations, deploy the release to the [dev deployment](dev-deployment.md), which holds a copy of
+production, and check that each migration applies and each job it queues finishes there
+([decision](../decisions/releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production.md)).
+The commit can be rehearsed before it is tagged, too. A rehearsal that fails means the build is
+rejected or left waiting, and the fix is the next release.
+
+The waiting build is in the console under Cloud Build → History; from the command line, with
+the project and region from `.env`:
 
 ```bash
 gcloud builds list --project $P --region $R --filter 'approval.state=PENDING' \

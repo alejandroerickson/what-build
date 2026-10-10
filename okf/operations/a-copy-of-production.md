@@ -3,7 +3,7 @@ type: System Concept
 title: A copy of production on your machine, for manual QA, agent-driven end-to-end tests and trying migrations on real data
 description: Pulling the deployment's database and files, loading them into the embedded Postgres, serving them with pending migrations applied, and keeping the copy private.
 tags: [development, testing, qa, production, fixture, migrations]
-generated: {by: agent:claude, at: 2026-10-09}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -20,7 +20,8 @@ The skill `test-on-a-copy-of-production` conducts it.
 
 - A copy lives in `.what-build/fixtures/` (each pull) and in the embedded Postgres in
   `.what-build/pg` (the loaded copy), which git ignores, on the maintainer's machine. It is never
-  committed, uploaded, attached or copied anywhere else.
+  committed, uploaded, attached or copied anywhere else. The one other copy is the
+  [dev deployment](dev-deployment.md)'s, taken from production directly, never from a pull.
 - Nothing from it is quoted in the repository, a commit message, an issue or a pull request: no
   names, addresses, organizations, titles or text. Tests, the seed and screenshots stay synthetic.
 - Served, it sends no mail (mail prints to the terminal) and reads and writes only its local copy
@@ -113,3 +114,5 @@ does not have, so they run on the synthetic data.
      result);
    - the screens the release changed open on real data.
 4. Load again to put the copy back as it was pulled.
+5. Rehearse the deploy itself on the [dev deployment](dev-deployment.md): the same build, restore
+   point and migration job as production's, on its own copy.

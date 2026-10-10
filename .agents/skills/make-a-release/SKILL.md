@@ -18,6 +18,10 @@ command. This file is how to conduct the work.
   migrations it adds, and wait for their yes.
 - **Approve the production deploy only when the person asked for production to move**, and only
   after the Release workflow passed. Otherwise tell them it waits for approval in Cloud Build.
+- **Rehearse a release that migrates first.** Before approving production's build of a release
+  that adds migrations, deploy it to the dev deployment and check its migrations there with the
+  `rehearse-on-the-dev-deployment` skill, unless the person says to skip it. A rehearsal that
+  fails means the build is not approved.
 - **Read the deployment's values from `.env`** in the maintainer's clone; never write them into
   the repository, which is public.
 
@@ -28,7 +32,8 @@ command. This file is how to conduct the work.
    for fixes only. Use the version the person named if they named one.
 3. **Show the person** the version, commit, changes and migrations; wait for yes.
 4. **Publish** with `gh release create`, then watch the Release workflow to the end.
-5. **Production, if asked:** approve the pending Cloud Build, follow its log, and check that
-   `/api/v1/meta` reports the new version.
+5. **Production, if asked:** if the release adds migrations, rehearse it on the dev deployment
+   first and report the result. Then approve the pending Cloud Build, follow its log, and check
+   that `/api/v1/meta` reports the new version.
 6. **Report** the release page's address, whether the image was published, and what production
    runs now. If the deploy broke something, use the `recover-a-deployment` skill.
