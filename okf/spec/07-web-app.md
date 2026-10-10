@@ -48,8 +48,11 @@ the browser's back button and "open in new tab" both work.
   from every screen, with the button that hides the panel at the row's far end. Only the mark and
   wordmark are the link, so a click that misses the hide button does not leave the screen. Then the
   product switch, showing the product and its organization and team.
-- **L1**, exactly and in this order: **Idea, Evidence, Exploration, Story**, each with its count
-  (Idea counts outcomes, Exploration counts mockups).
+- **L1**, exactly and in this order: **Idea, Evidence, Exploration, Story**, each with its count:
+  every item the stage holds (`stage_counts`, [§4.2](04-data-model.md),
+  [decision](../decisions/each-stage-counts-every-item-it-holds.md)). Idea counts outcomes, Evidence
+  sources, Exploration mockups and current assumptions together, and Story its pages, those in the
+  tree and the Published mockups alike.
   Below them, quieter: **Connect an agent**, **Activity** (§7.9) and the product's **Settings**.
   Exploration opens on its mockups; the mockups, then the assumptions, are listed in its panel. Search belongs to Evidence. The app's URLs follow the areas
   (`/evidence`, `/exploration/…`); REST and MCP name the objects (`sources`, `mockups`).
@@ -112,10 +115,14 @@ place.
 4. The product is in the URL path (`/t/<tenant>/<team>/<product>/…`). Opening a link to another
    product simply works, and becomes the remembered one.
 5. `/` opens the overview for anyone in an organization, and first run for anyone in none. The
-   last-used product is remembered per browser; Connect an agent names it in its example request.
+   last-used product is remembered per browser until the person signs out or their session ends
+   ([§9.1](09-data-lifecycle.md)); Connect an agent names it in its example request.
 6. Archived products appear only on the overview, behind "Show archived products" (`?archived=1`)
    under each organization that has any, read-only, and an admin restores them from the product's
-   Settings.
+   Settings. Inside one, no control offers a change the server would refuse: an outcome's actions
+   menu becomes its Earlier versions button, as for a viewer. Roles are access, not content, and
+   `members.grant` and `members.revoke` still work on an archived product, so its Settings keep
+   People on this product for admins and say so above the list.
 7. On the overview, an organization where the person has no team or product role says so, and that
    there is nothing to open until an admin gives them one.
 8. Organization-level screens (the overview, Connect an agent, Settings, Members) use a different
@@ -613,7 +620,8 @@ never described as deleting. A list row showing an archived object says *Archive
   ([§3.5](03-accounts-teams-and-identity.md)).
   Someone who reads only the Story in the organization who opens the address gets a page saying
   that members aren't shown to Story readers, with a way back to their products
-  ([§3.5](03-accounts-teams-and-identity.md)).
+  ([§3.5](03-accounts-teams-and-identity.md)). The page knows this from `products.list`'s
+  `story_only` and asks for the members only once that has loaded, so it is never refused.
 - **Invitation** (`/invite/:token`). Accepts the invitation and opens the overview with a toast
   naming the organization and role. A link already accepted by the same person (signing in accepts
   it) is the same success. Otherwise it names why the link can't be used and offers signing in
@@ -674,7 +682,8 @@ never described as deleting. A list row showing an archived object says *Archive
     by itself. An invitation that admits nobody else says why. Sign-in reached from it is titled
     "Sign in to enter the sandbox".
   - **The controls** (`/t/:tenant/sandbox`, for owners and admins; Sandbox controls in the
-    account menu). State at a glance, with two switches that act at once: what visitors may do
+    account menu). The address of an organization the person is in that is not a sandbox says so
+    without asking the server, which would refuse it. State at a glance, with two switches that act at once: what visitors may do
     (writing, reading only, closed) and whether their agents may connect. Then seats, the next
     and last reset, and today's use. **Limits** is one table of every limit: what it counts, what
     it is counted over, its value in a field, its default, and the error a call over it gets.

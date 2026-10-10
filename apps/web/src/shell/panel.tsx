@@ -11,11 +11,11 @@ import { useTheme } from "./theme.ts";
 
 /** The four L1 destinations, in the order that tells the product's story. */
 export const L1 = [
-  { id: "idea", label: "Idea", icon: "lightbulb", count: "outcomes" },
-  { id: "evidence", label: "Evidence", icon: "library", count: "sources" },
-  { id: "exploration", label: "Exploration", icon: "blend", count: "mockups" },
-  { id: "story", label: "Story", icon: "book-open", count: "story_pages" },
-] as const satisfies readonly { id: string; label: string; icon: GlyphName; count: keyof Product["counts"] }[];
+  { id: "idea", label: "Idea", icon: "lightbulb" },
+  { id: "evidence", label: "Evidence", icon: "library" },
+  { id: "exploration", label: "Exploration", icon: "blend" },
+  { id: "story", label: "Story", icon: "book-open" },
+] as const satisfies readonly { id: keyof Product["stage_counts"]; label: string; icon: GlyphName }[];
 
 /** Which L1 (or quiet) item a product screen belongs to, from the first path segment after the product. */
 export function productSection(segment: string | undefined): { id: string; label: string } {
@@ -120,14 +120,14 @@ export function ProductNav({ product, app, section }: { product: Product; app: s
   if (product.your_role === "reader")
     return (
       <div className="nav-l1">
-        <NavNode to={`${app}/story`} icon="book-open" label="Story" count={product.counts.story_pages} current={section === "story"} />
+        <NavNode to={`${app}/story`} icon="book-open" label="Story" count={product.stage_counts.story} current={section === "story"} />
       </div>
     );
   return (
     <>
       <div className="nav-l1">
         {L1.map((d) => (
-          <NavNode key={d.id} to={`${app}/${d.id}`} icon={d.icon} label={d.label} count={product.counts[d.count]} current={section === d.id} />
+          <NavNode key={d.id} to={`${app}/${d.id}`} icon={d.icon} label={d.label} count={product.stage_counts[d.id]} current={section === d.id} />
         ))}
       </div>
       <div className="nav-quiet">

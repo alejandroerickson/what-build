@@ -283,10 +283,20 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     return p;
   };
 
-  app.get("/api/v1/me", async (c) => {
-    const p = await requirePrincipal(c);
+  const meOf = async (p: NonNullable<Awaited<ReturnType<typeof restPrincipal>>>) => {
     const tenant_allowance = await tenantAllowanceOf(db, config, p);
-    return c.json({ account_id: p.account_id, email: p.email, display_name: p.display_name, auth_kind: p.auth_kind, ...(p.sandbox_only ? { sandbox_only: true } : {}), tenant_allowance });
+    return { account_id: p.account_id, email: p.email, display_name: p.display_name, auth_kind: p.auth_kind, ...(p.sandbox_only ? { sandbox_only: true } : {}), tenant_allowance };
+  };
+
+  app.get("/api/v1/me", async (c) => c.json(await meOf(await requirePrincipal(c))));
+
+  /**
+   * Who is signed in, for the web app's own check. Being signed out is an answer here, not an
+   * error, so a visitor's browser logs nothing; every other endpoint still refuses without a session.
+   */
+  app.get("/auth/session", async (c) => {
+    const p = await restPrincipal(c, db, config);
+    return c.json(p ? { signed_in: true, ...(await meOf(p)) } : { signed_in: false });
   });
 
   app.patch("/api/v1/me", async (c) => {

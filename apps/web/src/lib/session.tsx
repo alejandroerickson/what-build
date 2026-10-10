@@ -2,7 +2,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, useContext, type ReactNode } from "react";
 import { Navigate, useLocation, useParams } from "react-router";
 import { Loading } from "../ui/index.tsx";
-import { api } from "./api.ts";
+import { api, ApiError } from "./api.ts";
+import { forgetPersonalState } from "./local-state.ts";
 
 export interface Me {
   account_id: string;
@@ -33,6 +34,7 @@ export interface ProductSummary {
   team: { team_id: string; slug: string; name: string };
   your_role: ProductRole;
   counts: Product["counts"];
+  stage_counts: Product["stage_counts"];
 }
 
 export interface ProductsResponse {
@@ -42,8 +44,27 @@ export interface ProductsResponse {
   tenants: { tenant_id: string; slug: string; name: string; sandbox?: boolean; story_only?: boolean; your_role: string | null; teams: { team_id: string; slug: string; name: string; your_role: string | null }[] }[];
 }
 
+/**
+ * Who is signed in. `/auth/session` answers a signed-out visitor with `signed_in: false` rather than
+ * a 401, so the browser logs no error for what is normal on the sign-in page; the query still fails
+ * then, as before, for the screens that send such a visitor to sign in. A visitor without a session
+ * is also where one person's display state stops: it is cleared before anyone signs in.
+ */
 export function useMe() {
-  return useQuery({ queryKey: ["me"], queryFn: () => api<Me>("GET", "/api/v1/me"), retry: false, staleTime: 60_000 });
+  return useQuery({
+    queryKey: ["me"],
+    queryFn: async () => {
+      const s = await api<({ signed_in: true } & Me) | { signed_in: false }>("GET", "/auth/session");
+      if (!s.signed_in) {
+        forgetPersonalState();
+        throw new ApiError(401, "unauthenticated", "Nobody is signed in.");
+      }
+      const { signed_in: _, ...me } = s;
+      return me as Me;
+    },
+    retry: false,
+    staleTime: 60_000,
+  });
 }
 
 export function useProducts(includeArchived = false) {
@@ -55,6 +76,7 @@ export function useSignOut() {
   /** `next` brings the person back after signing in again, e.g. to the invitation they were opening. */
   return async (next?: string) => {
     await api("POST", "/auth/sign-out").catch(() => undefined);
+    forgetPersonalState();
     qc.clear();
     window.location.assign(next ? `/signin?next=${encodeURIComponent(next)}` : "/signin");
   };
@@ -85,6 +107,8 @@ export interface Product {
   your_role: ProductRole;
   /** A reader gets story_pages only. */
   counts: { story_pages: number } & Partial<Record<"sources" | "outcomes" | "assumptions" | "mockups", number>>;
+  /** Each stage's total of every item it holds, as the panel and the overview show it; a reader gets story only. */
+  stage_counts: { story: number } & Partial<Record<"idea" | "evidence" | "exploration", number>>;
 }
 
 interface ProductCtx {

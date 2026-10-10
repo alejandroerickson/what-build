@@ -18,6 +18,9 @@ const linkInput = z.strictObject({ id: id("assumption"), type: z.enum(["supports
 
 const STATUS = z.enum(["unconfirmed", "confirmed", "refuted", "superseded"]);
 
+/** The current entries: what a list shows without a status, and what every count counts. */
+const CURRENT: z.infer<typeof STATUS>[] = ["unconfirmed", "confirmed"];
+
 async function checkLinks(ctx: OpContext, selfId: string | null, links: RegisterLink[]) {
   const seen = new Set<string>();
   for (const l of links) {
@@ -193,9 +196,9 @@ function registerOps(): OperationDef[] {
     access: "read",
     mutates: false,
     summary: `List ${kind}s, newest first, without quotes or review notes.`,
-    description: `${meaning} Filter by review status (one or more of unconfirmed, confirmed, refuted, superseded), a cited source, an outcome, a tag, human confidence or dimensions. Archived entries are left out unless include_archived. Each item says whether it is frozen (reviewed, so its statement, body and citations can no longer be edited), which entries supersede it (superseded_by, newest first), and how many links it has out (link_count) and in (linked_from_count); get returns the links themselves.`,
+    description: `${meaning} Without status it lists the current entries (unconfirmed and confirmed), the ones products(action="list") and outcomes count; not_current_hidden says how many refuted or superseded entries matching the other filters it left out. Pass status (one or more of unconfirmed, confirmed, refuted, superseded) to list those too. Filter also by a cited source, an outcome, a tag, human confidence or dimensions. Archived entries are left out unless include_archived. Each item says whether it is frozen (reviewed, so its statement, body and citations can no longer be edited), which entries supersede it (superseded_by, newest first), and how many links it has out (link_count) and in (linked_from_count); get returns the links themselves.`,
     input: z.strictObject({
-      status: z.array(STATUS).max(4).optional(),
+      status: z.array(STATUS).max(4).optional().describe("Only these statuses. Omit for the current ones: unconfirmed and confirmed."),
       record_id: id("source").optional(),
       outcome_id: id("outcome").optional(),
       tag: z.string().max(50).optional(),
@@ -211,7 +214,6 @@ function registerOps(): OperationDef[] {
     async handler(ctx, input) {
       let q = ctx.db.selectFrom("register_entries").selectAll().where("product_id", "=", productId(ctx)).where("kind", "=", kind);
       if (!input.include_archived) q = q.where("archived_at", "is", null);
-      if (input.status?.length) q = q.where("status", "in", input.status);
       if (input.record_id) q = q.where(sql<boolean>`citations @> ${JSON.stringify([{ record_id: input.record_id }])}::jsonb`);
       if (input.outcome_id) q = q.where(sql<boolean>`${input.outcome_id} = any(outcome_ids)`);
       if (input.tag) q = q.where(sql<boolean>`${normalizeTags([input.tag])[0]!} = any(tags)`);
@@ -221,6 +223,9 @@ function registerOps(): OperationDef[] {
         const latest = sql`(select r.confidence from reviews r where r.entry_id = register_entries.entry_id and r.reviewer_type = 'human' and r.confidence is not null order by r.review_id desc limit 1)`;
         q = input.human_confidence === "unreviewed" ? q.where(sql<boolean>`${latest} is null`) : q.where(sql<boolean>`${latest} = ${input.human_confidence}`);
       }
+      // What the default leaves out is counted under the same filters.
+      const filtered = q;
+      q = q.where("status", "in", input.status?.length ? input.status : CURRENT);
       if (input.cursor) q = q.where("entry_id", "<", input.cursor);
       const rows = await q.orderBy("entry_id", "desc").limit(input.limit + 1).execute();
       const page = rows.slice(0, input.limit);
@@ -237,7 +242,19 @@ function registerOps(): OperationDef[] {
           link_count: r.links.length, linked_from_count: incoming.get(r.entry_id)!.linked_from,
           review_count: r.review_count, human_review: await humanReview(ctx, r.entry_id), archived_at: r.archived_at, etag: r.etag,
         });
-      return { items, next_cursor: rows.length > input.limit ? page[page.length - 1]!.entry_id : null };
+      let not_current_hidden = 0;
+      if (!input.status?.length) {
+        const n = await filtered.clearSelect().select((eb) => eb.fn.countAll<number>().as("n")).where("status", "not in", CURRENT).executeTakeFirst();
+        not_current_hidden = Number(n?.n ?? 0);
+      }
+      return {
+        items,
+        next_cursor: rows.length > input.limit ? page[page.length - 1]!.entry_id : null,
+        not_current_hidden,
+        ...(not_current_hidden
+          ? { note: `${not_current_hidden} refuted or superseded ${kind}${not_current_hidden === 1 ? " is" : "s are"} not listed; pass status ["refuted", "superseded"] to see ${not_current_hidden === 1 ? "it" : "them"}.` }
+          : {}),
+      };
     },
   });
 

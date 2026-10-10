@@ -152,6 +152,21 @@ describe("identity", () => {
     expect(r.status).toBe(401);
   });
 
+  it("answers the app's session check without an error when nobody is signed in, and still refuses /me", async () => {
+    const anonymous = await fetch(`${h.baseUrl}/auth/session`);
+    expect(anonymous.status).toBe(200);
+    expect(anonymous.headers.get("cache-control")).toBe("no-store");
+    expect(await anonymous.json()).toEqual({ signed_in: false });
+    expect((await fetch(`${h.baseUrl}/api/v1/me`)).status).toBe(401);
+    // A bearer token is no session here either, as on REST.
+    const token = await h.connectAgent(alice);
+    expect(await (await fetch(`${h.baseUrl}/auth/session`, { headers: { authorization: `Bearer ${token}` } })).json()).toEqual({ signed_in: false });
+    const me = await alice.api("GET", "/api/v1/me");
+    const session = await alice.api("GET", "/auth/session");
+    expect(session.status).toBe(200);
+    expect(session.body).toEqual({ signed_in: true, ...me.body });
+  });
+
   it("says before sign-in how long the session cookie lasts, as long as the cookie it sets", async () => {
     const methods = (await (await fetch(`${h.baseUrl}/auth/methods`)).json()) as { session_days: number; analytics_id: string | null };
     expect(methods.analytics_id).toBeNull();

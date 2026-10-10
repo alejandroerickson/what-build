@@ -9,7 +9,7 @@ import { Button, EmptyState, ErrorCallout, Glyph, Loading, Sheet, SheetHeader, S
 import { CreateProductDialog } from "./new-product.tsx";
 import "../styles/screens/overview.css";
 
-const UNIT: Record<string, [string, string]> = { idea: ["outcome", "outcomes"], evidence: ["source", "sources"], exploration: ["mockup", "mockups"], story: ["page", "pages"] };
+const UNIT: Record<string, [string, string]> = { idea: ["outcome", "outcomes"], evidence: ["source", "sources"], exploration: ["item", "items"], story: ["page", "pages"] };
 
 /**
  * The overview at `/`: what WhatBuild is for, the loop a discovery moves through, and every product with a direct link to each of its four sections. It is the one list of products: New
@@ -168,7 +168,7 @@ function ProductEntry({ product: p, showTeam }: { product: ProductSummary; showT
       </div>
       <nav className="overview-product-go" aria-label={`${p.name}: sections`}>
         {stages.map((d) => {
-          const n = p.counts[d.count] ?? 0;
+          const n = p.stage_counts[d.id] ?? 0;
           const [one, many] = UNIT[d.id]!;
           return (
             <Link key={d.id} to={`/t/${p.path}/${d.id}`} className="overview-go">

@@ -33,6 +33,19 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   `sources.kinds` is replaced by `sources.facets`.
 - **The skill** is at 0.17.0. Connected agents that installed an earlier one are told to update it
   by the server's instructions; until they do, they may still send kinds or call retired tools.
+- **`assumptions.list`** without `status` returns only current assumptions (unconfirmed and
+  confirmed), matching the counts, with `not_current_hidden` for the refuted and superseded ones
+  it left out. A script or agent that relied on the old default to see every status passes
+  `status` (all four) instead.
+- **Stage counts** are additive: beside Idea, Evidence, Exploration and Story the app shows every
+  item the stage holds, so Exploration counts mockups and current assumptions together.
+  `products.get` and `products.list` return these totals as `stage_counts`, beside the per-kind
+  `counts`, which are unchanged.
+- **The web app** answers "who is signed in" from `GET /auth/session`, which says `signed_in:
+  false` with a `200` instead of a `401`, so a signed-out visitor's browser logs no error.
+  `GET /api/v1/me` still refuses without a session. Signing out, or a session ending, also clears
+  the last product, Story positions, focus choice and other per-person display state kept in the
+  browser.
 - **`story.get_hierarchy`** returns pages not yet placed only in `unplaced`, now a list of
   `{page_id, title, description}`, and no longer also at the end of `items`; `set_hierarchy`
   accepts `items` as `get_hierarchy` returns them. A script that read `unplaced` as a list of ids,

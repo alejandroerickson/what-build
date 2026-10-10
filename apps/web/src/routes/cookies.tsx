@@ -56,7 +56,7 @@ export function CookiesPage() {
       ) : null}
       <section className="entry-fine" aria-labelledby="cookies-clear">
         <h2 id="cookies-clear">Clearing them</h2>
-        <p>Signing out removes the sign-in cookie. Clearing this site&rsquo;s data in your browser removes the rest. Your work in WhatBuild isn&rsquo;t affected.</p>
+        <p>Signing out removes the sign-in cookie and what this browser remembers of your work, such as the product you had open; the theme and panel choices stay for whoever uses it next. Clearing this site&rsquo;s data in your browser removes the rest. Your work in WhatBuild isn&rsquo;t affected.</p>
       </section>
       <div className="cookie-back">
         <ButtonLink to="/" size="sm" icon="arrow-left">

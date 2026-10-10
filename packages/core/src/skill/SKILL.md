@@ -149,6 +149,9 @@ success looks like for them. Keep the active set small. Link assumptions to outc
   `agent` unless you are relaying the person's own words. Ordinary agreement in conversation is not a
   recorded confirmation: record `confirmed` only when the person asked you to. Confidence (low,
   medium, high) is a human's judgment of suitability for current work, recorded only for a human.
+- `assumptions(action="list")` returns the current entries (unconfirmed and confirmed), the ones
+  the product's counts count; `not_current_hidden` says how many refuted or superseded ones it left
+  out. Pass `status` to list those, for example before recording a premise the team already refuted.
 - `check_citations` reports whether cited passages still say what was quoted. A matching quote shows
   textual integrity, not truth.
 - `derived(action="rederive")` parses a source again. It is done when `derived(action="manifest")`
