@@ -35,6 +35,7 @@ What the app itself defends against, and where, is in the [threat model](../syst
 | Tenant isolation and row-level security | `pnpm test`: every operation from another organization, and every table's policy ([§3.6](../spec/03-accounts-teams-and-identity.md)) | a red CI |
 | CodeQL | `codeql.yml` on pull requests, pushes and weekly, once the repository is public | alerts in the Security tab |
 | Dependabot | alerts and a security update as an advisory appears; grouped version updates weekly, for releases at least seven days old | pull requests |
+| `pnpm attention` | at the start of every agent session (`AGENTS.md`): Dependabot's pull requests and alerts, code and secret scanning alerts, the last run of each workflow on `main`, accepted vulnerabilities within 30 days of expiry, unreleased changes to security-sensitive code, hooks that are off | tells the person |
 
 `pnpm install` installs the hooks: its `prepare` script points `core.hooksPath` at `.githooks/`,
 which covers every worktree of the clone. The hooks need only Node. `scripts/tools.mjs` downloads
@@ -155,10 +156,13 @@ node scripts/tools.mjs gitleaks dir --redact --no-banner "$out"
 
 ## Making the repository public
 
-1. Audit everything GitHub holds, fresh, as above. Settle every finding.
-2. Make it public:
+1. **Release first.** The public history shows what each fix fixed, so production must already run
+   it: if `pnpm attention` reports changes production lacks, make a release with the
+   `make-a-release` skill and see it deployed.
+2. Audit everything GitHub holds, fresh, as above. Settle every finding.
+3. Make it public:
    `gh repo edit <owner>/what-build --visibility public --accept-visibility-change-consequences`.
-3. Turn on what GitHub offers public repositories, which the private repository could not have:
+4. Turn on what GitHub offers public repositories, which the private repository could not have:
 
    ```sh
    gh api -X PATCH repos/<owner>/what-build \
@@ -167,9 +171,13 @@ node scripts/tools.mjs gitleaks dir --redact --no-banner "$out"
    gh api -X PUT repos/<owner>/what-build/private-vulnerability-reporting
    ```
 
-4. CodeQL starts by itself on the next push to `main`; its results appear in the Security tab.
-5. Decide whether the container image is public too: the package's settings on GitHub, or
-   `gh api` with a token that has the `write:packages` scope. A public image lets others
-   [self-host](azure.md) without credentials.
-6. Check: the Security tab offers **Report a vulnerability**, shows [`SECURITY.md`](../../SECURITY.md),
+5. CodeQL starts by itself on the next push to `main`; its results appear in the Security tab.
+6. Make the container image public as well: it is built from an allow-list of source
+   (`.dockerignore`) and holds nothing the repository does not, and a public image lets others run
+   a release without credentials. GitHub has no API for a package's visibility, so ask the person
+   to open `https://github.com/users/<owner>/packages/container/what-build/settings`, choose
+   **Change visibility**, then **Public**, and wait. Confirm it without credentials: a pull token
+   comes back only for a public image,
+   `curl -s "https://ghcr.io/token?scope=repository:<owner>/what-build:pull"`.
+7. Check: the Security tab offers **Report a vulnerability**, shows [`SECURITY.md`](../../SECURITY.md),
    and lists secret scanning, push protection, Dependabot and code scanning as on.

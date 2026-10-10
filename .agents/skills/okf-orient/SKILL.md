@@ -10,6 +10,11 @@ built, the decisions behind it, the detailed specification, how to run it and ho
 Read the part your task needs before you plan or edit. Do not rebuild that understanding from the
 code alone. The docs record intent and constraints that the code cannot show.
 
+## First, what is waiting
+
+Run `corepack pnpm attention` once per session and tell the person what it prints, if anything, as
+`AGENTS.md` says.
+
 ## Read in this order, and stop when you have enough
 
 1. `okf/index.md`: the map.

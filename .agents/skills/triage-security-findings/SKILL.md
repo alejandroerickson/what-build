@@ -24,7 +24,8 @@ work.
 
 ## Procedure
 
-1. **Run the scanners:** `pnpm security`. With `GH_TOKEN=$(gh auth token)` zizmor adds its online
+1. **See what is waiting:** `pnpm attention` lists Dependabot's pull requests and alerts, failed
+   runs on `main` and accepted vulnerabilities near expiry. **Run the scanners:** `pnpm security`. With `GH_TOKEN=$(gh auth token)` zizmor adds its online
    audits. For the running app, run the Security workflow's ZAP job (`gh workflow run security.yml`)
    and read its summary.
 2. **For each finding**, say what it is, whether WhatBuild reaches it (which package uses it, and

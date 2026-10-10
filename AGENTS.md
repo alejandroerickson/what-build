@@ -3,6 +3,15 @@
 This file is for any agent working in this repository. `CLAUDE.md` is a symlink to it; keep one
 copy.
 
+## At the start of every session
+
+Run `corepack pnpm attention`. It prints what is waiting in this repository: Dependabot's pull
+requests and alerts, a failed run on `main`, an accepted vulnerability whose time is up, changes
+production lacks, git hooks that are off. If it prints anything, tell the person in a line or two
+before you start their task, and offer to handle each item with the skill it names. The maintainer
+works on many projects and will not remember this one's chores; this is how they hear of them. Do
+not act on an item unasked.
+
 ## This repository is public
 
 `alejandroerickson/what-build` is public and MIT-licensed. Everything committed, every commit

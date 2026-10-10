@@ -44,15 +44,19 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
-      - name: The pull request's commits and text
+      - name: The pull request's commits
         if: github.event_name == 'pull_request'
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/check-publishable.mjs --revs "$BASE..$HEAD"
+      - name: The pull request's text
+        # Dependabot's text quotes its dependencies' public release notes, addresses and all.
+        if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]'
+        env:
           TITLE: ${{ github.event.pull_request.title }}
           BODY: ${{ github.event.pull_request.body }}
         run: |
-          node scripts/check-publishable.mjs --revs "$BASE..$HEAD"
           printf '%s\n\n%s\n' "$TITLE" "$BODY" > "$RUNNER_TEMP/pull-request.txt"
           node scripts/check-publishable.mjs --message "$RUNNER_TEMP/pull-request.txt"
       - name: The pushed commits

@@ -70,6 +70,8 @@ const BIG_OK = new Set(["pnpm-lock.yaml"]);
 
 const EMAIL = /[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})\b/g;
 const EMAIL_LOCAL_OK = /^(no-?reply|git)$/i;
+/** Addresses that belong to services, not people: Dependabot signs its commits with GitHub's. */
+const EMAIL_ADDRESS_OK = new Set(["support@github.com"]);
 const EMAIL_DOMAIN_OK = [
   /^example\.(com|net|org)$/i, /\.(example|test|invalid|localhost)$/i, /^example$/i,
   /^what-build\.com$/i, /(^|\.)users\.noreply\.github\.com$/i, /\.gserviceaccount\.com$/i,
@@ -88,6 +90,7 @@ const CONTENT = [
     find: (line) => {
       for (const m of line.matchAll(EMAIL)) {
         const [local] = m[0].split("@");
+        if (EMAIL_ADDRESS_OK.has(m[0].toLowerCase())) continue;
         if (!EMAIL_LOCAL_OK.test(local) && !EMAIL_DOMAIN_OK.some((re) => re.test(m[1]))) return m[0];
       }
     },
