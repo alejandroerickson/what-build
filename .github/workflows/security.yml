@@ -1,0 +1,109 @@
+name: Security
+
+# Known vulnerabilities in the dependencies and weaknesses in the workflows, with the pinned scanners
+# a contributor runs as `pnpm security`, on every pull request and push to main and weekly, because
+# advisories appear for dependencies that have not changed. Weekly as well: every published commit
+# checked again for anything private, and a passive OWASP ZAP scan of the app running as it does in
+# production. A failure here reports; it does not block a merge (okf/operations/security-checks.md).
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  schedule:
+    - cron: "17 6 * * 1" # Mondays
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Dependencies and workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+      - run: node scripts/security.mjs
+        env:
+          GH_TOKEN: ${{ github.token }} # zizmor's online audits: known-vulnerable and impostor actions
+
+  history:
+    name: Nothing private, every published commit
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+      - run: node scripts/check-publishable.mjs --all
+
+  zap:
+    name: The running app (OWASP ZAP baseline)
+    # Weekly, on demand, and on a pull request labelled `zap` (one that changes the app's headers, say).
+    if: >-
+      github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'zap'))
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Start WhatBuild as it runs in production
+        env:
+          NODE_ENV: production
+          PORT: "8080"
+          DATABASE_URL: postgres://whatbuild:whatbuild@localhost:5432/whatbuild
+          WHATBUILD_PUBLIC_URL: http://localhost:8080
+          WHATBUILD_WEB_DIST: ${{ github.workspace }}/apps/web/dist
+          WHATBUILD_BLOB_DIR: ${{ runner.temp }}/blobs
+        # As in production: the app's own role, which row-level security binds, owns its database.
+        run: |
+          export PGPASSWORD=postgres
+          psql -h localhost -U postgres -c "create role whatbuild login password 'whatbuild' nosuperuser nobypassrls"
+          psql -h localhost -U postgres -c "create database whatbuild owner whatbuild"
+          unset PGPASSWORD
+          WHATBUILD_GRANT_KEY=$(openssl rand -hex 32)
+          export WHATBUILD_GRANT_KEY
+          node apps/server/dist/main.js migrate
+          nohup node apps/server/dist/main.js serve > "$RUNNER_TEMP/server.log" 2>&1 &
+          for _ in $(seq 60); do curl -fsS -o /dev/null http://localhost:8080/ && exit 0; sleep 1; done
+          cat "$RUNNER_TEMP/server.log"; exit 1
+      - name: Scan
+        # Rules in .github/zap-rules.tsv decide what fails the job; everything else is reported.
+        run: |
+          mkdir -p "$RUNNER_TEMP/zap" && cp .github/zap-rules.tsv "$RUNNER_TEMP/zap/" && chmod -R 777 "$RUNNER_TEMP/zap"
+          status=0
+          docker run --rm --network host -v "$RUNNER_TEMP/zap:/zap/wrk:rw" \
+            ghcr.io/zaproxy/zaproxy:2.16.1@sha256:7840969c7c9fead565bf9734b12f49f6886db90b1d35b1f74d79710bbd081dab \
+            zap-baseline.py -t http://localhost:8080 -c zap-rules.tsv -I -r report.html -w report.md || status=$?
+          cat "$RUNNER_TEMP/zap/report.md" >> "$GITHUB_STEP_SUMMARY" || true
+          exit $status
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: zap-report
+          path: ${{ runner.temp }}/zap/report.*

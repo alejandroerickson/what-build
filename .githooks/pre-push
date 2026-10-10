@@ -1,0 +1,23 @@
+#!/bin/sh
+# Only branches and tags leave this machine, and every commit they carry is checked again: a hook
+# that was skipped, or a commit made before the hooks were installed, is caught here
+# (okf/operations/security-checks.md).
+zero=0000000000000000000000000000000000000000
+status=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/* | refs/tags/*) ;;
+    *)
+      echo "pre-push: refusing to push $remote_ref; only branches and tags are published." >&2
+      status=1
+      continue
+      ;;
+  esac
+  [ "$local_sha" = "$zero" ] && continue # a deletion
+  if [ "$remote_sha" = "$zero" ]; then
+    node scripts/check-publishable.mjs --revs "$local_sha" --not --remotes || status=1
+  else
+    node scripts/check-publishable.mjs --revs "$remote_sha..$local_sha" || status=1
+  fi
+done
+exit $status

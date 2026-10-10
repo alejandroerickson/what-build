@@ -19,6 +19,7 @@ server with the same operations. There is no AI inside.
 - [Charter](project/charter.md): what the product and repository are, and are not.
 - [WhatBuild at three altitudes](system/overview.md): the whole system, top down.
 - [Repository map](system/repository-map.md): where things are.
+- [Security](system/security.md): the threat model, and the control behind each boundary.
 - [Decisions](decisions/index.md): the architectural decision records.
 - [Specification](spec/index.md): product, architecture, identity and tenancy, data model, derived
   layer, operations and MCP, web app, search, data lifecycle, and the [roadmap](spec/10-roadmap.md).
@@ -28,7 +29,8 @@ server with the same operations. There is no AI inside.
 - **Rehearsing a release, or deploying to dev?** [The dev deployment](operations/dev-deployment.md).
 - **Backups, or restoring one?** [Backups](operations/backups.md).
 - **A release broke a deployment?** [Recovering from a bad release](operations/recovering-from-a-bad-release.md).
-- [Working in this repository](process/working-in-this-repository.md).
+- [Working in this repository](process/working-in-this-repository.md), and the
+  [security checks](operations/security-checks.md) that keep private material out of it.
 - [Ontology](ontology.md), [bundle guide](README.md), [tools](tools/index.md).
 
 ## Outside the bundle

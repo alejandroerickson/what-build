@@ -1,0 +1,3 @@
+#!/bin/sh
+# Nothing private in the commit message (okf/operations/security-checks.md).
+exec node scripts/check-publishable.mjs --message "$1"

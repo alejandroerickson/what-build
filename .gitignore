@@ -23,5 +23,15 @@ coverage/
 .vscode/*
 !.vscode/extensions.json
 
+# Agent state that belongs to one machine: local settings, sessions, memory, tool configuration.
+# Private notes go in /_private/.
+/.claude/*
+!/.claude/skills
+*.local.md
+*.local.json
+.mcp.json
+.cursor/
+.codex/
+
 # Documentation holds reference knowledge only (see okf/decisions/public-repository-reference-docs.md)
 /okf/log.md

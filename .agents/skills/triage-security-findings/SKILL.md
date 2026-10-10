@@ -1,0 +1,37 @@
+---
+name: triage-security-findings
+description: Find and fix known vulnerabilities and security weaknesses in WhatBuild with the repository's own scanners (osv-scanner for dependencies, zizmor for GitHub Actions, OWASP ZAP for the running app, CodeQL once public) and Dependabot. Use when asked to check dependencies or security, when `pnpm security` or the Security or CodeQL workflow fails, when Dependabot opens an alert or a pull request, when adding or upgrading a dependency, when updating a pinned scanner, and before a release.
+---
+
+# Triage security findings
+
+You are finding known vulnerabilities and weaknesses, and fixing them. The knowledge, with every
+command, is in `okf/operations/security-checks.md`; what the app defends and where is in
+`okf/system/security.md`. Read the guide before the first command. This file is how to conduct the
+work.
+
+## What must stay true
+
+- **Fix before accepting.** Upgrade a dependency or fix a workflow. Accept a finding only when no
+  fix exists or WhatBuild cannot reach the vulnerable code, with a reason and an expiry, as the
+  guide says.
+- **Never weaken a check silently.** A rule turned off, an ignore added or a scanner skipped is
+  said plainly in the commit message and in your report.
+- **An unfixed weakness is never described in the repository.** Not in `okf/`, not in a commit
+  message, issue or pull request, until it is fixed. Report it to the person instead.
+- **A major upgrade is a change like any other**: read its changelog for breaking changes, then
+  `pnpm typecheck`, `pnpm test` and `pnpm build`.
+
+## Procedure
+
+1. **Run the scanners:** `pnpm security`. With `GH_TOKEN=$(gh auth token)` zizmor adds its online
+   audits. For the running app, run the Security workflow's ZAP job (`gh workflow run security.yml`)
+   and read its summary.
+2. **For each finding**, say what it is, whether WhatBuild reaches it (which package uses it, and
+   for what), and the fix: the version that fixes it, or the workflow change.
+3. **Fix** as the guide's "When a scanner finds a vulnerability" says, one package or workflow at a
+   time, running the checks after each.
+4. **Run `pnpm security` again** until it is clean or every remaining finding is accepted with a
+   reason and an expiry.
+5. **Report** what you upgraded or changed, what you accepted and until when, and anything that
+   needs the person's decision.

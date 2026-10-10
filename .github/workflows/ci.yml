@@ -1,7 +1,9 @@
 name: CI
 
 # The same path a contributor runs: install, typecheck, test against a real Postgres (the
-# embedded-postgres package, nothing to provision), and build the production bundle.
+# embedded-postgres package, nothing to provision), and build the production bundle. Beside it, the
+# check that nothing private is published: the new commits, their messages and the pull request's
+# text (okf/operations/security-checks.md). Actions are pinned to commits; Dependabot updates them.
 on:
   push:
     branches: [main]
@@ -14,11 +16,13 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: The documentation bundle is valid
         run: python3 okf/tools/validate_okf.py
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -28,3 +32,32 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+
+  publishable:
+    name: Nothing private
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0 # the commits being added, back to where they branch off
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+      - name: The pull request's commits and text
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          node scripts/check-publishable.mjs --revs "$BASE..$HEAD"
+          printf '%s\n\n%s\n' "$TITLE" "$BODY" > "$RUNNER_TEMP/pull-request.txt"
+          node scripts/check-publishable.mjs --message "$RUNNER_TEMP/pull-request.txt"
+      - name: The pushed commits
+        if: github.event_name == 'push'
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: node scripts/check-publishable.mjs --revs "$BEFORE..$AFTER"

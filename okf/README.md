@@ -36,7 +36,7 @@ Stop as soon as you have what the task needs.
 - [spec/](spec/index.md): the detailed specification and the roadmap.
 - [operations/](operations/index.md): local development, a copy of production, the Cloud Run
   deployment, releasing, the dev deployment, backups, recovering from a bad release, self-hosting
-  on Azure, and analytics.
+  on Azure, analytics, and the security checks.
 - [process/](process/index.md): how work on the repository is done.
 - [ontology.md](ontology.md): concept types, frontmatter and editing rules.
 - [tools/](tools/index.md): the validator.
@@ -52,7 +52,8 @@ type), and `okf-decision` to record decisions. Five more skills are procedures f
 [the dev deployment](operations/dev-deployment.md) and the restore drill in
 [backups](operations/backups.md), `recover-a-deployment` for
 [recovering from a bad release](operations/recovering-from-a-bad-release.md), and
-`test-on-a-copy-of-production` for [a copy of production](operations/a-copy-of-production.md). Prefer correcting a concept to adding a near-duplicate. Validate before committing:
+`test-on-a-copy-of-production` for [a copy of production](operations/a-copy-of-production.md). Two conduct the
+[security checks](operations/security-checks.md): `audit-for-leaks` and `triage-security-findings`. Prefer correcting a concept to adding a near-duplicate. Validate before committing:
 
 ```sh
 python3 okf/tools/validate_okf.py

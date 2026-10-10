@@ -5,16 +5,25 @@ copy.
 
 ## This repository is public
 
-`alejandroerickson/what-build` is public and MIT-licensed. Everything committed, and every commit
-message, is published.
+`alejandroerickson/what-build` is public and MIT-licensed. Everything committed, every commit
+message and every pull request's text is published, and history keeps it.
 
 - No session memory in the repository: no logs, handoff notes, records of requests, or to-do lists.
-  Keep those in your own private memory. Planned work belongs in `okf/spec/10-roadmap.md`.
+  Keep those in `_private/` at the root of your checkout (ignored) or in your own memory, never
+  anywhere else. Planned work belongs in `okf/spec/10-roadmap.md`.
+- Commit messages and pull request descriptions describe the change, never the conversation: no
+  prompts, no quoted requests, no account of who said what.
 - Never name private projects, clients, employers or files elsewhere on a machine, even when they
   shaped a change. A change stands on its own.
-- No secrets, tokens, absolute local paths or personal details. Sample content is synthetic.
+- No secrets, tokens, absolute local paths or personal details. Sample content is synthetic, with
+  `example.com` addresses.
 - A copy of production (`.what-build/fixtures/`, the `fixture` database) is real people's data:
   never commit it, and never quote it in the repository, a commit, an issue or a pull request.
+- Tools that install their own instructions (memory, routing or workflow tools) keep them in your
+  user-level configuration, never in this file, `.agents/skills/` or `okf/`.
+- Stage files by name. `pnpm install` turns on git hooks that refuse a commit or push carrying any
+  of the above (`okf/operations/security-checks.md`). When one blocks, fix the content; never
+  `--no-verify`. A false positive is fixed in `scripts/check-publishable.mjs` in the same commit.
 - If you are unsure whether something may be published, leave it out and ask.
 
 ## What this is
@@ -51,12 +60,15 @@ that folder. If your tool does not load skills, read the `SKILL.md` files direct
 | `rehearse-on-the-dev-deployment` | Before production runs a release that migrates, or when asked to deploy to dev, refresh or reset dev's copy of production, set dev up, or rehearse a restore. |
 | `recover-a-deployment` | When a new version broke a deployment (Cloud Run or Azure): roll back, restore the database. |
 | `test-on-a-copy-of-production` | When asked to QA or test end to end on real data, or to try migrations on a copy of production. |
+| `audit-for-leaks` | When asked to check the repository or its history for secrets or private material, when something may have leaked, or to make the repository public. |
+| `triage-security-findings` | When `pnpm security`, the Security or CodeQL workflow, or Dependabot reports something; when adding or upgrading a dependency; before a release. |
 
 ## Before you change anything
 
 Read `okf/process/working-in-this-repository.md`. In short: capabilities start as operations with
 server tests; migrations are new forward-only files with row-level security; UI follows `DESIGN.md`;
-the vocabulary is fixed; and `pnpm typecheck`, `pnpm test` and `pnpm build` pass.
+the vocabulary is fixed; `pnpm typecheck`, `pnpm test` and `pnpm build` pass; and a dependency you
+add or upgrade leaves `pnpm security` clean.
 
 ```sh
 corepack pnpm install && corepack pnpm dev   # http://localhost:5273, one-click dev sign-in

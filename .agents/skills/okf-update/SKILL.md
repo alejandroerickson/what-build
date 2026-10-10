@@ -40,11 +40,10 @@ adding a near-duplicate.
      it, run `pnpm gen:skill`.
    - `.agents/skills/`: these skills, when the bundle's layout or rules change.
 10. **Validate:** `python3 okf/tools/validate_okf.py` must report 0 errors.
-11. **Public check** on everything you wrote:
-    `git diff -- okf .agents AGENTS.md README.md | grep -nE "/Users/|/home/|_private|TODO|token=|secret"`
-    (new files are not in the diff, so grep them directly). Then reread it once for
-    session talk ("as requested", "we decided today", "next I will"), private names and personal
-    details.
+11. **Public check.** The pre-commit hook runs `scripts/check-publishable.mjs` on what you commit
+    (secrets, local paths, real addresses, stray files). No pattern catches the rest, so reread
+    what you wrote once for session talk ("as requested", "we decided today", "next I will"),
+    private names and personal details.
 12. **Report** which concepts you changed and why, in one line each.
 
 ## Impact map
@@ -70,7 +69,7 @@ adding a near-duplicate.
 | `fixture.ts`, `dev.ts --fixture`, `.agents/skills/test-on-a-copy-of-production/**` | `operations/a-copy-of-production.md`, decision `qa-uses-a-private-copy-of-production` |
 | `.agents/skills/rehearse-on-the-dev-deployment/**`, the dev deployment's layout, how a copy of production reaches it, or when a release is rehearsed | `operations/dev-deployment.md`, decision `releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production`, the `make-a-release` skill |
 | What a deployment backs up, the nightly dump, restoring a dump, the restore drill | `operations/backups.md`, `spec/09` §9.3 and §9.6, the Phase 6 row in `spec/10` |
-| `.github/workflows/**` | `operations/local-development.md` (CI), the phase 0 row in `spec/10` |
+| `.github/workflows/**` | `operations/local-development.md` (CI), `operations/security-checks.md`, the phase 0 row in `spec/10` |
 | `.github/workflows/release.yml`, `.agents/skills/make-a-release/**`, how versions are numbered or how production is deployed | `operations/releasing.md`, decisions `releases-are-tags-with-a-published-image`, `production-runs-releases-after-approval` and `releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production` |
 | `Dockerfile`, `cloudbuild.yaml`, `deploy/cloud-run/**`, `deploy/cloudflare/**` | `operations/cloud-run.md`, decision `one-stateless-image`; `cloudbuild.yaml` and `deploy/cloud-run/**` also `operations/dev-deployment.md` (the dev deployment is built and deployed by them); a `Dockerfile` change also `operations/azure.md` (the image is built from it there too) |
 | `apps/server/src/migrations/**`, `apps/server/src/database.ts`, `.github/workflows/release.yml`, `.agents/skills/recover-a-deployment/**`, or how a deployment migrates, backs up or rolls back | `operations/recovering-from-a-bad-release.md`, `operations/backups.md` |
@@ -82,6 +81,8 @@ adding a near-duplicate.
 | A new top-level directory, package, or moved file | `system/repository-map.md`, the `AGENTS.md` path table |
 | Product scope or vocabulary | `project/charter.md`, `spec/01`, `PRODUCT.md` |
 | How work is done, the checks, the public-repository rules | `process/working-in-this-repository.md`, `AGENTS.md` |
+| `scripts/check-publishable.mjs`, `scripts/security.mjs`, `scripts/tools.mjs`, `.githooks/**`, `.github/workflows/security.yml`, `codeql.yml`, `dependabot.yml`, `.github/*.toml`, `zap-rules.tsv`, `SECURITY.md`, `.agents/skills/audit-for-leaks/**`, `.agents/skills/triage-security-findings/**` | `operations/security-checks.md`, decision `privacy-and-security-checks-live-in-the-repository`, `system/repository-map.md` |
+| Authentication, tenancy, agent HTML, uploads, the URL fetcher, the sandbox's limits, headers | `system/security.md` (the threat model): keep each control it names true |
 
 Nothing in the map fits? Grep `okf/` for the file, function and feature names you touched, and
 extend this map in the same change.

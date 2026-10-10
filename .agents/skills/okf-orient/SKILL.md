@@ -73,4 +73,4 @@ grep -rn "^## " okf/spec/04-data-model.md # a spec file's headings
 - Before finishing any change, use `okf-update` to keep the bundle true.
 - When the work makes or reverses a durable choice, use `okf-decision`.
 - Never write session notes, task logs or to-do lists into the repository. It is public. Keep
-  those in your own memory.
+  those in `_private/` at the root of your checkout (ignored) or in your own memory.

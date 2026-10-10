@@ -1,0 +1,4 @@
+# gitleaks: its default rules, plus any false positive allowed here with a reason
+# (okf/operations/security-checks.md). Prefer changing the content to allowing it.
+[extend]
+useDefault = true

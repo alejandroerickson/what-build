@@ -1,0 +1,7 @@
+# Known vulnerabilities that have been looked at and accepted. Each entry says why, and expires so
+# that it is looked at again (okf/operations/security-checks.md). Prefer upgrading to accepting.
+#
+# [[IgnoredVulns]]
+# id = "GHSA-xxxx-xxxx-xxxx"
+# ignoreUntil = 2026-12-31
+# reason = "Only reachable through …, which WhatBuild never calls."
