@@ -6,5 +6,5 @@
 10054	FAIL	(Cookies carry SameSite.)
 10098	FAIL	(No cross-origin access to the API.)
 90022	FAIL	(Errors never show stack traces or internals.)
-10035	IGNORE	(Strict-Transport-Security: the scan runs over plain HTTP on localhost; production is HTTPS only.)
+10035	IGNORE	(Strict-Transport-Security: the scan runs over plain HTTP on localhost; the server sends it when its public URL is https.)
 10011	IGNORE	(Secure cookies: the scan runs over plain HTTP on localhost.)
