@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.5.0
+
 - **Insights and decisions** are retired into Evidence. Migration 0015 queues a job per product
   that moves each insight and decision into a Markdown source with the same id; the worker must
   run to finish it, and until it has, a product's insights and decisions are not in Evidence. Their operations and MCP tools are gone,
