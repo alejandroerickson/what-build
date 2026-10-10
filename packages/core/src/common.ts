@@ -14,6 +14,7 @@ export type EntityType =
   | "assumption"
   | "decision"
   | "story_page"
+  | "mockup"
   | "story_hierarchy"
   | "story_style"
   | "annotation"

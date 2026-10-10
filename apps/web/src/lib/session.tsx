@@ -83,7 +83,7 @@ export interface Product {
   team: { team_id: string; slug: string; name: string };
   your_role: ProductRole;
   /** A reader gets story_pages only. */
-  counts: { story_pages: number } & Partial<Record<"sources" | "outcomes" | "insights" | "assumptions" | "decisions", number>>;
+  counts: { story_pages: number } & Partial<Record<"sources" | "outcomes" | "insights" | "assumptions" | "decisions" | "mockups", number>>;
 }
 
 interface ProductCtx {

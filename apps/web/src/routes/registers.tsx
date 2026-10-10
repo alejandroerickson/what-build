@@ -15,8 +15,8 @@ import {
 } from "../ui/index.tsx";
 import { Byline, searchWith, useCopyLink } from "./insights-common.tsx";
 import { FirstUse } from "./first-use.tsx";
-import { entryViews, Marked, TitleFind, useEntryList } from "./synthesis-panel.tsx";
-import "../styles/screens/synthesis.css";
+import { entryViews, Marked, TitleFind, useEntryList } from "./exploration-panel.tsx";
+import "../styles/screens/exploration.css";
 
 type Kind = "assumptions" | "decisions";
 
@@ -69,7 +69,7 @@ export function RegisterListPage({ kind }: { kind: Kind }) {
   const view = views.find((v) => v.id === params.get("show")) ?? views[0]!;
   const outcome = params.get("outcome_id") ?? "";
   const find = params.get("q") ?? "";
-  const path = `${app}/synthesis/${kind}`;
+  const path = `${app}/exploration/${kind}`;
   usePageTitle(TITLE[kind]);
   const outcomes = useQuery({
     queryKey: ["outcomes", base, ""],
@@ -378,7 +378,7 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
     onError: () => void q.refetch(),
   });
   usePageTitle(q.data?.statement);
-  const listPath = `${app}/synthesis/${kind}`;
+  const listPath = `${app}/exploration/${kind}`;
   const crumbsFor = (label: string) => [{ label: TITLE[kind], to: listPath }, { label }];
   if (q.isPending) return <Loading lines={6} variant="lines" />;
   if (q.isError)
@@ -451,7 +451,7 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
           {e.linked_from
             .filter((l) => l.type === "supersedes")
             .map((l) => (
-              <Link key={l.id} to={`${app}/synthesis/${l.kind}s/${l.id}`}>
+              <Link key={l.id} to={`${app}/exploration/${l.kind}s/${l.id}`}>
                 Read the correction
               </Link>
             ))}
@@ -529,7 +529,7 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
           {links.map((l) => {
             const ls = l.status ? statusOf(l.status) : null;
             return (
-              <ListRow key={l.key} to={`${app}/synthesis/${l.kind}s/${l.id}`} lead={l.word} className="register-link-row" title={l.statement} end={ls ? <StatusBadge tone={ls.tone}>{ls.label}</StatusBadge> : undefined} />
+              <ListRow key={l.key} to={`${app}/exploration/${l.kind}s/${l.id}`} lead={l.word} className="register-link-row" title={l.statement} end={ls ? <StatusBadge tone={ls.tone}>{ls.label}</StatusBadge> : undefined} />
             );
           })}
         </Sheet>
@@ -611,7 +611,7 @@ export function EntryEditPage({ kind }: { kind: Kind }) {
   const outcomes = useQuery({ queryKey: ["outcomes", base, ""], queryFn: () => api<{ items: { outcome_id: string; title: string }[] }>("GET", `${base}/outcomes`) });
   const heading = id ? `Edit ${ONE[kind].toLowerCase()}` : `New ${ONE[kind].toLowerCase()}`;
   usePageTitle(heading);
-  const listPath = `${app}/synthesis/${kind}`;
+  const listPath = `${app}/exploration/${kind}`;
   const crumbs = [{ label: TITLE[kind], to: listPath }, ...(existing.data ? [{ label: existing.data.statement, to: `${listPath}/${existing.data.id}` }] : []), { label: id ? "Edit" : heading }];
   if (!canWrite)
     return (
@@ -764,7 +764,7 @@ function EntryForm({ kind, crumbs, heading, initial, outcomes, preselect, onSave
           <Button type="submit" variant="primary" disabled={!statement.trim() || Boolean(frozenNow)} busy={save.isPending} busyLabel="Saving…">
             {stale && theirs ? "Save mine over theirs" : initial ? "Save changes" : `Save ${one}`}
           </Button>
-          <ButtonLink to={initial ? `${app}/synthesis/${kind}/${initial.id}` : `${app}/synthesis/${kind}`}>Cancel</ButtonLink>
+          <ButtonLink to={initial ? `${app}/exploration/${kind}/${initial.id}` : `${app}/exploration/${kind}`}>Cancel</ButtonLink>
         </div>
       </Sheet>
     </form>

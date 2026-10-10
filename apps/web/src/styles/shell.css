@@ -274,7 +274,7 @@ h1[tabindex="-1"]:focus {
   font-size: var(--fs-xs);
   font-weight: var(--fw-medium);
 }
-/* A filter in a panel section (Evidence's filters, Synthesis's lists): one link per choice. */
+/* A filter in a panel section (Evidence's filters, Exploration's lists): one link per choice. */
 .panel-filter {
   display: flex;
   align-items: center;

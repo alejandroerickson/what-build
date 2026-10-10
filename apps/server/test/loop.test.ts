@@ -331,7 +331,7 @@ describe("the discovery loop through REST", () => {
       expect(item.counts).toEqual(one.body.counts);
     }
     const dispatch = list.body.items.find((i: { path: string }) => i.path === p.body.path);
-    expect(dispatch.counts).toEqual({ sources: 0, outcomes: 1, insights: 0, assumptions: 0, decisions: 0, story_pages: 0 });
+    expect(dispatch.counts).toEqual({ sources: 0, outcomes: 1, insights: 0, assumptions: 0, decisions: 0, mockups: 0, story_pages: 0 });
     const onboarding = list.body.items.find((i: { path: string }) => i.path !== p.body.path);
     expect(onboarding.counts.outcomes).toBeGreaterThan(1);
   });

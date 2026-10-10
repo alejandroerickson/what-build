@@ -50,7 +50,7 @@ export function useCookieChoice(): CookieChoice | null {
  * A path with names and ids taken out, so what reaches Google says which screen, not whose:
  * `/t/acme/core/planner/story/launch-plan` becomes `/t/:org/:team/:product/story/:id`.
  */
-const SCREEN_WORDS = new Set(["idea", "evidence", "new", "search", "synthesis", "insights", "assumptions", "decisions", "edit", "story", "connect", "activity", "settings", "members", "sandbox"]);
+const SCREEN_WORDS = new Set(["idea", "evidence", "new", "search", "exploration", "mockups", "insights", "assumptions", "decisions", "edit", "story", "connect", "activity", "settings", "members", "sandbox"]);
 
 export function screenPath(pathname: string): string {
   const parts = pathname.split("/").filter(Boolean);

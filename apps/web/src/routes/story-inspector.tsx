@@ -23,11 +23,11 @@ function refLink(app: string, kind: RefKind, id: string): string {
     case "sources":
       return `${app}/evidence/${id}`;
     case "insights":
-      return `${app}/synthesis/insights/${id}`;
+      return `${app}/exploration/insights/${id}`;
     case "assumptions":
-      return `${app}/synthesis/assumptions/${id}`;
+      return `${app}/exploration/assumptions/${id}`;
     case "decisions":
-      return `${app}/synthesis/decisions/${id}`;
+      return `${app}/exploration/decisions/${id}`;
   }
 }
 

@@ -175,17 +175,17 @@ function LinkedChips({ o }: { o: Outcome }) {
   return (
     <div className="chips outcome-chips">
       {insights ? (
-        <Chip to={`${app}/synthesis/insights?outcome_id=${o.outcome_id}`} icon="blend">
+        <Chip to={`${app}/exploration/insights?outcome_id=${o.outcome_id}`} icon="blend">
           {plural(insights, "insight")}
         </Chip>
       ) : null}
       {assumptions ? (
-        <Chip to={`${app}/synthesis/assumptions?outcome_id=${o.outcome_id}`} icon="scale">
+        <Chip to={`${app}/exploration/assumptions?outcome_id=${o.outcome_id}`} icon="scale">
           {plural(assumptions, "assumption")}
         </Chip>
       ) : null}
       {decisions ? (
-        <Chip to={`${app}/synthesis/decisions?outcome_id=${o.outcome_id}`} icon="signpost">
+        <Chip to={`${app}/exploration/decisions?outcome_id=${o.outcome_id}`} icon="signpost">
           {plural(decisions, "decision")}
         </Chip>
       ) : null}

@@ -13,7 +13,7 @@ import { useTheme } from "./theme.ts";
 export const L1 = [
   { id: "idea", label: "Idea", icon: "lightbulb", count: "outcomes" },
   { id: "evidence", label: "Evidence", icon: "library", count: "sources" },
-  { id: "synthesis", label: "Synthesis", icon: "blend", count: "insights" },
+  { id: "exploration", label: "Exploration", icon: "blend", count: "mockups" },
   { id: "story", label: "Story", icon: "book-open", count: "story_pages" },
 ] as const satisfies readonly { id: string; label: string; icon: GlyphName; count: keyof Product["counts"] }[];
 
@@ -23,8 +23,8 @@ export function productSection(segment: string | undefined): { id: string; label
     case "evidence":
     case "search":
       return { id: "evidence", label: "Evidence" };
-    case "synthesis":
-      return { id: "synthesis", label: "Synthesis" };
+    case "exploration":
+      return { id: "exploration", label: "Exploration" };
     case "story":
       return { id: "story", label: "Story" };
     case "connect":
@@ -39,7 +39,7 @@ export function productSection(segment: string | undefined): { id: string; label
 }
 
 /** Screens that exist in every product, so switching product can keep the person on the same one. */
-const KEEP_ON_SWITCH = new Set(["idea", "evidence", "synthesis", "story", "connect", "activity", "search", "settings"]);
+const KEEP_ON_SWITCH = new Set(["idea", "evidence", "exploration", "story", "connect", "activity", "search", "settings"]);
 
 export function BrandRow({ to, label, current, onHide, hideLabel }: { to: string; label: string; current?: boolean; onHide: () => void; hideLabel: string }) {
   return (

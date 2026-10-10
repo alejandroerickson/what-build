@@ -38,7 +38,7 @@ export function useSlots(): ShellSlots | null {
 
 /**
  * Fills the left panel's context slot (under L1 and the quiet group): the Story tree, source
- * filters, Synthesis's three lists.
+ * filters, Exploration's mockups and lists.
  * It scrolls on its own. Give it a label; it becomes the region's accessible name.
  */
 export function PanelContext({ label, children }: { label: string; children: ReactNode }) {

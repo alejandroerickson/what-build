@@ -129,8 +129,8 @@ export function PassageReader({ record }: { record: RecordFull }) {
   });
   const citing: CitingEntry[] = cited.data
     ? [
-        ...cited.data.assumptions.flatMap((e) => e.citations.map((c, i) => ({ key: `a${e.id}.${i}`, kind: "Assumption" as const, title: e.statement, to: `${app}/synthesis/assumptions/${e.id}`, ...c }))),
-        ...cited.data.decisions.flatMap((e) => e.citations.map((c, i) => ({ key: `d${e.id}.${i}`, kind: "Decision" as const, title: e.statement, to: `${app}/synthesis/decisions/${e.id}`, ...c }))),
+        ...cited.data.assumptions.flatMap((e) => e.citations.map((c, i) => ({ key: `a${e.id}.${i}`, kind: "Assumption" as const, title: e.statement, to: `${app}/exploration/assumptions/${e.id}`, ...c }))),
+        ...cited.data.decisions.flatMap((e) => e.citations.map((c, i) => ({ key: `d${e.id}.${i}`, kind: "Decision" as const, title: e.statement, to: `${app}/exploration/decisions/${e.id}`, ...c }))),
         ...(cited.data.story_pages ?? []).flatMap((p) => p.citations.map((c, i) => ({ key: `s${p.page_id}.${i}`, kind: "Story page" as const, title: p.title, to: `${app}/story/${p.page_id}`, ...c }))),
       ]
     : [];

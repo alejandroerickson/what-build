@@ -26,7 +26,8 @@ import { SourceDetailPage } from "./routes/source-detail.tsx";
 import { SourceNewPage } from "./routes/source-new.tsx";
 import { EvidencePage } from "./routes/evidence.tsx";
 import { StoryPage } from "./routes/story.tsx";
-import { SynthesisSection } from "./routes/synthesis-panel.tsx";
+import { ExplorationSection } from "./routes/exploration-panel.tsx";
+import { MockupPage, MockupsIndex } from "./routes/mockups.tsx";
 import { CookieNotice } from "./shell/CookieNotice.tsx";
 import { PlainShell, ProductShell } from "./shell/Shell.tsx";
 import { ButtonLink, EmptyState, Sheet, SheetHeader, ToastProvider } from "./ui/index.tsx";
@@ -92,6 +93,14 @@ function BareProductPath() {
       </PlainShell>
     );
   return <Navigate replace to={`/t/${tenant}/${team}/${product}${rest ? `/${rest}` : ""}${search}${hash}`} />;
+}
+
+/** Synthesis was renamed Exploration: an old link keeps working, with the rest of its path and its query. */
+function SynthesisLink() {
+  const { app } = useProduct();
+  const { "*": rest } = useParams();
+  const { search, hash } = useLocation();
+  return <Navigate replace to={`${app}/exploration${rest ? `/${rest}` : ""}${search}${hash}`} />;
 }
 
 /** A product opens on Idea, or on the Story for a reader. */
@@ -163,11 +172,14 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
               { path: "evidence/new", element: <SourceNewPage /> },
               { path: "evidence/:recordId", element: <SourceDetailPage /> },
               { path: "search", element: <SearchPage /> },
+              { path: "synthesis/*", element: <SynthesisLink /> },
               {
-                path: "synthesis",
-                element: <SynthesisSection />,
+                path: "exploration",
+                element: <ExplorationSection />,
                 children: [
-                  { index: true, element: <Navigate to="insights" replace /> },
+                  { index: true, element: <Navigate to="mockups" replace /> },
+                  { path: "mockups", element: <MockupsIndex /> },
+                  { path: "mockups/:mockupId", element: <MockupPage /> },
                   { path: "insights", element: <InsightsPage /> },
                   { path: "insights/new", element: <InsightEditPage /> },
                   { path: "insights/:insightId", element: <InsightPage /> },

@@ -4,7 +4,7 @@ import { actionName, screenPath } from "../src/lib/analytics.ts";
 describe("screenPath", () => {
   it("names the screen, never the organization, product or record", () => {
     expect(screenPath("/t/acme/core/planner/story/launch-plan")).toBe("/t/:org/:team/:product/story/:id");
-    expect(screenPath("/t/acme/core/planner/synthesis/insights/01HX/edit")).toBe("/t/:org/:team/:product/synthesis/insights/:id/edit");
+    expect(screenPath("/t/acme/core/planner/exploration/insights/01HX/edit")).toBe("/t/:org/:team/:product/exploration/insights/:id/edit");
     expect(screenPath("/t/acme/core/planner")).toBe("/t/:org/:team/:product");
     expect(screenPath("/t/acme/members")).toBe("/t/:org/members");
     expect(screenPath("/join/abc123")).toBe("/join/:code");

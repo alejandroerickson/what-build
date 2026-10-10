@@ -22,6 +22,7 @@ const GROUP_SENTENCES: Record<string, string> = {
   assumptions: "The assumption register: premises the team treats as true, optionally cited to exact passages, with attributed reviews.",
   decisions: "The decision register: choices and their rationale, optionally cited to exact passages, with attributed reviews. Creating one does not imply agreement.",
   story: "Read and publish the Story: versioned, sandboxed HTML pages for stakeholders, citing exact passages, each with notes for agents, arranged in a hierarchy with its own etag. Pages follow the product's Story style (get_style, set_style): the team's own design system or an adopted house style, never WhatBuild's look. Read guidance first, then the style, and a page's notes before revising it.",
+  mockups: "Read and publish mockups: canvases of agent-made HTML pages (screens, flows, alternatives) in Exploration, each with design notes per page and a Markdown brief that says what the canvas explores. A version is the whole canvas. Download a version as a ZIP to build the next one elsewhere, then publish the pages that changed.",
   lineage: "Record and check the direct inputs a derived view was built from, so staleness can be reported.",
   activity: "What changed in the product, who changed it, and whether an agent did it.",
 };

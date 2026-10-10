@@ -235,7 +235,7 @@ function notesView(p: { agent_notes: string; agent_notes_etag: string; agent_not
 type ResolvedRef = { id: string; title: string | null; status: string | null; kind?: string; archived: boolean; missing: boolean };
 
 /** A version's references with their current titles, so a reader can list them without a request per id. */
-async function resolveRefs(ctx: OpContext, refs: Refs): Promise<Record<keyof Refs, ResolvedRef[]>> {
+export async function resolveRefs(ctx: OpContext, refs: Refs): Promise<Record<keyof Refs, ResolvedRef[]>> {
   const pid = productId(ctx);
   const some = (ids: string[] | undefined) => (ids?.length ? ids : [""]);
   const [outcomes, sources, insights, entries] = await Promise.all([

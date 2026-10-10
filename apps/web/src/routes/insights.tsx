@@ -15,8 +15,8 @@ import {
 } from "../ui/index.tsx";
 import { Byline, HistoryDialog, ReviewBadge, searchWith, STATUS_WORD, useCopyLink } from "./insights-common.tsx";
 import { FirstUse } from "./first-use.tsx";
-import { INSIGHT_VIEWS, Marked, TitleFind, useInsightList } from "./synthesis-panel.tsx";
-import "../styles/screens/synthesis.css";
+import { INSIGHT_VIEWS, Marked, TitleFind, useInsightList } from "./exploration-panel.tsx";
+import "../styles/screens/exploration.css";
 
 export { HistoryDialog } from "./insights-common.tsx";
 
@@ -35,7 +35,7 @@ export function InsightsPage() {
     enabled: Boolean(outcome),
     queryFn: () => api<{ items: { outcome_id: string; title: string }[] }>("GET", `${base}/outcomes`),
   });
-  const path = `${app}/synthesis/insights`;
+  const path = `${app}/exploration/insights`;
   const inView = (list.data?.items ?? []).filter((i) => (view.test?.(i) ?? true) && (!outcome || i.refs.outcomes.includes(outcome)));
   const rows = findByTitle(inView, find, (i) => i.title);
   const narrowed = Boolean(view.id || outcome || find.trim());
@@ -56,7 +56,7 @@ export function InsightsPage() {
         filter={<TitleFind label="Find by title" />}
         end={
           canWrite ? (
-            <ButtonLink to={`${app}/synthesis/insights/new${outcome ? `?outcome_id=${outcome}` : ""}`} icon="plus">
+            <ButtonLink to={`${app}/exploration/insights/new${outcome ? `?outcome_id=${outcome}` : ""}`} icon="plus">
               New insight
             </ButtonLink>
           ) : undefined
@@ -90,7 +90,7 @@ export function InsightsPage() {
           {rows.map(({ item: i, ranges }) => (
             <ListRow
               key={i.insight_id}
-              to={`${app}/synthesis/insights/${i.insight_id}`}
+              to={`${app}/exploration/insights/${i.insight_id}`}
               className="insight-row"
               title={<Marked text={i.title} ranges={ranges} />}
               end={archived ? <StatusBadge tone="neutral">Archived</StatusBadge> : <ReviewBadge state={i.review_state} />}
@@ -155,11 +155,11 @@ function useTitles(refs: Refs | undefined) {
 }
 
 const REF_ROWS: { key: keyof Refs; label: string; missing: string; to: (app: string, id: string) => string }[] = [
-  { key: "outcomes", label: "Outcomes", missing: "An outcome", to: (app, id) => `${app}/synthesis/insights?outcome_id=${id}` },
+  { key: "outcomes", label: "Outcomes", missing: "An outcome", to: (app, id) => `${app}/exploration/insights?outcome_id=${id}` },
   { key: "sources", label: "Sources", missing: "A source", to: (app, id) => `${app}/evidence/${id}` },
-  { key: "insights", label: "Related insights", missing: "An insight", to: (app, id) => `${app}/synthesis/insights/${id}` },
-  { key: "assumptions", label: "Assumptions", missing: "An assumption", to: (app, id) => `${app}/synthesis/assumptions/${id}` },
-  { key: "decisions", label: "Decisions", missing: "A decision", to: (app, id) => `${app}/synthesis/decisions/${id}` },
+  { key: "insights", label: "Related insights", missing: "An insight", to: (app, id) => `${app}/exploration/insights/${id}` },
+  { key: "assumptions", label: "Assumptions", missing: "An assumption", to: (app, id) => `${app}/exploration/assumptions/${id}` },
+  { key: "decisions", label: "Decisions", missing: "A decision", to: (app, id) => `${app}/exploration/decisions/${id}` },
 ];
 
 function ReviewLine({ i }: { i: Insight }) {
@@ -230,7 +230,7 @@ export function InsightPage() {
   if (q.isError)
     return (
       <>
-        <PageHeader crumbs={[{ label: "Insights", to: `${app}/synthesis/insights` }, { label: "Not found" }]} title="This insight could not be loaded" />
+        <PageHeader crumbs={[{ label: "Insights", to: `${app}/exploration/insights` }, { label: "Not found" }]} title="This insight could not be loaded" />
         <ErrorCallout error={q.error} onRetry={() => q.refetch()} />
       </>
     );
@@ -243,7 +243,7 @@ export function InsightPage() {
   return (
     <>
       <PageHeader
-        crumbs={[{ label: "Insights", to: `${app}/synthesis/insights` }, { label: i.title }]}
+        crumbs={[{ label: "Insights", to: `${app}/exploration/insights` }, { label: i.title }]}
         title={i.title}
         meta={
           <>
@@ -274,7 +274,7 @@ export function InsightPage() {
               </Button>
             ) : null}
             {canWrite && !archived ? (
-              <ButtonLink to={`${app}/synthesis/insights/${i.insight_id}/edit`} icon="pencil">
+              <ButtonLink to={`${app}/exploration/insights/${i.insight_id}/edit`} icon="pencil">
                 Edit
               </ButtonLink>
             ) : null}
@@ -400,7 +400,7 @@ export function InsightEditPage() {
   const existing = useQuery({ queryKey: ["insight", base, insightId], enabled: Boolean(insightId), queryFn: () => api<Insight>("GET", `${base}/insights/${insightId}?limit=100000`) });
   const outcomes = useQuery({ queryKey: ["outcomes", base, ""], queryFn: () => api<{ items: { outcome_id: string; title: string }[] }>("GET", `${base}/outcomes`) });
   usePageTitle(insightId ? "Edit insight" : "New insight");
-  const crumbs = [{ label: "Insights", to: `${app}/synthesis/insights` }, ...(existing.data ? [{ label: existing.data.title, to: `${app}/synthesis/insights/${existing.data.insight_id}` }] : []), { label: insightId ? "Edit" : "New insight" }];
+  const crumbs = [{ label: "Insights", to: `${app}/exploration/insights` }, ...(existing.data ? [{ label: existing.data.title, to: `${app}/exploration/insights/${existing.data.insight_id}` }] : []), { label: insightId ? "Edit" : "New insight" }];
   if (!canWrite)
     return (
       <>
@@ -429,7 +429,7 @@ export function InsightEditPage() {
         void qc.invalidateQueries({ queryKey: ["insights", base] });
         void qc.invalidateQueries({ queryKey: ["insight", base, id] });
         void qc.invalidateQueries({ queryKey: ["product"] });
-        navigate(`${app}/synthesis/insights/${id}`);
+        navigate(`${app}/exploration/insights/${id}`);
       }}
     />
   );
@@ -469,7 +469,7 @@ function InsightForm({ crumbs, initial, outcomes, preselect, onSaved }: {
     },
   });
   const stale = save.error instanceof ApiError && save.error.code === "stale_etag";
-  const cancelTo = initial ? `${app}/synthesis/insights/${initial.insight_id}` : `${app}/synthesis/insights`;
+  const cancelTo = initial ? `${app}/exploration/insights/${initial.insight_id}` : `${app}/exploration/insights`;
   return (
     <form
       onSubmit={(e) => {
@@ -552,7 +552,7 @@ function InsightForm({ crumbs, initial, outcomes, preselect, onSaved }: {
               {theirs ? (
                 <>
                   Revision {theirs.revision}, by {attribution(theirs.updated_by)} {relativeTime(theirs.updated_at)}:{" "}
-                  <a href={`${app}/synthesis/insights/${theirs.insight_id}`} target="_blank" rel="noreferrer">
+                  <a href={`${app}/exploration/insights/${theirs.insight_id}`} target="_blank" rel="noreferrer">
                     read it in a new tab
                   </a>
                   . Your text is still here. Saving again replaces theirs; their text is kept in Earlier versions.

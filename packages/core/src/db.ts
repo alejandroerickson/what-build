@@ -504,6 +504,55 @@ export interface StoryVersionsTable {
   created_by: Json<ActorSnapshot>;
 }
 
+export interface MockupsTable {
+  mockup_id: string;
+  tenant_id: string;
+  product_id: string;
+  title: string;
+  summary: string;
+  current_version_id: string;
+  version_count: number;
+  archived_at: TsNull;
+  etag: string;
+  created_at: Ts;
+  created_by: Json<ActorSnapshot>;
+  updated_at: Ts;
+  updated_by: Json<ActorSnapshot>;
+}
+
+export interface MockupVersionsTable {
+  version_id: string;
+  tenant_id: string;
+  product_id: string;
+  mockup_id: string;
+  n: number;
+  title: string;
+  summary: string;
+  /** Markdown: what the canvas explores and why. */
+  brief: string;
+  /** How many pages sit side by side before the canvas wraps; null keeps them in one row. */
+  columns: number | null;
+  refs: Json<Refs>;
+  citations: ColumnType<CitationSnapshot[], string | undefined, string>;
+  previous_version_id: string | null;
+  created_at: Ts;
+  created_by: Json<ActorSnapshot>;
+}
+
+export interface MockupPagesTable {
+  version_id: string;
+  tenant_id: string;
+  product_id: string;
+  position: number;
+  page_id: string;
+  title: string;
+  /** Markdown design notes shown beside the page on the canvas. */
+  notes: string;
+  width: number;
+  height: number;
+  html: string;
+}
+
 export interface StoryHierarchiesTable {
   product_id: string;
   tenant_id: string;
@@ -681,6 +730,9 @@ export interface DB {
   story_versions: StoryVersionsTable;
   story_hierarchies: StoryHierarchiesTable;
   story_styles: StoryStylesTable;
+  mockups: MockupsTable;
+  mockup_versions: MockupVersionsTable;
+  mockup_pages: MockupPagesTable;
   lineage: LineageTable;
   activity: ActivityTable;
   tombstones: TombstonesTable;

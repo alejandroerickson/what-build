@@ -19,6 +19,7 @@ const TYPE_FILTERS = [
   { id: "", label: "Everything" },
   { id: "source", label: "Sources" },
   { id: "outcome", label: "Outcomes" },
+  { id: "mockup", label: "Mockups" },
   { id: "insight", label: "Insights" },
   { id: "assumption", label: "Assumptions" },
   { id: "decision", label: "Decisions" },

@@ -321,7 +321,7 @@ function BuiltFrom({ recordId }: { recordId: string }) {
   });
   if (!q.data) return null;
   const l = q.data;
-  const link = (c: LineageInputCheck) => (c.kind === "record" ? `${app}/evidence/${c.id}` : `${app}/synthesis/${c.kind}s/${c.id}`);
+  const link = (c: LineageInputCheck) => (c.kind === "record" ? `${app}/evidence/${c.id}` : `${app}/exploration/${c.kind}s/${c.id}`);
   return (
     <div id="built-from">
       <Group title="Built from" count={l.input_checks.length}>
@@ -549,7 +549,7 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
               {c!.insights.map((i) => (
                 <li key={i.insight_id}>
                   <Glyph name="blend" size="sm" />
-                  <Link to={`${app}/synthesis/insights/${i.insight_id}`} className="ellipsis" title={i.title}>
+                  <Link to={`${app}/exploration/insights/${i.insight_id}`} className="ellipsis" title={i.title}>
                     {i.title}
                   </Link>
                 </li>
@@ -558,7 +558,7 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
                 <li key={e.id}>
                   <Glyph name={e.k === "assumptions" ? "scale" : "signpost"} size="sm" />
                   <span className="source-cited-main">
-                    <Link to={`${app}/synthesis/${e.k}/${e.id}`} className="ellipsis" title={e.statement}>
+                    <Link to={`${app}/exploration/${e.k}/${e.id}`} className="ellipsis" title={e.statement}>
                       {e.statement}
                     </Link>
                     <span className="faint">

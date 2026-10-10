@@ -6,7 +6,7 @@ import { useProduct } from "../lib/session.tsx";
 import { toneFor } from "../lib/status.ts";
 import type { Actor, InsightReviewState } from "../lib/types.ts";
 import { AgentFace, Avatar, Button, Dialog, EmptyState, ErrorCallout, Loading, StatusBadge, useToast } from "../ui/index.tsx";
-import "../styles/screens/synthesis.css";
+import "../styles/screens/exploration.css";
 
 export const STATUS_WORD = { draft: "Working draft", published: "Published", archived: "Archived" } as const;
 const REVIEW_WORD: Record<InsightReviewState, string> = { unreviewed: "Unreviewed", reviewed: "Reviewed", changed: "Changed since review" };

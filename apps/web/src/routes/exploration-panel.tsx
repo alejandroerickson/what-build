@@ -6,15 +6,17 @@ import { useProduct } from "../lib/session.tsx";
 import type { InsightSummary, RegisterSummary } from "../lib/types.ts";
 import { PanelContext, PanelFilter, PanelSection } from "../shell/slots.tsx";
 import { FindField } from "../ui/index.tsx";
+import { useMockupList } from "./mockups.tsx";
 import { searchWith } from "./insights-common.tsx";
 
 /**
- * Synthesis is three lists side by side: insights, assumptions and decisions. The panel names all
- * three, each with one set of filters (its review state), and every list's header has only a title
- * search. A product holds dozens of each, not thousands, so each list loads whole, once, and the
- * panel's counts, the filters and the search all work on what is loaded.
+ * Exploration holds the mockups, then three lists side by side: insights, assumptions and
+ * decisions. The panel names all three lists, each with one set of filters (its review state),
+ * and every list's header has only a title search. A product holds dozens of each, not
+ * thousands, so each list loads whole, once, and the panel's counts, the filters and the search
+ * all work on what is loaded.
  */
-export type SynthesisKind = "insights" | "assumptions" | "decisions";
+export type ExplorationKind = "insights" | "assumptions" | "decisions";
 
 /** At most this many pages of 100 are loaded; past that the list says it shows only the first. */
 const MAX_PAGES = 20;
@@ -96,12 +98,12 @@ export function entryViews(kind: "assumptions" | "decisions"): View<RegisterSumm
 function useWhere() {
   const { pathname } = useLocation();
   const [params] = useSearchParams();
-  const m = /\/synthesis\/(insights|assumptions|decisions)\/?$/.exec(pathname);
-  return { list: (m?.[1] ?? null) as SynthesisKind | null, show: params.get("show") ?? "", outcome: m ? (params.get("outcome_id") ?? "") : "", params };
+  const m = /\/exploration\/(insights|assumptions|decisions)\/?$/.exec(pathname);
+  return { list: (m?.[1] ?? null) as ExplorationKind | null, show: params.get("show") ?? "", outcome: m ? (params.get("outcome_id") ?? "") : "", params };
 }
 
 function Section<T>({ kind, title, views, items, archived }: {
-  kind: SynthesisKind;
+  kind: ExplorationKind;
   title: ReactNode;
   views: View<T>[];
   items: T[] | undefined;
@@ -109,7 +111,7 @@ function Section<T>({ kind, title, views, items, archived }: {
 }) {
   const { app } = useProduct();
   const { list, show, outcome, params } = useWhere();
-  const path = `${app}/synthesis/${kind}`;
+  const path = `${app}/exploration/${kind}`;
   const here = list === kind;
   // Another view of the same list keeps its search and outcome; another list keeps only the outcome.
   const to = (id: string) => (here ? searchWith(path, params, { show: id }) : searchWith(path, new URLSearchParams(), { show: id, outcome_id: outcome }));
@@ -130,8 +132,34 @@ function Section<T>({ kind, title, views, items, archived }: {
   );
 }
 
-/** The Synthesis panel context: insights, assumptions and decisions, each with its filters and counts. */
-export function SynthesisPanel() {
+/** The mockups, flat, most recently changed first: each opens its canvas. */
+function MockupsSection() {
+  const { app } = useProduct();
+  const { pathname } = useLocation();
+  // The panel sits above the screen's route, so it reads the open mockup from the path.
+  const mockupId = /\/exploration\/mockups\/([^/]+)/.exec(pathname)?.[1];
+  const list = useMockupList();
+  const items = list.data?.items;
+  const onIndex = /\/exploration\/mockups\/?$/.test(pathname);
+  return (
+    <PanelSection title="Mockups">
+      {items?.length ? (
+        items.map((e) => (
+          <PanelFilter key={e.mockup_id} to={`${app}/exploration/mockups/${e.mockup_id}`} current={e.mockup_id === mockupId} replace={false}>
+            {e.title}
+          </PanelFilter>
+        ))
+      ) : (
+        <PanelFilter to={`${app}/exploration/mockups`} current={onIndex} replace={false}>
+          {list.isPending ? "Loading…" : "None yet"}
+        </PanelFilter>
+      )}
+    </PanelSection>
+  );
+}
+
+/** The Exploration panel context: mockups, then insights, assumptions and decisions, each with its filters and counts. */
+export function ExplorationPanel() {
   const { outcome } = useWhere();
   const insights = useInsightList();
   const archived = useInsightList(true);
@@ -143,7 +171,8 @@ export function SynthesisPanel() {
   const forInsight = (i: InsightSummary) => !outcome || i.refs.outcomes.includes(outcome);
   const forEntry = (e: RegisterSummary) => !outcome || e.outcome_ids.includes(outcome);
   return (
-    <PanelContext label="Insights, assumptions and decisions">
+    <PanelContext label="Mockups, insights, assumptions and decisions">
+      <MockupsSection />
       <Section kind="insights" title="Insights" views={INSIGHT_VIEWS} items={insights.data?.items.filter(forInsight)} archived={archived.data?.items.filter(forInsight).length} />
       <Section kind="assumptions" title="Assumptions" views={entryViews("assumptions")} items={assumptions.data?.items.filter(forEntry)} archived={archivedAssumptions.data?.items.filter(forEntry).length} />
       <Section kind="decisions" title="Decisions" views={entryViews("decisions")} items={decisions.data?.items.filter(forEntry)} archived={archivedDecisions.data?.items.filter(forEntry).length} />
@@ -151,11 +180,11 @@ export function SynthesisPanel() {
   );
 }
 
-/** Every Synthesis screen: the panel, and the screen. */
-export function SynthesisSection() {
+/** Every Exploration screen: the panel, and the screen. */
+export function ExplorationSection() {
   return (
     <>
-      <SynthesisPanel />
+      <ExplorationPanel />
       <Outlet />
     </>
   );
@@ -176,7 +205,7 @@ export function Marked({ text, ranges }: { text: string; ranges: [number, number
 }
 
 /**
- * The title search in a Synthesis list's header. It narrows the list as you type and keeps the
+ * The title search in a Exploration list's header. It narrows the list as you type and keeps the
  * words in the URL (`?q=`), so a narrowed list can be shared and survives going back.
  */
 export function TitleFind({ label }: { label: string }) {
@@ -193,7 +222,7 @@ export function TitleFind({ label }: { label: string }) {
     }
   }, [q]);
   return (
-    <form role="search" className="synthesis-find" onSubmit={(e) => e.preventDefault()}>
+    <form role="search" className="exploration-find" onSubmit={(e) => e.preventDefault()}>
       <FindField
         label={label}
         value={text}

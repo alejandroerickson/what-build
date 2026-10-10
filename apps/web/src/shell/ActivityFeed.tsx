@@ -98,6 +98,7 @@ export const ENTITY_LABEL: Record<string, string> = {
   assumption: "assumptions",
   decision: "decisions",
   story_page: "Story pages",
+  mockup: "mockups",
   story_hierarchy: "the Story tree",
   story_style: "the Story style",
   product: "the product",
@@ -110,15 +111,17 @@ function linkFor(app: string, i: ActivityItem): string | null {
     case "source":
       return i.action === "deleted" || i.action === "moved_out" ? null : `${app}/evidence/${i.entity_id}`;
     case "insight":
-      return `${app}/synthesis/insights/${i.entity_id}`;
+      return `${app}/exploration/insights/${i.entity_id}`;
     case "assumption":
-      return `${app}/synthesis/assumptions/${i.entity_id}`;
+      return `${app}/exploration/assumptions/${i.entity_id}`;
     case "decision":
-      return `${app}/synthesis/decisions/${i.entity_id}`;
+      return `${app}/exploration/decisions/${i.entity_id}`;
     case "outcome":
       return `${app}/idea`;
     case "story_page":
       return `${app}/story/${i.entity_id}`;
+    case "mockup":
+      return `${app}/exploration/mockups/${i.entity_id}`;
     case "story_hierarchy":
     case "story_style":
       return `${app}/story`;

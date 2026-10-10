@@ -196,6 +196,29 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
     }
   });
 
+  // A mockup page is served exactly as a Story page is: the same sandbox and the same frame
+  // script, but never the app's theme, since a mockup carries its own look.
+  app.get(`${SCOPE_PREFIX.product}/mockups/:mockup_id/versions/:version/pages/:page_id/html`, async (c) => {
+    try {
+      const scope = await scoped(c);
+      const p = await inTenant(scope.tenant!.tenant_id, (trx) =>
+        trx
+          .selectFrom("mockup_pages as p")
+          .innerJoin("mockup_versions as v", "v.version_id", "p.version_id")
+          .select("p.html")
+          .where("v.product_id", "=", scope.product!.product_id)
+          .where("v.mockup_id", "=", c.req.param("mockup_id")!)
+          .where("v.n", "=", Number(c.req.param("version")))
+          .where("p.page_id", "=", c.req.param("page_id")!)
+          .executeTakeFirst(),
+      );
+      if (!p) throw new AppError(404, "not_found", "No such mockup page.");
+      return storyHtml(c, p.html, undefined, c.req.query("frame") === "1");
+    } catch (e) {
+      return errorResponse(c, toAppError(e));
+    }
+  });
+
   // Specimens: a sample page in the product's Story style, or in a house style, shown in the app
   // exactly as Story pages are (the same sandbox and headers) so a person can preview a style.
   app.get(`${SCOPE_PREFIX.product}/story/style/specimen`, async (c) => {

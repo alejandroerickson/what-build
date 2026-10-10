@@ -57,6 +57,7 @@ interface ProductCounts {
   insights: number;
   assumptions: number;
   decisions: number;
+  mockups: number;
   story_pages: number;
 }
 
@@ -67,7 +68,7 @@ interface ProductCounts {
  */
 async function countProducts(db: Db, productIds: string[]): Promise<Map<string, ProductCounts>> {
   const counts = new Map<string, ProductCounts>(
-    productIds.map((id) => [id, { sources: 0, outcomes: 0, insights: 0, assumptions: 0, decisions: 0, story_pages: 0 }]),
+    productIds.map((id) => [id, { sources: 0, outcomes: 0, insights: 0, assumptions: 0, decisions: 0, mockups: 0, story_pages: 0 }]),
   );
   if (!productIds.length) return counts;
   const add = (rows: { product_id: string; n: number | string | bigint }[], key: keyof ProductCounts) => {
@@ -91,6 +92,11 @@ async function countProducts(db: Db, productIds: string[]): Promise<Map<string, 
     await db.selectFrom("insights").select(["product_id", (eb) => eb.fn.countAll<number>().as("n")])
       .where("product_id", "in", productIds).where("status", "!=", "archived").groupBy("product_id").execute(),
     "insights",
+  );
+  add(
+    await db.selectFrom("mockups").select(["product_id", (eb) => eb.fn.countAll<number>().as("n")])
+      .where("product_id", "in", productIds).where("archived_at", "is", null).groupBy("product_id").execute(),
+    "mockups",
   );
   add(
     await db.selectFrom("story_pages").select(["product_id", (eb) => eb.fn.countAll<number>().as("n")])

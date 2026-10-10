@@ -2,7 +2,7 @@ import {
   Activity, Archive, ArchiveRestore, ArrowLeft, ArrowRight, Blend, BookOpen, Bot, Box, Building, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp,
   CircleAlert, CircleCheck, CircleDashed, Clock, Cookie, Copy, CornerDownRight, Download, Ellipsis, ExternalLink, FileText, FileVolume, FolderInput,
   FlaskConical, GitCommitHorizontal, GripVertical, Image, Info, Library, Lightbulb, Link, LoaderCircle, LogOut, Maximize2, Menu, Mic, Minimize2, Minus, Monitor, Moon, Palette, PanelLeftClose, PanelLeftOpen,
-  PanelRightClose, PanelRightOpen, Pencil, Plus, Quote, RotateCcw, Scale, Search, Settings, Signpost, Sun, Tag, Target, Trash, Triangle, TriangleAlert, Upload, UserPlus, Users, X,
+  PanelRightClose, PanelRightOpen, Pencil, Plus, Quote, RotateCcw, Scale, Search, Settings, Signpost, Sun, Tag, Target, Trash, Triangle, TriangleAlert, Upload, UserPlus, Users, X, ZoomIn, ZoomOut, Scan, Hand, MousePointer2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -42,6 +42,7 @@ const GLYPHS = {
   flask: FlaskConical,
   "folder-input": FolderInput,
   "git-commit": GitCommitHorizontal,
+  hand: Hand,
   grip: GripVertical,
   image: Image,
   info: Info,
@@ -50,6 +51,7 @@ const GLYPHS = {
   link: Link,
   loader: LoaderCircle,
   "log-out": LogOut,
+  pointer: MousePointer2,
   maximize: Maximize2,
   menu: Menu,
   mic: Mic,
@@ -66,6 +68,7 @@ const GLYPHS = {
   plus: Plus,
   quote: Quote,
   "rotate-ccw": RotateCcw,
+  scan: Scan,
   scale: Scale,
   search: Search,
   settings: Settings,
@@ -78,6 +81,8 @@ const GLYPHS = {
   "triangle-alert": TriangleAlert,
   upload: Upload,
   "user-plus": UserPlus,
+  "zoom-in": ZoomIn,
+  "zoom-out": ZoomOut,
   users: Users,
   x: X,
 } satisfies Record<string, LucideIcon>;

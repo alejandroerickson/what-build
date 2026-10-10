@@ -2,7 +2,7 @@ import { actorOf, createTenantWithTeam, execute, houseStyle, json, loadSandbox, 
 import { sql } from "kysely";
 import { findOrCreateAccount } from "./auth/identity.ts";
 import {
-  HANDOFF_HTML, HANDOFF_NOTES, INSIGHT, INSIGHT_ERRORS, INSIGHT_KNOWLEDGE, INTERVIEW_AGENT_NOTES, INTERVIEW_RECORDER_EXPORT, INTERVIEW_TXT, INTERVIEW_VTT, OVERVIEW_NOTES, OWNER_NOTES_MD, RESEARCH_EXPORT_MD, SAMPLE, STORY_HTML,
+  MOCKUP, HANDOFF_HTML, HANDOFF_NOTES, INSIGHT, INSIGHT_ERRORS, INSIGHT_KNOWLEDGE, INTERVIEW_AGENT_NOTES, INTERVIEW_RECORDER_EXPORT, INTERVIEW_TXT, INTERVIEW_VTT, OVERVIEW_NOTES, OWNER_NOTES_MD, RESEARCH_EXPORT_MD, SAMPLE, STORY_HTML,
   type SourceLink,
 } from "./seed-content.ts";
 import { syncSandboxTenant } from "./public-sandbox.ts";
@@ -163,9 +163,9 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
       summary: "Planning costs an afternoon a week; the hand-off is where mistakes happen.",
       html: STORY_HTML(
         {
-          insight: `${base}/t/${path}/synthesis/insights/${insight["insight_id"]}`,
-          assumption: `${base}/t/${path}/synthesis/assumptions/${assumption["id"]}`,
-          decision: `${base}/t/${path}/synthesis/decisions/${decision["id"]}`,
+          insight: `${base}/t/${path}/exploration/insights/${insight["insight_id"]}`,
+          assumption: `${base}/t/${path}/exploration/assumptions/${assumption["id"]}`,
+          decision: `${base}/t/${path}/exploration/decisions/${decision["id"]}`,
         },
         sampleStylesheet,
       ),
@@ -186,7 +186,7 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
       page_id: "hand-off-test",
       title: "The hand-off test",
       summary: "Two crews get their week as a generated message instead of a typed one.",
-      html: HANDOFF_HTML({ decision: `${base}/t/${path}/synthesis/decisions/${decision["id"]}` }, sampleStylesheet),
+      html: HANDOFF_HTML({ decision: `${base}/t/${path}/exploration/decisions/${decision["id"]}` }, sampleStylesheet),
       refs: { outcomes: [outcomeIds[1]!], sources: [vtt], decisions: [String(decision["id"])] },
       citations: [{ record_id: vtt, seq_start: 9, seq_end: 10 }],
     },
@@ -197,6 +197,38 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
     const page = (await call(env, samAgent, "story.get_page", { page_id, include_html: false }, ref)) as { agent_notes: { etag: string } };
     await call(env, samAgent, "story.write_notes", { page_id, notes: notesText, expected_etag: page.agent_notes.etag }, ref);
   }
+  const mockup = await call(
+    env,
+    samAgent,
+    "mockups.publish",
+    {
+      title: MOCKUP.title,
+      summary: MOCKUP.summary,
+      brief: MOCKUP.brief,
+      pages: [
+        { page_id: "jobs-board", title: "Jobs board", notes: MOCKUP.notes.jobs, html: MOCKUP.pages.jobs },
+        { page_id: "day-planner", title: "Day planner", notes: MOCKUP.notes.days, html: MOCKUP.pages.days },
+      ],
+      refs: { outcomes: [outcomeIds[0]!, outcomeIds[2]!], sources: [vtt, survey], assumptions: [String(assumption["id"])] },
+      citations: [{ record_id: txt, seq_start: 8, seq_end: 9, quote: "By the day, if I'm honest." }],
+    },
+    ref,
+  );
+  await call(
+    env,
+    samAgent,
+    "mockups.publish",
+    {
+      mockup_id: mockup["mockup_id"],
+      expected_etag: mockup["etag"],
+      pages: [
+        { page_id: "jobs-board", notes: MOCKUP.notes.jobsRevised },
+        { page_id: "day-planner" },
+        { page_id: "crew-message", title: "Crew message", notes: MOCKUP.notes.message, width: 390, height: 760, html: MOCKUP.pages.message },
+      ],
+    },
+    ref,
+  );
   await call(env, riley, "sources.annotate", { record_id: vtt, note: "This is the moment to design for: the typed message, not the spreadsheet.", seq_start: 8, seq_end: 8, tags: ["hand-off"] }, ref);
   // Sam may start one organization of their own; Riley, the instance's owner in development, gave it.
   const sam = SEED_ACCOUNTS[1].email;

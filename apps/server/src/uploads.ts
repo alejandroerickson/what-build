@@ -1,5 +1,5 @@
 import {
-  AppError, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, json, lockSandbox, notFound, sandboxForAccount, toAppError, tooLarge, UPLOAD_GRANT_HEADER,
+  AppError, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, mockupBundle, json, lockSandbox, notFound, sandboxForAccount, toAppError, tooLarge, UPLOAD_GRANT_HEADER,
   type ActorSnapshot, type Env, type OpContext, type Tx,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
@@ -95,6 +95,25 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       });
       if (!found) throw notFound("That file no longer exists.");
       return streamFile(c, env, found.v, found.path, true);
+    } catch (e) {
+      return fail(c, e);
+    }
+  });
+
+  app.get("/api/v1/downloads/mockup/:version_id", async (c) => {
+    try {
+      const claims = env.ports.grants.verify(c.req.header(DOWNLOAD_GRANT_HEADER) ?? "");
+      if (!claims || claims["purpose"] !== "mockup" || claims["xv"] !== c.req.param("version_id"))
+        throw new AppError(401, "invalid_grant", "The download grant is missing, invalid or expired. Request a new one with mockups(action=\"get_download\").");
+      const bundle = await inTenant(env, String(claims["t"]), (trx) => mockupBundle(trx, c.req.param("version_id")));
+      if (!bundle) throw notFound("That mockup version no longer exists.");
+      return c.body(bundle.bytes as unknown as ArrayBuffer, 200, {
+        "Content-Type": "application/zip",
+        "Content-Disposition": `attachment; filename="${bundle.name}"`,
+        "Content-Length": String(bundle.bytes.byteLength),
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "no-store",
+      });
     } catch (e) {
       return fail(c, e);
     }

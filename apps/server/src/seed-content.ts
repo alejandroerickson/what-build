@@ -322,3 +322,77 @@ ${css}</style>
 </main>
 </body>
 </html>`;
+
+/** The sample mockup: three pages that test the jobs-or-days assumption. Synthetic, like everything here. */
+const MOCK_CSS = `*{box-sizing:border-box}body{margin:0;font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;color:#1c2321;background:#f6f5f1}
+header{display:flex;align-items:center;gap:12px;padding:14px 24px;background:#1f3b34;color:#fff}header b{font-size:17px}header span{opacity:.75;font-size:13px}
+main{padding:20px 24px}h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#5b6662;margin:0 0 10px}
+.cols{display:grid;gap:14px}.card{background:#fff;border:1px solid #e1ded6;border-radius:10px;padding:12px 14px}
+.card b{display:block}.meta{color:#5b6662;font-size:13px}.tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;background:#e6efe9;color:#1f3b34;margin-top:6px}
+.warn{background:#fbecd9;color:#7a4a10}.btn{display:inline-block;padding:8px 14px;border-radius:8px;background:#1f3b34;color:#fff;font-weight:600}`;
+
+const mock = (title: string, body: string) =>
+  `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title><style>${MOCK_CSS}</style></head><body>${body}</body></html>`;
+
+export const MOCKUP = {
+  title: "Planning the week: jobs first or days first",
+  summary: "Two ways to plan next week, and the message each crew gets from it.",
+  brief: `# Planning the week: jobs first or days first
+
+## What this canvas explores
+
+Crew leads disagree about how they think about the week. Marisol plans **jobs first** and fits them into days; Dev and Priya plan **day by day**. This canvas puts both models side by side, plus the crew message either one would send, so the team can show them to crew leads and watch which one they reach for.
+
+## Questions it should answer
+
+1. Does a crew lead with a repeat-client week reach for the jobs board or the day planner first?
+2. Can either view show a late booking's knock-on effect without a second screen?
+3. Is the generated crew message enough on its own, whichever planner wins?
+
+## The pages
+
+- **Jobs board**: unscheduled jobs on the left, crews as columns; drag a job onto a crew and day.
+- **Day planner**: one column per day, crews as rows; repeat clients pre-filled from last week.
+- **Crew message**: what Marisol's crew sees on a phone on Sunday night.
+
+## What it draws on
+
+The assumption that crew leads think in jobs, not time slots; the Greenline call; the planning survey.`,
+  pages: {
+    jobs: mock(
+      "Jobs board",
+      `<header><b>Crewboard</b><span>Week of 12 Oct · Jobs board</span></header><main><div class="cols" style="grid-template-columns:260px 1fr 1fr 1fr">
+<section><h2>Unscheduled · 4</h2><div class="cols"><div class="card"><b>Hedge trim, 14 Alder Rd</b><span class="meta">Repeat · 2 h</span><br><span class="tag">Every 2 weeks</span></div><div class="card"><b>Spring clean-up, Oak Ct</b><span class="meta">New client · 4 h</span></div><div class="card"><b>Mulch beds, Library</b><span class="meta">Repeat · 3 h</span></div><div class="card"><b>Gutter check, 9 Bay St</b><span class="meta">Late booking · 1 h</span><br><span class="tag warn">Booked Thursday</span></div></div></section>
+<section><h2>Crew A · Marisol</h2><div class="cols"><div class="card"><b>Mon · Riverside HOA</b><span class="meta">6 h</span></div><div class="card"><b>Tue · Pine St duplex</b><span class="meta">3 h</span></div></div></section>
+<section><h2>Crew B · Dev</h2><div class="cols"><div class="card"><b>Mon · Clinic lawn</b><span class="meta">2 h</span></div><div class="card"><b>Wed · Harbor school</b><span class="meta">5 h</span></div></div></section>
+<section><h2>Crew C · Priya</h2><div class="cols"><div class="card"><b>Tue · Office park</b><span class="meta">4 h</span></div></div></section>
+</div></main>`,
+    ),
+    days: mock(
+      "Day planner",
+      `<header><b>Crewboard</b><span>Week of 12 Oct · Day planner</span></header><main><div class="cols" style="grid-template-columns:repeat(5,1fr)">
+${["Mon", "Tue", "Wed", "Thu", "Fri"]
+  .map(
+    (d, i) =>
+      `<section><h2>${d}</h2><div class="cols"><div class="card"><b>Crew A</b><span class="meta">${["Riverside HOA", "Pine St duplex", "Hedge trim, Alder Rd", "Mulch beds", "—"][i]}</span></div><div class="card"><b>Crew B</b><span class="meta">${["Clinic lawn", "—", "Harbor school", "Spring clean-up", "Clinic lawn"][i]}</span></div><div class="card"><b>Crew C</b><span class="meta">${["—", "Office park", "—", "Gutter check", "Office park"][i]}</span>${i === 3 ? '<br><span class="tag warn">Moved from Wed</span>' : ""}</div></div></section>`,
+  )
+  .join("")}
+</div><p class="meta" style="margin-top:16px">Repeat clients are filled in from last week. <span class="btn">Send the week</span></p></main>`,
+    ),
+    message: mock(
+      "Crew message",
+      `<header><b>Crewboard</b><span>Crew A · next week</span></header><main><h2>Hi Marisol, here is next week</h2><div class="cols">
+<div class="card"><b>Monday · Riverside HOA</b><span class="meta">8:00 · 220 Riverside Dr · 6 h</span></div>
+<div class="card"><b>Tuesday · Pine St duplex</b><span class="meta">8:30 · 41 Pine St · 3 h</span></div>
+<div class="card"><b>Wednesday · Hedge trim</b><span class="meta">9:00 · 14 Alder Rd · 2 h · gate code 4471</span></div>
+<div class="card"><b>Thursday · Mulch beds</b><span class="meta">8:00 · Library, 3 Main St · 3 h</span></div>
+</div><p style="margin-top:16px"><span class="btn">Looks right</span> <span class="meta">or reply with a change</span></p></main>`,
+    ),
+  },
+  notes: {
+    jobs: "Jobs first, for leads like Marisol. Watch whether the unscheduled column feels like a to-do list or like pressure.",
+    jobsRevised: "Jobs first, for leads like Marisol. In the first walk-through the late booking was found at once here; the knock-on effect on Crew B was not.",
+    days: "Days first, for leads like Dev and Priya. Repeat clients pre-filled from last week is the bet: planning becomes correcting.",
+    message: "Phone width. The message is the same whichever planner wins, which is why it is worth testing first (see the hand-off decision).",
+  },
+};

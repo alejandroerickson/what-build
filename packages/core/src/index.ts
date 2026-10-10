@@ -1,5 +1,6 @@
 import { activityOps } from "./ops/activity.ts";
 import { derivedOps } from "./ops/derived.ts";
+import { mockupOps } from "./ops/mockups.ts";
 import { exportOps } from "./ops/export.ts";
 import { fileOps } from "./ops/files.ts";
 import { insightOps } from "./ops/insights.ts";
@@ -38,6 +39,7 @@ export { createTenantWithTeam, uniqueTenantSlug } from "./ops/products.ts";
 export { isInstanceOwner, tenantAllowanceOf, type TenantAllowance } from "./tenant-allowance.ts";
 export { RESET_CONFIRMATION, sandboxNotice } from "./ops/public-sandbox.ts";
 export { printDocument } from "./ops/story.ts";
+export { mockupBundle } from "./ops/mockups.ts";
 export { SKILL_NAME, SKILL_VERSION, skillMarkdown } from "./ops/meta.ts";
 export { GUIDANCE_VERSION } from "./story-guidance.ts";
 export { HOUSE_STYLES, houseSpecimen, houseStyle, pageDocument, specimenBody, styleSpecimen, type HouseStyle } from "./story-styles.ts";
@@ -58,6 +60,7 @@ export const OPERATIONS: OperationDef[] = [
   ...registerOpsList,
   ...revisionOpsList,
   ...storyOps,
+  ...mockupOps,
   ...lineageOps,
   ...activityOps,
   ...metaOps,

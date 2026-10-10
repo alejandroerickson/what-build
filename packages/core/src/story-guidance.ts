@@ -17,10 +17,10 @@ export function linkTemplates(base: string, path: string) {
   return {
     source: `${p}/evidence/{record_id}`,
     passage: `${p}/evidence/{record_id}?view=passages&seq={seq}`,
-    insight: `${p}/synthesis/insights/{insight_id}`,
+    insight: `${p}/exploration/insights/{insight_id}`,
     outcome: `${p}/idea`,
-    assumption: `${p}/synthesis/assumptions/{id}`,
-    decision: `${p}/synthesis/decisions/{id}`,
+    assumption: `${p}/exploration/assumptions/{id}`,
+    decision: `${p}/exploration/decisions/{id}`,
     story_page: `${p}/story/{page_id}`,
   };
 }

@@ -115,11 +115,11 @@ for (const device of ["desktop", "phone"]) {
     await shoot("evidence", "/evidence");
     for (const view of ["passages", "original", "notes", "files"]) await shoot(`source-${view}`, `/evidence/${s.source}?view=${view}`);
     await shoot("search", "/search?q=spreadsheet");
-    await shoot("insights", "/synthesis/insights");
-    await shoot("insight", `/synthesis/insights/${s.insight}`);
-    await shoot("assumptions", "/synthesis/assumptions");
-    await shoot("assumption", `/synthesis/assumptions/${s.assumption}`);
-    await shoot("decisions", "/synthesis/decisions");
+    await shoot("insights", "/exploration/insights");
+    await shoot("insight", `/exploration/insights/${s.insight}`);
+    await shoot("assumptions", "/exploration/assumptions");
+    await shoot("assumption", `/exploration/assumptions/${s.assumption}`);
+    await shoot("decisions", "/exploration/decisions");
     await shoot("story", "/story/overview", { full: false });
     if (wanted("export-dialog")) {
       await page.goto(`${s.app}/story/overview`);
@@ -149,8 +149,8 @@ for (const device of ["desktop", "phone"]) {
     }
     if (device === "desktop") {
       // The two review marks a person sees on an insight: reviewed (with Undo), and changed since review.
-      if (s.reviewed) await shoot("insight-reviewed", `/synthesis/insights/${s.reviewed}`);
-      if (s.changed) await shoot("insight-changed", `/synthesis/insights/${s.changed}`);
+      if (s.reviewed) await shoot("insight-reviewed", `/exploration/insights/${s.reviewed}`);
+      if (s.changed) await shoot("insight-changed", `/exploration/insights/${s.changed}`);
     }
     await shoot("print-view", `${s.api}/story/print?page_ids=overview,hand-off-test`);
     await shoot("activity", "/activity");

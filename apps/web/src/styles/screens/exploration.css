@@ -1,4 +1,4 @@
-/* Synthesis: the Insights list, the insight page and editor, and the assumption and decision registers. */
+/* Exploration: the Insights list, the insight page and editor, and the assumption and decision registers. */
 
 /* ---- Shared bits ------------------------------------------------------------------------------ */
 
@@ -22,7 +22,7 @@
 
 /* ---- The lists: insights, assumptions and decisions -------------------------------------------- */
 
-.synthesis-find {
+.exploration-find {
   width: 240px;
   max-width: 100%;
 }
@@ -410,12 +410,12 @@
 
 @media (max-width: 760px) {
   /* The search takes its own line under the title and the create action. */
-  .sheet-filter:has(> .synthesis-find) {
+  .sheet-filter:has(> .exploration-find) {
     order: 1;
     flex: 1 1 100%;
     margin-left: 0;
   }
-  .synthesis-find {
+  .exploration-find {
     width: 100%;
   }
   .insight-prose {

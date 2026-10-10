@@ -208,7 +208,7 @@ export function SearchPage() {
                 <ul className="search-entries">
                   {[...(d.assumptions ?? []).map((a) => ({ ...a, k: "assumptions" as const })), ...(d.decisions ?? []).map((a) => ({ ...a, k: "decisions" as const }))].map((e) => (
                     <li key={e.id}>
-                      <Link to={`${app}/synthesis/${e.k}/${e.id}`} className="search-entry">
+                      <Link to={`${app}/exploration/${e.k}/${e.id}`} className="search-entry">
                         <Glyph name={e.k === "assumptions" ? "scale" : "signpost"} />
                         <span className="search-entry-main">
                           <span className="search-entry-title">{highlight(e.statement, q, exact)}</span>
@@ -233,7 +233,7 @@ export function SearchPage() {
                 <ul className="search-entries">
                   {d.insights.map((i) => (
                     <li key={i.id}>
-                      <Link to={`${app}/synthesis/insights/${i.id}`} className="search-entry">
+                      <Link to={`${app}/exploration/insights/${i.id}`} className="search-entry">
                         <Glyph name="blend" />
                         <span className="search-entry-main">
                           <span className="search-entry-title">{highlight(i.title, q, exact)}</span>
