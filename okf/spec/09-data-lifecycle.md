@@ -48,7 +48,12 @@ Supporting commitments, each of which is a rule elsewhere in this spec:
 needed kind is always on: the session cookie that keeps a person signed in, two short-lived ones
 that protect a sign-in with Google or Microsoft and an agent's connection while they happen
 ([§3.8](03-accounts-teams-and-identity.md)), display choices kept in the browser under
-`whatbuild.*`, and `wb_cookies`, which remembers the person's answer below. The optional kind is
+`whatbuild.*`, and `wb_cookies`, which remembers the person's answer below. A browser can pass
+from one person to the next, so the display state that is one person's (the product they had open,
+their place in each Story and mockup, the Story's focus, the sandbox notices they have read) is
+cleared when they sign out or the app finds their session ended; only the device's own choices
+(theme, hidden panels, the canvas's pan or interact mode) stay (`apps/web/src/lib/local-state.ts`).
+The optional kind is
 analytics. A deployment with a Google Analytics measurement ID asks every person once, on the
 public site or in the app, with Accept and Decline of equal weight; `wb_cookies` sits on the parent
 domain, so one answer covers both. Google Analytics loads only after Accept. Everything works the

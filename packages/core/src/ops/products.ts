@@ -105,9 +105,20 @@ async function countProducts(db: Db, productIds: string[]): Promise<Map<string, 
   return counts;
 }
 
+/**
+ * Each stage's count is every item the stage holds: Idea its outcomes (the concept is one field, not
+ * an item), Evidence its sources, Exploration its mockups and current assumptions, and the Story its
+ * live pages, which are the pages in its tree and its Published mockups.
+ */
+function stageCounts(c: ProductCounts) {
+  return { idea: c.outcomes, evidence: c.sources, exploration: c.mockups + c.assumptions, story: c.story_pages };
+}
+
 /** What a role may count: a reader sees only how many Story pages there are, never what the evidence holds. */
 function countsFor(role: ProductRole | null, c: ProductCounts) {
-  return readsOnlyTheStory(role) ? { story_pages: c.story_pages } : c;
+  return readsOnlyTheStory(role)
+    ? { counts: { story_pages: c.story_pages }, stage_counts: { story: c.story_pages } }
+    : { counts: c, stage_counts: stageCounts(c) };
 }
 
 // ---- Account scope ------------------------------------------------------------------------------
@@ -119,7 +130,7 @@ export const listProducts = defineOperation({
   mutates: false,
   summary: "List every product you can reach, across your tenants and teams, with your role and counts of what each holds.",
   description:
-    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` are the ones products(action=\"get\") reports. Where your_role is reader you may read only the Story: such an item has no concept and counts only story_pages. A tenant marked story_only is one where you read only the Story everywhere, so its members are not listed to you. A tenant with `sandbox: true` is a public sandbox: what is added there is seen by other visitors and erased at its next reset, so read sandbox(action=\"status\") and tell the person before writing.",
+    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` (one number per kind) and `stage_counts` (their totals per stage) are the ones products(action=\"get\") reports. Where your_role is reader you may read only the Story: such an item has no concept and counts only story_pages. A tenant marked story_only is one where you read only the Story everywhere, so its members are not listed to you. A tenant with `sandbox: true` is a public sandbox: what is added there is seen by other visitors and erased at its next reset, so read sandbox(action=\"status\") and tell the person before writing.",
   input: z.strictObject({ include_archived: z.boolean().default(false) }),
   rest: { method: "GET", path: "/me/products" },
   mcp: { tool: "products", action: "list" },
@@ -168,7 +179,7 @@ export const listProducts = defineOperation({
     const tenants = await ctx.db.selectFrom("tenants").select(["tenant_id", "slug", "name", "sandbox"]).where("tenant_id", "in", tenantIds).orderBy("name").execute();
     const teams = await ctx.db.selectFrom("teams").select(["team_id", "tenant_id", "slug", "name", "archived_at"]).where("tenant_id", "in", tenantIds).orderBy("name").execute();
     return {
-      items: items.map((i) => ({ ...i, counts: countsFor(i.your_role, counts.get(i.product_id)!) })),
+      items: items.map((i) => ({ ...i, ...countsFor(i.your_role, counts.get(i.product_id)!) })),
       tenants: tenants.map(({ sandbox, ...t }) => {
         const tr = memberships.find((m) => m.scope_type === "tenant" && m.scope_id === t.tenant_id)?.role ?? null;
         return {
@@ -318,7 +329,7 @@ export const getProduct = defineOperation({
   access: "story",
   mutates: false,
   summary: "Read a product: its concept, etag, your role, and counts of what it holds.",
-  description: "Use the counts to decide where to look first. They leave out archived items, and assumptions count only current (unconfirmed or confirmed) ones, not superseded or refuted ones. The etag guards products(action=\"update\"). A reader (the Story-only role) gets no concept, and counts of Story pages only.",
+  description: "Use the counts to decide where to look first. They leave out archived items, and assumptions count only current (unconfirmed or confirmed) ones, the ones assumptions(action=\"list\") returns by default. counts has one number per kind; stage_counts totals them per stage, as the web app shows them: idea (outcomes), evidence (sources), exploration (mockups and current assumptions) and story (Story pages, those in its tree and its Published mockups). The etag guards products(action=\"update\"). A reader (the Story-only role) gets no concept, and counts of Story pages only.",
   input: z.strictObject({}),
   rest: { method: "GET", path: "" },
   mcp: { tool: "products", action: "get" },
@@ -326,7 +337,7 @@ export const getProduct = defineOperation({
     const pid = ctx.scope.product!.product_id;
     const row = await ctx.db.selectFrom("products").selectAll().where("product_id", "=", pid).executeTakeFirstOrThrow();
     const counts = (await countProducts(ctx.db, [pid])).get(pid)!;
-    return { ...productView(row, ctx), counts: countsFor(ctx.scope.role, counts) };
+    return { ...productView(row, ctx), ...countsFor(ctx.scope.role, counts) };
   },
 });
 

@@ -55,7 +55,10 @@ the names Mockups and Exploration on 2026-10-09.
   promoted pages anywhere in the tree.
 - The third stage is **Exploration**: mockups and assumptions (insights and decisions, which it
   also held, were retired: [decision](insights-and-decisions-are-retired-into-evidence.md)). Its
-  URLs are `/exploration/…`, and old `/synthesis/…` links open the same place.
+  URLs are `/exploration/…`, and old `/synthesis/…` links open the same place. Its count is its
+  mockups and its current assumptions together, as the Story's count includes its Published
+  mockups ([decision](each-stage-counts-every-item-it-holds.md), the maintainer's choice on
+  2026-10-10, replacing a count of the mockups alone).
 - Rejected names: "exploration" for the item (too abstract for people and for agents reading the
   tool list), "wireframe" (suggests grey boxes) and "prototype" (suggests a working product).
 

@@ -152,7 +152,9 @@ export function MembersPage() {
   const t = products.data?.tenants.find((x) => x.slug === tenant);
   const q = useQuery({
     queryKey: ["members", tenant],
-    enabled: !t?.story_only,
+    // Asked only once the products say whether this person may see the members, so someone who
+    // reads only the Story is never refused (and their browser logs no refusal).
+    enabled: !products.isPending && !t?.story_only,
     retry: (n, e) => !(e instanceof ApiError && e.status === 403) && n < 2,
     queryFn: () => api<MembersResponse>("GET", `/api/v1/tenants/${tenant}/members`),
   });

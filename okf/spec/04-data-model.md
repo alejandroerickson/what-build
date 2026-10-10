@@ -93,7 +93,16 @@ product concept ([§3.4](03-accounts-teams-and-identity.md)) on the Idea screen.
 Assumptions, and Story and mockup versions, point *to* outcomes; outcomes hold no outgoing
 references. Reads return `counts.assumptions`: the current (`unconfirmed` or `confirmed`)
 assumptions that point at each. Superseded and refuted ones are not counted, so a count matches
-the register's default view. `products.get` counts assumptions the same way.
+the register's default view and what `assumptions.list` returns without a status.
+`products.get` and `products.list` count assumptions the same way.
+
+Product reads return `counts`, one number per kind (`sources`, `outcomes`, `assumptions`,
+`mockups`, `story_pages`, archived items left out), and `stage_counts`, the total of every item each
+stage holds, which the web app shows beside each stage
+([decision](../decisions/each-stage-counts-every-item-it-holds.md)): `idea` is the outcomes (the
+product concept is one field, not an item), `evidence` the sources, `exploration` the mockups plus
+the current assumptions, and `story` the live Story pages, which are exactly the pages in the tree,
+the unplaced ones and the Published mockups (§4.11).
 
 `outcomes.list` leaves archived outcomes out unless asked for `status: "archived"`, and says
 how many it left out: `archived_hidden` (the count, honouring `query`) and, when it is not zero, a
@@ -283,7 +292,10 @@ incomplete. An entry's id is `id` (the tool also accepts `assumption_id`,
 
 List items carry the entry's state without a `get` per entry: `status`, `frozen`,
 `superseded_by`, `link_count` (links out), `linked_from_count` (links in), `review_count`,
-`human_review` and `archived_outcome_ids`. The list filters by one or more statuses.
+`human_review` and `archived_outcome_ids`. The list filters by one or more statuses; without
+one it returns the current entries (unconfirmed and confirmed), so it agrees with the counts on
+products and outcomes and with the register's default view, and says in `not_current_hidden` how
+many refuted or superseded entries it left out.
 
 ### Citations
 

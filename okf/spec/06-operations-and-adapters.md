@@ -288,7 +288,10 @@ Notes on recent actions:
   held of them became sources ([§4.7](04-data-model.md)). `sources.used_by` replaced
   `sources.insights_for`, and lists the sources that name a source in `related_records`.
 - `assumptions.update` takes `edits` (exact replacements that must match once) and returns
-  `changed` and a short `diff` ([§4.1](04-data-model.md)). The assumption list returns
+  `changed` and a short `diff` ([§4.1](04-data-model.md)). Without `status`, the assumption list
+  returns the current entries (unconfirmed and confirmed), the ones every count counts, with
+  `not_current_hidden` (the refuted and superseded ones matching its other filters) and, when that
+  is not zero, a `note`; a `status` list names what to return instead. It returns
   `frozen`, `superseded_by` (the ids of the entries whose `supersedes` link points at the entry, newest
   first, so a list can show history under its correction without a `get` per entry),
   `link_count` and `linked_from_count`; `outcomes.list` returns
@@ -314,7 +317,7 @@ Notes on recent actions:
   and are not versioned with the page. While the notes are empty the etag may be omitted.
 - A reader's `story.get_page`, `story.list_versions` and `story.get_version` leave out `refs`,
   `resolved_refs`, `citations`, `citation_count` and `agent_notes`, and their `products.get` and
-  `products.list` leave out `concept` and count only `story_pages`
+  `products.list` leave out `concept` and count only `story_pages` (and `stage_counts.story`)
   ([§3.5](03-accounts-teams-and-identity.md)).
 - `mockups.publish` creates a mockup, or publishes the next version of one: the whole canvas,
   with its brief, its pages in order and each page's notes and size, and the files it carries for
@@ -525,7 +528,10 @@ Rules:
   `GET /auth/verify?token=` shows its page and changes nothing, and `POST /auth/verify` (form field
   `token`, same origin only) uses it and signs in; `GET /auth/google`, `/auth/microsoft` and their
   `/callback`s run OpenID Connect; `POST /auth/dev-sign-in` exists outside production;
-  `POST /auth/sign-out`; `GET /auth/methods` lists what is on
+  `POST /auth/sign-out`; `GET /auth/session` answers the web app's "who is signed in" with
+  `signed_in` and, when true, what `GET /api/v1/me` returns, so being signed out is a `200` there
+  and not an error the browser logs (`/api/v1/me` and every operation still answer `401` without a
+  session); `GET /auth/methods` lists what is on
   ([§3.2](03-accounts-teams-and-identity.md#32-accounts-and-sign-in)).
 - Both adapters build the actor snapshot from the authenticated identity and the transport
   (`web` or `mcp`, plus the client's name; activity from before tokens were removed may say

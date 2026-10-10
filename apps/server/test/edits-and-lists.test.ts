@@ -152,7 +152,7 @@ describe("register lists", () => {
     const other = await alice.api("POST", `${P}/assumptions`, { statement: "Exports stay in the spreadsheet.", citations: cite(), links: [{ id: old.body.id, type: "supports" }] });
     const s = await alice.api("POST", `${P}/assumptions/${old.body.id}/supersede`, { expected_etag: old.body.etag, note: "Wrong cadence.", statement: "Exports run every Friday.", citations: cite() });
     expect(s.status).toBe(200);
-    const list = await alice.api("GET", `${P}/assumptions?query=Exports`);
+    const list = await alice.api("GET", `${P}/assumptions?query=Exports&status=unconfirmed,confirmed,refuted,superseded`);
     const byId = new Map(list.body.items.map((i: any) => [i.id, i]));
     expect(byId.get(old.body.id)).toMatchObject({ frozen: true, status: "superseded", superseded_by: [s.body.entry.id], link_count: 0, linked_from_count: 2 });
     expect(byId.get(other.body.id)).toMatchObject({ frozen: false, superseded_by: [], link_count: 1, linked_from_count: 0 });
@@ -161,6 +161,44 @@ describe("register lists", () => {
     expect(current.body.items.map((i: any) => i.id).sort()).toEqual([other.body.id, s.body.entry.id].sort());
     const got = await alice.api("GET", `${P}/assumptions/${old.body.id}`);
     expect(got.body.superseded_by).toEqual([s.body.entry.id]);
+  });
+
+  it("list the current entries by default, the ones the counts count, and say how many they left out", async () => {
+    const t = await alice.api("POST", "/api/v1/tenants", { name: "Count Co" });
+    const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Counted" });
+    const Q = `/api/v1/p/${p.body.path}`;
+    const outcome = await alice.api("POST", `${Q}/outcomes`, { title: "Plan the week" });
+    const on = { outcome_ids: [outcome.body.outcome_id] };
+    const kept = await alice.api("POST", `${Q}/assumptions`, { statement: "Crews plan weekly.", ...on });
+    const old = await alice.api("POST", `${Q}/assumptions`, { statement: "Crews plan daily.", ...on });
+    const replaced = await alice.api("POST", `${Q}/assumptions/${old.body.id}/supersede`, { expected_etag: old.body.etag, note: "Wrong cadence.", statement: "Crews plan every Monday.", ...on });
+    const wrong = await alice.api("POST", `${Q}/assumptions`, { statement: "Crews never plan.", ...on });
+    expect((await alice.api("POST", `${Q}/assumptions/${wrong.body.id}/review`, { expected_etag: wrong.body.etag, status: "refuted", note: "They do." })).status).toBe(200);
+
+    const current = [kept.body.id, replaced.body.entry.id].sort();
+    const list = await alice.api("GET", `${Q}/assumptions`);
+    expect(list.body.items.map((i: any) => i.id).sort()).toEqual(current);
+    expect(list.body.not_current_hidden).toBe(2);
+    expect(list.body.note).toContain("refuted or superseded");
+    const narrowed = await alice.api("GET", `${Q}/assumptions?query=weekly`);
+    expect(narrowed.body).toMatchObject({ not_current_hidden: 0 });
+    expect(narrowed.body.note).toBeUndefined();
+
+    // The same number everywhere: the list, the product's counts in products.list and get, and the outcome's.
+    const listed = (await alice.api("GET", "/api/v1/me/products")).body.items.find((i: any) => i.product_id === p.body.product_id);
+    expect(listed.counts.assumptions).toBe(current.length);
+    expect((await alice.api("GET", Q)).body.counts.assumptions).toBe(current.length);
+    expect((await alice.api("GET", `${Q}/outcomes`)).body.items[0].counts.assumptions).toBe(current.length);
+
+    // Over MCP too, and asking for every status lists every entry with nothing left out.
+    const client = new Client({ name: "count-test", version: "1" });
+    await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { Authorization: `Bearer ${agentToken}` } } }));
+    const mcp = text(await client.callTool({ name: "assumptions", arguments: { action: "list", product: p.body.path } }));
+    expect(mcp.items.map((i: any) => i.id).sort()).toEqual(current);
+    const every = text(await client.callTool({ name: "assumptions", arguments: { action: "list", product: p.body.path, params: { status: ["unconfirmed", "confirmed", "refuted", "superseded"] } } }));
+    expect(every.items).toHaveLength(4);
+    expect(every.not_current_hidden).toBe(0);
+    await client.close();
   });
 });
 

@@ -7,7 +7,7 @@ import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { toneFor } from "../lib/status.ts";
 import {
-  Button, ButtonLink, Callout, Chip, EmptyState, ErrorCallout, FormGrid, Glyph, Loading, Menu, MenuItem, MenuSeparator, Segmented, SelectField, Sheet,
+  Button, ButtonLink, Callout, Chip, EmptyState, ErrorCallout, FormGrid, Glyph, IconButton, Loading, Menu, MenuItem, MenuSeparator, Segmented, SelectField, Sheet,
   SheetBody, SheetHeader, StatusBadge, TextArea, TextField, useToast,
 } from "../ui/index.tsx";
 import { FirstUse } from "./first-use.tsx";
@@ -274,6 +274,10 @@ export function IdeaPage() {
                   </div>
                   <div className="outcome-side">
                     <StatusBadge tone={toneFor("outcome", o.status)}>{STATUS_WORD[o.status]}</StatusBadge>
+                    {/* Someone who cannot change outcomes here (a viewer, or anyone on an archived product) gets the one thing they can do, not a menu of nothing. */}
+                    {!canWrite ? (
+                      <IconButton size="sm" icon="clock" label={`Earlier versions of ${o.title}`} onClick={() => setHistory(o)} />
+                    ) : (
                     <Menu label={`Actions for ${o.title}`} triggerClassName="icon-btn icon-btn-sm" trigger={<Glyph name="ellipsis" />} align="end">
                       {canWrite && o.status !== "archived" ? (
                         <MenuItem icon="pencil" onSelect={() => setEditing(o.outcome_id)}>
@@ -315,6 +319,7 @@ export function IdeaPage() {
                         </MenuItem>
                       ) : null}
                     </Menu>
+                    )}
                   </div>
                 </li>
               ),

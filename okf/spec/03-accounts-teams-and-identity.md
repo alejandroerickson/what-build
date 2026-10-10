@@ -255,7 +255,7 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   Crewboard; sources.list needs viewer"), and so do a source's file, an export's file, a Story
   style specimen and a mockup's page. A reader's Story reads leave out `refs`, `resolved_refs`,
   `citations`, `citation_count` and `agent_notes`, and of a page promoted from a mockup keep only
-  its size; their product reads leave out `concept` and count only `story_pages`. A page's HTML is
+  its size; their product reads leave out `concept` and count only `story_pages` (and `stage_counts.story`). A page's HTML is
   served to a reader exactly as published, and a promoted mockup page through the Story's own
   route, so a reader sees that page and nothing else of the mockup ([§4.11](04-data-model.md)).
   Someone who reads only the Story everywhere in an organization (a reader on its teams or

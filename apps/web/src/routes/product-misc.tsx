@@ -332,6 +332,13 @@ function PeopleSheet() {
           )
         }
       />
+      {isAdmin && product.archived_at ? (
+        <div className="settings-note">
+          <Callout inset tone="info">
+            The product&rsquo;s content stays read-only while it is archived, but who can open it is still yours to change: you can give or remove roles here.
+          </Callout>
+        </div>
+      ) : null}
       {q.isPending ? (
         <Loading label="Loading people…" lines={3} />
       ) : q.isError ? (

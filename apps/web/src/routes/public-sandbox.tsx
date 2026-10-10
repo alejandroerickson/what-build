@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
 import { formatBytes, formatDate, formatDateTime, plural, untilTime } from "../lib/format.ts";
 import { resetWords, useSandboxStatus, type SandboxResets, type SandboxStatus } from "../lib/public-sandbox.ts";
-import { useMe } from "../lib/session.tsx";
+import { useMe, useProducts } from "../lib/session.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
   Avatar, Button, ButtonLink, Callout, CopyField, Dialog, EmptyState, ErrorCallout, FindField, FormGrid, Loading, Segmented, Sheet, SheetBody, SheetHeader,
@@ -108,8 +108,14 @@ function amount(value: number | boolean, unit: string): string {
  */
 export function SandboxPage() {
   const { tenant = "" } = useParams();
-  const status = useSandboxStatus(tenant);
+  const products = useProducts();
+  // An organization the person is in, and that is not a sandbox, is answered here without asking
+  // the server, which would refuse with a 404 the browser logs as an error.
+  const known = products.data?.tenants.find((t) => t.slug === tenant);
+  const notSandbox = Boolean(known && !known.sandbox);
+  const status = useSandboxStatus(tenant, !products.isPending && !notSandbox);
   usePageTitle("Public sandbox");
+  if (notSandbox) return <NotASandbox />;
   if (status.isPending)
     return (
       <Sheet label="Loading the sandbox">
@@ -117,19 +123,28 @@ export function SandboxPage() {
       </Sheet>
     );
   if (status.isError)
-    return (
+    return status.error instanceof ApiError && status.error.status === 404 ? (
+      <NotASandbox />
+    ) : (
       <Sheet labelledBy="sandbox-missing">
-        <SheetHeader level={1} id="sandbox-missing" title={status.error instanceof ApiError && status.error.status === 404 ? "This organization is not a public sandbox" : "The sandbox could not be loaded"} />
+        <SheetHeader level={1} id="sandbox-missing" title="The sandbox could not be loaded" />
         <EmptyState size="inline" action={<ButtonLink to="/">Your products</ButtonLink>}>
-          {status.error instanceof ApiError && status.error.status === 404
-            ? "Only one organization here is the public sandbox. This isn’t it, or you aren’t in it."
-            : status.error instanceof Error
-              ? status.error.message
-              : "Reload the page to try again."}
+          {status.error instanceof Error ? status.error.message : "Reload the page to try again."}
         </EmptyState>
       </Sheet>
     );
   return status.data.you.role === "staff" ? <ControlPanel tenant={tenant} /> : <VisitorView status={status.data} />;
+}
+
+function NotASandbox() {
+  return (
+    <Sheet labelledBy="sandbox-missing">
+      <SheetHeader level={1} id="sandbox-missing" title="This organization is not a public sandbox" />
+      <EmptyState size="inline" action={<ButtonLink to="/">Your products</ButtonLink>}>
+        Only one organization here is the public sandbox. This isn&rsquo;t it, or you aren&rsquo;t in it.
+      </EmptyState>
+    </Sheet>
+  );
 }
 
 function VisitorView({ status: s }: { status: SandboxStatus }) {
