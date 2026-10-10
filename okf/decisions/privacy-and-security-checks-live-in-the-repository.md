@@ -33,6 +33,11 @@ install, and so that it runs well before the repository becomes public.
 - **GitHub's own features** do the rest: Dependabot alerts, security updates and weekly grouped
   updates; CodeQL, and secret scanning with push protection, once the
   repository is public. An OWASP ZAP baseline scans the app, built as in production, weekly in CI.
+- **What is waiting reaches the maintainer through agents.** `pnpm attention` lists Dependabot's
+  pull requests and alerts, failed runs, accepted vulnerabilities near expiry and changes
+  production lacks, and `AGENTS.md` has every agent run it at the start of a session and say what
+  it found. The maintainer chose this on 2026-10-10, so that nothing depends on anyone
+  remembering a project's chores.
 - Rejected: a hosted scanning service or a dependency-tracking server, which would be another
   account and another thing to run; and a git-hook framework, which `core.hooksPath` makes needless.
 

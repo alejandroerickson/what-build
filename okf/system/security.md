@@ -214,5 +214,20 @@ approved release ([decision](../decisions/production-runs-releases-after-approva
 
 **Accepted, by decision.** An agent acts with its person's full role, made visible by attribution
 and declared authorship ([decision](../decisions/attribution-and-declared-authorship.md)). A page
-may link anywhere and open new tabs. Sandbox visitors see and change each other's work until the
-reset. Serving page HTML from a separate origin is planned ([roadmap](../spec/10-roadmap.md)).
+may link anywhere, open new tabs and navigate its own frame. Sandbox visitors see and change each
+other's work until the reset. These trade-offs are deliberate; each names what would change it:
+
+- In invite-only mode the sign-in form tells an address that it may not sign up (`403
+  invite_only`, [§6.2](../spec/06-operations-and-adapters.md)), and adding someone grants an
+  existing account at once but sends an invitation otherwise ([§3.5](../spec/03-accounts-teams-and-identity.md)):
+  both say whether an address has an account or an invitation, for a message people can act on.
+- Two refreshes of one agent connection at the same moment end it, as any reuse of a refresh token
+  does ([§3.8](../spec/03-accounts-teams-and-identity.md)).
+- The limit on agent registrations is counted for the whole deployment, because behind the edge
+  the service has no client address it can trust; per-client limits wait for one
+  ([roadmap](../spec/10-roadmap.md)).
+- The limit on concurrent URL fetches is counted per instance; a deployment runs one.
+- PDFs open inline on the app's origin, since browsers will not render a sandboxed PDF; serving
+  page HTML and uploaded files from a separate origin is planned ([roadmap](../spec/10-roadmap.md)).
+- Files are parsed one at a time, each for at most the parse time limit, so one person's uploads
+  can delay another's parsing; a budget per sandbox visitor is planned ([roadmap](../spec/10-roadmap.md)).

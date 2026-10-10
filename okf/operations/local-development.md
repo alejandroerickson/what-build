@@ -72,6 +72,7 @@ plans in `e2e/plans/` there through the browser and MCP and reports what it find
 | `pnpm db:migrate`, `pnpm db:seed` | Run migrations or the seed against `DATABASE_URL`. |
 | `python3 okf/tools/validate_okf.py` | Checks the documentation bundle: frontmatter, types, links, indexes. |
 | `pnpm security` | Known vulnerabilities in the dependencies (osv-scanner) and weaknesses in the workflows (zizmor), with pinned scanners downloaded on first use ([security checks](security-checks.md)). |
+| `pnpm attention` | What is waiting in the repository: Dependabot's pull requests and alerts, failed runs on `main`, accepted vulnerabilities near expiry, changes production lacks, hooks that are off. Agents run it at the start of every session ([security checks](security-checks.md)). |
 | `pnpm check:publishable --all` | Nothing private in the tree or the history. The git hooks `pnpm install` turns on run it on every commit and push. |
 
 CI (`.github/workflows/ci.yml`) runs the documentation check, the skill check, typecheck, test and build on every push to

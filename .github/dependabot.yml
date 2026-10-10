@@ -1,7 +1,8 @@
 # Dependabot: weekly updates for the npm dependencies and the pinned GitHub Actions, grouped so a
 # week brings few pull requests, and only for releases at least a week old, which gives a hijacked
 # release time to be found and pulled. Security updates come as soon as an advisory is published,
-# whatever the cooldown (okf/operations/security-checks.md).
+# whatever the cooldown (okf/operations/security-checks.md). Dependabot runs again whenever this file
+# changes; otherwise weekly.
 version: 2
 updates:
   - package-ecosystem: npm

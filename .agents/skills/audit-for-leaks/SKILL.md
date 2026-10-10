@@ -35,6 +35,8 @@ Read it before the first command. This file is how to conduct the work.
 
 ## Making the repository public
 
-Follow "Making the repository public" in the guide, in order. Run the full audit first and report
-it; change the visibility only after the person, having read the audit, says to. Then turn on
-secret scanning, push protection and private vulnerability reporting, and check the Security tab.
+Follow "Making the repository public" in the guide, in order. Release first if `pnpm attention`
+says production lacks changes. Run the full audit and report it; change the visibility only after
+the person, having read the audit, says to. Then turn on secret scanning, push protection and
+private vulnerability reporting, ask the person to make the image public (the guide gives the
+link; GitHub has no API for it) and confirm it, and check the Security tab.
