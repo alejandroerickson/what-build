@@ -77,11 +77,16 @@ const SCOPED: Record<string, Probe> = {
   "outcomes.revisions": { input: (a) => ({ outcome_id: a.outcome.id }) },
   "outcomes.get_revision": { input: (a) => ({ outcome_id: a.outcome.id, n: 1 }) },
   "outcomes.restore_revision": { input: (a) => ({ outcome_id: a.outcome.id, n: 1, expected_etag: a.outcome.etag }) },
-  "sources.list": { input: () => ({}) },
+  "sources.facets": { input: () => ({ include_archived: true }) },
+  "sources.list": {
+    input: () => ({ include_archived: true }),
+    // Their own product's list, filtered by the victim's tag, by the person who added the victim's sources, and by their title.
+    inside: (a) => [{ include_archived: true }, { tags: [a.source.tag] }, { added_by: a.ownerAccountId, include_archived: true }, { query: a.marker }],
+  },
   "sources.get": { input: (a) => ({ record_id: a.source.id, detail: "full" }) },
   "sources.create": {
-    input: () => ({ kind: "other", title: "Planted source" }),
-    inside: (a) => [{ kind: "view", title: "Planted view", related_records: [a.source.id] }],
+    input: () => ({ title: "Planted source", tags: ["planted"] }),
+    inside: (a) => [{ title: "Planted view", tags: ["view"], related_records: [a.source.id] }],
   },
   "sources.update": {
     input: (a) => ({ record_id: a.source.id, expected_etag: a.source.etag, title: "Changed by an outsider" }),
@@ -112,8 +117,8 @@ const SCOPED: Record<string, Probe> = {
   "sources.delete": { input: (a) => ({ record_id: a.source.id, expected_etag: a.source.etag, reason: "Removed by an outsider", confirm: "delete permanently" }) },
   "files.request_upload": { input: (a) => ({ record_id: a.source.id, path: "planted.md", role: "supplement" }) },
   "files.create_upload": {
-    input: () => ({ kind: "other", title: "Planted upload", path: "planted.md", role: "primary" }),
-    inside: (a) => [{ kind: "view", title: "Planted upload", path: "planted.md", role: "primary", related_records: [a.source.id] }],
+    input: () => ({ title: "Planted upload", path: "planted.md", role: "primary" }),
+    inside: (a) => [{ title: "Planted upload", tags: ["view"], path: "planted.md", role: "primary", related_records: [a.source.id] }],
   },
   "files.complete_upload": { input: (a) => ({ record_id: a.source.id, path: a.source.path }) },
   "files.add_note": { input: (a) => ({ record_id: a.source.id, path: "planted.md", text: "Planted note.", role: "supplement" }) },
@@ -203,7 +208,14 @@ const SCOPED: Record<string, Probe> = {
   "story.check_citations": { input: (a) => ({ page_id: a.page.id }) },
   "story.print_view": { input: (a) => ({ page_ids: [a.page.id, a.promotedPage.id] }) },
   "story.get_hierarchy": { input: () => ({}) },
-  "story.set_hierarchy": { input: (a) => ({ items: [{ page_id: a.page.id, children: [] }], expected_etag: a.hierarchyEtag }) },
+  "story.set_hierarchy": {
+    input: (a) => ({ items: [{ page_id: a.page.id, children: [] }], expected_etag: a.hierarchyEtag }),
+    // Their own navigation, with its current etag, naming the victim's page in the tree and the victim's promoted page among the Published mockups.
+    inside: async (a, b) => [
+      { items: [{ page_id: a.page.id, children: [] }], expected_etag: await etagOf(b, "story/hierarchy") },
+      { items: [], mockups: [a.promotedPage.id], expected_etag: await etagOf(b, "story/hierarchy") },
+    ],
+  },
   "story.archive_page": { input: (a) => ({ page_id: a.page.id, expected_etag: a.page.etag }) },
   "story.restore_page": { input: (a) => ({ page_id: a.page.id, expected_etag: a.page.etag }) },
   "mockups.list": { input: () => ({ include_archived: true }) },
@@ -243,7 +255,6 @@ const ACCOUNT: Record<string, string> = {
   "products.set_tenant_allowance": "the instance owners' alone: 403 to anyone else",
   "products.remove_tenant_allowance": "the instance owners' alone: 403 to anyone else",
   "sandbox.join": "admits only the holder of a real invitation code",
-  "sources.kinds": "the same fixed list for everyone",
   get_skill: "the same document for everyone",
   submit_feedback: "write-only: says nothing back about anyone",
 };
@@ -480,8 +491,8 @@ describe("operations that belong to no organization", () => {
     expect((await mallory.api("GET", "/api/v1/me/products")).body.items.some((i: { path: string }) => i.path === a.product.path)).toBe(false);
   });
 
-  it("answers the fixed lists, the skill and feedback with nothing of any organization", async () => {
-    for (const [name, input] of [["sources.kinds", {}], ["get_skill", {}], ["submit_feedback", { category: "other", message: "A probe from another organization." }]] as const) {
+  it("answers the skill and feedback with nothing of any organization", async () => {
+    for (const [name, input] of [["get_skill", {}], ["submit_feedback", { category: "other", message: "A probe from another organization." }]] as const) {
       for (const r of await both(name, input)) {
         expect([200, 201], `${name} ${JSON.stringify(r.body).slice(0, 200)}`).toContain(r.status);
         expect(leaked(a, r.body, r.sent)).toEqual([]);

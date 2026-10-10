@@ -3,12 +3,14 @@ import type { Browser, Harness } from "./harness.ts";
 
 /**
  * An organization with something in every kind of row a product holds: outcomes and their
- * revisions, sources with files, derivations, passages, annotations and agent notes, assumptions
+ * revisions, tagged sources with files, derivations, passages, annotations and agent notes, assumptions
  * with citations, links and reviews, a Story with a style, a hierarchy, notes and a promoted mockup
  * page, a mockup with files, lineage, an export, an invitation and a second member. Every text it
  * writes carries `marker`, so a test can tell whether any of it reached someone else.
  */
 export interface Organization {
+  /** The string every text it writes carries. */
+  marker: string;
   owner: Browser;
   ownerAccountId: string;
   tenant: { id: string; slug: string };
@@ -17,7 +19,8 @@ export interface Organization {
   product: { id: string; slug: string; path: string; etag: string };
   annex: { id: string; path: string };
   outcome: { id: string; etag: string };
-  source: { id: string; etag: string; path: string; fileVersionId: string; derivationId: string };
+  /** Its first source, tagged with `tag` among others. */
+  source: { id: string; etag: string; path: string; fileVersionId: string; derivationId: string; tag: string };
   view: { id: string; etag: string };
   annotation: { id: string; etag: string };
   assumption: { id: string; etag: string };
@@ -51,7 +54,8 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
   const o = ok(await owner.api("POST", `${P}/outcomes`, { title: `${marker} outcome: crews plan the week`, description: `${marker} outcome description.` }));
   const o2 = ok(await owner.api("PATCH", `${P}/outcomes/${o.outcome_id}`, { expected_etag: o.etag, description: `${marker} outcome, revised.` }), 200);
 
-  const src = ok(await owner.api("POST", `${P}/sources`, { kind: "interviewer_notes", title: `${marker} interview notes`, date: "2026-09-01", organization: `${marker} Customer Co`, tags: [`${marker}-tag`] }));
+  // What the material is and whom it concerns are tags; both carry the marker, so facets and filters that cross over show.
+  const src = ok(await owner.api("POST", `${P}/sources`, { title: `${marker} interview notes`, date: "2026-09-01", tags: ["interview", `${marker} Customer Co`, `${marker}-tag`] }));
   const notePath = "notes.md";
   ok(await owner.api("POST", `${P}/sources/${src.record_id}/notes`, { record_id: src.record_id, path: notePath, role: "primary", text: `# ${marker} visit\n\n${marker} crews text the office every Friday.\n\n${marker} nobody calls it a crisis.\n` }));
   await h.worker.drain();
@@ -67,10 +71,10 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
   const link = ok(await owner.api("POST", `${P}/assumptions/${as.id}/links`, { expected_etag: as.etag, target_id: linked.id, type: "supports" }), 200);
   ok(await owner.api("POST", `${P}/assumptions/${linked.id}/review`, { expected_etag: linked.etag, status: "confirmed", note: `${marker} review note.`, reviewer_type: "human" }), 200);
   // A source deleted for good leaves a tombstone.
-  const gone = ok(await owner.api("POST", `${P}/sources`, { kind: "other", title: `${marker} mistaken upload` }));
+  const gone = ok(await owner.api("POST", `${P}/sources`, { title: `${marker} mistaken upload` }));
   ok(await owner.api("DELETE", `${P}/sources/${gone.record_id}`, { expected_etag: gone.etag, reason: `${marker} uploaded by mistake`, confirm: "delete permanently" }), 200);
 
-  const view = ok(await owner.api("POST", `${P}/sources`, { kind: "view", title: `${marker} view of the visits`, related_records: [src.record_id] }));
+  const view = ok(await owner.api("POST", `${P}/sources`, { title: `${marker} view of the visits`, tags: ["view"], related_records: [src.record_id] }));
   const cap = ok(await owner.api("POST", `${P}/lineage/capture`, { inputs: [{ kind: "record", id: src.record_id }, { kind: "assumption", id: as.id }] }), 200);
   ok(await owner.api("POST", `${P}/sources/${view.record_id}/lineage`, { record_id: view.record_id, inputs: cap.inputs, captured_at: cap.captured_at, query_spec: { description: `${marker} lineage query.` } }), 200);
 
@@ -111,6 +115,7 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
   const viewNow = ok(await owner.api("GET", `${P}/sources/${view.record_id}`), 200);
   const linkedNow = ok(await owner.api("GET", `${P}/assumptions/${linked.id}`), 200);
   const org: Organization = {
+    marker,
     owner,
     ownerAccountId: me.account_id,
     tenant,
@@ -118,7 +123,7 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
     product: { id: p.product_id, slug: p.path.split("/")[2], path: p.path, etag: product.etag },
     annex: { id: a.product_id, path: a.path },
     outcome: { id: o.outcome_id, etag: o2.etag },
-    source: { id: src.record_id, etag: source.etag, path: notePath, fileVersionId: file.current_version_id ?? file.file_version_id, derivationId: derivations.items[0].derivation_id },
+    source: { id: src.record_id, etag: source.etag, path: notePath, fileVersionId: file.current_version_id ?? file.file_version_id, derivationId: derivations.items[0].derivation_id, tag: `${marker.toLowerCase()}-tag` },
     view: { id: view.record_id, etag: viewNow.etag },
     annotation: { id: ann.annotation_id, etag: ann.etag },
     assumption: { id: as.id, etag: link.etag },

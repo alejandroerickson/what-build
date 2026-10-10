@@ -25,7 +25,7 @@ afterAll(async () => h?.close());
 
 /** A source with an upload grant for its primary file. */
 async function grant(path: string) {
-  const created = await alice.api("POST", `${P}/sources/with-upload`, { kind: "other", title: `Upload of ${path}`, path, role: "primary" });
+  const created = await alice.api("POST", `${P}/sources/with-upload`, { title: `Upload of ${path}`, path, role: "primary" });
   expect(created.status, JSON.stringify(created.body)).toBe(201);
   return { recordId: created.body.record.record_id as string, upload: created.body.upload as { url: string; headers: Record<string, string>; max_bytes: number } };
 }
@@ -137,8 +137,10 @@ describe("hostile files through the relay and the worker", () => {
 describe("a job that keeps stopping the worker", () => {
   /** A source whose primary file is queued for parsing but not parsed yet, with its job made to look abandoned `attempts` times. */
   async function abandoned(attempts: number) {
-    const src = await alice.api("POST", `${P}/sources`, { kind: "other", title: `Notes tried ${attempts} times` });
-    await alice.api("POST", `${P}/sources/${src.body.record_id}/notes`, { record_id: src.body.record_id, path: "notes.md", text: "# Notes\n\nA plain note.\n", role: "primary" });
+    const src = await alice.api("POST", `${P}/sources`, { title: `Notes tried ${attempts} times` });
+    expect(src.status, JSON.stringify(src.body)).toBe(201);
+    const note = await alice.api("POST", `${P}/sources/${src.body.record_id}/notes`, { record_id: src.body.record_id, path: "notes.md", text: "# Notes\n\nA plain note.\n", role: "primary" });
+    expect(note.status, JSON.stringify(note.body)).toBe(201);
     // As if the process had stopped while running it, `attempts` times, the last over ten minutes ago.
     const r = await sql`
       update jobs set attempts = ${attempts}, locked_at = now() - interval '11 minutes', locked_by = 'a stopped process'
