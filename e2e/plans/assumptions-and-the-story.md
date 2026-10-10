@@ -29,7 +29,10 @@ Citations, roles and what a reader can and cannot reach are all checked on the w
    hierarchy. *Expect:* the page is published as version 1, and the hierarchy shows it where it was
    placed.
 7. **Web, as Jordan (reader).** Open the Story. *Expect:* the new page is in the tree where step 6
-   put it; it renders in the house style; its citation is readable without reaching Evidence.
+   put it; it renders in the house style, with its HTML as published; the page's details offer no
+   citations or references, which a reader is not given (the decision on readers); a link in the
+   page that points into Evidence takes Jordan back to the Story with a toast saying they can read
+   only the Story.
 8. **Web, as Jordan.** Try to open the assumption from step 1 by its address. *Expect:* refused,
    with a clear message.
 9. **MCP, as Jordan.** Try to create an assumption, and to publish a Story page. *Expect:* both

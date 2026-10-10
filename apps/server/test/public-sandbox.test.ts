@@ -351,6 +351,20 @@ describe("the public sandbox", () => {
     expect((await colleague.api("POST", `${P}/outcomes`, { title: "From staff" })).body.created_by.display_name).toBe("Casey Colleague");
     await olive.api("POST", `${T}/members/revoke`, { account_id: (await colleague.api("GET", "/api/v1/me")).body.account_id, whole_tenant: true });
   });
+
+  it("tells a member who reads only the Story that they read it and write nothing", async () => {
+    expect((await olive.api("POST", `${T}/members`, { email: "stakeholder@staff.example", role: "reader", team })).status).toBe(201);
+    const reader = await h.signIn("stakeholder@staff.example", "Sam Stakeholder");
+    const status = (await reader.api("GET", `${T}/sandbox`)).body;
+    expect(status.you).toMatchObject({ role: "member", appears_as: null, story_only: true });
+    expect(status.you.can).toMatch(/Read the Story/);
+    expect(status.you.can).toMatch(/write nothing/);
+    expect(status.notice).toMatch(/You read the Story here, and write nothing/);
+    expect(status.notice).not.toMatch(/what you add/);
+    // Anyone who may write is told what others see of it, as before.
+    expect((await vera.api("GET", `${T}/sandbox`)).body.you.story_only).toBeUndefined();
+    await olive.api("POST", `${T}/members/revoke`, { account_id: (await reader.api("GET", "/api/v1/me")).body.account_id, whole_tenant: true });
+  });
 });
 
 describe("limits on what a visitor does", () => {
@@ -399,21 +413,50 @@ describe("limits on what a visitor does", () => {
     expect((await viktor.api("GET", `${T}/sandbox`)).body.allowances.find((a: { key: string }) => a.key === "writes_per_day").used).toBe(before + 1);
     expect((await viktor.api("GET", `${P}/search?query=crews`)).status).toBe(200);
     // Visitors export nothing until staff allow it; then the day's writes do not stop it.
-    const off = await viktor.api("POST", `${P}/exports`, {});
-    expect(off.status).toBe(409);
-    expect(off.body.error.details).toMatchObject({ quota: "exports_per_day", limit: 0, used: 0 });
     await set({ exports_per_day: 1 });
     expect((await viktor.api("POST", `${P}/exports`, {})).status).toBe(201);
     await h.worker.drain();
-    await set({ writes_per_day: 100000, sources_per_day: 0 });
+    await set({ writes_per_day: 100000, sources_per_day: 1 });
+    const used = (await viktor.api("GET", `${T}/sandbox`)).body.allowances.find((a: { key: string }) => a.key === "sources_per_day").used;
+    await set({ sources_per_day: Math.max(used, 1) });
+    if (used === 0) expect((await viktor.api("POST", `${P}/sources`, { title: "Sample source within the allowance" })).status).toBe(201);
     const source = await viktor.api("POST", `${P}/sources`, { title: "Sample source over the allowance" });
     expect(source.status).toBe(409);
-    expect(source.body.error.details).toMatchObject({ quota: "sources_per_day", limit: 0, used: 0 });
+    expect(source.body.error.details).toMatchObject({ quota: "sources_per_day", limit: Math.max(used, 1), used: Math.max(used, 1) });
     await set({ sources_per_day: 100 });
     const again = await viktor.api("POST", `${P}/exports`, {});
     expect(again.status).toBe(409);
     expect(again.body.error.details).toMatchObject({ quota: "exports_per_day", limit: 1, used: 1 });
     await set({ exports_per_day: 10 });
+  });
+
+  it("refuses what a daily allowance of 0 switches off as off, not as an allowance used up", async () => {
+    await set({ exports_per_day: 0 });
+    const off = await viktor.api("POST", `${P}/exports`, {});
+    expect(off.status).toBe(403);
+    expect(off.body.error).toMatchObject({ code: "sandbox_restricted", details: { setting: "exports_per_day", limit: 0 } });
+    expect(off.body.error.message).toMatch(/Exporting a product is off for visitors/);
+    expect(off.body.error.message).not.toMatch(/starts again/);
+    // Read-only access does not change how a switched-off export is refused.
+    await set({ visitor_access: "read" });
+    expect((await viktor.api("POST", `${P}/exports`, {})).body.error.code).toBe("sandbox_restricted");
+    await set({ visitor_access: "write", sources_per_day: 0 });
+    const source = await viktor.api("POST", `${P}/sources`, { title: "Sample source while sources are off" });
+    expect(source.status).toBe(403);
+    expect(source.body.error).toMatchObject({ code: "sandbox_restricted", details: { setting: "sources_per_day" } });
+    await set({ sources_per_day: 100, writes_per_day: 0 });
+    const write = await viktor.api("POST", `${P}/outcomes`, { title: "While writing is off" });
+    expect(write.status).toBe(403);
+    expect(write.body.error.message).toMatch(/Writing is off for visitors/);
+    await set({ writes_per_day: 100000, bytes_per_day: 0 });
+    const file = await viktor.api("POST", `${P}/sources/${seededSource}/uploads`, { path: "more.md", role: "supplement", size: 10 });
+    expect(file.status).toBe(403);
+    expect(file.body.error.details).toMatchObject({ setting: "bytes_per_day" });
+    // Reads go on, and staff are not visitors.
+    expect((await viktor.api("GET", `${P}/outcomes`)).status).toBe(200);
+    expect((await olive.api("POST", `${P}/exports`, {})).status).toBe(201);
+    await h.worker.drain();
+    await set({ bytes_per_day: SANDBOX_DEFAULTS.bytes_per_day, exports_per_day: 10 });
   });
 
   it("limits how much one call carries", async () => {

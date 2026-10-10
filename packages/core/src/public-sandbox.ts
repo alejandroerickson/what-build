@@ -118,13 +118,13 @@ export interface LimitInfo {
 export const SANDBOX_LIMITS: LimitInfo[] = [
   { key: "requests_per_minute", group: "frequency", label: "Calls", unit: "calls", per: "Each visitor, each minute", refusal: "429 rate_limited", help: "Every call a visitor or their agent makes, reads included." },
   { key: "writes_per_minute", group: "frequency", label: "Writes", unit: "writes", per: "Each visitor, each minute", refusal: "429 rate_limited", help: "Calls that change something." },
-  { key: "writes_per_day", group: "frequency", label: "Writes", unit: "writes", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "A day runs from one scheduled reset to the next." },
-  { key: "sources_per_day", group: "frequency", label: "Sources added", unit: "sources", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "Sources created or copied in." },
-  { key: "exports_per_day", group: "frequency", label: "Exports", unit: "exports", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "Product exports a visitor asks for. 0, the default, keeps the sandbox's content in the sandbox." },
-  { key: "org_writes_per_day", group: "frequency", label: "Writes", unit: "writes", per: "All visitors together, each day", refusal: "409 quota_exceeded", help: "A ceiling on every visitor's writes added up." },
+  { key: "writes_per_day", group: "frequency", label: "Writes", unit: "writes", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "A day runs from one scheduled reset to the next. 0 switches it off, refused with 403 sandbox_restricted." },
+  { key: "sources_per_day", group: "frequency", label: "Sources added", unit: "sources", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "Sources created or copied in. 0 switches it off, refused with 403 sandbox_restricted." },
+  { key: "exports_per_day", group: "frequency", label: "Exports", unit: "exports", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "Product exports a visitor asks for. 0, the default, switches exports off (403 sandbox_restricted) and keeps the sandbox's content in the sandbox." },
+  { key: "org_writes_per_day", group: "frequency", label: "Writes", unit: "writes", per: "All visitors together, each day", refusal: "409 quota_exceeded", help: "A ceiling on every visitor's writes added up. 0 switches it off, refused with 403 sandbox_restricted." },
   { key: "file_max_bytes", group: "size", label: "File size", unit: "bytes", per: "Each file", refusal: "413 too_large", help: "Checked as the file uploads." },
-  { key: "bytes_per_day", group: "size", label: "Uploads", unit: "bytes", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "Counted when a file is attached to a source." },
-  { key: "org_bytes_per_day", group: "size", label: "Uploads", unit: "bytes", per: "All visitors together, each day", refusal: "409 quota_exceeded", help: "A ceiling on every visitor's uploads added up." },
+  { key: "bytes_per_day", group: "size", label: "Uploads", unit: "bytes", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "Counted when a file is attached to a source. 0 switches it off, refused with 403 sandbox_restricted." },
+  { key: "org_bytes_per_day", group: "size", label: "Uploads", unit: "bytes", per: "All visitors together, each day", refusal: "409 quota_exceeded", help: "A ceiling on every visitor's uploads added up. 0 switches it off, refused with 403 sandbox_restricted." },
   { key: "text_max_chars", group: "size", label: "Text in one field", unit: "characters", per: "Each text field", refusal: "413 too_large", help: "The longest body, note or Story page a visitor may send." },
   { key: "batch_max", group: "size", label: "Sources in one call", unit: "sources", per: "Each call", refusal: "413 too_large", help: "How many sources one archive or restore call may name." },
   { key: "fetch_url", group: "switch", label: "Fetching a file from a URL", unit: "", per: "Each visitor", refusal: "403 sandbox_restricted", help: "Off stops the server fetching links a visitor names." },
@@ -337,6 +337,35 @@ const DAILY: Record<string, { counter: Counter; setting: SandboxSettingKey; unit
   "products.export": { counter: "exports", setting: "exports_per_day", unit: "exports", what: (n) => `each visitor ${n} exports a day` },
 };
 
+/** What a daily allowance set to 0 switches off, for a person. */
+const OFF: Partial<Record<SandboxSettingKey, string>> = {
+  writes_per_day: "Writing",
+  org_writes_per_day: "Writing",
+  sources_per_day: "Adding sources",
+  exports_per_day: "Exporting a product",
+  bytes_per_day: "Uploading files",
+  org_bytes_per_day: "Uploading files",
+};
+
+function off(setting: SandboxSettingKey, op: string) {
+  return restricted(`${OFF[setting]} is off for visitors in this public sandbox, so ${op} was refused. Reading and searching still work.`, { setting, limit: 0 });
+}
+
+/**
+ * A daily allowance set to 0 is not used up, it is switched off: the call is refused as something
+ * a visitor may not do (`403 sandbox_restricted`), never as an allowance that starts again tomorrow.
+ */
+function switchedOff(sandbox: SandboxContext, op: Pick<OperationDef, "name" | "mutates">): void {
+  const s = sandbox.settings;
+  if (!op.mutates) return;
+  if (op.name !== "products.export") {
+    if (s.writes_per_day === 0) throw off("writes_per_day", op.name);
+    if (s.org_writes_per_day === 0) throw off("org_writes_per_day", op.name);
+  }
+  const daily = DAILY[op.name];
+  if (daily && s[daily.setting] === 0) throw off(daily.setting, op.name);
+}
+
 /** What a visitor may always ask, so that a person and an agent can learn the state they are refused in. */
 const ALWAYS_ANSWERED = new Set(["sandbox.status"]);
 
@@ -357,6 +386,7 @@ export async function admitVisitor(db: Db, sandbox: SandboxContext, principal: P
       throw new AppError(403, "sandbox_read_only", `This public sandbox is read-only for visitors for now, so ${op.name} was refused. Reading and searching still work.`);
     const refused = VISITOR_REFUSED[op.name];
     if (refused) throw restricted(refused);
+    switchedOff(sandbox, op);
   }
 
   const minute = new Date(Math.floor(Date.now() / 60_000) * 60_000).toISOString();
@@ -425,6 +455,8 @@ export async function visitorUploadLimit(trx: Db, sandbox: SandboxContext, accou
   const s = sandbox.settings;
   if (s.documents_only && !parserFor(file.path, mediaTypeFor(file.path, file.media_type)))
     throw restricted(`This public sandbox takes only files its parsers read: text, Markdown, transcripts (VTT, SRT), HTML, Word (DOC, DOCX), PDF, spreadsheets and XML. ${file.path} is not one of them.`, { path: file.path });
+  if (s.bytes_per_day === 0) throw off("bytes_per_day", "the upload");
+  if (s.org_bytes_per_day === 0) throw off("org_bytes_per_day", "the upload");
   const used = await usageToday(trx, sandbox, accountId);
   if (used.bytes >= s.bytes_per_day) throw quota(sandbox, "bytes_per_day", used.bytes, "bytes", `each visitor ${s.bytes_per_day} bytes of uploads a day`);
   if (used.org_bytes >= s.org_bytes_per_day) throw quota(sandbox, "org_bytes_per_day", used.org_bytes, "bytes", `${s.org_bytes_per_day} bytes of uploads a day from all visitors together`);

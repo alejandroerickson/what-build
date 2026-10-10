@@ -159,7 +159,13 @@ export function RegisterListPage({ kind }: { kind: Kind }) {
                 ) : null}
                 <span className="list-sub">
                   {e.author_type === "agent" ? "Drafted by " : "Recorded by "}
-                  {attribution(e.author)} · {relativeTime(e.updated_at)}
+                  {attribution(e.author)} · <time dateTime={e.created_at}>{relativeTime(e.created_at)}</time>
+                  {relativeTime(e.updated_at) !== relativeTime(e.created_at) ? (
+                    <>
+                      {" · updated "}
+                      <time dateTime={e.updated_at}>{relativeTime(e.updated_at)}</time>
+                    </>
+                  ) : null}
                 </span>
                 <span className="list-sub">
                   {e.citation_count ? (

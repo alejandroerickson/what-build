@@ -67,6 +67,11 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
   return data as T;
 }
 
+/** Whether a string can be an object's id at all: 26 characters of Crockford base32, as the server requires. */
+export function isObjectId(value: string): boolean {
+  return /^[0-9A-HJKMNP-TV-Z]{26}$/.test(value);
+}
+
 export function qs(params: Record<string, unknown>): string {
   const u = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {

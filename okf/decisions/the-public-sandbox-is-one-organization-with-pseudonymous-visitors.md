@@ -38,7 +38,8 @@ of every row and a product-cloning feature that does not exist.
 - **An account that an invitation alone created is for the sandbox.** Like every account, it
   creates organizations only as far as an instance owner's allowance lets it
   ([decision](only-instance-owners-decide-who-creates-organizations.md)).
-- **Visitors export nothing unless staff allow it** (`exports_per_day` defaults to 0). The content
+- **Visitors export nothing unless staff allow it** (`exports_per_day` defaults to 0, and a daily
+  allowance of 0 is refused as switched off, `403 sandbox_restricted`, not as used up). The content
   is a demonstration that belongs to the staff, so the promise that nothing is trapped does not
   reach it. The maintainer chose this on 2026-10-01.
 - **A baseline is the organization's content held as JSON rows; a reset deletes the content and

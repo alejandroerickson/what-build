@@ -157,13 +157,23 @@ function VisitorView({ status: s }: { status: SandboxStatus }) {
         <SheetBody className="sandbox-about">
           <p>{s.notice}</p>
           <dl className="sandbox-facts">
-            <div>
-              <dt>You write as</dt>
-              <dd>
-                <b>{s.you.appears_as}</b>
-                <span className="muted"> Nobody here sees your name or email, and you see nobody else&rsquo;s.</span>
-              </dd>
-            </div>
+            {s.you.story_only ? (
+              <div>
+                <dt>You read</dt>
+                <dd>
+                  <b>The Story</b>
+                  <span className="muted"> You write nothing here. Nobody here sees your name or email, and you see nobody else&rsquo;s.</span>
+                </dd>
+              </div>
+            ) : (
+              <div>
+                <dt>You write as</dt>
+                <dd>
+                  <b>{s.you.appears_as}</b>
+                  <span className="muted"> Nobody here sees your name or email, and you see nobody else&rsquo;s.</span>
+                </dd>
+              </div>
+            )}
             <div>
               <dt>You can</dt>
               <dd>{s.you.can}</dd>
@@ -198,7 +208,7 @@ function VisitorView({ status: s }: { status: SandboxStatus }) {
             {counted.map((a) => (
               <Row key={a.key} label={a.label}>
                 <Cell className="muted">{a.per}</Cell>
-                <Cell label="Allowed" num>{amount(a.limit, a.unit)}</Cell>
+                <Cell label="Allowed" num>{a.limit === 0 ? "Off" : amount(a.limit, a.unit)}</Cell>
                 <Cell label="Used today" num>{a.used === undefined ? <span className="faint" title="Not a daily limit"><span aria-hidden="true">–</span><span className="visually-hidden">Not a daily limit</span></span> : amount(a.used, a.unit)}</Cell>
               </Row>
             ))}

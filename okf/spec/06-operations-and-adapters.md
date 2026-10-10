@@ -95,7 +95,8 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
   ([§3.5](03-accounts-teams-and-identity.md)).
 - **`quota_exceeded`** carries `{ quota, limit, used, unit }` in `details`. It is returned for the
   50 Story pages and the 50 mockups a product holds ([§9.2](09-data-lifecycle.md)) and for a visitor's daily
-  allowances in the public sandbox, which add `resets_at` ([§9.7](09-data-lifecycle.md)).
+  allowances in the public sandbox, which add `resets_at` ([§9.7](09-data-lifecycle.md)). A sandbox
+  allowance set to 0 is switched off and answers `403 sandbox_restricted` instead.
 - **`429`** is returned for sign-in links (five per address per hour), for a fourth URL fetch a
   person starts while three of theirs are in progress (`files.fetch_url`, on each instance), and
   for a visitor's calls and writes a minute in the public sandbox, with

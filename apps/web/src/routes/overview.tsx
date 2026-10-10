@@ -13,7 +13,8 @@ const UNIT: Record<string, [string, string]> = { idea: ["outcome", "outcomes"], 
 
 /**
  * The overview at `/`: what WhatBuild is for, the loop a discovery moves through, and every product with a direct link to each of its four sections. It is the one list of products: New
- * product (`?create=1`) and archived products (`?archived=1`) open here.
+ * product (`?create=1`) and an organization's archived products (`?archived=<organization slug>`, one
+ * parameter per organization shown) open here.
  */
 export function OverviewPage() {
   const [params, setParams] = useSearchParams();
@@ -31,7 +32,19 @@ export function OverviewPage() {
   if (products.data && !products.data.tenants.length) return <Navigate to="/welcome" replace />;
   const all = products.data?.items ?? [];
   const items = all.filter((p) => !p.archived_at);
-  const showArchived = params.get("archived") === "1";
+  // Each organization shows its own archived products: the parameter names the ones that do.
+  const archivedIn = new Set(params.getAll("archived"));
+  const setArchived = (slug: string, on: boolean) =>
+    setParams(
+      (p) => {
+        const next = new URLSearchParams(p);
+        const slugs = next.getAll("archived").filter((s) => s !== slug);
+        next.delete("archived");
+        for (const s of on ? [...slugs, slug] : slugs) next.append("archived", s);
+        return next;
+      },
+      { replace: !on },
+    );
   return (
     <div className="overview">
       <Sheet className="overview-intro" labelledBy="overview-title">
@@ -72,8 +85,8 @@ export function OverviewPage() {
             key={t.tenant_id}
             tenant={t}
             products={all.filter((p) => p.tenant.tenant_id === t.tenant_id)}
-            showArchived={showArchived}
-            onShowArchived={(on) => setParam("archived", on)}
+            showArchived={archivedIn.has(t.slug)}
+            onShowArchived={(on) => setArchived(t.slug, on)}
             onCreate={() => setParam("create", true)}
           />
         ))

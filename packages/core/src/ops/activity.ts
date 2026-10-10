@@ -46,10 +46,18 @@ export const listActivity = defineOperation({
       entity_type: r.entity_type,
       entity_id: r.entity_id,
       entity_title: r.entity_title,
-      summary: r.summary,
+      summary: r.action === "derived" ? withoutParserLabel(r.summary) : r.summary,
     }));
     return { items, next_cursor: rows.length > input.limit ? items[items.length - 1]!.activity_id : null };
   },
 });
+
+/**
+ * Parse events recorded before summaries stopped naming the parser ended with its internal label,
+ * "(plaintext 5)"; they are read without it, so every parse line says what a person understands.
+ */
+export function withoutParserLabel(summary: string): string {
+  return summary.replace(/ \([a-z]+ \d+\)$/, "");
+}
 
 export const activityOps = [listActivity];
