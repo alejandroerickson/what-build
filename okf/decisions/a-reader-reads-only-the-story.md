@@ -3,7 +3,7 @@ type: Decision
 title: A reader reads only the Story, never the evidence behind it
 description: A team or product role below viewer for stakeholders, enforced by the server: Story pages, their versions and their export, without what the pages draw on.
 tags: [decision, access, roles, story, stakeholders]
-generated: {by: agent:claude, at: 2026-10-07}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -22,8 +22,9 @@ product as anyone else does. It revises one consequence of
 
 - `reader` is a team and product role below `viewer`. It is not an organization role.
 - Operations declare a fourth access level, `story`, which a reader meets: reading Story pages,
-  their versions and the hierarchy, a page's HTML, and the print view (export). `products.list`
-  and `products.get` are `story` too, so a reader can find and open the product.
+  their versions and the hierarchy, a page's HTML, and the print view (export). `products.get` is
+  `story` too, and `products.list` lists every product the caller holds a role on, so a reader can
+  find and open the product.
 - Everything else needs `viewer` at least, and answers a reader `403` naming both roles.
 - A reader's Story reads leave out what a page draws on: `refs`, `resolved_refs`, `citations`,
   `citation_count` and the page's notes for agents. Their product reads leave out the product
@@ -46,5 +47,7 @@ product as anyone else does. It revises one consequence of
   operation that does needs the same trimming for a reader.
 - Trimming happens in the handlers through `readsOnlyTheStory` in
   `packages/core/src/policy.ts`, never in the web app alone.
+- A write on a grant given earlier checks the requester's role again when it lands: the upload
+  relay stores nothing for someone made a reader since (`apps/server/src/uploads.ts`).
 
 Specified in: [03-accounts-teams-and-identity](../spec/03-accounts-teams-and-identity.md) §3.5.

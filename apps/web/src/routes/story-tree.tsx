@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useSta
 import { Link } from "react-router";
 import { useProduct } from "../lib/session.tsx";
 import { PanelContext, PanelSection } from "../shell/slots.tsx";
-import { FindField, Glyph, Menu, MenuItem } from "../ui/index.tsx";
+import { FindField, Glyph, Menu, MenuItem, type GlyphName } from "../ui/index.tsx";
 import { count, filterTree, flatten, trail, type Arrangement, type StoryNode } from "./story-model.ts";
 
 export interface ArchivedPage {
@@ -66,7 +66,7 @@ export function StoryTree({ tree, archived, current, onExport, style, onStyle }:
   // The current page's ancestors are always open.
   useEffect(() => {
     if (!current) return;
-    const path = trail(tree.placed, current);
+    const path = trail(tree.pages, current);
     if (!path) return;
     const shut = path.slice(0, -1).filter((n) => collapsed.has(n.page_id));
     if (!shut.length) return;
@@ -74,10 +74,10 @@ export function StoryTree({ tree, archived, current, onExport, style, onStyle }:
     shut.forEach((n) => next.delete(n.page_id));
     saveCollapsed(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current, tree.placed]);
+  }, [current, tree.pages]);
 
-  const placedShown = useMemo(() => filterTree(tree.placed, query), [tree.placed, query]);
-  const unplacedShown = useMemo(() => filterTree(tree.unplaced, query), [tree.unplaced, query]);
+  const pagesShown = useMemo(() => filterTree(tree.pages, query), [tree.pages, query]);
+  const mockupsShown = useMemo(() => filterTree(tree.mockups, query), [tree.mockups, query]);
   const isOpen = useCallback((id: string) => filtering || !collapsed.has(id), [filtering, collapsed]);
 
   const toggle = (id: string) => {
@@ -93,34 +93,30 @@ export function StoryTree({ tree, archived, current, onExport, style, onStyle }:
 
   /** A page and every page under it, from the whole tree rather than the filtered one. */
   const pagesUnder = (id: string) => {
-    const node = trail(tree.placed, id)?.at(-1) ?? tree.unplaced.find((n) => n.page_id === id);
+    const node = trail(tree.pages, id)?.at(-1) ?? tree.mockups.find((n) => n.page_id === id);
     return node ? flatten([node]).map((x) => x.node.page_id) : [id];
   };
 
   const common = { app, current, query, isOpen, toggle, openRowMenu, onExport, pagesUnder };
 
-  const empty = count(tree.placed) + tree.unplaced.length === 0;
   return (
     <PanelContext label="Story pages">
       <div ref={rootRef} className="story-tree-panel">
         <div className="story-tree-top">
           <FindField label="Find a page" className="grow" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === "Escape" && query && (e.preventDefault(), setQuery(""))} />
         </div>
-        <PanelSection title="Story pages" end={<span className="num">{count(tree.placed)}</span>}>
-          {placedShown.length ? (
-            <TreeList label="Story pages" nodes={placedShown} {...common} />
+        <PanelSection title="Story pages" end={<span className="num">{count(tree.pages)}</span>}>
+          {pagesShown.length ? (
+            <TreeList label="Story pages" nodes={pagesShown} {...common} />
           ) : filtering ? (
             <p className="story-tree-none">No pages match “{query.trim()}”.</p>
-          ) : empty ? (
-            <p className="story-tree-none">No pages yet. An agent writes the first one.</p>
           ) : (
-            <p className="story-tree-none">No pages are in the navigation yet.</p>
+            <p className="story-tree-none">No pages yet. An agent writes the first one.</p>
           )}
         </PanelSection>
-        {tree.unplaced.length ? (
-          <PanelSection title="Unplaced pages" end={<span className="num">{tree.unplaced.length}</span>}>
-            <p className="story-tree-hint">Published, but not yet placed in the navigation by an agent.</p>
-            {unplacedShown.length ? <TreeList label="Unplaced pages" nodes={unplacedShown} {...common} /> : <p className="story-tree-none">No unplaced pages match.</p>}
+        {tree.mockups.length ? (
+          <PanelSection title="Published mockups" end={<span className="num">{tree.mockups.length}</span>}>
+            {mockupsShown.length ? <TreeList label="Published mockups" icon="monitor" nodes={mockupsShown} {...common} /> : <p className="story-tree-none">No published mockups match.</p>}
           </PanelSection>
         ) : null}
         {archived.length ? (
@@ -161,10 +157,12 @@ export function StoryTree({ tree, archived, current, onExport, style, onStyle }:
   );
 }
 
-// ---- One tree (the navigation, or the unplaced pages) ------------------------------------------
+// ---- One tree (the pages, or the Published mockups) --------------------------------------------
 
 interface ListProps {
   label: string;
+  /** The rows' glyph: a page, unless said otherwise. */
+  icon?: GlyphName;
   nodes: StoryNode[];
   app: string;
   current: string | undefined;
@@ -296,7 +294,7 @@ function Row(props: RowsProps & { node: StoryNode; level: number; pos: number; s
           onFocus={() => props.onFocusItem(node.page_id)}
           onKeyDown={(e) => props.onKeyDown(e, node.page_id)}
         >
-          <Glyph name="file-text" />
+          <Glyph name={props.icon ?? "file-text"} />
           <span className="ellipsis">
             <Highlight text={node.title} query={query} />
           </span>

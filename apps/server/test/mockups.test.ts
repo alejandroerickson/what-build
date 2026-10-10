@@ -265,7 +265,7 @@ describe("promoting a mockup page to the Story", () => {
     const r = await alice.api("POST", `${P}/story/promote-mockup`, { mockup_id: mockupId, mockup_page_id: "phone" });
     expect(r.status, JSON.stringify(r.body)).toBe(201);
     pageEtag = r.body.etag;
-    expect(r.body).toMatchObject({ page_id: "phone", title: "Phone view", current_version: 1, placed: false });
+    expect(r.body).toMatchObject({ page_id: "phone", title: "Phone view", current_version: 1, placed: true });
     expect(r.body.current.mockup).toMatchObject({ mockup_id: mockupId, version: 1, page_id: "phone", page_title: "Phone view", width: 390, height: 760, current_version: 1 });
     expect(r.body.current.refs.assumptions).toEqual([assumptionId]);
     const got = await alice.api("GET", `${P}/story/pages/phone`);
@@ -337,6 +337,84 @@ describe("promoting a mockup page to the Story", () => {
     expect(files["story/pages/phone-2/v1.html"]).toBeUndefined();
     const plan = await alice.api("GET", `${P}/story/print-view?page_ids=phone-2`);
     expect(plan.body.pages[0].html_chars).toBeGreaterThan(0);
+  });
+});
+
+describe("the Story's published mockups", () => {
+  let Q: string;
+  let mockupId: string;
+  const ids = (items: { page_id: string }[]) => items.map((x) => x.page_id);
+  const tree = async () => (await alice.api("GET", `${Q}/story/hierarchy`)).body;
+  const etagOf = async (page: string) => (await alice.api("GET", `${Q}/story/pages/${page}?include_html=false`)).body.etag as string;
+
+  beforeAll(async () => {
+    const p = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Flipbook" });
+    Q = `/api/v1/p/${p.body.path}`;
+    const m = await alice.api("POST", `${Q}/mockups`, {
+      title: "Directions",
+      pages: ["p1", "p2", "p3"].map((id) => ({ page_id: id, title: id.toUpperCase(), html: page(id) })),
+    });
+    mockupId = m.body.mockup_id;
+    expect((await alice.api("POST", `${Q}/story/pages/overview/versions`, { title: "Overview", html: page("Overview") })).status).toBe(201);
+  });
+
+  it("gathers every promoted page in a section of its own, in the order promoted, never in the tree", async () => {
+    for (const id of ["p1", "p2", "p3"]) {
+      const r = await alice.api("POST", `${Q}/story/promote-mockup`, { mockup_id: mockupId, mockup_page_id: id });
+      expect(r.status).toBe(201);
+      expect(r.body.placed).toBe(true);
+    }
+    const h = await tree();
+    expect(ids(h.items)).toEqual(["overview"]);
+    expect(h.unplaced).toEqual(["overview"]);
+    expect(ids(h.mockups)).toEqual(["p1", "p2", "p3"]);
+    expect(h.mockups[0]).toEqual({ page_id: "p1", title: "P1", description: expect.stringContaining("Directions") });
+  });
+
+  it("takes the order an agent sets, and keeps it when a later call leaves mockups out", async () => {
+    const set = await alice.api("PUT", `${Q}/story/hierarchy`, { items: [{ page_id: "overview", children: [] }], mockups: ["p3", "p1"], expected_etag: (await tree()).etag });
+    expect(set.status, JSON.stringify(set.body)).toBe(200);
+    expect(ids(set.body.mockups)).toEqual(["p3", "p1", "p2"]);
+    expect(set.body.unplaced).toEqual([]);
+    const again = await alice.api("PUT", `${Q}/story/hierarchy`, { items: [{ page_id: "overview", children: [] }], expected_etag: set.body.etag });
+    expect(again.status).toBe(200);
+    expect(ids(again.body.mockups)).toEqual(["p3", "p1", "p2"]);
+  });
+
+  it("refuses a page from a mockup in the tree, any other page among the mockups, and a page twice", async () => {
+    const etag = (await tree()).etag;
+    const inTree = await alice.api("PUT", `${Q}/story/hierarchy`, { items: [{ page_id: "overview", children: [{ page_id: "p1", children: [] }] }], expected_etag: etag });
+    expect(inTree.status).toBe(422);
+    expect(inTree.body.error.message).toMatch(/belong in mockups, not items: p1/);
+    const notOne = await alice.api("PUT", `${Q}/story/hierarchy`, { items: [], mockups: ["overview"], expected_etag: etag });
+    expect(notOne.status).toBe(422);
+    expect(notOne.body.error.message).toMatch(/belong in items, not mockups: overview/);
+    const twice = await alice.api("PUT", `${Q}/story/hierarchy`, { items: [], mockups: ["p1", "p1"], expected_etag: etag });
+    expect(twice.status).toBe(422);
+    expect(twice.body.error.message).toMatch(/"p1" appears more than once/);
+    expect((await vic.api("PUT", `${Q}/story/hierarchy`, { items: [], mockups: ["p1"], expected_etag: etag })).status).toBe(404);
+  });
+
+  it("moves a placed page into the section while it shows a mockup page, and back to its place once it has HTML of its own", async () => {
+    const promoted = await alice.api("POST", `${Q}/story/promote-mockup`, { mockup_id: mockupId, mockup_page_id: "p2", page_id: "overview", expected_etag: await etagOf("overview") });
+    expect(promoted.status).toBe(201);
+    let h = await tree();
+    expect(ids(h.items)).toEqual([]);
+    expect(ids(h.mockups)).toEqual(["p3", "p1", "p2", "overview"]);
+    const own = await alice.api("POST", `${Q}/story/pages/overview/versions`, { html: page("Overview again"), expected_etag: promoted.body.etag });
+    expect(own.status).toBe(201);
+    h = await tree();
+    expect(ids(h.items)).toEqual(["overview"]);
+    expect(ids(h.mockups)).toEqual(["p3", "p1", "p2"]);
+  });
+
+  it("prints in the Story's order, and drops an archived page from the order it was given", async () => {
+    const plan = await alice.api("GET", `${Q}/story/print-view?page_ids=p1,p2,overview,p3`);
+    expect(ids(plan.body.pages)).toEqual(["overview", "p3", "p1", "p2"]);
+    expect((await alice.api("POST", `${Q}/story/pages/p1/archive`, { expected_etag: await etagOf("p1") })).status).toBe(200);
+    expect(ids((await tree()).mockups)).toEqual(["p3", "p2"]);
+    expect((await alice.api("POST", `${Q}/story/pages/p1/restore`, { expected_etag: await etagOf("p1") })).status).toBe(200);
+    expect(ids((await tree()).mockups)).toEqual(["p3", "p1", "p2"]);
   });
 });
 

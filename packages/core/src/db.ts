@@ -584,6 +584,8 @@ export interface StoryHierarchiesTable {
   product_id: string;
   tenant_id: string;
   items: Json<StoryNode[]>;
+  /** The order of the Published mockups section: ids of pages whose current version shows a mockup page. */
+  mockups: ColumnType<string[], string | undefined, string>;
   etag: string;
   updated_at: Ts;
   updated_by: Json<ActorSnapshot>;

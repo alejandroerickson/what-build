@@ -212,8 +212,11 @@ sandbox.
 that page as it is in the mockup's current version (or `version: N`), named after it. Nothing is
 copied, and it stays on that version: when the mockup moves on, promote again with the Story
 page's `page_id` and its etag to show the newer version as the page's next version. `mockups get`
-lists the Story pages that show its pages (`story_pages`). Place the new page with `set_hierarchy`.
-People can promote a page from the mockup in the web app too.
+lists the Story pages that show its pages (`story_pages`). A promoted page joins the end of the
+Story's **Published mockups**, a section of its own after the page tree, where readers flip through
+them in order; it never goes in the tree. To reorder the section, pass every promoted page's id in
+the order you want as `set_hierarchy`'s `mockups`. People can promote a page from the mockup in
+the web app too.
 
 The web app shows mockups, downloads them and promotes a page to the Story, but it cannot publish,
 archive or restore a mockup. When a person wants any of that, you do it for them.
@@ -254,7 +257,8 @@ WhatBuild's own look — it is the team's document, often read outside the team.
 
 Read a page with `get_page` before revising and pass its etag; omit the etag only for a new
 page (`include_html: false` reads a page's notes, refs and citations without its HTML). Publishing
-never places a page: then call `set_hierarchy` with the hierarchy's own etag. Do not invent
+never places a page: then call `set_hierarchy` with the hierarchy's own etag. Pages left out of
+the tree still appear, at its end, until you place them. Do not invent
 owners, dates, measurements, commitments or agreement, and never present an unconfirmed
 assumption as settled. A plan's dates are the team's: use the ones a person gives you, say on the
 page that they are a plan or a proposal, and note in the page's notes who set them.

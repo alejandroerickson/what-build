@@ -9,16 +9,12 @@
   gap: var(--s-1);
   padding: var(--s-1) var(--s-0) var(--s-0);
 }
-.story-tree-none,
-.story-tree-hint {
+.story-tree-none {
   margin: 0;
-  padding: var(--s-1) var(--s-2) var(--s-2);
+  padding: var(--s-2) var(--s-2) var(--s-2);
   color: var(--faint);
   font-size: var(--fs-xs);
   line-height: 1.45;
-}
-.story-tree-none {
-  padding-top: var(--s-2);
 }
 
 .story-tree {
@@ -217,6 +213,22 @@
   flex: 1;
   min-width: 0;
   margin-bottom: 0;
+}
+.story-flip {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s-1);
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+.story-flip-count {
+  min-width: 6ch;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  text-align: center;
+  white-space: nowrap;
 }
 .story-focus {
   display: flex;

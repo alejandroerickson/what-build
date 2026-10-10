@@ -3,7 +3,7 @@ type: Decision
 title: Agents write and arrange the Story; the web app reads it
 description: Every change to a Story page or its tree goes through an agent over MCP, except promoting a mockup page from the mockup; the web app shows pages, versions and their evidence, and exports them.
 tags: [decision, story, agents, web]
-generated: {by: agent:claude, at: 2026-10-09}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -24,10 +24,12 @@ promote a mockup page to the Story from the mockup, since that adds a page witho
   restore, and no editing of notes for agents. A person asks their agent for any of these.
 - The one exception lives on a mockup, not on the Story: an editor may promote the selected page
   to the Story, or move a Story page that shows it to the version shown
-  ([decision](mockups-are-versioned-canvases-in-exploration.md)). The new page starts outside the
-  navigation, which agents arrange.
-- The screen reads like a wiki: the page tree on the left, the page in the middle under crumbs,
-  and its details, versions and export in the inspector. Export to PDF is the one action.
+  ([decision](mockups-are-versioned-canvases-in-exploration.md)). The new page joins the end of
+  the Story's Published mockups, which agents keep in order.
+- The screen reads like a wiki: the page tree on the left, then the Published mockups, the page in
+  the middle under crumbs, and its details, versions and export in the inspector. Export to PDF is
+  the one action. Pages an agent has not placed yet sit at the end of the tree, not in a section
+  of their own; the maintainer chose this on 2026-10-10.
 - A version has no change note. The activity log records each version, and the page's notes hold
   an agent's working context.
 - The operations are unchanged apart from the note: agents, and REST clients with write access,

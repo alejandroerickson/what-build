@@ -3,7 +3,7 @@ type: Decision
 title: Mockups are versioned canvases of agent-made HTML, in a stage called Exploration
 description: Agents build directions as sandboxed HTML pages on a canvas under a brief, versioned as a whole and downloadable to build the next one; the third stage is named Exploration.
 tags: [decision, mockups, exploration, story, security, web, agents]
-generated: {by: agent:claude, at: 2026-10-09}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -47,6 +47,12 @@ the names Mockups and Exploration on 2026-10-09.
   it stays on that version until it is promoted again, so the Story never changes under its
   readers when the mockup does. A Story reader sees the promoted page and nothing else of the
   mockup. The maintainer chose both on 2026-10-09.
+- **Promoted pages are the Story's Published mockups**: a section of their own after the page
+  tree, flat, in an order agents set, where a reader flips from one to the next with the arrow
+  keys or the control beside the crumbs. A page showing a mockup page is never in the tree, and
+  every one is in the section, so nothing promoted waits unseen for an agent to place it. The
+  maintainer chose this on 2026-10-10, over a list of unplaced pages and over letting agents put
+  promoted pages anywhere in the tree.
 - The third stage is **Exploration**: mockups and assumptions (insights and decisions, which it
   also held, were retired: [decision](insights-and-decisions-are-retired-into-evidence.md)). Its
   URLs are `/exploration/…`, and old `/synthesis/…` links open the same place.
@@ -58,6 +64,8 @@ the names Mockups and Exploration on 2026-10-09.
 - A team compares directions at real size and clicks through them, with the reasons beside each.
 - A promoted page needs a second step to move to a newer mockup version; the Story page says when
   one exists.
+- Stakeholders see every direction a team promoted, in one place and in order, without an agent
+  placing each page. A narrative page that wants a mockup beside its argument links to it.
 - Collaborators share a canvas's styles and components by pulling its files into their projects,
   not through WhatBuild drawing pages from them. If their pages still drift apart, pages drawn from
   a shared stylesheet and components is the change to revisit (an open question on the
@@ -72,5 +80,8 @@ the names Mockups and Exploration on 2026-10-09.
   (`packages/core/src/story-html.ts`, `apps/server/src/rest.ts`); there is no looser path.
 - A source that a mockup cites or lists is reported, guarded on move and counted in a delete's
   impact exactly as for Story pages (`packages/core/src/ops/sources.ts`).
+- Whether a page is a published mockup follows its current version (`story_versions.mockup`), and
+  `story.set_hierarchy` refuses one in the tree and any other page in `mockups`
+  (`packages/core/src/ops/story.ts`).
 
 Specified in: [04-data-model §4.12](../spec/04-data-model.md), [06-operations-and-adapters](../spec/06-operations-and-adapters.md), [07-web-app §7.7](../spec/07-web-app.md).

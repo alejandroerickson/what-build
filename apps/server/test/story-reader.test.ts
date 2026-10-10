@@ -184,4 +184,19 @@ describe("a Story reader", () => {
     expect(page.body.citations).toHaveLength(1);
     expect((await rita.api("GET", `${P}/sources`)).status).toBe(200);
   });
+
+  it("cannot finish an upload with a grant they were given as an editor", async () => {
+    const before = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "planner", email: "eddie@example.com", role: "editor" });
+    expect(before.status).toBe(201);
+    const eddie = await h.signIn("eddie@example.com", "Eddie Editor");
+    const created = await eddie.api("POST", `${P}/sources/with-upload`, { kind: "interview_transcript", title: "Second interview", date: "2026-09-04", path: "call.vtt", role: "primary" });
+    expect(created.status).toBe(201);
+    const up = created.body.upload;
+    await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "planner", email: "eddie@example.com", role: "reader" });
+    const put = await fetch(up.url, { method: "PUT", headers: up.headers, body: VTT });
+    expect(put.status).toBe(403);
+    expect(((await put.json()) as { error: { details: { role: string } } }).error.details.role).toBe("reader");
+    const source = await alice.api("GET", `${P}/sources/${created.body.record.record_id}?detail=full`);
+    expect(source.body.files).toEqual([]);
+  });
 });

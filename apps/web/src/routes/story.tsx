@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
 import { useProduct } from "../lib/session.tsx";
@@ -10,7 +10,8 @@ import { Button, ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, Loading,
 import { FirstUse } from "./first-use.tsx";
 import { ExportDialog } from "./story-export.tsx";
 import { StoryInspectorBody } from "./story-inspector.tsx";
-import { split, trail, type Hierarchy, type PageSummary, type PageView, type VersionItem, type VersionView } from "./story-model.ts";
+import { mockupStop, split, trail, type Hierarchy, type PageSummary, type PageView, type VersionItem, type VersionView } from "./story-model.ts";
+import { MockupFlip, useFlipKeys, type FlipKey } from "./story-flip.tsx";
 import { FocusToggle, useStoryFocus, type StoryKey } from "./story-focus.tsx";
 import { StyleDialog, styleLine, useStoryStyle } from "./story-style.tsx";
 import { StoryTree } from "./story-tree.tsx";
@@ -41,6 +42,7 @@ function useScheme(): "light" | "dark" {
  * has loaded; all it ever sends back is a page's slug, which is checked again here.
  */
 const PAGE_SLUG = /^[a-z0-9][a-z0-9-]{0,79}$/;
+const FRAME_KEYS: readonly unknown[] = ["f", "Escape", "ArrowLeft", "ArrowRight"] satisfies StoryKey[];
 
 export function StoryFrame({
   title,
@@ -83,7 +85,7 @@ export function StoryFrame({
     const handle = (e: MessageEvent) => {
       if (e.source !== frame.current?.contentWindow) return;
       const data = e.data as { whatbuild?: unknown; key?: unknown; page?: unknown } | null;
-      if (data?.whatbuild === "story-key" && (data.key === "f" || data.key === "Escape")) onKey?.(data.key);
+      if (data?.whatbuild === "story-key" && FRAME_KEYS.includes(data.key)) onKey?.(data.key as StoryKey);
       if (data?.whatbuild === "story-page" && typeof data.page === "string" && PAGE_SLUG.test(data.page)) onPage?.(data.page);
     };
     window.addEventListener("message", handle);
@@ -188,8 +190,22 @@ export function StoryPage() {
 
   const all = pages.data?.items ?? [];
   const archived = all.filter((p) => p.archived_at);
-  const arrangement = h.data ? split(h.data) : { placed: [], unplaced: [] };
+  const arrangement = h.data ? split(h.data) : { pages: [], mockups: [] };
   const titleOf = (id: string) => all.find((p) => p.page_id === id)?.title ?? id;
+
+  // On a published mockup, the arrows and the control beside the crumbs flip to the ones either side.
+  const stop = pageId ? mockupStop(arrangement, pageId) : null;
+  const prevId = stop?.prev?.page_id;
+  const nextId = stop?.next?.page_id;
+  const flip = useCallback(
+    (key: FlipKey) => {
+      const to = key === "ArrowLeft" ? prevId : nextId;
+      if (to) navigate(`${app}/story/${to}`);
+    },
+    [prevId, nextId, app, navigate],
+  );
+  useFlipKeys(stop ? flip : null);
+  const onFrameKey = (key: StoryKey) => (key === "ArrowLeft" || key === "ArrowRight" ? stop && flip(key) : focusMode.onKey(key));
 
   const styleRow = style.data ? (style.data.style ? { name: style.data.style.name, line: styleLine(style.data.style) } : null) : undefined;
   const tree = h.data ? <StoryTree tree={arrangement} archived={archived} current={pageId} onExport={setExporting} style={styleRow} onStyle={() => setStyling(true)} /> : null;
@@ -217,10 +233,13 @@ export function StoryPage() {
     } catch {
       remembered = null;
     }
-    const known = remembered && h.data.items.some(function has(n): boolean {
-      return n.page_id === remembered || n.children.some(has);
-    });
-    const first = (known ? remembered : null) ?? h.data.items[0]?.page_id;
+    const known =
+      remembered &&
+      (h.data.mockups.some((m) => m.page_id === remembered) ||
+        h.data.items.some(function has(n): boolean {
+          return n.page_id === remembered || n.children.some(has);
+        }));
+    const first = (known ? remembered : null) ?? h.data.items[0]?.page_id ?? h.data.mockups[0]?.page_id;
     if (first) return <Navigate to={`${app}/story/${first}${window.location.search}`} replace />;
     return (
       <div className="story-view">
@@ -249,12 +268,13 @@ export function StoryPage() {
     );
   }
 
-  const path = trail(arrangement.placed, pageId);
-  const root = arrangement.placed[0]?.page_id;
-  const title = page.data?.title ?? path?.[path.length - 1]?.title ?? titleOf(pageId);
+  const path = trail(arrangement.pages, pageId);
+  const root = arrangement.pages[0]?.page_id ?? arrangement.mockups[0]?.page_id;
+  const title = page.data?.title ?? path?.[path.length - 1]?.title ?? (stop ? arrangement.mockups[stop.index]?.title : undefined) ?? titleOf(pageId);
   const crumbs = [
     { label: "Story", ...(root && root !== pageId ? { to: `${app}/story/${root}` } : {}) },
     ...(path ?? []).slice(0, -1).map((c) => ({ label: c.title, to: `${app}/story/${c.page_id}` })),
+    ...(stop ? [{ label: "Published mockups" }] : []),
     { label: page.isError ? "Page not found" : title },
   ];
 
@@ -284,6 +304,7 @@ export function StoryPage() {
       {tree}
       <div className="story-bar">
         <Crumbs label="Page location" currentAsHeading items={crumbs} />
+        {stop ? <MockupFlip {...stop} onFlip={flip} /> : null}
         {focusMode.available ? <FocusToggle focus={focusMode.focus} hint={focusMode.hint} onToggle={focusMode.toggle} /> : null}
       </div>
       {!p ? (
@@ -314,7 +335,7 @@ export function StoryPage() {
               scheme={scheme}
               src={`${base}/story/pages/${pageId}/versions/${shown.version}/html${shown.mockup ? "" : `?theme=${scheme}`}`}
               size={shown.mockup ? { width: shown.mockup.width, height: shown.mockup.height } : undefined}
-              onKey={focusMode.onKey}
+              onKey={onFrameKey}
               storyBase={`${window.location.origin}${app}/story/`}
               onPage={(id) => navigate(`${app}/story/${id}`)}
             />

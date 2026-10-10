@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their taxonomy, files, annotations, what uses a source, the assumption register and citations, views and lineage, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, citations, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-10-09}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -461,6 +461,7 @@ no HTML: mockup versions are immutable, so the page is read from the mockup when
 never copied. It takes the mockup version's refs and citations. It stays on that mockup version until
 it is promoted again; reading it returns `mockup` with the page's `width` and `height` and, for
 every role but a reader, the mockup's title, the version shown and the mockup's current version.
+The page appears among the Story's Published mockups (Hierarchy, below).
 `html`, `html_chars` and `html_sha256` describe the mockup page. A later `publish` without `html` or
 `body` keeps showing the mockup page; `html` or `body` replaces it with HTML of the page's own; and
 `patch_html` and `restyle` are refused (`422`), since there is no HTML of its own to change.
@@ -489,8 +490,9 @@ security boundary. This matters because the author of a Story page and its reade
 different people.
 The route takes `?theme=light|dark` (written onto the page's `<html>` as `data-wb-theme` for that
 response) and `?frame=1`, which the app's frame always sends: it appends one inline script, inside
-the sandbox, that posts only the name of an F or Esc key press to the parent (focus mode,
-[§7.8](07-web-app.md)), hands a link to another page of the same Story to the app, and turns a
+the sandbox, that posts only the name of an F, Esc, ← or → key press to the parent (focus mode,
+and flipping through the Published mockups, [§7.8](07-web-app.md)), unless the page handled the
+key itself, hands a link to another page of the same Story to the app, and turns a
 click on any other link that would replace the page in its frame into a new tab. For the second,
 the app tells the frame the address its Story's pages live under once the frame has loaded; on a
 plain click (no modifier key, the main button) on a link under that address the script stops the
@@ -522,11 +524,24 @@ the notes are empty, and passing the page etag instead is refused with a message
 **Print view.** `story.print_view` composes 1–50 chosen pages, each at its current version, into
 one HTML document for a browser to print to PDF ([§6.4](06-operations-and-adapters.md)).
 
-**Hierarchy.** A separate per-product object with its own etag: an ordered tree of `page_id`s,
-depth ≤ 6, each page at most once, every page live and published. Publishing a page never places
-it; placing a page never publishes it. Unplaced pages are listed for editors and absent from the
-reader's navigation. Archived pages are dropped from the rendered navigation but keep their place
-if restored.
+**Hierarchy.** A separate per-product object with its own etag, in two parts:
+
+- **The tree** (`items`): an ordered tree of `page_id`s, depth ≤ 6, each page at most once, every
+  page live and published, none showing a mockup page. Publishing a page never places it; placing
+  a page never publishes it. Pages not yet placed are listed in `unplaced` and shown at the end of
+  the tree. A stored node whose page is archived, missing or showing a mockup page is skipped and
+  its children promoted into its place; archiving a page takes it out of the stored tree, and a
+  restored page returns unplaced.
+- **The Published mockups** (`mockups`): every live page whose current version shows a mockup
+  page, flat, in the order agents set (`set_hierarchy { mockups }`, a list of page ids that
+  replaces the order; omitted, the order is kept), then any not listed, in the order their current
+  versions were published. A promoted page joins the end at once, and leaves when `html` or `body`
+  replaces the mockup page, returning to its place in the tree if it has one. Archiving takes a
+  page out of the order. `set_hierarchy` refuses a page showing a mockup page in the tree, and any
+  other page in `mockups` (`422 invalid_hierarchy`).
+
+Every published page appears exactly once, in the tree or among the Published mockups
+([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)).
 
 **Story style.** A product has at most one: the design system every Story page follows, either the
 company's own or a **house style** adopted for the product

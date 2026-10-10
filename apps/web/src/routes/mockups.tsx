@@ -870,7 +870,7 @@ function OnTheStory({ mockup, shown, page }: { mockup: MockupView; shown: Mockup
       void qc.invalidateQueries({ queryKey: ["mockup", base, mockup.mockup_id] });
       for (const key of [["story-tree", base], ["story-pages", base], ["story-page", base, r.page_id], ["story-versions", base, r.page_id]]) void qc.invalidateQueries({ queryKey: key });
       void qc.invalidateQueries({ queryKey: ["product"] });
-      toast(`“${r.title}” is on the Story, outside its navigation until an agent places it.`, { action: { label: "Open", onClick: () => navigate(`${app}/story/${r.page_id}`) } });
+      toast(`“${r.title}” is on the Story, under Published mockups.`, { action: { label: "Open", onClick: () => navigate(`${app}/story/${r.page_id}`) } });
     },
   });
   if (!showing.length && !canWrite) return null;
@@ -903,7 +903,7 @@ function OnTheStory({ mockup, shown, page }: { mockup: MockupView; shown: Mockup
           title={asking === "new" ? "Promote to Story" : `Show version ${shown.version} on the Story`}
           description={
             asking === "new"
-              ? `A new Story page will show “${page.title}” as it is in version ${shown.version} of this mockup. Nothing is copied: the page stays on version ${shown.version} until someone promotes a newer one, and agents place it in the Story’s navigation.`
+              ? `A new Story page will show “${page.title}” as it is in version ${shown.version} of this mockup. Nothing is copied: the page stays on version ${shown.version} until someone promotes a newer one. It joins the end of the Story’s Published mockups, which agents keep in order.`
               : `“${asking.title}” will show “${page.title}” as it is in version ${shown.version}, as its next version. Its earlier versions stay readable.`
           }
           footer={

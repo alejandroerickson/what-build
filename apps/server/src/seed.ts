@@ -182,6 +182,8 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
     },
     ref,
   );
+  // Each page of the mockup on the Story, under Published mockups, for stakeholders to flip through.
+  for (const page of ["jobs-board", "day-planner", "crew-message"]) await call(env, samAgent, "story.promote_mockup", { mockup_id: mockup["mockup_id"], mockup_page_id: page }, ref);
   await call(env, riley, "sources.annotate", { record_id: vtt, note: "This is the moment to design for: the typed message, not the spreadsheet.", seq_start: 8, seq_end: 8, tags: ["hand-off"] }, ref);
   // Sam may start one organization of their own; Riley, the instance's owner in development, gave it.
   const sam = SEED_ACCOUNTS[1].email;

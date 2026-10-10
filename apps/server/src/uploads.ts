@@ -1,6 +1,6 @@
 import {
-  AppError, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, mockupBundle, json, lockSandbox, notFound, sandboxForAccount, toAppError, tooLarge, UPLOAD_GRANT_HEADER,
-  type ActorSnapshot, type Env, type OpContext, type Tx,
+  AppError, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, effectiveRole, forbidden, membershipsFor, mockupBundle, json, lockSandbox, notFound, roleAtLeast, sandboxForAccount, toAppError,
+  tooLarge, UPLOAD_GRANT_HEADER, type ActorSnapshot, type Env, type OpContext, type Tx,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { sql } from "kysely";
@@ -61,6 +61,12 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       const sandbox = await sandboxForAccount(env.db, tenantId, grant.principal.account_id);
       if (sandbox?.visitor && sandbox.settings.visitor_access !== "write")
         throw new AppError(403, sandbox.settings.visitor_access === "closed" ? "sandbox_closed" : "sandbox_read_only", "This public sandbox is not taking visitors' uploads for now. Nothing was stored; try again later with a new grant.");
+      // A grant carries its requester's authority only while they may still write here: someone made a reader or viewer, or removed, since it was given stores nothing.
+      const role = await inTenant(env, tenantId, async (trx) => {
+        const product = await trx.selectFrom("products").select("team_id").where("product_id", "=", grant.product_id).executeTakeFirst();
+        return effectiveRole(await membershipsFor(trx, grant.principal.account_id, tenantId), { tenant_id: tenantId, team_id: product?.team_id ?? null, product_id: grant.product_id }).role;
+      });
+      if (!roleAtLeast(role, "editor")) throw forbidden("Whoever requested this upload grant can no longer write to this product. Nothing was stored.", { role, needed: "editor" });
       const max = Math.min(Number(grant.max_bytes), env.config.relayMaxBytes);
       const declared = c.req.header("content-length");
       if (declared !== undefined && (!/^\d+$/.test(declared))) throw new AppError(400, "invalid_length", "Content-Length is not a number.");

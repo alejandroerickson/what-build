@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 108 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
-generated: {by: agent:claude, at: 2026-10-09}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -307,6 +307,10 @@ Notes on recent actions:
 - `story.promote_mockup` publishes a Story page version that shows one page of a mockup version,
   on a new page or as an existing page's next version, without copying it; the version reports
   `mockup` with the page's size. It answers `201` like `publish` ([§4.11](04-data-model.md)).
+  The page appears among the Story's Published mockups at once (`placed: true`).
+- `story.get_hierarchy` returns the tree as `items` (pages not yet placed at its end, named in
+  `unplaced`) and the Published mockups as `mockups`, in order; `story.set_hierarchy` takes the
+  tree and, optionally, `mockups` to reorder that section ([§4.11](04-data-model.md)).
 - `sources.used_by` lists the mockups whose current version cites or lists the source,
   `sources.move_to_product` refuses while one does, and `sources.delete_impact` lists every
   mockup version that cites it (`mockup_versions_citing`), as each does for Story pages.
@@ -364,8 +368,9 @@ sandbox, with the same `?frame=1`, and without `?theme`: a mockup carries its ow
 ### The Story print view
 
 `story.print_view { page_ids }` (1–50 page ids, comma-separated in a query string) plans a print
-view: exactly the pages named, each at its current version, in the Story's tree order — a
-depth-first walk of the hierarchy, then pages the hierarchy does not place, by title. Each page
+view: exactly the pages named, each at its current version, in the Story's order — a depth-first
+walk of the tree, the pages not yet placed, then the Published mockups in their order, and
+archived pages last, by title. Each page
 carries `depth` (its depth in the hierarchy) and `level` (its outline level among the chosen
 pages: one more than the number of chosen ancestors, so the outline never skips a level). The
 result also gives `path` and `url` for the document itself.
@@ -501,7 +506,9 @@ In order of preference for an agent (`packages/core/src/ops/files.ts`):
    same title, kind and date. The agent PUTs the
    local file's raw bytes to `url` (the service's own upload relay,
    `/api/v1/uploads/:grant_id`) with exactly those headers, using whatever shell or HTTP tool it
-   has. The relay stores the bytes, records size and SHA-256 **from what arrived**, not from the
+   has. The relay first checks that whoever requested the grant can still write to the product
+   (`403 forbidden` otherwise, for someone made a reader or viewer, or removed, since), then
+   stores the bytes, records size and SHA-256 **from what arrived**, not from the
    agent's claims, attaches the file at once, and enqueues derivation if it is primary; its
    response says the bytes were received and to call `files.complete_upload` next.
    `files.complete_upload` then confirms idempotently and can add provenance (`derived_from`,

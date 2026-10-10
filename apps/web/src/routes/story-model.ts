@@ -13,22 +13,32 @@ export interface StoryNode {
   children: StoryNode[];
 }
 
-/** story.get_hierarchy: `items` also lists the unplaced pages at the top level; `unplaced` names them. */
+/**
+ * story.get_hierarchy: `items` is the tree, with the pages not yet placed at its end (`unplaced`
+ * names them); `mockups` is the Published mockups, the pages showing a mockup page, in order.
+ */
 export interface Hierarchy {
   etag: string | null;
   items: StoryNode[];
   unplaced: string[];
+  mockups: Omit<StoryNode, "children">[];
 }
 
-/** The tree split the way the panel shows it: the navigation, then the pages not yet placed. */
+/** The Story the way the panel shows it: the page tree, then the Published mockups. */
 export interface Arrangement {
-  placed: StoryNode[];
-  unplaced: StoryNode[];
+  pages: StoryNode[];
+  mockups: StoryNode[];
 }
 
 export function split(h: Hierarchy): Arrangement {
-  const un = new Set(h.unplaced);
-  return { placed: h.items.filter((n) => !un.has(n.page_id)), unplaced: h.items.filter((n) => un.has(n.page_id)) };
+  return { pages: h.items, mockups: h.mockups.map((m) => ({ ...m, children: [] })) };
+}
+
+/** Where a page stands among the Published mockups, and the ones either side, or null when it is not one. */
+export function mockupStop(a: Arrangement, id: string): { index: number; count: number; prev: StoryNode | null; next: StoryNode | null } | null {
+  const index = a.mockups.findIndex((m) => m.page_id === id);
+  if (index < 0) return null;
+  return { index, count: a.mockups.length, prev: a.mockups[index - 1] ?? null, next: a.mockups[index + 1] ?? null };
 }
 
 export interface Located {

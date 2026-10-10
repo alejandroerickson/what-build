@@ -3,7 +3,7 @@ type: Specification
 title: Accounts belong to tenants, tenants hold teams, teams run products, and one role check decides every call.
 description: The account → tenant → team → product hierarchy, sign-in, roles and what they grant, addressing and isolation, moving sources between products, caller identity, attribution, and who is who in the public sandbox.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, sandbox]
-generated: {by: agent:claude, at: 2026-10-07}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -209,7 +209,8 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
 
 - **Reader** reads only the Story: its pages, every version of them, the hierarchy, and the print
   view to export it (◆ [decision](../decisions/a-reader-reads-only-the-story.md)). These
-  operations, and `products.list` and `products.get`, declare the access level `story`; every
+  operations, and `products.get`, declare the access level `story` (`products.list` lists every
+  product the caller holds a role on); every
   other product operation needs viewer and answers a reader `403` ("You are a reader on product
   Crewboard; sources.list needs viewer"), and so do a source's file, an export's file, a Story
   style specimen and a mockup's page. A reader's Story reads leave out `refs`, `resolved_refs`,
@@ -217,6 +218,8 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   its size; their product reads leave out `concept` and count only `story_pages`. A page's HTML is
   served to a reader exactly as published, and a promoted mockup page through the Story's own
   route, so a reader sees that page and nothing else of the mockup ([§4.11](04-data-model.md)).
+  A reader writes nothing: the upload relay checks the role of whoever requested a grant again
+  when the bytes arrive, so a grant given to an editor stores nothing once they are a reader.
 - **Viewer** reads everything in the product. **Editor** also writes: sources, files, notes,
   outcomes, assumptions and reviews, mockups, the Story, and permanent deletes of sources
   (guarded, [§9.5](09-data-lifecycle.md)). **Admin** also manages the product (rename, archive) and

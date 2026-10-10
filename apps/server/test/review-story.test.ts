@@ -390,6 +390,8 @@ describe("the sample product", () => {
     const S = `/api/v1/p/${path}`;
     expect((await sam.api("GET", `${S}/assumptions`)).body.items).toHaveLength(1);
     expect((await sam.api("GET", `${S}/mockups`)).body.items).toHaveLength(1);
+    const tree = await sam.api("GET", `${S}/story/hierarchy`);
+    expect(tree.body.mockups.map((m: { page_id: string }) => m.page_id)).toEqual(["jobs-board", "day-planner", "crew-message"]);
     const overview = await sam.api("GET", `${S}/story/pages/overview?include_html=false`);
     expect(overview.body.current.citations.length).toBeGreaterThan(0);
     expect(overview.body.current.citations.every((c: { source_title: string | null }) => c.source_title)).toBe(true);

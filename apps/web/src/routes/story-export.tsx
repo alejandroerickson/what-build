@@ -11,9 +11,9 @@ export function ExportDialog({ tree, archived, preselect, onClose }: { tree: Arr
   const { api: base } = useProduct();
   const groups = useMemo(() => {
     const out: { label: string | null; rows: { node: Pick<StoryNode, "page_id" | "title">; level: number }[] }[] = [];
-    const placed = flatten(tree.placed);
-    if (placed.length) out.push({ label: null, rows: placed });
-    if (tree.unplaced.length) out.push({ label: "Unplaced pages", rows: tree.unplaced.map((n) => ({ node: n, level: 1 })) });
+    const pages = flatten(tree.pages);
+    if (pages.length) out.push({ label: null, rows: pages });
+    if (tree.mockups.length) out.push({ label: "Published mockups", rows: tree.mockups.map((n) => ({ node: n, level: 1 })) });
     if (archived.length) out.push({ label: "Archived pages", rows: archived.map((n) => ({ node: n, level: 1 })) });
     return out;
   }, [tree, archived]);

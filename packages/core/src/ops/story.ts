@@ -575,9 +575,10 @@ function flatten(nodes: StoryNode[]): string[] {
   return nodes.flatMap((n) => [n.page_id, ...flatten(n.children)]);
 }
 
+/** Whether a page appears in the navigation: in the tree, or among the Published mockups, where every live page showing a mockup page appears. */
 async function isPlaced(ctx: OpContext, page: string) {
-  const h = await storedHierarchy(ctx);
-  return h ? flatten(h.items).includes(page) : false;
+  const h = await resolvedHierarchy(ctx);
+  return flatten(h.placed).includes(page) || h.mockups.some((m) => m.page_id === page);
 }
 
 export const getHierarchy = defineOperation({
@@ -585,9 +586,9 @@ export const getHierarchy = defineOperation({
   scope: "product",
   access: "story",
   mutates: false,
-  summary: "The Story's navigation tree with its own etag, enriched with each page's current title and summary.",
+  summary: "The Story's navigation: the page tree, then the Published mockups in order, with its own etag and each page's current title and summary.",
   description:
-    "A stored node whose page is missing or archived is skipped and its children promoted into its place. Live pages not yet placed are listed in `unplaced` (and appended at the top level of `items`), so every published page appears exactly once. etag is null before the first save.",
+    "items is the tree. A stored node whose page is missing, archived or showing a mockup page is skipped and its children promoted into its place. Live pages not yet placed are listed in `unplaced` (and appended at the top level of `items`). mockups is the Published mockups section: every live page whose current version shows a page of a mockup (story.promote_mockup), flat, in the order set_hierarchy gave, then any not yet ordered, in the order their current versions were published. Every published page appears exactly once, in items or in mockups. etag is null before the first save.",
   input: z.strictObject({}),
   rest: { method: "GET", path: "/story/hierarchy" },
   mcp: { tool: "story", action: "get_hierarchy" },
@@ -598,26 +599,46 @@ export const getHierarchy = defineOperation({
   },
 });
 
+/** The product's live pages, and whether each one's current version shows a page of a mockup. */
+async function livePages(ctx: OpContext) {
+  const pages = await ctx.db
+    .selectFrom("story_pages as p")
+    .innerJoin("story_versions as v", "v.version_id", "p.current_version_id")
+    .select(["p.page_id", "p.title", "p.summary", "v.created_at as published_at", sql<boolean>`v.mockup is not null`.as("shows_mockup")])
+    .where("p.product_id", "=", productId(ctx))
+    .where("p.archived_at", "is", null)
+    .execute();
+  return new Map(pages.map((p) => [p.page_id, p]));
+}
+
 async function resolvedHierarchy(ctx: OpContext) {
   const h = await storedHierarchy(ctx);
-  const pages = await ctx.db.selectFrom("story_pages").select(["page_id", "title", "summary", "archived_at", "version_count", "updated_at"]).where("product_id", "=", productId(ctx)).execute();
-  const live = new Map(pages.filter((p) => !p.archived_at).map((p) => [p.page_id, p]));
+  const live = await livePages(ctx);
   const used = new Set<string>();
   type Enriched = { page_id: string; title: string; description: string; children: Enriched[] };
+  // A page showing a mockup page belongs to the Published mockups, so the tree skips it as it skips an archived one.
   const resolve = (nodes: StoryNode[]): Enriched[] =>
     nodes.flatMap((n) => {
       const p = live.get(n.page_id);
       const kids = resolve(n.children);
-      if (!p || used.has(n.page_id)) return kids;
+      if (!p || p.shows_mockup || used.has(n.page_id)) return kids;
       used.add(n.page_id);
       return [{ page_id: p.page_id, title: p.title, description: p.summary, children: kids }];
     });
   const items = resolve(h?.items ?? []);
   const unplaced = [...live.values()]
-    .filter((p) => !used.has(p.page_id))
+    .filter((p) => !p.shows_mockup && !used.has(p.page_id))
     .sort((a, b) => (a.page_id === "overview" ? -1 : b.page_id === "overview" ? 1 : a.title.localeCompare(b.title) || a.page_id.localeCompare(b.page_id)))
     .map((p) => ({ page_id: p.page_id, title: p.title, description: p.summary, children: [] as Enriched[] }));
-  return { etag: h?.etag ?? null, items: [...items, ...unplaced], placed: items, unplaced: unplaced.map((u) => u.page_id), updated_at: h?.updated_at ?? null };
+  const ordered = uniq(h?.mockups ?? []).flatMap((id) => {
+    const p = live.get(id);
+    return p?.shows_mockup ? [p] : [];
+  });
+  const later = [...live.values()]
+    .filter((p) => p.shows_mockup && !ordered.includes(p))
+    .sort((a, b) => a.published_at.localeCompare(b.published_at) || a.page_id.localeCompare(b.page_id));
+  const mockups = [...ordered, ...later].map((p) => ({ page_id: p.page_id, title: p.title, description: p.summary }));
+  return { etag: h?.etag ?? null, items: [...items, ...unplaced], placed: items, unplaced: unplaced.map((u) => u.page_id), mockups, updated_at: h?.updated_at ?? null };
 }
 
 const nodeSchema: z.ZodType<StoryNode> = z.lazy(() => z.strictObject({ page_id: pageId, children: z.array(nodeSchema).default([]) })) as z.ZodType<StoryNode>;
@@ -627,9 +648,13 @@ export const setHierarchy = defineOperation({
   scope: "product",
   access: "write",
   mutates: true,
-  summary: "Replace the Story's navigation tree. Uses the hierarchy's own etag; never touches page content.",
-  description: `The whole tree, not a patch: nodes are {page_id, children}. Each page at most once, depth at most ${MAX_DEPTH}, every page live and published. Pass expected_etag from get_hierarchy, or null before the first save. Pages you leave out become unplaced.`,
-  input: z.strictObject({ items: z.array(nodeSchema).max(MAX_PAGES), expected_etag: expectedEtag.nullable() }),
+  summary: "Replace the Story's navigation tree, and order its Published mockups. Uses the hierarchy's own etag; never touches page content.",
+  description: `items is the whole tree, not a patch: nodes are {page_id, children}. Each page at most once, depth at most ${MAX_DEPTH}, every page live and published, and none showing a mockup page: those are always in the Published mockups section, never in the tree. Pages you leave out of items become unplaced. mockups orders that section, a flat list of the page ids that show mockup pages; ones you leave out follow in the order their current versions were published, and omitting mockups keeps the order as it is. Pass expected_etag from get_hierarchy, or null before the first save.`,
+  input: z.strictObject({
+    items: z.array(nodeSchema).max(MAX_PAGES),
+    mockups: z.array(pageId).max(MAX_PAGES).optional().describe("The order of the Published mockups: ids of pages whose current version shows a mockup page. Omit it to keep the order as it is."),
+    expected_etag: expectedEtag.nullable(),
+  }),
   rest: { method: "PUT", path: "/story/hierarchy" },
   mcp: { tool: "story", action: "set_hierarchy" },
   async handler(ctx, input) {
@@ -639,19 +664,28 @@ export const setHierarchy = defineOperation({
       checkEtag(input.expected_etag, h.etag, "story hierarchy");
     } else if (input.expected_etag) throw conflict("stale_etag", "No hierarchy has been saved yet; pass expected_etag null.");
     const ids = flatten(input.items);
-    const dup = ids.find((x, i) => ids.indexOf(x) !== i);
+    const order = input.mockups ?? null;
+    const all = [...ids, ...(order ?? [])];
+    const dup = all.find((x, i) => all.indexOf(x) !== i);
     if (dup) throw invalid("invalid_hierarchy", `Page "${dup}" appears more than once.`);
     const depth = (nodes: StoryNode[]): number => (nodes.length ? 1 + Math.max(...nodes.map((n) => depth(n.children))) : 0);
     if (depth(input.items) > MAX_DEPTH) throw invalid("invalid_hierarchy", `The tree is deeper than ${MAX_DEPTH} levels.`);
-    const pages = ids.length ? await ctx.db.selectFrom("story_pages").select(["page_id", "archived_at"]).where("product_id", "=", productId(ctx)).where("page_id", "in", ids).execute() : [];
-    const missing = ids.filter((x) => !pages.some((p) => p.page_id === x));
+    const pages = all.length ? await ctx.db.selectFrom("story_pages").select(["page_id", "archived_at"]).where("product_id", "=", productId(ctx)).where("page_id", "in", all).execute() : [];
+    const missing = all.filter((x) => !pages.some((p) => p.page_id === x));
     const archived = pages.filter((p) => p.archived_at).map((p) => p.page_id);
     if (missing.length) throw invalid("invalid_hierarchy", `Unpublished pages: ${missing.join(", ")}.`);
     if (archived.length) throw invalid("invalid_hierarchy", `Archived pages: ${archived.join(", ")}.`);
+    const live = await livePages(ctx);
+    const inTree = ids.filter((x) => live.get(x)?.shows_mockup);
+    if (inTree.length) throw invalid("invalid_hierarchy", `These pages show mockup pages, so they belong in mockups, not items: ${inTree.join(", ")}.`);
+    const notMockups = (order ?? []).filter((x) => !live.get(x)?.shows_mockup);
+    if (notMockups.length) throw invalid("invalid_hierarchy", `These pages do not show a mockup page, so they belong in items, not mockups: ${notMockups.join(", ")}.`);
     const etag = newEtag();
-    if (h) await ctx.db.updateTable("story_hierarchies").set({ items: json(input.items), etag, updated_at: ctx.now, updated_by: json(ctx.actor) }).where("product_id", "=", productId(ctx)).execute();
-    else await ctx.db.insertInto("story_hierarchies").values({ product_id: productId(ctx), tenant_id: tenantId(ctx), items: json(input.items), etag, updated_by: json(ctx.actor) }).execute();
-    await recordActivity(ctx, { action: "organized", entity_type: "story_hierarchy", entity_id: null, entity_title: "Story navigation", summary: `Arranged ${ids.length} page${ids.length === 1 ? "" : "s"} in the navigation` });
+    const set = { items: json(input.items), ...(order ? { mockups: json(order) } : {}), etag };
+    if (h) await ctx.db.updateTable("story_hierarchies").set({ ...set, updated_at: ctx.now, updated_by: json(ctx.actor) }).where("product_id", "=", productId(ctx)).execute();
+    else await ctx.db.insertInto("story_hierarchies").values({ product_id: productId(ctx), tenant_id: tenantId(ctx), ...set, updated_by: json(ctx.actor) }).execute();
+    const arranged = `Arranged ${ids.length} page${ids.length === 1 ? "" : "s"} in the navigation`;
+    await recordActivity(ctx, { action: "organized", entity_type: "story_hierarchy", entity_id: null, entity_title: "Story navigation", summary: order ? `${arranged} and ordered ${order.length} published mockup${order.length === 1 ? "" : "s"}` : arranged });
     return getHierarchy.handler(ctx, {});
   },
 });
@@ -688,7 +722,8 @@ export const archivePage = defineOperation({
     if (h) {
       const r = removeFromTree(h.items, p.page_id);
       promoted = r.promoted;
-      await ctx.db.updateTable("story_hierarchies").set({ items: json(r.nodes), etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("product_id", "=", productId(ctx)).execute();
+      const mockups = h.mockups.filter((x) => x !== p.page_id);
+      await ctx.db.updateTable("story_hierarchies").set({ items: json(r.nodes), mockups: json(mockups), etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("product_id", "=", productId(ctx)).execute();
     }
     await ctx.db.updateTable("story_pages").set({ archived_at: ctx.now, etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("product_id", "=", productId(ctx)).where("page_id", "=", p.page_id).execute();
     await recordActivity(ctx, { action: "archived", entity_type: "story_page", entity_id: p.page_id, entity_title: p.title, summary: promoted.length ? `Archived the page; promoted ${promoted.length} sub-page${promoted.length === 1 ? "" : "s"}` : "Archived the page" });
@@ -701,7 +736,7 @@ export const restorePage = defineOperation({
   scope: "product",
   access: "write",
   mutates: true,
-  summary: "Restore an archived Story page. It returns unplaced; add it to the hierarchy with set_hierarchy.",
+  summary: "Restore an archived Story page. It returns unplaced, or at the end of the Published mockups if it shows a mockup page; place it with set_hierarchy.",
   description: "Pass the page's etag.",
   input: z.strictObject({ page_id: pageId, expected_etag: expectedEtag }),
   rest: { method: "POST", path: "/story/pages/:page_id/restore" },
@@ -794,7 +829,7 @@ export const promoteMockup = defineOperation({
   mutates: true,
   summary: "Show one page of a mockup in the Story: a Story page version that points at that page as it is in one mockup version, never a copy.",
   description:
-    "Without page_id, creates a Story page named after the mockup page (its slug, with -2, -3… if that is taken), titled with the mockup page's title unless you give one. With page_id of an existing page and its etag, publishes that page's next version showing the mockup page, which is how a Story page moves to a newer mockup version: it never follows the mockup by itself. version is the mockup version, the current one when omitted. The version takes the mockup version's refs and citations. The Story page shows the mockup page at its own size, scaled to fit, in the same sandbox; a Story reader sees it there and nothing else of the mockup. Publishing html or body on the page later replaces it with HTML of its own. Like publish, it never places the page: call set_hierarchy afterwards.",
+    "Without page_id, creates a Story page named after the mockup page (its slug, with -2, -3… if that is taken), titled with the mockup page's title unless you give one. With page_id of an existing page and its etag, publishes that page's next version showing the mockup page, which is how a Story page moves to a newer mockup version: it never follows the mockup by itself. version is the mockup version, the current one when omitted. The version takes the mockup version's refs and citations. The Story page shows the mockup page at its own size, scaled to fit, in the same sandbox; a Story reader sees it there and nothing else of the mockup. Publishing html or body on the page later replaces it with HTML of its own. The page joins the end of the Story's Published mockups, a section of its own after the navigation tree, where every page showing a mockup page appears and none of them is ever in the tree; reorder the section with set_hierarchy's mockups. Once html or body replaces the mockup page, the page leaves the section and is unplaced.",
   input: z.strictObject({
     mockup_id: id("mockup"),
     mockup_page_id: mockupPageId,
@@ -908,7 +943,8 @@ async function printPages(ctx: OpContext, ids: string[]) {
   const missing = wanted.filter((w) => !rows.some((r) => r.page_id === w));
   if (missing.length) throw notFound(`These Story pages have never been published in this product: ${missing.join(", ")}.`, { missing });
   const h = await resolvedHierarchy(ctx);
-  const order = printOrder(h.placed, rows.map((r) => ({ page_id: r.page_id, title: r.title })));
+  const story = [...h.items, ...h.mockups.map((m) => ({ page_id: m.page_id, children: [] }))];
+  const order = printOrder(story, rows.map((r) => ({ page_id: r.page_id, title: r.title })));
   const pages = [];
   for (const slot of order) {
     const r = rows.find((x) => x.page_id === slot.page_id)!;
@@ -928,7 +964,7 @@ export const printView = defineOperation({
   mutates: false,
   summary: "Plan a print view of chosen Story pages, to save as PDF from a browser: their order, heading levels and the view's address.",
   description:
-    "Includes exactly the pages named, each at its current version, in the Story's tree order (a depth-first walk of the hierarchy; unplaced pages after, by title). level is the page's outline level among the chosen pages: 1 for a page with no chosen ancestor. url opens one HTML document — a title block, contents, then each page — that a person prints to PDF from their browser; page scripts do not run there, so content a page draws with JavaScript is left out. 404 lists pages that have never been published.",
+    "Includes exactly the pages named, each at its current version, in the Story's order: a depth-first walk of the tree, the pages not yet placed, then the Published mockups in their order; archived pages after, by title. level is the page's outline level among the chosen pages: 1 for a page with no chosen ancestor. url opens one HTML document — a title block, contents, then each page — that a person prints to PDF from their browser; page scripts do not run there, so content a page draws with JavaScript is left out. 404 lists pages that have never been published.",
   input: printInput,
   rest: { method: "GET", path: "/story/print-view" },
   mcp: { tool: "story", action: "print_view" },

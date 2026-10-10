@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-10-09}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -398,10 +398,11 @@ them. Its one write is promoting a page to the Story.
   the page picker, each Story page that shows the selected page is named and linked with the
   mockup version it shows. An editor whose page is not on the Story gets **Promote to Story**: a
   dialog says that a new Story page will show the page as it is in the version shown, that nothing
-  is copied, that it stays on that version until someone promotes a newer one, and that agents
-  place it in the Story's navigation, and asks for its title (the page's own by default). Where a
+  is copied, that it stays on that version until someone promotes a newer one, and that it joins
+  the end of the Story's Published mockups, which agents keep in order, and asks for its title (the page's own by default). Where a
   Story page shows the selected page at another version, **Show version N** moves it to the version
-  shown, as its next version. A toast confirms, with Open to go to the page.
+  shown, as its next version. A toast confirms that the page is under Published mockups, with
+  Open to go to the page.
 
 ### Assumptions
 
@@ -449,7 +450,14 @@ mockup reaches it by promotion, from the mockup (§7.7).
   shown (with **Show the current version**), or the page tried to open another address in its
   place, and was put back.
 - **A page from a mockup** ([§4.11](04-data-model.md)) is shown at its own size, scaled down to the
-  measure and never up, on paper as on the canvas, without the app's theme.
+  measure and never up, on paper as on the canvas, without the app's theme. Its crumbs read Story ›
+  Published mockups › the page.
+- **Flipping through the published mockups.** On a published mockup, a small control beside the
+  crumbs gives its place ("2 of 5") between buttons to the previous and next one, and ← and →
+  flip to them, in focus mode or not, from the app or from inside the page (the frame passes the
+  keys on unless the page used them). Not while typing, with a dialog or menu open, or in a control
+  that uses the arrows itself, such as the page tree. It stops at the first and the last; focus
+  mode stays as it was.
 - **Links.** A link in a page to another page of the same Story shows that page in place: the
   address, the tree and the inspector follow, and focus mode stays as it was. A click with a
   modifier key, and every other link, opens in a new tab ([§4.11](04-data-model.md)).
@@ -457,7 +465,7 @@ mockup reaches it by promotion, from the mockup (§7.7).
   away. The page keeps the canvas's ordinary measure (`--content-max`): on a wide screen it stays
   the width it was and does not reflow, and on a narrow one it gains only the room the panels
   held. **F** toggles it and **Esc** leaves it, from the app or from inside the
-  page (the frame passes the two keys on); not while typing or with a dialog or menu open. The
+  page (the frame passes the keys on); not while typing or with a dialog or menu open. The
   first time a browser opens a Story that has a page, focus mode turns on by itself, with a hint
   beside the control that F or Esc brings the panels back; after that the browser remembers the
   last choice (`whatbuild.story.focus`). The control beside the crumbs (**Focus**, or **Show
@@ -465,8 +473,10 @@ mockup reaches it by promotion, from the mockup (§7.7).
   ⇧⌘\) also leave focus mode, and leaving the Story ends it; the panels come back as they were.
   At phone width, where the panels are drawers already, there is no focus mode.
 - **The tree.** A keyboard tree (one tab stop, arrow keys to move and to open or close a branch)
-  with "Find a page", the current page marked and its ancestors kept open, and sections for
-  **Unplaced pages** (published, not yet placed by an agent) and **Archived pages**. The only row
+  with "Find a page", the current page marked and its ancestors kept open. **Story pages** is the
+  tree, with pages an agent has not placed yet at its end; **Published mockups** lists every page
+  promoted from a mockup, in the order agents set, each with a screen glyph; and **Archived
+  pages** folds away below. The only row
   action is export: each row's menu offers **Export this page to PDF…** and, for a page with
   subpages, **Export with its subpages…**. Under the tree, **Story style** names the product's
   Story style ("A house style", "Adapted from Tufte", "Your design system", or "None yet") and
@@ -496,8 +506,8 @@ mockup reaches it by promotion, from the mockup (§7.7).
     the server sends a reader none of them ([§3.5](03-accounts-teams-and-identity.md)). The Story
     style row under the tree is left out too, and a Story with no pages says that they appear once
     the product's team publishes them.
-- **Export to PDF.** The dialog lists every page as checkboxes, in tree order, then unplaced and
-  archived pages, with Select all, Clear and a count; it opens with the page or pages it was
+- **Export to PDF.** The dialog lists every page as checkboxes, in the Story's order (the tree,
+  then the published mockups), then archived pages, with Select all, Clear and a count; it opens with the page or pages it was
   asked for already selected, and the person can change the selection. It says what the PDF holds:
   a contents list, then each selected page at its current version under its title, with its
   version number and publish date. It says what it leaves out: what a page draws on, its cited

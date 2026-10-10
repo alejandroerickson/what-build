@@ -26,8 +26,10 @@ export function withStoryTheme(html: string, theme: "light" | "dark"): string {
  * The script the app's frame adds to a page it shows. It runs inside the page's sandbox, in the
  * page's opaque origin, and does three things:
  *
- * - Passes F and Esc to the app (focus mode), since keys pressed inside a frame never reach the
- *   page around it. Only the key's name is sent; the app checks the message came from its frame.
+ * - Passes F and Esc (focus mode) and the left and right arrows (flipping through the Story's
+ *   published mockups) to the app, since keys pressed inside a frame never reach the page around
+ *   it. Only the key's name is sent; the app checks the message came from its frame. A key the
+ *   page itself handled (its default prevented) is not passed on.
  * - Hands a plain click on a link to another page of the same Story to the app, which shows that
  *   page in place: a Story is a set of pages, and a reader moving between them should not collect
  *   tabs. The app tells the frame where its Story lives; only a page's slug is sent back, and the
@@ -43,7 +45,7 @@ export const FRAME_SCRIPT =
   'if(e.source===parent&&e.data&&e.data.whatbuild==="story-base"&&typeof e.data.base==="string")story=e.data.base;});' +
   'addEventListener("keydown",function(e){' +
   "if(e.defaultPrevented||e.metaKey||e.ctrlKey||e.altKey||typing(e.target))return;" +
-  'var k=e.key==="Escape"?"Escape":(e.key==="f"||e.key==="F")?"f":null;' +
+  'var k=e.key==="Escape"||e.key==="ArrowLeft"||e.key==="ArrowRight"?e.key:(e.key==="f"||e.key==="F")?"f":null;' +
   'if(k)parent.postMessage({whatbuild:"story-key",key:k},"*");});' +
   'addEventListener("click",function(e){' +
   'var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;' +
