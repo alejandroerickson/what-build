@@ -40,7 +40,12 @@ approved):
 3. Check, from the guide: every build step, a `migrated …` line per new migration, every queued
    job done without an error, `/api/v1/meta`, the changed screens on the copied data, and logs
    without 500s.
-4. Report what ran, what migrated, what each job did, and what failed or could not be checked.
+4. If the release changes parsing, the parse limits or the service's memory, upload the hostile
+   files (`scripts/hostile-files.mjs`, the guide's step 4): each must end in the status the script
+   prints, the service must keep answering, and the revision's memory must stay clear of its
+   limit. Delete the hostile sources afterwards.
+5. Report what ran, what migrated, what each job did, what each hostile file ended as and the
+   memory it took, and what failed or could not be checked.
    Say plainly whether production's build should be approved.
 
 **Putting it back, refreshing the copy, setting one up:** the guide's sections of those names, in

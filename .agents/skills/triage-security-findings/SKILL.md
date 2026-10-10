@@ -28,6 +28,8 @@ work.
    runs on `main` and accepted vulnerabilities near expiry. **Run the scanners:** `pnpm security`. With `GH_TOKEN=$(gh auth token)` zizmor adds its online
    audits. For the running app, run the Security workflow's ZAP job (`gh workflow run security.yml`)
    and read its summary.
+   A ZAP run that fails on rule 10116 (ZAP is out of date) means ZAP published a newer version:
+   pin it by tag and digest in `security.yml`, as the guide's "Updating the scanners" shows.
 2. **For each finding**, say what it is, whether WhatBuild reaches it (which package uses it, and
    for what), and the fix: the version that fixes it, or the workflow change.
 3. **Fix** as the guide's "When a scanner finds a vulnerability" says, one package or workflow at a

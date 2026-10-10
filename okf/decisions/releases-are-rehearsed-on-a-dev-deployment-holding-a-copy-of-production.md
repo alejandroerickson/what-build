@@ -29,7 +29,9 @@ narrows that decision's rejection of "a shared copy in the cloud".
   and its bucket, and kept as loaded in its own Neon branch so it can be put back.
 - **Before production's build of a release that adds a migration is approved**, that release (or
   its commit, before tagging) is deployed to dev, and its migrations and the jobs they queue are
-  checked there, unless the maintainer says to skip it.
+  checked there, unless the maintainer says to skip it. The same holds for a release that
+  changes parsing (`packages/parsers/`, `apps/server/src/parse-thread.ts`, the `WHATBUILD_PARSE_*` limits) or the service's memory: hostile files are uploaded on dev and its memory is read there
+  (`scripts/hostile-files.mjs`), since a parse that runs out of memory takes the instance with it.
 - Rejected: **a dev deployment with synthetic data only**, which would not show migrations on the
   shapes months of real use leave; **a branch of production's Neon database for dev**, which would
   give dev's identity and key access to production's project; **a trigger on dev**, which would

@@ -88,9 +88,11 @@ Generate release notes → Publish release.
 On the Cloud Run deployment, the tag also starts a Cloud Build that waits for approval. Approve it
 when the person has asked for production to move and the Release workflow has passed.
 
-**Rehearse a release that migrates.** Before approving production's build of a release that adds
-migrations, deploy the release to the [dev deployment](dev-deployment.md), which holds a copy of
-production, and check that each migration applies and each job it queues finishes there
+**Rehearse a release that migrates, or that changes parsing.** Before approving production's build
+of a release that adds migrations, or that changes parsing (`packages/parsers/`, `apps/server/src/parse-thread.ts`, the `WHATBUILD_PARSE_*` limits) or the service's memory, deploy the release to the
+[dev deployment](dev-deployment.md), which holds a copy of production, and check that each
+migration applies and each job it queues finishes there, and that each hostile file ends in its
+status within the instance's memory
 ([decision](../decisions/releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production.md)).
 The commit can be rehearsed before it is tagged, too. A rehearsal that fails means the build is
 rejected or left waiting, and the fix is the next release.

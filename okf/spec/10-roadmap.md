@@ -188,6 +188,7 @@ lets a defect through, when it writes a Story of many pages over MCP.
 | Item | What it answers |
 |---|---|
 | Drop what the retirement left | Insights and decisions are retired and moved into Evidence ([decision](../decisions/insights-and-decisions-are-retired-into-evidence.md)). The empty `insights` table, the register's `kind` column and the worker's move stay until every deployment has run the move ([§9.8](09-data-lifecycle.md)); a later migration drops them, once no kept sandbox baseline holds an insight or a decision. |
+| Uploaded HTML previewed from a sandboxed route | The uploaded-HTML preview inherits the app's content security policy, so the app keeps `style-src 'unsafe-inline'` for it. Serving the preview from its own sandboxed route, as Story pages are, would let the app's policy drop it, and the ZAP rule for directives without a fallback (10055) become a failure. |
 | Story and mockup HTML, and uploaded files, from a separate origin | The sandbox gives each page an opaque origin and no network. Serving page HTML from its own origin through short-lived signed addresses would keep a page that escaped the sandbox away from the app's origin too, and would let PDFs, which browsers will not render sandboxed, open away from it as well. It needs a second host name and a domain mapping. |
 | Structure in a page's design notes | Notes are one Markdown field. Whether they should carry kinds (design, technical, intent) waits until teams have used them. |
 
