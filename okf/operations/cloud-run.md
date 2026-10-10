@@ -95,6 +95,10 @@ without it, or with any value but `development` or `test`, is production as well
 ([local development](local-development.md#development-and-production)). Over HTTPS the session
 cookie is `__Host-wb_session`, which only the service's own host can set.
 
+A release that changes parsing, these limits or the service's memory is tried with hostile files
+on the [dev deployment](dev-deployment.md#rehearsing-a-release) (`scripts/hostile-files.mjs`), and
+its memory read there, before production moves.
+
 **Sign-in.** A production server never logs sign-in links, so it needs one of:
 
 - **Google sign-in** — create an OAuth client (type *Web application*) in Google Auth Platform with
