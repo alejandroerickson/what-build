@@ -3,7 +3,7 @@ type: Decision
 title: Story pages are agent-authored HTML shown only in a sandbox
 description: Agents publish self-contained HTML pages; the server validates them and serves them into an isolated frame.
 tags: [decision, story, security]
-generated: {by: agent:claude, at: 2026-09-29}
+generated: {by: agent:claude, at: 2026-10-09}
 status: stable
 ---
 
@@ -22,6 +22,7 @@ Stakeholder pages benefit from rich layout that agents can write, but that HTML 
 - The frame sends the app a key's name or a page's slug and nothing else, and the app checks both. A page can therefore ask the app to show another page of its own Story, and cannot send the app anywhere else.
 - App pages send `Cross-Origin-Opener-Policy: same-origin`, so a page cannot keep a handle to an app tab it opened and later send it elsewhere.
 - Each publish is a new version; the page tree has its own etag; each page keeps notes for agents ([decision](story-notes-are-agent-memory.md)).
+- Mockup pages are untrusted in the same way and go through the same rules and the same sandbox, without the app's theme ([decision](mockups-are-versioned-canvases-in-exploration.md)).
 
 ## Consequences
 

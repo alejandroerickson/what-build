@@ -5,20 +5,21 @@ import { api, ApiError } from "../lib/api.ts";
 import { attribution, formatDate, formatDateTime, nestQuotes, plural } from "../lib/format.ts";
 import { Markdown, passageHref } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
-import { REVIEW_STATUS } from "../lib/status.ts";
+import { REVIEW_STATUS, toneFor } from "../lib/status.ts";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
-import { Button, ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, Glyph, Group, KeyValue, Loading, Menu, MenuItem, MenuRadio, MenuSeparator, useToast } from "../ui/index.tsx";
+import { Button, ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, Glyph, Group, KeyValue, Loading, Menu, MenuItem, MenuRadio, MenuSeparator, StatusBadge, useToast } from "../ui/index.tsx";
 import { isTypingTarget, useMediaQuery } from "../ui/media.ts";
 import { FirstUse } from "./first-use.tsx";
 import { FocusToggle, useStoryFocus } from "./story-focus.tsx";
-import type { Actor, CitationView, ResolvedRef } from "./story-model.ts";
+import { driftWords } from "./story-inspector.tsx";
+import type { Actor, CitationCheck, CitationView, ResolvedRef } from "./story-model.ts";
 import "../styles/screens/story.css";
 import "../styles/screens/mockups.css";
 
 /**
  * Mockups: canvases of agent-made HTML pages in Exploration. The panel lists them; one opens as
- * a canvas the width of the window, every page unfolded at its own size with its design notes
- * under it, to pan and zoom around. The inspector holds the brief and the version.
+ * a canvas the width of the window, every page at its own size with its label above it, to pan
+ * and zoom around. The inspector holds the version, the selected page's notes and the brief.
  */
 
 export interface MockupSummary {
@@ -346,6 +347,8 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, fitRequest }: {
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || isTypingTarget(e.target) || document.querySelector("dialog[open], .menu")) return;
       const k = e.key;
       if (k === " ") {
+        // Space presses a focused control; it pans only from the canvas or the page around it.
+        if (e.target instanceof Element && e.target.closest("button, a[href], summary, select, [role=button], [role=menuitem], [role=menuitemradio], [role=radio], [role=tab]")) return;
         e.preventDefault();
         setSpace(true);
       } else if (k === "h" || k === "H") setMode("pan");
@@ -357,17 +360,22 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, fitRequest }: {
         touched.current = true;
         fitCanvas();
       } else if (k === "2") fitPage(selected);
-      else if (k === "Escape" && selected) onSelect(null);
+      else if (k === "Escape" && selected) {
+        // The first Esc clears the selection; only the next leaves focus mode.
+        e.preventDefault();
+        onSelect(null);
+      }
     };
     const up = (e: KeyboardEvent) => {
       if (e.key === " ") setSpace(false);
     };
     const blur = () => setSpace(false);
-    window.addEventListener("keydown", down);
+    // Captured, so the canvas sees a key before focus mode's own listener does.
+    window.addEventListener("keydown", down, true);
     window.addEventListener("keyup", up);
     window.addEventListener("blur", blur);
     return () => {
-      window.removeEventListener("keydown", down);
+      window.removeEventListener("keydown", down, true);
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", blur);
     };
@@ -572,6 +580,11 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, on
   const refCount = REF_KINDS.reduce((n, k) => n + (refs[k.kind]?.length ?? 0), 0);
   const index = shown.pages.findIndex((p) => p.page_id === selected);
   const page = index >= 0 ? shown.pages[index]! : null;
+  const checks = useQuery({
+    queryKey: ["mockup-citations", base, e.mockup_id, shown.version],
+    enabled: shown.citations.length > 0,
+    queryFn: () => api<{ citations: CitationCheck[] }>("GET", `${base}/mockups/${e.mockup_id}/check-citations?version=${shown.version}`),
+  });
 
   const download = async () => {
     setDownloading(true);
@@ -707,19 +720,31 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, on
       {shown.citations.length ? (
         <Group title="Cited passages" count={shown.citations.length}>
           <ol className="story-cites">
-            {shown.citations.map((c) => (
-              <li key={c.index} className="story-cite">
-                <div className="story-cite-head">
-                  <Link className="story-cite-source story-ref-link" to={`${app}/evidence/${c.record_id}`}>
-                    {c.source_title ?? "Source"}
-                  </Link>
-                  <Link className="story-cite-address num" to={passageHref(app, c.record_id, c.seq_start, c.seq_end)}>
-                    {c.seq_start === c.seq_end ? `¶${c.seq_start}` : `¶${c.seq_start}–${c.seq_end}`}
-                  </Link>
-                </div>
-                <q className="story-cite-quote">{nestQuotes(c.quote)}</q>
-              </li>
-            ))}
+            {shown.citations.map((c) => {
+              const check = checks.data?.citations.find((x) => x.index === c.index);
+              return (
+                <li key={c.index} className="story-cite">
+                  <div className="story-cite-head">
+                    <Link className="story-cite-source story-ref-link" to={`${app}/evidence/${c.record_id}`}>
+                      {c.source_title ?? "Source"}
+                    </Link>
+                    <Link className="story-cite-address num" to={passageHref(app, c.record_id, c.seq_start, c.seq_end)}>
+                      {c.seq_start === c.seq_end ? `¶${c.seq_start}` : `¶${c.seq_start}–${c.seq_end}`}
+                    </Link>
+                  </div>
+                  <q className="story-cite-quote">{nestQuotes(c.quote)}</q>
+                  <div className="story-cite-status">
+                    {check ? (
+                      <StatusBadge tone={check.version_drift && check.status === "ok" ? "attention" : toneFor("citation", check.status)}>{driftWords(check)}</StatusBadge>
+                    ) : checks.isError ? (
+                      <span className="faint">Could not check against the source</span>
+                    ) : (
+                      <span className="faint">Checking against the source…</span>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
           </ol>
         </Group>
       ) : null}

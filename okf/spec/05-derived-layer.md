@@ -42,7 +42,7 @@ returns a passage `read_passage` cannot serve.
 ## 5.2 Sidecars
 
 Each derivation consists of four sidecars, stored as immutable blobs under
-`t/<tenant_id>/r/<record_id>/d/<derivation_id>/` ([§4.14](04-data-model.md)).
+`t/<tenant_id>/r/<record_id>/d/<derivation_id>/` ([§4.15](04-data-model.md)).
 
 ### `segments.jsonl`
 

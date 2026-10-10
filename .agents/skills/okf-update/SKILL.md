@@ -59,6 +59,7 @@ adding a near-duplicate.
 | `apps/server/src/migrations/*.sql`, `packages/core/src/db.ts` | `spec/04`; tenancy or row-level security changes: decision `shared-schema-tenancy-with-row-level-security`; retention: `spec/09` |
 | `citations.ts` | `spec/04` (citations), decision `citations-snapshot-and-report-drift` |
 | `story-html.ts`, `story-guidance.ts`, `story-styles.ts`, `story-theme.ts`, `story-print.ts`, `ops/story.ts` | `spec/04` and `spec/07` (Story), decisions `story-pages-are-sandboxed-agent-html`, `story-pages-follow-the-teams-design-system`, `story-notes-are-agent-memory` and `pdf-export-uses-browser-print` |
+| `ops/mockups.ts`, `apps/web/src/routes/mockups.tsx`, `mockups.css` | `spec/04` §4.12 and `spec/07` §7.7 (Mockups), decision `mockups-are-versioned-canvases-in-exploration`, the canvas in `DESIGN.md`; a change to the HTML rules or the sandbox also `story-pages-are-sandboxed-agent-html` |
 | `packages/parsers/**`, `kinds.ts`, `media.ts`, `worker.ts` | `spec/05`, decision `only-the-primary-file-is-searched`, the parser list in `spec/10` |
 | `ops/search.ts` | `spec/08` |
 | Archive, delete, export (`ops/export.ts`) | `spec/09`, decision `archive-by-default-delete-guarded` |

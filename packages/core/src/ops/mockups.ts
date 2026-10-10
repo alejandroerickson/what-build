@@ -1,7 +1,7 @@
 import { strToU8, zipSync } from "fflate";
 import { z } from "zod";
 import { checkEtag, EMPTY_REFS, productId, recordActivity, tenantId, validateRefs } from "../common.ts";
-import { CITATION_MAX_COUNT, citationInput, citationViews, snapshotAll } from "../citations.ts";
+import { checkCitationList, CITATION_MAX_COUNT, citationInput, citationViews, snapshotAll } from "../citations.ts";
 import { json, type Tx } from "../db.ts";
 import { conflict, invalid, notFound } from "../errors.ts";
 import { DOWNLOAD_GRANT_HEADER } from "./files.ts";
@@ -17,6 +17,7 @@ import { resolveRefs } from "./story.ts";
  * canvas explores and why. A version is the whole canvas; every publish makes the next one.
  */
 
+export const MAX_MOCKUPS = 50;
 export const MAX_MOCKUP_PAGES = 24;
 export const MOCKUP_HTML_TOTAL = 8_000_000;
 export const BRIEF_MAX = 50_000;
@@ -123,12 +124,12 @@ export const listMockups = defineOperation({
   mcp: { tool: "mockups", action: "list" },
   async handler(ctx, input) {
     let q = ctx.db
-      .selectFrom("mockups as e")
-      .selectAll("e")
-      .select((eb) => eb.selectFrom("mockup_pages as p").whereRef("p.version_id", "=", "e.current_version_id").select(eb.fn.countAll<number>().as("n")).as("page_count"))
-      .where("e.product_id", "=", productId(ctx));
-    if (!input.include_archived) q = q.where("e.archived_at", "is", null);
-    const rows = await q.orderBy("e.updated_at", "desc").execute();
+      .selectFrom("mockups as m")
+      .selectAll("m")
+      .select((eb) => eb.selectFrom("mockup_pages as p").whereRef("p.version_id", "=", "m.current_version_id").select(eb.fn.countAll<number>().as("n")).as("page_count"))
+      .where("m.product_id", "=", productId(ctx));
+    if (!input.include_archived) q = q.where("m.archived_at", "is", null);
+    const rows = await q.orderBy("m.updated_at", "desc").execute();
     return { items: rows.map((r) => ({ ...summaryView(r), page_count: Number(r.page_count ?? 0) })) };
   },
 });
@@ -201,7 +202,7 @@ export const publishMockup = defineOperation({
   mutates: true,
   summary: "Publish the next version of a mockup's canvas, or create a mockup with its first version. A later version keeps whatever you omit.",
   description:
-    `Without mockup_id, creates a mockup: give a title, a brief and at least one page with a title and html. With mockup_id, publishes the next version: pass the mockup's etag, and send only what changes. pages, when given, is the whole canvas in order: a page you leave out is dropped from this version, and a page whose page_id was on the base version keeps its title, notes, size and html unless you send them, so a version that changes one page sends that page's html alone. The brief is Markdown: what the canvas explores, for whom, the questions it is meant to answer, and what each page tries; write it for the next agent as much as for people. Each page is one self-contained HTML document shown in a sandboxed frame of width × height CSS pixels (default ${DEFAULT_WIDTH} × ${DEFAULT_HEIGHT}; 390 wide for a phone): inline CSS and bounded inline scripts, images and fonts as data: URIs, no remote resources, forms or frames; every problem is listed at once (422). columns sets how many pages sit side by side before the canvas wraps; null keeps one row. refs links the outcomes, sources and assumptions the canvas explores, and citations up to ${CITATION_MAX_COUNT} exact passages, {record_id, seq_start, seq_end, quote?}, frozen as snapshots. from_version: N starts from that earlier version instead of the current one. At most ${MAX_MOCKUP_PAGES} pages, ${(MOCKUP_HTML_TOTAL / 1_000_000).toFixed(0)} million characters of HTML in all.`,
+    `Without mockup_id, creates a mockup: give a title, a brief and at least one page with a title and html. With mockup_id, publishes the next version: pass the mockup's etag, and send only what changes. pages, when given, is the whole canvas in order: a page you leave out is dropped from this version, and a page whose page_id was on the base version keeps its title, notes, size and html unless you send them, so a version that changes one page sends that page's html alone. The brief is Markdown: what the canvas explores, for whom, the questions it is meant to answer, and what each page tries; write it for the next agent as much as for people. Each page is one self-contained HTML document shown in a sandboxed frame of width × height CSS pixels (default ${DEFAULT_WIDTH} × ${DEFAULT_HEIGHT}; 390 wide for a phone): inline CSS and bounded inline scripts, images and fonts as data: URIs, no remote resources, forms or frames; every problem is listed at once (422). columns sets how many pages sit side by side before the canvas wraps; null keeps one row. refs links the outcomes, sources and assumptions the canvas explores, and citations up to ${CITATION_MAX_COUNT} exact passages, {record_id, seq_start, seq_end, quote?}, frozen as snapshots. from_version: N starts from that earlier version instead of the current one. At most ${MAX_MOCKUP_PAGES} pages, ${(MOCKUP_HTML_TOTAL / 1_000_000).toFixed(0)} million characters of HTML in all, and ${MAX_MOCKUPS} mockups in a product, archived ones included.`,
   input: z.strictObject({
     mockup_id: id("mockup").optional().describe("Omit to create a mockup."),
     title: z.string().trim().min(1).max(200).optional(),
@@ -233,6 +234,9 @@ export const publishMockup = defineOperation({
       if (input.from_version) throw invalid("invalid_input", "from_version needs a mockup_id.");
       if (!input.title) throw invalid("invalid_input", "A new mockup needs a title.");
       if (!input.pages) throw invalid("invalid_input", "A new mockup needs at least one page.");
+      const count = await ctx.db.selectFrom("mockups").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst();
+      if (Number(count?.n ?? 0) >= MAX_MOCKUPS)
+        throw conflict("quota_exceeded", `A product holds at most ${MAX_MOCKUPS} mockups, archived ones included.`, { quota: "mockups", limit: MAX_MOCKUPS, used: Number(count?.n ?? 0), unit: "mockups" });
     }
 
     const problems: string[] = [];
@@ -370,7 +374,26 @@ export const getMockupDownload = defineOperation({
   },
 });
 
-export const mockupOps = [listMockups, getMockup, listMockupVersions, getMockupVersion, publishMockup, archiveMockup, restoreMockup, getMockupDownload];
+export const checkMockupCitations = defineOperation({
+  name: "mockups.check_citations",
+  scope: "product",
+  access: "read",
+  mutates: false,
+  summary: "Re-resolve a mockup version's citations against the sources as they are now. Reports drift; never rewrites.",
+  description:
+    "Checks the current version unless version is given, with the statuses story(action=\"check_citations\") reports: ok, relocated (with the new range), text_changed, record_archived, record_deleted or record_missing, plus version_drift when the source's primary file has a newer version than the snapshot's.",
+  input: z.strictObject({ mockup_id: id("mockup"), version: z.number().int().min(1).optional() }),
+  rest: { method: "GET", path: "/mockups/:mockup_id/check-citations" },
+  mcp: { tool: "mockups", action: "check_citations" },
+  async handler(ctx, input) {
+    const m = await loadMockup(ctx, input.mockup_id);
+    const vid = input.version ? await versionIdOf(ctx, m.mockup_id, input.version) : m.current_version_id;
+    const v = await ctx.db.selectFrom("mockup_versions").select(["n", "citations"]).where("version_id", "=", vid).executeTakeFirstOrThrow();
+    return { mockup_id: m.mockup_id, version: v.n, checked_at: ctx.now, ...(await checkCitationList(ctx, v.citations)) };
+  },
+});
+
+export const mockupOps = [listMockups, getMockup, listMockupVersions, getMockupVersion, publishMockup, archiveMockup, restoreMockup, getMockupDownload, checkMockupCitations];
 
 /**
  * One version of a mockup as a ZIP, for the download grant's route: brief.md, manifest.json,

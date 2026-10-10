@@ -1,9 +1,9 @@
 ---
 type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
-description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their taxonomy, files, annotations, insights and insight review, the registers and citations, views and lineage, activity, Story, feedback, the product bundle, and the storage layout.
-tags: [spec, data-model, schema, citations, revisions, story, export]
-generated: {by: agent:claude, at: 2026-09-29}
+description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their taxonomy, files, annotations, insights and insight review, the registers and citations, views and lineage, activity, Story, mockups, feedback, the product bundle, and the storage layout.
+tags: [spec, data-model, schema, citations, revisions, story, mockups, export]
+generated: {by: agent:claude, at: 2026-10-09}
 status: stable
 ---
 
@@ -166,7 +166,7 @@ describes discovery work and source formats, never a domain.
 
 - `<yyyy>` comes from `date`; dated kinds without a date use `undated`.
 - The folder is a **browse facet**, not a storage location. Bytes are stored under immutable keys
-  (§4.14), so a change of kind or date moves nothing. No caller ever supplies a folder.
+  (§4.15), so a change of kind or date moves nothing. No caller ever supplies a folder.
 - Retiring a kind later MUST leave existing sources readable and listable under their stored kind.
 
 ## 4.5 Files
@@ -572,7 +572,63 @@ placed in the hierarchy unless the author's instructions say otherwise. A first 
 omits both `body` and `html` gets a generated title page in the product's Story style, or a plain
 page when there is none.
 
-## 4.12 Feedback
+## 4.12 Mockups
+
+A mockup is a canvas of HTML pages an agent built from the evidence (screens, flows, alternatives
+side by side), each with design notes, and a brief that says what the canvas explores
+([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)). Fields:
+`mockup_id`, `title` (1–200), `summary` (≤ 2,000, shown in the list), `archived_at`,
+`current_version`, `etag`, and an append-only list of **versions**. A version is immutable and is
+the whole canvas: `version` (1, 2, 3…), `title`, `summary`, `brief` (Markdown, ≤ 50,000: what the
+canvas explores, for whom, the questions it should answer, what each page tries), `columns` (1–12
+pages side by side before the canvas wraps, or null for one row), the `pages` in order, `refs`
+(outcomes, sources and assumptions), `citations`, `published_at` and `published_by`. A page:
+`page_id` (a slug, `[a-z0-9][a-z0-9-]*`, ≤ 80 chars), `title` (1–200), `notes` (Markdown,
+≤ 10,000, the page's design notes), `width` (240–2,560 CSS pixels, default 1,280; 390 for a
+phone) and `height` (240–4,000, default 800), and its HTML, returned only with `include_html`;
+`html_sha256` and `html_path` (the page's HTML route) are computed on read. Limits: 24 pages and
+8,000,000 characters of HTML in a version; 50 mockups in a product, archived ones included
+(`409 quota_exceeded`).
+
+**Publishing.** `mockups.publish` without `mockup_id` creates a mockup with its first version: a
+`title` and at least one page with a `title` and `html`. With `mockup_id` it publishes the next
+version and needs the mockup's etag (`409 stale_etag`); an archived mockup refuses it
+(`409 mockup_archived`). A version starts from a base, the current one unless `from_version: N`
+names another, and takes every field it omits (`title`, `summary`, `brief`, `columns`, `refs`,
+`citations`) from the base. `pages`, when passed, is the whole canvas in order: a page left out is
+dropped from the version, and a page whose `page_id` was on the base keeps its title, notes, size
+and HTML unless they are sent, so a version that changes one page sends only that page's HTML. A
+new page needs a title and HTML (`422 invalid_input`, listing every problem). HTML that is sent
+follows the Story's HTML rules (§4.11) and is checked at publish (`422 invalid_html`); carried
+HTML was checked when it was first published.
+◆ Decision: a version is the whole canvas, not one page. The pages of a canvas are read and
+compared together, so they are published, numbered and downloaded together.
+
+**Rendering.** A page's HTML is served by `GET …/mockups/{mockup_id}/versions/{n}/pages/{page_id}/html`
+with the Story's sandbox: the same Content-Security-Policy and frame, and the same frame script
+with `?frame=1` (§4.11). It takes no `?theme`, because a mockup carries its own look. Any role but
+a reader may read it.
+
+**Citations and refs** work as on a Story version (§4.11): up to 20 citations, snapshotted as
+register citations are (§4.8), each returned with its source's current title, and every `refs` id
+resolved to its current title and state (`resolved_refs`). `mockups.check_citations { mockup_id,
+version? }` re-resolves a version's citations with the statuses in §4.8. A source that a mockup's
+current version cites or lists is reported by `sources.insights_for`, keeps
+`sources.move_to_product` from moving it (`409 source_in_use`), and `sources.delete_impact` lists
+every mockup version that cites it (`mockup_versions_citing`).
+
+**Download.** `mockups.get_download { mockup_id, version? }` returns a short-lived grant for
+`GET /api/v1/downloads/mockup/{version_id}` with the `X-WhatBuild-Download-Grant` header. The ZIP
+holds `brief.md`, `manifest.json` (format `whatbuild-mockup`, format version 1: the mockup, the
+version, `columns`, who published it and when, the pages in order with their titles, sizes,
+`html_sha256` and file names, the refs and the citations) and `pages/<page_id>.html` with
+`pages/<page_id>.notes.md`, so an agent can build the next version in a project of its own and
+publish the pages that changed.
+
+**Archive.** `mockups.archive` and `mockups.restore` take the etag. An archived mockup leaves the
+list unless `include_archived`, and every version stays readable.
+
+## 4.13 Feedback
 
 `submit_feedback { category, message, tool?, details? }`: `category` is `issue`, `confusion`,
 `feature_request`, or `other`; `message` 1–4,000 chars; `tool` ≤ 64 chars; `details` ≤ 4,000
@@ -589,7 +645,7 @@ to 200 an hour across the site (`429 rate_limited`). Not tenant content and not 
 write-only like feedback
 ([decision](../decisions/the-public-site-is-one-page-built-with-the-app.md)).
 
-## 4.13 The product bundle
+## 4.14 The product bundle
 
 A product exports to a single ZIP (`products.export`, open to every role on the product). A worker
 job builds it; it can be downloaded for seven days ([`export.ts`](../../packages/core/src/ops/export.ts)).
@@ -606,6 +662,8 @@ insights/<insight_id>.json  ·  insights/<insight_id>.md
 registers/assumptions.json  ·  registers/decisions.json       with their reviews
 revisions.json
 story/hierarchy.json  ·  story/pages/<page_id>/page.json  ·  story/pages/<page_id>/v<n>.{json,html}
+mockups/<mockup_id>/mockup.json
+mockups/<mockup_id>/v<n>/{version.json,brief.md}  ·  mockups/<mockup_id>/v<n>/pages/<page_id>.{html,notes.md}
 tombstones.json
 activity.jsonl
 ```
@@ -618,11 +676,12 @@ activity.jsonl
   `product_id` exists, unless the caller asks for a copy, which re-mints the product id only); and
   a **tenant export** of every product's bundle plus members and outstanding invitations.
 
-## 4.14 Storage layout
+## 4.15 Storage layout
 
 - **Metadata** lives in Postgres: one table per object type with ordinary columns, JSONB for nested
   values (actor snapshots, citations, refs, links), and indexes for the filters in this spec.
-  Append-only data (reviews, Story versions, derivations, revisions, activity events, tombstones)
+  Append-only data (reviews, Story versions, mockup versions and their pages, derivations,
+  revisions, activity events, tombstones)
   lives in its own tables and is never updated. Every content table has a row-level security
   policy keyed on the transaction-local `app.tenant_id`. Directory tables (accounts, sessions,
   tokens, OAuth clients, tenants, teams, products, memberships, invitations) and the job queue and

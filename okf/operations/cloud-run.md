@@ -289,7 +289,7 @@ upload grants and links use the first; the site's host is the second. Add
 `https://app.example.com/auth/google/callback` to the Google sign-in client's redirect URIs.
 
 **Who asked to hear from us.** The site's form writes to the `interest` table
-([§4.12](../spec/04-data-model.md)); nothing sends mail yet. Read it with Cloud SQL Studio or
+([§4.13](../spec/04-data-model.md)); nothing sends mail yet. Read it with Cloud SQL Studio or
 `psql`: `SELECT email, name, organization, note, created_at FROM interest ORDER BY created_at DESC;`
 
 ## What it costs

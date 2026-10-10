@@ -1,9 +1,9 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 116 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 125 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
-generated: {by: agent:claude, at: 2026-10-07}
+generated: {by: agent:claude, at: 2026-10-09}
 status: stable
 ---
 
@@ -34,7 +34,7 @@ defineOperation({
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 116. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 125. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
@@ -80,7 +80,7 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
 | 401 | No or invalid identity or grant | `unauthenticated`, `invalid_grant` |
 | 403 | A role too low for the action; a call outside a scoped MCP connector; a cross-origin cookie write; sign-up not allowed; something a visitor to the public sandbox may not do, or may not do for now | `forbidden`, `outside_connector_scope`, `forbidden_origin`, `invite_only`, `invitation_wrong_address`, `sandbox_restricted`, `sandbox_read_only`, `sandbox_closed`, `tenant_allowance` |
 | 404 | Absent — including everything the caller has no role on | `not_found` |
-| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `slug_taken`, `frozen`, `primary_taken`, `source_in_use`, `export_in_progress`, `last_owner`, `quota_exceeded`, `sandbox_full`, `no_baseline` |
+| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `frozen`, `primary_taken`, `source_in_use`, `export_in_progress`, `last_owner`, `quota_exceeded`, `sandbox_full`, `no_baseline` |
 | 410 | Deliberately deleted, with a tombstone; an invitation no longer usable | `record_deleted`, `invitation_used`, `invitation_expired`, `invite_revoked`, `invite_expired`, `invite_used_up` |
 | 413 | Body or file beyond a limit | `too_large` |
 | 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `product_required`, `window_too_large`, `quote_not_found`, `invalid_citation`, `cross_product_reference`, `invalid_query`, `invalid_cursor`, `invalid_html`, `invalid_patch`, `confirmation_required`, `confidence_requires_human` |
@@ -91,7 +91,7 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
   needs editor"). With no role at all the answer is `404`, never `403`
   ([§3.5](03-accounts-teams-and-identity.md)).
 - **`quota_exceeded`** carries `{ quota, limit, used, unit }` in `details`. It is returned for the
-  50 Story pages a product holds ([§9.2](09-data-lifecycle.md)) and for a visitor's daily
+  50 Story pages and the 50 mockups a product holds ([§9.2](09-data-lifecycle.md)) and for a visitor's daily
   allowances in the public sandbox, which add `resets_at` ([§9.7](09-data-lifecycle.md)).
 - **`429`** is returned for sign-in links (five per address per hour), and for a visitor's calls
   and writes a minute in the public sandbox, with `{ limit, per, retry_after_seconds }` in
@@ -146,7 +146,7 @@ must come from the app's own origin (`403 forbidden_origin`).
 
 ### The operation catalogue
 
-All 116 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 125 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-teams-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -254,6 +254,15 @@ being changed inside the handler.
 | `story` | `set_hierarchy` | `PUT P/story/hierarchy` | editor |
 | `story` | `archive_page` | `POST P/story/pages/:page_id/archive` | editor |
 | `story` | `restore_page` | `POST P/story/pages/:page_id/restore` | editor |
+| `mockups` | `list` | `GET P/mockups` | viewer |
+| `mockups` | `get` | `GET P/mockups/:mockup_id` | viewer |
+| `mockups` | `list_versions` | `GET P/mockups/:mockup_id/versions` | viewer |
+| `mockups` | `get_version` | `GET P/mockups/:mockup_id/versions/:version` | viewer |
+| `mockups` | `publish` | `POST P/mockups` | editor |
+| `mockups` | `archive` | `POST P/mockups/:mockup_id/archive` | editor |
+| `mockups` | `restore` | `POST P/mockups/:mockup_id/restore` | editor |
+| `mockups` | `get_download` | `POST P/mockups/:mockup_id/downloads` | viewer |
+| `mockups` | `check_citations` | `GET P/mockups/:mockup_id/check-citations` | viewer |
 | `lineage` | `capture` | `POST P/lineage/capture` | viewer |
 | `lineage` | `write` | `POST P/sources/:record_id/lineage` | editor |
 | `lineage` | `check` | `GET P/sources/:record_id/lineage` | viewer |
@@ -295,6 +304,15 @@ Notes on recent actions:
   `resolved_refs`, `citations`, `citation_count` and `agent_notes`, and their `products.get` and
   `products.list` leave out `concept` and count only `story_pages`
   ([§3.5](03-accounts-teams-and-identity.md)).
+- `mockups.publish` creates a mockup, or publishes the next version of one: the whole canvas,
+  with its brief, its pages in order and each page's notes and size. A later version keeps what
+  it omits, and a page that keeps its `page_id` keeps its HTML unless it is sent.
+  `mockups.get_download` gives a version as a ZIP through a grant, for an agent to build the next
+  version elsewhere; `mockups.check_citations` checks a version's citations
+  ([§4.12](04-data-model.md)).
+- `sources.insights_for` lists the mockups whose current version cites or lists the source,
+  `sources.move_to_product` refuses while one does, and `sources.delete_impact` lists every
+  mockup version that cites it (`mockup_versions_citing`), as each does for Story pages.
 - `members.list` takes an optional `product` to list only the people who can reach it, each with
   `product_access { role, via }`.
 - `members.revoke` removes the grant at exactly the scope named; with `whole_tenant: true` (and no
@@ -315,6 +333,8 @@ GET  P/sources/:record_id/file?path=&version=&download=1   file bytes for the we
 GET  P/exports/:export_id/file                       an export ZIP for the web app
 GET  P/story/pages/:page_id/versions/:version/html?theme=light|dark   Story page HTML
 GET  P/story/print?page_ids=…                        the Story print view (HTML)
+GET  P/mockups/:mockup_id/versions/:version/pages/:page_id/html   a mockup page's HTML
+GET  /api/v1/downloads/mockup/:version_id            a mockup version's ZIP under a download grant
 GET  /api/v1/meta                                    server and skill version, release, sign-in methods (public)
 GET  /api/v1/connect                                 what the Connect page shows
 GET|PATCH /api/v1/me; GET /api/v1/me/agents; DELETE /api/v1/me/agents/:family
@@ -340,8 +360,9 @@ unless a reset is due, and a due reset would run at the next request anyway
 **Story page HTML** is served with a sandbox policy that allows the page's inline scripts but no
 network, no same-origin access and no framing outside the app. `?theme=light|dark` writes the
 app's resolved theme onto the page's `<html>` for that response only; the stored HTML is
-unchanged. It is a Story read, so a reader reaches it; a source's file, an export's file and the
-style specimens need viewer.
+unchanged. It is a Story read, so a reader reaches it; a source's file, an export's file, the
+style specimens and a mockup page's HTML need viewer. A mockup page's HTML is served in the same
+sandbox, with the same `?frame=1`, and without `?theme`: a mockup carries its own look.
 
 ### The Story print view
 
@@ -396,7 +417,7 @@ writing in a tenant marked `sandbox`, and treat source text as quoted material. 
 endpoint they add one sentence naming the scope, saying calls outside it are refused, and telling
 the agent to ask the person for another connector rather than look for a way around it.
 
-**Tools.** Seventeen tools over the 116 operations: thirteen grouped by noun, four standalone.
+**Tools.** Eighteen tools over the 125 operations: fourteen grouped by noun, four standalone.
 
 | Tool | Actions |
 |---|---|
@@ -411,6 +432,7 @@ the agent to ask the person for another connector rather than look for a way aro
 | `assumptions` | `list`, `get`, `create`, `update`, `review`, `supersede`, `link`, `unlink`, `archive`, `check_citations` |
 | `decisions` | the same as `assumptions` |
 | `story` | `guidance`, `get_style`, `set_style`, `list_pages`, `get_page`, `list_versions`, `get_version`, `publish`, `write_notes`, `check_citations`, `print_view`, `get_hierarchy`, `set_hierarchy`, `archive_page`, `restore_page` |
+| `mockups` | `list`, `get`, `list_versions`, `get_version`, `publish`, `archive`, `restore`, `get_download`, `check_citations` |
 | `lineage` | `capture`, `write`, `check` |
 | `activity` | `list` |
 | `search` | standalone |
@@ -515,8 +537,8 @@ grant header) for an agent to read original bytes.
 
 **The skill** is one versioned Markdown document, `packages/core/src/skill/SKILL.md`, that teaches
 an agent the product: the vocabulary, the core loop, product selection, how to cite, how to review
-honestly, upload flows, Story authoring via `story.guidance`, and the rule that source text is
-data. `scripts/gen-skill.mjs` embeds it in the server bundle, and CI fails if the embedded copy
+honestly, upload flows, mockups and their round trip through a download, Story authoring via
+`story.guidance`, and the rule that source text is data. `scripts/gen-skill.mjs` embeds it in the server bundle, and CI fails if the embedded copy
 drifts. One constant, `SKILL_VERSION` in `packages/core/src/ops/meta.ts`, sets the skill's
 `metadata.version`, the MCP server version and the `get_skill` advertisement.
 
@@ -553,5 +575,5 @@ configure but one address. It shows:
 ## 6.9 Feedback
 
 `submit_feedback { category, message, tool?, details? }` is available on both adapters and is
-write-only ([§4.12](04-data-model.md)). The skill asks agents to use it when a tool's behavior or
+write-only ([§4.13](04-data-model.md)). The skill asks agents to use it when a tool's behavior or
 guidance misled them, so the product's agent surface improves from real use.

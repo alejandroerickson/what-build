@@ -38,7 +38,7 @@ interface Baseline {
   created_at: string;
   created_by: Actor;
   rows: number;
-  holds: { products: number; sources: number; passages: number; outcomes: number; insights: number; register_entries: number; story_pages: number };
+  holds: { products: number; sources: number; passages: number; outcomes: number; insights: number; register_entries: number; story_pages: number; mockups: number };
 }
 
 interface Limit {
@@ -561,7 +561,7 @@ function NumberCell({ label, value, onChange, suffix, step = 1 }: { label: strin
 
 function holdsWords(b: Baseline): string {
   const h = b.holds;
-  return [plural(h.products, "product"), plural(h.sources, "source"), plural(h.passages, "passage"), plural(h.insights, "insight"), plural(h.register_entries, "assumption or decision", "assumptions and decisions"), plural(h.story_pages, "Story page")].join(", ");
+  return [plural(h.products, "product"), plural(h.sources, "source"), plural(h.passages, "passage"), plural(h.insights, "insight"), plural(h.register_entries, "assumption or decision", "assumptions and decisions"), plural(h.mockups, "mockup"), plural(h.story_pages, "Story page")].join(", ");
 }
 
 function Baselines({ tenant, inUse, onReset }: { tenant: string; inUse: Baseline | null; onReset: (b: Baseline) => void }) {

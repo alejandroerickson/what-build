@@ -174,6 +174,7 @@ export function baselineView(b: { baseline_id: string; note: string; counts: Rec
       insights: c["insights"] ?? 0,
       register_entries: c["register_entries"] ?? 0,
       story_pages: c["story_pages"] ?? 0,
+      mockups: c["mockups"] ?? 0,
     },
   };
 }

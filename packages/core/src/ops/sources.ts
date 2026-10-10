@@ -776,14 +776,34 @@ async function storyPagesUsing(ctx: OpContext, recordId: string, opts: { include
   }));
 }
 
+/** Mockups whose current version cites a source or lists it in refs. */
+async function mockupsUsing(ctx: OpContext, recordId: string, opts: { includeArchived: boolean }) {
+  let q = ctx.db
+    .selectFrom("mockups as m")
+    .innerJoin("mockup_versions as v", "v.version_id", "m.current_version_id")
+    .select(["m.mockup_id", "m.title", "m.archived_at", "v.n", "v.citations", "v.refs"])
+    .where("m.product_id", "=", productId(ctx))
+    .where(sql<boolean>`(v.citations @> ${JSON.stringify([{ record_id: recordId }])}::jsonb or v.refs->'sources' ? ${recordId})`);
+  if (!opts.includeArchived) q = q.where("m.archived_at", "is", null);
+  const rows = await q.orderBy("m.title").execute();
+  return rows.map((r) => ({
+    mockup_id: r.mockup_id,
+    title: r.title,
+    version: r.n,
+    archived_at: r.archived_at,
+    referenced: r.refs.sources.includes(recordId),
+    citations: r.citations.filter((c) => c.record_id === recordId).map((c) => ({ seq_start: c.seq_start, seq_end: c.seq_end })),
+  }));
+}
+
 export const insightsFor = defineOperation({
   name: "sources.insights_for",
   scope: "product",
   access: "read",
   mutates: false,
-  summary: "Everything built on a source: insights that reference it, assumptions and decisions that cite it, Story pages that cite or reference it, and views whose lineage lists it as an input.",
+  summary: "Everything built on a source: insights that reference it, assumptions and decisions that cite it, Story pages and mockups that cite or reference it, and views whose lineage lists it as an input.",
   description:
-    "Each citation names its exact segment range, so you can read the passage that supports it. Story pages are judged by their current version; archived pages and archived views are left out. Views are those that list this source as a direct input; call lineage(action=\"check\") on one to see whether it is stale.",
+    "Each citation names its exact segment range, so you can read the passage that supports it. Story pages and mockups are judged by their current version; archived pages, mockups and views are left out. Views are those that list this source as a direct input; call lineage(action=\"check\") on one to see whether it is stale.",
   input: z.strictObject({ record_id: id("source") }),
   rest: { method: "GET", path: "/sources/:record_id/insights" },
   mcp: { tool: "sources", action: "insights_for" },
@@ -820,6 +840,7 @@ export const insightsFor = defineOperation({
       assumptions: entries.filter((e) => e.kind === "assumption").map(shape),
       decisions: entries.filter((e) => e.kind === "decision").map(shape),
       story_pages: (await storyPagesUsing(ctx, input.record_id, { includeArchived: false })).map(({ archived_at, ...p }) => (void archived_at, p)),
+      mockups: (await mockupsUsing(ctx, input.record_id, { includeArchived: false })).map(({ archived_at, ...m }) => (void archived_at, m)),
       views: await ctx.db
         .selectFrom("lineage as l")
         .innerJoin("records as r", "r.record_id", "l.record_id")
@@ -861,7 +882,7 @@ export const moveSource = defineOperation({
   mutates: true,
   summary: "Move a source, with its files, passages and notes, to another product in the same team.",
   description:
-    "The record keeps its id, so its passages, file versions and notes move intact. Refused with 409 source_in_use while anything in this product cites or references it — insights, assumptions, decisions, lineage, the current version of a Story page — because references never cross products; the error lists them. Copy instead to keep it in both.",
+    "The record keeps its id, so its passages, file versions and notes move intact. Refused with 409 source_in_use while anything in this product cites or references it — insights, assumptions, decisions, lineage, the current version of a Story page or a mockup — because references never cross products; the error lists them. Copy instead to keep it in both.",
   input: z.strictObject({ record_id: id("source"), to_product: z.string().min(1).describe("Target product id or slug, in the same team."), expected_etag: expectedEtag }),
   rest: { method: "POST", path: "/sources/:record_id/move" },
   mcp: { tool: "sources", action: "move_to_product" },
@@ -875,13 +896,15 @@ export const moveSource = defineOperation({
     const lineage = await ctx.db.selectFrom("lineage").select("record_id").where("product_id", "=", pid).where(sql<boolean>`inputs @> ${JSON.stringify([{ id: r.record_id }])}::jsonb`).execute();
     const related = await ctx.db.selectFrom("records").select("record_id").where("product_id", "=", pid).where(sql<boolean>`${r.record_id} = any(related_records)`).execute();
     const pages = await storyPagesUsing(ctx, r.record_id, { includeArchived: true });
-    if (insights.length || entries.length || lineage.length || related.length || pages.length)
+    const mockups = await mockupsUsing(ctx, r.record_id, { includeArchived: true });
+    if (insights.length || entries.length || lineage.length || related.length || pages.length || mockups.length)
       throw conflict("source_in_use", "This source is referenced in its product, and references never cross products. Remove the references, or copy the source instead.", {
         insights: insights.map((i) => ({ id: i.insight_id, title: i.title })),
         register_entries: entries.map((e) => ({ id: e.entry_id, kind: e.kind, statement: e.statement })),
         views: lineage.map((l) => l.record_id),
         related_sources: related.map((x) => x.record_id),
         story_pages: pages.map((p) => ({ page_id: p.page_id, title: p.title })),
+        mockups: mockups.map((m) => ({ mockup_id: m.mockup_id, title: m.title })),
       });
     await ctx.db.updateTable("records").set({ product_id: target.product_id, related_records: [], etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("record_id", "=", r.record_id).execute();
     await ctx.db.updateTable("annotations").set({ product_id: target.product_id }).where("record_id", "=", r.record_id).execute();
@@ -953,6 +976,26 @@ async function storyVersionsCiting(ctx: OpContext, recordId: string) {
   }));
 }
 
+/** Every mockup version, current or earlier, whose citations include a source. */
+async function mockupVersionsCiting(ctx: OpContext, recordId: string) {
+  const rows = await ctx.db
+    .selectFrom("mockup_versions as v")
+    .innerJoin("mockups as m", "m.mockup_id", "v.mockup_id")
+    .select(["v.mockup_id", "m.title", "v.n", "v.version_id", "m.current_version_id", "v.citations"])
+    .where("v.product_id", "=", productId(ctx))
+    .where(sql<boolean>`v.citations @> ${JSON.stringify([{ record_id: recordId }])}::jsonb`)
+    .orderBy("m.title")
+    .orderBy("v.n", "desc")
+    .execute();
+  return rows.map((v) => ({
+    mockup_id: v.mockup_id,
+    title: v.title,
+    version: v.n,
+    count: v.citations.filter((c) => c.record_id === recordId).length,
+    is_current: v.version_id === v.current_version_id,
+  }));
+}
+
 async function impact(ctx: OpContext, r: RecordRow) {
   const pid = productId(ctx);
   const files = await ctx.db.selectFrom("file_versions").select(["file_version_id", "size", "blob_key"]).where("record_id", "=", r.record_id).execute();
@@ -961,6 +1004,7 @@ async function impact(ctx: OpContext, r: RecordRow) {
   const entries = await ctx.db.selectFrom("register_entries").select(["entry_id", "kind", "statement", "citations"]).where("product_id", "=", pid).where(sql<boolean>`citations @> ${JSON.stringify([{ record_id: r.record_id }])}::jsonb`).execute();
   const insights = await ctx.db.selectFrom("insights").select(["insight_id", "title"]).where("product_id", "=", pid).where(sql<boolean>`refs->'sources' ? ${r.record_id}`).execute();
   const versions = await storyVersionsCiting(ctx, r.record_id);
+  const mockupVersions = await mockupVersionsCiting(ctx, r.record_id);
   return {
     record_id: r.record_id,
     title: r.title,
@@ -975,9 +1019,10 @@ async function impact(ctx: OpContext, r: RecordRow) {
       .filter((p) => p.citations.length)
       .map((p) => ({ page_id: p.page_id, title: p.title, version: p.version, count: p.citations.length })),
     story_versions_citing: versions,
+    mockup_versions_citing: mockupVersions,
     after_delete:
       "Citations keep their quoted text (quote_kept: true) and then report record_deleted, with the tombstone: " +
-      `${entries.length} register ${entries.length === 1 ? "entry" : "entries"} and ${versions.length} Story page ${versions.length === 1 ? "version" : "versions"} (story_versions_citing lists every version, current or earlier).`,
+      `${entries.length} register ${entries.length === 1 ? "entry" : "entries"}, ${versions.length} Story page ${versions.length === 1 ? "version" : "versions"} and ${mockupVersions.length} mockup ${mockupVersions.length === 1 ? "version" : "versions"} (story_versions_citing and mockup_versions_citing list every version, current or earlier).`,
     _blobs: files.map((f) => f.blob_key),
     _prefixes: derivations.map((d) => d.blob_prefix),
   };
@@ -990,7 +1035,7 @@ export const deleteImpact = defineOperation({
   mutates: false,
   summary: "Preview exactly what deleting a source would destroy, including the citations it would orphan.",
   description:
-    "Read-only. Show the person this result before proposing a delete. Citations elsewhere keep their quoted snapshot text after a delete and report record_deleted; story_versions_citing lists every Story page version that cites the source, earlier versions included. Pass this result's etag as the delete's expected_etag.",
+    "Read-only. Show the person this result before proposing a delete. Citations elsewhere keep their quoted snapshot text after a delete and report record_deleted; story_versions_citing and mockup_versions_citing list every Story page and mockup version that cites the source, earlier versions included. Pass this result's etag as the delete's expected_etag.",
   input: z.strictObject({ record_id: id("source") }),
   rest: { method: "GET", path: "/sources/:record_id/delete-impact" },
   mcp: { tool: "sources", action: "delete_impact" },

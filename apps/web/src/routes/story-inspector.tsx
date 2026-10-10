@@ -41,7 +41,8 @@ function refStatus(kind: RefKind, r: ResolvedRef): string | null {
 }
 
 /** Drift in words, never colour alone. */
-function driftWords(c: CitationCheck): string {
+/** A citation check in words, as a register entry, a Story page and a mockup all show it. */
+export function driftWords(c: CitationCheck): string {
   const base = {
     ok: "Matches the source",
     relocated: c.relocated ? `Moved to ¶${c.relocated.seq_start}${c.relocated.seq_end !== c.relocated.seq_start ? `–${c.relocated.seq_end}` : ""}` : "Moved in the source",

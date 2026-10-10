@@ -24,7 +24,8 @@ Google Cloud Run. Recorded in `okf/spec/02-architecture.md`.
   screen; a phone is an occasional reading context. They do not use git and never learn a storage
   path.
 - **Their AI agents**, connected over MCP, which do most of the intake and synthesis: upload and
-  clean sources, read passages, write insights, draft register entries, publish the Story.
+  clean sources, read passages, write insights, draft register entries, build mockups, publish
+  the Story.
 - **Stakeholders** who read the Story and rarely anything else _(inferred: whether they get their
   own role or share links is an open question)_.
 - **People evaluating the approach**, who should see a real, fully derived discovery (the sample
@@ -55,7 +56,7 @@ permissions and one activity log.
 
 ## Capabilities and Constraints
 
-- Four destinations inside a product: **Idea, Evidence, Synthesis, Story**. Everything else is
+- Four destinations inside a product: **Idea, Evidence, Exploration, Story**. Everything else is
   a sub-view.
 - Hierarchy: tenant (organization) → team → product (one discovery). Roles at each level; a person
   without a role on a product cannot see it at all.

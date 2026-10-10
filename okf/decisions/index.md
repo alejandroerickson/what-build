@@ -3,7 +3,7 @@ type: Index
 title: Decisions
 description: Architectural decision records, each with its context, the choice, and what it constrains.
 tags: [index, decisions, adr]
-generated: {by: agent:claude, at: 2026-10-07}
+generated: {by: agent:claude, at: 2026-10-09}
 status: stable
 ---
 
@@ -19,7 +19,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [One stateless container image serves everything and runs the worker](one-stateless-image.md)
 - [Self-hosting on Azure is done by an agent with the Azure CLI, from instructions in the repository, and shares nothing with the Cloud Run deployment](self-hosting-on-azure-is-agent-led-and-shares-nothing-with-cloud-run.md)
 - [Every capability is one registered operation, exposed through both REST and MCP](one-registry-two-front-doors.md)
-- [MCP exposes 17 tools, grouped by the kind of object, with an action parameter](mcp-tools-grouped-by-noun.md)
+- [MCP exposes 18 tools, grouped by the kind of object, with an action parameter](mcp-tools-grouped-by-noun.md)
 - [Tenants share one schema, partitioned by key and enforced three times](shared-schema-tenancy-with-row-level-security.md)
 - [Access is decided in the application, per product, by role](access-is-per-product-roles.md)
 - [A reader reads only the Story, never the evidence behind it](a-reader-reads-only-the-story.md)
@@ -39,6 +39,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Story pages follow the team's design system, never WhatBuild's](story-pages-follow-the-teams-design-system.md)
 - [Marking an insight reviewed applies to the revision that was read](insight-review-marks-a-revision.md)
 - [Story PDF export is a composed print view saved by the browser](pdf-export-uses-browser-print.md)
+- [Mockups are versioned canvases of agent-made HTML, in a stage called Exploration](mockups-are-versioned-canvases-in-exploration.md)
 - [Archive is the reversible default; delete is permanent and guarded](archive-by-default-delete-guarded.md)
 - [Local development may substitute adapters, never behavior](development-substitutes-adapters-never-behavior.md)
 - [A product starts with its idea, a product concept and the outcomes its users should achieve](a-product-starts-with-an-idea-concept-and-outcomes.md)

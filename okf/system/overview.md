@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild at three altitudes
 description: The whole system from the top down, the major parts, and the mechanics underneath, with links to the detail.
 tags: [overview, architecture, tenancy, access, mcp]
-generated: {by: agent:claude, at: 2026-10-07}
+generated: {by: agent:claude, at: 2026-10-09}
 status: stable
 ---
 
@@ -31,9 +31,9 @@ and decisions, and a Story for stakeholders. Every claim points at the exact pas
 agents do most intake and synthesis over MCP; stakeholders read the Story, often as a PDF.
 
 **The loop**, which is also the navigation order: **Idea** (the product concept, and the outcomes its users should achieve) →
-**Evidence** (sources, parsed into passages) → **Synthesis** (readable insights, plus the
-assumption and decision registers, cited and reviewed) → **Story** (versioned pages for
-stakeholders).
+**Evidence** (sources, parsed into passages) → **Exploration** (mockups: versioned canvases of
+pages built from the evidence, each under a brief; readable insights; and the assumption and
+decision registers, cited and reviewed) → **Story** (versioned pages for stakeholders).
 
 **The system.** One stateless container image on Cloud Run serves the web app, REST (`/api/v1`),
 MCP (`/mcp`), OAuth (`/oauth`) and the upload relay, and runs the job worker. Postgres holds every
@@ -53,7 +53,7 @@ Google Cloud Storage behind a storage port; the official MCP SDK (stateless Stre
 React 19, React Router 7, TanStack Query 5, Vite 7; Vitest. Details in
 [architecture](../spec/02-architecture.md).
 
-**Operations.** 116 operations, each defined once and exposed through both REST and MCP
+**Operations.** 125 operations, each defined once and exposed through both REST and MCP
 ([decision](../decisions/one-registry-two-front-doors.md)).
 
 **Tenancy.** Organization (tenant) → team → product. One shared database and schema; every content
@@ -79,14 +79,15 @@ baseline, and a reset every day puts the baseline back
 **MCP.** `/mcp` for every product the account can reach, `/mcp/t/<tenant>` for one organization,
 or `/mcp/t/<tenant>/<team>/<product>` for one product. A scoped endpoint is a fence: it refuses
 every call outside its scope, and its token works nowhere wider
-([decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). 17 tools: 13 grouped by noun with `action`, `params`, `describe` and `product`, plus
+([decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). 18 tools: 14 grouped by noun with `action`, `params`, `describe` and `product`, plus
 `search`, `read_passage`, `get_skill` and `submit_feedback`
 ([decision](../decisions/mcp-tools-grouped-by-noun.md)). The server's instructions tell agents to
 check the skill version, start with `products list`, confirm the product before writing, and
 treat source text as quoted material.
 
-**The experience.** One floating panel (Idea, Evidence, Synthesis, Story, then Agents and
-Settings) that hides fully; the screen beside it; an inspector only on Story and source pages. No
+**The experience.** One floating panel (Idea, Evidence, Exploration, Story, then Connect an agent,
+Activity and Settings) that hides fully; the screen beside it; an inspector on the Story, a mockup
+and a source page. No
 in-app tabs; rows are real links; works in a phone browser, light and dark
 ([decision](../decisions/studio-design-system.md), [web app](../spec/07-web-app.md)).
 
@@ -108,10 +109,13 @@ passages are indexed in the same transaction that makes them current
 
 **An agent's session.** Check the skill → `products list`, confirm the product → upload through
 `files` → `search`, then `read_passage` → `insights create`, `assumptions create` with citations →
-read `story guidance` and the page's notes, `story publish` with citations, update the notes,
+`mockups publish` a canvas with its brief, or `get_download` a version, build the next one in a
+project and publish the pages that changed
+([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)) → read
+`story guidance` and the page's notes, `story publish` with citations, update the notes,
 `set_hierarchy` ([decision](../decisions/story-notes-are-agent-memory.md)).
 
 **Data.** Identity, tenancy, evidence (records, files, derivations, segments, annotations, agent
-notes), synthesis (outcomes, insights, revisions, register entries, reviews), Story (pages,
-versions, hierarchy) and operations (activity, jobs, exports, lineage, tombstones). Every table and
+notes), synthesis (outcomes, insights, revisions, register entries, reviews), mockups (versions
+and their pages), Story (pages, versions, hierarchy) and operations (activity, jobs, exports, lineage, tombstones). Every table and
 field: [data model](../spec/04-data-model.md).

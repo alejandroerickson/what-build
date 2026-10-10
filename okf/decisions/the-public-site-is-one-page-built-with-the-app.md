@@ -50,5 +50,5 @@ instance is alive, so crawlers visiting the page every few minutes would keep on
   headers (`PAGE_HEADERS`, and `PAGE_SECURITY_HEADERS` in `apps/server/src/public-routes.ts`).
 - The page is `apps/web/src/site/`, styled in `apps/web/src/styles/screens/site.css`.
 
-Specified in: [02-architecture §2.3](../spec/02-architecture.md), [04-data-model §4.12](../spec/04-data-model.md),
+Specified in: [02-architecture §2.3](../spec/02-architecture.md), [04-data-model §4.13](../spec/04-data-model.md),
 [07-web-app §7.3](../spec/07-web-app.md), [Cloud Run guide](../operations/cloud-run.md).

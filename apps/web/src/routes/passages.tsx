@@ -81,7 +81,7 @@ function tableRows(segments: Segment[]): Map<number, RowCells> {
 
 interface CitingEntry {
   key: string;
-  kind: "Assumption" | "Decision" | "Story page";
+  kind: "Assumption" | "Decision" | "Mockup" | "Story page";
   title: string;
   to: string;
   seq_start: number;
@@ -125,12 +125,14 @@ export function PassageReader({ record }: { record: RecordFull }) {
         assumptions: { id: string; statement: string; citations: { seq_start: number; seq_end: number }[] }[];
         decisions: { id: string; statement: string; citations: { seq_start: number; seq_end: number }[] }[];
         story_pages?: { page_id: string; title: string; citations: { seq_start: number; seq_end: number }[] }[];
+        mockups?: { mockup_id: string; title: string; citations: { seq_start: number; seq_end: number }[] }[];
       }>("GET", `${base}/sources/${record.record_id}/insights`),
   });
   const citing: CitingEntry[] = cited.data
     ? [
         ...cited.data.assumptions.flatMap((e) => e.citations.map((c, i) => ({ key: `a${e.id}.${i}`, kind: "Assumption" as const, title: e.statement, to: `${app}/exploration/assumptions/${e.id}`, ...c }))),
         ...cited.data.decisions.flatMap((e) => e.citations.map((c, i) => ({ key: `d${e.id}.${i}`, kind: "Decision" as const, title: e.statement, to: `${app}/exploration/decisions/${e.id}`, ...c }))),
+        ...(cited.data.mockups ?? []).flatMap((m) => m.citations.map((c, i) => ({ key: `m${m.mockup_id}.${i}`, kind: "Mockup" as const, title: m.title, to: `${app}/exploration/mockups/${m.mockup_id}`, ...c }))),
         ...(cited.data.story_pages ?? []).flatMap((p) => p.citations.map((c, i) => ({ key: `s${p.page_id}.${i}`, kind: "Story page" as const, title: p.title, to: `${app}/story/${p.page_id}`, ...c }))),
       ]
     : [];

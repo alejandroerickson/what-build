@@ -68,7 +68,7 @@ export function screenPath(pathname: string): string {
  * or slug: `POST /api/v1/p/acme/core/planner/insights/01J…/review` is `insights_review`, and
  * `PATCH …/insights/01J…` is `insights_update`.
  */
-const NOUNS = new Set(["insights", "outcomes", "sources", "assumptions", "decisions", "annotations", "files", "exports", "settings", "members", "invitations", "products", "tenants", "sandbox", "baselines", "invites", "visitors", "agents", "me", "revisions", "story", "pages", "versions", "tenant-allowances", "auth", "email", "dev-sign-in", "sign-out"]);
+const NOUNS = new Set(["insights", "outcomes", "sources", "mockups", "downloads", "assumptions", "decisions", "annotations", "files", "exports", "settings", "members", "invitations", "products", "tenants", "sandbox", "baselines", "invites", "visitors", "agents", "me", "revisions", "story", "pages", "versions", "tenant-allowances", "auth", "email", "dev-sign-in", "sign-out"]);
 const VERBS = new Set(["review", "archive", "restore", "check-citations", "remove", "revoke", "cancel", "accept", "join", "reset", "role"]);
 const METHOD_VERB: Record<string, string> = { POST: "create", PUT: "update", PATCH: "update", DELETE: "delete" };
 

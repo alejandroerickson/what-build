@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild turns a team's discovery material into cited insight and a story, with agents as first-class contributors.
 description: Who the product is for, the core loop, the four screens, the vocabulary, the non-negotiable behaviors, and what the product is not.
 tags: [spec, product, vocabulary, principles]
-generated: {by: agent:claude, at: 2026-10-07}
+generated: {by: agent:claude, at: 2026-10-09}
 status: stable
 ---
 
@@ -36,8 +36,9 @@ status: stable
    learns a storage path.
 3. **Derive.** Every source's primary file is parsed into passage-addressable text: segments with
    speakers, cue timestamps where they exist, and exact character offsets.
-4. **Synthesize.** Write insights (substantial Markdown documents) and register consequential
-   assumptions and decisions, cited to exact source passages where the evidence exists.
+4. **Explore.** Mock up directions as versioned canvases of HTML pages under a brief, write insights
+   (substantial Markdown documents), and register consequential assumptions and decisions, cited
+   to exact source passages where the evidence exists.
 5. **Tell the story.** Publish an outward-facing, stakeholder-readable set of versioned HTML pages
    organized in a hierarchy.
 6. **Iterate together.** Teammates and their agents keep adding material and revising synthesis in
@@ -55,7 +56,7 @@ of one of them.
 |---|---|
 | **Idea** | The product concept, then the outcomes. The landing screen of a product: where a product idea becomes explicit direction. |
 | **Evidence** | The sources: kind-first upload, browse with filters, source pages, the passage reader, notes, search. |
-| **Synthesis** | Insights (the insight documents), the assumption register, the decision register. |
+| **Exploration** | Mockups (canvases of agent-made HTML pages, each with design notes, under a brief), Insights (the insight documents), the assumption register, the decision register. Formerly called Synthesis. |
 | **Story** | The outward-facing report: an ordered hierarchy of versioned, sandboxed HTML pages. |
 
 **Activity** is not a fifth destination: it is a quiet page reached from the product's panel, and from
@@ -85,10 +86,11 @@ Idea screen's terms are a decision: [A product starts with its idea](../decision
 | **passage** | A contiguous range of segments in one source. What citations and reads address. |
 | **product concept** | Who the product is for, the problem they have, and how the product solves it. A product's `concept` field; it heads the **Idea** screen. |
 | **outcome** | What the product's users should be able to achieve with it, written from their side ("The crew lead plans next week in minutes"), not a feature or a task. Not the discovery's own goals. The destination that holds the product concept and the outcomes is **Idea**. |
-| **insight** | A readable Markdown synthesis document. The destination that holds insights and the two registers is **Synthesis**; within it, the list of insights is **Insights**. |
+| **insight** | A readable Markdown synthesis document. The destination that holds mockups, insights and the two registers is **Exploration**; within it, the list of insights is **Insights**. |
+| **mockup** | A canvas of HTML pages an agent built from the evidence (screens, flows, alternatives side by side), each page with design notes, under a Markdown **brief** that says what the canvas explores. A version is the whole canvas. Never "exploration", "board" or "prototype". |
 | **revision** | The previous text of an authored body, kept immutably whenever that body is overwritten. |
 | **assumption**, **decision** | Entries in the two reviewed **registers**. |
-| **citation** | A structural pointer from a register entry or a Story page version to a passage, with an immutable snapshot. |
+| **citation** | A structural pointer from a register entry, a Story page version or a mockup version to a passage, with an immutable snapshot. |
 | **review** | An attributed status judgment on a register entry; for an insight, a mark that a person stands by its current revision. |
 | **Story**, **page** | The stakeholder report and its versioned HTML pages. |
 | **view** | A saved, derived source that records a lineage baseline of its inputs. |

@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete, closing an organization, the operator runbooks, and the public sandbox with its limits, baseline and reset.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, sandbox]
-generated: {by: agent:claude, at: 2026-10-01}
+generated: {by: agent:claude, at: 2026-10-09}
 status: stable
 ---
 
@@ -86,6 +86,7 @@ running on free tiers without a compliance program.
 | Parsed per primary file | 25 MB (`WHATBUILD_PARSE_CAP_BYTES`); larger files are stored, not parsed | Yes |
 | Files per source | 50 | Yes — `409 too_many_files` |
 | Story pages | 50 per product | Yes — `409 quota_exceeded`, quota `story_pages` |
+| Mockups | 50 per product, archived ones included; 24 pages and 8,000,000 characters of HTML in a version | Yes — `409 quota_exceeded`, quota `mockups`; `422` for a version |
 | REST request body | 5 MB | Yes — `413 too_large` |
 | Sign-in links | 5 per address per hour | Yes — `429 rate_limited` |
 | Exports in progress | one per product at a time | Yes — `409 export_in_progress` |
@@ -138,7 +139,7 @@ most likely to be skipped under time pressure, so it is an acceptance criterion 
 ([§10 Phase 6](10-roadmap.md)) rather than a good intention. It has not been performed yet.
 
 **Object storage.** Blobs are immutable and keyed opaquely (`t/<tenant>/r/<record>/f/<file
-version>`), so nothing is ever overwritten in place ([§4.14](04-data-model.md)) — the common cause
+version>`), so nothing is ever overwritten in place ([§4.15](04-data-model.md)) — the common cause
 of "the backup has the corrupted version too" does not apply. The deployment's bucket is versioned,
 and noncurrent versions are deleted after 30 days. **Planned:** a nightly manifest of keys and
 sizes, so a restore can be checked against the database rather than hoped about.
@@ -151,10 +152,11 @@ from backup on request. The product-level answer to "I broke it" is:
 | File versions — every upload to the same path | [§4.5](04-data-model.md) |
 | Derivations — every parse, retained and readable by id | [§5.1](05-derived-layer.md) |
 | Story page versions — immutable, numbered | [§4.11](04-data-model.md) |
+| Mockup versions — immutable, numbered, each the whole canvas | [§4.12](04-data-model.md) |
 | Insight and outcome revisions — the previous text, on every content change | [§4.7](04-data-model.md), [§4.2](04-data-model.md) |
 | Reviews — append-only, never edited | [§4.8](04-data-model.md) |
 | Superseded register entries — corrections never overwrite | [§4.8](04-data-model.md) |
-| Archive and restore — for sources, insights, register entries, annotations, outcomes, Story pages, products | §9.5 |
+| Archive and restore — for sources, insights, register entries, annotations, outcomes, Story pages, mockups, products | §9.5 |
 | Activity — who changed what, when, through which surface | [§4.10](04-data-model.md) |
 
 Not versioned, deliberately: source metadata edits (the activity log names the operation and the
@@ -170,8 +172,9 @@ download grant for each ready one. Any role may export, through **both adapters*
 seven days. The bundle holds a manifest with its format name and version, every source's metadata,
 every file version's original bytes, every derivation's sidecars, annotations and agent notes,
 lineage, outcomes, insights (JSON and Markdown), register entries with their reviews, revisions,
-the Story hierarchy and every page version (JSON and HTML), tombstones, and the activity log
-([§4.13](04-data-model.md)). It is readable with a ZIP tool and nothing else; no proprietary
+the Story hierarchy and every page version (JSON and HTML), every mockup version (its brief, and
+each page's HTML and notes), tombstones, and the activity log
+([§4.14](04-data-model.md)). It is readable with a ZIP tool and nothing else; no proprietary
 format, no API required to make sense of it.
 
 **Planned:**
@@ -205,6 +208,7 @@ been here".
 | Annotations | `sources.update_annotation { archived, archive_reason? }` |
 | Outcomes | `outcomes.update { status: "archived" }`, and back |
 | Story pages | `story.archive_page` / `story.restore_page` (subpages move up into its place) |
+| Mockups | `mockups.archive` / `mockups.restore` |
 | Products | `products.archive` / `products.restore` (admin); an archived product is read-only |
 
 - Reversible, erases nothing, and keeps every id resolvable.
@@ -238,7 +242,8 @@ insights, register entries, annotations, Story pages, outcomes and products, in 
   exactly what would be destroyed: file versions and bytes, derivations, annotations, the
   register entries whose citations point at the source, the insights that reference it, the
   Story pages whose current version cites it, and `story_versions_citing`: every page version,
-  current or earlier, that cites it (`page_id`, `version`, `count`, `is_current`). `after_delete`
+  current or earlier, that cites it (`page_id`, `version`, `count`, `is_current`), and the same
+  for mockups (`mockup_versions_citing`, by `mockup_id`). `after_delete`
   says that those citations keep their quoted text and will report `record_deleted`. The web UI
   shows this inside the confirmation dialog. The skill requires an agent to call it and show the
   person the result before proposing a delete, and to delete only once the person approves that
@@ -365,7 +370,7 @@ Rules:
 6. **A call that names no organization** (`products.list`, `get_skill`, `submit_feedback`) is
    counted too, for a `sandbox_only` account that is a visitor. It meets only the limits on how
    often.
-7. **The routes that serve bytes are calls too.** A file, an export and a Story page's HTML are
+7. **The routes that serve bytes are calls too.** A file, an export, and a Story or mockup page's HTML are
    served outside the registry ([§6.4](06-operations-and-adapters.md)); for a visitor each counts
    as a call and is refused while the sandbox is closed. The upload relay takes no bytes from a
    visitor while `visitor_access` is not `write`, whenever the grant was given.
@@ -377,7 +382,8 @@ Rules:
 `tenant_id` in `teams`, `products`, `records`, `files`, `file_versions`, `derivations`,
 `segments`, `annotations`, `agent_notes`, `lineage`, `outcomes`, `insights`, `revisions`,
 `register_entries`, `reviews`, `story_pages`, `story_versions`, `story_hierarchies`,
-`story_styles`, `tombstones`, and the activity events that belong to a product. Each row is held
+`story_styles`, `mockups`, `mockup_versions`, `mockup_pages`, `tombstones`, and the activity
+events that belong to a product. Each row is held
 as JSON, without its generated columns, with its ids.
 
 - **Not in a baseline:** memberships and invitations of either kind, because access is not

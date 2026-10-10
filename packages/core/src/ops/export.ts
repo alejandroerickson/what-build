@@ -18,7 +18,7 @@ export const exportProduct = defineOperation({
   mutates: true,
   // Export is never blocked, not even by archiving.
   allowArchivedProduct: true,
-  summary: "Export the whole product to one ZIP: every source file, parse, note, insight, revision, entry, review, Story version and activity event.",
+  summary: "Export the whole product to one ZIP: every source file, parse, note, insight, revision, entry, review, Story version, mockup version and activity event.",
   description:
     "Any role may export, always — export is never blocked. The bundle is built in the background; call products(action=\"exports\") to see when it is ready and get a download grant. Readable with a ZIP tool and nothing else: JSON, Markdown, HTML and the original files.",
   input: z.strictObject({}),
@@ -190,13 +190,28 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
       add(`story/pages/${p.page_id}/v${v.n}.html`, html);
     }
   }
+  for (const m of await db.selectFrom("mockups").selectAll().where("product_id", "=", pid).orderBy("mockup_id").execute()) {
+    add(`mockups/${m.mockup_id}/mockup.json`, j(m));
+    for (const v of await db.selectFrom("mockup_versions").selectAll().where("mockup_id", "=", m.mockup_id).orderBy("n").execute()) {
+      const { brief, ...meta } = v;
+      const pages = await db.selectFrom("mockup_pages").selectAll().where("version_id", "=", v.version_id).orderBy("position").execute();
+      const dir = `mockups/${m.mockup_id}/v${v.n}`;
+      add(`${dir}/version.json`, j({ ...meta, pages: pages.map(({ html, notes, ...p }) => (void html, void notes, p)) }));
+      add(`${dir}/brief.md`, brief);
+      for (const p of pages) {
+        add(`${dir}/pages/${p.page_id}.html`, p.html);
+        add(`${dir}/pages/${p.page_id}.notes.md`, p.notes);
+      }
+    }
+  }
   add("tombstones.json", j(await db.selectFrom("tombstones").selectAll().where("product_id", "=", pid).execute()));
   const activity = await db.selectFrom("activity").selectAll().where("product_id", "=", pid).orderBy("activity_id").execute();
   add("activity.jsonl", activity.map((a) => JSON.stringify(a)).join("\n") + (activity.length ? "\n" : ""));
   add(
     "README.txt",
     `WhatBuild product bundle: ${product.name} (${tenant.name} / ${team.name}).\n\n` +
-      "Everything is plain files: JSON for structured data, Markdown for insights and parsed text, HTML for Story versions,\n" +
+      "Everything is plain files: JSON for structured data, Markdown for insights, parsed text and mockup briefs and notes,\n" +
+      "HTML for Story versions and mockup pages,\n" +
       "and every stored version of every source file under records/<id>/files/. Offsets in segments.jsonl are Unicode\n" +
       "code points into the text.md beside it.\n",
   );

@@ -3,7 +3,7 @@ type: Roadmap
 title: Phases 0 to 5 are mostly built, and a public sandbox; durability, data rights and public sign-up come next.
 description: What is built and what is not, phase by phase, with acceptance criteria; the open questions that remain, the ones already settled, and the risks.
 tags: [roadmap, status, phases, open-questions, risks]
-generated: {by: agent:claude, at: 2026-10-07}
+generated: {by: agent:claude, at: 2026-10-09}
 status: stable
 ---
 
@@ -12,17 +12,17 @@ status: stable
 The ethos: the smallest implementation that proves the full path wins. Each phase ends in
 something demonstrable, and each acceptance list is a test plan.
 
-## Status on 2026-10-07
+## Status on 2026-10-09
 
 Observed in the code on this date.
 
 | Phase | State | Built | Not built yet |
 |---|---|---|---|
 | 0 | Mostly done | pnpm workspace, strict TypeScript, `pnpm dev` with **no Docker** (embedded Postgres), forward-only migrations, seed, `pnpm test` (parsers, server against real Postgres, web), GitHub Actions CI (documentation bundle check, install, skill drift check, typecheck, test, build) | contribution guide, code of conduct, security policy; lint and format config |
-| 1 | Done | registry → REST and MCP (116 operations, 17 tools); row-level security in the first migration; ETags; paging; `describe`; activity in the same transaction; the isolation test over every operation; the parity test | — |
+| 1 | Done | registry → REST and MCP (125 operations, 18 tools); row-level security in the first migration; ETags; paging; `describe`; activity in the same transaction; the isolation test over every operation; the parity test | — |
 | 2 | Mostly done | upload grants (relay, optional direct signed URLs); parsers for plain text, Markdown, VTT, SRT, HTML, DOCX, legacy Word `.doc`, PDF, XLSX, CSV and TSV; derivation on the Postgres queue; passages by segment and time; substring and ranked search with coverage; archive and restore; guarded delete of sources with tombstones; a synthetic sample product in the seed | usage metering; golden-file tests per format; a blob-store conformance suite (no test exercises the Cloud Storage adapter); a fast-saved Word 6 or Word 95 `.doc`, and Word 6 tables beyond what cell marks show |
-| 3 | Mostly done | tenants, teams, products, roles; email-link, Google, Microsoft work-account and development sign-in; invitations by email and link; the Story-only reader role; invite-only mode; who may create organizations (instance owners, and allowances they give); sign-in link rate limit; the [public sandbox](#the-public-sandbox) with its invitations, seats, visitor role and limits | quotas and rate limits for every organization (they exist for visitors to the sandbox, and for Story pages); account deletion |
-| 4 | Mostly done | the design system (Studio, [DESIGN.md](../../DESIGN.md)) across every screen of the loop: Idea, Evidence (browse, kind-first intake, the source page with sections and inspector, passage reader, notes, files, search), Synthesis (the insight editor, revision history, insight review, assumptions and decisions with review, confidence, citation checks), Story (a read-only reader with the page tree, crumbs, focus mode, the inspector with versions, citations and notes for agents, the Story style with house-style previews, the print view for PDF, the page following the app's theme), Activity as one log for people and agents, organization members, product people, Connect an agent, the person's settings, the cookie choice and `/cookies` | an accessibility audit; Playwright in CI (a browser walk-through exists in `scripts/e2e.mjs`); the public sample at `/sample` |
+| 3 | Mostly done | tenants, teams, products, roles; email-link, Google, Microsoft work-account and development sign-in; invitations by email and link; the Story-only reader role; invite-only mode; who may create organizations (instance owners, and allowances they give); sign-in link rate limit; the [public sandbox](#the-public-sandbox) with its invitations, seats, visitor role and limits | quotas and rate limits for every organization (they exist for visitors to the sandbox, and for Story pages and mockups); account deletion |
+| 4 | Mostly done | the design system (Studio, [DESIGN.md](../../DESIGN.md)) across every screen of the loop: Idea, Evidence (browse, kind-first intake, the source page with sections and inspector, passage reader, notes, files, search), Exploration (mockups on a full-width canvas that pans and zooms, with a page's notes, the brief, versions and download in the inspector; the insight editor, revision history, insight review, assumptions and decisions with review, confidence, citation checks; old Synthesis links redirect), Story (a read-only reader with the page tree, crumbs, focus mode, the inspector with versions, citations and notes for agents, the Story style with house-style previews, the print view for PDF, the page following the app's theme), Activity as one log for people and agents, organization members, product people, Connect an agent, the person's settings, the cookie choice and `/cookies` | an accessibility audit; Playwright in CI (a browser walk-through exists in `scripts/e2e.mjs`); the public sample at `/sample` |
 | 5 | Mostly done | OAuth 2.1 for MCP, MCP connectors scoped to one organization or one product that refuse anything outside them, the versioned skill, `get_skill` and the version in the server instructions, the Connect an agent page, feedback, the product's Story style (the team's design system or a house style), Story guidance with taste, anti-patterns and design passes, a vocabulary and compositions for plans and front pages, and publishing a page from its body | the stdio transport |
 | 6 | Started | the Cloud Run deployment ([cloud-run.md](../operations/cloud-run.md)) and the Cloud Build file, run by a trigger on release tags that waits for approval ([decision](../decisions/production-runs-releases-after-approval.md)); releases as tags that publish the image to the GitHub container registry ([decision](../decisions/releases-are-tags-with-a-published-image.md)); product export (`products.export`); a sandbox's baseline and reset; the public site with its interest form, served from Cloudflare's edge or by host; the service capped at one instance; running on a free-tier Postgres (the suite passes against 18) with a nightly logical backup to a bucket, set up by hand; instructions for an agent to self-host on Azure ([below](#self-hosting-on-azure)) | a rehearsed restore; import; organization export; `setup.sh` creating the Cloud Build trigger (made by hand, so a deployment without one deploys nothing on a release); closing an organization; the sub-processors page; abuse tests; mail to the operator when someone asks to hear from us; Postgres 18 in CI and the embedded test server; `setup.sh` creating the nightly backup; a cap on bytes served per member a day |
 
@@ -95,8 +95,8 @@ sign-in.
 ## Phase 4 — The web application
 
 Organization screens (the overview, members, Connect an agent, settings); the four product screens; Idea;
-Evidence (upload, browse, source page, passage reader, annotations, search); Synthesis (insights
-and registers) with revision history; Story reading and export; the Activity page; conflict handling. The
+Evidence (upload, browse, source page, passage reader, annotations, search); Exploration (mockups,
+insights and registers) with revision history; Story reading and export; the Activity page; conflict handling. The
 design system is Studio ([DESIGN.md](../../DESIGN.md)).
 
 *Accept:* a person completes the loop from sign-in to a published Story page with no terminal use;
@@ -177,6 +177,18 @@ lets a defect through, when it writes a Story of many pages over MCP.
 | `story.guidance` names the width the app shows a page at, and the house styles are checked at it | A page is shown at up to 900 pixels. A style's grid that holds three figures at 1,100 pixels may hold two at 900. |
 | A page's body is stored apart from its stylesheet | A version would then hold what the author wrote, a style change would need no new versions, and an export would not repeat the stylesheet in every version. It changes what a version is, so it needs a decision first. |
 
+## Planned — Exploration after mockups
+
+**Planned; not built.** Mockups are built
+([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)); these follow from them.
+
+| Item | What it answers |
+|---|---|
+| Insights and decisions move into Evidence | The maintainer means to retire insights and decisions as lists of their own, now that mockups carry the work from evidence to a product. A migration would turn each into a source in Evidence (insights as documents, the decision register as a log), keep every citation that points at them, and leave assumptions where they are. It changes what Exploration holds, so it needs a decision first. |
+| Promote one page of a mockup to the Story | A stakeholder should see a chosen screen without the whole canvas, and without a copy that drifts from the mockup. |
+| Story and mockup HTML from a separate origin | The sandbox gives each page an opaque origin and no network. Serving page HTML from its own origin through short-lived signed addresses would keep a page that escaped the sandbox away from the app's origin too. It needs a second host name and a domain mapping. |
+| Structure in a page's design notes | Notes are one Markdown field. Whether they should carry kinds (design, technical, intent) waits until teams have used them. |
+
 ## The public sandbox
 
 Built, as [§3.10](03-accounts-teams-and-identity.md) and [§9.7](09-data-lifecycle.md) specify it
@@ -254,7 +266,8 @@ Each has a default so work is not blocked.
 | 6 | **Revision scope** ([§4.1](04-data-model.md)) — which objects expose their revisions. | Insights and outcomes today; the product concept, annotations and register entries while still editable are next. Retained for the life of the object. |
 | 7 | **The public sample** — a synthetic discovery readable at `/sample` with no account. | Built from the seed's synthetic content; read-only, with one "copy into my organization" action. The [public sandbox](#the-public-sandbox) serves the same purpose for anyone holding an invitation; the sample would serve people who have none. |
 | 8 | **The tenant's name in the UI.** Sources already have an `organization` field (the organization a source concerns), so the API says `tenant` and the UI says "organization". | As built; rename the source field (for example `about_organization`) if one word is wanted. |
-| 9 | **Delete beyond sources** — insights, register entries, annotations, Story pages, outcomes, products. | The same guards and tombstones as sources; a register entry's delete is also how a citation snapshot is removed. |
+| 9 | **Delete beyond sources** — insights, register entries, annotations, Story pages, mockups, outcomes, products. | The same guards and tombstones as sources; a register entry's delete is also how a citation snapshot is removed. |
+| 10 | **How WhatBuild describes Exploration** — the journey's line for it on the overview and the public site, the opening of the README, `AGENTS.md` and the charter, and the skill's description still name insights, assumptions and decisions, not mockups. | As written until the maintainer settles the wording; the tagline stays. |
 
 **Settled**, and where:
 

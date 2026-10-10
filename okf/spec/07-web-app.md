@@ -1,9 +1,9 @@
 ---
 type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
-description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Synthesis, Story, Activity, archive and delete, organization and account screens).
+description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-10-07}
+generated: {by: agent:claude, at: 2026-10-09}
 status: stable
 ---
 
@@ -40,7 +40,7 @@ design system: tokens, type, components and the rules for using them — is docu
 ## 7.2 The shell, and product switching
 
 **The shell.** Every signed-in screen sits on one stage: a floating left panel, the canvas, and —
-only on a Story page and a source page — an inspector on the right. Everywhere else the content
+only on a Story page, a mockup and a source page — an inspector on the right. Everywhere else the content
 takes the full width. There are no in-app tabs: one screen at a time, and rows are real links, so
 the browser's back button and "open in new tab" both work.
 
@@ -48,18 +48,19 @@ the browser's back button and "open in new tab" both work.
   from every screen, with the button that hides the panel at the row's far end. Only the mark and
   wordmark are the link, so a click that misses the hide button does not leave the screen. Then the
   product switch, showing the product and its organization and team.
-- **L1**, exactly and in this order: **Idea, Evidence, Synthesis, Story**, each with its count
-  (Idea counts outcomes).
+- **L1**, exactly and in this order: **Idea, Evidence, Exploration, Story**, each with its count
+  (Idea counts outcomes, Exploration counts mockups).
   Below them, quieter: **Connect an agent**, **Activity** (§7.9) and the product's **Settings**.
-  Synthesis opens on
-  Insights; insights, assumptions and decisions are three lists side by side in its panel.
-  Search belongs to Evidence. The app's URLs follow the areas (`/evidence`, `/synthesis/…`); REST
-  and MCP name the objects (`sources`, `insights`).
+  Exploration opens on its mockups; the mockups, then insights, assumptions and decisions, are
+  listed side by side in its panel. Search belongs to Evidence. The app's URLs follow the areas
+  (`/evidence`, `/exploration/…`); REST and MCP name the objects (`sources`, `mockups`).
+  Exploration was called Synthesis, and a link to `/synthesis/…` opens the same path under
+  `/exploration/…`.
 - **A reader** ([§3.5](03-accounts-teams-and-identity.md)) has only the Story: L1 is **Story**
   alone with its count, and the quiet group is gone. The product opens on the Story, and any other
   product screen, opened by a link or typed, takes a reader to the Story.
 - **A context slot** under the navigation, which the screen fills: the page tree on Story, find
-  and filters on Evidence, the three lists and their filters on Synthesis.
+  and filters on Evidence, the mockups and the three lists with their filters on Exploration.
 - **The footer** holds the account menu, which is about the person: their email; each
   organization they belong to, with their role in it and a link to its **Members**; the theme
   (Light, Dark or System, which is the default; remembered per browser); **New organization**,
@@ -103,8 +104,8 @@ place.
 2. The product switch is one interaction away on every product screen. It lists every reachable
    product grouped by organization and team, and offers New product, which opens in place.
 3. **Switching product keeps the section**: from Evidence in product A to Evidence in product B.
-   Idea, Evidence, Synthesis, Story, Connect an agent, Activity, Search and Settings carry over; anything else
-   (a record id, an insight) lands on Idea. Switching to a product where the person is a reader
+   Idea, Evidence, Exploration, Story, Connect an agent, Activity, Search and Settings carry over; anything else
+   (a record id, an insight, a mockup) lands on Idea. Switching to a product where the person is a reader
    lands on its Story.
 4. The product is in the URL path (`/t/<tenant>/<team>/<product>/…`). Opening a link to another
    product simply works, and becomes the remembered one.
@@ -122,10 +123,10 @@ place.
 introduces WhatBuild and is good to share as a screenshot. An intro sheet carries the mark and
 wordmark, the question "What to build?", the tagline "Product discovery at the speed of AI
 Engineering.", two sentences on what the app does, and a link to Connect an agent. Beside it, small and
-quiet, the WhatBuild journey: Idea, Evidence, Synthesis and Story, each with a line on what
+quiet, the WhatBuild journey: Idea, Evidence, Exploration and Story, each with a line on what
 it holds. It carries no counts; those are on each product below. Below, one sheet per organization, headed by its name alone, lists its active products (name,
 product concept, last update, and the team only when the organization has more than one), each
-with links to Idea, Evidence, Synthesis and Story and their counts, so any section of any product
+with links to Idea, Evidence, Exploration and Story and their counts, so any section of any product
 is one click away. A product where the person is a reader says "You read this product's Story."
 in place of its concept, and links to the Story alone, with its count. Team admins get **New product**, a dialog on the overview (`?create=1`), so
 cancelling leaves the person there; it asks for a team only when they can create in more than one.
@@ -153,12 +154,15 @@ person's organization role is in the account menu, and who has which role is on 
   /evidence/new       ?kind                   kind-first intake
   /evidence/:record   ?view=passages|original|notes|files &seq=N &file=<path>
   /search             ?q&mode&scope&record_id
-  /synthesis                                  → …/synthesis/insights
-  /synthesis/insights ?show=unreviewed|reviewed|archived &outcome_id&q
-  /synthesis/insights/new  /synthesis/insights/:id  /synthesis/insights/:id/edit
-  /synthesis/assumptions[/new|/:id|/:id/edit]  /synthesis/decisions[/new|/:id|/:id/edit]
+  /exploration                                → …/exploration/mockups
+  /exploration/mockups                        → the mockup last opened here, or the most recent; first use with none
+  /exploration/mockups/:id  ?v=N &page=<page_id>  a mockup's canvas, at a version, with a page selected
+  /exploration/insights ?show=unreviewed|reviewed|archived &outcome_id&q
+  /exploration/insights/new  /exploration/insights/:id  /exploration/insights/:id/edit
+  /exploration/assumptions[/new|/:id|/:id/edit]  /exploration/decisions[/new|/:id|/:id/edit]
                       lists take ?show&outcome_id&q; new takes ?outcome_id
                       (show: unconfirmed, confirmed, refuted, archived; q: title search)
+  /synthesis/…                                → the same path and query under /exploration
   /story[/:page]      ?v=N
   /connect            ?product                Connect an agent, in the product's shell, with this product picked
   /activity           ?entity_type &entity_id
@@ -216,7 +220,7 @@ The screen's model and names are a decision: [A product starts with its idea](..
 
 The landing screen. The product concept first; then outcomes as aligned cards in a centered
 content band that adapts to narrow screens. Create, edit inline, reorder, change status. Each card
-shows how many insights, assumptions, and decisions point at it, linking into Synthesis filtered by
+shows how many insights, assumptions, and decisions point at it, linking into Exploration filtered by
 that outcome; each number is the one the linked list shows (current entries, [§4.2](04-data-model.md)). The default view, **Current**, lists active and achieved outcomes; Active, Achieved and
 Archived are filters (`?status=`). With no outcomes, the list says what an outcome is and gives
 the request to copy for an agent (interview the person, then write the concept and outcomes); New
@@ -326,12 +330,16 @@ The sources, and everything for reading them.
   phrase; ranked results mark each word. The UI states what was searched
   ([§8.4](08-search.md)). Insight results carry the same review badge as the Insights list.
 
-## 7.7 Synthesis
+## 7.7 Exploration
 
-([decision](../decisions/lists-filter-from-the-panel.md)) Synthesis is three lists of equal standing: **insights**, **assumptions** and **decisions**.
-Insights is the landing view. The panel's context slot names all three, each as a section with
-one set of filters and a count on every filter, laid out like Evidence's filters:
+Exploration holds the team's **mockups** and three lists of equal standing: **insights**,
+**assumptions** and **decisions**. It opens on the mockups. The panel's context slot lists the
+mockups first, then names the three lists
+([decision](../decisions/lists-filter-from-the-panel.md)), each as a section with one set of
+filters and a count on every filter, laid out like Evidence's filters:
 
+- **Mockups:** every mockup that is not archived, by name, most recently changed first; each
+  opens its canvas. With none, one quiet line says so and opens the first-use state.
 - **Insights:** All insights, Unreviewed (which includes changed since review), Reviewed,
   Archived.
 - **Assumptions** and **Decisions:** All, Unconfirmed, Confirmed, Refuted or replaced, Archived.
@@ -347,6 +355,48 @@ the filter and outcome in use, each removable, so the view stays legible while t
 hidden. Following an outcome's links from Idea lists the entries for that outcome, and the
 panel's counts follow it. A product holds dozens of each object, so each list loads whole and the
 counts, filters and search work on what is loaded.
+
+### Mockups
+
+([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)) A mockup opens as a
+canvas the full width of the window: every page of the shown version at its own size in its
+sandboxed frame ([§4.12](04-data-model.md)), laid out `columns` to a row (one row when null),
+on a dotted board. Agents publish mockups; the screen reads them and offers nothing that changes
+them.
+
+- **Opening.** `…/exploration/mockups` opens the mockup last opened in this product in this
+  browser, otherwise the most recent; with none, the first-use state gives the request to copy for
+  an agent. A mockup opens fitted to the window, and stays fitted as the window changes until the
+  person moves it.
+- **Labels.** Above each page, drawn at screen size so it reads at any zoom: its number, its title,
+  its size, and a button that fits that page to the window. A narrow label drops the size, then
+  the title.
+- **Pan and interact.** A toolbar at the bottom of the canvas holds two modes. **Pan** (the hand,
+  `H`, the default): a drag anywhere moves the canvas and a click selects a page; the pages take no
+  pointer. **Interact** (the pointer, `V`): the pages take the pointer, so their links, buttons and
+  scrolling work, and a drag on the board still moves the canvas. Holding Space pans from either
+  mode. The browser remembers the mode (`whatbuild.mockup.mode`).
+- **Scroll and zoom.** Scroll moves the canvas up and down, and Shift with scroll sideways; ⌘ or
+  Ctrl with scroll, or a pinch, zooms about the pointer, from 5% to 400%. The toolbar has zoom out,
+  the zoom level (a menu: Fit the canvas, Fit the selected page, 50%, 100%, 200%), zoom in, and fit
+  the canvas. Keys: `+` and `−`, `0` for 100%, `1` fits the canvas, `2` fits the selected page.
+  Moves glide unless the person prefers reduced motion.
+- **Selection.** Clicking a page, its label or its name in the inspector selects it: an accent
+  outline that keeps its width at any zoom. The selection is in the address (`?page=`), so a link
+  can open a mockup at one page; Esc clears it, and a second Esc leaves focus mode.
+- **Focus mode** works as on the Story (§7.8) and shares its remembered choice.
+- **The inspector:** **Version** (a menu of every version with its date, who published the shown
+  one and when, its page count, **Download version N** for the ZIP an agent builds the next version
+  from, [§4.12](04-data-model.md)); **Page** (a menu of the pages with a Fit button, then the
+  selected page's notes as Markdown, or a line asking the person to select a page); **Brief** (the
+  version's brief as Markdown); **Explores** (the outcomes, assumptions and sources it links, with
+  their state in words, as the Story's Draws on); and **Cited passages**, each with its
+  `mockups.check_citations` status in words, as on a Story page.
+- A callout above the canvas appears only for a state the person must know: the mockup is
+  archived, an earlier version is shown (with **Show the current version**), or the version asked
+  for does not exist.
+
+### Insights, assumptions and decisions
 
 - **Insight documents:** list with status, summary, and reference counts; a reader with rendered
   Markdown; an editor with preview and a reference picker for outcomes, sources, insights,

@@ -32,6 +32,7 @@ interface CitedIn {
   assumptions: { id: string; statement: string; status: string; citations: { seq_start: number; seq_end: number }[] }[];
   decisions: { id: string; statement: string; status: string; citations: { seq_start: number; seq_end: number }[] }[];
   story_pages?: { page_id: string; title: string; version: number; referenced: boolean; citations: { seq_start: number; seq_end: number }[] }[];
+  mockups?: { mockup_id: string; title: string; version: number; referenced: boolean; citations: { seq_start: number; seq_end: number }[] }[];
 }
 
 /** Old `?tab=` links keep working: each maps to a section, and "connected" opens the inspector. */
@@ -479,7 +480,7 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
   const primary = r.files.find((f) => f.role === "primary");
   const versions = r.files.reduce((n, f) => n + Math.max(1, f.versions.length), 0);
   const c = cited.data;
-  const citedCount = c ? c.insights.length + c.assumptions.length + c.decisions.length + (c.story_pages?.length ?? 0) : undefined;
+  const citedCount = c ? c.insights.length + c.assumptions.length + c.decisions.length + (c.story_pages?.length ?? 0) + (c.mockups?.length ?? 0) : undefined;
   return (
     <Inspector title="Details">
       <div className="source-inspector">
@@ -543,7 +544,7 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
           ) : cited.isError ? (
             <ErrorCallout inset error={cited.error} onRetry={() => cited.refetch()} />
           ) : !citedCount ? (
-            <EmptyState size="inline">Not cited yet. Insights, assumptions, decisions and Story pages that use it appear here.</EmptyState>
+            <EmptyState size="inline">Not cited yet. Insights, assumptions, decisions, mockups and Story pages that use it appear here.</EmptyState>
           ) : (
             <ul className="source-cited">
               {c!.insights.map((i) => (
@@ -564,6 +565,28 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
                     <span className="faint">
                       {e.k === "assumptions" ? "Assumption" : "Decision"}, {REVIEW_STATUS[e.status]?.label.toLowerCase() ?? e.status}
                       {e.citations.map((x, i) => (
+                        <span key={i}>
+                          {" · "}
+                          <Link to={`?view=passages&seq=${x.seq_start}${x.seq_end !== x.seq_start ? `&to=${x.seq_end}` : ""}`} className="quiet-link num">
+                            {address(x.seq_start, x.seq_end)}
+                          </Link>
+                        </span>
+                      ))}
+                    </span>
+                  </span>
+                </li>
+              ))}
+              {(c!.mockups ?? []).map((m) => (
+                <li key={m.mockup_id}>
+                  <Glyph name="monitor" size="sm" />
+                  <span className="source-cited-main">
+                    <Link to={`${app}/exploration/mockups/${m.mockup_id}`} className="ellipsis" title={m.title}>
+                      {m.title}
+                    </Link>
+                    <span className="faint">
+                      <span title={`Version ${m.version}, the mockup’s current version`}>Mockup, current version</span>
+                      {m.citations.length ? "" : " · lists it"}
+                      {m.citations.map((x, i) => (
                         <span key={i}>
                           {" · "}
                           <Link to={`?view=passages&seq=${x.seq_start}${x.seq_end !== x.seq_start ? `&to=${x.seq_end}` : ""}`} className="quiet-link num">
@@ -1134,6 +1157,7 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
         insights_referencing: { id: string; title: string }[];
         story_pages_citing?: { page_id: string; title: string; version: number; count: number }[];
         story_versions_citing?: StoryVersionCiting[];
+        mockup_versions_citing?: { mockup_id: string; title: string; version: number; count: number; is_current: boolean }[];
       }>("GET", `${base}/sources/${record.record_id}/delete-impact`),
   });
   const del = useMutation({
@@ -1149,6 +1173,8 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
   const pages = i?.story_pages_citing ?? [];
   const versions = i?.story_versions_citing ?? [];
   const storyPages = byStoryPage(versions);
+  const mockupVersions = i?.mockup_versions_citing ?? [];
+  const mockups = new Set(mockupVersions.map((v) => v.mockup_id)).size;
   return (
     <Dialog
       open
@@ -1209,6 +1235,15 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
             </>
           ) : pages.length ? (
             <p>{plural(pages.length, "Story page")} cite it; their quotes are kept.</p>
+          ) : null}
+          {mockups ? (
+            <p>
+              <strong>
+                {plural(mockupVersions.length, "mockup version")} of {plural(mockups, "mockup")} cite it
+              </strong>
+              {mockupVersions.some((v) => !v.is_current) ? ", earlier versions included" : ""}. Their quotes are kept, and each will say the source was
+              deleted.
+            </p>
           ) : null}
           {i.insights_referencing.length ? <p>{plural(i.insights_referencing.length, "insight")} link to it, and those links will stop opening.</p> : null}
         </div>

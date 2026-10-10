@@ -10,7 +10,7 @@
 
 import { HOUSE_STYLES, VOCABULARY, pageDocument, type HouseStyle } from "./story-styles.ts";
 
-export const GUIDANCE_VERSION = "2.1.0";
+export const GUIDANCE_VERSION = "2.2.0";
 
 export function linkTemplates(base: string, path: string) {
   const p = `${base}/t/${path}`;
@@ -21,6 +21,7 @@ export function linkTemplates(base: string, path: string) {
     outcome: `${p}/idea`,
     assumption: `${p}/exploration/assumptions/{id}`,
     decision: `${p}/exploration/decisions/{id}`,
+    mockup: `${p}/exploration/mockups/{mockup_id}`,
     story_page: `${p}/story/{page_id}`,
   };
 }

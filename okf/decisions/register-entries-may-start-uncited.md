@@ -3,7 +3,7 @@ type: Decision
 title: An assumption or decision may be recorded before any evidence cites it
 description: Register entries take 0 to 20 citations, so people and agents can start from an idea; citation integrity applies to every citation an entry does carry.
 tags: [decision, registers, citations, product]
-generated: {by: agent:claude, at: 2026-09-29T00:00:00Z}
+generated: {by: agent:claude, at: 2026-10-09}
 status: stable
 ---
 
@@ -37,4 +37,4 @@ think freely, not a regulatory filing.
 - The web form in `apps/web/src/routes/registers.tsx` (`EntryEditPage`).
 
 Specified in: [§4.8 The registers](../spec/04-data-model.md#48-the-registers) and
-[§7.7 Synthesis](../spec/07-web-app.md#77-synthesis).
+[§7.7 Exploration](../spec/07-web-app.md#77-exploration).

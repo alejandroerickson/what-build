@@ -7,6 +7,8 @@ let alice: Browser;
 let vic: Browser;
 let rita: Browser;
 let P: string;
+let tenantSlug: string;
+let teamSlug: string;
 let assumptionId: string;
 
 const page = (heading: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${heading}</title><style>body{font:16px system-ui}</style></head><body><h1>${heading}</h1></body></html>`;
@@ -19,6 +21,8 @@ beforeAll(async () => {
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Canvas Co" });
   const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Planner", concept: "A planner for finance teams." });
   P = `/api/v1/p/${p.body.path}`;
+  tenantSlug = t.body.tenant.slug;
+  teamSlug = t.body.team.slug;
   const a = await alice.api("POST", `${P}/assumptions`, { statement: "Finance leads want the close on one screen." });
   assumptionId = a.body.id;
   for (const [email, role] of [["vic@example.com", "viewer"], ["rita@example.com", "reader"]])
@@ -146,5 +150,94 @@ describe("mockups", () => {
     expect(r.body.archived_at).toBeNull();
     const activity = await alice.api("GET", `${P}/activity?entity_type=mockup`);
     expect(activity.body.items.map((i: { action: string }) => i.action)).toEqual(["restored", "archived", "updated", "created"]);
+  });
+});
+
+const VTT = `WEBVTT
+
+00:00:01.000 --> 00:00:05.000
+<v Dana>We close the books on the third working day.
+
+00:00:05.000 --> 00:00:09.000
+<v Sam>What slows it down?
+
+00:00:09.000 --> 00:00:14.000
+<v Dana>Chasing approvals across four spreadsheets.
+`;
+
+describe("what a mockup draws on", () => {
+  let recordId: string;
+  let mockupId: string;
+
+  beforeAll(async () => {
+    const created = await alice.api("POST", `${P}/sources/with-upload`, { kind: "interview_transcript", title: "Finance lead interview", date: "2026-09-03", path: "call.vtt", role: "primary" });
+    recordId = created.body.record.record_id;
+    const up = created.body.upload;
+    await fetch(up.url, { method: "PUT", headers: up.headers, body: VTT });
+    await alice.api("POST", `${P}/sources/${recordId}/uploads/complete`, { record_id: recordId, path: "call.vtt" });
+    await h.worker.drain();
+    const m = await alice.api("POST", `${P}/mockups`, {
+      title: "Approvals",
+      brief: "Where do approvals stall?",
+      pages: [{ page_id: "queue", title: "Queue", html: page("Queue") }],
+      citations: [{ record_id: recordId, seq_start: 2, seq_end: 2 }],
+    });
+    expect(m.status, JSON.stringify(m.body)).toBe(201);
+    mockupId = m.body.mockup_id;
+    const v2 = await alice.api("POST", `${P}/mockups`, { mockup_id: mockupId, expected_etag: m.body.etag, refs: { sources: [recordId] }, citations: [] });
+    expect(v2.status).toBe(201);
+  });
+
+  it("is listed among what a source is used in, and in its delete impact, earlier versions included", async () => {
+    const using = await alice.api("GET", `${P}/sources/${recordId}/insights`);
+    expect(using.body.mockups).toEqual([{ mockup_id: mockupId, title: "Approvals", version: 2, referenced: true, citations: [] }]);
+    const impact = await alice.api("GET", `${P}/sources/${recordId}/delete-impact`);
+    expect(impact.body.mockup_versions_citing).toEqual([{ mockup_id: mockupId, title: "Approvals", version: 1, count: 1, is_current: false }]);
+    expect(impact.body.after_delete).toMatch(/1 mockup version/);
+  });
+
+  it("checks a version's citations against the source as it is now", async () => {
+    const v1 = await alice.api("GET", `${P}/mockups/${mockupId}/check-citations?version=1`);
+    expect(v1.status).toBe(200);
+    expect(v1.body).toMatchObject({ mockup_id: mockupId, version: 1 });
+    expect(v1.body.citations).toEqual([expect.objectContaining({ index: 0, status: "ok" })]);
+    const current = await alice.api("GET", `${P}/mockups/${mockupId}/check-citations`);
+    expect(current.body).toMatchObject({ version: 2, citations: [] });
+  });
+
+  it("keeps the source from moving to another product while the mockup uses it", async () => {
+    await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Elsewhere" });
+    const etag = (await alice.api("GET", `${P}/sources/${recordId}`)).body.etag;
+    const moved = await alice.api("POST", `${P}/sources/${recordId}/move`, { record_id: recordId, to_product: "elsewhere", expected_etag: etag });
+    expect(moved.status).toBe(409);
+    expect(moved.body.error.code).toBe("source_in_use");
+    expect(moved.body.error.details.mockups).toEqual([{ mockup_id: mockupId, title: "Approvals" }]);
+  });
+
+  it("goes into the product export: every version, with its brief, pages and notes", async () => {
+    expect((await alice.api("POST", `${P}/exports`, {})).status).toBe(201);
+    await h.worker.drain();
+    const ex = (await alice.api("GET", `${P}/exports`)).body.items[0];
+    const res = await fetch(ex.download.url, { headers: ex.download.headers });
+    const files = unzipSync(new Uint8Array(await res.arrayBuffer()));
+    const names = Object.keys(files);
+    expect(names).toContain(`mockups/${mockupId}/mockup.json`);
+    expect(names).toContain(`mockups/${mockupId}/v1/brief.md`);
+    expect(names).toContain(`mockups/${mockupId}/v2/pages/queue.html`);
+    expect(names).toContain(`mockups/${mockupId}/v2/pages/queue.notes.md`);
+    const v2 = JSON.parse(strFromU8(files[`mockups/${mockupId}/v2/version.json`]!));
+    expect(v2).toMatchObject({ n: 2, refs: { sources: [recordId] } });
+    expect(v2.pages).toEqual([expect.objectContaining({ page_id: "queue", title: "Queue" })]);
+    expect(v2.pages[0].html).toBeUndefined();
+  });
+
+  it("holds at most 50 mockups in a product, archived ones included", async () => {
+    const t = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Crowded" });
+    const Q = `/api/v1/p/${t.body.path}`;
+    for (let i = 0; i < 50; i++) expect((await alice.api("POST", `${Q}/mockups`, { title: `M${i}`, pages: [{ page_id: "a", title: "A", html: page("A") }] })).status).toBe(201);
+    const over = await alice.api("POST", `${Q}/mockups`, { title: "One more", pages: [{ page_id: "a", title: "A", html: page("A") }] });
+    expect(over.status).toBe(409);
+    expect(over.body.error.code).toBe("quota_exceeded");
+    expect(over.body.error.details).toMatchObject({ quota: "mockups", limit: 50, used: 50 });
   });
 });

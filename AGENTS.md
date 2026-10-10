@@ -19,7 +19,7 @@ message, is published.
 
 WhatBuild turns a product team's discovery material into outcomes, cited insights, reviewed
 assumptions and decisions, and a Story for stakeholders. People use a React web app; agents use an
-MCP server exposing the same 116 operations. There is no AI inside. One stateless image on Cloud Run,
+MCP server exposing the same 125 operations. There is no AI inside. One stateless image on Cloud Run,
 Postgres, and object storage.
 
 The domain is **what-build.com**, with a hyphen: the public site at `what-build.com`, the app at

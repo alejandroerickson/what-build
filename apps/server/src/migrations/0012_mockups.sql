@@ -1,7 +1,7 @@
--- Mockups: canvases of agent-made HTML pages in Synthesis, each with a brief. A version is the
+-- Mockups: canvases of agent-made HTML pages in Exploration, each with a brief. A version is the
 -- whole canvas (brief, pages, notes, refs, citations), immutable once published.
 CREATE TABLE mockups (
-  mockup_id     text PRIMARY KEY,
+  mockup_id          text PRIMARY KEY,
   tenant_id          text NOT NULL,
   product_id         text NOT NULL REFERENCES products,
   title              text NOT NULL,
@@ -21,7 +21,7 @@ CREATE TABLE mockup_versions (
   version_id          text PRIMARY KEY,
   tenant_id           text NOT NULL,
   product_id          text NOT NULL,
-  mockup_id      text NOT NULL REFERENCES mockups,
+  mockup_id           text NOT NULL REFERENCES mockups,
   n                   integer NOT NULL,
   title               text NOT NULL,
   summary             text NOT NULL DEFAULT '',
