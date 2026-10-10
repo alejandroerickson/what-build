@@ -64,7 +64,7 @@ export function threadParser(limits: ParseLimits): FileParser {
         worker.once("exit", () => finish(failed("the parser stopped before it finished")));
         const timer = setTimeout(() => finish(tooLong()), limits.timeoutSeconds * 1000);
         const watch = setInterval(() => {
-          // Node 22.16 and later; before that, the heap limit alone holds.
+          // Node 22.16 and later (the engines in package.json ask for 22.18); on an older Node the heap limit alone holds.
           if (typeof worker.getHeapStatistics !== "function") return clearInterval(watch);
           worker.getHeapStatistics().then(
             (s) => {
