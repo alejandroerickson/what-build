@@ -23,7 +23,12 @@ export interface Harness {
   config: ServerConfig;
   /** A signed-in browser: fetch with its session cookie and a same-origin Origin header. `next` is where the sign-in was returning to. */
   signIn(email: string, name?: string, next?: string): Promise<Browser>;
-  /** An agent connected as this person through the OAuth flow a real MCP client runs; returns its access token. */
+  /**
+   * Follow the sign-in link in the last email sent, as a person does: open it, then press Sign in on
+   * its page. The answer to the press (a 303 to where the sign-in returns, with the session cookie),
+   * and that cookie, if one was set.
+   */
+  followSignInLink(): Promise<{ response: Response; cookie: string | undefined }>;
   /** An access token approved by `browser`, for the MCP endpoint at `resourcePath` (by default `/mcp`). */
   connectAgent(browser: Browser, clientName?: string, resourcePath?: string): Promise<string>;
   close(): Promise<void>;
@@ -101,8 +106,22 @@ export async function startHarness(overrides: Partial<ServerConfig> = {}, opts: 
         body: JSON.stringify({ email, display_name: displayName, ...(next ? { next } : {}) }),
       });
       if (res.status !== 200) throw new Error(`sign-in failed: ${res.status} ${await res.text()}`);
-      const cookie = (res.headers.get("set-cookie") ?? "").split(";")[0]!;
+      // The session cookie, by either of its names (__Host-wb_session over HTTPS), never the old name being cleared.
+      const cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]!).find((c) => /^(?:__Host-)?wb_session=./.test(c));
+      if (!cookie) throw new Error("sign-in set no session cookie");
       return makeBrowser(email, cookie);
+    },
+    async followSignInLink() {
+      const link = /https?:\/\/\S+\/auth\/verify\?token=\S+/.exec(mailer.sent.at(-1)?.text ?? "")?.[0];
+      if (!link) throw new Error("no sign-in link was sent");
+      const page = await fetch(link, { redirect: "manual" });
+      const html = await page.text();
+      const action = /<form method="post" action="([^"]+)">/.exec(html)?.[1];
+      if (page.status !== 200 || !action) throw new Error(`the sign-in link opened no page to sign in from: ${page.status} ${page.headers.get("location") ?? ""}`);
+      const fields = Object.fromEntries([...html.matchAll(/<input type="hidden" name="([^"]+)" value="([^"]*)">/g)].map((m) => [m[1]!, m[2]!]));
+      const response = await fetch(`${baseUrl}${action}`, { method: "POST", redirect: "manual", headers: { origin: baseUrl, "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(fields) });
+      const cookie = response.headers.getSetCookie().map((c) => c.split(";")[0]!).find((c) => /^(?:__Host-)?wb_session=./.test(c));
+      return { response, cookie };
     },
     async connectAgent(browser, clientName = "test-agent", resourcePath = "/mcp") {
       const redirect = "http://127.0.0.1:9999/callback";

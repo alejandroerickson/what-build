@@ -38,7 +38,7 @@ properties:
       # - name: smtp-url
       #   keyVaultUrl: https://${AZ_KEYVAULT}.vault.azure.net/secrets/whatbuild-smtp-url
       #   identity: ${AZ_IDENTITY_ID}
-      # Microsoft sign-in (okf/operations/azure.md, "Sign-in"). Uncomment with its three env entries below.
+      # Microsoft sign-in (okf/operations/azure.md, "Sign-in"). Uncomment with its env entries below.
       # - name: microsoft-client-secret
       #   keyVaultUrl: https://${AZ_KEYVAULT}.vault.azure.net/secrets/whatbuild-microsoft-client-secret
       #   identity: ${AZ_IDENTITY_ID}
@@ -85,6 +85,10 @@ properties:
           #   value: ${WB_MICROSOFT_CLIENT_ID}
           # - name: WHATBUILD_MICROSOFT_CLIENT_SECRET
           #   secretRef: microsoft-client-secret
+          # Email domains the directory is trusted for, comma-separated: an address or user principal
+          # name in one is taken without the token's xms_edov claim. Leave out to list none.
+          # - name: WHATBUILD_MICROSOFT_DOMAINS
+          #   value: "${WB_MICROSOFT_DOMAINS}"
         volumeMounts:
           - volumeName: files
             mountPath: /data/blobs

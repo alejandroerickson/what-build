@@ -1,11 +1,12 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { escapeHtml, json, newId, randomToken, sha256Hex, type Db } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { sql } from "kysely";
 import type { ServerConfig } from "../config.ts";
 import { connectorBound, connectorReach, type ConnectorReach } from "./connector-reach.ts";
-import { accountBySession, ACCESS_PREFIX, REFRESH_PREFIX, SESSION_COOKIE } from "./identity.ts";
+import { ACCESS_PREFIX, REFRESH_PREFIX, sessionAccount } from "./identity.ts";
+import { authPage, authPageHeaders } from "./page.ts";
 
 /**
  * A small OAuth 2.1 authorization server for MCP clients, per the MCP authorization spec:
@@ -104,37 +105,48 @@ function destinationSentence(redirect: string): string {
     : "Allow hands this connection to <strong>an app on this computer</strong>. Allow only if you’re connecting an agent on this computer right now.";
 }
 
-function consentPage(p: { client: string; redirect: string; account: string; email: string; reach: ConnectorReach; hidden: Record<string, string>; csrf: string }) {
+function consentPage(p: { client: string; redirect: string; account: string; email: string; reach: ConnectorReach; hidden: ConsentFields; csrf: string }) {
   const inputs = Object.entries(p.hidden)
     .map(([k, v]) => `<input type="hidden" name="${escapeHtml(k)}" value="${escapeHtml(v)}">`)
     .join("");
   const named = `“${escapeHtml(p.client)}”`;
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Connect ${escapeHtml(p.client)} · WhatBuild</title>
-<style>
-:root{color-scheme:light dark;--canvas:#f0f0f0;--panel:#ffffff;--text:#1e1e1e;--muted:#555555;--line:#e6e6e6;--line-2:#d5d5d5;--hover:#f2f2f2;--accent:#5a53e8;--accent-hover:#4a43d6;--accent-text:#ffffff;--shadow:0 2px 5px rgb(0 0 0 / .08),0 0 0 .5px rgb(0 0 0 / .12)}
-@media (prefers-color-scheme:dark){:root{--canvas:#1b1b1b;--panel:#2a2a2a;--text:#ededed;--muted:#bdbdbd;--line:#383838;--line-2:#474747;--hover:#353535;--accent:#8b85ff;--accent-hover:#a09bff;--accent-text:#15142b;--shadow:0 2px 5px rgb(0 0 0 / .4),0 0 0 .5px rgb(255 255 255 / .08)}}
-body{margin:0;background:var(--canvas);color:var(--text);font:13px/1.55 "Inter Variable","Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-main{max-width:30rem;margin:12vh auto;padding:24px;background:var(--panel);border-radius:12px;box-shadow:var(--shadow)}
-@media (max-width:32rem){main{margin:16px 10px}}
-h1{font-size:20px;font-weight:600;line-height:1.25;letter-spacing:-.01em;margin:0 0 16px}
-p{margin:0 0 12px}.muted{color:var(--muted);font-size:12px}
-.row{display:flex;gap:8px;margin-top:20px;flex-wrap:wrap}
-button{font:inherit;font-weight:500;height:28px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);background:var(--panel);color:var(--text);cursor:pointer}
-button:hover{background:var(--hover)}
-button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-button[value=allow]{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
-button[value=allow]:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
-</style></head><body><main>
-<h1>Let ${named} work in WhatBuild as you?</h1>
+  return authPage(
+    `Connect ${p.client}`,
+    `<h1>Let ${named} work in WhatBuild as you?</h1>
 <p class="muted">${named} is the name the agent gave itself. WhatBuild hasn’t verified it.</p>
 <p>${destinationSentence(p.redirect)}</p>
 <p>Signed in as <strong>${escapeHtml(p.account)}</strong> (${escapeHtml(p.email)}).</p>
 <p>${reachSentence(p.reach)} Its changes are recorded as yours, made through the agent.</p>
 <p class="muted">What it reads goes to whoever runs the agent, under their terms, not ours.</p>
 <form method="post" action="/oauth/authorize">${inputs}<input type="hidden" name="csrf" value="${escapeHtml(p.csrf)}">
-<div class="row"><button type="submit" name="decision" value="allow">Allow</button><button type="submit" name="decision" value="deny">Deny</button></div>
-</form></main></body></html>`;
+<div class="row"><button type="submit" name="decision" value="allow" class="primary">Allow</button><button type="submit" name="decision" value="deny">Deny</button></div>
+</form>`,
+  );
+}
+
+/** What the consent form carries back: the authorization request the page was shown for. */
+interface ConsentFields {
+  client_id: string;
+  redirect_uri: string;
+  code_challenge: string;
+  state: string;
+  resource: string;
+  scope: string;
+}
+
+/**
+ * A seal over what a consent page showed, for whom, and the token it gave its form, keyed with the
+ * server's secret: the form's fields come back from the browser, so Allow approves them only when
+ * they are still what the page showed.
+ */
+function consentSeal(key: string, csrf: string, accountId: string, f: Pick<ConsentFields, "client_id" | "redirect_uri" | "code_challenge" | "state" | "resource">): string {
+  return createHmac("sha256", key)
+    .update(JSON.stringify(["whatbuild-oauth-consent", csrf, accountId, f.client_id, f.redirect_uri, f.code_challenge, f.state, f.resource]))
+    .digest("base64url");
+}
+
+function same(a: string, b: string): boolean {
+  return a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 }
 
 export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
@@ -233,15 +245,14 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
     const resource = q["resource"] ?? `${base}/mcp`;
     if (!resource.startsWith(`${base}/mcp`) || connectorBound(new URL(resource).pathname) === undefined)
       return refuse("invalid_target", "This server issues tokens only for its MCP endpoints: /mcp, /mcp/t/<organization> and /mcp/t/<organization>/<team>/<product>.");
-    const session = getCookie(c, SESSION_COOKIE);
-    const account = session ? await accountBySession(db, session) : null;
+    const account = await sessionAccount(c, db, secure);
     if (!account) return c.redirect(`/signin?next=${encodeURIComponent(c.req.url.replace(/^https?:\/\/[^/]+/, ""))}`);
     const csrf = randomToken(16);
-    setCookie(c, "wb_consent", csrf, { httpOnly: true, secure, sameSite: "Strict", path: "/oauth/authorize", maxAge: 900 });
-    c.header("X-Frame-Options", "DENY");
+    const shown: ConsentFields = { client_id: client.client_id, redirect_uri: redirect, code_challenge: q["code_challenge"], state: q["state"] ?? "", resource, scope: q["scope"] ?? SCOPE };
+    setCookie(c, "wb_consent", `${csrf}.${consentSeal(config.grantKey, csrf, account.account_id, shown)}`, { httpOnly: true, secure, sameSite: "Strict", path: "/oauth/authorize", maxAge: 900 });
     // Browsers apply form-action to the redirect that answers the form too, so the client's own
     // registered callback must be allowed here, or Allow silently goes nowhere.
-    c.header("Content-Security-Policy", `frame-ancestors 'none'; default-src 'none'; style-src 'unsafe-inline'; form-action 'self' ${formTarget(redirect)}`);
+    authPageHeaders(c, formTarget(redirect));
     return c.html(
       consentPage({
         client: client.client_name,
@@ -250,21 +261,23 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
         email: account.email,
         reach: await connectorReach(db, account.account_id, resource),
         csrf,
-        hidden: { client_id: client.client_id, redirect_uri: redirect, code_challenge: q["code_challenge"], state: q["state"] ?? "", resource, scope: q["scope"] ?? SCOPE },
+        hidden: shown,
       }),
     );
   });
 
   app.post("/oauth/authorize", async (c) => {
     const f = (await c.req.parseBody()) as Record<string, string>;
-    const expected = getCookie(c, "wb_consent");
-    if (!expected || !f["csrf"] || expected.length !== f["csrf"].length || !timingSafeEqual(Buffer.from(expected), Buffer.from(f["csrf"])))
-      return c.text("This consent form expired. Start the connection again from your MCP client.", 400);
+    const [csrf = "", seal = ""] = (getCookie(c, "wb_consent") ?? "").split(".");
+    if (!csrf || !seal || !same(csrf, f["csrf"] ?? "")) return c.text("This consent form expired. Start the connection again from your MCP client.", 400);
     const client = await loadClient(f["client_id"] ?? "");
     if (!client || !client.redirect_uris.includes(f["redirect_uri"] ?? "")) return c.text("Unknown client or redirect URI.", 400);
-    const session = getCookie(c, SESSION_COOKIE);
-    const account = session ? await accountBySession(db, session) : null;
+    const account = await sessionAccount(c, db, secure);
     if (!account) return c.text("Sign in first.", 401);
+    // Allow approves what the page showed, to the person it showed it to, and nothing else.
+    const sent = { client_id: client.client_id, redirect_uri: f["redirect_uri"]!, code_challenge: f["code_challenge"] ?? "", state: f["state"] ?? "", resource: f["resource"] ?? "" };
+    if (!same(seal, consentSeal(config.grantKey, csrf, account.account_id, sent)))
+      return c.text("This consent form doesn't match the request it was shown for. Start the connection again from your MCP client.", 400);
     const u = new URL(f["redirect_uri"]!);
     if (f["state"]) u.searchParams.set("state", f["state"]);
     u.searchParams.set("iss", base);
@@ -276,13 +289,17 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
     await db
       .insertInto("oauth_codes")
       .values({
-        code_hash: sha256Hex(code), client_id: client.client_id, account_id: account.account_id, redirect_uri: f["redirect_uri"]!,
-        code_challenge: f["code_challenge"] ?? "", resource: f["resource"] ?? `${base}/mcp`, scope: SCOPE, expires_at: new Date(Date.now() + 10 * 60_000).toISOString(),
+        code_hash: sha256Hex(code), client_id: client.client_id, account_id: account.account_id, redirect_uri: sent.redirect_uri,
+        code_challenge: sent.code_challenge, resource: sent.resource, scope: SCOPE, expires_at: new Date(Date.now() + 10 * 60_000).toISOString(),
       })
       .execute();
     u.searchParams.set("code", code);
     return c.redirect(u.toString());
   });
+
+  /** Revoke every token of one connection. */
+  const revokeConnection = (family: string) =>
+    db.updateTable("oauth_tokens").set({ revoked_at: new Date().toISOString() }).where("family_id", "=", family).where("revoked_at", "is", null).execute();
 
   const issue = async (into: Db, client_id: string, account_id: string, resource: string, family: string) => {
     const access = `${ACCESS_PREFIX}${randomToken(30)}`;
@@ -304,23 +321,37 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
     const client = f["client_id"] ? await loadClient(f["client_id"]) : undefined;
     if (!client) return oauthError(c, 401, "invalid_client", "Unknown client_id.");
     if (f["grant_type"] === "authorization_code") {
+      const hash = sha256Hex(f["code"] ?? "");
       const now = new Date().toISOString();
-      // Once: of requests that arrive together, only the one that marks the code used goes on.
-      const row = await db
-        .updateTable("oauth_codes")
-        .set({ used_at: now })
-        .where("code_hash", "=", sha256Hex(f["code"] ?? ""))
-        .where("client_id", "=", client.client_id)
-        .where("used_at", "is", null)
-        .where("expires_at", ">", now)
-        .returning(["account_id", "redirect_uri", "code_challenge", "resource"])
-        .executeTakeFirst();
-      if (!row) return oauthError(c, 400, "invalid_grant", "The authorization code is invalid, expired, or already used.");
-      if (f["redirect_uri"] !== row.redirect_uri) return oauthError(c, 400, "invalid_grant", "redirect_uri does not match the authorization request.");
-      const challenge = createHash("sha256").update(f["code_verifier"] ?? "").digest("base64url");
-      if (challenge !== row.code_challenge) return oauthError(c, 400, "invalid_grant", "PKCE verification failed.");
-      if (f["resource"] && f["resource"] !== row.resource) return oauthError(c, 400, "invalid_target", "resource does not match the authorization request.");
-      return c.json(await issue(db, client.client_id, row.account_id, row.resource, newId()));
+      // Once: of requests that arrive together, only the one that marks the code used goes on. The
+      // exchange is one transaction, so a second use waits on the row, then finds it spent after
+      // the first use's tokens exist.
+      type Exchanged = { tokens: Awaited<ReturnType<typeof issue>> } | { error: string; description: string } | null;
+      const exchanged = await db.transaction().execute(async (trx): Promise<Exchanged> => {
+        const row = await trx
+          .updateTable("oauth_codes")
+          .set({ used_at: now, family_id: newId() })
+          .where("code_hash", "=", hash)
+          .where("client_id", "=", client.client_id)
+          .where("used_at", "is", null)
+          .where("expires_at", ">", now)
+          .returning(["account_id", "redirect_uri", "code_challenge", "resource", "family_id"])
+          .executeTakeFirst();
+        if (!row) return null;
+        if (f["redirect_uri"] !== row.redirect_uri) return { error: "invalid_grant", description: "redirect_uri does not match the authorization request." };
+        const challenge = createHash("sha256").update(f["code_verifier"] ?? "").digest("base64url");
+        if (challenge !== row.code_challenge) return { error: "invalid_grant", description: "PKCE verification failed." };
+        if (f["resource"] && f["resource"] !== row.resource) return { error: "invalid_target", description: "resource does not match the authorization request." };
+        return { tokens: await issue(trx, client.client_id, row.account_id, row.resource, row.family_id!) };
+      });
+      if (!exchanged) {
+        // A code presented again has leaked: the connection it made is revoked (RFC 6749, section 4.1.2).
+        const spent = await db.selectFrom("oauth_codes").select("family_id").where("code_hash", "=", hash).where("used_at", "is not", null).executeTakeFirst();
+        if (spent?.family_id) await revokeConnection(spent.family_id);
+        return oauthError(c, 400, "invalid_grant", "The authorization code is invalid, expired, or already used.");
+      }
+      if ("error" in exchanged) return oauthError(c, 400, exchanged.error, exchanged.description);
+      return c.json(exchanged.tokens);
     }
     if (f["grant_type"] === "refresh_token") {
       const hash = sha256Hex(f["refresh_token"] ?? "");
@@ -344,7 +375,7 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
       const row = await db.selectFrom("oauth_tokens").select(["client_id", "family_id", "expires_at", "revoked_at"]).where("token_hash", "=", hash).where("kind", "=", "refresh").executeTakeFirst();
       if (!row || !row.revoked_at || row.client_id !== client.client_id || Date.parse(row.expires_at) < Date.now()) return oauthError(c, 400, "invalid_grant", "The refresh token is invalid or expired.");
       // A reused refresh token means it leaked: revoke the whole family.
-      await db.updateTable("oauth_tokens").set({ revoked_at: new Date().toISOString() }).where("family_id", "=", row.family_id).where("revoked_at", "is", null).execute();
+      await revokeConnection(row.family_id);
       return oauthError(c, 400, "invalid_grant", "This refresh token was already used; the connection has been revoked. Sign in again.");
     }
     return oauthError(c, 400, "unsupported_grant_type", "Use authorization_code or refresh_token.");
@@ -353,7 +384,7 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
   app.post("/oauth/revoke", async (c) => {
     const f = (await c.req.parseBody()) as Record<string, string>;
     const row = await db.selectFrom("oauth_tokens").select(["family_id"]).where("token_hash", "=", sha256Hex(f["token"] ?? "")).executeTakeFirst();
-    if (row) await db.updateTable("oauth_tokens").set({ revoked_at: new Date().toISOString() }).where("family_id", "=", row.family_id).where("revoked_at", "is", null).execute();
+    if (row) await revokeConnection(row.family_id);
     return c.body(null, 200);
   });
 

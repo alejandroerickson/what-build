@@ -7,7 +7,7 @@
     "dev": "tsx src/dev.ts",
     "build": "node build.mjs",
     "typecheck": "tsc -p tsconfig.json",
-    "serve": "tsx watch src/main.ts serve"
+    "serve": "NODE_ENV=development tsx watch src/main.ts serve"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.17.0",

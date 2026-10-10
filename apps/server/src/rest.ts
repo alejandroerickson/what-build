@@ -5,7 +5,7 @@ import {
 import { Hono, type Context } from "hono";
 import { sql } from "kysely";
 import { z } from "zod";
-import { restPrincipal } from "./auth/identity.ts";
+import { isOwnOrigin, restPrincipal } from "./auth/identity.ts";
 import type { ServerConfig } from "./config.ts";
 
 /** Where each scope's routes live. The addressed tenant, team and product are always in the path. */
@@ -67,16 +67,14 @@ function storyHtml(c: Context, html: string, theme: "light" | "dark" | undefined
 /** Cookie-authenticated writes must come from our own origin. SameSite=Lax does most of this; this closes the rest. */
 function checkOrigin(c: Context, config: ServerConfig, principal: Principal) {
   if (principal.auth_kind !== "session" || ["GET", "HEAD"].includes(c.req.method)) return;
-  const origin = c.req.header("origin");
-  if (origin && origin !== config.publicBaseUrl && !(config.env !== "production" && /^http:\/\/localhost:\d+$/.test(origin)))
-    throw new AppError(403, "forbidden_origin", "Cross-origin writes are refused.");
+  if (!isOwnOrigin(config, c.req.header("origin"))) throw new AppError(403, "forbidden_origin", "Cross-origin writes are refused.");
 }
 
 export function restRoutes(env: Env & { config: ServerConfig }) {
   const app = new Hono();
 
   const principalOf = async (c: Context) => {
-    const p = await restPrincipal(c, env.db);
+    const p = await restPrincipal(c, env.db, env.config);
     if (!p) throw unauthenticated();
     checkOrigin(c, env.config, p);
     return p;

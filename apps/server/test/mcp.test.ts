@@ -196,8 +196,6 @@ describe("OAuth for MCP clients", () => {
     });
     const tokens = (await tokenRes.json()) as any;
     expect(tokens.access_token).toMatch(/^wbat_/);
-    const reuse = await fetch(`${h.baseUrl}/oauth/token`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ grant_type: "authorization_code", code, client_id, redirect_uri: "http://127.0.0.1:9999/callback", code_verifier: verifier }) });
-    expect(reuse.status).toBe(400);
 
     const client = await connect(tokens.access_token);
     const list = text(await client.callTool({ name: "products", arguments: { action: "list" } }));
@@ -211,6 +209,9 @@ describe("OAuth for MCP clients", () => {
     expect(replay.status).toBe(400);
     const dead = await fetch(`${h.baseUrl}/mcp`, { method: "POST", headers: { authorization: `Bearer ${refreshed.access_token}`, "content-type": "application/json", accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) });
     expect(dead.status).toBe(401);
+    // The code is spent; using it again is refused (and revokes its connection: sign-in-and-oauth.test.ts).
+    const reuse = await fetch(`${h.baseUrl}/oauth/token`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ grant_type: "authorization_code", code, client_id, redirect_uri: "http://127.0.0.1:9999/callback", code_verifier: verifier }) });
+    expect(reuse.status).toBe(400);
   });
 
   it("refuses redirect URIs that could leak a code", async () => {

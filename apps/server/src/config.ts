@@ -3,6 +3,7 @@
  * WHATBUILD_, except the conventional DATABASE_URL, PORT and NODE_ENV.
  */
 export interface ServerConfig {
+  /** NODE_ENV when it is exactly `development` or `test`; anything else, or nothing, is production. */
   env: "development" | "test" | "production";
   port: number;
   publicBaseUrl: string;
@@ -27,6 +28,12 @@ export interface ServerConfig {
   microsoftTenant: string | null;
   microsoftClientId: string | null;
   microsoftClientSecret: string | null;
+  /**
+   * Email domains the directory is trusted for: an address in one is taken from it without the
+   * token's word (`xms_edov`) that the directory verified the domain, and so is a user principal
+   * name. Lower case, without "@"; empty for none.
+   */
+  microsoftDomains: string[];
   webDist: string | null;
   runWorker: boolean;
   /** When set, only these emails (or @domains) may create an account; invited people always may. */
@@ -65,6 +72,15 @@ export function microsoftSignIn(config: ServerConfig): boolean {
 }
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DOMAIN = /^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}$/;
+
+/** WHATBUILD_MICROSOFT_DOMAINS: domains separated by commas, each with or without a leading "@". */
+function domainList(v: string | undefined): string[] {
+  const domains = (v ?? "").split(",").map((d) => d.trim().toLowerCase().replace(/^@/, "")).filter(Boolean);
+  const bad = domains.find((d) => !DOMAIN.test(d));
+  if (bad !== undefined) throw new Error(`WHATBUILD_MICROSOFT_DOMAINS lists "${bad}", which is not a domain. List domains such as example.com, separated by commas.`);
+  return domains;
+}
 
 const MAILERS: ServerConfig["mailer"][] = ["console", "smtp", "memory", "none"];
 
@@ -74,7 +90,9 @@ function num(v: string | undefined, fallback: number): number {
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
-  const mode = (env["NODE_ENV"] === "production" ? "production" : env["NODE_ENV"] === "test" ? "test" : "development") as ServerConfig["env"];
+  // Development behaviour (sign in as anyone, a published grant key, printed mail) only when asked
+  // for by name: a server started with NODE_ENV unset, misspelt or anything else runs as production.
+  const mode: ServerConfig["env"] = env["NODE_ENV"] === "development" || env["NODE_ENV"] === "test" ? env["NODE_ENV"] : "production";
   const port = num(env["PORT"], 8787);
   const publicBaseUrl = (env["WHATBUILD_PUBLIC_URL"] ?? `http://localhost:${mode === "development" ? num(env["WHATBUILD_WEB_PORT"], 5273) : port}`).replace(/\/+$/, "");
   const grantKey = env["WHATBUILD_GRANT_KEY"] ?? (mode === "production" ? "" : "development-only-grant-key-not-secret");
@@ -109,6 +127,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     microsoftTenant: microsoftTenant?.toLowerCase() ?? null,
     microsoftClientId: env["WHATBUILD_MICROSOFT_CLIENT_ID"]?.trim() || null,
     microsoftClientSecret: env["WHATBUILD_MICROSOFT_CLIENT_SECRET"] || null,
+    microsoftDomains: domainList(env["WHATBUILD_MICROSOFT_DOMAINS"]),
     webDist: env["WHATBUILD_WEB_DIST"] ?? null,
     runWorker: env["WHATBUILD_WORKER"] !== "0",
     signupAllowlist: env["WHATBUILD_SIGNUP_ALLOWLIST"] ? env["WHATBUILD_SIGNUP_ALLOWLIST"].split(",").map((s) => s.trim().toLowerCase()).filter(Boolean) : null,

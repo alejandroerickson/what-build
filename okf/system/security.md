@@ -51,25 +51,41 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 **Identity and sessions** in `apps/server/src/auth/` ([decision](../decisions/built-in-identity-and-oauth.md),
 [decision](../decisions/invitations-belong-to-their-address.md), [§3.2, §3.8](../spec/03-accounts-teams-and-identity.md)).
 
-- No passwords. An email link works once, however many requests bring it at the same moment: one
+- No passwords. Opening an email link changes nothing: it shows a page with one button, so a mail
+  scanner that fetches the link leaves it unused. The button's POST signs in, and is refused unless
+  it comes from the app's own origin, so another site cannot sign a person in to an account it
+  chose (login CSRF). The link works once, however many requests bring it at the same moment: one
   conditional update marks it used, and only the request that made it signs in. It lasts
-  15 minutes, five an hour per address. Google needs `email_verified` and WhatBuild as audience;
-  Microsoft accepts one configured directory (`aud`, `tid`, `iss`). Both use PKCE S256 and a
-  random `state` in an `HttpOnly` cookie scoped to the flow for ten minutes. Development sign-in is
-  refused in production.
-- Where a sign-in returns to (`next`) is a path on this origin or `/` (`safeNext`, `routes.ts`): a
+  15 minutes, five an hour per address; its page is never framed or cached and sends no referrer
+  off its origin.
+- Google needs `email_verified` and WhatBuild as audience. Microsoft accepts one configured
+  directory (`aud`, `tid`, `iss`), and from it only an address whose domain has evidence: the
+  token's `xms_edov` (Entra's word that the domain's owner verified it), or a domain the
+  deployment lists in `WHATBUILD_MICROSOFT_DOMAINS`, the only domains in which a user principal
+  name is taken; so a directory's administrator cannot sign in as an address in someone else's
+  domain by giving it to a directory user. Both use PKCE S256 and a random `state` in an
+  `HttpOnly` cookie scoped to the flow for ten minutes.
+- Development sign-in, the fixed development grant key and printed mail exist only when
+  `NODE_ENV` is exactly `development` or `test`; a server started with it unset, or set to anything
+  else, runs as production (`config.ts`).
+- Where a sign-in returns to (`next`) is a path on this origin or `/` (`safeNext`,
+  `packages/core/src/safe-next.ts`, which the server and the web app's sign-in page both apply): a
   scheme or host, a backslash, whitespace or a control character anywhere, or an encoded slash,
   backslash, percent sign or control character in the path, sends the person to `/`, and so does a
   path that normalizes to begin with `//`.
-- Sessions are 256-bit random tokens in `wb_session` (`HttpOnly`, `SameSite=Lax`, `Secure` on
-  HTTPS), stored as SHA-256 hashes, for 30 days, deleted on sign-out. When the public URL is
-  `https`, every response carries `Strict-Transport-Security: max-age=31536000`, for the app's own
-  host: not `includeSubDomains`, since the parent domain also names the public site, and not
-  preloaded (`app.ts`).
+- Sessions are 256-bit random tokens, stored as SHA-256 hashes, for 30 days, deleted on sign-out.
+  Over HTTPS the cookie is `__Host-wb_session` (`HttpOnly`, `SameSite=Lax`, `Secure`, `Path=/`, no
+  `Domain`), which only the app's own host can set, so no host under the same parent domain can
+  plant a session; `wb_session` is taken only for a session issued before the prefix, which is then
+  moved to the new name (`identity.ts`). Over HTTP, in local development, it is `wb_session`. When
+  the public URL is `https`, every response carries `Strict-Transport-Security: max-age=31536000`,
+  for the app's own host: not `includeSubDomains`, since the parent domain also names the public
+  site, and not preloaded (`app.ts`).
 - Bodies sent to `/auth/*` and `/oauth/*` are refused past 64 KB, before they are read, whether
   or not they declare a length (`app.ts`).
-- A write other than GET, HEAD or OPTIONS that carries a `wb_` cookie is refused when its `Origin`
-  is another site (`apps/server/src/app.ts`); REST checks again (`checkOrigin` in `rest.ts`).
+- A write other than GET, HEAD or OPTIONS that carries a `wb_` or `__Host-wb_` cookie is refused
+  when its `Origin` is another site (`apps/server/src/app.ts`); REST checks again (`checkOrigin` in
+  `rest.ts`), and so does the sign-in link's POST, cookie or none (`isOwnOrigin`, `identity.ts`).
 - Invitations are 256-bit links stored as hashes, for 7 days, accepted only by the account with the
   invited address. Only instance owners, and addresses they give an allowance, create organizations
   ([decision](../decisions/only-instance-owners-decide-who-creates-organizations.md)).
@@ -84,15 +100,20 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 - Authorization code with PKCE S256 required; codes for ten minutes and once, bound to client,
   redirect URI and challenge; one-hour access tokens; 30-day refresh tokens that rotate, reuse
   revoking the connection; every token stored as a hash. A code is spent, and a refresh token
-  rotated, by one conditional update, so of requests that arrive together one succeeds; rotation
-  is one transaction, so a concurrent second use is reuse, and revokes what the first one issued.
-  Redirect URIs are `https`, loopback `http` or a private-use scheme, matched exactly.
+  rotated, by one conditional update, so of requests that arrive together one succeeds; the
+  exchange and the rotation are each one transaction, so a concurrent second use is reuse, and
+  revokes what the first one issued. A code presented again revokes the connection it made, which
+  its row records (RFC 6749 §4.1.2). Redirect URIs are `https`, loopback `http` or a private-use
+  scheme, matched exactly.
 - The consent page names the client in quotation marks as the name it gave itself, which WhatBuild
   has not verified, and says where Allow hands the connection: the redirect URI's host, or an app
   on this computer for loopback and private-use schemes. It names the person and what the agent
-  will reach; it cannot be framed, its form carries a token from a `SameSite=Strict` cookie, and it
-  posts only to WhatBuild and the client's registered callback. The connected-agents list says
-  who holds each connection the same way.
+  will reach; it cannot be framed or cached, and it posts only to WhatBuild and the client's
+  registered callback. Its form carries a token from a `SameSite=Strict` cookie that also holds an
+  HMAC, keyed with the server's secret, over the request the page showed and the account it showed
+  it to: an Allow whose resource, code challenge, `state` or client differs, or that another
+  account posts, is refused. The connected-agents list says who holds each connection the same
+  way.
 - Nothing goes to a client's redirect URI before the person chooses Allow or Deny: an error in an
   authorization request (response type, PKCE, resource) is said on WhatBuild's own page, signed in
   or not, so no registered URI is reached from WhatBuild's domain without a person's choice
@@ -208,7 +229,7 @@ credentials themselves, `/invite/:token` and `/join/:code`. An unexpected error 
 without detail (`app.ts`). Emails show a sender's chosen name on one line, quoted and bounded
 (`quotedName`). The web app's files are served only from inside their folder (`insideRoot`).
 `pnpm fixture pull` gives `pg_dump` the password in `PGPASSWORD`. The image is built from an allow-list (`.dockerignore`) and runs as `node` with
-`NODE_ENV=production`. CI gives pull requests a read-only token; production moves only on an
+`NODE_ENV=production`; a server started without it is production all the same. CI gives pull requests a read-only token; production moves only on an
 approved release ([decision](../decisions/production-runs-releases-after-approval.md)). The Worker
 (`deploy/cloudflare/worker.js`) sets `X-Forwarded-Host`, which `site.ts` uses only to pick a page.
 

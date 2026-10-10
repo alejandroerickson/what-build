@@ -512,10 +512,19 @@ Rules:
 - **OAuth 2.1** per the MCP authorization specification (`apps/server/src/auth/oauth.ts`):
   protected-resource metadata, authorization-server metadata, dynamic client registration,
   authorization code with PKCE, resource indicators, rotating refresh tokens. The person consents
-  in a browser and the token represents them.
+  in a browser and the token represents them. `POST /oauth/authorize` approves only the request
+  the consent page showed, sealed in its `wb_consent` cookie, and a code or refresh token used
+  twice revokes the connection it made.
 - **REST answers the browser session only.** There are no personal access tokens: a bearer token
   on REST is refused, and scripts connect as agents over MCP. Connected agents are listed and
-  disconnected on the Connect an agent page.
+  disconnected on the Connect an agent page. The session cookie is `__Host-wb_session` over HTTPS
+  and `wb_session` over HTTP ([§3.8](03-accounts-teams-and-identity.md#38-identity-of-the-caller)).
+- **Sign-in endpoints** (`apps/server/src/auth/routes.ts`): `POST /auth/email` sends a link;
+  `GET /auth/verify?token=` shows its page and changes nothing, and `POST /auth/verify` (form field
+  `token`, same origin only) uses it and signs in; `GET /auth/google`, `/auth/microsoft` and their
+  `/callback`s run OpenID Connect; `POST /auth/dev-sign-in` exists outside production;
+  `POST /auth/sign-out`; `GET /auth/methods` lists what is on
+  ([§3.2](03-accounts-teams-and-identity.md#32-accounts-and-sign-in)).
 - Both adapters build the actor snapshot from the authenticated identity and the transport
   (`web` or `mcp`, plus the client's name; activity from before tokens were removed may say
   `rest`). No input field can set or alter it.

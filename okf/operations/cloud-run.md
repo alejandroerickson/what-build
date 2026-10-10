@@ -88,6 +88,13 @@ before raising them (`WHATBUILD_PARSE_MEMORY_MB`, about a third of the instance'
 gcloud run services update whatbuild --region $R --memory 2Gi --update-env-vars WHATBUILD_PARSE_MEMORY_MB=768
 ```
 
+**Production, whatever starts it.** The image sets `NODE_ENV=production`, and a server started
+without it, or with any value but `development` or `test`, is production as well: it needs
+`WHATBUILD_GRANT_KEY`, offers no development sign-in and logs no sign-in link. Never set
+`NODE_ENV` to `development` or `test` on a deployment
+([local development](local-development.md#development-and-production)). Over HTTPS the session
+cookie is `__Host-wb_session`, which only the service's own host can set.
+
 **Sign-in.** A production server never logs sign-in links, so it needs one of:
 
 - **Google sign-in** — create an OAuth client (type *Web application*) in Google Auth Platform with
@@ -98,6 +105,14 @@ gcloud run services update whatbuild --region $R --memory 2Gi --update-env-vars 
 - **Email links** — re-run with `SMTP_URL=smtps://user:pass@host:465` and `MAIL_FROM`. Any SMTP
   provider works; this is also what sends invitations. Without it, invitations still work: the
   inviter is shown the single-use link to pass on.
+- **Microsoft work accounts** — `setup.sh` does not set it up. Register the application as the
+  [Azure guide](azure.md#sign-in) does, with the optional ID-token claims `email` and `xms_edov`
+  and the redirect URI `https://<your-url>/auth/microsoft/callback`, store its secret as
+  `whatbuild-microsoft-client-secret`, and set `WHATBUILD_MICROSOFT_TENANT`,
+  `WHATBUILD_MICROSOFT_CLIENT_ID` and `WHATBUILD_MICROSOFT_CLIENT_SECRET` (from the secret) on the
+  service. An address is taken from the directory only when the token's `xms_edov` says its domain
+  is verified, or its domain is listed in `WHATBUILD_MICROSOFT_DOMAINS`
+  ([§3.2](../spec/03-accounts-teams-and-identity.md#sign-in-with-microsoft-work-accounts)).
 
 **Who can join.** `SIGNUP_ALLOWLIST` (emails and `@domains`, comma-separated) limits who may create
 an account; by default it is only the `gcloud` account that ran the script. Anyone who is invited

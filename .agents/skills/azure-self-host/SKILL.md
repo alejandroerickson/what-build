@@ -43,10 +43,13 @@ first command. This file is how to conduct the work.
 4. **Write `.env.azure`**, then create in the guide's order. Each step depends on the one before:
    providers and group; registry and identity; vault and secrets; Postgres and its role; share
    and environment; image; migration job; app; checks.
-5. **Sign-in.** Make the app registration in the identity directory, store its secret in the
-   vault, and turn on the three `WHATBUILD_MICROSOFT_*` settings. Find the directory by what it
-   holds (the people who will sign in), not by its name: `GET /organization` in Microsoft Graph
-   names it, and `GET /users` shows who is in it. Set up email links too if the person wants them.
+5. **Sign-in.** Make the app registration in the identity directory, with the optional ID-token
+   claims `email` and `xms_edov`, store its secret in the vault, and turn on the
+   `WHATBUILD_MICROSOFT_*` settings, with the directory's own verified domains in
+   `WHATBUILD_MICROSOFT_DOMAINS`. With neither the claim nor a listed domain, WhatBuild refuses
+   every address the directory sends. Find the directory by what it holds (the people who will sign in),
+   not by its name: `GET /organization` in Microsoft Graph names it and its verified domains, and
+   `GET /users` shows who is in it. Set up email links too if the person wants them.
 6. **Prove it works**: `/health`, `/api/v1/meta`, a sign-in, an upload that parses, and the file in
    the share. A deployment nobody has signed in to is not done; say which of these you could not
    do yourself and need the person for.
@@ -110,6 +113,9 @@ organization, which is where care is needed.
   commit, run the migration job and see it succeed, then move the app; check `server_version`.
 - **A new version broke it**: the `recover-a-deployment` skill.
 - **A setting**: `az containerapp update --set-env-vars`; a secret is a new version in the vault.
-- **Microsoft sign-in on a deployment made without it**: add the secret reference and the three
+- **Microsoft sign-in on a deployment made without it**: add the secret reference and the
   `WHATBUILD_MICROSOFT_*` settings, and check `/api/v1/meta` reports `microsoft: true`.
+- **Microsoft sign-in refuses everyone** ("That Microsoft account can't sign in here"): the app
+  registration lacks the optional claim `xms_edov` and no domain is listed in
+  `WHATBUILD_MICROSOFT_DOMAINS`; the guide's Sign-in section has the command that adds the claim.
 - **Removal**: only when asked, after an export, with the resource group's name confirmed.

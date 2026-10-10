@@ -32,6 +32,21 @@ beside the first (another checkout, for example), change `PORT`, `WHATBUILD_WEB_
 `WHATBUILD_PG_PORT`; in the same checkout, also point `DATABASE_URL` at a fresh database. The web
 app proxies to its own instance's API (`WHATBUILD_API` overrides it).
 
+## Development and production
+
+The server behaves as a development server only when `NODE_ENV` is exactly `development` or
+`test`: the development sign-in (anyone signs in as anyone), the fixed development grant key, the
+console mailer, and writes from any `http://localhost` port. `pnpm dev`, `pnpm dev:fixture` and
+`pnpm dev:e2e` set `development`, and so do `pnpm db:migrate`, `pnpm db:seed`, the end-to-end
+tools and the server package's `serve` script; the tests set `test`. Anything else, including no
+`NODE_ENV` at all, a misspelling or `staging`, is production ([`config.ts`](../../apps/server/src/config.ts)):
+`pnpm start` or `node main.js serve` on the built server needs `WHATBUILD_GRANT_KEY` (32
+characters or more), takes only the `smtp` or `none` mailer, offers no development sign-in, and
+refuses to start as a database role that bypasses row-level security.
+
+Over plain HTTP the session cookie is `wb_session`; a deployment served over HTTPS uses
+`__Host-wb_session` ([§3.8](../spec/03-accounts-teams-and-identity.md#38-identity-of-the-caller)).
+
 ## The public sandbox, locally
 
 ```sh
@@ -69,7 +84,7 @@ plans in `e2e/plans/` there through the browser and MCP and reports what it find
 | `pnpm test` | Vitest: parsers, server (against an embedded Postgres 17) and web projects. `pnpm vitest run --project web` runs one. To run the server tests on another Postgres, such as the version a host offers, set `TEST_DATABASE_ADMIN_URL` (a superuser, which creates a database per test file) and `TEST_DATABASE_APP_URL_TEMPLATE` (the same server as a role named `whatbuild` without `SUPERUSER` or `BYPASSRLS`, with `{db}` for the database). The embedded server listens on `:54331`; `WHATBUILD_TEST_PG_PORT` moves it, so two checkouts can run the suite at once. |
 | `pnpm build` | The web bundle and the server bundle. |
 | `pnpm gen:skill` | Re-embeds `packages/core/src/skill/SKILL.md`; CI fails if it is stale. |
-| `pnpm db:migrate`, `pnpm db:seed` | Run migrations or the seed against `DATABASE_URL`. |
+| `pnpm db:migrate`, `pnpm db:seed` | Run migrations or the seed against `DATABASE_URL`, as a development server. |
 | `python3 okf/tools/validate_okf.py` | Checks the documentation bundle: frontmatter, types, links, indexes. |
 | `pnpm security` | Known vulnerabilities in the dependencies (osv-scanner) and weaknesses in the workflows (zizmor), with pinned scanners downloaded on first use ([security checks](security-checks.md)). |
 | `pnpm attention` | What is waiting in the repository: Dependabot's pull requests and alerts, failed runs on `main`, accepted vulnerabilities near expiry, changes production lacks, hooks that are off. Agents run it at the start of every session ([security checks](security-checks.md)). |

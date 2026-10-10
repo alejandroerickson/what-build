@@ -25,6 +25,7 @@ export * from "./media.ts";
 export * from "./policy.ts";
 export * from "./ports.ts";
 export * from "./registry.ts";
+export { safeNext } from "./safe-next.ts";
 export * from "./public-sandbox.ts";
 export * from "./public-sandbox-baseline.ts";
 export { hashParts, inputFingerprint, isCurrent, partHash } from "./ops/lineage.ts";

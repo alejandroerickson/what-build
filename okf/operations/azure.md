@@ -114,7 +114,8 @@ Settle these with the person; each changes what is built.
 7. **The address.** The Container Apps address (`https://whatbuild.<generated>.<region>.azurecontainerapps.io`)
    or [a domain of the organization's](#a-custom-domain).
 8. **Sign-in**, and **which directory** holds the app registration ([Sign-in](#sign-in)): Microsoft
-   work accounts, with or without email links.
+   work accounts, with or without email links, and which email domains that directory is the
+   authority for (`WB_MICROSOFT_DOMAINS`, usually its own verified domains).
 
 ## The values file
 
@@ -140,6 +141,7 @@ AZ_APP=whatbuild
 AZ_JOB=whatbuild-migrate
 WB_ALLOWLIST=@example.com
 WB_OWNERS=you@example.com
+WB_MICROSOFT_DOMAINS=example.com   # email domains the directory is trusted for; may be empty
 # added as they are created: AZ_IDENTITY_ID, AZ_IDENTITY_PRINCIPAL, AZ_ENV_ID, WB_PUBLIC_URL, WB_MICROSOFT_CLIENT_ID
 ```
 
@@ -399,7 +401,7 @@ cat > "$T/scopes.json" <<'JSON'
 JSON
 WB_MICROSOFT_CLIENT_ID=$(az ad app create --display-name WhatBuild --sign-in-audience AzureADMyOrg \
   --web-redirect-uris "$WB_PUBLIC_URL/auth/microsoft/callback" --required-resource-accesses @"$T/scopes.json" \
-  --optional-claims '{"idToken": [{"name": "email", "essential": false}]}' --query appId -o tsv)
+  --optional-claims '{"idToken": [{"name": "email", "essential": false}, {"name": "xms_edov", "essential": false}]}' --query appId -o tsv)
 az ad sp create --id "$WB_MICROSOFT_CLIENT_ID" -o none
 az ad app credential reset --id "$WB_MICROSOFT_CLIENT_ID" --append --display-name whatbuild-sign-in --years 1 \
   --query password -o tsv 2>/dev/null | put whatbuild-microsoft-client-secret
@@ -416,6 +418,19 @@ rm -rf "$T"
 - `AzureADMyOrg` admits only that directory's accounts, guests included. Who among them may create
   a WhatBuild account is still `WB_ALLOWLIST`. To narrow it in the directory as well, require
   assignment on the enterprise application and assign people or groups.
+- **Which addresses it takes.** A directory's administrators can set any email attribute on its
+  people, so WhatBuild takes an address from the directory only with evidence for its domain
+  ([§3.2](../spec/03-accounts-teams-and-identity.md#sign-in-with-microsoft-work-accounts)): the
+  optional claim `xms_edov` above, which Entra sets true when the domain's owner verified it (a
+  domain verified in the person's own directory, or a Microsoft or Google account, or a one-time
+  passcode), or a domain listed in `WHATBUILD_MICROSOFT_DOMAINS`. List the directory's own
+  verified domains there (`WB_MICROSOFT_DOMAINS`, comma-separated, each exact, so a subdomain is
+  listed too): then a person whose email attribute is empty signs in by their user principal name,
+  which is taken only in a listed domain. Without the claim and with no domain listed, every
+  Microsoft sign-in is refused with "That Microsoft account can't sign in here".
+- **A registration made before `xms_edov` was asked for** gets it with
+  `az ad app update --id "$WB_MICROSOFT_CLIENT_ID" --optional-claims '{"idToken": [{"name": "email", "essential": false}, {"name": "xms_edov", "essential": false}]}'`
+  (with the identity directory active); the next sign-in's token carries it.
 - The secret expires (a directory may allow less than a year; use `--end-date`). Note the date in
   `.env.azure`. Renewing is the same `credential reset --append` into the same vault secret; the
   app picks a new version up within half an hour, or at once when its revision is restarted.
@@ -426,15 +441,16 @@ rm -rf "$T"
   objects can be created through Graph (`/applications`, `/servicePrincipals`,
   `/oauth2PermissionGrants`, `/applications/<object id>/addPassword`) without changing the active
   account.
-- Uncomment the `microsoft-client-secret` secret and the three `WHATBUILD_MICROSOFT_*` entries in
-  the definition before creating the app, or on a running app:
+- Uncomment the `microsoft-client-secret` secret and the four `WHATBUILD_MICROSOFT_*` entries in
+  the definition before creating the app (leave `WHATBUILD_MICROSOFT_DOMAINS` out if no domain is
+  listed), or on a running app:
 
 ```bash
 az containerapp secret set --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP" -o none --secrets \
   "microsoft-client-secret=keyvaultref:https://$AZ_KEYVAULT.vault.azure.net/secrets/whatbuild-microsoft-client-secret,identityref:$AZ_IDENTITY_ID"
 az containerapp update --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP" -o none --set-env-vars \
   "WHATBUILD_MICROSOFT_TENANT=$AZ_IDENTITY_TENANT" "WHATBUILD_MICROSOFT_CLIENT_ID=$WB_MICROSOFT_CLIENT_ID" \
-  WHATBUILD_MICROSOFT_CLIENT_SECRET=secretref:microsoft-client-secret
+  WHATBUILD_MICROSOFT_CLIENT_SECRET=secretref:microsoft-client-secret "WHATBUILD_MICROSOFT_DOMAINS=$WB_MICROSOFT_DOMAINS"
 ```
 
 **Email links** work in every build, and are also what sends invitations. They need an SMTP
@@ -485,7 +501,9 @@ holds the approvals. That repository is the organization's; this one documents t
 
 Changing a setting is `az containerapp update --set-env-vars NAME=value` (the same variables as
 [cloud-run.md](cloud-run.md), with the `WHATBUILD_` prefix); a secret is a new version in the
-vault.
+vault. Leave `NODE_ENV` to the image, which sets `production`: only `development` or `test` turns
+on development behaviour (anyone signs in as anyone), and a server without it is production
+([local development](local-development.md#development-and-production)).
 
 ## Variations
 
