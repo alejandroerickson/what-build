@@ -56,7 +56,7 @@ hooks stop a leak before it leaves the machine; CI shows what got past them.
 | `session-talk` | phrases that report a request made in a session, addressed to the agent or naming the user |
 | `top-level` | a top-level file or directory not in `TOP_LEVEL` |
 | `agent-local` | anything in `.claude/` but the link to the skills |
-| `stray-document` | a document (`.md`, `.txt`, `.log`…) outside `okf/`, `.agents/skills/`, `.github/`, the root records (`AGENTS.md`, `README.md`, `SECURITY.md`…), a `README.md`, the product skill and test folders |
+| `stray-document` | a document (`.md`, `.txt`, `.log`…) outside `okf/`, `.agents/skills/`, `.github/`, the root records (`AGENTS.md`, `README.md`, `SECURITY.md`…), a `README.md`, the product skill, the end-to-end test plans in `e2e/plans/` and test folders |
 | `never-commit` | `.env` files, `_private/`, `.what-build/`, keys, certificates, database files and dumps, wherever they are |
 | `media` | images, PDFs, office documents, recordings and archives outside `apps/web/public/`; these are how real data slips in |
 | `large-file` | a file over 1 MB other than `pnpm-lock.yaml` |

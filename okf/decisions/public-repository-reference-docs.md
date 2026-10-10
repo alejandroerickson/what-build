@@ -16,7 +16,7 @@ The repository is public and MIT-licensed. Agents and people need one accurate p
 ## Decision
 
 - `okf/` is the source of truth for documentation: charter, system concepts, decisions, specification, operations and process.
-- Outside it only: `README.md` (for people), `AGENTS.md` (agent orientation; `CLAUDE.md` links to it), `.agents/skills/` (how agents read and maintain this bundle; [decision](agent-guidance-is-tool-neutral.md)), `PRODUCT.md` and `DESIGN.md` (design records read by tools), `SECURITY.md` (how to report a vulnerability, which GitHub shows), and short READMEs where a tool needs one.
+- Outside it only: `README.md` (for people), `AGENTS.md` (agent orientation; `CLAUDE.md` links to it), `.agents/skills/` (how agents read and maintain this bundle; [decision](agent-guidance-is-tool-neutral.md)), `PRODUCT.md` and `DESIGN.md` (design records read by tools), `SECURITY.md` (how to report a vulnerability, which GitHub shows), the end-to-end test plans in `e2e/plans/` (steps an agent follows, which name nothing private; [decision](end-to-end-tests-are-plans-an-agent-runs-on-a-golden-master.md)), and short READMEs where a tool needs one.
 - No logs, session notes, requests or to-do lists. Planned work goes in the [roadmap](../spec/10-roadmap.md). Private working material goes in `_private/` at the root of a checkout, which is ignored.
 - No private names, local paths, secrets or references to other private work, in files, commit messages or pull requests.
 
