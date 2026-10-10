@@ -170,7 +170,7 @@ describe("what a mockup draws on", () => {
   let mockupId: string;
 
   beforeAll(async () => {
-    const created = await alice.api("POST", `${P}/sources/with-upload`, { kind: "interview_transcript", title: "Finance lead interview", date: "2026-09-03", path: "call.vtt", role: "primary" });
+    const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Finance lead interview", date: "2026-09-03", path: "call.vtt", role: "primary" });
     recordId = created.body.record.record_id;
     const up = created.body.upload;
     await fetch(up.url, { method: "PUT", headers: up.headers, body: VTT });

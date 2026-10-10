@@ -27,10 +27,22 @@ function refFromInput(op: OperationDef, input: Record<string, unknown>, ref: Sco
   return ref;
 }
 
+/** Fields sources no longer have, and what to send instead. */
+const RETIRED_SOURCE_FIELDS = new Set(["kind", "organization", "folder"]);
+const RETIRED_SOURCE_HINT =
+  " Sources have no kind, organization or folder any more: say what the material is and whom it concerns with tags, reusing the ones sources(action=\"facets\") lists.";
+
+/** A hint when a call to a sources, files or search operation names a field sources no longer have. */
+function retiredFieldHint(op: OperationDef, error: z.ZodError): string {
+  if (!["sources", "files", "search"].includes(op.mcp.tool)) return "";
+  const named = error.issues.some((i) => i.code === "unrecognized_keys" && (i as { keys: string[] }).keys.some((k) => RETIRED_SOURCE_FIELDS.has(k)));
+  return named ? RETIRED_SOURCE_HINT : "";
+}
+
 export function parseInput<I extends z.ZodType>(op: OperationDef<I>, raw: unknown): z.output<I> {
   const parsed = op.input.safeParse(resolveIdAlias(op, raw ?? {}));
   if (!parsed.success) {
-    throw invalid("invalid_input", `${formatIssues(parsed.error)}. Nothing was changed.`, { operation: op.name });
+    throw invalid("invalid_input", `${formatIssues(parsed.error)}. Nothing was changed.${retiredFieldHint(op, parsed.error)}`, { operation: op.name });
   }
   return parsed.data;
 }

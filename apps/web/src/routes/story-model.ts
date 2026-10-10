@@ -108,7 +108,6 @@ export interface ResolvedRef {
   id: string;
   title: string | null;
   status: string | null;
-  kind?: string;
   archived: boolean;
   missing: boolean;
 }

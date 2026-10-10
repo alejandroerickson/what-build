@@ -58,13 +58,13 @@ beforeAll(async () => {
   const p = await olive.api("POST", `/api/v1/teams/${org}/${t.body.team.slug}/products`, { name: "Planner" });
   P = `/api/v1/p/${p.body.path}`;
   productId = p.body.product_id;
-  const created = await olive.api("POST", `${P}/sources/with-upload`, { kind: "interviewer_notes", title: "Visit notes — Example Co, Sep 2026", path: "visit.md", role: "primary" });
+  const created = await olive.api("POST", `${P}/sources/with-upload`, { tags: ["notes"], title: "Visit notes — Example Co, Sep 2026", path: "visit.md", role: "primary" });
   source = created.body.record.record_id;
   await fetch(created.body.upload.url, { method: "PUT", headers: created.body.upload.headers, body: "# Visit\n\n- Crews text the office.\n- Nobody called it a crisis.\n" });
   await h.worker.drain();
   outcome = (await olive.api("POST", `${P}/outcomes`, { title: "Send the week in minutes" })).body.outcome_id;
   assumption = (await olive.api("POST", `${P}/assumptions`, { statement: "Crews read texts before calls.", citations: [{ record_id: source, seq_start: 1, seq_end: 1 }] })).body.id;
-  view = (await olive.api("POST", `${P}/sources`, { kind: "view", title: "Hand-off view" })).body.record_id;
+  view = (await olive.api("POST", `${P}/sources`, { tags: ["view"], title: "Hand-off view" })).body.record_id;
   expect((await olive.api("POST", `${P}/story/pages/overview/versions`, { title: "Overview", body: "<main class=\"page\"><h1>Overview</h1></main>", refs: { sources: [source] } })).status).toBe(201);
   const m = await olive.api("POST", `${P}/mockups`, { title: "Crew message", brief: "One message per crew.", pages: [{ page_id: "message", title: "Message", html: "<!doctype html><html lang=\"en\"><head><title>Message</title></head><body><p>Hi</p></body></html>" }] });
   mockupId = m.body.mockup_id;
@@ -97,7 +97,7 @@ describe("moving insights and decisions into Evidence", () => {
 
   it("stores an insight as an analysis with the same id, its revisions as earlier versions, and what it was", async () => {
     const r = (await olive.api("GET", `${P}/sources/${insight}?detail=full`)).body;
-    expect(r).toMatchObject({ kind: "analysis", title: "Texts carry the plan", tags: ["insight"], provenance_depth: "derived", derived_status: "ready", archived_at: null });
+    expect(r).toMatchObject({ title: "Texts carry the plan", tags: ["analysis", "insight"], provenance_depth: "derived", derived_status: "ready", archived_at: null });
     expect(r.related_records.sort()).toEqual([decision, draft, source].sort());
     expect(r.uploaded_by.display_name).toBe("Sam");
     expect(r.agent_notes.map((n: { kind: string }) => n.kind)).toEqual(["summary"]);
@@ -112,14 +112,14 @@ describe("moving insights and decisions into Evidence", () => {
     expect(text).toContain(`Outcome: Send the week in minutes`);
     expect(text).toContain(`Decision, now a source: Send each crew a generated message. (${decision})`);
     const draftSource = (await olive.api("GET", `${P}/sources/${draft}`)).body;
-    expect(draftSource.tags).toEqual(["insight", "draft"]);
+    expect(draftSource.tags).toEqual(["analysis", "insight", "draft"]);
     const found = await olive.api("GET", `${P}/search?query=${encodeURIComponent("then call the office")}`);
     expect(found.body.hits.map((x: { record_id: string }) => x.record_id)).toContain(insight);
   });
 
   it("stores a decision as a source with its evidence, links and reviews in the text", async () => {
     const r = (await olive.api("GET", `${P}/sources/${decision}?detail=full`)).body;
-    expect(r).toMatchObject({ kind: "other", title: "Send each crew a generated message.", tags: ["decision", "hand-off"], provenance_depth: "primary", derived_status: "ready" });
+    expect(r).toMatchObject({ title: "Send each crew a generated message.", tags: ["decision", "hand-off"], provenance_depth: "primary", derived_status: "ready" });
     expect(r.related_records.sort()).toEqual([source]);
     const text = await primaryText(decision);
     expect(text).toContain("Typed messages are where mistakes enter.");
@@ -169,6 +169,6 @@ describe("moving insights and decisions into Evidence", () => {
     expect(reset.status, JSON.stringify(reset.body)).toBe(200);
     expect((await olive.api("GET", `${P}/sources/${again}`)).status).toBe(404);
     await h.worker.drain();
-    expect((await olive.api("GET", `${P}/sources/${again}`)).body).toMatchObject({ kind: "analysis", title: "Saved before the move", derived_status: "ready" });
+    expect((await olive.api("GET", `${P}/sources/${again}`)).body).toMatchObject({ title: "Saved before the move", tags: ["analysis", "insight"], derived_status: "ready" });
   });
 });

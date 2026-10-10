@@ -86,7 +86,7 @@ describe("MCP", () => {
     // Only one product is reachable, so `product` may be omitted.
     const created = text(await client.callTool({
       name: "files",
-      arguments: { action: "create_upload", params: { kind: "interview_transcript", title: "Buyer interview — Example Co, Sep 2026", date: "2026-09-01", path: "notes.txt", role: "primary" } },
+      arguments: { action: "create_upload", params: { tags: ["interview"], title: "Buyer interview — Example Co, Sep 2026", date: "2026-09-01", path: "notes.txt", role: "primary" } },
     }));
     expect(created.scope?.product.path, JSON.stringify(created)).toBe(path);
     const put = await fetch(created.upload.url, { method: "PUT", headers: created.upload.headers, body: "Interviewer: What slows you down?\nBuyer: Approvals. Every purchase over a thousand dollars waits a week.\nInterviewer: Who approves?\nBuyer: Finance, once a week on Mondays.\n" });

@@ -37,7 +37,7 @@ beforeAll(async () => {
   productPath = p.body.path;
   P = `/api/v1/p/${productPath}`;
   await alice.api("POST", `${P}/outcomes`, { title: "Close the books faster" });
-  const created = await alice.api("POST", `${P}/sources/with-upload`, { kind: "interview_transcript", title: "Finance lead interview — Example Co, Sep 2026", date: "2026-09-03", path: "call.vtt", role: "primary" });
+  const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Finance lead interview — Example Co, Sep 2026", date: "2026-09-03", path: "call.vtt", role: "primary" });
   recordId = created.body.record.record_id;
   const up = created.body.upload;
   await fetch(up.url, { method: "PUT", headers: up.headers, body: VTT });
@@ -189,7 +189,7 @@ describe("a Story reader", () => {
     const before = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "planner", email: "eddie@example.com", role: "editor" });
     expect(before.status).toBe(201);
     const eddie = await h.signIn("eddie@example.com", "Eddie Editor");
-    const created = await eddie.api("POST", `${P}/sources/with-upload`, { kind: "interview_transcript", title: "Second interview", date: "2026-09-04", path: "call.vtt", role: "primary" });
+    const created = await eddie.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Second interview", date: "2026-09-04", path: "call.vtt", role: "primary" });
     expect(created.status).toBe(201);
     const up = created.body.upload;
     await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "planner", email: "eddie@example.com", role: "reader" });

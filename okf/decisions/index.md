@@ -31,6 +31,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [WhatBuild asks once whether a person accepts cookies, and runs Google Analytics only for those who do](analytics-only-for-people-who-accept-cookies.md)
 - [WhatBuild stores only what it needs, says so once, and keeps anything optional off until a person agrees](only-necessary-cookies-and-optional-ones-wait-for-consent.md) (superseded)
 - [Every write is attributed, and human or agent authorship is declared](attribution-and-declared-authorship.md)
+- [Sources are described by a title and tags; there are no kinds, folders or organization field](sources-are-described-by-tags.md)
 - [Only a source's primary file is parsed and searched](only-the-primary-file-is-searched.md)
 - [Citations freeze a snapshot and report drift; they are never repaired silently](citations-snapshot-and-report-drift.md)
 - [Story pages are agent-authored HTML shown only in a sandbox](story-pages-are-sandboxed-agent-html.md)

@@ -3,7 +3,7 @@ type: Specification
 title: Search is lexical, bounded, and says exactly what it examined.
 description: The search operation as built (substring and ranked modes, scopes, filters, coverage), dimensions, and the planned retrieval work (dimension registry, attachment tiers, semantic search, approximate relocation, recursive lineage).
 tags: [spec, search, retrieval, coverage]
-generated: {by: agent:claude, at: 2026-09-27}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -23,7 +23,7 @@ search {
   query:     string (1–500)                  // required
   mode?:     "substring" (default) | "ranked"
   scope?:    "passages" (default) | "assumptions" | "all"
-  record_id?, folder?, kind?, organization?, date_from?, date_to?, tags[]?,   // passage filters
+  record_id?, date_from?, date_to?, tags[]?,          // passage filters
   customer?, product_area?, lifecycle_stage?, provenance_depth?,
   include_archived? (false), limit? (50, at most 200), cursor?
 }
@@ -31,10 +31,13 @@ search {
 
 - One product per call. There is no cross-product search, and there will never be a
   cross-tenant one.
-- Folder, kind, organization, date and tag filters apply to passages; combining them with
-  `scope: "assumptions"` is `422 invalid_filter`.
+- Date and tag filters apply to passages: `date_from` and `date_to` bound the source's own date,
+  and a source must carry every tag given. Combining them with `scope: "assumptions"` is
+  `422 invalid_filter`. Sources have no kind, organization or folder to filter by
+  ([§4.4](04-data-model.md)); naming one is `422 invalid_input`.
 - Passage hits: `{ record_id, seq, start_ms, end_ms, speaker, snippet, char_start, char_end,
-  score? }`, with each source's metadata sent once in `records`. A hit's `record_id` and `seq` are
+  score? }`, with each source's `title`, `date`, `tags` and `archived_at` sent once in
+  `records`. A hit's `record_id` and `seq` are
   directly usable with `read_passage` and as citations. Snippets are at most 160 characters.
 - Assumption hits come back as `assumptions` (id, statement, status, citation count).
 - Results are bounded and paged as everywhere ([§6.3](06-operations-and-adapters.md)).

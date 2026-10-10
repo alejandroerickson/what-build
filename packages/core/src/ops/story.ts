@@ -230,7 +230,7 @@ function notesView(p: { agent_notes: string; agent_notes_etag: string; agent_not
   return { content: p.agent_notes, etag: p.agent_notes_etag, updated_at: p.agent_notes_updated_at, updated_by: p.agent_notes_updated_by };
 }
 
-type ResolvedRef = { id: string; title: string | null; status: string | null; kind?: string; archived: boolean; missing: boolean };
+type ResolvedRef = { id: string; title: string | null; status: string | null; archived: boolean; missing: boolean };
 
 /** A version's references with their current titles, so a reader can list them without a request per id. */
 export async function resolveRefs(ctx: OpContext, refs: Refs): Promise<Record<keyof Refs, ResolvedRef[]>> {
@@ -238,7 +238,7 @@ export async function resolveRefs(ctx: OpContext, refs: Refs): Promise<Record<ke
   const some = (ids: string[] | undefined) => (ids?.length ? ids : [""]);
   const [outcomes, sources, entries] = await Promise.all([
     ctx.db.selectFrom("outcomes").select(["outcome_id as id", "title", "status"]).where("product_id", "=", pid).where("outcome_id", "in", some(refs.outcomes)).execute(),
-    ctx.db.selectFrom("records").select(["record_id as id", "title", "kind", "archived_at"]).where("product_id", "=", pid).where("record_id", "in", some(refs.sources)).execute(),
+    ctx.db.selectFrom("records").select(["record_id as id", "title", "archived_at"]).where("product_id", "=", pid).where("record_id", "in", some(refs.sources)).execute(),
     ctx.db
       .selectFrom("register_entries")
       .select(["entry_id as id", "statement", "status", "archived_at"])
@@ -254,7 +254,7 @@ export async function resolveRefs(ctx: OpContext, refs: Refs): Promise<Record<ke
     }),
     sources: (refs.sources ?? []).map((i) => {
       const r = sources.find((x) => x.id === i);
-      return r ? { id: i, title: r.title, status: null, kind: r.kind, archived: Boolean(r.archived_at), missing: false } : missing(i);
+      return r ? { id: i, title: r.title, status: null, archived: Boolean(r.archived_at), missing: false } : missing(i);
     }),
     assumptions: (refs.assumptions ?? []).map((i) => {
       const r = entries.find((x) => x.id === i);

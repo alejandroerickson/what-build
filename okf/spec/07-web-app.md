@@ -150,8 +150,9 @@ person's organization role is in the account menu, and who has which role is on 
 
 /t/:tenant/:team/:product                     → …/idea
   /idea               ?status                 the product concept, outcomes with counts
-  /evidence           ?folder&kind&organization&date_from&date_to&tags&query&include_archived
-  /evidence/new       ?kind                   kind-first intake
+  /evidence           ?tags&added_by&added&query&include_archived&sort&order
+                      (added: 1, 7, 30, 60 or 90 days; query: the title search)
+  /evidence/new                               intake: describe it, add files, create
   /evidence/:record   ?view=passages|original|notes|files &seq=N &file=<path>
   /search             ?q&mode&scope&record_id
   /exploration                                → …/exploration/mockups
@@ -239,33 +240,48 @@ with nothing in it shows the same state. Viewers see the words without the reque
 The sources, and everything for reading them.
 
 
-- **Upload, kind-first.** Step 1 asks what the material *is* (kinds grouped as in
-  [§4.4](04-data-model.md), in plain language). Step 2 asks for title, the **date captured** (with
-  help text distinguishing it from today), and optional metadata relevant to that kind. Step 3
-  takes files and assigns roles with sensible defaults (a transcript beside a recording becomes
-  primary). The person never sees or chooses a folder. Multi-file drag-and-drop is supported;
+- **Intake.** **Add source**, a plain button in the sheet's header, opens it. Three steps:
+  **Describe it** asks for the title, the **date captured** (optional, with help text
+  distinguishing it from today) and tags, offering the product's most used tags to add with one
+  click ([§4.4](04-data-model.md)); participants, where it came from (the source system) and its
+  relationship to the evidence (`provenance_depth`) wait behind "Participants, origin and
+  relationship". **Add files** takes files and assigns roles with sensible defaults (a transcript
+  beside a recording becomes primary). **Create** makes the source. Nothing asks what kind of
+  material it is or where to file it. Multi-file drag-and-drop is supported;
   progress and derivation status are shown until `ready` or a terminal status with a
   plain-language explanation and next step (`needs_transcript` → "add a transcript").
-- **Browse.** Filters held in the URL: folder, kind, organization, date range, tags, title
-  substring, archived — set from the panel's context slot, each a link that sets URL params.
-  Paged. The sheet is titled **Sources** (the section stays Evidence). Three dates are named as
+- **Browse.** The panel's context slot opens with the search: one find field and a **Passages |
+  Titles** toggle under it. Passages (the default) opens Search on Enter. Titles narrows the list
+  as you type (`?query`, which also matches tags and file names; on a source page, Enter opens the
+  list narrowed). Switching takes the words along, and switching to Passages drops the title
+  search from the list. Then single-select filters, each a link that sets a URL param: **Tags** (All tags and
+  the eight most used, each with its count, and "All N" for the rest; `?tags`), **Added by**
+  (Anyone and each person who added sources, with counts, shown when more than one person has or
+  while the filter is on; `?added_by`), **Added** (Any time, Past day, Past 7 days, Past 30 days,
+  Past 60 days, Past 90 days: by date added, in short windows because a discovery may last only
+  about 90 days; `?added`) and **Archived** (Hide archived, Include archived; `?include_archived`). The
+  tags and people come from `sources.facets`. While any filter is on, a "Clear filters" link sits
+  above Tags. On a source page the same links lead back to the list.
+  Paged. The sheet is titled **Sources** (the section stays Evidence). The filters in use,
+  the title search among them ("Titles matching …"), show as removable chips above the rows.
+  Three dates are named as
   dates everywhere: **date captured** (the source's own date: when the interview or call
   happened, or the date the document carries), **date added** (when it came into WhatBuild) and
   **date updated** (when its details were last edited). "Sort by" and a segmented control in the
   header order the list by date captured (the default, undated last), date added, date updated or
   title (`?sort=date|added|updated|title`). A small triangle beside the current order shows its
   direction; choosing it again reverses it (`?order=asc|desc`; dates start newest first, title A
-  to Z). When the sheet is narrower than 680px the same choices sit in a menu. The panel's date
-  filter is headed "Date captured". Each row's end says "Updated <when> by <who>". The header
+  to Z). When the sheet is narrower than 680px the same choices sit in a menu. Each row shows its
+  tags and its date captured under the title, and at its end "Added <when> by <who>", or "Updated
+  <when> by <who>" when the list is sorted by date updated. The header
   counts the sources listed, with "of N" live sources while filters narrow the list (left out once archived
   sources are included). Archived rows are muted and marked Archived. Rows whose titles match
-  another listed row also name their primary file, so the twins can be told apart. A folder filter
-  below a kind group (from a source's "Filed in") reads as the group and the rest of the path.
+  another listed row also name their primary file, so the twins can be told apart.
 - **Source page.** A source is the busiest object in the app, so the page is dense on purpose.
   - **Header:** the title and the actions menu, nothing else; every property is in the inspector.
     Below it the **description**: the agent's summary note, rendered Markdown clamped to four
     lines with "Show all" and attributed, and nothing at all when there is none. Editing the
-    details (including kind — "reorganize" — without any mention of paths), adding files,
+    details (title, date, tags, offering the product's tags, and the rest), adding files,
     archive, restore and delete (§7.10) are in the page's actions menu.
   - **Sections**, a segmented control held in the URL as `?view=` (links, not tabs):
     **Passages** (the default once the source is parsed), **Original** (a preview of the origin
@@ -285,12 +301,12 @@ The sources, and everything for reading them.
     primary file is searched. The others are kept for download."). A non-primary file's role changes from its row menu,
     confirmed in a dialog that says what the change does. Original states a recording's length
     beside the player when the parse read one.
-  - **Inspector,** titled Details: **About** (Kind; the three dates together — Date captured
+  - **Inspector,** titled Details: **About** (the three dates together — Date captured
     (or "No date"), Date added and Date updated, the last two each with "by <who>", adding "via
-    <surface>" when it was not the web, and Date updated saying "Not since it was added" when
-    nothing changed; Organization, a link to the list filtered to it; Participants; Tags;
-    Provenance; Came from, the source system; Filed in, a link to the list filtered to that
-    folder), **Built from** for a view with lineage
+    <surface>" when it was not the web, the person who added it linking to the list filtered to
+    what they added, and Date updated saying "Not since it was added" when nothing changed; Tags,
+    each a link to the list filtered to it; Participants; Provenance; Came from, the source
+    system), **Built from** for a view with lineage
     (below), a **Files** summary (each file's role and whether it is searched, adding the number
     of stored versions only when there are more versions than files), **Cited in** (assumptions,
     mockups and Story pages, each citation linking to its exact passage or range, and the sources
@@ -325,8 +341,8 @@ The sources, and everything for reading them.
   to the whole range.
 - **Comments** (annotations) are shown inline under the passage they belong to, and listed in the
   Notes section. A comment on a range also tints every passage it covers.
-- **Search.** Same filters plus free-text passage search; results are passages in context with
-  speaker and time, linking into the reader at that position. Exact-text results mark the whole
+- **Search.** Free-text passage search; results are passages in context with speaker and time,
+  under their source's title, linking into the reader at that position. Exact-text results mark the whole
   phrase; ranked results mark each word. The UI states what was searched
   ([§8.4](08-search.md)). Assumption results carry their status, as the list does.
 

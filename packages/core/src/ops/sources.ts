@@ -3,10 +3,10 @@ import { z } from "zod";
 import { checkEtag, keepRevision, normalizeDimensions, normalizeTags, productId, recordActivity, tenantId } from "../common.ts";
 import { json, type RecordsTable } from "../db.ts";
 import { conflict, gone, invalid, notFound } from "../errors.ts";
-import { describeFolder, folderFor, GROUPS, KINDS, kindInfo, SEARCH_RULE } from "../kinds.ts";
+import { SEARCH_RULE } from "../source-fields.ts";
 import { effectiveRole, membershipsFor, roleAtLeast } from "../policy.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
-import { dimensions, expectedEtag, id, isoDate, kind, provenanceDepth, tags } from "../schemas.ts";
+import { dimensions, expectedEtag, id, isoDate, provenanceDepth, tags } from "../schemas.ts";
 import { newEtag, newId, sameEtag, slugify, uniq } from "../util.ts";
 
 type RecordRow = Selectable<RecordsTable>;
@@ -85,16 +85,15 @@ function sourceWarnings(s: { derived_status: string; file_count: number }): stri
 
 /**
  * A soft warning, never a refusal, when a live source in this product already has the same title
- * (ignoring case and surrounding space), kind and date: duplicates split citations and dilute search.
+ * (ignoring case and surrounding space) and date: duplicates split citations and dilute search.
  */
-export async function duplicateWarnings(ctx: OpContext, meta: { kind: string; title: string; date?: string | null | undefined }): Promise<string[]> {
+export async function duplicateWarnings(ctx: OpContext, meta: { title: string; date?: string | null | undefined }): Promise<string[]> {
   const date = meta.date ?? null;
   const same = await ctx.db
     .selectFrom("records")
     .select(["record_id", "title"])
     .where("product_id", "=", productId(ctx))
     .where("archived_at", "is", null)
-    .where("kind", "=", meta.kind)
     .where(sql<boolean>`lower(btrim(title)) = lower(btrim(${meta.title}))`)
     .where(date === null ? sql<boolean>`date is null` : sql<boolean>`date = ${date}`)
     .orderBy("record_id")
@@ -103,24 +102,18 @@ export async function duplicateWarnings(ctx: OpContext, meta: { kind: string; ti
   if (!same.length) return [];
   const ids = same.map((r) => r.record_id).join(", ");
   return [
-    `A source with the same title, kind and date already exists (${ids}). If this is the same material, add files to that source and archive this one; if it is different, give this one a title that tells them apart.`,
+    `A source with the same title and date already exists (${ids}). If this is the same material, add files to that source and archive this one; if it is different, give this one a title that tells them apart.`,
   ];
 }
 
 export function recordSummary(r: RecordRow, s?: { derived_status: string; segment_count: number; file_count: number }) {
-  const info = kindInfo(r.kind);
   return {
     record_id: r.record_id,
-    kind: r.kind,
-    kind_label: info.label,
     title: r.title,
     date: r.date,
-    organization: r.organization,
     tags: r.tags,
     dimensions: r.dimensions,
     provenance_depth: r.provenance_depth,
-    folder: r.folder,
-    folder_label: describeFolder(r.folder),
     uploaded_by: r.uploaded_by,
     uploaded_at: r.uploaded_at,
     updated_at: r.updated_at,
@@ -148,21 +141,43 @@ function badCursor() {
   return invalid("invalid_cursor", "This cursor does not belong to this sort. Pass next_cursor back with the same filters and sort.");
 }
 
-// ---- Taxonomy-----------------------------------------------------------------------------------
+// ---- Facets -------------------------------------------------------------------------------------
 
-export const listKinds = defineOperation({
-  name: "sources.kinds",
-  scope: "account",
-  access: "any",
+/** At most this many tags come back from sources.facets, most used first. */
+export const MAX_FACET_TAGS = 500;
+
+export const sourceFacets = defineOperation({
+  name: "sources.facets",
+  scope: "product",
+  access: "read",
   mutates: false,
-  summary: "The source taxonomy: every kind, its group, and what intake asks for.",
+  summary: "What sources can be filtered by: the tags in use, most used first, and the people who added sources.",
   description:
-    "Pick the kind that says what the material is. Dated kinds want the event date (not the upload date); organizational kinds want the organization concerned. Use analysis, digest and view for derived material so readers can tell evidence from interpretation.",
-  input: z.strictObject({}),
-  rest: { method: "GET", path: "/kinds" },
-  mcp: { tool: "sources", action: "kinds" },
-  async handler() {
-    return { groups: GROUPS, kinds: KINDS, search_rule: SEARCH_RULE };
+    "Read the tags before tagging a source, and reuse one the team already uses rather than coining a near-duplicate (interview, not interviews or customer-interview). A tag says what the material is (interview, workshop, deck, analysis), whom it concerns (an organization or a segment) or what it bears on. Counts are of live sources unless include_archived is true; tags_truncated says the list stopped at the most used " +
+    `${MAX_FACET_TAGS}. added_by lists each person who added sources, by account_id with their name when they last added one, and how many; an agent's additions count as the person's. Filter with sources(action=\"list\", tags=…) or (added_by=account_id).`,
+  input: z.strictObject({ include_archived: z.boolean().default(false) }),
+  // Registered before sources.get, so /sources/facets is never read as a source id.
+  rest: { method: "GET", path: "/sources/facets" },
+  mcp: { tool: "sources", action: "facets" },
+  async handler(ctx, input) {
+    const live = input.include_archived ? sql`` : sql` and r.archived_at is null`;
+    const tags = await sql<{ tag: string; count: number }>`
+      select t as tag, count(*)::int as count from records r cross join lateral unnest(r.tags) as t
+      where r.product_id = ${productId(ctx)}${live}
+      group by t order by count desc, t asc limit ${MAX_FACET_TAGS + 1}`.execute(ctx.db);
+    const people = await sql<{ account_id: string; display_name: string; count: number }>`
+      select r.uploaded_by->>'account_id' as account_id,
+        (array_agg(r.uploaded_by->>'display_name' order by r.uploaded_at desc))[1] as display_name,
+        count(*)::int as count
+      from records r where r.product_id = ${productId(ctx)}${live}
+      group by 1 order by count desc, display_name asc`.execute(ctx.db);
+    const total = await sql<{ n: number }>`select count(*)::int as n from records r where r.product_id = ${productId(ctx)}${live}`.execute(ctx.db);
+    return {
+      sources: total.rows[0]?.n ?? 0,
+      tags: tags.rows.slice(0, MAX_FACET_TAGS),
+      tags_truncated: tags.rows.length > MAX_FACET_TAGS,
+      added_by: people.rows,
+    };
   },
 });
 
@@ -175,14 +190,13 @@ export const listSources = defineOperation({
   mutates: false,
   summary: "List sources by metadata: newest added first, or by date, last update or title, either way round. For passage content use search.",
   description:
-    "Filters combine. `query` is a case-insensitive substring over metadata only — title, organization, participants, source system, tags and file names — never passage text; use `search` for content. `sort`: added (newest added first, the default), date (the source's own date, newest first, undated last), updated (details most recently changed first) or title (A to Z). `order` reverses it: asc or desc, defaulting to desc for the three dates and asc for title; undated sources stay last either way. Returns summaries with derived_status, the primary file's path (primary_file) and next_cursor; pass the cursor back with the same filters, sort and order.",
+    "Filters combine. `tags` must all be on a source; sources(action=\"facets\") lists the tags in use and who added sources. `added_by` is an account_id; `added_since` keeps sources added at or after a date or time; `date_from` and `date_to` bound the source's own date. `query` is a case-insensitive substring over metadata only — title, tags, participants, source system and file names — never passage text; use `search` for content. `sort`: added (newest added first, the default), date (the source's own date, newest first, undated last), updated (details most recently changed first) or title (A to Z). `order` reverses it: asc or desc, defaulting to desc for the three dates and asc for title; undated sources stay last either way. Returns summaries with derived_status, the primary file's path (primary_file) and next_cursor; pass the cursor back with the same filters, sort and order.",
   input: z.strictObject({
-    folder: z.string().max(100).optional().describe("A folder root such as interviews or documents/decks, or a prefix under it."),
-    kind: kind.optional(),
-    organization: z.string().max(200).optional().describe("Exact, case-insensitive."),
-    date_from: isoDate.optional(),
-    date_to: isoDate.optional(),
     tags: z.array(z.string()).max(20).optional().describe("All must match."),
+    added_by: z.string().min(1).max(100).optional().describe("An account_id from sources(action=\"facets\"): only the sources that person added, in the app or through an agent."),
+    added_since: z.union([isoDate, z.iso.datetime({ offset: true })]).optional().describe("Only sources added at or after this date (UTC midnight) or time."),
+    date_from: isoDate.optional().describe("The source's own date, on or after."),
+    date_to: isoDate.optional().describe("The source's own date, on or before."),
     query: z.string().max(500).optional(),
     customer: z.string().max(120).optional(),
     product_area: z.string().max(120).optional(),
@@ -199,12 +213,8 @@ export const listSources = defineOperation({
   async handler(ctx, input) {
     let q = ctx.db.selectFrom("records").selectAll().where("product_id", "=", productId(ctx));
     if (!input.include_archived) q = q.where("archived_at", "is", null);
-    if (input.folder) {
-      const f = input.folder.replace(/^\/+|\/+$/g, "");
-      q = q.where(sql<boolean>`(folder = ${f} or folder like ${f + "/%"})`);
-    }
-    if (input.kind) q = q.where("kind", "=", input.kind);
-    if (input.organization) q = q.where(sql<boolean>`lower(organization) = lower(${input.organization})`);
+    if (input.added_by) q = q.where(sql<boolean>`uploaded_by->>'account_id' = ${input.added_by}`);
+    if (input.added_since) q = q.where(sql<boolean>`uploaded_at >= ${input.added_since}::timestamptz`);
     if (input.date_from) q = q.where("date", ">=", input.date_from);
     if (input.date_to) q = q.where("date", "<=", input.date_to);
     if (input.tags?.length) q = q.where(sql<boolean>`tags @> ${normalizeTags(input.tags)}::text[]`);
@@ -216,7 +226,7 @@ export const listSources = defineOperation({
     if (input.query) {
       const like = `%${input.query}%`;
       q = q.where(
-        sql<boolean>`(title ilike ${like} or coalesce(organization,'') ilike ${like} or coalesce(source_system,'') ilike ${like}
+        sql<boolean>`(title ilike ${like} or coalesce(source_system,'') ilike ${like}
           or array_to_string(participants, ' ') ilike ${like} or array_to_string(tags, ' ') ilike ${like}
           or exists (select 1 from files f where f.record_id = records.record_id and f.path ilike ${like}))`,
       );
@@ -393,10 +403,11 @@ export const getSource = defineOperation({
 export const recordMetadata = {
   title: z.string().trim().min(1).max(300).describe('Say what it is: who, what, when — e.g. "Operations lead interview — Example Co, Sep 2026". Never a file name.'),
   date: isoDate.nullable().optional().describe("The date of the event or document, never the upload date. Null when unknown."),
-  organization: z.string().trim().max(200).nullable().optional().describe("The external organization the material concerns."),
   participants: z.array(z.string().trim().min(1).max(100)).max(50).optional(),
   source_system: z.string().trim().max(100).nullable().optional().describe("Where it came from: a meeting tool, a wiki, a research tool, or manual."),
-  tags: tags.optional(),
+  tags: tags
+    .optional()
+    .describe("What the material is (interview, workshop, deck, analysis), whom it concerns (an organization, a segment) and what it bears on. Reuse the product's tags from sources(action=\"facets\"). Up to 50, stored lower-case."),
   related_records: z.array(id("source")).max(50).optional(),
   dimensions: dimensions.optional(),
   provenance_depth: provenanceDepth.optional(),
@@ -417,10 +428,8 @@ async function checkRelated(ctx: OpContext, ids: string[] | undefined, self?: st
 export async function insertRecord(
   ctx: OpContext,
   input: {
-    kind: string;
     title: string;
     date?: string | null | undefined;
-    organization?: string | null | undefined;
     participants?: string[] | undefined;
     source_system?: string | null | undefined;
     tags?: string[] | undefined;
@@ -439,17 +448,14 @@ export async function insertRecord(
       tenant_id: tenantId(ctx),
       team_id: ctx.scope.team!.team_id,
       product_id: productId(ctx),
-      kind: input.kind,
       title: input.title,
       date,
-      organization: input.organization ?? null,
       participants: input.participants ?? [],
       source_system: input.source_system ?? null,
       tags: normalizeTags(input.tags),
       related_records: await checkRelated(ctx, input.related_records),
       dimensions: json(normalizeDimensions(input.dimensions as never)),
       provenance_depth: input.provenance_depth ?? "unknown",
-      folder: folderFor(input.kind, date),
       slug: slugify(date ? `${date}-${input.title}` : input.title),
       copied_from: json(copiedFrom),
       etag: newEtag(),
@@ -457,13 +463,12 @@ export async function insertRecord(
       updated_by: json(ctx.actor),
     })
     .execute();
-  const info = kindInfo(input.kind);
   await recordActivity(ctx, {
     action: copiedFrom ? "copied" : "created",
     entity_type: "source",
     entity_id: record_id,
     entity_title: input.title,
-    summary: copiedFrom ? `Copied a ${info.label.toLowerCase()} source from another product` : `Added a ${info.label.toLowerCase()} source`,
+    summary: copiedFrom ? "Copied a source from another product" : "Added a source",
   });
   return loadRecord(ctx, record_id);
 }
@@ -475,8 +480,8 @@ export const createSource = defineOperation({
   mutates: true,
   summary: "Create a source (a record) from metadata; then add files with files.request_upload, files.add_note or files.fetch_url.",
   description:
-    "Describe what the material is; the folder is derived from kind and date and never supplied. To create a source and get an upload grant in one call, use files(action=\"create_upload\"). Before creating, check sources(action=\"list\", query=…) for an equivalent source — duplicates dilute search and split citations. warnings names any live source with the same title, kind and date; nothing is refused.",
-  input: z.strictObject({ kind, ...recordMetadata }),
+    "Describe the material with a title and tags; there are no kinds or folders. To create a source and get an upload grant in one call, use files(action=\"create_upload\"). Before creating, check sources(action=\"list\", query=…) for an equivalent source — duplicates dilute search and split citations. warnings names any live source with the same title and date; nothing is refused.",
+  input: z.strictObject(recordMetadata),
   rest: { method: "POST", path: "/sources" },
   mcp: { tool: "sources", action: "create" },
   async handler(ctx, input) {
@@ -491,20 +496,18 @@ export const updateSource = defineOperation({
   scope: "product",
   access: "write",
   mutates: true,
-  summary: "Correct a source's metadata in place — kind, title, date, organization, tags and more. Pass only what changes.",
+  summary: "Correct a source's metadata in place — title, date, tags and more. Pass only what changes.",
   description:
-    "Fix mistakes here; never archive and recreate, because citations point at the record id. Changing kind, title or date re-derives the logical folder; the id, files, passages and every citation are untouched. Requires expected_etag: the source's current etag, from sources(action=\"get\") or the result of your last write to it. Adding a file also changes it. A stale one gets 409 stale_etag with details.current_etag; read the source again before retrying.",
-  input: z.strictObject({ record_id: id("source"), expected_etag: expectedEtag, kind: kind.optional(), ...recordMetadata, title: recordMetadata.title.optional() }),
+    "Fix mistakes here; never archive and recreate, because citations point at the record id. The id, files, passages and every citation are untouched. tags replaces the whole list. Requires expected_etag: the source's current etag, from sources(action=\"get\") or the result of your last write to it. Adding a file also changes it. A stale one gets 409 stale_etag with details.current_etag; read the source again before retrying.",
+  input: z.strictObject({ record_id: id("source"), expected_etag: expectedEtag, ...recordMetadata, title: recordMetadata.title.optional() }),
   rest: { method: "PATCH", path: "/sources/:record_id" },
   mcp: { tool: "sources", action: "update" },
   async handler(ctx, input) {
     const r = await loadRecord(ctx, input.record_id, { lock: true });
     checkEtag(input.expected_etag, r.etag, "source");
     const next = {
-      kind: input.kind ?? r.kind,
       title: input.title ?? r.title,
       date: input.date === undefined ? r.date : input.date,
-      organization: input.organization === undefined ? r.organization : input.organization,
       participants: input.participants ?? r.participants,
       source_system: input.source_system === undefined ? r.source_system : input.source_system,
       tags: input.tags ? normalizeTags(input.tags) : r.tags,
@@ -514,13 +517,11 @@ export const updateSource = defineOperation({
     };
     const changed = (Object.keys(next) as (keyof typeof next)[]).filter((k) => JSON.stringify(next[k]) !== JSON.stringify(r[k]));
     if (!changed.length) return { ...recordSummary(r), changed: [] };
-    const folder = folderFor(next.kind, next.date);
     await ctx.db
       .updateTable("records")
       .set({
         ...next,
         dimensions: json(next.dimensions),
-        folder,
         slug: slugify(next.date ? `${next.date}-${next.title}` : next.title),
         etag: newEtag(),
         updated_at: ctx.now,
@@ -528,13 +529,12 @@ export const updateSource = defineOperation({
       })
       .where("record_id", "=", r.record_id)
       .execute();
-    const moved = folder !== r.folder;
     await recordActivity(ctx, {
-      action: moved ? "reorganized" : "updated",
+      action: "updated",
       entity_type: "source",
       entity_id: r.record_id,
       entity_title: next.title,
-      summary: moved ? `Refiled under ${describeFolder(folder)}; changed ${changed.join(", ")}` : `Changed ${changed.join(", ")}`,
+      summary: `Changed ${changed.join(", ")}`,
     });
     const after = await loadRecord(ctx, r.record_id);
     const s = (await derivedStatuses(ctx, [r.record_id])).get(r.record_id);
@@ -821,7 +821,7 @@ export const usedBy = defineOperation({
       .execute();
     const related = await ctx.db
       .selectFrom("records")
-      .select(["record_id", "kind", "title", "tags", "updated_at"])
+      .select(["record_id", "title", "tags", "updated_at"])
       .where("product_id", "=", productId(ctx))
       .where("archived_at", "is", null)
       .where(sql<boolean>`${input.record_id} = any(related_records)`)
@@ -836,13 +836,13 @@ export const usedBy = defineOperation({
         updated_at: e.updated_at,
         citations: e.citations.filter((c) => c.record_id === input.record_id).map((c) => ({ seq_start: c.seq_start, seq_end: c.seq_end })),
       })),
-      related: related.map((r) => ({ ...r, kind_label: kindInfo(r.kind).label })),
+      related,
       story_pages: (await storyPagesUsing(ctx, input.record_id, { includeArchived: false })).map(({ archived_at, ...p }) => (void archived_at, p)),
       mockups: (await mockupsUsing(ctx, input.record_id, { includeArchived: false })).map(({ archived_at, ...m }) => (void archived_at, m)),
       views: await ctx.db
         .selectFrom("lineage as l")
         .innerJoin("records as r", "r.record_id", "l.record_id")
-        .select(["r.record_id", "r.kind", "r.title", "l.generated_at as registered_at"])
+        .select(["r.record_id", "r.title", "r.tags", "l.generated_at as registered_at"])
         .where("l.product_id", "=", productId(ctx))
         .where("r.archived_at", "is", null)
         .where(sql<boolean>`l.inputs @> ${JSON.stringify([{ kind: "record", id: input.record_id }])}::jsonb`)
@@ -1082,6 +1082,6 @@ export const deleteSource = defineOperation({
 });
 
 export const sourceOps = [
-  listKinds, listSources, getSource, createSource, updateSource, archiveSources, restoreSources,
+  sourceFacets, listSources, getSource, createSource, updateSource, archiveSources, restoreSources,
   annotate, listAnnotations, updateAnnotation, usedBy, moveSource, copySource, deleteImpact, deleteSource,
 ];

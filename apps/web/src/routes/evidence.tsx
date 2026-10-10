@@ -1,29 +1,56 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { api, qs } from "../lib/api.ts";
 import { actorName, formatDate, plural, relativeTime } from "../lib/format.ts";
 import { useProduct } from "../lib/session.tsx";
 import { derivedStatus } from "../lib/status.ts";
-import type { KindsResponse, RecordSummary } from "../lib/types.ts";
+import type { RecordSummary, SourceFacets } from "../lib/types.ts";
 import { PanelContext, PanelFilter, PanelSection, usePageTitle } from "../shell/slots.tsx";
 import {
-  Button, ButtonLink, EmptyState, ErrorCallout, FiltersInUse, FindField, Glyph, ListRow, Loading, Menu, MenuGroup, MenuItem, MenuNote, MenuRadio, MenuSeparator, Segmented, Sheet,
-  SheetHeader, StatusBadge, type GlyphName,
+  Button, ButtonLink, EmptyState, ErrorCallout, FiltersInUse, FindField, Glyph, ListRow, Loading, Menu, MenuRadio, Segmented, Sheet, SheetHeader, StatusBadge, Tag,
 } from "../ui/index.tsx";
 import { FirstUse } from "./first-use.tsx";
 import "../styles/screens/evidence.css";
 
-export function useKinds() {
-  return useQuery({ queryKey: ["kinds"], queryFn: () => api<KindsResponse>("GET", "/api/v1/kinds"), staleTime: Infinity });
+/** The tags in use on the product's sources, most used first, and the people who added sources. */
+export function useSourceFacets(includeArchived = false) {
+  const { api: base } = useProduct();
+  return useQuery({
+    queryKey: ["sources", base, "facets", includeArchived],
+    queryFn: () => api<SourceFacets>("GET", `${base}/sources/facets${qs({ include_archived: includeArchived ? "true" : "" })}`),
+    staleTime: 60_000,
+  });
 }
 
-/** A kind group's folder, as sources.list's `folder` filter takes it. */
-export function folderForGroup(group: string) {
-  return group === "other" ? "misc" : group;
+/** Split "a, b, a" into ["a", "b"]: tags are typed comma-separated. */
+export function splitTags(s: string): string[] {
+  return [...new Set(s.split(",").map((x) => x.trim()).filter(Boolean))];
 }
 
-const FILTER_KEYS = ["folder", "kind", "organization", "date_from", "date_to", "tags", "query", "include_archived"] as const;
+/**
+ * The product's most used tags that a comma-separated tag field does not hold yet, each a button
+ * that adds it, so a team keeps one word for one thing.
+ */
+export function TagSuggestions({ value, onChange }: { value: string; onChange: (next: string) => void }) {
+  const facets = useSourceFacets();
+  const have = new Set(splitTags(value).map((t) => t.toLowerCase()));
+  const offered = (facets.data?.tags ?? []).filter((t) => !have.has(t.tag)).slice(0, 10);
+  if (!offered.length) return null;
+  return (
+    <div className="tag-suggestions" role="group" aria-label="Tags used in this product">
+      <span className="tag-suggestions-key">Used here</span>
+      {offered.map((t) => (
+        <button key={t.tag} type="button" className="tag tag-suggestion" onClick={() => onChange([...splitTags(value), t.tag].join(", "))} aria-label={`Add the tag ${t.tag}`}>
+          <Glyph name="plus" size="sm" />
+          {t.tag}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const FILTER_KEYS = ["tags", "added_by", "added", "date_from", "date_to", "query", "include_archived"] as const;
 type Filters = Record<(typeof FILTER_KEYS)[number], string>;
 
 export function SourceStatus({ status }: { status: string }) {
@@ -35,86 +62,130 @@ function readFilters(params: URLSearchParams): Filters {
   return Object.fromEntries(FILTER_KEYS.map((k) => [k, params.get(k) ?? ""])) as Filters;
 }
 
-function iso(d: Date) {
-  return d.toISOString().slice(0, 10);
+/**
+ * When a source was added: a discovery may last only a few months, so the windows are short. The
+ * URL keeps the window (`added=7`), not a date, so a shared link means the same thing tomorrow.
+ */
+const ADDED = [
+  { id: "", label: "Any time", chip: "" },
+  { id: "1", label: "Past day", chip: "Added in the past day" },
+  { id: "7", label: "Past 7 days", chip: "Added in the past 7 days" },
+  { id: "30", label: "Past 30 days", chip: "Added in the past 30 days" },
+  { id: "60", label: "Past 60 days", chip: "Added in the past 60 days" },
+  { id: "90", label: "Past 90 days", chip: "Added in the past 90 days" },
+] as const;
+
+/** The moment a window of `days` starts, to the minute. */
+function addedSince(days: string): string {
+  const n = Number(days);
+  if (!ADDED.some((a) => a.id && a.id === days)) return "";
+  return new Date(Math.floor(Date.now() / 60_000) * 60_000 - n * 86_400_000).toISOString();
 }
 
-/** Date presets for the date captured (when the interview happened, not when it was added). */
-function datePresets(now = new Date()) {
-  const y = now.getFullYear();
-  const back = (days: number) => iso(new Date(now.getTime() - days * 86400000));
-  return [
-    { id: "any", label: "Any date", from: "", to: "" },
-    { id: "30", label: "Past 30 days", from: back(30), to: "" },
-    { id: "90", label: "Past 90 days", from: back(90), to: "" },
-    { id: "year", label: String(y), from: `${y}-01-01`, to: `${y}-12-31` },
-    { id: "last", label: String(y - 1), from: `${y - 1}-01-01`, to: `${y - 1}-12-31` },
-  ];
-}
-
-/** Kind-first "Add source": the common kinds, then the full wizard for everything else. */
-const ADD_KINDS: { kind: string; icon: GlyphName }[] = [
-  { kind: "interview_transcript", icon: "file-text" },
-  { kind: "interview_recording", icon: "mic" },
-  { kind: "interviewer_notes", icon: "pencil" },
-  { kind: "sales_call_transcript", icon: "file-text" },
-  { kind: "sales_call_recording", icon: "mic" },
-  { kind: "user_research_export", icon: "users" },
-];
-
-export function AddSourceMenu() {
+export function AddSourceButton() {
   const { app } = useProduct();
-  const kinds = useKinds();
   return (
-    <Menu
-      trigger={
-        <>
-          <Glyph name="plus" />
-          Add source
-        </>
-      }
-      triggerClassName="btn btn-secondary btn-md"
-      align="end"
-      minWidth={260}
-    >
-      <MenuGroup label="What are you adding?">
-        {ADD_KINDS.map((k) => (
-          <MenuItem key={k.kind} icon={k.icon} to={`${app}/evidence/new?kind=${k.kind}`}>
-            {kinds.data?.kinds.find((x) => x.kind === k.kind)?.label ?? k.kind.replace(/_/g, " ")}
-          </MenuItem>
-        ))}
-        <MenuItem icon="folder-input" to={`${app}/evidence/new`}>
-          A document, deck or something else…
-        </MenuItem>
-      </MenuGroup>
-      <MenuSeparator />
-      <MenuNote>WhatBuild files it for you. Only the primary file is parsed into passages and searched.</MenuNote>
-    </Menu>
+    <ButtonLink to={`${app}/evidence/new`} icon="plus">
+      Add source
+    </ButtonLink>
+  );
+}
+
+/** How many of a list to show before "All N". */
+const SHOWN = 8;
+
+type FindIn = "passages" | "titles";
+
+/**
+ * The panel's search, over passages or titles. Passages opens Search. Titles narrows the list as
+ * you type, keeping the words in the URL (`?query=`, which also matches tags and file names); from
+ * a source page, Enter opens the list narrowed. Switching to passages takes the words along and
+ * drops the title search from the list.
+ */
+function SourceFind({ onList }: { onList: boolean }) {
+  const { app } = useProduct();
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const query = onList ? (params.get("query") ?? "") : "";
+  const [findIn, setFindIn] = useState<FindIn>(query ? "titles" : "passages");
+  const [text, setText] = useState(query);
+  // What this field last wrote, so a change from elsewhere (a chip, Clear filters, going back)
+  // reaches it and its own writes, which land a moment later, do not undo newer typing.
+  const wrote = useRef(query);
+  const mode = useRef(findIn);
+  mode.current = findIn;
+  useEffect(() => {
+    if (query === wrote.current) return;
+    wrote.current = query;
+    if (query) setFindIn("titles");
+    if (query || mode.current === "titles") setText(query);
+  }, [query]);
+  const narrow = (words: string) => {
+    wrote.current = words;
+    const next = new URLSearchParams(params);
+    if (words) next.set("query", words);
+    else next.delete("query");
+    setParams(next, { replace: true });
+  };
+  const type = (v: string) => {
+    setText(v);
+    if (findIn === "titles" && onList) narrow(v.trim());
+  };
+  const choose = (id: string) => {
+    const next = id as FindIn;
+    setFindIn(next);
+    if (onList) narrow(next === "titles" ? text.trim() : "");
+  };
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    const words = text.trim();
+    if (!words) return;
+    if (findIn === "passages") navigate(`${app}/search?q=${encodeURIComponent(words)}`);
+    else if (!onList) navigate(`${app}/evidence?query=${encodeURIComponent(words)}`);
+  };
+  return (
+    <form className="source-panel-find" role="search" onSubmit={submit}>
+      <FindField
+        label={findIn === "passages" ? "Search passages" : "Search titles"}
+        value={text}
+        onChange={(e) => type(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape" && text) {
+            e.preventDefault();
+            e.stopPropagation();
+            type("");
+          }
+        }}
+        enterKeyHint="search"
+      />
+      <Segmented
+        label="Search in"
+        equal
+        value={findIn}
+        onChange={choose}
+        items={[
+          { id: "passages", label: "Passages" },
+          { id: "titles", label: "Titles" },
+        ]}
+      />
+    </form>
   );
 }
 
 /**
- * The Evidence panel context: "Search passages", then single-select filters as links. Used on the
- * list (where the links change the list in place) and on a source page (where they lead back to it).
+ * The Evidence panel context: "Search passages", then single-select filters as links: tags, who
+ * added the source, when, and whether archived ones are listed. Used on the list (where the links
+ * change the list in place) and on a source page (where they lead back to it).
  */
 export function EvidenceFilters() {
-  const { api: base, app } = useProduct();
-  const kinds = useKinds();
-  const navigate = useNavigate();
+  const { app } = useProduct();
   const [params] = useSearchParams();
   const { pathname } = useLocation();
   const onList = /\/evidence\/?$/.test(pathname);
   const f = onList ? readFilters(params) : readFilters(new URLSearchParams());
-  const [text, setText] = useState("");
-  const [allOrgs, setAllOrgs] = useState(false);
-  // The organizations present in this product, for the Organization links. There is no facet
-  // operation, so read one page of summaries (metadata only) and collect the names.
-  const orgs = useQuery({
-    queryKey: ["sources", base, "organizations", f.include_archived],
-    queryFn: () => api<{ records: RecordSummary[] }>("GET", `${base}/sources${qs({ limit: 200, include_archived: f.include_archived === "1" ? "true" : "" })}`),
-    staleTime: 60_000,
-    select: (d) => [...new Set(d.records.map((r) => r.organization).filter((o): o is string => Boolean(o)))].sort((a, b) => a.localeCompare(b)),
-  });
+  const [allTags, setAllTags] = useState(false);
+  const [allPeople, setAllPeople] = useState(false);
+  const facets = useSourceFacets(f.include_archived === "1");
   const href = (patch: Partial<Filters>) => {
     const next = new URLSearchParams();
     for (const k of FILTER_KEYS) {
@@ -123,92 +194,66 @@ export function EvidenceFilters() {
     }
     // A filter keeps the list's order.
     if (onList && params.get("sort")) next.set("sort", params.get("sort")!);
+    if (onList && params.get("order")) next.set("order", params.get("order")!);
     const s = next.toString();
     return `${app}/evidence${s ? `?${s}` : ""}`;
   };
   const active = FILTER_KEYS.some((k) => f[k]);
-  const kindInfo = kinds.data?.kinds.find((k) => k.kind === f.kind);
-  const openFolder = kindInfo ? folderForGroup(kindInfo.group) : f.folder;
-  const presets = datePresets();
-  const datePreset = presets.find((p) => p.from === f.date_from && p.to === f.date_to);
-  const orgList = orgs.data ?? [];
-  const shownOrgs = allOrgs ? orgList : orgList.slice(0, 8);
-  if (f.organization && !shownOrgs.some((o) => o.toLowerCase() === f.organization.toLowerCase())) shownOrgs.push(f.organization);
-  const search = (e: FormEvent) => {
-    e.preventDefault();
-    if (text.trim()) navigate(`${app}/search?q=${encodeURIComponent(text.trim())}`);
-  };
+  const tags = facets.data?.tags ?? [];
+  const shownTags = allTags ? tags : tags.slice(0, SHOWN);
+  if (f.tags && !shownTags.some((t) => t.tag === f.tags)) shownTags.push({ tag: f.tags, count: tags.find((t) => t.tag === f.tags)?.count ?? 0 });
+  const people = facets.data?.added_by ?? [];
+  const shownPeople = allPeople ? people : people.slice(0, SHOWN);
+  if (f.added_by && !shownPeople.some((p) => p.account_id === f.added_by)) {
+    const p = people.find((x) => x.account_id === f.added_by);
+    shownPeople.push(p ?? { account_id: f.added_by, display_name: "Someone", count: 0 });
+  }
+  const total = facets.data?.sources;
+  const more = (n: number, open: boolean, toggle: () => void) =>
+    n > SHOWN ? (
+      <button type="button" className="panel-text-button" onClick={toggle} aria-expanded={open}>
+        {open ? "Fewer" : `All ${n}`}
+      </button>
+    ) : undefined;
   return (
     <PanelContext label="Find and filter sources">
-      <form className="source-panel-find" role="search" onSubmit={search}>
-        <FindField label="Search passages" value={text} onChange={(e) => setText(e.target.value)} enterKeyHint="search" />
-      </form>
-      <PanelSection
-        title="Kind"
-        end={
-          active && onList ? (
-            <Link to={`${app}/evidence`} className="panel-text-button" replace>
-              Clear filters
-            </Link>
-          ) : undefined
-        }
-      >
-        <PanelFilter to={href({ folder: "", kind: "" })} current={onList && !f.folder && !f.kind}>
-          All kinds
+      <SourceFind onList={onList} />
+      {active && onList ? (
+        <div className="source-panel-clear">
+          <Link to={href(Object.fromEntries(FILTER_KEYS.map((k) => [k, ""])))} className="panel-text-button" replace>
+            Clear filters
+          </Link>
+        </div>
+      ) : null}
+      <PanelSection title="Tags" end={more(tags.length, allTags, () => setAllTags(!allTags))}>
+        <PanelFilter to={href({ tags: "" })} current={onList && !f.tags} count={total}>
+          All tags
         </PanelFilter>
-        {kinds.data?.groups.map((g) => {
-          const folder = folderForGroup(g.group);
-          const open = openFolder === folder;
-          return (
-            <div key={g.group}>
-              <PanelFilter to={href({ folder, kind: "" })} current={onList && f.folder === folder && !f.kind}>
-                {g.label}
-              </PanelFilter>
-              {open && onList
-                ? kinds.data.kinds
-                    .filter((k) => k.group === g.group)
-                    .map((k) => (
-                      <PanelFilter key={k.kind} sub to={href({ folder, kind: k.kind })} current={f.kind === k.kind}>
-                        {k.label}
-                      </PanelFilter>
-                    ))
-                : null}
-            </div>
-          );
-        })}
-      </PanelSection>
-      {orgList.length || f.organization ? (
-        <PanelSection
-          title="Organization"
-          end={
-            orgList.length > 8 ? (
-              <button type="button" className="panel-text-button" onClick={() => setAllOrgs(!allOrgs)} aria-expanded={allOrgs}>
-                {allOrgs ? "Fewer" : `All ${orgList.length}`}
-              </button>
-            ) : undefined
-          }
-        >
-          <PanelFilter to={href({ organization: "" })} current={onList && !f.organization}>
-            Any organization
+        {shownTags.map((t) => (
+          <PanelFilter key={t.tag} to={href({ tags: t.tag })} current={onList && f.tags === t.tag} count={t.count}>
+            {t.tag}
           </PanelFilter>
-          {shownOrgs.map((o) => (
-            <PanelFilter key={o} to={href({ organization: o })} current={onList && f.organization.toLowerCase() === o.toLowerCase()}>
-              {o}
+        ))}
+        {facets.isSuccess && !tags.length ? <p className="source-panel-note">No tags yet. Tag a source to filter by it here.</p> : null}
+      </PanelSection>
+      {people.length > 1 || f.added_by ? (
+        <PanelSection title="Added by" end={more(people.length, allPeople, () => setAllPeople(!allPeople))}>
+          <PanelFilter to={href({ added_by: "" })} current={onList && !f.added_by} count={total}>
+            Anyone
+          </PanelFilter>
+          {shownPeople.map((p) => (
+            <PanelFilter key={p.account_id} to={href({ added_by: p.account_id })} current={onList && f.added_by === p.account_id} count={p.count}>
+              {p.display_name}
             </PanelFilter>
           ))}
         </PanelSection>
       ) : null}
-      <PanelSection title="Date captured">
-        {presets.map((p) => (
-          <PanelFilter key={p.id} to={href({ date_from: p.from, date_to: p.to })} current={onList && datePreset?.id === p.id}>
-            {p.label}
+      <PanelSection title="Added">
+        {ADDED.map((a) => (
+          <PanelFilter key={a.id || "any"} to={href({ added: a.id })} current={onList && f.added === a.id}>
+            {a.label}
           </PanelFilter>
         ))}
-        {onList && !datePreset ? (
-          <PanelFilter to={href({})} current>
-            {f.date_from ? formatDate(f.date_from) : "Any time"} to {f.date_to ? formatDate(f.date_to) : "now"}
-          </PanelFilter>
-        ) : null}
       </PanelSection>
       <PanelSection title="Archived">
         <PanelFilter to={href({ include_archived: "" })} current={onList && f.include_archived !== "1"}>
@@ -295,19 +340,23 @@ function SortControl({ sort, order, link }: { sort: Sort; order: Order; link: (i
 
 export function EvidencePage() {
   const { api: base, app, canWrite, product } = useProduct();
-  const kinds = useKinds();
   const [params] = useSearchParams();
   const f = readFilters(params);
   const sort: Sort = SORTS.find((s) => s.id === params.get("sort"))?.id ?? "date";
   const first: Order = SORTS.find((s) => s.id === sort)!.first;
   const order: Order = params.get("order") === "asc" || params.get("order") === "desc" ? (params.get("order") as Order) : first;
   usePageTitle("Sources");
+  const facets = useSourceFacets(f.include_archived === "1");
+  // Worked out once per window, so the list's query stays the same while it is open.
+  const since = useMemo(() => addedSince(f.added), [f.added]);
+  const { added, ...listed } = f;
+  void added;
   const q = useInfiniteQuery({
-    queryKey: ["sources", base, f, sort, order],
+    queryKey: ["sources", base, listed, since, sort, order],
     queryFn: ({ pageParam }) =>
       api<{ records: RecordSummary[]; next_cursor: string | null }>(
         "GET",
-        `${base}/sources${qs({ ...f, include_archived: f.include_archived === "1" ? "true" : "", sort, order, cursor: pageParam, limit: 50 })}`,
+        `${base}/sources${qs({ ...listed, added_since: since, include_archived: f.include_archived === "1" ? "true" : "", sort, order, cursor: pageParam, limit: 50 })}`,
       ),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_cursor ?? undefined,
@@ -328,28 +377,20 @@ export function EvidencePage() {
     return `${app}/evidence${s ? `?${s}` : ""}`;
   };
   const active = FILTER_KEYS.filter((k) => f[k]);
-  const kindLabel = (k: string) => kinds.data?.kinds.find((x) => x.kind === k)?.label ?? k;
-  // A folder filter names its kind group; one below it ("interviews/2026", from a source's "Filed
-  // in") reads as the group and the rest of the path: "Interviews › 2026".
-  const groupLabel = (folder: string) => {
-    const [root, ...rest] = folder.split("/").filter(Boolean);
-    const label = kinds.data?.groups.find((g) => folderForGroup(g.group) === root)?.label ?? root ?? folder;
-    return [label, ...rest].join(" › ");
-  };
-  const clear = (keys: (keyof Filters)[]) => {
+  const without = (keys: (keyof Filters)[]) => {
     const next = new URLSearchParams(params);
     for (const k of keys) next.delete(k);
     const s = next.toString();
     return `${app}/evidence${s ? `?${s}` : ""}`;
   };
   const chips: { label: string; to: string }[] = [];
-  if (f.kind) chips.push({ label: kindLabel(f.kind), to: clear(["kind"]) });
-  else if (f.folder) chips.push({ label: groupLabel(f.folder), to: clear(["folder"]) });
-  if (f.organization) chips.push({ label: f.organization, to: clear(["organization"]) });
-  if (f.date_from || f.date_to) chips.push({ label: `Captured ${f.date_from ? formatDate(f.date_from) : "any time"} to ${f.date_to ? formatDate(f.date_to) : "now"}`, to: clear(["date_from", "date_to"]) });
-  if (f.tags) chips.push({ label: `Tagged ${f.tags}`, to: clear(["tags"]) });
-  if (f.query) chips.push({ label: `Matching “${f.query}”`, to: clear(["query"]) });
-  if (f.include_archived === "1") chips.push({ label: "Including archived", to: clear(["include_archived"]) });
+  if (f.query) chips.push({ label: `Titles matching “${f.query}”`, to: without(["query"]) });
+  if (f.tags) chips.push({ label: `Tagged ${splitTags(f.tags).join(", ")}`, to: without(["tags"]) });
+  if (f.added_by) chips.push({ label: `Added by ${facets.data?.added_by.find((p) => p.account_id === f.added_by)?.display_name ?? "one person"}`, to: without(["added_by"]) });
+  const window = ADDED.find((a) => a.id && a.id === f.added);
+  if (window) chips.push({ label: window.chip, to: without(["added"]) });
+  if (f.date_from || f.date_to) chips.push({ label: `Captured ${f.date_from ? formatDate(f.date_from) : "any time"} to ${f.date_to ? formatDate(f.date_to) : "now"}`, to: without(["date_from", "date_to"]) });
+  if (f.include_archived === "1") chips.push({ label: "Including archived", to: without(["include_archived"]) });
   // "of N" compares with the product's live sources, so it is left out once archived ones are listed.
   const total = active.length && f.include_archived !== "1" ? ` of ${product.counts.sources}` : "";
   const count = q.isSuccess ? `${records.length}${q.hasNextPage ? "+" : ""}${total}` : undefined;
@@ -362,9 +403,9 @@ export function EvidencePage() {
           title="Sources"
           count={count}
           filter={<SortControl sort={sort} order={order} link={sortLink} />}
-          end={canWrite ? <AddSourceMenu /> : undefined}
+          end={canWrite ? <AddSourceButton /> : undefined}
         />
-        <FiltersInUse chips={chips} clearTo={`${app}/evidence`} />
+        <FiltersInUse chips={chips} clearTo={without([...FILTER_KEYS])} />
         {q.isPending ? (
           <Loading label="Loading sources…" lines={6} />
         ) : q.isError ? (
@@ -373,10 +414,16 @@ export function EvidencePage() {
           </div>
         ) : !records.length ? (
           active.length && (product.counts.sources ?? 0) > 0 ? (
-            <EmptyState size="inline" title="No sources match these filters" action={<ButtonLink to={`${app}/evidence`}>Clear filters</ButtonLink>} />
+            f.query && chips.length === 1 ? (
+              <EmptyState size="inline" title={`No source titles match “${f.query}”`} action={<ButtonLink to={without(["query"])}>Clear the search</ButtonLink>}>
+                A title search looks in titles, tags and file names. To search what sources say, switch the search to Passages.
+              </EmptyState>
+            ) : (
+              <EmptyState size="inline" title="No sources match these filters" action={<ButtonLink to={`${app}/evidence`}>Clear filters</ButtonLink>} />
+            )
           ) : (
-            <FirstUse title="No sources yet" ask={`Add these interview notes to ${product.name} in WhatBuild as sources.`}>
-              Interviews, sales calls, research exports and documents. WhatBuild parses each one into passages that assumptions, mockups and Story pages can cite.
+            <FirstUse title="No sources yet" ask={`Add these meeting notes to ${product.name} in WhatBuild as a source.`}>
+              Meeting transcripts and notes, documents, whiteboard photos: anything the team learns from. WhatBuild parses each one into passages that assumptions, mockups and Story pages can cite.
             </FirstUse>
           )
         ) : (
@@ -385,27 +432,32 @@ export function EvidencePage() {
               {records.map((r) => {
                 const status = r.derived_status === "ready" ? null : derivedStatus(r.derived_status);
                 const twin = (titleCount.get(r.title.trim().toLowerCase()) ?? 0) > 1;
+                const meta = [r.date ? formatDate(r.date) : sort === "date" ? "No capture date" : null, twin ? (r.primary_file ? r.primary_file.split("/").pop() : "No file yet") : null].filter(Boolean);
+                const updated = sort === "updated";
                 return (
                   <ListRow
                     key={r.record_id}
                     to={`${app}/evidence/${r.record_id}`}
                     className={r.archived_at ? "source-row is-archived" : "source-row"}
                     title={r.title}
-                    sub={[
-                      kinds.data?.kinds.find((k) => k.kind === r.kind)?.short ?? r.kind_label,
-                      r.organization,
-                      r.date ? formatDate(r.date) : sort === "date" ? "No capture date" : null,
-                      twin ? (r.primary_file ? r.primary_file.split("/").pop() : "No file yet") : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
+                    sub={
+                      r.tags.length || meta.length ? (
+                        <span className="source-row-sub">
+                          {r.tags.slice(0, 3).map((t) => (
+                            <Tag key={t}>{t}</Tag>
+                          ))}
+                          {r.tags.length > 3 ? <span title={r.tags.slice(3).join(", ")}>+{r.tags.length - 3}</span> : null}
+                          {meta.length ? <span>{meta.join(" · ")}</span> : null}
+                        </span>
+                      ) : undefined
+                    }
                     end={
                       <>
                         <span className="source-row-count num">
                           {r.archived_at ? <StatusBadge tone="neutral">Archived</StatusBadge> : status ? <StatusBadge tone={status.tone}>{status.label}</StatusBadge> : plural(r.segment_count, "passage")}
                         </span>
                         <span className="source-row-added">
-                          Updated {relativeTime(r.updated_at)} by {actorName(r.updated_by)}
+                          {updated ? `Updated ${relativeTime(r.updated_at)} by ${actorName(r.updated_by)}` : `Added ${relativeTime(r.uploaded_at)} by ${actorName(r.uploaded_by)}`}
                         </span>
                       </>
                     }

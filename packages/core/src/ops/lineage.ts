@@ -37,14 +37,12 @@ async function fingerprint(ctx: OpContext, ref: { kind: string; id: string }): P
       return { fingerprint: null, status: t ? "deleted" : "missing" };
     }
     const primary = await ctx.db.selectFrom("files").select("current_version_id").where("record_id", "=", r.record_id).where("role", "=", "primary").executeTakeFirst();
-    const values = { kind: r.kind, title: r.title, date: r.date, organization: r.organization, primary_version: primary?.current_version_id ?? null, derivation: r.current_derivation_id, archived: Boolean(r.archived_at) };
+    const values = { title: r.title, date: r.date, primary_version: primary?.current_version_id ?? null, derivation: r.current_derivation_id, archived: Boolean(r.archived_at) };
     const version = values.primary_version ? await ctx.db.selectFrom("file_versions").select("created_at").where("file_version_id", "=", values.primary_version).executeTakeFirst() : undefined;
     const derivation = values.derivation ? await ctx.db.selectFrom("derivations").select("created_at").where("derivation_id", "=", values.derivation).executeTakeFirst() : undefined;
     const changedAt = {
-      kind: r.updated_at,
       title: r.updated_at,
       date: r.updated_at,
-      organization: r.updated_at,
       primary_version: version?.created_at ?? null,
       derivation: derivation?.created_at ?? null,
       archived: r.archived_at ?? r.updated_at,
@@ -61,10 +59,29 @@ async function fingerprint(ctx: OpContext, ref: { kind: string; id: string }): P
 const PARTS_NOT_RECORDED =
   "Parts not recorded: this input was fingerprinted before WhatBuild stored what each fingerprint covers, or as a decision before decisions moved into Evidence, so only the whole fingerprint can be compared.";
 
+/**
+ * The parts of an input that differ from what was stored. A part stored then and no longer covered
+ * (a source's kind and organization, which became tags) is ignored, and so is one covered now that
+ * was not stored then.
+ */
+function changedParts(stored: Record<string, string>, now: Parts): string[] {
+  return Object.keys(now.values).filter((k) => k in stored && stored[k] !== partHash(now.values[k]));
+}
+
+/**
+ * Whether an input still matches its baseline: part by part where the parts were stored, else as a
+ * whole, a source with the kind and organization it was fingerprinted with.
+ */
+function isCurrent(stored: LineageInput, now: Fingerprint): boolean {
+  if (stored.parts && now.parts) return changedParts(stored.parts, now.parts).length === 0;
+  if (stored.was && now.parts) return sha256Hex(canonicalJson({ ...now.parts.values, ...stored.was })) === stored.fingerprint;
+  return now.fingerprint === stored.fingerprint;
+}
+
 /** Which stored parts differ from the input as it is now, and when the latest of those changes was made. */
 function diffParts(stored: Record<string, string> | undefined, now: Parts | undefined) {
   if (!stored || !now) return { changed_parts: null, last_changed_at: null, detail: PARTS_NOT_RECORDED };
-  const changed = Object.keys(now.values).filter((k) => stored[k] !== partHash(now.values[k]));
+  const changed = changedParts(stored, now);
   const times = changed.map((k) => now.changedAt[k]).filter((t): t is string => Boolean(t));
   const latest = times.length ? times.reduce((a, b) => (Date.parse(a) >= Date.parse(b) ? a : b)) : null;
   return { changed_parts: changed, last_changed_at: latest };
@@ -79,7 +96,7 @@ export const capture = defineOperation({
   access: "read",
   mutates: false,
   summary: "Fingerprint up to 50 inputs (sources and assumptions) before you generate a view from them.",
-  description: `Step 1 of 3: capture the inputs, generate the view, upload it as a new source (kind view, analysis or digest), then call write with the untouched fingerprints and captured_at. An archived input is refused. ${DIRECT_ONLY}`,
+  description: `Step 1 of 3: capture the inputs, generate the view, upload it as a new source tagged view (or analysis, digest), then call write with the untouched fingerprints and captured_at. An archived input is refused. ${DIRECT_ONLY}`,
   input: z.strictObject({ inputs: z.array(inputRef).min(1).max(50) }),
   rest: { method: "POST", path: "/lineage/capture" },
   mcp: { tool: "lineage", action: "capture" },
@@ -147,7 +164,7 @@ export const check = defineOperation({
   access: "read",
   mutates: false,
   summary: "Is this view stale? Reports each direct input as current, changed, archived, deleted or missing, and which parts of a changed input changed.",
-  description: `A changed input lists changed_parts (for a source: kind, title, date, organization, primary_version, derivation, archived; for an assumption: statement, body, citations, status, review_count, archived) and last_changed_at, when the latest of those changes was made as far as WhatBuild records it. Lineage written before parts were stored reports changed_parts null with a note. Nothing is regenerated. captured_at is when capture fingerprinted the inputs (null if write was not given it); registered_at marks when lineage was written; neither is when any model ran. 404 means the source has no lineage. ${DIRECT_ONLY}`,
+  description: `A changed input lists changed_parts (for a source: title, date, primary_version, derivation, archived; for an assumption: statement, body, citations, status, review_count, archived) and last_changed_at, when the latest of those changes was made as far as WhatBuild records it. Lineage written before parts were stored reports changed_parts null with a note. Nothing is regenerated. captured_at is when capture fingerprinted the inputs (null if write was not given it); registered_at marks when lineage was written; neither is when any model ran. 404 means the source has no lineage. ${DIRECT_ONLY}`,
   input: z.strictObject({ record_id: id("source") }),
   rest: { method: "GET", path: "/sources/:record_id/lineage" },
   mcp: { tool: "lineage", action: "check" },
@@ -158,7 +175,7 @@ export const check = defineOperation({
     const checks = [];
     for (const i of l.inputs) {
       const f = await fingerprint(ctx, i);
-      const status: Status = f.status === "ok" ? (f.fingerprint === i.fingerprint ? "current" : "changed") : f.status;
+      const status: Status = f.status === "ok" ? (isCurrent(i, f) ? "current" : "changed") : f.status;
       checks.push(status === "changed" ? { kind: i.kind, id: i.id, status, ...diffParts(i.parts, f.parts) } : { kind: i.kind, id: i.id, status });
     }
     return {

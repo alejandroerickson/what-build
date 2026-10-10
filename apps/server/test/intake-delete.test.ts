@@ -30,7 +30,7 @@ async function put(upload: { url: string; headers: Record<string, string> }, bod
 
 describe("intake warnings", () => {
   it("warns, without refusing, when a primary's format has no parser", async () => {
-    const deck = await alice.api("POST", `${P}/sources/with-upload`, { kind: "other", title: "Quarterly readout deck — Example Co, Sep 2026", path: "readout.pptx", role: "primary" });
+    const deck = await alice.api("POST", `${P}/sources/with-upload`, { title: "Quarterly readout deck — Example Co, Sep 2026", path: "readout.pptx", role: "primary" });
     expect(deck.status).toBe(201);
     expect(deck.body.upload.url).toBeTruthy();
     expect(deck.body.warnings).toHaveLength(1);
@@ -38,23 +38,23 @@ describe("intake warnings", () => {
     expect(deck.body.warnings[0]).toMatch(/PDF export/);
     expect(deck.body.warnings[0]).toMatch(/add readout\.pptx to the same source with role origin/);
 
-    const pdf = await alice.api("POST", `${P}/sources/with-upload`, { kind: "other", title: "Quarterly readout — Example Co, Sep 2026", path: "readout.pdf", role: "primary" });
+    const pdf = await alice.api("POST", `${P}/sources/with-upload`, { title: "Quarterly readout — Example Co, Sep 2026", path: "readout.pdf", role: "primary" });
     expect(pdf.body.warnings).toEqual([]);
     const origin = await alice.api("POST", `${P}/sources/${pdf.body.record.record_id}/uploads`, { record_id: pdf.body.record.record_id, path: "readout.pptx", role: "origin" });
     expect(origin.status).toBe(201);
     expect(origin.body.warnings).toEqual([]);
 
-    const empty = await alice.api("POST", `${P}/sources`, { kind: "other", title: "Slide notes — Example Co, Sep 2026" });
+    const empty = await alice.api("POST", `${P}/sources`, { title: "Slide notes — Example Co, Sep 2026" });
     const grant = await alice.api("POST", `${P}/sources/${empty.body.record_id}/uploads`, { record_id: empty.body.record_id, path: "notes.key", role: "primary" });
     expect(grant.status).toBe(201);
     expect(grant.body.warnings[0]).toMatch(/No parser reads \.key files/);
 
-    const call = await alice.api("POST", `${P}/sources/with-upload`, { kind: "interview_recording", title: "Crew lead call — Example Co, Sep 2026", path: "call.m4a", role: "primary" });
+    const call = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Crew lead call — Example Co, Sep 2026", path: "call.m4a", role: "primary" });
     expect(call.body.warnings).toEqual([]);
   });
 
   it("says a primary is still expected when a source has only an origin file", async () => {
-    const created = await alice.api("POST", `${P}/sources/with-upload`, { kind: "deck", title: "Field manual — Example Co, 2026", path: "manual.pptx", role: "origin" });
+    const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["manual"], title: "Field manual — Example Co, 2026", path: "manual.pptx", role: "origin" });
     expect(created.body.warnings).toEqual([]);
     const recordId: string = created.body.record.record_id;
     await put(created.body.upload, new Uint8Array([80, 75, 3, 4]));
@@ -72,12 +72,12 @@ describe("intake warnings", () => {
     const after = await alice.api("GET", `${P}/sources/${recordId}`);
     expect(after.body.warnings).toEqual([]);
 
-    const bare = await alice.api("POST", `${P}/sources`, { kind: "other", title: "Placeholder with no files" });
+    const bare = await alice.api("POST", `${P}/sources`, { title: "Placeholder with no files" });
     expect((await alice.api("GET", `${P}/sources/${bare.body.record_id}`)).body.warnings).toEqual([]);
   });
 
-  it("warns about a live source with the same title, kind and date, and creates the new one anyway", async () => {
-    const meta = { kind: "interviewer_notes", title: "Dispatcher visit — Example Co, Sep 2026", date: "2026-09-10" };
+  it("warns about a live source with the same title and date, and creates the new one anyway", async () => {
+    const meta = { tags: ["notes"], title: "Dispatcher visit — Example Co, Sep 2026", date: "2026-09-10" };
     const first = await alice.api("POST", `${P}/sources`, meta);
     expect(first.body.warnings).toEqual([]);
     const second = await alice.api("POST", `${P}/sources`, { ...meta, title: "  dispatcher visit — example co, sep 2026 " });
@@ -86,19 +86,20 @@ describe("intake warnings", () => {
     expect(second.body.warnings[0]).toContain(first.body.record_id);
     const viaUpload = await alice.api("POST", `${P}/sources/with-upload`, { ...meta, path: "visit.md", role: "primary" });
     expect(viaUpload.status).toBe(201);
-    expect(viaUpload.body.warnings[0]).toMatch(/same title, kind and date/);
+    expect(viaUpload.body.warnings[0]).toMatch(/same title and date/);
     const otherDate = await alice.api("POST", `${P}/sources`, { ...meta, date: "2026-09-11" });
     expect(otherDate.body.warnings).toEqual([]);
-    const otherKind = await alice.api("POST", `${P}/sources`, { ...meta, kind: "other" });
-    expect(otherKind.body.warnings).toEqual([]);
+    // Tags say nothing about whether it is the same material.
+    const otherTags = await alice.api("POST", `${P}/sources`, { ...meta, tags: ["something else"] });
+    expect(otherTags.body.warnings).toHaveLength(1);
     // Archived sources do not count.
-    await alice.api("POST", `${P}/sources/archive`, { record_ids: [first.body.record_id, second.body.record_id, viaUpload.body.record.record_id] });
+    await alice.api("POST", `${P}/sources/archive`, { record_ids: [first.body.record_id, second.body.record_id, viaUpload.body.record.record_id, otherTags.body.record_id] });
     const again = await alice.api("POST", `${P}/sources`, meta);
     expect(again.body.warnings).toEqual([]);
   });
 
   it("changes a source's etag when a file is added", async () => {
-    const created = await alice.api("POST", `${P}/sources`, { kind: "other", title: "Planning board photo notes" });
+    const created = await alice.api("POST", `${P}/sources`, { title: "Planning board photo notes" });
     const recordId: string = created.body.record_id;
     const note = await alice.api("POST", `${P}/sources/${recordId}/notes`, { record_id: recordId, path: "board.txt", text: "Monday column is full.\n" });
     expect(note.body.record_etag).toBeTruthy();
@@ -112,7 +113,7 @@ describe("intake warnings", () => {
   });
 
   it("says in fetch_url's result that a URL's fragment was not fetched", async () => {
-    const src = await alice.api("POST", `${P}/sources`, { kind: "wiki_export", title: "Crew app manual — Example Co" });
+    const src = await alice.api("POST", `${P}/sources`, { tags: ["wiki"], title: "Crew app manual — Example Co" });
     const recordId: string = src.body.record_id;
     const res = await alice.api("POST", `${P}/sources/${recordId}/fetch`, { record_id: recordId, url: "https://docs.example.com/app/#/manual", path: "manual.html" });
     expect(res.status).toBe(201);
@@ -126,7 +127,7 @@ describe("intake warnings", () => {
 
 describe("archiving a note with a reason", () => {
   it("keeps the reason beside the note, clears it on restore, and refuses it without archiving", async () => {
-    const src = await alice.api("POST", `${P}/sources`, { kind: "other", title: "Note reasons sample" });
+    const src = await alice.api("POST", `${P}/sources`, { title: "Note reasons sample" });
     const a = await alice.api("POST", `${P}/sources/${src.body.record_id}/annotations`, { record_id: src.body.record_id, note: "Counts look off." });
     expect(a.status).toBe(201);
     expect(a.body.archive_reason).toBeNull();

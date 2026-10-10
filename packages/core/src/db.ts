@@ -72,6 +72,11 @@ export interface LineageInput {
    * changed. Absent on lineage written before parts were stored.
    */
   parts?: Record<string, string>;
+  /**
+   * The kind and organization a source input had when lineage written before parts were stored
+   * fingerprinted it. Sources lost both to tags; the check fingerprints the input with them again.
+   */
+  was?: { kind: string; organization: string | null };
 }
 
 // ---- Directory tables (no row-level security; reached only through the auth layer) --------------
@@ -246,17 +251,14 @@ export interface RecordsTable {
   tenant_id: string;
   team_id: string;
   product_id: string;
-  kind: string;
   title: string;
   date: string | null;
-  organization: string | null;
   participants: string[];
   source_system: string | null;
   tags: string[];
   related_records: string[];
   dimensions: Json<Dimensions>;
   provenance_depth: string;
-  folder: string;
   slug: string;
   copied_from: JsonNull<{ product_id: string; record_id: string }>;
   current_derivation_id: string | null;

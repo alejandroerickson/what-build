@@ -36,9 +36,9 @@ tenant               an organization: the isolation and (later) billing boundary
   refused with `422 cross_product_reference`, which keeps a product exportable as a closed bundle.
 - **Moving and copying** a source between products is allowed **within one team**
   ([§3.7](#37-moving-and-copying-between-products)).
-- In the UI the tenant is called the **organization**. The API and MCP say `tenant`, because
-  records already carry an `organization` field (the external organization a source concerns).
-  ◆ Decision: two words for one concept is a known cost; see open question 18.
+- In the UI the tenant is called the **organization**. The API and MCP say `tenant`.
+  ◆ Decision: two words for one concept is a known cost; see open question 8 in the
+  [roadmap](10-roadmap.md).
 
 ## 3.2 Accounts and sign-in
 
@@ -272,7 +272,7 @@ agent and turns off the ones they are not using; for everything at once there is
 
 | Through | Answers | Refuses |
 |---|---|---|
-| an organization's endpoint | every product, team and tenant operation in that organization; `products.list` (narrowed to it), `sources.kinds`, `get_skill`, `submit_feedback` | another organization; the other account-level operations (`products.create_tenant`, `sandbox.join`, the instance's allowances) |
+| an organization's endpoint | every product, team and tenant operation in that organization; `products.list` (narrowed to it), `get_skill`, `submit_feedback` | another organization; the other account-level operations (`products.create_tenant`, `sandbox.join`, the instance's allowances) |
 | a product's endpoint | that product's operations; `products.list` (narrowed to it); `sandbox.status` for its organization; the account reads above | every other product; team and tenant operations (`members.*`, `products.create`, `products.create_team`, the sandbox's control panel); moving or copying a source to another product |
 
 The scope is resolved for the caller on the first tool call; an endpoint naming an organization or

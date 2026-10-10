@@ -2,8 +2,65 @@
 
 /* ---- Panel context: search passages and the filters ------------------------------------------- */
 
+/* The search, over passages or titles: the field, then the toggle. */
 .source-panel-find {
+  display: grid;
+  gap: var(--s-1h);
   padding: var(--s-2) var(--s-1) var(--s-1);
+}
+.source-panel-clear {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 var(--s-1);
+}
+.source-panel-note {
+  margin: 0;
+  padding: var(--s-1) var(--s-2);
+  color: var(--faint);
+  font-size: var(--fs-sm);
+}
+
+/* ---- Tags ------------------------------------------------------------------------------------- */
+
+/* A tag that is a link: to every source that carries it. */
+.tag-link {
+  text-decoration: none;
+}
+.tag-link:hover {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+/* The product's tags, offered under a tag field: each adds itself. */
+.tag-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1);
+  max-width: var(--measure);
+  color: var(--faint);
+  font-size: var(--fs-sm);
+}
+.tag-suggestions-key {
+  margin-right: var(--s-1);
+}
+.tag-suggestion {
+  gap: 2px;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+.tag-suggestion:hover {
+  border-color: var(--line-strong);
+  background: var(--hover);
+  color: var(--text);
+}
+.tag-suggestion .glyph {
+  width: 10px;
+  height: 10px;
+}
+/* In a form grid, under the field's input column (a field's columns are --s-1h apart). */
+.form-grid > .tag-suggestions {
+  margin: calc(-1 * var(--s-1)) 0 0 calc(var(--col-label) + var(--s-1h));
 }
 
 /* ---- The list --------------------------------------------------------------------------------- */
@@ -39,6 +96,12 @@
 .source-row .list-end {
   display: flex;
   gap: var(--s-3);
+}
+.source-row-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--s-1h);
 }
 .source-row.is-archived .list-title {
   color: var(--muted);
@@ -838,51 +901,6 @@
 .intake-step-done .intake-step-n {
   color: var(--ok);
 }
-.intake-kinds {
-  display: grid;
-  gap: var(--s-4);
-  padding: var(--s-3h) var(--sheet-px);
-}
-.intake-kind-group {
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-.intake-kind-group legend {
-  margin-bottom: var(--s-1h);
-  font-weight: var(--fw-semibold);
-}
-.intake-kind-group legend .faint {
-  margin-left: var(--s-1h);
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-regular);
-}
-.intake-kind-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: var(--s-1);
-}
-.intake-kind-grid .choice-row {
-  align-items: flex-start;
-  padding-top: var(--s-1h);
-  padding-bottom: var(--s-1h);
-  border-color: var(--line);
-}
-.intake-kind-grid .choice-row input {
-  margin-top: 2px;
-}
-.intake-kind-grid .choice-label {
-  font-weight: var(--fw-medium);
-}
-.intake-kind-grid .choice-hint {
-  margin-top: 2px;
-  font-weight: var(--fw-regular);
-  line-height: 1.4;
-}
-.intake-kind-grid .choice-row:has(input:checked) {
-  border-color: var(--accent);
-  background: var(--select);
-}
 .intake-foot {
   display: flex;
   flex-wrap: wrap;
@@ -1146,6 +1164,9 @@
 }
 
 @media (max-width: 760px) {
+  .form-grid > .tag-suggestions {
+    margin-left: 0;
+  }
   .source-row .list-end {
     display: flex;
     grid-column: 1;

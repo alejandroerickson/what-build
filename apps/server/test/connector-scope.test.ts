@@ -118,7 +118,7 @@ describe("a connector scoped to a product", () => {
     const c = await connect(`/mcp/t/${onboarding}`);
     expect(body(await c.callTool({ name: "members", arguments: { action: "list", params: {} } })).json.error.code).toBe("outside_connector_scope");
     expect(body(await c.callTool({ name: "products", arguments: { action: "create", params: { name: "Third" } } })).json.error.code).toBe("outside_connector_scope");
-    const src = body(await c.callTool({ name: "sources", arguments: { action: "create", params: { kind: "interview_transcript", title: "Interview", date: "2026-09-01" } } }));
+    const src = body(await c.callTool({ name: "sources", arguments: { action: "create", params: { tags: ["interview"], title: "Interview", date: "2026-09-01" } } }));
     expect(src.status).toBe(200);
     const copy = body(await c.callTool({ name: "sources", arguments: { action: "copy_to_product", params: { record_id: src.json.record_id, to_product: billing.split("/")[2] } } }));
     expect(copy.json.error.code).toBe("outside_connector_scope");

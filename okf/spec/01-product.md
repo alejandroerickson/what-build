@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild turns a team's discovery material into cited insight and a story, with agents as first-class contributors.
 description: Who the product is for, the core loop, the four screens, the vocabulary, the non-negotiable behaviors, and what the product is not.
 tags: [spec, product, vocabulary, principles]
-generated: {by: agent:claude, at: 2026-10-09}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -31,8 +31,9 @@ status: stable
 1. **State the idea.** Start a product with its **product concept**: who it is for, the problem
    they have, and how the product solves it. Then write its **outcomes**: what its users should be
    able to achieve with it.
-2. **Gather evidence.** Upload material into an opinionated taxonomy. The application asks what a
-   document *is* before it places it. A contributor describes the material and never chooses or
+2. **Gather evidence.** Upload material and describe it with a title and tags: what it is, whom
+   it concerns, what it bears on
+   ([decision](../decisions/sources-are-described-by-tags.md)). A contributor never chooses or
    learns a storage path.
 3. **Derive.** Every source's primary file is parsed into passage-addressable text: segments with
    speakers, cue timestamps where they exist, and exact character offsets.
@@ -54,7 +55,7 @@ of one of them.
 | Screen | Purpose |
 |---|---|
 | **Idea** | The product concept, then the outcomes. The landing screen of a product: where a product idea becomes explicit direction. |
-| **Evidence** | The sources: kind-first upload, browse with filters, source pages, the passage reader, notes, search. |
+| **Evidence** | The sources: upload with a title and tags, browse by tag, by who added and when, source pages, the passage reader, notes, search. |
 | **Exploration** | Mockups (canvases of agent-made HTML pages, each with design notes, under a brief) and the assumption register. Formerly called Synthesis. |
 | **Story** | The outward-facing report: an ordered hierarchy of versioned, sandboxed HTML pages. |
 
@@ -132,7 +133,7 @@ of them is now sources.
 9. **Data leaves as easily as it arrives.** Export is complete, in an open format, available to
    anyone who can read the product at any time, through both adapters, and **never blocked by a
    quota** ([§9.4](09-data-lifecycle.md)).
-10. **Product independence.** Built-in kinds, fields, and filters describe discovery work and
+10. **Product independence.** Built-in fields and filters describe discovery work and
     source formats, never the domain of the product being studied. Domain concepts live in source
     content and ordinary tags. Stored data must stay readable when a built-in choice is retired.
 11. **Adapter parity.** Every operation is available through both REST and MCP with the same
@@ -147,7 +148,8 @@ Prove upload → derive → search → passage read end to end through both adap
 
 ## 1.6 What this product is not
 
-- Not a general document manager: the taxonomy is opinionated and closed.
+- Not a general document manager: a source is discovery evidence, described by a title and tags
+  rather than filed in folders, and only its primary file is searched.
 - Not a chat product: it has no built-in LLM and needs no model API key. Intelligence arrives
   through whatever agent the user connects over MCP.
 - Not a permissions system: see non-negotiable 1.

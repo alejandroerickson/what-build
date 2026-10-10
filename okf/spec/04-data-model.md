@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
-description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their taxonomy, files, annotations, what uses a source, the assumption register and citations, views and lineage, activity, Story, mockups, feedback, the product bundle, and the storage layout.
+description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, files, annotations, what uses a source, the assumption register and citations, views and lineage, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, citations, revisions, story, mockups, export]
 generated: {by: agent:claude, at: 2026-10-10}
 status: stable
@@ -109,15 +109,12 @@ A source is one discovery event or document. It is stored as a **record**, so it
 | Field | Rule |
 |---|---|
 | `record_id` | Never changes, whatever else does (including a move to another product). |
-| `kind` | One of the kinds in §4.4. Required. |
 | `title` | 1–300 chars. Says what it is (who, what, when), never a file name. |
 | `date` | `YYYY-MM-DD`: the date of the **event or document** the discovery question turns on, never the upload date. `null` when genuinely unknown. The web app calls it the **date captured**. |
 | `slug` | Derived from the title. |
-| `folder` | Derived, read-only: the source's logical placement (§4.4). |
-| `organization` | Optional, ≤ 200 chars. The external organization the material concerns. |
 | `participants` | Optional, ≤ 50 names of 1–100 chars. |
 | `source_system` | Optional, ≤ 100 chars: where the material came from (a meeting tool, a wiki). |
-| `tags` | ≤ 50, each 1–50 chars, normalized lower-case. |
+| `tags` | ≤ 50, each 1–50 chars: what the material is, whom it concerns, what it bears on (§4.4). Stored NFKC-normalized, spacing collapsed, lower-case, without repeats. |
 | `related_records` | ≤ 50 source ids in the same product. |
 | `dimensions` | `{ customer?, product_area?, lifecycle_stage? }`; `customer` and `product_area` are strings ≤ 120 chars normalized for case and spacing; `lifecycle_stage` is `discovery`, `sales` or `research` ([§8.3](08-search.md)). |
 | `provenance_depth` | `primary`, `derived`, `analysis_of_analysis`, `unknown` (default). |
@@ -127,8 +124,9 @@ A source is one discovery event or document. It is stored as a **record**, so it
 | files | §4.5. |
 | `derived_status` and counts | The current derivation's status, or `pending` before one exists ([§5](05-derived-layer.md)). |
 
-- **Reorganizing is a metadata change.** Changing `kind` or `date` re-derives `folder`. The
-  `record_id`, file versions, derivations, and every citation are untouched.
+- **Correcting is a metadata change.** `sources.update` changes the title, date, tags and other
+  fields in place (`tags` replaces the whole list). The `record_id`, file versions, derivations,
+  and every citation are untouched.
 - **Archive** takes the source out of browse, out of search (including the search space an agent
   can reach), and out of new citations. It erases nothing; existing citations still resolve by id
   and report `record_archived`; `restore` puts it back. This is the default and the first action
@@ -139,33 +137,47 @@ A source is one discovery event or document. It is stored as a **record**, so it
   `record_deleted` and reads return `410 record_deleted` rather than a bare `404`.
   `sources.delete_impact` previews what it will destroy and which citations it will orphan,
   including every Story page version that cites the source.
-- **Read modes** (`detail`): `brief` (identity, kind, title, date, derived status, counts) and
+- **Read modes** (`detail`): `brief` (identity, title, date, tags, derived status, counts) and
   `full` (adds files, the derivation manifest, the outline, and notes). Neither includes file bytes
   or derived text. Both carry `warnings`, which says when the source has files but no primary yet,
   so nothing on it is searched.
 - **Duplicates are warned about, not refused.** `sources.create` and `files.create_upload` return a
   warning naming any live source in the product with the same title (ignoring case and surrounding
-  space), kind and date.
+  space) and date.
 
-## 4.4 Kinds and placement: the opinionated taxonomy
+## 4.4 Tags
 
-The kind list is closed ([`packages/core/src/kinds.ts`](../../packages/core/src/kinds.ts)). It
-describes discovery work and source formats, never a domain.
+A source is described by its title, its date and its **tags**. There is no list of kinds, no
+folder and no organization field
+([decision](../decisions/sources-are-described-by-tags.md)).
 
-| Kind | Logical folder |
-|---|---|
-| `interview_transcript`, `interview_recording`, `interviewer_notes` | `interviews/<yyyy>` |
-| `sales_call_recording`, `sales_call_transcript` | `sales-calls/<yyyy>` |
-| `user_research_export`, `usability_session_notes` | `research/<yyyy>` |
-| `wiki_export`, `prd`, `deck`, `contract_sow`, `rfp` | `documents/<wiki\|prds\|decks\|contracts\|rfps>` |
-| `analysis`, `digest`, `view` | `documents/<analysis\|digests\|views>` |
-| `design_insight` | `design` |
-| `other` | `misc` |
+- A tag says what the material is (`interview`, `workshop`, `deck`, `analysis`), whom it concerns
+  (an organization, a segment) or what it bears on. Tags are free text and describe discovery
+  work, never a built-in classification. Derived material is tagged `view`, `analysis` or `digest`
+  (§4.9), and `provenance_depth` says how far it sits from the evidence.
+- `sources.facets` lists what sources can be filtered by: `tags`, the tags in use with the number
+  of sources carrying each, most used first and then A to Z (at most 500; `tags_truncated` says the
+  list stopped), and `added_by`, each person who added sources (`account_id`, `display_name` as
+  they were named when they last added one, and a count). It counts live sources, and archived
+  ones too with `include_archived`. Agents read it before tagging and reuse the team's tags; the
+  web app offers the most used tags wherever tags are written.
+- `sources.list` filters by `tags` (a source must carry all of them), `added_by` (an `account_id`;
+  what an agent added counts as its person's, since the actor snapshot names the person),
+  `added_since` (a date, read as UTC midnight, or a time), `date_from` and `date_to` (the source's
+  own date), and `query`, a substring of the title, tags, participants, source system or file
+  names. `search` filters passages by tags and dates ([§8.1](08-search.md)).
+- A call to a `sources`, `files` or `search` operation that names `kind`, `organization` or
+  `folder` is refused with `422 invalid_input`; the message adds that sources are described by
+  tags, and to reuse those `sources.facets` lists.
 
-- `<yyyy>` comes from `date`; dated kinds without a date use `undated`.
-- The folder is a **browse facet**, not a storage location. Bytes are stored under immutable keys
-  (§4.15), so a change of kind or date moves nothing. No caller ever supplies a folder.
-- Retiring a kind later MUST leave existing sources readable and listable under their stored kind.
+Migration `0017_sources_are_tagged.sql` turned what a source held into tags in front of its own,
+without repeats, keeping at most 50: its kind (`interview_transcript`, `interview_recording` and
+`interviewer_notes` → `interview`; `sales_call_recording` and `sales_call_transcript` → `sales`;
+`user_research_export` → `research`; `usability_session_notes` → `usability`; `wiki_export` →
+`wiki`; `contract_sow` → `contract`; `design_insight` → `design`; `prd`, `deck`, `rfp`,
+`analysis`, `digest` and `view` as they are; `other` adds none), then its organization, normalized
+as every tag is. It rewrote saved sandbox baselines the same way
+([§9.7](09-data-lifecycle.md)), then dropped the `kind`, `organization` and `folder` columns.
 
 ## 4.5 Files
 
@@ -241,8 +253,8 @@ or writes them. Each one a product still held becomes a source with the same id,
 
 | Was | Becomes |
 |---|---|
-| An insight | A source of kind `analysis`, tagged `insight` (and `draft` for a draft), `provenance_depth: derived`, archived if it was. Its primary file is Markdown: the title, summary and body, then a note of its status, review mark, authors and what it referred to. Each earlier revision is an earlier file version; the summary is the source's summary note. |
-| A decision | A source of kind `other`, tagged `decision` and with the entry's tags, dimensions and provenance. Its Markdown holds the statement, the body, the cited passages with their quotes, the status, the outcomes, the links in and out, and every review. Earlier revisions are earlier file versions. |
+| An insight | A source tagged `analysis` and `insight` (and `draft` for a draft), `provenance_depth: derived`, archived if it was. Its primary file is Markdown: the title, summary and body, then a note of its status, review mark, authors and what it referred to. Each earlier revision is an earlier file version; the summary is the source's summary note. |
+| A decision | A source tagged `decision` and with the entry's tags, dimensions and provenance. Its Markdown holds the statement, the body, the cited passages with their quotes, the status, the outcomes, the links in and out, and every review. Earlier revisions are earlier file versions. |
 
 Its `related_records` are the sources, insights and decisions it referred to or cited. Every
 `refs.insights` and `refs.decisions` id on a Story or mockup version moves to `refs.sources`, a
@@ -357,20 +369,25 @@ down, not a copy of the source ([§9.5](09-data-lifecycle.md)).
 
 ## 4.9 Views and lineage
 
-A **view** is a derived document stored as a source of kind `view` (likewise `analysis`,
-`digest`): something produced *from* other material. It can carry a **lineage baseline**, in three
+A **view** is a derived document stored as a source tagged `view` (or `analysis`, `digest`):
+something produced *from* other material. It can carry a **lineage baseline**, in three
 steps ([`lineage.ts`](../../packages/core/src/ops/lineage.ts)):
 
 - `capture` fingerprints 1–50 inputs (sources and assumptions) at that moment. An archived input
-  is refused. A source's fingerprint covers its kind, title, date, organization, primary file
-  version, current derivation and archived state; an assumption's covers its statement, body,
+  is refused. A source's fingerprint covers its title, date, primary file version, current
+  derivation and archived state; an assumption's covers its statement, body,
   citations, status, review count and archived state.
 - `write` attaches the untouched fingerprints, `captured_at` as capture returned it (optional;
   refused if in the future), and a description of how the inputs were chosen to the view,
   refusing with `409 input_changed` if any input changed since capture. It also stores a short hash
   of each part the fingerprint covers; the fingerprint itself is unchanged.
 - `check` reports each input as `current`, `changed`, `archived`, `deleted`, or `missing`, and
-  whether the view is `stale`. A `changed` input lists `changed_parts` (the parts above whose hash
+  whether the view is `stale`. Where the parts were stored, it compares them one by one, ignoring
+  a part stored then and no longer covered (a source's `kind` and `organization`, before they
+  became tags) and a part covered now that was not stored then; otherwise it compares the whole
+  fingerprint. A source input checked whole keeps, as `was`, the kind and organization migration
+  `0017` found on the source, and the check puts them back into the fingerprint, so an input
+  that has not changed stays `current`. A `changed` input lists `changed_parts` (the parts above whose hash
   differs) and `last_changed_at` (the latest recorded time among them: the source's or entry's
   `updated_at`, the file version's or derivation's `created_at`). Lineage written before parts were
   stored reports `changed_parts: null` with a note that the parts were not recorded, as does an
@@ -737,8 +754,8 @@ activity.jsonl
   `tenants.created_by->>'account_id'`, which is what an allowance is counted against.
 - **Blobs** are immutable and keyed opaquely: `t/<tenant_id>/r/<record_id>/f/<file_version_id>`
   for files, `t/<tenant_id>/r/<record_id>/d/<derivation_id>/<sidecar>` for derived sidecars, and
-  `t/<tenant_id>/exports/<export_id>.zip` for exports. Keys never encode titles, kinds, or folders,
-  so no metadata change ever moves bytes, and a key names its tenant. A copied source shares its
+  `t/<tenant_id>/exports/<export_id>.zip` for exports. Keys never encode titles, tags or any other
+  metadata, so no metadata change ever moves bytes, and a key names its tenant. A copied source shares its
   original's file blobs; delete frees a blob only when no file version still refers to it.
 - **Segments** of every derivation are also loaded into Postgres for passage reads, with the
   current derivation's segments flagged `is_current`; only those are indexed for search.

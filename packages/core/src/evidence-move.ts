@@ -1,14 +1,13 @@
 import { sql } from "kysely";
 import { json, type ActorSnapshot, type CitationSnapshot, type Db, type Tx } from "./db.ts";
-import { folderFor } from "./kinds.ts";
 import { blobKeyFor } from "./ops/files.ts";
 import type { Ports } from "./ports.ts";
 import { collapse, newEtag, newId, slugify, uniq } from "./util.ts";
 
 /**
  * Insights and decisions are retired. Each one still held in a product becomes a Markdown source in
- * Evidence with the same id, so every link and reference to it keeps working: an insight as an
- * analysis, a decision as a source of kind other, each tagged with what it was. Its earlier
+ * Evidence with the same id, so every link and reference to it keeps working, tagged with what it
+ * was: an insight as an analysis and an insight, a decision as a decision. Its earlier
  * revisions become earlier versions of the file. What pointed at it (a Story page's or a mockup's
  * refs, a view's lineage) now points at the source, and an assumption's link to a decision becomes
  * a line in the decision's document. Its history in the activity log becomes the source's history.
@@ -113,15 +112,15 @@ export async function runEvidenceMove(db: Tx, ports: Ports, job: { tenant_id: st
   const today = day(new Date().toISOString());
 
   const insertRecord = async (v: {
-    record_id: string; kind: string; title: string; tags: string[]; related: string[]; dimensions: Record<string, unknown>; provenance_depth: string;
+    record_id: string; title: string; tags: string[]; related: string[]; dimensions: Record<string, unknown>; provenance_depth: string;
     archived: { at: string; by: ActorSnapshot } | null; uploaded: { at: string; by: ActorSnapshot }; updated: { at: string; by: ActorSnapshot };
   }) => {
     await db
       .insertInto("records")
       .values({
-        record_id: v.record_id, tenant_id: job.tenant_id, team_id: product.team_id, product_id: pid, kind: v.kind, title: v.title, date: null, organization: null,
+        record_id: v.record_id, tenant_id: job.tenant_id, team_id: product.team_id, product_id: pid, title: v.title, date: null,
         participants: [], source_system: "WhatBuild", tags: v.tags, related_records: uniq(v.related).filter((r) => r !== v.record_id && known(r)),
-        dimensions: json(v.dimensions), provenance_depth: v.provenance_depth, folder: folderFor(v.kind, null), slug: slugify(v.title), copied_from: json(null),
+        dimensions: json(v.dimensions), provenance_depth: v.provenance_depth, slug: slugify(v.title), copied_from: json(null),
         current_derivation_id: null, archived_at: v.archived?.at ?? null, archived_by: v.archived ? json(v.archived.by) : json(null), etag: newEtag(),
         uploaded_at: v.uploaded.at, uploaded_by: json(v.uploaded.by), updated_at: v.updated.at, updated_by: json(v.updated.by),
       })
@@ -156,7 +155,7 @@ export async function runEvidenceMove(db: Tx, ports: Ports, job: { tenant_id: st
       { markdown: `${insightMarkdown(i)}\n${footer}\n`, at: i.updated_at, by: i.updated_by },
     ];
     await insertRecord({
-      record_id: i.insight_id, kind: "analysis", title: i.title, tags: i.status === "draft" ? ["insight", "draft"] : ["insight"],
+      record_id: i.insight_id, title: i.title, tags: i.status === "draft" ? ["analysis", "insight", "draft"] : ["analysis", "insight"],
       related: [...(refs.sources ?? []), ...(refs.insights ?? []), ...(refs.decisions ?? [])], dimensions: {}, provenance_depth: "derived",
       archived: i.status === "archived" ? { at: i.updated_at, by: i.updated_by } : null, uploaded: { at: i.created_at, by: i.created_by }, updated: { at: i.updated_at, by: i.updated_by },
     });
@@ -192,7 +191,7 @@ export async function runEvidenceMove(db: Tx, ports: Ports, job: { tenant_id: st
       { markdown: `${decisionMarkdown(d, names)}\n${footer}\n`, at: d.updated_at, by: d.updated_by },
     ];
     await insertRecord({
-      record_id: d.entry_id, kind: "other", title: collapse(d.statement, 300), tags: uniq(["decision", ...d.tags]),
+      record_id: d.entry_id, title: collapse(d.statement, 300), tags: uniq(["decision", ...d.tags]),
       related: [...d.citations.map((c) => c.record_id), ...d.links.map((l) => l.id)], dimensions: d.dimensions as Record<string, unknown>, provenance_depth: d.provenance_depth,
       archived: d.archived_at ? { at: d.archived_at, by: d.updated_by } : null, uploaded: { at: d.created_at, by: d.author }, updated: { at: d.updated_at, by: d.updated_by },
     });

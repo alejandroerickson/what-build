@@ -1,3 +1,4 @@
+import { canonicalJson, sha256Hex } from "@whatbuild/core";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
@@ -16,14 +17,14 @@ beforeAll(async () => {
   tenantSlug = t.body.tenant.slug;
   const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Scheduling" });
   P = `/api/v1/p/${p.body.path}`;
-  notes = await upload("interviewer_notes", "visit.md", "# Visit\n\nCrews text the office.\n\nThe numbers close on Fridays.\n");
-  survey = await upload("interviewer_notes", "survey.md", "# Survey\n\nMost crews plan by the week.\n");
+  notes = await upload("notes", "visit.md", "# Visit\n\nCrews text the office.\n\nThe numbers close on Fridays.\n");
+  survey = await upload("notes", "survey.md", "# Survey\n\nMost crews plan by the week.\n");
   await h.worker.drain();
 });
 afterAll(async () => h?.close());
 
-async function upload(kind: string, path: string, body: string) {
-  const created = await alice.api("POST", `${P}/sources/with-upload`, { kind, title: `Sample ${path}`, path, role: "primary" });
+async function upload(tag: string, path: string, body: string) {
+  const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: [tag], title: `Sample ${path}`, path, role: "primary" });
   expect(created.status).toBe(201);
   const recordId: string = created.body.record.record_id;
   const put = await fetch(created.body.upload.url, { method: "PUT", headers: created.body.upload.headers, body });
@@ -33,7 +34,7 @@ async function upload(kind: string, path: string, body: string) {
 }
 
 async function view(title: string) {
-  const v = await alice.api("POST", `${P}/sources`, { kind: "view", title });
+  const v = await alice.api("POST", `${P}/sources`, { tags: ["view"], title });
   expect(v.status).toBe(201);
   return v.body.record_id as string;
 }
@@ -82,7 +83,7 @@ describe("lineage of a view", () => {
 
     for (const input of [notes, survey]) {
       const using = await alice.api("GET", `${P}/sources/${input}/used-by`);
-      expect(using.body.views).toEqual([expect.objectContaining({ record_id: viewId, kind: "view", title: "Planning cadence across visits" })]);
+      expect(using.body.views).toEqual([expect.objectContaining({ record_id: viewId, tags: ["view"], title: "Planning cadence across visits" })]);
     }
   });
 
@@ -121,5 +122,27 @@ describe("lineage of a view", () => {
     expect(c.body.captured_at).toBeNull();
     expect(c.body.input_checks[0]).toMatchObject({ status: "changed", changed_parts: null, last_changed_at: null });
     expect(c.body.input_checks[0].detail).toMatch(/^Parts not recorded/);
+  });
+
+  it("keeps a view written before parts were stored current when its sources only lost their kind and organization", async () => {
+    const older = await view("Visit summary");
+    const cap = await alice.api("POST", `${P}/lineage/capture`, { inputs: [{ kind: "record", id: notes }] });
+    expect((await alice.api("POST", `${P}/sources/${older}/lineage`, { record_id: older, inputs: cap.body.inputs, query_spec: { description: "The visit." } })).status).toBe(200);
+    // As migration 0017 leaves such an input: fingerprinted whole, with the kind and organization it had.
+    const r = await source(notes);
+    const was = { kind: "interviewer_notes", organization: "Example Co" };
+    const primary = r.files.find((f: { role: string }) => f.role === "primary").file_version_id;
+    const values = { title: r.title, date: r.date, primary_version: primary, derivation: r.manifest.derivation_id, archived: false, ...was };
+    const legacy = [{ kind: "record", id: notes, fingerprint: sha256Hex(canonicalJson(values)), was }];
+    const tenant = await h.db.selectFrom("tenants").select("tenant_id").where("slug", "=", tenantSlug).executeTakeFirstOrThrow();
+    await h.db.transaction().execute(async (trx) => {
+      await sql`select set_config('app.tenant_id', ${tenant.tenant_id}, true)`.execute(trx);
+      await trx.updateTable("lineage").set({ inputs: JSON.stringify(legacy) }).where("record_id", "=", older).execute();
+    });
+    const current = await alice.api("GET", `${P}/sources/${older}/lineage`);
+    expect(current.body).toMatchObject({ stale: false, input_checks: [{ id: notes, status: "current" }] });
+    await alice.api("PATCH", `${P}/sources/${notes}`, { expected_etag: r.etag, title: "Sample visit notes" });
+    const changed = await alice.api("GET", `${P}/sources/${older}/lineage`);
+    expect(changed.body.input_checks[0]).toMatchObject({ status: "changed", changed_parts: null });
   });
 });

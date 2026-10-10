@@ -410,6 +410,9 @@ as JSON, without its generated columns, with its ids.
   next one comes at the next scheduled hour.
 - A baseline saved before insights and decisions were retired still holds them (§9.8), so
   `insights` stays on the list while that table exists.
+- A baseline saved while sources had kinds was rewritten by migration `0017_sources_are_tagged.sql`
+  as the sources were: each kind and organization became tags, and the dropped columns left its
+  rows ([§4.4](04-data-model.md)), so a reset puts back tagged sources.
 
 ### The reset
 

@@ -15,7 +15,7 @@ import {
 import "../styles/screens/evidence.css";
 import { address, Comment, CommentForm, PassageReader } from "./passages.tsx";
 import { uploadFiles } from "./source-new.tsx";
-import { EvidenceFilters, useKinds } from "./evidence.tsx";
+import { EvidenceFilters, splitTags, TagSuggestions } from "./evidence.tsx";
 import { ImageViewer } from "./image-viewer.tsx";
 
 type View = "passages" | "original" | "notes" | "files";
@@ -29,7 +29,7 @@ interface AgentNote {
 }
 interface CitedIn {
   assumptions: { id: string; statement: string; status: string; citations: { seq_start: number; seq_end: number }[] }[];
-  related: { record_id: string; kind_label: string; title: string }[];
+  related: { record_id: string; title: string; tags: string[] }[];
   story_pages?: { page_id: string; title: string; version: number; referenced: boolean; citations: { seq_start: number; seq_end: number }[] }[];
   mockups?: { mockup_id: string; title: string; version: number; referenced: boolean; citations: { seq_start: number; seq_end: number }[] }[];
 }
@@ -278,10 +278,8 @@ function StaleViewNotice({ recordId }: { recordId: string }) {
 }
 
 const PART_WORDS: Record<string, string> = {
-  kind: "kind",
   title: "title",
   date: "date",
-  organization: "organization",
   primary_version: "primary file",
   derivation: "passages",
   archived: "archived",
@@ -456,13 +454,23 @@ function searchWords(f: FileEntry) {
   return f.search_status === "pending" ? "Searched once parsed" : "Not searched";
 }
 
-/** A date, then who did it and through which surface: "27 Sept 2026 / by Sam via Claude". */
-function When({ at, by }: { at: string; by: Actor | null | undefined }) {
+/**
+ * A date, then who did it and through which surface: "27 Sept 2026 / by Sam via Claude". With
+ * `byTo`, the person links there (the sources they added).
+ */
+function When({ at, by, byTo }: { at: string; by: Actor | null | undefined; byTo?: string }) {
   return (
     <span className="source-when">
       <span className="num">{formatDate(at)}</span>
       <small>
-        by {actorName(by)}
+        by{" "}
+        {byTo && by ? (
+          <Link to={byTo} className="quiet-link" title={`Every source ${actorName(by)} added`}>
+            {actorName(by)}
+          </Link>
+        ) : (
+          actorName(by)
+        )}
         {by?.surface && by.surface !== "web" ? ` via ${surfaceLabel(by)}` : ""}
       </small>
     </span>
@@ -486,30 +494,26 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
         <Group title="About">
           <KeyValue
             items={[
-              { label: "Kind", value: r.kind_label },
-              { label: "Date captured", value: r.date ? <span className="num" title="When the interview or call happened, or the document is dated">{formatDate(r.date)}</span> : "No date" },
-              { label: "Date added", value: <When at={r.uploaded_at} by={r.uploaded_by} /> },
-              { label: "Date updated", value: r.updated_at !== r.uploaded_at ? <When at={r.updated_at} by={r.updated_by} /> : <span className="faint">Not since it was added</span> },
               {
-                label: "Organization",
-                value: r.organization ? (
-                  <Link to={`${app}/evidence?organization=${encodeURIComponent(r.organization)}`} className="quiet-link" title={`Every source about ${r.organization}`}>
-                    {r.organization}
-                  </Link>
-                ) : null,
-              },
-              { label: "Participants", value: r.participants.length ? r.participants.join(", ") : null },
-              { label: "Tags", value: r.tags.length ? <span className="chips source-tags">{r.tags.map((t) => <Tag key={t}>{t}</Tag>)}</span> : null },
-              { label: "Provenance", value: r.provenance_depth !== "unknown" ? PROVENANCE_LABEL[r.provenance_depth] : null },
-              { label: "Came from", value: r.source_system },
-              {
-                label: "Filed in",
-                value: (
-                  <Link to={`${app}/evidence?folder=${encodeURIComponent(r.folder)}`} className="quiet-link" title={`Every source filed in ${r.folder_label}`}>
-                    {r.folder_label}
-                  </Link>
+                label: "Tags",
+                value: r.tags.length ? (
+                  <span className="chips source-tags">
+                    {r.tags.map((t) => (
+                      <Link key={t} to={`${app}/evidence?tags=${encodeURIComponent(t)}`} className="tag tag-link" title={`Every source tagged ${t}`}>
+                        {t}
+                      </Link>
+                    ))}
+                  </span>
+                ) : (
+                  <span className="faint">None</span>
                 ),
               },
+              { label: "Date captured", value: r.date ? <span className="num" title="When the meeting happened, or the document is dated">{formatDate(r.date)}</span> : "No date" },
+              { label: "Date added", value: <When at={r.uploaded_at} by={r.uploaded_by} byTo={`${app}/evidence?added_by=${encodeURIComponent(r.uploaded_by.account_id)}`} /> },
+              { label: "Date updated", value: r.updated_at !== r.uploaded_at ? <When at={r.updated_at} by={r.updated_by} /> : <span className="faint">Not since it was added</span> },
+              { label: "Participants", value: r.participants.length ? r.participants.join(", ") : null },
+              { label: "Provenance", value: r.provenance_depth !== "unknown" ? PROVENANCE_LABEL[r.provenance_depth] : null },
+              { label: "Came from", value: r.source_system },
             ]}
           />
         </Group>
@@ -596,7 +600,7 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
                     <Link to={`${app}/evidence/${x.record_id}`} className="ellipsis" title={x.title}>
                       {x.title}
                     </Link>
-                    <span className="faint">{x.kind_label} · lists it as related</span>
+                    <span className="faint">{x.tags.length ? `${x.tags.slice(0, 2).join(", ")} · ` : ""}Lists it as related</span>
                   </span>
                 </li>
               ))}
@@ -1020,14 +1024,11 @@ function FilesView({ record, onAdd }: { record: SourceRecord; onAdd?: () => void
 
 function EditDetails({ record, onClose, onReload }: { record: SourceRecord; onClose: () => void; onReload: () => void }) {
   const { base, key } = useSourceKey();
-  const kinds = useKinds();
   const qc = useQueryClient();
   const toast = useToast();
   const [f, setF] = useState({
-    kind: record.kind,
     title: record.title,
     date: record.date ?? "",
-    organization: record.organization ?? "",
     tags: record.tags.join(", "),
     participants: record.participants.join(", "),
     source_system: record.source_system ?? "",
@@ -1036,13 +1037,11 @@ function EditDetails({ record, onClose, onReload }: { record: SourceRecord; onCl
   const list = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
   const save = useMutation({
     mutationFn: () =>
-      api<{ changed: string[]; folder_label: string }>("PATCH", `${base}/sources/${record.record_id}`, {
+      api<{ changed: string[] }>("PATCH", `${base}/sources/${record.record_id}`, {
         expected_etag: record.etag,
-        kind: f.kind,
         title: f.title,
         date: f.date || null,
-        organization: f.organization || null,
-        tags: list(f.tags),
+        tags: splitTags(f.tags),
         participants: list(f.participants),
         source_system: f.source_system || null,
         provenance_depth: f.provenance_depth,
@@ -1050,7 +1049,7 @@ function EditDetails({ record, onClose, onReload }: { record: SourceRecord; onCl
     onSuccess: (res) => {
       void qc.invalidateQueries({ queryKey: key });
       void qc.invalidateQueries({ queryKey: ["sources", base] });
-      toast(res.changed.length ? `Saved. Filed under ${res.folder_label}. Its passages and citations are unchanged.` : "Nothing changed.");
+      toast(res.changed.length ? "Saved. Its passages and citations are unchanged." : "Nothing changed.");
       onClose();
     },
   });
@@ -1073,17 +1072,10 @@ function EditDetails({ record, onClose, onReload }: { record: SourceRecord; onCl
         </>
       }
     >
-      <SelectField label="Kind" value={f.kind} onChange={set("kind")}>
-        {kinds.data?.kinds.map((k) => (
-          <option key={k.kind} value={k.kind}>
-            {k.label}
-          </option>
-        ))}
-      </SelectField>
       <TextField label="Title" value={f.title} onChange={set("title")} required maxLength={300} />
-      <TextField label="Date captured" type="date" hint="When the interview or call happened, or the document is dated. Not when it was added." value={f.date} onChange={set("date")} optional />
-      <TextField label="Organization" value={f.organization} onChange={set("organization")} optional />
-      <TextField label="Tags" value={f.tags} onChange={set("tags")} optional hint="Comma-separated." />
+      <TextField label="Date captured" type="date" hint="When the meeting happened, or the document is dated. Not when it was added." value={f.date} onChange={set("date")} optional />
+      <TextField label="Tags" value={f.tags} onChange={set("tags")} optional hint="Comma-separated: what it is, whom it concerns, what it bears on." />
+      <TagSuggestions value={f.tags} onChange={(tags) => setF({ ...f, tags })} />
       <TextField label="Participants" value={f.participants} onChange={set("participants")} optional hint="Comma-separated." />
       <TextField label="Where it came from" value={f.source_system} onChange={set("source_system")} optional />
       <SelectField label="Relationship to the evidence" value={f.provenance_depth} onChange={set("provenance_depth")}>

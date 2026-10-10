@@ -3,7 +3,7 @@ type: Decision
 title: Lists filter from the panel; a table's header only sorts or searches
 description: Exploration's lists are filtered from the panel, each with one set of filters, and no list puts filters above its rows.
 tags: [decision, web, design, navigation, exploration]
-generated: {by: agent:claude, at: 2026-10-09}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -27,6 +27,10 @@ The maintainer chose these rules on 2026-09-28.
   ([decision](mockups-are-versioned-canvases-in-exploration.md)).
 - A list is filtered from the panel. Controls above a table's rows either sort it (Evidence's
   sources) or search it (Exploration's title search); they never filter.
+- Evidence keeps its search in the panel, one field over passages or titles with a toggle between
+  them, so a person searches what sources say and what they are called from the same place. The
+  maintainer chose this on 2026-10-10. A title search there narrows the list and shows as a filter
+  in use.
 - One filter dimension per object.
 - Rejected: keeping the filters in each sheet head, which fits one list but repeats a second
   navigation level inside Exploration and gives the segmented control two meanings.
@@ -41,6 +45,7 @@ The maintainer chose these rules on 2026-09-28.
 
 - Panel filters are `PanelFilter` links in a `PanelSection` (`apps/web/src/shell/slots.tsx`); the
   filters in use show as removable chips (`FiltersInUse`, `apps/web/src/ui/layout.tsx`).
-- A new list screen follows the same split: filters in the panel, sort or search in its header.
+- A new list screen follows the same split: filters in the panel, sort or search in its header,
+  unless its section already searches from the panel, as Evidence does.
 
 Specified in: [07-web-app §7.2, §7.3 and §7.7](../spec/07-web-app.md), [DESIGN.md](../../DESIGN.md).
