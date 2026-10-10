@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@whatbuild/parsers": "workspace:*",
-    "kysely": "^0.28.8",
+    "kysely": "^0.29.6",
     "marked": "^16.4.0",
     "parse5": "^8.0.0",
     "ulid": "^3.0.1",
