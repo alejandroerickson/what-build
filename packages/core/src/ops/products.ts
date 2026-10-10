@@ -3,7 +3,7 @@ import { z } from "zod";
 import { checkEtag, keepRevision, recordActivity } from "../common.ts";
 import { json, type Db } from "../db.ts";
 import { AppError, conflict, forbidden, invalid, notFound } from "../errors.ts";
-import { effectiveRole, isSandboxStaff, membershipsFor, PRODUCT_ROLES, readsOnlyTheStory, roleAtLeast, tenantRoleAtLeast } from "../policy.ts";
+import { effectiveRole, isSandboxStaff, membershipsFor, PRODUCT_ROLES, readsOnlyTheStory, readsOnlyTheStoryIn, roleAtLeast, tenantRoleAtLeast } from "../policy.ts";
 import { defineOperation, type OpContext, type ProductRole, type TenantRole } from "../registry.ts";
 import { requireTenantAllowance } from "../tenant-allowance.ts";
 import { expectedEtag, slug } from "../schemas.ts";
@@ -119,7 +119,7 @@ export const listProducts = defineOperation({
   mutates: false,
   summary: "List every product you can reach, across your tenants and teams, with your role and counts of what each holds.",
   description:
-    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` are the ones products(action=\"get\") reports. Where your_role is reader you may read only the Story: such an item has no concept and counts only story_pages. A tenant with `sandbox: true` is a public sandbox: what is added there is seen by other visitors and erased at its next reset, so read sandbox(action=\"status\") and tell the person before writing.",
+    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` are the ones products(action=\"get\") reports. Where your_role is reader you may read only the Story: such an item has no concept and counts only story_pages. A tenant marked story_only is one where you read only the Story everywhere, so its members are not listed to you. A tenant with `sandbox: true` is a public sandbox: what is added there is seen by other visitors and erased at its next reset, so read sandbox(action=\"status\") and tell the person before writing.",
   input: z.strictObject({ include_archived: z.boolean().default(false) }),
   rest: { method: "GET", path: "/me/products" },
   mcp: { tool: "products", action: "list" },
@@ -175,6 +175,8 @@ export const listProducts = defineOperation({
           ...t,
           // A public sandbox: call sandbox(action="status") for its notice and limits before writing there.
           ...(sandbox ? { sandbox: true } : {}),
+          // Reads only the Story everywhere here, so sees none of the organization's people.
+          ...(readsOnlyTheStoryIn(memberships, t.tenant_id) ? { story_only: true } : {}),
           your_role: tr,
           teams: teams
             .filter((tm) => tm.tenant_id === t.tenant_id)
@@ -469,7 +471,7 @@ export const listMembers = defineOperation({
   mutates: false,
   summary: "List the tenant's members with every grant they hold, and outstanding invitations; or, with product, the people who can reach one product.",
   description:
-    "Each member lists grants as {scope_type, scope, role}. Effective access is the highest role that applies. Pass product (a slug with team, or an id) to list only the people with access to that product: each then carries product_access {role, via} — via is product, team or tenant, the grant the role comes from (the broadest one when grants tie) — and grants are limited to the ones that apply to that product. Invitations are limited the same way. In a public sandbox, only its owners and admins see people: they get the organization's own members, with visitors as a count (sandbox(action=\"visitors\") lists them), and everyone else gets only themselves.",
+    "Each member lists grants as {scope_type, scope, role}. Effective access is the highest role that applies. Pass product (a slug with team, or an id) to list only the people with access to that product: each then carries product_access {role, via} — via is product, team or tenant, the grant the role comes from (the broadest one when grants tie) — and grants are limited to the ones that apply to that product. Invitations are limited the same way. In a public sandbox, only its owners and admins see people: they get the organization's own members, with visitors as a count (sandbox(action=\"visitors\") lists them), and everyone else gets only themselves. Someone who reads only the Story everywhere in the tenant (a reader on its teams or products and nothing more) sees none of its people: 403.",
   input: z.strictObject({
     tenant: z.string().min(1),
     team: z.string().optional().describe("Team slug or id, to name the product by slug."),
@@ -479,6 +481,8 @@ export const listMembers = defineOperation({
   mcp: { tool: "members", action: "list" },
   async handler(ctx, input) {
     const tid = ctx.scope.tenant!.tenant_id;
+    if (readsOnlyTheStoryIn(await membershipsFor(ctx.db, ctx.principal.account_id, tid), tid))
+      throw forbidden(`You read only the Story in ${ctx.scope.tenant!.name}, so its members are not shown to you. Viewer access to one of its teams or products shows them.`, { role: "reader", needed: "viewer" });
     const target = input.product ? await resolveGrantTarget(ctx, { team: input.team, product: input.product }) : null;
     // In a public sandbox nobody but its staff sees another person, and its visitors are counted, not listed.
     const sandbox = Boolean(ctx.scope.tenant!.sandbox);

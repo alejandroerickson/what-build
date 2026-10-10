@@ -1,6 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { houseStyle, OPERATIONS } from "@whatbuild/core";
+import { houseStyle, OPERATIONS, readsOnlyTheStoryIn } from "@whatbuild/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { restPath } from "../src/rest.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
@@ -176,8 +176,20 @@ describe("a Story reader", () => {
     expect(listed.product_access).toEqual({ role: "reader", via: "product" });
   });
 
+  it("sees none of the organization's people", async () => {
+    for (const path of [`/api/v1/tenants/${tenantSlug}/members`, `/api/v1/tenants/${tenantSlug}/members?team=${teamSlug}&product=planner`]) {
+      const r = await rita.api("GET", path);
+      expect(r.status, path).toBe(403);
+      expect(r.body.error.details).toEqual({ role: "reader", needed: "viewer" });
+    }
+    const list = await rita.api("GET", "/api/v1/me/products");
+    expect(list.body.tenants.find((t: { slug: string }) => t.slug === tenantSlug)).toMatchObject({ story_only: true });
+  });
+
   it("reads everything once another grant makes them a viewer, since the highest role applies", async () => {
     await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, email: "rita@example.com", role: "viewer" });
+    expect((await rita.api("GET", `/api/v1/tenants/${tenantSlug}/members`)).status).toBe(200);
+    expect((await rita.api("GET", "/api/v1/me/products")).body.tenants.find((t: { slug: string }) => t.slug === tenantSlug).story_only).toBeUndefined();
     const product = await rita.api("GET", P);
     expect(product.body).toMatchObject({ your_role: "viewer", concept: "A planner for finance teams.", counts: { sources: 1, outcomes: 1, story_pages: 1 } });
     const page = await rita.api("GET", `${P}/story/pages/overview/versions/1`);
@@ -198,5 +210,20 @@ describe("a Story reader", () => {
     expect(((await put.json()) as { error: { details: { role: string } } }).error.details.role).toBe("reader");
     const source = await alice.api("GET", `${P}/sources/${created.body.record.record_id}?detail=full`);
     expect(source.body.files).toEqual([]);
+  });
+});
+
+describe("reading only the Story in an organization", () => {
+  const g = (scope_type: string, role: string, tenant_id = "t1") => ({ tenant_id, scope_type, scope_id: "x", role });
+  it("holds for a reader with no higher role there, whatever they hold elsewhere", () => {
+    expect(readsOnlyTheStoryIn([g("product", "reader"), g("team", "reader")], "t1")).toBe(true);
+    expect(readsOnlyTheStoryIn([g("tenant", "member"), g("product", "reader")], "t1")).toBe(true);
+    expect(readsOnlyTheStoryIn([g("product", "reader"), g("product", "editor", "t2")], "t1")).toBe(true);
+  });
+  it("does not hold for a higher role on any team or product, an organization admin, or someone with no reader role", () => {
+    expect(readsOnlyTheStoryIn([g("product", "reader"), g("product", "viewer")], "t1")).toBe(false);
+    expect(readsOnlyTheStoryIn([g("tenant", "admin"), g("product", "reader")], "t1")).toBe(false);
+    expect(readsOnlyTheStoryIn([g("tenant", "member")], "t1")).toBe(false);
+    expect(readsOnlyTheStoryIn([], "t1")).toBe(false);
   });
 });

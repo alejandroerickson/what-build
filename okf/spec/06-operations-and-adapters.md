@@ -327,7 +327,9 @@ Notes on recent actions:
   `sources.move_to_product` refuses while one does, and `sources.delete_impact` lists every
   mockup version that cites it (`mockup_versions_citing`), as each does for Story pages.
 - `members.list` takes an optional `product` to list only the people who can reach it, each with
-  `product_access { role, via }`.
+  `product_access { role, via }`. It answers `403` to someone who reads only the Story everywhere
+  in the organization, and `products.list` marks such an organization `story_only: true`
+  ([§3.5](03-accounts-teams-and-identity.md)).
 - `members.revoke` removes the grant at exactly the scope named; with `whole_tenant: true` (and no
   team or product) it removes every grant the person holds in the tenant, which takes them out of
   it. That needs tenant admin, or owner when they are an owner.

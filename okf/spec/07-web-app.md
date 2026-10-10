@@ -62,7 +62,8 @@ the browser's back button and "open in new tab" both work.
 - **A context slot** under the navigation, which the screen fills: the page tree on Story, find
   and filters on Evidence, the mockups and the three lists with their filters on Exploration.
 - **The footer** holds the account menu, which is about the person: their email; each
-  organization they belong to, with their role in it and a link to its **Members**; the theme
+  organization they belong to, with their role in it and a link to its **Members** (an organization
+  where they read only the Story is left out, since its members are not shown to them); the theme
   (Light, Dark or System, which is the default; remembered per browser); **New organization**,
   while they may still create one; **Organization creators**, for an owner of the instance;
   **Settings** (their own display name); and Sign out. Last, under a hairline, is the release this
@@ -588,6 +589,9 @@ never described as deleting. A list row showing an archived object says *Archive
   product or the organization itself (teams first; the organization's member role warns that it
   opens no product), and a role described in words; someone without an account gets a
   single-use link. The person's writes and their attribution stay after any removal.
+  Someone who reads only the Story in the organization who opens the address gets a page saying
+  that members aren't shown to Story readers, with a way back to their products
+  ([§3.5](03-accounts-teams-and-identity.md)).
 - **Invitation** (`/invite/:token`). Accepts the invitation and opens the overview with a toast
   naming the organization and role. A link already accepted by the same person (signing in accepts
   it) is the same success. Otherwise it names why the link can't be used and offers signing in

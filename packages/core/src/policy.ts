@@ -43,6 +43,18 @@ export function readsOnlyTheStory(role: ProductRole | null): boolean {
   return role === "reader";
 }
 
+/**
+ * Whether someone reads only the Story wherever they are in an organization: a reader on its teams
+ * or products, with no higher role there and no organization role but member. Such a person sees
+ * none of the organization's people.
+ */
+export function readsOnlyTheStoryIn(memberships: MembershipRow[], tenantId: string): boolean {
+  const here = memberships.filter((m) => m.tenant_id === tenantId);
+  if (here.some((m) => m.scope_type === "tenant" && m.role !== "member")) return false;
+  const roles = here.filter((m) => m.scope_type !== "tenant").map((m) => m.role);
+  return roles.length > 0 && roles.every((r) => r === "reader");
+}
+
 export function tenantRoleAtLeast(role: TenantRole | null, needed: TenantRole): boolean {
   return role !== null && TENANT_RANK[role] >= TENANT_RANK[needed];
 }

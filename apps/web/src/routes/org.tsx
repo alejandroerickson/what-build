@@ -1,12 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import { api } from "../lib/api.ts";
+import { api, ApiError } from "../lib/api.ts";
 import { aRole, formatDate, ROLE_WORD, scopeWords } from "../lib/format.ts";
 import { useMe, useProducts } from "../lib/session.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
-  Avatar, Button, ButtonLink, Callout, CopyField, Dialog, ErrorCallout, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio, MenuSeparator,
+  Avatar, Button, ButtonLink, Callout, CopyField, Dialog, EmptyState, ErrorCallout, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio, MenuSeparator,
   SelectField, Sheet, SheetBody, SheetHeader, StatusBadge, TextArea, TextField, useToast,
 } from "../ui/index.tsx";
 import { EntryPage } from "./auth.tsx";
@@ -147,8 +147,15 @@ export function MembersPage() {
   const toast = useToast();
   const [giving, setGiving] = useState<{ email?: string } | null>(null);
   const [removing, setRemoving] = useState<{ m: Member; g?: MemberGrant } | null>(null);
-  const q = useQuery({ queryKey: ["members", tenant], queryFn: () => api<MembersResponse>("GET", `/api/v1/tenants/${tenant}/members`) });
   const t = products.data?.tenants.find((x) => x.slug === tenant);
+  const q = useQuery({
+    queryKey: ["members", tenant],
+    enabled: !t?.story_only,
+    retry: (n, e) => !(e instanceof ApiError && e.status === 403) && n < 2,
+    queryFn: () => api<MembersResponse>("GET", `/api/v1/tenants/${tenant}/members`),
+  });
+  // Someone who reads only the Story here sees none of the organization's people.
+  const storyOnly = Boolean(t?.story_only) || (q.error instanceof ApiError && q.error.status === 403);
   const orgName = t?.name ?? tenant;
   const sandbox = q.data?.sandbox;
   usePageTitle("Members");
@@ -200,6 +207,17 @@ export function MembersPage() {
     },
     onError: (e) => toast(`Couldn’t cancel the invitation. ${(e as Error).message}`, { tone: "negative" }),
   });
+  if (storyOnly)
+    return (
+      <Sheet className="members-sheet" labelledBy="members-title">
+        <SheetHeader level={1} id="members-title" title="Members" />
+        <SheetBody>
+          <EmptyState title="Members aren’t shown to Story readers" action={<ButtonLink to="/">Go to your products</ButtonLink>}>
+            You read only the Story in {orgName}, so who works on its products stays with its team. An admin of one of its products can give you more access.
+          </EmptyState>
+        </SheetBody>
+      </Sheet>
+    );
   return (
     <>
       <Sheet className="members-sheet" labelledBy="members-title">

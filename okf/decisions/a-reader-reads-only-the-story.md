@@ -26,6 +26,11 @@ product as anyone else does. It revises one consequence of
   `story` too, and `products.list` lists every product the caller holds a role on, so a reader can
   find and open the product.
 - Everything else needs `viewer` at least, and answers a reader `403` naming both roles.
+- That includes the organization's people. Someone who reads only the Story everywhere in an
+  organization (a reader on its teams or products, with no higher role there and no organization
+  role but member) is refused its members and invitations (`members.list`, `403`), and the app
+  leaves its Members out for them. The maintainer chose this on 2026-10-10: a Story is often read
+  outside the team, and who works on it stays with the team.
 - A reader's Story reads leave out what a page draws on: `refs`, `resolved_refs`, `citations`,
   `citation_count` and the page's notes for agents. Their product reads leave out the product
   concept and count Story pages only.
@@ -39,14 +44,17 @@ product as anyone else does. It revises one consequence of
 - A reader's agent sees exactly the reader's Story, as every agent has its person's role.
 - An evidence link inside a page leads a reader nowhere they can read: the app takes them back to
   the Story.
-- The highest role still applies: a reader on a product who is a viewer on its team is a viewer.
+- The highest role still applies: a reader on a product who is a viewer on its team is a viewer,
+  and a reader on one product who is a viewer on another in the same organization sees its
+  members.
 
 ## Constrains
 
 - Only Story reads and the product's own name and Story count may declare `story`; a new
   operation that does needs the same trimming for a reader.
 - Trimming happens in the handlers through `readsOnlyTheStory` in
-  `packages/core/src/policy.ts`, never in the web app alone.
+  `packages/core/src/policy.ts`, never in the web app alone; whether someone reads only the Story
+  in a whole organization is `readsOnlyTheStoryIn` there.
 - A write on a grant given earlier checks the requester's role again when it lands: the upload
   relay stores nothing for someone made a reader since (`apps/server/src/uploads.ts`).
 

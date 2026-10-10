@@ -38,7 +38,8 @@ export interface ProductSummary {
 export interface ProductsResponse {
   items: ProductSummary[];
   /** `sandbox` marks a public sandbox; `your_role` is then "visitor" for everyone but its owners and admins. */
-  tenants: { tenant_id: string; slug: string; name: string; sandbox?: boolean; your_role: string | null; teams: { team_id: string; slug: string; name: string; your_role: string | null }[] }[];
+  /** story_only: the person reads only the Story everywhere in the organization, so its members are not shown to them. */
+  tenants: { tenant_id: string; slug: string; name: string; sandbox?: boolean; story_only?: boolean; your_role: string | null; teams: { team_id: string; slug: string; name: string; your_role: string | null }[] }[];
 }
 
 export function useMe() {

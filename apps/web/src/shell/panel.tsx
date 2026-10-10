@@ -180,13 +180,14 @@ export function PlainNav({ section }: { section: string }) {
 
 /**
  * The panel footer: the signed-in person, and the account menu: their email, their role in each
- * organization with its members, the theme, their settings, and sign out.
+ * organization with its members, the theme, their settings, and sign out. An organization where the
+ * person reads only the Story is left out: its members are not shown to them.
  */
 export function AccountMenu() {
   const me = useMe();
   const signOut = useSignOut();
   const [theme, setTheme] = useTheme();
-  const tenants = useProducts().data?.tenants ?? [];
+  const tenants = (useProducts().data?.tenants ?? []).filter((t) => !t.story_only);
   const release = useRelease();
   const name = me.data?.display_name ?? "Signed in";
   return (
