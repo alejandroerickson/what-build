@@ -36,6 +36,28 @@ export interface ParseResult {
   facts: Record<string, number | string | boolean | string[]>;
 }
 
+/**
+ * A parse as a derivation stores it: what its row records, the outline, and the bytes of
+ * `segments.jsonl` and `text.md`. Bytes rather than objects, so a parse made in a worker thread
+ * reaches the server as two buffers handed over without a copy, however many passages it has.
+ */
+export interface ParsedFile {
+  status: DerivationStatus;
+  parser: string;
+  parser_version: string;
+  status_detail: string | null;
+  duration_ms: number | null;
+  facts: ParseResult["facts"];
+  segment_count: number;
+  /** The length of `text.md` in code points. */
+  char_count: number;
+  outline: string;
+  /** `segments.jsonl`: one segment per line, each line ending in a newline. */
+  segments_jsonl: Uint8Array;
+  /** `text.md`, UTF-8. */
+  text_md: Uint8Array;
+}
+
 /** A block produced by a format parser before segmentation and offset assignment. */
 export interface Block {
   text: string;
@@ -44,6 +66,15 @@ export interface Block {
   end_ms?: number | null;
   heading_level?: number;
   page?: number;
+}
+
+/**
+ * Thrown by a parser, or by assembly, when a file is too large to parse in some other way than its
+ * size: a package that unpacks past the cap, a PDF with too many pages, too many passages. The file
+ * is `too_large`, like a file over the cap.
+ */
+export class TooLargeError extends Error {
+  override name = "TooLargeError";
 }
 
 /** Sources over this size are stored but not parsed (`too_large`). Operator-configurable. */

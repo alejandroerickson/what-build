@@ -104,11 +104,12 @@ the handler (etag check, `409 stale_etag`; actor snapshot; activity event) → a
 text with the scope echoed.
 
 **From upload to passage.** Request a signed upload grant → bytes go to object storage →
-`complete_upload` registers the file → a parse job is queued → the worker parses the primary file
-into an immutable derivation (`segments.jsonl`, `text.md`, `outline.md`, `manifest.json`) →
-passages are indexed in the same transaction that makes them current
-([derived layer](../spec/05-derived-layer.md),
-[decision](../decisions/only-the-primary-file-is-searched.md)).
+`complete_upload` registers the file → a parse job is queued → the worker parses the primary file,
+in a thread of its own held to a memory and a time limit, into an immutable derivation
+(`segments.jsonl`, `text.md`, `outline.md`, `manifest.json`) → passages are indexed in the same
+transaction that makes them current ([derived layer](../spec/05-derived-layer.md),
+[decision](../decisions/only-the-primary-file-is-searched.md),
+[decision](../decisions/each-file-is-parsed-in-a-thread-of-its-own-with-memory-and-time-limits.md)).
 
 **An agent's session.** Check the skill → `products list`, confirm the product → read
 `sources facets` and upload through `files`, reusing the product's tags → `search`, then `read_passage` → `assumptions create` with citations →

@@ -1,4 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Parsing runs in a worker thread that Node starts from these files as they are, stripping
+    // types itself, so they keep to syntax that erases.
+    "erasableSyntaxOnly": true
+  },
   "include": ["src", "test"]
 }

@@ -1,14 +1,18 @@
 import { strToU8, zipSync } from "fflate";
 import { constants, deflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PARSE_CAP_BYTES, derive, MAX_HTML_DEPTH, parseHtml, type ParseResult } from "../src/index.ts";
-import { atxHeading } from "../src/plaintext.ts";
-import { makeDocx, makePdf, makeXlsx, utf8 } from "./fixtures.ts";
+import { stripCueMarkup, voiceName } from "../src/cues.ts";
+import { DEFAULT_PARSE_CAP_BYTES, derive, MAX_HTML_DEPTH, MAX_PDF_PAGES, MAX_SEGMENTS, parseHtml, readSegments, toParsedFile, type ParseResult } from "../src/index.ts";
+import { atxHeading, stripInlineMarkdown } from "../src/plaintext.ts";
+import { speakerLine } from "../src/speakers.ts";
+import { codePointLength, isSpaceUnit, nonSpaceCodePoints } from "../src/text.ts";
+import { makeBlankPdf, makeDocx, makePdf, makeXlsx, utf8 } from "./fixtures.ts";
 
 // Hostile files: each must end in a status (never a crash or a hang) within bounded time and
-// memory. The worker parses in the server's own process, so a file that stalls the parse stalls
-// the server, and one that exhausts its memory takes it down. Every hostile file is made here;
-// none is committed.
+// memory. The server parses each file in a worker thread held to a memory and a time limit, so
+// even a parse that ran away would end as a failed derivation (apps/server/test/hostile-uploads.test.ts
+// shows those limits at work); these tests hold the parsers to bounds of their own, so what stops a
+// hostile file is a reason, not a limit. Every hostile file is made here; none is committed.
 
 const MiB = 1024 * 1024;
 const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
@@ -257,6 +261,170 @@ describe("patterns that once backtracked", () => {
     const cue = await measured(utf8(`WEBVTT\n\n00:00.000 --> 00:01.000\nx${" ".repeat(500_000)}y\n`), "spaces.vtt");
     expect(cue.ms).toBeLessThan(1000);
     expect(cue.r.segments[0]!.text).toBe("x y");
+  });
+});
+
+/** Every string over `alphabet` of at most `maxLength` symbols. */
+function* allStrings(alphabet: string[], maxLength: number): Generator<string> {
+  for (let length = 0; length <= maxLength; length++) {
+    for (let n = 0; n < alphabet.length ** length; n++) {
+      let s = "";
+      for (let i = 0, x = n; i < length; i++, x = Math.floor(x / alphabet.length)) s += alphabet[x % alphabet.length];
+      yield s;
+    }
+  }
+}
+
+/** `count` strings of 1 to `maxParts` pieces drawn from `pieces`, the same every run. */
+function* randomStrings(pieces: string[], count: number, maxParts: number): Generator<string> {
+  let x = 20261010;
+  const next = (k: number) => {
+    x = (x * 1103515245 + 12345) & 0x7fffffff;
+    return x % k;
+  };
+  for (let i = 0; i < count; i++) yield Array.from({ length: 1 + next(maxParts) }, () => pieces[next(pieces.length)]).join("");
+}
+
+/** The strings among `inputs` where `now` and `before` disagree, at most five. */
+function disagreements(inputs: Iterable<string>, now: (s: string) => unknown, before: (s: string) => unknown): string[] {
+  const out: string[] = [];
+  for (const s of inputs) {
+    const a = JSON.stringify(now(s));
+    const b = JSON.stringify(before(s));
+    if (a !== b && out.push(`${JSON.stringify(s)}: ${a} instead of ${b}`) >= 5) break;
+  }
+  return out;
+}
+
+/** The patterns stripInlineMarkdown replaced, as it applied them. */
+function stripInlineMarkdownByPatterns(line: string): string {
+  const code: string[] = [];
+  let s = line.replace(/(`+)([^`]|[^`].*?[^`])\1(?!`)/g, (_m, _ticks: string, body: string) => {
+    code.push(body.trim() || body);
+    return `\ue000${code.length - 1}\ue001`;
+  });
+  s = s
+    .replace(/(?<![\p{L}\p{N}\\*])\*\*(?=\S)(.+?)(?<=[^\s\\])\*\*(?![\p{L}\p{N}])/gu, "$1")
+    .replace(/(?<![\p{L}\p{N}\\_])__(?=\S)(.+?)(?<=[^\s\\])__(?![\p{L}\p{N}_])/gu, "$1")
+    .replace(/(?<![\p{L}\p{N}\\*])\*(?=[^\s*])(.+?)(?<=[^\s\\*])\*(?![\p{L}\p{N}*])/gu, "$1")
+    .replace(/(?<![\p{L}\p{N}\\_])_(?=[^\s_])(.+?)(?<=[^\s\\_])_(?![\p{L}\p{N}_])/gu, "$1")
+    .replace(/\\([\\`*_{}[\]()#+\-.!>|~])/g, "$1");
+  return s.replace(/\ue000(\d+)\ue001/g, (_m, i: string) => code[Number(i)] ?? "");
+}
+
+describe("patterns that once backtracked in quadratic time", () => {
+  const timed = (f: () => unknown) => {
+    const started = performance.now();
+    f();
+    return performance.now() - started;
+  };
+
+  it("strips Markdown emphasis and code spans in linear time, exactly as the old patterns did", async () => {
+    // A 64 KB line of any of these took up to a second, and a 256 KB one about sixteen.
+    for (const unit of ["*a ", "**a ", "_a ", "__a ", "`", "`a ``"]) {
+      const line = unit.repeat(Math.ceil((256 * 1024) / unit.length));
+      expect(timed(() => stripInlineMarkdown(line)), JSON.stringify(unit)).toBeLessThan(1000);
+    }
+    const { r, ms } = await measured(utf8(`${"*a ".repeat(100_000)}\n\n${"`".repeat(200_000)}\n`), "marks.md");
+    expect(r.status).toBe("ready");
+    expect(ms).toBeLessThan(2000);
+    expect(disagreements(allStrings(["*", "_", "`", "a", " ", "\\", "\u2028", "😀"], 6), stripInlineMarkdown, stripInlineMarkdownByPatterns)).toEqual([]);
+    const pieces = ["*", "_", "`", "**", "__", "``", "a", "é", "1", " ", "\t", "\\", "\n", "\u2028", "😀", "\ud83d", "\ude00", "\ue000", "0", "\ue001"];
+    expect(disagreements(randomStrings(pieces, 20_000, 30), stripInlineMarkdown, stripInlineMarkdownByPatterns)).toEqual([]);
+  });
+
+  it("reads a speaker line in linear time, exactly as the old pattern did", () => {
+    // Spaces, then a line separator inside the words: a 32 KB line took nearly three seconds.
+    const line = `Dana: ${" ".repeat(256 * 1024)}\u2028x\u2028y`;
+    expect(timed(() => speakerLine(line))).toBeLessThan(500);
+    const OLD = /^([A-Z][\p{L}\p{M}'’.\- ]{0,40}|\[[^\]]{1,40}\]):\s+(.+)$/u;
+    const before = (s: string) => {
+      const m = OLD.exec(s);
+      return m ? [m[1], m[2]] : null;
+    };
+    expect(disagreements(allStrings(["A", "a", ":", " ", "\u2028", "[", "]", "x"], 6), speakerLine, before)).toEqual([]);
+    const pieces = ["A", "Dana", "a", ":", " ", "\t", "\u00a0", "\u2028", "\u2029", "\n", "[", "]", "x", "'", "é", "\ud83d"];
+    expect(disagreements(randomStrings(pieces, 20_000, 20), speakerLine, before)).toEqual([]);
+  });
+
+  it("strips cue markup and finds the voice in linear time, exactly as the old patterns did", async () => {
+    // A 48 KB cue of any of these took from half a second to more than two.
+    for (const unit of ["<v ", "<v.a", "<b ", "{\\", "<1:00."]) {
+      const cue = unit.repeat(Math.ceil((256 * 1024) / unit.length));
+      expect(timed(() => voiceName(cue) ?? stripCueMarkup(cue)), JSON.stringify(unit)).toBeLessThan(500);
+    }
+    const { r, ms } = await measured(utf8(`WEBVTT\n\n00:00.000 --> 00:01.000\n${"<v ".repeat(300_000)}\n`), "voices.vtt");
+    expect(r.status).toBe("ready");
+    expect(ms).toBeLessThan(2000);
+    const voiceBefore = (s: string) => s.match(/<v(?:\.[^\s>]*)?\s+([^>]+)>/)?.[1] ?? null;
+    const stripBefore = (s: string) =>
+      s.replace(/\{\\[^}]*\}/g, "").replace(/<\/?(?:v|c|i|b|u|ruby|rt|lang)(?:[.\s][^>]*)?>/g, "").replace(/<\d{1,2}:\d{2}[:.][^>]*>/g, "");
+    for (const alphabet of [["<", "v", ".", " ", ">", "a", "\n", "/"], ["<", "1", ":", ".", ">", "x", "{", "\\", "}"]]) {
+      expect(disagreements(allStrings(alphabet, 6), voiceName, voiceBefore)).toEqual([]);
+      expect(disagreements(allStrings(alphabet, 6), stripCueMarkup, stripBefore)).toEqual([]);
+    }
+    const pieces = ["<v", "<v.", "<v ", " ", ">", "<", "/", "v", "c", "b", "ruby", "rt", "lang", ".", "\t", "\u00a0", "\n", "x", "{\\", "}", "1", "12", ":", ":0", "<1:00.", "Dana"];
+    expect(disagreements(randomStrings(pieces, 20_000, 16), voiceName, voiceBefore)).toEqual([]);
+    expect(disagreements(randomStrings(pieces, 20_000, 16), stripCueMarkup, stripBefore)).toEqual([]);
+  });
+
+  it("counts the characters a text-like parse kept without copying them, as the old count did", () => {
+    for (let c = 0; c <= 0xffff; c++) expect(isSpaceUnit(c), c.toString(16)).toBe(/\s/.test(String.fromCharCode(c)));
+    const pieces = ["a", " ", "\n", "\u00a0", "\u3000", "😀", "\ud83d", "\ude00", "é", "\ufeff"];
+    const before = (texts: string[]) => codePointLength(texts.join("").replace(/\s+/g, ""));
+    for (const s of randomStrings(pieces, 5_000, 12)) {
+      const texts = s.split("a");
+      expect(nonSpaceCodePoints(texts), JSON.stringify(s)).toBe(before(texts));
+    }
+  });
+});
+
+describe("files that would make too much", () => {
+  it(`marks a PDF of more than ${MAX_PDF_PAGES} pages too large without reading its pages`, async () => {
+    // Twenty thousand blank pages in 2 MB took 18 seconds, and a hundred thousand more than five minutes.
+    for (const pages of [MAX_PDF_PAGES + 1, 20_000]) {
+      const { r, ms } = await measured(makeBlankPdf(pages), "blank.pdf");
+      expect(r.status, `${pages} pages`).toBe("too_large");
+      expect(r.status_detail).toBe(`the PDF has ${pages} pages; PDFs over ${MAX_PDF_PAGES} pages are stored but not parsed`);
+      expect(r.parser_version).toBe("3");
+      expect(ms).toBeLessThan(3000);
+    }
+    expect((await derive(makeBlankPdf(3), "blank.pdf")).status_detail).toContain("no text layer");
+  });
+
+  it(`marks a file that would make more than ${MAX_SEGMENTS} passages too large, in every format that could`, async () => {
+    // A 5 MB file of one-letter paragraphs made 1.75 million passages, and a 25 MB one more than a string can hold.
+    const many = MAX_SEGMENTS + 50_000;
+    for (const [name, text] of [
+      ["letters.txt", "a\n\n".repeat(many)],
+      ["letters.md", "- a\n".repeat(many)],
+      ["letters.html", "<p>a</p>".repeat(many)],
+      ["letters.vtt", "WEBVTT\n\n" + "00:00.000 --> 00:01.000\na\n\n".repeat(many)],
+    ] as const) {
+      const { r, ms } = await measured(utf8(text), name);
+      expect(r.status, name).toBe("too_large");
+      expect(r.status_detail).toBe(`the file makes more than ${MAX_SEGMENTS} passages; files that make more are stored but not parsed`);
+      expect(ms, name).toBeLessThan(4000);
+    }
+  });
+
+  it("outlines a file of very many headings without overflowing the stack", async () => {
+    const { r, ms } = await measured(utf8("# a\n".repeat(150_000)), "headings.md");
+    expect(r.status).toBe("ready");
+    expect(r.outline.split("\n").filter(Boolean)).toHaveLength(150_000);
+    expect(ms).toBeLessThan(3000);
+  });
+
+  it("writes a parse as its sidecars and reads its passages back as they were", async () => {
+    const r = await derive(utf8("# Notes 😀\n\nCrews text the office.\n\nA lone \ud83d half and 𝔘nicode.\n"), "notes.md");
+    const stored = toParsedFile(r);
+    expect(stored).toMatchObject({ status: "ready", segment_count: r.segments.length, char_count: Array.from(r.text).length, outline: r.outline });
+    expect(new TextDecoder().decode(stored.text_md)).toBe(new TextDecoder().decode(new TextEncoder().encode(r.text)));
+    expect(new TextDecoder().decode(stored.segments_jsonl)).toBe(r.segments.map((x) => JSON.stringify(x) + "\n").join(""));
+    const batches = [...readSegments(stored.segments_jsonl, 2)];
+    expect(batches.map((b) => b.length)).toEqual([2, 1]);
+    expect(batches.flat()).toEqual(r.segments);
+    expect([...readSegments(toParsedFile({ ...r, segments: [], text: "" }).segments_jsonl, 500)]).toEqual([]);
   });
 });
 

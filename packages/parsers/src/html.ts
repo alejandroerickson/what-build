@@ -151,7 +151,7 @@ export const htmlParser: FormatParser = {
           const caption = collectText(c).replace(/\s+/g, " ").trim();
           if (caption) blocks.push({ text: caption });
         }
-        blocks.push(...tableBlocks(tableRows(node)));
+        for (const b of tableBlocks(tableRows(node))) blocks.push(b);
         return;
       }
       const isBlock = tag !== undefined && BLOCK.has(tag);

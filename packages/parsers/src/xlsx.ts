@@ -255,7 +255,7 @@ export const xlsxParser: FormatParser = {
         if (cells.length) table.push({ n, cells });
       }
       const out = sheetRowBlocks(table, (n) => `[${sheet.name}, row ${n}] `, budget);
-      blocks.push(...out.blocks);
+      for (const b of out.blocks) blocks.push(b);
       rowCount += out.blocks.length;
       if (truncated || out.truncated) truncatedSheets.push(sheet.name);
     }

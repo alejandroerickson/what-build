@@ -1,12 +1,15 @@
 import { request } from "node:http";
-import { constants, deflateRawSync } from "node:zlib";
+import { constants, deflateRawSync, deflateSync } from "node:zlib";
+import { MAX_PDF_PAGES, MAX_SEGMENTS } from "@whatbuild/parsers";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { ServerConfig } from "../src/config.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 // Hostile files through the server's own upload path: the relay's limits, the worker that parses
-// what arrives, and the Story and mockup HTML a request parses. The parsers' own hostile cases are
-// in packages/parsers/test/hostile.test.ts; these show the server stays up and says what happened.
+// what arrives in a thread held to a memory and a time limit, and the Story and mockup HTML a
+// request parses. The parsers' own hostile cases are in packages/parsers/test/hostile.test.ts;
+// these show the server stays up, keeps answering, and says what happened.
 
 const MiB = 1024 * 1024;
 
@@ -47,9 +50,58 @@ function docxBomb(mib: number, declared: number): Uint8Array {
   return new Uint8Array(Buffer.concat([local, central, u32(0x06054b50), u16(0), u16(0), u16(1), u16(1), u32(central.length), u32(local.length), u16(0)]));
 }
 
-async function derivation(recordId: string) {
-  const list = await alice.api("GET", `${P}/sources/${recordId}/derivations`);
-  return list.body.items[0] as { status: string; status_detail: string | null; parser: string };
+async function derivation(recordId: string, as = alice, product = P) {
+  const list = await as.api("GET", `${product}/sources/${recordId}/derivations`);
+  return list.body.items[0] as { status: string; status_detail: string | null; parser: string; parser_version: string };
+}
+
+/** A PDF of these objects, each a dictionary or a dictionary with a stream. */
+function pdf(objects: (string | [string, Buffer])[]): Uint8Array {
+  const parts: Buffer[] = [Buffer.from("%PDF-1.4\n")];
+  let length = parts[0]!.length;
+  const offsets: number[] = [];
+  objects.forEach((o, i) => {
+    offsets.push(length);
+    const part = typeof o === "string" ? Buffer.from(`${i + 1} 0 obj\n${o}\nendobj\n`) : Buffer.concat([Buffer.from(`${i + 1} 0 obj\n${o[0]}\nstream\n`), o[1], Buffer.from("\nendstream\nendobj\n")]);
+    parts.push(part);
+    length += part.length;
+  });
+  const xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("")}`;
+  parts.push(Buffer.from(`${xref}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${length}\n%%EOF\n`));
+  return new Uint8Array(Buffer.concat(parts));
+}
+
+/** A PDF of `pages` pages that all draw one compressed content stream of `text`. */
+function pdfDrawing(pages: number, text: string): Uint8Array {
+  const kids = Array.from({ length: pages }, (_, i) => `${i + 5} 0 R`).join(" ");
+  const stream = deflateSync(Buffer.from(`BT /F1 12 Tf 72 720 Td 14 TL\n${text}ET`), { level: 9 });
+  return pdf([
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    `<< /Type /Pages /Kids [${kids}] /Count ${pages} >>`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    [`<< /Length ${stream.length} /Filter /FlateDecode >>`, stream],
+    ...Array<string>(pages).fill("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 4 0 R >>"),
+  ]);
+}
+
+/** Runs the worker until the queue is empty while asking the server something every 50 ms. */
+async function drainWhileAsking(harness: Harness, who: Browser) {
+  let draining = true;
+  const answers: { status: number; ms: number }[] = [];
+  const asking = (async () => {
+    while (draining) {
+      const started = performance.now();
+      const r = await who.api("GET", "/api/v1/me/products");
+      answers.push({ status: r.status, ms: performance.now() - started });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  })();
+  const started = performance.now();
+  await harness.worker.drain();
+  const ms = performance.now() - started;
+  draining = false;
+  await asking;
+  return { ms, answers: answers.length, slowest: Math.max(...answers.map((a) => a.ms)), refused: answers.filter((a) => a.status !== 200).length };
 }
 
 describe("the upload relay", () => {
@@ -131,6 +183,97 @@ describe("hostile files through the relay and the worker", () => {
       expect(d.status, c.path).toBe("failed");
       expect(d.status_detail, c.path).toContain(c.reason);
     }
+  });
+});
+
+/** A harness of its own, with these parse limits, and a signed-in owner's product in it. */
+function withLimits(limits: Partial<ServerConfig>) {
+  const at = { h: null as unknown as Harness, owner: null as unknown as Browser, product: "" };
+  beforeAll(async () => {
+    at.h = await startHarness({ relayMaxBytes: 8 * MiB, ...limits });
+    at.owner = await at.h.signIn("dana@example.com", "Dana Example");
+    const t = await at.owner.api("POST", "/api/v1/tenants", { name: "Limits Co" });
+    at.product = `/api/v1/p/${(await at.owner.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Intake" })).body.path}`;
+  });
+  afterAll(async () => at.h?.close());
+  /** Uploads each file as the primary of a new source; their ids, in order. */
+  const upload = async (files: { path: string; body: Uint8Array | string }[]) => {
+    const ids: string[] = [];
+    for (const f of files) {
+      const created = await at.owner.api("POST", `${at.product}/sources/with-upload`, { title: `Upload of ${f.path}`, path: f.path, role: "primary" });
+      expect(created.status, JSON.stringify(created.body)).toBe(201);
+      expect((await fetch(created.body.upload.url, { method: "PUT", headers: created.body.upload.headers, body: f.body })).status).toBe(201);
+      ids.push(created.body.record.record_id);
+    }
+    return ids;
+  };
+  return { at, upload };
+}
+
+describe("a parse that needs more memory than the server gives one file", () => {
+  const { at, upload } = withLimits({ parseMemoryMb: 128, parseTimeoutSeconds: 60 });
+
+  it("stops it in its own thread, records it as failed with the reason, and keeps answering", async () => {
+    // A 190 KB PDF whose one content stream unpacks to 64 MB of text took 7.8 seconds and 1.4 GB
+    // inside the server; dense HTML near the sandbox's file limit took 1 GB.
+    const ops = "(ab) Tj T* ".repeat(Math.ceil((64 * MiB) / 11));
+    const bomb = pdfDrawing(1, ops);
+    expect(bomb.length).toBeLessThan(256 * 1024);
+    const ids = await upload([
+      { path: "unpacks.pdf", body: bomb },
+      { path: "dense.html", body: "<li>a".repeat((2 * MiB) / 5) },
+    ]);
+    const run = await drainWhileAsking(at.h, at.owner);
+    expect(run.ms).toBeLessThan(20_000);
+    expect(run.refused).toBe(0);
+    expect(run.answers).toBeGreaterThan(0);
+    expect(run.slowest).toBeLessThan(1000);
+    for (const [i, parser] of [[0, "pdf"], [1, "html"]] as const) {
+      const d = await derivation(ids[i]!, at.owner, at.product);
+      expect(d.status, parser).toBe("failed");
+      expect(d.status_detail).toBe("parsing it needed more than the 128 MB of memory this server gives one file, so it was stopped; the file is stored but not parsed");
+      expect(d.parser).toBe(parser);
+    }
+  });
+
+  it(`records a file of more than ${MAX_SEGMENTS} passages, or a PDF of more than ${MAX_PDF_PAGES} pages, as too large`, async () => {
+    const ids = await upload([
+      { path: "letters.txt", body: "a\n\n".repeat(MAX_SEGMENTS + 50_000) },
+      { path: "blank.pdf", body: pdfDrawing(20_000, "") },
+    ]);
+    const run = await drainWhileAsking(at.h, at.owner);
+    expect(run.ms).toBeLessThan(10_000);
+    expect(run.slowest).toBeLessThan(1000);
+    expect(await derivation(ids[0]!, at.owner, at.product)).toMatchObject({ status: "too_large", status_detail: `the file makes more than ${MAX_SEGMENTS} passages; files that make more are stored but not parsed` });
+    expect(await derivation(ids[1]!, at.owner, at.product)).toMatchObject({ status: "too_large", parser: "pdf", parser_version: "3", status_detail: `the PDF has 20000 pages; PDFs over ${MAX_PDF_PAGES} pages are stored but not parsed` });
+  });
+
+  it("goes on parsing ordinary files in a new thread each time", async () => {
+    const ids = await upload([
+      { path: "notes.md", body: "# Visit\n\nCrews text the office every Friday.\n" },
+      { path: "plan.pdf", body: pdfDrawing(2, "(Crews plan the week on Friday.) Tj T*\n") },
+    ]);
+    await at.h.worker.drain();
+    for (const id of ids) expect((await derivation(id, at.owner, at.product)).status).toBe("ready");
+    const passage = await at.owner.api("GET", `${at.product}/sources/${ids[1]}/passage?start=0&end=3&unit=seq`);
+    expect(passage.body.segments.map((x: { text: string }) => x.text)).toEqual(["# Page 1", "Crews plan the week on Friday.", "# Page 2", "Crews plan the week on Friday."]);
+  });
+});
+
+describe("a parse that takes longer than the server gives one file", () => {
+  const { at, upload } = withLimits({ parseMemoryMb: 384, parseTimeoutSeconds: 1 });
+
+  it("stops its thread at the limit, records it as failed with the reason, and keeps answering", async () => {
+    // Two thousand pages drawing one small stream of text: a 300 KB file that takes seconds to read.
+    const [id] = await upload([{ path: "slow.pdf", body: pdfDrawing(MAX_PDF_PAGES - 1, "(crews plan the week) Tj T*\n".repeat(730)) }]);
+    const run = await drainWhileAsking(at.h, at.owner);
+    expect(run.ms).toBeLessThan(5000);
+    expect(run.slowest).toBeLessThan(1000);
+    expect(await derivation(id!, at.owner, at.product)).toMatchObject({
+      status: "failed",
+      parser: "pdf",
+      status_detail: "parsing it took longer than the 1 second this server gives one file, so it was stopped; the file is stored but not parsed",
+    });
   });
 });
 

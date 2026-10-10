@@ -1,6 +1,12 @@
-import type { Block, FormatParser } from "./types.ts";
+import { TooLargeError, type Block, type FormatParser } from "./types.ts";
 
 type TextItem = { str: string; hasEOL?: boolean; transform?: number[] };
+
+/**
+ * PDFs with more pages are stored but not parsed. Reading a page costs time even when it is empty,
+ * so a small file of tens of thousands of blank pages would otherwise occupy the parse for minutes.
+ */
+export const MAX_PDF_PAGES = 2000;
 
 /**
  * PDF: the text layer only, per page — a `# Page N` heading segment, then that page's text.
@@ -8,20 +14,31 @@ type TextItem = { str: string; hasEOL?: boolean; transform?: number[] };
  */
 export const pdfParser: FormatParser = {
   name: "pdf",
-  version: "2",
+  version: "3",
   async parse(bytes) {
     const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    // pdf.js has no limit on what a compressed stream decodes to. It is given the limits it has,
+    // and images, which text extraction never needs, are off; the memory and time limits of the
+    // thread the server parses in bound the rest.
     const task = pdfjs.getDocument({
       data: new Uint8Array(bytes),
       useSystemFonts: false,
       disableFontFace: true,
+      maxImageSize: 0,
+      isOffscreenCanvasSupported: false,
+      isImageDecoderSupported: false,
+      useWasm: false,
+      enableXfa: false,
       verbosity: 0,
     });
-    const doc = await task.promise;
     const blocks: Block[] = [];
     let textChars = 0;
+    let numPages = 0;
     try {
-      for (let pageNo = 1; pageNo <= doc.numPages; pageNo++) {
+      const doc = await task.promise;
+      numPages = doc.numPages;
+      if (numPages > MAX_PDF_PAGES) throw new TooLargeError(`the PDF has ${numPages} pages; PDFs over ${MAX_PDF_PAGES} pages are stored but not parsed`);
+      for (let pageNo = 1; pageNo <= numPages; pageNo++) {
         const page = await doc.getPage(pageNo);
         const content = await page.getTextContent();
         const lines: string[] = [];
@@ -63,6 +80,6 @@ export const pdfParser: FormatParser = {
     } finally {
       await task.destroy();
     }
-    return { blocks, facts: { page_count: doc.numPages, text_layer_chars: textChars } };
+    return { blocks, facts: { page_count: numPages, text_layer_chars: textChars } };
   },
 };

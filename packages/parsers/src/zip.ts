@@ -1,9 +1,5 @@
 import { Inflate } from "fflate";
-
-/** Thrown when a file is over a size limit, so the parse reports `too_large` rather than `failed`. */
-export class TooLargeError extends Error {
-  override name = "TooLargeError";
-}
+import { TooLargeError } from "./types.ts";
 
 const EOCD = 0x06054b50;
 const EOCD64_LOCATOR = 0x07064b50;

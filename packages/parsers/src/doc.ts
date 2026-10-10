@@ -235,10 +235,11 @@ const CP1252_HIGH = [
 /** Little-endian reads that fail with a clear message instead of reading past the end. */
 class Bytes {
   readonly view: DataView;
-  constructor(
-    readonly bytes: Uint8Array,
-    readonly what: string,
-  ) {
+  readonly bytes: Uint8Array;
+  readonly what: string;
+  constructor(bytes: Uint8Array, what: string) {
+    this.bytes = bytes;
+    this.what = what;
     this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   }
   check(offset: number, size: number) {
@@ -565,7 +566,7 @@ function toBlocks(paragraphs: Paragraph[], props: (ParagraphProps | undefined)[]
     if (pending) cells.push(pending);
     if (cells.length) rows.push(cells);
     if (rows.length) {
-      blocks.push(...tableBlocks(rows));
+      for (const b of tableBlocks(rows)) blocks.push(b);
       tables++;
     }
     rows = [];

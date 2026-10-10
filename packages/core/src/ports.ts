@@ -1,3 +1,5 @@
+import type { ParsedFile } from "@whatbuild/parsers";
+
 /**
  * The core depends only on these interfaces. Each adapter implements one; the in-memory ones are
  * for tests. No provider SDK is imported outside its own adapter.
@@ -40,6 +42,16 @@ export interface UrlFetcher {
   fetch(url: string, maxBytes: number): Promise<{ bytes: Uint8Array; fileName: string; mediaType: string | null }>;
 }
 
+/**
+ * Parses one file's bytes into its sidecars, away from the requests the server is answering. The
+ * server runs each parse in a worker thread of its own, held to a memory and a time limit, so a
+ * file that would need more ends as a failed derivation rather than taking the server down. Never
+ * rejects for a bad file: every outcome is a status.
+ */
+export interface FileParser {
+  parse(bytes: Uint8Array, fileName: string, options: { mediaType: string | null; parseCapBytes: number }): Promise<ParsedFile>;
+}
+
 export interface Mailer {
   send(message: { to: string; subject: string; text: string }): Promise<void>;
 }
@@ -58,6 +70,10 @@ export interface CoreConfig {
   /** Upload limit per file overall (direct-to-store uploads may exceed the relay's). */
   fileMaxBytes: number;
   parseCapBytes: number;
+  /** The JavaScript heap of the thread one file is parsed in, in MB; its buffers may take half as much again. */
+  parseMemoryMb: number;
+  /** How long one parse may run, in seconds. */
+  parseTimeoutSeconds: number;
   /** Lifetime of upload and download grants, in seconds. */
   grantTtlSeconds: number;
   urlFetchMaxBytes: number;
@@ -72,6 +88,7 @@ export interface CoreConfig {
 export interface Ports {
   blobs: BlobStore;
   grants: GrantSigner;
+  parser: FileParser;
   config: CoreConfig;
   fetcher?: UrlFetcher;
   mailer?: Mailer;

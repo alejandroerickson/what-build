@@ -18,7 +18,9 @@ interface Job {
 /**
  * The job worker: claims work from the Postgres queue with SKIP LOCKED, so any number of replicas
  * can run it without a broker. Derivation always runs here, never inside the request that uploaded
- * the file, in every environment.
+ * the file, in every environment, and the parse itself in a worker thread of its own held to a
+ * memory and a time limit (parse-thread.ts). A job that stops the process anyway is given up after
+ * five attempts.
  */
 export class Worker {
   private timer: NodeJS.Timeout | null = null;
