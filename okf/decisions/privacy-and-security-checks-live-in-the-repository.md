@@ -28,8 +28,10 @@ install, and so that it runs well before the repository becomes public.
   ignored, so an agent that wants to keep notes has somewhere to keep them.
 - **Scanners are pinned** by version and SHA-256 in `scripts/tools.mjs`, downloaded on first use
   into the user's cache: gitleaks, osv-scanner for the dependencies, zizmor for the workflows.
+- **A release waits a week** before it is installed: Dependabot's cooldown, and pnpm's
+  `minimumReleaseAge` for an upgrade made by hand, give a hijacked release time to be found.
 - **GitHub's own features** do the rest: Dependabot alerts, security updates and weekly grouped
-  updates with a seven-day cooldown; CodeQL, and secret scanning with push protection, once the
+  updates; CodeQL, and secret scanning with push protection, once the
   repository is public. An OWASP ZAP baseline scans the app, built as in production, weekly in CI.
 - Rejected: a hosted scanning service or a dependency-tracking server, which would be another
   account and another thing to run; and a git-hook framework, which `core.hooksPath` makes needless.
