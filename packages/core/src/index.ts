@@ -27,6 +27,7 @@ export * from "./ports.ts";
 export * from "./registry.ts";
 export * from "./public-sandbox.ts";
 export * from "./public-sandbox-baseline.ts";
+export { inputFingerprint, partHash } from "./ops/lineage.ts";
 export * from "./schemas.ts";
 export * from "./story-html.ts";
 export * from "./story-print.ts";

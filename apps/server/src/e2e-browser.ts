@@ -1,0 +1,258 @@
+import { spawn } from "node:child_process";
+import { existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
+import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { chromium, type Locator, type Page } from "playwright-core";
+import { currentRunDir, E2E_DIR, e2eBaseUrl, record } from "./e2e.ts";
+
+/**
+ * `pnpm e2e browser <command>`: a real browser an agent drives one command at a time, for any agent
+ * that can run a shell. The first command starts a daemon that keeps the browser open, so the page,
+ * its session and what went wrong in it last between commands. Elements are named the way people
+ * and screen readers see them: by role and accessible name, or by label.
+ */
+const STATE = join(E2E_DIR, "browser.json");
+const LOG = join(E2E_DIR, "browser.log");
+const PEOPLE: Record<string, string> = { riley: "riley@example.com", sam: "sam@example.com", jordan: "jordan@example.com" };
+
+const HELP = `pnpm e2e browser <command>   (the browser starts with the first command, headless; start --headed to watch)
+
+  open <path|url>                 go to a page of the app (/t/harbor-labs/…) or any URL
+  signin <riley|sam|jordan|email> sign in through the development sign-in, with the browser's
+                                  storage cleared first, and open the overview
+  signout                         forget the session and the browser's storage
+  snapshot [<role> [name]]        the page's accessibility tree, or one region's (snapshot main): what to
+                                  click and fill. The panel spans several landmarks (its navigation, its
+                                  search box, its filters), so take the whole page when looking for a way
+  click <role> <name>             click an element by role and accessible name (button, link, tab, …)
+  click-text <text>               click the element showing this text
+  fill <label> <value>            fill a field by its label
+  select <label> <option>         choose an option in a select
+  check <label> | uncheck <label> tick or clear a checkbox or radio
+  press <key>                     press a key (Enter, Escape, ArrowRight, Control+k, …)
+  upload <label> <file>           put a file into the file input with this label (or "file" for the first)
+  wait <text> [ms]                wait until the text shows, visibly (default 10000 ms)
+  wait-url <part> [ms]            wait until the address contains this (after a redirect in the app)
+  screenshot [name] [--full]      save a screenshot into the run's shots/ folder (--full adds only what
+                                  the document scrolls; the app scrolls its own panes, so scroll first)
+  viewport <width> <height>       resize (390 844 is a phone)
+  theme <light|dark>              switch the color scheme
+  eval <javascript>               evaluate an expression in the page and print the result
+  back | reload                   history back, or reload
+  problems                        everything that went wrong since the last time you asked:
+                                  console errors, uncaught exceptions, failed requests, 5xx responses
+  stop                            close the browser
+
+Options: --nth <n> picks the nth match (from 0) when a name matches several; --exact matches the
+name exactly. Every command prints where the page is and any new problems.`;
+
+type Problem = { kind: string; text: string; url: string };
+
+async function daemon(headed: boolean) {
+  const executablePath = process.env["CHROME"];
+  const browser = await chromium.launch({ headless: !headed, ...(executablePath ? { executablePath } : { channel: "chrome" }) });
+  const base = e2eBaseUrl();
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, baseURL: base });
+  const page = await context.newPage();
+  page.setDefaultTimeout(5000);
+  page.setDefaultNavigationTimeout(15000);
+  const problems: Problem[] = [];
+  page.on("console", (m) => {
+    if (m.type() === "error") problems.push({ kind: "console error", text: m.text(), url: page.url() });
+  });
+  page.on("pageerror", (e) => problems.push({ kind: "uncaught exception", text: e.message, url: page.url() }));
+  page.on("requestfailed", (r) => {
+    const failure = r.failure()?.errorText ?? "";
+    if (!/ERR_ABORTED/.test(failure)) problems.push({ kind: "request failed", text: `${r.method()} ${r.url()} ${failure}`, url: page.url() });
+  });
+  page.on("response", (r) => {
+    if (r.status() >= 500) problems.push({ kind: `HTTP ${r.status()}`, text: `${r.request().method()} ${r.url()}`, url: page.url() });
+  });
+  let reported = 0;
+  const fresh = () => {
+    const out = problems.slice(reported);
+    reported = problems.length;
+    return out;
+  };
+
+  const server = createServer((req, res) => {
+    let body = "";
+    req.on("data", (d: Buffer) => (body += d.toString()));
+    req.on("end", () => {
+      const { args } = JSON.parse(body || "{}") as { args: string[] };
+      run(page, args, base)
+        .then(async (text) => {
+          if (args[0] === "stop") {
+            res.end(JSON.stringify({ ok: true, text }));
+            await browser.close();
+            rmSync(STATE, { force: true });
+            process.exit(0);
+          }
+          if (args[0] !== "eval" && args[0] !== "snapshot") await page.waitForLoadState("networkidle", { timeout: 3000 }).catch(() => {});
+          res.end(JSON.stringify({ ok: true, text, url: page.url(), problems: args[0] === "problems" ? [] : fresh() }));
+        })
+        .catch((e: unknown) => res.end(JSON.stringify({ ok: false, text: e instanceof Error ? e.message.split("\n").slice(0, 12).join("\n") : String(e), url: page.url(), problems: fresh() })));
+    });
+  });
+
+  async function run(page: Page, args: string[], base: string): Promise<string> {
+    const flags = { nth: valueOf(args, "--nth"), exact: args.includes("--exact"), full: args.includes("--full") };
+    const [cmd, a, b] = positional(args);
+    const pick = (l: Locator) => (flags.nth !== undefined ? l.nth(Number(flags.nth)) : l);
+    switch (cmd) {
+      case "open":
+        await page.goto(need(a, "a path or URL"));
+        return `opened ${page.url()}`;
+      case "signin": {
+        const email = PEOPLE[need(a, "riley, sam, jordan or an email").toLowerCase()] ?? a!;
+        // A new person starts clean: the app keeps some state per browser (the last Story page, the
+        // panel), which must not carry from one person to the next.
+        await page.goto("/signin");
+        await page.evaluate(() => {
+          localStorage.clear();
+          sessionStorage.clear();
+        });
+        await page.context().clearCookies();
+        const r = await page.context().request.post(`${base}/auth/dev-sign-in`, { data: { email }, headers: { Origin: base } });
+        if (!r.ok()) throw new Error(`The development sign-in refused ${email}: ${r.status()} ${await r.text()}`);
+        await page.goto("/");
+        return `signed in as ${email}`;
+      }
+      case "signout":
+        await page.evaluate(() => {
+          localStorage.clear();
+          sessionStorage.clear();
+        });
+        await page.context().clearCookies();
+        await page.goto("/");
+        return "signed out";
+      case "snapshot":
+        return a ? pick(page.getByRole(a as never, b ? { name: b, exact: flags.exact } : {})).first().ariaSnapshot() : page.locator("body").ariaSnapshot();
+      case "click":
+        await pick(page.getByRole(need(a, "a role") as never, { name: need(b, "a name"), exact: flags.exact })).click();
+        return `clicked ${a} "${b}"`;
+      case "click-text":
+        await pick(page.getByText(need(a, "the text"), { exact: flags.exact })).click();
+        return `clicked "${a}"`;
+      case "fill":
+        await pick(page.getByLabel(need(a, "a label"), { exact: flags.exact })).fill(b ?? "");
+        return `filled "${a}"`;
+      case "select":
+        await pick(page.getByLabel(need(a, "a label"), { exact: flags.exact })).selectOption({ label: need(b, "an option") });
+        return `selected "${b}" in "${a}"`;
+      case "check":
+      case "uncheck":
+        await pick(page.getByLabel(need(a, "a label"), { exact: flags.exact }))[cmd]();
+        return `${cmd}ed "${a}"`;
+      case "press":
+        await page.keyboard.press(need(a, "a key"));
+        return `pressed ${a}`;
+      case "upload": {
+        const file = resolve(need(b, "a file"));
+        const input = a === "file" ? page.locator('input[type="file"]') : page.getByLabel(need(a, "a label"), { exact: flags.exact });
+        await pick(flags.nth === undefined ? input.first() : input).setInputFiles(file);
+        return `put ${file} into "${a}"`;
+      }
+      case "wait-url": {
+        const part = need(a, "part of an address");
+        await page.waitForURL((u) => u.toString().includes(part), { timeout: Number(b ?? 10000) });
+        return `at an address containing "${part}"`;
+      }
+      case "wait":
+        await pick(page.getByText(need(a, "the text"), { exact: flags.exact }).filter({ visible: true })).first().waitFor({ timeout: Number(b ?? 10000) });
+        return `"${a}" is showing`;
+      case "screenshot": {
+        const dir = join(currentRunDir() ?? E2E_DIR, "shots");
+        mkdirSync(dir, { recursive: true });
+        const path = join(dir, `${(a ?? new Date().toISOString().slice(11, 19).replace(/:/g, "")).replace(/[^\w.-]+/g, "-")}.png`);
+        await page.screenshot({ path, fullPage: flags.full });
+        return `saved ${path}`;
+      }
+      case "viewport":
+        await page.setViewportSize({ width: Number(need(a, "a width")), height: Number(need(b, "a height")) });
+        return `viewport ${a}×${b}`;
+      case "theme":
+        await page.emulateMedia({ colorScheme: need(a, "light or dark") === "dark" ? "dark" : "light" });
+        return `${a} theme`;
+      case "eval":
+        return JSON.stringify(await page.evaluate(need(a, "an expression")), null, 2) ?? "undefined";
+      case "back":
+        await page.goBack();
+        return "went back";
+      case "reload":
+        await page.reload();
+        return "reloaded";
+      case "problems": {
+        const all = fresh();
+        return all.length ? all.map((p) => `${p.kind}: ${p.text}  (on ${p.url})`).join("\n") : "no problems";
+      }
+      case "stop":
+        return "browser closed";
+      default:
+        throw new Error(`Unknown command ${cmd ?? ""}.\n\n${HELP}`);
+    }
+  }
+
+  server.listen(0, "127.0.0.1", () => {
+    const address = server.address();
+    writeFileSync(STATE, JSON.stringify({ port: typeof address === "object" && address ? address.port : 0, pid: process.pid, base }));
+  });
+}
+
+function valueOf(args: string[], flag: string) {
+  const i = args.indexOf(flag);
+  return i >= 0 ? args[i + 1] : undefined;
+}
+
+function positional(args: string[]) {
+  return args.filter((a, i) => !a.startsWith("--") && args[i - 1] !== "--nth");
+}
+
+function need(v: string | undefined, what: string): string {
+  if (v === undefined || v === "") throw new Error(`Give ${what}.`);
+  return v;
+}
+
+const alive = (pid: number) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+async function ensureDaemon(headed: boolean) {
+  if (existsSync(STATE)) {
+    const s = JSON.parse(readFileSync(STATE, "utf8")) as { port: number; pid: number };
+    if (alive(s.pid)) return s.port;
+    rmSync(STATE, { force: true });
+  }
+  mkdirSync(E2E_DIR, { recursive: true });
+  const log = openSync(LOG, "a");
+  const child = spawn(process.execPath, [...process.execArgv, fileURLToPath(import.meta.url), "--daemon", ...(headed ? ["--headed"] : [])], { detached: true, stdio: ["ignore", log, log] });
+  child.unref();
+  for (let i = 0; i < 100; i++) {
+    await new Promise((r) => setTimeout(r, 150));
+    if (existsSync(STATE)) return (JSON.parse(readFileSync(STATE, "utf8")) as { port: number }).port;
+    if (child.exitCode !== null) break;
+  }
+  throw new Error(`The browser did not start; see ${LOG}. It uses the installed Google Chrome, or the browser at $CHROME.`);
+}
+
+export async function browserCommand(args: string[]) {
+  if (!args.length || args[0] === "help") return console.log(HELP);
+  if (args[0] === "stop" && !existsSync(STATE)) return console.log("The browser is not running.");
+  const port = await ensureDaemon(args[0] === "start" && args.includes("--headed"));
+  if (args[0] === "start") return console.log(`The browser is running, on ${e2eBaseUrl()}.`);
+  const res = await fetch(`http://127.0.0.1:${port}/`, { method: "POST", body: JSON.stringify({ args }) });
+  const out = (await res.json()) as { ok: boolean; text: string; url?: string; problems?: Problem[] };
+  record({ surface: "web", command: args, ok: out.ok, url: out.url, result: out.ok ? out.text.slice(0, 400) : out.text, problems: out.problems });
+  console.log(out.text);
+  if (out.url && args[0] !== "eval" && args[0] !== "snapshot") console.log(`— at ${out.url}`);
+  for (const p of out.problems ?? []) console.log(`! ${p.kind}: ${p.text}`);
+  if (!out.ok) process.exitCode = 1;
+}
+
+if (process.argv.includes("--daemon")) void daemon(process.argv.includes("--headed"));

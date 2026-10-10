@@ -25,33 +25,50 @@ export async function startLocalPg(dir: string, port: number): Promise<LocalPg> 
   const server = new EmbeddedPostgres({ databaseDir: dataDir, user: "postgres", password: "postgres", port, persistent: true, onLog: () => {}, onError: () => {} });
   if (fresh) await server.initialise();
   await server.start();
-  const adminUrl = `postgres://postgres:postgres@localhost:${port}/postgres`;
-  const admin = new pg.Client({ connectionString: adminUrl });
+  const local = localPg(port, () => server.stop());
+  const admin = new pg.Client({ connectionString: local.adminUrl });
   await admin.connect();
   const role = await admin.query("select 1 from pg_roles where rolname = $1", [APP_ROLE]);
   if (!role.rowCount) await admin.query(`create role ${APP_ROLE} login password '${APP_ROLE}' nosuperuser nobypassrls createdb`);
   await admin.end();
+  return local;
+}
+
+/** The embedded Postgres in `dir` on `port`: the one already running there, which stop() then leaves running, or one started now. */
+export async function connectOrStartLocalPg(dir: string, port: number): Promise<LocalPg> {
+  const probe = new pg.Client({ connectionString: `postgres://postgres:postgres@localhost:${port}/postgres`, connectionTimeoutMillis: 2000 });
+  try {
+    await probe.connect();
+    await probe.end();
+    return localPg(port, async () => {});
+  } catch {
+    return startLocalPg(dir, port);
+  }
+}
+
+function localPg(port: number, stop: () => Promise<void>): LocalPg {
+  const adminUrl = `postgres://postgres:postgres@localhost:${port}/postgres`;
   const appUrl = (database: string) => `postgres://${APP_ROLE}:${APP_ROLE}@localhost:${port}/${database}`;
+  const hasDatabase = async (name: string) => {
+    const c = new pg.Client({ connectionString: adminUrl });
+    await c.connect();
+    const exists = await c.query("select 1 from pg_database where datname = $1", [name]);
+    await c.end();
+    return Boolean(exists.rowCount);
+  };
   return {
     adminUrl,
     appUrl,
+    hasDatabase,
     async createDatabase(name: string) {
-      const c = new pg.Client({ connectionString: adminUrl });
-      await c.connect();
-      const exists = await c.query("select 1 from pg_database where datname = $1", [name]);
-      if (!exists.rowCount) await c.query(`create database "${name}" owner ${APP_ROLE}`);
-      await c.end();
+      if (!(await hasDatabase(name))) {
+        const c = new pg.Client({ connectionString: adminUrl });
+        await c.connect();
+        await c.query(`create database "${name}" owner ${APP_ROLE}`);
+        await c.end();
+      }
       return appUrl(name);
     },
-    async hasDatabase(name: string) {
-      const c = new pg.Client({ connectionString: adminUrl });
-      await c.connect();
-      const exists = await c.query("select 1 from pg_database where datname = $1", [name]);
-      await c.end();
-      return Boolean(exists.rowCount);
-    },
-    async stop() {
-      await server.stop();
-    },
+    stop,
   };
 }

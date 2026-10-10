@@ -53,6 +53,14 @@ production deployment's database and files into the database `fixture` and serve
 migrations it lacks applied ([a copy of production](a-copy-of-production.md)). The pull needs
 access to the deployment; nothing else does.
 
+## End-to-end tests
+
+`pnpm e2e golden` builds a golden master from a pull of production (its public sandbox's
+organization and a non-sandbox copy of it), and `pnpm dev:e2e` serves a fresh copy of it on
+`http://localhost:5283`, with its own Postgres and files, beside `pnpm dev`. An agent runs the
+plans in `e2e/plans/` there through the browser and MCP and reports what it finds
+([end-to-end tests](end-to-end-tests.md)).
+
 ## Checks
 
 | Command | What it does |
@@ -84,4 +92,7 @@ its tag and so starts the same workflow; [releasing](releasing.md) is how to mak
   a database you don't mind changing.
 - `node scripts/shots.mjs <outdir> [baseUrl]` captures every screen in light and dark, at desktop
   and phone width. `SHOTS=name,name` limits it to some screens.
+- `pnpm e2e browser <command>` drives a Chrome kept open between commands, for an agent running an
+  [end-to-end test plan](end-to-end-tests.md); `pnpm e2e mcp <command>` calls the MCP server as a
+  connected agent.
 - `/_system` (development builds only) renders every design token and primitive in both themes.

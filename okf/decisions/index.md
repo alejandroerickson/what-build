@@ -45,6 +45,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Archive is the reversible default; delete is permanent and guarded](archive-by-default-delete-guarded.md)
 - [Local development may substitute adapters, never behavior](development-substitutes-adapters-never-behavior.md)
 - [Manual QA and end-to-end tests may use a copy of production that stays on the maintainer's machine](qa-uses-a-private-copy-of-production.md)
+- [End-to-end tests are written plans that an agent runs through the web app and MCP, on a local instance reset to a golden master made from production's public sandbox](end-to-end-tests-are-plans-an-agent-runs-on-a-golden-master.md)
 - [A product starts with its idea, a product concept and the outcomes its users should achieve](a-product-starts-with-an-idea-concept-and-outcomes.md)
 - [The web app uses the Studio design system](studio-design-system.md)
 - [The overview is WhatBuild's front door, and the one screen with display type](the-overview-is-the-front-door.md)

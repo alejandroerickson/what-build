@@ -60,7 +60,8 @@ Everything committed, including history, commit messages and pull requests' text
 ## Before you finish
 
 - `pnpm typecheck`, `pnpm test` and `pnpm build` pass; for interface changes, run
-  `scripts/e2e.mjs` and look at `scripts/shots.mjs` captures
+  `scripts/e2e.mjs` and look at `scripts/shots.mjs` captures; for a change across both doors,
+  have an agent run the [end-to-end test plans](../operations/end-to-end-tests.md) it touches
   ([local development](../operations/local-development.md)).
 - A dependency you added or upgraded leaves `pnpm security` clean, or its finding is accepted
   with a reason and an expiry ([security checks](../operations/security-checks.md)).

@@ -37,6 +37,7 @@ code alone. The docs record intent and constraints that the code cannot show.
 | Search modes and ranking | `okf/spec/08-search.md` |
 | Archive, delete, retention, export | `okf/spec/09-data-lifecycle.md` |
 | What is built, what is next, open questions | `okf/spec/10-roadmap.md` |
+| Agent-driven end-to-end tests, the golden master, writing a test plan | `okf/operations/end-to-end-tests.md`, then `e2e/plans/README.md` |
 | Running, testing and deploying | `okf/operations/`; the table in `AGENTS.md` names the guide and the skill for each task |
 | Releasing, rehearsing on the dev deployment, backups, restoring, recovering | `okf/operations/releasing.md`, `dev-deployment.md`, `backups.md`, `recovering-from-a-bad-release.md` |
 | Rules for a change, and what may never be committed | `okf/process/working-in-this-repository.md` |

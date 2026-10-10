@@ -10,6 +10,7 @@ status: stable
 # Operations
 
 - [Local development](local-development.md): one command, the checks, and the browser scripts.
+- [End-to-end tests](end-to-end-tests.md): an agent follows a written plan through the web app and MCP on a local instance reset to a golden master, and reports failures and anomalies.
 - [A copy of production](a-copy-of-production.md): pulling the deployment's database and files, loading them locally, serving them with pending migrations applied, for manual QA and agent-driven end-to-end tests; it stays private.
 - [Cloud Run](cloud-run.md): the production deployment, its setup and its routines.
 - [Releasing](releasing.md): a release is a version tag on `main` with its notes and image; numbering versions, publishing one, and approving the production deploy it starts.

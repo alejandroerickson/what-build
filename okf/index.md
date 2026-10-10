@@ -23,7 +23,7 @@ server with the same operations. There is no AI inside.
 - [Decisions](decisions/index.md): the architectural decision records.
 - [Specification](spec/index.md): product, architecture, identity and tenancy, data model, derived
   layer, operations and MCP, web app, search, data lifecycle, and the [roadmap](spec/10-roadmap.md).
-- [Local development](operations/local-development.md), [a copy of production](operations/a-copy-of-production.md), [Cloud Run](operations/cloud-run.md),
+- [Local development](operations/local-development.md), [end-to-end tests](operations/end-to-end-tests.md), [a copy of production](operations/a-copy-of-production.md), [Cloud Run](operations/cloud-run.md),
   [self-hosting on Azure](operations/azure.md) and [Analytics](operations/analytics.md).
 - **Making a release, or moving production?** [Releasing](operations/releasing.md).
 - **Rehearsing a release, or deploying to dev?** [The dev deployment](operations/dev-deployment.md).
@@ -41,8 +41,9 @@ server with the same operations. There is no AI inside.
   (`okf-orient`), keeping it true (`okf-update`), recording decisions (`okf-decision`),
   hosting a copy on Azure (`azure-self-host`), publishing a release (`make-a-release`),
   rehearsing on the dev deployment (`rehearse-on-the-dev-deployment`), recovering a deployment a
-  release broke (`recover-a-deployment`), and testing on a local copy of production
-  (`test-on-a-copy-of-production`).
+  release broke (`recover-a-deployment`), testing on a local copy of production
+  (`test-on-a-copy-of-production`), and running the end-to-end test plans
+  (`run-end-to-end-tests`).
 - `PRODUCT.md`: users, purpose and principles. `DESIGN.md` and `.impeccable/design.json`: the
   Studio design system. Both stay at the root because design tooling reads them there.
 - `packages/core/src/skill/SKILL.md`: the agent skill the product serves to connected agents.

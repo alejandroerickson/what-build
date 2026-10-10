@@ -8,7 +8,7 @@ import { json, newId, type Db } from "@whatbuild/core";
 import pg from "pg";
 import { findOrCreateAccount } from "./auth/identity.ts";
 import { SEED_ACCOUNTS } from "./seed.ts";
-import { APP_ROLE, startLocalPg } from "./testing/pg.ts";
+import { APP_ROLE, connectOrStartLocalPg, type LocalPg } from "./testing/pg.ts";
 
 /**
  * A copy of a deployment, for manual QA and agent-driven end-to-end tests
@@ -29,6 +29,18 @@ import { APP_ROLE, startLocalPg } from "./testing/pg.ts";
  */
 const root = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 const FIXTURES = resolve(root, process.env["WHATBUILD_FIXTURE_DIR"] ?? ".what-build/fixtures");
+
+/** Where pulls are read from: this checkout's, or, in a git worktree that has none, the main checkout's. */
+function pullsDir() {
+  if (process.env["WHATBUILD_FIXTURE_DIR"] || existsSync(FIXTURES)) return FIXTURES;
+  try {
+    const common = resolve(root, run("git", ["-C", root, "rev-parse", "--git-common-dir"]));
+    const main = resolve(common, "..", ".what-build/fixtures");
+    return existsSync(main) ? main : FIXTURES;
+  } catch {
+    return FIXTURES;
+  }
+}
 const PG_PORT = Number(process.env["WHATBUILD_PG_PORT"] ?? 54329);
 export const FIXTURE_DATABASE = "fixture";
 export const FIXTURE_BLOBS = resolve(root, ".what-build/fixture-blobs");
@@ -107,68 +119,71 @@ async function pull() {
   console.log(`Pulled ${name}. Load it with: pnpm fixture load`);
 }
 
-/** The embedded Postgres of `pnpm dev`: the one already running, or one started for the load. */
-async function embeddedPostgres() {
-  const adminUrl = `postgres://postgres:postgres@localhost:${PG_PORT}/postgres`;
-  const probe = new pg.Client({ connectionString: adminUrl, connectionTimeoutMillis: 2000 });
+/** The pulls that finished, oldest first. */
+export function completePulls() {
+  const dir = pullsDir();
+  return existsSync(dir) ? readdirSync(dir).filter((d) => existsSync(join(dir, d, "pulled.json"))).sort() : [];
+}
+
+/**
+ * Replace `database` in a local Postgres with a pulled copy (the newest by default), restored as the
+ * application's role, and `blobs` with a working copy of its files. Refuses while the database is in use.
+ */
+export async function restorePull(local: LocalPg, database: string, blobs: string, requested?: string) {
+  const pulled = completePulls();
+  const name = requested ?? pulled.at(-1);
+  if (!name || !pulled.includes(name)) throw new Error(name ? `No complete copy named ${name} in ${show(pullsDir())}.` : `No copy in ${show(pullsDir())}: run pnpm fixture pull first.`);
+  const dir = join(pullsDir(), name);
+
+  const admin = new pg.Client({ connectionString: local.adminUrl });
+  await admin.connect();
   try {
-    await probe.connect();
-    await probe.end();
-    return { adminUrl, appUrl: (d: string) => `postgres://${APP_ROLE}:${APP_ROLE}@localhost:${PG_PORT}/${d}`, stop: async () => {} };
-  } catch {
-    return startLocalPg(resolve(root, ".what-build/pg"), PG_PORT);
+    const busy = await admin.query<{ n: number }>("select count(*)::int as n from pg_stat_activity where datname = $1", [database]);
+    if (busy.rows[0]!.n) throw new Error(`The database "${database}" is in use: stop the server that serves it, then try again.`);
+    await admin.query(`drop database if exists ${database}`);
+    await admin.query(`create database ${database} owner ${APP_ROLE}`);
+  } finally {
+    await admin.end();
   }
+  const databaseAdminUrl = local.adminUrl.replace(/\/postgres$/, `/${database}`);
+  const ext = new pg.Client({ connectionString: databaseAdminUrl });
+  await ext.connect();
+  await ext.query("create extension pg_trgm");
+  await ext.end();
+
+  // Restored as the application's own role, as cloud-run.md restores a backup. The extension's
+  // comment needs its owner, and statistics from a newer server do not load into an older one.
+  const dump = join(dir, "database.dump");
+  const list = run("pg_restore", ["--list", dump])
+    .split("\n")
+    .filter((l) => !/COMMENT - EXTENSION|STATISTICS DATA/.test(l))
+    .join("\n");
+  const listFile = join(mkdtempSync(join(tmpdir(), "whatbuild-fixture-")), "restore.list");
+  writeFileSync(listFile, list);
+  console.log(`Restoring ${name} into the database "${database}"…`);
+  execFileSync("pg_restore", ["--no-owner", "--no-privileges", "--exit-on-error", `--use-list=${listFile}`, `--dbname=${local.appUrl(database)}`, dump], { stdio: "inherit" });
+  rmSync(listFile, { force: true });
+
+  rmSync(blobs, { recursive: true, force: true });
+  if (existsSync(join(dir, "files"))) cpSync(join(dir, "files"), blobs, { recursive: true });
+  else mkdirSync(blobs, { recursive: true });
+
+  const check = new pg.Client({ connectionString: databaseAdminUrl });
+  await check.connect();
+  const r = await check.query<{ migration: string; tenants: number; products: number; accounts: number }>(
+    "select (select max(name) from schema_migrations) as migration, (select count(*)::int from tenants) as tenants, (select count(*)::int from products) as products, (select count(*)::int from accounts) as accounts",
+  );
+  await check.end();
+  return { name, ...r.rows[0]! };
 }
 
 async function load(requested?: string) {
-  const pulled = existsSync(FIXTURES) ? readdirSync(FIXTURES).filter((d) => existsSync(join(FIXTURES, d, "pulled.json"))).sort() : [];
-  const name = requested ?? pulled.at(-1);
-  if (!name || !pulled.includes(name)) throw new Error(name ? `No complete copy named ${name} in ${show(FIXTURES)}.` : `No copy in ${show(FIXTURES)}: run pnpm fixture pull first.`);
-  const dir = join(FIXTURES, name);
-
-  const local = await embeddedPostgres();
+  const local = await connectOrStartLocalPg(resolve(root, ".what-build/pg"), PG_PORT);
   try {
-    const admin = new pg.Client({ connectionString: local.adminUrl });
-    await admin.connect();
-    try {
-      const busy = await admin.query<{ n: number }>("select count(*)::int as n from pg_stat_activity where datname = $1", [FIXTURE_DATABASE]);
-      if (busy.rows[0]!.n) throw new Error("The copy is being served: stop pnpm dev:fixture, then load again.");
-      await admin.query(`drop database if exists ${FIXTURE_DATABASE}`);
-      await admin.query(`create database ${FIXTURE_DATABASE} owner ${APP_ROLE}`);
-    } finally {
-      await admin.end();
-    }
-    const fixtureAdminUrl = local.adminUrl.replace(/\/postgres$/, `/${FIXTURE_DATABASE}`);
-    const ext = new pg.Client({ connectionString: fixtureAdminUrl });
-    await ext.connect();
-    await ext.query("create extension pg_trgm");
-    await ext.end();
-
-    // Restored as the application's own role, as cloud-run.md restores a backup. The extension's
-    // comment needs its owner, and statistics from a newer server do not load into an older one.
-    const dump = join(dir, "database.dump");
-    const list = run("pg_restore", ["--list", dump])
-      .split("\n")
-      .filter((l) => !/COMMENT - EXTENSION|STATISTICS DATA/.test(l))
-      .join("\n");
-    const listFile = join(mkdtempSync(join(tmpdir(), "whatbuild-fixture-")), "restore.list");
-    writeFileSync(listFile, list);
-    console.log(`Restoring ${name} into the database "${FIXTURE_DATABASE}"…`);
-    execFileSync("pg_restore", ["--no-owner", "--no-privileges", "--exit-on-error", `--use-list=${listFile}`, `--dbname=${local.appUrl(FIXTURE_DATABASE)}`, dump], { stdio: "inherit" });
-    rmSync(listFile, { force: true });
-
-    rmSync(FIXTURE_BLOBS, { recursive: true, force: true });
-    if (existsSync(join(dir, "files"))) cpSync(join(dir, "files"), FIXTURE_BLOBS, { recursive: true });
-    else mkdirSync(FIXTURE_BLOBS, { recursive: true });
-
-    const check = new pg.Client({ connectionString: fixtureAdminUrl });
-    await check.connect();
-    const r = await check.query<{ migration: string; tenants: number; products: number; accounts: number }>(
-      "select (select max(name) from schema_migrations) as migration, (select count(*)::int from tenants) as tenants, (select count(*)::int from products) as products, (select count(*)::int from accounts) as accounts",
-    );
-    await check.end();
-    const s = r.rows[0]!;
-    console.log(`Loaded ${name}: ${s.tenants} organizations, ${s.products} products, ${s.accounts} accounts, schema at ${s.migration}.
+    const s = await restorePull(local, FIXTURE_DATABASE, FIXTURE_BLOBS, requested).catch((e: unknown) => {
+      throw e instanceof Error && e.message.includes("is in use") ? new Error("The copy is being served: stop pnpm dev:fixture, then load again.") : e;
+    });
+    console.log(`Loaded ${s.name}: ${s.tenants} organizations, ${s.products} products, ${s.accounts} accounts, schema at ${s.migration}.
 Serve it with: pnpm dev:fixture   (later migrations run first, and the worker does their jobs)`);
   } finally {
     await local.stop();

@@ -4,9 +4,10 @@ import { fileURLToPath } from "node:url";
 import { createBlobStore, createMailer, createPorts } from "./app.ts";
 import { loadConfig } from "./config.ts";
 import { createDb, migrate } from "./database.ts";
+import { E2E, resetToGolden } from "./e2e.ts";
 import { addSamplePeople, FIXTURE_BLOBS, FIXTURE_DATABASE } from "./fixture.ts";
 import { SEED_ACCOUNTS, seed, seedSandbox } from "./seed.ts";
-import { startLocalPg, type LocalPg } from "./testing/pg.ts";
+import { connectOrStartLocalPg, startLocalPg, type LocalPg } from "./testing/pg.ts";
 import { Worker } from "./worker.ts";
 
 /**
@@ -22,16 +23,31 @@ import { Worker } from "./worker.ts";
  *   pnpm dev:fixture         the copy of a deployment that `pnpm fixture load` put in place, with the
  *                            sample people added to it and no sample data; mail only prints here
  *                            (okf/operations/a-copy-of-production.md)
+ *   pnpm dev:e2e             the end-to-end instance: its own Postgres and files, reset to the golden
+ *                            master that `pnpm e2e golden` built, on :5283 and :8797, beside any
+ *                            pnpm dev; mail only prints here (okf/operations/end-to-end-tests.md)
  */
 const root = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
-const API_PORT = Number(process.env["PORT"] ?? 8787);
-const WEB_PORT = Number(process.env["WHATBUILD_WEB_PORT"] ?? 5273);
 const FIXTURE = process.argv.includes("--fixture");
+const END_TO_END = process.argv.includes("--e2e");
+const API_PORT = END_TO_END ? E2E.apiPort : Number(process.env["PORT"] ?? 8787);
+const WEB_PORT = END_TO_END ? E2E.webPort : Number(process.env["WHATBUILD_WEB_PORT"] ?? 5273);
 
 async function main() {
   let pg: LocalPg | null = null;
-  let databaseUrl = process.env["DATABASE_URL"];
-  if (!databaseUrl) {
+  let databaseUrl = END_TO_END ? undefined : process.env["DATABASE_URL"];
+  let sandboxTenant: string | undefined;
+  if (END_TO_END) {
+    console.log("Starting the end-to-end instance's Postgres (embedded, in .what-build/e2e/pg)…");
+    pg = await connectOrStartLocalPg(E2E.pgDir, E2E.pgPort);
+    const reset = await resetToGolden(pg).catch(async (e: unknown) => {
+      await pg!.stop();
+      throw e;
+    });
+    databaseUrl = reset.url;
+    sandboxTenant = reset.golden.sandbox;
+    console.log(`Reset to the golden master (from the pull ${reset.golden.pull}, built ${reset.golden.built_at}).`);
+  } else if (!databaseUrl) {
     console.log("Starting Postgres (embedded, in .what-build/pg)…");
     pg = await startLocalPg(resolve(root, ".what-build/pg"), Number(process.env["WHATBUILD_PG_PORT"] ?? 54329));
     if (FIXTURE && !(await pg.hasDatabase(FIXTURE_DATABASE))) {
@@ -48,19 +64,22 @@ async function main() {
     WHATBUILD_PUBLIC_URL: process.env["WHATBUILD_PUBLIC_URL"] ?? `http://localhost:${WEB_PORT}`,
     // Vite proxies the API here, so a second instance on other ports talks to its own API.
     WHATBUILD_API: process.env["WHATBUILD_API"] ?? `http://localhost:${API_PORT}`,
-    WHATBUILD_BLOB_DIR: FIXTURE ? FIXTURE_BLOBS : (process.env["WHATBUILD_BLOB_DIR"] ?? resolve(root, ".what-build/blobs")),
+    WHATBUILD_BLOB_DIR: END_TO_END ? E2E.blobs : FIXTURE ? FIXTURE_BLOBS : (process.env["WHATBUILD_BLOB_DIR"] ?? resolve(root, ".what-build/blobs")),
     // A copy of a deployment holds real people's addresses and files: its mail only prints here,
-    // and its files are the local copy, never the deployment's bucket.
-    ...(FIXTURE ? { WHATBUILD_MAILER: "console", WHATBUILD_BLOB_STORE: "fs" } : {}),
+    // and its files are the local copy, never the deployment's bucket. The end-to-end instance
+    // may hold one, and a test never mails anyone either.
+    ...(FIXTURE || END_TO_END ? { WHATBUILD_MAILER: "console", WHATBUILD_BLOB_STORE: "fs" } : {}),
     // The sample owner runs this instance, so the instance owner's page has someone to show it to.
     WHATBUILD_INSTANCE_OWNERS: process.env["WHATBUILD_INSTANCE_OWNERS"] ?? SEED_ACCOUNTS[0].email,
+    // The golden master's sandbox stays the public sandbox; the server reads this at start-up.
+    ...(sandboxTenant ? { WHATBUILD_SANDBOX_TENANT: sandboxTenant } : {}),
   };
   const config = loadConfig(env);
   const { db, pool } = createDb(databaseUrl, 3);
   await migrate(db);
   const ports = createPorts(config, await createBlobStore(config), createMailer(config));
-  if (FIXTURE) await addSamplePeople(db);
-  else {
+  if (FIXTURE || END_TO_END) await addSamplePeople(db);
+  else if (!END_TO_END) {
     const worker = new Worker({ db, ports }, 60_000, () => {});
     await seed({ db, ports }, worker);
     if (config.sandboxTenant) await seedSandbox({ db, ports }, config.sandboxTenant);
@@ -80,7 +99,19 @@ async function main() {
   run("api", resolve(root, "apps/server/node_modules/.bin/tsx"), ["watch", "--clear-screen=false", "src/main.ts", "serve"], resolve(root, "apps/server"));
   run("web", resolve(root, "apps/web/node_modules/.bin/vite"), ["--port", String(WEB_PORT), "--strictPort"], resolve(root, "apps/web"));
 
-  console.log(FIXTURE ? `
+  console.log(END_TO_END ? `
+  WhatBuild's end-to-end instance is starting, reset to the golden master.
+
+    App            http://localhost:${WEB_PORT}
+    Sign in as     riley@example.com (owns both organizations), sam@example.com (edits every
+                   team) or jordan@example.com (reads every Story); pnpm e2e browser signin <name>
+                   does it in the test browser
+    MCP endpoint   http://localhost:${WEB_PORT}/mcp   (pnpm e2e mcp connects to it as an agent)
+    Database       embedded Postgres in .what-build/e2e/pg, database "${E2E.database}"
+    Files          .what-build/e2e/blobs
+
+  Stop and start again to go back to the golden master. Ctrl-C stops everything.
+` : FIXTURE ? `
   WhatBuild is starting on the copy loaded by pnpm fixture load.
 
     App            http://localhost:${WEB_PORT}
