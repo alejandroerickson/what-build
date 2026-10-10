@@ -133,11 +133,16 @@ function dayLabel(iso: string) {
   return formatDate(day);
 }
 
-/** "via claude-code" for an agent, "in the app" or "through the API" for a person. */
+/**
+ * "via claude-code" for an agent, "in the app" or "through the API" for a person, and "on the
+ * server" for what WhatBuild does by itself (parsing a file, a scheduled job), which has no surface
+ * whoever uploaded the file and however they did it.
+ */
 export function surfaceWords(i: Pick<ActivityItem, "through_agent" | "channel" | "actor">) {
   if (i.through_agent) return `via ${i.actor.client ?? "an agent"}`;
   if (i.channel === "rest") return "through the API";
-  return "in the app";
+  if (i.channel === "web") return "in the app";
+  return i.actor.account_id === "system" ? "on the server" : "in the app";
 }
 
 /** The log for this product, newest first, loaded 50 at a time. */

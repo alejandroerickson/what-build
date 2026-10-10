@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { formatCue, formatDate, formatDateTime, passageText, relativeTime } from "../src/lib/format.ts";
-import { citationLabels, Markdown } from "../src/lib/markdown.tsx";
+import { citationLabels, Markdown, markdownText } from "../src/lib/markdown.tsx";
 import { derivedStatusDetail } from "../src/lib/status.ts";
 
 const html = (md: string) => renderToStaticMarkup(<Markdown source={md} />);
@@ -81,5 +81,17 @@ describe("passages and statuses", () => {
     expect(derivedStatusDetail("too_large", "the file is 90 bytes")).toBe("the file is 90 bytes");
     expect(derivedStatusDetail("something_new", "why")).toBe("why");
     expect(derivedStatusDetail("failed", null)).toBeNull();
+  });
+});
+
+describe("Markdown as plain words, for a clamped summary", () => {
+  it("drops the markers and keeps the words, on one line", () => {
+    expect(markdownText("**Crewboard** helps *crew leads* plan the `week`.\n\n## Who\n\n- Crew leads\n- Office staff & ops")).toBe(
+      "Crewboard helps crew leads plan the week. Who Crew leads Office staff & ops",
+    );
+  });
+  it("keeps link text and never markup", () => {
+    expect(markdownText("See [the notes](https://example.com) <b>now</b> > quoted")).toBe("See the notes now > quoted");
+    expect(markdownText("")).toBe("");
   });
 });

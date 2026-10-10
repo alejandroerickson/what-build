@@ -1262,16 +1262,13 @@ function AddFiles({ record, onClose }: { record: SourceRecord; onClose: () => vo
   useEffect(() => setItems((all) => all.map((i) => (i.state === "done" ? i : { ...i, role }))), [role]);
   const run = async () => {
     setRunning(true);
-    await uploadFiles(base, record.record_id, items, (i, patch) => setItems((all) => all.map((x, j) => (j === i ? { ...x, ...patch } : x))));
+    const allDone = await uploadFiles(base, record.record_id, items, (i, patch) => setItems((all) => all.map((x, j) => (j === i ? { ...x, ...patch } : x))));
     setRunning(false);
     await qc.invalidateQueries({ queryKey: key });
-    setItems((all) => {
-      if (all.every((i) => i.state === "done")) {
-        toast(all.length === 1 ? "File added." : "Files added.");
-        onClose();
-      }
-      return all;
-    });
+    if (allDone) {
+      toast(items.length === 1 ? "File added." : "Files added.");
+      onClose();
+    }
   };
   const failed = items.filter((i) => i.state === "failed").length;
   return (

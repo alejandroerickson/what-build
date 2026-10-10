@@ -25,8 +25,12 @@ interface Item {
 const MiB = 1024 * 1024;
 const RECORDING = /^(audio|video)\//;
 
-/** Upload files to a source one after another, primary first, through grants — the same path agents use. */
-export async function uploadFiles(base: string, recordId: string, items: Item[], update: (i: number, patch: Partial<Item>) => void) {
+/**
+ * Upload files to a source one after another, primary first, through grants — the same path agents use.
+ * Resolves true when every file is in, so callers move on without reading state inside an updater.
+ */
+export async function uploadFiles(base: string, recordId: string, items: Item[], update: (i: number, patch: Partial<Item>) => void): Promise<boolean> {
+  let allDone = true;
   const order = items.map((it, i) => ({ it, i })).sort((a, b) => (a.it.role === "primary" ? -1 : 0) - (b.it.role === "primary" ? -1 : 0));
   for (const { it, i } of order) {
     if (it.state === "done") continue;
@@ -42,8 +46,10 @@ export async function uploadFiles(base: string, recordId: string, items: Item[],
       update(i, { state: "done", loaded: it.file.size });
     } catch (e) {
       update(i, { state: "failed", error: (e as Error).message });
+      allDone = false;
     }
   }
+  return allDone;
 }
 
 
@@ -135,16 +141,14 @@ export function SourceNewPage() {
         rid = r.record_id;
         setRecordId(rid);
       }
-      await uploadFiles(base, rid, items, update);
-      return rid;
+      const allDone = await uploadFiles(base, rid, items, update);
+      return { rid, allDone };
     },
-    onSuccess: async (rid) => {
+    onSuccess: async ({ rid, allDone }) => {
       await qc.invalidateQueries({ queryKey: ["sources", base] });
       void qc.invalidateQueries({ queryKey: ["product"] });
-      setItems((current) => {
-        if (current.every((i) => i.state === "done")) navigate(`${app}/evidence/${rid}`);
-        return current;
-      });
+      // Navigating from inside a state updater updates the router while this page renders.
+      if (allDone) navigate(`${app}/evidence/${rid}`);
     },
   });
   const failed = items.filter((i) => i.state === "failed").length;

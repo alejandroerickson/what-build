@@ -141,6 +141,11 @@ function badCursor() {
   return invalid("invalid_cursor", "This cursor does not belong to this sort. Pass next_cursor back with the same filters and sort.");
 }
 
+/** Passages as the app writes them: ¶4 for one, ¶4–6 for a range. */
+export function passageWords(start: number, end: number): string {
+  return start === end ? `¶${start}` : `¶${start}–${end}`;
+}
+
 // ---- Facets -------------------------------------------------------------------------------------
 
 /** At most this many tags come back from sources.facets, most used first. */
@@ -664,7 +669,7 @@ export const annotate = defineOperation({
         anchor: json(anchor), etag: newEtag(), created_by: json(ctx.actor), updated_by: json(ctx.actor),
       })
       .execute();
-    await recordActivity(ctx, { action: "note_added", entity_type: "source", entity_id: r.record_id, entity_title: r.title, summary: input.seq_start !== undefined ? `Added a note on segments ${input.seq_start}–${input.seq_end}` : "Added a note" });
+    await recordActivity(ctx, { action: "note_added", entity_type: "source", entity_id: r.record_id, entity_title: r.title, summary: input.seq_start !== undefined && input.seq_end !== undefined ? `Added a note on ${passageWords(input.seq_start, input.seq_end)}` : "Added a note" });
     return ctx.db.selectFrom("annotations").selectAll().where("annotation_id", "=", annotation_id).executeTakeFirstOrThrow();
   },
 });
