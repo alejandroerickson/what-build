@@ -18,8 +18,12 @@ export function ExportDialog({ tree, archived, preselect, onClose }: { tree: Arr
     return out;
   }, [tree, archived]);
   const all = groups.flatMap((g) => g.rows.map((r) => r.node.page_id));
+  // The count and Select all cover the Story as it reads; an archived page is added only by ticking it.
+  const live = useMemo(() => [...flatten(tree.pages).map((r) => r.node.page_id), ...tree.mockups.map((m) => m.page_id)], [tree]);
   const [picked, setPicked] = useState<Set<string>>(() => new Set(preselect.filter((id) => all.includes(id))));
   const ids = all.filter((id) => picked.has(id)).slice(0, MAX_PAGES);
+  const pickedLive = live.filter((id) => picked.has(id)).length;
+  const pickedArchived = archived.filter((p) => picked.has(p.page_id)).length;
   const href = ids.length ? `${base}/story/print?page_ids=${ids.map(encodeURIComponent).join(",")}` : undefined;
   const flip = (id: string, on: boolean) => {
     const next = new Set(picked);
@@ -50,10 +54,11 @@ export function ExportDialog({ tree, archived, preselect, onClose }: { tree: Arr
     >
       <div className="story-export-bar">
         <span className="small muted" aria-live="polite">
-          {ids.length} of {all.length} {all.length === 1 ? "page" : "pages"} selected
+          {pickedLive} of {live.length} {live.length === 1 ? "page" : "pages"} selected
+          {pickedArchived ? `, and ${pickedArchived} archived` : ""}
         </span>
         <span className="row">
-          <Button size="sm" variant="quiet" onClick={() => setPicked(new Set(all))}>
+          <Button size="sm" variant="quiet" onClick={() => setPicked(new Set([...live, ...archived.filter((p) => picked.has(p.page_id)).map((p) => p.page_id)]))}>
             Select all
           </Button>
           <Button size="sm" variant="quiet" onClick={() => setPicked(new Set())}>

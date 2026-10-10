@@ -43,7 +43,7 @@ product as anyone else does. It revises one consequence of
 
 - A reader's agent sees exactly the reader's Story, as every agent has its person's role.
 - An evidence link inside a page leads a reader nowhere they can read: the app takes them back to
-  the Story.
+  the Story, with a toast saying they can read only the Story, so the return is never silent.
 - The highest role still applies: a reader on a product who is a viewer on its team is a viewer,
   and a reader on one product who is a viewer on another in the same organization sees the people
   on that other product, never those of the one they only read

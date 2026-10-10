@@ -58,7 +58,8 @@ the browser's back button and "open in new tab" both work.
   source it became ([§4.7](04-data-model.md)), and a link to either list opens Exploration.
 - **A reader** ([§3.5](03-accounts-teams-and-identity.md)) has only the Story: L1 is **Story**
   alone with its count, and the quiet group is gone. The product opens on the Story, and any other
-  product screen, opened by a link or typed, takes a reader to the Story.
+  product screen, opened by a link or typed, takes a reader to the Story, with a toast saying they
+  can read only this product's Story.
 - **A context slot** under the navigation, which the screen fills: the page tree on Story, find
   and filters on Evidence, the mockups and the three lists with their filters on Exploration.
 - **The footer** holds the account menu, which is about the person: their email; each
@@ -528,12 +529,21 @@ mockup reaches it by promotion, from the mockup (§7.7).
     the product's team publishes them.
 - **Export to PDF.** The dialog lists every page as checkboxes, in the Story's order (the tree,
   then the published mockups), then archived pages, with Select all, Clear and a count; it opens with the page or pages it was
-  asked for already selected, and the person can change the selection. It says what the PDF holds:
+  asked for already selected, and the person can change the selection. The count and Select all
+  cover the pages the Story shows; an archived page goes in only when ticked, and the count adds it
+  ("3 of 24 pages selected, and 1 archived"). It says what the PDF holds:
   a contents list, then each selected page at its current version under its title, with its
   version number and publish date. It says what it leaves out: what a page draws on, its cited
   passages and notes, earlier versions, and anything a page draws with scripts. **Open print view**
   opens the print view in a new tab ([§7.3](#73-routes)), which opens the browser's print dialog to
-  save it as PDF.
+  save it as PDF. In the print view each page's own headings sit one level under its title in the
+  outline (`aria-level`; the tags, and so the page's styling, stay as they are).
+- ◆ Decision: **a page may lay out differently on paper.** A page's media queries answer to the
+  width it is shown at. In the app's frame that is the canvas's measure (up to 900px); on paper
+  it is the printable width, about 670 to 700px on A4 or Letter, below the house styles' 48rem
+  breakpoint, so a page's narrow layout applies there (grids stack into one column). The print
+  view does not pretend the paper is wider: a layout made for 900px would be cramped or clipped
+  at 680px, and the narrow layout is the one the page's author made for that width.
 - An empty Story uses the first-use state ([§7.5](#75-idea)): agents write it, so the request to
   copy is the only path. It says pages follow the company's design system or a house style, and
   offers **Preview Story styles**.

@@ -295,6 +295,48 @@ describe("activity by people or agents", () => {
   });
 });
 
+describe("the Story's navigation", () => {
+  let N: string;
+  const ids = (items: { page_id: string; children?: unknown[] }[]) => items.map((x) => x.page_id);
+  beforeAll(async () => {
+    const p = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Navigation" });
+    N = `/api/v1/p/${p.body.path}`;
+    for (const [id, title] of [["overview", "Overview"], ["plan", "Plan"]] as const) {
+      expect((await alice.api("POST", `${N}/story/pages/${id}/versions`, { title, html: html(title, "<p>A page.</p>") })).status).toBe(201);
+    }
+    const tree = await alice.api("GET", `${N}/story/hierarchy`);
+    expect((await alice.api("PUT", `${N}/story/hierarchy`, { items: [{ page_id: "overview", children: [] }], expected_etag: tree.body.etag })).status).toBe(200);
+  });
+
+  it("lists a newly published page once, in unplaced and not in the tree, so the tree round-trips with it placed", async () => {
+    const published = await alice.api("POST", `${N}/story/pages/detail/versions`, { title: "Detail", html: html("Detail", "<p>New.</p>") });
+    expect(published.status).toBe(201);
+    expect(published.body.placed).toBe(false);
+    const got = await alice.api("GET", `${N}/story/hierarchy`);
+    expect(ids(got.body.items)).toEqual(["overview"]);
+    expect(got.body.unplaced).toEqual([
+      { page_id: "detail", title: "Detail", description: expect.any(String) },
+      { page_id: "plan", title: "Plan", description: expect.any(String) },
+    ]);
+
+    // Sent back as it is, the tree saves without placing anything.
+    const same = await alice.api("PUT", `${N}/story/hierarchy`, { items: got.body.items, expected_etag: got.body.etag });
+    expect(same.status, JSON.stringify(same.body)).toBe(200);
+    expect(ids(same.body.items)).toEqual(["overview"]);
+    expect(ids(same.body.unplaced)).toEqual(["detail", "plan"]);
+
+    // Placing the new page under another one is adding it to the tree.
+    const [overview] = same.body.items;
+    const placed = await alice.api("PUT", `${N}/story/hierarchy`, {
+      items: [{ ...overview, children: [...overview.children, { page_id: "detail", children: [] }] }],
+      expected_etag: same.body.etag,
+    });
+    expect(placed.status, JSON.stringify(placed.body)).toBe(200);
+    expect(placed.body.items).toEqual([{ page_id: "overview", title: "Overview", description: expect.any(String), children: [{ page_id: "detail", title: "Detail", description: expect.any(String), children: [] }] }]);
+    expect(ids(placed.body.unplaced)).toEqual(["plan"]);
+  });
+});
+
 describe("Story print view", () => {
   beforeAll(async () => {
     await alice.api("POST", `${P}/story/pages/detail/versions`, { title: "Detail", html: html("Detail", "<p>Child page.</p><script>document.write('drawn')</script>") });

@@ -31,8 +31,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   organization into tags and drops both, and rewrites saved sandbox baselines the same way. A call
   that still sends `kind`, `organization` or `folder` gets a `422` with a hint to use tags, and
   `sources.kinds` is replaced by `sources.facets`.
-- **The skill** is at 0.16.0. Connected agents that installed an earlier one are told to update it
+- **The skill** is at 0.17.0. Connected agents that installed an earlier one are told to update it
   by the server's instructions; until they do, they may still send kinds or call retired tools.
+- **`story.get_hierarchy`** returns pages not yet placed only in `unplaced`, now a list of
+  `{page_id, title, description}`, and no longer also at the end of `items`; `set_hierarchy`
+  accepts `items` as `get_hierarchy` returns them. A script that read `unplaced` as a list of ids,
+  or that relied on sending `items` back to place every page, places those pages itself.
 - **`members.list`** answers `403` to someone who reads only the Story in an organization (a
   reader everywhere they hold a role there), and the app hides Members from them.
 - **Microsoft sign-in** accepts an address only when Microsoft marks its domain verified (the

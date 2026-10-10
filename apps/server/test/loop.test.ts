@@ -225,7 +225,8 @@ describe("the discovery loop through REST", () => {
     expect(v2.body.current.version).toBe(2);
     const tree = await alice.api("GET", `${P}/story/hierarchy`);
     expect(tree.body.etag).toBeNull();
-    expect(tree.body.unplaced).toEqual(["overview"]);
+    expect(tree.body.items).toEqual([]);
+    expect(tree.body.unplaced).toEqual([{ page_id: "overview", title: "Where we stand now", description: expect.any(String) }]);
     const set = await alice.api("PUT", `${P}/story/hierarchy`, { items: [{ page_id: "overview", children: [] }], expected_etag: null });
     expect(set.status).toBe(200);
     expect(set.body.unplaced).toEqual([]);
