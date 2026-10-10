@@ -1,5 +1,5 @@
 /**
- * Forgiving title search for the lists people scan by name (insights, assumptions, decisions).
+ * Forgiving title search for the lists people scan by name (assumptions).
  * Every word typed must be found in the title: at the start of a word, anywhere inside one, or,
  * for words of four letters or more, with one letter wrong, missing or extra. Case, accents and
  * punctuation are ignored. Titles that match better rank first.

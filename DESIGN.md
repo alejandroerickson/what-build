@@ -332,7 +332,7 @@ A neutral grey studio with a single indigo accent and three status hues; every v
 ### Hierarchy
 - **Display** (600, 48px, 1.05, -0.035em; 36px on a narrow canvas): the overview's question, "What to build?", and nowhere else.
 - **Brand** (600, 28px, 1, -0.02em; 22px on a narrow canvas): the overview's wordmark beside a 34px W mark, its page h1.
-- **Headline** (600, 20px, 1.25, -0.01em): the h1 of an item screen, such as an insight or a source.
+- **Headline** (600, 20px, 1.25, -0.01em): the h1 of an item screen, such as an assumption or a source.
 - **Lead** (400, 15px, 1.55): a single summary paragraph above prose.
 - **Title** (600, 14px, 1.25): the sheet title, which is the h1 of a list screen, followed by its count in faint 400.
 - **Subtitle** (600, 12.5px): product name, inspector title, h3.
@@ -400,7 +400,7 @@ Compact and calm. Default buttons read as white tiles with a hairline, not as fi
 - **Sheet:** panel fill, 12px corners, resting shadow, content clipped. A hairline separates the head from the rows.
 - **List row:** a three-column grid (48px id, title and sub, right-aligned end meta) padded 11px by the sheet gutter, with a hairline between rows and Hover fill when it is a link.
 - **Callout:** an 8px floating note with a resting shadow and a 16px icon column tinted by tone. The inset variant uses Hover fill with no shadow.
-- **First-use state:** an empty list inside its sheet, padded 20px by the sheet gutter: a 13px medium title ("No insights yet"), muted text at the 68ch measure, then "Connect an agent and ask it:" over the request in a 6px Hover-filled well at 13px ink, with Connect an agent (primary, until an agent is connected) and Copy below it ([decision](okf/decisions/empty-lists-lead-with-the-agent.md)).
+- **First-use state:** an empty list inside its sheet, padded 20px by the sheet gutter: a 13px medium title ("No assumptions yet"), muted text at the 68ch measure, then "Connect an agent and ask it:" over the request in a 6px Hover-filled well at 13px ink, with Connect an agent (primary, until an agent is connected) and Copy below it ([decision](okf/decisions/empty-lists-lead-with-the-agent.md)).
 - **Inspector group:** padded 12px by 14px, 11.5px semibold title with a faint count, key-value rows on a 64px key column.
 
 ### Inputs / Fields

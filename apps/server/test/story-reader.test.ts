@@ -135,7 +135,7 @@ describe("a Story reader", () => {
       expect(r.body.error.details.role, op.name).toBe("reader");
       refused.push(op.name);
     }
-    for (const name of ["sources.list", "read_passage", "search", "insights.list", "assumptions.list", "outcomes.list", "activity.list", "products.export", "story.check_citations", "story.get_style"])
+    for (const name of ["sources.list", "read_passage", "search", "assumptions.list", "outcomes.list", "activity.list", "products.export", "story.check_citations", "story.get_style"])
       expect(refused).toContain(name);
     const sources = await rita.api("GET", `${P}/sources`);
     expect(sources.body.error.message).toMatch(/reader.*needs viewer/);

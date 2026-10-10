@@ -50,7 +50,7 @@ export function useCookieChoice(): CookieChoice | null {
  * A path with names and ids taken out, so what reaches Google says which screen, not whose:
  * `/t/acme/core/planner/story/launch-plan` becomes `/t/:org/:team/:product/story/:id`.
  */
-const SCREEN_WORDS = new Set(["idea", "evidence", "new", "search", "exploration", "mockups", "insights", "assumptions", "decisions", "edit", "story", "connect", "activity", "settings", "members", "sandbox"]);
+const SCREEN_WORDS = new Set(["idea", "evidence", "new", "search", "exploration", "mockups", "assumptions", "edit", "story", "connect", "activity", "settings", "members", "sandbox"]);
 
 export function screenPath(pathname: string): string {
   const parts = pathname.split("/").filter(Boolean);
@@ -65,10 +65,10 @@ export function screenPath(pathname: string): string {
 
 /**
  * What a change the app made was, as an event name built only from known words, never a name, id
- * or slug: `POST /api/v1/p/acme/core/planner/insights/01J…/review` is `insights_review`, and
- * `PATCH …/insights/01J…` is `insights_update`.
+ * or slug: `POST /api/v1/p/acme/core/planner/assumptions/01J…/review` is `assumptions_review`, and
+ * `PATCH …/assumptions/01J…` is `assumptions_update`.
  */
-const NOUNS = new Set(["insights", "outcomes", "sources", "mockups", "downloads", "assumptions", "decisions", "annotations", "files", "exports", "settings", "members", "invitations", "products", "tenants", "sandbox", "baselines", "invites", "visitors", "agents", "me", "revisions", "story", "pages", "versions", "tenant-allowances", "auth", "email", "dev-sign-in", "sign-out"]);
+const NOUNS = new Set(["outcomes", "sources", "mockups", "downloads", "assumptions", "annotations", "files", "exports", "settings", "members", "invitations", "products", "tenants", "sandbox", "baselines", "invites", "visitors", "agents", "me", "revisions", "story", "pages", "versions", "tenant-allowances", "auth", "email", "dev-sign-in", "sign-out"]);
 const VERBS = new Set(["review", "archive", "restore", "check-citations", "remove", "revoke", "cancel", "accept", "join", "reset", "role"]);
 const METHOD_VERB: Record<string, string> = { POST: "create", PUT: "update", PATCH: "update", DELETE: "delete" };
 

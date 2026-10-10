@@ -20,9 +20,7 @@ const TYPE_FILTERS = [
   { id: "source", label: "Sources" },
   { id: "outcome", label: "Outcomes" },
   { id: "mockup", label: "Mockups" },
-  { id: "insight", label: "Insights" },
   { id: "assumption", label: "Assumptions" },
-  { id: "decision", label: "Decisions" },
   { id: "story_page", label: "Story pages" },
   { id: "story_hierarchy", label: "Story tree" },
   { id: "story_style", label: "Story style" },
@@ -577,7 +575,7 @@ function ExportSheet() {
       />
       <SheetBody>
         <p className="muted">
-          Everything in this product as one ZIP: every source file and version, passages, notes, insights with their earlier versions, assumptions and decisions with their reviews, every Story version, and
+          Everything in this product as one ZIP: every source file and version, passages, notes, outcomes, assumptions with their reviews, every mockup and Story version, and
           the activity log. It&rsquo;s plain JSON, Markdown and HTML, readable without WhatBuild. Anyone with access can export, at any time.
         </p>
         {start.isError ? <ErrorCallout inset error={start.error} /> : null}

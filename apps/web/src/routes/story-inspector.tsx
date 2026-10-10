@@ -11,9 +11,7 @@ import type { CitationCheck, MockupShown, PageView, RefKind, ResolvedRef, Versio
 const REF_KINDS: { kind: RefKind; label: string }[] = [
   { kind: "outcomes", label: "Outcomes" },
   { kind: "sources", label: "Sources" },
-  { kind: "insights", label: "Insights" },
   { kind: "assumptions", label: "Assumptions" },
-  { kind: "decisions", label: "Decisions" },
 ];
 
 function refLink(app: string, kind: RefKind, id: string): string {
@@ -22,26 +20,21 @@ function refLink(app: string, kind: RefKind, id: string): string {
       return `${app}/idea`;
     case "sources":
       return `${app}/evidence/${id}`;
-    case "insights":
-      return `${app}/exploration/insights/${id}`;
     case "assumptions":
       return `${app}/exploration/assumptions/${id}`;
-    case "decisions":
-      return `${app}/exploration/decisions/${id}`;
   }
 }
 
 function refStatus(kind: RefKind, r: ResolvedRef): string | null {
   if (r.missing) return "No longer in this product";
   if (r.archived) return "Archived";
-  if ((kind === "assumptions" || kind === "decisions") && r.status) return REVIEW_STATUS[r.status]?.label ?? r.status;
-  if (kind === "insights" && r.status === "draft") return "Draft";
+  if (kind === "assumptions" && r.status) return REVIEW_STATUS[r.status]?.label ?? r.status;
   if (kind === "outcomes" && r.status === "achieved") return "Achieved";
   return null;
 }
 
 /** Drift in words, never colour alone. */
-/** A citation check in words, as a register entry, a Story page and a mockup all show it. */
+/** A citation check in words, as an assumption, a Story page and a mockup all show it. */
 export function driftWords(c: CitationCheck): string {
   const base = {
     ok: "Matches the source",
@@ -176,7 +169,7 @@ export function StoryInspectorBody({ page, shown, versions, onExport }: {
               ))}
             </div>
           ) : (
-            <EmptyState size="inline">This version lists nothing it draws on. Agents list outcomes, sources, insights, assumptions and decisions when they publish.</EmptyState>
+            <EmptyState size="inline">This version lists nothing it draws on. Agents list outcomes, sources and assumptions when they publish.</EmptyState>
           )}
         </Group>
       ) : null}
@@ -230,7 +223,7 @@ export function StoryInspectorBody({ page, shown, versions, onExport }: {
           </>
         ) : (
           <EmptyState size="inline">
-            Agents keep notes here as they write and maintain this page: what it&rsquo;s for, sources still to fold in, decisions about its structure. They read them before revising it.
+            Agents keep notes here as they write and maintain this page: what it&rsquo;s for, sources still to fold in, choices about its structure. They read them before revising it.
           </EmptyState>
         )}
       </Group>

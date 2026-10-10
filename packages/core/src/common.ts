@@ -10,9 +10,7 @@ export type EntityType =
   | "membership"
   | "source"
   | "outcome"
-  | "insight"
   | "assumption"
-  | "decision"
   | "story_page"
   | "mockup"
   | "story_hierarchy"
@@ -109,20 +107,18 @@ export function normalizeTags(tags: string[] | undefined): string[] {
   return uniq((tags ?? []).map((t) => normalizeKey(t)).filter(Boolean));
 }
 
-export const EMPTY_REFS: Refs = { outcomes: [], sources: [], insights: [], assumptions: [], decisions: [] };
+export const EMPTY_REFS: Refs = { outcomes: [], sources: [], assumptions: [] };
 
 /**
  * Check that every referenced id exists in this product and is of the named kind. References never
  * cross products: that keeps a product exportable as a closed bundle.
  */
-export async function validateRefs(ctx: OpContext, refs: Partial<Refs>, selfId?: string): Promise<Refs> {
+export async function validateRefs(ctx: OpContext, refs: Partial<Refs>): Promise<Refs> {
   const pid = productId(ctx);
   const out: Refs = {
     outcomes: uniq(refs.outcomes ?? []),
     sources: uniq(refs.sources ?? []),
-    insights: uniq(refs.insights ?? []).filter((i) => i !== selfId),
     assumptions: uniq(refs.assumptions ?? []),
-    decisions: uniq(refs.decisions ?? []),
   };
   const missing: string[] = [];
   const check = async (ids: string[], found: Promise<{ id: string; product_id: string }[]>, label: string) => {
@@ -146,23 +142,15 @@ export async function validateRefs(ctx: OpContext, refs: Partial<Refs>, selfId?:
     "source",
   );
   await check(
-    out.insights,
-    ctx.db.selectFrom("insights").select(["insight_id as id", "product_id"]).where("insight_id", "in", out.insights.length ? out.insights : [""]).execute(),
-    "insight",
+    out.assumptions,
+    ctx.db
+      .selectFrom("register_entries")
+      .select(["entry_id as id", "product_id"])
+      .where("kind", "=", "assumption")
+      .where("entry_id", "in", out.assumptions.length ? out.assumptions : [""])
+      .execute(),
+    "assumption",
   );
-  for (const kind of ["assumption", "decision"] as const) {
-    const ids = kind === "assumption" ? out.assumptions : out.decisions;
-    await check(
-      ids,
-      ctx.db
-        .selectFrom("register_entries")
-        .select(["entry_id as id", "product_id"])
-        .where("kind", "=", kind)
-        .where("entry_id", "in", ids.length ? ids : [""])
-        .execute(),
-      kind,
-    );
-  }
   if (missing.length) throw invalid("unknown_reference", `These references do not exist in this product: ${missing.join(", ")}.`);
   return out;
 }

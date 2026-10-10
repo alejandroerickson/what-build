@@ -12,7 +12,6 @@ import { productHome, ProductProvider, RequireSession, useProduct } from "./lib/
 import { ConnectPage } from "./routes/connect.tsx";
 import { CookiesPage } from "./routes/cookies.tsx";
 import { AcceptInvite, NotFound, SignIn } from "./routes/auth.tsx";
-import { InsightEditPage, InsightPage, InsightsPage } from "./routes/insights.tsx";
 import { IdeaPage } from "./routes/idea.tsx";
 import { MembersPage, Welcome } from "./routes/org.tsx";
 import { OverviewPage } from "./routes/overview.tsx";
@@ -103,6 +102,16 @@ function SynthesisLink() {
   return <Navigate replace to={`${app}/exploration${rest ? `/${rest}` : ""}${search}${hash}`} />;
 }
 
+/**
+ * Insights and decisions are now sources in Evidence with the same ids, so an old link to one
+ * (in a Story page, say) opens its source; a link to either list opens Exploration.
+ */
+function MovedToEvidence() {
+  const { app } = useProduct();
+  const id = (useParams()["*"] ?? "").split("/")[0];
+  return <Navigate replace to={id && id !== "new" ? `${app}/evidence/${id}` : `${app}/exploration`} />;
+}
+
 /** A product opens on Idea, or on the Story for a reader. */
 function ProductHome() {
   const { product } = useProduct();
@@ -180,18 +189,12 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
                   { index: true, element: <Navigate to="mockups" replace /> },
                   { path: "mockups", element: <MockupsIndex /> },
                   { path: "mockups/:mockupId", element: <MockupPage /> },
-                  { path: "insights", element: <InsightsPage /> },
-                  { path: "insights/new", element: <InsightEditPage /> },
-                  { path: "insights/:insightId", element: <InsightPage /> },
-                  { path: "insights/:insightId/edit", element: <InsightEditPage /> },
                   { path: "assumptions", element: <RegisterListPage kind="assumptions" /> },
                   { path: "assumptions/new", element: <EntryEditPage kind="assumptions" /> },
                   { path: "assumptions/:id", element: <RegisterEntryPage kind="assumptions" /> },
                   { path: "assumptions/:id/edit", element: <EntryEditPage kind="assumptions" /> },
-                  { path: "decisions", element: <RegisterListPage kind="decisions" /> },
-                  { path: "decisions/new", element: <EntryEditPage kind="decisions" /> },
-                  { path: "decisions/:id", element: <RegisterEntryPage kind="decisions" /> },
-                  { path: "decisions/:id/edit", element: <EntryEditPage kind="decisions" /> },
+                  { path: "insights/*", element: <MovedToEvidence /> },
+                  { path: "decisions/*", element: <MovedToEvidence /> },
                 ],
               },
               { path: "connect", element: <ConnectPage /> },

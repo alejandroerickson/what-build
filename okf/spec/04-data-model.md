@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
-description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their taxonomy, files, annotations, insights and insight review, the registers and citations, views and lineage, activity, Story, mockups, feedback, the product bundle, and the storage layout.
+description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their taxonomy, files, annotations, what uses a source, the assumption register and citations, views and lineage, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, citations, revisions, story, mockups, export]
 generated: {by: agent:claude, at: 2026-10-09}
 status: stable
@@ -20,12 +20,12 @@ Every editable object carries:
 
 | Field | Rule |
 |---|---|
-| `id` (named per type, e.g. `record_id`, `insight_id`; `id` for register entries) | ULID, immutable. Story pages are the exception: their `page_id` is a slug the author chooses (§4.11). |
+| `id` (named per type, e.g. `record_id`, `outcome_id`; `id` for assumptions) | ULID, immutable. Story pages are the exception: their `page_id` is a slug the author chooses (§4.11). |
 | `product_id` | Immutable except when a source moves ([§3.7](03-accounts-teams-and-identity.md)). `tenant_id` is on every content row and never appears in a request body: it comes from the addressed product. |
 | `etag` | Opaque string; changes on every successful mutation. |
 | `created_at`, `created_by` | Timestamp and actor snapshot ([§3.9](03-accounts-teams-and-identity.md)). Sources say `uploaded_at`, `uploaded_by`. |
 | `updated_at`, `updated_by` | Same, for the latest mutation. |
-| `archived_at` | Where the type supports archive (sources, annotations, register entries, Story pages). Outcomes and insights archive through `status: "archived"` instead. Archived objects are excluded from lists and search unless asked for, and remain readable by id. |
+| `archived_at` | Where the type supports archive (sources, annotations, assumptions, Story pages, mockups). Outcomes archive through `status: "archived"` instead. Archived objects are excluded from lists and search unless asked for, and remain readable by id. |
 
 **Concurrency.** Every update, review, link, single-object archive and restore, and every Story
 publish after a page's first version requires the current etag (`expected_etag` in the input, or
@@ -53,11 +53,10 @@ appended to an immutable revision list with who wrote it and who replaced it
 | Outcome | `title`, `description` |
 | Source | — (metadata only; the activity log names the operation and the actor) |
 | Annotation | `note` |
-| Insight | `title`, `summary`, `body` |
-| Assumption, Decision | `statement`, `body`, `citations` (while still editable, §4.8) |
+| Assumption | `statement`, `body`, `citations` (while still editable, §4.8) |
 | Story page | — (it has explicit, numbered, reader-visible versions instead, §4.11) |
 
-Insights and outcomes have operations to read and restore revisions: `revisions` (list, bounded,
+Outcomes have operations to read and restore revisions: `revisions` (list, bounded,
 no bodies), `get_revision`, and `restore_revision` (writes the old content as a **new** update,
 recorded like any other; it never rewinds history). Revisions of the other types are kept and
 exported; operations to read them are planned.
@@ -66,14 +65,14 @@ exported; operations to read them are planned.
 is explaining a retention rule to someone who just lost a paragraph to a well-meaning agent. They
 are excluded from search and included in exports.
 
-**Small edits and diffs.** `insights.update` and the registers' `update` take `edits`: up to 20
+**Small edits and diffs.** `assumptions.update` takes `edits`: up to 20
 exact replacements `{ field?, old_text, new_text }`, applied in order, so a one-phrase correction
 does not mean re-sending a long body ([`text-edits.ts`](../../packages/core/src/text-edits.ts)).
-`field` is `body` by default, or `title` or `summary` on an insight and `statement` on an entry.
+`field` is `body` by default, or `statement`.
 Each `old_text` must occur exactly once in its field at that point: no match is
 `422 edit_not_found`, more than one is `422 edit_ambiguous` (with the count), and editing a field
-the same call replaces whole is `422 invalid_input`. Any refusal changes nothing. Both updates
-return `changed` (the fields that changed) and `diff`: per changed text field, one hunk
+the same call replaces whole is `422 invalid_input`. Any refusal changes nothing. The update
+returns `changed` (the fields that changed) and `diff`: per changed text field, one hunk
 `{ field, at, before, removed, added, after }` from the first to the last difference, with 40
 characters of unchanged context each side and the changed parts clipped at 300 characters, so a
 slip in a re-sent text shows up in the result.
@@ -91,17 +90,16 @@ product concept ([§3.4](03-accounts-teams-and-identity.md)) on the Idea screen.
 | `status` | `active` (default), `achieved`, `archived`. |
 | `position` | Ordering key within the product; new outcomes go last; reorder is an update. |
 
-Insights, register entries and Story versions point *to* outcomes; outcomes hold no outgoing
-references. Reads return counts of the insights, assumptions and decisions that point at each:
-unarchived insights, and current (`unconfirmed` or `confirmed`) register entries. Superseded and
-refuted entries are not counted, so a count matches the register's default view. `products.get`
-counts assumptions and decisions the same way.
+Assumptions, and Story and mockup versions, point *to* outcomes; outcomes hold no outgoing
+references. Reads return `counts.assumptions`: the current (`unconfirmed` or `confirmed`)
+assumptions that point at each. Superseded and refuted ones are not counted, so a count matches
+the register's default view. `products.get` counts assumptions the same way.
 
 `outcomes.list` leaves archived outcomes out unless asked for `status: "archived"`, and says
 how many it left out: `archived_hidden` (the count, honouring `query`) and, when it is not zero, a
-`note`. An archived outcome can still be referenced. Insights (`refs.outcomes`) and register
-entries (`outcome_ids`) return `archived_outcome_ids`: the referenced outcomes that are
-archived, so a link to one is visible rather than accidental.
+`note`. An archived outcome can still be referenced. Assumptions (`outcome_ids`) return
+`archived_outcome_ids`: the referenced outcomes that are archived, so a link to one is visible
+rather than accidental.
 
 ## 4.3 Sources
 
@@ -220,68 +218,51 @@ Editable (note only, keeping revisions), archivable.
 read with `derived.read_note`. They are an agent's interpretation, not the source's words, and are
 labelled so.
 
-## 4.7 Insights
+## 4.7 What uses a source
 
-| Field | Rule |
+`sources.used_by` lists everything in the product built on a source: assumptions with a citation
+into it, live Story pages and mockups whose current version cites it or lists it in `refs`, live
+sources whose `related_records` name it (`related`), and live views whose lineage lists it as a
+direct input. Each citation names its segment range. The web app shows the list as a source's
+**Cited in**.
+
+Evidence is cited in prose as a source id and segment range ("source 01K…, segments 4–6"); the
+web app renders such citations in Markdown, and links to sources and passages, as evidence links
+([`apps/web/src/lib/markdown.tsx`](../../apps/web/src/lib/markdown.tsx)).
+◆ Decision: references are structural (`refs`, citations); inline links are presentation only.
+
+### Retired: insights and decisions
+
+A product once also held **insights** (Markdown synthesis, reviewed per revision) and a
+**decision** register. Both are retired
+([decision](../decisions/insights-and-decisions-are-retired-into-evidence.md)): no operation reads
+or writes them. Each one a product still held becomes a source with the same id, by a worker job
+([§9.8](09-data-lifecycle.md)):
+
+| Was | Becomes |
 |---|---|
-| `insight_id` | |
-| `title` | 1–200 chars. |
-| `summary` | 0–1,000 chars, plain text, shown in lists. |
-| `body` | Markdown without HTML, 1–100,000 chars. |
-| `status` | `draft` (default), `published` or `archived`. Publishing is an explicit action. |
-| `revision` | Integer, starts at 1, increments on every change to title, summary or body. |
-| `refs` | `{ outcomes[] ≤ 50, sources[] ≤ 100, insights[] ≤ 100, assumptions[] ≤ 100, decisions[] ≤ 100 }`, same product, validated to exist (`422 unknown_reference`, `422 cross_product_reference`). |
+| An insight | A source of kind `analysis`, tagged `insight` (and `draft` for a draft), `provenance_depth: derived`, archived if it was. Its primary file is Markdown: the title, summary and body, then a note of its status, review mark, authors and what it referred to. Each earlier revision is an earlier file version; the summary is the source's summary note. |
+| A decision | A source of kind `other`, tagged `decision` and with the entry's tags, dimensions and provenance. Its Markdown holds the statement, the body, the cited passages with their quotes, the status, the outcomes, the links in and out, and every review. Earlier revisions are earlier file versions. |
 
-- Lists return everything except `body` (with `body_chars` and `body_words`, a count of runs of
-  letters and digits that ignores Markdown punctuation). `get` returns the body in bounded
-  windows (`offset`, `limit` default 20,000 and at most 100,000 chars) with a `truncated` flag;
-  the UI pages through.
-- The **per-source view** (`sources.insights_for`) for a source is: insights whose `refs.sources`
-  include it, assumptions and decisions with a citation into it, live Story pages whose current
-  version cites it or lists it in `refs`, and live views whose lineage lists it as a direct input.
-- Evidence is cited in prose as a source id and segment range ("source 01K…, segments 4–6"); the
-  web app renders such citations, and links to sources and passages, as evidence links
-  ([`apps/web/src/lib/markdown.tsx`](../../apps/web/src/lib/markdown.tsx)).
-  ◆ Decision: references are structural (`refs`); inline links are presentation only.
+Its `related_records` are the sources, insights and decisions it referred to or cited. Every
+`refs.insights` and `refs.decisions` id on a Story or mockup version moves to `refs.sources`, a
+view's decision input becomes a source input, an assumption's link to a decision is dropped (the
+decision's document names it), and the item's history in the activity log becomes the source's.
 
-Insights carry revisions under the general rule in §4.1. `revision` above is the counter that rule
-increments.
+## 4.8 Assumptions
 
-### Review
-
-A person marks an insight **reviewed**: they read this revision and stand by it. It is not a vote
-on truth, and it does not change the text or the revision.
-
-| Field | Rule |
-|---|---|
-| `reviewed_revision` | The revision that was marked reviewed; `null` when never reviewed or cleared. |
-| `reviewed_at`, `reviewed_by` | When, and the actor snapshot of who marked it. |
-| `review_state` | Derived, never stored: `unreviewed` (no mark), `reviewed` (`reviewed_revision = revision`), `changed` (marked at an earlier revision: the text was edited since). |
-
-- `insights.review { insight_id, reviewed, expected_etag }` marks the current revision (`reviewed:
-  true`) or clears the mark (`false`). It changes the etag and appends an activity event.
-- A change to `title`, `summary` or `body` increments `revision` and so turns `reviewed` into
-  `changed` until someone reviews again. Status and reference changes leave the review standing.
-- An agent calls `review` only to relay a review the person made; it never reviews on its own
-  judgment. The actor snapshot records who made the call and through which surface.
-- `insights.list` filters by one or more `review_state` values; list and get return
-  `review_state`, `reviewed_revision`, `reviewed_at` and `reviewed_by`.
-
-## 4.8 The registers
-
-Two registers, **assumptions** and **decisions**, with the same shape and separate tools and lists.
-Both are stored in one table with a `kind`; an entry's id is `id` (the tools also accept
-`assumption_id` or `decision_id`, [§6.5](06-operations-and-adapters.md)), and a call on the wrong
-register is `404`.
+A product keeps one register: **assumptions**, what the team treats as true while the evidence is
+incomplete. An entry's id is `id` (the tool also accepts `assumption_id`,
+[§6.5](06-operations-and-adapters.md)).
 
 | Field | Rule |
 |---|---|
 | `id` | |
-| `statement` | 1–1,000 chars. The premise or choice in one sentence. |
-| `body` | Markdown, 0–10,000 chars: reasoning, stakes, alternatives considered. |
+| `statement` | 1–1,000 chars. The premise in one sentence. |
+| `body` | Markdown, 0–10,000 chars: what it rests on, and what would change if it turned out false. |
 | `citations` | 0–20 (below). An entry may be recorded before any evidence cites it ([decision](../decisions/register-entries-may-start-uncited.md)). |
 | `outcome_ids` | ≤ 20 outcome ids. |
-| `links` | ≤ 50 of `{ id, type }` to entries in **either** register; `type` is `supports`, `contradicts`, or `supersedes`. Reads also return `linked_from` and `superseded_by` (the ids of entries that supersede this one, newest first). |
+| `links` | ≤ 50 of `{ id, type }` to other assumptions; `type` is `supports`, `contradicts`, or `supersedes`. Reads also return `linked_from` and `superseded_by` (the ids of entries that supersede this one, newest first). |
 | `tags`, `dimensions`, `provenance_depth` | As sources. |
 | `author`, `author_type` | Actor snapshot, and a declared `human` or `agent` ([§3.9](03-accounts-teams-and-identity.md)). |
 | `status` | `unconfirmed` (initial), `confirmed`, `refuted`, `superseded`: always the status of the latest review. |
@@ -380,10 +361,10 @@ A **view** is a derived document stored as a source of kind `view` (likewise `an
 `digest`): something produced *from* other material. It can carry a **lineage baseline**, in three
 steps ([`lineage.ts`](../../packages/core/src/ops/lineage.ts)):
 
-- `capture` fingerprints 1–50 inputs (sources, assumptions, decisions) at that moment. An archived
-  input is refused. A source's fingerprint covers its kind, title, date, organization, primary
-  file version, current derivation and archived state; a register entry's covers its statement,
-  body, citations, status, review count and archived state.
+- `capture` fingerprints 1–50 inputs (sources and assumptions) at that moment. An archived input
+  is refused. A source's fingerprint covers its kind, title, date, organization, primary file
+  version, current derivation and archived state; an assumption's covers its statement, body,
+  citations, status, review count and archived state.
 - `write` attaches the untouched fingerprints, `captured_at` as capture returned it (optional;
   refused if in the future), and a description of how the inputs were chosen to the view,
   refusing with `409 input_changed` if any input changed since capture. It also stores a short hash
@@ -392,11 +373,13 @@ steps ([`lineage.ts`](../../packages/core/src/ops/lineage.ts)):
   whether the view is `stale`. A `changed` input lists `changed_parts` (the parts above whose hash
   differs) and `last_changed_at` (the latest recorded time among them: the source's or entry's
   `updated_at`, the file version's or derivation's `created_at`). Lineage written before parts were
-  stored reports `changed_parts: null` with a note that the parts were not recorded.
+  stored reports `changed_parts: null` with a note that the parts were not recorded, as does an
+  input that was a decision before decisions became sources (§4.7): its fingerprint was the
+  decision's, so it reports `changed`.
 - A view's full `sources.get` includes its lineage: the direct inputs, the query spec,
   `captured_at`, and when and by whom it was registered. Staleness comes only from `check`.
 - It reports drift. It does not regenerate anything. It checks direct inputs only: a view built on
-  a decision is not told when a source that decision cites changes (recursive lineage:
+  an assumption is not told when a source that assumption cites changes (recursive lineage:
   [§8.6](08-search.md)).
 
 ## 4.10 Activity
@@ -418,8 +401,9 @@ An append-only event log, written in the same transaction as the mutation that c
 - `activity.list` filters by `entity_type`, `entity_id`, `actor`, `channel`, `by` (`people` for
   the app and the REST API, `agents` for MCP) and `since`, with the usual bounds. Every role on the
   product can read it.
-- Events are immutable and are retained for the life of the tenant. They are included in a product
-  export.
+- Events are immutable and are retained for the life of the tenant, with one exception: when an
+  insight or a decision became a source (§4.7), its events were relabelled as the source's. They
+  are included in a product export.
 - In a public sandbox an event about a product is content: a reset puts the baseline's back
   ([§9.7](09-data-lifecycle.md)). An event about the organization (people, access, the sandbox's
   settings, baselines and resets) has no product, and stays through every reset.
@@ -518,7 +502,7 @@ opened and redirect it later. The print view drops scripts, event handlers and e
 publishing refuses, whatever a stored page holds.
 
 **Citations.** A version may carry up to 20 `citations`, `{ record_id, seq_start, seq_end,
-quote? }`, snapshotted exactly as register citations are (§4.8), with the same quote budget of
+quote? }`, snapshotted exactly as an assumption's citations are (§4.8), with the same quote budget of
 40,000 characters per version. Like `refs`, they belong to the version: a publish that passes them
 passes the full list, and one that omits them keeps the base version's. Reading a version returns each citation with its source's
 current title, and each `refs` id resolved to its current title and state (`resolved_refs`).
@@ -527,7 +511,7 @@ default) with the statuses in §4.8. It reports; it never rewrites.
 
 **Notes for agents.** Each page has one Markdown note, `agent_notes` (≤ 20,000 chars), that agents
 keep while writing and maintaining the page: what the page is for and who reads it, sources still
-to fold in, decisions about its structure. It is not versioned with the HTML and is not shown on
+to fold in, choices about its structure. It is not versioned with the HTML and is not shown on
 the page. It has its own etag (`agent_notes.etag`), so editing the note and publishing the page
 never conflict. `story.write_notes { page_id, notes, expected_etag? }` replaces it and records
 `agent_notes_updated_at` and `agent_notes_updated_by`; `expected_etag` may be omitted only while
@@ -638,11 +622,11 @@ with the Story's sandbox: the same Content-Security-Policy and frame, and the sa
 with `?frame=1` (§4.11). It takes no `?theme`, because a mockup carries its own look. Any role but
 a reader may read it.
 
-**Citations and refs** work as on a Story version (§4.11): up to 20 citations, snapshotted as
-register citations are (§4.8), each returned with its source's current title, and every `refs` id
+**Citations and refs** work as on a Story version (§4.11): up to 20 citations, snapshotted as an
+assumption's citations are (§4.8), each returned with its source's current title, and every `refs` id
 resolved to its current title and state (`resolved_refs`). `mockups.check_citations { mockup_id,
 version? }` re-resolves a version's citations with the statuses in §4.8. A source that a mockup's
-current version cites or lists is reported by `sources.insights_for`, keeps
+current version cites or lists is reported by `sources.used_by`, keeps
 `sources.move_to_product` from moving it (`409 source_in_use`), and `sources.delete_impact` lists
 every mockup version that cites it (`mockup_versions_citing`).
 
@@ -693,8 +677,7 @@ records/<record_id>/record.json                  the source with its files and v
 records/<record_id>/files/<file_version_id>/<path>
 records/<record_id>/derived/<derivation_id>/{segments.jsonl,text.md,outline.md,manifest.json}
 records/<record_id>/annotations.json · agent-notes/<kind>.md · lineage.json
-insights/<insight_id>.json  ·  insights/<insight_id>.md
-registers/assumptions.json  ·  registers/decisions.json       with their reviews
+assumptions.json            with their reviews
 revisions.json
 story/hierarchy.json  ·  story/pages/<page_id>/page.json  ·  story/pages/<page_id>/v<n>.{json,html}
                             (a version that shows a mockup page has no .html; its JSON names the page)

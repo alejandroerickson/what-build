@@ -13,15 +13,16 @@ import {
   Button, ButtonLink, Callout, ChoiceRow, EmptyState, ErrorCallout, FiltersInUse, FormGrid, Glyph, ListRow, Loading, Menu, MenuItem, MenuNote, PageHeader, SelectField, Sheet,
   SheetBody, SheetHeader, StatusBadge, Tag, TextArea, useToast,
 } from "../ui/index.tsx";
-import { Byline, searchWith, useCopyLink } from "./insights-common.tsx";
+import { Byline, searchWith, useCopyLink } from "./exploration-common.tsx";
 import { FirstUse } from "./first-use.tsx";
 import { entryViews, Marked, TitleFind, useEntryList } from "./exploration-panel.tsx";
 import "../styles/screens/exploration.css";
 
-type Kind = "assumptions" | "decisions";
+/** The register a product keeps. */
+type Kind = "assumptions";
 
-const TITLE: Record<Kind, string> = { assumptions: "Assumptions", decisions: "Decisions" };
-const ONE: Record<Kind, string> = { assumptions: "Assumption", decisions: "Decision" };
+const TITLE: Record<Kind, string> = { assumptions: "Assumptions" };
+const ONE: Record<Kind, string> = { assumptions: "Assumption" };
 
 function statusOf(status: string) {
   return REVIEW_STATUS[status] ?? { label: status, tone: "neutral" as const };
@@ -56,10 +57,9 @@ function withHistory(items: RegisterSummary[]): { e: RegisterSummary; nested: bo
 
 // ---- Register list ------------------------------------------------------------------------------
 
-/** What each register holds, said once for its empty list and its form. */
+/** What the register holds, said once for its empty list and its form. */
 const MEANING: Record<Kind, string> = {
   assumptions: "An assumption is something the team treats as true before the evidence settles it.",
-  decisions: "A decision records a choice the team made and why. Recording one doesn’t mean everyone agreed: reviews show that.",
 };
 
 export function RegisterListPage({ kind }: { kind: Kind }) {
@@ -122,13 +122,9 @@ export function RegisterListPage({ kind }: { kind: Kind }) {
         ) : !list.data.items.length ? (
           <FirstUse
             title={`No ${kind} yet`}
-            ask={
-              kind === "assumptions"
-                ? `List the assumptions ${product.name} depends on, and record the riskiest few in WhatBuild, citing passages where the evidence speaks to them.`
-                : `Record the decisions we have made on ${product.name} in WhatBuild, with the reasoning behind each.`
-            }
+            ask={`List the assumptions ${product.name} depends on, and record the riskiest few in WhatBuild, citing passages where the evidence speaks to them.`}
           >
-            {MEANING[kind]} Record the few the team relies on; anything else belongs in an insight. Start with one sentence, and cite passages when you have them.
+            {MEANING[kind]} Record the few the team relies on. Start with one sentence, and cite passages when you have them.
           </FirstUse>
         ) : narrowed ? (
           <EmptyState size="inline" title={`No ${kind} match these filters`} action={<ButtonLink size="sm" to={path}>Show all {kind}</ButtonLink>} />
@@ -179,7 +175,7 @@ export function RegisterListPage({ kind }: { kind: Kind }) {
               </ListRow>
             );
           })}
-          {list.data.more ? <p className="insight-more faint">Showing the first {list.data.items.length} {kind}.</p> : null}
+          {list.data.more ? <p className="entry-more faint">Showing the first {list.data.items.length} {kind}.</p> : null}
         </div>
       )}
     </Sheet>
@@ -303,7 +299,7 @@ function ReviewForm({ entry, kind, onSaved }: { entry: RegisterEntry; kind: Kind
       <FormGrid>
         <SelectField label="Status" value={status} onChange={(ev) => setStatus(ev.target.value)} hint="A review can change the status. To correct the wording, supersede the entry.">
           <option value={entry.status}>Keep: {current}</option>
-          {entry.status !== "confirmed" ? <option value="confirmed">{kind === "decisions" ? "Agree: confirmed" : "Confirm"}</option> : null}
+          {entry.status !== "confirmed" ? <option value="confirmed">Confirm</option> : null}
           {entry.status !== "refuted" ? <option value="refuted">Refute</option> : null}
           {entry.status !== "unconfirmed" ? <option value="unconfirmed">Reopen: unconfirmed</option> : null}
         </SelectField>
@@ -406,7 +402,7 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
           <>
             <StatusBadge tone={s.tone}>{s.label}</StatusBadge>
             <span className="sep-dot" aria-hidden="true" />
-            <span className="insight-written">
+            <span className="entry-written">
               {e.author_type === "agent" ? "Drafted by" : "Recorded by"} <Byline actor={e.author} agent={e.author_type === "agent"} />
               <time dateTime={e.created_at}>· {relativeTime(e.created_at)}</time>
             </span>
@@ -474,7 +470,7 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
       ) : null}
       {e.body ? (
         <Sheet label={ONE[kind]}>
-          <div className="insight-prose">
+          <div className="entry-prose">
             <Markdown source={e.body} />
           </div>
         </Sheet>
@@ -593,7 +589,6 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
 
 const WHY_HINT: Record<Kind, string> = {
   assumptions: "What it rests on, and what would change if it turned out false. Markdown.",
-  decisions: "The reasoning, and the alternatives the team set aside. Markdown.",
 };
 
 /**
@@ -717,7 +712,7 @@ function EntryForm({ kind, crumbs, heading, initial, outcomes, preselect, onSave
             <span className="field-label" id="entry-outcomes">
               Outcomes it bears on
             </span>
-            <div className="field-control insight-choices">
+            <div className="field-control entry-choices">
               {outcomes.length ? (
                 outcomes.map((o) => (
                   <ChoiceRow
@@ -728,7 +723,7 @@ function EntryForm({ kind, crumbs, heading, initial, outcomes, preselect, onSave
                   />
                 ))
               ) : (
-                <p className="faint insight-choice-empty">
+                <p className="faint entry-choice-empty">
                   No outcomes yet. <Link to={`${app}/idea`}>Add them on Idea</Link>.
                 </p>
               )}
@@ -746,7 +741,7 @@ function EntryForm({ kind, crumbs, heading, initial, outcomes, preselect, onSave
           </div>
         </FormGrid>
         {stale ? (
-          <div className="insight-form-notice">
+          <div className="entry-form-notice">
             <Callout tone="attention" inset title={frozenNow ? "Someone reviewed this entry while you were editing" : "Someone changed this entry while you were editing"}>
               {frozenNow
                 ? "Its wording is now frozen, so your change can’t be saved. Copy what you need. A correction supersedes the entry."
@@ -756,11 +751,11 @@ function EntryForm({ kind, crumbs, heading, initial, outcomes, preselect, onSave
             </Callout>
           </div>
         ) : save.isError ? (
-          <div className="insight-form-notice">
+          <div className="entry-form-notice">
             <ErrorCallout error={save.error} inset />
           </div>
         ) : null}
-        <div className="insight-form-actions">
+        <div className="entry-form-actions">
           <Button type="submit" variant="primary" disabled={!statement.trim() || Boolean(frozenNow)} busy={save.isPending} busyLabel="Saving…">
             {stale && theirs ? "Save mine over theirs" : initial ? "Save changes" : `Save ${one}`}
           </Button>

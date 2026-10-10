@@ -80,7 +80,7 @@ curl -s -X POST -H "Authorization: Bearer $(ga_token analytics.readonly)" -H "Co
 
 Useful dimensions: `hostName` (site or app), `sessionSource` and `sessionMedium` (where people
 came from), `country`, `deviceCategory`, `pagePath` (masked screens), `eventName` (named actions
-such as `insights_create`, and `generate_lead`), `newVsReturning`. New data takes up to a day to
+such as `assumptions_create`, and `generate_lead`), `newVsReturning`. New data takes up to a day to
 appear in reports; `…:runRealtimeReport` shows the last 30 minutes.
 
 ## Stream and property settings to keep

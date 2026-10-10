@@ -81,7 +81,7 @@ describe("lineage of a view", () => {
     expect((await source(notes)).lineage).toBeNull();
 
     for (const input of [notes, survey]) {
-      const using = await alice.api("GET", `${P}/sources/${input}/insights`);
+      const using = await alice.api("GET", `${P}/sources/${input}/used-by`);
       expect(using.body.views).toEqual([expect.objectContaining({ record_id: viewId, kind: "view", title: "Planning cadence across visits" })]);
     }
   });

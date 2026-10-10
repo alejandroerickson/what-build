@@ -82,8 +82,3 @@ export function textDiff(field: string, oldText: string, newText: string): TextD
     after: oldText.slice(oldText.length - end, oldText.length - end + CONTEXT),
   };
 }
-
-/** Words as a reader counts them: runs of letters or digits, ignoring Markdown punctuation. */
-export function wordCount(text: string): number {
-  return text.match(/[\p{L}\p{N}]+(?:['’.\-][\p{L}\p{N}]+)*/gu)?.length ?? 0;
-}

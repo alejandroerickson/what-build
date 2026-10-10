@@ -33,7 +33,7 @@ export function CreateProductDialog({ onClose, tenants }: { onClose: () => void;
       onClose={onClose}
       dismissable={!create.isPending}
       title="New product"
-      description={teams.length ? "Each product is one discovery, with its own outcomes, sources, insights and Story." : undefined}
+      description={teams.length ? "Each product is one discovery, with its own outcomes, sources, mockups and Story." : undefined}
       footer={
         teams.length ? (
           <>

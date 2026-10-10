@@ -10,8 +10,8 @@ okf_version: "0.2"
 
 # WhatBuild knowledge bundle
 
-WhatBuild turns a product team's discovery material into outcomes, cited insights, reviewed
-assumptions and decisions, and a Story for stakeholders. People use a web app; agents use an MCP
+WhatBuild turns a product team's discovery material into outcomes, mockups, reviewed assumptions
+and a Story for stakeholders. People use a web app; agents use an MCP
 server with the same operations. There is no AI inside.
 
 ## Map
@@ -22,7 +22,7 @@ server with the same operations. There is no AI inside.
 - [Decisions](decisions/index.md): the architectural decision records.
 - [Specification](spec/index.md): product, architecture, identity and tenancy, data model, derived
   layer, operations and MCP, web app, search, data lifecycle, and the [roadmap](spec/10-roadmap.md).
-- [Local development](operations/local-development.md), [Cloud Run](operations/cloud-run.md),
+- [Local development](operations/local-development.md), [a copy of production](operations/a-copy-of-production.md), [Cloud Run](operations/cloud-run.md),
   [self-hosting on Azure](operations/azure.md) and [Analytics](operations/analytics.md).
 - **Making a release, or moving production?** [Releasing](operations/releasing.md).
 - **A release broke a deployment?** [Recovering from a bad release](operations/recovering-from-a-bad-release.md).

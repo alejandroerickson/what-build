@@ -54,21 +54,19 @@ function productView(p: {
 interface ProductCounts {
   sources: number;
   outcomes: number;
-  insights: number;
   assumptions: number;
-  decisions: number;
   mockups: number;
   story_pages: number;
 }
 
 /**
  * What each product holds, as products.get and products.list report it: archived items are left out,
- * and assumptions and decisions count only current (unconfirmed or confirmed) entries. Content tables
+ * and assumptions count only current (unconfirmed or confirmed) ones. Content tables
  * are tenant-isolated, so the caller's transaction must already be scoped to the products' tenant.
  */
 async function countProducts(db: Db, productIds: string[]): Promise<Map<string, ProductCounts>> {
   const counts = new Map<string, ProductCounts>(
-    productIds.map((id) => [id, { sources: 0, outcomes: 0, insights: 0, assumptions: 0, decisions: 0, mockups: 0, story_pages: 0 }]),
+    productIds.map((id) => [id, { sources: 0, outcomes: 0, assumptions: 0, mockups: 0, story_pages: 0 }]),
   );
   if (!productIds.length) return counts;
   const add = (rows: { product_id: string; n: number | string | bigint }[], key: keyof ProductCounts) => {
@@ -89,11 +87,6 @@ async function countProducts(db: Db, productIds: string[]): Promise<Map<string, 
     "outcomes",
   );
   add(
-    await db.selectFrom("insights").select(["product_id", (eb) => eb.fn.countAll<number>().as("n")])
-      .where("product_id", "in", productIds).where("status", "!=", "archived").groupBy("product_id").execute(),
-    "insights",
-  );
-  add(
     await db.selectFrom("mockups").select(["product_id", (eb) => eb.fn.countAll<number>().as("n")])
       .where("product_id", "in", productIds).where("archived_at", "is", null).groupBy("product_id").execute(),
     "mockups",
@@ -103,11 +96,12 @@ async function countProducts(db: Db, productIds: string[]): Promise<Map<string, 
       .where("product_id", "in", productIds).where("archived_at", "is", null).groupBy("product_id").execute(),
     "story_pages",
   );
-  const registers = await db.selectFrom("register_entries").select(["product_id", "kind", (eb) => eb.fn.countAll<number>().as("n")])
-    .where("product_id", "in", productIds).where("archived_at", "is", null).where("status", "in", ["unconfirmed", "confirmed"])
-    .groupBy(["product_id", "kind"]).execute();
-  add(registers.filter((r) => r.kind === "assumption"), "assumptions");
-  add(registers.filter((r) => r.kind === "decision"), "decisions");
+  add(
+    await db.selectFrom("register_entries").select(["product_id", (eb) => eb.fn.countAll<number>().as("n")])
+      .where("product_id", "in", productIds).where("kind", "=", "assumption").where("archived_at", "is", null).where("status", "in", ["unconfirmed", "confirmed"])
+      .groupBy("product_id").execute(),
+    "assumptions",
+  );
   return counts;
 }
 
@@ -281,7 +275,7 @@ export const createProduct = defineOperation({
   scope: "team",
   access: "admin",
   mutates: true,
-  summary: "Create a product: one discovery, with its own outcomes, sources, insights and Story (team admins).",
+  summary: "Create a product: one discovery, with its own outcomes, sources, mockups and Story (team admins).",
   description:
     "A product holds one discovery. Give it a name and its product concept: who it is for, the problem they have, and how the product solves it (Markdown, up to 2,000 characters). The concept heads the Idea screen. Returns the product with its `path`.",
   input: z.strictObject({
@@ -322,7 +316,7 @@ export const getProduct = defineOperation({
   access: "story",
   mutates: false,
   summary: "Read a product: its concept, etag, your role, and counts of what it holds.",
-  description: "Use the counts to decide where to look first. They leave out archived items, and assumptions and decisions count only current (unconfirmed or confirmed) entries, not superseded or refuted ones. The etag guards products(action=\"update\"). A reader (the Story-only role) gets no concept, and counts of Story pages only.",
+  description: "Use the counts to decide where to look first. They leave out archived items, and assumptions count only current (unconfirmed or confirmed) ones, not superseded or refuted ones. The etag guards products(action=\"update\"). A reader (the Story-only role) gets no concept, and counts of Story pages only.",
   input: z.strictObject({}),
   rest: { method: "GET", path: "" },
   mcp: { tool: "products", action: "get" },
@@ -566,7 +560,7 @@ export const grantMember = defineOperation({
   mutates: true,
   summary: "Give someone a role on the tenant, a team, or a product; invites them by email if they have no account.",
   description:
-    "Admins of the target grant roles there: product admins on their product, team admins on their team, tenant admins on the tenant (owners for owner). Roles: tenant owner|admin|member; team and product admin|editor|viewer|reader. A reader reads only the Story: its pages, their versions and their export, without the evidence, insights, assumptions and decisions behind them. Granting again replaces the role at that scope. Someone without an account gets an invitation link by email, valid 7 days.",
+    "Admins of the target grant roles there: product admins on their product, team admins on their team, tenant admins on the tenant (owners for owner). Roles: tenant owner|admin|member; team and product admin|editor|viewer|reader. A reader reads only the Story: its pages, their versions and their export, without the evidence, assumptions and mockups behind them. Granting again replaces the role at that scope. Someone without an account gets an invitation link by email, valid 7 days.",
   input: grantScope.extend({
     email: z.string().email().max(320),
     role: z.enum(["owner", "admin", "member", "editor", "viewer", "reader"]),

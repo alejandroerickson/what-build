@@ -376,7 +376,7 @@ export function EvidencePage() {
             <EmptyState size="inline" title="No sources match these filters" action={<ButtonLink to={`${app}/evidence`}>Clear filters</ButtonLink>} />
           ) : (
             <FirstUse title="No sources yet" ask={`Add these interview notes to ${product.name} in WhatBuild as sources.`}>
-              Interviews, sales calls, research exports and documents. WhatBuild parses each one into passages that insights, assumptions and decisions can cite.
+              Interviews, sales calls, research exports and documents. WhatBuild parses each one into passages that assumptions, mockups and Story pages can cite.
             </FirstUse>
           )
         ) : (

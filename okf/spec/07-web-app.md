@@ -51,11 +51,11 @@ the browser's back button and "open in new tab" both work.
 - **L1**, exactly and in this order: **Idea, Evidence, Exploration, Story**, each with its count
   (Idea counts outcomes, Exploration counts mockups).
   Below them, quieter: **Connect an agent**, **Activity** (§7.9) and the product's **Settings**.
-  Exploration opens on its mockups; the mockups, then insights, assumptions and decisions, are
-  listed side by side in its panel. Search belongs to Evidence. The app's URLs follow the areas
+  Exploration opens on its mockups; the mockups, then the assumptions, are listed in its panel. Search belongs to Evidence. The app's URLs follow the areas
   (`/evidence`, `/exploration/…`); REST and MCP name the objects (`sources`, `mockups`).
   Exploration was called Synthesis, and a link to `/synthesis/…` opens the same path under
-  `/exploration/…`.
+  `/exploration/…`. Exploration once listed insights and decisions too; a link to one opens the
+  source it became ([§4.7](04-data-model.md)), and a link to either list opens Exploration.
 - **A reader** ([§3.5](03-accounts-teams-and-identity.md)) has only the Story: L1 is **Story**
   alone with its count, and the quiet group is gone. The product opens on the Story, and any other
   product screen, opened by a link or typed, takes a reader to the Story.
@@ -105,7 +105,7 @@ place.
    product grouped by organization and team, and offers New product, which opens in place.
 3. **Switching product keeps the section**: from Evidence in product A to Evidence in product B.
    Idea, Evidence, Exploration, Story, Connect an agent, Activity, Search and Settings carry over; anything else
-   (a record id, an insight, a mockup) lands on Idea. Switching to a product where the person is a reader
+   (a record id, an assumption, a mockup) lands on Idea. Switching to a product where the person is a reader
    lands on its Story.
 4. The product is in the URL path (`/t/<tenant>/<team>/<product>/…`). Opening a link to another
    product simply works, and becomes the remembered one.
@@ -157,11 +157,11 @@ person's organization role is in the account menu, and who has which role is on 
   /exploration                                → …/exploration/mockups
   /exploration/mockups                        → the mockup last opened here, or the most recent; first use with none
   /exploration/mockups/:id  ?v=N &page=<page_id>  a mockup's canvas, at a version, with a page selected
-  /exploration/insights ?show=unreviewed|reviewed|archived &outcome_id&q
-  /exploration/insights/new  /exploration/insights/:id  /exploration/insights/:id/edit
-  /exploration/assumptions[/new|/:id|/:id/edit]  /exploration/decisions[/new|/:id|/:id/edit]
-                      lists take ?show&outcome_id&q; new takes ?outcome_id
+  /exploration/assumptions[/new|/:id|/:id/edit]
+                      the list takes ?show&outcome_id&q; new takes ?outcome_id
                       (show: unconfirmed, confirmed, refuted, archived; q: title search)
+  /exploration/insights/:id  /exploration/decisions/:id   → /evidence/:id (the source it became)
+  /exploration/insights  /exploration/decisions          → /exploration
   /synthesis/…                                → the same path and query under /exploration
   /story[/:page]      ?v=N
   /connect            ?product                Connect an agent, in the product's shell, with this product picked
@@ -209,7 +209,7 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    ([§6.8](06-operations-and-adapters.md)).
 
 **Planned:** a public, read-only sample product at `/sample`, readable with no account — a
-synthetic discovery, fully derived, with real passages, citations, a filled register and a
+synthetic discovery, fully derived, with real passages, citations, assumptions, a mockup and a
 published Story, every write control absent except one "copy this into my own organization" call
 to action. Today the synthetic sample is created by `pnpm db:seed` and is visible only to its
 seeded accounts.
@@ -220,15 +220,15 @@ The screen's model and names are a decision: [A product starts with its idea](..
 
 The landing screen. The product concept first; then outcomes as aligned cards in a centered
 content band that adapts to narrow screens. Create, edit inline, reorder, change status. Each card
-shows how many insights, assumptions, and decisions point at it, linking into Exploration filtered by
-that outcome; each number is the one the linked list shows (current entries, [§4.2](04-data-model.md)). The default view, **Current**, lists active and achieved outcomes; Active, Achieved and
+shows how many assumptions point at it, linking to the assumptions filtered by that outcome; the
+number is the one the linked list shows (current ones, [§4.2](04-data-model.md)). The default view, **Current**, lists active and achieved outcomes; Active, Achieved and
 Archived are filters (`?status=`). With no outcomes, the list says what an outcome is and gives
 the request to copy for an agent (interview the person, then write the concept and outcomes); New
 outcome and Write the product concept stay in their headers. Nothing on the screen prescribes an
 order of steps.
 
 **Empty lists** ([decision](../decisions/empty-lists-lead-with-the-agent.md)). Outcomes, Sources,
-Insights, Assumptions, Decisions and the Story share one first-use state: "No … yet", what belongs
+Mockups, Assumptions and the Story share one first-use state: "No … yet", what belongs
 there, and a request naming the product for the person to copy to their agent, with Connect an
 agent (opening Connect an agent for this product) until they have one connected. Adding by hand is
 the header's create action, a default button, as when the list has items. A filter over a list
@@ -292,12 +292,12 @@ The sources, and everything for reading them.
     Provenance; Came from, the source system; Filed in, a link to the list filtered to that
     folder), **Built from** for a view with lineage
     (below), a **Files** summary (each file's role and whether it is searched, adding the number
-    of stored versions only when there are more versions than files), **Cited in** (insights,
-    assumptions, decisions and Story pages, each citation linking to its exact passage or range;
-    a Story page is judged by its current version, and says so), "Activity on this source", and
+    of stored versions only when there are more versions than files), **Cited in** (assumptions,
+    mockups and Story pages, each citation linking to its exact passage or range, and the sources
+    that list it as related; a Story page or mockup is judged by its current version, and says so), "Activity on this source", and
     Archive.
   - **Lineage:** a view's **Built from** group says what it was built from, by kind ("12 sources
-    and 3 decisions"), when and by whom, how the inputs were chosen, and whether it is Up to date
+    and 3 assumptions"), when and by whom, how the inputs were chosen, and whether it is Up to date
     or how many inputs changed since. Each changed input is listed by name, linked, with what
     changed ("Changed: title, 28 Sept 2026", "Archived", "Deleted"). When `lineage.check` finds any
     input changed, archived, deleted or missing, the page also shows an attention callout, "This
@@ -313,13 +313,13 @@ The sources, and everything for reading them.
   "Search this source" at the top. Selecting a passage (Shift for a range) offers: comment, or
   copy a citation reference for an agent; the selection bar docks above the pager and never
   covers it. Reading aids:
-  - a passage cited by assumptions, decisions or Story pages carries "Cited by N", a menu of
-    those entries;
+  - a passage cited by assumptions, mockups or Story pages carries "Cited by N", a menu of
+    them;
   - a passage that cites other sources the bare way (a view or digest: "source <id>, segments
     4–6") shows each citation as a "Title ¶4–6" token, and a "Cites" line of links to them;
   - a table stored as a header passage and one passage per row ("A: x | B: y") is laid out in
     columns (up to six), each row still its own passage to select and cite.
-- **Citation tokens** in insights, views and search read "Title ¶N". A title is cut at its em-dash
+- **Citation tokens** in Markdown, views and search read "Title ¶N". A title is cut at its em-dash
   qualifier; where two cited sources on the page would read alike, each adds its qualifiers in
   brackets ("Usability study (crew) ¶29"), and identical titles are numbered. A range token links
   to the whole range.
@@ -328,32 +328,28 @@ The sources, and everything for reading them.
 - **Search.** Same filters plus free-text passage search; results are passages in context with
   speaker and time, linking into the reader at that position. Exact-text results mark the whole
   phrase; ranked results mark each word. The UI states what was searched
-  ([§8.4](08-search.md)). Insight results carry the same review badge as the Insights list.
+  ([§8.4](08-search.md)). Assumption results carry their status, as the list does.
 
 ## 7.7 Exploration
 
-Exploration holds the team's **mockups** and three lists of equal standing: **insights**,
-**assumptions** and **decisions**. It opens on the mockups. The panel's context slot lists the
-mockups first, then names the three lists
-([decision](../decisions/lists-filter-from-the-panel.md)), each as a section with one set of
-filters and a count on every filter, laid out like Evidence's filters:
+Exploration holds the team's **mockups** and its **assumptions**. It opens on the mockups. The
+panel's context slot lists the mockups first, then the assumptions
+([decision](../decisions/lists-filter-from-the-panel.md)) as a section with one set of filters and
+a count on every filter, laid out like Evidence's filters:
 
 - **Mockups:** every mockup that is not archived, by name, most recently changed first; each
   opens its canvas. With none, one quiet line says so and opens the first-use state.
-- **Insights:** All insights, Unreviewed (which includes changed since review), Reviewed,
-  Archived.
-- **Assumptions** and **Decisions:** All, Unconfirmed, Confirmed, Refuted or replaced, Archived.
-  "All" is the unconfirmed and confirmed entries, the ones every count of them in the app counts.
+- **Assumptions:** All, Unconfirmed, Confirmed, Refuted or replaced, Archived. "All" is the
+  unconfirmed and confirmed ones, the ones every count of them in the app counts.
 
-Each list has one filter dimension, its review state; working drafts are marked on their rows,
-not filtered. A list's header holds only its title, its count ("n of N" once narrowed), a title
-search and its create action: New insight, New assumption or New decision. The search (`?q=`) matches titles as you type, forgiving
+The list has one filter dimension, its review status. Its header holds only its title, its count
+("n of N" once narrowed), a title search and its create action, New assumption. The search (`?q=`) matches titles as you type, forgiving
 case, accents, punctuation and one wrong, missing or extra letter in a longer word, puts the best
 matches first and marks the matched words. There are no filters in a list's header: where a
 table has controls above it they sort, as Evidence's do, or search. Under the header, chips name
 the filter and outcome in use, each removable, so the view stays legible while the panel is
 hidden. Following an outcome's links from Idea lists the entries for that outcome, and the
-panel's counts follow it. A product holds dozens of each object, so each list loads whole and the
+panel's counts follow it. A product holds dozens of assumptions, so the list loads whole and the
 counts, filters and search work on what is loaded.
 
 ### Mockups
@@ -407,26 +403,14 @@ them. Its one write is promoting a page to the Story.
   Story page shows the selected page at another version, **Show version N** moves it to the version
   shown, as its next version. A toast confirms, with Open to go to the page.
 
-### Insights, assumptions and decisions
+### Assumptions
 
-- **Insight documents:** list with status, summary, and reference counts; a reader with rendered
-  Markdown; an editor with preview and a reference picker for outcomes, sources, insights,
-  assumptions, decisions; explicit publish and unpublish.
-- **Insight review** ([§4.7](04-data-model.md)): a person marks an insight **reviewed**; an insight
-  edited after its review shows as **changed since review** until it is reviewed again. The panel
-  filters the list by it (Unreviewed includes changed since review), and each row carries a review
-  badge. The insight page shows the state in words with who reviewed it and when, a **Mark reviewed** button, and Undo on a reviewed
-  insight. Its **Connected** list marks each reference's state in words where the reader should
-  know it (Archived, Achieved, a register entry's status, No longer in this product), as the Story
-  inspector's Draws on does.
 - **Revision history** ([§4.1](04-data-model.md)): a list of revisions with author, surface and
   time; a read-only view of any revision; and a restore that writes the old content as a new
-  revision. The entry point is visible on the reader, because the most likely reason to look is
-  that an agent rewrote something. It exists for insights and outcomes, the two objects whose
-  revisions the operations expose, and looks and behaves identically in both. Planned: a diff
-  against the current text, and the same control for the product concept, annotations and unreviewed
-  register entries once their revisions are exposed.
-- **Registers:** the assumptions and decisions lists, filtered from the panel as above; the
+  revision. It exists for outcomes, the one object whose revisions the operations expose. Planned:
+  a diff against the current text, and the same control for the product concept, annotations and
+  unreviewed assumptions once their revisions are exposed.
+- **The register:** the assumptions list, filtered from the panel as above; the
   default lists unconfirmed and confirmed entries. Where a view lists a superseded entry under the
   entry that replaced it, it sits there, muted, marked "Replaced by the entry above"; while a
   search is typed, rows are in match order instead. An
@@ -439,8 +423,7 @@ them. Its one write is promoting a page to the Story.
   Frozen fields ([§4.8](04-data-model.md)) are shown as such, with "supersede" as the path to
   change them.
 - **New and edit entries** ([decision](../decisions/register-entries-may-start-uncited.md)):
-  New assumption and New decision (`…/assumptions/new`, `…/decisions/new`, with `?outcome_id=`
-  preselecting an outcome) take a statement, an optional why (Markdown) and the outcomes it bears
+  New assumption (`…/assumptions/new`, with `?outcome_id=` preselecting an outcome) take a statement, an optional why (Markdown) and the outcomes it bears
   on, and need no citation. An entry nobody has reviewed has Edit in its actions menu
   (`…/:id/edit`); a reviewed one is frozen. Citations come from agents; an entry without any says
   "No passages cited yet" on its page and its row. When every entry in the default view is refuted
@@ -502,13 +485,12 @@ mockup reaches it by promotion, from the mockup (§7.7).
   - **Shows:** for a page from a mockup, the mockup page, linked to it on the canvas, the mockup and
     the version shown; when the mockup has a newer version, a line says so and that the page stays
     on its version until someone promotes the newer one.
-  - **Draws on:** the version's references — outcomes, sources, insights, assumptions,
-    decisions — each linked.
+  - **Draws on:** the version's references — outcomes, sources, assumptions — each linked.
   - **Cited passages:** each citation as the source title, its address (¶8–9, linking to the
     passage) and a snapshot quote, with its `story.check_citations` status in words, worded as
-    on a register entry.
+    on an assumption.
   - **Notes for agents:** the page's Markdown notes, which agents read before revising the page and
-    update after publishing (what it is for, sources still to fold in, decisions about structure).
+    update after publishing (what it is for, sources still to fold in, choices about its structure).
     Read-only here, and not versioned with the page.
   - A reader gets About alone: Shows, Draws on, Cited passages and Notes for agents are left out, since
     the server sends a reader none of them ([§3.5](03-accounts-teams-and-identity.md)). The Story
@@ -551,7 +533,7 @@ offers archive only.
    pre-selected and never the primary button of any dialog.
 3. Choosing it opens a dialog that leads with **"Delete permanently. This cannot be undone."** and
    shows the `delete_impact` result as plain sentences before any control: *4 files (218 MB), 2
-   derivations, 1 annotation, 3 revisions. **2 citations in the decision register point at this
+   derivations, 1 annotation, 3 revisions. **2 citations in 2 assumptions point at this
    record** and will be left pointing at a tombstone — their quoted text will be kept.* When
    Story versions cite the source, it counts them, earlier versions included, and lists each page
    with which of its versions do ("Current version and 2 earlier").

@@ -7,7 +7,7 @@ import { id } from "../schemas.ts";
 import { canonicalJson, sha256Hex } from "../util.ts";
 import { loadRecord } from "./sources.ts";
 
-const inputRef = z.strictObject({ kind: z.enum(["record", "assumption", "decision"]), id: z.string().min(1) });
+const inputRef = z.strictObject({ kind: z.enum(["record", "assumption"]), id: z.string().min(1) });
 
 type Status = "current" | "changed" | "archived" | "deleted" | "missing";
 
@@ -58,7 +58,8 @@ async function fingerprint(ctx: OpContext, ref: { kind: string; id: string }): P
   return { fingerprint: sha256Hex(canonicalJson(values)), status: e.archived_at ? "archived" : "ok", parts: { values, changedAt } };
 }
 
-const PARTS_NOT_RECORDED = "Parts not recorded: this lineage was written before WhatBuild stored what each fingerprint covers, so only the whole fingerprint can be compared.";
+const PARTS_NOT_RECORDED =
+  "Parts not recorded: this input was fingerprinted before WhatBuild stored what each fingerprint covers, or as a decision before decisions moved into Evidence, so only the whole fingerprint can be compared.";
 
 /** Which stored parts differ from the input as it is now, and when the latest of those changes was made. */
 function diffParts(stored: Record<string, string> | undefined, now: Parts | undefined) {
@@ -70,14 +71,14 @@ function diffParts(stored: Record<string, string> | undefined, now: Parts | unde
 }
 
 const DIRECT_ONLY =
-  "Direct inputs only: a view built on a decision is not told when a source that decision cites is re-derived or edited; capture that source as an input too if it matters.";
+  "Direct inputs only: a view built on an assumption is not told when a source that assumption cites is re-derived or edited; capture that source as an input too if it matters.";
 
 export const capture = defineOperation({
   name: "lineage.capture",
   scope: "product",
   access: "read",
   mutates: false,
-  summary: "Fingerprint up to 50 inputs (sources, assumptions, decisions) before you generate a view from them.",
+  summary: "Fingerprint up to 50 inputs (sources and assumptions) before you generate a view from them.",
   description: `Step 1 of 3: capture the inputs, generate the view, upload it as a new source (kind view, analysis or digest), then call write with the untouched fingerprints and captured_at. An archived input is refused. ${DIRECT_ONLY}`,
   input: z.strictObject({ inputs: z.array(inputRef).min(1).max(50) }),
   rest: { method: "POST", path: "/lineage/capture" },
@@ -107,7 +108,7 @@ export const write = defineOperation({
     "Pass the view's record_id, the inputs exactly as capture returned them, captured_at from the same capture, and the query_spec that describes how you selected them. Refused with 409 if any input changed since capture (regenerate the view) or if the view already has lineage (create a new view). What each fingerprint covers is stored too, so check can say which parts of an input changed.",
   input: z.strictObject({
     record_id: id("source").describe("The view source."),
-    inputs: z.array(z.strictObject({ kind: z.enum(["record", "assumption", "decision"]), id: z.string().min(1), fingerprint: z.string().regex(/^[0-9a-f]{64}$/) })).min(1).max(50),
+    inputs: z.array(z.strictObject({ kind: z.enum(["record", "assumption"]), id: z.string().min(1), fingerprint: z.string().regex(/^[0-9a-f]{64}$/) })).min(1).max(50),
     captured_at: z.iso.datetime({ offset: true }).optional().describe("captured_at exactly as capture returned it."),
     query_spec: z.strictObject({
       description: z.string().min(1).max(2000).describe("How the inputs were chosen, in words."),
@@ -146,7 +147,7 @@ export const check = defineOperation({
   access: "read",
   mutates: false,
   summary: "Is this view stale? Reports each direct input as current, changed, archived, deleted or missing, and which parts of a changed input changed.",
-  description: `A changed input lists changed_parts (for a source: kind, title, date, organization, primary_version, derivation, archived; for an assumption or decision: statement, body, citations, status, review_count, archived) and last_changed_at, when the latest of those changes was made as far as WhatBuild records it. Lineage written before parts were stored reports changed_parts null with a note. Nothing is regenerated. captured_at is when capture fingerprinted the inputs (null if write was not given it); registered_at marks when lineage was written; neither is when any model ran. 404 means the source has no lineage. ${DIRECT_ONLY}`,
+  description: `A changed input lists changed_parts (for a source: kind, title, date, organization, primary_version, derivation, archived; for an assumption: statement, body, citations, status, review_count, archived) and last_changed_at, when the latest of those changes was made as far as WhatBuild records it. Lineage written before parts were stored reports changed_parts null with a note. Nothing is regenerated. captured_at is when capture fingerprinted the inputs (null if write was not given it); registered_at marks when lineage was written; neither is when any model ran. 404 means the source has no lineage. ${DIRECT_ONLY}`,
   input: z.strictObject({ record_id: id("source") }),
   rest: { method: "GET", path: "/sources/:record_id/lineage" },
   mcp: { tool: "lineage", action: "check" },

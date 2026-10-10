@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
-description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete, closing an organization, the operator runbooks, and the public sandbox with its limits, baseline and reset.
+description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete, closing an organization, the operator runbooks, the public sandbox with its limits, baseline and reset, and how retired insights and decisions became sources.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, sandbox]
 generated: {by: agent:claude, at: 2026-10-09}
 status: stable
@@ -56,7 +56,7 @@ same either way, and `/cookies` (or Cookies in the site's footer) changes the an
 ([§7.11](07-web-app.md)). What reaches Google names the page and the action, never the
 organization, product, record or content: page views carry a masked path such as
 `/t/:org/:team/:product/story/:id` and a fixed title; each change the app makes is an event named
-from a fixed word list, such as `insights_create`; a request to hear from us is `generate_lead`.
+from a fixed word list, such as `assumptions_create`; a request to hear from us is `generate_lead`.
 Advertising and Google signals are off. The public site's page also counts every visit,
 whatever the answer, with Cloudflare Web Analytics, which sets no cookie
 ([decision](../decisions/analytics-only-for-people-who-accept-cookies.md)).
@@ -153,10 +153,10 @@ from backup on request. The product-level answer to "I broke it" is:
 | Derivations — every parse, retained and readable by id | [§5.1](05-derived-layer.md) |
 | Story page versions — immutable, numbered | [§4.11](04-data-model.md) |
 | Mockup versions — immutable, numbered, each the whole canvas | [§4.12](04-data-model.md) |
-| Insight and outcome revisions — the previous text, on every content change | [§4.7](04-data-model.md), [§4.2](04-data-model.md) |
+| Outcome and assumption revisions — the previous text, on every content change | [§4.1](04-data-model.md) |
 | Reviews — append-only, never edited | [§4.8](04-data-model.md) |
-| Superseded register entries — corrections never overwrite | [§4.8](04-data-model.md) |
-| Archive and restore — for sources, insights, register entries, annotations, outcomes, Story pages, mockups, products | §9.5 |
+| Superseded assumptions — corrections never overwrite | [§4.8](04-data-model.md) |
+| Archive and restore — for sources, assumptions, annotations, outcomes, Story pages, mockups, products | §9.5 |
 | Activity — who changed what, when, through which surface | [§4.10](04-data-model.md) |
 
 Not versioned, deliberately: source metadata edits (the activity log names the operation and the
@@ -171,7 +171,7 @@ download grant for each ready one. Any role may export, through **both adapters*
 **never blocked** — not by a quota, and not by archiving the product. A ready export is listed for
 seven days. The bundle holds a manifest with its format name and version, every source's metadata,
 every file version's original bytes, every derivation's sidecars, annotations and agent notes,
-lineage, outcomes, insights (JSON and Markdown), register entries with their reviews, revisions,
+lineage, outcomes, assumptions with their reviews, revisions,
 the Story hierarchy and every page version (JSON and HTML; a version that shows a mockup page
 names it rather than repeating it), every mockup version (its brief, each page's HTML and
 notes, and its files), tombstones, and the activity log
@@ -204,8 +204,7 @@ been here".
 | Object | How |
 |---|---|
 | Sources | `sources.archive` / `sources.restore` (up to 200 at once) |
-| Insights | `insights.update { status: "archived" }`, and back |
-| Assumptions, decisions | `<register>.archive { archived: true | false }` |
+| Assumptions | `assumptions.archive { archived: true | false }` |
 | Annotations | `sources.update_annotation { archived, archive_reason? }` |
 | Outcomes | `outcomes.update { status: "archived" }`, and back |
 | Story pages | `story.archive_page` / `story.restore_page` (subpages move up into its place) |
@@ -224,7 +223,7 @@ been here".
 ### Delete — permanent, and said plainly
 
 Built for **sources**: `sources.delete { record_id, expected_etag, reason, confirm }`. Planned for
-insights, register entries, annotations, Story pages, outcomes and products, in the same shape.
+assumptions, annotations, Story pages, outcomes and products, in the same shape.
 
 - **Available to editors, through both adapters** — REST and MCP alike
   ([§3.5](03-accounts-teams-and-identity.md)). Adapter parity is not suspended for the operations
@@ -241,7 +240,7 @@ insights, register entries, annotations, Story pages, outcomes and products, in 
      can destroy something by accident.
 - **Preview first.** `sources.delete_impact { record_id }` is a read-only operation returning
   exactly what would be destroyed: file versions and bytes, derivations, annotations, the
-  register entries whose citations point at the source, the insights that reference it, the
+  assumptions whose citations point at the source, the other sources that list it as related, the
   Story pages whose current version cites it, and `story_versions_citing`: every page version,
   current or earlier, that cites it (`page_id`, `version`, `count`, `is_current`), and the same
   for mockups (`mockup_versions_citing`, by `mockup_id`). `after_delete`
@@ -259,8 +258,8 @@ insights, register entries, annotations, Story pages, outcomes and products, in 
   `record_deleted` ([§4.8](04-data-model.md)); lineage reports `deleted`; the activity log records
   it. Nothing that pointed at the object is left guessing.
 - **Citation snapshots survive a delete.** A snapshot is a quotation the team wrote down, not a
-  copy of the source, and a reviewed decision does not silently lose its evidence because someone
-  tidied the sources. ◆ Decision: if the snapshot itself must go, delete the register entry too
+  copy of the source, and a reviewed assumption does not silently lose its evidence because someone
+  tidied the sources. ◆ Decision: if the snapshot itself must go, delete the assumption too
   (planned, as above).
 - **Backups.** Deleted content is gone from the product at once. In the Cloud Run deployment,
   deleted bytes linger as noncurrent bucket versions for 30 days, and deleted rows age out of
@@ -284,7 +283,7 @@ confirmation.
 
 Removes the person from every organization and deletes their sign-in, sessions and tokens. It does
 **not** delete organization content, and actor snapshots survive
-([§3.9](03-accounts-teams-and-identity.md)) — attribution on a colleague's cited decision is part
+([§3.9](03-accounts-teams-and-identity.md)) — attribution on a colleague's cited assumption is part
 of that organization's record, not personal data we can silently rewrite. A sole owner must
 transfer ownership or close the organization first, and the UI says which.
 
@@ -301,7 +300,7 @@ deployment, sign-in configuration. Planned, each a deliverable of [Phase 6](10-r
   page theatre.
 - **erasure** — the support path for the few cases the product deliberately does not automate: a
   closed organization inside the 7-day window, and content that must be removed from a snapshot a
-  reviewed register entry froze.
+  reviewed assumption froze.
 
 ## 9.7 The public sandbox
 
@@ -398,6 +397,8 @@ as JSON, without its generated columns, with its ids.
   unless staff reset to an earlier one.
 - Saving the first baseline of a sandbox that has never been reset counts as its reset, so the
   next one comes at the next scheduled hour.
+- A baseline saved before insights and decisions were retired still holds them (§9.8), so
+  `insights` stays on the list while that table exists.
 
 ### The reset
 
@@ -411,8 +412,10 @@ the scheduled reset do the same thing, in one transaction that runs alone in the
 3. Remove a grant on a team or product the baseline does not hold, and the seat of a visitor idle
    past `visitor_idle_days`. Nothing else about people changes: a reset never gives back access
    that was taken away.
-4. Queue the deletion of every blob that no row and no kept baseline refers to.
-5. Record when, which baseline, who or the schedule, and the counts, as `last_reset`.
+4. Queue a move into Evidence for each product that the baseline gave back an insight or a decision
+   (§9.8).
+5. Queue the deletion of every blob that no row and no kept baseline refers to.
+6. Record when, which baseline, who or the schedule, and the counts, as `last_reset`.
 
 Afterwards the organization's content equals the baseline row for row, links to what the baseline
 holds still work, and no other organization's rows or blobs have changed
@@ -438,3 +441,22 @@ blobs go once no kept baseline refers to them.
 
 **Not built:** a baseline that can be taken out of the database and put into another deployment.
 A baseline lives in the database it was saved in, beside blobs in that deployment's store.
+
+## 9.8 Retired insights and decisions
+
+Insights and decisions were retired on 2026-10-09
+([decision](../decisions/insights-and-decisions-are-retired-into-evidence.md)). Whatever a
+deployment held of them becomes sources in Evidence, keeping every id ([§4.7](04-data-model.md)).
+The text goes to object storage, which only the worker reaches, so the move has two parts:
+
+1. Migration `0015_insights_and_decisions_to_evidence.sql` queues one `move_to_evidence` job for
+   each product that holds an insight or a decision. It changes no rows.
+2. The worker runs the job ([`evidence-move.ts`](../../packages/core/src/evidence-move.ts)), one
+   product per transaction: it writes each item's Markdown and earlier versions to storage, adds the
+   source with the same id and queues its parse, points Story and mockup `refs`, view lineage and
+   activity events at it, drops assumptions' links to decisions, and deletes the item and its
+   revisions and reviews. Run again, it finds nothing left to move.
+
+Until the job has run, a reference to an item reads as missing. The `insights` table and the
+register's `kind` column stay, empty, until a later migration drops them
+([roadmap](10-roadmap.md)).

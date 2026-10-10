@@ -1,6 +1,7 @@
 import { sql } from "kysely";
 import { json, type ActorSnapshot, type Db } from "./db.ts";
 import { conflict, notFound } from "./errors.ts";
+import { queueEvidenceMoves } from "./evidence-move.ts";
 import { lockSettings } from "./public-sandbox.ts";
 import { newId } from "./util.ts";
 
@@ -13,7 +14,11 @@ import { newId } from "./util.ts";
  * them. A blob goes only when no row and no kept baseline refers to it.
  */
 
-/** The tables a baseline holds, each after the tables it refers to. A reset deletes in the reverse order. */
+/**
+ * The tables a baseline holds, each after the tables it refers to. A reset deletes in the reverse
+ * order. A baseline saved before insights and decisions moved into Evidence still holds them; a
+ * reset puts them back and the worker moves them again.
+ */
 export const BASELINE_TABLES = [
   "teams", "products",
   "records", "files", "file_versions", "derivations", "segments", "annotations", "agent_notes", "lineage",
@@ -171,8 +176,7 @@ export function baselineView(b: { baseline_id: string; note: string; counts: Rec
       sources: c["records"] ?? 0,
       passages: c["segments"] ?? 0,
       outcomes: c["outcomes"] ?? 0,
-      insights: c["insights"] ?? 0,
-      register_entries: c["register_entries"] ?? 0,
+      assumptions: c["register_entries"] ?? 0,
       story_pages: c["story_pages"] ?? 0,
       mockups: c["mockups"] ?? 0,
     },
@@ -199,7 +203,7 @@ export async function resetToBaseline(
 
   const before = await liveBlobs(trx, tenantId);
 
-  await sql`delete from jobs where tenant_id = ${tenantId} and done_at is null and kind in ('derive', 'export')`.execute(trx);
+  await sql`delete from jobs where tenant_id = ${tenantId} and done_at is null and kind in ('derive', 'export', 'move_to_evidence')`.execute(trx);
   for (const table of ["exports", "upload_grants", ...[...BASELINE_TABLES].reverse()])
     await sql`delete from ${sql.table(table)} where tenant_id = ${tenantId}${contentOf(table)}`.execute(trx);
   await trx.deleteFrom("sandbox_usage").where("tenant_id", "=", tenantId).execute();
@@ -238,6 +242,8 @@ export async function resetToBaseline(
         and not exists (select 1 from oauth_tokens o where o.account_id = m.account_id and coalesce(o.last_used_at, o.created_at) > now() - make_interval(days => ${opts.idle_days}))`.execute(trx);
     visitors_removed = Number(idle.numAffectedRows ?? 0);
   }
+
+  await queueEvidenceMoves(trx, opts.enqueue);
 
   const kept = await baselineBlobs(trx, tenantId);
   const blobs_dropped = await dropBlobs(opts.enqueue, minus(before.keys, kept.keys), minus(before.prefixes, kept.prefixes));

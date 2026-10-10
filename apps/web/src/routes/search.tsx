@@ -7,10 +7,9 @@ import { citationLabels, citations, citedSourceIds, type EvidenceContext } from 
 import { useProduct } from "../lib/session.tsx";
 import { useSourceTitles } from "../lib/source-titles.ts";
 import { REVIEW_STATUS } from "../lib/status.ts";
-import type { InsightReviewState, RecordFull } from "../lib/types.ts";
+import type { RecordFull } from "../lib/types.ts";
 import { usePageTitle } from "../shell/slots.tsx";
 import { Button, EmptyState, ErrorCallout, FindField, Glyph, Loading, Segmented, Sheet, SheetHeader, StatusBadge } from "../ui/index.tsx";
-import { ReviewBadge, STATUS_WORD } from "./insights-common.tsx";
 import "../styles/screens/evidence.css";
 
 interface SearchResult {
@@ -19,8 +18,6 @@ interface SearchResult {
   next_cursor?: string | null;
   coverage?: { statement: string; records_considered: number };
   assumptions?: { id: string; statement: string; status: string; citation_count: number }[];
-  decisions?: { id: string; statement: string; status: string; citation_count: number }[];
-  insights?: { id: string; title: string; summary: string; status: "draft" | "published" | "archived"; review_state: InsightReviewState }[];
 }
 
 /**
@@ -46,8 +43,7 @@ function snippet(text: string, query: string, exact: boolean, ev: EvidenceContex
 
 const SCOPES = [
   { id: "passages", label: "Passages" },
-  { id: "registers", label: "Assumptions and decisions" },
-  { id: "insights", label: "Insights" },
+  { id: "assumptions", label: "Assumptions" },
   { id: "all", label: "Everything" },
 ];
 
@@ -199,52 +195,24 @@ export function SearchPage() {
               ) : null}
             </Sheet>
           ) : null}
-          {d.assumptions || d.decisions ? (
+          {d.assumptions ? (
             <Sheet labelledBy="reg-h">
-              <SheetHeader id="reg-h" title="Assumptions and decisions" count={(d.assumptions?.length ?? 0) + (d.decisions?.length ?? 0)} />
-              {![...(d.assumptions ?? []), ...(d.decisions ?? [])].length ? (
+              <SheetHeader id="reg-h" title="Assumptions" count={d.assumptions.length} />
+              {!d.assumptions.length ? (
                 <EmptyState size="inline">None match.</EmptyState>
               ) : (
                 <ul className="search-entries">
-                  {[...(d.assumptions ?? []).map((a) => ({ ...a, k: "assumptions" as const })), ...(d.decisions ?? []).map((a) => ({ ...a, k: "decisions" as const }))].map((e) => (
+                  {d.assumptions.map((e) => (
                     <li key={e.id}>
-                      <Link to={`${app}/exploration/${e.k}/${e.id}`} className="search-entry">
-                        <Glyph name={e.k === "assumptions" ? "scale" : "signpost"} />
+                      <Link to={`${app}/exploration/assumptions/${e.id}`} className="search-entry">
+                        <Glyph name="scale" />
                         <span className="search-entry-main">
                           <span className="search-entry-title">{highlight(e.statement, q, exact)}</span>
                           <span className="faint">
-                            {e.k === "assumptions" ? "Assumption" : "Decision"} · {e.citation_count} {e.citation_count === 1 ? "citation" : "citations"}
+                            Assumption · {e.citation_count} {e.citation_count === 1 ? "citation" : "citations"}
                           </span>
                         </span>
                         <StatusBadge tone={REVIEW_STATUS[e.status]?.tone}>{REVIEW_STATUS[e.status]?.label ?? e.status}</StatusBadge>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Sheet>
-          ) : null}
-          {d.insights ? (
-            <Sheet labelledBy="ins-h">
-              <SheetHeader id="ins-h" title="Insights" count={d.insights.length} />
-              {!d.insights.length ? (
-                <EmptyState size="inline">None match.</EmptyState>
-              ) : (
-                <ul className="search-entries">
-                  {d.insights.map((i) => (
-                    <li key={i.id}>
-                      <Link to={`${app}/exploration/insights/${i.id}`} className="search-entry">
-                        <Glyph name="blend" />
-                        <span className="search-entry-main">
-                          <span className="search-entry-title">{highlight(i.title, q, exact)}</span>
-                          {i.summary || i.status !== "published" ? (
-                            <span className="faint search-entry-sub">
-                              {i.status !== "published" ? <>{STATUS_WORD[i.status]}{i.summary ? " · " : ""}</> : null}
-                              {i.summary}
-                            </span>
-                          ) : null}
-                        </span>
-                        <ReviewBadge state={i.review_state} />
                       </Link>
                     </li>
                   ))}

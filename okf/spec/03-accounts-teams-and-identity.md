@@ -23,8 +23,8 @@ tenant               an organization: the isolation and (later) billing boundary
     └── product      one discovery
         ├── outcomes
         ├── sources      records → files → derivations → segments; notes
-        ├── insights     with immutable revisions
-        ├── assumptions · decisions   (the two registers)
+        ├── assumptions  (the register)
+        ├── mockups      versions, pages, files
         ├── Story        pages, versions, hierarchy
         ├── lineage
         └── activity     append-only event log
@@ -218,7 +218,7 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   served to a reader exactly as published, and a promoted mockup page through the Story's own
   route, so a reader sees that page and nothing else of the mockup ([§4.11](04-data-model.md)).
 - **Viewer** reads everything in the product. **Editor** also writes: sources, files, notes,
-  outcomes, insights, register entries and reviews, mockups, the Story, and permanent deletes of sources
+  outcomes, assumptions and reviews, mockups, the Story, and permanent deletes of sources
   (guarded, [§9.5](09-data-lifecycle.md)). **Admin** also manages the product (rename, archive) and
   its people. Creating a product needs admin of its team (tenant owners and admins are admins of
   every team); creating a team needs tenant admin.
@@ -295,10 +295,10 @@ calls **every** product, team and tenant operation as someone with no membership
   `copied_from`; files are shared (blobs are immutable) and parsed afresh in the target.
 - **Move** (`sources.move_to_product`): keeps the record id, files, derivations and notes. Refused
   with `409 source_in_use` while anything in the current product cites or references the source
-  (insights, register entries, views' lineage, related sources, the current version of a Story
-  page), listing what does, because references never cross products. Both products log the move.
-- Both need editor on the source's product and on the target. Moving insights, entries, outcomes
-  and Story pages is planned, with the same closure rule.
+  (assumptions, views' lineage, related sources, the current version of a Story page or a
+  mockup), listing what does, because references never cross products. Both products log the move.
+- Both need editor on the source's product and on the target. Moving assumptions, outcomes,
+  mockups and Story pages is planned, with the same closure rule.
 
 ## 3.8 Identity of the caller
 
@@ -338,7 +338,7 @@ Every mutation stores an actor snapshot — `{ account_id, display_name, surface
 not joined, so attribution survives renames and removals. `client` is the OAuth client's name. It never holds an email address.
 
 Authenticated identity says which account wrote; it does not say whether a person exercised
-judgment, because an agent writes with its person's credentials. Register entries and reviews
+judgment, because an agent writes with its person's credentials. Assumptions and reviews
 therefore carry a declared `author_type` / `reviewer_type` (`human` or `agent`), defaulting to
 `human` in the web app and `agent` everywhere else, and a human confidence rating is accepted only
 from a declared human reviewer ([§4.8](04-data-model.md)).

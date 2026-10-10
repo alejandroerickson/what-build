@@ -42,7 +42,7 @@ describe("adapter parity", () => {
     expect([...viaMcp].sort()).toEqual(OPERATIONS.map((o) => o.name).sort());
     const restKeys = OPERATIONS.map((o) => `${o.rest.method} ${o.scope} ${o.rest.path}`);
     expect(new Set(restKeys).size).toBe(restKeys.length);
-    expect(tools.length).toBeLessThanOrEqual(18);
+    expect(tools.length).toBeLessThanOrEqual(16);
   });
 });
 
@@ -70,12 +70,12 @@ describe("MCP", () => {
 
   it("describes an action without running it, and refuses unknown actions and fields", async () => {
     const client = await connect(agentToken);
-    const d = text(await client.callTool({ name: "insights", arguments: { action: "create", describe: true } }));
-    expect(d.input_schema.properties.title).toBeDefined();
+    const d = text(await client.callTool({ name: "assumptions", arguments: { action: "create", describe: true } }));
+    expect(d.input_schema.properties.statement).toBeDefined();
     expect(d.input_schema.additionalProperties).toBe(false);
-    const bad = await client.callTool({ name: "insights", arguments: { action: "explode" } });
+    const bad = await client.callTool({ name: "assumptions", arguments: { action: "explode" } });
     expect(bad.isError).toBe(true);
-    expect((bad.content as { text: string }[])[0]!.text).toMatch(/^422: Unknown insights action/);
+    expect((bad.content as { text: string }[])[0]!.text).toMatch(/^422: Unknown assumptions action/);
     const field = await client.callTool({ name: "outcomes", arguments: { action: "create", product: path, params: { title: "x", colour: "red" } } });
     expect((field.content as { text: string }[])[0]!.text).toMatch(/^422: .*unknown field/);
     await client.close();

@@ -4,10 +4,12 @@ title: Marking an insight reviewed applies to the revision that was read
 description: An insight is unreviewed, reviewed, or changed since review.
 tags: [decision, insights, review]
 generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
-status: stable
+status: deprecated
 ---
 
 # Marking an insight reviewed applies to the revision that was read
+
+Superseded on 2026-10-09 by [Insights and decisions are retired, and what a product held of them becomes sources in Evidence](insights-and-decisions-are-retired-into-evidence.md).
 
 ## Context
 

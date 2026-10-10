@@ -59,12 +59,14 @@ adding a near-duplicate.
 | `apps/server/src/migrations/*.sql`, `packages/core/src/db.ts` | `spec/04`; tenancy or row-level security changes: decision `shared-schema-tenancy-with-row-level-security`; retention: `spec/09` |
 | `citations.ts` | `spec/04` (citations), decision `citations-snapshot-and-report-drift` |
 | `story-html.ts`, `story-guidance.ts`, `story-styles.ts`, `story-theme.ts`, `story-print.ts`, `ops/story.ts` | `spec/04` and `spec/07` (Story), decisions `story-pages-are-sandboxed-agent-html`, `story-pages-follow-the-teams-design-system`, `story-notes-are-agent-memory` and `pdf-export-uses-browser-print` |
+| `evidence-move.ts`, migration `0015_…` | `spec/04` §4.7 and `spec/09` §9.8, decision `insights-and-decisions-are-retired-into-evidence` |
 | `ops/mockups.ts`, `apps/web/src/routes/mockups.tsx`, `mockups.css` | `spec/04` §4.12 and `spec/07` §7.7 (Mockups), decision `mockups-are-versioned-canvases-in-exploration`, the canvas in `DESIGN.md`; a change to the HTML rules or the sandbox also `story-pages-are-sandboxed-agent-html` |
 | `packages/parsers/**`, `kinds.ts`, `media.ts`, `worker.ts` | `spec/05`, decision `only-the-primary-file-is-searched`, the parser list in `spec/10` |
 | `ops/search.ts` | `spec/08` |
 | Archive, delete, export (`ops/export.ts`) | `spec/09`, decision `archive-by-default-delete-guarded` |
 | `uploads.ts`, `adapters/**`, `ports.ts`, `config.ts` | `spec/02` (adapters, configuration), `spec/05`, `operations/cloud-run.md` and `operations/azure.md` (with `deploy/azure/containerapp.yaml`) if an environment variable changed |
 | `dev.ts`, root `package.json` scripts, ports, `.nvmrc`, `scripts/*.mjs` | `operations/local-development.md`, decision `development-substitutes-adapters-never-behavior` |
+| `fixture.ts`, `dev.ts --fixture`, `.agents/skills/test-on-a-copy-of-production/**` | `operations/a-copy-of-production.md`, decision `qa-uses-a-private-copy-of-production` |
 | `.github/workflows/**` | `operations/local-development.md` (CI), the phase 0 row in `spec/10` |
 | `.github/workflows/release.yml`, `.agents/skills/make-a-release/**`, how versions are numbered or how production is deployed | `operations/releasing.md`, decisions `releases-are-tags-with-a-published-image` and `production-runs-releases-after-approval` |
 | `Dockerfile`, `cloudbuild.yaml`, `deploy/cloud-run/**`, `deploy/cloudflare/**` | `operations/cloud-run.md`, decision `one-stateless-image`; a `Dockerfile` change also `operations/azure.md` (the image is built from it there too) |

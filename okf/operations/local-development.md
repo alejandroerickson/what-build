@@ -46,6 +46,13 @@ as a stranger, open the invitation link signed out and use the development sign-
 above" with any address outside the allowlist; the account is then one made for the sandbox.
 Leave the variable out again and restart, and the organization is an ordinary one.
 
+## A copy of production
+
+`pnpm fixture pull`, `pnpm fixture load` and `pnpm dev:fixture` put a private copy of the
+production deployment's database and files into the database `fixture` and serve it, with the
+migrations it lacks applied ([a copy of production](a-copy-of-production.md)). The pull needs
+access to the deployment; nothing else does.
+
 ## Checks
 
 | Command | What it does |

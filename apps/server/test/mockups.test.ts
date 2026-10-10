@@ -189,7 +189,7 @@ describe("what a mockup draws on", () => {
   });
 
   it("is listed among what a source is used in, and in its delete impact, earlier versions included", async () => {
-    const using = await alice.api("GET", `${P}/sources/${recordId}/insights`);
+    const using = await alice.api("GET", `${P}/sources/${recordId}/used-by`);
     expect(using.body.mockups).toEqual([{ mockup_id: mockupId, title: "Approvals", version: 2, referenced: true, citations: [] }]);
     const impact = await alice.api("GET", `${P}/sources/${recordId}/delete-impact`);
     expect(impact.body.mockup_versions_citing).toEqual([{ mockup_id: mockupId, title: "Approvals", version: 1, count: 1, is_current: false }]);

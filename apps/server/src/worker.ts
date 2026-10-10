@@ -1,5 +1,5 @@
 import { hostname } from "node:os";
-import { blobsSafeToDelete, lockSandbox, markExportFailed, runDerivation, runExport, type Env } from "@whatbuild/core";
+import { blobsSafeToDelete, lockSandbox, markExportFailed, runDerivation, runEvidenceMove, runExport, type Env } from "@whatbuild/core";
 import { sql } from "kysely";
 
 const SIDECARS = ["segments.jsonl", "text.md", "outline.md", "manifest.json"];
@@ -128,6 +128,9 @@ export class Worker {
         } else if (job.kind === "export") {
           const out = await runExport(trx, this.env.ports, { tenant_id: job.tenant_id, export_id: String(job.payload["export_id"]) });
           this.log(`job ${job.job_id} export: ${out ? `${out.files} files, ${out.size} bytes` : "skipped"} in ${Date.now() - started} ms`);
+        } else if (job.kind === "move_to_evidence") {
+          const out = await runEvidenceMove(trx, this.env.ports, { tenant_id: job.tenant_id, product_id: String(job.payload["product_id"]) });
+          this.log(`job ${job.job_id} move_to_evidence ${job.payload["product_id"]}: ${out ? `${out.insights} insights, ${out.decisions} decisions` : "skipped"} in ${Date.now() - started} ms`);
         } else if (job.kind === "delete_blobs") {
           // A blob that a sandbox's baseline refers to stays: a reset would bring its source back.
           const safe = await blobsSafeToDelete(trx, job.tenant_id, (job.payload["keys"] as string[]) ?? [], (job.payload["prefixes"] as string[]) ?? []);

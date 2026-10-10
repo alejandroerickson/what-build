@@ -1,0 +1,53 @@
+---
+type: Decision
+title: Manual QA and end-to-end tests may use a copy of production that stays on the maintainer's machine
+description: A copy of the deployment's database and files is pulled with a read-only role into an ignored folder, loaded into its own local database, and served with pending migrations applied; it is never committed, shared or quoted.
+tags: [decision, development, testing, qa, production, privacy]
+generated: {by: agent:claude, at: 2026-10-09}
+status: stable
+---
+
+# Manual QA and end-to-end tests may use a copy of production that stays on the maintainer's machine
+
+## Context
+
+The synthetic sample product is small and tidy, so it cannot show how a migration or a screen
+behaves on months of real work. The retirement of insights and decisions was the first migration
+that rewrote existing content, and the maintainer wanted it tried on the deployment's own data
+before production ran it. On 2026-10-09 they asked for a copy of production that manual QA and
+agents could use again and again. The repository is public, and the copy is real people's data.
+
+## Decision
+
+- A copy is pulled when someone asks for one. The database is dumped as the deployment's read-only
+  backup role, and the files bucket is copied with it, because passages and outlines are files.
+- Copies live under `.what-build/`, which git ignores, on the maintainer's machine. Nothing from a
+  copy is committed, uploaded, shared or quoted in the repository, a commit, an issue or a pull
+  request.
+- A copy is loaded into its own database, `fixture`, in the embedded Postgres, next to the
+  synthetic `whatbuild` database, and is served with `pnpm dev:fixture`. That runs pending
+  migrations and their jobs as a release would, prints mail instead of sending it, and uses only
+  local files.
+- The development sign-in's sample people are given their sample roles in every organization of
+  the copy: Riley an owner, Sam an editor, Jordan a reader. One click signs in to real data, as it
+  does to the sample.
+- Rejected:
+  - **An anonymized dump in the repository.** The repository is public, and free text cannot be
+    anonymized reliably.
+  - **A shared copy in the cloud.** It would be one more place real data lives, behind one more
+    credential.
+
+## Consequences
+
+- Pulling needs access to the deployment and Postgres client tools of its server's version.
+  Ordinary development still needs neither
+  ([decision](development-substitutes-adapters-never-behavior.md)).
+- Tests, the seed and screenshots stay synthetic. A copy is for trying things, never a source of
+  test content.
+
+## Constrains
+
+- `apps/server/src/fixture.ts` (pull and load) and the `--fixture` mode of `apps/server/src/dev.ts`.
+  The fixture mode must keep mail printed and files local, and must not seed sample content.
+
+Specified in: [a copy of production](../operations/a-copy-of-production.md).

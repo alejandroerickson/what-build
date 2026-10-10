@@ -45,6 +45,7 @@ const VERBS: Record<string, string> = {
   "source:moved_out": "moved out",
   "source:agent_note_written": "wrote agent notes for",
   "source:lineage_registered": "registered the inputs of",
+  "source:moved_to_evidence": "moved into Evidence",
   "outcome:created": "added the outcome",
   "outcome:updated": "edited the outcome",
   "outcome:reordered": "reordered the outcome",
@@ -52,23 +53,11 @@ const VERBS: Record<string, string> = {
   "outcome:active": "reopened the outcome",
   "outcome:archived": "archived the outcome",
   "outcome:restored": "restored the outcome",
-  "insight:created": "wrote",
-  "insight:updated": "revised",
-  "insight:published": "published",
-  "insight:unpublished": "unpublished",
-  "insight:archived": "archived",
-  "insight:reviewed": "marked reviewed",
-  "insight:review_cleared": "cleared the review mark on",
   "assumption:created": "recorded the assumption",
   "assumption:reviewed": "reviewed the assumption",
   "assumption:superseded": "superseded the assumption",
   "assumption:archived": "archived the assumption",
   "assumption:restored": "restored the assumption",
-  "decision:created": "recorded the decision",
-  "decision:reviewed": "reviewed the decision",
-  "decision:superseded": "superseded the decision",
-  "decision:archived": "archived the decision",
-  "decision:restored": "restored the decision",
   "story_page:published": "published",
   "story_page:updated": "published a new version of",
   "story_page:archived": "archived the page",
@@ -98,9 +87,7 @@ const VERBS: Record<string, string> = {
 export const ENTITY_LABEL: Record<string, string> = {
   source: "sources",
   outcome: "outcomes",
-  insight: "insights",
   assumption: "assumptions",
-  decision: "decisions",
   story_page: "Story pages",
   mockup: "mockups",
   story_hierarchy: "the Story tree",
@@ -114,12 +101,8 @@ function linkFor(app: string, i: ActivityItem): string | null {
   switch (i.entity_type) {
     case "source":
       return i.action === "deleted" || i.action === "moved_out" ? null : `${app}/evidence/${i.entity_id}`;
-    case "insight":
-      return `${app}/exploration/insights/${i.entity_id}`;
     case "assumption":
       return `${app}/exploration/assumptions/${i.entity_id}`;
-    case "decision":
-      return `${app}/exploration/decisions/${i.entity_id}`;
     case "outcome":
       return `${app}/idea`;
     case "story_page":
@@ -196,7 +179,7 @@ export function ActivityFeed(filter: ActivityFilter & { query?: ReturnType<typeo
         title={filtered ? "Nothing matches this view yet" : "Nothing has changed yet"}
         action={filtered ? undefined : <ButtonLink to="/connect" size="sm" icon="bot">Connect an agent</ButtonLink>}
       >
-        {filtered ? "Changes appear here as soon as someone makes them." : "Every change appears here, whether a person or an agent made it: a source added, an insight written, a Story page published."}
+        {filtered ? "Changes appear here as soon as someone makes them." : "Every change appears here, whether a person or an agent made it: a source added, an assumption recorded, a Story page published."}
       </EmptyState>
     );
   }

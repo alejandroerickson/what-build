@@ -12,7 +12,6 @@ import {
 } from "../public-sandbox.ts";
 import { expectedEtag, id } from "../schemas.ts";
 import { decodeCursor, encodeCursor, newEtag, newId, randomToken, sha256Hex } from "../util.ts";
-import { BODY_MAX } from "./insights.ts";
 import { MAX_BATCH } from "./sources.ts";
 import { MAX_MOCKUPS, MOCKUP_HTML_TOTAL } from "./mockups.ts";
 import { MAX_PAGES } from "./story.ts";
@@ -201,7 +200,6 @@ async function panel(ctx: OpContext, sb: SandboxState) {
       { label: "Parsed per primary file", value: cfg.parseCapBytes, unit: "bytes", set_by: "WHATBUILD_PARSE_CAP_BYTES" },
       { label: "A file fetched from a URL", value: cfg.urlFetchMaxBytes, unit: "bytes", set_by: "WHATBUILD_URL_FETCH_MAX_BYTES" },
       { label: "A request body", value: REST_BODY_MAX_BYTES, unit: "bytes", set_by: null },
-      { label: "An insight's body", value: BODY_MAX, unit: "characters", set_by: null },
       { label: "A Story page", value: STORY_HTML_MAX, unit: "characters", set_by: null },
       { label: "Story pages in a product", value: MAX_PAGES, unit: "pages", set_by: null },
       { label: "A mockup version's HTML, all pages", value: MOCKUP_HTML_TOTAL, unit: "characters", set_by: null },
@@ -281,7 +279,7 @@ export const saveSandboxBaseline = defineOperation({
   exclusive: true,
   summary: "Save the organization's content as it is now as the baseline every reset puts back (tenant admins).",
   description:
-    `Holds every team, product, source, file, passage, note, outcome, insight, entry, review, Story page, mockup and activity event, with their ids, so links keep working after a reset. It holds what visitors have added too, so reset first (or set visitor_access to read) unless you mean to keep it. People and their access are not part of a baseline. The newest ${BASELINES_KEPT} are kept. Files are referred to, not copied.`,
+    `Holds every team, product, source, file, passage, note, outcome, assumption, review, Story page, mockup and activity event, with their ids, so links keep working after a reset. It holds what visitors have added too, so reset first (or set visitor_access to read) unless you mean to keep it. People and their access are not part of a baseline. The newest ${BASELINES_KEPT} are kept. Files are referred to, not copied.`,
   input: z.strictObject({ tenant, note: z.string().trim().max(500).default("").describe("What this baseline is, for whoever reads the list later.") }),
   rest: { method: "POST", path: "/sandbox/baselines" },
   mcp: { tool: "sandbox", action: "save_baseline" },

@@ -28,9 +28,8 @@ interface AgentNote {
   updated_by: Actor;
 }
 interface CitedIn {
-  insights: { insight_id: string; title: string; summary: string; status: string; updated_at: string }[];
   assumptions: { id: string; statement: string; status: string; citations: { seq_start: number; seq_end: number }[] }[];
-  decisions: { id: string; statement: string; status: string; citations: { seq_start: number; seq_end: number }[] }[];
+  related: { record_id: string; kind_label: string; title: string }[];
   story_pages?: { page_id: string; title: string; version: number; referenced: boolean; citations: { seq_start: number; seq_end: number }[] }[];
   mockups?: { mockup_id: string; title: string; version: number; referenced: boolean; citations: { seq_start: number; seq_end: number }[] }[];
 }
@@ -76,7 +75,7 @@ export function SourceDetailPage() {
     setParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
-  // "connected" (the old Insights tab) opens the inspector, where Cited in now lives. The shell closes
+  // "connected" (the old tab of what cites it) opens the inspector, where Cited in now lives. The shell closes
   // overlays when a route mounts, so open it on the next tick, once the source has loaded.
   const loaded = q.isSuccess;
   useEffect(() => {
@@ -103,7 +102,7 @@ export function SourceDetailPage() {
           <EvidenceFilters />
           <PageHeader crumbs={[{ label: "Evidence", to: `${app}/evidence` }, { label: "Deleted source" }]} title="This source was deleted" />
           <EmptyState action={<ButtonLink to={`${app}/evidence`}>Back to Evidence</ButtonLink>}>
-            {`${t.title ?? "It"} was deleted permanently by ${t.deleted_by?.display_name ?? "someone"} on ${formatDate(t.deleted_at)}. Reason: ${t.reason ?? "not given"}. Quotes cited from it are kept on their assumptions and decisions.`}
+            {`${t.title ?? "It"} was deleted permanently by ${t.deleted_by?.display_name ?? "someone"} on ${formatDate(t.deleted_at)}. Reason: ${t.reason ?? "not given"}. Quotes cited from it are kept where they were cited.`}
           </EmptyState>
         </>
       );
@@ -212,7 +211,7 @@ function SourceDescription({ note, loading }: { note: AgentNote | null; loading:
 
 type LineageStatus = "current" | "changed" | "archived" | "deleted" | "missing";
 interface LineageInputCheck {
-  kind: "record" | "assumption" | "decision";
+  kind: "record" | "assumption";
   id: string;
   status: LineageStatus;
   changed_parts?: string[] | null;
@@ -235,11 +234,11 @@ function useLineage(recordId: string) {
   });
 }
 
-const INPUT_NOUN = { record: ["source", "sources"], assumption: ["assumption", "assumptions"], decision: ["decision", "decisions"] } as const;
+const INPUT_NOUN = { record: ["source", "sources"], assumption: ["assumption", "assumptions"] } as const;
 
-/** "12 sources, 5 assumptions and 3 decisions": what a view was built from, by kind. */
+/** "12 sources and 5 assumptions": what a view was built from, by kind. */
 function describeInputs(checks: LineageInputCheck[]) {
-  const parts = (["record", "assumption", "decision"] as const)
+  const parts = (["record", "assumption"] as const)
     .map((k) => [k, checks.filter((c) => c.kind === k).length] as const)
     .filter(([, n]) => n > 0)
     .map(([k, n]) => plural(n, INPUT_NOUN[k][0], INPUT_NOUN[k][1]));
@@ -339,7 +338,7 @@ function BuiltFrom({ recordId }: { recordId: string }) {
             {moved.map((c, i) => {
               const name = names[i]?.data;
               const gone = c.status === "deleted" || c.status === "missing";
-              const glyph: GlyphName = c.kind === "record" ? "file-text" : c.kind === "assumption" ? "scale" : "signpost";
+              const glyph: GlyphName = c.kind === "record" ? "file-text" : "scale";
               const label = name ?? `${INPUT_NOUN[c.kind][0][0]!.toUpperCase()}${INPUT_NOUN[c.kind][0].slice(1)} ${c.id}`;
               return (
                 <li key={`${c.kind}:${c.id}`}>
@@ -474,13 +473,13 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
   const { api: base, app, canWrite } = useProduct();
   const archive = useArchive(r);
   const cited = useQuery({
-    queryKey: ["insights-for", base, r.record_id],
-    queryFn: () => api<CitedIn>("GET", `${base}/sources/${r.record_id}/insights`),
+    queryKey: ["used-by", base, r.record_id],
+    queryFn: () => api<CitedIn>("GET", `${base}/sources/${r.record_id}/used-by`),
   });
   const primary = r.files.find((f) => f.role === "primary");
   const versions = r.files.reduce((n, f) => n + Math.max(1, f.versions.length), 0);
   const c = cited.data;
-  const citedCount = c ? c.insights.length + c.assumptions.length + c.decisions.length + (c.story_pages?.length ?? 0) + (c.mockups?.length ?? 0) : undefined;
+  const citedCount = c ? c.assumptions.length + c.related.length + (c.story_pages?.length ?? 0) + (c.mockups?.length ?? 0) : undefined;
   return (
     <Inspector title="Details">
       <div className="source-inspector">
@@ -544,26 +543,18 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
           ) : cited.isError ? (
             <ErrorCallout inset error={cited.error} onRetry={() => cited.refetch()} />
           ) : !citedCount ? (
-            <EmptyState size="inline">Not cited yet. Insights, assumptions, decisions, mockups and Story pages that use it appear here.</EmptyState>
+            <EmptyState size="inline">Not cited yet. Assumptions, mockups, Story pages and other sources that use it appear here.</EmptyState>
           ) : (
             <ul className="source-cited">
-              {c!.insights.map((i) => (
-                <li key={i.insight_id}>
-                  <Glyph name="blend" size="sm" />
-                  <Link to={`${app}/exploration/insights/${i.insight_id}`} className="ellipsis" title={i.title}>
-                    {i.title}
-                  </Link>
-                </li>
-              ))}
-              {[...c!.assumptions.map((e) => ({ ...e, k: "assumptions" as const })), ...c!.decisions.map((e) => ({ ...e, k: "decisions" as const }))].map((e) => (
+              {c!.assumptions.map((e) => (
                 <li key={e.id}>
-                  <Glyph name={e.k === "assumptions" ? "scale" : "signpost"} size="sm" />
+                  <Glyph name="scale" size="sm" />
                   <span className="source-cited-main">
-                    <Link to={`${app}/exploration/${e.k}/${e.id}`} className="ellipsis" title={e.statement}>
+                    <Link to={`${app}/exploration/assumptions/${e.id}`} className="ellipsis" title={e.statement}>
                       {e.statement}
                     </Link>
                     <span className="faint">
-                      {e.k === "assumptions" ? "Assumption" : "Decision"}, {REVIEW_STATUS[e.status]?.label.toLowerCase() ?? e.status}
+                      Assumption, {REVIEW_STATUS[e.status]?.label.toLowerCase() ?? e.status}
                       {e.citations.map((x, i) => (
                         <span key={i}>
                           {" · "}
@@ -595,6 +586,17 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
                         </span>
                       ))}
                     </span>
+                  </span>
+                </li>
+              ))}
+              {c!.related.map((x) => (
+                <li key={x.record_id}>
+                  <Glyph name="file-text" size="sm" />
+                  <span className="source-cited-main">
+                    <Link to={`${app}/evidence/${x.record_id}`} className="ellipsis" title={x.title}>
+                      {x.title}
+                    </Link>
+                    <span className="faint">{x.kind_label} · lists it as related</span>
                   </span>
                 </li>
               ))}
@@ -1153,8 +1155,8 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
         bytes: number;
         derivations: number;
         annotations: number;
-        citations: { id: string; kind: string; statement: string; count: number }[];
-        insights_referencing: { id: string; title: string }[];
+        citations: { id: string; statement: string; count: number }[];
+        related_sources: { record_id: string; title: string }[];
         story_pages_citing?: { page_id: string; title: string; version: number; count: number }[];
         story_versions_citing?: StoryVersionCiting[];
         mockup_versions_citing?: { mockup_id: string; title: string; version: number; count: number; is_current: boolean }[];
@@ -1211,7 +1213,7 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
           {i.citations.length ? (
             <p>
               <strong>
-                {plural(i.citations.reduce((n, c) => n + c.count, 0), "citation")} in {plural(i.citations.length, "entry", "entries")} point at this source
+                {plural(i.citations.reduce((n, c) => n + c.count, 0), "citation")} in {plural(i.citations.length, "assumption")} point at this source
               </strong>{" "}
               and will point at a record of the deletion instead. Their quoted text is kept.
             </p>
@@ -1245,7 +1247,7 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
               deleted.
             </p>
           ) : null}
-          {i.insights_referencing.length ? <p>{plural(i.insights_referencing.length, "insight")} link to it, and those links will stop opening.</p> : null}
+          {i.related_sources.length ? <p>{plural(i.related_sources.length, "other source")} list it as related, and those links will stop opening.</p> : null}
         </div>
       ) : null}
       <TextArea label="Why is it being deleted?" required maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} hint="Recorded with the deletion." />

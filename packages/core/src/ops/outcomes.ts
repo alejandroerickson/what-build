@@ -31,24 +31,12 @@ export async function archivedOutcomeIds(ctx: OpContext, ids: string[]): Promise
 async function withCounts(ctx: OpContext, rows: Row[]) {
   if (!rows.length) return [];
   const ids = rows.map((r) => r.outcome_id);
-  const insightCounts = await sql<{ id: string; n: number }>`
+  const assumptionCounts = await sql<{ id: string; n: number }>`
     select o.id, count(*)::int as n
-    from insights i, jsonb_array_elements_text(i.refs->'outcomes') as o(id)
-    where i.product_id = ${productId(ctx)} and i.status != 'archived' and o.id = any(${ids})
-    group by o.id`.execute(ctx.db);
-  const registerCounts = await sql<{ id: string; kind: string; n: number }>`
-    select o.id, r.kind, count(*)::int as n
     from register_entries r, unnest(r.outcome_ids) as o(id)
-    where r.product_id = ${productId(ctx)} and r.archived_at is null and r.status in ('unconfirmed', 'confirmed') and o.id = any(${ids})
-    group by o.id, r.kind`.execute(ctx.db);
-  return rows.map((r) => ({
-    ...r,
-    counts: {
-      insights: insightCounts.rows.find((c) => c.id === r.outcome_id)?.n ?? 0,
-      assumptions: registerCounts.rows.find((c) => c.id === r.outcome_id && c.kind === "assumption")?.n ?? 0,
-      decisions: registerCounts.rows.find((c) => c.id === r.outcome_id && c.kind === "decision")?.n ?? 0,
-    },
-  }));
+    where r.product_id = ${productId(ctx)} and r.kind = 'assumption' and r.archived_at is null and r.status in ('unconfirmed', 'confirmed') and o.id = any(${ids})
+    group by o.id`.execute(ctx.db);
+  return rows.map((r) => ({ ...r, counts: { assumptions: assumptionCounts.rows.find((c) => c.id === r.outcome_id)?.n ?? 0 } }));
 }
 
 export const listOutcomes = defineOperation({
@@ -56,9 +44,9 @@ export const listOutcomes = defineOperation({
   scope: "product",
   access: "read",
   mutates: false,
-  summary: "List the product's outcomes in order, with how many insights, assumptions and decisions point at each.",
+  summary: "List the product's outcomes in order, with how many assumptions point at each.",
   description:
-    "Outcomes are what the product's users should be able to achieve with it, under the product concept. Read them before writing insights, and link insights to them through refs.outcomes. Archived outcomes are left out unless status is \"archived\"; archived_hidden says how many were left out. An archived outcome can still be linked, and insights and registers flag such links in archived_outcome_ids. Counts cover unarchived insights and current (unconfirmed or confirmed) assumptions and decisions; superseded and refuted entries are not counted.",
+    "Outcomes are what the product's users should be able to achieve with it, under the product concept. Read them before writing anything that serves them, and link to them through outcome_ids on an assumption and refs.outcomes on a mockup or Story page. Archived outcomes are left out unless status is \"archived\"; archived_hidden says how many were left out. An archived outcome can still be linked, and assumptions flag such links in archived_outcome_ids. Counts cover current (unconfirmed or confirmed) assumptions; superseded and refuted ones are not counted.",
   input: z.strictObject({
     status: STATUS.optional().describe("Only this status. Omit for active and achieved."),
     query: z.string().max(500).optional().describe("Case-insensitive substring of title or description."),

@@ -10,17 +10,15 @@
 
 import { HOUSE_STYLES, VOCABULARY, pageDocument, type HouseStyle } from "./story-styles.ts";
 
-export const GUIDANCE_VERSION = "2.2.0";
+export const GUIDANCE_VERSION = "3.0.0";
 
 export function linkTemplates(base: string, path: string) {
   const p = `${base}/t/${path}`;
   return {
     source: `${p}/evidence/{record_id}`,
     passage: `${p}/evidence/{record_id}?view=passages&seq={seq}`,
-    insight: `${p}/exploration/insights/{insight_id}`,
     outcome: `${p}/idea`,
     assumption: `${p}/exploration/assumptions/{id}`,
-    decision: `${p}/exploration/decisions/{id}`,
     mockup: `${p}/exploration/mockups/{mockup_id}`,
     story_page: `${p}/story/{page_id}`,
   };
@@ -164,22 +162,22 @@ export const WRITING = {
   separate_claim_types: [
     { type: "Observed evidence", instruction: "What a source says, with a link to the passage." },
     { type: "Interpretation", instruction: "What the team makes of it, labelled as interpretation." },
-    { type: "Decision or proposal", instruction: "Call it a decision only when it links to a recorded decision; otherwise it is a proposal." },
+    { type: "Decision or proposal", instruction: "Call it a decision only when the linked material records it as one; otherwise it is a proposal." },
     { type: "Assumption or unknown", instruction: "Name it as an assumption and say whether it is confirmed." },
   ],
   passes: [
-    { pass: "Clarify", checks: ["Choose the audience and the one fact it needs first.", "Give each section one job.", "Use the same terms as the linked insight or register.", "Make every link say what it contains.", "Keep each citation next to its claim."] },
+    { pass: "Clarify", checks: ["Choose the audience and the one fact it needs first.", "Give each section one job.", "Use the same terms as the linked sources and assumptions.", "Make every link say what it contains.", "Keep each citation next to its claim."] },
     { pass: "Distill", checks: ["Remove repeated introductions and decorative panels.", "Remove empty forward-looking statements.", "Keep caveats, decision criteria and uncertainty."] },
     { pass: "Polish", checks: ["Replace inflated or vague phrasing without adding facts.", "Check every quotation, count, date, owner and decision against the linked material."] },
   ],
-  voice: ["Plain, direct sentences.", "The product's vocabulary: outcome, source, insight, assumption, decision, Story.", "Calm: no sales language and no generic optimistic closing.", "Sentence-case headings, written as statements where a section makes a point.", "Link text that makes sense out of context."],
+  voice: ["Plain, direct sentences.", "The product's vocabulary: outcome, source, passage, assumption, mockup, Story.", "Calm: no sales language and no generic optimistic closing.", "Sentence-case headings, written as statements where a section makes a point.", "Link text that makes sense out of context."],
   fact_guardrails: [
     "Never add a person, owner, date, source, quote, count, measurement, customer claim, commitment or decision the linked material does not establish.",
     "Never turn a working interpretation into agreement, or an unconfirmed assumption into a settled one.",
     "When a detail is not established, name the limit or leave it out.",
     "Honour a source's own quoting rules: when an agreement, consent note or the source's metadata limits naming people, attribute by role (\"an operations lead at one customer\") and never name them.",
     "A derived view, digest or analysis is not direct evidence. When a page cites one, say so beside the claim (\"analysis, not evidence\") and cite the underlying passages where you can.",
-    "A plan is the team's, not the sources'. When a person gives you dates or an order of delivery, use them, say on the page that they are a plan or a proposal, and record in the page's notes who set them and when. A feature in a plan still links to the decision or the passage it comes from.",
+    "A plan is the team's, not the sources'. When a person gives you dates or an order of delivery, use them, say on the page that they are a plan or a proposal, and record in the page's notes who set them and when. A feature in a plan still links to the source or the passage it comes from.",
     "A Story is often read outside the team. Before the first page, look for an agreement or consent note among the sources that limits naming an organisation, its people or its figures, and follow it on every page.",
   ],
 };
@@ -195,7 +193,7 @@ export const CHECKLIST = [
 ];
 
 export const WORKFLOW = [
-  "Read the outcomes, the relevant sources, insights, assumptions and decisions first.",
+  "Read the outcomes, the relevant sources, assumptions and mockups first.",
   "Settle the Story style (style_workflow) before the first page, and read it before every page.",
   "Read the current version of the page and its notes for agents (get_page → agent_notes) before revising it, keep what is useful, and pass its etag.",
   "Cite the exact passages the page rests on in citations (up to 20), and list the objects it draws on in refs. When you pass either list, pass it in full: it replaces the previous one.",
@@ -204,14 +202,14 @@ export const WORKFLOW = [
   "Use the hierarchy to find related pages; give each page a short lower-case page_id; link related pages inline, and link the pages beneath a page from it (nav.pages).",
   "summary describes the page itself and shows in navigation. Keep mechanics — citation ranges, merges to stay within the citation limit, ids — in the notes for agents; the activity log already records each version.",
   "Publishing does not place a page: set_hierarchy does, with its own etag. Place each new page unless your instructions say otherwise; then leave it unplaced and say so.",
-  "After publishing, update the page's notes for agents with write_notes: its purpose, what is still to fold in, and structural decisions. publish returns agent_notes_etag; while the notes are empty you may omit the etag.",
+  "After publishing, update the page's notes for agents with write_notes: its purpose, what is still to fold in, and choices about its structure. publish returns agent_notes_etag; while the notes are empty you may omit the etag.",
   "Archiving a page takes it out of navigation and promotes its sub-pages; restoring returns it unplaced.",
 ];
 
 export const CONTENT_RULES = [
   "Explain the outcomes, current understanding, choices and next steps.",
   "Write for a busy stakeholder.",
-  "Link the sources, insights and the few assumptions or decisions that shape the account.",
+  "Link the sources, mockups and the few assumptions that shape the account.",
   "Separate observed evidence, interpretation and agreement.",
   "Never invent agreement, owners, dates, commitments or measurements.",
   "Leave breadcrumbs and navigation to the reader: the app provides them.",

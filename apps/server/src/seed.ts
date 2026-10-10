@@ -2,8 +2,7 @@ import { actorOf, createTenantWithTeam, execute, houseStyle, json, loadSandbox, 
 import { sql } from "kysely";
 import { findOrCreateAccount } from "./auth/identity.ts";
 import {
-  MOCKUP, HANDOFF_HTML, HANDOFF_NOTES, INSIGHT, INSIGHT_ERRORS, INSIGHT_KNOWLEDGE, INTERVIEW_AGENT_NOTES, INTERVIEW_RECORDER_EXPORT, INTERVIEW_TXT, INTERVIEW_VTT, OVERVIEW_NOTES, OWNER_NOTES_MD, RESEARCH_EXPORT_MD, SAMPLE, STORY_HTML,
-  type SourceLink,
+  MOCKUP, HANDOFF_HTML, HANDOFF_NOTES, INTERVIEW_AGENT_NOTES, INTERVIEW_RECORDER_EXPORT, INTERVIEW_TXT, INTERVIEW_VTT, OVERVIEW_NOTES, OWNER_NOTES_MD, RESEARCH_EXPORT_MD, SAMPLE, STORY_HTML,
 } from "./seed-content.ts";
 import { syncSandboxTenant } from "./public-sandbox.ts";
 import type { Worker } from "./worker.ts";
@@ -82,40 +81,6 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
 
   const base = env.ports.config.publicBaseUrl;
   const path = `${tenant}/${team}/crewboard`;
-  const sourceIds = { vtt, txt, survey, notes };
-  const at: SourceLink = (source, seq) => `${base}/t/${path}/evidence/${sourceIds[source]}${seq === undefined ? "" : `?seq=${seq}`}`;
-  const insight = await call(
-    env,
-    samAgent,
-    "insights.create",
-    { title: INSIGHT.title, summary: INSIGHT.summary, body: INSIGHT.body(at), status: "published", refs: { outcomes: [outcomeIds[0]!, outcomeIds[1]!], sources: [vtt, txt, notes, survey] } },
-    ref,
-  );
-  // A person reviews the first insight; the second is left for review.
-  await call(env, riley, "insights.review", { insight_id: insight["insight_id"], reviewed: true, expected_etag: insight["etag"] }, ref);
-  await call(
-    env,
-    samAgent,
-    "insights.create",
-    { title: INSIGHT_KNOWLEDGE.title, summary: INSIGHT_KNOWLEDGE.summary, body: INSIGHT_KNOWLEDGE.body(at), status: "published", refs: { outcomes: [outcomeIds[0]!], sources: [vtt, notes] } },
-    ref,
-  );
-  // The third is reviewed, then revised by the agent, so it reads "changed since review".
-  const errors = await call(
-    env,
-    samAgent,
-    "insights.create",
-    { title: INSIGHT_ERRORS.title, summary: INSIGHT_ERRORS.summary, body: INSIGHT_ERRORS.body(at), status: "published", refs: { outcomes: [outcomeIds[1]!], sources: [txt] } },
-    ref,
-  );
-  const errorsReviewed = await call(env, riley, "insights.review", { insight_id: errors["insight_id"], reviewed: true, expected_etag: errors["etag"] }, ref);
-  await call(
-    env,
-    samAgent,
-    "insights.update",
-    { insight_id: errors["insight_id"], expected_etag: errorsReviewed["etag"], body: INSIGHT_ERRORS.revised(at), refs: { sources: [txt, notes] } },
-    ref,
-  );
   const assumption = await call(
     env,
     samAgent,
@@ -134,22 +99,6 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
     },
     ref,
   );
-  const decision = await call(
-    env,
-    riley,
-    "decisions.create",
-    {
-      statement: "Test generating each crew's message from the plan before building the planning grid.",
-      body: "The hand-off is where mistakes reach customers. A message generator is small, testable with two crews in a week, and useful whichever planning model wins.",
-      citations: [{ record_id: vtt, seq_start: 8, seq_end: 10 }],
-      outcome_ids: [outcomeIds[1]!],
-      author_type: "human",
-      provenance_depth: "primary",
-    },
-    ref,
-  );
-  const decisionEtag = String(decision["etag"]);
-  await call(env, riley, "decisions.review", { id: decision["id"], expected_etag: decisionEtag, status: "confirmed", note: "Agreed in the Thursday review. Sam to set up the two-crew test.", reviewer_type: "human", confidence: "medium" }, ref);
 
   await call(env, samAgent, "story.set_style", { house_style: "broadsheet" }, ref);
   const sampleStylesheet = houseStyle("broadsheet")!.stylesheet;
@@ -163,13 +112,13 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
       summary: "Planning costs an afternoon a week; the hand-off is where mistakes happen.",
       html: STORY_HTML(
         {
-          insight: `${base}/t/${path}/exploration/insights/${insight["insight_id"]}`,
+          passage: `${base}/t/${path}/evidence/${vtt}?seq=8`,
           assumption: `${base}/t/${path}/exploration/assumptions/${assumption["id"]}`,
-          decision: `${base}/t/${path}/exploration/decisions/${decision["id"]}`,
+          handOff: `${base}/t/${path}/story/hand-off-test`,
         },
         sampleStylesheet,
       ),
-      refs: { outcomes: [outcomeIds[1]!], sources: [vtt, txt, survey], insights: [String(insight["insight_id"])], assumptions: [String(assumption["id"])], decisions: [String(decision["id"])] },
+      refs: { outcomes: [outcomeIds[1]!], sources: [vtt, txt, survey], assumptions: [String(assumption["id"])] },
       citations: [
         { record_id: vtt, seq_start: 8, seq_end: 8, quote: "The texts are the worst part honestly. Every crew lead gets a message with their jobs and addresses, and I type those by hand." },
         { record_id: vtt, seq_start: 3, seq_end: 3, quote: "Two hours if nothing's weird." },
@@ -186,8 +135,8 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
       page_id: "hand-off-test",
       title: "The hand-off test",
       summary: "Two crews get their week as a generated message instead of a typed one.",
-      html: HANDOFF_HTML({ decision: `${base}/t/${path}/exploration/decisions/${decision["id"]}` }, sampleStylesheet),
-      refs: { outcomes: [outcomeIds[1]!], sources: [vtt], decisions: [String(decision["id"])] },
+      html: HANDOFF_HTML({ passage: `${base}/t/${path}/evidence/${vtt}?seq=9` }, sampleStylesheet),
+      refs: { outcomes: [outcomeIds[1]!], sources: [vtt] },
       citations: [{ record_id: vtt, seq_start: 9, seq_end: 10 }],
     },
     ref,

@@ -232,7 +232,7 @@ export function StoryPage() {
               The Story is a set of pages that tells stakeholders where this discovery stands. Its pages appear here once the product&rsquo;s team publishes them.
             </EmptyState>
           ) : (
-            <FirstUse title="No Story pages yet" ask={`Draft the first Story page for ${product.name} in WhatBuild from its outcomes and insights.`}>
+            <FirstUse title="No Story pages yet" ask={`Draft the first Story page for ${product.name} in WhatBuild from its outcomes and evidence.`}>
               The Story is a set of pages that tells stakeholders where this discovery stands, in your company&rsquo;s design system or a house style. Agents write and arrange it. You read it here and export it to PDF.
               {style.data ? (
                 <p className="story-first-style">

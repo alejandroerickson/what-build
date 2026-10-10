@@ -3,20 +3,19 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Outlet, useLocation, useSearchParams } from "react-router";
 import { api, qs } from "../lib/api.ts";
 import { useProduct } from "../lib/session.tsx";
-import type { InsightSummary, RegisterSummary } from "../lib/types.ts";
+import type { RegisterSummary } from "../lib/types.ts";
 import { PanelContext, PanelFilter, PanelSection } from "../shell/slots.tsx";
 import { FindField } from "../ui/index.tsx";
 import { useMockupList } from "./mockups.tsx";
-import { searchWith } from "./insights-common.tsx";
+import { searchWith } from "./exploration-common.tsx";
 
 /**
- * Exploration holds the mockups, then three lists side by side: insights, assumptions and
- * decisions. The panel names all three lists, each with one set of filters (its review state),
- * and every list's header has only a title search. A product holds dozens of each, not
- * thousands, so each list loads whole, once, and the panel's counts, the filters and the search
- * all work on what is loaded.
+ * Exploration holds the mockups, then the assumptions. The panel lists the mockups and the
+ * assumptions' one set of filters (their status), and the list's header has only a title search.
+ * A product holds dozens of assumptions, not thousands, so the list loads whole, once, and the
+ * panel's counts, the filters and the search all work on what is loaded.
  */
-export type ExplorationKind = "insights" | "assumptions" | "decisions";
+export type ExplorationKind = "assumptions";
 
 /** At most this many pages of 100 are loaded; past that the list says it shows only the first. */
 const MAX_PAGES = 20;
@@ -33,20 +32,8 @@ async function everyPage<T>(page: (cursor: string | undefined) => Promise<{ item
   return { items, more: Boolean(cursor) };
 }
 
-/** Every insight that is not archived, or every archived one. */
-export function useInsightList(archived = false) {
-  const { api: base } = useProduct();
-  return useQuery({
-    queryKey: ["insights", base, "every", archived],
-    queryFn: () =>
-      everyPage((cursor) =>
-        api<{ items: InsightSummary[]; next_cursor: string | null }>("GET", `${base}/insights${qs({ status: archived ? "archived" : "", limit: 100, cursor })}`),
-      ),
-  });
-}
-
-/** Every assumption or decision that is not archived, in any status, or every archived one. */
-export function useEntryList(kind: "assumptions" | "decisions", archived = false) {
+/** Every assumption that is not archived, in any status, or every archived one. */
+export function useEntryList(kind: ExplorationKind, archived = false) {
   const { api: base } = useProduct();
   return useQuery({
     queryKey: ["register", base, kind, "every", archived],
@@ -70,21 +57,11 @@ interface View<T> {
   test?: (item: T) => boolean;
 }
 
-/** The one filter on insights: whether a person has reviewed the current revision. */
-export const INSIGHT_VIEWS: View<InsightSummary>[] = [
-  { id: "", label: "All insights", test: () => true },
-  // Changed since review waits for a person too.
-  { id: "unreviewed", label: "Unreviewed", test: (i) => i.review_state !== "reviewed" },
-  { id: "reviewed", label: "Reviewed", test: (i) => i.review_state === "reviewed" },
-  { id: "archived", label: "Archived" },
-];
-
 /**
- * The one filter on assumptions and decisions: their status, in the words the rows' status chips
- * use. "All" is the ones the team works with, as every count of them in the app is; refuted and
+ * The one filter on assumptions: their status, in the words the rows' status chips use. "All" is the ones the team works with, as every count of them in the app is; refuted and
  * replaced ones are kept apart, and archived ones are a list of their own.
  */
-export function entryViews(kind: "assumptions" | "decisions"): View<RegisterSummary>[] {
+export function entryViews(kind: ExplorationKind): View<RegisterSummary>[] {
   return [
     { id: "", label: `All ${kind}`, test: (e) => e.status === "unconfirmed" || e.status === "confirmed" },
     { id: "unconfirmed", label: "Unconfirmed", test: (e) => e.status === "unconfirmed" },
@@ -98,7 +75,7 @@ export function entryViews(kind: "assumptions" | "decisions"): View<RegisterSumm
 function useWhere() {
   const { pathname } = useLocation();
   const [params] = useSearchParams();
-  const m = /\/exploration\/(insights|assumptions|decisions)\/?$/.exec(pathname);
+  const m = /\/exploration\/(assumptions)\/?$/.exec(pathname);
   return { list: (m?.[1] ?? null) as ExplorationKind | null, show: params.get("show") ?? "", outcome: m ? (params.get("outcome_id") ?? "") : "", params };
 }
 
@@ -158,24 +135,17 @@ function MockupsSection() {
   );
 }
 
-/** The Exploration panel context: mockups, then insights, assumptions and decisions, each with its filters and counts. */
+/** The Exploration panel context: the mockups, then the assumptions with their filters and counts. */
 export function ExplorationPanel() {
   const { outcome } = useWhere();
-  const insights = useInsightList();
-  const archived = useInsightList(true);
   const assumptions = useEntryList("assumptions");
   const archivedAssumptions = useEntryList("assumptions", true);
-  const decisions = useEntryList("decisions");
-  const archivedDecisions = useEntryList("decisions", true);
-  // With an outcome in view, the counts are for that outcome, as the lists are.
-  const forInsight = (i: InsightSummary) => !outcome || i.refs.outcomes.includes(outcome);
+  // With an outcome in view, the counts are for that outcome, as the list is.
   const forEntry = (e: RegisterSummary) => !outcome || e.outcome_ids.includes(outcome);
   return (
-    <PanelContext label="Mockups, insights, assumptions and decisions">
+    <PanelContext label="Mockups and assumptions">
       <MockupsSection />
-      <Section kind="insights" title="Insights" views={INSIGHT_VIEWS} items={insights.data?.items.filter(forInsight)} archived={archived.data?.items.filter(forInsight).length} />
       <Section kind="assumptions" title="Assumptions" views={entryViews("assumptions")} items={assumptions.data?.items.filter(forEntry)} archived={archivedAssumptions.data?.items.filter(forEntry).length} />
-      <Section kind="decisions" title="Decisions" views={entryViews("decisions")} items={decisions.data?.items.filter(forEntry)} archived={archivedDecisions.data?.items.filter(forEntry).length} />
     </PanelContext>
   );
 }
@@ -205,7 +175,7 @@ export function Marked({ text, ranges }: { text: string; ranges: [number, number
 }
 
 /**
- * The title search in a Exploration list's header. It narrows the list as you type and keeps the
+ * The title search in an Exploration list's header. It narrows the list as you type and keeps the
  * words in the URL (`?q=`), so a narrowed list can be shared and survives going back.
  */
 export function TitleFind({ label }: { label: string }) {

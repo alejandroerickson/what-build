@@ -11,6 +11,7 @@ export interface LocalPg {
   adminUrl: string;
   appUrl(database: string): string;
   createDatabase(name: string): Promise<string>;
+  hasDatabase(name: string): Promise<boolean>;
   stop(): Promise<void>;
 }
 
@@ -41,6 +42,13 @@ export async function startLocalPg(dir: string, port: number): Promise<LocalPg> 
       if (!exists.rowCount) await c.query(`create database "${name}" owner ${APP_ROLE}`);
       await c.end();
       return appUrl(name);
+    },
+    async hasDatabase(name: string) {
+      const c = new pg.Client({ connectionString: adminUrl });
+      await c.connect();
+      const exists = await c.query("select 1 from pg_database where datname = $1", [name]);
+      await c.end();
+      return Boolean(exists.rowCount);
     },
     async stop() {
       await server.stop();

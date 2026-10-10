@@ -31,7 +31,7 @@ everything strictly necessary and offered no choice.
   footer) stops it and removes its cookies. Advertising signals and Google signals are off.
 - What reaches Google names the page and the action, never the organization, product, record or
   content: page views carry masked paths (`/t/:org/:team/:product/story/:id`) and a fixed title,
-  and each change the app makes is an event named from a fixed word list (`insights_create`,
+  and each change the app makes is an event named from a fixed word list (`assumptions_create`,
   `sources_archive`). A request to hear from us on the site is `generate_lead`.
 - `/cookies` describes cookies by kind (needed, analytics) and holds the choice. It makes no claims
   about what WhatBuild will never do.

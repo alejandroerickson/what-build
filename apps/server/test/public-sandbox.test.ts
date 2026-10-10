@@ -70,7 +70,6 @@ beforeAll(async () => {
   await olive.api("POST", `${P}/outcomes`, { title: "Plan the week in ten minutes" });
   seededSource = await upload(olive, P, "visit.md", "# Visit\n\n- Crews text the office.\n- Nobody called it a crisis.\n", "Sample visit notes");
   await h.worker.drain();
-  await olive.api("POST", `${P}/insights`, { title: "Texts carry the plan", body: "Crews learn the plan from a text.", refs: { sources: [seededSource] } });
   await olive.api("POST", `${P}/assumptions`, { statement: "Crews read texts before calls.", citations: [{ record_id: seededSource, seq_start: 1, seq_end: 1 }], author_type: "human" });
 
   other = await h.signIn("pat@staff.example", "Pat Elsewhere");
@@ -238,12 +237,12 @@ describe("the public sandbox", () => {
     expect(made.body.created_by.display_name).toMatch(VISITOR);
     const record = await upload(vera, P, "mine.md", "# Mine\n\nA visitor's own notes.\n", "Sample notes a visitor added");
     await h.worker.drain();
-    const insight = await vera.api("POST", `${P}/insights`, { title: "What a visitor saw", body: "Notes lead to insights.", refs: { sources: [record] } });
-    expect(insight.status).toBe(201);
+    const assumption = await vera.api("POST", `${P}/assumptions`, { statement: "Visitors read the notes first.", citations: [{ record_id: record, seq_start: 1, seq_end: 1 }] });
+    expect(assumption.status).toBe(201);
     const everything = JSON.stringify([
       (await viktor.api("GET", `${P}/activity`)).body,
       (await viktor.api("GET", `${P}/sources/${record}`)).body,
-      (await viktor.api("GET", `${P}/insights/${insight.body.insight_id}`)).body,
+      (await viktor.api("GET", `${P}/assumptions/${assumption.body.id}`)).body,
       (await viktor.api("GET", `${P}/outcomes`)).body,
     ]);
     expect(everything).toContain(made.body.created_by.display_name);
@@ -394,13 +393,13 @@ describe("limits on what a visitor does", () => {
 
   it("limits how much one call carries", async () => {
     await set({ text_max_chars: 50, batch_max: 1 });
-    const long = await viktor.api("POST", `${P}/insights`, { title: "Too long", body: "x".repeat(51) });
+    const long = await viktor.api("POST", `${P}/assumptions`, { statement: "Too long", body: "x".repeat(51) });
     expect(long.status).toBe(413);
     expect(long.body.error.details).toMatchObject({ field: "body", limit: 50, unit: "characters" });
     const batch = await viktor.api("POST", `${P}/sources/archive`, { record_ids: [seededSource, "01ARZ3NDEKTSV4RRFFQ69G5FAV"] });
     expect(batch.status).toBe(413);
     expect(batch.body.error.details).toMatchObject({ field: "record_ids", limit: 1 });
-    expect((await olive.api("POST", `${P}/insights`, { title: "Staff write at length", body: "x".repeat(500) })).status).toBe(201);
+    expect((await olive.api("POST", `${P}/assumptions`, { statement: "Staff write at length", body: "x".repeat(500) })).status).toBe(201);
     await set({ text_max_chars: SANDBOX_DEFAULTS.text_max_chars, batch_max: SANDBOX_DEFAULTS.batch_max });
   });
 
@@ -533,8 +532,8 @@ describe("the baseline and the reset", () => {
   it("puts everything back exactly, keeps people where they were, and touches no other organization", async () => {
     // Visitors and staff change things every way they can.
     const added = await vera.api("POST", `${P}/outcomes`, { title: "Added after the baseline" });
-    const insights = (await vera.api("GET", `${P}/insights`)).body.items;
-    const edited = await vera.api("PATCH", `${P}/insights/${insights[0].insight_id}`, { expected_etag: insights[0].etag, body: "Rewritten by a visitor." });
+    const assumptions = (await vera.api("GET", `${P}/assumptions`)).body.items;
+    const edited = await vera.api("PATCH", `${P}/assumptions/${assumptions[0].id}`, { expected_etag: assumptions[0].etag, body: "Rewritten by a visitor." });
     expect(edited.status).toBe(200);
     await vera.api("POST", `${P}/sources/archive`, { record_ids: [seededSource] });
     const mine = await upload(vera, P, "after.md", "# After\n\nUploaded after the baseline.\n", "Sample upload after the baseline");

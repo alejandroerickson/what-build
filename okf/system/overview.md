@@ -15,8 +15,8 @@ Read from the top and stop when you have what you need.
 
 **What it is.** A product team's discovery material (interview transcripts, call notes, survey
 exports, documents) goes in. WhatBuild stores it, parses each source into numbered passages, and
-gives people and their agents one place to turn it into outcomes, insights, reviewed assumptions
-and decisions, and a Story for stakeholders. Every claim points at the exact passage it came from.
+gives people and their agents one place to turn it into outcomes, mockups, reviewed assumptions
+and a Story for stakeholders. Every claim points at the exact passage it came from.
 
 **Three traits define it.**
 
@@ -32,8 +32,10 @@ agents do most intake and synthesis over MCP; stakeholders read the Story, often
 
 **The loop**, which is also the navigation order: **Idea** (the product concept, and the outcomes its users should achieve) →
 **Evidence** (sources, parsed into passages) → **Exploration** (mockups: versioned canvases of
-pages built from the evidence, each under a brief; readable insights; and the assumption and
-decision registers, cited and reviewed) → **Story** (versioned pages for stakeholders).
+pages built from the evidence, each under a brief; and the assumption register, cited and
+reviewed) → **Story** (versioned pages for stakeholders). Insights and decisions were retired, and
+what a product held of them became sources
+([decision](../decisions/insights-and-decisions-are-retired-into-evidence.md)).
 
 **The system.** One stateless container image on Cloud Run serves the web app, REST (`/api/v1`),
 MCP (`/mcp`), OAuth (`/oauth`) and the upload relay, and runs the job worker. Postgres holds every
@@ -53,7 +55,7 @@ Google Cloud Storage behind a storage port; the official MCP SDK (stateless Stre
 React 19, React Router 7, TanStack Query 5, Vite 7; Vitest. Details in
 [architecture](../spec/02-architecture.md).
 
-**Operations.** 126 operations, each defined once and exposed through both REST and MCP
+**Operations.** 108 operations, each defined once and exposed through both REST and MCP
 ([decision](../decisions/one-registry-two-front-doors.md)).
 
 **Tenancy.** Organization (tenant) → team → product. One shared database and schema; every content
@@ -79,7 +81,7 @@ baseline, and a reset every day puts the baseline back
 **MCP.** `/mcp` for every product the account can reach, `/mcp/t/<tenant>` for one organization,
 or `/mcp/t/<tenant>/<team>/<product>` for one product. A scoped endpoint is a fence: it refuses
 every call outside its scope, and its token works nowhere wider
-([decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). 18 tools: 14 grouped by noun with `action`, `params`, `describe` and `product`, plus
+([decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). 16 tools: 12 grouped by noun with `action`, `params`, `describe` and `product`, plus
 `search`, `read_passage`, `get_skill` and `submit_feedback`
 ([decision](../decisions/mcp-tools-grouped-by-noun.md)). The server's instructions tell agents to
 check the skill version, start with `products list`, confirm the product before writing, and
@@ -108,7 +110,7 @@ passages are indexed in the same transaction that makes them current
 [decision](../decisions/only-the-primary-file-is-searched.md)).
 
 **An agent's session.** Check the skill → `products list`, confirm the product → upload through
-`files` → `search`, then `read_passage` → `insights create`, `assumptions create` with citations →
+`files` → `search`, then `read_passage` → `assumptions create` with citations →
 `mockups publish` a canvas with its brief, or `get_download` a version, build the next one in a
 project and publish the pages that changed
 ([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)) → read
@@ -116,6 +118,6 @@ project and publish the pages that changed
 `set_hierarchy` ([decision](../decisions/story-notes-are-agent-memory.md)).
 
 **Data.** Identity, tenancy, evidence (records, files, derivations, segments, annotations, agent
-notes), synthesis (outcomes, insights, revisions, register entries, reviews), mockups (versions,
+notes), synthesis (outcomes, revisions, assumptions, reviews), mockups (versions,
 their pages and their files), Story (pages, versions, hierarchy) and operations (activity, jobs, exports, lineage, tombstones). Every table and
 field: [data model](../spec/04-data-model.md).

@@ -166,17 +166,13 @@ describe("the discovery loop through REST", () => {
     const byId = (id: string) => all.body.items.find((x: { id: string }) => x.id === id);
     expect(byId(a.body.id).superseded_by).toEqual([sup.body.entry.id]);
     expect(byId(sup.body.entry.id).superseded_by).toEqual([]);
-    const wrongKind = await alice.api("GET", `${P}/decisions/${a.body.id}`);
-    expect(wrongKind.status).toBe(404);
   });
 
-  it("records assumptions and decisions before there is evidence, and cites it later", async () => {
+  it("records assumptions before there is evidence, and cites it later", async () => {
     const a = await alice.api("POST", `${P}/assumptions`, { statement: "Crew leads plan on Sunday evenings." });
     expect(a.status).toBe(201);
     expect(a.body.citations).toEqual([]);
     expect(a.body.status).toBe("unconfirmed");
-    const d = await alice.api("POST", `${P}/decisions`, { statement: "Start with crews of up to ten.", body: "Small crews first.", citations: [] });
-    expect(d.status).toBe(201);
     const check = await alice.api("POST", `${P}/assumptions/${a.body.id}/check-citations`, {});
     expect(check.body.valid).toBe(true);
     const log = await alice.api("GET", `${P}/activity?entity_id=${a.body.id}`);
@@ -185,11 +181,11 @@ describe("the discovery loop through REST", () => {
     expect(cited.status).toBe(200);
     expect(cited.body.changed).toEqual(["citations"]);
     expect(cited.body.citations).toHaveLength(1);
-    const tooMany = await alice.api("POST", `${P}/decisions`, { statement: "x", citations: Array.from({ length: 21 }, () => ({ record_id: recordId, seq_start: 2, seq_end: 2 })) });
+    const tooMany = await alice.api("POST", `${P}/assumptions`, { statement: "x", citations: Array.from({ length: 21 }, () => ({ record_id: recordId, seq_start: 2, seq_end: 2 })) });
     expect(tooMany.status).toBe(422);
   });
 
-  it("counts only current assumptions and decisions, as the default lists show them", async () => {
+  it("counts only current assumptions, as the default lists show them", async () => {
     const o = await alice.api("POST", `${P}/outcomes`, { title: "Know when numbers close" });
     const cite = [{ record_id: recordId, seq_start: 2, seq_end: 2 }];
     const a = await alice.api("POST", `${P}/assumptions`, { statement: "Numbers close weekly.", citations: cite, outcome_ids: [o.body.outcome_id] });
@@ -197,37 +193,20 @@ describe("the discovery loop through REST", () => {
       expected_etag: a.body.etag, note: "Sharper.", statement: "Numbers close every Friday.", citations: cite, outcome_ids: [o.body.outcome_id],
     });
     expect(sup.status).toBe(200);
-    const d = await alice.api("POST", `${P}/decisions`, { statement: "Plan around Friday.", citations: cite, outcome_ids: [o.body.outcome_id] });
-    await alice.api("POST", `${P}/decisions/${d.body.id}/review`, { expected_etag: d.body.etag, status: "refuted", note: "Friday moved." });
+    const d = await alice.api("POST", `${P}/assumptions`, { statement: "Plans move to Monday.", citations: cite, outcome_ids: [o.body.outcome_id] });
+    await alice.api("POST", `${P}/assumptions/${d.body.id}/review`, { expected_etag: d.body.etag, status: "refuted", note: "Friday stayed." });
     const objs = await alice.api("GET", `${P}/outcomes`);
     const mine = objs.body.items.find((x: { outcome_id: string }) => x.outcome_id === o.body.outcome_id);
-    expect(mine.counts).toEqual({ insights: 0, assumptions: 1, decisions: 0 });
+    expect(mine.counts).toEqual({ assumptions: 1 });
     const onOutcome = await alice.api("GET", `${P}/assumptions?status=unconfirmed,confirmed&outcome_id=${o.body.outcome_id}`);
     expect(onOutcome.body.items).toHaveLength(mine.counts.assumptions);
     const product = await alice.api("GET", P);
-    for (const kind of ["assumptions", "decisions"] as const) {
-      const current = await alice.api("GET", `${P}/${kind}?status=unconfirmed,confirmed&limit=100`);
-      expect(product.body.counts[kind]).toBe(current.body.items.length);
-    }
+    const current = await alice.api("GET", `${P}/assumptions?status=unconfirmed,confirmed&limit=100`);
+    expect(product.body.counts.assumptions).toBe(current.body.items.length);
   });
 
-  it("writes insights with revisions and validated references", async () => {
-    const bad = await alice.api("POST", `${P}/insights`, { title: "x", body: "y", refs: { sources: ["01ARZ3NDEKTSV4RRFFQ69G5FAV"] } });
-    expect(bad.status).toBe(422);
-    const i = await alice.api("POST", `${P}/insights`, { title: "Friday is the planning ritual", body: "## Observed\n\nNumbers close on Fridays.", refs: { sources: [recordId] } });
-    expect(i.status).toBe(201);
-    const u = await alice.api("PATCH", `${P}/insights/${i.body.insight_id}`, { expected_etag: i.body.etag, body: "## Observed\n\nRevised.", status: "published" });
-    expect(u.body.revision).toBe(2);
-    expect(u.body.status).toBe("published");
-    const g = await alice.api("GET", `${P}/insights/${i.body.insight_id}`);
-    expect(g.body.body).toContain("Revised.");
-    const restored = await alice.api("POST", `${P}/insights/${i.body.insight_id}/revisions/1/restore`, { insight_id: i.body.insight_id, n: 1, expected_etag: g.body.etag });
-    expect(restored.status).toBe(200);
-    const after = await alice.api("GET", `${P}/insights/${i.body.insight_id}`);
-    expect(after.body.body).toContain("Numbers close on Fridays.");
-    expect(after.body.revision).toBe(3);
-    const forRecord = await alice.api("GET", `${P}/sources/${recordId}/insights`);
-    expect(forRecord.body.insights).toHaveLength(1);
+  it("lists what uses a source", async () => {
+    const forRecord = await alice.api("GET", `${P}/sources/${recordId}/used-by`);
     expect(forRecord.body.assumptions.length).toBeGreaterThan(0);
   });
 
@@ -272,8 +251,7 @@ describe("the discovery loop through REST", () => {
     expect(names).toContain("bundle.json");
     expect(names.some((n) => n.startsWith(`records/${recordId}/files/`) && n.endsWith("/call.vtt"))).toBe(true);
     expect(names.some((n) => n.startsWith(`records/${recordId}/derived/`) && n.endsWith("/segments.jsonl"))).toBe(true);
-    expect(names.some((n) => /^insights\/.*\.md$/.test(n))).toBe(true);
-    expect(names).toContain("registers/assumptions.json");
+    expect(names).toContain("assumptions.json");
     expect(names).toContain("story/pages/overview/v2.html");
     expect(names).toContain("activity.jsonl");
     expect(new TextDecoder().decode(files["bundle.json"]!)).toContain("whatbuild-product-bundle");
@@ -331,7 +309,7 @@ describe("the discovery loop through REST", () => {
       expect(item.counts).toEqual(one.body.counts);
     }
     const dispatch = list.body.items.find((i: { path: string }) => i.path === p.body.path);
-    expect(dispatch.counts).toEqual({ sources: 0, outcomes: 1, insights: 0, assumptions: 0, decisions: 0, mockups: 0, story_pages: 0 });
+    expect(dispatch.counts).toEqual({ sources: 0, outcomes: 1, assumptions: 0, mockups: 0, story_pages: 0 });
     const onboarding = list.body.items.find((i: { path: string }) => i.path !== p.body.path);
     expect(onboarding.counts.outcomes).toBeGreaterThan(1);
   });

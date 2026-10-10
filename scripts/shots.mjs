@@ -83,17 +83,14 @@ async function sample(page) {
   const P = `${base}/api/v1/p/${path}`;
   const sources = await get(`${P}/sources?limit=200`);
   const source = sources.records.find((r) => r.title.startsWith("Crew lead interview")) ?? sources.records[0];
-  const insights = await get(`${P}/insights`);
   const assumptions = await get(`${P}/assumptions`);
-  const inState = (state) => insights.items.find((i) => i.review_state === state)?.insight_id;
+  const mockups = await get(`${P}/mockups`);
   return {
     app,
     api: P,
     tenant: path.split("/")[0],
     source: source.record_id,
-    insight: insights.items[0].insight_id,
-    reviewed: inState("reviewed"),
-    changed: inState("changed"),
+    mockup: mockups.items[0]?.mockup_id,
     assumption: (assumptions.items ?? assumptions.entries)[0].id,
   };
 }
@@ -115,11 +112,9 @@ for (const device of ["desktop", "phone"]) {
     await shoot("evidence", "/evidence");
     for (const view of ["passages", "original", "notes", "files"]) await shoot(`source-${view}`, `/evidence/${s.source}?view=${view}`);
     await shoot("search", "/search?q=spreadsheet");
-    await shoot("insights", "/exploration/insights");
-    await shoot("insight", `/exploration/insights/${s.insight}`);
+    if (s.mockup) await shoot("mockup", `/exploration/mockups/${s.mockup}`, { full: false });
     await shoot("assumptions", "/exploration/assumptions");
     await shoot("assumption", `/exploration/assumptions/${s.assumption}`);
-    await shoot("decisions", "/exploration/decisions");
     await shoot("story", "/story/overview", { full: false });
     if (wanted("export-dialog")) {
       await page.goto(`${s.app}/story/overview`);
@@ -146,11 +141,6 @@ for (const device of ["desktop", "phone"]) {
       await page.locator(".inspector .group-title", { hasText: "Notes for agents" }).evaluate((el) => el.closest(".group").scrollIntoView({ block: "start" }));
       await page.waitForTimeout(200);
       await capture(page, name("story-notes"), { full: false });
-    }
-    if (device === "desktop") {
-      // The two review marks a person sees on an insight: reviewed (with Undo), and changed since review.
-      if (s.reviewed) await shoot("insight-reviewed", `/exploration/insights/${s.reviewed}`);
-      if (s.changed) await shoot("insight-changed", `/exploration/insights/${s.changed}`);
     }
     await shoot("print-view", `${s.api}/story/print?page_ids=overview,hand-off-test`);
     await shoot("activity", "/activity");

@@ -19,7 +19,7 @@ export const exportProduct = defineOperation({
   mutates: true,
   // Export is never blocked, not even by archiving.
   allowArchivedProduct: true,
-  summary: "Export the whole product to one ZIP: every source file, parse, note, insight, revision, entry, review, Story version, mockup version and activity event.",
+  summary: "Export the whole product to one ZIP: every source file, parse, note, outcome, revision, assumption, review, Story version, mockup version and activity event.",
   description:
     "Any role may export, always — export is never blocked. The bundle is built in the background; call products(action=\"exports\") to see when it is ready and get a download grant. Readable with a ZIP tool and nothing else: JSON, Markdown, HTML and the original files.",
   input: z.strictObject({}),
@@ -121,7 +121,7 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
       tenant,
       team,
       product: { product_id: product.product_id, slug: product.slug, name: product.name, concept: product.concept, created_at: product.created_at, archived_at: product.archived_at },
-      layout: "records/<record_id>/record.json · files/<file_version_id>/<path> · derived/<derivation_id>/* · insights/<id>.md · registers/*.json · story/*",
+      layout: "records/<record_id>/record.json · files/<file_version_id>/<path> · derived/<derivation_id>/* · assumptions.json · story/* · mockups/*",
     }),
   );
   add("outcomes.json", j(await db.selectFrom("outcomes").selectAll().where("product_id", "=", pid).orderBy("position").execute()));
@@ -157,18 +157,11 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
     if (lineage) add(`${base}/lineage.json`, j(lineage));
   }
 
-  const insights = await db.selectFrom("insights").selectAll().where("product_id", "=", pid).execute();
-  for (const i of insights) {
-    const { body, ...meta } = i;
-    add(`insights/${i.insight_id}.json`, j(meta));
-    add(`insights/${i.insight_id}.md`, `# ${i.title}\n\n${i.summary ? `${i.summary}\n\n` : ""}${body}\n`);
-  }
-  const entries = await db.selectFrom("register_entries").selectAll().where("product_id", "=", pid).orderBy("entry_id").execute();
+  const entries = await db.selectFrom("register_entries").selectAll().where("product_id", "=", pid).where("kind", "=", "assumption").orderBy("entry_id").execute();
   const reviews = entries.length ? await db.selectFrom("reviews").selectAll().where("entry_id", "in", entries.map((e) => e.entry_id)).orderBy("review_id").execute() : [];
-  for (const kind of ["assumption", "decision"] as const)
-    add(`registers/${kind}s.json`, j(entries.filter((e) => e.kind === kind).map((e) => ({ ...e, reviews: reviews.filter((r) => r.entry_id === e.entry_id) }))));
+  add("assumptions.json", j(entries.map((e) => ({ ...e, reviews: reviews.filter((r) => r.entry_id === e.entry_id) }))));
 
-  const objectIds = [...insights.map((i) => i.insight_id), ...entries.map((e) => e.entry_id), pid];
+  const objectIds = [...entries.map((e) => e.entry_id), pid];
   const outcomes = await db.selectFrom("outcomes").select("outcome_id").where("product_id", "=", pid).execute();
   const noteIds = (await db.selectFrom("annotations").select("annotation_id").where("product_id", "=", pid).execute()).map((a) => a.annotation_id);
   const revs = await db.selectFrom("revisions").selectAll().where("object_id", "in", [...objectIds, ...outcomes.map((o) => o.outcome_id), ...noteIds]).orderBy("object_id").orderBy("n").execute();
@@ -213,7 +206,7 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
   add(
     "README.txt",
     `WhatBuild product bundle: ${product.name} (${tenant.name} / ${team.name}).\n\n` +
-      "Everything is plain files: JSON for structured data, Markdown for insights, parsed text and mockup briefs and notes,\n" +
+      "Everything is plain files: JSON for structured data, Markdown for parsed text and mockup briefs and notes,\n" +
       "HTML for Story versions and mockup pages (a Story version that shows a mockup page names it in its JSON),\n" +
       "and every stored version of every source file under records/<id>/files/. Offsets in segments.jsonl are Unicode\n" +
       "code points into the text.md beside it.\n",

@@ -54,6 +54,9 @@ git log --oneline <latest tag>..$SHA                              # what it cont
 git diff --name-only --diff-filter=A <latest tag> $SHA -- apps/server/src/migrations/
 ```
 
+A migration that rewrites existing rows is worth trying first on
+[a copy of production](a-copy-of-production.md).
+
 Choose the number by the rules above. Tell the person the version, the commit, what it contains
 and the migrations it adds, and wait for their yes: a tag is permanent. Then publish it:
 

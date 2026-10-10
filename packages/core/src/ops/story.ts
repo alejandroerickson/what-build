@@ -28,9 +28,7 @@ const refsInput = z
   .strictObject({
     outcomes: z.array(id("outcome")).max(50).optional(),
     sources: z.array(id("source")).max(100).optional(),
-    insights: z.array(id("insight")).max(100).optional(),
     assumptions: z.array(id("assumption")).max(100).optional(),
-    decisions: z.array(id("decision")).max(100).optional(),
   })
   .optional();
 
@@ -238,15 +236,14 @@ type ResolvedRef = { id: string; title: string | null; status: string | null; ki
 export async function resolveRefs(ctx: OpContext, refs: Refs): Promise<Record<keyof Refs, ResolvedRef[]>> {
   const pid = productId(ctx);
   const some = (ids: string[] | undefined) => (ids?.length ? ids : [""]);
-  const [outcomes, sources, insights, entries] = await Promise.all([
+  const [outcomes, sources, entries] = await Promise.all([
     ctx.db.selectFrom("outcomes").select(["outcome_id as id", "title", "status"]).where("product_id", "=", pid).where("outcome_id", "in", some(refs.outcomes)).execute(),
     ctx.db.selectFrom("records").select(["record_id as id", "title", "kind", "archived_at"]).where("product_id", "=", pid).where("record_id", "in", some(refs.sources)).execute(),
-    ctx.db.selectFrom("insights").select(["insight_id as id", "title", "status"]).where("product_id", "=", pid).where("insight_id", "in", some(refs.insights)).execute(),
     ctx.db
       .selectFrom("register_entries")
       .select(["entry_id as id", "statement", "status", "archived_at"])
       .where("product_id", "=", pid)
-      .where("entry_id", "in", some([...(refs.assumptions ?? []), ...(refs.decisions ?? [])]))
+      .where("entry_id", "in", some(refs.assumptions))
       .execute(),
   ]);
   const missing = (id: string): ResolvedRef => ({ id, title: null, status: null, archived: false, missing: true });
@@ -259,15 +256,7 @@ export async function resolveRefs(ctx: OpContext, refs: Refs): Promise<Record<ke
       const r = sources.find((x) => x.id === i);
       return r ? { id: i, title: r.title, status: null, kind: r.kind, archived: Boolean(r.archived_at), missing: false } : missing(i);
     }),
-    insights: (refs.insights ?? []).map((i) => {
-      const r = insights.find((x) => x.id === i);
-      return r ? { id: i, title: r.title, status: r.status, archived: r.status === "archived", missing: false } : missing(i);
-    }),
     assumptions: (refs.assumptions ?? []).map((i) => {
-      const r = entries.find((x) => x.id === i);
-      return r ? { id: i, title: r.statement, status: r.status, archived: Boolean(r.archived_at), missing: false } : missing(i);
-    }),
-    decisions: (refs.decisions ?? []).map((i) => {
       const r = entries.find((x) => x.id === i);
       return r ? { id: i, title: r.statement, status: r.status, archived: Boolean(r.archived_at), missing: false } : missing(i);
     }),
@@ -337,7 +326,7 @@ export const getPage = defineOperation({
   mutates: false,
   summary: "Read a Story page's current version, with its HTML, citations, notes for agents, and the page etag you need to publish again.",
   description:
-    "404 means the page has never been published. An archived page stays readable here. Read this before revising a page, and keep what is useful. agent_notes holds what agents keep about the page — its purpose, sources still to fold in, structural decisions — with its own etag for write_notes; read it before revising. include_html false leaves out the HTML (html_chars and html_sha256 stay). A reader (the Story-only role) gets the page without agent_notes, refs, resolved_refs or citations.",
+    "404 means the page has never been published. An archived page stays readable here. Read this before revising a page, and keep what is useful. agent_notes holds what agents keep about the page — its purpose, sources still to fold in, choices about its structure — with its own etag for write_notes; read it before revising. include_html false leaves out the HTML (html_chars and html_sha256 stay). A reader (the Story-only role) gets the page without agent_notes, refs, resolved_refs or citations.",
   input: z.strictObject({ page_id: pageId, include_html: z.boolean().default(true) }),
   rest: { method: "GET", path: "/story/pages/:page_id" },
   mcp: { tool: "story", action: "get_page" },
@@ -460,7 +449,7 @@ export const publish = defineOperation({
   mutates: true,
   summary: "Publish a new version of a Story page (creating the page on its first version). A later version keeps whatever you omit.",
   description:
-    `Call guidance first, and get_page before revising (read its agent_notes too). A page's first version: omit expected_etag, give a title, and give body (or html for a whole document of your own, or neither for a generated title page). Prefer body: it is only the markup inside <body>, and WhatBuild puts the product's Story style around it, so the stylesheet is never sent and every page carries the same one. A later version: pass the page etag and send only what changes — the title, summary, html, refs and citations you omit are taken from the current version, and carried_forward in the result names them. To change a sentence, patch_html applies exact find/replace edits instead of re-sending the page. After set_style, restyle: true gives a page the new stylesheet and keeps its content. from_version: N starts from that earlier version instead, so from_version alone restores it as a new version; compare html_sha256 to confirm the HTML is identical. Pass an empty list to clear refs or citations. The HTML is validated and every problem is listed at once (422). citations lists up to ${CITATION_MAX_COUNT} exact passages the page draws on, {record_id, seq_start, seq_end, quote?}, each frozen as a snapshot as in the registers; carried citations keep their snapshots. summary describes the page itself. Publishing never places the page in the navigation: call set_hierarchy afterwards, and update the page's notes with write_notes (agent_notes_etag is in the result). Never invent facts, owners or dates, and never present an unconfirmed assumption as settled.`,
+    `Call guidance first, and get_page before revising (read its agent_notes too). A page's first version: omit expected_etag, give a title, and give body (or html for a whole document of your own, or neither for a generated title page). Prefer body: it is only the markup inside <body>, and WhatBuild puts the product's Story style around it, so the stylesheet is never sent and every page carries the same one. A later version: pass the page etag and send only what changes — the title, summary, html, refs and citations you omit are taken from the current version, and carried_forward in the result names them. To change a sentence, patch_html applies exact find/replace edits instead of re-sending the page. After set_style, restyle: true gives a page the new stylesheet and keeps its content. from_version: N starts from that earlier version instead, so from_version alone restores it as a new version; compare html_sha256 to confirm the HTML is identical. Pass an empty list to clear refs or citations. The HTML is validated and every problem is listed at once (422). citations lists up to ${CITATION_MAX_COUNT} exact passages the page draws on, {record_id, seq_start, seq_end, quote?}, each frozen as a snapshot, as an assumption's citations are; carried citations keep their snapshots. summary describes the page itself. Publishing never places the page in the navigation: call set_hierarchy afterwards, and update the page's notes with write_notes (agent_notes_etag is in the result). Never invent facts, owners or dates, and never present an unconfirmed assumption as settled.`,
   input: z.strictObject({
     page_id: pageId.default("overview"),
     title: z.string().trim().min(1).max(200).optional().describe("Required on a page's first version; omit it later to keep the title."),
@@ -734,7 +723,7 @@ export const writeNotes = defineOperation({
   mutates: true,
   summary: "Replace a Story page's notes for agents: the Markdown memory agents keep while writing and maintaining the page.",
   description:
-    `Notes are not versioned with the HTML and readers do not see them on the page. Keep them short and current: what the page is for and who reads it, sources and insights still to fold in, decisions about structure, and anything the next agent should not undo. Read them (get_page → agent_notes) before revising, and update them after publishing. The whole note is replaced. Pass the notes etag as expected_etag — agent_notes_etag from publish, or agent_notes.etag from get_page; it is not the page etag. While the notes are empty you may omit it. At most ${NOTES_MAX.toLocaleString("en-US")} characters; an empty string clears the notes.`,
+    `Notes are not versioned with the HTML and readers do not see them on the page. Keep them short and current: what the page is for and who reads it, sources still to fold in, choices about its structure, and anything the next agent should not undo. Read them (get_page → agent_notes) before revising, and update them after publishing. The whole note is replaced. Pass the notes etag as expected_etag — agent_notes_etag from publish, or agent_notes.etag from get_page; it is not the page etag. While the notes are empty you may omit it. At most ${NOTES_MAX.toLocaleString("en-US")} characters; an empty string clears the notes.`,
   input: z.strictObject({
     page_id: pageId,
     notes: z.string().max(NOTES_MAX),
@@ -830,7 +819,7 @@ export const promoteMockup = defineOperation({
     if (!mp) throw notFound(`Version ${mv.n} of the mockup has no page "${input.mockup_page_id}". Its pages: ${pages.map((p) => p.page_id).join(", ")}.`, { pages: pages.map((p) => p.page_id) });
 
     const ref: MockupPageRef = { mockup_id: m.mockup_id, mockup_version_id: mv.version_id, version: mv.n, page_id: mp.page_id };
-    const refs = { ...EMPTY_REFS, outcomes: mv.refs.outcomes ?? [], sources: mv.refs.sources ?? [], assumptions: mv.refs.assumptions ?? [] };
+    const refs = { outcomes: mv.refs.outcomes ?? [], sources: mv.refs.sources ?? [], assumptions: mv.refs.assumptions ?? [] };
     const what = `"${mp.title}" from the mockup "${m.title}", version ${mv.n}`;
     const existing = input.page_id
       ? await ctx.db.selectFrom("story_pages").selectAll().where("product_id", "=", pid).where("page_id", "=", input.page_id).forUpdate().executeTakeFirst()

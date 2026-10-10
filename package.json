@@ -8,6 +8,8 @@
   },
   "scripts": {
     "dev": "tsx apps/server/src/dev.ts",
+    "dev:fixture": "tsx apps/server/src/dev.ts --fixture",
+    "fixture": "tsx apps/server/src/fixture.ts",
     "build": "apps/web/node_modules/.bin/vite build apps/web && node apps/server/build.mjs",
     "start": "node apps/server/dist/main.js serve",
     "test": "vitest run",

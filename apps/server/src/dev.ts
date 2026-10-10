@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { createBlobStore, createMailer, createPorts } from "./app.ts";
 import { loadConfig } from "./config.ts";
 import { createDb, migrate } from "./database.ts";
+import { addSamplePeople, FIXTURE_BLOBS, FIXTURE_DATABASE } from "./fixture.ts";
 import { SEED_ACCOUNTS, seed, seedSandbox } from "./seed.ts";
 import { startLocalPg, type LocalPg } from "./testing/pg.ts";
 import { Worker } from "./worker.ts";
@@ -18,10 +19,14 @@ import { Worker } from "./worker.ts";
  *   WHATBUILD_SANDBOX_TENANT=harbor-labs pnpm dev
  *                            the sample organization as the public sandbox, with a baseline saved
  *                            and an invitation link printed
+ *   pnpm dev:fixture         the copy of a deployment that `pnpm fixture load` put in place, with the
+ *                            sample people added to it and no sample data; mail only prints here
+ *                            (okf/operations/a-copy-of-production.md)
  */
 const root = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 const API_PORT = Number(process.env["PORT"] ?? 8787);
 const WEB_PORT = Number(process.env["WHATBUILD_WEB_PORT"] ?? 5273);
+const FIXTURE = process.argv.includes("--fixture");
 
 async function main() {
   let pg: LocalPg | null = null;
@@ -29,7 +34,11 @@ async function main() {
   if (!databaseUrl) {
     console.log("Starting Postgres (embedded, in .what-build/pg)…");
     pg = await startLocalPg(resolve(root, ".what-build/pg"), Number(process.env["WHATBUILD_PG_PORT"] ?? 54329));
-    databaseUrl = await pg.createDatabase("whatbuild");
+    if (FIXTURE && !(await pg.hasDatabase(FIXTURE_DATABASE))) {
+      await pg.stop();
+      throw new Error("No copy is loaded: run pnpm fixture pull, then pnpm fixture load.");
+    }
+    databaseUrl = FIXTURE ? pg.appUrl(FIXTURE_DATABASE) : await pg.createDatabase("whatbuild");
   }
   const env = {
     ...process.env,
@@ -39,7 +48,10 @@ async function main() {
     WHATBUILD_PUBLIC_URL: process.env["WHATBUILD_PUBLIC_URL"] ?? `http://localhost:${WEB_PORT}`,
     // Vite proxies the API here, so a second instance on other ports talks to its own API.
     WHATBUILD_API: process.env["WHATBUILD_API"] ?? `http://localhost:${API_PORT}`,
-    WHATBUILD_BLOB_DIR: process.env["WHATBUILD_BLOB_DIR"] ?? resolve(root, ".what-build/blobs"),
+    WHATBUILD_BLOB_DIR: FIXTURE ? FIXTURE_BLOBS : (process.env["WHATBUILD_BLOB_DIR"] ?? resolve(root, ".what-build/blobs")),
+    // A copy of a deployment holds real people's addresses and files: its mail only prints here,
+    // and its files are the local copy, never the deployment's bucket.
+    ...(FIXTURE ? { WHATBUILD_MAILER: "console", WHATBUILD_BLOB_STORE: "fs" } : {}),
     // The sample owner runs this instance, so the instance owner's page has someone to show it to.
     WHATBUILD_INSTANCE_OWNERS: process.env["WHATBUILD_INSTANCE_OWNERS"] ?? SEED_ACCOUNTS[0].email,
   };
@@ -47,9 +59,12 @@ async function main() {
   const { db, pool } = createDb(databaseUrl, 3);
   await migrate(db);
   const ports = createPorts(config, await createBlobStore(config), createMailer(config));
-  const worker = new Worker({ db, ports }, 60_000, () => {});
-  await seed({ db, ports }, worker);
-  if (config.sandboxTenant) await seedSandbox({ db, ports }, config.sandboxTenant);
+  if (FIXTURE) await addSamplePeople(db);
+  else {
+    const worker = new Worker({ db, ports }, 60_000, () => {});
+    await seed({ db, ports }, worker);
+    if (config.sandboxTenant) await seedSandbox({ db, ports }, config.sandboxTenant);
+  }
   await pool.end();
 
   const children: ChildProcess[] = [];
@@ -65,7 +80,20 @@ async function main() {
   run("api", resolve(root, "apps/server/node_modules/.bin/tsx"), ["watch", "--clear-screen=false", "src/main.ts", "serve"], resolve(root, "apps/server"));
   run("web", resolve(root, "apps/web/node_modules/.bin/vite"), ["--port", String(WEB_PORT), "--strictPort"], resolve(root, "apps/web"));
 
-  console.log(`
+  console.log(FIXTURE ? `
+  WhatBuild is starting on the copy loaded by pnpm fixture load.
+
+    App            http://localhost:${WEB_PORT}
+    Sign in as     riley@example.com (owner of every organization), sam@example.com (editor of
+                   every team) or jordan@example.com (reads every Story) — one click on the
+                   sign-in page — or "As the email above" with an account in the copy; nothing
+                   is sent to anyone
+    MCP endpoint   http://localhost:${WEB_PORT}/mcp
+    Database      embedded Postgres, database "${FIXTURE_DATABASE}"
+    Files          .what-build/fixture-blobs
+
+  Pending migrations have run; the worker is doing the jobs they queued. Ctrl-C stops everything.
+` : `
   WhatBuild is starting.
 
     App            http://localhost:${WEB_PORT}

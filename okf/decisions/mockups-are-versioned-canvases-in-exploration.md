@@ -47,8 +47,9 @@ the names Mockups and Exploration on 2026-10-09.
   it stays on that version until it is promoted again, so the Story never changes under its
   readers when the mockup does. A Story reader sees the promoted page and nothing else of the
   mockup. The maintainer chose both on 2026-10-09.
-- The third stage is **Exploration**: mockups, insights, assumptions and decisions. Its URLs are
-  `/exploration/…`, and old `/synthesis/…` links open the same place.
+- The third stage is **Exploration**: mockups and assumptions (insights and decisions, which it
+  also held, were retired: [decision](insights-and-decisions-are-retired-into-evidence.md)). Its
+  URLs are `/exploration/…`, and old `/synthesis/…` links open the same place.
 - Rejected names: "exploration" for the item (too abstract for people and for agents reading the
   tool list), "wireframe" (suggests grey boxes) and "prototype" (suggests a working product).
 
@@ -64,8 +65,6 @@ the names Mockups and Exploration on 2026-10-09.
 - Each version stores every page's HTML and every file in full, so a long run of versions costs
   storage; 24 pages and 8,000,000 characters of HTML, 50 files and 2,000,000 characters of files a
   version, and 50 mockups a product, bound it.
-- Exploration still holds insights and decisions; moving them into Evidence is on the
-  [roadmap](../spec/10-roadmap.md).
 
 ## Constrains
 

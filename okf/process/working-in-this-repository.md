@@ -44,7 +44,7 @@ Everything committed, including history, is published
    permission), keyboard and screen-reader support, WCAG 2.2 AA, phone width, light and dark. Story pages
    never follow the app's tokens ([decision](../decisions/story-pages-follow-the-teams-design-system.md)).
 6. **Vocabulary** is fixed ([product spec](../spec/01-product.md)): source, passage, segment,
-   outcome, insight, assumption, decision, Story, archive. Archive is never called deleting.
+   outcome, mockup, assumption, Story, archive. Archive is never called deleting.
 
 ## Before you finish
 

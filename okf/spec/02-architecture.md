@@ -48,7 +48,7 @@ Observed in the `package.json` files, the [`Dockerfile`](../../Dockerfile) and
 | Mail | `nodemailer` over SMTP, or the console in development | Any SMTP provider; no provider SDK. |
 | Web UI | **React 19 + Vite**, SPA; **React Router 7** and **TanStack Query**; `lucide-react` icons | Static assets served by the same process; URL-held state through the router. |
 | Parsing | Own code for text/Markdown/VTT/SRT/CSV; `pdfjs-dist` for PDF; `fflate` + `saxes` for DOCX and XLSX; `parse5` for HTML; own code for legacy Word `.doc` (the OLE2 compound file and the Word binary format) | Pure functions of bytes → sidecars with no native dependencies: a small image, a fast cold start, and a contributor install that cannot fail on a toolchain. |
-| Markdown rendering | `marked`'s lexer, with tokens mapped to React elements ([`apps/web/src/lib/markdown.tsx`](../../apps/web/src/lib/markdown.tsx)) | Insight bodies are untrusted input: no HTML string from them ever reaches the DOM; raw HTML shows as text and images never load. |
+| Markdown rendering | `marked`'s lexer, with tokens mapped to React elements ([`apps/web/src/lib/markdown.tsx`](../../apps/web/src/lib/markdown.tsx)) | Markdown that agents write (briefs, notes, assumption bodies) is untrusted input: no HTML string from it ever reaches the DOM; raw HTML shows as text and images never load. |
 | Tooling | pnpm workspaces, `tsc` for type checks, Vitest, `tsx`, esbuild (server bundle), `playwright-core` for browser scripts | No linter or formatter is configured. |
 
 The design system and visual language are documented in [DESIGN.md](../../DESIGN.md).

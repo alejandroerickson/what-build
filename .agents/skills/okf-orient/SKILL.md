@@ -25,7 +25,7 @@ code alone. The docs record intent and constraints that the code cannot show.
 | You need | Read |
 |---|---|
 | What the product is for, and what it deliberately is not | `okf/project/charter.md`, then `PRODUCT.md` |
-| The product's vocabulary (source, passage, insight, Story…) | `okf/spec/01-product.md` |
+| The product's vocabulary (source, passage, mockup, Story…) | `okf/spec/01-product.md` |
 | Where a file or feature lives | `okf/system/repository-map.md` |
 | Why something is built the way it is | `okf/decisions/index.md`, then the record |
 | Components, stack, adapters, configuration | `okf/spec/02-architecture.md` |

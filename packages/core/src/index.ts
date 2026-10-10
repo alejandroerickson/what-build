@@ -3,7 +3,6 @@ import { derivedOps } from "./ops/derived.ts";
 import { mockupOps } from "./ops/mockups.ts";
 import { exportOps } from "./ops/export.ts";
 import { fileOps } from "./ops/files.ts";
-import { insightOps } from "./ops/insights.ts";
 import { lineageOps } from "./ops/lineage.ts";
 import { metaOps } from "./ops/meta.ts";
 import { outcomeOps } from "./ops/outcomes.ts";
@@ -33,6 +32,7 @@ export * from "./story-html.ts";
 export * from "./story-print.ts";
 export * from "./util.ts";
 export { runDerivation } from "./ops/derived.ts";
+export { queueEvidenceMoves, runEvidenceMove } from "./evidence-move.ts";
 export { markExportFailed, runExport } from "./ops/export.ts";
 export { completeGrant, DOWNLOAD_GRANT_HEADER, UPLOAD_GRANT_HEADER, blobKeyFor } from "./ops/files.ts";
 export { createTenantWithTeam, uniqueTenantSlug } from "./ops/products.ts";
@@ -56,7 +56,6 @@ export const OPERATIONS: OperationDef[] = [
   ...fileOps,
   ...derivedOps,
   ...searchOps,
-  ...insightOps,
   ...registerOpsList,
   ...revisionOpsList,
   ...storyOps,

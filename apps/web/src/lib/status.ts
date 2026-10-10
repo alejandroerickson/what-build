@@ -57,9 +57,7 @@ export const PROVENANCE_LABEL: Record<string, string> = {
  * attention: needs a person; negative: failed or refuted; progress: running; neutral: a plain state.
  */
 export const STATUS_TONE = {
-  insight: { draft: "attention", published: "positive", archived: "neutral" },
   outcome: { active: "neutral", achieved: "positive", archived: "neutral" },
-  review: { unreviewed: "attention", changed: "attention", reviewed: "positive" },
   citation: { ok: "positive", relocated: "attention", text_changed: "attention", record_archived: "neutral", record_deleted: "negative", record_missing: "negative" },
   upload: { queued: "neutral", uploading: "progress", done: "positive", failed: "negative" },
 } as const satisfies Record<string, Record<string, StatusTone>>;

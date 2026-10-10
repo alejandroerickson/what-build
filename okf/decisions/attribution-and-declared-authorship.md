@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: Every write is attributed, and human or agent authorship is declared
-description: Writes store an actor snapshot; register entries, reviews and insight reviews distinguish a person's judgment from an agent's.
+description: Writes store an actor snapshot; assumptions and their reviews distinguish a person's judgment from an agent's.
 tags: [decision, attribution, agents, trust]
 generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
 status: stable
@@ -16,8 +16,7 @@ An agent writes with its person's credentials, so identity alone cannot say whet
 ## Decision
 
 - Every mutation stores `{account_id, display_name, surface, client}`, copied rather than joined, and appends an activity event.
-- Register entries and reviews declare `author_type` / `reviewer_type` (`human` or `agent`); a confidence rating is accepted only from a declared human.
-- Marking an insight reviewed relays a person's judgment; agents may call it only to relay one.
+- Assumptions and reviews declare `author_type` / `reviewer_type` (`human` or `agent`); a confidence rating is accepted only from a declared human.
 
 ## Consequences
 

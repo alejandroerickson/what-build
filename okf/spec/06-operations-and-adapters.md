@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 126 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 108 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
 generated: {by: agent:claude, at: 2026-10-09}
 status: stable
@@ -34,7 +34,7 @@ defineOperation({
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 126. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 108. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
@@ -108,7 +108,7 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
 
 - Lists and search are paged with an opaque `cursor`; responses carry `next_cursor` or `null`.
   Page sizes are per operation: default 50, at most 200 for sources, search, activity and
-  revisions; default 25, at most 100 for insights, register entries and Story versions; outcomes
+  revisions; default 25, at most 100 for assumptions and Story versions; outcomes
   default to 100. Asking for more than the maximum is `422`, not a silent clamp.
 - `sources.list` orders by `sort`: `added` (newest added first, the default), `date` (the
   source's own date, newest first, undated last), `updated` (details most recently changed first)
@@ -118,7 +118,7 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
   With `date`, `updated` or `title`, a cursor the sort did not issue is `422 invalid_cursor`. Each
   summary in the list also names its primary file (`primary_file`, or `null`). Every source
   summary carries `uploaded_at` and `updated_at` with their actors.
-- Text windows (`derived.text`, insight bodies): at most 20,000 characters per call by default,
+- Text windows (`derived.text`): at most 20,000 characters per call by default,
   with `truncated` and totals.
 - Passages: at most 200 segments and 10 minutes per read ([§5.4](05-derived-layer.md)).
 - Lists return summaries — never bodies, HTML, or derived text.
@@ -146,7 +146,7 @@ must come from the app's own origin (`403 forbidden_origin`).
 
 ### The operation catalogue
 
-All 126 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 108 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-teams-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -199,7 +199,7 @@ being changed inside the handler.
 | `sources` | `annotate` | `POST P/sources/:record_id/annotations` | editor |
 | `sources` | `list_annotations` | `GET P/sources/:record_id/annotations` | viewer |
 | `sources` | `update_annotation` | `PATCH P/annotations/:annotation_id` | editor |
-| `sources` | `insights_for` | `GET P/sources/:record_id/insights` | viewer |
+| `sources` | `used_by` | `GET P/sources/:record_id/used-by` | viewer |
 | `sources` | `move_to_product` | `POST P/sources/:record_id/move` | editor |
 | `sources` | `copy_to_product` | `POST P/sources/:record_id/copy` | editor |
 | `sources` | `delete_impact` | `GET P/sources/:record_id/delete-impact` | viewer |
@@ -220,14 +220,6 @@ being changed inside the handler.
 | `derived` | `read_note` | `GET P/sources/:record_id/agent-notes/:note_kind` | viewer |
 | `read_passage` | — | `GET P/sources/:record_id/passage` | viewer |
 | `search` | — | `GET P/search` | viewer |
-| `insights` | `list` | `GET P/insights` | viewer |
-| `insights` | `get` | `GET P/insights/:insight_id` | viewer |
-| `insights` | `create` | `POST P/insights` | editor |
-| `insights` | `update` | `PATCH P/insights/:insight_id` | editor |
-| `insights` | `review` | `POST P/insights/:insight_id/review` | editor |
-| `insights` | `revisions` | `GET P/insights/:insight_id/revisions` | viewer |
-| `insights` | `get_revision` | `GET P/insights/:insight_id/revisions/:n` | viewer |
-| `insights` | `restore_revision` | `POST P/insights/:insight_id/revisions/:n/restore` | editor |
 | `assumptions` | `list` | `GET P/assumptions` | viewer |
 | `assumptions` | `get` | `GET P/assumptions/:id` | viewer |
 | `assumptions` | `create` | `POST P/assumptions` | editor |
@@ -238,7 +230,6 @@ being changed inside the handler.
 | `assumptions` | `unlink` | `POST P/assumptions/:id/unlink` | editor |
 | `assumptions` | `archive` | `POST P/assumptions/:id/archive` | editor |
 | `assumptions` | `check_citations` | `POST P/assumptions/:id/check-citations` | viewer |
-| `decisions` | *(the same ten actions as `assumptions`)* | `P/decisions/…` | *(same)* |
 | `story` | `guidance` | `GET P/story/guidance` | viewer |
 | `story` | `get_style` | `GET P/story/style` | viewer |
 | `story` | `set_style` | `PUT P/story/style` | editor |
@@ -273,16 +264,16 @@ being changed inside the handler.
 
 Notes on recent actions:
 
-- `insights.review { insight_id, reviewed, expected_etag }` records a person's review. Each insight
-  reports `review_state`: `unreviewed`, `reviewed`, or `changed` (edited since its review);
-  `insights.list` filters by it ([§4.7](04-data-model.md)).
-- `insights.update` and the registers' `update` take `edits` (exact replacements that must match
-  once) and return `changed` and a short `diff` ([§4.1](04-data-model.md)). Register lists return
+- Insights and decisions are retired, with their operations and their MCP tools; what a product
+  held of them became sources ([§4.7](04-data-model.md)). `sources.used_by` replaced
+  `sources.insights_for`, and lists the sources that name a source in `related_records`.
+- `assumptions.update` takes `edits` (exact replacements that must match once) and returns
+  `changed` and a short `diff` ([§4.1](04-data-model.md)). The assumption list returns
   `frozen`, `superseded_by` (the ids of the entries whose `supersedes` link points at the entry, newest
   first, so a list can show history under its correction without a `get` per entry),
   `link_count` and `linked_from_count`; `outcomes.list` returns
   `archived_hidden` ([§4.2](04-data-model.md), [§4.8](04-data-model.md)).
-- `story.publish` takes `citations` (up to 20 exact passages, snapshotted as in the registers)
+- `story.publish` takes `citations` (up to 20 exact passages, snapshotted as on assumptions)
   beside `refs`; `story.check_citations` checks a version's citations. The page is given as
   `body` (the markup inside `<body>`; the server adds the product's Story style) or as `html` (a
   whole document). A later version keeps the
@@ -316,7 +307,7 @@ Notes on recent actions:
 - `story.promote_mockup` publishes a Story page version that shows one page of a mockup version,
   on a new page or as an existing page's next version, without copying it; the version reports
   `mockup` with the page's size. It answers `201` like `publish` ([§4.11](04-data-model.md)).
-- `sources.insights_for` lists the mockups whose current version cites or lists the source,
+- `sources.used_by` lists the mockups whose current version cites or lists the source,
   `sources.move_to_product` refuses while one does, and `sources.delete_impact` lists every
   mockup version that cites it (`mockup_versions_citing`), as each does for Story pages.
 - `members.list` takes an optional `product` to list only the people who can reach it, each with
@@ -423,7 +414,7 @@ writing in a tenant marked `sandbox`, and treat source text as quoted material. 
 endpoint they add one sentence naming the scope, saying calls outside it are refused, and telling
 the agent to ask the person for another connector rather than look for a way around it.
 
-**Tools.** Eighteen tools over the 126 operations: fourteen grouped by noun, four standalone.
+**Tools.** Sixteen tools over the 108 operations: twelve grouped by noun, four standalone.
 
 | Tool | Actions |
 |---|---|
@@ -431,12 +422,10 @@ the agent to ask the person for another connector rather than look for a way aro
 | `members` | `list`, `grant`, `revoke`, `cancel_invitation` |
 | `sandbox` | `status`, `join`, `settings`, `update_settings`, `save_baseline`, `baselines`, `reset`, `invites`, `create_invite`, `revoke_invite`, `visitors`, `remove_visitor` |
 | `outcomes` | `list`, `get`, `create`, `update`, `revisions`, `get_revision`, `restore_revision` |
-| `sources` | `kinds`, `list`, `get`, `create`, `update`, `archive`, `restore`, `annotate`, `list_annotations`, `update_annotation`, `insights_for`, `move_to_product`, `copy_to_product`, `delete_impact`, `delete` |
+| `sources` | `kinds`, `list`, `get`, `create`, `update`, `archive`, `restore`, `annotate`, `list_annotations`, `update_annotation`, `used_by`, `move_to_product`, `copy_to_product`, `delete_impact`, `delete` |
 | `files` | `request_upload`, `create_upload`, `complete_upload`, `add_note`, `fetch_url`, `set_role`, `get_download` |
 | `derived` | `manifest`, `outline`, `text`, `list`, `rederive`, `write_note`, `read_note` |
-| `insights` | `list`, `get`, `create`, `update`, `review`, `revisions`, `get_revision`, `restore_revision` |
 | `assumptions` | `list`, `get`, `create`, `update`, `review`, `supersede`, `link`, `unlink`, `archive`, `check_citations` |
-| `decisions` | the same as `assumptions` |
 | `story` | `guidance`, `get_style`, `set_style`, `list_pages`, `get_page`, `list_versions`, `get_version`, `publish`, `promote_mockup`, `write_notes`, `check_citations`, `print_view`, `get_hierarchy`, `set_hierarchy`, `archive_page`, `restore_page` |
 | `mockups` | `list`, `get`, `list_versions`, `get_version`, `publish`, `archive`, `restore`, `get_download`, `check_citations` |
 | `lineage` | `capture`, `write`, `check` |
@@ -458,9 +447,9 @@ Rules:
   `params`), it returns that action's scope, access, whether it mutates, its guidance and its
   exact JSON Schema — without executing.
 - **Strict.** Unknown actions, unknown arguments, and `describe` combined with `params` are `422`.
-- **One alias for each entity id.** The id is `insight_id` and `outcome_id` on those tools but
-  `id` on the registers. Each tool also accepts the other convention for its own entity: `id` on
-  `insights` and `outcomes`, `assumption_id` on `assumptions`, `decision_id` on `decisions`.
+- **One alias for each entity id.** The id is `outcome_id` on `outcomes` but `id` on
+  `assumptions`. Each tool also accepts the other convention for its own entity: `id` on
+  `outcomes`, `assumption_id` on `assumptions`.
   `execute` renames the alias before strict validation
   ([`id-aliases.ts`](../../packages/core/src/id-aliases.ts)), so it works over REST and MCP alike;
   sending both with different values is `422`. ◆ Decision: aliases, not a rename, so no existing

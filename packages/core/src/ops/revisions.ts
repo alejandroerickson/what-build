@@ -5,7 +5,7 @@ import { defineOperation, type OperationDef, type OpContext } from "../registry.
 import { expectedEtag, id } from "../schemas.ts";
 
 /**
- * The same three revision operations on every object with an authored body: list the kept
+ * The three revision operations on an object with an authored body (an outcome): list the kept
  * revisions, read one, and restore one — which writes the old text as a new update, recorded like
  * any other, and never rewinds history.
  */
@@ -97,19 +97,9 @@ function revisionOps(cfg: {
   return [list, get, restore];
 }
 
-import { updateInsight } from "./insights.ts";
 import { updateOutcome } from "./outcomes.ts";
 
 export const revisionOpsList = [
-  ...revisionOps({
-    tool: "insights",
-    objectType: "insight",
-    idField: "insight_id",
-    label: "insight",
-    exists: async (ctx, oid) => Boolean(await ctx.db.selectFrom("insights").select("insight_id").where("insight_id", "=", oid).where("product_id", "=", productId(ctx)).executeTakeFirst()),
-    update: updateInsight as unknown as OperationDef,
-    toUpdate: (c) => ({ title: c["title"], summary: c["summary"], body: c["body"] }),
-  }),
   ...revisionOps({
     tool: "outcomes",
     objectType: "outcome",

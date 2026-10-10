@@ -2,7 +2,7 @@ import { sql } from "kysely";
 import { z } from "zod";
 import { defineOperation } from "../registry.ts";
 
-const ENTITY_TYPES = ["product", "team", "tenant", "membership", "source", "outcome", "insight", "assumption", "decision", "story_page", "story_hierarchy", "story_style", "mockup", "feedback"] as const;
+const ENTITY_TYPES = ["product", "team", "tenant", "membership", "source", "outcome", "assumption", "story_page", "story_hierarchy", "story_style", "mockup", "feedback"] as const;
 
 export const listActivity = defineOperation({
   name: "activity.list",

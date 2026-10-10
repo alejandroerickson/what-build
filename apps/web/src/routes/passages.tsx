@@ -81,7 +81,7 @@ function tableRows(segments: Segment[]): Map<number, RowCells> {
 
 interface CitingEntry {
   key: string;
-  kind: "Assumption" | "Decision" | "Mockup" | "Story page";
+  kind: "Assumption" | "Mockup" | "Story page";
   title: string;
   to: string;
   seq_start: number;
@@ -119,19 +119,17 @@ export function PassageReader({ record }: { record: RecordFull }) {
   const end = Math.min(total - 1, start + PAGE - 1);
   // Where this source is cited: the same read the inspector's "Cited in" makes.
   const cited = useQuery({
-    queryKey: ["insights-for", base, record.record_id],
+    queryKey: ["used-by", base, record.record_id],
     queryFn: () =>
       api<{
         assumptions: { id: string; statement: string; citations: { seq_start: number; seq_end: number }[] }[];
-        decisions: { id: string; statement: string; citations: { seq_start: number; seq_end: number }[] }[];
         story_pages?: { page_id: string; title: string; citations: { seq_start: number; seq_end: number }[] }[];
         mockups?: { mockup_id: string; title: string; citations: { seq_start: number; seq_end: number }[] }[];
-      }>("GET", `${base}/sources/${record.record_id}/insights`),
+      }>("GET", `${base}/sources/${record.record_id}/used-by`),
   });
   const citing: CitingEntry[] = cited.data
     ? [
         ...cited.data.assumptions.flatMap((e) => e.citations.map((c, i) => ({ key: `a${e.id}.${i}`, kind: "Assumption" as const, title: e.statement, to: `${app}/exploration/assumptions/${e.id}`, ...c }))),
-        ...cited.data.decisions.flatMap((e) => e.citations.map((c, i) => ({ key: `d${e.id}.${i}`, kind: "Decision" as const, title: e.statement, to: `${app}/exploration/decisions/${e.id}`, ...c }))),
         ...(cited.data.mockups ?? []).flatMap((m) => m.citations.map((c, i) => ({ key: `m${m.mockup_id}.${i}`, kind: "Mockup" as const, title: m.title, to: `${app}/exploration/mockups/${m.mockup_id}`, ...c }))),
         ...(cited.data.story_pages ?? []).flatMap((p) => p.citations.map((c, i) => ({ key: `s${p.page_id}.${i}`, kind: "Story page" as const, title: p.title, to: `${app}/story/${p.page_id}`, ...c }))),
       ]
@@ -422,7 +420,7 @@ export function CommentForm({ recordId, seqStart, seqEnd, onDone }: { recordId: 
     >
       <TextArea
         label={seqStart !== undefined ? `Comment on ${address(seqStart, seqEnd)}` : "Comment on the whole source"}
-        hint="Your observation about this passage. For anything across sources, write an insight."
+        hint="Your observation about this passage."
         required
         maxLength={2000}
         rows={3}

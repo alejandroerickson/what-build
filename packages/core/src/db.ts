@@ -26,9 +26,13 @@ export interface Dimensions {
 export interface Refs {
   outcomes: string[];
   sources: string[];
-  insights: string[];
   assumptions: string[];
-  decisions: string[];
+}
+
+/** References as they were stored before insights and decisions moved into Evidence. */
+export interface LegacyRefs extends Refs {
+  insights?: string[];
+  decisions?: string[];
 }
 
 export interface CitationSnapshot {
@@ -60,7 +64,7 @@ export interface StoryNode {
 }
 
 export interface LineageInput {
-  kind: "record" | "assumption" | "decision";
+  kind: "record" | "assumption";
   id: string;
   fingerprint: string;
   /**
@@ -395,6 +399,10 @@ export interface OutcomesTable {
   updated_by: Json<ActorSnapshot>;
 }
 
+/**
+ * Insights are retired. A row here is waiting for the worker to move it into Evidence as a source
+ * (evidence-move.ts); nothing else reads or writes the table.
+ */
 export interface InsightsTable {
   insight_id: string;
   tenant_id: string;
@@ -403,7 +411,7 @@ export interface InsightsTable {
   summary: string;
   body: string;
   status: "draft" | "published" | "archived";
-  refs: Json<Refs>;
+  refs: Json<LegacyRefs>;
   revision: Def<number>;
   /** The revision a person last marked reviewed; null when never reviewed. */
   reviewed_revision: ColumnType<number | null, number | null | undefined, number | null>;
@@ -433,6 +441,7 @@ export interface RegisterEntriesTable {
   entry_id: string;
   tenant_id: string;
   product_id: string;
+  /** Decisions are retired: a decision row is waiting for the worker to move it into Evidence. */
   kind: "assumption" | "decision";
   statement: string;
   body: string;

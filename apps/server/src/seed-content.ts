@@ -1,7 +1,7 @@
 /**
  * The sample discovery. Entirely synthetic: the people, organizations and product are invented.
- * It exists so a new install shows the whole loop — sources, passages, outcomes, an insight,
- * register entries and a Story page — before anyone uploads anything.
+ * It exists so a new install shows the whole loop — sources and their passages, outcomes, an
+ * assumption, a mockup and the Story — before anyone uploads anything.
  */
 
 export const SAMPLE = {
@@ -151,35 +151,7 @@ Spreadsheets were the main tool for 14 respondents, paper for 5, and scheduling 
 "Sending everybody their day is what takes forever."
 `;
 
-/** The app link to a sample source, or to one of its passages: evidence in insight prose reads as "Source ¶N". */
-export type SourceLink = (source: "vtt" | "txt" | "survey" | "notes", seq?: number) => string;
-
-export const INSIGHT = {
-  title: "Planning is a weekly ritual that breaks at the hand-off, not the plan",
-  summary:
-    "Crew leads spend two to three hours a week building next week, but the costly mistakes happen when the plan is sent to crews by hand.",
-  body: (at: SourceLink) => `## What we observed
-
-Weekly planning is a fixed ritual. Marisol plans on Friday afternoons in a spreadsheet and it takes two to three hours ([Crew lead interview ¶1–3](${at("vtt", 1)})). The survey puts the median at 2.5 hours across 23 leads ([Planning survey](${at("survey")})).
-
-The plan itself is not where most mistakes enter. Marisol describes the **hand-off** as the failure point: she types each crew's jobs and addresses into text messages and says that is where mistakes happen ([Crew lead interview ¶8](${at("vtt", 8)})), and a wrong address reaches a crew about once a week ([Crew lead interview ¶9–10](${at("vtt", 9)})).
-
-Knowledge about people lives in the planner's head. Marisol is the only one who can build the schedule, because who can run a crew "is not in the spreadsheet" ([Crew lead interview ¶5](${at("vtt", 5)})).
-
-## How we read it
-
-The expensive step is not deciding the plan but **distributing** it. A planner that only speeds up building the week would miss where the time and the errors are.
-
-We are less sure about the planning object. Marisol and the survey comments think in jobs; Dev and Priya think in days ([Owner interview, Oak & Ash](${at("txt")}); [Owner call notes, Fernside](${at("notes")})). That split is recorded as an open assumption, not settled.
-
-## What follows
-
-- Test a version that generates each crew's message from the plan, before investing in the planning grid itself.
-- Interview two more cleaning-crew owners to see whether the jobs-versus-days split follows the trade.
-`,
-};
-
-export const STORY_HTML = (links: { insight: string; assumption: string; decision: string }, css: string) => `<!doctype html>
+export const STORY_HTML = (links: { passage: string; assumption: string; handOff: string }, css: string) => `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -200,71 +172,17 @@ ${css}</style>
 <h2 id="heard">What we heard</h2>
 <aside class="note">Four sources: two interviews, owner-call notes and a survey export of 23 responses. Every person and company here is invented.</aside>
 <p>Planning is a weekly ritual of two to three hours, in a spreadsheet or on paper. The errors crews feel, a wrong address or a double booking, enter when the plan is copied into messages by hand.</p>
-<figure class="quote"><blockquote><p>The texts are the worst part honestly. Every crew lead gets a message with their jobs and addresses, and I type those by hand.</p></blockquote><figcaption>Crew lead, landscaping · interview · <a href="${links.insight}" target="_blank" rel="noopener noreferrer">Read the insight</a></figcaption></figure>
+<figure class="quote"><blockquote><p>The texts are the worst part honestly. Every crew lead gets a message with their jobs and addresses, and I type those by hand.</p></blockquote><figcaption>Crew lead, landscaping · interview · <a href="${links.passage}" target="_blank" rel="noopener noreferrer">Read the passage</a></figcaption></figure>
 </section>
 <section aria-labelledby="next">
 <h2 id="next">What we are doing next</h2>
-<p><span class="status" data-state="evidence">Decided</span> <a href="${links.decision}" target="_blank" rel="noopener noreferrer">Test the hand-off first</a>, before the planning grid.</p>
+<p><span class="status" data-state="evidence">Planned</span> <a href="${links.handOff}">Test the hand-off first</a>, before the planning grid.</p>
 <ol class="steps"><li>Prototype a message generated from the plan, and test it with two crews.</li><li>Interview two more cleaning-crew owners about how they think about the week.</li></ol>
 <aside class="callout" data-tone="caution"><p><strong>Assumption, unconfirmed.</strong> Whether leads think in jobs or in days is <a href="${links.assumption}" target="_blank" rel="noopener noreferrer">an open assumption</a>.</p></aside>
 </section>
 </main>
 </body>
 </html>`;
-
-/** A second insight, left unreviewed so the sample shows every review state. */
-export const INSIGHT_KNOWLEDGE = {
-  title: "Who can run which job lives in one person's head",
-  summary: "The planner is the only one who knows which people can lead a crew, so planning stops when that person is away.",
-  body: (at: SourceLink) => `## What we observed
-
-Marisol keeps crew-lead ability in her head, not in the spreadsheet: "I know who can run a crew and who can't" ([Crew lead interview ¶5](${at("vtt", 5)})). If she is sick on a Friday, nobody else can build the schedule.
-
-Priya plans alone on Sunday evenings and rebuilds the week from memory; recurring clients are "just known" ([Owner call notes, Fernside](${at("notes")})).
-
-## How we read it
-
-The plan depends on knowledge that is never written down. A planner that only arranges jobs would still need that one person.
-
-## Open questions
-
-- Would planners write down who can lead which kind of job, if it saved them the Friday afternoon?
-- Is this true of larger crews, or only of owner-run ones?
-`,
-};
-
-/** A third insight: reviewed, then revised by an agent, so the sample also shows "changed since review". */
-export const INSIGHT_ERRORS = {
-  title: "Scheduling errors surface when the client calls, not before",
-  summary: "Nothing in a spreadsheet plan checks it: a double booking is found when a customer phones to ask where the crew is.",
-  body: (at: SourceLink) => `## What we observed
-
-Dev double-booked the mower crew because the spreadsheet listed the same client twice ([Owner interview, Oak & Ash ¶1](${at("txt", 1)})). He found out when the client called at eight, with the crew already across town ([Owner interview, Oak & Ash ¶3](${at("txt", 3)})).
-
-His fix was a CONFIRMED column that "half the time nobody fills in" ([Owner interview, Oak & Ash ¶5](${at("txt", 5)})).
-
-## How we read it
-
-The plan has no check of its own. Errors are caught by customers, after the cost is paid.
-`,
-  /** The agent's revision after the review: Priya's notes folded in, and an open question. */
-  revised: (at: SourceLink) => `## What we observed
-
-Dev double-booked the mower crew because the spreadsheet listed the same client twice ([Owner interview, Oak & Ash ¶1](${at("txt", 1)})). He found out when the client called at eight, with the crew already across town ([Owner interview, Oak & Ash ¶3](${at("txt", 3)})).
-
-His fix was a CONFIRMED column that "half the time nobody fills in" ([Owner interview, Oak & Ash ¶5](${at("txt", 5)})).
-
-Priya sees the same thing from the other side: changes made after Sunday get lost in the group chat, so crews work from a stale plan ([Owner call notes, Fernside](${at("notes")})).
-
-## How we read it
-
-The plan has no check of its own. Errors are caught by customers or crews, after the cost is paid.
-
-## Open questions
-
-- Was Dev's duplicate row a copy-forward slip, or two real bookings for one client?
-`,
-};
 
 /** Notes for agents on the overview page: what the page is for and what is still to do. */
 export const OVERVIEW_NOTES = `## Purpose
@@ -278,7 +196,7 @@ The one-screen summary of where Crewboard's discovery stands, for Riley and the 
 
 ## Structure decisions
 
-- Lead with the hand-off, not the planning grid: the decision to test generated crew messages is the headline.
+- Lead with the hand-off, not the planning grid: the plan to test generated crew messages is the headline.
 - Keep "jobs or days" labelled as an open assumption until someone reviews it.
 `;
 
@@ -292,7 +210,7 @@ Explains the hand-off test for the two crews taking part. A sub-page of the over
 - Do not state a success threshold until Riley sets one.
 `;
 
-export const HANDOFF_HTML = (links: { decision: string }, css: string) => `<!doctype html>
+export const HANDOFF_HTML = (links: { passage: string }, css: string) => `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -312,12 +230,12 @@ ${css}</style>
 <section aria-labelledby="why">
 <h2 id="why">Why this first</h2>
 <p>Typed messages are where wrong addresses and gate codes enter, and a wrong address reaches a crew about once a week. A generated message is small to build and useful whichever planning model wins.</p>
-<figure class="quote"><blockquote><p>Maybe once a week. Somebody drives to the wrong side of town.</p></blockquote><figcaption>Crew lead, landscaping · interview</figcaption></figure>
+<figure class="quote"><blockquote><p>Maybe once a week. Somebody drives to the wrong side of town.</p></blockquote><figcaption>Crew lead, landscaping · <a href="${links.passage}" target="_blank" rel="noopener noreferrer">interview</a></figcaption></figure>
 </section>
 <section aria-labelledby="look">
 <h2 id="look">What we will look at</h2>
 <ol class="steps"><li>Whether the crews notice anything missing from the generated message.</li><li>How long the planner spends sending the week, before and after.</li></ol>
-<aside class="callout"><p><strong>Decided, not yet run.</strong> <a href="${links.decision}" target="_blank" rel="noopener noreferrer">Read the decision</a>.</p></aside>
+<aside class="callout"><p><strong>Planned, not yet run.</strong> The two crews start next week.</p></aside>
 </section>
 </main>
 </body>
@@ -393,7 +311,7 @@ ${["Mon", "Tue", "Wed", "Thu", "Fri"]
     jobs: "Jobs first, for leads like Marisol. Watch whether the unscheduled column feels like a to-do list or like pressure.",
     jobsRevised: "Jobs first, for leads like Marisol. In the first walk-through the late booking was found at once here; the knock-on effect on Crew B was not.",
     days: "Days first, for leads like Dev and Priya. Repeat clients pre-filled from last week is the bet: planning becomes correcting.",
-    message: "Phone width. The message is the same whichever planner wins, which is why it is worth testing first (see the hand-off decision).",
+    message: "Phone width. The message is the same whichever planner wins, which is why it is worth testing first (see the hand-off test on the Story).",
   },
   /** Files the canvas carries for whoever builds the next version: never used to draw a page. */
   files: {

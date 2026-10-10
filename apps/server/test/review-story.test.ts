@@ -56,65 +56,6 @@ beforeAll(async () => {
 });
 afterAll(async () => h?.close());
 
-describe("insight review", () => {
-  let id: string;
-  let etag: string;
-
-  it("starts unreviewed, and refuses a viewer and a stale etag", async () => {
-    const i = await alice.api("POST", `${P}/insights`, { title: "Friday closes the numbers", body: "Numbers close on Fridays." });
-    id = i.body.insight_id;
-    etag = i.body.etag;
-    expect(i.body).toMatchObject({ review_state: "unreviewed", reviewed_revision: null, reviewed_at: null, reviewed_by: null });
-    const viewer = await vic.api("POST", `${P}/insights/${id}/review`, { reviewed: true, expected_etag: etag });
-    expect(viewer.status).toBe(403);
-    const stale = await alice.api("POST", `${P}/insights/${id}/review`, { reviewed: true, expected_etag: "stale" });
-    expect(stale.status).toBe(409);
-    expect(stale.body.error.code).toBe("stale_etag");
-    expect(stale.body.error.details.current_etag).toBe(etag);
-  });
-
-  it("marks the current revision reviewed, attributed, with a new etag and an activity event", async () => {
-    const r = await alice.api("POST", `${P}/insights/${id}/review`, { reviewed: true, expected_etag: etag });
-    expect(r.status).toBe(200);
-    expect(r.body).toMatchObject({ review_state: "reviewed", reviewed_revision: 1, revision: 1 });
-    expect(r.body.reviewed_by.display_name).toBe("Alice Example");
-    expect(r.body.reviewed_at).toBeTruthy();
-    expect(r.body.etag).not.toBe(etag);
-    etag = r.body.etag;
-    const g = await alice.api("GET", `${P}/insights/${id}`);
-    expect(g.body.review_state).toBe("reviewed");
-    const act = await alice.api("GET", `${P}/activity?entity_id=${id}`);
-    expect(act.body.items.map((a: { action: string }) => a.action)).toContain("reviewed");
-  });
-
-  it("filters lists by review state", async () => {
-    const other = await alice.api("POST", `${P}/insights`, { title: "Nobody reviewed this", body: "Yet." });
-    const reviewed = await alice.api("GET", `${P}/insights?review_state=reviewed`);
-    expect(reviewed.body.items.map((x: { insight_id: string }) => x.insight_id)).toEqual([id]);
-    const open = await alice.api("GET", `${P}/insights?review_state=unreviewed,changed`);
-    expect(open.body.items.map((x: { insight_id: string }) => x.insight_id)).toEqual([other.body.insight_id]);
-    const bad = await alice.api("GET", `${P}/insights?review_state=maybe`);
-    expect(bad.status).toBe(422);
-    // Search reports the same review state as the list, so both say the same thing about an insight.
-    const found = await alice.api("GET", `${P}/search?query=Friday&scope=insights&mode=substring`);
-    expect(found.body.insights.find((x: { id: string }) => x.id === id)).toMatchObject({ review_state: "reviewed" });
-  });
-
-  it("shows an edited insight as changed since review until reviewed again, and clears a review", async () => {
-    const u = await alice.api("PATCH", `${P}/insights/${id}`, { expected_etag: etag, body: "Numbers close on Fridays, and pricing follows." });
-    expect(u.body).toMatchObject({ revision: 2, reviewed_revision: 1, review_state: "changed" });
-    const changed = await alice.api("GET", `${P}/insights?review_state=changed`);
-    expect(changed.body.items.map((x: { insight_id: string }) => x.insight_id)).toEqual([id]);
-    // A status change is not an edit of the text: the review stands.
-    const again = await alice.api("POST", `${P}/insights/${id}/review`, { reviewed: true, expected_etag: u.body.etag });
-    expect(again.body).toMatchObject({ review_state: "reviewed", reviewed_revision: 2 });
-    const pub = await alice.api("PATCH", `${P}/insights/${id}`, { expected_etag: again.body.etag, status: "published" });
-    expect(pub.body.review_state).toBe("reviewed");
-    const cleared = await alice.api("POST", `${P}/insights/${id}/review`, { reviewed: false, expected_etag: pub.body.etag });
-    expect(cleared.body).toMatchObject({ review_state: "unreviewed", reviewed_revision: null, reviewed_by: null });
-  });
-});
-
 describe("Story citations", () => {
   let pageEtag: string;
 
@@ -171,7 +112,7 @@ describe("Story citations", () => {
   });
 
   it("lists Story pages among what a source is cited in, and in its delete impact", async () => {
-    const using = await alice.api("GET", `${P}/sources/${recordId}/insights`);
+    const using = await alice.api("GET", `${P}/sources/${recordId}/used-by`);
     expect(using.body.story_pages).toEqual([{ page_id: "overview", title: "Overview", version: 3, referenced: false, citations: [{ seq_start: 2, seq_end: 2 }] }]);
     const impact = await alice.api("GET", `${P}/sources/${recordId}/delete-impact`);
     expect(impact.body.story_pages_citing).toEqual([{ page_id: "overview", title: "Overview", version: 3, count: 1 }]);
@@ -338,7 +279,7 @@ describe("activity by people or agents", () => {
   it("splits what people did (the app) from what agents did (MCP)", async () => {
     const client = new Client({ name: "test-agent", version: "1.0.0" });
     await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(alice)}` } } }));
-    const viaMcp = await client.callTool({ name: "insights", arguments: { action: "create", product: productPath, params: { title: "Written by an agent", body: "Through MCP." } } });
+    const viaMcp = await client.callTool({ name: "assumptions", arguments: { action: "create", product: productPath, params: { statement: "Written by an agent" } } });
     expect(viaMcp.isError).toBeFalsy();
     await client.close();
     const people = await alice.api("GET", `${P}/activity?by=people&limit=200`);
@@ -440,15 +381,15 @@ describe("people on one product", () => {
 });
 
 describe("the sample product", () => {
-  it("seeds a reviewed, an unreviewed and a changed insight, and Story pages with citations and notes", async () => {
+  it("seeds sources, an assumption, a mockup and Story pages with citations and notes", async () => {
     const ports = createPorts(h.config, h.blobs, h.mailer);
     await seed({ db: h.db, ports }, h.worker, () => {});
     const sam = await h.signIn("sam@example.com", "Sam Okafor");
     const products = await sam.api("GET", "/api/v1/me/products");
     const path = products.body.items.find((p: { name: string }) => p.name === "Crewboard").path;
     const S = `/api/v1/p/${path}`;
-    const insights = await sam.api("GET", `${S}/insights`);
-    expect(insights.body.items.map((i: { review_state: string }) => i.review_state).sort()).toEqual(["changed", "reviewed", "unreviewed"]);
+    expect((await sam.api("GET", `${S}/assumptions`)).body.items).toHaveLength(1);
+    expect((await sam.api("GET", `${S}/mockups`)).body.items).toHaveLength(1);
     const overview = await sam.api("GET", `${S}/story/pages/overview?include_html=false`);
     expect(overview.body.current.citations.length).toBeGreaterThan(0);
     expect(overview.body.current.citations.every((c: { source_title: string | null }) => c.source_title)).toBe(true);

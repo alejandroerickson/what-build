@@ -24,8 +24,7 @@ discovery team's or the user's. The maintainer chose this model and its names on
   have, and how the product solves it.
 - An **outcome** is what the product's users should be able to achieve with it, written from their
   side ("The crew lead plans next week in minutes"). It is not a feature, a task, a business metric
-  or a goal of the discovery itself. Questions the discovery must answer belong in assumptions and
-  decisions.
+  or a goal of the discovery itself. Questions the discovery must answer belong in assumptions.
 - "Outcome" is the one word for the object everywhere: UI, REST (`/outcomes`), MCP (`outcomes`),
   the schema (`outcomes`, `outcome_id`, `refs.outcomes`, `outcome_ids`) and the skill.
 - Rejected: "capability" (it describes what the product does, and pulls toward a feature list);
@@ -33,8 +32,8 @@ discovery team's or the user's. The maintainer chose this model and its names on
 
 ## Consequences
 
-- Insights, register entries and Story pages link to what users should achieve, so synthesis is
-  read against user value rather than against a research plan.
+- Assumptions, mockups and Story pages link to what users should achieve, so the work is read
+  against user value rather than against a research plan.
 - Some teams use "outcome" for a business metric; the screen and the skill say whose outcome it is.
 
 ## Constrains

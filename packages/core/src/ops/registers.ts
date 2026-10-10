@@ -10,12 +10,11 @@ import { applyEdits, editsInput, textDiff } from "../text-edits.ts";
 import { newEtag, newId, uniq } from "../util.ts";
 import { archivedOutcomeIds } from "./outcomes.ts";
 
-export type RegisterKind = "assumption" | "decision";
 type Row = Selectable<RegisterEntriesTable>;
 
 const MAX_REVIEWS = 500;
 
-const linkInput = z.strictObject({ id: id("assumption or decision"), type: z.enum(["supports", "contradicts", "supersedes"]) });
+const linkInput = z.strictObject({ id: id("assumption"), type: z.enum(["supports", "contradicts", "supersedes"]) });
 
 const STATUS = z.enum(["unconfirmed", "confirmed", "refuted", "superseded"]);
 
@@ -29,11 +28,11 @@ async function checkLinks(ctx: OpContext, selfId: string | null, links: Register
   }
   const ids = uniq(links.map((l) => l.id));
   if (!ids.length) return;
-  const found = await ctx.db.selectFrom("register_entries").select(["entry_id", "product_id", "links"]).where("entry_id", "in", ids).execute();
+  const found = await ctx.db.selectFrom("register_entries").select(["entry_id", "product_id", "links"]).where("entry_id", "in", ids).where("kind", "=", "assumption").execute();
   for (const i of ids) {
     const f = found.find((x) => x.entry_id === i);
-    if (!f) throw invalid("unknown_reference", `No assumption or decision ${i}.`);
-    if (f.product_id !== productId(ctx)) throw invalid("cross_product_reference", `Entry ${i} is in another product.`);
+    if (!f) throw invalid("unknown_reference", `No assumption ${i}.`);
+    if (f.product_id !== productId(ctx)) throw invalid("cross_product_reference", `Assumption ${i} is in another product.`);
   }
   // supersedes must stay acyclic.
   if (selfId) {
@@ -128,26 +127,24 @@ async function incomingLinks(ctx: OpContext, ids: string[]) {
   return out;
 }
 
-export function registerOps(kind: RegisterKind): OperationDef[] {
+/** The assumption register: the one register a product keeps. */
+function registerOps(): OperationDef[] {
+  const kind = "assumption";
   const tool = `${kind}s`;
   const label = kind;
-  const other = kind === "assumption" ? "decision" : "assumption";
   const idField = z.string().min(1).describe(`The ${label} id. ${kind}_id is accepted as another name for it.`);
-  const meaning =
-    kind === "assumption"
-      ? "An assumption is what the team is treating as true while evidence is incomplete."
-      : "A decision records a choice and its rationale. Creating one does not mean the team agreed to it.";
+  const meaning = "An assumption is what the team is treating as true while evidence is incomplete.";
 
   async function load(ctx: OpContext, entryId: string, lock = false): Promise<Row> {
     let q = ctx.db.selectFrom("register_entries").selectAll().where("entry_id", "=", entryId).where("product_id", "=", productId(ctx));
     if (lock) q = q.forUpdate();
     const row = await q.executeTakeFirst();
-    if (!row || row.kind !== kind) throw notFound(`${label[0]!.toUpperCase() + label.slice(1)} ${entryId} does not exist in this product${row ? ` (it is a ${other})` : ""}.`);
+    if (!row || row.kind !== kind) throw notFound(`Assumption ${entryId} does not exist in this product.`);
     return row;
   }
 
   const createFields = {
-    statement: z.string().trim().min(1).max(1000).describe("The premise or choice in one sentence. Frozen after the first review."),
+    statement: z.string().trim().min(1).max(1000).describe("The premise in one sentence. Frozen after the first review."),
     body: z.string().max(10_000).default("").describe("Markdown: reasoning, stakes, alternatives considered."),
     citations: z
       .array(citationInput)
@@ -261,7 +258,7 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
     access: "write",
     mutates: true,
     summary: `Record a ${kind}, optionally cited to exact passages. Starts unconfirmed.`,
-    description: `${meaning} Create one only when the team needs to track this specific premise or choice; keep the register small and put everything else in an insight. Citations are optional: an entry can be recorded before any evidence exists and cited later, until its first review. Each citation is resolved against the source's current passages and frozen as a snapshot. Label author_type honestly: ordinary conversational agreement is not a person's authorship.`,
+    description: `${meaning} Create one only when the team needs to track this specific premise, and keep the register small. Citations are optional: an entry can be recorded before any evidence exists and cited later, until its first review. Each citation is resolved against the source's current passages and frozen as a snapshot. Label author_type honestly: ordinary conversational agreement is not a person's authorship.`,
     input: z.strictObject(createFields),
     rest: { method: "POST", path: `/${tool}` },
     mcp: { tool, action: "create" },
@@ -408,9 +405,9 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
     scope: "product",
     access: "write",
     mutates: true,
-    summary: `Add a typed link from this ${kind} to an assumption or decision: supports, contradicts or supersedes.`,
+    summary: `Add a typed link from this ${kind} to another: supports, contradicts or supersedes.`,
     description: "Links are checked before anything changes: the target must exist in this product, self-links and duplicates are refused, and supersedes stays acyclic.",
-    input: z.strictObject({ id: idField, expected_etag: expectedEtag, target_id: id("assumption or decision"), type: z.enum(["supports", "contradicts", "supersedes"]) }),
+    input: z.strictObject({ id: idField, expected_etag: expectedEtag, target_id: id("assumption"), type: z.enum(["supports", "contradicts", "supersedes"]) }),
     rest: { method: "POST", path: `/${tool}/:id/links` },
     mcp: { tool, action: "link" },
     async handler(ctx, input) {
@@ -431,7 +428,7 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
     mutates: true,
     summary: "Remove one typed link.",
     description: "Names the link by target_id and type.",
-    input: z.strictObject({ id: idField, expected_etag: expectedEtag, target_id: id("assumption or decision"), type: z.enum(["supports", "contradicts", "supersedes"]) }),
+    input: z.strictObject({ id: idField, expected_etag: expectedEtag, target_id: id("assumption"), type: z.enum(["supports", "contradicts", "supersedes"]) }),
     rest: { method: "POST", path: `/${tool}/:id/unlink` },
     mcp: { tool, action: "unlink" },
     async handler(ctx, input) {
@@ -486,4 +483,4 @@ export function registerOps(kind: RegisterKind): OperationDef[] {
   return [list, get, create, update, review, supersede, link, unlink, archive, checkCitations] as OperationDef[];
 }
 
-export const registerOpsList = [...registerOps("assumption"), ...registerOps("decision")];
+export const registerOpsList = registerOps();

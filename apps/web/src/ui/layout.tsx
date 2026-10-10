@@ -173,7 +173,7 @@ export function Crumbs({ items, currentAsHeading, label = "Breadcrumbs" }: { ite
 }
 
 /**
- * The head of an item screen (a source, an insight, an entry): crumbs, a 20px h1, a faint meta line
+ * The head of an item screen (a source, an assumption): crumbs, a 20px h1, a faint meta line
  * and actions at the right.
  */
 export function PageHeader({ title, description, meta, actions, crumbs }: {

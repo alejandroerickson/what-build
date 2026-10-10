@@ -19,7 +19,7 @@ at agents and lets people start anywhere.
 
 ## Decision
 
-- Outcomes, Sources, Insights, Assumptions, Decisions and the Story share one first-use state
+- Outcomes, Sources, Mockups, Assumptions and the Story share one first-use state
   (`FirstUse` in `apps/web/src/routes/first-use.tsx`): "No … yet", one or two sentences on what
   belongs there, and a request for an agent naming the product, with Copy and, until the person
   has an agent connected, Connect an agent as the view's one accent button.

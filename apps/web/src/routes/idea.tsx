@@ -11,7 +11,7 @@ import {
   SheetBody, SheetHeader, StatusBadge, TextArea, TextField, useToast,
 } from "../ui/index.tsx";
 import { FirstUse } from "./first-use.tsx";
-import { HistoryDialog } from "./insights-common.tsx";
+import { HistoryDialog } from "./exploration-common.tsx";
 import "../styles/screens/idea.css";
 
 interface Outcome {
@@ -21,7 +21,7 @@ interface Outcome {
   status: "active" | "achieved" | "archived";
   position: number;
   etag: string;
-  counts: { insights: number; assumptions: number; decisions: number };
+  counts: { assumptions: number };
 }
 
 const STATUS_WORD: Record<Outcome["status"], string> = { active: "Active", achieved: "Achieved", archived: "Archived" };
@@ -170,25 +170,13 @@ function ConceptSheet() {
 
 function LinkedChips({ o }: { o: Outcome }) {
   const { app } = useProduct();
-  const { insights, assumptions, decisions } = o.counts;
-  if (!insights && !assumptions && !decisions) return <p className="outcome-none">Nothing linked yet.</p>;
+  const { assumptions } = o.counts;
+  if (!assumptions) return <p className="outcome-none">Nothing linked yet.</p>;
   return (
     <div className="chips outcome-chips">
-      {insights ? (
-        <Chip to={`${app}/exploration/insights?outcome_id=${o.outcome_id}`} icon="blend">
-          {plural(insights, "insight")}
-        </Chip>
-      ) : null}
-      {assumptions ? (
-        <Chip to={`${app}/exploration/assumptions?outcome_id=${o.outcome_id}`} icon="scale">
-          {plural(assumptions, "assumption")}
-        </Chip>
-      ) : null}
-      {decisions ? (
-        <Chip to={`${app}/exploration/decisions?outcome_id=${o.outcome_id}`} icon="signpost">
-          {plural(decisions, "decision")}
-        </Chip>
-      ) : null}
+      <Chip to={`${app}/exploration/assumptions?outcome_id=${o.outcome_id}`} icon="scale">
+        {plural(assumptions, "assumption")}
+      </Chip>
     </div>
   );
 }

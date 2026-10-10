@@ -22,7 +22,7 @@ built.
 search {
   query:     string (1–500)                  // required
   mode?:     "substring" (default) | "ranked"
-  scope?:    "passages" (default) | "registers" | "insights" | "all"
+  scope?:    "passages" (default) | "assumptions" | "all"
   record_id?, folder?, kind?, organization?, date_from?, date_to?, tags[]?,   // passage filters
   customer?, product_area?, lifecycle_stage?, provenance_depth?,
   include_archived? (false), limit? (50, at most 200), cursor?
@@ -32,13 +32,11 @@ search {
 - One product per call. There is no cross-product search, and there will never be a
   cross-tenant one.
 - Folder, kind, organization, date and tag filters apply to passages; combining them with
-  `scope: "registers"` or `"insights"` is `422 invalid_filter`.
+  `scope: "assumptions"` is `422 invalid_filter`.
 - Passage hits: `{ record_id, seq, start_ms, end_ms, speaker, snippet, char_start, char_end,
   score? }`, with each source's metadata sent once in `records`. A hit's `record_id` and `seq` are
   directly usable with `read_passage` and as citations. Snippets are at most 160 characters.
-- Register hits come back as `assumptions` and `decisions` (id, statement, status, citation
-  count); insight hits as `insights` (id, title, summary, status, `review_state` as in
-  `insights.list`, snippet).
+- Assumption hits come back as `assumptions` (id, statement, status, citation count).
 - Results are bounded and paged as everywhere ([§6.3](06-operations-and-adapters.md)).
 - The response carries a `coverage` object (§8.4).
 - Search is a read, and reads are never blocked by a quota ([§9.2](09-data-lifecycle.md)).
@@ -55,8 +53,8 @@ search {
   within one passage, so words a transcript splits across neighbouring cues never match together.
   The `search` description says so.
 - Passages are searched over the segments of each source's *current* derivation, primary file
-  only. Registers are searched over statement and body; insights over title, summary and body.
-- Archived sources and entries, and archived insights, are excluded unless `include_archived`.
+  only. Assumptions are searched over statement and body.
+- Archived sources and assumptions are excluded unless `include_archived`.
 - Segments are marked current in the same transaction that makes a derivation current, so search
   never returns a passage that `read_passage` cannot serve.
 - **One engine.** Because there is only one database, development and production rank results

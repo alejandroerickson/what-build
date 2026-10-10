@@ -140,7 +140,7 @@ export interface Review {
 
 export interface RegisterEntry {
   id: string;
-  kind: "assumption" | "decision";
+  kind: "assumption";
   statement: string;
   body: string;
   status: "unconfirmed" | "confirmed" | "refuted" | "superseded";
@@ -165,7 +165,7 @@ export interface RegisterEntry {
 
 export interface RegisterSummary {
   id: string;
-  kind: "assumption" | "decision";
+  kind: "assumption";
   statement: string;
   status: RegisterEntry["status"];
   author: Actor;
@@ -184,34 +184,5 @@ export interface RegisterSummary {
 export interface Refs {
   outcomes: string[];
   sources: string[];
-  insights: string[];
   assumptions: string[];
-  decisions: string[];
-}
-
-export interface InsightSummary {
-  insight_id: string;
-  title: string;
-  summary: string;
-  status: "draft" | "published" | "archived";
-  refs: Refs;
-  revision: number;
-  body_chars: number;
-  etag: string;
-  created_at: string;
-  created_by: Actor;
-  updated_at: string;
-  updated_by: Actor;
-  /** unreviewed: never reviewed; reviewed: the current revision is; changed: an earlier one was. */
-  review_state: InsightReviewState;
-  reviewed_revision: number | null;
-  reviewed_at: string | null;
-  reviewed_by: Actor | null;
-}
-
-export type InsightReviewState = "unreviewed" | "reviewed" | "changed";
-
-export interface Insight extends InsightSummary {
-  body: string;
-  truncated: boolean;
 }

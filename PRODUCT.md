@@ -20,12 +20,11 @@ Google Cloud Run. Recorded in `okf/spec/02-architecture.md`.
 
 - **The product trio** — product managers, designers and an engineering lead exploring a product
   idea — about 5 to 15 people per organization. They browse evidence, read passages, review
-  assumptions and decisions, and direct their agents. They work at a desk on a laptop or larger
+  mockups and assumptions, and direct their agents. They work at a desk on a laptop or larger
   screen; a phone is an occasional reading context. They do not use git and never learn a storage
   path.
 - **Their AI agents**, connected over MCP, which do most of the intake and synthesis: upload and
-  clean sources, read passages, write insights, draft register entries, build mockups, publish
-  the Story.
+  clean sources, read passages, draft assumptions, build mockups, publish the Story.
 - **Stakeholders** who read the Story and rarely anything else _(inferred: whether they get their
   own role or share links is an open question)_.
 - **People evaluating the approach**, who should see a real, fully derived discovery (the sample
@@ -34,8 +33,8 @@ Google Cloud Run. Recorded in `okf/spec/02-architecture.md`.
 ## Product Purpose
 
 Turn a pile of discovery material — interviews, sales calls, research exports, documents, decks —
-into something a team can act on: outcomes, readable insights, reviewed assumptions and
-decisions, and a stakeholder Story, with every claim pointing at the exact passage it came from.
+into something a team can act on: outcomes, mockups, reviewed assumptions and a stakeholder Story,
+with every claim pointing at the exact passage it came from.
 Success is that anyone can answer "where did we hear that?" precisely, and that an agent's work is
 visible, attributed and reviewable rather than lost in a chat.
 
@@ -69,14 +68,13 @@ permissions and one activity log.
   the Story; people read it and export it to PDF. Pages follow the product's Story style: the
   company's own design system, or a house style an agent adopted for the product. Never
   WhatBuild's own look, since a Story is often read outside the team.
-- Vocabulary is fixed: source, passage, segment, outcome, insight, assumption, decision, Story,
-  archive. Never "findings", "claims", "document store" or a storage path in the UI.
+- Vocabulary is fixed: source, passage, segment, outcome, mockup, assumption, Story, archive. Never "findings", "claims", "document store" or a storage path in the UI.
 - WCAG 2.2 AA, fully keyboard-operable, usable at phone width.
 
 ## Evidence on Hand
 
 - A synthetic sample product ("Crewboard", in `apps/server/src/seed-content.ts`): four sources,
-  outcomes, an insight, register entries and a Story page. All people and organizations are
+  outcomes, an assumption, a mockup and two Story pages. All people and organizations are
   invented; no real customer material exists in this repository and none may be fabricated as real.
 - The brand is the W mark (`apps/web/public/favicon.svg`) with the wordmark "WhatBuild". The type
   is Inter and the accent is indigo, in the Studio design system documented in `DESIGN.md`. The

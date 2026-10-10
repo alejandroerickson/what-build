@@ -469,7 +469,7 @@ const ROLE_MEANING: Record<string, string> = {
 };
 const SCOPE_ROLE_MEANING: Record<string, string> = {
   viewer: "Reads everything, changes nothing.",
-  reader: "Reads only the Story: its pages, their versions and their export. Sees no evidence, insights, assumptions or decisions.",
+  reader: "Reads only the Story: its pages, their versions and their export. Sees no evidence, assumptions or mockups.",
   editor: "Reads and writes everything in the product, including the Story.",
   admin: "Reads and writes, and also manages settings and people.",
 };

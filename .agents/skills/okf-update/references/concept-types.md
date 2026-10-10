@@ -28,7 +28,7 @@ maintainer's decision, or say "inferred".
 ## Specification (`okf/spec/NN-*.md`)
 
 The normative description of one area. MUST, SHOULD and MAY have their RFC meanings. Sections
-are numbered (`## 4.3 Insights`), and other files link to them as `[§4.3](04-data-model.md)`.
+are numbered (`## 4.3 Sources`), and other files link to them as `[§4.3](04-data-model.md)`.
 
 - Edit the section that owns the behavior. Do not add a new file for one feature.
 - State the wire names, limits, errors and invariants exactly as the code enforces them. Name the
@@ -86,8 +86,8 @@ decides. Do not edit it to match drift in the code. Raise the drift instead.
 
 For a term in the product's vocabulary that needs more than its line in `spec/01`: its
 definition, its lifecycle and states, its relations to other objects, and the words the interface
-uses for it. The vocabulary is fixed (source, passage, segment, outcome, insight, assumption,
-decision, Story, archive). A new term is a product decision. Record it in `spec/01` and
+uses for it. The vocabulary is fixed (source, passage, segment, outcome, mockup, assumption, Story,
+archive). A new term is a product decision. Record it in `spec/01` and
 `PRODUCT.md` first.
 
 ## Index (`index.md` in every directory)

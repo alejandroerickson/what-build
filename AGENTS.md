@@ -13,13 +13,15 @@ message, is published.
 - Never name private projects, clients, employers or files elsewhere on a machine, even when they
   shaped a change. A change stands on its own.
 - No secrets, tokens, absolute local paths or personal details. Sample content is synthetic.
+- A copy of production (`.what-build/fixtures/`, the `fixture` database) is real people's data:
+  never commit it, and never quote it in the repository, a commit, an issue or a pull request.
 - If you are unsure whether something may be published, leave it out and ask.
 
 ## What this is
 
-WhatBuild turns a product team's discovery material into outcomes, cited insights, reviewed
-assumptions and decisions, and a Story for stakeholders. People use a React web app; agents use an
-MCP server exposing the same 126 operations. There is no AI inside. One stateless image on Cloud Run,
+WhatBuild turns a product team's discovery material into outcomes, mockups, reviewed assumptions
+and a Story for stakeholders. People use a React web app; agents use an MCP server exposing the
+same 108 operations. There is no AI inside. One stateless image on Cloud Run,
 Postgres, and object storage.
 
 The domain is **what-build.com**, with a hyphen: the public site at `what-build.com`, the app at
@@ -47,6 +49,7 @@ that folder. If your tool does not load skills, read the `SKILL.md` files direct
 | `azure-self-host` | When asked to host, update or repair a self-hosted copy on Azure with the Azure CLI. |
 | `make-a-release` | When asked to release a version or move production: publish the release, approve the deploy. |
 | `recover-a-deployment` | When a new version broke a deployment (Cloud Run or Azure): roll back, restore the database. |
+| `test-on-a-copy-of-production` | When asked to QA or test end to end on real data, or to try migrations on a copy of production. |
 
 ## Before you change anything
 

@@ -26,7 +26,7 @@ export function Tag({ children }: { children: ReactNode }) {
   return <span className="tag">{children}</span>;
 }
 
-/** A compact link (or static label) to a related thing, e.g. "I-1" or "3 insights". */
+/** A compact link (or static label) to a related thing, e.g. "3 assumptions". */
 export function Chip({ to, icon, children, title }: { to?: string; icon?: GlyphName; children: ReactNode; title?: string }) {
   const body = (
     <>

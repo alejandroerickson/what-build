@@ -15,8 +15,8 @@ is built and what is not is tracked in the [roadmap](10-roadmap.md).
 WhatBuild is open-source software for rapid product discovery. A team collects discovery
 material (interviews, sales calls, research exports, documents, decks) and the application gives
 that material an opinionated home, derives precise, addressable text from every source, and helps
-the team turn it into outcomes, insights, and reviewed assumptions and decisions, then tell the
-story to stakeholders. A person works through a web application. An agent works through a Model
+the team turn it into outcomes, mockups and reviewed assumptions, then tell the story to
+stakeholders. A person works through a web application. An agent works through a Model
 Context Protocol (MCP) server exposing the same operations. The product is agent-first: the MCP
 surface is the most complete control panel, and the web UI is how a person does the same things.
 

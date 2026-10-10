@@ -3,18 +3,9 @@ import { useState, type ReactNode } from "react";
 import { api } from "../lib/api.ts";
 import { attribution, relativeTime } from "../lib/format.ts";
 import { useProduct } from "../lib/session.tsx";
-import { toneFor } from "../lib/status.ts";
-import type { Actor, InsightReviewState } from "../lib/types.ts";
-import { AgentFace, Avatar, Button, Dialog, EmptyState, ErrorCallout, Loading, StatusBadge, useToast } from "../ui/index.tsx";
+import type { Actor } from "../lib/types.ts";
+import { AgentFace, Avatar, Button, Dialog, EmptyState, ErrorCallout, Loading, useToast } from "../ui/index.tsx";
 import "../styles/screens/exploration.css";
-
-export const STATUS_WORD = { draft: "Working draft", published: "Published", archived: "Archived" } as const;
-const REVIEW_WORD: Record<InsightReviewState, string> = { unreviewed: "Unreviewed", reviewed: "Reviewed", changed: "Changed since review" };
-
-/** An insight's review state as a status: the same words wherever an insight is listed. */
-export function ReviewBadge({ state }: { state: InsightReviewState }) {
-  return <StatusBadge tone={toneFor("review", state)}>{REVIEW_WORD[state]}</StatusBadge>;
-}
 
 /** `path` with the current params, some keys set or removed (an empty value removes it). */
 export function searchWith(path: string, params: URLSearchParams, changes: Record<string, string | null | undefined>): string {
@@ -31,7 +22,7 @@ export function searchWith(path: string, params: URLSearchParams, changes: Recor
 export function Byline({ actor, agent }: { actor: Actor | null | undefined; agent?: boolean }) {
   const viaAgent = agent ?? actor?.surface === "mcp";
   return (
-    <span className="insights-byline">
+    <span className="entry-byline">
       {viaAgent ? <AgentFace /> : <Avatar name={actor?.display_name ?? "?"} />}
       <span>{attribution(actor)}</span>
     </span>
@@ -57,9 +48,9 @@ interface RevisionRow {
   replaced_by: Actor;
 }
 
-/** The same revision control wherever authored text can be overwritten (insights, outcomes). */
+/** The revision control for authored text that can be overwritten (an outcome's). */
 export function HistoryDialog({ tool, id, etag, onClose, render }: {
-  tool: "insights" | "outcomes";
+  tool: "outcomes";
   id: string;
   etag: string;
   onClose: () => void;
@@ -72,7 +63,7 @@ export function HistoryDialog({ tool, id, etag, onClose, render }: {
   const list = useQuery({ queryKey: ["revisions", base, tool, id], queryFn: () => api<{ items: RevisionRow[] }>("GET", `${base}/${tool}/${id}/revisions`) });
   const one = useQuery({ queryKey: ["revision", base, tool, id, n], enabled: n !== null, queryFn: () => api<{ content: Record<string, unknown> }>("GET", `${base}/${tool}/${id}/revisions/${n}`) });
   const restore = useMutation({
-    mutationFn: () => api("POST", `${base}/${tool}/${id}/revisions/${n}/restore`, { [tool === "insights" ? "insight_id" : "outcome_id"]: id, n, expected_etag: etag }),
+    mutationFn: () => api("POST", `${base}/${tool}/${id}/revisions/${n}/restore`, { outcome_id: id, n, expected_etag: etag }),
     onSuccess: () => {
       toast("Restored as a new revision. The text it replaced is kept too.");
       void qc.invalidateQueries();

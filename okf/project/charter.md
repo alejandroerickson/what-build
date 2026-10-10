@@ -11,8 +11,8 @@ status: stable
 
 ## What it is
 
-- **A hosted, multi-tenant web product** that turns discovery material into outcomes, cited
-  insights, reviewed assumptions and decisions, and a Story for stakeholders, with every claim
+- **A hosted, multi-tenant web product** that turns discovery material into outcomes, mockups,
+  reviewed assumptions and a Story for stakeholders, with every claim
   pointing at the exact passage it came from. Who it serves and why: [`PRODUCT.md`](../../PRODUCT.md)
   and the [product specification](../spec/01-product.md).
 - **Agent-first.** An agent connected over MCP can do everything a person can do in the web app,

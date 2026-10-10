@@ -1,9 +1,8 @@
 # WhatBuild
 
 **Turn a pile of discovery material into something you can act on.** Interviews, sales calls,
-research exports, documents and decks go in; outcomes, cited insights, reviewed assumptions and
-decisions, and a stakeholder-readable story come out — with every claim pointing at the exact
-passage it came from.
+research exports, documents and decks go in; outcomes, mockups, reviewed assumptions and a
+stakeholder-readable story come out — with every claim pointing at the exact passage it came from.
 
 A person works through a web application. An agent works through a Model Context Protocol (MCP)
 server exposing the same operations. The product is agent-first: the MCP surface is the most
@@ -13,8 +12,8 @@ There is no AI inside WhatBuild and it needs no model API key. Intelligence arri
 whatever agent you connect.
 
 > **Status: early build.** The whole loop works end to end — sign-in,
-> organizations and roles, kind-first intake, parsing, passages, search, insights, reviewed
-> assumptions and decisions, the Story, activity, and agents over MCP with OAuth. See the
+> organizations and roles, kind-first intake, parsing, passages, search, mockups, reviewed
+> assumptions, the Story, activity, and agents over MCP with OAuth. See the
 > [roadmap](okf/spec/10-roadmap.md) for exactly what is and is not done.
 
 ## Running it locally

@@ -7,8 +7,8 @@ import { id } from "./schemas.ts";
 import { canonicalJson, sha256Hex, uniq } from "./util.ts";
 
 /**
- * Citations: exact passages of a source, frozen as snapshots when written. Register entries and
- * Story page versions both cite this way, with the same input, limits, snapshot and drift check.
+ * Citations: exact passages of a source, frozen as snapshots when written. Assumptions, Story page
+ * versions and mockup versions all cite this way, with the same input, limits, snapshot and drift check.
  */
 
 export const CITATION_MAX_SEGMENTS = 100;
