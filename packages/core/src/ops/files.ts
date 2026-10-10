@@ -2,13 +2,13 @@ import { isRecording, parserFor, SUPPORTED_EXTENSIONS } from "@whatbuild/parsers
 import { z } from "zod";
 import { productId, recordActivity, tenantId } from "../common.ts";
 import { json } from "../db.ts";
-import { AppError, conflict, invalid, notFound, tooLarge } from "../errors.ts";
+import { AppError, conflict, invalid, notFound, rateLimited, tooLarge } from "../errors.ts";
 import { SEARCH_RULE } from "../source-fields.ts";
 import { extensionForMediaType, extensionOf, mediaTypeFor, NOTE_EXTENSIONS, validFilePath } from "../media.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { countVisitorBytes, sandboxForAccount, visitorMayFetchUrl, visitorUploadLimit } from "../public-sandbox.ts";
 import { fileRole, id } from "../schemas.ts";
-import { newEtag, newId, sha256Hex } from "../util.ts";
+import { newEtag, newId, sha256OfStream } from "../util.ts";
 import { derivedStatuses, duplicateWarnings, fileEntries, insertRecord, loadRecord, NO_PRIMARY_WARNING, recordMetadata, recordSummary } from "./sources.ts";
 
 export const UPLOAD_GRANT_HEADER = "X-WhatBuild-Upload-Grant";
@@ -99,8 +99,8 @@ async function issueGrant(
   const token = ctx.ports.grants.sign({ v: 1, purpose: "upload", g: grant_id, t: tenantId(ctx), exp: Math.floor(expiresAt.getTime() / 1000) });
   let direct: { url: string; method: "PUT"; headers: Record<string, string>; max_bytes: number } | undefined;
   if (ctx.ports.blobs.signedUploadUrl && !visitor) {
-    const signed = await ctx.ports.blobs.signedUploadUrl(blob_key, mediaType, expiresAt);
-    direct = { url: signed.url, method: "PUT", headers: signed.headers, max_bytes: cfg.fileMaxBytes };
+    const signed = await ctx.ports.blobs.signedUploadUrl(blob_key, mediaType, expiresAt, maxBytes);
+    direct = { url: signed.url, method: "PUT", headers: signed.headers, max_bytes: maxBytes };
   }
   return {
     grant_id,
@@ -181,12 +181,18 @@ export async function completeGrant(ctx: OpContext, grantId: string, provenanceO
     let size = g.size === null ? null : Number(g.size);
     let sha = g.sha256;
     if (size === null) {
-      // A direct-to-store upload: read what actually landed.
+      // A direct-to-store upload: read what actually landed, its size before any of its bytes.
       const stat = await ctx.ports.blobs.stat(g.blob_key!);
       if (!stat)
         throw notFound(`No bytes have arrived for ${g.path} yet. PUT the file to the grant's url first, then call complete_upload again.`);
+      const limit = Number(g.max_bytes);
+      if (stat.size > limit) {
+        await ctx.ports.blobs.delete(g.blob_key!);
+        throw tooLarge(`The file that arrived for ${g.path} is ${stat.size} bytes; this grant takes at most ${limit}. It was discarded and nothing was attached.`, { limit });
+      }
       size = stat.size;
-      sha = stat.sha256 ?? sha256Hex(await ctx.ports.blobs.get(g.blob_key!));
+      // The hash comes from the bytes themselves, read as a stream, never from metadata an uploader could set.
+      sha = await sha256OfStream(await ctx.ports.blobs.getStream(g.blob_key!));
       await ctx.db.updateTable("upload_grants").set({ uploaded_at: ctx.now, size, sha256: sha }).where("grant_id", "=", g.grant_id).execute();
     }
     if (record.archived_at) throw conflict("record_archived", `The file for ${g.path} arrived, but source ${record.record_id} was archived meanwhile; restore it, then call complete_upload again. Nothing was attached.`);
@@ -340,6 +346,29 @@ export function fragmentWarnings(url: string): string[] {
   ];
 }
 
+/** Fetches one account may have in progress at once, on each instance of the server. */
+export const URL_FETCHES_PER_ACCOUNT = 3;
+const fetchesInProgress = new Map<string, number>();
+
+/** Run one account's fetch in one of its places, or refuse it with 429 when they are all taken. */
+async function inFetchPlace<T>(accountId: string, fetch: () => Promise<T>): Promise<T> {
+  const running = fetchesInProgress.get(accountId) ?? 0;
+  if (running >= URL_FETCHES_PER_ACCOUNT)
+    throw rateLimited(`You have ${running} URL fetches in progress, the most one person may run at once. Wait for one to finish, then try again.`, {
+      limit: URL_FETCHES_PER_ACCOUNT,
+      per: "fetches in progress",
+      retry_after_seconds: 10,
+    });
+  fetchesInProgress.set(accountId, running + 1);
+  try {
+    return await fetch();
+  } finally {
+    const left = (fetchesInProgress.get(accountId) ?? 1) - 1;
+    if (left > 0) fetchesInProgress.set(accountId, left);
+    else fetchesInProgress.delete(accountId);
+  }
+}
+
 export const fetchUrl = defineOperation({
   name: "files.fetch_url",
   scope: "product",
@@ -347,21 +376,28 @@ export const fetchUrl = defineOperation({
   mutates: true,
   summary: "Fetch a public HTTPS document into a source, server-side (size-capped).",
   description:
-    "HTTPS only, public addresses only, redirects re-checked, size and time capped. The file name comes from the response, or pass path. Use for public material only; nothing is sent with the request. The part of a URL after # never reaches the server, so a single-page app's route (…/#/page) fetches only the app's empty shell; the result's warnings say so whenever the URL has a fragment.",
+    `HTTPS only, public addresses only (an address written in the URL and every address a name resolves to), redirects re-checked, size and time capped, at most ${URL_FETCHES_PER_ACCOUNT} at once per person. The file name comes from the response, or pass path. Use for public material only; nothing is sent with the request. The part of a URL after # never reaches the server, so a single-page app's route (…/#/page) fetches only the app's empty shell; the result's warnings say so whenever the URL has a fragment.`,
   input: z.strictObject({ record_id: id("source"), url: z.url().max(2000), path: z.string().min(1).max(200).optional(), role: fileRole.default("primary"), ...provenance }),
   rest: { method: "POST", path: "/sources/:record_id/fetch" },
   mcp: { tool: "files", action: "fetch_url" },
-  async handler(ctx, input) {
-    await loadRecord(ctx, input.record_id, { live: true });
+  // The download happens here, before the transaction, so a slow server holds no database connection.
+  async prepare(ctx, input) {
+    await ctx.read((c) => loadRecord(c, input.record_id, { live: true }));
     if (ctx.sandbox?.visitor) visitorMayFetchUrl(ctx.sandbox);
-    if (!ctx.ports.fetcher) throw notFound("Fetching URLs is not available on this deployment.");
-    let fetched;
-    try {
-      fetched = await ctx.ports.fetcher.fetch(input.url, ctx.ports.config.urlFetchMaxBytes);
-    } catch (e) {
-      if (e instanceof AppError) throw e;
-      throw invalid("fetch_failed", `Could not fetch ${input.url}: ${(e as Error).message}`);
-    }
+    const fetcher = ctx.ports.fetcher;
+    if (!fetcher) throw notFound("Fetching URLs is not available on this deployment.");
+    return inFetchPlace(ctx.principal.account_id, async () => {
+      try {
+        return await fetcher.fetch(input.url, ctx.ports.config.urlFetchMaxBytes);
+      } catch (e) {
+        if (e instanceof AppError) throw e;
+        // What the network said can name hosts behind the server: the caller gets a plain refusal.
+        throw invalid("fetch_failed", "Could not fetch that URL. Check the address, or download the file and upload it with files(action=\"request_upload\").");
+      }
+    });
+  },
+  async handler(ctx, input, fetched) {
+    await loadRecord(ctx, input.record_id, { live: true });
     let path = input.path ?? fetched.fileName;
     if (!extensionOf(path)) path += extensionForMediaType(fetched.mediaType);
     const stored = await storeDirect(ctx, input.record_id, path, input.role, fetched.bytes, fetched.mediaType, input);

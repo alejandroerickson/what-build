@@ -7,7 +7,7 @@ import { effectiveRole, isSandboxStaff, membershipsFor, PRODUCT_ROLES, readsOnly
 import { defineOperation, type OpContext, type ProductRole, type TenantRole } from "../registry.ts";
 import { requireTenantAllowance } from "../tenant-allowance.ts";
 import { expectedEtag, slug } from "../schemas.ts";
-import { newEtag, newId, randomToken, sha256Hex, slugify } from "../util.ts";
+import { newEtag, newId, oneLine, quotedName, randomToken, sha256Hex, slugify } from "../util.ts";
 
 async function uniqueSlug(exists: (s: string) => Promise<boolean>, base: string): Promise<string> {
   const root = slugify(base, 40, "product").padEnd(3, "0");
@@ -426,22 +426,25 @@ const grantScope = z.strictObject({
   product: z.string().optional().describe("Product slug (with team) or id: grant on this product only."),
 });
 
+/** The one answer for a team or product that does not exist and for one the caller has no role on, so neither tells them apart. */
+const hiddenScope = (type: "team" | "product") => notFound(`No such ${type} is visible to you. It may not exist, or you may not be a member.`);
+
 async function resolveGrantTarget(ctx: OpContext, input: { team?: string | undefined; product?: string | undefined }) {
   const tid = ctx.scope.tenant!.tenant_id;
   if (input.product) {
     let q = ctx.db.selectFrom("products").select(["product_id", "team_id", "name"]).where("tenant_id", "=", tid);
     if (input.team) {
       const team = await ctx.db.selectFrom("teams").select("team_id").where("tenant_id", "=", tid).where(sql<boolean>`(slug = ${input.team} or team_id = ${input.team})`).executeTakeFirst();
-      if (!team) throw notFound("No such team in this tenant.");
+      if (!team) throw hiddenScope("product");
       q = q.where("team_id", "=", team.team_id);
     }
     const p = await q.where(sql<boolean>`(slug = ${input.product} or product_id = ${input.product})`).executeTakeFirst();
-    if (!p) throw notFound("No such product in this tenant.");
+    if (!p) throw hiddenScope("product");
     return { scope_type: "product" as const, scope_id: p.product_id, team_id: p.team_id, product_id: p.product_id, name: p.name };
   }
   if (input.team) {
     const t = await ctx.db.selectFrom("teams").select(["team_id", "name"]).where("tenant_id", "=", tid).where(sql<boolean>`(slug = ${input.team} or team_id = ${input.team})`).executeTakeFirst();
-    if (!t) throw notFound("No such team in this tenant.");
+    if (!t) throw hiddenScope("team");
     return { scope_type: "team" as const, scope_id: t.team_id, team_id: t.team_id, product_id: null, name: t.name };
   }
   return { scope_type: "tenant" as const, scope_id: tid, team_id: null, product_id: null, name: ctx.scope.tenant!.name };
@@ -458,8 +461,48 @@ async function requireAdminOf(ctx: OpContext, target: Awaited<ReturnType<typeof 
     const needed: TenantRole = role === "owner" ? "owner" : "admin";
     if (!tenantRoleAtLeast(tenantRole, needed)) throw forbidden(`Changing tenant roles needs a tenant ${needed}.`, { needed });
   } else if (!roleAtLeast(eff, "admin")) {
+    // A team or product the caller has no role on does not exist for them: 404, without its name.
+    if (eff === null && (target.scope_type === "product" || !(await holdsAProductIn(ctx, memberships, target.team_id!)))) throw hiddenScope(target.scope_type);
     throw forbidden(`Managing members of ${target.scope_type} ${target.name} needs admin there; you are ${eff ?? "not a member"}.`, { role: eff, needed: "admin" });
   }
+}
+
+async function holdsAProductIn(ctx: OpContext, memberships: { scope_type: string; scope_id: string }[], teamId: string): Promise<boolean> {
+  const held = memberships.filter((m) => m.scope_type === "product").map((m) => m.scope_id);
+  if (!held.length) return false;
+  return Boolean(await ctx.db.selectFrom("products").select("product_id").where("team_id", "=", teamId).where("product_id", "in", held).executeTakeFirst());
+}
+
+/**
+ * What someone who is not an owner or admin of the organization sees of its people: the teams and
+ * products they read (viewer or above) and the teams those products are in, whose grants they see,
+ * and the teams and products they administer, whose invitations they see.
+ */
+function directoryReach(
+  memberships: Awaited<ReturnType<typeof membershipsFor>>,
+  tenantId: string,
+  teams: { team_id: string }[],
+  products: { product_id: string; team_id: string }[],
+) {
+  const reads = { teams: new Set<string>(), products: new Set<string>() };
+  const administers = { teams: new Set<string>(), products: new Set<string>() };
+  for (const p of products) {
+    const { role } = effectiveRole(memberships, { tenant_id: tenantId, team_id: p.team_id, product_id: p.product_id });
+    if (roleAtLeast(role, "viewer")) (reads.products.add(p.product_id), reads.teams.add(p.team_id));
+    if (role === "admin") administers.products.add(p.product_id);
+  }
+  for (const t of teams) {
+    const { role } = effectiveRole(memberships, { tenant_id: tenantId, team_id: t.team_id });
+    if (roleAtLeast(role, "viewer")) reads.teams.add(t.team_id);
+    if (role === "admin") administers.teams.add(t.team_id);
+  }
+  return {
+    /** A grant the caller may see. An organization role shows only beside one of these, or for an owner or admin, who reach everything. */
+    shows: (type: string, sid: string, role: string) =>
+      type === "tenant" ? role === "owner" || role === "admin" : type === "team" ? reads.teams.has(sid) : reads.products.has(sid),
+    /** Whether the caller can cancel an invitation there. */
+    manages: (type: string, sid: string) => (type === "team" ? administers.teams.has(sid) : type === "product" && administers.products.has(sid)),
+  };
 }
 
 const RANK: Record<string, number> = { reader: 0, viewer: 1, editor: 2, admin: 3 };
@@ -471,7 +514,7 @@ export const listMembers = defineOperation({
   mutates: false,
   summary: "List the tenant's members with every grant they hold, and outstanding invitations; or, with product, the people who can reach one product.",
   description:
-    "Each member lists grants as {scope_type, scope, role}. Effective access is the highest role that applies. Pass product (a slug with team, or an id) to list only the people with access to that product: each then carries product_access {role, via} — via is product, team or tenant, the grant the role comes from (the broadest one when grants tie) — and grants are limited to the ones that apply to that product. Invitations are limited the same way. In a public sandbox, only its owners and admins see people: they get the organization's own members, with visitors as a count (sandbox(action=\"visitors\") lists them), and everyone else gets only themselves. Someone who reads only the Story everywhere in the tenant (a reader on its teams or products and nothing more) sees none of its people: 403.",
+    "Each member lists grants as {scope_type, scope, role}. Effective access is the highest role that applies. Pass product (a slug with team, or an id) to list only the people with access to that product: each then carries product_access {role, via} — via is product, team or tenant, the grant the role comes from (the broadest one when grants tie) — and grants are limited to the ones that apply to that product. Invitations are limited the same way. Owners and admins of the tenant see everyone. Anyone else sees only the people on the teams and products they read (viewer or above), with only those grants and their tenant role, and the invitations they could cancel (where they are admin); the result then says partial: true, and a product they cannot read answers 404. In a public sandbox, only its owners and admins see people: they get the organization's own members, with visitors as a count (sandbox(action=\"visitors\") lists them), and everyone else gets only themselves. Someone who reads only the Story everywhere in the tenant (a reader on its teams or products and nothing more) sees none of its people: 403.",
   input: z.strictObject({
     tenant: z.string().min(1),
     team: z.string().optional().describe("Team slug or id, to name the product by slug."),
@@ -481,12 +524,24 @@ export const listMembers = defineOperation({
   mcp: { tool: "members", action: "list" },
   async handler(ctx, input) {
     const tid = ctx.scope.tenant!.tenant_id;
-    if (readsOnlyTheStoryIn(await membershipsFor(ctx.db, ctx.principal.account_id, tid), tid))
+    const me = ctx.principal.account_id;
+    const mine = await membershipsFor(ctx.db, me, tid);
+    if (readsOnlyTheStoryIn(mine, tid))
       throw forbidden(`You read only the Story in ${ctx.scope.tenant!.name}, so its members are not shown to you. Viewer access to one of its teams or products shows them.`, { role: "reader", needed: "viewer" });
-    const target = input.product ? await resolveGrantTarget(ctx, { team: input.team, product: input.product }) : null;
     // In a public sandbox nobody but its staff sees another person, and its visitors are counted, not listed.
     const sandbox = Boolean(ctx.scope.tenant!.sandbox);
     const onlySelf = sandbox && !isSandboxStaff(ctx.scope.tenantRole);
+    const teams = await ctx.db.selectFrom("teams").select(["team_id", "slug", "name"]).where("tenant_id", "=", tid).execute();
+    const products = await ctx.db.selectFrom("products").select(["product_id", "slug", "name", "team_id"]).where("tenant_id", "=", tid).execute();
+    // Below an owner or admin of the organization, a person sees only the people on what they read.
+    const reach = onlySelf || tenantRoleAtLeast(ctx.scope.tenantRole, "admin") ? null : directoryReach(mine, tid, teams, products);
+    let target = null;
+    if (input.product && reach) {
+      target = await resolveGrantTarget(ctx, { team: input.team, product: input.product }).catch(() => null);
+      const role = target ? effectiveRole(mine, { tenant_id: tid, team_id: target.team_id, product_id: target.product_id }).role : null;
+      if (!target || !role) throw hiddenScope("product");
+      if (!roleAtLeast(role, "viewer")) throw forbidden(`You are a reader on product ${target.name}; members.list needs viewer.`, { role, needed: "viewer" });
+    } else if (input.product) target = await resolveGrantTarget(ctx, { team: input.team, product: input.product });
     let people = ctx.db
       .selectFrom("memberships as m")
       .innerJoin("accounts as a", "a.account_id", "m.account_id")
@@ -494,9 +549,11 @@ export const listMembers = defineOperation({
       .where("m.tenant_id", "=", tid);
     if (onlySelf) people = people.where("m.account_id", "=", ctx.principal.account_id);
     else if (sandbox) people = people.where("m.role", "!=", "visitor");
-    const rows = (await people.orderBy("a.display_name").execute()).map((r) => (onlySelf ? { ...r, display_name: ctx.principal.display_name, email: "" } : r));
-    const teams = await ctx.db.selectFrom("teams").select(["team_id", "slug", "name"]).where("tenant_id", "=", tid).execute();
-    const products = await ctx.db.selectFrom("products").select(["product_id", "slug", "name", "team_id"]).where("tenant_id", "=", tid).execute();
+    const all = (await people.orderBy("a.display_name").execute()).map((r) => (onlySelf ? { ...r, display_name: ctx.principal.display_name, email: "" } : r));
+    // A person shows when one of their grants does (and the caller always sees themselves), with
+    // those grants and their organization role; nothing else of theirs.
+    const shown = reach ? new Set(all.filter((r) => r.account_id === me || reach.shows(r.scope_type, r.scope_id, r.role)).map((r) => r.account_id)) : null;
+    const rows = reach ? all.filter((r) => r.account_id === me || (shown!.has(r.account_id) && (r.scope_type === "tenant" || reach.shows(r.scope_type, r.scope_id, r.role)))) : all;
     const label = (type: string, sid: string) =>
       type === "tenant"
         ? { name: ctx.scope.tenant!.name, slug: ctx.scope.tenant!.slug }
@@ -525,7 +582,10 @@ export const listMembers = defineOperation({
           .where("tenant_id", "=", tid)
           .where("accepted_at", "is", null)
           .where("expires_at", ">", ctx.now)
-          .execute();
+          .execute()
+          // Below an owner or admin of the organization, only the invitations the caller could cancel.
+          .then((all) => (reach ? all.filter((i) => reach.manages(i.scope_type, i.scope_id)) : all));
+    const partial = reach ? { partial: true } : {};
     const visitors = sandbox && !onlySelf
       ? await ctx.db.selectFrom("memberships").select((eb) => eb.fn.countAll<number>().as("n")).where("tenant_id", "=", tid).where("scope_type", "=", "tenant").where("role", "=", "visitor").executeTakeFirst()
       : null;
@@ -534,6 +594,7 @@ export const listMembers = defineOperation({
       return {
         members: [...byAccount.values()],
         invitations: invitations.map((i) => ({ ...i, scope: label(i.scope_type, i.scope_id) })),
+        ...partial,
         ...inSandbox,
       };
     }
@@ -552,6 +613,7 @@ export const listMembers = defineOperation({
       invitations: invitations
         .filter((i) => applies(i.scope_type, i.scope_id, i.role))
         .map((i) => ({ ...i, scope: label(i.scope_type, i.scope_id) })),
+      ...partial,
       ...inSandbox,
     };
   },
@@ -573,9 +635,9 @@ export const grantMember = defineOperation({
   mcp: { tool: "members", action: "grant" },
   async handler(ctx, input) {
     const target = await resolveGrantTarget(ctx, input);
+    await requireAdminOf(ctx, target, input.role);
     const allowed = target.scope_type === "tenant" ? ["owner", "admin", "member"] : PRODUCT_ROLES;
     if (!allowed.includes(input.role)) throw invalid("invalid_role", `Role ${input.role} does not apply to a ${target.scope_type}; use ${allowed.join(", ")}.`);
-    await requireAdminOf(ctx, target, input.role);
     const tid = ctx.scope.tenant!.tenant_id;
     const account = await ctx.db.selectFrom("accounts").select(["account_id", "display_name"]).where(sql<boolean>`lower(email) = lower(${input.email})`).where("deleted_at", "is", null).executeTakeFirst();
     if (!account) {
@@ -587,13 +649,17 @@ export const grantMember = defineOperation({
         .values({ invitation_id, tenant_id: tid, scope_type: target.scope_type, scope_id: target.scope_id, email: input.email, role: input.role, token_hash: sha256Hex(token), expires_at: expires, created_by: json(ctx.actor) })
         .execute();
       const link = `${ctx.ports.config.publicBaseUrl}/invite/${token}`;
+      // The inviter's name is theirs to choose: in the email it is one line, quoted and bounded, so it never reads as WhatBuild's own words.
+      const who = quotedName(ctx.actor.display_name);
+      const where = oneLine(target.name, 100);
       await ctx.ports.mailer?.send({
         to: input.email,
-        subject: `${ctx.actor.display_name} invited you to ${target.name} on WhatBuild`,
+        subject: `${who} invited you to ${where} on WhatBuild`,
         text:
-          `${ctx.actor.display_name} invited you to ${target.name} on WhatBuild, as ${/^[aeiou]/.test(input.role) ? "an" : "a"} ${input.role}.\n\n` +
+          `${who} invited you to ${where} on WhatBuild, as ${/^[aeiou]/.test(input.role) ? "an" : "a"} ${input.role}.\n\n` +
           `Accept the invitation:\n${link}\n\n` +
-          `The link works once, within 7 days, when you sign in with this email address.\n`,
+          `The link works once, within 7 days, when you sign in with this email address.\n` +
+          `The name in quotation marks is the one the person who invited you gave WhatBuild.\n`,
       });
       await recordActivity(ctx, { action: "invited", entity_type: "membership", entity_id: invitation_id, entity_title: target.name, summary: `Invited someone as ${input.role}` });
       // The link is returned to the inviter too, so an invitation works even where no email is sent.
@@ -601,6 +667,8 @@ export const grantMember = defineOperation({
     }
     const existing = await ctx.db.selectFrom("memberships").select(["membership_id", "role"]).where("scope_type", "=", target.scope_type).where("scope_id", "=", target.scope_id).where("account_id", "=", account.account_id).executeTakeFirst();
     if (existing?.role === "owner" && input.role !== "owner") {
+      // Only an owner changes an owner's role, as only an owner removes one.
+      await requireAdminOf(ctx, target, "owner");
       const owners = await ctx.db.selectFrom("memberships").select("membership_id").where("scope_type", "=", "tenant").where("scope_id", "=", tid).where("role", "=", "owner").execute();
       if (owners.length <= 1) throw conflict("last_owner", "A tenant keeps at least one owner. Make someone else owner first.");
     }
@@ -653,6 +721,8 @@ export const revokeMember = defineOperation({
       return { revoked: true, account_id: input.account_id, scope_type: "tenant" as const, scope: ctx.scope.tenant!.name, removed: grants.length };
     }
     const target = await resolveGrantTarget(ctx, input);
+    // Admin of the team or product first, so a non-admin learns nothing of who holds a role there.
+    if (target.scope_type !== "tenant") await requireAdminOf(ctx, target, "admin");
     const m = await ctx.db.selectFrom("memberships").select(["membership_id", "role"]).where("scope_type", "=", target.scope_type).where("scope_id", "=", target.scope_id).where("account_id", "=", input.account_id).executeTakeFirst();
     if (!m) throw notFound("That person holds no role at that scope.");
     await requireAdminOf(ctx, target, m.role);

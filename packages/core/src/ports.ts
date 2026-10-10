@@ -23,8 +23,8 @@ export interface BlobStore {
   getStream(key: string, range?: { start: number; end?: number }): Promise<ReadableStream<Uint8Array>>;
   stat(key: string): Promise<BlobStat | null>;
   delete(key: string): Promise<void>;
-  /** A short-lived URL that PUTs one new object directly to the store, when the store offers it. */
-  signedUploadUrl?(key: string, contentType: string, expiresAt: Date): Promise<{ url: string; headers: Record<string, string> }>;
+  /** A short-lived URL that PUTs one new object of at most `maxBytes` directly to the store, when the store offers it. */
+  signedUploadUrl?(key: string, contentType: string, expiresAt: Date, maxBytes: number): Promise<{ url: string; headers: Record<string, string> }>;
   /** A short-lived URL that GETs one object directly from the store, when the store offers it. */
   signedDownloadUrl?(key: string, fileName: string, contentType: string, expiresAt: Date): Promise<string>;
 }

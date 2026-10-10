@@ -45,8 +45,9 @@ product as anyone else does. It revises one consequence of
 - An evidence link inside a page leads a reader nowhere they can read: the app takes them back to
   the Story.
 - The highest role still applies: a reader on a product who is a viewer on its team is a viewer,
-  and a reader on one product who is a viewer on another in the same organization sees its
-  members.
+  and a reader on one product who is a viewer on another in the same organization sees the people
+  on that other product, never those of the one they only read
+  ([§3.5](../spec/03-accounts-teams-and-identity.md)).
 
 ## Constrains
 

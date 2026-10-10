@@ -589,6 +589,10 @@ never described as deleting. A list row showing an archived object says *Archive
   product or the organization itself (teams first; the organization's member role warns that it
   opens no product), and a role described in words; someone without an account gets a
   single-use link. The person's writes and their attribution stay after any removal.
+  Someone who is not an owner or admin of the organization sees only the people on the teams and
+  products they can open, and the owners and admins, as the page says; since they may not see
+  every role a person holds, removing one never asks as if it were the last
+  ([§3.5](03-accounts-teams-and-identity.md)).
   Someone who reads only the Story in the organization who opens the address gets a page saying
   that members aren't shown to Story readers, with a way back to their products
   ([§3.5](03-accounts-teams-and-identity.md)).
@@ -609,8 +613,8 @@ never described as deleting. A list row showing an archived object says *Archive
   export; the organization; and archive or restore. **People** lists everyone who can reach this
   product and how, in words: a product role, or a role inherited from the team or the
   organization (`members.list` with `product`). Product admins get a role picker (admin, editor,
-  viewer, reader) for product roles, **Add people** (pick someone already in the organization, or invite by
-  email; `members.grant` with the product scope), Remove (revokes the product role only), and
+  viewer, reader) for product roles, **Add people** (pick someone already in the organization whom
+  they can see, or invite by email; `members.grant` with the product scope), Remove (revokes the product role only), and
   outstanding invitations with a cancel control. An inherited role links to the organization's
   Members, where it is changed. Access is per product; nothing is granted per page or per source.
 - **Settings** (`/settings`, from the account menu). Display name, and the email the person signs

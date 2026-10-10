@@ -98,9 +98,11 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
 - **One upload path for everyone.** An upload grant always points at the service's own relay
   (at most 25 MiB, under Cloud Run's 32 MiB request cap), because agents' sandboxes often cannot
   reach the object store. When the bucket can sign URLs (`WHATBUILD_GCS_SIGNED_URLS=1`), the grant
-  also offers a direct `PUT` URL for files up to the per-file limit (100 MB). Either way the
-  application registers the file from the stored object's own size, hash and sniffed type, never
-  from caller claims ([§6.7](06-operations-and-adapters.md)).
+  also offers a direct `PUT` URL for files up to the per-file limit (100 MB), signed for at most
+  the grant's size so the bucket refuses a larger body. Either way the application registers the
+  file from the stored object's own size, hash and sniffed type, never from caller claims: a
+  direct upload's size is read before any of its bytes, and its hash from the bytes as they stream
+  ([§6.7](06-operations-and-adapters.md)).
 
 ## 2.4 Ports
 
@@ -147,7 +149,8 @@ file that imports the Azure SDK, chosen by `WHATBUILD_BLOB_STORE=azure`, or by d
 
 It MAY offer signed upload and download URLs when `WHATBUILD_AZURE_SIGNED_URLS=1`: a user
 delegation signature that grants create and not write, so a URL can add a blob and never replace
-one, with the headers the upload needs returned beside it as the GCS adapter returns its own.
+one, for at most the grant's size where the store can bound it, with the headers the upload needs
+returned beside it as the GCS adapter returns its own.
 Blob keys are the same in every adapter, so a deployment moves off the mounted share by copying
 each file to the same key with the content type and hash from the `.meta.json` beside it.
 
@@ -157,8 +160,10 @@ Every operation is defined once in the registry
 ([`packages/core/src/registry.ts`](../../packages/core/src/registry.ts)) with a name, a scope
 (product, team, tenant or account), a required access level, a strict input schema, a REST method
 and path, and an MCP tool and action. [`execute`](../../packages/core/src/execute.ts) is the one
-way an operation runs: resolve and authorize the scope, validate the input, then run the handler in
-one tenant-scoped transaction that writes its activity event alongside the change.
+way an operation runs: resolve and authorize the scope, validate the input, do any slow work
+outside the database (a download) in the operation's `prepare` step, holding no connection, then
+run the handler in one tenant-scoped transaction that writes its activity event alongside the
+change.
 
 | Transport | Used by | Mapping |
 |---|---|---|
@@ -246,10 +251,15 @@ deployment is involved
   `SameSite=Lax` is not enough on a shared parent domain.
 - **Request bodies** under `/api/v1` are limited to 5 MB; files travel through upload grants.
   Under `/auth` and `/oauth`, which anyone may call, they are limited to 64 KB.
-- **URL fetch is SSRF-hardened:** HTTPS only, public addresses only (re-checked after every
-  redirect and after DNS resolution, in the lookup the connection itself uses: a name with any
-  private address, including an IPv4-mapped IPv6 one, is refused), size and time caps, no
-  credentials forwarded.
+- **URL fetch is SSRF-hardened:** HTTPS only, public addresses only, checked again on every
+  redirect: an address written in the URL, in any notation, is checked before connecting, since
+  Node never looks it up; a name is checked after DNS resolution, in the lookup the connection
+  itself uses, and refused if any of its addresses is not public. Public means outside every
+  special-purpose IPv4 range and, for IPv6, inside global unicast and outside its special parts,
+  so IPv4-mapped, NAT64, 6to4, Teredo, site-local and unique local addresses are refused too
+  (`isPublicAddress` in [`misc.ts`](../../apps/server/src/adapters/misc.ts)). Size cap, an idle
+  timeout and a deadline for the whole fetch, three fetches at once per person, no credentials
+  forwarded, and one plain error for every network failure.
 - **Migrations** are forward-only SQL, applied by `whatbuild migrate` as a separate step before a
   new image serves traffic. An export bundle records its format version.
 - **Observability:** one structured log line per request with method, path (ids masked, and the

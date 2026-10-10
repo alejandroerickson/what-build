@@ -55,6 +55,9 @@ call came through:
    accepted id alias to its canonical field (§6.5). A visitor's input is then checked for size
    (`413 too_large`).
 4. Refuse writes to an archived product (`409 product_archived`) unless the operation allows it.
+   An operation with slow work outside the database (`files.fetch_url`'s download) does it now,
+   in its `prepare` step, holding no database connection; its checks read through a short
+   read-only transaction of their own, and what it fetched is handed to the handler.
 5. **Run the handler in one transaction** scoped to the tenant (`app.tenant_id` set for row-level
    security). In a sandbox the transaction holds the sandbox's lock, shared, or alone when the
    operation is `exclusive`; a visitor's daily allowances are counted inside it, so a call that
@@ -93,9 +96,11 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
 - **`quota_exceeded`** carries `{ quota, limit, used, unit }` in `details`. It is returned for the
   50 Story pages and the 50 mockups a product holds ([§9.2](09-data-lifecycle.md)) and for a visitor's daily
   allowances in the public sandbox, which add `resets_at` ([§9.7](09-data-lifecycle.md)).
-- **`429`** is returned for sign-in links (five per address per hour), and for a visitor's calls
-  and writes a minute in the public sandbox, with `{ limit, per, retry_after_seconds }` in
-  `details` and a `Retry-After` header on REST. Rate limits for every organization are planned.
+- **`429`** is returned for sign-in links (five per address per hour), for a fourth URL fetch a
+  person starts while three of theirs are in progress (`files.fetch_url`, on each instance), and
+  for a visitor's calls and writes a minute in the public sandbox, with
+  `{ limit, per, retry_after_seconds }` in `details` and a `Retry-After` header on REST. Rate
+  limits for every organization are planned.
 - **`413 too_large`** carries `{ limit }`, and for a visitor's input `{ field, limit, unit }`.
 - Database unique violations become `409 conflict`; serialization failures become
   `409 concurrent_change` ("Retry"). Anything unexpected is `500 internal`, logged, and never
@@ -331,7 +336,13 @@ Notes on recent actions:
 - `members.list` takes an optional `product` to list only the people who can reach it, each with
   `product_access { role, via }`. It answers `403` to someone who reads only the Story everywhere
   in the organization, and `products.list` marks such an organization `story_only: true`
-  ([§3.5](03-accounts-teams-and-identity.md)).
+  ([§3.5](03-accounts-teams-and-identity.md)). Owners and admins of the organization get everyone,
+  every grant and every invitation. Anyone else gets `partial: true` and only the people on the
+  teams and products they read (viewer or above), with those grants and their organization role,
+  and only the invitations they could cancel; a `product` they cannot read answers `404`, or
+  `403` where they are its reader.
+- The `members` writes answer a team or product the caller has no role on with the same `404` as
+  one that does not exist, before anything else is checked, so they never name it.
 - `members.revoke` removes the grant at exactly the scope named; with `whole_tenant: true` (and no
   team or product) it removes every grant the person holds in the tenant, which takes them out of
   it. That needs tenant admin, or owner when they are an owner.
@@ -537,13 +548,22 @@ In order of preference for an agent (`packages/core/src/ops/files.ts`):
    30 minutes by default (`WHATBUILD_GRANT_TTL_SECONDS`). The relay takes at most 25 MB
    (`WHATBUILD_RELAY_MAX_BYTES`); when the deployment enables signed URLs
    (`WHATBUILD_GCS_SIGNED_URLS=1`), the grant also carries a `direct` block for a PUT straight to
-   the bucket, up to the per-file limit of 100 MB (`WHATBUILD_FILE_MAX_BYTES`).
+   the bucket, up to the per-file limit of 100 MB (`WHATBUILD_FILE_MAX_BYTES`). The direct URL is
+   signed with that limit as the allowed body size (`x-goog-content-length-range`, among the
+   headers to send), so the bucket refuses a larger body; `files.complete_upload` reads the
+   object's size first, discards an object over the grant's size with `413 too_large`, and hashes
+   the bytes as it streams them, never trusting a hash stored beside them.
 2. **Inline note** — `files.add_note { record_id, path, text }`: plain text, at most 2,048 bytes and
    20 lines, with a text extension. For short notes only.
 3. **URL fetch** — `files.fetch_url { record_id, url, path?, role }` for public HTTPS material:
-   public addresses only, redirects re-checked, size-capped (25 MB by default) and time-capped.
-   The part of a URL after `#` never reaches a server, so a single-page app's route fetches only
-   its shell; when the URL has a fragment, the result's `warnings` says so.
+   public addresses only, both an address written in the URL (in any notation the URL parser
+   accepts) and every address a name resolves to, checked again on each redirect; size-capped
+   (25 MB by default), 30 seconds at most between bytes and 60 seconds for the whole fetch,
+   redirects included. A person runs at most three fetches at once (`429 rate_limited`). The
+   download holds no database connection (§6.1, `execute`'s step 4). A failure on the network
+   answers one plain `422 fetch_failed`, whatever happened, and an error status from the server
+   names that status. The part of a URL after `#` never reaches a server, so a single-page app's
+   route fetches only its shell; when the URL has a fragment, the result's `warnings` says so.
 4. **Web upload** — a person adds the source through the web app's intake. This covers clients with no file
    tools at all; the skill tells agents to ask for it rather than attempt base64.
 

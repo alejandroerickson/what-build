@@ -1,8 +1,9 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { lookup } from "node:dns/promises";
-import { request } from "node:https";
-import { isIP, type LookupFunction } from "node:net";
-import { invalid, tooLarge, type GrantSigner, type Mailer, type UrlFetcher } from "@whatbuild/core";
+import type { ClientRequest, IncomingMessage } from "node:http";
+import { request, type RequestOptions } from "node:https";
+import { BlockList, isIP, type LookupFunction } from "node:net";
+import { AppError, invalid, tooLarge, type GrantSigner, type Mailer, type UrlFetcher } from "@whatbuild/core";
 
 // ---- Grants ---------------------------------------------------------------------------------------
 
@@ -67,32 +68,42 @@ export class SmtpMailer implements Mailer {
 
 // ---- URL fetch --------------------------------------------------------------------------------------
 
-function isPublicAddress(ip: string): boolean {
-  if (isIP(ip) === 4) {
-    const [a, b] = ip.split(".").map(Number) as [number, number, number, number];
-    if (a === 10 || a === 127 || a === 0 || a >= 224) return false;
-    if (a === 169 && b === 254) return false;
-    if (a === 172 && b >= 16 && b <= 31) return false;
-    if (a === 192 && b === 168) return false;
-    if (a === 100 && b >= 64 && b <= 127) return false;
-    if (a === 192 && b === 0) return false;
-    if (a === 198 && (b === 18 || b === 19)) return false;
-    return true;
-  }
-  const v6 = ip.toLowerCase();
-  if (v6 === "::1" || v6 === "::") return false;
-  if (v6.startsWith("fe80") || v6.startsWith("fc") || v6.startsWith("fd") || v6.startsWith("ff")) return false;
-  // IPv4-mapped (::ffff:a.b.c.d, or its hex form ::ffff:7f00:1) and IPv4-compatible (::a.b.c.d).
-  const mapped = v6.match(/^::(?:ffff:)?(.+)$/)?.[1];
-  if (mapped) {
-    if (isIP(mapped) === 4) return isPublicAddress(mapped);
-    const hex = mapped.match(/^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
-    if (hex && v6.startsWith("::ffff:")) {
-      const [hi, lo] = [parseInt(hex[1]!, 16), parseInt(hex[2]!, 16)];
-      return isPublicAddress(`${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`);
-    }
-  }
-  return true;
+/**
+ * Addresses a fetch never reaches. IPv4: every special-purpose range (this network, private,
+ * shared address space, loopback, link-local, protocol assignments, documentation, benchmarking,
+ * the 6to4 relay, multicast, reserved and broadcast). IPv6: everything outside global unicast
+ * (2000::/3), which takes in the unspecified and loopback addresses, IPv4-mapped and -compatible
+ * addresses, NAT64, discard-only, unique local, link-local, site-local and multicast; and, inside
+ * it, the protocol assignments (Teredo among them), documentation and 6to4. The lists are kept
+ * apart because a BlockList checks an IPv4 address against IPv6 ranges in its mapped form, which
+ * ::/3 would take in.
+ */
+const NON_PUBLIC_V4 = new BlockList();
+for (const [net, prefix] of [
+  ["0.0.0.0", 8], ["10.0.0.0", 8], ["100.64.0.0", 10], ["127.0.0.0", 8], ["169.254.0.0", 16], ["172.16.0.0", 12], ["192.0.0.0", 24],
+  ["192.0.2.0", 24], ["192.88.99.0", 24], ["192.168.0.0", 16], ["198.18.0.0", 15], ["198.51.100.0", 24], ["203.0.113.0", 24],
+  ["224.0.0.0", 4], ["240.0.0.0", 4],
+] as const)
+  NON_PUBLIC_V4.addSubnet(net, prefix, "ipv4");
+const NON_PUBLIC_V6 = new BlockList();
+for (const [net, prefix] of [["::", 3], ["4000::", 2], ["8000::", 1], ["2001::", 23], ["2001:db8::", 32], ["2002::", 16], ["3fff::", 20]] as const)
+  NON_PUBLIC_V6.addSubnet(net, prefix, "ipv6");
+
+/** Whether an address may be fetched from: an IP address outside every range above. Anything else, a name or an address with a zone, is not. */
+export function isPublicAddress(ip: string): boolean {
+  const family = isIP(ip);
+  if (!family || ip.includes("%")) return false;
+  return family === 4 ? !NON_PUBLIC_V4.check(ip, "ipv4") : !NON_PUBLIC_V6.check(ip, "ipv6");
+}
+
+/**
+ * The address a URL names directly, or null when it names a host. The URL parser has already
+ * turned every IPv4 notation (decimal, octal, hex, shortened) into dotted form; IPv6 keeps its
+ * brackets. Node connects to an address without asking the lookup, so it is checked before.
+ */
+export function ipLiteral(url: URL): string | null {
+  const host = url.hostname.replace(/^\[(.*)\]$/, "$1");
+  return isIP(host) ? host : null;
 }
 
 type Resolver = (hostname: string) => Promise<{ address: string; family: number }[]>;
@@ -125,19 +136,62 @@ export function publicOnlyLookup(resolve: Resolver = (h) => lookup(h, { all: tru
   };
 }
 
+/** Sends one GET: `https.request`, or in tests a stand-in that reaches a local server. */
+export type Requester = (url: URL, options: RequestOptions, onResponse: (res: IncomingMessage) => void) => ClientRequest;
+
+export interface SafeUrlFetcherOptions {
+  /** The DNS lookup every connection uses. */
+  lookup?: LookupFunction;
+  /** The whole fetch, every redirect included, in milliseconds. */
+  deadlineMs?: number;
+  /** The longest wait for the next bytes, in milliseconds. */
+  idleMs?: number;
+  request?: Requester;
+}
+
+/** One answer for every way a fetch fails on the network, so a failure says nothing about what lies behind the server. */
+const unreachable = () =>
+  invalid(
+    "fetch_failed",
+    'Could not fetch that URL: no public HTTPS server answered it in time with a valid certificate. Check the address, or download the file and upload it with files(action="request_upload").',
+  );
+
+type Hop = { redirect?: string; headers: Record<string, string | string[] | undefined>; body?: Uint8Array };
+
 /**
- * HTTPS only, public addresses only — checked on the address actually connected to, and again on
- * every redirect — with size and time caps and no credentials forwarded.
+ * HTTPS only, public addresses only — an address written in the URL checked before connecting, a
+ * name checked on the address actually connected to, and both again on every redirect — with a
+ * size cap, an idle timeout, a deadline for the whole fetch, and no credentials forwarded.
  */
 export class SafeUrlFetcher implements UrlFetcher {
-  constructor(private readonly lookup: LookupFunction = publicOnlyLookup()) {}
+  private readonly lookup: LookupFunction;
+  private readonly deadlineMs: number;
+  private readonly idleMs: number;
+  private readonly send: Requester;
+
+  constructor(options: SafeUrlFetcherOptions = {}) {
+    this.lookup = options.lookup ?? publicOnlyLookup();
+    this.deadlineMs = options.deadlineMs ?? 60_000;
+    this.idleMs = options.idleMs ?? 30_000;
+    this.send = options.request ?? ((url, opts, onResponse) => request(url, opts, onResponse));
+  }
 
   async fetch(url: string, maxBytes: number) {
+    const deadline = Date.now() + this.deadlineMs;
     let current = new URL(url);
     for (let hop = 0; hop < 5; hop++) {
       if (current.protocol !== "https:") throw invalid("unsafe_url", "Only https:// URLs can be fetched.");
       if (current.username || current.password) throw invalid("unsafe_url", "URLs with credentials cannot be fetched.");
-      const res = await this.once(current, maxBytes);
+      const literal = ipLiteral(current);
+      if (literal !== null && !isPublicAddress(literal))
+        throw invalid("unsafe_url", "Only public addresses are fetched: this URL, or one it redirected to, names a private, local or reserved address.");
+      let res: Hop;
+      try {
+        res = await this.once(current, maxBytes, deadline);
+      } catch (e) {
+        if (e instanceof AppError) throw e;
+        throw unreachable();
+      }
       if (res.redirect) {
         current = new URL(res.redirect, current);
         continue;
@@ -152,50 +206,53 @@ export class SafeUrlFetcher implements UrlFetcher {
     throw invalid("fetch_failed", "Too many redirects.");
   }
 
-  private once(url: URL, maxBytes: number): Promise<{ redirect?: string; headers: Record<string, string | string[] | undefined>; body?: Uint8Array }> {
-    return new Promise((resolvePromise, reject) => {
-      const req = request(
-        url,
-        {
-          method: "GET",
-          timeout: 30_000,
-          headers: { "User-Agent": "WhatBuild-fetch/1", Accept: "*/*" },
-          lookup: this.lookup,
-        },
-        (res) => {
-          const status = res.statusCode ?? 0;
-          if (status >= 300 && status < 400 && res.headers.location) {
-            res.resume();
-            resolvePromise({ redirect: res.headers.location, headers: res.headers });
-            return;
-          }
-          if (status < 200 || status >= 300) {
-            res.resume();
-            reject(new Error(`the server answered ${status}`));
-            return;
-          }
-          const declared = Number(res.headers["content-length"] ?? NaN);
-          if (Number.isFinite(declared) && declared > maxBytes) {
+  private once(url: URL, maxBytes: number, deadline: number): Promise<Hop> {
+    return new Promise((resolvePromise, rejectPromise) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      let settled = false;
+      const settle = () => {
+        settled = true;
+        clearTimeout(timer);
+        return true;
+      };
+      const resolve = (hop: Hop) => !settled && settle() && resolvePromise(hop);
+      const reject = (e: unknown) => !settled && settle() && rejectPromise(e);
+      const req = this.send(url, { method: "GET", timeout: this.idleMs, headers: { "User-Agent": "WhatBuild-fetch/1", Accept: "*/*" }, lookup: this.lookup }, (res) => {
+        const status = res.statusCode ?? 0;
+        if (status >= 300 && status < 400 && res.headers.location) {
+          res.resume();
+          resolve({ redirect: res.headers.location, headers: res.headers });
+          return;
+        }
+        if (status < 200 || status >= 300) {
+          res.resume();
+          reject(invalid("fetch_failed", `The server answered ${status}.`, { status }));
+          return;
+        }
+        const declared = Number(res.headers["content-length"] ?? NaN);
+        if (Number.isFinite(declared) && declared > maxBytes) {
+          res.destroy();
+          reject(tooLarge(`The document is ${declared} bytes; fetching is limited to ${maxBytes}.`, { limit: maxBytes }));
+          return;
+        }
+        const chunks: Buffer[] = [];
+        let size = 0;
+        res.on("data", (c: Buffer) => {
+          size += c.length;
+          if (size > maxBytes) {
             res.destroy();
-            reject(tooLarge(`The document is ${declared} bytes; fetching is limited to ${maxBytes}.`));
+            reject(tooLarge(`The document is larger than ${maxBytes} bytes.`, { limit: maxBytes }));
             return;
           }
-          const chunks: Buffer[] = [];
-          let size = 0;
-          res.on("data", (c: Buffer) => {
-            size += c.length;
-            if (size > maxBytes) {
-              res.destroy();
-              reject(tooLarge(`The document is larger than ${maxBytes} bytes.`));
-              return;
-            }
-            chunks.push(c);
-          });
-          res.on("end", () => resolvePromise({ headers: res.headers, body: new Uint8Array(Buffer.concat(chunks)) }));
-          res.on("error", reject);
-        },
-      );
-      req.on("timeout", () => req.destroy(new Error("timed out after 30 seconds")));
+          chunks.push(c);
+        });
+        res.on("end", () => resolve({ headers: res.headers, body: new Uint8Array(Buffer.concat(chunks)) }));
+        res.on("error", reject);
+        res.on("close", () => reject(new Error("the response ended early")));
+      });
+      // However steadily a server trickles bytes, the fetch ends at its deadline.
+      timer = setTimeout(() => req.destroy(new Error("deadline")), Math.max(0, deadline - Date.now()));
+      req.on("timeout", () => req.destroy(new Error("idle")));
       req.on("error", reject);
       req.end();
     });

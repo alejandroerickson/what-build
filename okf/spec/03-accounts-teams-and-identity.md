@@ -243,9 +243,17 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   and the one needed ("You are a viewer on product Crewboard; outcomes.create needs editor").
 - **Membership administration:** admins grant and revoke where they are admin: product admins on
   their product, team admins on their team, tenant admins on the tenant, and only owners grant
-  owner. Granting someone without an account creates a 7-day invitation, emailed where mail is
-  configured and always returned to the inviter as a single-use link. A tenant keeps at least one
-  owner (`409 last_owner`).
+  owner or change or remove an owner's role. Granting someone without an account creates a 7-day
+  invitation, emailed where mail is configured and always returned to the inviter as a
+  single-use link. The email shows the inviter's display name on one line, without control or
+  direction-changing characters, at most 60 characters and in quotation marks, and says it is the
+  name they gave WhatBuild. A tenant keeps at least one owner (`409 last_owner`).
+- **Who sees whom.** The tenant's owners and admins see all its people, their grants and its
+  invitations. Anyone else, with a viewer role or above somewhere in it, sees only the people on
+  the teams and products they read, with only those grants and their tenant role, and only the
+  invitations they could cancel, where they are admin (`members.list` says `partial: true`). A
+  team or product they have no role on stays hidden there too: the `members` operations answer it
+  with the same `404` as one that does not exist.
 - **Being in a tenant** means holding at least one grant in it: a tenant role, or a role on one of
   its teams or products. A tenant `member` grant adds nothing to that by itself. Revoking a person's
   last grant takes them out of the tenant; `members.revoke` with `whole_tenant` removes every grant

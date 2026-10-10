@@ -1,8 +1,17 @@
 import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { Storage, type Bucket } from "@google-cloud/storage";
+import { Storage, type Bucket, type GetSignedUrlConfig } from "@google-cloud/storage";
 import { AppError, conflict, tooLarge, type BlobStat, type BlobStore } from "@whatbuild/core";
+
+/**
+ * How a direct upload is signed: create-only, and for at most `maxBytes`, so the bucket itself
+ * refuses a larger body. Both headers are signed, and the uploader must send them as given.
+ */
+export function directUploadSigning(contentType: string, expiresAt: Date, maxBytes: number): { config: GetSignedUrlConfig; headers: Record<string, string> } {
+  const extensionHeaders = { "x-goog-if-generation-match": "0", "x-goog-content-length-range": `0,${maxBytes}` };
+  return { config: { version: "v4", action: "write", expires: expiresAt, contentType, extensionHeaders }, headers: { "Content-Type": contentType, ...extensionHeaders } };
+}
 
 /**
  * Google Cloud Storage, reached with the runtime's own identity — no keys in configuration.
@@ -17,15 +26,10 @@ export class GcsBlobStore implements BlobStore {
   constructor(bucketName: string, signedUrls: boolean) {
     this.bucket = new Storage().bucket(bucketName);
     if (signedUrls) {
-      this.signedUploadUrl = async (key, contentType, expiresAt) => {
-        const [url] = await this.bucket.file(key).getSignedUrl({
-          version: "v4",
-          action: "write",
-          expires: expiresAt,
-          contentType,
-          extensionHeaders: { "x-goog-if-generation-match": "0" },
-        });
-        return { url, headers: { "Content-Type": contentType, "x-goog-if-generation-match": "0" } };
+      this.signedUploadUrl = async (key, contentType, expiresAt, maxBytes) => {
+        const { config, headers } = directUploadSigning(contentType, expiresAt, maxBytes);
+        const [url] = await this.bucket.file(key).getSignedUrl(config);
+        return { url, headers };
       };
       this.signedDownloadUrl = async (key, fileName, contentType, expiresAt) => {
         const [url] = await this.bucket.file(key).getSignedUrl({

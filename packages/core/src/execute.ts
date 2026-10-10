@@ -82,9 +82,10 @@ export async function admitRead(env: Env, principal: Principal, scope: Scope, na
 
 /**
  * The one way an operation runs, whichever door the call came through: resolve and authorize the
- * scope, apply a public sandbox's limits to a visitor, validate the input strictly, then run the
- * handler in one transaction that is scoped to the tenant (row-level security) and writes its
- * activity event alongside the change. A call through a scoped MCP connector also stays inside it.
+ * scope, apply a public sandbox's limits to a visitor, validate the input strictly, run any slow
+ * `prepare` step outside a transaction, then run the handler in one transaction that is scoped to
+ * the tenant (row-level security) and writes its activity event alongside the change. A call
+ * through a scoped MCP connector also stays inside it.
  */
 export async function execute(
   env: Env,
@@ -109,25 +110,32 @@ export async function execute(
   const now = new Date().toISOString();
   // In a sandbox a visitor writes under a made-up name, and their own never reaches a handler.
   const masked = visitor && scope.tenant ? { principal: { ...principal, display_name: visitor.appears_as ?? "Visitor", email: "" }, actor: visitorActor(principal, scope.tenant.tenant_id) } : null;
-  const result = await env.db.transaction().execute(async (trx) => {
-    if (scope.tenant) await sql`select set_config('app.tenant_id', ${scope.tenant.tenant_id}, true)`.execute(trx);
-    if (sandbox && scope.tenant) await lockSandbox(trx, sandbox.tenant_id, op.exclusive ? "exclusive" : "shared");
-    if (visitor) await countVisitorWrite(trx, visitor, principal, op);
-    const ctx: OpContext = {
-      principal: masked?.principal ?? principal,
-      actor: masked?.actor ?? actorOf(principal),
-      db: trx,
-      scope,
-      sandbox,
-      ports: env.ports,
-      now,
-      async enqueue(kind, payload) {
-        await trx.insertInto("jobs").values({ tenant_id: scope.tenant?.tenant_id ?? "", kind, payload: json(payload) }).execute();
-        enqueued = true;
-      },
-    };
-    return op.handler(ctx, input as never);
-  });
+  const inTransaction = <T>(fn: (ctx: OpContext) => Promise<T>, mode: "read" | "call") => {
+    const tx = env.db.transaction();
+    return (mode === "read" ? tx.setAccessMode("read only") : tx).execute(async (trx) => {
+      if (scope.tenant) await sql`select set_config('app.tenant_id', ${scope.tenant.tenant_id}, true)`.execute(trx);
+      if (sandbox && scope.tenant) await lockSandbox(trx, sandbox.tenant_id, op.exclusive ? "exclusive" : "shared");
+      if (visitor && mode === "call") await countVisitorWrite(trx, visitor, principal, op);
+      return fn({
+        principal: masked?.principal ?? principal,
+        actor: masked?.actor ?? actorOf(principal),
+        db: trx,
+        scope,
+        sandbox,
+        ports: env.ports,
+        now,
+        async enqueue(kind, payload) {
+          await trx.insertInto("jobs").values({ tenant_id: scope.tenant?.tenant_id ?? "", kind, payload: json(payload) }).execute();
+          enqueued = true;
+        },
+      });
+    });
+  };
+  // Slow work, such as a download, runs before the transaction, so it never holds a database connection.
+  const prepared = op.prepare
+    ? await op.prepare({ principal: masked?.principal ?? principal, scope, ports: env.ports, sandbox, now, read: (fn) => inTransaction(fn, "read") }, input as never)
+    : undefined;
+  const result = await inTransaction((ctx) => op.handler(ctx, input as never, prepared), "call");
   if (enqueued) env.ports.notifyJobs?.();
   return { result, scope };
 }
