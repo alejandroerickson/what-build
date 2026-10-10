@@ -23,6 +23,18 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **Insights and decisions** are retired into Evidence. Migration 0015 queues a job per product
+  that moves each insight and decision into a Markdown source with the same id; the worker must
+  run to finish it, and until it has, a product's insights and decisions are not in Evidence. Their operations and MCP tools are gone,
+  so an agent or script that calls them is refused; old app links open the moved source.
+- **Sources** are described by a title and tags. Migration 0017 turns each source's kind and
+  organization into tags and drops both, and rewrites saved sandbox baselines the same way. A call
+  that still sends `kind`, `organization` or `folder` gets a `422` with a hint to use tags, and
+  `sources.kinds` is replaced by `sources.facets`.
+- **The skill** is at 0.16.0. Connected agents that installed an earlier one are told to update it
+  by the server's instructions; until they do, they may still send kinds or call retired tools.
+- **`members.list`** answers `403` to someone who reads only the Story in an organization (a
+  reader everywhere they hold a role there), and the app hides Members from them.
 - **Microsoft sign-in** accepts an address only when Microsoft marks its domain verified (the
   `xms_edov` claim) or the domain is listed in `WHATBUILD_MICROSOFT_DOMAINS`. A deployment with
   Microsoft sign-in adds the claim to its app registration, or sets the variable, before taking
