@@ -338,6 +338,24 @@ function SortControl({ sort, order, link }: { sort: Sort; order: Order; link: (i
   );
 }
 
+/**
+ * The Sources heading's count. With every page loaded it is the rows; while more pages wait, the
+ * facets still know the exact number when nothing narrows the list or one tag or one person does,
+ * and only otherwise is it "50+". `of` is " of N" when filters narrow the product's live sources.
+ */
+export function sourcesCount({ loaded, more, filters, facets, of = "" }: { loaded: number; more: boolean; filters: Partial<Filters>; facets: SourceFacets | undefined; of?: string }): string {
+  if (!more) return `${loaded}${of}`;
+  const narrowing = FILTER_KEYS.filter((k) => k !== "include_archived" && filters[k]);
+  const tags = filters.tags ? splitTags(filters.tags) : [];
+  const known =
+    !narrowing.length ? facets?.sources
+    : narrowing.length > 1 ? undefined
+    : tags.length === 1 ? facets?.tags.find((t) => t.tag === tags[0]!.toLowerCase())?.count
+    : filters.added_by ? facets?.added_by.find((p) => p.account_id === filters.added_by)?.count
+    : undefined;
+  return known !== undefined ? `${known}${of}` : `${loaded}+${of}`;
+}
+
 export function EvidencePage() {
   const { api: base, app, canWrite, product } = useProduct();
   const [params] = useSearchParams();
@@ -393,7 +411,7 @@ export function EvidencePage() {
   if (f.include_archived === "1") chips.push({ label: "Including archived", to: without(["include_archived"]) });
   // "of N" compares with the product's live sources, so it is left out once archived ones are listed.
   const total = active.length && f.include_archived !== "1" ? ` of ${product.counts.sources}` : "";
-  const count = q.isSuccess ? `${records.length}${q.hasNextPage ? "+" : ""}${total}` : undefined;
+  const count = q.isSuccess ? sourcesCount({ loaded: records.length, more: q.hasNextPage, filters: f, facets: facets.data, of: total }) : undefined;
   return (
     <>
       <EvidenceFilters />

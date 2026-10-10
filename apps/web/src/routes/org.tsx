@@ -236,11 +236,11 @@ export function MembersPage() {
         <SheetBody className="members-intro">
           {sandbox?.only_you ? (
             <Callout inset tone="info" title={`${orgName} is a public sandbox`}>
-              Visitors never see each other, so only you are listed, under your made-up name. <Link to={`/t/${tenant}/sandbox`}>About this sandbox</Link>
+              Only its owners and admins see who is here, so only you are listed, under your made-up name. <Link to={`/t/${tenant}/sandbox`}>About this sandbox</Link>
             </Callout>
           ) : sandbox ? (
             <Callout inset tone="info" title={`${orgName} is a public sandbox`} action={<ButtonLink size="sm" to={`/t/${tenant}/sandbox`}>Sandbox controls</ButtonLink>}>
-              {!sandbox.visitors ? "No visitors yet" : sandbox.visitors === 1 ? "1 visitor has a seat" : `${sandbox.visitors.toLocaleString("en-US")} visitors have seats`}. Visitors are managed in Sandbox controls, and can&rsquo;t see this list.
+              {!sandbox.visitors ? "No visitors yet" : sandbox.visitors === 1 ? "1 visitor has a seat" : `${sandbox.visitors.toLocaleString("en-US")} visitors have seats`}. Visitors aren&rsquo;t listed here and can&rsquo;t see this list; they&rsquo;re managed in Sandbox controls.
             </Callout>
           ) : null}
           {sandbox?.only_you ? null : (

@@ -365,8 +365,8 @@ describe("the Story's published mockups", () => {
       expect(r.body.placed).toBe(true);
     }
     const h = await tree();
-    expect(ids(h.items)).toEqual(["overview"]);
-    expect(h.unplaced).toEqual(["overview"]);
+    expect(ids(h.items)).toEqual([]);
+    expect(ids(h.unplaced)).toEqual(["overview"]);
     expect(ids(h.mockups)).toEqual(["p1", "p2", "p3"]);
     expect(h.mockups[0]).toEqual({ page_id: "p1", title: "P1", description: expect.stringContaining("Directions") });
   });

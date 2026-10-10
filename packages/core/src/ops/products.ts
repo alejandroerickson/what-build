@@ -559,7 +559,11 @@ export const listMembers = defineOperation({
       .select(["m.membership_id", "m.scope_type", "m.scope_id", "m.role", "m.created_at", "a.account_id", "a.display_name", "a.email"])
       .where("m.tenant_id", "=", tid);
     if (onlySelf) people = people.where("m.account_id", "=", ctx.principal.account_id);
-    else if (sandbox) people = people.where("m.role", "!=", "visitor");
+    // A visitor is counted, never listed: not by their seat, and not by a role on a team or product either.
+    else if (sandbox)
+      people = people.where(({ not, exists, selectFrom }) =>
+        not(exists(selectFrom("memberships as v").select("v.membership_id").whereRef("v.account_id", "=", "m.account_id").where("v.tenant_id", "=", tid).where("v.scope_type", "=", "tenant").where("v.role", "=", "visitor"))),
+      );
     const all = (await people.orderBy("a.display_name").execute()).map((r) => (onlySelf ? { ...r, display_name: ctx.principal.display_name, email: "" } : r));
     // A person shows when one of their grants does (and the caller always sees themselves), with
     // those grants and their organization role; nothing else of theirs.

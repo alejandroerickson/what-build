@@ -40,10 +40,10 @@ describe("stage counts", () => {
     expect((await alice.api("POST", `${P}/story/pages/gone/archive`, { expected_etag: gone.body.etag })).status).toBe(200);
     expect((await alice.api("POST", `${P}/story/promote-mockup`, { mockup_id: m.body.mockup_id, mockup_page_id: "phone" })).status).toBe(201);
 
-    // What a reader sees in the Story: the tree, then the Published mockups.
+    // What a reader sees in the Story: the tree, the pages not yet placed at its end, then the Published mockups.
     const tree = await alice.api("GET", `${P}/story/hierarchy`);
     const flat = (nodes: { page_id: string; children: unknown[] }[]): string[] => nodes.flatMap((n) => [n.page_id, ...flat(n.children as never)]);
-    const seen = flat(tree.body.items).length + tree.body.mockups.length;
+    const seen = flat(tree.body.items).length + tree.body.unplaced.length + tree.body.mockups.length;
     expect(tree.body.mockups.map((x: { page_id: string }) => x.page_id)).toEqual(["phone"]);
     expect(seen).toBe(3);
 

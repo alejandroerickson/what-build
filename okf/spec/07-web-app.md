@@ -61,7 +61,8 @@ the browser's back button and "open in new tab" both work.
   source it became ([§4.7](04-data-model.md)), and a link to either list opens Exploration.
 - **A reader** ([§3.5](03-accounts-teams-and-identity.md)) has only the Story: L1 is **Story**
   alone with its count, and the quiet group is gone. The product opens on the Story, and any other
-  product screen, opened by a link or typed, takes a reader to the Story.
+  product screen, opened by a link or typed, takes a reader to the Story, with a toast saying they
+  can read only this product's Story.
 - **A context slot** under the navigation, which the screen fills: the page tree on Story, find
   and filters on Evidence, the mockups and the three lists with their filters on Exploration.
 - **The footer** holds the account menu, which is about the person: their email; each
@@ -133,7 +134,7 @@ wordmark, the question "What to build?", the tagline "Product discovery at the s
 Engineering.", two sentences on what the app does, and a link to Connect an agent. Beside it, small and
 quiet, the WhatBuild journey: Idea, Evidence, Exploration and Story, each with a line on what
 it holds. It carries no counts; those are on each product below. Below, one sheet per organization, headed by its name alone, lists its active products (name,
-product concept, last update, and the team only when the organization has more than one), each
+product concept as plain words clamped to two lines, its Markdown markers dropped, last update, and the team only when the organization has more than one), each
 with links to Idea, Evidence, Exploration and Story and their counts, so any section of any product
 is one click away. A product where the person is a reader says "You read this product's Story."
 in place of its concept, and links to the Story alone, with its count. Team admins get **New product**, a dialog on the overview (`?create=1`), so
@@ -286,7 +287,9 @@ The sources, and everything for reading them.
   tags and its date captured under the title, and at its end "Added <when> by <who>", or "Updated
   <when> by <who>" when the list is sorted by date updated. The header
   counts the sources listed, with "of N" live sources while filters narrow the list (left out once archived
-  sources are included). Archived rows are muted and marked Archived. Rows whose titles match
+  sources are included). While more pages wait to load, the count is still exact when
+  `sources.facets` knows it: with no filter, one tag or one person; only otherwise is it the rows
+  loaded so far with a plus ("50+"). Archived rows are muted and marked Archived. Rows whose titles match
   another listed row also name their primary file, so the twins can be told apart.
 - **Source page.** A source is the busiest object in the app, so the page is dense on purpose.
   - **Header:** the title and the actions menu, nothing else; every property is in the inspector.
@@ -535,12 +538,21 @@ mockup reaches it by promotion, from the mockup (§7.7).
     the product's team publishes them.
 - **Export to PDF.** The dialog lists every page as checkboxes, in the Story's order (the tree,
   then the published mockups), then archived pages, with Select all, Clear and a count; it opens with the page or pages it was
-  asked for already selected, and the person can change the selection. It says what the PDF holds:
+  asked for already selected, and the person can change the selection. The count and Select all
+  cover the pages the Story shows; an archived page goes in only when ticked, and the count adds it
+  ("3 of 24 pages selected, and 1 archived"). It says what the PDF holds:
   a contents list, then each selected page at its current version under its title, with its
   version number and publish date. It says what it leaves out: what a page draws on, its cited
   passages and notes, earlier versions, and anything a page draws with scripts. **Open print view**
   opens the print view in a new tab ([§7.3](#73-routes)), which opens the browser's print dialog to
-  save it as PDF.
+  save it as PDF. In the print view each page's own headings sit one level under its title in the
+  outline (`aria-level`; the tags, and so the page's styling, stay as they are).
+- ◆ Decision: **a page may lay out differently on paper.** A page's media queries answer to the
+  width it is shown at. In the app's frame that is the canvas's measure (up to 900px); on paper
+  it is the printable width, about 670 to 700px on A4 or Letter, below the house styles' 48rem
+  breakpoint, so a page's narrow layout applies there (grids stack into one column). The print
+  view does not pretend the paper is wider: a layout made for 900px would be cramped or clipped
+  at 680px, and the narrow layout is the one the page's author made for that width.
 - An empty Story uses the first-use state ([§7.5](#75-idea)): agents write it, so the request to
   copy is the only path. It says pages follow the company's design system or a house style, and
   offers **Preview Story styles**.
@@ -551,7 +563,10 @@ A quiet **Activity page** (`…/activity`), not a drawer and not a destination: 
 **Activity** in the product's panel, and from a source's details, which open the page filtered to that
 source. It is one log for people and agents together, newest first ([§4.10](04-data-model.md)).
 Each entry reads as a sentence with the actor, the surface, and a link to the object: "Sam, via
-claude-desktop, confirmed an assumption — 14:02". The kind of object changed (`?entity_type=`) or
+claude-desktop, confirmed an assumption — 14:02". The surface is "in the app", "through the API" or
+"via <client>"; what WhatBuild does by itself, such as parsing a file, has no surface and reads "on
+the server", however the file was uploaded. A note's passages read as the app writes them, ¶4 or
+¶4–6. The kind of object changed (`?entity_type=`) or
 one object (`&entity_id=`) narrows it, held in the URL.
 
 This is how a person answers "what did my colleague's agent just do to my product" without reading
@@ -678,9 +693,14 @@ never described as deleting. A list row showing an archived object says *Archive
     address or made-up name with `?visitor=`; Remove) and **Limits of this deployment**, read
     only. Reset now and Reset to this one ask first and list what is erased.
   - **For a visitor** the same address (About this sandbox in the account menu) shows the notice,
-    the name they write under, what they can do, and every allowance with what is used today.
-  - **Members** in the sandbox shows a visitor only themselves, and shows staff the
-    organization's own people with the visitors as a count and a link to the controls. The account
+    the name they write under, what they can do, and every allowance with what is used today. A
+    member whom staff gave a role sees the same page, with the notice and what they can do
+    written for a member. The notice above every screen says who sees what the person adds:
+    other visitors, for a visitor; everyone there, for a member; visitors, under their own name,
+    for staff.
+  - **Members** in the sandbox shows anyone but staff only themselves, and shows staff the
+    organization's own people with the visitors as a count and a link to the controls; no visitor
+    is listed, even one given a role on a team or product. The account
     menu leaves Members out for a visitor. An organization that is a sandbox is tagged Public
     sandbox on the overview.
   - **First run** (`/welcome`) for an account made for the sandbox that is not in it says so, and,

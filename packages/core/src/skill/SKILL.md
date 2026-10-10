@@ -272,8 +272,10 @@ WhatBuild's own look — it is the team's document, often read outside the team.
 
 Read a page with `get_page` before revising and pass its etag; omit the etag only for a new
 page (`include_html: false` reads a page's notes, refs and citations without its HTML). Publishing
-never places a page: then call `set_hierarchy` with the hierarchy's own etag. Pages left out of
-the tree still appear, at its end, until you place them. Do not invent
+never places a page: read `get_hierarchy`, add the page to its `items` where it belongs (a new
+page is listed in `unplaced`, never in `items`), and send the tree back with `set_hierarchy` and
+the hierarchy's own etag; nodes may keep the title and description `get_hierarchy` gave them.
+Pages left out of the tree still appear, at its end, until you place them. Do not invent
 owners, dates, measurements, commitments or agreement, and never present an unconfirmed
 assumption as settled. A plan's dates are the team's: use the ones a person gives you, say on the
 page that they are a plan or a proposal, and note in the page's notes who set them.

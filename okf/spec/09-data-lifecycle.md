@@ -364,10 +364,10 @@ returns them to a visitor with what is used today.
 | Writes | `writes_per_day` | 300 | each visitor, each day | `409 quota_exceeded` |
 | Sources created or copied in | `sources_per_day` | 10 | each visitor, each day | `409 quota_exceeded` |
 | Exports | `exports_per_day` | 0 (none) | each visitor, each day | `409 quota_exceeded` |
-| Writes by all visitors | `org_writes_per_day` | 20,000 | all visitors, each day | `409 quota_exceeded` |
+| Writes | `org_writes_per_day` | 20,000 | all visitors together, each day | `409 quota_exceeded` |
 | File size | `file_max_bytes` | 5 MB | each file | `413 too_large` |
 | Uploads | `bytes_per_day` | 50 MB | each visitor, each day | `409 quota_exceeded` |
-| Uploads by all visitors | `org_bytes_per_day` | 2 GB | all visitors, each day | `409 quota_exceeded` |
+| Uploads | `org_bytes_per_day` | 2 GB | all visitors together, each day | `409 quota_exceeded` |
 | Text in one field | `text_max_chars` | 200,000 | each text field | `413 too_large` |
 | Sources in one archive or restore call | `batch_max` | 25 | each call | `413 too_large` |
 | Fetching a file from a URL | `fetch_url` | off | each visitor | `403 sandbox_restricted` |

@@ -304,6 +304,30 @@ function sanitize(n: Node) {
   if (n.content) sanitize(n.content);
 }
 
+const HEADING = /^h([1-6])$/;
+
+/**
+ * Place the page's own headings under its title in the outline: the highest heading the page uses
+ * becomes one level below the title, and the rest keep their distance from it. Only aria-level
+ * changes, so the page's stylesheet still styles each heading by its tag; screen readers and the
+ * PDF's outline read the level.
+ */
+function nestHeadings(body: Node, titleHeading: number) {
+  const headings: { node: Node; n: number }[] = [];
+  const walk = (n: Node) => {
+    const m = HEADING.exec(n.tagName ?? "");
+    if (m) headings.push({ node: n, n: Number(m[1]) });
+    for (const c of n.childNodes ?? []) walk(c);
+  };
+  walk(body);
+  if (!headings.length) return;
+  const top = Math.min(...headings.map((x) => x.n));
+  for (const { node, n } of headings) {
+    const level = Math.min(6, titleHeading + 1 + (n - top));
+    node.attrs = [...(node.attrs ?? []).filter((a) => a.name.toLowerCase() !== "aria-level"), { name: "aria-level", value: String(level) }];
+  }
+}
+
 export interface PreparedPage {
   /** The page's head stylesheets, scoped for a shadow root. */
   styles: string[];
@@ -315,7 +339,8 @@ export interface PreparedPage {
   dropped_title: boolean;
 }
 
-export function prepareStoryPage(html: string, title: string): PreparedPage {
+/** titleHeading, the level of the heading the print view gives the page's title, nests the page's own headings under it. */
+export function prepareStoryPage(html: string, title: string, titleHeading?: number): PreparedPage {
   const doc = parseHtml(html) as unknown as Node;
   const root = findChild(doc, "html");
   const head = findChild(root, "head");
@@ -333,6 +358,7 @@ export function prepareStoryPage(html: string, title: string): PreparedPage {
   if (!body) return { styles, body: "", host: [...hostAttrs].map(([name, value]) => ({ name, value })), dropped_title: false };
   sanitize(body);
   const dropped = dropLeadingTitle(body, title);
+  if (titleHeading) nestHeadings(body, titleHeading);
   return { styles, body: serialize(body as never), host: [...hostAttrs].map(([name, value]) => ({ name, value })), dropped_title: dropped };
 }
 
@@ -413,8 +439,8 @@ export function composePrintDocument(input: { productName: string; exportedAt: s
     .join("\n");
   const sections = pages
     .map((p) => {
-      const prepared = prepareStoryPage(p.html, p.title);
       const h = headingLevel(p.level);
+      const prepared = prepareStoryPage(p.html, p.title, h);
       const host = prepared.host.map((a) => ` ${a.name}="${escapeHtml(a.value)}"`).join("");
       const styles = prepared.styles.map((s) => `<style>${s.replace(/<\/style/gi, "<\\/style")}</style>`).join("");
       return (

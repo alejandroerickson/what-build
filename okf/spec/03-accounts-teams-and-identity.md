@@ -461,11 +461,16 @@ The limits on what is done there, the baseline and the reset are in
 `tenants.sandbox` on that organization and clears it on every other
 (`syncSandboxTenant`, [`apps/server/src/public-sandbox.ts`](../../apps/server/src/public-sandbox.ts)). A slug
 that matches no organization makes none a sandbox, and the server says so in its log. The
-`sandbox` operations answer `404` in an organization that is not one.
+`sandbox` operations answer `404` in an organization that is not one, with a message that says
+so and names no setting of the deployment.
 
 **Staff and visitors.** The organization's owners and admins are its **staff**: they work under
 their own names, administer as anywhere else, and meet none of the sandbox's limits. **Everyone
-else in the organization is a visitor**, whatever role they hold.
+else in the organization is a visitor**, whatever role they hold. `sandbox.status` still tells
+them how they stand (`you.role`): `staff`; `visitor`, for someone who came in by an invitation
+link and holds the tenant role `visitor`; or `member`, for someone staff gave a role, who is
+treated as a visitor is (the made-up name, the limits, no administering, nobody else seen) and is
+told so. The notice each is shown says who sees what they add, and under which name.
 
 | A visitor | How |
 |---|---|
@@ -486,7 +491,8 @@ sandbox. Taking `WHATBUILD_SANDBOX_TENANT` away and restarting therefore takes e
 access with it, and naming the organization again gives it back.
 
 **Staff see visitors as a count.** For staff, `members.list` lists the organization's own people
-and gives `sandbox.visitors` as a number; `sandbox.visitors` lists them a page at a time, with
+and gives `sandbox.visitors` as a number. A visitor is left out of the list entirely, a role
+staff gave them on a team or product included; `sandbox.visitors` lists them a page at a time, with
 name, address and made-up name.
 
 **Invitations.** A sandbox invitation (`sandbox.create_invite`) is a link, `/join/<code>`, with a

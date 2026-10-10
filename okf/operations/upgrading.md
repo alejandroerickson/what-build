@@ -46,6 +46,16 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   `GET /api/v1/me` still refuses without a session. Signing out, or a session ending, also clears
   the last product, Story positions, focus choice and other per-person display state kept in the
   browser.
+- **`story.get_hierarchy`** returns pages not yet placed only in `unplaced`, now a list of
+  `{page_id, title, description}`, and no longer also at the end of `items`; `set_hierarchy`
+  accepts `items` as `get_hierarchy` returns them. A script that read `unplaced` as a list of ids,
+  or that relied on sending `items` back to place every page, places those pages itself.
+- **The public sandbox:** `sandbox.status` gives `you.role` as `member` (not `visitor`) to someone
+  its staff gave a role, who is still treated as a visitor is, and its notice says who sees what
+  each person adds; an agent or script that read `role` as only `visitor` or `staff` meets the
+  third value. `members.list` no longer lists a visitor whom staff also gave a role on a team or
+  product. The limits table labels the two limits on all visitors together `Writes` and
+  `Uploads`, counted over "All visitors together, each day".
 - **`members.list`** answers `403` to someone who reads only the Story in an organization (a
   reader everywhere they hold a role there), and the app hides Members from them.
 - **Microsoft sign-in** accepts an address only when Microsoft marks its domain verified (the

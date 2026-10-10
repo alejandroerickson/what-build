@@ -14,24 +14,25 @@ export interface StoryNode {
 }
 
 /**
- * story.get_hierarchy: `items` is the tree, with the pages not yet placed at its end (`unplaced`
- * names them); `mockups` is the Published mockups, the pages showing a mockup page, in order.
+ * story.get_hierarchy: `items` is the tree as saved, `unplaced` the pages not yet placed, and
+ * `mockups` the Published mockups, the pages showing a mockup page, in order.
  */
 export interface Hierarchy {
   etag: string | null;
   items: StoryNode[];
-  unplaced: string[];
+  unplaced: Omit<StoryNode, "children">[];
   mockups: Omit<StoryNode, "children">[];
 }
 
-/** The Story the way the panel shows it: the page tree, then the Published mockups. */
+/** The Story the way the panel shows it: the page tree with the pages not yet placed at its end, then the Published mockups. */
 export interface Arrangement {
   pages: StoryNode[];
   mockups: StoryNode[];
 }
 
 export function split(h: Hierarchy): Arrangement {
-  return { pages: h.items, mockups: h.mockups.map((m) => ({ ...m, children: [] })) };
+  const leaf = (m: Omit<StoryNode, "children">): StoryNode => ({ ...m, children: [] });
+  return { pages: [...h.items, ...h.unplaced.map(leaf)], mockups: h.mockups.map(leaf) };
 }
 
 /** Where a page stands among the Published mockups, and the ones either side, or null when it is not one. */
