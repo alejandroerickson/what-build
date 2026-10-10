@@ -51,13 +51,15 @@ as the application's role, and shaped into two organizations
   the accounts that belonged only to them, and so are sessions, OAuth clients and tokens, sign-in
   links and the public site's interest list.
 - **The standard organization** (`<slug>-standard`, named "<name> (standard)"): a copy of the
-  sandbox organization's teams, products, content, activity and memberships, under new ids, with
-  every reference to an old id rewritten, in columns and in JSON. It is not a sandbox. The files are
-  shared, since blobs never change. After the copy, every foreign key is checked.
+  sandbox organization's teams, products, content, activity and the memberships of everyone but
+  its visitors, under new ids, with every reference to an old id rewritten, in columns and in
+  JSON. It is not a sandbox. The files are shared, since blobs never change. After the copy, every
+  foreign key is checked.
 
-So every plan can run the same products both ways. A sandbox visitor's account is not copied into
-the standard organization. Each time it is served, the development sign-in's people are given their
-roles in both: Riley owns each organization, Sam edits every team, Jordan reads every Story.
+So every plan can run the same products both ways. No sandbox visitor is copied into the
+standard organization: not an account an invitation made, and not anyone holding a visitor's seat,
+whose seat and every role on a team or product stay in the sandbox alone. Each time it is served,
+the development sign-in's people are given their roles in both: Riley owns each organization, Sam edits every team, Jordan reads every Story.
 
 The golden master is real people's data, with every rule of that guide: it stays in `.what-build/`,
 and plans, reports that leave the machine, commits and issues never name or quote it.

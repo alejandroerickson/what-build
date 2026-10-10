@@ -674,9 +674,14 @@ never described as deleting. A list row showing an archived object says *Archive
     address or made-up name with `?visitor=`; Remove) and **Limits of this deployment**, read
     only. Reset now and Reset to this one ask first and list what is erased.
   - **For a visitor** the same address (About this sandbox in the account menu) shows the notice,
-    the name they write under, what they can do, and every allowance with what is used today.
-  - **Members** in the sandbox shows a visitor only themselves, and shows staff the
-    organization's own people with the visitors as a count and a link to the controls. The account
+    the name they write under, what they can do, and every allowance with what is used today. A
+    member whom staff gave a role sees the same page, with the notice and what they can do
+    written for a member. The notice above every screen says who sees what the person adds:
+    other visitors, for a visitor; everyone there, for a member; visitors, under their own name,
+    for staff.
+  - **Members** in the sandbox shows anyone but staff only themselves, and shows staff the
+    organization's own people with the visitors as a count and a link to the controls; no visitor
+    is listed, even one given a role on a team or product. The account
     menu leaves Members out for a visitor. An organization that is a sandbox is tagged Public
     sandbox on the overview.
   - **First run** (`/welcome`) for an account made for the sandbox that is not in it says so, and,
