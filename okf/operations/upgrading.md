@@ -33,6 +33,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   `sources.kinds` is replaced by `sources.facets`.
 - **The skill** is at 0.16.0. Connected agents that installed an earlier one are told to update it
   by the server's instructions; until they do, they may still send kinds or call retired tools.
+- **The public sandbox:** `sandbox.status` gives `you.role` as `member` (not `visitor`) to someone
+  its staff gave a role, who is still treated as a visitor is, and its notice says who sees what
+  each person adds; an agent or script that read `role` as only `visitor` or `staff` meets the
+  third value. `members.list` no longer lists a visitor whom staff also gave a role on a team or
+  product. The limits table labels the two limits on all visitors together `Writes` and
+  `Uploads`, counted over "All visitors together, each day".
 - **`members.list`** answers `403` to someone who reads only the Story in an organization (a
   reader everywhere they hold a role there), and the app hides Members from them.
 - **Microsoft sign-in** accepts an address only when Microsoft marks its domain verified (the

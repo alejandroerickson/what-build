@@ -71,8 +71,9 @@ export async function checkReferences(c: pg.Client) {
 
 /**
  * Copy one organization's content into a new organization that is not a sandbox: its teams,
- * products and everything in them, the activity log and the memberships, with every id made new and
- * every reference to an old id, in any column or JSON, pointing at the new one. Files are shared.
+ * products and everything in them, the activity log and the memberships of everyone but its
+ * visitors, with every id made new and every reference to an old id, in any column or JSON,
+ * pointing at the new one. Files are shared.
  */
 export async function copyTenant(c: pg.Client, fromTenantId: string, slug: string, name: string) {
   // The copy may be from before some of these tables existed: its own migrations come later.
@@ -80,10 +81,12 @@ export async function copyTenant(c: pg.Client, fromTenantId: string, slug: strin
   const tables = [...BASELINE_TABLES, "memberships"].filter((t) => present.has(t));
   const people = (await c.query<{ account_id: string; sandbox_only: boolean }>("select account_id, sandbox_only from accounts")).rows;
   const accounts = new Set(people.map((p) => p.account_id));
-  // An account made for the sandbox belongs to nothing else.
-  const visitors = new Set(people.filter((p) => p.sandbox_only).map((p) => p.account_id));
   const rows = new Map<string, Record<string, unknown>[]>();
   for (const t of tables) rows.set(t, (await c.query<{ row: Record<string, unknown> }>(`select to_jsonb(x) as row from ${t} x where tenant_id = $1`, [fromTenantId])).rows.map((r) => r.row));
+  // A visitor belongs to the sandbox alone: an account an invitation made, or anyone holding a
+  // visitor's seat there. None of their grants is copied, the seat or a role on a team or product.
+  const visitors = new Set(people.filter((p) => p.sandbox_only).map((p) => p.account_id));
+  for (const m of rows.get("memberships") ?? []) if (m["scope_type"] === "tenant" && m["role"] === "visitor") visitors.add(m["account_id"] as string);
 
   // Every id the organization's rows name, other than people's: those are the ones made new.
   const ids = new Map<string, string>([[fromTenantId, newId()]]);

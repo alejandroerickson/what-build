@@ -108,7 +108,7 @@ export interface LimitInfo {
   /** What one unit is, for a person: "calls", "bytes". */
   unit: string;
   /** What the limit is counted over. */
-  per: "Each visitor, each minute" | "Each visitor, each day" | "All visitors, each day" | "Each file" | "Each text field" | "Each call" | "Each visitor";
+  per: "Each visitor, each minute" | "Each visitor, each day" | "All visitors together, each day" | "Each file" | "Each text field" | "Each call" | "Each visitor";
   /** The error a caller over the limit receives. */
   refusal: string;
   help: string;
@@ -121,10 +121,10 @@ export const SANDBOX_LIMITS: LimitInfo[] = [
   { key: "writes_per_day", group: "frequency", label: "Writes", unit: "writes", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "A day runs from one scheduled reset to the next." },
   { key: "sources_per_day", group: "frequency", label: "Sources added", unit: "sources", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "Sources created or copied in." },
   { key: "exports_per_day", group: "frequency", label: "Exports", unit: "exports", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "Product exports a visitor asks for. 0, the default, keeps the sandbox's content in the sandbox." },
-  { key: "org_writes_per_day", group: "frequency", label: "Writes by all visitors", unit: "writes", per: "All visitors, each day", refusal: "409 quota_exceeded", help: "A ceiling on every visitor's writes together." },
+  { key: "org_writes_per_day", group: "frequency", label: "Writes", unit: "writes", per: "All visitors together, each day", refusal: "409 quota_exceeded", help: "A ceiling on every visitor's writes added up." },
   { key: "file_max_bytes", group: "size", label: "File size", unit: "bytes", per: "Each file", refusal: "413 too_large", help: "Checked as the file uploads." },
   { key: "bytes_per_day", group: "size", label: "Uploads", unit: "bytes", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "Counted when a file is attached to a source." },
-  { key: "org_bytes_per_day", group: "size", label: "Uploads by all visitors", unit: "bytes", per: "All visitors, each day", refusal: "409 quota_exceeded", help: "A ceiling on every visitor's uploads together." },
+  { key: "org_bytes_per_day", group: "size", label: "Uploads", unit: "bytes", per: "All visitors together, each day", refusal: "409 quota_exceeded", help: "A ceiling on every visitor's uploads added up." },
   { key: "text_max_chars", group: "size", label: "Text in one field", unit: "characters", per: "Each text field", refusal: "413 too_large", help: "The longest body, note or Story page a visitor may send." },
   { key: "batch_max", group: "size", label: "Sources in one call", unit: "sources", per: "Each call", refusal: "413 too_large", help: "How many sources one archive or restore call may name." },
   { key: "fetch_url", group: "switch", label: "Fetching a file from a URL", unit: "", per: "Each visitor", refusal: "403 sandbox_restricted", help: "Off stops the server fetching links a visitor names." },

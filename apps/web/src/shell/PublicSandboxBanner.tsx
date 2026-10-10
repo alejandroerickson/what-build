@@ -74,7 +74,7 @@ export function SandboxBanner({ tenant }: { tenant: { slug: string; name: string
           </>
         ) : (
           <>
-            Other visitors see what you add, under the name <b>{s.you.appears_as}</b>, and nobody here sees who you are. Everything added is erased{" "}
+            {s.you.role === "member" ? "Everyone here, visitors included, sees" : "Other visitors see"} what you add, under the name <b>{s.you.appears_as}</b>, and nobody here sees who you are. Everything added is erased{" "}
             {s.resets.next_at ? `${resetWords(s.resets)} (next ${untilTime(s.resets.next_at)})` : "whenever the sandbox is reset"}. Don&rsquo;t add anything private.
           </>
         )}
