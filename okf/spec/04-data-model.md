@@ -545,8 +545,8 @@ one HTML document for a browser to print to PDF ([§6.4](06-operations-and-adapt
 
 - **The tree** (`items`): an ordered tree of `page_id`s, depth ≤ 6, each page at most once, every
   page live and published, none showing a mockup page. Publishing a page never places it; placing
-  a page never publishes it. Pages not yet placed are listed in `unplaced` and shown at the end of
-  the tree. A stored node whose page is archived, missing or showing a mockup page is skipped and
+  a page never publishes it. Pages not yet placed are listed in `unplaced`, never in `items`, and
+  readers see them at the end of the tree until an agent adds them to it. A stored node whose page is archived, missing or showing a mockup page is skipped and
   its children promoted into its place; archiving a page takes it out of the stored tree, and a
   restored page returns unplaced.
 - **The Published mockups** (`mockups`): every live page whose current version shows a mockup

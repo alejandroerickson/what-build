@@ -328,8 +328,11 @@ Notes on recent actions:
   on a new page or as an existing page's next version, without copying it; the version reports
   `mockup` with the page's size. It answers `201` like `publish` ([§4.11](04-data-model.md)).
   The page appears among the Story's Published mockups at once (`placed: true`).
-- `story.get_hierarchy` returns the tree as `items` (pages not yet placed at its end, named in
-  `unplaced`) and the Published mockups as `mockups`, in order; `story.set_hierarchy` takes the
+- `story.get_hierarchy` returns the tree as saved as `items`, the live pages not yet placed as
+  `unplaced` (`{page_id, title, description}`, never also in `items`) and the Published mockups as
+  `mockups`, in order. Its `items` round-trip: `story.set_hierarchy` accepts them as they are
+  (the `title` and `description` on each node are ignored), and placing a page is adding it there.
+  `story.set_hierarchy` takes the
   tree and, optionally, `mockups` to reorder that section ([§4.11](04-data-model.md)).
 - `sources.used_by` lists the mockups whose current version cites or lists the source,
   `sources.move_to_product` refuses while one does, and `sources.delete_impact` lists every

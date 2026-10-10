@@ -4,9 +4,9 @@ import "./styles/base.css";
 import "./styles/ui.css";
 import "./styles/shell.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { StrictMode } from "react";
+import { StrictMode, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
-import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, useParams, useRouteError } from "react-router";
+import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, useNavigate, useParams, useRouteError } from "react-router";
 import { ApiError, setUnauthenticatedHandler } from "./lib/api.ts";
 import { productHome, ProductProvider, RequireSession, useProduct } from "./lib/session.tsx";
 import { ConnectPage } from "./routes/connect.tsx";
@@ -29,7 +29,7 @@ import { ExplorationSection } from "./routes/exploration-panel.tsx";
 import { MockupPage, MockupsIndex } from "./routes/mockups.tsx";
 import { CookieNotice } from "./shell/CookieNotice.tsx";
 import { PlainShell, ProductShell } from "./shell/Shell.tsx";
-import { ButtonLink, EmptyState, Sheet, SheetHeader, ToastProvider } from "./ui/index.tsx";
+import { ButtonLink, EmptyState, Sheet, SheetHeader, ToastProvider, useToast } from "./ui/index.tsx";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -118,10 +118,22 @@ function ProductHome() {
   return <Navigate to={productHome(product.your_role)} replace />;
 }
 
-/** Every screen of a product but the Story: a reader, who has only the Story, is taken there. */
+/** Every screen of a product but the Story: a reader, who has only the Story, is taken there, with a toast saying why. */
 function NotForStoryReaders() {
   const { app, storyOnly } = useProduct();
-  return storyOnly ? <Navigate to={`${app}/story`} replace /> : <Outlet />;
+  return storyOnly ? <BackToStory to={`${app}/story`} /> : <Outlet />;
+}
+
+function BackToStory({ to }: { to: string }) {
+  const toast = useToast();
+  const navigate = useNavigate();
+  const told = useRef(false);
+  useEffect(() => {
+    if (!told.current) toast("You can read only this product’s Story, so it opened instead.");
+    told.current = true;
+    navigate(to, { replace: true });
+  }, [navigate, to, toast]);
+  return null;
 }
 
 /** Every screen, signed in or not, with the cookie notice in its corner until it is dismissed. */

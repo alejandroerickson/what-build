@@ -4,7 +4,7 @@ import { filterTree, flatten, mockupStop, split, trail, type Arrangement, type S
 const n = (page_id: string, children: StoryNode[] = []): StoryNode => ({ page_id, title: page_id.toUpperCase(), description: "", children });
 const shape = (nodes: StoryNode[]): string => nodes.map((x) => x.page_id + (x.children.length ? `[${shape(x.children)}]` : "")).join(",");
 const m = (page_id: string) => ({ page_id, title: page_id.toUpperCase(), description: "" });
-const tree = (): Arrangement => split({ etag: "e", items: [n("a", [n("b"), n("c")]), n("d"), n("u")], unplaced: ["u"], mockups: [m("m1"), m("m2"), m("m3")] });
+const tree = (): Arrangement => split({ etag: "e", items: [n("a", [n("b"), n("c")]), n("d")], unplaced: [m("u")], mockups: [m("m1"), m("m2"), m("m3")] });
 
 describe("Story tree", () => {
   it("keeps unplaced pages at the end of the tree, and the published mockups apart, in order", () => {

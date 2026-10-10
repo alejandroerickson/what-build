@@ -578,7 +578,7 @@ function flatten(nodes: StoryNode[]): string[] {
 /** Whether a page appears in the navigation: in the tree, or among the Published mockups, where every live page showing a mockup page appears. */
 async function isPlaced(ctx: OpContext, page: string) {
   const h = await resolvedHierarchy(ctx);
-  return flatten(h.placed).includes(page) || h.mockups.some((m) => m.page_id === page);
+  return flatten(h.items).includes(page) || h.mockups.some((m) => m.page_id === page);
 }
 
 export const getHierarchy = defineOperation({
@@ -588,14 +588,12 @@ export const getHierarchy = defineOperation({
   mutates: false,
   summary: "The Story's navigation: the page tree, then the Published mockups in order, with its own etag and each page's current title and summary.",
   description:
-    "items is the tree. A stored node whose page is missing, archived or showing a mockup page is skipped and its children promoted into its place. Live pages not yet placed are listed in `unplaced` (and appended at the top level of `items`). mockups is the Published mockups section: every live page whose current version shows a page of a mockup (story.promote_mockup), flat, in the order set_hierarchy gave, then any not yet ordered, in the order their current versions were published. Every published page appears exactly once, in items or in mockups. etag is null before the first save.",
+    "items is the tree as saved, so it round-trips: send it back to set_hierarchy as it is, or with pages added or moved. A stored node whose page is missing, archived or showing a mockup page is skipped and its children promoted into its place. unplaced lists the live pages not yet placed, {page_id, title, description}, overview first then by title; they are never in items, and readers see them at the end of the tree until you place one by adding it to items. mockups is the Published mockups section: every live page whose current version shows a page of a mockup (story.promote_mockup), flat, in the order set_hierarchy gave, then any not yet ordered, in the order their current versions were published. Every live page appears exactly once: in items, in unplaced or in mockups. etag is null before the first save.",
   input: z.strictObject({}),
   rest: { method: "GET", path: "/story/hierarchy" },
   mcp: { tool: "story", action: "get_hierarchy" },
   async handler(ctx) {
-    const { placed, ...view } = await resolvedHierarchy(ctx);
-    void placed;
-    return view;
+    return resolvedHierarchy(ctx);
   },
 });
 
@@ -629,7 +627,7 @@ async function resolvedHierarchy(ctx: OpContext) {
   const unplaced = [...live.values()]
     .filter((p) => !p.shows_mockup && !used.has(p.page_id))
     .sort((a, b) => (a.page_id === "overview" ? -1 : b.page_id === "overview" ? 1 : a.title.localeCompare(b.title) || a.page_id.localeCompare(b.page_id)))
-    .map((p) => ({ page_id: p.page_id, title: p.title, description: p.summary, children: [] as Enriched[] }));
+    .map((p) => ({ page_id: p.page_id, title: p.title, description: p.summary }));
   const ordered = uniq(h?.mockups ?? []).flatMap((id) => {
     const p = live.get(id);
     return p?.shows_mockup ? [p] : [];
@@ -638,10 +636,15 @@ async function resolvedHierarchy(ctx: OpContext) {
     .filter((p) => p.shows_mockup && !ordered.includes(p))
     .sort((a, b) => a.published_at.localeCompare(b.published_at) || a.page_id.localeCompare(b.page_id));
   const mockups = [...ordered, ...later].map((p) => ({ page_id: p.page_id, title: p.title, description: p.summary }));
-  return { etag: h?.etag ?? null, items: [...items, ...unplaced], placed: items, unplaced: unplaced.map((u) => u.page_id), mockups, updated_at: h?.updated_at ?? null };
+  return { etag: h?.etag ?? null, items, unplaced, mockups, updated_at: h?.updated_at ?? null };
 }
 
-const nodeSchema: z.ZodType<StoryNode> = z.lazy(() => z.strictObject({ page_id: pageId, children: z.array(nodeSchema).default([]) })) as z.ZodType<StoryNode>;
+// title and description are accepted so get_hierarchy's items can be sent back as they are; only page_id and children are stored.
+type NodeInput = StoryNode & { title?: string; description?: string };
+const nodeSchema: z.ZodType<NodeInput> = z.lazy(() =>
+  z.strictObject({ page_id: pageId, title: z.string().optional(), description: z.string().optional(), children: z.array(nodeSchema).default([]) }),
+) as z.ZodType<NodeInput>;
+const bareNodes = (nodes: NodeInput[]): StoryNode[] => nodes.map((n) => ({ page_id: n.page_id, children: bareNodes(n.children) }));
 
 export const setHierarchy = defineOperation({
   name: "story.set_hierarchy",
@@ -649,7 +652,7 @@ export const setHierarchy = defineOperation({
   access: "write",
   mutates: true,
   summary: "Replace the Story's navigation tree, and order its Published mockups. Uses the hierarchy's own etag; never touches page content.",
-  description: `items is the whole tree, not a patch: nodes are {page_id, children}. Each page at most once, depth at most ${MAX_DEPTH}, every page live and published, and none showing a mockup page: those are always in the Published mockups section, never in the tree. Pages you leave out of items become unplaced. mockups orders that section, a flat list of the page ids that show mockup pages; ones you leave out follow in the order their current versions were published, and omitting mockups keeps the order as it is. Pass expected_etag from get_hierarchy, or null before the first save.`,
+  description: `items is the whole tree, not a patch: nodes are {page_id, children}; the title and description get_hierarchy adds are accepted and ignored, so its items can be sent back as they are. Each page at most once, depth at most ${MAX_DEPTH}, every page live and published, and none showing a mockup page: those are always in the Published mockups section, never in the tree. Pages you leave out of items become unplaced; to place an unplaced page, add it to items. mockups orders that section, a flat list of the page ids that show mockup pages; ones you leave out follow in the order their current versions were published, and omitting mockups keeps the order as it is. Pass expected_etag from get_hierarchy, or null before the first save.`,
   input: z.strictObject({
     items: z.array(nodeSchema).max(MAX_PAGES),
     mockups: z.array(pageId).max(MAX_PAGES).optional().describe("The order of the Published mockups: ids of pages whose current version shows a mockup page. Omit it to keep the order as it is."),
@@ -681,7 +684,7 @@ export const setHierarchy = defineOperation({
     const notMockups = (order ?? []).filter((x) => !live.get(x)?.shows_mockup);
     if (notMockups.length) throw invalid("invalid_hierarchy", `These pages do not show a mockup page, so they belong in items, not mockups: ${notMockups.join(", ")}.`);
     const etag = newEtag();
-    const set = { items: json(input.items), ...(order ? { mockups: json(order) } : {}), etag };
+    const set = { items: json(bareNodes(input.items)), ...(order ? { mockups: json(order) } : {}), etag };
     if (h) await ctx.db.updateTable("story_hierarchies").set({ ...set, updated_at: ctx.now, updated_by: json(ctx.actor) }).where("product_id", "=", productId(ctx)).execute();
     else await ctx.db.insertInto("story_hierarchies").values({ product_id: productId(ctx), tenant_id: tenantId(ctx), ...set, updated_by: json(ctx.actor) }).execute();
     const arranged = `Arranged ${ids.length} page${ids.length === 1 ? "" : "s"} in the navigation`;
@@ -943,7 +946,7 @@ async function printPages(ctx: OpContext, ids: string[]) {
   const missing = wanted.filter((w) => !rows.some((r) => r.page_id === w));
   if (missing.length) throw notFound(`These Story pages have never been published in this product: ${missing.join(", ")}.`, { missing });
   const h = await resolvedHierarchy(ctx);
-  const story = [...h.items, ...h.mockups.map((m) => ({ page_id: m.page_id, children: [] }))];
+  const story = [...h.items, ...[...h.unplaced, ...h.mockups].map((m) => ({ page_id: m.page_id, children: [] }))];
   const order = printOrder(story, rows.map((r) => ({ page_id: r.page_id, title: r.title })));
   const pages = [];
   for (const slot of order) {

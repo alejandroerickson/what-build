@@ -99,6 +99,17 @@ describe("page preparation", () => {
     const notLeading = prepareStoryPage(page("Plan", "<p>Intro first.</p><h1>Plan</h1>"), "Plan");
     expect(notLeading.dropped_title).toBe(false);
   });
+
+  it("nests the page's own headings under its title in the outline, keeping their tags for the stylesheet", () => {
+    const p = prepareStoryPage(page("Plan", '<main><h1>Plan</h1><h2>Why</h2><h3 aria-level="1">Detail</h3><h2>How</h2></main>'), "Plan", 3);
+    expect(p.body).toContain('<h2 aria-level="4">Why</h2>');
+    expect(p.body).toContain('<h3 aria-level="5">Detail</h3>');
+    expect(p.body).toContain('<h2 aria-level="4">How</h2>');
+    const kept = prepareStoryPage(page("Overview", "<h1>Where we stand</h1><h2>Next</h2>"), "Overview", 2);
+    expect(kept.body).toContain('<h1 aria-level="3">Where we stand</h1>');
+    expect(kept.body).toContain('<h2 aria-level="4">Next</h2>');
+    expect(prepareStoryPage(page("Plan", "<h2>Why</h2>"), "Plan").body).toContain("<h2>Why</h2>");
+  });
 });
 
 describe("the composed document", () => {

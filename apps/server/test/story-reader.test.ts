@@ -84,7 +84,8 @@ describe("a Story reader", () => {
   it("reads every Story page and version, without what it draws on or the notes for agents", async () => {
     const tree = await rita.api("GET", `${P}/story/hierarchy`);
     expect(tree.status).toBe(200);
-    expect(tree.body.items.map((n: { page_id: string }) => n.page_id)).toEqual(["overview"]);
+    expect(tree.body.items).toEqual([]);
+    expect(tree.body.unplaced.map((n: { page_id: string }) => n.page_id)).toEqual(["overview"]);
     const pages = await rita.api("GET", `${P}/story/pages?include_archived=true`);
     expect(pages.body.items.map((x: { page_id: string }) => x.page_id)).toEqual(["overview"]);
 
