@@ -157,6 +157,24 @@ export function makePdf(lines: string[]): Uint8Array {
   return utf8(out);
 }
 
+/** A PDF of `pages` blank pages: a few bytes each, so a small file can have very many. */
+export function makeBlankPdf(pages: number): Uint8Array {
+  const kids = Array.from({ length: pages }, (_, i) => `${i + 3} 0 R`).join(" ");
+  const objects = ["<< /Type /Catalog /Pages 2 0 R >>", `<< /Type /Pages /Kids [${kids}] /Count ${pages} >>`, ...Array.from({ length: pages }, () => "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>")];
+  const parts = ["%PDF-1.4\n"];
+  let length = parts[0]!.length;
+  const offsets: number[] = [];
+  objects.forEach((body, i) => {
+    offsets.push(length);
+    const part = `${i + 1} 0 obj\n${body}\nendobj\n`;
+    parts.push(part);
+    length += part.length;
+  });
+  parts.push(`xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`, ...offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`));
+  parts.push(`trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${length}\n%%EOF\n`);
+  return utf8(parts.join(""));
+}
+
 // ---- Recordings: container headers only, around silent (zeroed) media data ----------------------
 
 const be32 = (n: number) => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];

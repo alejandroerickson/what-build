@@ -1,4 +1,4 @@
-import { derive, isRecording, recordingDurationMs, sliceCodePoints, type ByteReader, type ParseResult } from "@whatbuild/parsers";
+import { derive, isRecording, readSegments, recordingDurationMs, sliceCodePoints, toParsedFile, type ByteReader, type ParsedFile } from "@whatbuild/parsers";
 import { sql } from "kysely";
 import { z } from "zod";
 import { recordActivity, tenantId } from "../common.ts";
@@ -347,18 +347,20 @@ export async function runDerivation(
     if (cur?.file_version_id === version.file_version_id) return null;
   }
   const stat = job.failed ? null : await ports.blobs.stat(version.blob_key);
-  let result: ParseResult;
+  let result: ParsedFile;
   if (job.failed) {
-    result = { status: "failed", parser: "none", parser_version: "0", segments: [], text: "", outline: `- (${job.failed})\n`, duration_ms: null, status_detail: job.failed, facts: {} };
+    result = toParsedFile({ status: "failed", parser: "none", parser_version: "0", segments: [], text: "", outline: `- (${job.failed})\n`, duration_ms: null, status_detail: job.failed, facts: {} });
   } else if (stat && stat.size > ports.config.parseCapBytes) {
     // Too large to read at all: record the status without downloading the file.
-    result = await derive(new Uint8Array(0), file.path, { parseCapBytes: -1 });
-    result.status_detail = `the file is ${stat.size} bytes; files over ${ports.config.parseCapBytes} bytes are stored but not parsed`;
+    const r = await derive(new Uint8Array(0), file.path, { parseCapBytes: -1 });
+    r.status_detail = `the file is ${stat.size} bytes; files over ${ports.config.parseCapBytes} bytes are stored but not parsed`;
     // A recording's playing time sits in its container headers: read those ranges, not the file.
-    if (isRecording(file.path, version.media_type)) result.duration_ms = await recordingDurationMs(blobRangeReader(ports, version.blob_key), stat.size);
+    if (isRecording(file.path, version.media_type)) r.duration_ms = await recordingDurationMs(blobRangeReader(ports, version.blob_key), stat.size);
+    result = toParsedFile(r);
   } else {
+    // Parsed away from the requests, within the deployment's memory and time limits for one file.
     const bytes = await ports.blobs.get(version.blob_key);
-    result = await derive(bytes, file.path, { mediaType: version.media_type, parseCapBytes: ports.config.parseCapBytes });
+    result = await ports.parser.parse(bytes, file.path, { mediaType: version.media_type, parseCapBytes: ports.config.parseCapBytes });
   }
   const derivation_id = newId();
   const prefix = `t/${job.tenant_id}/r/${record.record_id}/d/${derivation_id}`;
@@ -370,8 +372,8 @@ export async function runDerivation(
     parser_version: result.parser_version,
     source_path: file.path,
     file_version_id: version.file_version_id,
-    segment_count: result.segments.length,
-    char_count: Array.from(result.text).length,
+    segment_count: result.segment_count,
+    char_count: result.char_count,
     duration_ms: result.duration_ms,
     facts: result.facts,
     status: result.status,
@@ -379,8 +381,8 @@ export async function runDerivation(
     created_at: new Date().toISOString(),
     inference: "none",
   };
-  await ports.blobs.put(`${prefix}/segments.jsonl`, enc.encode(result.segments.map((s) => JSON.stringify(s)).join("\n") + (result.segments.length ? "\n" : "")), { contentType: "application/jsonl" });
-  await ports.blobs.put(`${prefix}/text.md`, enc.encode(result.text), { contentType: "text/markdown; charset=utf-8" });
+  await ports.blobs.put(`${prefix}/segments.jsonl`, result.segments_jsonl, { contentType: "application/jsonl" });
+  await ports.blobs.put(`${prefix}/text.md`, result.text_md, { contentType: "text/markdown; charset=utf-8" });
   await ports.blobs.put(`${prefix}/outline.md`, enc.encode(result.outline), { contentType: "text/markdown; charset=utf-8" });
   await ports.blobs.put(`${prefix}/manifest.json`, enc.encode(JSON.stringify(manifestDoc, null, 2)), { contentType: "application/json" });
   await db
@@ -388,14 +390,14 @@ export async function runDerivation(
     .values({
       derivation_id, tenant_id: job.tenant_id, record_id: record.record_id, file_version_id: version.file_version_id, source_path: file.path,
       status: result.status, status_detail: result.status_detail, parser: result.parser, parser_version: result.parser_version,
-      segment_count: result.segments.length, text_chars: manifestDoc.char_count, duration_ms: result.duration_ms,
+      segment_count: result.segment_count, text_chars: result.char_count, duration_ms: result.duration_ms,
       facts: json(result.facts), blob_prefix: prefix,
     })
     .execute();
   // Search never returns a passage read_passage cannot serve: index and switch in one transaction.
   await db.updateTable("segments").set({ is_current: false }).where("record_id", "=", record.record_id).where("is_current", "=", true).execute();
-  for (let i = 0; i < result.segments.length; i += 500) {
-    const chunk = result.segments.slice(i, i + 500);
+  // Read back from the sidecar's bytes 500 at a time, so the passages are never all held as objects.
+  for (const chunk of readSegments(result.segments_jsonl, 500)) {
     await db
       .insertInto("segments")
       .values(
@@ -415,7 +417,7 @@ export async function runDerivation(
       activity_id: newId(), tenant_id: job.tenant_id, team_id: product?.team_id ?? null, product_id: record.product_id,
       actor: json({ account_id: "system", display_name: "WhatBuild", surface: null, client: "parser" }), actor_account_id: "system", channel: null,
       action: result.status === "ready" ? "derived" : "derivation_" + result.status, entity_type: "source", entity_id: record.record_id, entity_title: record.title,
-      summary: result.status === "ready" ? `Parsed ${file.path} into ${result.segments.length} passages (${result.parser} ${result.parser_version})` : `Could not derive passages from ${file.path}: ${result.status}`,
+      summary: result.status === "ready" ? `Parsed ${file.path} into ${result.segment_count} passages (${result.parser} ${result.parser_version})` : `Could not derive passages from ${file.path}: ${result.status}`,
     })
     .execute();
   return { derivation_id, status: result.status };

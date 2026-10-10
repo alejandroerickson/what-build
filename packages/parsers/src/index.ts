@@ -6,13 +6,13 @@ import { htmlParser } from "./html.ts";
 import { bytesReader, recordingDurationMs } from "./media.ts";
 import { pdfParser } from "./pdf.ts";
 import { markdownParser, plaintextParser } from "./plaintext.ts";
-import { assemble, codePointLength, decodeText, headingOutline, speakerOutline } from "./text.ts";
-import { DEFAULT_PARSE_CAP_BYTES, type FormatParser, type ParseResult } from "./types.ts";
+import { assemble, decodeText, headingOutline, nonSpaceCodePoints, speakerOutline } from "./text.ts";
+import { DEFAULT_PARSE_CAP_BYTES, TooLargeError, type FormatParser, type ParseResult, type Segment } from "./types.ts";
 import { xlsxParser } from "./xlsx.ts";
-import { TooLargeError } from "./zip.ts";
 
-export type { Block, DerivationStatus, ParseResult, Segment } from "./types.ts";
-export { codePointLength, sliceCodePoints, MAX_SEGMENT_CHARS } from "./text.ts";
+export type { Block, DerivationStatus, ParsedFile, ParseResult, Segment } from "./types.ts";
+export { codePointLength, sliceCodePoints, MAX_SEGMENT_CHARS, MAX_SEGMENTS, readSegments, toParsedFile } from "./text.ts";
+export { MAX_PDF_PAGES } from "./pdf.ts";
 export { recordingDurationMs, type ByteReader } from "./media.ts";
 export { DEFAULT_PARSE_CAP_BYTES } from "./types.ts";
 export { HtmlLimitError, MAX_HTML_DEPTH, parseHtml } from "./html.ts";
@@ -95,7 +95,9 @@ function nonReady(
 
 /**
  * Derive passage-addressable text from one file. A pure function of bytes: it never throws for a
- * bad file — every outcome is a status — so the worker can always record what happened.
+ * bad file — every outcome is a status — so the worker can always record what happened. What it
+ * may cost in memory and time is bounded where it runs: the server runs it in a worker thread of
+ * its own (apps/server/src/parse-thread.ts).
  */
 export async function derive(
   bytes: Uint8Array,
@@ -118,21 +120,25 @@ export async function derive(
     return nonReady("unsupported", `no parser reads ${ext} files`);
   }
   let parsed: Awaited<ReturnType<FormatParser["parse"]>>;
+  let segments: Segment[];
+  let text: string;
+  let outline: string | undefined;
   try {
     parsed = await parser.parse(bytes, fileName, { maxBytes: cap });
+    ({ segments, text } = assemble(parsed.blocks));
+    outline = parsed.outline ?? (parser.timed ? speakerOutline(segments) : headingOutline(segments));
   } catch (err) {
     const e = err as Error;
-    // A package that unpacks past the cap is too large to parse, as a file over it is.
+    // A package that unpacks past the cap, a PDF of too many pages or a file of too many passages is too large, as a file over the cap is.
     if (err instanceof TooLargeError) return nonReady("too_large", e.message, parser.name, parser.version);
     return nonReady("failed", `${e.name ?? "Error"}: ${e.message ?? String(err)}`.slice(0, 200), parser.name, parser.version);
   }
-  const { segments, text } = assemble(parsed.blocks);
   const facts = parsed.facts ?? {};
   // Silent loss is the worst failure: a text parse that keeps almost nothing reports `failed`.
   const ext = extensionOf(fileName);
   if (TEXT_LIKE.has(ext)) {
-    const sourceChars = codePointLength(decodeText(bytes).replace(/\s+/g, ""));
-    const keptChars = codePointLength(segments.map((s) => s.text).join("").replace(/\s+/g, ""));
+    const sourceChars = nonSpaceCodePoints([decodeText(bytes)]);
+    const keptChars = nonSpaceCodePoints(segments.map((s) => s.text));
     if (sourceChars >= 200 && (keptChars === 0 || keptChars < sourceChars * 0.1)) {
       return {
         ...nonReady("failed", `the parse kept only ${keptChars} of ${sourceChars} characters`, parser.name, parser.version),
@@ -160,7 +166,7 @@ export async function derive(
     parser_version: parser.version,
     segments,
     text,
-    outline: parsed.outline ?? (timed ? speakerOutline(segments) : headingOutline(segments)),
+    outline,
     duration_ms: timed ? duration : null,
     status_detail: null,
     facts,

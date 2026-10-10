@@ -1,5 +1,7 @@
 // Bundle the server for production: our own TypeScript (server, core, parsers) into dist/main.js,
-// with the few npm packages that do not bundle cleanly left external and listed in dist/package.json
+// and the entry of the worker thread each file is parsed in (src/parse-worker.ts, the parsers
+// alone) into dist/parse-worker.js beside it, where src/parse-thread.ts looks for it; with the few
+// npm packages that do not bundle cleanly left external and listed in dist/package.json
 // for `npm install --omit=dev` in the image. Migrations are copied beside the bundle, where the
 // migration runner looks for them, and build.json records the commit (WHATBUILD_COMMIT, which the
 // image build passes in) and when the bundle was built, for the release the server reports.
@@ -17,8 +19,8 @@ const EXTERNAL = ["pdfjs-dist", "@google-cloud/storage", "nodemailer", "pg-nativ
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
 await build({
-  entryPoints: [join(here, "src/main.ts")],
-  outfile: join(dist, "main.js"),
+  entryPoints: { main: join(here, "src/main.ts"), "parse-worker": join(here, "src/parse-worker.ts") },
+  outdir: dist,
   bundle: true,
   platform: "node",
   target: "node22",

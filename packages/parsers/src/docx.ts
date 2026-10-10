@@ -270,7 +270,7 @@ export const docxParser: FormatParser = {
           else paragraphs.push(block);
           blocks.push(block);
         } else if (c.name === "w:tbl") {
-          blocks.push(...tableBlocks(c, st));
+          for (const b of tableBlocks(c, st)) blocks.push(b);
         } else if (c.name === "w:sdt") {
           const content = first(c, "w:sdtContent");
           if (content) walkBody(content);

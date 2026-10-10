@@ -84,6 +84,10 @@ running on free tiers without a compliance program.
 | Per file | 100 MB (`WHATBUILD_FILE_MAX_BYTES`) | Yes — `413 too_large` |
 | Through the upload relay | 25 MB (`WHATBUILD_RELAY_MAX_BYTES`); larger files need direct upload URLs | Yes — `413 too_large` |
 | Parsed per primary file | 25 MB (`WHATBUILD_PARSE_CAP_BYTES`); larger files are stored, not parsed | Yes |
+| Memory for parsing one file | 384 MB of heap (`WHATBUILD_PARSE_MEMORY_MB`), and half as much again for buffers; a parse that needs more is stopped and fails | Yes |
+| Time for parsing one file | 120 seconds (`WHATBUILD_PARSE_TIMEOUT_SECONDS`); a parse that runs longer is stopped and fails | Yes |
+| Passages from one file | 200,000; a file that would make more is stored, not parsed (`too_large`) | Yes |
+| Pages of a parsed PDF | 2,000; a longer PDF is stored, not parsed (`too_large`) | Yes |
 | Files per source | 50 | Yes — `409 too_many_files` |
 | Story pages | 50 per product | Yes — `409 quota_exceeded`, quota `story_pages` |
 | Mockups | 50 per product, archived ones included; 24 pages and 8,000,000 characters of HTML, and 50 files and 2,000,000 characters of files, in a version | Yes — `409 quota_exceeded`, quota `mockups`; `422` for a version |

@@ -83,6 +83,13 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
 - **The worker ships in the same image** and polls the Postgres queue; a commit that enqueues work
   also wakes it. `serve` runs HTTP and the worker in one process unless `WHATBUILD_WORKER=0`;
   `worker` runs the worker alone. Splitting them is a configuration change, not a code change.
+- **A file is parsed in a thread of its own.** The worker starts a worker thread for each parse,
+  with no environment, a heap of `WHATBUILD_PARSE_MEMORY_MB` (384 by default), half as much again
+  for buffers and `WHATBUILD_PARSE_TIMEOUT_SECONDS` (120); a parse past them is stopped and fails,
+  and the process keeps serving ([§5.1](05-derived-layer.md),
+  [decision](../decisions/each-file-is-parsed-in-a-thread-of-its-own-with-memory-and-time-limits.md)).
+  The defaults suit a 1 GiB instance. The bundle carries the thread's entry as
+  `dist/parse-worker.js` beside `dist/main.js` ([`build.mjs`](../../apps/server/build.mjs)).
 - **A public sandbox's reset needs no timer.** A service that scales to nothing cannot promise
   an hour, so every request first runs a reset that is due, an instance that is awake looks every
   minute, and a scheduler may call `POST /api/v1/sandbox/reset-if-due`
@@ -115,6 +122,7 @@ interfaces; adapters live in [`apps/server/src/adapters`](../../apps/server/src/
 | `GrantSigner` | Sign and verify upload and download grants | HMAC with `WHATBUILD_GRANT_KEY` | the same, with a fixed development key | the same |
 | `Mailer` | Sign-in links and invitations | SMTP, or none (email links then off) | printed to the terminal | captured in memory |
 | `UrlFetcher` | Size-capped, SSRF-safe HTTPS fetch for `files.fetch_url` | yes | yes | yes |
+| `FileParser` | Parse one file's bytes into its sidecars, away from the requests | a worker thread per file, with memory and time limits | the same | the same |
 
 Postgres is not behind a port: the core takes a Kysely handle directly, and full-text search and
 the job queue are SQL in the core and the worker. Every environment, including tests, runs real

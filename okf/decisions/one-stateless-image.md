@@ -3,7 +3,7 @@ type: Decision
 title: One stateless container image serves everything and runs the worker
 description: The web app, REST, MCP, OAuth, the upload relay and the job worker ship in one image on Cloud Run.
 tags: [decision, architecture, deployment]
-generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -16,6 +16,9 @@ A side project on near-free infrastructure benefits from the fewest moving servi
 ## Decision
 
 - One image serves the SPA, `/api/v1`, `/mcp`, `/oauth` and the upload relay, and runs the job worker.
+- The worker parses each file in a worker thread of the same process, held to a memory and a time
+  limit, so a file can fail but never take the service down
+  ([decision](each-file-is-parsed-in-a-thread-of-its-own-with-memory-and-time-limits.md)).
 - It is stateless: no module-level mutable state, no in-process caches of tenant data, MCP without session affinity.
 - Uploads go straight to object storage through signed grants; the application registers the stored object afterwards.
 - Migrations run as a separate job before a new revision serves traffic.

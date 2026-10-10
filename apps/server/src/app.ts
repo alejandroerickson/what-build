@@ -8,6 +8,7 @@ import { oauthRoutes } from "./auth/oauth.ts";
 import { authRoutes } from "./auth/routes.ts";
 import type { ServerConfig } from "./config.ts";
 import { mcpRoutes } from "./mcp.ts";
+import { threadParser } from "./parse-thread.ts";
 import { publicRoutes, staticRoutes } from "./public-routes.ts";
 import { restRoutes } from "./rest.ts";
 import { SandboxClock, sandboxRoutes } from "./public-sandbox.ts";
@@ -77,6 +78,7 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
   return {
     blobs,
     grants: new HmacGrantSigner(config.grantKey),
+    parser: threadParser({ memoryMb: config.parseMemoryMb, timeoutSeconds: config.parseTimeoutSeconds }),
     mailer,
     fetcher: new SafeUrlFetcher(),
     notifyJobs,
@@ -86,6 +88,8 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
       relayMaxBytes: config.relayMaxBytes,
       fileMaxBytes: config.fileMaxBytes,
       parseCapBytes: config.parseCapBytes,
+      parseMemoryMb: config.parseMemoryMb,
+      parseTimeoutSeconds: config.parseTimeoutSeconds,
       grantTtlSeconds: config.grantTtlSeconds,
       urlFetchMaxBytes: config.urlFetchMaxBytes,
       signupAllowlist: config.signupAllowlist,

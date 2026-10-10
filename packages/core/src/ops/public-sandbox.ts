@@ -1,3 +1,4 @@
+import { MAX_PDF_PAGES, MAX_SEGMENTS } from "@whatbuild/parsers";
 import { sql } from "kysely";
 import { z } from "zod";
 import { checkEtag, recordActivity } from "../common.ts";
@@ -198,6 +199,10 @@ async function panel(ctx: OpContext, sb: SandboxState) {
       { label: "File size", value: cfg.fileMaxBytes, unit: "bytes", set_by: "WHATBUILD_FILE_MAX_BYTES" },
       { label: "File size through the upload relay", value: cfg.relayMaxBytes, unit: "bytes", set_by: "WHATBUILD_RELAY_MAX_BYTES" },
       { label: "Parsed per primary file", value: cfg.parseCapBytes, unit: "bytes", set_by: "WHATBUILD_PARSE_CAP_BYTES" },
+      { label: "Memory for parsing one file", value: cfg.parseMemoryMb * 1024 * 1024, unit: "bytes", set_by: "WHATBUILD_PARSE_MEMORY_MB" },
+      { label: "Time for parsing one file", value: cfg.parseTimeoutSeconds, unit: "seconds", set_by: "WHATBUILD_PARSE_TIMEOUT_SECONDS" },
+      { label: "Passages from one file", value: MAX_SEGMENTS, unit: "passages", set_by: null },
+      { label: "Pages of a parsed PDF", value: MAX_PDF_PAGES, unit: "pages", set_by: null },
       { label: "A file fetched from a URL", value: cfg.urlFetchMaxBytes, unit: "bytes", set_by: "WHATBUILD_URL_FETCH_MAX_BYTES" },
       { label: "A request body", value: REST_BODY_MAX_BYTES, unit: "bytes", set_by: null },
       { label: "A Story page", value: STORY_HTML_MAX, unit: "characters", set_by: null },

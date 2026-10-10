@@ -40,7 +40,8 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 2. **Agent and server**: an OAuth token bound to the MCP endpoint a person approved; REST takes none.
 3. **Server and database**: one tenant per transaction, under forced row-level security.
 4. **Agent-written HTML and the app**: pages run in an opaque origin with no network access.
-5. **Uploads and the server**: a signed grant per file; parsing in the worker, never in a request.
+5. **Uploads and the server**: a signed grant per file; parsing in a worker thread held to a memory
+   and a time limit, never in a request.
 6. **Server and the internet**: the URL fetcher, the identity providers, mail.
 7. **Edge and service**: the Cloudflare Worker passes requests through; the controls are in the service.
 8. **Repository and production**: approved releases only; no credential in the repository or image.
@@ -154,9 +155,21 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   `files.complete_upload` reads the object's size before its bytes, discards one over the grant
   with `413`, and hashes the bytes as it streams them.
 - File paths refuse traversal, backslashes and control characters (`packages/core/src/media.ts`).
-- Parsing is a pure function of bytes in the worker. A file over the parse cap (25 MiB) is stored
-  but not parsed; a parser's error becomes a status. XML is read with saxes, which expands no DTD
-  entities, internal or external (`packages/parsers/src/`).
+- Parsing is a pure function of bytes, run by the worker in a worker thread of its own for each
+  file, with an empty environment (`apps/server/src/parse-thread.ts`,
+  [decision](../decisions/each-file-is-parsed-in-a-thread-of-its-own-with-memory-and-time-limits.md)).
+  The thread's heap is held to `WHATBUILD_PARSE_MEMORY_MB` (384 MB by default), its buffers to
+  half as much again and its run to `WHATBUILD_PARSE_TIMEOUT_SECONDS` (120 s); a parse past any of
+  them is stopped and its derivation recorded as failed with the reason, while the server goes on
+  answering. A job that stops the process anyway is given up after five attempts and recorded as
+  failed (`apps/server/src/worker.ts`).
+- Parsers bound what a file can make them do (`packages/parsers/src/`). A file over the parse cap
+  (25 MiB) is stored but not read; DOCX, XLSX and DOC packages count the bytes they unpack against
+  the cap and stop past it, whatever sizes they declare; a PDF of more than 2,000 pages, and a file
+  that would make more than 200,000 passages, are too large; pdf.js decodes no images; HTML nests
+  at most 512 deep and makes elements in proportion to its length; patterns that could backtrack
+  are single passes, so text is read in time linear in its length. XML is read with saxes, which
+  expands no DTD entities, internal or external. A parser's error becomes a status.
 - Files are served back with `nosniff` and a CSP `sandbox` with `default-src 'none'`, except PDFs,
   which browsers will not render sandboxed; HTML, XHTML and SVG only as an
   `application/octet-stream` attachment (`streamFile` in `apps/server/src/rest.ts`). Agents send

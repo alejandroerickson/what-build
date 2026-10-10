@@ -77,6 +77,17 @@ file (Cloud Run refuses bodies over 32 MiB). `SIGNED_URLS=1` also hands agents d
 upload URLs for larger files, up to the 100 MB per-file limit; it grants the runtime identity the
 right to sign as itself.
 
+**Parsing.** The worker parses each file in a thread of its own, held to 384 MB of heap, half as
+much again for buffers, and 120 seconds; a file that needs more is recorded as failed, and the
+service keeps answering meanwhile ([§5.1](../spec/05-derived-layer.md#51-derivations)). The
+defaults suit the service's 1 GiB, leaving the rest to the server. Give the service more memory
+before raising them (`WHATBUILD_PARSE_MEMORY_MB`, about a third of the instance's memory;
+`WHATBUILD_PARSE_TIMEOUT_SECONDS`):
+
+```bash
+gcloud run services update whatbuild --region $R --memory 2Gi --update-env-vars WHATBUILD_PARSE_MEMORY_MB=768
+```
+
 **Sign-in.** A production server never logs sign-in links, so it needs one of:
 
 - **Google sign-in** — create an OAuth client (type *Web application*) in Google Auth Platform with
