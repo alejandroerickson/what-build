@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 125 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 126 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
 generated: {by: agent:claude, at: 2026-10-09}
 status: stable
@@ -34,7 +34,7 @@ defineOperation({
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 125. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 126. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
@@ -146,7 +146,7 @@ must come from the app's own origin (`403 forbidden_origin`).
 
 ### The operation catalogue
 
-All 125 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 126 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-teams-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -247,6 +247,7 @@ being changed inside the handler.
 | `story` | `list_versions` | `GET P/story/pages/:page_id/versions` | reader |
 | `story` | `get_version` | `GET P/story/pages/:page_id/versions/:version` | reader |
 | `story` | `publish` | `POST P/story/pages/:page_id/versions` | editor |
+| `story` | `promote_mockup` | `POST P/story/promote-mockup` | editor |
 | `story` | `write_notes` | `PUT P/story/pages/:page_id/notes` | editor |
 | `story` | `check_citations` | `GET P/story/pages/:page_id/check-citations` | viewer |
 | `story` | `print_view` | `GET P/story/print-view` | reader |
@@ -309,7 +310,10 @@ Notes on recent actions:
   it omits, and a page that keeps its `page_id` keeps its HTML unless it is sent.
   `mockups.get_download` gives a version as a ZIP through a grant, for an agent to build the next
   version elsewhere; `mockups.check_citations` checks a version's citations
-  ([§4.12](04-data-model.md)).
+  ([§4.12](04-data-model.md)). `mockups.get` lists the Story pages that show its pages.
+- `story.promote_mockup` publishes a Story page version that shows one page of a mockup version,
+  on a new page or as an existing page's next version, without copying it; the version reports
+  `mockup` with the page's size. It answers `201` like `publish` ([§4.11](04-data-model.md)).
 - `sources.insights_for` lists the mockups whose current version cites or lists the source,
   `sources.move_to_product` refuses while one does, and `sources.delete_impact` lists every
   mockup version that cites it (`mockup_versions_citing`), as each does for Story pages.
@@ -417,7 +421,7 @@ writing in a tenant marked `sandbox`, and treat source text as quoted material. 
 endpoint they add one sentence naming the scope, saying calls outside it are refused, and telling
 the agent to ask the person for another connector rather than look for a way around it.
 
-**Tools.** Eighteen tools over the 125 operations: fourteen grouped by noun, four standalone.
+**Tools.** Eighteen tools over the 126 operations: fourteen grouped by noun, four standalone.
 
 | Tool | Actions |
 |---|---|
@@ -431,7 +435,7 @@ the agent to ask the person for another connector rather than look for a way aro
 | `insights` | `list`, `get`, `create`, `update`, `review`, `revisions`, `get_revision`, `restore_revision` |
 | `assumptions` | `list`, `get`, `create`, `update`, `review`, `supersede`, `link`, `unlink`, `archive`, `check_citations` |
 | `decisions` | the same as `assumptions` |
-| `story` | `guidance`, `get_style`, `set_style`, `list_pages`, `get_page`, `list_versions`, `get_version`, `publish`, `write_notes`, `check_citations`, `print_view`, `get_hierarchy`, `set_hierarchy`, `archive_page`, `restore_page` |
+| `story` | `guidance`, `get_style`, `set_style`, `list_pages`, `get_page`, `list_versions`, `get_version`, `publish`, `promote_mockup`, `write_notes`, `check_citations`, `print_view`, `get_hierarchy`, `set_hierarchy`, `archive_page`, `restore_page` |
 | `mockups` | `list`, `get`, `list_versions`, `get_version`, `publish`, `archive`, `restore`, `get_download`, `check_citations` |
 | `lineage` | `capture`, `write`, `check` |
 | `activity` | `list` |

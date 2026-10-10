@@ -172,8 +172,9 @@ download grant for each ready one. Any role may export, through **both adapters*
 seven days. The bundle holds a manifest with its format name and version, every source's metadata,
 every file version's original bytes, every derivation's sidecars, annotations and agent notes,
 lineage, outcomes, insights (JSON and Markdown), register entries with their reviews, revisions,
-the Story hierarchy and every page version (JSON and HTML), every mockup version (its brief, and
-each page's HTML and notes), tombstones, and the activity log
+the Story hierarchy and every page version (JSON and HTML; a version that shows a mockup page
+names it rather than repeating it), every mockup version (its brief, and each page's HTML and
+notes), tombstones, and the activity log
 ([§4.14](04-data-model.md)). It is readable with a ZIP tool and nothing else; no proprietary
 format, no API required to make sense of it.
 

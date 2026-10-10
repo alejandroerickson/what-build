@@ -9,7 +9,7 @@ import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag, id } from "../schemas.ts";
 import { inspectStoryHtml, STORY_HTML_MAX } from "../story-html.ts";
 import { newEtag, newId, sha256Hex } from "../util.ts";
-import { resolveRefs } from "./story.ts";
+import { resolveRefs, storyPagesShowing } from "./story.ts";
 
 /**
  * Mockups are where Exploration makes things: a canvas of HTML pages an agent built (screens,
@@ -139,15 +139,15 @@ export const getMockup = defineOperation({
   scope: "product",
   access: "read",
   mutates: false,
-  summary: "Read a mockup's current version: its brief, its pages with their notes, what it draws on, and the etag to publish again.",
+  summary: "Read a mockup's current version: its brief, its pages with their notes, what it draws on, the Story pages that show its pages, and the etag to publish again.",
   description:
-    "Read this before publishing a new version, and read the brief first: it says what the canvas explores. Pages come without HTML unless include_html; each has html_path (a GET in the web app's session) and html_sha256. To work on the canvas outside WhatBuild, get_download gives the whole version as a ZIP.",
+    "Read this before publishing a new version, and read the brief first: it says what the canvas explores. Pages come without HTML unless include_html; each has html_path (a GET in the web app's session) and html_sha256. To work on the canvas outside WhatBuild, get_download gives the whole version as a ZIP. story_pages lists the Story pages whose current version shows one of its pages (story promote_mockup), with the mockup version each shows.",
   input: z.strictObject({ mockup_id: id("mockup"), include_html: z.boolean().default(false) }),
   rest: { method: "GET", path: "/mockups/:mockup_id" },
   mcp: { tool: "mockups", action: "get" },
   async handler(ctx, input) {
     const e = await loadMockup(ctx, input.mockup_id);
-    return { ...summaryView(e), current: await versionView(ctx, e.current_version_id, input.include_html) };
+    return { ...summaryView(e), current: await versionView(ctx, e.current_version_id, input.include_html), story_pages: await storyPagesShowing(ctx, e.mockup_id) };
   },
 });
 

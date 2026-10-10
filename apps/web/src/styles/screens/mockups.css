@@ -282,6 +282,31 @@
   font-size: var(--fs-sm);
 }
 
+/* Where the selected page stands in the Story, under the page picker. */
+.xc-story {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin-top: var(--s-2h);
+}
+.xc-story-line {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: var(--s-1h) var(--s-2);
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+.xc-story-line > .glyph {
+  margin-top: 2px;
+  color: var(--faint);
+}
+.xc-story-line > span {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .xc-viewport[data-gliding] .xc-world,
   .xc-viewport[data-gliding] .xc-label {

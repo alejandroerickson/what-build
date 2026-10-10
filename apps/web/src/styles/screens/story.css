@@ -290,6 +290,31 @@
   border: 1px solid var(--line-2);
   background: var(--panel);
 }
+.story-shows {
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+.story-shows + .story-about-note {
+  margin-top: var(--s-2);
+}
+/* A page promoted from a mockup: at its own size, scaled down to the measure, on paper as on the canvas. */
+.story-mockup {
+  position: relative;
+  flex: none;
+  align-self: center;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: var(--shadow-paper);
+}
+.story-frame-mockup {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  border: 0;
+  background: #fff;
+  transform-origin: 0 0;
+}
 .story-view > .empty {
   margin-top: var(--s-4);
 }

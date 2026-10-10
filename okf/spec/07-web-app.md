@@ -362,7 +362,7 @@ counts, filters and search work on what is loaded.
 canvas the full width of the window: every page of the shown version at its own size in its
 sandboxed frame ([§4.12](04-data-model.md)), laid out `columns` to a row (one row when null),
 on a dotted board. Agents publish mockups; the screen reads them and offers nothing that changes
-them.
+them. Its one write is promoting a page to the Story.
 
 - **Opening.** `…/exploration/mockups` opens the mockup last opened in this product in this
   browser, otherwise the most recent; with none, the first-use state gives the request to copy for
@@ -388,13 +388,22 @@ them.
 - **The inspector:** **Version** (a menu of every version with its date, who published the shown
   one and when, its page count, **Download version N** for the ZIP an agent builds the next version
   from, [§4.12](04-data-model.md)); **Page** (a menu of the pages with a Fit button, then the
-  selected page's notes as Markdown, or a line asking the person to select a page); **Brief** (the
+  selected page's notes as Markdown, or a line asking the person to select a page; and where the
+  page stands in the Story, below); **Brief** (the
   version's brief as Markdown); **Explores** (the outcomes, assumptions and sources it links, with
   their state in words, as the Story's Draws on); and **Cited passages**, each with its
   `mockups.check_citations` status in words, as on a Story page.
 - A callout above the canvas appears only for a state the person must know: the mockup is
   archived, an earlier version is shown (with **Show the current version**), or the version asked
   for does not exist.
+- **On the Story** ([decision](../decisions/agents-maintain-the-story-people-read-it.md)). Under
+  the page picker, each Story page that shows the selected page is named and linked with the
+  mockup version it shows. An editor whose page is not on the Story gets **Promote to Story**: a
+  dialog says that a new Story page will show the page as it is in the version shown, that nothing
+  is copied, that it stays on that version until someone promotes a newer one, and that agents
+  place it in the Story's navigation, and asks for its title (the page's own by default). Where a
+  Story page shows the selected page at another version, **Show version N** moves it to the version
+  shown, as its next version. A toast confirms, with Open to go to the page.
 
 ### Insights, assumptions and decisions
 
@@ -439,7 +448,8 @@ them.
 
 The Story reads like a wiki: the page tree on the left, the page in the middle, its details on
 the right. Agents write, arrange, archive and restore it; the screen reads it and offers nothing
-that changes it ([decision](../decisions/agents-maintain-the-story-people-read-it.md)).
+that changes it ([decision](../decisions/agents-maintain-the-story-people-read-it.md)). A page of a
+mockup reaches it by promotion, from the mockup (§7.7).
 
 - **Reader first.** The page tree sits in the panel's context slot, and the canvas holds the crumbs
   (the current one is the screen's heading), the focus mode control, and then the page, with
@@ -453,6 +463,8 @@ that changes it ([decision](../decisions/agents-maintain-the-story-people-read-i
   the page only for a state the reader must know: the page is archived, an earlier version is
   shown (with **Show the current version**), or the page tried to open another address in its
   place, and was put back.
+- **A page from a mockup** ([§4.11](04-data-model.md)) is shown at its own size, scaled down to the
+  measure and never up, on paper as on the canvas, without the app's theme.
 - **Links.** A link in a page to another page of the same Story shows that page in place: the
   address, the tree and the inspector follow, and focus mode stays as it was. A click with a
   modifier key, and every other link, opens in a new tab ([§4.11](04-data-model.md)).
@@ -485,6 +497,9 @@ that changes it ([decision](../decisions/agents-maintain-the-story-people-read-i
     one version, the number is a menu of every version with its date, and choosing one shows it
     (`?v=N`). A line says that agents write and maintain the Story, and **Export to PDF…** opens
     the export with this page selected.
+  - **Shows:** for a page from a mockup, the mockup page, linked to it on the canvas, the mockup and
+    the version shown; when the mockup has a newer version, a line says so and that the page stays
+    on its version until someone promotes the newer one.
   - **Draws on:** the version's references — outcomes, sources, insights, assumptions,
     decisions — each linked.
   - **Cited passages:** each citation as the source title, its address (¶8–9, linking to the
@@ -493,7 +508,7 @@ that changes it ([decision](../decisions/agents-maintain-the-story-people-read-i
   - **Notes for agents:** the page's Markdown notes, which agents read before revising the page and
     update after publishing (what it is for, sources still to fold in, decisions about structure).
     Read-only here, and not versioned with the page.
-  - A reader gets About alone: Draws on, Cited passages and Notes for agents are left out, since
+  - A reader gets About alone: Shows, Draws on, Cited passages and Notes for agents are left out, since
     the server sends a reader none of them ([§3.5](03-accounts-teams-and-identity.md)). The Story
     style row under the tree is left out too, and a Story with no pages says that they appear once
     the product's team publishes them.

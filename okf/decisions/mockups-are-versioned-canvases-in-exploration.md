@@ -31,6 +31,11 @@ the names Mockups and Exploration on 2026-10-09.
   grant, so an agent builds the next version in its own project and publishes the pages it changed.
 - Agents publish and archive mockups; the web app shows them on a pannable, zoomable canvas and
   downloads them.
+- One page of a mockup can be **promoted to the Story**, by an agent or by an editor from the
+  mockup. The Story page's version points at that page in one mockup version and never copies it;
+  it stays on that version until it is promoted again, so the Story never changes under its
+  readers when the mockup does. A Story reader sees the promoted page and nothing else of the
+  mockup. The maintainer chose both on 2026-10-09.
 - The third stage is **Exploration**: mockups, insights, assumptions and decisions. Its URLs are
   `/exploration/…`, and old `/synthesis/…` links open the same place.
 - Rejected names: "exploration" for the item (too abstract for people and for agents reading the
@@ -39,6 +44,8 @@ the names Mockups and Exploration on 2026-10-09.
 ## Consequences
 
 - A team compares directions at real size and clicks through them, with the reasons beside each.
+- A promoted page needs a second step to move to a newer mockup version; the Story page says when
+  one exists.
 - Each version stores every page's HTML in full, so a long run of versions costs storage; 24 pages
   and 8,000,000 characters a version, and 50 mockups a product, bound it.
 - Exploration still holds insights and decisions; moving them into Evidence is on the

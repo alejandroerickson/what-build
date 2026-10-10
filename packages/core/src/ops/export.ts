@@ -187,7 +187,8 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
     for (const v of await db.selectFrom("story_versions").selectAll().where("product_id", "=", pid).where("page_id", "=", p.page_id).orderBy("n").execute()) {
       const { html, ...meta } = v;
       add(`story/pages/${p.page_id}/v${v.n}.json`, j(meta));
-      add(`story/pages/${p.page_id}/v${v.n}.html`, html);
+      // A version that shows a mockup page has no HTML of its own: its JSON names the page under mockups/.
+      if (!v.mockup) add(`story/pages/${p.page_id}/v${v.n}.html`, html);
     }
   }
   for (const m of await db.selectFrom("mockups").selectAll().where("product_id", "=", pid).orderBy("mockup_id").execute()) {
@@ -211,7 +212,7 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
     "README.txt",
     `WhatBuild product bundle: ${product.name} (${tenant.name} / ${team.name}).\n\n` +
       "Everything is plain files: JSON for structured data, Markdown for insights, parsed text and mockup briefs and notes,\n" +
-      "HTML for Story versions and mockup pages,\n" +
+      "HTML for Story versions and mockup pages (a Story version that shows a mockup page names it in its JSON),\n" +
       "and every stored version of every source file under records/<id>/files/. Offsets in segments.jsonl are Unicode\n" +
       "code points into the text.md beside it.\n",
   );

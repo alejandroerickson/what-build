@@ -131,9 +131,23 @@ export interface VersionView {
   refs?: Refs;
   resolved_refs?: Record<RefKind, ResolvedRef[]>;
   citations?: CitationView[];
+  /** Set when the version shows one page of a mockup: its size, and for the team which mockup and version. */
+  mockup?: MockupShown;
   published_at: string;
   published_by: Actor;
   html?: string;
+}
+
+export interface MockupShown {
+  width: number;
+  height: number;
+  mockup_id?: string;
+  mockup_title?: string | null;
+  version?: number;
+  page_id?: string;
+  page_title?: string | null;
+  current_version?: number | null;
+  mockup_archived?: boolean;
 }
 
 export interface AgentNotes {

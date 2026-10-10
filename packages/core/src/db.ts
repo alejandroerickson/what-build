@@ -499,9 +499,19 @@ export interface StoryVersionsTable {
   note: Def<string>;
   refs: Json<Refs>;
   citations: ColumnType<CitationSnapshot[], string | undefined, string>;
+  /** Set when the version shows one page of a mockup version instead of HTML of its own (html is then empty). */
+  mockup: JsonNull<MockupPageRef>;
   previous_version_id: string | null;
   created_at: Ts;
   created_by: Json<ActorSnapshot>;
+}
+
+/** One page of one mockup version, as a Story page version shows it. */
+export interface MockupPageRef {
+  mockup_id: string;
+  mockup_version_id: string;
+  version: number;
+  page_id: string;
 }
 
 export interface MockupsTable {

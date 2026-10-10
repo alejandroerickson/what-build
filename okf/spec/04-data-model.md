@@ -467,6 +467,22 @@ with every page costs an agent its length each time and lets pages drift apart; 
 adds is the same on every page and changes in one place. `html` stays for a document that is not
 in the product's style.
 
+**A page from a mockup.** A version may show one page of a mockup version instead of HTML of its
+own ([§4.12](#412-mockups)): `story.promote_mockup { mockup_id, mockup_page_id, version?, page_id?,
+title?, summary?, expected_etag? }` publishes it, on a new page (named after the mockup page's slug,
+with `-2`, `-3`… when that is taken, and titled with its title) or, with `page_id` and the page's
+etag, as an existing page's next version. `version` is the mockup version, the current one by
+default. The version stores `mockup` (`mockup_id`, `mockup_version_id`, `version`, `page_id`) and
+no HTML: mockup versions are immutable, so the page is read from the mockup when it is shown and is
+never copied. It takes the mockup version's refs and citations. It stays on that mockup version until
+it is promoted again; reading it returns `mockup` with the page's `width` and `height` and, for
+every role but a reader, the mockup's title, the version shown and the mockup's current version.
+`html`, `html_chars` and `html_sha256` describe the mockup page. A later `publish` without `html` or
+`body` keeps showing the mockup page; `html` or `body` replaces it with HTML of the page's own; and
+`patch_html` and `restyle` are refused (`422`), since there is no HTML of its own to change.
+◆ Decision: a promoted page stays on its mockup version. A Story is read outside the team, and work
+in progress on a mockup should not appear in it unannounced.
+
 **HTML rules**, validated at publish (`422 invalid_html` listing every problem at once;
 [`story-html.ts`](../../packages/core/src/story-html.ts)):
 
@@ -628,6 +644,12 @@ publish the pages that changed.
 **Archive.** `mockups.archive` and `mockups.restore` take the etag. An archived mockup leaves the
 list unless `include_archived`, and every version stays readable.
 
+**On the Story.** A page of a mockup version can be promoted to the Story (§4.11).
+`mockups.get` returns `story_pages`: each Story page whose current version shows one of the
+mockup's pages, with the mockup page and version it shows and the Story page's etag. The Story
+serves a promoted page through its own HTML route, so a Story reader sees that page and nothing
+else of the mockup; a promoted page of an archived mockup stays readable.
+
 ## 4.13 Feedback
 
 `submit_feedback { category, message, tool?, details? }`: `category` is `issue`, `confusion`,
@@ -662,6 +684,7 @@ insights/<insight_id>.json  ·  insights/<insight_id>.md
 registers/assumptions.json  ·  registers/decisions.json       with their reviews
 revisions.json
 story/hierarchy.json  ·  story/pages/<page_id>/page.json  ·  story/pages/<page_id>/v<n>.{json,html}
+                            (a version that shows a mockup page has no .html; its JSON names the page)
 mockups/<mockup_id>/mockup.json
 mockups/<mockup_id>/v<n>/{version.json,brief.md}  ·  mockups/<mockup_id>/v<n>/pages/<page_id>.{html,notes.md}
 tombstones.json

@@ -1,13 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { Link, Navigate, useParams, useSearchParams } from "react-router";
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
 import { attribution, formatDate, formatDateTime, nestQuotes, plural } from "../lib/format.ts";
 import { Markdown, passageHref } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { REVIEW_STATUS, toneFor } from "../lib/status.ts";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
-import { Button, ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, Glyph, Group, KeyValue, Loading, Menu, MenuItem, MenuRadio, MenuSeparator, StatusBadge, useToast } from "../ui/index.tsx";
+import { Button, ButtonLink, Callout, Crumbs, Dialog, EmptyState, ErrorCallout, Glyph, Group, KeyValue, Loading, Menu, MenuItem, MenuRadio, MenuSeparator, StatusBadge, TextField, useToast } from "../ui/index.tsx";
 import { isTypingTarget, useMediaQuery } from "../ui/media.ts";
 import { FirstUse } from "./first-use.tsx";
 import { FocusToggle, useStoryFocus } from "./story-focus.tsx";
@@ -58,8 +58,19 @@ interface MockupVersion {
   published_by: Actor;
 }
 
+/** A Story page whose current version shows one of this mockup's pages, at the mockup version it was promoted from. */
+interface StoryShowing {
+  page_id: string;
+  title: string;
+  etag: string;
+  archived_at: string | null;
+  mockup_page_id: string;
+  version: number;
+}
+
 interface MockupView extends MockupSummary {
   current: MockupVersion;
+  story_pages: StoryShowing[];
 }
 
 interface VersionItem {
@@ -676,6 +687,7 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, on
             Fit
           </Button>
         </div>
+        {page ? <OnTheStory mockup={e} shown={shown} page={page} /> : null}
         {page ? (
           page.notes.trim() ? (
             <Markdown source={page.notes} className="prose story-notes xc-notes" headingShift={3} />
@@ -747,6 +759,87 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, on
             })}
           </ol>
         </Group>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Where the selected page stands in the Story: the Story pages that show it, and the way to put it
+ * there or move one to the version shown. A Story page shows a mockup page as it is in one version,
+ * never a copy, and stays on that version until it is promoted again.
+ */
+function OnTheStory({ mockup, shown, page }: { mockup: MockupView; shown: MockupVersion; page: CanvasPage }) {
+  const { app, api: base, canWrite } = useProduct();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const navigate = useNavigate();
+  const [asking, setAsking] = useState<StoryShowing | "new" | null>(null);
+  const [title, setTitle] = useState(page.title);
+  const showing = mockup.story_pages.filter((p) => p.mockup_page_id === page.page_id);
+  const promote = useMutation({
+    mutationFn: (to: StoryShowing | "new") =>
+      api<{ page_id: string; title: string }>("POST", `${base}/story/promote-mockup`, {
+        mockup_id: mockup.mockup_id,
+        mockup_page_id: page.page_id,
+        version: shown.version,
+        ...(to === "new" ? { title: title.trim() || page.title } : { page_id: to.page_id, expected_etag: to.etag }),
+      }),
+    onSuccess: (r) => {
+      setAsking(null);
+      void qc.invalidateQueries({ queryKey: ["mockup", base, mockup.mockup_id] });
+      for (const key of [["story-tree", base], ["story-pages", base], ["story-page", base, r.page_id], ["story-versions", base, r.page_id]]) void qc.invalidateQueries({ queryKey: key });
+      void qc.invalidateQueries({ queryKey: ["product"] });
+      toast(`“${r.title}” is on the Story, outside its navigation until an agent places it.`, { action: { label: "Open", onClick: () => navigate(`${app}/story/${r.page_id}`) } });
+    },
+  });
+  if (!showing.length && !canWrite) return null;
+  return (
+    <div className="xc-story">
+      {showing.map((p) => (
+        <p key={p.page_id} className="xc-story-line">
+          <Glyph name="book-open" size="sm" />
+          <span>
+            On the Story as <Link to={`${app}/story/${p.page_id}`} className="story-ref-link">{p.title}</Link>
+            <span className="faint">, showing version {p.version}{p.archived_at ? " (archived)" : ""}</span>
+          </span>
+          {canWrite && !p.archived_at && p.version !== shown.version ? (
+            <Button size="sm" onClick={() => setAsking(p)}>
+              Show version {shown.version}
+            </Button>
+          ) : null}
+        </p>
+      ))}
+      {canWrite && !showing.length ? (
+        <Button size="sm" icon="book-open" onClick={() => { setTitle(page.title); setAsking("new"); }}>
+          Promote to Story
+        </Button>
+      ) : null}
+      {asking ? (
+        <Dialog
+          open
+          onClose={() => setAsking(null)}
+          dismissable={!promote.isPending}
+          title={asking === "new" ? "Promote to Story" : `Show version ${shown.version} on the Story`}
+          description={
+            asking === "new"
+              ? `A new Story page will show “${page.title}” as it is in version ${shown.version} of this mockup. Nothing is copied: the page stays on version ${shown.version} until someone promotes a newer one, and agents place it in the Story’s navigation.`
+              : `“${asking.title}” will show “${page.title}” as it is in version ${shown.version}, as its next version. Its earlier versions stay readable.`
+          }
+          footer={
+            <>
+              <Button onClick={() => setAsking(null)} disabled={promote.isPending}>
+                Cancel
+              </Button>
+              <Button variant="primary" busy={promote.isPending} busyLabel="Promoting…" onClick={() => promote.mutate(asking)}>
+                {asking === "new" ? "Promote" : `Show version ${shown.version}`}
+              </Button>
+            </>
+          }
+        >
+          {asking === "new" ? <TextField label="Title on the Story" maxLength={200} value={title} onChange={(ev) => setTitle(ev.target.value)} /> : null}
+          {promote.isError ? <ErrorCallout inset error={promote.error} /> : null}
+        </Dialog>
       ) : null}
     </div>
   );

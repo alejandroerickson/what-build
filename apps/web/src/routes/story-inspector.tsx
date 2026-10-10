@@ -6,7 +6,7 @@ import { Markdown, passageHref } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { REVIEW_STATUS, toneFor } from "../lib/status.ts";
 import { Button, EmptyState, Glyph, Group, KeyValue, Menu, MenuRadio, StatusBadge } from "../ui/index.tsx";
-import type { CitationCheck, PageView, RefKind, ResolvedRef, VersionItem, VersionView } from "./story-model.ts";
+import type { CitationCheck, MockupShown, PageView, RefKind, ResolvedRef, VersionItem, VersionView } from "./story-model.ts";
 
 const REF_KINDS: { kind: RefKind; label: string }[] = [
   { kind: "outcomes", label: "Outcomes" },
@@ -58,13 +58,37 @@ function address(a: number, b: number) {
   return a === b ? `¶${a}` : `¶${a}–${b}`;
 }
 
+/** A version that shows a mockup page: which page, of which mockup, at which version, and whether a newer one exists. */
+function Shows({ mockup: m }: { mockup: MockupShown }) {
+  const { app } = useProduct();
+  const newer = m.current_version != null && m.version != null && m.current_version > m.version;
+  return (
+    <Group title="Shows">
+      <p className="story-shows">
+        <Link className="story-ref-link" to={`${app}/exploration/mockups/${m.mockup_id}?v=${m.version}&page=${m.page_id}`}>
+          {m.page_title ?? m.page_id}
+        </Link>
+        <span className="faint">
+          , from the mockup {m.mockup_title ?? "no longer in this product"}, version {m.version}
+          {m.mockup_archived ? " (archived)" : ""}
+        </span>
+      </p>
+      {newer ? (
+        <p className="story-about-note">
+          The mockup has a newer version, {m.current_version}. This page stays on version {m.version} until someone promotes the newer one from the mockup.
+        </p>
+      ) : null}
+    </Group>
+  );
+}
+
 export function StoryInspectorBody({ page, shown, versions, onExport }: {
   page: PageView;
   shown: VersionView;
   versions: VersionItem[] | undefined;
   onExport: () => void;
 }) {
-  const { app, api: base } = useProduct();
+  const { app, api: base, storyOnly } = useProduct();
   const [params, setParams] = useSearchParams();
   const citations = shown.citations ?? [];
   const checks = useQuery({
@@ -119,11 +143,15 @@ export function StoryInspectorBody({ page, shown, versions, onExport }: {
             },
           ]}
         />
-        <p className="story-about-note">Agents write and maintain the Story. You can read any version.</p>
+        <p className="story-about-note">
+          {storyOnly ? "Agents write and maintain the Story." : "Agents write and maintain the Story, and a page of a mockup can be promoted to it from the mockup."} You can read any version.
+        </p>
         <Button size="sm" icon="download" className="story-export-button" onClick={onExport}>
           Export to PDF…
         </Button>
       </Group>
+
+      {shown.mockup?.mockup_id ? <Shows mockup={shown.mockup} /> : null}
 
       {/* A reader gets none of what follows: what the page draws on, its cited passages, its notes for agents. */}
       {refs ? (

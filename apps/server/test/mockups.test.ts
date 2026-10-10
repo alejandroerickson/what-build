@@ -241,3 +241,101 @@ describe("what a mockup draws on", () => {
     expect(over.body.error.details).toMatchObject({ quota: "mockups", limit: 50, used: 50 });
   });
 });
+
+describe("promoting a mockup page to the Story", () => {
+  let mockupId: string;
+  let mockupEtag: string;
+  let pageEtag: string;
+
+  beforeAll(async () => {
+    const m = await alice.api("POST", `${P}/mockups`, {
+      title: "Month-end",
+      brief: "Two ways to see the close.",
+      pages: [
+        { page_id: "board", title: "Board", html: page("Board v1") },
+        { page_id: "phone", title: "Phone view", width: 390, height: 760, html: page("Phone v1") },
+      ],
+      refs: { assumptions: [assumptionId] },
+    });
+    mockupId = m.body.mockup_id;
+    mockupEtag = m.body.etag;
+  });
+
+  it("makes a Story page that shows one mockup page as it is in that version, without a copy", async () => {
+    const r = await alice.api("POST", `${P}/story/promote-mockup`, { mockup_id: mockupId, mockup_page_id: "phone" });
+    expect(r.status, JSON.stringify(r.body)).toBe(201);
+    pageEtag = r.body.etag;
+    expect(r.body).toMatchObject({ page_id: "phone", title: "Phone view", current_version: 1, placed: false });
+    expect(r.body.current.mockup).toMatchObject({ mockup_id: mockupId, version: 1, page_id: "phone", page_title: "Phone view", width: 390, height: 760, current_version: 1 });
+    expect(r.body.current.refs.assumptions).toEqual([assumptionId]);
+    const got = await alice.api("GET", `${P}/story/pages/phone`);
+    expect(got.body.current.html).toContain("Phone v1");
+    const html = await raw(alice, `${P}/story/pages/phone/versions/1/html?theme=dark&frame=1`);
+    const text = await html.text();
+    expect(text).toContain("Phone v1");
+    expect(text).not.toContain("data-wb-theme");
+    expect(html.headers.get("content-security-policy")).toMatch(/^sandbox allow-scripts/);
+    const m = await alice.api("GET", `${P}/mockups/${mockupId}`);
+    expect(m.body.story_pages).toEqual([expect.objectContaining({ page_id: "phone", mockup_page_id: "phone", version: 1 })]);
+  });
+
+  it("lets a Story reader see the promoted page and nothing else of the mockup", async () => {
+    const got = await rita.api("GET", `${P}/story/pages/phone`);
+    expect(got.status).toBe(200);
+    expect(got.body.current.mockup).toEqual({ width: 390, height: 760 });
+    expect((await raw(rita, `${P}/story/pages/phone/versions/1/html`)).status).toBe(200);
+    expect((await raw(rita, `${P}/mockups/${mockupId}/versions/1/pages/phone/html`)).status).toBe(403);
+    expect((await raw(rita, `${P}/mockups/${mockupId}/versions/1/pages/board/html`)).status).toBe(403);
+  });
+
+  it("stays on its mockup version until it is promoted again", async () => {
+    const v2 = await alice.api("POST", `${P}/mockups`, { mockup_id: mockupId, expected_etag: mockupEtag, pages: [{ page_id: "board" }, { page_id: "phone", html: page("Phone v2") }] });
+    expect(v2.status).toBe(201);
+    expect(await (await raw(alice, `${P}/story/pages/phone/versions/1/html`)).text()).toContain("Phone v1");
+    expect((await alice.api("GET", `${P}/story/pages/phone`)).body.current.mockup).toMatchObject({ version: 1, current_version: 2 });
+    const again = await alice.api("POST", `${P}/story/promote-mockup`, { mockup_id: mockupId, mockup_page_id: "phone", page_id: "phone", expected_etag: pageEtag });
+    expect(again.status).toBe(201);
+    pageEtag = again.body.etag;
+    expect(again.body).toMatchObject({ current_version: 2, based_on_version: 1 });
+    expect(await (await raw(alice, `${P}/story/pages/phone/versions/2/html`)).text()).toContain("Phone v2");
+    expect(await (await raw(alice, `${P}/story/pages/phone/versions/1/html`)).text()).toContain("Phone v1");
+    const versions = await alice.api("GET", `${P}/story/pages/phone/versions`);
+    expect(versions.body.items[0].html_sha256).not.toBe(versions.body.items[1].html_sha256);
+  });
+
+  it("keeps showing the mockup page through a later publish, until html replaces it", async () => {
+    const renamed = await alice.api("POST", `${P}/story/pages/phone/versions`, { title: "The phone view", expected_etag: pageEtag });
+    expect(renamed.status).toBe(201);
+    pageEtag = renamed.body.etag;
+    expect(renamed.body.current.mockup).toMatchObject({ version: 2, page_id: "phone" });
+    const patch = await alice.api("POST", `${P}/story/pages/phone/versions`, { patch_html: [{ find: "Phone", replace: "Mobile" }], expected_etag: pageEtag });
+    expect(patch.status).toBe(422);
+    expect(patch.body.error.message).toMatch(/shows page "phone" of a mockup/);
+    const own = await alice.api("POST", `${P}/story/pages/phone/versions`, { html: page("Our own page"), expected_etag: pageEtag });
+    expect(own.status).toBe(201);
+    expect(own.body.current.mockup).toBeUndefined();
+    expect(await (await raw(alice, `${P}/story/pages/phone/versions/4/html`)).text()).toContain("Our own page");
+  });
+
+  it("names a new page apart from one that has the slug, refuses a page the version lacks, and keeps out a viewer", async () => {
+    const second = await alice.api("POST", `${P}/story/promote-mockup`, { mockup_id: mockupId, mockup_page_id: "phone", version: 1, title: "Phone, first take" });
+    expect(second.status).toBe(201);
+    expect(second.body).toMatchObject({ page_id: "phone-2", title: "Phone, first take" });
+    const missing = await alice.api("POST", `${P}/story/promote-mockup`, { mockup_id: mockupId, mockup_page_id: "tablet" });
+    expect(missing.status).toBe(404);
+    expect(missing.body.error.details.pages).toEqual(["board", "phone"]);
+    expect((await vic.api("POST", `${P}/story/promote-mockup`, { mockup_id: mockupId, mockup_page_id: "board" })).status).toBe(403);
+  });
+
+  it("exports the version's reference, not a copy, and prints the mockup page", async () => {
+    expect((await alice.api("POST", `${P}/exports`, {})).status).toBe(201);
+    await h.worker.drain();
+    const ex = (await alice.api("GET", `${P}/exports`)).body.items[0];
+    const files = unzipSync(new Uint8Array(await (await fetch(ex.download.url, { headers: ex.download.headers })).arrayBuffer()));
+    const v1 = JSON.parse(strFromU8(files["story/pages/phone-2/v1.json"]!));
+    expect(v1.mockup).toMatchObject({ mockup_id: mockupId, version: 1, page_id: "phone" });
+    expect(files["story/pages/phone-2/v1.html"]).toBeUndefined();
+    const plan = await alice.api("GET", `${P}/story/print-view?page_ids=phone-2`);
+    expect(plan.body.pages[0].html_chars).toBeGreaterThan(0);
+  });
+});

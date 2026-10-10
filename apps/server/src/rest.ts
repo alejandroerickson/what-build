@@ -1,5 +1,5 @@
 import {
-  AppError, admitRead, execute, OPERATIONS, printDocument, printResponseHeaders, resolveScope, STORY_RESPONSE_HEADERS, toAppError, unauthenticated, withStoryFrame, withStoryTheme, houseSpecimen, houseStyle, styleSpecimen,
+  AppError, admitRead, execute, OPERATIONS, printDocument, printResponseHeaders, resolveScope, STORY_RESPONSE_HEADERS, toAppError, unauthenticated, withStoryFrame, withStoryTheme, houseSpecimen, houseStyle, shownHtml, styleSpecimen,
   type Env, type OperationDef, type Principal, type ScopeRef,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
@@ -17,7 +17,7 @@ export const SCOPE_PREFIX: Record<OperationDef["scope"], string> = {
 };
 
 /** Operations that create something answer 201. */
-const CREATES = /\.(create\w*|publish|request_upload|add_note|fetch_url|annotate|export)$|^members\.grant$/;
+const CREATES = /\.(create\w*|publish|promote_mockup|request_upload|add_note|fetch_url|annotate|export)$|^members\.grant$/;
 
 export function restPath(op: OperationDef): string {
   return `${SCOPE_PREFIX[op.scope]}${op.rest.path}`;
@@ -180,17 +180,19 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       const scope = await scoped(c, "story");
       const theme = storyTheme(c.req.query("theme"));
       const frame = c.req.query("frame") === "1";
-      const v = await inTenant(scope.tenant!.tenant_id, (trx) =>
-        trx
+      const v = await inTenant(scope.tenant!.tenant_id, async (trx) => {
+        const row = await trx
           .selectFrom("story_versions")
-          .select("html")
+          .select(["html", "mockup"])
           .where("product_id", "=", scope.product!.product_id)
           .where("page_id", "=", c.req.param("page_id")!)
           .where("n", "=", Number(c.req.param("version")))
-          .executeTakeFirst(),
-      );
+          .executeTakeFirst();
+        return row ? { html: await shownHtml(trx, row), mockup: Boolean(row.mockup) } : null;
+      });
       if (!v) throw new AppError(404, "not_found", "No such Story version.");
-      return storyHtml(c, v.html, theme, frame);
+      // A mockup page carries its own look, so it takes no theme.
+      return storyHtml(c, v.html, v.mockup ? undefined : theme, frame);
     } catch (e) {
       return errorResponse(c, toAppError(e));
     }

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
 import { useProduct } from "../lib/session.tsx";
@@ -49,6 +49,7 @@ export function StoryFrame({
   onKey,
   storyBase,
   onPage,
+  size,
 }: {
   title: string;
   scheme: "light" | "dark";
@@ -56,8 +57,22 @@ export function StoryFrame({
   onKey?: (key: StoryKey) => void;
   storyBase?: string;
   onPage?: (pageId: string) => void;
+  /** A mockup page's own size: the frame keeps it, scaled down to the room there is, never up. */
+  size?: { width: number; height: number };
 }) {
   const [loaded, setLoaded] = useState(false);
+  const [room, setRoom] = useState(0);
+  const wrap = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!size || !wrap.current) return;
+    const el = wrap.current;
+    const measure = () => setRoom(el.clientWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [size]);
+  const scale = size && room ? Math.min(1, room / size.width) : 1;
   const [reloads, setReloads] = useState(0);
   const [replaced, setReplaced] = useState(false);
   const loads = useRef(0);
@@ -75,35 +90,45 @@ export function StoryFrame({
     return () => window.removeEventListener("message", handle);
   }, [onKey, onPage]);
 
+  const page = (
+    <iframe
+      key={reloads}
+      ref={frame}
+      title={title}
+      className={size ? "story-frame-mockup" : "story-frame"}
+      style={size ? { width: size.width, height: size.height, transform: `scale(${scale})` } : { colorScheme: scheme }}
+      sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+      referrerPolicy="no-referrer"
+      src={`${src}${src.includes("?") ? "&" : "?"}frame=1`}
+      onLoad={() => {
+        loads.current += 1;
+        if (loads.current > 1) {
+          loads.current = 0;
+          setReplaced(true);
+          setReloads((n) => n + 1);
+          return;
+        }
+        setLoaded(true);
+        // The sandboxed page has an opaque origin, so the message cannot be addressed to one.
+        if (storyBase && onPage) frame.current?.contentWindow?.postMessage({ whatbuild: "story-base", base: storyBase }, "*");
+      }}
+    />
+  );
+
   return (
-    <div className="story-frame-wrap">
+    <div className="story-frame-wrap" ref={wrap}>
       {replaced ? (
         <Callout tone="attention" title="This page tried to open another address in its place">
           WhatBuild put the page back. Its links open in a new tab.
         </Callout>
       ) : null}
-      <iframe
-        key={reloads}
-        ref={frame}
-        title={title}
-        className="story-frame"
-        style={{ colorScheme: scheme }}
-        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
-        referrerPolicy="no-referrer"
-        src={`${src}${src.includes("?") ? "&" : "?"}frame=1`}
-        onLoad={() => {
-          loads.current += 1;
-          if (loads.current > 1) {
-            loads.current = 0;
-            setReplaced(true);
-            setReloads((n) => n + 1);
-            return;
-          }
-          setLoaded(true);
-          // The sandboxed page has an opaque origin, so the message cannot be addressed to one.
-          if (storyBase && onPage) frame.current?.contentWindow?.postMessage({ whatbuild: "story-base", base: storyBase }, "*");
-        }}
-      />
+      {size ? (
+        <div className="story-mockup" style={{ width: size.width * scale, height: size.height * scale }}>
+          {page}
+        </div>
+      ) : (
+        page
+      )}
       {loaded ? null : (
         <div className="story-frame-status">
           <Loading variant="lines" lines={6} label="Loading the page…" />
@@ -287,7 +312,8 @@ export function StoryPage() {
               key={`${pageId}:${shown.version}:${scheme}`}
               title={`${shown.title}, shown in a sandbox`}
               scheme={scheme}
-              src={`${base}/story/pages/${pageId}/versions/${shown.version}/html?theme=${scheme}`}
+              src={`${base}/story/pages/${pageId}/versions/${shown.version}/html${shown.mockup ? "" : `?theme=${scheme}`}`}
+              size={shown.mockup ? { width: shown.mockup.width, height: shown.mockup.height } : undefined}
               onKey={focusMode.onKey}
               storyBase={`${window.location.origin}${app}/story/`}
               onPage={(id) => navigate(`${app}/story/${id}`)}
