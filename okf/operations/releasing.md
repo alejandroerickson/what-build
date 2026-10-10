@@ -57,11 +57,15 @@ git diff --name-only --diff-filter=A <latest tag> $SHA -- apps/server/src/migrat
 A migration that rewrites existing rows is worth trying first on
 [a copy of production](a-copy-of-production.md).
 
-Choose the number by the rules above. Tell the person the version, the commit, what it contains
-and the migrations it adds, and wait for their yes: a tag is permanent. Then publish it:
+Choose the number by the rules above. Tell the person the version, the commit, what it contains,
+the migrations it adds and what a deployment must do to take it (the Unreleased section of
+[upgrading](upgrading.md)), and wait for their yes: a tag is permanent. Then move those lines under
+a heading for the version in that file, commit it to `main`, and publish with them as the notes'
+first section:
 
 ```bash
-gh release create v0.2.0 --target $SHA --title v0.2.0 --generate-notes
+gh release create v0.2.0 --target $SHA --title v0.2.0 --generate-notes \
+  --notes "**Upgrading.** <the lines from upgrading.md, or: Nothing to change.>"
 ```
 
 Publishing makes the tag, and the tag starts the Release workflow

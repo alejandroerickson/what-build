@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { safeNext } from "@whatbuild/core/safe-next";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
@@ -46,7 +47,8 @@ const DEV_PEOPLE = [
 
 export function SignIn() {
   const [params] = useSearchParams();
-  const next = params.get("next") ?? "/";
+  // The server's rule: a path on this origin, or home.
+  const next = safeNext(params.get("next"));
   const [email, setEmail] = useState("");
   const methods = useQuery({ queryKey: ["auth-methods"], queryFn: () => api<{ email_link: boolean; google: boolean; microsoft?: boolean; dev: boolean }>("GET", "/auth/methods") });
   const me = useMe();

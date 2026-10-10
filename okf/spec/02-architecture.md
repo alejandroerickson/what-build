@@ -215,8 +215,9 @@ Requirements this places on the design:
   There is no LLM in the product, so there is nothing to key ([§2.8](#28-cross-cutting-rules)).
 - **Sign-in is exercised, not bypassed.** The seed creates real accounts (an owner, an editor and a Story reader);
   the console mailer prints sign-in links and invitations to the terminal. A development-only
-  "sign in as" control exists and is refused unless `NODE_ENV` is not `production` (and
-  `WHATBUILD_DEV_AUTH` is not `0`).
+  "sign in as" control exists and is refused unless `NODE_ENV` is exactly `development` or `test`
+  (and `WHATBUILD_DEV_AUTH` is not `0`); any other value, or none, is production
+  ([local development](../operations/local-development.md#development-and-production)).
 - **Blobs go to `./.what-build/blobs`** through the filesystem adapter.
 - **The database role is not a superuser**, so row-level security is enforced exactly as in
   production ([`apps/server/src/testing/pg.ts`](../../apps/server/src/testing/pg.ts)).

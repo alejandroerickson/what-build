@@ -82,6 +82,7 @@ adding a near-duplicate.
 | `seed.ts`, `seed-content.ts` | usually nothing; `process/working-in-this-repository.md` if the sample product changes |
 | A new top-level directory, package, or moved file | `system/repository-map.md`, the `AGENTS.md` path table |
 | Product scope or vocabulary | `project/charter.md`, `spec/01`, `PRODUCT.md` |
+| `config.ts` (a new or changed `WHATBUILD_*` variable), `apps/server/src/auth/**`, `deploy/**`, `.nvmrc` or `engines`, or anything else a deployment must act on to take the next release | a line under Unreleased in `operations/upgrading.md` |
 | How work is done, the checks, the public-repository rules | `process/working-in-this-repository.md`, `AGENTS.md` |
 | `scripts/check-publishable.mjs`, `scripts/security.mjs`, `scripts/tools.mjs`, `.githooks/**`, `.github/workflows/security.yml`, `codeql.yml`, `dependabot.yml`, `.github/*.toml`, `zap-rules.tsv`, `SECURITY.md`, `.agents/skills/audit-for-leaks/**`, `.agents/skills/triage-security-findings/**` | `operations/security-checks.md`, decision `privacy-and-security-checks-live-in-the-repository`, `system/repository-map.md` |
 | Authentication, tenancy, agent HTML, uploads, the URL fetcher, the sandbox's limits, headers | `system/security.md` (the threat model): keep each control it names true |

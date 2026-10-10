@@ -1,12 +1,67 @@
 import { json, newId, randomToken, sha256Hex, type Db, type Principal } from "@whatbuild/core";
 import { sql } from "kysely";
 import type { Context } from "hono";
-import { getCookie } from "hono/cookie";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import type { ServerConfig } from "../config.ts";
 import { resourceCovers } from "./connector-reach.ts";
 
+/**
+ * The session cookie. Over HTTPS it is `__Host-wb_session`: Secure, Path=/ and no Domain, which a
+ * browser accepts only from this host, so no other host under the same parent domain (the public
+ * site's, say) can set one. Over plain HTTP, in local development, it is `wb_session`.
+ */
+export const HOST_SESSION_COOKIE = "__Host-wb_session";
+/** The cookie's name over HTTP, and, over HTTPS, its old name, still taken for a session issued under it. */
 export const SESSION_COOKIE = "wb_session";
 export const ACCESS_PREFIX = "wbat_";
 export const REFRESH_PREFIX = "wbrt_";
+
+export const sessionCookieName = (secure: boolean) => (secure ? HOST_SESSION_COOKIE : SESSION_COOKIE);
+
+/** Whether a Cookie header carries any of WhatBuild's cookies, prefixed or not. */
+export const carriesOurCookie = (cookieHeader: string | undefined) => /(?:^|;)\s*(?:__Host-)?wb_/.test(cookieHeader ?? "");
+
+/**
+ * Whether a request's Origin is the app's own (or, outside production, a localhost port). A request
+ * without one is not a browser's cross-origin request: browsers send Origin on every cross-origin
+ * POST, and `null` where they hide it.
+ */
+export function isOwnOrigin(config: ServerConfig, origin: string | undefined): boolean {
+  return !origin || origin === config.publicBaseUrl || (config.env !== "production" && /^http:\/\/localhost:\d+$/.test(origin));
+}
+
+/** Set the session cookie for `seconds`. Over HTTPS the old name is cleared at the same time. */
+export function setSessionCookie(c: Context, token: string, secure: boolean, seconds: number) {
+  setCookie(c, sessionCookieName(secure), token, { httpOnly: true, secure, sameSite: "Lax", path: "/", maxAge: Math.max(0, Math.floor(seconds)) });
+  if (secure) deleteCookie(c, SESSION_COOKIE, { path: "/" });
+}
+
+/** Clear the session cookie under every name it may have. */
+export function clearSessionCookies(c: Context, secure: boolean) {
+  if (secure) deleteCookie(c, HOST_SESSION_COOKIE, { path: "/", secure: true });
+  deleteCookie(c, SESSION_COOKIE, { path: "/" });
+}
+
+/** Every session token a request carries, under either name. */
+export function sessionTokens(c: Context, secure: boolean): string[] {
+  return [...new Set([secure ? getCookie(c, HOST_SESSION_COOKIE) : undefined, getCookie(c, SESSION_COOKIE)].filter((t): t is string => Boolean(t)))];
+}
+
+/**
+ * The account of the session a browser request carries. Over HTTPS that is the one under
+ * `__Host-wb_session`; without it, a session issued before the cookie took its prefix is still taken
+ * under `wb_session` until it expires, and is moved to the new name on the way out. A session
+ * issued since is never taken under the old name, which another host could have set.
+ */
+export async function sessionAccount(c: Context, db: Db, secure: boolean): Promise<AccountRow | null> {
+  const current = getCookie(c, sessionCookieName(secure));
+  if (current) return accountBySession(db, current);
+  const old = secure ? getCookie(c, SESSION_COOKIE) : undefined;
+  if (!old) return null;
+  const a = await accountBySession(db, old, { legacyCookie: true });
+  if (a) setSessionCookie(c, old, secure, (Date.parse(a.expires_at) - Date.now()) / 1000);
+  return a;
+}
 
 export interface AccountRow {
   account_id: string;
@@ -20,15 +75,17 @@ function principalFor(a: AccountRow, auth_kind: Principal["auth_kind"], surface:
   return { account_id: a.account_id, email: a.email, display_name: a.display_name, auth_kind, surface, client, ...(a.sandbox_only ? { sandbox_only: true } : {}) };
 }
 
-export async function accountBySession(db: Db, token: string): Promise<AccountRow | null> {
+/** The account behind a session token; with `legacyCookie`, only for a session issued under the cookie's old name. */
+async function accountBySession(db: Db, token: string, opts: { legacyCookie?: boolean } = {}): Promise<(AccountRow & { expires_at: string }) | null> {
   const hash = sha256Hex(token);
   const row = await db
     .selectFrom("sessions as s")
     .innerJoin("accounts as a", "a.account_id", "s.account_id")
-    .select(["a.account_id", "a.email", "a.display_name", "a.sandbox_only", "s.last_seen_at"])
+    .select(["a.account_id", "a.email", "a.display_name", "a.sandbox_only", "s.last_seen_at", "s.expires_at"])
     .where("s.session_hash", "=", hash)
     .where("s.expires_at", ">", new Date().toISOString())
     .where("a.deleted_at", "is", null)
+    .$if(Boolean(opts.legacyCookie), (q) => q.where("s.legacy_cookie", "=", true))
     .executeTakeFirst();
   if (!row) return null;
   // Touch at most once a minute so reads do not become writes.
@@ -56,14 +113,10 @@ export async function accountByAccessToken(db: Db, token: string, endpoint: stri
 }
 
 /** The caller of a REST request: a browser session. Agents use MCP, never REST. */
-export async function restPrincipal(c: Context, db: Db): Promise<Principal | null> {
+export async function restPrincipal(c: Context, db: Db, config: ServerConfig): Promise<Principal | null> {
   if (c.req.header("authorization")?.startsWith("Bearer ")) return null;
-  const session = getCookie(c, SESSION_COOKIE);
-  if (session) {
-    const a = await accountBySession(db, session);
-    return a ? principalFor(a, "session", "web", null) : null;
-  }
-  return null;
+  const a = await sessionAccount(c, db, config.publicBaseUrl.startsWith("https://"));
+  return a ? principalFor(a, "session", "web", null) : null;
 }
 
 /** The caller of an MCP request: an OAuth access token issued for this endpoint, or for one that contains it. */
@@ -79,7 +132,7 @@ export async function createSession(db: Db, accountId: string, days: number, use
   const token = randomToken();
   await db
     .insertInto("sessions")
-    .values({ session_hash: sha256Hex(token), account_id: accountId, expires_at: new Date(Date.now() + days * 86400_000).toISOString(), user_agent: userAgent?.slice(0, 300) ?? null })
+    .values({ session_hash: sha256Hex(token), account_id: accountId, expires_at: new Date(Date.now() + days * 86400_000).toISOString(), user_agent: userAgent?.slice(0, 300) ?? null, legacy_cookie: false })
     .execute();
   return token;
 }

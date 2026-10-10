@@ -41,6 +41,7 @@ beforeAll(async () => {
     microsoftTenant: TENANT,
     microsoftClientId: CLIENT_ID,
     microsoftClientSecret: "test-secret",
+    microsoftDomains: ["work.example"],
     signupAllowlist: ["@work.example"],
   });
   plain = await startHarness();
@@ -62,7 +63,7 @@ async function signInWithMicrosoft(next: string, opts: { code?: string; state?: 
     redirect: "manual",
     headers: opts.dropCookie ? {} : { cookie },
   });
-  const session = (callback.headers.get("set-cookie") ?? "").split(",").map((c) => c.trim().split(";")[0]!).find((c) => c.startsWith("wb_session=") && c !== "wb_session=");
+  const session = callback.headers.getSetCookie().map((c) => c.split(";")[0]!).find((c) => /^(?:__Host-)?wb_session=./.test(c));
   return { start, authorize, startCookie: start.headers.get("set-cookie") ?? "", location: callback.headers.get("location"), session };
 }
 
@@ -86,7 +87,8 @@ describe("Microsoft sign-in", () => {
     const t = await owner.api("POST", "/api/v1/tenants", { name: "Work" });
     await owner.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, email: "invited@outside.example", role: "viewer" });
 
-    claims = work("Invited@Outside.example", { name: "Invited Person" });
+    // Outside the listed domains, so taken on the directory's word that it verified the domain.
+    claims = work("Invited@Outside.example", { name: "Invited Person", xms_edov: true });
     tokenRequests = [];
     const r = await signInWithMicrosoft("/after");
     expect(r.location).toBe("/after");
@@ -101,12 +103,33 @@ describe("Microsoft sign-in", () => {
     expect(invitation.accepted_by).toBe(me.account_id);
   });
 
-  it("takes preferred_username when the token has no email claim and it is an address", async () => {
-    claims = work("", { email: undefined, preferred_username: "upn@work.example" });
+  /** The address of the account a sign-in with the current claims reaches, or the place it was refused to. */
+  async function signedInAs(): Promise<string> {
     const r = await signInWithMicrosoft("/");
-    expect(r.session).toBeTruthy();
-    const me = (await (await fetch(`${h.baseUrl}/api/v1/me`, { headers: { cookie: r.session! } })).json()) as { account_id: string; email: string; display_name: string };
-    expect(me.email).toBe("upn@work.example");
+    if (!r.session) return r.location!;
+    return ((await (await fetch(`${h.baseUrl}/api/v1/me`, { headers: { cookie: r.session } })).json()) as { email: string }).email.toLowerCase();
+  }
+
+  it("refuses an address whose domain the directory has not verified, outside the listed domains", async () => {
+    // A directory's administrators can give one of its people any email attribute, someone else's address included.
+    for (const edov of [false, "false", 0, undefined]) {
+      claims = work("victim@outside.example", { xms_edov: edov, preferred_username: "member@contoso-directory.example" });
+      expect(await signedInAs(), String(edov)).toBe("/signin?error=microsoft_unverified");
+    }
+  });
+
+  it("takes an address in a domain WHATBUILD_MICROSOFT_DOMAINS lists, without the directory's word", async () => {
+    claims = work("Listed.Person@WORK.example");
+    expect(await signedInAs()).toBe("listed.person@work.example");
+  });
+
+  it("falls back to the user principal name only in a listed domain", async () => {
+    claims = work("victim@outside.example", { xms_edov: false, preferred_username: "member@work.example" });
+    expect(await signedInAs()).toBe("member@work.example");
+    claims = work("", { email: undefined, preferred_username: "upn@work.example" });
+    expect(await signedInAs()).toBe("upn@work.example");
+    claims = work("", { email: undefined, preferred_username: "upn@outside.example" });
+    expect(await signedInAs()).toBe("/signin?error=microsoft_unverified");
   });
 
   it.each([
@@ -129,7 +152,7 @@ describe("Microsoft sign-in", () => {
   });
 
   it("refuses an address outside the allowlist in invite-only mode", async () => {
-    claims = work("stranger@elsewhere.example");
+    claims = work("stranger@elsewhere.example", { xms_edov: true });
     const r = await signInWithMicrosoft("/");
     expect(r.location).toBe("/signin?error=invite_only");
     expect(r.session).toBeUndefined();
@@ -158,5 +181,12 @@ describe("Microsoft sign-in", () => {
       expect(() => loadConfig({ NODE_ENV: "test", WHATBUILD_MICROSOFT_TENANT: tenant })).toThrow(/GUID/);
     }
     expect(loadConfig({ NODE_ENV: "test", WHATBUILD_MICROSOFT_TENANT: TENANT.toUpperCase() }).microsoftTenant).toBe(TENANT);
+  });
+
+  it("reads the listed domains, and refuses to start on one that is not a domain", () => {
+    expect(loadConfig({ NODE_ENV: "test" }).microsoftDomains).toEqual([]);
+    expect(loadConfig({ NODE_ENV: "test", WHATBUILD_MICROSOFT_DOMAINS: " Work.Example, @sub.work.example ," }).microsoftDomains).toEqual(["work.example", "sub.work.example"]);
+    for (const domains of ["*.work.example", "work", "work.example/x", "someone@work.example", "work..example"])
+      expect(() => loadConfig({ NODE_ENV: "test", WHATBUILD_MICROSOFT_DOMAINS: domains }), domains).toThrow(/WHATBUILD_MICROSOFT_DOMAINS/);
   });
 });

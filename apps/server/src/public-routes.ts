@@ -32,7 +32,7 @@ export function publicRoutes(deps: { db: Db; config: ServerConfig; release: Rele
   });
 
   app.get("/api/v1/connect", async (c) => {
-    const p = await restPrincipal(c, deps.db);
+    const p = await restPrincipal(c, deps.db, config);
     if (!p) throw unauthenticated();
     return c.json({
       mcp_url: `${base}/mcp`,

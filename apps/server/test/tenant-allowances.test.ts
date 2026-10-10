@@ -80,8 +80,7 @@ describe("who may create an organization", () => {
     const given = await owner.api("PUT", A, { email: "nina@elsewhere.example", allowed: 1 });
     expect(given.body).toMatchObject({ account: null, created: 0, remaining: 1, notified: true });
     expect((await ask("nina@elsewhere.example")).status).toBe(200);
-    const link = /https?:\/\/\S+\/auth\/verify\?token=\S+/.exec(h.mailer.sent.at(-1)!.text)![0];
-    const verified = await fetch(link, { redirect: "manual" });
+    const { response: verified } = await h.followSignInLink();
     expect(verified.headers.get("location")).toBe("/welcome");
     const nina = await h.signIn("nina@elsewhere.example");
     expect((await nina.api("POST", "/api/v1/tenants", { name: "Nina's" })).status).toBe(201);

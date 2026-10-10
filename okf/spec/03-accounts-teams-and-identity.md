@@ -50,15 +50,24 @@ tenant               an organization: the isolation and (later) billing boundary
 
 Sign-in methods, each optional per deployment:
 
-- **Email link** — a single-use link valid 15 minutes, at most five per address per hour; opened
-  several times at once, it signs in one of them. A server with no mail provider disables it
-  rather than log a link; in development the console mailer prints it, and a production server
-  refuses to start with any mailer but `smtp` or `none`.
+- **Email link** — a single-use link valid 15 minutes, at most five per address per hour. Opening
+  it (`GET /auth/verify?token=…`) changes nothing: mail scanners fetch every link in a message,
+  so it answers a page that names the address and has one button, Sign in, whose form posts the
+  link back (`POST /auth/verify`). That POST is what uses the link and signs in, and only from the
+  app's own origin: one whose `Origin` is another site's, or `null`, answers
+  `403 forbidden_origin` and leaves the link unused, so no other site can sign someone in to an
+  account of its choosing. It answers `303` to `next`; a link that is unknown, used or expired
+  goes to `/signin?error=link_expired`, from either request. Pressed several times at once, it
+  signs in one of them. The page is server-rendered, never framed or cached, sends no referrer
+  off its origin, and loads nothing. A server with no mail provider disables the method rather
+  than log a link; in development the console mailer prints it, and a production server refuses
+  to start with any mailer but `smtp` or `none`.
 - **Google** — OpenID Connect, when a client id and secret are configured.
 - **Microsoft work accounts** — OpenID Connect against one Microsoft Entra directory, when the
   directory, a client id and a secret are configured ([below](#sign-in-with-microsoft-work-accounts)).
-- **Development** — "sign in as" an email, only when `NODE_ENV` is not `production` and
-  `WHATBUILD_DEV_AUTH` is not `0`.
+- **Development** — "sign in as" an email, only when `NODE_ENV` is exactly `development` or
+  `test` and `WHATBUILD_DEV_AUTH` is not `0`. Any other `NODE_ENV`, or none, is production
+  ([local development](../operations/local-development.md#development-and-production)).
 
 There is no password. First sign-in creates the account; every invitation addressed to that email
 is accepted at once, because the verified address is the proof.
@@ -66,8 +75,11 @@ is accepted at once, because the verified address is the proof.
 Every method returns to `next`, the path the person was on, only when it is a path on this origin:
 one with a scheme or host, a backslash, whitespace or a control character, an encoded slash,
 backslash, percent sign or control character in its path, or a path that normalizes to begin
-with `//`, returns to `/` instead (`safeNext`). Request bodies to `/auth/*` are limited to 64 KB
-(`413 too_large`).
+with `//`, returns to `/` instead (`safeNext`,
+[`packages/core/src/safe-next.ts`](../../packages/core/src/safe-next.ts)). The web app's sign-in
+page applies the same function to the `next` it navigates to, so a person already signed in, or
+signing in with the development sign-in, never leaves the origin either. Request bodies to
+`/auth/*` are limited to 64 KB (`413 too_large`).
 
 An invitation link (`/invite/:token`, `POST /api/v1/invitations/accept`) is single-use, lasts
 7 days, and works only for the account whose email is the invited address, ignoring letter case
@@ -102,17 +114,20 @@ link and Google, of the same shape as Google's, sharing its code flow
 ([`auth/routes.ts`](../../apps/server/src/auth/routes.ts)), and it changes nothing about sessions,
 invitations, admission or the OAuth server for agents.
 
-**Configuration.** Three settings, and the method is on only when all three are set:
+**Configuration.** Three settings, and the method is on only when all three are set, and a
+fourth that is optional:
 
 | Variable | Value |
 |---|---|
 | `WHATBUILD_MICROSOFT_TENANT` | The directory's ID, a GUID. The server MUST refuse to start on any other value (`common`, `organizations`, `consumers`, a domain name). |
 | `WHATBUILD_MICROSOFT_CLIENT_ID` | The app registration's application (client) ID. |
 | `WHATBUILD_MICROSOFT_CLIENT_SECRET` | One of its client secrets. |
+| `WHATBUILD_MICROSOFT_DOMAINS` | Optional: email domains the directory is trusted for, separated by commas (`contoso.com,contoso.co.uk`; a leading `@` is allowed). Each is matched exactly, so a subdomain is listed on its own. The server MUST refuse to start on a value that is not a domain. |
 
 The app registration is a single-tenant web application whose redirect URI is
-`<WHATBUILD_PUBLIC_URL>/auth/microsoft/callback`. The directory may be a workforce directory or an
-Entra External ID one; guests invited to it sign in through it, and their tokens carry its `tid`.
+`<WHATBUILD_PUBLIC_URL>/auth/microsoft/callback`, with the optional claims `email` and `xms_edov`
+in its ID token. The directory may be a workforce directory or an Entra External ID one; guests
+invited to it sign in through it, and their tokens carry its `tid`.
 
 **Flow.** `GET /auth/microsoft?next=<path>` and `GET /auth/microsoft/callback`: the authorization
 code flow with PKCE (`S256`) and a random `state`, both kept with the safe `next` in the `HttpOnly`
@@ -127,15 +142,24 @@ claims are read as issued, as Google's are. The callback MUST refuse the sign-in
 - `aud` is the client ID,
 - `tid` is the configured directory, and `iss` is
   `https://login.microsoftonline.com/<tenant>/v2.0`,
-- there is an address: the `email` claim, or, when the token has none, `preferred_username` if it
-  has the form of an email address.
+- there is an address whose domain is verified, the first of:
+  1. the `email` claim, when `xms_edov` is true: Entra's word that the domain's owner verified it
+     (the domain is verified in the directory the account belongs to, or the address is a
+     Microsoft or Google account's, or one a one-time passcode proved);
+  2. the `email` claim, when its domain is one `WHATBUILD_MICROSOFT_DOMAINS` lists;
+  3. `preferred_username`, the user principal name, when it has the form of an email address and
+     its domain is one `WHATBUILD_MICROSOFT_DOMAINS` lists.
 
-Entra issues no `email_verified` claim and describes `email` as changeable. What stands in for
-verification is the directory: only its administrators set these attributes for its accounts, so
-an address is taken on that directory's word and on no other's. The server therefore MUST NOT
-accept a token from any other directory, and MUST NOT offer a mode that admits many.
+Entra issues no `email_verified` claim, and an app registration in one directory keeps addresses
+with unverified domains in its tokens. A directory's administrators can give one of its people
+any `email` attribute, someone else's address included, so an address is taken from the
+directory only on its domain's evidence: Entra's `xms_edov`, or this deployment's statement that
+the directory is the authority for that domain. With neither (the claim not configured and no
+domains listed), every Microsoft sign-in is refused. The server MUST NOT accept a token from any
+other directory, and MUST NOT offer a mode that admits many.
 
-A refusal for a missing or mismatched claim redirects to `/signin?error=microsoft_unverified`; a
+A refusal for a missing or mismatched claim, or an address without that evidence, redirects to
+`/signin?error=microsoft_unverified`; a
 missing cookie, a wrong `state`, a missing `code` or a failed token request, to
 `/signin?error=microsoft_failed`. An accepted sign-in then does exactly what the others do:
 admission (invite-only mode, invitations, a sandbox invitation), `findOrCreateAccount` with the
@@ -151,16 +175,25 @@ deployment that has none.
 
 ◆ Decision: a named method bound to one directory, not a general OpenID Connect setting, because
 what makes an address trustworthy differs between providers (Google says `email_verified`; Entra
-says nothing, and the directory binding does the work), and a general setting could not know.
+says `xms_edov` only when asked for it, and a deployment may vouch for its directory's domains),
+and a general setting could not know.
+
+◆ Decision: an address from the directory needs its domain's evidence, `xms_edov` or a listed
+domain, and is refused without it, rather than taken on the directory's word alone: a directory
+admits the people its administrators choose, but only the owner of a domain decides who holds an
+address in it, and an account in WhatBuild is its address.
 
 ◆ Decision: accounts stay keyed by address, as for every other method; the directory's object ID
 (`oid`) is not stored. An address the directory gives to a different person later reaches the
 earlier person's account, which is equally true of an email link.
 
-*Accept* (`apps/server/test/microsoft-sign-in.test.ts`): with the token endpoint stubbed, server tests show a sign-in creating an account and
-accepting its invitations; each refusal above (`aud`, `tid`, `iss`, no address, wrong `state`);
-invite-only mode refusing an address outside the allowlist; `404` when not configured; start-up
-refusing a tenant that is not a GUID; and `microsoft` reported by both endpoints.
+*Accept* (`apps/server/test/microsoft-sign-in.test.ts`): with the token endpoint stubbed, server
+tests show a sign-in creating an account and accepting its invitations; each refusal above (`aud`,
+`tid`, `iss`, no address, wrong `state`); an address outside the listed domains refused whether
+`xms_edov` is false or absent, taken when it is true, an address in a listed domain taken without
+it, and the user principal name taken only in a listed domain; invite-only mode refusing an
+address outside the allowlist; `404` when not configured; start-up refusing a tenant that is not a
+GUID and a listed domain that is not a domain; and `microsoft` reported by both endpoints.
 
 ## 3.3 Tenants and teams
 
@@ -335,10 +368,21 @@ every table with `tenant_id`, except the directory tables it lists with their re
 
 | Surface | Credential | Recorded surface |
 |---|---|---|
-| Web | Session cookie `wb_session` (`HttpOnly`, `SameSite=Lax`, `Secure` on HTTPS), 30 days by default (`WHATBUILD_SESSION_DAYS`, reported as `session_days` by `GET /auth/methods`); cookie writes must come from the app's own origin | `web` |
+| Web | Session cookie, 30 days by default (`WHATBUILD_SESSION_DAYS`, reported as `session_days` by `GET /auth/methods`), `HttpOnly` and `SameSite=Lax`: `__Host-wb_session` (`Secure`, `Path=/`, no `Domain`) when the public URL is HTTPS, `wb_session` over HTTP in local development; cookie writes must come from the app's own origin | `web` |
 | MCP | OAuth 2.1 access token issued by WhatBuild for its MCP endpoint | `mcp` |
 | Upload relay | A signed, single-file grant; the file is attributed to whoever requested the grant | as requested |
 | Job worker | none — internal | none; the actor is `WhatBuild` (system) |
+
+**The session cookie's name.** The `__Host-` prefix makes a browser accept the cookie only from
+the app's own host, over HTTPS, for the whole path: no other host under the same parent domain
+(the public site's, for one) can set a cookie of that name. A session issued before the cookie
+took the prefix (`sessions.legacy_cookie`, set by migration `0018` on every row there was) arrives
+as `wb_session`; over HTTPS it is still taken under that name until it expires, at most
+`WHATBUILD_SESSION_DAYS` after it was issued, and the response moves it to `__Host-wb_session` for
+its remaining time and clears `wb_session`, so nobody is signed out by the change. A session
+issued since is never taken under the old name. When both names arrive, the new one is the
+session. Signing in over HTTPS clears `wb_session`; signing out ends the session under either
+name and clears both ([`apps/server/src/auth/identity.ts`](../../apps/server/src/auth/identity.ts)).
 
 **OAuth for agents.** WhatBuild is its own authorization server: protected-resource metadata
 (RFC 9728) at `/.well-known/oauth-protected-resource/mcp`, authorization-server metadata (RFC 8414),
@@ -346,9 +390,20 @@ dynamic client registration (RFC 7591), authorization code with PKCE S256, resou
 (RFC 8707) limited to the MCP endpoint, one-hour access tokens and rotating 30-day refresh tokens
 (both configurable; reusing a rotated refresh token revokes the whole connection)
 ([`apps/server/src/auth/oauth.ts`](../../apps/server/src/auth/oauth.ts)). A code is exchanged, and
-a refresh token rotated, once: of requests that arrive together one succeeds, and a refresh
-token's second use, even a concurrent one, is reuse. The consent page tells the
-person the agent will act as them, what it can reach (everything, one organization or one
+a refresh token rotated, once: of requests that arrive together one succeeds, and a second use,
+even a concurrent one, is reuse. A code's exchange is one transaction that records the connection
+it made (`oauth_codes.family_id`), and a code presented again revokes that connection, as a
+reused refresh token revokes its own ([RFC 6749 §4.1.2](https://www.rfc-editor.org/rfc/rfc6749#section-4.1.2)).
+
+**What Allow approves is what the consent page showed.** The page's form carries the request
+back (client, redirect URI, code challenge, `state`, resource), and the `HttpOnly`,
+`SameSite=Strict` cookie `wb_consent` holds the form's token with a seal over those fields and
+the signed-in account, an HMAC-SHA256 keyed with `WHATBUILD_GRANT_KEY`. A form whose fields
+differ from what the page showed (a wider resource, another code challenge, another `state` or
+client), or posted by another account, answers `400` on WhatBuild's own page, and nothing reaches
+the client.
+
+The consent page tells the person the agent will act as them, what it can reach (everything, one organization or one
 product, named), and that the passages it reads go to whoever runs the agent. Any
 MCP client registers itself, so no client is configured in advance, and any client may call
 itself anything: the consent page shows the name in quotation marks as the name the agent gave

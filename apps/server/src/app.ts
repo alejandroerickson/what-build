@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { FsBlobStore, MemoryBlobStore } from "./adapters/blobs.ts";
 import { ConsoleMailer, HmacGrantSigner, MemoryMailer, SafeUrlFetcher, SmtpMailer } from "./adapters/misc.ts";
+import { carriesOurCookie, isOwnOrigin } from "./auth/identity.ts";
 import { oauthRoutes } from "./auth/oauth.ts";
 import { authRoutes } from "./auth/routes.ts";
 import type { ServerConfig } from "./config.ts";
@@ -124,10 +125,8 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; cl
   // Cookie-carrying writes must come from our own origin, on every route. SameSite=Lax is not
   // enough on a shared parent domain such as run.app, where another service can be "same-site".
   app.use("*", async (c, next) => {
-    if (["GET", "HEAD", "OPTIONS"].includes(c.req.method) || !c.req.header("cookie")?.includes("wb_")) return next();
-    const origin = c.req.header("origin");
-    const ok = !origin || origin === deps.config.publicBaseUrl || (deps.config.env !== "production" && /^http:\/\/localhost:\d+$/.test(origin));
-    if (!ok) return c.json({ error: { code: "forbidden_origin", status: 403, message: "Cross-origin writes are refused." } }, 403);
+    if (["GET", "HEAD", "OPTIONS"].includes(c.req.method) || !carriesOurCookie(c.req.header("cookie"))) return next();
+    if (!isOwnOrigin(deps.config, c.req.header("origin"))) return c.json({ error: { code: "forbidden_origin", status: 403, message: "Cross-origin writes are refused." } }, 403);
     return next();
   });
 

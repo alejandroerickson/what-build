@@ -99,6 +99,8 @@ export interface SessionsTable {
   expires_at: Ts;
   last_seen_at: Ts;
   user_agent: string | null;
+  /** Issued under the session cookie's old name, `wb_session`, which is still taken for it over HTTPS. */
+  legacy_cookie: Def<boolean>;
 }
 
 export interface EmailTokensTable {
@@ -128,6 +130,8 @@ export interface OauthCodesTable {
   scope: string;
   expires_at: Ts;
   used_at: TsNull;
+  /** The connection (`oauth_tokens.family_id`) the code made when it was exchanged; null until then. */
+  family_id: string | null;
 }
 
 export interface OauthTokensTable {

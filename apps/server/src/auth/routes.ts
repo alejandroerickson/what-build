@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { AppError, gone, invalid, tenantAllowanceOf, newId, notFound, randomToken, sha256Hex, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type Mailer } from "@whatbuild/core";
+import { AppError, escapeHtml, gone, invalid, tenantAllowanceOf, newId, notFound, randomToken, safeNext, sha256Hex, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type Mailer } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { sql } from "kysely";
@@ -7,31 +7,28 @@ import { z } from "zod";
 import { microsoftSignIn, type ServerConfig } from "../config.ts";
 import { inviteCodeIn, inviteInfo } from "../public-sandbox.ts";
 import { connectorReach } from "./connector-reach.ts";
-import { acceptInvitation, acceptInvitationsForEmail, createSession, findOrCreateAccount, restPrincipal, SESSION_COOKIE } from "./identity.ts";
+import { acceptInvitation, acceptInvitationsForEmail, clearSessionCookies, createSession, findOrCreateAccount, isOwnOrigin, restPrincipal, sessionTokens, setSessionCookie } from "./identity.ts";
 import { returnsTo } from "./oauth.ts";
-
-const NEXT_BASE = "https://next.invalid";
+import { authPage, authPageHeaders } from "./page.ts";
 
 /**
- * Where a sign-in returns to: a path on this origin, or "/". Never an open redirect, so it refuses
- * a scheme or host, any backslash, whitespace or control character (browsers drop tabs and
- * newlines, which turns "/\t/host" into "//host"), and, in the path, an encoded slash, backslash,
- * percent sign or control character, so that no later decoding makes one either.
+ * What opening a sign-in link shows: who it signs in, and one button. Mail scanners fetch every
+ * link in a message, so opening it changes nothing; the button's POST is what signs in.
  */
-export function safeNext(next: string | undefined | null): string {
-  if (!next || next.length > 2000 || !next.startsWith("/") || /[\\\s\p{Cc}\p{Cf}]/u.test(next)) return "/";
-  const path = next.split(/[?#]/, 1)[0]!;
-  if (path.startsWith("//") || /%(2f|5c|25|[01][0-9a-f]|7f)/i.test(path)) return "/";
-  let url: URL;
-  try {
-    url = new URL(next, NEXT_BASE);
-  } catch {
-    return "/";
-  }
-  // Dot segments can collapse into a leading "//" ("/.//host"), so the normalized path is what is checked and returned.
-  const out = `${url.pathname}${url.search}${url.hash}`;
-  return url.origin === NEXT_BASE && !out.startsWith("//") ? out : "/";
+function signInLinkPage(email: string, token: string): string {
+  return authPage(
+    "Sign in",
+    `<h1>Sign in to WhatBuild</h1>
+<p>You’re signing in as <strong>${escapeHtml(email)}</strong>.</p>
+<p class="muted">The link works once, for 15 minutes after it was sent. If you didn’t ask for it, close this page.</p>
+<form method="post" action="/auth/verify"><input type="hidden" name="token" value="${escapeHtml(token)}">
+<div class="row"><button type="submit" class="primary">Sign in</button></div>
+</form>`,
+  );
 }
+
+/** The domain of an address, lower case. */
+const domainOf = (address: string) => address.slice(address.lastIndexOf("@") + 1).toLowerCase();
 
 /** Enough of an address for its owner to recognize it, not enough to harvest it from a forwarded link: "l••••@example.com". */
 function maskEmail(email: string): string {
@@ -88,7 +85,7 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
 
   const startSession = async (c: Context, accountId: string) => {
     const token = await createSession(db, accountId, config.sessionDays, c.req.header("user-agent"));
-    setCookie(c, SESSION_COOKIE, token, { httpOnly: true, secure, sameSite: "Lax", path: "/", maxAge: config.sessionDays * 86400 });
+    setSessionCookie(c, token, secure, config.sessionDays * 86400);
   };
 
   app.onError((err, c) => {
@@ -121,8 +118,26 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     return c.json({ sent: true, ...(config.env !== "production" && config.mailer === "console" ? { dev_note: "In development the link is printed in the server's terminal." } : {}) });
   });
 
+  /** Opening the link: a page with one button, which posts it back. Nothing is read but the link's own row. */
   app.get("/auth/verify", async (c) => {
     const token = c.req.query("token") ?? "";
+    const row = await db
+      .selectFrom("email_tokens")
+      .select("email")
+      .where("token_hash", "=", sha256Hex(token))
+      .where("used_at", "is", null)
+      .where("expires_at", ">", new Date().toISOString())
+      .executeTakeFirst();
+    if (!row) return c.redirect("/signin?error=link_expired");
+    authPageHeaders(c);
+    return c.html(signInLinkPage(row.email, token));
+  });
+
+  /** Pressing Sign in on the link's page: from this origin only, so no other site can sign someone in to an account of its choosing. */
+  app.post("/auth/verify", async (c) => {
+    if (!isOwnOrigin(config, c.req.header("origin"))) throw new AppError(403, "forbidden_origin", "Cross-origin writes are refused.");
+    const form = (await c.req.parseBody()) as Record<string, unknown>;
+    const token = typeof form["token"] === "string" ? form["token"] : "";
     const now = new Date().toISOString();
     // Once: of requests that arrive together, only the one that marks the link used signs in.
     const row = await db
@@ -133,14 +148,14 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
       .where("expires_at", ">", now)
       .returning(["email", "redirect"])
       .executeTakeFirst();
-    if (!row) return c.redirect("/signin?error=link_expired");
+    if (!row) return c.redirect("/signin?error=link_expired", 303);
     // The place the link was sent for may have gone since: an invitation can fill while the email is in transit.
     const how = await admission(row.email, row.redirect);
-    if (!how) return c.redirect("/signin?error=invite_only");
+    if (!how) return c.redirect("/signin?error=invite_only", 303);
     const { account } = await findOrCreateAccount(db, row.email, undefined, how === "sandbox");
     await acceptInvitationsForEmail(db, account);
     await startSession(c, account.account_id);
-    return c.redirect(safeNext(row.redirect));
+    return c.redirect(safeNext(row.redirect), 303);
   });
 
   /** Development only: sign in as any email without a link. Compiled into the server, refused unless enabled. */
@@ -240,26 +255,30 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     const done = await finishOidc(c, "/auth/microsoft", `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, { client_id: config.microsoftClientId!, client_secret: config.microsoftClientSecret! });
     if (!done) return c.redirect("/signin?error=microsoft_failed");
     // Received directly from the directory's token endpoint over TLS, so its claims can be read as issued.
-    const claims = idTokenClaims<{ aud: string; iss: string; tid: string; email: string; preferred_username: string; name: string }>(done.idToken);
-    // Entra says nothing about whether an address is verified: the directory's administrators set it, so it is
-    // taken only from this one directory.
+    const claims = idTokenClaims<{ aud: string; iss: string; tid: string; email: string; xms_edov: unknown; preferred_username: string; name: string }>(done.idToken);
     const fromDirectory = claims.aud === config.microsoftClientId && claims.tid?.toLowerCase() === tenant && claims.iss?.toLowerCase() === `https://login.microsoftonline.com/${tenant}/v2.0`;
-    const email = claims.email || (claims.preferred_username && MICROSOFT_EMAIL.test(claims.preferred_username) ? claims.preferred_username : undefined);
+    // A directory's administrators can give its people any email attribute, someone else's address
+    // included. An address is taken only when Entra says the directory verified its domain
+    // (xms_edov), or when its domain is one this deployment trusts the directory for; a user
+    // principal name only in such a domain.
+    const listed = (address: unknown): address is string => typeof address === "string" && MICROSOFT_EMAIL.test(address) && config.microsoftDomains.includes(domainOf(address));
+    const verified = typeof claims.email === "string" && MICROSOFT_EMAIL.test(claims.email) && [true, "true", 1, "1"].includes(claims.xms_edov as never);
+    const email = verified || listed(claims.email) ? claims.email : listed(claims.preferred_username) ? claims.preferred_username : undefined;
     if (!fromDirectory || !email) return c.redirect("/signin?error=microsoft_unverified");
     return completeSignIn(c, email, claims.name, done.saved.next);
   });
 
   app.post("/auth/sign-out", async (c) => {
-    const token = getCookie(c, SESSION_COOKIE);
-    if (token) await db.deleteFrom("sessions").where("session_hash", "=", sha256Hex(token)).execute();
-    deleteCookie(c, SESSION_COOKIE, { path: "/" });
+    const tokens = sessionTokens(c, secure);
+    if (tokens.length) await db.deleteFrom("sessions").where("session_hash", "in", tokens.map(sha256Hex)).execute();
+    clearSessionCookies(c, secure);
     return c.json({ signed_out: true });
   });
 
   // ---- Account ------------------------------------------------------------------------------
 
   const requirePrincipal = async (c: Context) => {
-    const p = await restPrincipal(c, db);
+    const p = await restPrincipal(c, db, config);
     if (!p) throw unauthenticated();
     return p;
   };

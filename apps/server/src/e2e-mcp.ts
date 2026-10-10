@@ -42,7 +42,13 @@ const pkce = () => {
   return { verifier, challenge: createHash("sha256").update(verifier).digest("base64url") };
 };
 
-const cookiesOf = (res: Response) => res.headers.getSetCookie().map((c) => c.split(";")[0]!).join("; ");
+/** The cookies a response sets, leaving out the ones it clears (over HTTPS, signing in clears the session cookie's old name). */
+const cookiesOf = (res: Response) =>
+  res.headers
+    .getSetCookie()
+    .map((c) => c.split(";")[0]!)
+    .filter((c) => !c.endsWith("="))
+    .join("; ");
 const decode = (s: string) => s.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
 
 /** Register, sign in, allow on the consent page, and exchange the code: the whole OAuth connection. */

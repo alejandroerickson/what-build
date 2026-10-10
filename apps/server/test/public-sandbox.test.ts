@@ -175,12 +175,10 @@ describe("the public sandbox", () => {
     expect((await ask("vera@visitor.example", "/join/not-a-real-code-at-all")).status).toBe(403);
     const sent = await ask("vera@visitor.example", `/join/${code}`);
     expect(sent.status).toBe(200);
-    const link = /https?:\/\/\S+\/auth\/verify\?token=\S+/.exec(h.mailer.sent.at(-1)!.text)![0];
-    const verified = await fetch(link, { redirect: "manual" });
-    expect(verified.status).toBe(302);
+    const { response: verified, cookie } = await h.followSignInLink();
+    expect(verified.status).toBe(303);
     expect(verified.headers.get("location")).toBe(`/join/${code}`);
-    const cookie = (verified.headers.get("set-cookie") ?? "").split(";")[0]!;
-    const me = (await (await fetch(`${h.baseUrl}/api/v1/me`, { headers: { cookie } })).json()) as { email: string; sandbox_only?: boolean };
+    const me = (await (await fetch(`${h.baseUrl}/api/v1/me`, { headers: { cookie: cookie! } })).json()) as { email: string; sandbox_only?: boolean };
     expect(me).toMatchObject({ email: "vera@visitor.example", sandbox_only: true });
     // Let in to the sandbox, not to WhatBuild: no organization of their own.
     vera = await h.signIn("vera@visitor.example");

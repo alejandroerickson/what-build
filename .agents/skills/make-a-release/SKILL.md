@@ -30,8 +30,11 @@ command. This file is how to conduct the work.
 1. **Find the latest tag and the commit** (the head of `main` unless the person named one).
 2. **Choose the version** by the rules in the guide: minor for features or any migration, patch
    for fixes only. Use the version the person named if they named one.
-3. **Show the person** the version, commit, changes and migrations; wait for yes.
-4. **Publish** with `gh release create`, then watch the Release workflow to the end.
+3. **Show the person** the version, commit, changes, migrations and what a deployment must do to
+   take it (the Unreleased section of `okf/operations/upgrading.md`); wait for yes.
+4. **Publish**: move the Unreleased lines under the version's heading in `upgrading.md` and commit
+   that to `main`, then `gh release create` with them as the notes' first section, as the guide
+   shows. Watch the Release workflow to the end.
 5. **Production, if asked:** if the release adds migrations, rehearse it on the dev deployment
    first and report the result. Then approve the pending Cloud Build, follow its log, and check
    that `/api/v1/meta` reports the new version.
