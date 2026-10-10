@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
 import { aRole, formatBytes, formatDate, formatDateTime, relativeTime, scopeWords } from "../lib/format.ts";
+import { useSandboxStatus } from "../lib/public-sandbox.ts";
 import { useProduct, useProducts } from "../lib/session.tsx";
 import { ActivityFeed, ENTITY_LABEL, useActivity, type ActivityFilter } from "../shell/ActivityFeed.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
@@ -562,8 +563,11 @@ interface ExportItem {
 }
 
 function ExportSheet() {
-  const { api: base } = useProduct();
+  const { api: base, product } = useProduct();
   const qc = useQueryClient();
+  // In a public sandbox, exports are an allowance; at 0 they are off for everyone but staff.
+  const sandbox = useSandboxStatus(product.tenant.slug, Boolean(product.tenant.sandbox));
+  const exportsOff = sandbox.data?.you.role !== "staff" && sandbox.data?.allowances.find((a) => a.key === "exports_per_day")?.limit === 0;
   const list = useQuery({
     queryKey: ["exports", base],
     queryFn: () => api<{ items: ExportItem[] }>("GET", `${base}/exports`),
@@ -577,15 +581,18 @@ function ExportSheet() {
         id="export-title"
         title="Export"
         end={
-          <Button icon="download" onClick={() => start.mutate()} busy={start.isPending} busyLabel="Starting…">
-            Export this product
-          </Button>
+          exportsOff ? null : (
+            <Button icon="download" onClick={() => start.mutate()} busy={start.isPending} busyLabel="Starting…">
+              Export this product
+            </Button>
+          )
         }
       />
       <SheetBody>
         <p className="muted">
           Everything in this product as one ZIP: every source file and version, passages, notes, outcomes, assumptions with their reviews, every mockup and Story version, and
-          the activity log. It&rsquo;s plain JSON, Markdown and HTML, readable without WhatBuild. Anyone with access can export, at any time.
+          the activity log. It&rsquo;s plain JSON, Markdown and HTML, readable without WhatBuild.{" "}
+          {exportsOff ? "Exporting is off for visitors in this public sandbox, so its content stays in the sandbox." : "Anyone with access can export, at any time."}
         </p>
         {start.isError ? <ErrorCallout inset error={start.error} /> : null}
         {list.isError ? <ErrorCallout inset error={list.error} onRetry={() => list.refetch()} /> : null}

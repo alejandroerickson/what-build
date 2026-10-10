@@ -130,7 +130,8 @@ export const sandboxStatus = defineOperation({
         limit: s[l.key],
         unit: l.unit,
         ...(usedOf[l.key] !== undefined ? { used: usedOf[l.key] } : {}),
-        refusal: l.refusal,
+        // An allowance of 0 is switched off: refused as restricted, not as used up.
+        refusal: s[l.key] === 0 && l.refusal === "409 quota_exceeded" ? "403 sandbox_restricted" : l.refusal,
       })),
       allowances_restart_at: sb.day_end,
     };

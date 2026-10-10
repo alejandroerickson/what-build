@@ -25,6 +25,7 @@ export function SandboxBanner({ tenant }: { tenant: { slug: string; name: string
   if (!q.data) return null;
   const s = q.data;
   const staff = s.you.role === "staff";
+  const reader = Boolean(s.you.story_only);
   const about = `/t/${tenant.slug}/sandbox`;
   const erased = s.resets.next_at ? `Erased ${untilTime(s.resets.next_at)}` : "May be erased at any time";
   if (seen)
@@ -32,7 +33,7 @@ export function SandboxBanner({ tenant }: { tenant: { slug: string; name: string
       <p className="canvas-banner sandbox-line">
         <Glyph name="flask" size="sm" />
         <span>
-          <b>Public sandbox.</b> {staff ? "Visitors work here." : `You write as ${s.you.appears_as}.`}{" "}
+          <b>Public sandbox.</b> {staff ? "Visitors work here." : reader ? "You read the Story." : `You write as ${s.you.appears_as}.`}{" "}
           <span title={s.resets.next_at ? formatDateTime(s.resets.next_at) : undefined}>{erased}.</span>
           {s.visitor_access === "read" ? " Visitors can only read for now." : s.visitor_access === "closed" ? " Closed to visitors for now." : ""}
         </span>
@@ -71,6 +72,11 @@ export function SandboxBanner({ tenant }: { tenant: { slug: string; name: string
           <>
             Visitors read and write here under made-up names. Everything added since the baseline, your own changes included, is erased{" "}
             {s.resets.next_at ? `${resetWords(s.resets)} (next ${untilTime(s.resets.next_at)})` : "when you reset it"}. Save a new baseline to keep them.
+          </>
+        ) : reader ? (
+          <>
+            You read this product&rsquo;s Story here and write nothing, and nobody here sees who you are. What visitors add is erased{" "}
+            {s.resets.next_at ? `${resetWords(s.resets)} (next ${untilTime(s.resets.next_at)})` : "whenever the sandbox is reset"}.
           </>
         ) : (
           <>
