@@ -3,7 +3,7 @@ type: Decision
 title: The public site is one page built with the app, served from Cloudflare's edge or by host from the image
 description: what-build.com is a page in the web app's build that records requests to hear when WhatBuild opens; behind Cloudflare the Worker serves it so visitors never wake the service, and the image can serve it by Host for any other front.
 tags: [decision, deployment, web, site]
-generated: {by: agent:claude, at: 2026-10-01}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -47,7 +47,8 @@ instance is alive, so crawlers visiting the page every few minutes would keep on
 
 - The site's paths are listed twice and must agree: `SITE_FILES` and the interest route in
   `deploy/cloudflare/worker.js`, and `SITE_PATHS` in `apps/server/src/site.ts`. So are its
-  headers (`PAGE_HEADERS`, and `PAGE_SECURITY_HEADERS` in `apps/server/src/public-routes.ts`).
+  headers (`PAGE_HEADERS`, and `PAGE_SECURITY_HEADERS` in `apps/server/src/public-routes.ts` with
+  `RESPONSE_HEADERS` in `apps/server/src/app.ts`, which `response-headers.test.ts` compares).
 - The page is `apps/web/src/site/`, styled in `apps/web/src/styles/screens/site.css`.
 
 Specified in: [02-architecture §2.3](../spec/02-architecture.md), [04-data-model §4.13](../spec/04-data-model.md),

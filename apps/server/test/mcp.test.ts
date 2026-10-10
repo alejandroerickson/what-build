@@ -1,9 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { OPERATIONS, SKILL_VERSION } from "@whatbuild/core";
+import { OPERATIONS, REST_BODY_MAX_BYTES, SKILL_VERSION } from "@whatbuild/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { toolDefinitions } from "../src/mcp.ts";
+import { MCP_BODY_MAX_BYTES, toolDefinitions } from "../src/mcp.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 let h: Harness;
@@ -157,6 +157,37 @@ describe("MCP", () => {
     expect(text(await member.callTool({ name: "members", arguments: { action: "list", params: {} } })).error.code).toBe("invalid_input");
     await outsider.close();
     await member.close();
+  });
+
+  it("reads a body up to the REST limit, and refuses a larger one, declared or streamed, read only once the caller is known", async () => {
+    expect(MCP_BODY_MAX_BYTES).toBe(REST_BODY_MAX_BYTES);
+    const headers = { authorization: `Bearer ${agentToken}`, "content-type": "application/json", accept: "application/json, text/event-stream" };
+    /** A tools/call whose JSON is `bytes` long, padded with an argument the tool refuses. */
+    const call = (bytes: number) => {
+      const shell = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "products", arguments: { action: "list", padding: "" } } });
+      return shell.replace('"padding":""', `"padding":"${"x".repeat(bytes - shell.length)}"`);
+    };
+    // Past the transport's own default of 4 MiB, under the limit: read, and answered by the tool.
+    const under = await fetch(`${h.baseUrl}/mcp`, { method: "POST", headers, body: call(MCP_BODY_MAX_BYTES - 1024) });
+    expect(under.status).toBe(200);
+    expect(JSON.stringify(await under.json())).toContain("unknown_field");
+    const over = await fetch(`${h.baseUrl}/mcp`, { method: "POST", headers, body: call(MCP_BODY_MAX_BYTES + 1) });
+    expect(over.status).toBe(413);
+    expect(((await over.json()) as { error: { message: string } }).error.message).toContain(`${MCP_BODY_MAX_BYTES} bytes`);
+    // No Content-Length: the transport counts what arrives and stops past the limit.
+    let sent = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(c) {
+        if (sent >= 2 * MCP_BODY_MAX_BYTES) return c.close();
+        sent += 64 * 1024;
+        c.enqueue(new Uint8Array(64 * 1024).fill(0x20));
+      },
+    });
+    const streamed = await fetch(`${h.baseUrl}/mcp`, { method: "POST", headers, body: stream, duplex: "half" } as RequestInit);
+    expect(streamed.status).toBe(413);
+    // Without a token nothing is read: the answer is 401 whatever the body.
+    const anonymous = await fetch(`${h.baseUrl}/mcp`, { method: "POST", headers: { ...headers, authorization: "" }, body: call(MCP_BODY_MAX_BYTES + 1) });
+    expect(anonymous.status).toBe(401);
   });
 });
 

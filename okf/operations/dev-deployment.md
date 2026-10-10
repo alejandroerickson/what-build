@@ -108,9 +108,51 @@ rm -rf "$S"
 - Signed in, the screens the release changed open on the copied data, and the service's log
   (`gcloud run services logs read whatbuild --project $P --region $R --limit 100`) has no 500s.
 
-**4. Report.** What ran, what migrated, what each job did, and what failed. A migration or job that
-fails on dev is a finding: production's build is not approved, the fix is a new commit, and dev is
-put back before the fix is rehearsed. Never repair dev's schema by hand.
+**4. Hostile files**, when the release changes parsing (`packages/parsers/`,
+`apps/server/src/parse-thread.ts` or `parse-worker.ts`), the parse limits (`WHATBUILD_PARSE_*`) or
+the image's memory. Make them on your machine; none is committed:
+
+```bash
+H=$(mktemp -d); node scripts/hostile-files.mjs "$H"
+```
+
+The script prints what each file is and what WhatBuild should record for it at the default
+limits: too large, failed for memory, or ready. Signed in to dev, upload each through the app as
+the primary file of a source of its own, in a product of your own made for the rehearsal; the
+public sandbox refuses files over 5 MB. Then check:
+
+- Each source ends in the status the script printed (the source's page says it), within a couple
+  of minutes, and no job is left waiting.
+- The service kept answering while they parsed: pages opened, and the log has no 500s and no
+  instance that ran out of memory:
+
+  ```bash
+  gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="whatbuild" AND (severity>=ERROR OR textPayload:"Memory limit")' \
+    --project $P --freshness 1h --format='value(timestamp,textPayload)'
+  ```
+
+- The revision's memory while they parsed: the service's **Metrics** tab in the console,
+  *Container memory utilization*, or the 99th percentile of each minute from the Monitoring API:
+
+  ```bash
+  t() { python3 -c "import datetime as d; print((d.datetime.now(d.timezone.utc) - d.timedelta(hours=$1)).strftime('%Y-%m-%dT%H:%M:%SZ'))"; }
+  curl -s -G -H "Authorization: Bearer $(gcloud auth print-access-token)" "https://monitoring.googleapis.com/v3/projects/$P/timeSeries" \
+    --data-urlencode 'filter=metric.type="run.googleapis.com/container/memory/utilizations" AND resource.type="cloud_run_revision" AND resource.labels.service_name="whatbuild"' \
+    --data-urlencode "interval.startTime=$(t 1)" --data-urlencode "interval.endTime=$(t 0)" \
+    --data-urlencode aggregation.alignmentPeriod=60s --data-urlencode aggregation.perSeriesAligner=ALIGN_PERCENTILE_99 |
+    python3 -c 'import sys,json; [print(p["interval"]["endTime"], round(100 * p["value"]["doubleValue"]), "%") for s in json.load(sys.stdin).get("timeSeries", []) for p in s["points"]]'
+  ```
+
+  If it came within about a sixth of the limit, or an instance ran out, lower
+  `WHATBUILD_PARSE_MEMORY_MB` (or give the service more memory) on dev, upload the files again,
+  and make the same change on production ([Cloud Run](cloud-run.md#setting-it-up), **Parsing**).
+  A PDF whose content inflates (`inflating.pdf`) uses nearly all a parse may: about 600 MB more
+  for the process at the default limits.
+
+**5. Report.** What ran, what migrated, what each job did, what each hostile file ended as and the
+memory it took, and what failed. A migration or job that fails on dev is a finding: production's
+build is not approved, the fix is a new commit, and dev is put back before the fix is rehearsed.
+Never repair dev's schema by hand.
 
 After a rehearsal that passed, dev may stay on the new release; it is then what production will be.
 

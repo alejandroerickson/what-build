@@ -35,8 +35,9 @@ command. This file is how to conduct the work.
 4. **Publish**: move the Unreleased lines under the version's heading in `upgrading.md` and commit
    that to `main`, then `gh release create` with them as the notes' first section, as the guide
    shows. Watch the Release workflow to the end.
-5. **Production, if asked:** if the release adds migrations, rehearse it on the dev deployment
-   first and report the result. Then approve the pending Cloud Build, follow its log, and check
+5. **Production, if asked:** if the release adds migrations, or changes parsing
+   (`packages/parsers/`, `apps/server/src/parse-thread.ts`, the `WHATBUILD_PARSE_*` limits) or the
+   service's memory, rehearse it on the dev deployment first and report the result. Then approve the pending Cloud Build, follow its log, and check
    that `/api/v1/meta` reports the new version.
 6. **Report** the release page's address, whether the image was published, and what production
    runs now. If the deploy broke something, use the `recover-a-deployment` skill.

@@ -160,7 +160,8 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   `form-action 'none'`, `frame-ancestors 'self'`, `no-store`, `nosniff`, `no-referrer`.
 - The app frames pages with `<iframe sandbox>` and takes only a key name or a page slug from the
   frame it made (`apps/web/src/routes/story.tsx`). App pages send `Cross-Origin-Opener-Policy:
-  same-origin`, `X-Frame-Options: DENY` and `script-src 'self'` (`apps/server/src/public-routes.ts`).
+  same-origin`, `X-Frame-Options: DENY`, `frame-ancestors 'none'` and `script-src 'self'`
+  (`apps/server/src/public-routes.ts`).
   The print view is sandboxed and runs one nonce'd script (`packages/core/src/story-print.ts`).
 - Markdown becomes React elements from a lexer: no HTML from the text reaches the DOM, and only
   web, mail, fragment and same-origin links are live (`apps/web/src/lib/markdown.tsx`).
@@ -191,12 +192,33 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   at most 512 deep and makes elements in proportion to its length; patterns that could backtrack
   are single passes, so text is read in time linear in its length. XML is read with saxes, which
   expands no DTD entities, internal or external. A parser's error becomes a status.
-- Files are served back with `nosniff` and a CSP `sandbox` with `default-src 'none'`, except PDFs,
-  which browsers will not render sandboxed; HTML, XHTML and SVG only as an
+- Files are served back with `nosniff`, `private, no-store` and a CSP `sandbox` with
+  `default-src 'none'`, except PDFs, which browsers will not render sandboxed; only the app may
+  frame them (`frame-ancestors 'self'`); HTML, XHTML and SVG only as an
   `application/octet-stream` attachment (`streamFile` in `apps/server/src/rest.ts`). Agents send
-  download grants in a header, never a URL. REST bodies are limited to 5 MB.
+  download grants in a header, never a URL. REST and MCP bodies are limited to 5 MB; `/mcp`
+  reads one only once the caller's token is checked (`MCP_BODY_MAX_BYTES` in `apps/server/src/mcp.ts`).
 - Source text is quoted material: the MCP server's instructions and the skill tell agents never to
   follow it (`apps/server/src/mcp.ts`).
+
+**Headers on every response** (`RESPONSE_HEADERS` in `apps/server/src/app.ts`, held by
+`apps/server/test/response-headers.test.ts` and the weekly OWASP ZAP scan,
+[security checks](../operations/security-checks.md)).
+
+- Every response says `Cross-Origin-Resource-Policy: same-origin`, so no other site can load it
+  into its pages, and its process; `Cross-Origin-Embedder-Policy: credentialless`, so a page loads
+  from other sites only what it can fetch without credentials and frames only documents that say
+  the same; `nosniff`; and a `Permissions-Policy` that turns off the browser features WhatBuild
+  never uses (camera, microphone, location, payment, devices and sensors; `PERMISSIONS_POLICY` in
+  `packages/core/src/story-html.ts`). Full screen and the clipboard, which the app uses, keep
+  their defaults. A route that sets one of these keeps its own.
+- Responses under `/api`, `/mcp`, `/auth` and `/oauth` say `Cache-Control: no-store` unless the
+  route says otherwise, so no cache, the browser's included, keeps people's material, who they
+  are, or a credential. Hashed assets are cached for a year; the shell is checked each time.
+- Every HTML response's policy defines `frame-ancestors`, `form-action` and `base-uri`, which have
+  no fallback; an HTML response whose route set no policy gets `default-src 'none'` and all three
+  at `'none'`. The Cloudflare Worker sends the site's page with the same headers
+  (`deploy/cloudflare/worker.js`).
 
 **Outbound fetches.** `files.fetch_url` (`SafeUrlFetcher`, `apps/server/src/adapters/misc.ts`)
 fetches `https` only, without credentials. An address written in the URL, in any notation, is

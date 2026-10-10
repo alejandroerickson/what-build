@@ -2,7 +2,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import {
-  AppError, effectiveRole, execute, invalid, membershipsFor, narrowProductList, OPERATIONS, parseInput, parseProductRef, resolveConnectorScope, SKILL_NAME, SKILL_VERSION, toAppError,
+  AppError, effectiveRole, execute, invalid, membershipsFor, narrowProductList, OPERATIONS, parseInput, parseProductRef, resolveConnectorScope, REST_BODY_MAX_BYTES, SKILL_NAME, SKILL_VERSION, toAppError,
   type ConnectorScope, type Env, type OperationDef, type Principal, type Scope, type ScopeRef,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
@@ -217,6 +217,13 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
   return server;
 }
 
+/**
+ * The largest JSON-RPC body /mcp reads: REST's, since both doors take the same operations' input,
+ * and file bytes go through upload grants. It is read only once the caller is known; past the
+ * limit the transport answers 413 without reading further, whether the length is declared or not.
+ */
+export const MCP_BODY_MAX_BYTES = REST_BODY_MAX_BYTES;
+
 export function mcpRoutes(env: Env & { config: ServerConfig }) {
   const app = new Hono();
   const base = env.config.publicBaseUrl;
@@ -232,7 +239,7 @@ export function mcpRoutes(env: Env & { config: ServerConfig }) {
       // Stateless: no server-initiated stream and no session to end.
       return c.json({ error: { code: "method_not_allowed", status: 405, message: "This MCP endpoint is stateless; POST JSON-RPC requests." } }, 405, { Allow: "POST" });
     }
-    const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
+    const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true, maxRequestBodySize: MCP_BODY_MAX_BYTES });
     const server = buildServer(env, principal, bound);
     await server.connect(transport);
     try {

@@ -9,7 +9,7 @@ status: stable
 
 # Local development
 
-Node 22 or later (CI uses the version in `.nvmrc`) and pnpm through Corepack are all you need. No accounts, keys, Docker or cloud
+Node 22.18 or later (CI uses the version in `.nvmrc`, 24) and pnpm through Corepack are all you need. No accounts, keys, Docker or cloud
 services ([decision](../decisions/development-substitutes-adapters-never-behavior.md)).
 
 ```sh

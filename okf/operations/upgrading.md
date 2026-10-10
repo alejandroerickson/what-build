@@ -43,5 +43,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 - **Sessions** move to the `__Host-wb_session` cookie over HTTPS as they are used; nobody is
   signed out. An agent's consent form that is open while the release deploys is refused once and
   is started again from the agent.
+- **The public site's headers** live in the Cloudflare Worker too (`deploy/cloudflare/worker.js`):
+  deploy the Worker when this release reaches production ([Cloud Run](cloud-run.md)), so the site
+  sends the same headers as the app.
+- **Node 22.18 or later** for anyone running the server outside the image (the image runs 24).
+- **Responses** now carry `Cross-Origin-Embedder-Policy: credentialless`,
+  `Cross-Origin-Resource-Policy: same-origin` and a `Permissions-Policy`, so another site can no
+  longer load WhatBuild's files or images directly. `/mcp` takes bodies up to 5 MB.
 - **Agent registrations** (`/oauth/register`) are limited for the whole deployment; request
   bodies under `/auth` and `/oauth` are limited to 64 KB.

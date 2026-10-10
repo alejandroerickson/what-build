@@ -283,10 +283,11 @@ export async function streamFile(
     "Content-Disposition": `${disposition}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`,
     "X-Content-Type-Options": "nosniff",
     // Browsers will not render a PDF inside a sandboxed document, and their PDF viewers run no page script.
-    "Content-Security-Policy": v.media_type === "application/pdf" ? "default-src 'none'; object-src 'self'" : "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'",
+    "Content-Security-Policy": `${v.media_type === "application/pdf" ? "default-src 'none'; object-src 'self'" : "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'"}; base-uri 'none'; form-action 'none'; frame-ancestors 'self'`,
     ETag: `"${v.sha256}"`,
     "Accept-Ranges": "bytes",
-    "Cache-Control": "private, max-age=300",
+    // People's material: no cache keeps it, the browser's included.
+    "Cache-Control": "private, no-store",
   };
   const range = c.req.header("range");
   const m = range ? /^bytes=(\d+)-(\d*)$/.exec(range) : null;

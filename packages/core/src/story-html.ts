@@ -94,6 +94,15 @@ export function inspectStoryCss(css: string): string[] {
   return problems;
 }
 
+/**
+ * The browser features no WhatBuild page uses, turned off for the page and every frame in it. The
+ * app's own, full screen for images and video and writing to the clipboard, keep their defaults.
+ */
+export const PERMISSIONS_POLICY = [
+  "accelerometer", "browsing-topics", "camera", "display-capture", "geolocation", "gyroscope", "hid", "idle-detection", "magnetometer",
+  "microphone", "midi", "payment", "publickey-credentials-get", "screen-wake-lock", "serial", "usb", "xr-spatial-tracking",
+].map((feature) => `${feature}=()`).join(", ");
+
 /** The headers every response that serves Story HTML carries. The page runs in an opaque origin. */
 export const STORY_RESPONSE_HEADERS: Record<string, string> = {
   "Content-Security-Policy":
@@ -103,7 +112,7 @@ export const STORY_RESPONSE_HEADERS: Record<string, string> = {
   "Cache-Control": "no-store",
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "no-referrer",
-  "Permissions-Policy": "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+  "Permissions-Policy": PERMISSIONS_POLICY,
   "Content-Type": "text/html; charset=utf-8",
 };
 
