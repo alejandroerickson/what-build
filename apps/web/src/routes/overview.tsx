@@ -1,5 +1,6 @@
 import { Link, Navigate, useSearchParams } from "react-router";
 import { plural, relativeTime } from "../lib/format.ts";
+import { markdownText } from "../lib/markdown.tsx";
 import { productHome, useProducts, type ProductsResponse, type ProductSummary } from "../lib/session.tsx";
 import { BrandMark } from "../shell/brand.tsx";
 import { Journey } from "../shell/journey.tsx";
@@ -156,7 +157,7 @@ function ProductEntry({ product: p, showTeam }: { product: ProductSummary; showT
         {reader ? (
           <p className="overview-product-concept faint">You read this product&rsquo;s Story.</p>
         ) : p.concept?.trim() ? (
-          <p className="overview-product-concept">{p.concept}</p>
+          <p className="overview-product-concept">{markdownText(p.concept)}</p>
         ) : (
           <p className="overview-product-concept faint">No product concept yet</p>
         )}

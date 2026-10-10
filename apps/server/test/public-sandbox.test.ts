@@ -112,7 +112,11 @@ describe("a baseline", () => {
 
 describe("before the deployment names a sandbox", () => {
   it("has none: the operations answer 404, and no invitation can be made", async () => {
-    expect((await olive.api("GET", `${T}/sandbox`)).status).toBe(404);
+    const status = await olive.api("GET", `${T}/sandbox`);
+    expect(status.status).toBe(404);
+    // Said to a person: what this organization is, never how a deployment is configured.
+    expect(status.body.error.message).toMatch(/^Sample Sandbox is not a public sandbox/);
+    expect(status.body.error.message).not.toMatch(/WHATBUILD|deployment/);
     expect((await olive.api("GET", `${T}/sandbox/settings`)).status).toBe(404);
     expect((await olive.api("POST", `${T}/sandbox/invites`, { label: "Too early", places: 5 })).status).toBe(404);
     expect((await olive.api("GET", "/api/v1/me/products")).body.tenants[0].sandbox).toBeUndefined();
@@ -227,7 +231,7 @@ describe("the public sandbox", () => {
   it("lets a visitor read and write content, under a made-up name", async () => {
     const status = (await vera.api("GET", `${T}/sandbox`)).body;
     expect(status.you).toMatchObject({ role: "visitor", appears_as: visitorName(tenantId, (await vera.api("GET", "/api/v1/me")).body.account_id) });
-    expect(status.notice).toMatch(/Don’t add anything private/);
+    expect(status.notice).toMatch(/Other visitors see what you add, under a made-up name\..*Don’t add anything private/);
     const product = await vera.api("GET", P);
     expect(product.body).toMatchObject({ your_role: "editor", tenant: { sandbox: true } });
     const made = await vera.api("POST", `${P}/outcomes`, { title: "Try the hand-off" });
@@ -274,6 +278,14 @@ describe("the public sandbox", () => {
     // A name in the content leads its staff to the person.
     expect((await olive.api("GET", `${T}/sandbox/visitors?query=${encodeURIComponent(name)}`)).body.items.map((v: { email: string }) => v.email)).toEqual(["vera@visitor.example"]);
     expect((await olive.api("GET", `${T}/sandbox/visitors?query=viktor`)).body.items).toHaveLength(1);
+    // A visitor given a role on a team as well is still a visitor: counted, not listed.
+    const veraId = (await vera.api("GET", "/api/v1/me")).body.account_id;
+    expect((await olive.api("POST", `${T}/members`, { email: "vera@visitor.example", role: "viewer", team })).status).toBe(201);
+    const withRole = await olive.api("GET", `${T}/members`);
+    expect(withRole.body.members.map((m: { email: string }) => m.email)).toEqual(["olive@staff.example"]);
+    expect(withRole.body.sandbox).toEqual({ only_you: false, visitors: 2 });
+    expect(JSON.stringify((await olive.api("GET", `${T}/members?team=${team}&product=showcase`)).body)).not.toContain(veraId);
+    expect((await olive.api("POST", `${T}/members/revoke`, { account_id: veraId, team })).status).toBe(200);
     const paged = await olive.api("GET", `${T}/sandbox/visitors?limit=1`);
     expect(paged.body.items).toHaveLength(1);
     expect((await olive.api("GET", `${T}/sandbox/visitors?limit=1&cursor=${paged.body.next_cursor}`)).body.next_cursor).toBeNull();
@@ -318,6 +330,21 @@ describe("the public sandbox", () => {
     expect((await colleague.api("GET", `${T}/members`)).body.members).toHaveLength(1);
     const made = await colleague.api("POST", `${P}/outcomes`, { title: "From a colleague" });
     expect(made.body.created_by.display_name).toMatch(VISITOR);
+    // Treated as a visitor is, and told so truthfully: a member, not a visitor.
+    const status = (await colleague.api("GET", `${T}/sandbox`)).body;
+    expect(status.you).toMatchObject({ role: "member", appears_as: made.body.created_by.display_name });
+    expect(status.you.can).toMatch(/made-up name/);
+    expect(status.notice).toMatch(/Everyone here, visitors included, sees what you add, under a made-up name/);
+    expect(status.notice).not.toMatch(/Other visitors/);
+    expect(status.allowances.find((a: { key: string }) => a.key === "writes_per_day").used).toBeGreaterThan(0);
+    const viaAgent = new Client({ name: "colleague-agent", version: "1.0.0" });
+    await viaAgent.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(colleague, "Colleague Agent")}` } } }));
+    const overMcp = await viaAgent.callTool({ name: "sandbox", arguments: { action: "status", params: { tenant: org } } });
+    expect(JSON.parse((overMcp as { content: { text: string }[] }).content[0]!.text).you.role).toBe("member");
+    await viaAgent.close();
+    // Its staff are told what is true for them: their own name, not a made-up one.
+    const own = (await olive.api("GET", `${T}/sandbox`)).body;
+    expect(own.notice).toMatch(/Visitors see what you add, under your own name/);
     // Made an admin of the organization, they are staff, under their own name.
     await olive.api("POST", `${T}/members`, { email: "colleague@staff.example", role: "admin" });
     expect((await colleague.api("GET", P)).body.your_role).toBe("admin");

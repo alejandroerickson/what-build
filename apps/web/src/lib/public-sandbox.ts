@@ -9,7 +9,8 @@ export interface SandboxStatus {
   visitor_access: "write" | "read" | "closed";
   agents_allowed: boolean;
   resets: SandboxResets;
-  you: { role: "visitor" | "staff"; appears_as: string | null; can: string };
+  /** staff: an owner or admin. visitor: came in by an invitation link. member: given a role by its staff, and treated as a visitor is. */
+  you: { role: "visitor" | "member" | "staff"; appears_as: string | null; can: string };
   allowances: { key: string; label: string; per: string; limit: number | boolean; unit: string; used?: number; refusal: string }[];
   allowances_restart_at: string;
 }

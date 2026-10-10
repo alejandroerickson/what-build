@@ -104,6 +104,17 @@ describe("what upload, read and search say about a source", () => {
     // The cut falls between words.
     expect(full[quote.length - 1]).toMatch(/\s/);
   });
+
+  it("names a note's passages in activity as the app does: ¶N for one, ¶N–M for a range", async () => {
+    const { recordId } = await upload("notes", "three.txt", "One.\n\nTwo.\n\nThree.\n");
+    await h.worker.drain();
+    expect((await alice.api("POST", `${P}/sources/${recordId}/annotations`, { record_id: recordId, note: "One passage.", seq_start: 1, seq_end: 1 })).status).toBe(201);
+    expect((await alice.api("POST", `${P}/sources/${recordId}/annotations`, { record_id: recordId, note: "A range.", seq_start: 0, seq_end: 2 })).status).toBe(201);
+    expect((await alice.api("POST", `${P}/sources/${recordId}/annotations`, { record_id: recordId, note: "The whole source." })).status).toBe(201);
+    const log = await alice.api("GET", `${P}/activity?entity_id=${recordId}`);
+    const notes = log.body.items.filter((i: { action: string }) => i.action === "note_added").map((i: { summary: string }) => i.summary);
+    expect(notes).toEqual(["Added a note", "Added a note on ¶0–2", "Added a note on ¶1"]);
+  });
 });
 
 describe("listing sources in order", () => {

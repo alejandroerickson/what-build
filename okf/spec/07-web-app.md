@@ -127,7 +127,7 @@ wordmark, the question "What to build?", the tagline "Product discovery at the s
 Engineering.", two sentences on what the app does, and a link to Connect an agent. Beside it, small and
 quiet, the WhatBuild journey: Idea, Evidence, Exploration and Story, each with a line on what
 it holds. It carries no counts; those are on each product below. Below, one sheet per organization, headed by its name alone, lists its active products (name,
-product concept, last update, and the team only when the organization has more than one), each
+product concept as plain words clamped to two lines, its Markdown markers dropped, last update, and the team only when the organization has more than one), each
 with links to Idea, Evidence, Exploration and Story and their counts, so any section of any product
 is one click away. A product where the person is a reader says "You read this product's Story."
 in place of its concept, and links to the Story alone, with its count. Team admins get **New product**, a dialog on the overview (`?create=1`), so
@@ -280,7 +280,9 @@ The sources, and everything for reading them.
   tags and its date captured under the title, and at its end "Added <when> by <who>", or "Updated
   <when> by <who>" when the list is sorted by date updated. The header
   counts the sources listed, with "of N" live sources while filters narrow the list (left out once archived
-  sources are included). Archived rows are muted and marked Archived. Rows whose titles match
+  sources are included). While more pages wait to load, the count is still exact when
+  `sources.facets` knows it: with no filter, one tag or one person; only otherwise is it the rows
+  loaded so far with a plus ("50+"). Archived rows are muted and marked Archived. Rows whose titles match
   another listed row also name their primary file, so the twins can be told apart.
 - **Source page.** A source is the busiest object in the app, so the page is dense on purpose.
   - **Header:** the title and the actions menu, nothing else; every property is in the inspector.
@@ -554,7 +556,10 @@ A quiet **Activity page** (`…/activity`), not a drawer and not a destination: 
 **Activity** in the product's panel, and from a source's details, which open the page filtered to that
 source. It is one log for people and agents together, newest first ([§4.10](04-data-model.md)).
 Each entry reads as a sentence with the actor, the surface, and a link to the object: "Sam, via
-claude-desktop, confirmed an assumption — 14:02". The kind of object changed (`?entity_type=`) or
+claude-desktop, confirmed an assumption — 14:02". The surface is "in the app", "through the API" or
+"via <client>"; what WhatBuild does by itself, such as parsing a file, has no surface and reads "on
+the server", however the file was uploaded. A note's passages read as the app writes them, ¶4 or
+¶4–6. The kind of object changed (`?entity_type=`) or
 one object (`&entity_id=`) narrows it, held in the URL.
 
 This is how a person answers "what did my colleague's agent just do to my product" without reading
@@ -679,9 +684,14 @@ never described as deleting. A list row showing an archived object says *Archive
     address or made-up name with `?visitor=`; Remove) and **Limits of this deployment**, read
     only. Reset now and Reset to this one ask first and list what is erased.
   - **For a visitor** the same address (About this sandbox in the account menu) shows the notice,
-    the name they write under, what they can do, and every allowance with what is used today.
-  - **Members** in the sandbox shows a visitor only themselves, and shows staff the
-    organization's own people with the visitors as a count and a link to the controls. The account
+    the name they write under, what they can do, and every allowance with what is used today. A
+    member whom staff gave a role sees the same page, with the notice and what they can do
+    written for a member. The notice above every screen says who sees what the person adds:
+    other visitors, for a visitor; everyone there, for a member; visitors, under their own name,
+    for staff.
+  - **Members** in the sandbox shows anyone but staff only themselves, and shows staff the
+    organization's own people with the visitors as a count and a link to the controls; no visitor
+    is listed, even one given a role on a team or product. The account
     menu leaves Members out for a visitor. An organization that is a sandbox is tagged Public
     sandbox on the overview.
   - **First run** (`/welcome`) for an account made for the sandbox that is not in it says so, and,
