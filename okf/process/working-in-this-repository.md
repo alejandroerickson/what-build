@@ -63,6 +63,9 @@ Everything committed, including history, commit messages and pull requests' text
   `scripts/e2e.mjs` and look at `scripts/shots.mjs` captures; for a change across both doors,
   have an agent run the [end-to-end test plans](../operations/end-to-end-tests.md) it touches
   ([local development](../operations/local-development.md)).
+- A change that asks something of a deployment (a setting, an identity provider step, a minimum
+  version, a behaviour people will notice) has its line under Unreleased in
+  [upgrading](../operations/upgrading.md).
 - A dependency you added or upgraded leaves `pnpm security` clean, or its finding is accepted
   with a reason and an expiry ([security checks](../operations/security-checks.md)).
 - Check `git status --ignored` for source files a global gitignore may hide (for example files

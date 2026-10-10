@@ -13,6 +13,7 @@ status: stable
 - [End-to-end tests](end-to-end-tests.md): an agent follows a written plan through the web app and MCP on a local instance reset to a golden master, and reports failures and anomalies.
 - [A copy of production](a-copy-of-production.md): pulling the deployment's database and files, loading them locally, serving them with pending migrations applied, for manual QA and agent-driven end-to-end tests; it stays private.
 - [Cloud Run](cloud-run.md): the production deployment, its setup and its routines.
+- [Upgrading](upgrading.md): what a deployment must do when it takes a release, kept per release, with the unreleased changes on top until the next release's notes carry them.
 - [Releasing](releasing.md): a release is a version tag on `main` with its notes and image; numbering versions, publishing one, and approving the production deploy it starts.
 - [The dev deployment](dev-deployment.md): a second Cloud Run deployment holding a copy of production, where a release that migrates is rehearsed before production moves; rehearsing, putting it back, refreshing the copy, setting one up.
 - [Backups](backups.md): what each deployment keeps, where and for how long, the nightly dump, checking that backups run, restoring a dump and checking it, and the restore drill.
