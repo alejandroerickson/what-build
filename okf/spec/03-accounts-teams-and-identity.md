@@ -50,9 +50,10 @@ tenant               an organization: the isolation and (later) billing boundary
 
 Sign-in methods, each optional per deployment:
 
-- **Email link** — a single-use link valid 15 minutes, at most five per address per hour. A server
-  with no mail provider disables it rather than log a link; in development the console mailer
-  prints it.
+- **Email link** — a single-use link valid 15 minutes, at most five per address per hour; opened
+  several times at once, it signs in one of them. A server with no mail provider disables it
+  rather than log a link; in development the console mailer prints it, and a production server
+  refuses to start with any mailer but `smtp` or `none`.
 - **Google** — OpenID Connect, when a client id and secret are configured.
 - **Microsoft work accounts** — OpenID Connect against one Microsoft Entra directory, when the
   directory, a client id and a secret are configured ([below](#sign-in-with-microsoft-work-accounts)).
@@ -61,6 +62,12 @@ Sign-in methods, each optional per deployment:
 
 There is no password. First sign-in creates the account; every invitation addressed to that email
 is accepted at once, because the verified address is the proof.
+
+Every method returns to `next`, the path the person was on, only when it is a path on this origin:
+one with a scheme or host, a backslash, whitespace or a control character, an encoded slash,
+backslash, percent sign or control character in its path, or a path that normalizes to begin
+with `//`, returns to `/` instead (`safeNext`). Request bodies to `/auth/*` are limited to 64 KB
+(`413 too_large`).
 
 An invitation link (`/invite/:token`, `POST /api/v1/invitations/accept`) is single-use, lasts
 7 days, and works only for the account whose email is the invited address, ignoring letter case
@@ -320,18 +327,38 @@ calls **every** product, team and tenant operation as someone with no membership
 dynamic client registration (RFC 7591), authorization code with PKCE S256, resource indicators
 (RFC 8707) limited to the MCP endpoint, one-hour access tokens and rotating 30-day refresh tokens
 (both configurable; reusing a rotated refresh token revokes the whole connection)
-([`apps/server/src/auth/oauth.ts`](../../apps/server/src/auth/oauth.ts)). The consent page tells the
+([`apps/server/src/auth/oauth.ts`](../../apps/server/src/auth/oauth.ts)). A code is exchanged, and
+a refresh token rotated, once: of requests that arrive together one succeeds, and a refresh
+token's second use, even a concurrent one, is reuse. The consent page tells the
 person the agent will act as them, what it can reach (everything, one organization or one
 product, named), and that the passages it reads go to whoever runs the agent. Any
-MCP client registers itself, so no client is configured in advance. The consent page's security policy
+MCP client registers itself, so no client is configured in advance, and any client may call
+itself anything: the consent page shows the name in quotation marks as the name the agent gave
+itself, which WhatBuild has not verified, and says where Allow hands the connection, the redirect
+URI's host for `https`, or "an app on this computer" for loopback `http` and private-use schemes.
+The consent page's security policy
 allows its form to reach only WhatBuild and that client's registered callback, the one place Allow
-redirects to. A
+and Deny redirect to. Nothing reaches that callback before the person chooses: an authorization
+request in error (a response type other than `code`, no PKCE S256, a resource that is not an MCP
+endpoint) answers `400` on WhatBuild's own page, naming the OAuth error, signed in or not
+([RFC 9700 §4.11.2](https://www.rfc-editor.org/rfc/rfc9700#section-4.11.2)).
+
+Registration is bounded, since anyone may register: at most 10 redirect URIs of at most 500
+characters (`400 invalid_redirect_uri`), and a name of at most 100 characters, with control and
+format characters removed. At most 50 registrations an hour may be waiting for their first
+connection; past that, registration answers `429 rate_limited` with `Retry-After`, and a
+registration that led to a connection stops counting. A registration that never led to a
+connection is removed after seven days; one that ever did is kept. Request bodies to `/oauth/*`
+are limited to 64 KB (`413`, `invalid_request`).
+
+A
 token is the person: it never widens what they can do. It is bound to the resource it was approved
 for, which must be one of the MCP endpoints (`invalid_target` otherwise), and serves that endpoint
 and the ones inside it only: a token approved for `/mcp/t/acme` works on `/mcp/t/acme` and on
 Acme's product endpoints, and answers `401` on `/mcp` and on any other organization. A refresh
-keeps the resource. Connected agents are listed, each with what it can reach, and disconnected on
-the Connect an agent page.
+keeps the resource. Connected agents are listed, each with what it can reach and who holds the
+connection (the hosts of its client's redirect URIs, or an app on the person's computer), and
+disconnected on the Connect an agent page.
 
 **No personal access tokens.** REST answers the web app's session only, and refuses any bearer
 token; an agent connects over MCP with OAuth, so every agent connection is one a person approved in

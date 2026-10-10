@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { escapeHtml, json, newId, randomToken, sha256Hex, type Db } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
+import { sql } from "kysely";
 import type { ServerConfig } from "../config.ts";
 import { connectorBound, connectorReach, type ConnectorReach } from "./connector-reach.ts";
 import { accountBySession, ACCESS_PREFIX, REFRESH_PREFIX, SESSION_COOKIE } from "./identity.ts";
@@ -16,9 +17,51 @@ import { accountBySession, ACCESS_PREFIX, REFRESH_PREFIX, SESSION_COOKIE } from 
 
 const SCOPE = "whatbuild";
 
-function oauthError(c: Context, status: 400 | 401, error: string, description: string) {
+/** Registration is open to anyone, so what one may store is bounded. */
+export const REDIRECT_URI_MAX_CHARS = 500;
+/** Registrations in the last hour that have not yet led to a connection, beyond which registration waits. */
+export const PENDING_REGISTRATIONS_PER_HOUR = 50;
+/** A registration that never led to a connection is forgotten after this many days. */
+export const UNUSED_CLIENT_DAYS = 7;
+
+function oauthError(c: Context, status: 400 | 401 | 429, error: string, description: string) {
   c.header("Cache-Control", "no-store");
   return c.json({ error, error_description: description }, status);
+}
+
+/** The name a client gives itself, as shown to people: printable characters, spaces collapsed, at most 100. */
+function clientName(v: unknown): string {
+  const name = typeof v === "string" ? v.replace(/[\p{Cc}\p{Cf}]/gu, "").replace(/\s+/g, " ").trim().slice(0, 100).trim() : "";
+  return name || "An MCP client";
+}
+
+/**
+ * Where redirect URIs hand a connection: hosts on the web (https), or an app on the person's own
+ * computer (loopback http, a private-use scheme), which nobody elsewhere can receive.
+ */
+export function returnsTo(uris: string[]): { hosts: string[]; local: boolean } {
+  const hosts = new Set<string>();
+  let local = false;
+  for (const u of uris) {
+    const url = new URL(u);
+    if (url.protocol === "https:") hosts.add(url.host);
+    else local = true;
+  }
+  return { hosts: [...hosts], local };
+}
+
+/**
+ * Housekeeping, from the worker: authorization codes a day past their expiry, then registrations
+ * that never led to a connection, after UNUSED_CLIENT_DAYS. A client that ever held a token keeps
+ * its registration, since MCP clients remember theirs.
+ */
+export async function pruneOAuthClients(db: Db) {
+  await sql`delete from oauth_codes where expires_at < now() - interval '1 day'`.execute(db);
+  await sql`
+    delete from oauth_clients c
+    where c.created_at < now() - make_interval(days => ${UNUSED_CLIENT_DAYS})
+      and not exists (select 1 from oauth_tokens t where t.client_id = c.client_id)
+      and not exists (select 1 from oauth_codes o where o.client_id = c.client_id)`.execute(db);
 }
 
 function validRedirectUri(u: string): boolean {
@@ -50,10 +93,22 @@ function reachSentence(r: ConnectorReach): string {
   return `It can read and change everything you can in the product <strong>${where}, and nothing outside it.`;
 }
 
-function consentPage(p: { client: string; account: string; email: string; reach: ConnectorReach; hidden: Record<string, string>; csrf: string }) {
+/**
+ * Where Allow hands the connection, which is what a person can check: any client may call itself
+ * anything, but only the holder of its redirect URI receives the code.
+ */
+function destinationSentence(redirect: string): string {
+  const { hosts } = returnsTo([redirect]);
+  return hosts.length
+    ? `Allow hands this connection to <strong>${escapeHtml(hosts[0]!)}</strong>. Allow only if that’s where you’re connecting an agent right now.`
+    : "Allow hands this connection to <strong>an app on this computer</strong>. Allow only if you’re connecting an agent on this computer right now.";
+}
+
+function consentPage(p: { client: string; redirect: string; account: string; email: string; reach: ConnectorReach; hidden: Record<string, string>; csrf: string }) {
   const inputs = Object.entries(p.hidden)
     .map(([k, v]) => `<input type="hidden" name="${escapeHtml(k)}" value="${escapeHtml(v)}">`)
     .join("");
+  const named = `“${escapeHtml(p.client)}”`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Connect ${escapeHtml(p.client)} · WhatBuild</title>
 <style>
@@ -71,7 +126,9 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 button[value=allow]{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
 button[value=allow]:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
 </style></head><body><main>
-<h1>Let ${escapeHtml(p.client)} work in WhatBuild as you?</h1>
+<h1>Let ${named} work in WhatBuild as you?</h1>
+<p class="muted">${named} is the name the agent gave itself. WhatBuild hasn’t verified it.</p>
+<p>${destinationSentence(p.redirect)}</p>
 <p>Signed in as <strong>${escapeHtml(p.account)}</strong> (${escapeHtml(p.email)}).</p>
 <p>${reachSentence(p.reach)} Its changes are recorded as yours, made through the agent.</p>
 <p class="muted">What it reads goes to whoever runs the agent, under their terms, not ours.</p>
@@ -124,9 +181,22 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
     if (!body || !Array.isArray(body.redirect_uris) || !body.redirect_uris.length || body.redirect_uris.length > 10)
       return oauthError(c, 400, "invalid_redirect_uri", "redirect_uris must list 1 to 10 URIs.");
     const uris = body.redirect_uris.map(String);
+    if (uris.some((u) => u.length > REDIRECT_URI_MAX_CHARS)) return oauthError(c, 400, "invalid_redirect_uri", `A redirect URI is at most ${REDIRECT_URI_MAX_CHARS} characters.`);
     const bad = uris.find((u) => !validRedirectUri(u));
     if (bad) return oauthError(c, 400, "invalid_redirect_uri", `Not an acceptable redirect URI: ${bad}. Use https, http on a loopback host, or a private-use scheme.`);
-    const name = typeof body.client_name === "string" && body.client_name.trim() ? body.client_name.trim().slice(0, 100) : "An MCP client";
+    // Anyone may register, so registrations that have not yet led to a connection are counted, like sign-in links.
+    const hourAgo = Date.now() - 3600_000;
+    const pending = await db
+      .selectFrom("oauth_clients as c")
+      .select((eb) => [eb.fn.countAll<string>().as("n"), eb.fn.min("c.created_at").as("oldest")])
+      .where("c.created_at", ">", new Date(hourAgo).toISOString())
+      .where(({ not, exists, selectFrom }) => not(exists(selectFrom("oauth_tokens as t").select("t.token_hash").whereRef("t.client_id", "=", "c.client_id"))))
+      .executeTakeFirst();
+    if (Number(pending?.n ?? 0) >= PENDING_REGISTRATIONS_PER_HOUR) {
+      c.header("Retry-After", String(Math.max(1, Math.ceil((Date.parse(String(pending!.oldest)) - hourAgo) / 1000))));
+      return oauthError(c, 429, "rate_limited", "Too many MCP clients registered in the last hour without connecting. Try again later.");
+    }
+    const name = clientName(body.client_name);
     const client_id = `wbc_${newId().toLowerCase()}`;
     await db.insertInto("oauth_clients").values({ client_id, client_name: name, redirect_uris: json(uris) }).execute();
     return c.json(
@@ -152,16 +222,17 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
     if (!client) return c.text("Unknown client. The MCP client must register first.", 400);
     const redirect = q["redirect_uri"] ?? "";
     if (!client.redirect_uris.includes(redirect)) return c.text("That redirect URI is not registered for this client.", 400);
-    const back = (params: Record<string, string>) => {
-      const u = new URL(redirect);
-      for (const [k, v] of Object.entries({ ...params, ...(q["state"] ? { state: q["state"] } : {}), iss: base })) u.searchParams.set(k, v);
-      return c.redirect(u.toString());
+    // Anyone can register a client with any https redirect URI, so nothing goes back to it until a
+    // person has chosen Allow or Deny: an error before that is said here (RFC 9700, section 4.11.2).
+    const refuse = (error: string, description: string) => {
+      c.header("Cache-Control", "no-store");
+      return c.text(`This MCP client asked for something WhatBuild doesn't do (${error}): ${description} Tell whoever makes the client.`, 400);
     };
-    if (q["response_type"] !== "code") return back({ error: "unsupported_response_type" });
-    if (!q["code_challenge"] || q["code_challenge_method"] !== "S256") return back({ error: "invalid_request", error_description: "PKCE with S256 is required." });
+    if (q["response_type"] !== "code") return refuse("unsupported_response_type", "Only the authorization code flow is supported.");
+    if (!q["code_challenge"] || q["code_challenge_method"] !== "S256") return refuse("invalid_request", "PKCE with S256 is required.");
     const resource = q["resource"] ?? `${base}/mcp`;
     if (!resource.startsWith(`${base}/mcp`) || connectorBound(new URL(resource).pathname) === undefined)
-      return back({ error: "invalid_target", error_description: "This server issues tokens only for its MCP endpoints: /mcp, /mcp/t/<organization> and /mcp/t/<organization>/<team>/<product>." });
+      return refuse("invalid_target", "This server issues tokens only for its MCP endpoints: /mcp, /mcp/t/<organization> and /mcp/t/<organization>/<team>/<product>.");
     const session = getCookie(c, SESSION_COOKIE);
     const account = session ? await accountBySession(db, session) : null;
     if (!account) return c.redirect(`/signin?next=${encodeURIComponent(c.req.url.replace(/^https?:\/\/[^/]+/, ""))}`);
@@ -174,6 +245,7 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
     return c.html(
       consentPage({
         client: client.client_name,
+        redirect,
         account: account.display_name,
         email: account.email,
         reach: await connectorReach(db, account.account_id, resource),
@@ -212,10 +284,10 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
     return c.redirect(u.toString());
   });
 
-  const issue = async (client_id: string, account_id: string, resource: string, family: string) => {
+  const issue = async (into: Db, client_id: string, account_id: string, resource: string, family: string) => {
     const access = `${ACCESS_PREFIX}${randomToken(30)}`;
     const refresh = `${REFRESH_PREFIX}${randomToken(30)}`;
-    await db
+    await into
       .insertInto("oauth_tokens")
       .values([
         { token_hash: sha256Hex(access), kind: "access", client_id, account_id, resource, scope: SCOPE, family_id: family, expires_at: new Date(Date.now() + config.accessTokenSeconds * 1000).toISOString() },
@@ -232,26 +304,48 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
     const client = f["client_id"] ? await loadClient(f["client_id"]) : undefined;
     if (!client) return oauthError(c, 401, "invalid_client", "Unknown client_id.");
     if (f["grant_type"] === "authorization_code") {
-      const row = await db.selectFrom("oauth_codes").selectAll().where("code_hash", "=", sha256Hex(f["code"] ?? "")).executeTakeFirst();
-      if (!row || row.used_at || Date.parse(row.expires_at) < Date.now() || row.client_id !== client.client_id)
-        return oauthError(c, 400, "invalid_grant", "The authorization code is invalid, expired, or already used.");
-      await db.updateTable("oauth_codes").set({ used_at: new Date().toISOString() }).where("code_hash", "=", row.code_hash).execute();
+      const now = new Date().toISOString();
+      // Once: of requests that arrive together, only the one that marks the code used goes on.
+      const row = await db
+        .updateTable("oauth_codes")
+        .set({ used_at: now })
+        .where("code_hash", "=", sha256Hex(f["code"] ?? ""))
+        .where("client_id", "=", client.client_id)
+        .where("used_at", "is", null)
+        .where("expires_at", ">", now)
+        .returning(["account_id", "redirect_uri", "code_challenge", "resource"])
+        .executeTakeFirst();
+      if (!row) return oauthError(c, 400, "invalid_grant", "The authorization code is invalid, expired, or already used.");
       if (f["redirect_uri"] !== row.redirect_uri) return oauthError(c, 400, "invalid_grant", "redirect_uri does not match the authorization request.");
       const challenge = createHash("sha256").update(f["code_verifier"] ?? "").digest("base64url");
       if (challenge !== row.code_challenge) return oauthError(c, 400, "invalid_grant", "PKCE verification failed.");
       if (f["resource"] && f["resource"] !== row.resource) return oauthError(c, 400, "invalid_target", "resource does not match the authorization request.");
-      return c.json(await issue(client.client_id, row.account_id, row.resource, newId()));
+      return c.json(await issue(db, client.client_id, row.account_id, row.resource, newId()));
     }
     if (f["grant_type"] === "refresh_token") {
-      const row = await db.selectFrom("oauth_tokens").selectAll().where("token_hash", "=", sha256Hex(f["refresh_token"] ?? "")).where("kind", "=", "refresh").executeTakeFirst();
-      if (!row || row.client_id !== client.client_id || Date.parse(row.expires_at) < Date.now()) return oauthError(c, 400, "invalid_grant", "The refresh token is invalid or expired.");
-      if (row.revoked_at) {
-        // A reused refresh token means it leaked: revoke the whole family.
-        await db.updateTable("oauth_tokens").set({ revoked_at: new Date().toISOString() }).where("family_id", "=", row.family_id).where("revoked_at", "is", null).execute();
-        return oauthError(c, 400, "invalid_grant", "This refresh token was already used; the connection has been revoked. Sign in again.");
-      }
-      await db.updateTable("oauth_tokens").set({ revoked_at: new Date().toISOString() }).where("token_hash", "=", row.token_hash).execute();
-      return c.json(await issue(client.client_id, row.account_id, row.resource, row.family_id));
+      const hash = sha256Hex(f["refresh_token"] ?? "");
+      const now = new Date().toISOString();
+      // Rotation is one transaction: a second use waits on the row, then finds it revoked, and so
+      // is taken as reuse after the first use's tokens exist, which the reuse then revokes too.
+      const rotated = await db.transaction().execute(async (trx) => {
+        const row = await trx
+          .updateTable("oauth_tokens")
+          .set({ revoked_at: now })
+          .where("token_hash", "=", hash)
+          .where("kind", "=", "refresh")
+          .where("client_id", "=", client.client_id)
+          .where("revoked_at", "is", null)
+          .where("expires_at", ">", now)
+          .returning(["account_id", "resource", "family_id"])
+          .executeTakeFirst();
+        return row ? issue(trx, client.client_id, row.account_id, row.resource, row.family_id) : null;
+      });
+      if (rotated) return c.json(rotated);
+      const row = await db.selectFrom("oauth_tokens").select(["client_id", "family_id", "expires_at", "revoked_at"]).where("token_hash", "=", hash).where("kind", "=", "refresh").executeTakeFirst();
+      if (!row || !row.revoked_at || row.client_id !== client.client_id || Date.parse(row.expires_at) < Date.now()) return oauthError(c, 400, "invalid_grant", "The refresh token is invalid or expired.");
+      // A reused refresh token means it leaked: revoke the whole family.
+      await db.updateTable("oauth_tokens").set({ revoked_at: new Date().toISOString() }).where("family_id", "=", row.family_id).where("revoked_at", "is", null).execute();
+      return oauthError(c, 400, "invalid_grant", "This refresh token was already used; the connection has been revoked. Sign in again.");
     }
     return oauthError(c, 400, "unsupported_grant_type", "Use authorization_code or refresh_token.");
   });

@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-10-07}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -245,14 +245,15 @@ deployment is involved
 - **Cookie-carrying writes must come from the app's own origin**, on every route, because
   `SameSite=Lax` is not enough on a shared parent domain.
 - **Request bodies** under `/api/v1` are limited to 5 MB; files travel through upload grants.
+  Under `/auth` and `/oauth`, which anyone may call, they are limited to 64 KB.
 - **URL fetch is SSRF-hardened:** HTTPS only, public addresses only (re-checked after every
   redirect and after DNS resolution, in the lookup the connection itself uses: a name with any
   private address, including an IPv4-mapped IPv6 one, is refused), size and time caps, no
   credentials forwarded.
 - **Migrations** are forward-only SQL, applied by `whatbuild migrate` as a separate step before a
   new image serves traffic. An export bundle records its format version.
-- **Observability:** one structured log line per request with method, path (ids masked), status
-  and duration. **Never** log source content, Markdown bodies, passage text, email addresses, or
+- **Observability:** one structured log line per request with method, path (ids masked, and the
+  invitation and sandbox invitation links, `/invite/:token` and `/join/:code`), status and duration. **Never** log source content, Markdown bodies, passage text, email addresses, or
   tokens. Request ids, principal and tenant ids, operation names and counters are planned.
   ◆ Decision: operational telemetry about the *service* in the logs; usage analytics only in the
   browser, only for people who accept it, and only by screen, never by content or name

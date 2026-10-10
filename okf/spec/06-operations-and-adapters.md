@@ -123,7 +123,9 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
 - Passages: at most 200 segments and 10 minutes per read ([§5.4](05-derived-layer.md)).
 - Lists return summaries — never bodies, HTML, or derived text.
 - REST request bodies are limited to 5 MB (`413 too_large`); file bytes go through upload grants
-  (§6.7).
+  (§6.7). Sign-in (`/auth/*`) and OAuth (`/oauth/*`) bodies are limited to 64 KB (`413`).
+- OAuth client registration: at most 50 an hour waiting for their first connection
+  (`429 rate_limited`), 10 redirect URIs of 500 characters each ([§3.8](03-accounts-teams-and-identity.md)).
 
 ## 6.4 REST
 
@@ -583,7 +585,10 @@ configure but one address. It shows:
 - that the client will ask them to sign in, and a suggestion for a first request;
 - the agents connected now, each with what it can reach ("Only the organization Acme", "Only the
   product Crewboard in Acme", "Every product you can open", from `reach` in
-  `GET /api/v1/me/agents`), when it was last used and a disconnect control;
+  `GET /api/v1/me/agents`), who holds the connection ("Held by claude.ai", "Held by an app on your
+  computer", from `returns_to`: `{ hosts, local }`, the `https` hosts of its client's redirect
+  URIs and whether any is loopback or a private-use scheme), when it was last used and a
+  disconnect control;
 - **a plain statement about the agent's side of the trip**, above the steps: what the agent reads
   goes to whoever runs it, under their terms ([§9.1](09-data-lifecycle.md));
 - a note that the server offers the agent the skill (its instructions name the version), with an

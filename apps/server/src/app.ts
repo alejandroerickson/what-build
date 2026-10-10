@@ -16,6 +16,17 @@ import { uploadRoutes } from "./uploads.ts";
 
 export const SERVER_VERSION = process.env["WHATBUILD_RELEASE"] ?? `dev-${SKILL_VERSION}`;
 
+/** The largest body sign-in and OAuth read. */
+const AUTH_BODY_MAX_BYTES = 64 * 1024;
+
+/**
+ * A request's path as its log line holds it: ids masked, and the two links that are credentials
+ * themselves, an invitation's (/invite/<token>) and a sandbox invitation's (/join/<code>).
+ */
+function loggedPath(path: string): string {
+  return path.replace(/^\/invite\/[^/]+/, "/invite/:token").replace(/^\/join\/[^/]+/, "/join/:code").replace(/[0-9A-HJKMNP-TV-Z]{26}/g, ":id");
+}
+
 export interface Release {
   /** WHATBUILD_RELEASE: a tag such as v0.3.1, a commit, or dev-<skill version> on a development server. */
   version: string;
@@ -95,8 +106,16 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; cl
     await next();
     // Operational telemetry only: never content, email addresses or tokens.
     if (deps.config.env !== "test" && !c.req.path.startsWith("/assets/"))
-      console.log(JSON.stringify({ at: new Date().toISOString(), method: c.req.method, path: c.req.path.replace(/[0-9A-HJKMNP-TV-Z]{26}/g, ":id"), status: c.res.status, ms: Date.now() - started }));
+      console.log(JSON.stringify({ at: new Date().toISOString(), method: c.req.method, path: loggedPath(c.req.path), status: c.res.status, ms: Date.now() - started }));
   });
+
+  // A browser that has reached the app over HTTPS keeps to it for a year. This host only: the
+  // parent domain also serves the public site, and its other names are not this server's to bind.
+  if (deps.config.publicBaseUrl.startsWith("https://"))
+    app.use("*", async (c, next) => {
+      await next();
+      c.header("Strict-Transport-Security", "max-age=31536000");
+    });
 
   // Cookie-carrying writes must come from our own origin, on every route. SameSite=Lax is not
   // enough on a shared parent domain such as run.app, where another service can be "same-site".
@@ -112,6 +131,11 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; cl
     if (c.req.path.startsWith("/api/v1/uploads/")) return next();
     return bodyLimit({ maxSize: REST_BODY_MAX_BYTES, onError: (cx) => cx.json({ error: { code: "too_large", status: 413, message: "Request bodies are limited to 5 MB. Send files through an upload grant." } }, 413) })(c, next);
   });
+
+  // Sign-in and OAuth take small forms and JSON from anyone, so a body past 64 KB is refused unread.
+  const tooLarge = "Request bodies here are limited to 64 KB.";
+  app.use("/oauth/*", bodyLimit({ maxSize: AUTH_BODY_MAX_BYTES, onError: (c) => c.json({ error: "invalid_request", error_description: tooLarge }, 413) }));
+  app.use("/auth/*", bodyLimit({ maxSize: AUTH_BODY_MAX_BYTES, onError: (c) => c.json({ error: { code: "too_large", status: 413, message: tooLarge } }, 413) }));
 
   // A public sandbox's overdue reset runs before the request that finds it, so nobody is served
   // what its hour should have erased.

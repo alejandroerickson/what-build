@@ -28,6 +28,8 @@ interface ConnectedAgent {
   client_name: string;
   family_id: string;
   reach: Reach;
+  /** Where the agent's client receives its connection: web hosts, or an app on the computer that connected it. */
+  returns_to: { hosts: string[]; local: boolean };
   last_used_at: string | null;
   created_at: string;
 }
@@ -38,6 +40,12 @@ function reachLabel(r: Reach): string {
   if (r.kind === "all") return "Every product you can open";
   if (r.kind === "tenant") return `Only the organization ${r.name ?? r.path}`;
   return `Only the product ${r.name ?? r.path}${r.name && r.tenant_name ? ` in ${r.tenant_name}` : ""}`;
+}
+
+/** Who holds a connection, since an agent's name is whatever it called itself. */
+function heldBy(r: ConnectedAgent["returns_to"]): string {
+  const places = [...r.hosts, ...(r.local ? ["an app on your computer"] : [])];
+  return places.length ? `Held by ${places.join(" or ")}` : "";
 }
 
 function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {
@@ -289,6 +297,7 @@ function ConnectedSheet() {
               <div className="account-main">
                 <span className="account-name">{a.client_name}</span>
                 <span className="account-reach">{reachLabel(a.reach)}</span>
+                {heldBy(a.returns_to) ? <span className="account-sub">{heldBy(a.returns_to)}</span> : null}
                 <span className="account-sub">
                   Acting as {me.data?.display_name ?? "you"} · connected {formatDate(a.created_at)}
                 </span>

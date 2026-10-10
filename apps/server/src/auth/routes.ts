@@ -8,11 +8,29 @@ import { microsoftSignIn, type ServerConfig } from "../config.ts";
 import { inviteCodeIn, inviteInfo } from "../public-sandbox.ts";
 import { connectorReach } from "./connector-reach.ts";
 import { acceptInvitation, acceptInvitationsForEmail, createSession, findOrCreateAccount, restPrincipal, SESSION_COOKIE } from "./identity.ts";
+import { returnsTo } from "./oauth.ts";
 
-function safeNext(next: string | undefined | null): string {
-  // Only same-origin paths: never an open redirect.
-  if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) return "/";
-  return next;
+const NEXT_BASE = "https://next.invalid";
+
+/**
+ * Where a sign-in returns to: a path on this origin, or "/". Never an open redirect, so it refuses
+ * a scheme or host, any backslash, whitespace or control character (browsers drop tabs and
+ * newlines, which turns "/\t/host" into "//host"), and, in the path, an encoded slash, backslash,
+ * percent sign or control character, so that no later decoding makes one either.
+ */
+export function safeNext(next: string | undefined | null): string {
+  if (!next || next.length > 2000 || !next.startsWith("/") || /[\\\s\p{Cc}\p{Cf}]/u.test(next)) return "/";
+  const path = next.split(/[?#]/, 1)[0]!;
+  if (path.startsWith("//") || /%(2f|5c|25|[01][0-9a-f]|7f)/i.test(path)) return "/";
+  let url: URL;
+  try {
+    url = new URL(next, NEXT_BASE);
+  } catch {
+    return "/";
+  }
+  // Dot segments can collapse into a leading "//" ("/.//host"), so the normalized path is what is checked and returned.
+  const out = `${url.pathname}${url.search}${url.hash}`;
+  return url.origin === NEXT_BASE && !out.startsWith("//") ? out : "/";
 }
 
 /** Enough of an address for its owner to recognize it, not enough to harvest it from a forwarded link: "l••••@example.com". */
@@ -105,9 +123,17 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
 
   app.get("/auth/verify", async (c) => {
     const token = c.req.query("token") ?? "";
-    const row = await db.selectFrom("email_tokens").selectAll().where("token_hash", "=", sha256Hex(token)).executeTakeFirst();
-    if (!row || row.used_at || Date.parse(row.expires_at) < Date.now()) return c.redirect("/signin?error=link_expired");
-    await db.updateTable("email_tokens").set({ used_at: new Date().toISOString() }).where("token_hash", "=", row.token_hash).execute();
+    const now = new Date().toISOString();
+    // Once: of requests that arrive together, only the one that marks the link used signs in.
+    const row = await db
+      .updateTable("email_tokens")
+      .set({ used_at: now })
+      .where("token_hash", "=", sha256Hex(token))
+      .where("used_at", "is", null)
+      .where("expires_at", ">", now)
+      .returning(["email", "redirect"])
+      .executeTakeFirst();
+    if (!row) return c.redirect("/signin?error=link_expired");
     // The place the link was sent for may have gone since: an invitation can fill while the email is in transit.
     const how = await admission(row.email, row.redirect);
     if (!how) return c.redirect("/signin?error=invite_only");
@@ -258,14 +284,17 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     const agents = await db
       .selectFrom("oauth_tokens as t")
       .innerJoin("oauth_clients as c", "c.client_id", "t.client_id")
-      .select(["c.client_name", "t.family_id", "t.resource", (eb) => eb.fn.max("t.last_used_at").as("last_used_at"), (eb) => eb.fn.min("t.created_at").as("created_at")])
+      .select(["c.client_name", "c.redirect_uris", "t.family_id", "t.resource", (eb) => eb.fn.max("t.last_used_at").as("last_used_at"), (eb) => eb.fn.min("t.created_at").as("created_at")])
       .where("t.account_id", "=", p.account_id)
       .where("t.revoked_at", "is", null)
       .where("t.expires_at", ">", new Date().toISOString())
-      .groupBy(["c.client_name", "t.family_id", "t.resource"])
+      .groupBy(["c.client_id", "c.client_name", "c.redirect_uris", "t.family_id", "t.resource"])
       .execute();
-    // A connection keeps the resource it was approved for, so each one reaches one scope.
-    const items = await Promise.all(agents.map(async ({ resource, ...a }) => ({ ...a, reach: await connectorReach(db, p.account_id, resource) })));
+    // A connection keeps the resource it was approved for, so each one reaches one scope; and its
+    // client was given its tokens at a registered redirect URI, so that is where the connection is held.
+    const items = await Promise.all(
+      agents.map(async ({ resource, redirect_uris, ...a }) => ({ ...a, reach: await connectorReach(db, p.account_id, resource), returns_to: returnsTo(redirect_uris) })),
+    );
     return c.json({ items });
   });
 

@@ -50,12 +50,23 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 **Identity and sessions** in `apps/server/src/auth/` ([decision](../decisions/built-in-identity-and-oauth.md),
 [decision](../decisions/invitations-belong-to-their-address.md), [§3.2, §3.8](../spec/03-accounts-teams-and-identity.md)).
 
-- No passwords. An email link is marked used on first use, lasts 15 minutes, five an hour per
-  address. Google needs `email_verified` and WhatBuild as audience; Microsoft accepts one
-  configured directory (`aud`, `tid`, `iss`). Both use PKCE S256 and a random `state` in an
-  `HttpOnly` cookie scoped to the flow for ten minutes. Development sign-in is refused in production.
+- No passwords. An email link works once, however many requests bring it at the same moment: one
+  conditional update marks it used, and only the request that made it signs in. It lasts
+  15 minutes, five an hour per address. Google needs `email_verified` and WhatBuild as audience;
+  Microsoft accepts one configured directory (`aud`, `tid`, `iss`). Both use PKCE S256 and a
+  random `state` in an `HttpOnly` cookie scoped to the flow for ten minutes. Development sign-in is
+  refused in production.
+- Where a sign-in returns to (`next`) is a path on this origin or `/` (`safeNext`, `routes.ts`): a
+  scheme or host, a backslash, whitespace or a control character anywhere, or an encoded slash,
+  backslash, percent sign or control character in the path, sends the person to `/`, and so does a
+  path that normalizes to begin with `//`.
 - Sessions are 256-bit random tokens in `wb_session` (`HttpOnly`, `SameSite=Lax`, `Secure` on
-  HTTPS), stored as SHA-256 hashes, for 30 days, deleted on sign-out.
+  HTTPS), stored as SHA-256 hashes, for 30 days, deleted on sign-out. When the public URL is
+  `https`, every response carries `Strict-Transport-Security: max-age=31536000`, for the app's own
+  host: not `includeSubDomains`, since the parent domain also names the public site, and not
+  preloaded (`app.ts`).
+- Bodies sent to `/auth/*` and `/oauth/*` are refused past 64 KB, before they are read, whether
+  or not they declare a length (`app.ts`).
 - A write other than GET, HEAD or OPTIONS that carries a `wb_` cookie is refused when its `Origin`
   is another site (`apps/server/src/app.ts`); REST checks again (`checkOrigin` in `rest.ts`).
 - Invitations are 256-bit links stored as hashes, for 7 days, accepted only by the account with the
@@ -65,13 +76,26 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 **Agents and OAuth** ([decision](../decisions/built-in-identity-and-oauth.md),
 [decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). `apps/server/src/auth/oauth.ts`.
 
-- Dynamic registration; authorization code with PKCE S256 required; codes for ten minutes and
-  once, bound to client, redirect URI and challenge; one-hour access tokens; 30-day refresh tokens
-  that rotate, reuse revoking the connection; every token stored as a hash. Redirect URIs are
-  `https`, loopback `http` or a private-use scheme, matched exactly.
-- The consent page names the client, the person and what the agent will reach; it cannot be
-  framed, its form carries a token from a `SameSite=Strict` cookie, and it posts only to WhatBuild
-  and the client's registered callback.
+- Dynamic registration, open to anyone and bounded: at most 10 redirect URIs of 500 characters
+  each, and a name of 100 printable characters (control and format characters removed); at most
+  50 registrations an hour that have not yet led to a connection, then `429 rate_limited` with
+  `Retry-After`; and the worker forgets a registration that never led to one after seven days.
+- Authorization code with PKCE S256 required; codes for ten minutes and once, bound to client,
+  redirect URI and challenge; one-hour access tokens; 30-day refresh tokens that rotate, reuse
+  revoking the connection; every token stored as a hash. A code is spent, and a refresh token
+  rotated, by one conditional update, so of requests that arrive together one succeeds; rotation
+  is one transaction, so a concurrent second use is reuse, and revokes what the first one issued.
+  Redirect URIs are `https`, loopback `http` or a private-use scheme, matched exactly.
+- The consent page names the client in quotation marks as the name it gave itself, which WhatBuild
+  has not verified, and says where Allow hands the connection: the redirect URI's host, or an app
+  on this computer for loopback and private-use schemes. It names the person and what the agent
+  will reach; it cannot be framed, its form carries a token from a `SameSite=Strict` cookie, and it
+  posts only to WhatBuild and the client's registered callback. The connected-agents list says
+  who holds each connection the same way.
+- Nothing goes to a client's redirect URI before the person chooses Allow or Deny: an error in an
+  authorization request (response type, PKCE, resource) is said on WhatBuild's own page, signed in
+  or not, so no registered URI is reached from WhatBuild's domain without a person's choice
+  ([RFC 9700 §4.11.2](https://www.rfc-editor.org/rfc/rfc9700#section-4.11.2)).
 - A token serves its own MCP endpoint and those inside it (`resourceCovers`, `connector-reach.ts`);
   a scoped endpoint refuses every call outside it with `403 outside_connector_scope` before any
   handler runs (`packages/core/src/connector-scope.ts`).
@@ -146,9 +170,12 @@ holds the sandbox's lock alone, drops its pending jobs and puts the baseline bac
 **Secrets, logs and delivery.** Configuration comes from the environment (`config.ts`); secrets
 live in Secret Manager or Key Vault (`deploy/cloud-run/setup.sh`, `deploy/azure/containerapp.yaml`),
 and the runtime identity reaches only the files bucket, its secrets and its database. Without a mail
-provider, email links are off rather than logged. Log lines hold method, masked path, status and
-time, never bodies, query strings or headers; an unexpected error answers `500` without detail
-(`app.ts`). The image is built from an allow-list (`.dockerignore`) and runs as `node` with
+provider, email links are off rather than logged, and production refuses to start with a mailer
+that would print them or deliver nothing (`WHATBUILD_MAILER` other than `smtp` or `none`), or with
+one it does not know (`config.ts`). Log lines hold method, masked path, status and time, never
+bodies, query strings or headers: the path's ids are masked, and so are the two links that are
+credentials themselves, `/invite/:token` and `/join/:code`. An unexpected error answers `500`
+without detail (`app.ts`). The image is built from an allow-list (`.dockerignore`) and runs as `node` with
 `NODE_ENV=production`. CI gives pull requests a read-only token; production moves only on an
 approved release ([decision](../decisions/production-runs-releases-after-approval.md)). The Worker
 (`deploy/cloudflare/worker.js`) sets `X-Forwarded-Host`, which `site.ts` uses only to pick a page.

@@ -151,8 +151,11 @@ describe("a token approved for a scoped connector", () => {
     expect(product).toContain("in the product <strong>Onboarding</strong> (Acme), and nothing outside it");
     const all = await (await fetch(authorize("/mcp"), { headers: { cookie: alice.cookie } })).text();
     expect(all).toContain("in every product you can open");
+    // Said on WhatBuild's page: nothing goes back to a client before the person decides.
     const bad = await fetch(authorize("/mcp/elsewhere"), { headers: { cookie: alice.cookie }, redirect: "manual" });
-    expect(new URL(bad.headers.get("location")!).searchParams.get("error")).toBe("invalid_target");
+    expect(bad.status).toBe(400);
+    expect(bad.headers.get("location")).toBeNull();
+    expect(await bad.text()).toContain("invalid_target");
 
     await h.connectAgent(alice, "Product agent", `/mcp/t/${onboarding}`);
     const agents = (await alice.api("GET", "/api/v1/me/agents")).body.items as { client_name: string; reach: Record<string, unknown> }[];

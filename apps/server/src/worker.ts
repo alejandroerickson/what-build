@@ -1,6 +1,7 @@
 import { hostname } from "node:os";
 import { blobsSafeToDelete, lockSandbox, markExportFailed, runDerivation, runEvidenceMove, runExport, type Env } from "@whatbuild/core";
 import { sql } from "kysely";
+import { pruneOAuthClients } from "./auth/oauth.ts";
 
 const SIDECARS = ["segments.jsonl", "text.md", "outline.md", "manifest.json"];
 /** A job is tried at most this many times, whether it failed or the process stopped while running it. */
@@ -79,11 +80,12 @@ export class Worker {
 
   private lastPrune = 0;
 
-  /** Housekeeping, at most hourly: finished jobs after a week; abandoned upload grants and their bytes. */
+  /** Housekeeping, at most hourly: finished jobs after a week; OAuth registrations nobody connected with; abandoned upload grants and their bytes. */
   private async prune() {
     if (Date.now() - this.lastPrune < 3600_000) return;
     this.lastPrune = Date.now();
     await sql`delete from jobs where done_at < now() - interval '7 days'`.execute(this.env.db);
+    await pruneOAuthClients(this.env.db);
     // A sandbox's counters: a minute's are read within that minute, a day's until the next reset.
     await sql`delete from sandbox_usage where (bucket = 'minute' and starts_at < now() - interval '1 hour') or starts_at < now() - interval '3 days'`.execute(this.env.db);
     const tenants = await sql<{ tenant_id: string }>`select distinct tenant_id from tenants`.execute(this.env.db);

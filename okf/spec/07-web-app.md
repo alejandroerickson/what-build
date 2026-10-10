@@ -601,7 +601,8 @@ never described as deleting. A list row showing an archived object says *Archive
 - **Connect an agent** (`/connect`, or `…/connect` inside a product). [§6.8](06-operations-and-adapters.md):
   what the agent can reach (one product, one organization, or everything) and the MCP server URL for
   that scope, with a sentence saying WhatBuild refuses anything outside it; sign-in; a first request
-  to try; connected agents, each with what it can reach, and disconnect; the plain statement about
+  to try; connected agents, each with what it can reach and who holds the connection, and
+  disconnect; the plain statement about
   where an agent sends what it reads, and an optional skill download. Connected agents appear here
   and nowhere else.
 - **Product settings** (`…/settings`, in the product's shell): name, slug and product concept; **People**;
