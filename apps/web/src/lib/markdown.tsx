@@ -310,3 +310,41 @@ export function Markdown({ source, className = "prose", headingShift = 1, eviden
   const ev = evidence && !evidence.labels ? { ...evidence, labels: citationLabels(citedSourceIds(source ?? ""), evidence.titles) } : evidence;
   return <div className={className}>{block(tokens, "md", headingShift, ev)}</div>;
 }
+
+/**
+ * The words of a Markdown text without its markers, on one line, for a summary that is clamped to a
+ * line or two (a product card's concept): the same lexer as `Markdown`, so what reads as emphasis
+ * or a heading there reads as plain words here, never as asterisks and hashes.
+ */
+export function markdownText(source: string): string {
+  const words = (tokens: Token[] | undefined): string =>
+    (tokens ?? [])
+      .map((t) => {
+        switch (t.type) {
+          case "space":
+          case "hr":
+          case "br":
+            return " ";
+          case "html":
+            return " " + t.raw.replace(/<(script|style|iframe|object|svg|template)[\s\S]*?<\/\1>/gi, "").replace(/<\/?[a-z][^>]*>/gi, "") + " ";
+          case "list":
+            return (t as Tokens.List).items.map((it) => ` ${words(it.tokens)} `).join("");
+          case "table": {
+            const tb = t as Tokens.Table;
+            return [tb.header, ...tb.rows].map((r) => r.map((c) => ` ${words(c.tokens)} `).join("")).join("");
+          }
+          case "code":
+          case "codespan":
+          case "escape":
+          case "image":
+            return decode((t as { text: string }).text);
+          default: {
+            const inner = (t as { tokens?: Token[] }).tokens;
+            if (inner) return t.type === "heading" || t.type === "paragraph" || t.type === "blockquote" ? ` ${words(inner)} ` : words(inner);
+            return "text" in t ? decode(String(t.text)) : "";
+          }
+        }
+      })
+      .join("");
+  return words(new Lexer({ gfm: true }).lex(source ?? "")).replace(/\s+/g, " ").trim();
+}

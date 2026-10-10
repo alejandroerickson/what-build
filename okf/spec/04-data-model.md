@@ -411,7 +411,7 @@ An append-only event log, written in the same transaction as the mutation that c
 | `action` | What happened, e.g. `created`, `reviewed`, `archived`, `derived`. |
 | `entity_type`, `entity_id`, `entity_title` | What was touched. |
 | `actor`, `channel` | Actor snapshot; the surface (`web`, `rest`, `mcp`), or none for the system. |
-| `summary` | ≤ 280 chars, generated: "Marked confirmed with high confidence", "Parsed call.vtt into 412 passages". |
+| `summary` | ≤ 280 chars, generated: "Marked confirmed with high confidence", "Parsed call.vtt into 412 passages", "Added a note on ¶4–6" (¶4 for one passage). |
 
 - **It never contains content.** No bodies, no passage text, no HTML, no email addresses. The
   summary names objects; it does not quote them.

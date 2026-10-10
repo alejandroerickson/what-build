@@ -126,7 +126,7 @@ wordmark, the question "What to build?", the tagline "Product discovery at the s
 Engineering.", two sentences on what the app does, and a link to Connect an agent. Beside it, small and
 quiet, the WhatBuild journey: Idea, Evidence, Exploration and Story, each with a line on what
 it holds. It carries no counts; those are on each product below. Below, one sheet per organization, headed by its name alone, lists its active products (name,
-product concept, last update, and the team only when the organization has more than one), each
+product concept as plain words clamped to two lines, its Markdown markers dropped, last update, and the team only when the organization has more than one), each
 with links to Idea, Evidence, Exploration and Story and their counts, so any section of any product
 is one click away. A product where the person is a reader says "You read this product's Story."
 in place of its concept, and links to the Story alone, with its count. Team admins get **New product**, a dialog on the overview (`?create=1`), so
@@ -279,7 +279,9 @@ The sources, and everything for reading them.
   tags and its date captured under the title, and at its end "Added <when> by <who>", or "Updated
   <when> by <who>" when the list is sorted by date updated. The header
   counts the sources listed, with "of N" live sources while filters narrow the list (left out once archived
-  sources are included). Archived rows are muted and marked Archived. Rows whose titles match
+  sources are included). While more pages wait to load, the count is still exact when
+  `sources.facets` knows it: with no filter, one tag or one person; only otherwise is it the rows
+  loaded so far with a plus ("50+"). Archived rows are muted and marked Archived. Rows whose titles match
   another listed row also name their primary file, so the twins can be told apart.
 - **Source page.** A source is the busiest object in the app, so the page is dense on purpose.
   - **Header:** the title and the actions menu, nothing else; every property is in the inspector.
@@ -544,7 +546,10 @@ A quiet **Activity page** (`…/activity`), not a drawer and not a destination: 
 **Activity** in the product's panel, and from a source's details, which open the page filtered to that
 source. It is one log for people and agents together, newest first ([§4.10](04-data-model.md)).
 Each entry reads as a sentence with the actor, the surface, and a link to the object: "Sam, via
-claude-desktop, confirmed an assumption — 14:02". The kind of object changed (`?entity_type=`) or
+claude-desktop, confirmed an assumption — 14:02". The surface is "in the app", "through the API" or
+"via <client>"; what WhatBuild does by itself, such as parsing a file, has no surface and reads "on
+the server", however the file was uploaded. A note's passages read as the app writes them, ¶4 or
+¶4–6. The kind of object changed (`?entity_type=`) or
 one object (`&entity_id=`) narrows it, held in the URL.
 
 This is how a person answers "what did my colleague's agent just do to my product" without reading
