@@ -1,9 +1,9 @@
 ---
 type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
-description: What the production deployment is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, cost, names, and useful commands.
+description: What the production deployment is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, cost, names, and useful commands; backups and the dev deployment have guides of their own.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-10-03}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -28,6 +28,10 @@ Before each new revision serves traffic, the same image runs as the Cloud Run Jo
 built by the repository's [`Dockerfile`](../../Dockerfile); migrations are the forward-only SQL
 files in `apps/server/src/migrations/`.
 
+What a deployment keeps and how to restore it is in [Backups](backups.md). The maintainer also
+runs a second deployment laid out the same way, the [dev deployment](dev-deployment.md), which
+holds a copy of production and rehearses releases before production moves.
+
 ## Setting it up
 
 From a clone, signed in to `gcloud` with rights to create resources in the project. `PROJECT_ID`
@@ -44,61 +48,29 @@ PROJECT_ID=my-whatbuild DATABASE_URL='postgres://user:pass@host/db?sslmode=requi
 application and again by Postgres policies; WhatBuild refuses to start in production as a role
 that is a superuser or has `BYPASSRLS`, because the second layer would silently not exist. The
 Cloud SQL path creates an ordinary user. On a hosted Postgres whose default role bypasses RLS,
-create one for WhatBuild: `CREATE ROLE whatbuild LOGIN PASSWORD '…'; CREATE DATABASE whatbuild
-OWNER whatbuild;` and use that in `DATABASE_URL`.
+create one for WhatBuild and use it in `DATABASE_URL`. On Postgres 16 and later, an administrator
+that is not a superuser (Neon's `neondb_owner`, for one) may create a database only for a role it
+may act as, so it takes the role for the moment:
+
+```sql
+CREATE ROLE whatbuild LOGIN PASSWORD '…';
+GRANT whatbuild TO neondb_owner WITH SET TRUE, INHERIT TRUE;
+CREATE DATABASE whatbuild OWNER whatbuild;
+REVOKE whatbuild FROM neondb_owner;
+```
 
 **Backups with another Postgres.** Cloud SQL keeps its own backups; a free tier keeps only hours
-of restore history, so add a nightly logical backup. `setup.sh` does not create it yet. `pg_dump`
-cannot run as the `whatbuild` role, whose own rows the policies hide, so give it a role of its own
-that reads everything and can change nothing: `CREATE ROLE whatbuild_backup LOGIN PASSWORD '…'
-BYPASSRLS; GRANT pg_read_all_data TO whatbuild_backup;` (run by a role that has `BYPASSRLS`
-itself). The dumps go to a bucket of their own, which the backup identity may add to and read but
-not delete from, so a fault in the job cannot erase the dumps before it; they expire after 35 days.
-The job runs the stock `postgres` image, of the same major version as the database:
-
-```bash
-P=my-whatbuild R=northamerica-northeast2 SA=whatbuild-backup@$P.iam.gserviceaccount.com
-gcloud iam service-accounts create whatbuild-backup --project $P
-gcloud storage buckets create gs://$P-backups --project $P --location $R \
-  --uniform-bucket-level-access --public-access-prevention
-echo '{"rule":[{"action":{"type":"Delete"},"condition":{"age":35}}]}' > lifecycle.json
-gcloud storage buckets update gs://$P-backups --lifecycle-file lifecycle.json
-for r in objectCreator objectViewer; do
-  gcloud storage buckets add-iam-policy-binding gs://$P-backups --member serviceAccount:$SA --role roles/storage.$r
-done
-# libpq verifies the certificate against the system's roots only when asked:
-printf '%s' 'postgres://whatbuild_backup:…@host/whatbuild?sslmode=verify-full&sslrootcert=system' |
-  gcloud secrets create whatbuild-backup-database-url --project $P --data-file=-
-gcloud secrets add-iam-policy-binding whatbuild-backup-database-url --project $P \
-  --member serviceAccount:$SA --role roles/secretmanager.secretAccessor
-gcloud run jobs create whatbuild-backup --project $P --region $R --image docker.io/library/postgres:18-alpine \
-  --service-account $SA --set-secrets DATABASE_URL=whatbuild-backup-database-url:latest \
-  --add-volume name=backups,type=cloud-storage,bucket=$P-backups --add-volume-mount volume=backups,mount-path=/backups \
-  --memory 512Mi --max-retries 1 --task-timeout 15m --command sh \
-  --args=-c,'set -eu; f="whatbuild-$(date -u +%Y-%m-%dT%H%MZ).dump"; pg_dump "$DATABASE_URL" --format=custom --file="/tmp/$f"; cp "/tmp/$f" "/backups/$f"'
-gcloud run jobs add-iam-policy-binding whatbuild-backup --project $P --region $R --member serviceAccount:$SA --role roles/run.invoker
-gcloud services enable cloudscheduler.googleapis.com --project $P
-gcloud scheduler jobs create http whatbuild-backup-nightly --project $P --location $R \
-  --schedule '30 1 * * *' --time-zone America/Los_Angeles --http-method POST \
-  --uri https://run.googleapis.com/v2/projects/$P/locations/$R/jobs/whatbuild-backup:run \
-  --oauth-service-account-email $SA
-```
-
-To restore one, create an empty database owned by `whatbuild` and `pg_trgm` in it (as an
-administrator), then restore as `whatbuild` itself, which needs no bypass because the dump turns
-row-level security on after it loads the rows. Leave out the extension's comment, which only the
-extension's owner may set:
-
-```bash
-pg_restore -l whatbuild-….dump | grep -v 'COMMENT - EXTENSION' > restore.list
-pg_restore -d 'postgres://whatbuild:…@host/whatbuild' --no-owner --exit-on-error -L restore.list whatbuild-….dump
-```
+of restore history, so add the nightly logical backup that [Backups](backups.md#the-nightly-dump)
+sets up. `setup.sh` does not create it yet. [Backups](backups.md) also says how to check that
+backups run and how to restore one.
 
 The script is safe to re-run; every step checks before it creates. It enables the APIs, creates the
 image repository, the runtime identity, the bucket, the secrets and (with `CLOUD_SQL=1`) a Cloud SQL
 for PostgreSQL 17 instance with daily backups (seven kept) and point-in-time recovery; then builds
 the first image with Cloud Build (no local Docker), runs the migrations, deploys the service, and
 prints its URL. See the header of [`setup.sh`](../../deploy/cloud-run/setup.sh) for every setting.
+In a project created minutes before, the first build can be refused with `PERMISSION_DENIED`
+while the project's new permissions spread; run the script again.
 
 **Large uploads.** Agents upload through the service's own relay, which takes at most 25 MB per
 file (Cloud Run refuses bodies over 32 MiB). `SIGNED_URLS=1` also hands agents direct-to-bucket
@@ -321,7 +293,7 @@ sends out costs about US$0.12 a GB, and is the one cost that grows with download
 | Images | Artifact Registry `whatbuild` | the ten most recent always kept; others deleted after 30 days |
 | Scheduler job | `whatbuild-sandbox-reset` (with `SANDBOX_TENANT`) | wakes the service a minute after the sandbox's reset hour |
 | Restore points (Neon, optional) | branches `pre-migrate-<time>-<commit>`, secret `whatbuild-neon-api-key` | one per deploy before migrating, the newest three kept; the key reaches only the Neon project and is read by the build identity |
-| Backup (another Postgres, set up by hand) | job `whatbuild-backup`, scheduler job `whatbuild-backup-nightly`, identity `whatbuild-backup`, bucket `<project>-backups`, secret `whatbuild-backup-database-url` | a `pg_dump` each night as a read-only role that bypasses row-level security; the identity adds and reads dumps, never deletes; dumps expire after 35 days |
+| Backup (another Postgres, set up by hand) | job `whatbuild-backup`, scheduler job `whatbuild-backup-nightly`, identity `whatbuild-backup`, bucket `<project>-backups`, secret `whatbuild-backup-database-url` | a `pg_dump` each night as a read-only role that bypasses row-level security; the identity adds and reads dumps, never deletes; dumps expire after 35 days ([Backups](backups.md)) |
 
 ## Useful commands
 

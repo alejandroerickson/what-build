@@ -3,7 +3,7 @@ type: Decision
 title: Manual QA and end-to-end tests may use a copy of production that stays on the maintainer's machine
 description: A copy of the deployment's database and files is pulled with a read-only role into an ignored folder, loaded into its own local database, and served with pending migrations applied; it is never committed, shared or quoted.
 tags: [decision, development, testing, qa, production, privacy]
-generated: {by: agent:claude, at: 2026-10-09}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -23,7 +23,8 @@ agents could use again and again. The repository is public, and the copy is real
   backup role, and the files bucket is copied with it, because passages and outlines are files.
 - Copies live under `.what-build/`, which git ignores, on the maintainer's machine. Nothing from a
   copy is committed, uploaded, shared or quoted in the repository, a commit, an issue or a pull
-  request.
+  request. The dev deployment takes its own copy straight from production, never from a pull
+  ([decision](releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production.md)).
 - A copy is loaded into its own database, `fixture`, in the embedded Postgres, next to the
   synthetic `whatbuild` database, and is served with `pnpm dev:fixture`. That runs pending
   migrations and their jobs as a release would, prints mail instead of sending it, and uses only
@@ -34,8 +35,10 @@ agents could use again and again. The repository is public, and the copy is real
 - Rejected:
   - **An anonymized dump in the repository.** The repository is public, and free text cannot be
     anonymized reliably.
-  - **A shared copy in the cloud.** It would be one more place real data lives, behind one more
-    credential.
+  - **A shared copy in the cloud for QA.** It would be one more place real data lives, behind one
+    more credential. The one copy in the cloud is the dev deployment's, kept for rehearsing releases
+    while WhatBuild has no customers, which the maintainer chose on 2026-10-10
+    ([decision](releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production.md)).
 
 ## Consequences
 

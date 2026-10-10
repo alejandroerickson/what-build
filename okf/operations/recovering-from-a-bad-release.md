@@ -3,7 +3,7 @@ type: System Concept
 title: When a new version breaks a WhatBuild deployment, go back to the last good version, and restore the database first if the new one migrated it.
 description: For the operator of any WhatBuild deployment and the agent working for them; how to see what runs, tell whether the bad version changed the schema, go back on Cloud Run (Neon, Cloud SQL, another Postgres) or Azure, check it, and fix forward.
 tags: [operations, recovery, rollback, migrations, deployment, cloud-run, neon, azure, runbook]
-generated: {by: agent:claude, at: 2026-10-03}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -128,7 +128,7 @@ gcloud run services update whatbuild --project $P --region $R --set-cloudsql-ins
 The password is the one in the current `whatbuild-database-url`; the clone has the same users.
 
 **Another Postgres.** Use its own point-in-time restore if it has one; otherwise restore the most
-recent nightly dump from before the deploy, as [Cloud Run](cloud-run.md) describes under backups,
+recent nightly dump from before the deploy, as [Backups](backups.md#restoring-a-dump) describes,
 into a new database, and point `whatbuild-database-url` at it. Anything written since that dump is
 lost.
 
@@ -169,20 +169,32 @@ records the reverted migration in `schema_migrations`, so a later release runs i
 
 ## 8. Tidy up after a Neon restore
 
-After a restore, `production` hangs from the restore point it was restored to, so that restore
-point cannot be deleted; deploys keep it and print a warning. Once you no longer need the state
-the restore replaced, delete `production-before-restore`, then, when `production` has moved on,
-that restore point:
+Restoring `production` from one of its restore points rearranges the project's branches.
+`production` was the project's root; afterwards the preserved state, `production-before-restore`,
+is the root, the restore point hangs from it, and `production` hangs from the restore point.
+Neon never deletes a root branch (`cannot delete the root branch`), and a branch with children
+cannot be deleted either, so both stay. They use no compute while nobody connects to them; the
+preserved one keeps the writes the restore undid, for reading.
+
+The other restore points now hang from `production-before-restore` rather than from `production`,
+so later deploys no longer remove them. Delete them by hand when they are no longer needed, keeping
+the one `production` hangs from; a free Neon plan allows ten branches:
 
 ```bash
-neon branches delete production-before-restore --project-id <neon-project>
+neon branches list --project-id <neon-project> -o json \
+  | python3 -c 'import json,sys; [print(b["name"], b["id"], "parent", b.get("parent_id")) for b in json.load(sys.stdin)["branches"]]'
+neon branches delete <older pre-migrate-… branch> --project-id <neon-project>
 ```
+
+A deletion takes a few seconds to finish.
 
 ## Before the next release
 
+- **Rehearse it.** A release that adds migrations runs first on the
+  [dev deployment](dev-deployment.md), on a copy of production, through the same build.
 - **Have a restore point for every deploy.** On Neon, deploy with `_NEON_PROJECT` set; Cloud SQL
   and Azure Database for PostgreSQL keep point-in-time recovery; on any Postgres, keep the nightly
-  dump ([Cloud Run](cloud-run.md)).
+  dump ([Backups](backups.md)).
 - **Read the release notes before deploying.** A release that adds migrations is the one that can
   only be undone by a restore.
 - **Pin releases, not `main`.** A deployment that runs tags knows exactly what to go back to.

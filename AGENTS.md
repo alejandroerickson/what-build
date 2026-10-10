@@ -48,6 +48,7 @@ that folder. If your tool does not load skills, read the `SKILL.md` files direct
 | `okf-decision` | When a change makes, revises or reverses a durable choice. |
 | `azure-self-host` | When asked to host, update or repair a self-hosted copy on Azure with the Azure CLI. |
 | `make-a-release` | When asked to release a version or move production: publish the release, approve the deploy. |
+| `rehearse-on-the-dev-deployment` | Before production runs a release that migrates, or when asked to deploy to dev, refresh or reset dev's copy of production, set dev up, or rehearse a restore. |
 | `recover-a-deployment` | When a new version broke a deployment (Cloud Run or Azure): roll back, restore the database. |
 | `test-on-a-copy-of-production` | When asked to QA or test end to end on real data, or to try migrations on a copy of production. |
 
@@ -63,10 +64,24 @@ corepack pnpm install && corepack pnpm dev   # http://localhost:5273, one-click 
 
 ## Operating production
 
-Deploying, the Cloudflare Worker and analytics are in `okf/operations/` (start with
-`cloud-run.md`). Production runs releases only: it moves when a release is published and its
-build approved, never on a merge (`okf/operations/releasing.md`). The deployment's values and credentials are in `.env` at the root of the
-maintainer's clone, never in the repository; production secrets are in Google Secret Manager and
+Every procedure for running a deployment is in `okf/operations/`, with exact commands, and a skill
+conducts each one that changes something:
+
+| To | Read | Skill |
+|---|---|---|
+| set up or change the Cloud Run deployment: sign-in, domain, settings, the Cloudflare Worker | `cloud-run.md` | |
+| publish a release, move production | `releasing.md` | `make-a-release` |
+| rehearse a release on the dev deployment; refresh or reset its copy of production; set it up | `dev-deployment.md` | `rehearse-on-the-dev-deployment` |
+| know what is backed up, check that backups run, restore a dump, perform the restore drill | `backups.md` | `rehearse-on-the-dev-deployment` (the drill) |
+| go back after a release broke a deployment | `recovering-from-a-bad-release.md` | `recover-a-deployment` |
+| test on a copy of production on this machine | `a-copy-of-production.md` | `test-on-a-copy-of-production` |
+| analytics | `analytics.md` | |
+
+Production runs releases only: it moves when a release is published and its build approved,
+never on a merge, and a release that migrates is rehearsed on the dev deployment first. The
+deployments' values and credentials are in `.env` at the root of the maintainer's clone, never in
+the repository: production's (`GCP_PROJECT`, `NEON_PROJECT`, …) and the dev deployment's
+(`GCP_DEV_PROJECT`, `NEON_DEV_PROJECT`, …). Their secrets are in each project's Secret Manager, and
 `.env` names them. Read `.env` before asking the maintainer for an ID or a token.
 
 ## When a release breaks a deployment

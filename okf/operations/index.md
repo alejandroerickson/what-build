@@ -3,7 +3,7 @@ type: Index
 title: Operations
 description: Running WhatBuild locally and in production.
 tags: [index, operations]
-generated: {by: agent:claude, at: 2026-10-03}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -13,6 +13,8 @@ status: stable
 - [A copy of production](a-copy-of-production.md): pulling the deployment's database and files, loading them locally, serving them with pending migrations applied, for manual QA and agent-driven end-to-end tests; it stays private.
 - [Cloud Run](cloud-run.md): the production deployment, its setup and its routines.
 - [Releasing](releasing.md): a release is a version tag on `main` with its notes and image; numbering versions, publishing one, and approving the production deploy it starts.
+- [The dev deployment](dev-deployment.md): a second Cloud Run deployment holding a copy of production, where a release that migrates is rehearsed before production moves; rehearsing, putting it back, refreshing the copy, setting one up.
+- [Backups](backups.md): what each deployment keeps, where and for how long, the nightly dump, checking that backups run, restoring a dump and checking it, and the restore drill.
 - [Recovering from a bad release](recovering-from-a-bad-release.md): when a new version breaks a deployment, on Cloud Run or Azure: what runs, whether it migrated, going back, restoring the database, checking, fixing forward.
 - [Azure](azure.md): a self-hosted deployment on Azure, set up by an agent with the Azure CLI; resources, commands, sign-in with Microsoft work accounts, and the variations.
 - [Analytics](analytics.md): Google Analytics and Cloudflare Web Analytics, their settings, and reading reports.
