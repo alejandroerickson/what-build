@@ -1,3 +1,7 @@
 packages:
   - packages/*
   - apps/*
+
+# A release must be a week old before pnpm will install it, as Dependabot's cooldown waits: time
+# for a hijacked release to be found and pulled (okf/operations/security-checks.md).
+minimumReleaseAge: 10080

@@ -88,6 +88,10 @@ pnpm security workflows   # zizmor over .github/; GH_TOKEN=$(gh auth token) adds
 1. **Upgrade.** A direct dependency: raise it in its `package.json` and `pnpm install`. A
    transitive one: `pnpm update -r <package>`, or a `pnpm.overrides` entry in the root
    `package.json` when its parent pins it. Then `pnpm typecheck`, `pnpm test` and `pnpm build`.
+   pnpm installs no release younger than a week (`minimumReleaseAge` in `pnpm-workspace.yaml`),
+   as Dependabot waits; take the newest version that fixes the advisory and is old enough. A fix
+   that cannot wait goes in `minimumReleaseAgeExclude` there, with a comment, and comes out once
+   it has aged.
 2. **Accept it only if no fix exists or WhatBuild cannot reach it**: an `[[IgnoredVulns]]` entry
    in `.github/osv-scanner.toml` with its `reason` and an `ignoreUntil` no more than 90 days away.
 3. **A workflow finding** (zizmor): fix the workflow. Actions are pinned to a commit with the
