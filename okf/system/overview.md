@@ -116,6 +116,6 @@ project and publish the pages that changed
 `set_hierarchy` ([decision](../decisions/story-notes-are-agent-memory.md)).
 
 **Data.** Identity, tenancy, evidence (records, files, derivations, segments, annotations, agent
-notes), synthesis (outcomes, insights, revisions, register entries, reviews), mockups (versions
-and their pages), Story (pages, versions, hierarchy) and operations (activity, jobs, exports, lineage, tombstones). Every table and
+notes), synthesis (outcomes, insights, revisions, register entries, reviews), mockups (versions,
+their pages and their files), Story (pages, versions, hierarchy) and operations (activity, jobs, exports, lineage, tombstones). Every table and
 field: [data model](../spec/04-data-model.md).

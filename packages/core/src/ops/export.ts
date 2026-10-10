@@ -1,3 +1,4 @@
+import { sql } from "kysely";
 import { Zip, ZipPassThrough, strToU8 } from "fflate";
 import { z } from "zod";
 import { productId, recordActivity, tenantId } from "../common.ts";
@@ -203,6 +204,7 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
         add(`${dir}/pages/${p.page_id}.html`, p.html);
         add(`${dir}/pages/${p.page_id}.notes.md`, p.notes);
       }
+      for (const x of await db.selectFrom("mockup_files").select(["path", "content"]).where("version_id", "=", v.version_id).orderBy(sql`path collate "C"`).execute()) add(`${dir}/files/${x.path}`, x.content);
     }
   }
   add("tombstones.json", j(await db.selectFrom("tombstones").selectAll().where("product_id", "=", pid).execute()));

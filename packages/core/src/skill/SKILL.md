@@ -205,7 +205,12 @@ sandbox.
   sandbox rules apply: inline CSS and scripts, images and fonts as `data:` URIs, no remote
   resources, forms or frames. A mockup carries its own look; it does not follow the Story style.
   Keep shared styles, components and any design system in your working project, and inline what
-  each page needs when you publish: WhatBuild holds no shared parts.
+  each page needs when you publish: WhatBuild never draws a page from shared parts.
+- **Share the conventions with `files`.** A version carries text files for collaborators, such as
+  a DESIGN.md, components and tokens. People see them in the inspector, and they come with the
+  download under `files/`, so the next person's agent builds in the same way. Like `pages`, `files`
+  is the whole set when you send it: a path you keep without `content` keeps its text, and a path
+  you leave out is dropped. At most 50 files and 2,000,000 characters a version.
 - **Notes belong to a page.** Markdown design notes: what the page tries, the choices behind it,
   what is still open. People read them beside the page, so keep them short.
 - **A version is the whole canvas.** `publish` without `mockup_id` creates the mockup. After that,
@@ -214,8 +219,8 @@ sandbox.
   them, and a page you leave out is dropped from that version. `from_version: N` starts from an
   earlier version. Every version stays readable.
 - **Build the next version where you work.** `get_download` gives a version as a ZIP through a
-  short-lived grant: `brief.md`, `manifest.json`, and each page as `pages/<page_id>.html` with
-  `pages/<page_id>.notes.md`. Unzip it in a project, change the pages there, then publish the pages
+  short-lived grant: `brief.md`, `manifest.json`, each page as `pages/<page_id>.html` with
+  `pages/<page_id>.notes.md`, and the version's files under `files/`. Unzip it in a project, change the pages there, then publish the pages
   that changed. Keep the grant header out of reports.
 - `check_citations` reports whether a version's passages still say what was quoted. A version
   holds at most 24 pages and 8,000,000 characters of HTML; a product holds at most 50 mockups.

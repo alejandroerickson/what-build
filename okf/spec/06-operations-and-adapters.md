@@ -306,8 +306,10 @@ Notes on recent actions:
   `products.list` leave out `concept` and count only `story_pages`
   ([§3.5](03-accounts-teams-and-identity.md)).
 - `mockups.publish` creates a mockup, or publishes the next version of one: the whole canvas,
-  with its brief, its pages in order and each page's notes and size. A later version keeps what
-  it omits, and a page that keeps its `page_id` keeps its HTML unless it is sent.
+  with its brief, its pages in order and each page's notes and size, and the files it carries for
+  collaborators. A later version keeps what it omits, and a page or file that keeps its id or path
+  keeps its content unless it is sent. `mockups.get` and `get_version` take `include_files` to
+  return the files' content.
   `mockups.get_download` gives a version as a ZIP through a grant, for an agent to build the next
   version elsewhere; `mockups.check_citations` checks a version's citations
   ([§4.12](04-data-model.md)). `mockups.get` lists the Story pages that show its pages.

@@ -86,7 +86,7 @@ running on free tiers without a compliance program.
 | Parsed per primary file | 25 MB (`WHATBUILD_PARSE_CAP_BYTES`); larger files are stored, not parsed | Yes |
 | Files per source | 50 | Yes — `409 too_many_files` |
 | Story pages | 50 per product | Yes — `409 quota_exceeded`, quota `story_pages` |
-| Mockups | 50 per product, archived ones included; 24 pages and 8,000,000 characters of HTML in a version | Yes — `409 quota_exceeded`, quota `mockups`; `422` for a version |
+| Mockups | 50 per product, archived ones included; 24 pages and 8,000,000 characters of HTML, and 50 files and 2,000,000 characters of files, in a version | Yes — `409 quota_exceeded`, quota `mockups`; `422` for a version |
 | REST request body | 5 MB | Yes — `413 too_large` |
 | Sign-in links | 5 per address per hour | Yes — `429 rate_limited` |
 | Exports in progress | one per product at a time | Yes — `409 export_in_progress` |
@@ -173,8 +173,8 @@ seven days. The bundle holds a manifest with its format name and version, every 
 every file version's original bytes, every derivation's sidecars, annotations and agent notes,
 lineage, outcomes, insights (JSON and Markdown), register entries with their reviews, revisions,
 the Story hierarchy and every page version (JSON and HTML; a version that shows a mockup page
-names it rather than repeating it), every mockup version (its brief, and each page's HTML and
-notes), tombstones, and the activity log
+names it rather than repeating it), every mockup version (its brief, each page's HTML and
+notes, and its files), tombstones, and the activity log
 ([§4.14](04-data-model.md)). It is readable with a ZIP tool and nothing else; no proprietary
 format, no API required to make sense of it.
 
@@ -383,8 +383,8 @@ Rules:
 `tenant_id` in `teams`, `products`, `records`, `files`, `file_versions`, `derivations`,
 `segments`, `annotations`, `agent_notes`, `lineage`, `outcomes`, `insights`, `revisions`,
 `register_entries`, `reviews`, `story_pages`, `story_versions`, `story_hierarchies`,
-`story_styles`, `mockups`, `mockup_versions`, `mockup_pages`, `tombstones`, and the activity
-events that belong to a product. Each row is held
+`story_styles`, `mockups`, `mockup_versions`, `mockup_pages`, `mockup_files`, `tombstones`, and
+the activity events that belong to a product. Each row is held
 as JSON, without its generated columns, with its ids.
 
 - **Not in a baseline:** memberships and invitations of either kind, because access is not

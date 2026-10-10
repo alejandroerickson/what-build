@@ -209,6 +209,10 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
         { page_id: "jobs-board", title: "Jobs board", notes: MOCKUP.notes.jobs, html: MOCKUP.pages.jobs },
         { page_id: "day-planner", title: "Day planner", notes: MOCKUP.notes.days, html: MOCKUP.pages.days },
       ],
+      files: [
+        { path: "DESIGN.md", content: MOCKUP.files.design },
+        { path: "components/job-card.html", content: MOCKUP.files.card },
+      ],
       refs: { outcomes: [outcomeIds[0]!, outcomeIds[2]!], sources: [vtt, survey], assumptions: [String(assumption["id"])] },
       citations: [{ record_id: txt, seq_start: 8, seq_end: 9, quote: "By the day, if I'm honest." }],
     },

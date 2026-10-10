@@ -339,3 +339,83 @@ describe("promoting a mockup page to the Story", () => {
     expect(plan.body.pages[0].html_chars).toBeGreaterThan(0);
   });
 });
+
+describe("files a mockup version carries", () => {
+  let mockupId: string;
+  let etag: string;
+
+  it("stores text files beside the pages, lists them without content, and gives the content when asked", async () => {
+    const m = await alice.api("POST", `${P}/mockups`, {
+      title: "Ledger",
+      pages: [{ page_id: "list", title: "List", html: page("List") }],
+      files: [
+        { path: "DESIGN.md", content: "# Ledger\n\nDense tables, one accent." },
+        { path: "components/row.html", content: '<tr class="row"><td>…</td></tr>' },
+      ],
+    });
+    expect(m.status, JSON.stringify(m.body)).toBe(201);
+    mockupId = m.body.mockup_id;
+    etag = m.body.etag;
+    expect(m.body.current.files).toEqual([
+      expect.objectContaining({ path: "DESIGN.md", chars: 35 }),
+      expect.objectContaining({ path: "components/row.html" }),
+    ]);
+    expect(m.body.current.files[0].content).toBeUndefined();
+    const full = await alice.api("GET", `${P}/mockups/${mockupId}?include_files=true`);
+    expect(full.body.current.files[0].content).toBe("# Ledger\n\nDense tables, one accent.");
+    const activity = await alice.api("GET", `${P}/activity?entity_type=mockup&entity_id=${mockupId}`);
+    expect(activity.body.items[0].summary).toBe("Created the mockup with 1 page and 2 files");
+  });
+
+  it("carries files forward, changes one by path, drops one left out, and adds a new one", async () => {
+    const kept = await alice.api("POST", `${P}/mockups`, { mockup_id: mockupId, expected_etag: etag, brief: "Now with a brief." });
+    etag = kept.body.etag;
+    expect(kept.body.current.files.map((x: { path: string }) => x.path)).toEqual(["DESIGN.md", "components/row.html"]);
+    const changed = await alice.api("POST", `${P}/mockups`, {
+      mockup_id: mockupId,
+      expected_etag: etag,
+      files: [{ path: "DESIGN.md", content: "# Ledger\n\nTwo accents." }, { path: "tokens.css", content: ":root{--accent:#123456}" }],
+    });
+    expect(changed.status).toBe(201);
+    etag = changed.body.etag;
+    const v3 = await alice.api("GET", `${P}/mockups/${mockupId}/versions/3?include_files=true`);
+    expect(v3.body.files.map((x: { path: string; content: string }) => [x.path, x.content])).toEqual([
+      ["DESIGN.md", "# Ledger\n\nTwo accents."],
+      ["tokens.css", ":root{--accent:#123456}"],
+    ]);
+    const v1 = await alice.api("GET", `${P}/mockups/${mockupId}/versions/1?include_files=true`);
+    expect(v1.body.files[0].content).toBe("# Ledger\n\nDense tables, one accent.");
+    const list = await alice.api("GET", `${P}/mockups/${mockupId}/versions`);
+    expect(list.body.items.map((x: { version: number; file_count: number }) => [x.version, x.file_count])).toEqual([[3, 2], [2, 2], [1, 2]]);
+  });
+
+  it("refuses a new path without content, paths that climb out or differ only in case, and too much text", async () => {
+    const bad = async (files: unknown) => alice.api("POST", `${P}/mockups`, { mockup_id: mockupId, expected_etag: etag, files });
+    const nocontent = await bad([{ path: "notes/new.md" }]);
+    expect(nocontent.status).toBe(422);
+    expect(nocontent.body.error.details.problems).toEqual(["File notes/new.md is new and needs content."]);
+    expect((await bad([{ path: "../escape.md", content: "x" }])).status).toBe(422);
+    expect((await bad([{ path: "/abs.md", content: "x" }])).status).toBe(422);
+    const twice = await bad([{ path: "design.md", content: "a" }, { path: "DESIGN.md" }]);
+    expect(twice.status).toBe(422);
+    expect(twice.body.error.message).toMatch(/different capitals/);
+    const big = await bad([{ path: "a.txt", content: "x".repeat(1_500_000) }, { path: "b.txt", content: "x".repeat(600_000) }]);
+    expect(big.status).toBe(422);
+  });
+
+  it("puts the files in the download under files/, and in the product export", async () => {
+    const g = await alice.api("POST", `${P}/mockups/${mockupId}/downloads`, {});
+    const zip = unzipSync(new Uint8Array(await (await fetch(g.body.url, { headers: g.body.headers })).arrayBuffer()));
+    expect(strFromU8(zip["files/DESIGN.md"]!)).toBe("# Ledger\n\nTwo accents.");
+    expect(strFromU8(zip["files/tokens.css"]!)).toBe(":root{--accent:#123456}");
+    expect(JSON.parse(strFromU8(zip["manifest.json"]!)).files).toEqual([
+      expect.objectContaining({ path: "DESIGN.md", file: "files/DESIGN.md" }),
+      expect.objectContaining({ path: "tokens.css", file: "files/tokens.css" }),
+    ]);
+    expect((await alice.api("POST", `${P}/exports`, {})).status).toBe(201);
+    await h.worker.drain();
+    const ex = (await alice.api("GET", `${P}/exports`)).body.items[0];
+    const bundle = unzipSync(new Uint8Array(await (await fetch(ex.download.url, { headers: ex.download.headers })).arrayBuffer()));
+    expect(strFromU8(bundle[`mockups/${mockupId}/v1/files/components/row.html`]!)).toContain('class="row"');
+  });
+});

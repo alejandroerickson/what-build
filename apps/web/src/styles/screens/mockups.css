@@ -282,6 +282,51 @@
   font-size: var(--fs-sm);
 }
 
+/* The files a version carries: a path per row, opened as text in a dialog. */
+.xc-files {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.xc-files li {
+  display: grid;
+  grid-template-columns: var(--icon-md) minmax(0, 1fr) auto;
+  gap: var(--s-2);
+  align-items: baseline;
+  font-size: var(--fs-sm);
+}
+.xc-files .glyph {
+  position: relative;
+  top: 2px;
+  color: var(--faint);
+}
+.xc-files .faint {
+  font-size: var(--fs-xs);
+}
+.xc-file {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.xc-file-code {
+  max-height: 60vh;
+  margin: 0;
+  padding: var(--s-3);
+  overflow: auto;
+  border-radius: var(--r-sm);
+  background: var(--hover);
+  white-space: pre;
+}
+.xc-file-text {
+  max-height: 60vh;
+  overflow: auto;
+}
+
 /* Where the selected page stands in the Story, under the page picker. */
 .xc-story {
   display: flex;

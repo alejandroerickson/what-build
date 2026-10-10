@@ -549,6 +549,14 @@ export interface MockupVersionsTable {
   created_by: Json<ActorSnapshot>;
 }
 
+export interface MockupFilesTable {
+  version_id: string;
+  tenant_id: string;
+  product_id: string;
+  path: string;
+  content: string;
+}
+
 export interface MockupPagesTable {
   version_id: string;
   tenant_id: string;
@@ -743,6 +751,7 @@ export interface DB {
   mockups: MockupsTable;
   mockup_versions: MockupVersionsTable;
   mockup_pages: MockupPagesTable;
+  mockup_files: MockupFilesTable;
   lineage: LineageTable;
   activity: ActivityTable;
   tombstones: TombstonesTable;

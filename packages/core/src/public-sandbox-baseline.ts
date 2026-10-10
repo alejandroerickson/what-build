@@ -19,7 +19,7 @@ export const BASELINE_TABLES = [
   "records", "files", "file_versions", "derivations", "segments", "annotations", "agent_notes", "lineage",
   "outcomes", "insights", "revisions", "register_entries", "reviews",
   "story_pages", "story_versions", "story_hierarchies", "story_styles",
-  "mockups", "mockup_versions", "mockup_pages",
+  "mockups", "mockup_versions", "mockup_pages", "mockup_files",
   "activity", "tombstones",
 ] as const;
 

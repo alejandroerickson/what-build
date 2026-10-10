@@ -395,4 +395,26 @@ ${["Mon", "Tue", "Wed", "Thu", "Fri"]
     days: "Days first, for leads like Dev and Priya. Repeat clients pre-filled from last week is the bet: planning becomes correcting.",
     message: "Phone width. The message is the same whichever planner wins, which is why it is worth testing first (see the hand-off decision).",
   },
+  /** Files the canvas carries for whoever builds the next version: never used to draw a page. */
+  files: {
+    design: `# Crewboard mockups: design notes
+
+How these pages are built, so the next version looks like it belongs.
+
+- **Type.** The system font at 15px for everything a crew lead reads; 12px uppercase labels for
+  column heads and the week. Nothing larger than 20px.
+- **Colour.** Ink #1c2321 on paper #f6f5f1, white cards, and one green, #1f3d34, for the header
+  and the one action on a page. A late booking is the only thing in amber.
+- **Cards.** One card per job: the job in bold, then time, place and hours on one muted line.
+  Gate codes and access notes ride on that line; crews ask for them first.
+- **Phone.** The crew message is 390 wide and must read without zooming. One action, "Looks right",
+  and a plain way to reply with a change.
+`,
+    card: `<!-- A job card, as every page draws it. Copy it; pages never include it. -->
+<div class="card">
+  <b>Monday · Riverside HOA</b>
+  <span class="meta">8:00 · 220 Riverside Dr · 6 h</span>
+</div>
+`,
+  },
 };

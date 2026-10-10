@@ -390,7 +390,9 @@ them. Its one write is promoting a page to the Story.
   from, [§4.12](04-data-model.md)); **Page** (a menu of the pages with a Fit button, then the
   selected page's notes as Markdown, or a line asking the person to select a page; and where the
   page stands in the Story, below); **Brief** (the
-  version's brief as Markdown); **Explores** (the outcomes, assumptions and sources it links, with
+  version's brief as Markdown); **Files** (the files the version carries, each with its length;
+  one opens in a dialog as rendered Markdown or as source text, never as HTML, with Copy);
+  **Explores** (the outcomes, assumptions and sources it links, with
   their state in words, as the Story's Draws on); and **Cited passages**, each with its
   `mockups.check_citations` status in words, as on a Story page.
 - A callout above the canvas appears only for a state the person must know: the mockup is

@@ -52,10 +52,18 @@ interface MockupVersion {
   brief: string;
   columns: number | null;
   pages: CanvasPage[];
+  /** Text files the version carries for collaborators: never used to draw a page. */
+  files: MockupFile[];
   resolved_refs: Record<RefKind, ResolvedRef[]>;
   citations: CitationView[];
   published_at: string;
   published_by: Actor;
+}
+
+interface MockupFile {
+  path: string;
+  chars: number;
+  content?: string;
 }
 
 /** A Story page whose current version shows one of this mockup's pages, at the mockup version it was promoted from. */
@@ -660,7 +668,7 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, on
         <Button size="sm" icon="download" className="story-export-button" onClick={download} disabled={downloading}>
           {downloading ? "Preparing…" : `Download version ${shown.version}`}
         </Button>
-        <p className="story-about-note">A ZIP with the brief, each page&rsquo;s HTML and notes, and a manifest: what an agent needs to build the next version.</p>
+        <p className="story-about-note">A ZIP with the brief, each page&rsquo;s HTML and notes, the version&rsquo;s files and a manifest: what an agent needs to build the next version.</p>
       </Group>
 
       <Group title="Page">
@@ -706,6 +714,8 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, on
           <EmptyState size="inline">This version has no brief. Agents write one when they publish: what the canvas explores, for whom, and what each page tries.</EmptyState>
         )}
       </Group>
+
+      <Files mockupId={e.mockup_id} shown={shown} />
 
       <Group title="Explores" count={refCount}>
         {refCount ? (
@@ -761,6 +771,76 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, on
         </Group>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The files a version carries for collaborators (a DESIGN.md, components, tokens), to pull into
+ * their own projects. WhatBuild never draws a page with them, so a file opens as text: Markdown
+ * rendered, anything else as source, never as HTML.
+ */
+function Files({ mockupId, shown }: { mockupId: string; shown: MockupVersion }) {
+  const { api: base } = useProduct();
+  const toast = useToast();
+  const [open, setOpen] = useState<string | null>(null);
+  const full = useQuery({
+    queryKey: ["mockup-files", base, mockupId, shown.version],
+    enabled: open !== null,
+    queryFn: () => api<{ files: MockupFile[] }>("GET", `${base}/mockups/${mockupId}/versions/${shown.version}?include_files=true`),
+  });
+  const file = full.data?.files.find((x) => x.path === open);
+  const copy = (text: string) =>
+    navigator.clipboard
+      .writeText(text)
+      .then(() => toast("Copied."))
+      .catch(() => toast("Couldn’t copy. Download the version instead.", { tone: "negative" }));
+  return (
+    <Group title="Files" count={shown.files.length}>
+      {shown.files.length ? (
+        <ul className="xc-files">
+          {shown.files.map((x) => (
+            <li key={x.path}>
+              <Glyph name="file-text" size="sm" />
+              <button type="button" className="xc-file story-ref-link ellipsis" title={x.path} onClick={() => setOpen(x.path)}>
+                {x.path}
+              </button>
+              <span className="faint num">{plural(x.chars, "character")}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <EmptyState size="inline">No files on this version. Agents add what collaborators share when they publish, such as a DESIGN.md or components; they come with the download.</EmptyState>
+      )}
+      {open ? (
+        <Dialog
+          open
+          wide
+          onClose={() => setOpen(null)}
+          title={open}
+          description={`A file version ${shown.version} carries, for collaborators to pull into their projects. Pages never use it.`}
+          footer={
+            <>
+              <Button onClick={() => setOpen(null)}>Close</Button>
+              <Button icon="copy" disabled={file?.content === undefined} onClick={() => copy(file!.content!)}>
+                Copy
+              </Button>
+            </>
+          }
+        >
+          {full.isPending ? (
+            <Loading variant="lines" lines={6} label="Loading the file…" />
+          ) : full.isError ? (
+            <ErrorCallout inset error={full.error} onRetry={() => full.refetch()} />
+          ) : file?.content === undefined ? (
+            <EmptyState size="inline">This file is not on the version any more.</EmptyState>
+          ) : /\.(md|markdown)$/i.test(file.path) ? (
+            <Markdown source={file.content} className="prose story-notes xc-file-text" headingShift={1} />
+          ) : (
+            <pre className="xc-file-code">{file.content}</pre>
+          )}
+        </Dialog>
+      ) : null}
+    </Group>
   );
 }
 

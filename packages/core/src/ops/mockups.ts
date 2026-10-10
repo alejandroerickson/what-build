@@ -1,3 +1,4 @@
+import { sql } from "kysely";
 import { strToU8, zipSync } from "fflate";
 import { z } from "zod";
 import { checkEtag, EMPTY_REFS, productId, recordActivity, tenantId, validateRefs } from "../common.ts";
@@ -22,6 +23,8 @@ export const MAX_MOCKUP_PAGES = 24;
 export const MOCKUP_HTML_TOTAL = 8_000_000;
 export const BRIEF_MAX = 50_000;
 export const PAGE_NOTES_MAX = 10_000;
+export const MAX_MOCKUP_FILES = 50;
+export const MOCKUP_FILES_TOTAL = 2_000_000;
 const DEFAULT_WIDTH = 1280;
 const DEFAULT_HEIGHT = 800;
 
@@ -37,6 +40,20 @@ const pageInput = z.strictObject({
   width: z.number().int().min(240).max(2560).optional().describe(`The frame's width in CSS pixels: ${DEFAULT_WIDTH} for a desktop screen, 390 for a phone. Omit to keep it.`),
   height: z.number().int().min(240).max(4000).optional().describe(`The frame's height in CSS pixels, default ${DEFAULT_HEIGHT}. Omit to keep it.`),
   html: z.string().min(1).max(STORY_HTML_MAX).optional().describe("The whole page, one self-contained document. Required for a new page; omit to keep the base version's."),
+});
+
+const filePath = z
+  .string()
+  .min(1)
+  .max(200)
+  .regex(/^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/, "a relative path of letters, digits, dots, hyphens and underscores, with / between folders")
+  .refine((p) => p.split("/").every((seg) => seg !== "." && seg !== ".."), "no . or .. in the path")
+  .refine((p) => p.split("/").length <= 6, "at most five folders deep")
+  .describe("The file's path in the project, e.g. DESIGN.md or components/job-card.html.");
+
+const fileInput = z.strictObject({
+  path: filePath,
+  content: z.string().max(MOCKUP_FILES_TOTAL).optional().describe("The file's text. Required for a new path; omit it to keep the base version's."),
 });
 
 const refsInput = z
@@ -75,10 +92,11 @@ function htmlPath(ctx: OpContext, mockupId: string, n: number, pageId: string) {
   return `/api/v1/p/${s.tenant!.slug}/${s.team!.slug}/${s.product!.slug}/mockups/${mockupId}/versions/${n}/pages/${pageId}/html`;
 }
 
-/** A version of the canvas: the brief, the pages in order, and what it draws on. */
-async function versionView(ctx: OpContext, versionId: string, withHtml: boolean) {
+/** A version of the canvas: the brief, the pages in order, the files it carries, and what it draws on. */
+async function versionView(ctx: OpContext, versionId: string, withHtml: boolean, withFiles = false) {
   const v = await ctx.db.selectFrom("mockup_versions").selectAll().where("version_id", "=", versionId).where("product_id", "=", productId(ctx)).executeTakeFirstOrThrow();
   const pages = await ctx.db.selectFrom("mockup_pages").selectAll().where("version_id", "=", versionId).orderBy("position").execute();
+  const files = await ctx.db.selectFrom("mockup_files").select(["path", "content"]).where("version_id", "=", versionId).orderBy(sql`path collate "C"`).execute();
   const resolved = await resolveRefs(ctx, v.refs);
   return {
     version_id: v.version_id,
@@ -98,6 +116,7 @@ async function versionView(ctx: OpContext, versionId: string, withHtml: boolean)
       html_path: htmlPath(ctx, v.mockup_id, v.n, p.page_id),
       ...(withHtml ? { html: p.html } : { html_chars: p.html.length }),
     })),
+    files: files.map((x) => ({ path: x.path, chars: x.content.length, sha256: sha256Hex(x.content), ...(withFiles ? { content: x.content } : {}) })),
     refs: { outcomes: v.refs.outcomes, sources: v.refs.sources, assumptions: v.refs.assumptions },
     resolved_refs: { outcomes: resolved.outcomes, sources: resolved.sources, assumptions: resolved.assumptions },
     citations: await citationViews(ctx, v.citations),
@@ -141,13 +160,13 @@ export const getMockup = defineOperation({
   mutates: false,
   summary: "Read a mockup's current version: its brief, its pages with their notes, what it draws on, the Story pages that show its pages, and the etag to publish again.",
   description:
-    "Read this before publishing a new version, and read the brief first: it says what the canvas explores. Pages come without HTML unless include_html; each has html_path (a GET in the web app's session) and html_sha256. To work on the canvas outside WhatBuild, get_download gives the whole version as a ZIP. story_pages lists the Story pages whose current version shows one of its pages (story promote_mockup), with the mockup version each shows.",
-  input: z.strictObject({ mockup_id: id("mockup"), include_html: z.boolean().default(false) }),
+    "Read this before publishing a new version, and read the brief first: it says what the canvas explores. Pages come without HTML unless include_html; each has html_path (a GET in the web app's session) and html_sha256. files lists what the version carries for collaborators (path, chars, sha256), with each file's content when include_files. To work on the canvas outside WhatBuild, get_download gives the whole version as a ZIP. story_pages lists the Story pages whose current version shows one of its pages (story promote_mockup), with the mockup version each shows.",
+  input: z.strictObject({ mockup_id: id("mockup"), include_html: z.boolean().default(false), include_files: z.boolean().default(false).describe("Include each file's content.") }),
   rest: { method: "GET", path: "/mockups/:mockup_id" },
   mcp: { tool: "mockups", action: "get" },
   async handler(ctx, input) {
     const e = await loadMockup(ctx, input.mockup_id);
-    return { ...summaryView(e), current: await versionView(ctx, e.current_version_id, input.include_html), story_pages: await storyPagesShowing(ctx, e.mockup_id) };
+    return { ...summaryView(e), current: await versionView(ctx, e.current_version_id, input.include_html, input.include_files), story_pages: await storyPagesShowing(ctx, e.mockup_id) };
   },
 });
 
@@ -167,11 +186,12 @@ export const listMockupVersions = defineOperation({
       .selectFrom("mockup_versions as v")
       .select(["v.version_id", "v.n", "v.title", "v.summary", "v.created_at", "v.created_by"])
       .select((eb) => eb.selectFrom("mockup_pages as p").whereRef("p.version_id", "=", "v.version_id").select(eb.fn.countAll<number>().as("n")).as("page_count"))
+      .select((eb) => eb.selectFrom("mockup_files as f").whereRef("f.version_id", "=", "v.version_id").select(eb.fn.countAll<number>().as("n")).as("file_count"))
       .where("v.product_id", "=", productId(ctx))
       .where("v.mockup_id", "=", input.mockup_id);
     if (input.before) q = q.where("v.n", "<", input.before);
     const rows = await q.orderBy("v.n", "desc").limit(input.limit + 1).execute();
-    const items = rows.slice(0, input.limit).map((v) => ({ version_id: v.version_id, version: v.n, title: v.title, summary: v.summary, page_count: Number(v.page_count ?? 0), published_at: v.created_at, published_by: v.created_by }));
+    const items = rows.slice(0, input.limit).map((v) => ({ version_id: v.version_id, version: v.n, title: v.title, summary: v.summary, page_count: Number(v.page_count ?? 0), file_count: Number(v.file_count ?? 0), published_at: v.created_at, published_by: v.created_by }));
     return { items, next_before: rows.length > input.limit ? items[items.length - 1]!.version : null };
   },
 });
@@ -183,17 +203,18 @@ export const getMockupVersion = defineOperation({
   mutates: false,
   summary: "Read one version of a mockup, by number.",
   description: "Includes the mockup's archived_at and whether this is the current version.",
-  input: z.strictObject({ mockup_id: id("mockup"), version: z.number().int().min(1), include_html: z.boolean().default(false) }),
+  input: z.strictObject({ mockup_id: id("mockup"), version: z.number().int().min(1), include_html: z.boolean().default(false), include_files: z.boolean().default(false).describe("Include each file's content.") }),
   rest: { method: "GET", path: "/mockups/:mockup_id/versions/:version" },
   mcp: { tool: "mockups", action: "get_version" },
   async handler(ctx, input) {
     const e = await loadMockup(ctx, input.mockup_id);
     const vid = await versionIdOf(ctx, input.mockup_id, input.version);
-    return { ...(await versionView(ctx, vid, input.include_html)), mockup_archived_at: e.archived_at, is_current: vid === e.current_version_id };
+    return { ...(await versionView(ctx, vid, input.include_html, input.include_files)), mockup_archived_at: e.archived_at, is_current: vid === e.current_version_id };
   },
 });
 
 type PageRow = { page_id: string; title: string; notes: string; width: number; height: number; html: string };
+type FileRow = { path: string; content: string };
 
 export const publishMockup = defineOperation({
   name: "mockups.publish",
@@ -202,7 +223,7 @@ export const publishMockup = defineOperation({
   mutates: true,
   summary: "Publish the next version of a mockup's canvas, or create a mockup with its first version. A later version keeps whatever you omit.",
   description:
-    `Without mockup_id, creates a mockup: give a title, a brief and at least one page with a title and html. With mockup_id, publishes the next version: pass the mockup's etag, and send only what changes. pages, when given, is the whole canvas in order: a page you leave out is dropped from this version, and a page whose page_id was on the base version keeps its title, notes, size and html unless you send them, so a version that changes one page sends that page's html alone. The brief is Markdown: what the canvas explores, for whom, the questions it is meant to answer, and what each page tries; write it for the next agent as much as for people. Each page is one self-contained HTML document shown in a sandboxed frame of width × height CSS pixels (default ${DEFAULT_WIDTH} × ${DEFAULT_HEIGHT}; 390 wide for a phone): inline CSS and bounded inline scripts, images and fonts as data: URIs, no remote resources, forms or frames; every problem is listed at once (422). columns sets how many pages sit side by side before the canvas wraps; null keeps one row. refs links the outcomes, sources and assumptions the canvas explores, and citations up to ${CITATION_MAX_COUNT} exact passages, {record_id, seq_start, seq_end, quote?}, frozen as snapshots. from_version: N starts from that earlier version instead of the current one. At most ${MAX_MOCKUP_PAGES} pages, ${(MOCKUP_HTML_TOTAL / 1_000_000).toFixed(0)} million characters of HTML in all, and ${MAX_MOCKUPS} mockups in a product, archived ones included.`,
+    `Without mockup_id, creates a mockup: give a title, a brief and at least one page with a title and html. With mockup_id, publishes the next version: pass the mockup's etag, and send only what changes. pages, when given, is the whole canvas in order: a page you leave out is dropped from this version, and a page whose page_id was on the base version keeps its title, notes, size and html unless you send them, so a version that changes one page sends that page's html alone. The brief is Markdown: what the canvas explores, for whom, the questions it is meant to answer, and what each page tries; write it for the next agent as much as for people. Each page is one self-contained HTML document shown in a sandboxed frame of width × height CSS pixels (default ${DEFAULT_WIDTH} × ${DEFAULT_HEIGHT}; 390 wide for a phone): inline CSS and bounded inline scripts, images and fonts as data: URIs, no remote resources, forms or frames; every problem is listed at once (422). columns sets how many pages sit side by side before the canvas wraps; null keeps one row. files carries text files for collaborators to pull into their own projects (DESIGN.md, components, tokens), at most ${MAX_MOCKUP_FILES} and ${(MOCKUP_FILES_TOTAL / 1_000_000).toFixed(0)} million characters a version; WhatBuild never uses them to draw a page, so inline what a page needs. Like pages, files when given is the whole set: a path that was on the base keeps its content unless you send it, a path you leave out is dropped, a new path needs content, and [] drops them all; omit files to keep them. refs links the outcomes, sources and assumptions the canvas explores, and citations up to ${CITATION_MAX_COUNT} exact passages, {record_id, seq_start, seq_end, quote?}, frozen as snapshots. from_version: N starts from that earlier version instead of the current one. At most ${MAX_MOCKUP_PAGES} pages, ${(MOCKUP_HTML_TOTAL / 1_000_000).toFixed(0)} million characters of HTML in all, and ${MAX_MOCKUPS} mockups in a product, archived ones included.`,
   input: z.strictObject({
     mockup_id: id("mockup").optional().describe("Omit to create a mockup."),
     title: z.string().trim().min(1).max(200).optional(),
@@ -210,6 +231,7 @@ export const publishMockup = defineOperation({
     brief: z.string().max(BRIEF_MAX).optional().describe("Markdown: what this canvas explores and why."),
     columns: z.number().int().min(1).max(12).nullable().optional(),
     pages: z.array(pageInput).min(1).max(MAX_MOCKUP_PAGES).optional(),
+    files: z.array(fileInput).max(MAX_MOCKUP_FILES).optional().describe("The files the version carries, in full: a path on the base keeps its content unless sent; a path left out is dropped. Omit to keep them."),
     refs: refsInput.describe("The outcomes, sources and assumptions this canvas explores, in full. Omit on a later version to keep them."),
     citations: z.array(citationInput).max(CITATION_MAX_COUNT).optional(),
     from_version: z.number().int().min(1).optional(),
@@ -220,7 +242,7 @@ export const publishMockup = defineOperation({
   async handler(ctx, input) {
     const pid = productId(ctx);
     const existing = input.mockup_id ? await loadMockup(ctx, input.mockup_id, true) : null;
-    let base: { n: number; version_id: string; title: string; summary: string; brief: string; columns: number | null; refs: typeof EMPTY_REFS; citations: unknown[]; pages: PageRow[] } | null = null;
+    let base: { n: number; version_id: string; title: string; summary: string; brief: string; columns: number | null; refs: typeof EMPTY_REFS; citations: unknown[]; pages: PageRow[]; files: FileRow[] } | null = null;
     if (existing) {
       if (existing.archived_at) throw conflict("mockup_archived", "This mockup is archived; restore it before publishing.");
       if (!input.expected_etag) throw conflict("stale_etag", "This mockup exists; read it with get and pass its etag.", { current_etag: existing.etag });
@@ -228,7 +250,8 @@ export const publishMockup = defineOperation({
       const vid = input.from_version ? await versionIdOf(ctx, existing.mockup_id, input.from_version) : existing.current_version_id;
       const v = await ctx.db.selectFrom("mockup_versions").selectAll().where("version_id", "=", vid).executeTakeFirstOrThrow();
       const pages = await ctx.db.selectFrom("mockup_pages").select(["page_id", "title", "notes", "width", "height", "html"]).where("version_id", "=", vid).orderBy("position").execute();
-      base = { ...v, pages };
+      const files = await ctx.db.selectFrom("mockup_files").select(["path", "content"]).where("version_id", "=", vid).orderBy(sql`path collate "C"`).execute();
+      base = { ...v, pages, files };
     } else {
       if (input.expected_etag) throw conflict("stale_etag", "Omit expected_etag when creating a mockup.");
       if (input.from_version) throw invalid("invalid_input", "from_version needs a mockup_id.");
@@ -252,6 +275,18 @@ export const publishMockup = defineOperation({
       : base!.pages;
     const dup = pages.map((p) => p.page_id).find((x, i, all) => all.indexOf(x) !== i);
     if (dup) problems.push(`Page "${dup}" appears more than once.`);
+    const files: FileRow[] = input.files
+      ? input.files.map((x) => {
+          const content = x.content ?? base?.files.find((b) => b.path === x.path)?.content;
+          if (content === undefined) problems.push(`File ${x.path} is new and needs content.`);
+          return { path: x.path, content: content ?? "" };
+        })
+      : (base?.files ?? []);
+    // Paths that differ only in case would overwrite each other when the download is unzipped.
+    const same = files.map((x) => x.path.toLowerCase()).find((x, i, all) => all.indexOf(x) !== i);
+    if (same) problems.push(`File ${same} appears more than once, perhaps with different capitals.`);
+    const fileChars = files.reduce((n, x) => n + x.content.length, 0);
+    if (fileChars > MOCKUP_FILES_TOTAL) problems.push(`The files total ${fileChars} characters; a version holds at most ${MOCKUP_FILES_TOTAL}.`);
     if (problems.length) throw invalid("invalid_input", `Nothing was published: ${problems.join(" ")}`, { problems });
     // Only pages whose HTML changed need checking again; carried HTML passed when it was published.
     for (const p of input.pages ?? []) {
@@ -286,6 +321,7 @@ export const publishMockup = defineOperation({
       .insertInto("mockup_pages")
       .values(pages.map((p, position) => ({ version_id, tenant_id: tenantId(ctx), product_id: pid, position, ...p })))
       .execute();
+    if (files.length) await ctx.db.insertInto("mockup_files").values(files.map((x) => ({ version_id, tenant_id: tenantId(ctx), product_id: pid, ...x }))).execute();
     if (existing) {
       await ctx.db
         .updateTable("mockups")
@@ -298,7 +334,7 @@ export const publishMockup = defineOperation({
       entity_type: "mockup",
       entity_id: mockup_id,
       entity_title: title,
-      summary: existing ? `Published version ${n}${input.from_version ? ` from version ${input.from_version}` : ""} with ${pages.length} page${pages.length === 1 ? "" : "s"}` : `Created the mockup with ${pages.length} page${pages.length === 1 ? "" : "s"}`,
+      summary: `${existing ? `Published version ${n}${input.from_version ? ` from version ${input.from_version}` : ""} with` : "Created the mockup with"} ${pages.length} page${pages.length === 1 ? "" : "s"}${files.length ? ` and ${files.length} file${files.length === 1 ? "" : "s"}` : ""}`,
     });
     const e = await loadMockup(ctx, mockup_id);
     return { ...summaryView(e), current: await versionView(ctx, e.current_version_id, false), based_on_version: base?.n ?? null };
@@ -350,9 +386,9 @@ export const getMockupDownload = defineOperation({
   scope: "product",
   access: "read",
   mutates: false,
-  summary: "Get a short-lived grant to download one version of a mockup as a ZIP: the brief, each page's HTML and notes, and a manifest.",
+  summary: "Get a short-lived grant to download one version of a mockup as a ZIP: the brief, each page's HTML and notes, its files, and a manifest.",
   description:
-    "Use it to carry a canvas into the project where you build the next version: GET url with the headers, unzip, change the pages, and publish the next version with the pages that changed. The ZIP holds brief.md, manifest.json (the version, the pages in order with their titles, sizes and notes, the refs and citations) and pages/<page_id>.html with pages/<page_id>.notes.md. version defaults to the current one. Keep the grant header out of reports and logs.",
+    "Use it to carry a canvas into the project where you build the next version: GET url with the headers, unzip, change the pages, and publish the next version with the pages that changed. The ZIP holds brief.md, manifest.json (the version, the pages in order with their titles, sizes and notes, the files, the refs and citations), pages/<page_id>.html with pages/<page_id>.notes.md, and each file the version carries under files/ at its path, ready to copy into your project. version defaults to the current one. Keep the grant header out of reports and logs.",
   input: z.strictObject({ mockup_id: id("mockup"), version: z.number().int().min(1).optional() }),
   rest: { method: "POST", path: "/mockups/:mockup_id/downloads" },
   mcp: { tool: "mockups", action: "get_download" },
@@ -397,13 +433,14 @@ export const mockupOps = [listMockups, getMockup, listMockupVersions, getMockupV
 
 /**
  * One version of a mockup as a ZIP, for the download grant's route: brief.md, manifest.json,
- * and each page's HTML and notes. Runs in the tenant's transaction.
+ * each page's HTML and notes, and the files it carries under files/. Runs in the tenant's transaction.
  */
 export async function mockupBundle(db: Tx, versionId: string) {
   const v = await db.selectFrom("mockup_versions").selectAll().where("version_id", "=", versionId).executeTakeFirst();
   if (!v) return null;
   const e = await db.selectFrom("mockups").select(["mockup_id", "title"]).where("mockup_id", "=", v.mockup_id).executeTakeFirstOrThrow();
   const pages = await db.selectFrom("mockup_pages").selectAll().where("version_id", "=", versionId).orderBy("position").execute();
+  const carried = await db.selectFrom("mockup_files").select(["path", "content"]).where("version_id", "=", versionId).orderBy(sql`path collate "C"`).execute();
   const manifest = {
     format: "whatbuild-mockup",
     format_version: 1,
@@ -415,6 +452,7 @@ export async function mockupBundle(db: Tx, versionId: string) {
     published_at: v.created_at,
     published_by: v.created_by,
     pages: pages.map((p) => ({ page_id: p.page_id, title: p.title, width: p.width, height: p.height, html: `pages/${p.page_id}.html`, notes: `pages/${p.page_id}.notes.md`, html_sha256: sha256Hex(p.html) })),
+    files: carried.map((x) => ({ path: x.path, file: `files/${x.path}`, chars: x.content.length, sha256: sha256Hex(x.content) })),
     refs: { outcomes: v.refs.outcomes, sources: v.refs.sources, assumptions: v.refs.assumptions },
     citations: v.citations,
   };
@@ -426,6 +464,7 @@ export async function mockupBundle(db: Tx, versionId: string) {
     files[`pages/${p.page_id}.html`] = strToU8(p.html);
     files[`pages/${p.page_id}.notes.md`] = strToU8(p.notes);
   }
+  for (const x of carried) files[`files/${x.path}`] = strToU8(x.content);
   const slug = e.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "mockup";
   return { name: `${slug}-v${v.n}.zip`, bytes: zipSync(files) };
 }

@@ -597,7 +597,8 @@ side by side), each with design notes, and a brief that says what the canvas exp
 `current_version`, `etag`, and an append-only list of **versions**. A version is immutable and is
 the whole canvas: `version` (1, 2, 3…), `title`, `summary`, `brief` (Markdown, ≤ 50,000: what the
 canvas explores, for whom, the questions it should answer, what each page tries), `columns` (1–12
-pages side by side before the canvas wraps, or null for one row), the `pages` in order, `refs`
+pages side by side before the canvas wraps, or null for one row), the `pages` in order, the
+`files` it carries, `refs`
 (outcomes, sources and assumptions), `citations`, `published_at` and `published_by`. A page:
 `page_id` (a slug, `[a-z0-9][a-z0-9-]*`, ≤ 80 chars), `title` (1–200), `notes` (Markdown,
 ≤ 10,000, the page's design notes), `width` (240–2,560 CSS pixels, default 1,280; 390 for a
@@ -606,6 +607,15 @@ phone) and `height` (240–4,000, default 800), and its HTML, returned only with
 8,000,000 characters of HTML in a version; 50 mockups in a product, archived ones included
 (`409 quota_exceeded`).
 
+**Files.** A version carries text files for collaborators to pull into their own projects: a
+DESIGN.md, components, tokens. A file is a `path` (relative, ≤ 200 chars, folders separated by
+`/`, each part of letters, digits, `.`, `-` and `_`, never `.` or `..`, at most five folders
+deep) and its `content` (text). Reads list `path`, `chars` and `sha256`, sorted by path in byte
+order, and add `content` with `include_files`; `mockups.list_versions` gives each version's
+`file_count`. WhatBuild never draws a page with a file, and the app shows one only as text.
+Limits: 50 files and 2,000,000 characters of files in a version; two paths that differ only in
+case are refused, since they would overwrite each other when unzipped.
+
 **Publishing.** `mockups.publish` without `mockup_id` creates a mockup with its first version: a
 `title` and at least one page with a `title` and `html`. With `mockup_id` it publishes the next
 version and needs the mockup's etag (`409 stale_etag`); an archived mockup refuses it
@@ -613,8 +623,11 @@ version and needs the mockup's etag (`409 stale_etag`); an archived mockup refus
 names another, and takes every field it omits (`title`, `summary`, `brief`, `columns`, `refs`,
 `citations`) from the base. `pages`, when passed, is the whole canvas in order: a page left out is
 dropped from the version, and a page whose `page_id` was on the base keeps its title, notes, size
-and HTML unless they are sent, so a version that changes one page sends only that page's HTML. A
-new page needs a title and HTML (`422 invalid_input`, listing every problem). HTML that is sent
+and HTML unless they are sent, so a version that changes one page sends only that page's HTML.
+`files`, when passed, is the whole set in the same way: a path on the base keeps its content
+unless it is sent, a path left out is dropped, `[]` drops them all, and omitting `files` keeps
+them. A new page needs a title and HTML, and a new file its content (`422 invalid_input`, listing
+every problem). HTML that is sent
 follows the Story's HTML rules (§4.11) and is checked at publish (`422 invalid_html`); carried
 HTML was checked when it was first published.
 ◆ Decision: a version is the whole canvas, not one page. The pages of a canvas are read and
@@ -637,8 +650,8 @@ every mockup version that cites it (`mockup_versions_citing`).
 `GET /api/v1/downloads/mockup/{version_id}` with the `X-WhatBuild-Download-Grant` header. The ZIP
 holds `brief.md`, `manifest.json` (format `whatbuild-mockup`, format version 1: the mockup, the
 version, `columns`, who published it and when, the pages in order with their titles, sizes,
-`html_sha256` and file names, the refs and the citations) and `pages/<page_id>.html` with
-`pages/<page_id>.notes.md`, so an agent can build the next version in a project of its own and
+`html_sha256` and file names, the files, the refs and the citations), `pages/<page_id>.html` with
+`pages/<page_id>.notes.md`, and each file under `files/` at its path, so an agent can build the next version in a project of its own and
 publish the pages that changed.
 
 **Archive.** `mockups.archive` and `mockups.restore` take the etag. An archived mockup leaves the
@@ -687,6 +700,7 @@ story/hierarchy.json  ·  story/pages/<page_id>/page.json  ·  story/pages/<page
                             (a version that shows a mockup page has no .html; its JSON names the page)
 mockups/<mockup_id>/mockup.json
 mockups/<mockup_id>/v<n>/{version.json,brief.md}  ·  mockups/<mockup_id>/v<n>/pages/<page_id>.{html,notes.md}
+mockups/<mockup_id>/v<n>/files/<path>
 tombstones.json
 activity.jsonl
 ```
