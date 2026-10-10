@@ -417,7 +417,7 @@ export async function runDerivation(
       activity_id: newId(), tenant_id: job.tenant_id, team_id: product?.team_id ?? null, product_id: record.product_id,
       actor: json({ account_id: "system", display_name: "WhatBuild", surface: null, client: "parser" }), actor_account_id: "system", channel: null,
       action: result.status === "ready" ? "derived" : "derivation_" + result.status, entity_type: "source", entity_id: record.record_id, entity_title: record.title,
-      summary: result.status === "ready" ? `Parsed ${file.path} into ${result.segment_count} passages (${result.parser} ${result.parser_version})` : `Could not derive passages from ${file.path}: ${result.status}`,
+      summary: result.status === "ready" ? `Parsed ${file.path} into ${result.segment_count === 1 ? "1 passage" : `${result.segment_count} passages`}` : `Could not derive passages from ${file.path}: ${result.status}`,
     })
     .execute();
   return { derivation_id, status: result.status };

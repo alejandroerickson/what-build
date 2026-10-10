@@ -37,7 +37,8 @@ the sandbox, where the sandbox's limits apply.
 8. **MCP, as Sam.** Search for a phrase from the second file. *Expect:* found, in the right source.
 9. **Web, as Sam.** Open Activity. *Expect:* entries for both sources and the comment, each saying
    who did it and whether it came from the web or from an agent; parsing each file is WhatBuild's,
-   "on the server", never "in the app"; the comment names its passage as ¶N.
+   "on the server", never "in the app", and says how many passages it made without a parser's
+   label such as "(plaintext 5)"; the comment names its passage as ¶N.
 10. **MCP, as Sam.** Update the first source's title with an `expected_etag` from before the last
     change (read the source, change it once, then change it again with the old etag). *Expect:* the
     second write is refused with `409 stale_etag`, and nothing changed.

@@ -163,6 +163,7 @@ export interface RegisterSummary {
   /** The entries that supersede this one, newest first. */
   superseded_by: string[];
   archived_at: string | null;
+  created_at: string;
   updated_at: string;
 }
 

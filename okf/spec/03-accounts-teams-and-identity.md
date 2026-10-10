@@ -470,7 +470,10 @@ else in the organization is a visitor**, whatever role they hold. `sandbox.statu
 them how they stand (`you.role`): `staff`; `visitor`, for someone who came in by an invitation
 link and holds the tenant role `visitor`; or `member`, for someone staff gave a role, who is
 treated as a visitor is (the made-up name, the limits, no administering, nobody else seen) and is
-told so. The notice each is shown says who sees what they add, and under which name.
+told so. The notice each is shown says who sees what they add, and under which name. A member
+who reads only the Story there (a reader wherever they hold a role) writes nothing, so they are
+told that instead: `you.story_only` is true, `appears_as` is null, and the notice and `you.can`
+say they read the Story and write nothing.
 
 | A visitor | How |
 |---|---|

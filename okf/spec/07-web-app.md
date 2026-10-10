@@ -25,7 +25,14 @@ design system: tokens, type, components and the rules for using them — is docu
   unsaved text, offer reload-and-reapply. Never discard input; never overwrite silently: a
   teammate or their agent may be editing the same object.
 - `409 quota_exceeded` is shown as a fact with a number and a next step, never as a failure of the
-  person. (The only quota enforced today is Story pages per product, [§9.2](09-data-lifecycle.md).)
+  person. (Enforced today: Story pages and mockups per product, [§9.2](09-data-lifecycle.md), and a
+  public sandbox's daily allowances, [§9.7](09-data-lifecycle.md).)
+- **No request the app knows will be refused.** Where the app can tell in advance that the server
+  would refuse (a Story-only reader asking for members, an organization that is not a sandbox, an
+  address whose id is not an id at all), it says so without asking. Where it cannot, it asks, and
+  REST answers honestly: a source, assumption or other object that does not exist answers `404`,
+  and its page says it was not found while the browser's console reports the `404` of the request.
+  ◆ Decision: that console line is by design; the API is not bent to hide it.
 - Works on narrow screens. Meets WCAG 2.2 AA. Fully keyboard-operable.
 - **Interface text says one thing once.** A heading states the fact, the body adds only what the
   heading did not, and a rule is explained where it applies, not ahead of time. Words are plain and
@@ -117,8 +124,9 @@ place.
 5. `/` opens the overview for anyone in an organization, and first run for anyone in none. The
    last-used product is remembered per browser until the person signs out or their session ends
    ([§9.1](09-data-lifecycle.md)); Connect an agent names it in its example request.
-6. Archived products appear only on the overview, behind "Show archived products" (`?archived=1`)
-   under each organization that has any, read-only, and an admin restores them from the product's
+6. Archived products appear only on the overview, behind "Show archived products" under each
+   organization that has any, which opens that organization's alone (`?archived=<organization
+   slug>`, repeated for each organization opened), read-only, and an admin restores them from the product's
    Settings. Inside one, no control offers a change the server would refuse: an outcome's actions
    menu becomes its Earlier versions button, as for a viewer. Roles are access, not content, and
    `members.grant` and `members.revoke` still work on an archived product, so its Settings keep
@@ -444,7 +452,8 @@ them. Its one write is promoting a page to the Story.
 - **The register:** the assumptions list, filtered from the panel as above; the
   default lists unconfirmed and confirmed entries. Where a view lists a superseded entry under the
   entry that replaced it, it sits there, muted, marked "Replaced by the entry above"; while a
-  search is typed, rows are in match order instead. An
+  search is typed, rows are in match order instead. Each row says who drafted or recorded it and
+  when it was created, the same date its page shows, and adds "updated …" when it changed since. An
   entry page shows the statement, body, citations with their **snapshot text** and live
   `check_citations` status in words (which also says when a quote matched only ignoring
   formatting, when the primary file has a newer version, and when the source was parsed again
@@ -565,7 +574,9 @@ source. It is one log for people and agents together, newest first ([§4.10](04-
 Each entry reads as a sentence with the actor, the surface, and a link to the object: "Sam, via
 claude-desktop, confirmed an assumption — 14:02". The surface is "in the app", "through the API" or
 "via <client>"; what WhatBuild does by itself, such as parsing a file, has no surface and reads "on
-the server", however the file was uploaded. A note's passages read as the app writes them, ¶4 or
+the server", however the file was uploaded, and says what came of it in a person's words:
+"Parsed call.vtt into 412 passages", never the parser's internal label (events recorded with one
+are read without it, over MCP as in the app). A note's passages read as the app writes them, ¶4 or
 ¶4–6. The kind of object changed (`?entity_type=`) or
 one object (`&entity_id=`) narrows it, held in the URL.
 
@@ -695,7 +706,9 @@ never described as deleting. A list row showing an archived object says *Archive
   - **For a visitor** the same address (About this sandbox in the account menu) shows the notice,
     the name they write under, what they can do, and every allowance with what is used today. A
     member whom staff gave a role sees the same page, with the notice and what they can do
-    written for a member. The notice above every screen says who sees what the person adds:
+    written for a member. A member who reads only the Story sees **You read: The Story** and that
+    they write nothing, in place of the name they write under. A daily allowance set to 0 shows as
+    Off. The notice above every screen says who sees what the person adds:
     other visitors, for a visitor; everyone there, for a member; visitors, under their own name,
     for staff.
   - **Members** in the sandbox shows anyone but staff only themselves, and shows staff the

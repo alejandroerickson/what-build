@@ -1,7 +1,7 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
-import { api, ApiError, qs } from "../lib/api.ts";
+import { api, ApiError, isObjectId, qs } from "../lib/api.ts";
 import { actorName, attribution, fileTypeName, formatBytes, formatDate, passageText, plural, relativeTime } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
@@ -37,6 +37,16 @@ interface CitedIn {
 /** Old `?tab=` links keep working: each maps to a section, and "connected" opens the inspector. */
 const TAB_TO_VIEW: Record<string, View | null> = { passages: "passages", preview: "original", files: "files", notes: "notes", connected: null };
 
+function SourceNotFound({ app }: { app: string }) {
+  return (
+    <>
+      <EvidenceFilters />
+      <PageHeader crumbs={[{ label: "Evidence", to: `${app}/evidence` }, { label: "Source" }]} title="Source not found" />
+      <EmptyState action={<ButtonLink to={`${app}/evidence`}>Back to Evidence</ButtonLink>}>It doesn’t exist in this product, or you don’t have access to it.</EmptyState>
+    </>
+  );
+}
+
 function useSourceKey() {
   const { recordId = "" } = useParams();
   const { api: base } = useProduct();
@@ -48,9 +58,14 @@ export function SourceDetailPage() {
   const { app, canWrite } = useProduct();
   const [params, setParams] = useSearchParams();
   const slots = useContext(ShellContext);
+  // An address that cannot hold a source id names no source, so the server is not asked; it would
+  // refuse the malformed id. A well-formed id is asked about, and a missing source's 404 is the
+  // honest answer, which the browser logs (§7.1).
+  const wellFormed = isObjectId(recordId);
   const q = useQuery({
     queryKey: key,
     queryFn: () => api<SourceRecord>("GET", `${base}/sources/${recordId}?detail=full`),
+    enabled: wellFormed,
     refetchInterval: (query) => (query.state.data?.derived_status === "pending" ? 2000 : false),
   });
   const noteKinds = (q.data?.agent_notes ?? []).map((n) => n.kind);
@@ -85,7 +100,8 @@ export function SourceDetailPage() {
     return () => clearTimeout(t);
   }, [loaded, slots]);
   const [dialog, setDialog] = useState<"edit" | "delete" | "files" | null>(null);
-  usePageTitle(q.data?.title ?? "Source");
+  usePageTitle(q.data?.title ?? (wellFormed ? "Source" : "Source not found"));
+  if (!wellFormed) return <SourceNotFound app={app} />;
   if (q.isPending)
     return (
       <>
@@ -107,15 +123,12 @@ export function SourceDetailPage() {
         </>
       );
     }
+    if (e.status === 404) return <SourceNotFound app={app} />;
     return (
       <>
         <EvidenceFilters />
-        <PageHeader crumbs={[{ label: "Evidence", to: `${app}/evidence` }, { label: "Source" }]} title={e.status === 404 ? "Source not found" : "This source could not be loaded"} />
-        {e.status === 404 ? (
-          <EmptyState action={<ButtonLink to={`${app}/evidence`}>Back to Evidence</ButtonLink>}>It doesn’t exist in this product, or you don’t have access to it.</EmptyState>
-        ) : (
-          <ErrorCallout error={q.error} onRetry={() => q.refetch()} />
-        )}
+        <PageHeader crumbs={[{ label: "Evidence", to: `${app}/evidence` }, { label: "Source" }]} title="This source could not be loaded" />
+        <ErrorCallout error={q.error} onRetry={() => q.refetch()} />
       </>
     );
   }

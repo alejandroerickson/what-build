@@ -363,7 +363,7 @@ returns them to a visitor with what is used today.
 | Writes | `writes_per_minute` | 30 | each visitor, each minute | `429 rate_limited` |
 | Writes | `writes_per_day` | 300 | each visitor, each day | `409 quota_exceeded` |
 | Sources created or copied in | `sources_per_day` | 10 | each visitor, each day | `409 quota_exceeded` |
-| Exports | `exports_per_day` | 0 (none) | each visitor, each day | `409 quota_exceeded` |
+| Exports | `exports_per_day` | 0 (off) | each visitor, each day | `409 quota_exceeded` |
 | Writes | `org_writes_per_day` | 20,000 | all visitors together, each day | `409 quota_exceeded` |
 | File size | `file_max_bytes` | 5 MB | each file | `413 too_large` |
 | Uploads | `bytes_per_day` | 50 MB | each visitor, each day | `409 quota_exceeded` |
@@ -397,7 +397,12 @@ Rules:
    served outside the registry ([§6.4](06-operations-and-adapters.md)); for a visitor each counts
    as a call and is refused while the sandbox is closed. The upload relay takes no bytes from a
    visitor while `visitor_access` is not `write`, whenever the grant was given.
-8. **Setting a limit to 0 refuses everything it counts.**
+8. **Setting a limit to 0 refuses everything it counts.** A daily allowance set to 0 (`writes_per_day`,
+   `org_writes_per_day`, `sources_per_day`, `exports_per_day`, `bytes_per_day`, `org_bytes_per_day`)
+   is switched off rather than used up: the call is refused, before its allowance is counted, with
+   `403 sandbox_restricted`, like a switch that is off, with `{ setting, limit: 0 }` in `details` and
+   a message that says it is off for visitors, never that it starts again at the next reset.
+   `sandbox.status` still lists it, and the app shows it to a visitor as Off.
 
 ### The baseline
 

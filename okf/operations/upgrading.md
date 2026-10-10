@@ -56,6 +56,17 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   third value. `members.list` no longer lists a visitor whom staff also gave a role on a team or
   product. The limits table labels the two limits on all visitors together `Writes` and
   `Uploads`, counted over "All visitors together, each day".
+- **The public sandbox:** an action whose daily allowance is 0 (exports by default, or any of
+  `writes_per_day`, `sources_per_day`, `bytes_per_day` and the two limits on all visitors together
+  set to 0) is refused with `403 sandbox_restricted`, saying it is off for visitors, instead of
+  `409 quota_exceeded` with a time it starts again. An agent or script that waited for
+  `resets_at` on such a refusal stops instead. `sandbox.status` gives a member who reads only the
+  Story `you.story_only: true`, `appears_as: null` and a notice that says they read the Story and
+  write nothing.
+- **Activity:** a parse event's summary reads "Parsed notes.md into 5 passages", without the
+  parser's name and version it used to end with, and `activity.list` reads earlier ones the same
+  way. A script that read the parser from the summary reads it from the derivation's manifest
+  (`derived.manifest`) instead.
 - **`members.list`** answers `403` to someone who reads only the Story in an organization (a
   reader everywhere they hold a role there), and the app hides Members from them.
 - **Microsoft sign-in** accepts an address only when Microsoft marks its domain verified (the

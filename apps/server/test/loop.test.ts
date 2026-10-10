@@ -1,5 +1,6 @@
 import { unzipSync } from "fflate";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { withoutParserLabel } from "../../../packages/core/src/ops/activity.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 const VTT = `WEBVTT
@@ -268,6 +269,10 @@ describe("the discovery loop through REST", () => {
     expect(actions).toContain("source:derived");
     expect(actions).toContain("assumption:reviewed");
     expect(actions).toContain("story_page:published");
+    // A parse line says what a person understands: the file and its passages, never the parser's own label.
+    const parsed = a.body.items.find((i: { action: string }) => i.action === "derived");
+    expect(parsed.summary).toMatch(/^Parsed \S+ into \d+ passages?$/);
+    expect(withoutParserLabel("Parsed notes.md into 5 passages (markdown 2)")).toBe("Parsed notes.md into 5 passages");
     for (const i of a.body.items) expect(JSON.stringify(i)).not.toContain("alice@example.com");
     const one = await alice.api("GET", `${P}/activity?entity_id=${recordId}`);
     expect(one.body.items.every((i: { entity_id: string }) => i.entity_id === recordId)).toBe(true);

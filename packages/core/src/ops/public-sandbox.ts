@@ -5,6 +5,7 @@ import { checkEtag, recordActivity } from "../common.ts";
 import { json } from "../db.ts";
 import { AppError, conflict, gone, invalid, notFound } from "../errors.ts";
 import { REST_BODY_MAX_BYTES, SIGN_IN_LINKS_PER_HOUR } from "../ports.ts";
+import { membershipsFor, readsOnlyTheStoryIn } from "../policy.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { baselineView, BASELINES_KEPT, resetToBaseline, saveBaseline } from "../public-sandbox-baseline.ts";
 import {
@@ -46,11 +47,12 @@ const WHO_SEES: Record<SandboxStanding, string> = {
 };
 
 /** The words every surface shows a person, and an agent shows its person, before anything is added. */
-export function sandboxNotice(state: Pick<SandboxState, "settings" | "baseline_id">, as: SandboxStanding = "visitor"): string {
+export function sandboxNotice(state: Pick<SandboxState, "settings" | "baseline_id">, as: SandboxStanding = "visitor", readsOnlyTheStory = false): string {
   const s = state.settings;
   const erased = s.reset_enabled && state.baseline_id
     ? `Everything added is erased every day at ${s.reset_time} (${s.reset_timezone.replace(/_/g, " ")} time)`
     : "Everything added may be erased at any time";
+  if (readsOnlyTheStory) return `This is a public sandbox. You read the Story here, and write nothing. ${erased}.`;
   return `This is a public sandbox. ${WHO_SEES[as]} ${erased}. Don’t add anything private.`;
 }
 
@@ -86,7 +88,7 @@ export const sandboxStatus = defineOperation({
   mutates: false,
   summary: "What a public sandbox is for the caller: the notice to show, when it resets, the name they write under, and what is left of each allowance.",
   description:
-    "Call it when products(action=\"list\") marks a tenant as a sandbox, before your first write there, and tell the person the notice. you.role is staff (an owner or admin, under their own name), visitor (came in by an invitation link) or member (given a role by its staff); a visitor or member writes under appears_as, sees no other person and meets the limits. allowances lists every limit with what is used today; a write over one is refused with 429 rate_limited or 409 quota_exceeded, and reads are never stopped by an allowance. Answers 404 in an organization that is not a sandbox.",
+    "Call it when products(action=\"list\") marks a tenant as a sandbox, before your first write there, and tell the person the notice. you.role is staff (an owner or admin, under their own name), visitor (came in by an invitation link) or member (given a role by its staff); a visitor or member writes under appears_as, sees no other person and meets the limits; a member who reads only the Story has you.story_only true and appears_as null, and writes nothing. allowances lists every limit with what is used today; a write over one is refused with 429 rate_limited or 409 quota_exceeded, one whose daily allowance is 0 is switched off and refused with 403 sandbox_restricted, and reads are never stopped by an allowance. Answers 404 in an organization that is not a sandbox.",
   input: z.strictObject({ tenant }),
   rest: { method: "GET", path: "/sandbox" },
   mcp: { tool: "sandbox", action: "status" },
@@ -94,6 +96,9 @@ export const sandboxStatus = defineOperation({
     const sb = sandboxOf(ctx);
     const s = sb.settings;
     const standing = sandboxStanding(ctx.scope.tenantRole);
+    // A member given only reader roles reads the Story and writes nothing, so nothing is said of writing.
+    const tid = ctx.scope.tenant!.tenant_id;
+    const reader = standing === "member" && readsOnlyTheStoryIn(await membershipsFor(ctx.db, ctx.principal.account_id, tid), tid);
     const used = sb.visitor ? await usageToday(ctx.db, sb, ctx.principal.account_id) : null;
     const usedOf: Partial<Record<keyof SandboxSettings, number>> = used
       ? { writes_per_day: used.writes, sources_per_day: used.sources, exports_per_day: used.exports, bytes_per_day: used.bytes, org_writes_per_day: used.org_writes, org_bytes_per_day: used.org_bytes }
@@ -101,15 +106,18 @@ export const sandboxStatus = defineOperation({
     return {
       public_sandbox: true,
       organization: { slug: ctx.scope.tenant!.slug, name: ctx.scope.tenant!.name },
-      notice: sandboxNotice(sb, standing),
+      notice: sandboxNotice(sb, standing, reader),
       visitor_access: s.visitor_access,
       agents_allowed: s.visitor_agents,
       resets: schedule(sb),
       you: {
         role: standing,
-        appears_as: sb.appears_as,
+        appears_as: reader ? null : sb.appears_as,
+        ...(reader ? { story_only: true } : {}),
         can:
-          standing === "staff"
+          reader
+            ? "Read the Story of the products you were given. You write nothing here, and you can’t see who else is here."
+            : standing === "staff"
             ? "Everything an owner or admin can, under your own name. The limits below apply only to visitors."
             : standing === "member"
               ? "Read, search, and add or change content where your role allows. As in every public sandbox, anyone but its owners and admins writes under a made-up name and meets the limits below. You can’t manage products or people, see who else is here, or delete anything permanently."
