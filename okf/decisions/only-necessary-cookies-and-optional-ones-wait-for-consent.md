@@ -22,7 +22,8 @@ people plainly rather than show an Allow or Don't prompt that would control noth
 
 ## Decision
 
-- The server sets only `wb_session`, `wb_oidc` and `wb_consent`; the web app keeps only display
+- The server sets only the session cookie (`__Host-wb_session` over HTTPS, `wb_session` over plain
+  HTTP), `wb_oidc` and `wb_consent`; the web app keeps only display
   choices and notices read, under `whatbuild.*` in local storage. No third party sets or reads
   anything; fonts are self-hosted.
 - Every screen shows a small notice once that blocks nothing and offers no choice, and
