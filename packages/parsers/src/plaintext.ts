@@ -3,7 +3,36 @@ import { tableBlocks } from "./tables.ts";
 import { decodeText } from "./text.ts";
 import type { Block, FormatParser } from "./types.ts";
 
-const HEADING = /^(#{1,6})\s+(.+?)\s*#*\s*$/;
+const LINE_TERMINATOR = /[\n\r\u2028\u2029]/;
+const isSpace = (ch: string) => /\s/.test(ch);
+
+/**
+ * An ATX heading's marker and text, exactly as `/^(#{1,6})\s+(.+?)\s*#*\s*$/` reads them, in one
+ * pass: that pattern backtracks in cubic time on a long line of spaces, so a few kilobytes could
+ * stall the parse for minutes.
+ */
+export function atxHeading(line: string): [marker: string, text: string] | null {
+  const lead = /^(#{1,6})\s/.exec(line);
+  if (!lead?.[1]) return null;
+  const k = lead[1].length;
+  let w = k;
+  while (w < line.length && isSpace(line[w]!)) w++;
+  // Where the optional closing sequence (spaces, #s, spaces) begins, read from the end.
+  let m = line.length;
+  while (m > w && isSpace(line[m - 1]!)) m--;
+  while (m > w && line[m - 1] === "#") m--;
+  while (m > w && isSpace(line[m - 1]!)) m--;
+  if (m > w) {
+    const text = line.slice(w, m);
+    return LINE_TERMINATOR.test(text) ? null : [lead[1], text];
+  }
+  // Nothing but a closing sequence after the spaces: the pattern takes its first character, or
+  // with nothing after the spaces, the last space it can.
+  if (w < line.length) return [lead[1], line[w]!];
+  for (let j = w - 1; j > k; j--) if (!LINE_TERMINATOR.test(line[j]!)) return [lead[1], line[j]!];
+  return null;
+}
+
 const FENCE = /^\s*(```|~~~)/;
 /** A bullet (`-`, `*`, `+`) or an ordered item (`1.`, `1)`), then its text. */
 const LIST_ITEM = /^\s*([-*+]|\d{1,9}[.)])\s+(\S.*)$/;
@@ -43,7 +72,8 @@ function prepare(source: string, markdown: boolean): Line[] {
   const out: Line[] = [];
   let fence: string[] | null = null;
   for (const raw of source.split("\n")) {
-    const line = raw.replace(/\s+$/, "");
+    // trimEnd, not /\s+$/: that pattern takes quadratic time on a long run of inner spaces.
+    const line = raw.trimEnd();
     if (FENCE.test(line)) {
       if (fence) {
         fence.push(line);
@@ -90,10 +120,10 @@ function parseText(source: string, markdown: boolean): { blocks: Block[]; facts:
       flush();
       continue;
     }
-    const h = line.match(HEADING);
-    if (h?.[1] && h[2]) {
+    const h = atxHeading(line);
+    if (h?.[0] && h[1]) {
       flush();
-      blocks.push({ text: `${h[1]} ${h[2]}`, heading_level: h[1].length });
+      blocks.push({ text: `${h[0]} ${h[1]}`, heading_level: h[0].length });
       continue;
     }
     if (markdown && para.length === 1 && item === null && !turn && SETEXT_UNDERLINE.test(line)) {

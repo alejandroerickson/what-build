@@ -24,11 +24,11 @@ import type { Block, FormatParser, ParseResult } from "./types.ts";
  */
 export const docParser: FormatParser = {
   name: "doc",
-  version: "1",
-  async parse(bytes, fileName) {
+  version: "2",
+  async parse(bytes, fileName, options) {
     if (isCompoundFile(bytes)) return wordBinary(bytes);
     if (bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04) {
-      const r = await docxParser.parse(bytes, fileName);
+      const r = await docxParser.parse(bytes, fileName, options);
       return { ...r, facts: { doc_format: "docx", ...r.facts } };
     }
     const start = hasUtf8Bom(bytes) ? 3 : 0;

@@ -7,15 +7,15 @@ import { bytesReader, recordingDurationMs } from "./media.ts";
 import { pdfParser } from "./pdf.ts";
 import { markdownParser, plaintextParser } from "./plaintext.ts";
 import { assemble, codePointLength, decodeText, headingOutline, speakerOutline } from "./text.ts";
-import type { FormatParser, ParseResult } from "./types.ts";
+import { DEFAULT_PARSE_CAP_BYTES, type FormatParser, type ParseResult } from "./types.ts";
 import { xlsxParser } from "./xlsx.ts";
+import { TooLargeError } from "./zip.ts";
 
 export type { Block, DerivationStatus, ParseResult, Segment } from "./types.ts";
 export { codePointLength, sliceCodePoints, MAX_SEGMENT_CHARS } from "./text.ts";
 export { recordingDurationMs, type ByteReader } from "./media.ts";
-
-/** Sources over this size are stored but not parsed (`too_large`). Operator-configurable. */
-export const DEFAULT_PARSE_CAP_BYTES = 25 * 1024 * 1024;
+export { DEFAULT_PARSE_CAP_BYTES } from "./types.ts";
+export { HtmlLimitError, MAX_HTML_DEPTH, parseHtml } from "./html.ts";
 
 export const RECORDING_EXTENSIONS = [
   ".mp3", ".mp4", ".m4a", ".wav", ".mov", ".webm", ".mkv", ".aac", ".flac", ".ogg", ".wma", ".m4v", ".opus",
@@ -119,9 +119,11 @@ export async function derive(
   }
   let parsed: Awaited<ReturnType<FormatParser["parse"]>>;
   try {
-    parsed = await parser.parse(bytes, fileName);
+    parsed = await parser.parse(bytes, fileName, { maxBytes: cap });
   } catch (err) {
     const e = err as Error;
+    // A package that unpacks past the cap is too large to parse, as a file over it is.
+    if (err instanceof TooLargeError) return nonReady("too_large", e.message, parser.name, parser.version);
     return nonReady("failed", `${e.name ?? "Error"}: ${e.message ?? String(err)}`.slice(0, 200), parser.name, parser.version);
   }
   const { segments, text } = assemble(parsed.blocks);

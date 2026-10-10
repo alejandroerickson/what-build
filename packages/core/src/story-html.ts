@@ -1,4 +1,4 @@
-import { parse } from "parse5";
+import { HtmlLimitError, parseHtml } from "@whatbuild/parsers";
 
 export const STORY_HTML_MAX = 1_000_000;
 export const STORY_SCRIPT_BUDGET = 32_000;
@@ -33,9 +33,10 @@ export function inspectStoryHtml(html: string): string[] {
   if (html.length > STORY_HTML_MAX) problems.push(`The page is ${html.length} characters; the limit is ${STORY_HTML_MAX}.`);
   let doc: Node;
   try {
-    doc = parse(html) as unknown as Node;
-  } catch {
-    return ["The HTML could not be parsed."];
+    // Bounded: a page nested too deep, or one that makes far more elements than it has tags, is refused.
+    doc = parseHtml(html) as unknown as Node;
+  } catch (e) {
+    return [...problems, e instanceof HtmlLimitError ? `${e.message.charAt(0).toUpperCase()}${e.message.slice(1)}.` : "The HTML could not be parsed."];
   }
   let scripts = 0;
   let budget = 0;

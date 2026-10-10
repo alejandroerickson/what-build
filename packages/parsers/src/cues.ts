@@ -23,7 +23,7 @@ export function cleanPayload(raw: string): { text: string; speaker: string | nul
     .replace(/\{\\[^}]*\}/g, "")
     .replace(/<\/?(?:v|c|i|b|u|ruby|rt|lang)(?:[.\s][^>]*)?>/g, "")
     .replace(/<\d{1,2}:\d{2}[:.][^>]*>/g, "")
-    .replace(/\s*\n\s*/g, " ")
+    // One pass collapses line breaks too; /\s*\n\s*/ took quadratic time on long runs of spaces.
     .replace(/\s+/g, " ")
     .trim();
   text = text

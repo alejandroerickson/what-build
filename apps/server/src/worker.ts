@@ -3,6 +3,8 @@ import { blobsSafeToDelete, lockSandbox, markExportFailed, runDerivation, runEvi
 import { sql } from "kysely";
 
 const SIDECARS = ["segments.jsonl", "text.md", "outline.md", "manifest.json"];
+/** A job is tried at most this many times, whether it failed or the process stopped while running it. */
+const MAX_ATTEMPTS = 5;
 
 interface Job {
   job_id: number;
@@ -60,6 +62,7 @@ export class Worker {
         this.again = false;
         for (;;) {
           await this.prune().catch((e) => this.log(`prune: ${(e as Error).message}`));
+          await this.giveUpAbandoned().catch((e) => this.log(`give up: ${(e as Error).message}`));
           const job = await this.claim();
           if (!job) break;
           await this.run(job);
@@ -104,10 +107,46 @@ export class Worker {
       update jobs set locked_at = now(), locked_by = ${this.id}, attempts = attempts + 1
       where job_id = (
         select job_id from jobs
-        where done_at is null and run_after <= now() and (locked_at is null or locked_at < now() - interval '10 minutes')
+        where done_at is null and attempts < ${MAX_ATTEMPTS} and run_after <= now() and (locked_at is null or locked_at < now() - interval '10 minutes')
         order by job_id for update skip locked limit 1)
       returning job_id, tenant_id, kind, payload, attempts`.execute(this.env.db);
     return r.rows[0] ?? null;
+  }
+
+  /**
+   * Give up the jobs that used every attempt without finishing. A job that fails is given up in
+   * `run`; these are the ones the process stopped during, every time, most likely because the job
+   * itself took it down (a file that needs more memory than the server has). Claiming one again
+   * would take the server down again, so it is marked done, and a derivation or an export records
+   * that it failed.
+   */
+  private async giveUpAbandoned(): Promise<void> {
+    const reason = `the server stopped while running this ${MAX_ATTEMPTS} times, most likely for lack of memory or time, so WhatBuild gave it up`;
+    const abandoned = await sql<Job>`
+      update jobs set done_at = now(), locked_at = null, locked_by = null, error = ${reason}
+      where job_id in (
+        select job_id from jobs
+        where done_at is null and attempts >= ${MAX_ATTEMPTS} and (locked_at is null or locked_at < now() - interval '10 minutes')
+        order by job_id for update skip locked limit 20)
+      returning job_id, tenant_id, kind, payload, attempts`.execute(this.env.db);
+    for (const job of abandoned.rows) {
+      this.log(`job ${job.job_id} ${job.kind} given up after ${job.attempts} attempts that never finished`);
+      if (job.kind !== "derive" && job.kind !== "export") continue;
+      await this.env.db
+        .transaction()
+        .execute(async (trx) => {
+          await sql`select set_config('app.tenant_id', ${job.tenant_id}, true)`.execute(trx);
+          if (job.kind === "export") return markExportFailed(trx, String(job.payload["export_id"]), reason);
+          await runDerivation(trx, this.env.ports, {
+            tenant_id: job.tenant_id,
+            record_id: String(job.payload["record_id"]),
+            file_version_id: String(job.payload["file_version_id"]),
+            force: Boolean(job.payload["force"]),
+            failed: `parsing this file stopped the server ${MAX_ATTEMPTS} times, so it was given up; the file is stored, and rederive tries again`,
+          });
+        })
+        .catch((e) => this.log(`job ${job.job_id}: recording that it was given up failed: ${(e as Error).message}`));
+    }
   }
 
   private async run(job: Job) {
@@ -143,7 +182,7 @@ export class Worker {
       });
     } catch (e) {
       const msg = (e as Error).message?.slice(0, 500) ?? String(e);
-      const final = job.attempts >= 5 || job.kind === "export";
+      const final = job.attempts >= MAX_ATTEMPTS || job.kind === "export";
       if (job.kind === "export")
         await this.env.db.transaction().execute(async (trx) => {
           await sql`select set_config('app.tenant_id', ${job.tenant_id}, true)`.execute(trx);

@@ -159,16 +159,20 @@ function registerOps(): OperationDef[] {
     author_type: authorType.optional(),
   };
 
+  /** Outcomes are referenced only inside their own product. */
+  async function checkOutcomes(ctx: OpContext, ids: string[] | undefined) {
+    if (!ids?.length) return;
+    const found = await ctx.db.selectFrom("outcomes").select("outcome_id").where("product_id", "=", productId(ctx)).where("outcome_id", "in", ids).execute();
+    const missing = ids.filter((o) => !found.some((f) => f.outcome_id === o));
+    if (missing.length) throw invalid("unknown_reference", `No such outcomes in this product: ${missing.join(", ")}.`);
+  }
+
   async function insertEntry(ctx: OpContext, input: z.output<z.ZodObject<typeof createFields>>) {
     const entry_id = newId();
     const citations = await snapshotAll(ctx, input.citations);
     const links = input.links ?? [];
     await checkLinks(ctx, entry_id, links);
-    if (input.outcome_ids?.length) {
-      const found = await ctx.db.selectFrom("outcomes").select("outcome_id").where("product_id", "=", productId(ctx)).where("outcome_id", "in", input.outcome_ids).execute();
-      const missing = input.outcome_ids.filter((o) => !found.some((f) => f.outcome_id === o));
-      if (missing.length) throw invalid("unknown_reference", `No such outcomes in this product: ${missing.join(", ")}.`);
-    }
+    await checkOutcomes(ctx, input.outcome_ids);
     await ctx.db
       .insertInto("register_entries")
       .values({
@@ -307,6 +311,7 @@ function registerOps(): OperationDef[] {
       const citations = input.citations ? await snapshotAll(ctx, input.citations) : row.citations;
       const links = input.links ?? row.links;
       if (input.links) await checkLinks(ctx, row.entry_id, links);
+      await checkOutcomes(ctx, input.outcome_ids);
       if (textChange) await keepRevision(ctx, kind, row.entry_id, { statement: row.statement, body: row.body, citations: row.citations }, row.updated_at, row.updated_by);
       await ctx.db
         .updateTable("register_entries")

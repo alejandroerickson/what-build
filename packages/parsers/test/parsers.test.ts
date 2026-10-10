@@ -609,7 +609,7 @@ describe("XLSX", () => {
       "[Register, row 3] Sample: KL-02 | Cu_pct: 0.9 | S_pct: (blank)",
       "[Register, row 4] Sample: NR | Cu_pct: (blank) | S_pct: (blank)",
     ]);
-    expect(r.parser_version).toBe("3");
+    expect(r.parser_version).toBe("4");
   });
 
   it("renders numbers in date and time formats as ISO dates and times, and other numbers as numbers", async () => {
