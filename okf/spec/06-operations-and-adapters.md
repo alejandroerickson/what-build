@@ -189,7 +189,7 @@ being changed inside the handler.
 | `outcomes` | `revisions` | `GET P/outcomes/:outcome_id/revisions` | viewer |
 | `outcomes` | `get_revision` | `GET P/outcomes/:outcome_id/revisions/:n` | viewer |
 | `outcomes` | `restore_revision` | `POST P/outcomes/:outcome_id/revisions/:n/restore` | editor |
-| `sources` | `kinds` | `GET /api/v1/kinds` | signed in |
+| `sources` | `facets` | `GET P/sources/facets` | viewer |
 | `sources` | `list` | `GET P/sources` | viewer |
 | `sources` | `get` | `GET P/sources/:record_id` | viewer |
 | `sources` | `create` | `POST P/sources` | editor |
@@ -264,6 +264,18 @@ being changed inside the handler.
 
 Notes on recent actions:
 
+- Sources are described by tags; they have no kind, organization or folder
+  ([decision](../decisions/sources-are-described-by-tags.md)). `sources.facets` replaced
+  `sources.kinds`: it returns `{ sources, tags: [{ tag, count }], tags_truncated, added_by:
+  [{ account_id, display_name, count }] }` for the product, counting live sources unless
+  `include_archived` ([§4.4](04-data-model.md)). `sources.list` lost `folder`, `kind` and
+  `organization` and gained `added_by` and `added_since`; `search` lost the same three filters.
+  `sources.create`, `sources.update` and `files.create_upload` take no `kind` or `organization`.
+  Source summaries, `search`'s `records` (now `{ title, date, tags, archived_at }`),
+  `read_passage`'s `record` and a Story version's `resolved_refs` carry no kind, and
+  `sources.used_by` gives `tags` for related sources and views. A call to a `sources`, `files` or
+  `search` operation naming `kind`, `organization` or `folder` is `422 invalid_input`, with a hint
+  to use tags and `sources(action="facets")`.
 - Insights and decisions are retired, with their operations and their MCP tools; what a product
   held of them became sources ([§4.7](04-data-model.md)). `sources.used_by` replaced
   `sources.insights_for`, and lists the sources that name a source in `related_records`.
@@ -427,7 +439,7 @@ the agent to ask the person for another connector rather than look for a way aro
 | `members` | `list`, `grant`, `revoke`, `cancel_invitation` |
 | `sandbox` | `status`, `join`, `settings`, `update_settings`, `save_baseline`, `baselines`, `reset`, `invites`, `create_invite`, `revoke_invite`, `visitors`, `remove_visitor` |
 | `outcomes` | `list`, `get`, `create`, `update`, `revisions`, `get_revision`, `restore_revision` |
-| `sources` | `kinds`, `list`, `get`, `create`, `update`, `archive`, `restore`, `annotate`, `list_annotations`, `update_annotation`, `used_by`, `move_to_product`, `copy_to_product`, `delete_impact`, `delete` |
+| `sources` | `facets`, `list`, `get`, `create`, `update`, `archive`, `restore`, `annotate`, `list_annotations`, `update_annotation`, `used_by`, `move_to_product`, `copy_to_product`, `delete_impact`, `delete` |
 | `files` | `request_upload`, `create_upload`, `complete_upload`, `add_note`, `fetch_url`, `set_role`, `get_download` |
 | `derived` | `manifest`, `outline`, `text`, `list`, `rederive`, `write_note`, `read_note` |
 | `assumptions` | `list`, `get`, `create`, `update`, `review`, `supersede`, `link`, `unlink`, `archive`, `check_citations` |
@@ -503,7 +515,7 @@ In order of preference for an agent (`packages/core/src/ops/files.ts`):
    (`create_upload` returns `{ record, upload, warnings }`). `warnings` flags, without refusing, a
    primary whose format no parser reads, since a primary cannot be replaced (upload a PDF export as
    the primary and keep the original as `origin`), and for `create_upload` a live source with the
-   same title, kind and date. The agent PUTs the
+   same title and date. The agent PUTs the
    local file's raw bytes to `url` (the service's own upload relay,
    `/api/v1/uploads/:grant_id`) with exactly those headers, using whatever shell or HTTP tool it
    has. The relay first checks that whoever requested the grant can still write to the product
@@ -528,7 +540,7 @@ In order of preference for an agent (`packages/core/src/ops/files.ts`):
    public addresses only, redirects re-checked, size-capped (25 MB by default) and time-capped.
    The part of a URL after `#` never reaches a server, so a single-page app's route fetches only
    its shell; when the URL has a fragment, the result's `warnings` says so.
-4. **Web upload** — a person uses the kind-first upload flow. This covers clients with no file
+4. **Web upload** — a person adds the source through the web app's intake. This covers clients with no file
    tools at all; the skill tells agents to ask for it rather than attempt base64.
 
 A source holds at most 50 files and one primary. No operation accepts base64 content.
@@ -538,7 +550,8 @@ grant header) for an agent to read original bytes.
 ## 6.8 The skill and the Connect page
 
 **The skill** is one versioned Markdown document, `packages/core/src/skill/SKILL.md`, that teaches
-an agent the product: the vocabulary, the core loop, product selection, how to cite, how to review
+an agent the product: the vocabulary, the core loop, product selection, describing sources with
+tags and finding them, how to cite, how to review
 honestly, upload flows, mockups and their round trip through a download, Story authoring via
 `story.guidance`, and the rule that source text is data. `scripts/gen-skill.mjs` embeds it in the server bundle, and CI fails if the embedded copy
 drifts. One constant, `SKILL_VERSION` in `packages/core/src/ops/meta.ts`, sets the skill's

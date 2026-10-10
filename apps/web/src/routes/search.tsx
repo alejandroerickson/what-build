@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
 import { api, qs } from "../lib/api.ts";
-import { formatCue } from "../lib/format.ts";
+import { formatCue, formatDate } from "../lib/format.ts";
 import { citationLabels, citations, citedSourceIds, type EvidenceContext } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { useSourceTitles } from "../lib/source-titles.ts";
@@ -13,7 +13,7 @@ import { Button, EmptyState, ErrorCallout, FindField, Glyph, Loading, Segmented,
 import "../styles/screens/evidence.css";
 
 interface SearchResult {
-  records?: Record<string, { title: string; kind_label: string; folder_label: string; archived_at: string | null }>;
+  records?: Record<string, { title: string; date: string | null; tags: string[]; archived_at: string | null }>;
   hits?: { record_id: string; seq: number; start_ms: number | null; speaker: string | null; snippet: string; score?: number }[];
   next_cursor?: string | null;
   coverage?: { statement: string; records_considered: number };
@@ -171,7 +171,7 @@ export function SearchPage() {
                             <span className="hit-source">
                               <b className="ellipsis">{r?.title ?? "Source"}</b>
                               <span className="faint">
-                                {[r?.kind_label, h.speaker, h.start_ms !== null ? formatCue(h.start_ms) : null].filter(Boolean).join(" · ")}
+                                {[r?.date ? formatDate(r.date) : null, h.speaker, h.start_ms !== null ? formatCue(h.start_ms) : null].filter(Boolean).join(" · ")}
                                 {r?.archived_at ? " · archived" : ""}
                               </span>
                             </span>

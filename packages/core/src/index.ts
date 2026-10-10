@@ -20,7 +20,7 @@ export * from "./connector-scope.ts";
 export * from "./db.ts";
 export * from "./errors.ts";
 export * from "./execute.ts";
-export * from "./kinds.ts";
+export * from "./source-fields.ts";
 export * from "./media.ts";
 export * from "./policy.ts";
 export * from "./ports.ts";

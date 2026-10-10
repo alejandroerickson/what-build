@@ -12,7 +12,7 @@ There is no AI inside WhatBuild and it needs no model API key. Intelligence arri
 whatever agent you connect.
 
 > **Status: early build.** The whole loop works end to end — sign-in,
-> organizations and roles, kind-first intake, parsing, passages, search, mockups, reviewed
+> organizations and roles, intake with tags, parsing, passages, search, mockups, reviewed
 > assumptions, the Story, activity, and agents over MCP with OAuth. See the
 > [roadmap](okf/spec/10-roadmap.md) for exactly what is and is not done.
 

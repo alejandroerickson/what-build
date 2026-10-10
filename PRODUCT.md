@@ -59,7 +59,8 @@ permissions and one activity log.
   a sub-view.
 - Hierarchy: tenant (organization) → team → product (one discovery). Roles at each level; a person
   without a role on a product cannot see it at all.
-- Kind-first intake: the app asks what a source *is* and files it; nobody chooses a folder.
+- A source is described by a title and tags (what it is, whom it concerns, what it bears on),
+  reusing the tags the team already has; there are no kinds to choose and no folders.
 - Only a source's primary file is parsed and searched; originals and supplements are kept, never
   searched, and the UI says so.
 - Citations snapshot the exact text; drift is reported, never repaired silently.

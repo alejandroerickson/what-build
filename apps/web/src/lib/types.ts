@@ -7,16 +7,11 @@ export interface Actor {
 
 export interface RecordSummary {
   record_id: string;
-  kind: string;
-  kind_label: string;
   title: string;
   date: string | null;
-  organization: string | null;
   tags: string[];
   dimensions: { customer?: string | null; product_area?: string | null; lifecycle_stage?: string | null };
   provenance_depth: string;
-  folder: string;
-  folder_label: string;
   uploaded_by: Actor;
   uploaded_at: string;
   updated_at: string;
@@ -99,22 +94,12 @@ export interface Segment {
   page: number | null;
 }
 
-export interface KindInfo {
-  kind: string;
-  label: string;
-  short: string;
-  group: string;
-  description: string;
-  dated: boolean;
-  organizational: boolean;
-  recording: boolean;
-  root: string;
-}
-
-export interface KindsResponse {
-  groups: { group: string; label: string; description: string }[];
-  kinds: KindInfo[];
-  search_rule: string;
+/** sources.facets: what a product's sources can be filtered by. */
+export interface SourceFacets {
+  sources: number;
+  tags: { tag: string; count: number }[];
+  tags_truncated: boolean;
+  added_by: { account_id: string; display_name: string; count: number }[];
 }
 
 export interface CitationView {

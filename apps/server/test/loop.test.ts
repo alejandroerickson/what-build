@@ -66,12 +66,13 @@ describe("the discovery loop through REST", () => {
 
   it("uploads through a grant, derives on the queue, and serves exact passages", async () => {
     const created = await alice.api("POST", `${P}/sources/with-upload`, {
-      kind: "interview_transcript", title: "Ops lead interview — Example Co, Sep 2026", date: "2026-09-03", organization: "Example Co",
-      path: "call.vtt", role: "primary", tags: ["Pricing"],
+      title: "Ops lead interview — Example Co, Sep 2026", date: "2026-09-03",
+      path: "call.vtt", role: "primary", tags: ["Interview", " Example   Co ", "Pricing", "interview"],
     });
     expect(created.status).toBe(201);
     recordId = created.body.record.record_id;
-    expect(created.body.record.folder).toBe("interviews/2026");
+    // Tags are stored lower-case with their spacing collapsed, without repeats.
+    expect(created.body.record.tags).toEqual(["interview", "example co", "pricing"]);
     const up = created.body.upload;
     expect(up.url).toBe(`${h.baseUrl}/api/v1/uploads/${up.grant_id}`);
     // The relay takes the bytes on the service's own host; the grant header is the credential.

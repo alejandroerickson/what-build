@@ -47,7 +47,7 @@ beforeAll(async () => {
   productPath = p.body.path;
   P = `/api/v1/p/${productPath}`;
   await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "planner", email: "vic@example.com", role: "viewer" });
-  const created = await alice.api("POST", `${P}/sources/with-upload`, { kind: "interview_transcript", title: "Finance lead interview — Example Co, Sep 2026", date: "2026-09-03", path: "call.vtt", role: "primary" });
+  const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Finance lead interview — Example Co, Sep 2026", date: "2026-09-03", path: "call.vtt", role: "primary" });
   recordId = created.body.record.record_id;
   const up = created.body.upload;
   await fetch(up.url, { method: "PUT", headers: up.headers, body: VTT });
@@ -74,7 +74,7 @@ describe("Story citations", () => {
     expect(v1.body.current.citations).toHaveLength(2);
     expect(v1.body.current.citations[0]).toMatchObject({ index: 0, record_id: recordId, seq_start: 2, seq_end: 2, quote: "numbers close", source_title: "Finance lead interview — Example Co, Sep 2026", speakers: ["Dana"] });
     expect(v1.body.current.citations[1].quote).toContain("Why Friday?");
-    expect(v1.body.current.resolved_refs.sources).toEqual([{ id: recordId, title: "Finance lead interview — Example Co, Sep 2026", status: null, kind: "interview_transcript", archived: false, missing: false }]);
+    expect(v1.body.current.resolved_refs.sources).toEqual([{ id: recordId, title: "Finance lead interview — Example Co, Sep 2026", status: null, archived: false, missing: false }]);
     const page = await alice.api("GET", `${P}/story/pages/overview`);
     expect(page.body.current.citations).toHaveLength(2);
     const version = await alice.api("GET", `${P}/story/pages/overview/versions/1`);

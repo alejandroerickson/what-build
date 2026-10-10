@@ -282,7 +282,7 @@ export const readPassage = defineOperation({
             : "No cue overlaps this window: a gap between cues.";
     }
     return {
-      record: { record_id: record.record_id, title: record.title, kind: record.kind, archived_at: record.archived_at },
+      record: { record_id: record.record_id, title: record.title, archived_at: record.archived_at },
       derivation_id: d.derivation_id,
       file_version_id: d.file_version_id,
       is_current_derivation: d.derivation_id === record.current_derivation_id,

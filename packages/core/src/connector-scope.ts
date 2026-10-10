@@ -14,7 +14,7 @@ export interface ConnectorScope {
 }
 
 /** Account-level operations a scoped connector still answers: they reach no organization's content. */
-const ACCOUNT_OPS_ALLOWED = new Set(["products.list", "sources.kinds", "get_skill", "submit_feedback"]);
+const ACCOUNT_OPS_ALLOWED = new Set(["products.list", "get_skill", "submit_feedback"]);
 /** Organization-level operations a product connector still answers: the caller's own standing there. */
 const TENANT_OPS_FOR_PRODUCT = new Set(["sandbox.status"]);
 /** Product operations that reach a second product, which a product connector never can. */

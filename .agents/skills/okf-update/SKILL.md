@@ -61,7 +61,8 @@ adding a near-duplicate.
 | `story-html.ts`, `story-guidance.ts`, `story-styles.ts`, `story-theme.ts`, `story-print.ts`, `ops/story.ts` | `spec/04` and `spec/07` (Story), decisions `story-pages-are-sandboxed-agent-html`, `story-pages-follow-the-teams-design-system`, `story-notes-are-agent-memory` and `pdf-export-uses-browser-print` |
 | `evidence-move.ts`, migration `0015_…` | `spec/04` §4.7 and `spec/09` §9.8, decision `insights-and-decisions-are-retired-into-evidence` |
 | `ops/mockups.ts`, `apps/web/src/routes/mockups.tsx`, `mockups.css` | `spec/04` §4.12 and `spec/07` §7.7 (Mockups), decision `mockups-are-versioned-canvases-in-exploration`, the canvas in `DESIGN.md`; a change to the HTML rules or the sandbox also `story-pages-are-sandboxed-agent-html` |
-| `packages/parsers/**`, `kinds.ts`, `media.ts`, `worker.ts` | `spec/05`, decision `only-the-primary-file-is-searched`, the parser list in `spec/10` |
+| `packages/parsers/**`, `media.ts`, `worker.ts` | `spec/05`, decision `only-the-primary-file-is-searched`, the parser list in `spec/10` |
+| A source's fields or tags (`source-fields.ts`, `sources.facets`, the filters of `sources.list` and `search`) | `spec/04` §4.3 and §4.4, `spec/07` §7.6, `spec/08` §8.1, decision `sources-are-described-by-tags`, the product `SKILL.md` |
 | `ops/search.ts` | `spec/08` |
 | Archive, delete, export (`ops/export.ts`) | `spec/09`, decision `archive-by-default-delete-guarded` |
 | `uploads.ts`, `adapters/**`, `ports.ts`, `config.ts` | `spec/02` (adapters, configuration), `spec/05`, `operations/cloud-run.md` and `operations/azure.md` (with `deploy/azure/containerapp.yaml`) if an environment variable changed |

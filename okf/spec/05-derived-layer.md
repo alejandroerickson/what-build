@@ -3,7 +3,7 @@ type: Specification
 title: Every source's primary file is parsed into immutable, passage-addressable text that any client can read by segment or time.
 description: Derivations and when they run, the four sidecars, derivation statuses, the parsers by format, the read_passage contract, and the other derived reads.
 tags: [spec, derived-layer, parsers, passages, sidecars]
-generated: {by: agent:claude, at: 2026-10-01}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -188,7 +188,7 @@ Response:
 
 ```json
 {
-  "record": { "record_id": "01J…", "title": "…", "kind": "interview_transcript", "archived_at": null },
+  "record": { "record_id": "01J…", "title": "…", "archived_at": null },
   "derivation_id": "01J…", "file_version_id": "01J…", "is_current_derivation": true,
   "unit": "seq", "total_segments": 412, "duration_ms": 3540000,
   "requested": { "start": 400, "end": 450 },

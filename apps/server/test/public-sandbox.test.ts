@@ -34,7 +34,7 @@ async function set(patch: Record<string, unknown>) {
 }
 
 async function upload(who: Browser, base: string, path: string, body: string, title = `Sample ${path}`) {
-  const created = await who.api("POST", `${base}/sources/with-upload`, { kind: "interviewer_notes", title, path, role: "primary" });
+  const created = await who.api("POST", `${base}/sources/with-upload`, { tags: ["notes"], title, path, role: "primary" });
   expect(created.status, JSON.stringify(created.body)).toBe(201);
   const put = await fetch(created.body.upload.url, { method: "PUT", headers: created.body.upload.headers, body });
   expect(put.status).toBe(201);
@@ -381,7 +381,7 @@ describe("limits on what a visitor does", () => {
     expect((await viktor.api("POST", `${P}/exports`, {})).status).toBe(201);
     await h.worker.drain();
     await set({ writes_per_day: 100000, sources_per_day: 0 });
-    const source = await viktor.api("POST", `${P}/sources`, { kind: "other", title: "Sample source over the allowance" });
+    const source = await viktor.api("POST", `${P}/sources`, { title: "Sample source over the allowance" });
     expect(source.status).toBe(409);
     expect(source.body.error.details).toMatchObject({ quota: "sources_per_day", limit: 0, used: 0 });
     await set({ sources_per_day: 100 });
@@ -404,7 +404,7 @@ describe("limits on what a visitor does", () => {
   });
 
   it("limits what a visitor uploads: the kind of file, its size, and the day's bytes", async () => {
-    const recording = await viktor.api("POST", `${P}/sources/with-upload`, { kind: "interview_recording", title: "Sample recording", path: "call.m4a", role: "primary" });
+    const recording = await viktor.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Sample recording", path: "call.m4a", role: "primary" });
     expect(recording.status).toBe(403);
     expect(recording.body.error.code).toBe("sandbox_restricted");
     const fetched = await viktor.api("POST", `${P}/sources/${seededSource}/fetch`, { url: "https://example.com/notes.txt", role: "supplement" });

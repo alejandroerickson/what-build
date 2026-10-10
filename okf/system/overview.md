@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild at three altitudes
 description: The whole system from the top down, the major parts, and the mechanics underneath, with links to the detail.
 tags: [overview, architecture, tenancy, access, mcp]
-generated: {by: agent:claude, at: 2026-10-09}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -31,7 +31,8 @@ and a Story for stakeholders. Every claim points at the exact passage it came fr
 agents do most intake and synthesis over MCP; stakeholders read the Story, often as a PDF.
 
 **The loop**, which is also the navigation order: **Idea** (the product concept, and the outcomes its users should achieve) →
-**Evidence** (sources, parsed into passages) → **Exploration** (mockups: versioned canvases of
+**Evidence** (sources, each described by a title and tags and parsed into passages;
+[decision](../decisions/sources-are-described-by-tags.md)) → **Exploration** (mockups: versioned canvases of
 pages built from the evidence, each under a brief; and the assumption register, cited and
 reviewed) → **Story** (versioned pages for stakeholders). Insights and decisions were retired, and
 what a product held of them became sources
@@ -109,8 +110,8 @@ passages are indexed in the same transaction that makes them current
 ([derived layer](../spec/05-derived-layer.md),
 [decision](../decisions/only-the-primary-file-is-searched.md)).
 
-**An agent's session.** Check the skill → `products list`, confirm the product → upload through
-`files` → `search`, then `read_passage` → `assumptions create` with citations →
+**An agent's session.** Check the skill → `products list`, confirm the product → read
+`sources facets` and upload through `files`, reusing the product's tags → `search`, then `read_passage` → `assumptions create` with citations →
 `mockups publish` a canvas with its brief, or `get_download` a version, build the next one in a
 project and publish the pages that changed
 ([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)) → read

@@ -3,11 +3,11 @@ import { z } from "zod";
 import { productId, recordActivity, tenantId } from "../common.ts";
 import { json } from "../db.ts";
 import { AppError, conflict, invalid, notFound, tooLarge } from "../errors.ts";
-import { kindInfo, SEARCH_RULE } from "../kinds.ts";
+import { SEARCH_RULE } from "../source-fields.ts";
 import { extensionForMediaType, extensionOf, mediaTypeFor, NOTE_EXTENSIONS, validFilePath } from "../media.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { countVisitorBytes, sandboxForAccount, visitorMayFetchUrl, visitorUploadLimit } from "../public-sandbox.ts";
-import { fileRole, id, kind } from "../schemas.ts";
+import { fileRole, id } from "../schemas.ts";
 import { newEtag, newId, sha256Hex } from "../util.ts";
 import { derivedStatuses, duplicateWarnings, fileEntries, insertRecord, loadRecord, NO_PRIMARY_WARNING, recordMetadata, recordSummary } from "./sources.ts";
 
@@ -156,8 +156,8 @@ export const createUpload = defineOperation({
   mutates: true,
   summary: "Create a source and get an upload grant for its first file, in one call.",
   description:
-    "Takes sources.create's metadata plus the file's path and role. Returns {record, upload, warnings}; PUT the bytes to upload.url with upload.headers, then call complete_upload. Read warnings first: they flag a primary no parser reads, and an existing source with the same title, kind and date. Prefer a digest to a bulk upload for long or mostly off-topic documents, and keep the original as an origin file.",
-  input: z.strictObject({ kind, ...recordMetadata, ...requestUploadInput }),
+    "Takes sources.create's metadata plus the file's path and role. Returns {record, upload, warnings}; PUT the bytes to upload.url with upload.headers, then call complete_upload. Read warnings first: they flag a primary no parser reads, and an existing source with the same title and date. Prefer a digest to a bulk upload for long or mostly off-topic documents, and keep the original as an origin file.",
+  input: z.strictObject({ ...recordMetadata, ...requestUploadInput }),
   rest: { method: "POST", path: "/sources/with-upload" },
   mcp: { tool: "files", action: "create_upload" },
   async handler(ctx, input) {
@@ -434,6 +434,3 @@ export const getDownload = defineOperation({
 });
 
 export const fileOps = [requestUpload, createUpload, completeUpload, addNote, fetchUrl, setRole, getDownload];
-
-// Re-exported for the kinds of records intake flows ask about.
-export { kindInfo };

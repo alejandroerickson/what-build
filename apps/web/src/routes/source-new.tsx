@@ -1,17 +1,16 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useRef, useState } from "react";
+import { useNavigate } from "react-router";
 import { api, putWithProgress } from "../lib/api.ts";
 import { formatBytes, formatDate, plural } from "../lib/format.ts";
 import { useProduct } from "../lib/session.tsx";
 import { ROLE_LABEL } from "../lib/status.ts";
-import type { KindInfo } from "../lib/types.ts";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
-  Button, ButtonLink, Callout, ChoiceRow, EmptyState, ErrorCallout, FormGrid, Glyph, IconButton, KeyValue, Loading, PageHeader, SelectField, Sheet,
-  SheetBody, SheetHeader, StatusBadge, TextField,
+  Button, ButtonLink, Callout, EmptyState, ErrorCallout, FormGrid, Glyph, IconButton, KeyValue, PageHeader, SelectField, Sheet, SheetBody, SheetHeader,
+  StatusBadge, TextField,
 } from "../ui/index.tsx";
-import { useKinds } from "./evidence.tsx";
+import { splitTags, TagSuggestions } from "./evidence.tsx";
 import "../styles/screens/evidence.css";
 
 type Role = "primary" | "origin" | "supplement";
@@ -25,21 +24,6 @@ interface Item {
 
 const MiB = 1024 * 1024;
 const RECORDING = /^(audio|video)\//;
-
-function splitList(s: string): string[] {
-  return [...new Set(s.split(",").map((x) => x.trim()).filter(Boolean))];
-}
-
-function destination(kind: KindInfo | undefined, date: string): string {
-  if (!kind) return "";
-  const labels: Record<string, string> = {
-    interviews: "Interviews", "sales-calls": "Sales calls", research: "Research", "documents/wiki": "Documents › Wiki exports", "documents/prds": "Documents › Requirements",
-    "documents/decks": "Documents › Decks", "documents/contracts": "Documents › Contracts", "documents/rfps": "Documents › RFPs", "documents/analysis": "Documents › Analysis",
-    "documents/digests": "Documents › Digests", "documents/views": "Documents › Views", design: "Design", misc: "Other",
-  };
-  const root = labels[kind.root] ?? kind.root;
-  return kind.dated ? `${root} › ${date ? date.slice(0, 4) : "Undated"}` : root;
-}
 
 /** Upload files to a source one after another, primary first, through grants — the same path agents use. */
 export async function uploadFiles(base: string, recordId: string, items: Item[], update: (i: number, patch: Partial<Item>) => void) {
@@ -115,20 +99,16 @@ function FileRow({ item, onRemove, status }: { item: Item; onRemove?: () => void
   );
 }
 
-const STEPS = ["What is it?", "Describe it", "Add files", "Create"];
+const STEPS = ["Describe it", "Add files", "Create"];
 
 export function SourceNewPage() {
   const { api: base, app, canWrite } = useProduct();
-  const kinds = useKinds();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const [params] = useSearchParams();
   usePageTitle("Add a source");
   const [step, setStep] = useState(0);
-  const [kind, setKind] = useState(params.get("kind") ?? "");
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
-  const [organization, setOrganization] = useState("");
   const [tags, setTags] = useState("");
   const [participants, setParticipants] = useState("");
   const [sourceSystem, setSourceSystem] = useState("");
@@ -136,21 +116,8 @@ export function SourceNewPage() {
   const [touched, setTouched] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
   const [recordId, setRecordId] = useState<string | null>(null);
-  const preset = useRef(params.get("kind"));
-  const info = kinds.data?.kinds.find((k) => k.kind === kind);
-  // Arriving from "Add source" with a kind already chosen goes straight to describing it.
-  useEffect(() => {
-    if (!preset.current || !kinds.data) return;
-    if (kinds.data.kinds.some((k) => k.kind === preset.current)) setStep(1);
-    else setKind("");
-    preset.current = null;
-  }, [kinds.data]);
-  const errors = {
-    title: !title.trim() ? "Give the source a title." : null,
-    date: info?.dated && !date ? "Add the date it was captured: when it happened, not today." : null,
-    organization: info?.organizational && !organization.trim() ? "Name the organization this concerns." : null,
-  };
-  const describeOk = !errors.title && !errors.date && !errors.organization;
+  const errors = { title: !title.trim() ? "Give the source a title." : null };
+  const describeOk = !errors.title;
   const primary = items.find((i) => i.role === "primary");
   const update = (i: number, patch: Partial<Item>) => setItems((all) => all.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const run = useMutation({
@@ -158,12 +125,10 @@ export function SourceNewPage() {
       let rid = recordId;
       if (!rid) {
         const r = await api<{ record_id: string }>("POST", `${base}/sources`, {
-          kind,
           title: title.trim(),
           date: date || null,
-          organization: organization.trim() || null,
-          tags: splitList(tags),
-          participants: splitList(participants),
+          tags: splitTags(tags),
+          participants: splitTags(participants),
           source_system: sourceSystem.trim() || null,
           provenance_depth: provenance,
         });
@@ -185,7 +150,7 @@ export function SourceNewPage() {
   const failed = items.filter((i) => i.state === "failed").length;
   const total = items.reduce((n, i) => n + i.file.size, 0);
   const loaded = items.reduce((n, i) => n + (i.state === "done" ? i.file.size : i.loaded), 0);
-  const header = <PageHeader crumbs={[{ label: "Evidence", to: `${app}/evidence` }, { label: "Add a source" }]} title="Add a source" meta={<span>Say what the material is. WhatBuild files it and parses it into passages your team and your agents can cite.</span>} />;
+  const header = <PageHeader crumbs={[{ label: "Evidence", to: `${app}/evidence` }, { label: "Add a source" }]} title="Add a source" meta={<span>Anything the team learns from: notes, a transcript, a document, a photo of the whiteboard. WhatBuild parses it into passages your team and your agents can cite.</span>} />;
   if (!canWrite)
     return (
       <>
@@ -193,20 +158,6 @@ export function SourceNewPage() {
         <EmptyState title="You can’t add sources to this product" action={<ButtonLink to={`${app}/evidence`}>Back to Evidence</ButtonLink>}>
           Viewers can read and search sources. An admin of the product can make you an editor.
         </EmptyState>
-      </>
-    );
-  if (kinds.isPending)
-    return (
-      <>
-        {header}
-        <Loading lines={6} />
-      </>
-    );
-  if (kinds.isError)
-    return (
-      <>
-        {header}
-        <ErrorCallout error={kinds.error} onRetry={() => kinds.refetch()} />
       </>
     );
   return (
@@ -225,70 +176,30 @@ export function SourceNewPage() {
       </ol>
 
       {step === 0 ? (
-        <Sheet as="section" labelledBy="intake-h" className="intake-sheet">
-          <SheetHeader id="intake-h" title="What is it?" end={<span className="faint small">It decides where the source is filed and what to ask for.</span>} />
-          <div className="intake-kinds">
-            {kinds.data.groups.map((g) => (
-              <fieldset key={g.group} className="intake-kind-group">
-                <legend>
-                  {g.label} <span className="faint">{g.description}</span>
-                </legend>
-                <div className="intake-kind-grid">
-                  {kinds.data.kinds
-                    .filter((k) => k.group === g.group)
-                    .map((k) => (
-                      <ChoiceRow key={k.kind} type="radio" variant="boxed" name="kind" value={k.kind} checked={kind === k.kind} onChange={() => setKind(k.kind)} label={k.label} hint={k.description} />
-                    ))}
-                </div>
-              </fieldset>
-            ))}
-          </div>
-          <div className="intake-foot">
-            <span className="intake-foot-note" aria-live="polite">
-              {info ? (
-                <>
-                  Filed under <strong>{destination(info, date)}</strong>.{info.recording ? " WhatBuild stores recordings without transcribing them; to search a transcript, add it as its own source." : ""}
-                </>
-              ) : (
-                "Pick the closest match."
-              )}
-            </span>
-            <ButtonLink to={`${app}/evidence`} variant="quiet">
-              Cancel
-            </ButtonLink>
-            <Button variant="primary" disabled={!kind} onClick={() => setStep(1)}>
-              Continue
-            </Button>
-          </div>
-        </Sheet>
-      ) : null}
-
-      {step === 1 && info ? (
         <Sheet
           as="form"
           labelledBy="intake-h"
           className="intake-sheet"
         >
-          <SheetHeader id="intake-h" title="Describe it" end={<span className="faint small">{info.label}</span>} />
+          <SheetHeader id="intake-h" title="Describe it" />
           <DescribeForm
-            info={info}
             touched={touched}
             errors={errors}
-            fields={{ title, date, organization, tags, participants, sourceSystem, provenance }}
-            set={{ title: setTitle, date: setDate, organization: setOrganization, tags: setTags, participants: setParticipants, sourceSystem: setSourceSystem, provenance: setProvenance }}
+            fields={{ title, date, tags, participants, sourceSystem, provenance }}
+            set={{ title: setTitle, date: setDate, tags: setTags, participants: setParticipants, sourceSystem: setSourceSystem, provenance: setProvenance }}
           />
           <div className="intake-foot">
-            <span className="intake-foot-note">
-              Filed under <strong>{destination(info, date)}</strong>.
-            </span>
-            <Button onClick={() => setStep(0)}>Back</Button>
+            <span className="intake-foot-note">Tags are how the team finds it again.</span>
+            <ButtonLink to={`${app}/evidence`} variant="quiet">
+              Cancel
+            </ButtonLink>
             <Button
               type="submit"
               variant="primary"
               onClick={(e) => {
                 e.preventDefault();
                 setTouched(true);
-                if (describeOk) setStep(2);
+                if (describeOk) setStep(1);
               }}
             >
               Continue
@@ -297,11 +208,11 @@ export function SourceNewPage() {
         </Sheet>
       ) : null}
 
-      {step === 2 ? (
+      {step === 1 ? (
         <Sheet as="section" labelledBy="intake-h" className="intake-sheet">
           <SheetHeader id="intake-h" title="Add files" end={<span className="faint small">Optional. You or your agent can add them later.</span>} />
           <SheetBody>
-            <p className="muted">The primary file is the source itself: WhatBuild parses it into passages. {kinds.data.search_rule}</p>
+            <p className="muted">The primary file is the source itself: WhatBuild parses it into passages. Only the primary file is searched; origin and supplement files are kept in full for download and never affect search.</p>
           </SheetBody>
           <div className="intake-files">
             {primary ? (
@@ -311,7 +222,7 @@ export function SourceNewPage() {
             ) : (
               <DropZone
                 label="Primary file: searched"
-                hint="VTT, SRT, text, Markdown, DOC, DOCX, XLSX, PDF or HTML parse into passages. Audio and video are stored and marked as needing a transcript."
+                hint="VTT, SRT, text, Markdown, DOC, DOCX, XLSX, PDF or HTML parse into passages. Images, audio and video are stored and shown; add a transcript as its own source to search a recording."
                 multiple={false}
                 onFiles={(f) => f[0] && setItems([...items, { file: f[0], role: "primary", state: "waiting", loaded: 0 }])}
               />
@@ -336,26 +247,23 @@ export function SourceNewPage() {
           </div>
           <div className="intake-foot">
             <span className="intake-foot-note">{items.length ? plural(items.length, "file") + ", " + formatBytes(total) : "No files yet."}</span>
-            <Button onClick={() => setStep(1)}>Back</Button>
-            <Button variant="primary" onClick={() => setStep(3)}>
+            <Button onClick={() => setStep(0)}>Back</Button>
+            <Button variant="primary" onClick={() => setStep(2)}>
               {items.length ? "Continue" : "Continue without a file"}
             </Button>
           </div>
         </Sheet>
       ) : null}
 
-      {step === 3 && info ? (
+      {step === 2 ? (
         <Sheet as="section" labelledBy="intake-h" className="intake-sheet">
           <SheetHeader id="intake-h" title="Create the source" />
           <SheetBody>
             <KeyValue
               items={[
-                { label: "Kind", value: info.label },
                 { label: "Title", value: title },
                 { label: "Captured", value: date ? formatDate(date) : "No date" },
-                { label: "Organization", value: organization || null },
-                { label: "Tags", value: tags ? splitList(tags).join(", ") : null },
-                { label: "Filed under", value: destination(info, date) },
+                { label: "Tags", value: tags ? splitTags(tags).join(", ") : null },
               ]}
             />
           </SheetBody>
@@ -397,7 +305,7 @@ export function SourceNewPage() {
           <div className="intake-foot">
             <span className="intake-foot-note" />
             {!recordId ? (
-              <Button onClick={() => setStep(2)} disabled={run.isPending}>
+              <Button onClick={() => setStep(1)} disabled={run.isPending}>
                 Back
               </Button>
             ) : null}
@@ -411,12 +319,11 @@ export function SourceNewPage() {
   );
 }
 
-type Fields = { title: string; date: string; organization: string; tags: string; participants: string; sourceSystem: string; provenance: string };
+type Fields = { title: string; date: string; tags: string; participants: string; sourceSystem: string; provenance: string };
 
-function DescribeForm({ info, touched, errors, fields: v, set }: {
-  info: KindInfo;
+function DescribeForm({ touched, errors, fields: v, set }: {
   touched: boolean;
-  errors: { title: string | null; date: string | null; organization: string | null };
+  errors: { title: string | null };
   fields: Fields;
   set: { [K in keyof Fields]: (value: string) => void };
 }) {
@@ -425,9 +332,9 @@ function DescribeForm({ info, touched, errors, fields: v, set }: {
     <div className="intake-describe">
       <FormGrid>
         <TextField label="Title" hint="How the team refers to it: who, what, when. Not the file name." required maxLength={300} value={v.title} onChange={(e) => set.title(e.target.value)} error={touched ? errors.title : null} autoFocus />
-        <TextField label="Date captured" type="date" hint="When the interview or call happened, or the document is dated. Not today." optional={!info.dated} value={v.date} onChange={(e) => set.date(e.target.value)} error={touched ? errors.date : null} />
-        <TextField label="Organization" hint="The customer or organization the material concerns." optional={!info.organizational} value={v.organization} onChange={(e) => set.organization(e.target.value)} error={touched ? errors.organization : null} />
-        <TextField label="Tags" optional hint="Comma-separated. Domain terms belong here." value={v.tags} onChange={(e) => set.tags(e.target.value)} />
+        <TextField label="Date captured" type="date" hint="When the meeting or workshop happened, or the document is dated. Not today." optional value={v.date} onChange={(e) => set.date(e.target.value)} />
+        <TextField label="Tags" optional hint="Comma-separated: what it is, whom it concerns, what it bears on. For example: workshop, example co, scheduling." value={v.tags} onChange={(e) => set.tags(e.target.value)} />
+        <TagSuggestions value={v.tags} onChange={set.tags} />
         {more ? (
           <>
             <TextField label="Participants" optional hint="Comma-separated names or roles." value={v.participants} onChange={(e) => set.participants(e.target.value)} />

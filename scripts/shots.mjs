@@ -110,6 +110,7 @@ for (const device of ["desktop", "phone"]) {
     await shoot("overview", `${base}/`);
     await shoot("idea", "/idea");
     await shoot("evidence", "/evidence");
+    await shoot("source-new", "/evidence/new");
     for (const view of ["passages", "original", "notes", "files"]) await shoot(`source-${view}`, `/evidence/${s.source}?view=${view}`);
     await shoot("search", "/search?q=spreadsheet");
     if (s.mockup) await shoot("mockup", `/exploration/mockups/${s.mockup}`, { full: false });

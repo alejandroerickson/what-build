@@ -32,8 +32,8 @@ beforeAll(async () => {
 });
 afterAll(async () => h?.close());
 
-async function upload(kind: string, path: string, body: string) {
-  const created = await alice.api("POST", `${P}/sources/with-upload`, { kind, title: `Sample ${path}`, path, role: "primary" });
+async function upload(tag: string, path: string, body: string) {
+  const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: [tag], title: `Sample ${path}`, path, role: "primary" });
   expect(created.status).toBe(201);
   const recordId: string = created.body.record.record_id;
   const put = await fetch(created.body.upload.url, { method: "PUT", headers: created.body.upload.headers, body });
@@ -69,7 +69,7 @@ async function rederive(recordId: string) {
 
 describe("checking citations after a re-parse", () => {
   it("matches a quote across markup and spacing, relocates it, flags the new derivation, and still catches changed words", async () => {
-    const recordId = await upload("interviewer_notes", "notes.md", NOTES);
+    const recordId = await upload("notes", "notes.md", NOTES);
     const cite = (seq: number, quote: string) => ({ record_id: recordId, seq_start: seq, seq_end: seq, quote });
     const a = await alice.api("POST", `${P}/assumptions`, {
       statement: "Most teams plan by the week.",
@@ -100,7 +100,7 @@ describe("checking citations after a re-parse", () => {
   });
 
   it("sets speaker labels aside only where the source gives the passage that speaker", async () => {
-    const recordId = await upload("interview_transcript", "call.vtt", VTT);
+    const recordId = await upload("interview", "call.vtt", VTT);
     const cite = { record_id: recordId, seq_start: 2, seq_end: 2, quote: "Because that is when" };
     const a = await alice.api("POST", `${P}/assumptions`, { statement: "Numbers close on Fridays.", citations: [cite, cite, cite] });
     expect(a.status).toBe(201);
@@ -112,7 +112,7 @@ describe("checking citations after a re-parse", () => {
   });
 
   it("flags a changed derivation on a Story page's citations too", async () => {
-    const recordId = await upload("interviewer_notes", "visit.md", NOTES);
+    const recordId = await upload("notes", "visit.md", NOTES);
     const html = "<!doctype html><html><head><title>Overview</title></head><body><h1>Overview</h1><p>Plans are weekly.</p></body></html>";
     const v = await alice.api("POST", `${P}/story/pages/overview/versions`, { title: "Overview", html, citations: [{ record_id: recordId, seq_start: 1, seq_end: 1, quote: "plan by the week" }] });
     expect(v.status).toBe(201);
@@ -125,7 +125,7 @@ describe("checking citations after a re-parse", () => {
 
 describe("citing a quote that differs only in markup", () => {
   it("refuses it, and gives the passage's own words to quote", async () => {
-    const recordId = await upload("interviewer_notes", "brief.md", NOTES);
+    const recordId = await upload("notes", "brief.md", NOTES);
     const bad = await alice.api("POST", `${P}/assumptions`, { statement: "x", citations: [{ record_id: recordId, seq_start: 1, seq_end: 1, quote: "**4 of 5 participants** plan" }] });
     expect(bad.status).toBe(422);
     expect(bad.body.error.code).toBe("quote_not_found");
@@ -139,7 +139,7 @@ describe("citing a quote that differs only in markup", () => {
 describe("reading a timed transcript and anchoring notes", () => {
   let recordId: string;
   beforeAll(async () => {
-    recordId = await upload("interview_transcript", "turns.vtt", VTT);
+    recordId = await upload("interview", "turns.vtt", VTT);
   });
 
   it("asks whether segment numbers were meant when a small window with no unit reads no cues", async () => {

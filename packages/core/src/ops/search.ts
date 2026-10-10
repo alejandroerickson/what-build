@@ -2,9 +2,8 @@ import { sql, type RawBuilder } from "kysely";
 import { z } from "zod";
 import { normalizeDimensions, normalizeTags, productId } from "../common.ts";
 import { invalid } from "../errors.ts";
-import { describeFolder, kindInfo } from "../kinds.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
-import { id, isoDate, kind, provenanceDepth } from "../schemas.ts";
+import { id, isoDate, provenanceDepth } from "../schemas.ts";
 import { decodeCursor, encodeCursor } from "../util.ts";
 
 // ---- The ranked grammar -------------------------------------------------------------------------
@@ -163,12 +162,9 @@ const input = z.strictObject({
   mode: z.enum(["substring", "ranked"]).default("substring").describe("substring: exact, case-insensitive text. ranked: the boolean grammar, ranked by term matching."),
   scope: z.enum(["passages", "assumptions", "all"]).default("passages"),
   record_id: id("source").optional().describe("Only this source's passages; for assumptions, those citing it."),
-  folder: z.string().max(100).optional(),
-  kind: kind.optional(),
-  organization: z.string().max(200).optional(),
-  date_from: isoDate.optional(),
-  date_to: isoDate.optional(),
-  tags: z.array(z.string()).max(20).optional(),
+  date_from: isoDate.optional().describe("The source's own date, on or after."),
+  date_to: isoDate.optional().describe("The source's own date, on or before."),
+  tags: z.array(z.string()).max(20).optional().describe("Only sources carrying all of these tags."),
   customer: z.string().max(120).optional(),
   product_area: z.string().max(120).optional(),
   lifecycle_stage: z.enum(["discovery", "sales", "research"]).optional(),
@@ -184,12 +180,6 @@ function recordFilters(i: Input) {
   const parts: RawBuilder<unknown>[] = [];
   if (!i.include_archived) parts.push(sql`r.archived_at is null`);
   if (i.record_id) parts.push(sql`r.record_id = ${i.record_id}`);
-  if (i.folder) {
-    const f = i.folder.replace(/^\/+|\/+$/g, "");
-    parts.push(sql`(r.folder = ${f} or r.folder like ${f + "/%"})`);
-  }
-  if (i.kind) parts.push(sql`r.kind = ${i.kind}`);
-  if (i.organization) parts.push(sql`lower(r.organization) = lower(${i.organization})`);
   if (i.date_from) parts.push(sql`r.date >= ${i.date_from}`);
   if (i.date_to) parts.push(sql`r.date <= ${i.date_to}`);
   if (i.tags?.length) parts.push(sql`r.tags @> ${normalizeTags(i.tags)}::text[]`);
@@ -238,9 +228,9 @@ async function searchPassages(ctx: OpContext, i: Input) {
   }
   const page = rows.slice(0, i.limit);
   const ids = [...new Set(page.map((r) => r.record_id))];
-  const recs = ids.length ? await ctx.db.selectFrom("records").select(["record_id", "title", "kind", "folder", "archived_at"]).where("record_id", "in", ids).execute() : [];
-  const records: Record<string, { title: string; kind: string; kind_label: string; folder: string; folder_label: string; archived_at: string | null }> = {};
-  for (const r of recs) records[r.record_id] = { title: r.title, kind: r.kind, kind_label: kindInfo(r.kind).short, folder: r.folder, folder_label: describeFolder(r.folder), archived_at: r.archived_at };
+  const recs = ids.length ? await ctx.db.selectFrom("records").select(["record_id", "title", "date", "tags", "archived_at"]).where("record_id", "in", ids).execute() : [];
+  const records: Record<string, { title: string; date: string | null; tags: string[]; archived_at: string | null }> = {};
+  for (const r of recs) records[r.record_id] = { title: r.title, date: r.date, tags: r.tags, archived_at: r.archived_at };
   const coverage = await sql<{ considered: number; without_passages: number; recordings: number; not_derived: number; no_primary: number; with_unsearched: number }>`
     select count(*)::int as considered,
       count(*) filter (where d.status is distinct from 'ready')::int as without_passages,
@@ -332,8 +322,8 @@ export const search = defineOperation({
   rest: { method: "GET", path: "/search" },
   mcp: { tool: "search" },
   async handler(ctx, i) {
-    if (i.scope !== "passages" && (i.folder || i.kind || i.organization || i.date_from || i.date_to || i.tags?.length))
-      if (i.scope !== "all") throw invalid("invalid_filter", "folder, kind, organization, dates and tags filter passages; use scope \"passages\" or \"all\".");
+    if (i.scope !== "passages" && (i.date_from || i.date_to || i.tags?.length))
+      if (i.scope !== "all") throw invalid("invalid_filter", "Dates and tags filter passages; use scope \"passages\" or \"all\".");
     const out: Record<string, unknown> = { query: i.query, mode: i.mode, scope: i.scope };
     if (i.scope === "passages" || i.scope === "all") Object.assign(out, await searchPassages(ctx, i));
     if (i.scope === "assumptions" || i.scope === "all") Object.assign(out, await searchAssumptions(ctx, i));

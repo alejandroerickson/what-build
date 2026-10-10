@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { FILE_ROLES, KIND_VALUES, LIFECYCLE_STAGES, PROVENANCE_DEPTHS } from "./kinds.ts";
+import { FILE_ROLES, LIFECYCLE_STAGES, PROVENANCE_DEPTHS } from "./source-fields.ts";
 import { ULID_PATTERN } from "./util.ts";
 
 export const id = (what: string) =>
@@ -22,7 +22,6 @@ export const expectedEtag = z
   .max(200)
   .describe("The etag from your latest read of this item. A stale one is refused with 409 stale_etag.");
 
-export const kind = z.enum(KIND_VALUES).describe("What the material is. See sources(action=\"kinds\").");
 export const provenanceDepth = z.enum(PROVENANCE_DEPTHS).describe("How far the item sits from original evidence.");
 export const fileRole = z.enum(FILE_ROLES);
 export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "a date as yyyy-mm-dd");

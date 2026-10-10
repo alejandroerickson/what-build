@@ -3,7 +3,7 @@ type: Decision
 title: Insights and decisions are retired, and what a product held of them becomes sources in Evidence
 description: Exploration holds mockups and assumptions only; existing insights and decisions are moved into Evidence as Markdown sources with the same ids, by a worker job a migration queues.
 tags: [decision, exploration, evidence, migration, mcp, product]
-generated: {by: agent:claude, at: 2026-10-09}
+generated: {by: agent:claude, at: 2026-10-10}
 status: stable
 ---
 
@@ -22,10 +22,10 @@ sources, without changing what a source is. This replaces the
 - No operation, MCP tool, screen or agent guidance reads, writes or mentions insights or decisions.
   Assumptions stay, as the one register.
 - Each insight or decision a product holds becomes a Markdown source with **the same id**: an
-  insight as kind `analysis` tagged `insight`, a decision as kind `other` tagged `decision`. What
-  the item's fields held (summary, status, review mark, refs, citations, links, reviews) is written
-  into its document; earlier revisions become earlier file versions. The sources schema and the
-  kinds are unchanged.
+  insight tagged `analysis` and `insight`, a decision tagged `decision`
+  ([sources are described by tags](sources-are-described-by-tags.md)). What the item's fields held
+  (summary, status, review mark, refs, citations, links, reviews) is written into its document;
+  earlier revisions become earlier file versions. The move adds no field to sources.
 - What pointed at an item now points at its source: Story and mockup `refs`, a view's lineage, the
   activity log. An assumption's link to a decision is dropped; the decision's document names it.
 - A migration queues the move and the worker does it, because only the worker reaches object
