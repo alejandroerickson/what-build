@@ -98,16 +98,25 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   ([RFC 9700 §4.11.2](https://www.rfc-editor.org/rfc/rfc9700#section-4.11.2)).
 - A token serves its own MCP endpoint and those inside it (`resourceCovers`, `connector-reach.ts`);
   a scoped endpoint refuses every call outside it with `403 outside_connector_scope` before any
-  handler runs (`packages/core/src/connector-scope.ts`).
+  handler runs (`packages/core/src/connector-scope.ts`). Over MCP the fence and the caller's role
+  are checked before the tool's input is validated; only a call that names no product, team or
+  tenant is told first that its input is malformed.
 
 **Tenancy and access** ([decision](../decisions/shared-schema-tenancy-with-row-level-security.md),
 [decision](../decisions/access-is-per-product-roles.md), [decision](../decisions/a-reader-reads-only-the-story.md)).
 
 - Every operation, REST or MCP, goes through `execute` (`packages/core/src/execute.ts`): authorize
-  the scope (`404` without a role, before validation), apply a connector's fence and a sandbox's
-  limits, validate strictly, then run in a transaction with `app.tenant_id` set. Roles are in
+  the scope (`404` without a role, before validation, on both doors, so a non-member's malformed
+  MCP call gets `404` as over REST), apply a connector's fence and a sandbox's limits, validate
+  strictly, then run in a transaction with `app.tenant_id` set. Roles are in
   `packages/core/src/policy.ts`; a reader's Story reads are trimmed by `readsOnlyTheStory`.
-  `apps/server/test/access.test.ts` requires `404` from every operation for a non-member.
+  `apps/server/test/access.test.ts` requires `404` from every operation for a non-member, and
+  `tenant-isolation.test.ts` calls every operation from another organization over both doors.
+- Only an owner changes or removes an owner's role. Below an owner or admin of the organization,
+  `members.list` shows only the people on the teams and products the caller reads, with those
+  grants, and the invitations they could cancel (`partial: true`); every `members` operation
+  answers a team or product the caller has no role on with the same `404` as one that does not
+  exist (`packages/core/src/ops/products.ts`).
 - Row-level security is forced on every table of product content (`apps/server/src/migrations/`),
   and the server refuses to start in production as a role with `SUPERUSER` or `BYPASSRLS`
   (`apps/server/src/database.ts`). Directory tables (accounts, sessions, OAuth, tenants, teams,
@@ -138,8 +147,12 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 
 - Bytes move only under an HMAC-SHA256 grant bound to one purpose and object, for 30 minutes;
   production refuses a key under 32 characters (`apps/server/src/adapters/misc.ts`). The relay
-  ignores cookies and enforces the grant's size as bytes arrive (`apps/server/src/uploads.ts`);
-  the stored object's own size and hash decide the file entry.
+  ignores cookies and enforces the grant's size as bytes arrive (`apps/server/src/uploads.ts`),
+  and checks again then that whoever requested the grant can still write; the stored object's own
+  size and hash decide the file entry. A direct-to-bucket URL is signed for at most the grant's
+  size (`x-goog-content-length-range`, `directUploadSigning` in `blobs-gcs.ts`), and
+  `files.complete_upload` reads the object's size before its bytes, discards one over the grant
+  with `413`, and hashes the bytes as it streams them.
 - File paths refuse traversal, backslashes and control characters (`packages/core/src/media.ts`).
 - Parsing is a pure function of bytes in the worker. A file over the parse cap (25 MiB) is stored
   but not parsed; a parser's error becomes a status. XML is read with saxes, which expands no DTD
@@ -152,10 +165,14 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   follow it (`apps/server/src/mcp.ts`).
 
 **Outbound fetches.** `files.fetch_url` (`SafeUrlFetcher`, `apps/server/src/adapters/misc.ts`)
-fetches `https` only, without credentials; resolves host names through a lookup that refuses a
-name with any private, loopback, link-local or multicast address; re-checks every redirect;
-verifies certificates; caps size and time; and sends no cookie or credential. Sandbox visitors
-cannot use it unless staff turn it on.
+fetches `https` only, without credentials. An address written in the URL, in any notation, is
+checked before connecting; a name is resolved through a lookup that refuses any non-public
+address; both again on every redirect. Public means outside every special-purpose IPv4 range and,
+for IPv6, inside global unicast outside its special parts (`isPublicAddress`). It verifies
+certificates, caps size, waits at most 30 seconds between bytes and 60 for the whole fetch, runs
+three at once per person, downloads before the operation's transaction (the registry's `prepare`
+step), and answers every network failure with one plain `fetch_failed`. Sandbox visitors cannot
+use it unless staff turn it on.
 
 **The public sandbox** ([decision](../decisions/the-public-sandbox-is-one-organization-with-pseudonymous-visitors.md),
 [§3.10](../spec/03-accounts-teams-and-identity.md), [§9.7](../spec/09-data-lifecycle.md)).
@@ -175,7 +192,9 @@ that would print them or deliver nothing (`WHATBUILD_MAILER` other than `smtp` o
 one it does not know (`config.ts`). Log lines hold method, masked path, status and time, never
 bodies, query strings or headers: the path's ids are masked, and so are the two links that are
 credentials themselves, `/invite/:token` and `/join/:code`. An unexpected error answers `500`
-without detail (`app.ts`). The image is built from an allow-list (`.dockerignore`) and runs as `node` with
+without detail (`app.ts`). Emails show a sender's chosen name on one line, quoted and bounded
+(`quotedName`). The web app's files are served only from inside their folder (`insideRoot`).
+`pnpm fixture pull` gives `pg_dump` the password in `PGPASSWORD`. The image is built from an allow-list (`.dockerignore`) and runs as `node` with
 `NODE_ENV=production`. CI gives pull requests a read-only token; production moves only on an
 approved release ([decision](../decisions/production-runs-releases-after-approval.md)). The Worker
 (`deploy/cloudflare/worker.js`) sets `X-Forwarded-Host`, which `site.ts` uses only to pick a page.
