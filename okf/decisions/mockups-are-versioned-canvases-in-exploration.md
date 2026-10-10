@@ -31,6 +31,11 @@ the names Mockups and Exploration on 2026-10-09.
   grant, so an agent builds the next version in its own project and publishes the pages it changed.
 - Agents publish and archive mockups; the web app shows them on a pannable, zoomable canvas and
   downloads them.
+- **Mockups are outputs.** They come from the work a team's agents do in their own projects, where
+  shared components, stylesheets and design systems belong. Each page is stored as one
+  self-contained document, and a canvas holds no shared parts. The maintainer chose this on
+  2026-10-09, rejecting a shared stylesheet and shared components per canvas, with a reservation:
+  it may not hold up when several people, each in their own project, work on one canvas.
 - One page of a mockup can be **promoted to the Story**, by an agent or by an editor from the
   mockup. The Story page's version points at that page in one mockup version and never copies it;
   it stays on that version until it is promoted again, so the Story never changes under its
@@ -46,6 +51,9 @@ the names Mockups and Exploration on 2026-10-09.
 - A team compares directions at real size and clicks through them, with the reasons beside each.
 - A promoted page needs a second step to move to a newer mockup version; the Story page says when
   one exists.
+- With no shared parts in WhatBuild, collaborators on one canvas share styles and components only
+  if their projects do. Their pages may drift apart; if they do, a shared stylesheet and components
+  per canvas is the change to revisit (an open question on the [roadmap](../spec/10-roadmap.md)).
 - Each version stores every page's HTML in full, so a long run of versions costs storage; 24 pages
   and 8,000,000 characters a version, and 50 mockups a product, bound it.
 - Exploration still holds insights and decisions; moving them into Evidence is on the

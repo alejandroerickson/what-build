@@ -267,6 +267,7 @@ Each has a default so work is not blocked.
 | 8 | **The tenant's name in the UI.** Sources already have an `organization` field (the organization a source concerns), so the API says `tenant` and the UI says "organization". | As built; rename the source field (for example `about_organization`) if one word is wanted. |
 | 9 | **Delete beyond sources** — insights, register entries, annotations, Story pages, mockups, outcomes, products. | The same guards and tombstones as sources; a register entry's delete is also how a citation snapshot is removed. |
 | 10 | **How WhatBuild describes Exploration** — the journey's line for it on the overview and the public site, the opening of the README, `AGENTS.md` and the charter, and the skill's description still name insights, assumptions and decisions, not mockups. | As written until the maintainer settles the wording; the tagline stays. |
+| 11 | **Shared parts on a mockup canvas** — several people, each with an agent in their own project, publish pages to one canvas. If the projects do not share styles and components, the pages drift apart. | No shared parts: pages are self-contained outputs ([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)). Revisit with a shared stylesheet and components per canvas if collaborators' pages drift. |
 
 **Settled**, and where:
 

@@ -204,6 +204,8 @@ sandbox.
   you give: `width` 1280 for a desktop screen or 390 for a phone, and a `height`. The Story's
   sandbox rules apply: inline CSS and scripts, images and fonts as `data:` URIs, no remote
   resources, forms or frames. A mockup carries its own look; it does not follow the Story style.
+  Keep shared styles, components and any design system in your working project, and inline what
+  each page needs when you publish: WhatBuild holds no shared parts.
 - **Notes belong to a page.** Markdown design notes: what the page tries, the choices behind it,
   what is still open. People read them beside the page, so keep them short.
 - **A version is the whole canvas.** `publish` without `mockup_id` creates the mockup. After that,
