@@ -61,7 +61,7 @@ export const pdfParser: FormatParser = {
         page.cleanup();
       }
     } finally {
-      await doc.destroy();
+      await task.destroy();
     }
     return { blocks, facts: { page_count: doc.numPages, text_layer_chars: textChars } };
   },

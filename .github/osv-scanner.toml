@@ -5,3 +5,8 @@
 # id = "GHSA-xxxx-xxxx-xxxx"
 # ignoreUntil = 2026-12-31
 # reason = "Only reachable through …, which WhatBuild never calls."
+
+[[IgnoredVulns]]
+id = "GHSA-w5hq-g745-h8pq"
+ignoreUntil = 2027-01-08
+reason = "uuid 9 is reached only through @google-cloud/storage 7 (gaxios 6, teeny-request 9), which call uuid.v4 alone; the flaw is in v3, v5 and v6 with a caller's buffer. Gone with @google-cloud/storage 8, a major upgrade of the Cloud Storage adapter that no test exercises yet."
