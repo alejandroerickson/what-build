@@ -300,7 +300,14 @@ Isolation is enforced three times:
 
 Blob keys begin `t/<tenant_id>/…`. A test ([`apps/server/test/access.test.ts`](../../apps/server/test/access.test.ts))
 calls **every** product, team and tenant operation as someone with no membership and requires
-`404` from each.
+`404` from each. [`tenant-isolation.test.ts`](../../apps/server/test/tenant-isolation.test.ts)
+classifies every registered operation and calls each over REST and MCP as a member of another
+organization, both at the other organization's address and from the caller's own with the other's
+real ids, and requires a refusal, none of the other's data in the answer, and every one of its rows
+unchanged; a new operation fails it until it is classified.
+[`row-level-security.test.ts`](../../apps/server/test/row-level-security.test.ts) reads the
+migrated schema and requires forced row-level security and a policy on the current tenant for
+every table with `tenant_id`, except the directory tables it lists with their reasons.
 
 ## 3.7 Moving and copying between products
 

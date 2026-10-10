@@ -32,6 +32,7 @@ What the app itself defends against, and where, is in the [threat model](../syst
 | `check-publishable --all` | weekly in `security.yml`; the `audit-for-leaks` skill | a red run |
 | `pnpm security` | `security.yml` on every pull request, push to `main` and weekly; anyone, any time | a red check |
 | OWASP ZAP baseline | `security.yml` weekly, on demand, and on a pull request labelled `zap` | a red run, a report |
+| Tenant isolation and row-level security | `pnpm test`: every operation from another organization, and every table's policy ([§3.6](../spec/03-accounts-teams-and-identity.md)) | a red CI |
 | CodeQL | `codeql.yml` on pull requests, pushes and weekly, once the repository is public | alerts in the Security tab |
 | Dependabot | alerts and a security update as an advisory appears; grouped version updates weekly, for releases at least seven days old | pull requests |
 

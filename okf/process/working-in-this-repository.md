@@ -37,12 +37,15 @@ Everything committed, including history, commit messages and pull requests' text
 1. **Start from the operation.** Anything the web app or an agent needs is a registered operation
    in `packages/core/src/ops/` with a schema, an access level, activity recording and etags on
    writes ([decision](../decisions/one-registry-two-front-doors.md)). Add server tests in
-   `apps/server/test/`, including permission and `409 stale_etag` cases.
+   `apps/server/test/`, including permission and `409 stale_etag` cases, and classify it in
+   `apps/server/test/tenant-isolation.test.ts`, which fails until you do.
 2. **Schema changes** are a new forward-only file in `apps/server/src/migrations/`. Never edit an
    applied migration: deployments that ran it keep it, and deployments that restored past it run
    it again, so a fix is a new file after it
    ([recovering from a bad release](../operations/recovering-from-a-bad-release.md)). New content tables carry `tenant_id` and the row-level security policy
-   ([decision](../decisions/shared-schema-tenancy-with-row-level-security.md)).
+   ([decision](../decisions/shared-schema-tenancy-with-row-level-security.md)); a table that may not
+   have it is listed in `apps/server/test/row-level-security.test.ts` with the reason the
+   specification gives.
 3. **Agents learn from the skill.** If agents should use a new operation differently, update
    `packages/core/src/skill/SKILL.md` and run `pnpm gen:skill`.
 4. **Sample data.** Extend the seed so every feature has synthetic sample content.
