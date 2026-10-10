@@ -126,6 +126,9 @@ async function resolveProduct(env: Env, principal: Principal, given: string | un
   });
 }
 
+/** Refusals for a call that names no product, team or tenant (or names one in a form that is not a reference). */
+const UNADDRESSED = new Set(["product_required", "team_required", "tenant_required", "invalid_product"]);
+
 function scopeEcho(scope: Scope) {
   if (!scope.product) return undefined;
   return {
@@ -189,12 +192,21 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
         if (r["tenant"] === undefined) r["tenant"] = bound.tenant;
         if (op.scope === "team" && r["team"] === undefined && bound.team) r["team"] = bound.team;
       }
-      // Validate before resolving the product, so a malformed call is reported as such.
-      parseInput(op, rawInput);
+      // The scope is authorized, and a connector's fence applied, before the input is validated, in
+      // execute's order: someone who cannot see the product learns nothing, not even whether their
+      // input was valid. A call that names no product, team or tenant addresses nothing to hide, so
+      // a malformed one is reported as malformed rather than as missing its scope.
       const fence = await connectorScope();
       let ref: ScopeRef = {};
-      if (op.scope === "product") ref = await resolveProduct(env, principal, productArg as string | undefined, fence);
-      const { result, scope } = await execute(env, principal, op, rawInput, ref, fence);
+      let ran: Awaited<ReturnType<typeof execute>>;
+      try {
+        if (op.scope === "product") ref = await resolveProduct(env, principal, productArg as string | undefined, fence);
+        ran = await execute(env, principal, op, rawInput, ref, fence);
+      } catch (e) {
+        if (e instanceof AppError && UNADDRESSED.has(e.code)) parseInput(op, rawInput);
+        throw e;
+      }
+      const { result, scope } = ran;
       const echo = scopeEcho(scope);
       const shown = fence && op.name === "products.list" ? narrowProductList(fence, result as Parameters<typeof narrowProductList>[1]) : result;
       return textResult(echo ? { ...(shown as object), scope: echo } : shown);

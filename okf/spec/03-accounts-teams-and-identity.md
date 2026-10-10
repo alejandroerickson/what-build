@@ -299,7 +299,10 @@ product they cannot reach answers `404` to every call, saying so.
 Isolation is enforced three times:
 
 1. **Authorization** resolves the caller's role for the addressed product, or answers `404`. It runs
-   before input validation, so a non-member learns nothing — not even whether their input was valid.
+   before input validation on both doors, so a non-member learns nothing — not even whether their
+   input was valid. Over MCP a connector's fence also applies first; only a call that names no
+   product, team or tenant at all, and so addresses nothing to hide, is told its input is malformed
+   before it is told to name one (`apps/server/test/mcp.test.ts`).
 2. **The core** receives a transaction already scoped to one tenant; handlers never see another.
 3. **Postgres row-level security** on every content table keys on the transaction-local setting
    `app.tenant_id`, so a query that escaped the first two layers still returns nothing. The server

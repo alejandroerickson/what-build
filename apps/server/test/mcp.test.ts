@@ -128,6 +128,36 @@ describe("MCP", () => {
     await client.close();
     await bound.close();
   });
+
+  it("answers a non-member 404 before looking at the input, as REST does, and a member's malformed call 422 as before", async () => {
+    const [tenant, team] = path.split("/");
+    const mallory = await h.signIn("mallory@example.com", "Mallory");
+    const outsider = await connect(await h.connectAgent(mallory));
+    const member = await connect(agentToken);
+    const message = (r: unknown) => (r as { content: { text: string }[] }).content[0]!.text;
+    const calls = [
+      { name: "outcomes", arguments: { action: "create", product: path, params: { title: "x", colour: "red" } } },
+      { name: "outcomes", arguments: { action: "create", product: path, params: { title: 7 } } },
+      { name: "search", arguments: { product: path, colour: "red" } },
+      { name: "members", arguments: { action: "list", params: { tenant, colour: "red" } } },
+      { name: "products", arguments: { action: "create", params: { tenant, team, name: "" } } },
+    ];
+    for (const call of calls) {
+      const r = await outsider.callTool(call);
+      expect(r.isError, JSON.stringify(call)).toBe(true);
+      expect(message(r), JSON.stringify(call)).toMatch(/^404: /);
+      const mine = await member.callTool(call);
+      expect(message(mine), JSON.stringify(call)).toMatch(/^422: .*Nothing was changed/s);
+      expect(text(mine).error.code).toBe("invalid_input");
+    }
+    const rest = await mallory.api("POST", `/api/v1/p/${path}/outcomes`, { title: "x", colour: "red" });
+    expect(rest.status).toBe(404);
+    // A call that names no product or organization addresses nothing to hide: a malformed one still says so.
+    expect(text(await member.callTool({ name: "outcomes", arguments: { action: "create", params: { title: "x", colour: "red" } } })).error.code).toBe("invalid_input");
+    expect(text(await member.callTool({ name: "members", arguments: { action: "list", params: {} } })).error.code).toBe("invalid_input");
+    await outsider.close();
+    await member.close();
+  });
 });
 
 describe("OAuth for MCP clients", () => {
