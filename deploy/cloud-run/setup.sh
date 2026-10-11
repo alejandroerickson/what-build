@@ -12,7 +12,9 @@
 #   - a database: Cloud SQL for PostgreSQL when CLOUD_SQL=1, otherwise the DATABASE_URL you pass
 #     (any Postgres 15+, e.g. a Neon free-tier database);
 #   - the first image (built by Cloud Build — no local Docker needed), the migration job, and the
-#     service itself, public on the internet with WhatBuild's own sign-in in front of everything.
+#     service itself, public on the internet with WhatBuild's own sign-in in front of everything;
+#   - a log exclusion, so Cloud Run's own request log keeps no address with a query or an
+#     invitation in it (the service logs those masked).
 #
 # Settings (environment):
 #   PROJECT_ID          required. Deliberately not taken from gcloud's current project.
@@ -203,6 +205,14 @@ $G run deploy "$SERVICE" --region "$REGION" --image "$IMAGE" --service-account "
 # The stable run.app address, named by project number (status.url is the older, hashed one).
 URL="${PUBLIC_URL:-https://$SERVICE-$PROJECT_NUMBER.$REGION.run.app}"
 $G run services update "$SERVICE" --region "$REGION" --update-env-vars "WHATBUILD_PUBLIC_URL=$URL" >/dev/null
+
+step "Request logs without addresses that carry words or credentials"
+# Cloud Run logs every request itself, with its whole address: a search's words, a sign-in link's
+# token, an invitation link. The service logs its own line for each, with those masked, so the
+# platform's line is dropped for any address with a query or an invitation in it.
+LOG_FILTER="log_id(\"run.googleapis.com/requests\") AND resource.labels.service_name=\"$SERVICE\" AND (httpRequest.requestUrl:\"?\" OR httpRequest.requestUrl:\"/invite/\" OR httpRequest.requestUrl:\"/join/\")"
+if $G logging sinks describe _Default --format='value(exclusions[].name)' | tr ';' '\n' | grep -qx "$SERVICE-request-addresses"; then verb=--update-exclusion; else verb=--add-exclusion; fi
+$G logging sinks update _Default "$verb=name=$SERVICE-request-addresses,filter=$LOG_FILTER" >/dev/null
 
 if [ -n "${SANDBOX_TENANT:-}" ]; then
   step "Scheduler job for the public sandbox's reset"

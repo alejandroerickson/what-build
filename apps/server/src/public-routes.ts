@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { extname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
-import { SKILL_NAME, SKILL_VERSION, skillMarkdown, unauthenticated, type Db } from "@whatbuild/core";
+import { SKILL_NAME, SKILL_VERSION, skillMarkdown, unauthenticated, USAGE_PEOPLE_MONTHS, type Db } from "@whatbuild/core";
 import { strToU8, zipSync } from "fflate";
 import { Hono } from "hono";
 import type { Release } from "./app.ts";
@@ -23,6 +23,16 @@ export function publicRoutes(deps: { db: Db; config: ServerConfig; release: Rele
       skill: { name: SKILL_NAME, version: SKILL_VERSION },
       auth: { email_link: config.mailer !== "none", google: Boolean(config.googleClientId && config.googleClientSecret), microsoft: microsoftSignIn(config), dev: config.devAuth },
       inference: "none: WhatBuild runs no language model; intelligence comes from the agent you connect",
+      // What the privacy page says that only the deployment knows.
+      privacy: {
+        operator: config.operator,
+        contact: config.privacyContact,
+        providers: config.providers,
+        analytics: Boolean(config.analyticsId),
+        session_days: config.sessionDays,
+        agent_access_days: config.refreshTokenDays,
+        usage_people_months: USAGE_PEOPLE_MONTHS,
+      },
     }),
   );
   app.get(`/${SKILL_NAME}-skill.md`, (c) => c.text(skillMarkdown(), 200, { ...noStore, "Content-Type": "text/markdown; charset=utf-8" }));

@@ -83,6 +83,8 @@ export interface CoreConfig {
   instanceOwners?: string[];
   /** Organizations an address may create when no instance owner has given it an allowance. 0 when absent. */
   defaultTenantAllowance?: number;
+  /** The key people's use is counted under (`usage.ts`); without it calls are counted and people are not. */
+  usageKey?: string;
 }
 
 export interface Ports {

@@ -1,4 +1,5 @@
 import { serve } from "@hono/node-server";
+import { usageSettled } from "@whatbuild/core";
 import { createApp, createBlobStore, createMailer, createPorts } from "./app.ts";
 import { loadConfig } from "./config.ts";
 import { checkRowSecurity, createDb, migrate } from "./database.ts";
@@ -65,7 +66,8 @@ async function main() {
   const shutdown = () => {
     worker?.stop();
     clearInterval(ticking);
-    server.close(() => void pool.end().then(() => process.exit(0)));
+    // The calls already answered are counted before the database goes.
+    server.close(() => void usageSettled().then(() => pool.end()).then(() => process.exit(0)));
     setTimeout(() => process.exit(0), 8000).unref();
   };
   process.on("SIGTERM", shutdown);

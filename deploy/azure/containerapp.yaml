@@ -75,6 +75,14 @@ properties:
             value: "${WB_ALLOWLIST}"
           - name: WHATBUILD_INSTANCE_OWNERS
             value: "${WB_OWNERS}"
+          # Who runs this deployment, where to write about one's data, and the providers that handle
+          # it ("Name: what it does; …"), for the privacy page.
+          # - name: WHATBUILD_OPERATOR
+          #   value: "Example Labs"
+          # - name: WHATBUILD_PRIVACY_CONTACT
+          #   value: "privacy@example.com"
+          # - name: WHATBUILD_PROVIDERS
+          #   value: "Microsoft Azure: hosting, the database, files and logs"
           # - name: WHATBUILD_SMTP_URL
           #   secretRef: smtp-url
           # - name: WHATBUILD_MAIL_FROM

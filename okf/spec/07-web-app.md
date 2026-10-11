@@ -185,6 +185,7 @@ person's organization role is in the account menu, and who has which role is on 
 /signin  /welcome  /invite/:token             sign-in, first run, accepting an invitation
 /join/:code                                   the page behind an invitation to the public sandbox
 /cookies                                      Cookies: what they are for, and the analytics choice; readable signed out
+/privacy                                      Privacy: what is kept, why, for how long, who handles it, whom to ask; readable signed out
 /                   ?archived=1&create=1      the overview: what WhatBuild is, and every product; new product; first run with no organization
 /products                                     → / (with its query)
 /t/:tenant/members                            people and roles in an organization
@@ -692,7 +693,12 @@ never described as deleting. A list row showing an archived object says *Archive
 - **Cookies** (`/cookies`, readable signed out; `apps/web/src/routes/cookies.tsx`). What cookies
   are for, by kind: needed for WhatBuild to work (always on), and, when the deployment uses
   analytics, Google Analytics with the person's choice, which they change here at any time. Then
-  how to clear them ([§9.1](09-data-lifecycle.md)). It lists no individual cookies.
+  how the server counts use without cookies, and how to clear them ([§9.1](09-data-lifecycle.md)).
+  It lists no individual cookies.
+- **Privacy** (`/privacy`, readable signed out; `apps/web/src/routes/privacy.tsx`). What is kept,
+  why and for how long, who else handles it, and what a person can do, with who runs the
+  deployment, its contact and its providers from `/api/v1/meta` ([§9.1](09-data-lifecycle.md)).
+  Linked from the sign-in page, Settings, Cookies and the public site's footer.
 - **The cookie notice** (`apps/web/src/shell/CookieNotice.tsx`). When the deployment sets an
   analytics ID (`analytics_id` from `GET /auth/methods`), every screen, signed in or not, carries a
   small note at the bottom-right inset (flush along the bottom on phones) until the person presses
@@ -700,9 +706,12 @@ never described as deleting. A list row showing an archived object says *Archive
   with the public site. It says that cookies keep the person signed in and asks whether analytics
   cookies may also be used to see how WhatBuild is used, so Accept and Decline plainly answer the
   analytics question, with a Cookies link to `/cookies`. It blocks nothing and never takes focus;
-  the app works the same whichever is pressed. Without an analytics ID it does not appear. After
-  Accept, each screen is a page view with its path masked, and each change the app makes is an
-  event named from a fixed word list (`apps/web/src/lib/analytics.ts`, [§9.1](09-data-lifecycle.md)).
+  the app works the same whichever is pressed. Without an analytics ID it does not appear; the
+  server gives none to the instance's owners, or on an address that is not the deployment's own.
+  After Accept, each screen is a page view with its path masked, sent once the screen has stayed a
+  moment so that a redirect is not counted; each change the app makes is an event named by the
+  operation the server ran (`X-WhatBuild-Operation`); and search is counted by what was opened and
+  followed, never by its words (`apps/web/src/lib/analytics.ts`, [§9.1](09-data-lifecycle.md)).
 - **Organization creators** (`/instance`, from the account menu, for the instance's owners only;
   `apps/web/src/routes/instance.tsx`). What the rule is, the default for every other address and
   who the owners are; then each address with an allowance: its person or "no account yet", how

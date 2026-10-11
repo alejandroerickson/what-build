@@ -39,7 +39,7 @@ message and every pull request's text is published, and history keeps it.
 
 WhatBuild turns a product team's discovery material into outcomes, mockups, reviewed assumptions
 and a Story for stakeholders. People use a React web app; agents use an MCP server exposing the
-same 109 operations. There is no AI inside. One stateless image on Cloud Run,
+same 110 operations. There is no AI inside. One stateless image on Cloud Run,
 Postgres, and object storage.
 
 The domain is **what-build.com**, with a hyphen: the public site at `what-build.com`, the app at
@@ -73,6 +73,7 @@ that folder. If your tool does not load skills, read the `SKILL.md` files direct
 | `audit-for-leaks` | When asked to check the repository or its history for secrets or private material, when something may have leaked, or to make the repository public. |
 | `triage-security-findings` | When `pnpm security`, the Security or CodeQL workflow, or Dependabot reports something; when adding or upgrading a dependency; before a release. |
 | `run-end-to-end-tests` | When asked to run the end-to-end, smoke or acceptance tests or a test plan, to QA the app through the browser and MCP, or to build the golden master. |
+| `read-usage` | When asked how a deployment is used: which features, through the app and agents, whether people come back, what fails; for analytics or insights; or to connect a deployment to its analytics. |
 
 ## Before you change anything
 
@@ -101,7 +102,7 @@ conducts each one that changes something:
 | know what is backed up, check that backups run, restore a dump, perform the restore drill | `backups.md` | `rehearse-on-the-dev-deployment` (the drill) |
 | go back after a release broke a deployment | `recovering-from-a-bad-release.md` | `recover-a-deployment` |
 | test on a copy of production on this machine | `a-copy-of-production.md` | `test-on-a-copy-of-production` |
-| analytics | `analytics.md` | |
+| find out how a deployment is used (features, agents, people coming back, the site); connect its analytics | `analytics.md` | `read-usage` |
 
 Production runs releases only: it moves when a release is published and its build approved,
 never on a merge, and a release that migrates is rehearsed on the dev deployment first. The

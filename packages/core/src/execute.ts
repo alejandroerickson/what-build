@@ -9,6 +9,7 @@ import type { Ports } from "./ports.ts";
 import type { OpContext, OperationDef, Principal, Scope } from "./registry.ts";
 import { admitVisitor, checkVisitorInput, countVisitorWrite, isVisitor, loadSandbox, lockSandbox, visitorActor, visitorName, type SandboxContext } from "./public-sandbox.ts";
 import { formatIssues } from "./schemas.ts";
+import { countCall } from "./usage.ts";
 
 export interface Env {
   db: Db;
@@ -96,9 +97,33 @@ export async function execute(
   ref: ScopeRef = {},
   connector: ConnectorScope | null = null,
 ): Promise<{ result: unknown; scope: Scope }> {
+  // Every call is counted, however it ends (`usage.ts`).
+  const reached: { scope?: Scope } = {};
+  const count = (outcome: string) =>
+    countCall(env, principal, { operation: op.name, feature: op.mcp.tool, outcome, sandbox: reached.scope?.tenant ? Boolean(reached.scope.tenant.sandbox) : Boolean(principal.sandbox_only) });
+  try {
+    const ran = await run(env, principal, op, rawInput, ref, connector, reached);
+    count("ok");
+    return ran;
+  } catch (e) {
+    count(toAppError(e).code);
+    throw e;
+  }
+}
+
+async function run(
+  env: Env,
+  principal: Principal,
+  op: OperationDef,
+  rawInput: unknown,
+  ref: ScopeRef,
+  connector: ConnectorScope | null,
+  reached: { scope?: Scope },
+): Promise<{ result: unknown; scope: Scope }> {
   // Scope first: a caller who cannot see the product learns nothing, not even whether their input was valid.
   const raw = (rawInput && typeof rawInput === "object" ? rawInput : {}) as Record<string, unknown>;
   const scope = await resolveScope(env.db, principal, op.scope, op.access, refFromInput(op, raw, ref), op.name);
+  reached.scope = scope;
   if (connector) checkConnectorScope(connector, op, scope);
   const sandbox = await sandboxOf(env, principal, scope);
   const visitor = sandbox?.visitor ? sandbox : null;

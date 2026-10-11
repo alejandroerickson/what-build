@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 import { setCookieChoice, useCookieChoice } from "../lib/analytics.ts";
 import { useAnalyticsId } from "../shell/CookieNotice.tsx";
 import { Button, ButtonLink, Sheet, SheetBody, SheetHeader } from "../ui/index.tsx";
@@ -54,6 +55,10 @@ export function CookiesPage() {
           </SheetBody>
         </Sheet>
       ) : null}
+      <section className="entry-fine" aria-labelledby="cookies-counting">
+        <h2 id="cookies-counting">Counting without cookies</h2>
+        <p>Whatever you choose, WhatBuild&rsquo;s server counts which of its features are used, in the app and by agents, and how many people come back. It needs no cookie for that and keeps no names: each person is counted under a code only this deployment can work out, kept for 14 months, and whoever runs WhatBuild sees only totals. <Link to="/privacy">Privacy</Link> says what else is kept, and whom to ask.</p>
+      </section>
       <section className="entry-fine" aria-labelledby="cookies-clear">
         <h2 id="cookies-clear">Clearing them</h2>
         <p>Signing out removes the sign-in cookie and what this browser remembers of your work, such as the product you had open; the theme and panel choices stay for whoever uses it next. Clearing this site&rsquo;s data in your browser removes the rest. Your work in WhatBuild isn&rsquo;t affected.</p>

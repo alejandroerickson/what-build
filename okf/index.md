@@ -3,7 +3,7 @@ type: Index
 title: WhatBuild knowledge bundle
 description: The map of the documentation; start here.
 tags: [index, okf]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-11}
 status: stable
 okf_version: "0.2"
 ---
@@ -42,8 +42,8 @@ server with the same operations. There is no AI inside.
   hosting a copy on Azure (`azure-self-host`), publishing a release (`make-a-release`),
   rehearsing on the dev deployment (`rehearse-on-the-dev-deployment`), recovering a deployment a
   release broke (`recover-a-deployment`), testing on a local copy of production
-  (`test-on-a-copy-of-production`), and running the end-to-end test plans
-  (`run-end-to-end-tests`).
+  (`test-on-a-copy-of-production`), running the end-to-end test plans
+  (`run-end-to-end-tests`), and reading how a deployment is used (`read-usage`).
 - `PRODUCT.md`: users, purpose and principles. `DESIGN.md` and `.impeccable/design.json`: the
   Studio design system. Both stay at the root because design tooling reads them there.
 - `packages/core/src/skill/SKILL.md`: the agent skill the product serves to connected agents.

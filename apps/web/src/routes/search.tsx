@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { Link, useSearchParams } from "react-router";
+import { track } from "../lib/analytics.ts";
 import { byArea, FIND_AREAS, hitHref, hitMeta, kindOf, Marked, matchedCount, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse, type FindResult } from "../lib/find.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { REVIEW_STATUS } from "../lib/status.ts";
@@ -46,7 +47,11 @@ export function SearchPage() {
   const { remember } = useRecentSearches(product.path);
   // Opening a result makes these words a recent search, in the palette too.
   const followed = (e: MouseEvent) => {
-    if ((e.target as Element).closest("a[href]")) remember(q);
+    const a = (e.target as Element).closest<HTMLElement>("a[href]");
+    if (!a) return;
+    remember(q);
+    // Counted by what was followed and how far down, never the words.
+    if (a.dataset["kind"]) track({ name: "search_result_open", kind: a.dataset["kind"], from: "screen", ...(a.dataset["rank"] ? { rank: Number(a.dataset["rank"]) } : {}) });
   };
   const res = useFind(base, q, { recordId, strict });
   const d = q.trim() ? res.data : undefined;
@@ -188,9 +193,9 @@ function SearchFilters({ areas, total, show, link }: { areas: { id: string; labe
 function ResultList({ results, app, q }: { results: FindResult[]; app: string; q: string }) {
   return (
     <ol className="find-list">
-      {results.map((r) => (
+      {results.map((r, i) => (
         <li key={`${r.kind}:${r.id}`} className="find-item">
-          <Link to={resultHref(app, r)} className="find-head">
+          <Link to={resultHref(app, r)} className="find-head" data-kind={r.kind} data-rank={i + 1}>
             <Glyph name={kindOf(r.kind).glyph} />
             <span className="find-main">
               <span className="find-title">
@@ -223,7 +228,7 @@ function Hits({ r, app, more, all }: { r: FindResult; app: string; more?: string
     <ul className={`find-hits${all ? " find-hits-all" : ""}`}>
       {hits.map((h) => (
         <li key={h.seq}>
-          <Link to={hitHref(app, r.id, h)} className="find-hit">
+          <Link to={hitHref(app, r.id, h)} className="find-hit" data-kind="passage">
             <span className="find-hit-meta num">{hitMeta(h)}</span>
             <span className="find-hit-text">
               <Marked text={h.text} marks={h.marks} />

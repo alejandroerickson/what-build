@@ -31,6 +31,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [The public sandbox is one organization the deployment names, where invited visitors edit under made-up names and a daily reset puts a saved baseline back](the-public-sandbox-is-one-organization-with-pseudonymous-visitors.md)
 - [Only the instance's owners decide who may create organizations, and how many](only-instance-owners-decide-who-creates-organizations.md)
 - [WhatBuild asks once whether a person accepts cookies, and runs Google Analytics only for those who do](analytics-only-for-people-who-accept-cookies.md)
+- [The server counts how WhatBuild is used, for everyone and through both doors, naming nobody](the-server-counts-how-whatbuild-is-used-naming-nobody.md)
 - [WhatBuild stores only what it needs, says so once, and keeps anything optional off until a person agrees](only-necessary-cookies-and-optional-ones-wait-for-consent.md) (superseded)
 - [Every write is attributed, and human or agent authorship is declared](attribution-and-declared-authorship.md)
 - [Sources are described by a title and tags; there are no kinds, folders or organization field](sources-are-described-by-tags.md)

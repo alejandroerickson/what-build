@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
+import { track } from "../lib/analytics.ts";
 import { hitMeta, kindOf, Marked, matchedCount, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse } from "../lib/find.tsx";
 import type { Product } from "../lib/session.tsx";
 import { Glyph, type GlyphName } from "../ui/index.tsx";
@@ -22,6 +23,8 @@ export function useOpenFind() {
 /** A row in the list: a result, which opens, or a recent search, which fills the field. */
 interface Option {
   key: string;
+  /** What a result is, for counting what people follow: its kind, or `passage` when it opens at one. */
+  kind?: string;
   href?: string;
   fill?: string;
   glyph: GlyphName;
@@ -35,9 +38,11 @@ const SHOWN = 8;
 function options(app: string, d: FindResponse | undefined): Option[] {
   return (d?.results ?? []).slice(0, SHOWN).map((r) => {
     const hit = r.hits?.[0];
+    const atPassage = Boolean(hit && !r.title_marks.length);
     return {
       key: `${r.kind}:${r.id}`,
-      href: hit && !r.title_marks.length ? `${app}/evidence/${r.id}?view=passages&seq=${hit.seq}` : resultHref(app, r),
+      kind: atPassage ? "passage" : r.kind,
+      href: atPassage ? `${app}/evidence/${r.id}?view=passages&seq=${hit!.seq}` : resultHref(app, r),
       glyph: kindOf(r.kind).glyph,
       title: <Marked text={r.title} marks={r.title_marks} />,
       meta: resultMeta(r),
@@ -52,7 +57,7 @@ function options(app: string, d: FindResponse | undefined): Option[] {
   });
 }
 
-function Palette({ app, base, product, text, setText, onClose }: { app: string; base: string; product: Product; text: string; setText: (t: string) => void; onClose: () => void }) {
+function Palette({ app, base, product, text, setText, via, onClose }: { app: string; base: string; product: Product; text: string; setText: (t: string) => void; via: "field" | "shortcut"; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const listId = useId();
@@ -74,6 +79,18 @@ function Palette({ app, base, product, text, setText, onClose }: { app: string; 
     ref.current?.showModal();
     input.current?.select();
   }, []);
+  // Counted: opening it, and closing it without following anything, never the words.
+  const followed = useRef(false);
+  const found = useRef<"yes" | "no" | "waiting" | "not_typed">("not_typed");
+  found.current = !typed ? "not_typed" : !d ? "waiting" : d.results.length ? "yes" : "no";
+  useEffect(() => {
+    track({ name: "search_open", via });
+    return () => {
+      if (!followed.current) track({ name: "search_close", found: found.current });
+    };
+    // Once for each time it opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     if (touched) return;
     const t = setTimeout(() => setFlash(true), 3000);
@@ -83,10 +100,13 @@ function Palette({ app, base, product, text, setText, onClose }: { app: string; 
   const go = (o: Option | undefined) => {
     if (!o) return;
     if (o.fill !== undefined) {
+      track({ name: "search_recent_use" });
       setText(o.fill);
       input.current?.focus();
       return;
     }
+    followed.current = true;
+    track({ name: "search_result_open", kind: o.kind ?? "other", rank: opts.indexOf(o) + 1, from: "palette" });
     remember(text);
     onClose();
     navigate(o.href!);
@@ -94,6 +114,8 @@ function Palette({ app, base, product, text, setText, onClose }: { app: string; 
   const all = () => {
     const words = text.trim();
     if (!words) return;
+    followed.current = true;
+    track({ name: "search_all_results" });
     remember(words);
     setText("");
     onClose();
@@ -226,9 +248,11 @@ export function understood(d: FindResponse): ReactNode {
 export function FindProvider({ app, base, product, children }: { app: string; base: string; product: Product; children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
+  const [via, setVia] = useState<"field" | "shortcut">("field");
   const loc = useLocation();
   const show = useCallback((initial?: string) => {
     if (initial !== undefined) setText(initial);
+    setVia("field");
     setOpen(true);
   }, []);
   // A reader has only the Story, which search does not cover.
@@ -242,6 +266,7 @@ export function FindProvider({ app, base, product, children }: { app: string; ba
       if (!cmdK && !slash) return;
       if (document.querySelector("dialog[open]:not(.find-pal)")) return;
       e.preventDefault();
+      setVia("shortcut");
       setOpen((o) => !o);
     };
     window.addEventListener("keydown", onKey);
@@ -253,7 +278,7 @@ export function FindProvider({ app, base, product, children }: { app: string; ba
   return (
     <FindContext.Provider value={show}>
       {children}
-      {open ? <Palette app={app} base={base} product={product} text={text} setText={setText} onClose={() => setOpen(false)} /> : null}
+      {open ? <Palette app={app} base={base} product={product} text={text} setText={setText} via={via} onClose={() => setOpen(false)} /> : null}
     </FindContext.Provider>
   );
 }

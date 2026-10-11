@@ -62,6 +62,32 @@ export interface ServerConfig {
   analyticsId: string | null;
   accessTokenSeconds: number;
   refreshTokenDays: number;
+  /** Who runs this deployment, as its privacy page names them (WHATBUILD_OPERATOR); null when unnamed. */
+  operator: string | null;
+  /** Where people write about their data: an email address or a web address (WHATBUILD_PRIVACY_CONTACT). */
+  privacyContact: string | null;
+  /** The providers that handle people's data for this deployment, and for what (WHATBUILD_PROVIDERS). */
+  providers: Provider[];
+}
+
+export interface Provider {
+  name: string;
+  purpose: string;
+}
+
+/** WHATBUILD_PROVIDERS: "Name: what it does; Name: what it does". An entry without a colon is a name alone. */
+export function providerList(v: string | undefined): Provider[] {
+  return (v ?? "")
+    .split(";")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .slice(0, 20)
+    .map((entry) => {
+      const colon = entry.indexOf(":");
+      const name = (colon < 0 ? entry : entry.slice(0, colon)).trim().slice(0, 80);
+      return { name, purpose: colon < 0 ? "" : entry.slice(colon + 1).trim().slice(0, 200) };
+    })
+    .filter((p) => p.name);
 }
 
 const MiB = 1024 * 1024;
@@ -147,5 +173,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     analyticsId: /^G-[A-Z0-9]+$/.test(env["WHATBUILD_ANALYTICS_ID"]?.trim() ?? "") ? env["WHATBUILD_ANALYTICS_ID"]!.trim() : null,
     accessTokenSeconds: num(env["WHATBUILD_ACCESS_TOKEN_SECONDS"], 3600),
     refreshTokenDays: num(env["WHATBUILD_REFRESH_TOKEN_DAYS"], 30),
+    operator: env["WHATBUILD_OPERATOR"]?.trim().slice(0, 120) || null,
+    privacyContact: env["WHATBUILD_PRIVACY_CONTACT"]?.trim().slice(0, 200) || null,
+    providers: providerList(env["WHATBUILD_PROVIDERS"]),
   };
 }

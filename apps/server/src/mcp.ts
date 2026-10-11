@@ -2,7 +2,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import {
-  AppError, effectiveRole, execute, invalid, membershipsFor, narrowProductList, OPERATIONS, parseInput, parseProductRef, resolveConnectorScope, REST_BODY_MAX_BYTES, SKILL_NAME, SKILL_VERSION, toAppError,
+  AppError, countCall, effectiveRole, execute, invalid, membershipsFor, narrowProductList, OPERATIONS, parseInput, parseProductRef, resolveConnectorScope, REST_BODY_MAX_BYTES, SKILL_NAME, SKILL_VERSION, toAppError,
   type ConnectorScope, type Env, type OperationDef, type Principal, type Scope, type ScopeRef,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
@@ -170,8 +170,10 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const name = req.params.name;
     const args = (req.params.arguments ?? {}) as Record<string, unknown>;
+    // Set once the call is handed to execute, which counts it from then on.
+    let reached = false;
+    let op: OperationDef | undefined;
     try {
-      let op: OperationDef | undefined;
       let rawInput: unknown;
       let productArg: unknown;
       const group = DEFINITIONS.groups.get(name);
@@ -214,6 +216,7 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
       let ran: Awaited<ReturnType<typeof execute>>;
       try {
         if (op.scope === "product") ref = await resolveProduct(env, principal, productArg as string | undefined, fence);
+        reached = true;
         ran = await execute(env, principal, op, rawInput, ref, fence);
       } catch (e) {
         if (e instanceof AppError && UNADDRESSED.has(e.code)) parseInput(op, rawInput);
@@ -224,6 +227,11 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
       const shown = fence && op.name === "products.list" ? narrowProductList(fence, result as Parameters<typeof narrowProductList>[1]) : result;
       return textResult(echo ? { ...(shown as object), scope: echo } : shown);
     } catch (e) {
+      // A call that never reached execute is counted here: a tool, an action or a product that is not there.
+      if (!reached) {
+        const operation = op?.name ?? (DEFINITIONS.groups.has(name) ? `${name}.(unknown)` : "(unknown tool)");
+        countCall(env, principal, { operation, feature: op?.mcp.tool ?? null, outcome: toAppError(e).code, sandbox: Boolean(principal.sandbox_only) });
+      }
       return errorResult(e);
     }
   });

@@ -14,6 +14,7 @@ import { searchOps } from "./ops/search.ts";
 import { sourceOps } from "./ops/sources.ts";
 import { storyOps } from "./ops/story.ts";
 import { tenantAllowanceOps } from "./ops/tenant-allowances.ts";
+import { usageOps } from "./ops/usage.ts";
 import type { OperationDef } from "./registry.ts";
 
 export * from "./connector-scope.ts";
@@ -34,6 +35,7 @@ export * from "./schemas.ts";
 export * from "./story-html.ts";
 export * from "./story-print.ts";
 export * from "./util.ts";
+export { clientFamily, countCall, personOf, pruneUsage, usageReport, usageSettled, USAGE_PEOPLE_MONTHS, type UsageCall, type UsageOptions } from "./usage.ts";
 export { runDerivation } from "./ops/derived.ts";
 export { queueEvidenceMoves, runEvidenceMove } from "./evidence-move.ts";
 export { markExportFailed, runExport } from "./ops/export.ts";
@@ -52,6 +54,7 @@ export { FRAME_SCRIPT, THEME_ATTRIBUTE, withStoryFrame, withStoryTheme } from ".
 export const OPERATIONS: OperationDef[] = [
   ...productOps,
   ...tenantAllowanceOps,
+  ...usageOps,
   ...sandboxOps,
   ...exportOps,
   ...outcomeOps,

@@ -2,9 +2,12 @@ import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "react-router";
 import { api } from "../lib/api.ts";
-import { pageView, startAnalytics, useCookieChoice } from "../lib/analytics.ts";
+import { pageView, placePage, startAnalytics, useCookieChoice } from "../lib/analytics.ts";
 import { ButtonLink } from "../ui/index.tsx";
 import { CookieChoice } from "./CookieChoice.tsx";
+
+/** How long a screen stays before its page view is sent. */
+const SETTLED_MS = 700;
 
 /** The deployment's Google Analytics measurement ID, null when it has none, undefined until known. */
 export function useAnalyticsId(): string | null | undefined {
@@ -15,7 +18,8 @@ export function useAnalyticsId(): string | null | undefined {
 /**
  * The app's cookie choice, on every screen until the person accepts or declines, and analytics
  * behind it: loaded once they accept, with a page view for each screen they open. The app works
- * the same either way. A deployment without analytics has nothing to ask, so it shows nothing.
+ * the same either way. A deployment without analytics has nothing to ask, so it shows nothing; nor
+ * does the server give the ID to the instance's owners, or on another address for the service.
  * `/cookies` explains, and changes the choice later.
  */
 export function CookieNotice() {
@@ -27,7 +31,13 @@ export function CookieNotice() {
     if (on && id) startAnalytics(id);
   }, [on, id]);
   useEffect(() => {
-    if (on) pageView(pathname);
+    if (!on) return;
+    // The masked address goes on every event at once; the page view waits until the screen has
+    // stayed a moment, so an old address that only sends the person on (a renamed screen, a product
+    // path without /t/) is never counted as a screen of its own.
+    placePage(pathname);
+    const counting = setTimeout(() => pageView(pathname), SETTLED_MS);
+    return () => clearTimeout(counting);
   }, [on, pathname]);
   if (!id) return null;
   return (
