@@ -142,6 +142,58 @@ describe("the upload relay", () => {
     });
     expect(status).toBe(400);
   });
+
+  it("keeps nothing from a sender who hangs up partway, keeps answering, and still takes the file under the grant", async () => {
+    const { upload } = await grant("cut.txt");
+    const stored = h.blobs.blobs.size;
+    const url = new URL(upload.url);
+    await new Promise<void>((resolve) => {
+      const req = request({ host: url.hostname, port: url.port, path: url.pathname, method: "PUT", headers: { ...upload.headers, "content-length": String(512 * 1024) } });
+      req.on("error", () => resolve());
+      req.on("close", () => resolve());
+      req.write(new Uint8Array(64 * 1024), () => setTimeout(() => req.destroy(), 50));
+    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(h.blobs.blobs.size).toBe(stored);
+    expect((await alice.api("GET", "/api/v1/me/products")).status).toBe(200);
+    const fine = await fetch(upload.url, { method: "PUT", headers: upload.headers, body: "Whole this time.\n" });
+    expect(fine.status).toBe(201);
+  });
+});
+
+describe("downloads", () => {
+  it("serves a file whole and by a byte range, refuses a range past its end, and keeps answering after a reader hangs up partway", async () => {
+    const { recordId, upload } = await grant("notes.txt");
+    const bytes = new Uint8Array(512 * 1024).map((_, i) => 97 + (i % 26));
+    expect((await fetch(upload.url, { method: "PUT", headers: upload.headers, body: bytes })).status).toBe(201);
+    const fileUrl = `${h.baseUrl}${P}/sources/${recordId}/file?path=notes.txt`;
+    const get = (headers: Record<string, string> = {}) => fetch(fileUrl, { headers: { cookie: alice.cookie, ...headers } });
+
+    const whole = await get();
+    expect(whole.status).toBe(200);
+    expect(whole.headers.get("content-length")).toBe(String(bytes.length));
+    expect(new Uint8Array(await whole.arrayBuffer())).toEqual(bytes);
+
+    const part = await get({ range: "bytes=100-199" });
+    expect(part.status).toBe(206);
+    expect(part.headers.get("content-range")).toBe(`bytes 100-199/${bytes.length}`);
+    expect(new Uint8Array(await part.arrayBuffer())).toEqual(bytes.slice(100, 200));
+
+    const past = await get({ range: `bytes=${bytes.length}-` });
+    expect(past.status).toBe(416);
+    expect(past.headers.get("content-range")).toBe(`bytes */${bytes.length}`);
+
+    const url = new URL(fileUrl);
+    await new Promise<void>((resolve, reject) => {
+      const req = request({ host: url.hostname, port: url.port, path: `${url.pathname}${url.search}`, headers: { cookie: alice.cookie } }, (res) => {
+        res.once("data", () => req.destroy());
+        res.on("close", () => resolve());
+      });
+      req.on("error", (e) => (req.destroyed ? resolve() : reject(e)));
+      req.end();
+    });
+    expect((await get()).status).toBe(200);
+  });
 });
 
 describe("hostile files through the relay and the worker", () => {
