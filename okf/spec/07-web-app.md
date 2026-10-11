@@ -406,17 +406,26 @@ them. Its one write is promoting a page to the Story.
 - **Pan and interact.** A toolbar at the bottom of the canvas holds two modes. **Pan** (the hand,
   `H`, the default): a drag anywhere moves the canvas and a click selects a page; the pages take no
   pointer. **Interact** (the pointer, `V`): the pages take the pointer, so their links, buttons and
-  scrolling work, and a drag on the board still moves the canvas. Holding Space pans from either
-  mode. The browser remembers the mode (`whatbuild.mockup.mode`).
+  scrolling work, a drag on the board still moves the canvas, and a press on a page selects it.
+  Holding Space pans from either mode. The browser remembers the mode (`whatbuild.mockup.mode`).
 - **Scroll and zoom.** Scroll moves the canvas up and down, and Shift with scroll sideways; ⌘ or
-  Ctrl with scroll, or a pinch, zooms about the pointer, from 5% to 400%. The toolbar has zoom out,
-  the zoom level (a menu: Fit the canvas, Fit the selected page, 50%, 100%, 200%), zoom in, and fit
-  the canvas. Keys: `+` and `−`, `0` for 100%, `1` fits the canvas, `2` fits the selected page.
-  Moves glide unless the person prefers reduced motion.
+  Ctrl with scroll, or a pinch, zooms about the pointer, from 5% to 400%, over a page in interact
+  mode too. The toolbar has zoom out, the zoom level (a menu: Fit the canvas, Fit the selected page,
+  50%, 100%, 200%), zoom in, fit the canvas, the previous and next page, and a list of every key
+  (each one also runs from the list). Keys: `+` and `−`, `0` for 100%, `1` fits the canvas, `2`
+  fits the selected page, `←` and `→` select and fit the previous or next page (with none
+  selected, the last or the first). Every control names its key in its tooltip. Moves glide
+  unless the person prefers reduced motion.
+- **Keys from inside a page.** Once someone is working inside a page, its keys go to the page's
+  frame, not the app. The frame script ([§4.12](04-data-model.md)) is told the page is on a canvas
+  and passes the canvas's keys on, with Space held and let go and a pinch over the page, so they
+  work the same from inside a page; while typing in a page they stay with it.
 - **Selection.** Clicking a page, its label or its name in the inspector selects it: an accent
   outline that keeps its width at any zoom. The selection is in the address (`?page=`), so a link
   can open a mockup at one page; Esc clears it, and a second Esc leaves focus mode.
-- **Focus mode** works as on the Story (§7.8) and shares its remembered choice.
+- **Focus mode** works as on the Story (§7.8) and shares its remembered choice, except that the
+  board takes the whole window: the crumbs, the version and any notice above the board step aside,
+  and only the focus control (floating at the top right) and the toolbar remain.
 - **The inspector:** **Version** (a menu of every version with its date, who published the shown
   one and when, its page count, **Download version N** for the ZIP an agent builds the next version
   from, [§4.12](04-data-model.md)); **Page** (a menu of the pages with a Fit button, then the

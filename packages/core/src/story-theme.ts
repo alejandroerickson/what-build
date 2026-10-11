@@ -24,7 +24,7 @@ export function withStoryTheme(html: string, theme: "light" | "dark"): string {
 
 /**
  * The script the app's frame adds to a page it shows. It runs inside the page's sandbox, in the
- * page's opaque origin, and does three things:
+ * page's opaque origin, and does four things:
  *
  * - Passes F and Esc (focus mode) and the left and right arrows (flipping through the Story's
  *   published mockups) to the app, since keys pressed inside a frame never reach the page around
@@ -36,17 +36,32 @@ export function withStoryTheme(html: string, theme: "light" | "dark"): string {
  *   app checks it. A click with a modifier key, or on any other link, is left alone.
  * - Opens a link that would replace the page inside the frame in a new tab instead, so an ordinary
  *   link to evidence works, and the app never shows another address inside its own frame.
+ * - On a mockup's canvas (the app says so), passes on the canvas's keys too, Space held and let go
+ *   (and keeps it from scrolling the page), a pinch or ⌘/Ctrl with scroll (and keeps the browser from
+ *   zooming), and a press on the page, which selects it: once a person works inside a page, the
+ *   canvas around it would otherwise hear nothing.
  */
 export const FRAME_SCRIPT =
   "(function(){" +
-  "var story=null;" +
+  "var story=null,canvas=false;" +
   "function typing(t){return t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));}" +
+  'function send(m){parent.postMessage(m,"*");}' +
   'addEventListener("message",function(e){' +
-  'if(e.source===parent&&e.data&&e.data.whatbuild==="story-base"&&typeof e.data.base==="string")story=e.data.base;});' +
+  "if(e.source!==parent||!e.data)return;" +
+  'if(e.data.whatbuild==="story-base"&&typeof e.data.base==="string")story=e.data.base;' +
+  'if(e.data.whatbuild==="canvas-host")canvas=true;});' +
   'addEventListener("keydown",function(e){' +
   "if(e.defaultPrevented||e.metaKey||e.ctrlKey||e.altKey||typing(e.target))return;" +
-  'var k=e.key==="Escape"||e.key==="ArrowLeft"||e.key==="ArrowRight"?e.key:(e.key==="f"||e.key==="F")?"f":null;' +
-  'if(k)parent.postMessage({whatbuild:"story-key",key:k},"*");});' +
+  'var k=e.key==="Escape"||e.key==="ArrowLeft"||e.key==="ArrowRight"?e.key:(e.key==="f"||e.key==="F")?"f":canvas&&/^[ hHvV012+=_-]$/.test(e.key)?e.key:null;' +
+  "if(!k)return;" +
+  'if(k===" ")e.preventDefault();' +
+  'send({whatbuild:"story-key",key:k});});' +
+  'addEventListener("keyup",function(e){if(canvas&&e.key===" ")send({whatbuild:"canvas-keyup",key:" "});});' +
+  'addEventListener("wheel",function(e){' +
+  "if(!canvas||!(e.ctrlKey||e.metaKey))return;" +
+  "e.preventDefault();" +
+  'send({whatbuild:"canvas-zoom",x:e.clientX,y:e.clientY,dy:e.deltaY,line:e.deltaMode===1,pinch:e.ctrlKey&&!e.metaKey});},{passive:false});' +
+  'addEventListener("pointerdown",function(){if(canvas)send({whatbuild:"canvas-select"});},true);' +
   'addEventListener("click",function(e){' +
   'var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;' +
   'if(!a||a.getAttribute("href").charAt(0)==="#")return;' +

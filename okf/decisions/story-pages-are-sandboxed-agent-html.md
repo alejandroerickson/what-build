@@ -29,6 +29,7 @@ Stakeholder pages benefit from rich layout that agents can write, but that HTML 
 - The app cannot style or measure page content directly; the page follows the app theme through a `theme` parameter.
 - Pages are untrusted and may still link anywhere, so a page can point a reader at a lookalike site in a new tab; the sandbox keeps it from reaching the app, its session or its data.
 - A page's own script can post the same message the frame script does, so a page can move a reader to another page of the same Story without a click. Both pages are the same team's, in the same product, and the reader's back button returns.
+- On a mockup's canvas, a page's own script can likewise post the canvas's keys, a zoom or a press, so it can move, zoom or select on the canvas around it. That reaches nothing beyond the view; the app accepts only key names it knows and finite numbers.
 
 ## Constrains
 
