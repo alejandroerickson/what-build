@@ -25,6 +25,14 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 Nothing yet.
 
+## v0.8.2
+
+- **The public site's form takes a request from a visitor who has answered the cookie question.**
+  Nothing to set. Before, once a visitor had accepted or declined analytics, the form was refused
+  with `403 forbidden_origin` ("Cross-origin writes are refused.").
+- **From v0.7.0 or earlier**, also take v0.8.0's notes below: it adds migration `0019_usage` and
+  a log exclusion for Cloud Run.
+
 ## v0.8.1
 
 - **`read_passage` reads a search hit by its `seq`.** Nothing to set. Its refusals now say that
