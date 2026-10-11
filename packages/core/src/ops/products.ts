@@ -5,6 +5,7 @@ import { json, type Db } from "../db.ts";
 import { AppError, conflict, forbidden, invalid, notFound } from "../errors.ts";
 import { effectiveRole, isSandboxStaff, membershipsFor, PRODUCT_ROLES, readsOnlyTheStory, readsOnlyTheStoryIn, roleAtLeast, tenantRoleAtLeast } from "../policy.ts";
 import { defineOperation, type OpContext, type ProductRole, type TenantRole } from "../registry.ts";
+import { visitorName } from "../public-sandbox.ts";
 import { requireTenantAllowance } from "../tenant-allowance.ts";
 import { expectedEtag, slug } from "../schemas.ts";
 import { newEtag, newId, oneLine, quotedName, randomToken, sha256Hex, slugify } from "../util.ts";
@@ -518,6 +519,21 @@ function directoryReach(
 
 const RANK: Record<string, number> = { reader: 0, viewer: 1, editor: 2, admin: 3 };
 
+/**
+ * The name an access event gives the person it is about. In a public sandbox anyone but its staff
+ * is known there only by their made-up name, so that is the one written into the log. tenantRole
+ * is their organization role as it stands for the event; omitted, it is read now.
+ */
+async function nameInLog(ctx: OpContext, accountId: string, displayName: string, tenantRole?: string | null): Promise<string> {
+  const tenant = ctx.scope.tenant!;
+  if (!tenant.sandbox) return displayName;
+  const role =
+    tenantRole !== undefined
+      ? tenantRole
+      : ((await ctx.db.selectFrom("memberships").select("role").where("tenant_id", "=", tenant.tenant_id).where("scope_type", "=", "tenant").where("account_id", "=", accountId).executeTakeFirst())?.role ?? null);
+  return isSandboxStaff(role as TenantRole | null) ? displayName : visitorName(tenant.tenant_id, accountId);
+}
+
 export const listMembers = defineOperation({
   name: "members.list",
   scope: "tenant",
@@ -697,8 +713,8 @@ export const grantMember = defineOperation({
       action: existing ? "role_changed" : "granted",
       entity_type: "membership",
       entity_id: account.account_id,
-      entity_title: account.display_name,
-      summary: `${existing ? "Changed role to" : "Granted"} ${input.role} on ${target.scope_type} ${target.name}`,
+      entity_title: await nameInLog(ctx, account.account_id, account.display_name),
+      summary: `${existing ? "Changed role to" : "Granted"} ${input.role} on ${target.scope_type === "tenant" ? "organization" : target.scope_type} ${target.name}`,
     });
     return { invited: false, account_id: account.account_id, display_name: account.display_name, scope_type: target.scope_type, scope: target.name, role: input.role as ProductRole | TenantRole };
   },
@@ -722,7 +738,7 @@ export const revokeMember = defineOperation({
     const tid = ctx.scope.tenant!.tenant_id;
     if (input.whole_tenant) {
       if (input.team || input.product) throw invalid("invalid_input", "whole_tenant removes every grant; leave team and product out.");
-      const grants = await ctx.db.selectFrom("memberships").select(["membership_id", "role"]).where("tenant_id", "=", tid).where("account_id", "=", input.account_id).execute();
+      const grants = await ctx.db.selectFrom("memberships").select(["membership_id", "role", "scope_type"]).where("tenant_id", "=", tid).where("account_id", "=", input.account_id).execute();
       if (!grants.length) throw notFound("That person is not in this tenant.");
       const tenantTarget = await resolveGrantTarget(ctx, {});
       await requireAdminOf(ctx, tenantTarget, grants.some((g) => g.role === "owner") ? "owner" : "admin");
@@ -732,7 +748,8 @@ export const revokeMember = defineOperation({
       }
       await ctx.db.deleteFrom("memberships").where("tenant_id", "=", tid).where("account_id", "=", input.account_id).execute();
       const acct = await ctx.db.selectFrom("accounts").select("display_name").where("account_id", "=", input.account_id).executeTakeFirst();
-      await recordActivity(ctx, { action: "revoked", entity_type: "membership", entity_id: input.account_id, entity_title: acct?.display_name ?? null, summary: `Removed from ${ctx.scope.tenant!.name} (${grants.length} ${grants.length === 1 ? "role" : "roles"})` });
+      const tenantRole = grants.find((g) => g.scope_type === "tenant")?.role ?? null;
+      await recordActivity(ctx, { action: "revoked", entity_type: "membership", entity_id: input.account_id, entity_title: acct ? await nameInLog(ctx, input.account_id, acct.display_name, tenantRole) : null, summary: `Removed from ${ctx.scope.tenant!.name} (${grants.length} ${grants.length === 1 ? "role" : "roles"})` });
       return { revoked: true, account_id: input.account_id, scope_type: "tenant" as const, scope: ctx.scope.tenant!.name, removed: grants.length };
     }
     const target = await resolveGrantTarget(ctx, input);
@@ -747,7 +764,9 @@ export const revokeMember = defineOperation({
     }
     await ctx.db.deleteFrom("memberships").where("membership_id", "=", m.membership_id).execute();
     const acct = await ctx.db.selectFrom("accounts").select("display_name").where("account_id", "=", input.account_id).executeTakeFirst();
-    await recordActivity(ctx, { action: "revoked", entity_type: "membership", entity_id: input.account_id, entity_title: acct?.display_name ?? null, summary: `Removed ${m.role} on ${target.scope_type} ${target.name}` });
+    // A role removed from the organization itself was their standing until now.
+    const title = acct ? await nameInLog(ctx, input.account_id, acct.display_name, target.scope_type === "tenant" ? m.role : undefined) : null;
+    await recordActivity(ctx, { action: "revoked", entity_type: "membership", entity_id: input.account_id, entity_title: title, summary: `Removed ${m.role} on ${target.scope_type === "tenant" ? "organization" : target.scope_type} ${target.name}` });
     return { revoked: true, account_id: input.account_id, scope_type: target.scope_type, scope: target.name };
   },
 });
@@ -778,7 +797,53 @@ export const cancelInvitation = defineOperation({
   },
 });
 
+/** The sandbox's events that change who may come in: its invitations, a visitor's removal, and its settings. */
+const SANDBOX_ACCESS_ACTIONS = ["invited", "invitation_cancelled", "revoked", "updated"];
+
+export const listAccessActivity = defineOperation({
+  name: "members.activity",
+  scope: "tenant",
+  access: "admin",
+  mutates: false,
+  summary: "Who gave, changed or removed whose access in the organization, and when: newest first (tenant admins).",
+  description:
+    "The organization's access log: roles given, changed and removed, people removed from the organization, invitations sent, accepted and cancelled, and in a public sandbox its invitation links, removed visitors and changed settings. A product's activity.list leaves these out, because they belong to the organization. Entries name the person and the scope and never an email address; a sandbox visitor appears under their made-up name. Filters: actor (account id), since (ISO 8601).",
+  input: z.strictObject({
+    tenant: z.string().min(1),
+    actor: z.string().max(100).optional(),
+    since: z.iso.datetime({ offset: true }).optional(),
+    limit: z.number().int().min(1).max(200).default(50),
+    cursor: z.string().optional(),
+  }),
+  rest: { method: "GET", path: "/members/activity" },
+  mcp: { tool: "members", action: "activity" },
+  async handler(ctx, input) {
+    let q = ctx.db
+      .selectFrom("activity")
+      .selectAll()
+      .where("tenant_id", "=", ctx.scope.tenant!.tenant_id)
+      .where((eb) => eb.or([eb("entity_type", "=", "membership"), eb.and([eb("entity_type", "=", "sandbox"), eb("action", "in", SANDBOX_ACCESS_ACTIONS)])]));
+    if (input.actor) q = q.where("actor_account_id", "=", input.actor);
+    if (input.since) q = q.where(sql<boolean>`occurred_at >= ${input.since}::timestamptz`);
+    if (input.cursor) q = q.where("activity_id", "<", input.cursor);
+    const rows = await q.orderBy("activity_id", "desc").limit(input.limit + 1).execute();
+    const items = rows.slice(0, input.limit).map((r) => ({
+      activity_id: r.activity_id,
+      occurred_at: r.occurred_at,
+      actor: r.actor,
+      channel: r.channel,
+      through_agent: r.channel === "mcp",
+      action: r.action,
+      entity_type: r.entity_type,
+      entity_id: r.entity_id,
+      entity_title: r.entity_title,
+      summary: r.summary,
+    }));
+    return { items, next_cursor: rows.length > input.limit ? items[items.length - 1]!.activity_id : null };
+  },
+});
+
 export const productOps = [
   listProducts, createTenant, createTeam, createProduct, getProduct, updateProduct, archiveProduct, restoreProduct,
-  listMembers, grantMember, revokeMember, cancelInvitation,
+  listMembers, grantMember, revokeMember, cancelInvitation, listAccessActivity,
 ];

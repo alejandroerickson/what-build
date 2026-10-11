@@ -1,4 +1,5 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, type UseInfiniteQueryResult, type InfiniteData } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { api, qs } from "../lib/api.ts";
 import { formatDate, formatDateTime, formatTime, relativeTime } from "../lib/format.ts";
@@ -78,9 +79,13 @@ const VERBS: Record<string, string> = {
   "membership:granted": "gave a role to",
   "membership:role_changed": "changed the role of",
   "membership:revoked": "removed a role from",
-  "membership:joined": "joined as",
+  "membership:joined": "joined",
   "membership:invited": "invited someone to",
   "membership:invitation_cancelled": "cancelled an invitation",
+  "sandbox:invited": "made the sandbox invitation",
+  "sandbox:invitation_cancelled": "withdrew the sandbox invitation",
+  "sandbox:revoked": "took the seat of",
+  "sandbox:updated": "changed the settings of",
 };
 
 /** What an entity type is called when the log is filtered to it: "Showing activity on sources". */
@@ -168,6 +173,31 @@ export function ActivityFeed(filter: ActivityFilter & { query?: ReturnType<typeo
   const own = useActivity(filter);
   const q = filter.query ?? own;
   const { app } = useProduct();
+  const filtered = Boolean(filter.entityId || filter.entityType);
+  return (
+    <ActivityLog
+      query={q}
+      linkOf={(i) => linkFor(app, i)}
+      empty={
+        <EmptyState
+          size="inline"
+          title={filtered ? "Nothing matches this view yet" : "Nothing has changed yet"}
+          action={filtered ? undefined : <ButtonLink to="/connect" size="sm" icon="bot">Connect an agent</ButtonLink>}
+        >
+          {filtered ? "Changes appear here as soon as someone makes them." : "Every change appears here, whether a person or an agent made it: a source added, an assumption recorded, a Story page published."}
+        </EmptyState>
+      }
+    />
+  );
+}
+
+type ActivityPages = UseInfiniteQueryResult<InfiniteData<{ items: ActivityItem[]; next_cursor: string | null }>>;
+
+/**
+ * Any log drawn as the feed: a product's, or an organization's access changes. linkOf says where an
+ * entry leads, if anywhere; empty is what shows before anything has happened.
+ */
+export function ActivityLog({ query: q, linkOf, empty }: { query: ActivityPages; linkOf: (i: ActivityItem) => string | null; empty: ReactNode }) {
   if (q.isPending) return <Loading label="Loading activity…" lines={6} />;
   if (q.isError)
     return (
@@ -176,18 +206,7 @@ export function ActivityFeed(filter: ActivityFilter & { query?: ReturnType<typeo
       </div>
     );
   const items = q.data.pages.flatMap((p) => p.items);
-  if (!items.length) {
-    const filtered = Boolean(filter.entityId || filter.entityType);
-    return (
-      <EmptyState
-        size="inline"
-        title={filtered ? "Nothing matches this view yet" : "Nothing has changed yet"}
-        action={filtered ? undefined : <ButtonLink to="/connect" size="sm" icon="bot">Connect an agent</ButtonLink>}
-      >
-        {filtered ? "Changes appear here as soon as someone makes them." : "Every change appears here, whether a person or an agent made it: a source added, an assumption recorded, a Story page published."}
-      </EmptyState>
-    );
-  }
+  if (!items.length) return <>{empty}</>;
   const groups: { day: string; items: ActivityItem[] }[] = [];
   for (const i of items) {
     const day = dayLabel(i.occurred_at);
@@ -207,15 +226,16 @@ export function ActivityFeed(filter: ActivityFilter & { query?: ReturnType<typeo
           <ol className="activity-list">
             {g.items.map((i) => {
               const verb = VERBS[`${i.entity_type}:${i.action}`] ?? i.action.replace(/_/g, " ");
-              const href = linkFor(app, i);
-              const title = i.entity_title ?? ENTITY_LABEL[i.entity_type] ?? i.entity_type.replace(/_/g, " ");
+              const href = linkOf(i);
+              // A cancelled invitation names nobody, and someone who joined is the actor: the sentence ends at its verb.
+              const title = i.entity_type === "membership" && i.action === "joined" ? null : i.entity_title ?? (i.entity_type === "membership" ? null : ENTITY_LABEL[i.entity_type] ?? i.entity_type.replace(/_/g, " "));
               const today = g.day === "Today";
               return (
                 <li key={i.activity_id} className="activity-row">
                   {i.through_agent ? <AgentFace /> : <Avatar name={i.actor.display_name} />}
                   <div className="activity-main">
                     <p className="activity-sentence">
-                      <b>{i.actor.display_name}</b> {verb} {href ? <Link to={href}>{title}</Link> : <span>{title}</span>}
+                      <b>{i.actor.display_name}</b> {verb}{title ? <> {href ? <Link to={href}>{title}</Link> : <span>{title}</span>}</> : null}
                     </p>
                     <p className="activity-sub">
                       {surfaceWords(i)}

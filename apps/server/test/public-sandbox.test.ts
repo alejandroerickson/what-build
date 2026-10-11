@@ -308,6 +308,7 @@ describe("the public sandbox", () => {
       ["GET", `${T}/sandbox/invites`, undefined],
       ["POST", `${T}/sandbox/invites`, { label: "Mine", places: 100 }],
       ["POST", `${T}/sandbox/visitors/remove`, { account_id: "x" }],
+      ["GET", `${T}/members/activity`, undefined],
     ];
     for (const [method, path, body] of refused) {
       const r = await vera.api(method, path, body);
@@ -735,6 +736,21 @@ describe("the baseline and the reset", () => {
     expect(removed.body.appears_as).toMatch(VISITOR);
     expect((await vera.api("GET", P)).status).toBe(404);
     expect((await olive.api("POST", `${T}/sandbox/visitors/remove`, { account_id: veraId })).status).toBe(404);
+  });
+
+  it("keeps its staff an access log through every reset, naming a visitor only by their made-up name", async () => {
+    const log = await olive.api("GET", `${T}/members/activity?limit=200`);
+    expect(log.status, JSON.stringify(log.body)).toBe(200);
+    const items: { entity_type: string; action: string; entity_title: string | null; actor: { display_name: string } }[] = log.body.items;
+    // The removal above, the invitations made before the resets, and a role given before them.
+    expect(items[0]).toMatchObject({ entity_type: "sandbox", action: "revoked", actor: { display_name: "Olive Owner" } });
+    expect(items[0]!.entity_title).toMatch(VISITOR);
+    expect(items.some((i) => i.entity_type === "sandbox" && i.action === "invited")).toBe(true);
+    expect(items.some((i) => i.entity_type === "membership" && i.action === "granted")).toBe(true);
+    // Only access: no baseline or reset, and nothing that happened in a product.
+    expect(items.every((i) => i.entity_type === "membership" || (i.entity_type === "sandbox" && ["invited", "invitation_cancelled", "revoked", "updated"].includes(i.action)))).toBe(true);
+    const text = JSON.stringify(log.body);
+    for (const hidden of ["vera@", "viktor@", "Vera", "Viktor"]) expect(text, hidden).not.toContain(hidden);
   });
 });
 

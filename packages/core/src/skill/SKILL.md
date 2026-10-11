@@ -330,7 +330,9 @@ the mockup page with a page of your own.
 Use `activity(action="list")` for "what changed since…", when resuming work, to see what teammates
 added, and before revising something someone may just have edited. Filter by `entity_id` for one
 item's history. Never write a separate "what I changed" note — the log records every write. An entry
-names a change; read the item before relying on it.
+names a change; read the item before relying on it. Changes to who has access (roles, invitations,
+a sandbox's visitors) belong to the organization, not a product: its owners and admins read them
+with `members(action="activity")`.
 
 ## Archive, and delete
 

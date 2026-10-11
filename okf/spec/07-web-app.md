@@ -629,7 +629,9 @@ never described as deleting. A list row showing an archived object says *Archive
   Someone who is not an owner or admin of the organization sees only the people on the teams and
   products they can open, and the owners and admins, as the page says; since they may not see
   every role a person holds, removing one never asks as if it were the last
-  ([§3.5](03-accounts-teams-and-identity.md)).
+  ([§3.5](03-accounts-teams-and-identity.md)). Below, owners and admins of the organization see
+  **Access changes**: the organization's access log (`members.activity`), drawn as the Activity
+  feed is (§7.9), newest first; in a sandbox its entries about the sandbox lead to its controls.
   Someone who reads only the Story in the organization who opens the address gets a page saying
   that members aren't shown to Story readers, with a way back to their products
   ([§3.5](03-accounts-teams-and-identity.md)). The page knows this from `products.list`'s
