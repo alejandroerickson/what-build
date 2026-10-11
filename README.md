@@ -18,7 +18,7 @@ whatever agent you connect.
 
 ## Running it locally
 
-Node 22.18 or later (24 is what CI and the image run). Nothing else: no Docker, no accounts, no API keys.
+Node 24.15 or later, or 22.22.2 or later on 22 (24 is what CI and the image run). Nothing else: no Docker, no accounts, no API keys.
 
 ```sh
 git clone https://github.com/<owner>/what-build.git
