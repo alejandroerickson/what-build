@@ -3,7 +3,7 @@ type: Decision
 title: The public site is one page built with the app, served from Cloudflare's edge or by host from the image
 description: what-build.com is a page in the web app's build that records requests to hear when WhatBuild opens; behind Cloudflare the Worker serves it so visitors never wake the service, and the image can serve it by Host for any other front.
 tags: [decision, deployment, web, site]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-11}
 status: stable
 ---
 
@@ -41,7 +41,8 @@ instance is alive, so crawlers visiting the page every few minutes would keep on
 - Visitors and crawlers on the site cost nothing; only a submitted form wakes the service.
 - Behind Cloudflare, a change to the page reaches visitors when the Worker is deployed again, not
   when the image is.
-- Nobody is emailed when someone signs up until a mail provider is configured.
+- Nobody is emailed when someone signs up: nothing sends that mail, even where mail is set up
+  ([Mail](../operations/mail.md)).
 
 ## Constrains
 

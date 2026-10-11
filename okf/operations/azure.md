@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild self-hosts on Azure Container Apps with Azure Database for PostgreSQL and a mounted file share, set up by an agent with the Azure CLI.
 description: What a self-hosted deployment on Azure is made of, how each resource is configured, the commands that create it, sign-in with a Microsoft work account, the variations between organizations, deploying a new version, cost and removal.
 tags: [operations, deployment, azure, self-hosting, container-apps, entra]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-11}
 status: draft
 ---
 
@@ -461,7 +461,7 @@ and one of that application's client secrets as the password
 Store `smtp://<username>:<password>@<host>:587`, with both parts percent-encoded, as
 `whatbuild-smtp-url`, and uncomment the `smtp-url` secret, `WHATBUILD_SMTP_URL` and
 `WHATBUILD_MAIL_FROM` in the definition. Without mail, invitations are links that whoever invites
-copies and sends.
+copies and sends. [Mail](mail.md) has what the server sends and what breaks it.
 
 **Google sign-in** works as on Cloud Run ([cloud-run.md](cloud-run.md)), with
 `WHATBUILD_GOOGLE_CLIENT_ID` and a vault secret for `WHATBUILD_GOOGLE_CLIENT_SECRET`; a Microsoft

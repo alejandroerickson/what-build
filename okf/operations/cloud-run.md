@@ -108,7 +108,11 @@ its memory read there, before production moves.
   yourself and pass only the ID). The secret lives in Secret Manager, never in the repository.
 - **Email links** — re-run with `SMTP_URL=smtps://user:pass@host:465` and `MAIL_FROM`. Any SMTP
   provider works; this is also what sends invitations. Without it, invitations still work: the
-  inviter is shown the single-use link to pass on.
+  inviter is shown the single-use link to pass on. [Mail](mail.md) has what the server sends,
+  production's provider (Cloudflare Email Sending) and its commands. A re-run replaces every
+  setting on the service, so a deployment that sends mail passes `MAIL_FROM` each time: without it
+  the sender falls back to `no-reply@localhost`, which providers refuse, and sign-in links and
+  invitations to new addresses fail.
 - **Microsoft work accounts** — `setup.sh` does not set it up. Register the application as the
   [Azure guide](azure.md#sign-in) does, with the optional ID-token claims `email` and `xms_edov`
   and the redirect URI `https://<your-url>/auth/microsoft/callback`, store its secret as
@@ -148,12 +152,14 @@ gcloud run services update whatbuild --region $R --update-env-vars WHATBUILD_ANA
 **The privacy page.** `/privacy` names who runs the deployment (`WHATBUILD_OPERATOR`), where to
 write about one's data (`WHATBUILD_PRIVACY_CONTACT`, an email address or a web page) and the
 providers that handle it (`WHATBUILD_PROVIDERS`, `Name: what it does; …`)
-([§9.1](../spec/09-data-lifecycle.md)). Without them it says they have not been named. The list
+([§9.1](../spec/09-data-lifecycle.md)). Without them it says they have not been named. A
+deployment's mail provider is one of them: it receives every recipient's address and message
+([Mail](mail.md)). The list
 holds commas, so pass it with gcloud's alternate delimiter:
 
 ```bash
 gcloud run services update whatbuild --region $R --update-env-vars \
-  '^|^WHATBUILD_OPERATOR=Example Labs|WHATBUILD_PRIVACY_CONTACT=privacy@example.com|WHATBUILD_PROVIDERS=Google Cloud: hosting, files and logs; Neon: the database; Cloudflare: the public site and its visit counts; Google Analytics: analytics, for those who accept'
+  '^|^WHATBUILD_OPERATOR=Example Labs|WHATBUILD_PRIVACY_CONTACT=privacy@example.com|WHATBUILD_PROVIDERS=Google Cloud: hosting, files and logs; Neon: the database; Cloudflare: the public site, its visit counts and email; Google Analytics: analytics, for those who accept'
 ```
 
 **A public sandbox.** `SANDBOX_TENANT=<slug>` names one organization as the public sandbox
@@ -318,7 +324,9 @@ the ceiling. Builds deploy a new image and keep the setting. The smallest Cloud 
 US$10 a month; a free-tier Postgres elsewhere costs nothing, but holds about 0.5 GB, so lower a
 public sandbox's upload allowances to match (`bytes_per_day`, `org_bytes_per_day`;
 [§9.7](../spec/09-data-lifecycle.md)): visitors' text and its search index land in Postgres. Storage is cents; data the service
-sends out costs about US$0.12 a GB, and is the one cost that grows with downloads.
+sends out costs about US$0.12 a GB, and is the one cost that grows with downloads. Mail through
+Cloudflare Email Sending needs the Workers Paid plan, which includes 3,000 messages a month
+([Mail](mail.md)).
 
 ## What is where
 
@@ -330,7 +338,7 @@ sends out costs about US$0.12 a GB, and is the one cost that grows with download
 | Build identity | the project's default compute identity, or `BUILD_SA` | deploy to Cloud Run, push images, write logs, read `<project>_cloudbuild`; `setup.sh` takes away the Editor role Google gives it |
 | Database | Cloud SQL instance `whatbuild-db`, database and user `whatbuild` (with `CLOUD_SQL=1`) | or the Postgres named by `DATABASE_URL` |
 | Bucket | `<project>-whatbuild-files` | private, uniform access, public access prevented; versioned, noncurrent versions deleted after 30 days |
-| Secrets | `whatbuild-database-url`, `whatbuild-grant-key`, optional `whatbuild-smtp-url`, `whatbuild-google-client-secret` | read by the runtime identity only |
+| Secrets | `whatbuild-database-url`, `whatbuild-grant-key`, optional `whatbuild-smtp-url` ([Mail](mail.md)), `whatbuild-google-client-secret` | read by the runtime identity only |
 | Images | Artifact Registry `whatbuild` | the ten most recent always kept; others deleted after 30 days |
 | Scheduler job | `whatbuild-sandbox-reset` (with `SANDBOX_TENANT`) | wakes the service a minute after the sandbox's reset hour |
 | Log exclusion | `whatbuild-request-addresses` on the `_Default` sink | Cloud Run logs every request itself, with its whole address, the client's IP and its browser, for 30 days. This drops its line for an address with a query (a search's words, a sign-in link's token) or an invitation link; the service's own line for it, masked, stays |

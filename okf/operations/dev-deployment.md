@@ -3,7 +3,7 @@ type: System Concept
 title: The dev deployment is a second Cloud Run deployment, laid out like production and holding a copy of its data, where a release is rehearsed before production moves.
 description: For the maintainer and the agent working for them; what the dev deployment is and how it differs from production, where its values are, rehearsing a release on it, putting it back, refreshing its copy of production, setting one up from nothing, and keeping its data private.
 tags: [operations, deployment, dev, rehearsal, migrations, cloud-run, neon, production]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-11}
 status: stable
 ---
 
@@ -34,6 +34,7 @@ service that production's build runs, on production's data.
 | Public sandbox | the organization production names | the same organization, from the copy; no scheduler job, so its reset runs on the first request after its hour |
 | Address | a custom domain through Cloudflare | the service's `run.app` address only |
 | Analytics, public site, Worker, nightly backup | yes | none |
+| Mail | Cloudflare Email Sending ([Mail](mail.md)) | none, ever: its accounts and invitations are real people's addresses |
 
 The two share nothing: no project, database, bucket, secret or OAuth client. Nothing in dev can
 reach production.

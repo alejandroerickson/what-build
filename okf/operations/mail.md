@@ -1,0 +1,175 @@
+---
+type: System Concept
+title: Mail - what WhatBuild sends, how each deployment sends it, and production's Cloudflare Email Sending
+description: The three messages the server sends, the settings that choose a mailer, which deployments send mail and which never do, production's setup on Cloudflare Email Sending over SMTP, checking it, rotating its token, changing provider, and what breaks it.
+tags: [operations, mail, smtp, cloudflare, invitations, sign-in, cloud-run, azure, runbook]
+generated: {by: agent:claude, at: 2026-10-11}
+status: stable
+---
+
+# Mail
+
+An agent sets up, checks and repairs a deployment's mail with the `set-up-mail` skill, which follows
+this guide.
+
+## What WhatBuild sends
+
+Plain text, one message at a time, while the request that causes it waits:
+
+| Message | Sent when | Code |
+|---|---|---|
+| A sign-in link | someone asks for one on the sign-in page (`POST /auth/email`), at most five per address an hour | `apps/server/src/auth/routes.ts` |
+| An invitation | someone gives a role to an address that has no account | `packages/core/src/ops/products.ts` |
+| An allowance notice | an instance owner lets an address start organizations, and asks to tell them | `packages/core/src/ops/tenant-allowances.ts` |
+
+Nothing else sends mail: not the site's interest form, not feedback. Sign-in links and
+invitations are specified in [§3](../spec/03-accounts-teams-and-identity.md).
+
+**A message that cannot be sent fails its request.** An invitation or an allowance runs in one
+transaction with its message, so a failed send leaves nothing behind and the person sees an
+internal error; a failed sign-in link answers `500`. A deployment whose mail is broken therefore
+cannot invite anyone new, while one with no mail at all can: the person inviting is shown the link
+to pass on, and the sign-in page offers no email link.
+
+## The settings
+
+| Setting | What it does |
+|---|---|
+| `WHATBUILD_SMTP_URL` | `smtp://` or `smtps://user:password@host:port`, both parts percent-encoded. Always from a secret (`whatbuild-smtp-url`), never a plain value. |
+| `WHATBUILD_MAIL_FROM` | The sender, for example `WhatBuild <noreply@example.com>`. Its domain must be one the provider sends for. Unset, it is `WhatBuild <no-reply@localhost>`, which every real provider refuses. |
+| `WHATBUILD_MAILER` | `smtp`, `none`, `console` or `memory`. Unset, it is `smtp` when there is an SMTP URL, otherwise `none` in production and `console` in development. Production takes only `smtp` or `none`. |
+
+With `none`, sign-in by email link is off (`/api/v1/meta` reports `auth.email_link: false`) and
+invitations are links. `console` prints each message in the terminal, and `memory` keeps it for
+tests ([§2](../spec/02-architecture.md)).
+
+The settings belong to one deployment: they live in its own project and secret store, never in the
+repository or the image. A deployment sends mail only after someone gives it these settings.
+
+| Deployment | Mail |
+|---|---|
+| Production (Cloud Run) | Cloudflare Email Sending over SMTP, from `noreply@what-build.com` ([below](#production)) |
+| The dev deployment | **None, ever.** It holds a copy of production, so its accounts and invitations are real people's addresses ([dev deployment](dev-deployment.md)). |
+| Local development, a copy of production, the end-to-end tests | printed in the terminal (`console`) |
+| Another Cloud Run deployment | none until it is given its own; `setup.sh` takes `SMTP_URL` and `MAIL_FROM` ([Cloud Run](cloud-run.md)) |
+| A self-hosted deployment on Azure | its own relay or Azure Communication Services ([Azure](azure.md#sign-in)) |
+
+Two things can carry mail where it is not meant to go:
+
+- **`setup.sh` uses any `whatbuild-smtp-url` secret in its project.** A second deployment set up
+  in the same project sends through the first one's provider and account. Give every deployment a
+  project of its own.
+- **A token reaches every deployment that holds it.** Production's Cloudflare token sends as
+  `what-build.com` from anywhere. Never copy it into another deployment, a self-hosted one, or the
+  repository; a deployment run by another organization uses its own domain and provider.
+
+## Production
+
+Production sends through [Cloudflare Email Sending](https://developers.cloudflare.com/email-service/)
+on the Cloudflare account that holds the `what-build.com` zone
+([decision](../decisions/production-sends-mail-through-cloudflare-email-sending.md)).
+
+| Thing | Where |
+|---|---|
+| The sending domain | `what-build.com`, onboarded under Email Service → Email Sending |
+| Its DNS records | MX and SPF on `cf-bounce.what-build.com`, DKIM on `cf-bounce._domainkey.what-build.com`; Cloudflare adds them when the domain is onboarded. The zone's `_dmarc` record (`p=quarantine`, relaxed alignment) passes Cloudflare's signed mail as it is; its reports (`rua`) go to an address the registrar set. |
+| The token | an account-owned API token with only **Email Sending: Edit**. It is the SMTP password, and also reads and changes the sending settings over the API. |
+| The secret | `whatbuild-smtp-url` in production's Secret Manager: `smtps://api_token:<token>@smtp.mx.cloudflare.net:465`, read by the runtime identity only |
+| The service | `WHATBUILD_SMTP_URL` from that secret; `WHATBUILD_MAIL_FROM=WhatBuild <noreply@what-build.com>` |
+| The plan | Workers Paid, which includes 3,000 messages a month, then US$0.35 per 1,000 |
+
+Nothing receives mail for `what-build.com`: replies to `noreply@` bounce. Email Sending is in beta.
+
+Cloudflare receives each recipient's address and every message, so production's privacy page must
+name it for mail: in `WHATBUILD_PROVIDERS`, `Cloudflare: the public site, its visit counts and
+email` ([§9.1](../spec/09-data-lifecycle.md)).
+
+### Checking it
+
+```bash
+P=$GCP_PROJECT R=$GCP_REGION    # from .env
+curl -s https://app.what-build.com/api/v1/meta | python3 -c 'import json,sys; print(json.load(sys.stdin)["auth"])'   # email_link: True
+gcloud run services describe whatbuild --project $P --region $R --format=json \
+  | python3 -c 'import json,sys; [print(e["name"], e.get("value", "(secret)")) for e in json.load(sys.stdin)["spec"]["template"]["spec"]["containers"][0]["env"] if "MAIL" in e["name"] or "SMTP" in e["name"]]'
+```
+
+Then ask for a sign-in link on the sign-in page with an address the person reads, and have them
+confirm it arrived and was not marked as spam. `{"sent": true}` means Cloudflare accepted the
+message, not that it was delivered.
+
+### Setting it up
+
+For production from nothing, or for another domain on another Cloudflare account:
+
+1. The account needs the Workers Paid plan. The person subscribes, since it is billing.
+2. The person creates an account API token in the Cloudflare dashboard with the one permission
+   Email Sending: Edit, and writes it to an ignored `.env` as `CF_EMAIL_API_KEY`. An agent never
+   needs a token that can create tokens.
+3. Onboard the domain. Cloudflare adds its DNS records in the same step, because it holds the zone:
+
+   ```bash
+   Z=<the zone's id>   # GET /zones?name=<domain> with CLOUDFLARE_API_TOKEN
+   curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$Z/email/sending/subdomains" \
+     -H "Authorization: Bearer $CF_EMAIL_API_KEY" -H 'Content-Type: application/json' -d '{"name":"<domain>"}'
+   ```
+
+   Sending is refused (`550 5.7.1 Email sending is not enabled for domain`) for about a minute
+   after onboarding.
+4. Store the SMTP URL and let the service read it, without the token appearing in a command line:
+
+   ```bash
+   printf 'smtps://api_token:%s@smtp.mx.cloudflare.net:465' "$CF_EMAIL_API_KEY" \
+     | gcloud secrets create whatbuild-smtp-url --project $P --replication-policy automatic --data-file=-
+   gcloud secrets add-iam-policy-binding whatbuild-smtp-url --project $P \
+     --member serviceAccount:whatbuild-runtime@$P.iam.gserviceaccount.com --role roles/secretmanager.secretAccessor
+   gcloud run services update whatbuild --project $P --region $R \
+     --update-secrets WHATBUILD_SMTP_URL=whatbuild-smtp-url:latest \
+     --update-env-vars 'WHATBUILD_MAIL_FROM=WhatBuild <noreply@<domain>>'
+   ```
+
+   This makes a revision of the image already running; it moves production to no other release.
+   Release deploys (`cloudbuild.yaml`) keep both settings.
+5. Check it (above), and add Cloudflare's mail to the privacy page's providers.
+
+### Rotating the token
+
+Create a new token as in step 2, add it as a new version, make a revision that reads it, check, then
+delete the old token in the dashboard:
+
+```bash
+printf 'smtps://api_token:%s@smtp.mx.cloudflare.net:465' "$CF_EMAIL_API_KEY" \
+  | gcloud secrets versions add whatbuild-smtp-url --project $P --data-file=-
+gcloud run services update whatbuild --project $P --region $R --update-secrets WHATBUILD_SMTP_URL=whatbuild-smtp-url:latest
+```
+
+A revision reads `latest` when it starts, so without the new revision the service keeps the old
+token until its next start.
+
+### Changing provider
+
+Any SMTP provider works without a change to the code. Onboard the domain with it, add its DNS
+records, store its SMTP URL as a new version of `whatbuild-smtp-url`, make a revision, check, then
+remove Cloudflare's sending records and token, and change the privacy page's providers. Record the
+new choice by superseding the decision.
+
+## When mail fails
+
+| Sign | Cause | Fix |
+|---|---|---|
+| Inviting a new address fails with an internal error; sign-in links answer `500` | the send failed; the service logs the SMTP error | read it (below), then the rows that follow |
+| `535 5.7.8` | the token is wrong, revoked or lacks Email Sending: Edit, or the user name is not `api_token` | rotate the token |
+| `550 5.7.1 … not enabled for domain` | the sender's domain is not onboarded under the token's account, or was onboarded a minute ago | onboard it, or wait a minute |
+| The sender is `no-reply@localhost` | `WHATBUILD_MAIL_FROM` is unset, most often after re-running `setup.sh` without `MAIL_FROM` | set it again (step 4) |
+| No email link on the sign-in page | the service has no SMTP URL | step 4 |
+| The message arrives as spam | DKIM or SPF not passing | check the records under Email Sending, and the message's `Authentication-Results` header |
+
+```bash
+gcloud run services logs read whatbuild --project $P --region $R --limit 300 | grep -iE 'EAUTH|EENVELOPE|ECONNECTION|ETIMEDOUT|smtp'
+```
+
+**Re-running `setup.sh` on production** replaces every setting on the service with the ones it is
+given. Pass `MAIL_FROM='WhatBuild <noreply@what-build.com>'` with the rest; it finds the secret by
+itself.
+
+Cloudflare's dashboard shows each message's outcome under Email Sending. Addresses that bounce go
+on its suppression list, and later messages to them are refused.

@@ -19,7 +19,8 @@ command. This file is how to conduct the work.
   (`GCP_DEV_PROJECT`, `GCP_DEV_REGION`, `DEV_URL`, `NEON_DEV_PROJECT`, `NEON_DEV_BRANCH`,
   `NEON_DEV_COPY_BRANCH`, `NEON_DEV_COPY_TAKEN`) and pass `--project` and `--project-id` every
   time, never `gcloud`'s current project. Never write the values into the repository.
-- **Dev shares nothing with production**: no secret, OAuth client, database or bucket.
+- **Dev shares nothing with production**: no secret, OAuth client, database or bucket. It sends no
+  mail, and never gets mail settings: its addresses are real people's (`okf/operations/mail.md`).
 - **The copy is real people's data.** Keep dumps in a directory only you can read and delete them
   once loaded. Nothing from the copy goes into the repository, a commit, an issue or a pull
   request; in a report to the maintainer you may say what you saw.

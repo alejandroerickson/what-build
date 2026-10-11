@@ -74,6 +74,7 @@ that folder. If your tool does not load skills, read the `SKILL.md` files direct
 | `triage-security-findings` | When `pnpm security`, the Security or CodeQL workflow, or Dependabot reports something; when adding or upgrading a dependency; before a release. |
 | `run-end-to-end-tests` | When asked to run the end-to-end, smoke or acceptance tests or a test plan, to QA the app through the browser and MCP, or to build the golden master. |
 | `read-usage` | When asked how a deployment is used: which features, through the app and agents, whether people come back, what fails; for analytics or insights; or to connect a deployment to its analytics. |
+| `set-up-mail` | When asked to set up, check or repair a deployment's email; when invitations or sign-in links do not arrive or fail; to rotate the mail token or change provider. |
 
 ## Before you change anything
 
@@ -103,6 +104,7 @@ conducts each one that changes something:
 | go back after a release broke a deployment | `recovering-from-a-bad-release.md` | `recover-a-deployment` |
 | test on a copy of production on this machine | `a-copy-of-production.md` | `test-on-a-copy-of-production` |
 | find out how a deployment is used (features, agents, people coming back, the site); connect its analytics | `analytics.md` | `read-usage` |
+| know what mail a deployment sends and through what; set it up, check it, rotate its token, change provider | `mail.md` | `set-up-mail` |
 
 Production runs releases only: it moves when a release is published and its build approved,
 never on a merge, and a release that migrates is rehearsed on the dev deployment first. The

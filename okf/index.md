@@ -24,11 +24,12 @@ server with the same operations. There is no AI inside.
 - [Specification](spec/index.md): product, architecture, identity and tenancy, data model, derived
   layer, operations and MCP, web app, search, data lifecycle, and the [roadmap](spec/10-roadmap.md).
 - [Local development](operations/local-development.md), [end-to-end tests](operations/end-to-end-tests.md), [a copy of production](operations/a-copy-of-production.md), [Cloud Run](operations/cloud-run.md),
-  [self-hosting on Azure](operations/azure.md) and [Analytics](operations/analytics.md).
+  [self-hosting on Azure](operations/azure.md), [Analytics](operations/analytics.md) and [Mail](operations/mail.md).
 - **Making a release, or moving production?** [Releasing](operations/releasing.md).
 - **Rehearsing a release, or deploying to dev?** [The dev deployment](operations/dev-deployment.md).
 - **Backups, or restoring one?** [Backups](operations/backups.md).
 - **A release broke a deployment?** [Recovering from a bad release](operations/recovering-from-a-bad-release.md).
+- **Setting up email, or invitations not arriving?** [Mail](operations/mail.md).
 - [Working in this repository](process/working-in-this-repository.md), and the
   [security checks](operations/security-checks.md) that keep private material out of it.
 - [Ontology](ontology.md), [bundle guide](README.md), [tools](tools/index.md).
@@ -43,7 +44,8 @@ server with the same operations. There is no AI inside.
   rehearsing on the dev deployment (`rehearse-on-the-dev-deployment`), recovering a deployment a
   release broke (`recover-a-deployment`), testing on a local copy of production
   (`test-on-a-copy-of-production`), running the end-to-end test plans
-  (`run-end-to-end-tests`), and reading how a deployment is used (`read-usage`).
+  (`run-end-to-end-tests`), reading how a deployment is used (`read-usage`), and setting up and
+  repairing a deployment's mail (`set-up-mail`).
 - `PRODUCT.md`: users, purpose and principles. `DESIGN.md` and `.impeccable/design.json`: the
   Studio design system. Both stay at the root because design tooling reads them there.
 - `packages/core/src/skill/SKILL.md`: the agent skill the product serves to connected agents.
