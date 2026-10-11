@@ -29,7 +29,9 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   with `members(action="activity")`; connected agents see the new action after starting a new
   session. Events from before the upgrade are included. The skill is now 0.19.0.
 - **In a public sandbox, access events name a visitor by their made-up name.** Events recorded
-  before the upgrade keep the name they were written with.
+  before the upgrade keep the name they were written with. A change to the sandbox's settings is
+  named as its control panel names it, with the new value ("what visitors may do (read only)");
+  changes recorded before the upgrade keep the setting's internal name.
 - **One search for the whole product.** People search everything in a product from the panel's
   Search field, ⌘K or `/`, as they type, and the Search screen lists results under Idea, Evidence,
   Exploration and Story. Evidence's panel no longer has its own passages-or-titles search; links to

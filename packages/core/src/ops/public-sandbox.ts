@@ -9,7 +9,7 @@ import { membershipsFor, readsOnlyTheStoryIn } from "../policy.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { baselineView, BASELINES_KEPT, resetToBaseline, saveBaseline } from "../public-sandbox-baseline.ts";
 import {
-  loadSandbox, lockSettings, resetIsDue, SANDBOX_DEFAULTS, SANDBOX_LIMITS, sandboxSettingsPatch, usageToday, VISITOR_CODE_SQL, visitorName,
+  describeSettingsChange, loadSandbox, lockSettings, resetIsDue, SANDBOX_DEFAULTS, SANDBOX_LIMITS, sandboxSettingsPatch, usageToday, VISITOR_CODE_SQL, visitorName,
   type SandboxContext, type SandboxSettings, type SandboxState,
 } from "../public-sandbox.ts";
 import { expectedEtag, id } from "../schemas.ts";
@@ -301,7 +301,7 @@ export const updateSandboxSettings = defineOperation({
     if (changed.length) {
       const next = { ...ctx.sandbox!.settings, ...Object.fromEntries(changed.map((k) => [k, patch[k]])) };
       await ctx.db.updateTable("sandbox_settings").set({ settings: json(next), etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("tenant_id", "=", tid).execute();
-      await recordActivity(ctx, { action: "updated", entity_type: "sandbox", entity_id: tid, entity_title: ctx.scope.tenant!.name, summary: `Changed the sandbox's ${changed.join(", ")}` });
+      await recordActivity(ctx, { action: "updated", entity_type: "sandbox", entity_id: tid, entity_title: ctx.scope.tenant!.name, summary: describeSettingsChange(changed, next) });
     }
     return { ...(await panel(ctx, await loadSandbox(ctx.db, tid, new Date(ctx.now)))), changed };
   },

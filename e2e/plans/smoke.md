@@ -18,19 +18,19 @@ other plans will too.
    the same live products; the archived product is not among them.
 2. **Web, as Sam, in the standard organization.** Open a product that has sources and visit each
    section from the panel: Idea, Evidence, Exploration (mockups and assumptions), Story, Activity,
-   the product's settings, and Connect an agent; and on Evidence, search passages from the panel's
-   search box. Open one item in each list that has any: a source, a mockup, an assumption, a Story
-   page. *Expect:* each screen loads with content or a designed empty state, and no command prints
-   a `!` problem.
+   the product's settings, and Connect an agent; and search from the panel's Search field. Open one
+   item in each list that has any: a source, a mockup, an assumption, a Story page. *Expect:* each
+   screen loads with content or a designed empty state, and no command prints a `!` problem.
 3. **Web, as Sam, in the sandbox organization.** Open the same product and repeat a short tour:
    Idea, Evidence, a source, Story. *Expect:* the same content as in step 2, and the sandbox's
    notice wherever the product says it is a public sandbox.
 4. **Web, as Sam.** On a source, open its passages and search for a word you can see in one of
-   them. *Expect:* the search finds that passage, and opening the hit shows the passage selected in
-   its source.
+   them, from the panel's Search field. *Expect:* the search finds that passage as you type, and
+   opening the hit shows the passage selected in its source.
 5. **Web, as Riley (owner).** Sign in. Open each organization's members page, Organization creators
    from the account menu (Riley owns the instance), and the sandbox organization's sandbox page.
-   *Expect:* all load; Riley can manage members; the sandbox page shows its settings, baseline and
+   *Expect:* all load; Riley can manage members, and the members page lists the organization's
+   access changes; the sandbox page shows its settings, baseline and
    invitations, and the standard organization has no sandbox page.
 6. **Web, as Riley.** Find the archived product among archived products, in either organization.
    *Expect:* it is listed as archived and can be opened; nothing offers to delete it.

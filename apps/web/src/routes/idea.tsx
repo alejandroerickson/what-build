@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
 import { plural } from "../lib/format.ts";
@@ -185,6 +185,8 @@ export function IdeaPage() {
   const { product, api: base, app, canWrite } = useProduct();
   const [params] = useSearchParams();
   const status = params.get("status") ?? "";
+  // An outcome a search result opened (?outcome=<id>), scrolled to and marked.
+  const found = params.get("outcome");
   const qc = useQueryClient();
   const toast = useToast();
   const [editing, setEditing] = useState<string | "new" | null>(null);
@@ -210,6 +212,9 @@ export function IdeaPage() {
     },
   });
   const items = q.data?.items ?? [];
+  useEffect(() => {
+    if (found && q.data) document.getElementById(`outcome-${found}`)?.scrollIntoView({ block: "center" });
+  }, [found, q.data]);
   const reorderable = canWrite && !status;
   const moveTo = (o: Outcome, i: number, dir: -1 | 1) => {
     const j = i + dir;
@@ -266,7 +271,7 @@ export function IdeaPage() {
                   <OutcomeForm initial={o} onDone={() => setEditing(null)} onCancel={() => setEditing(null)} />
                 </li>
               ) : (
-                <li key={o.outcome_id} className="list-row outcome-row">
+                <li key={o.outcome_id} id={`outcome-${o.outcome_id}`} className={`list-row outcome-row${found === o.outcome_id ? " outcome-found" : ""}`}>
                   <div className="list-main">
                     <h2 className="outcome-title">{o.title}</h2>
                     {o.description ? <Markdown source={o.description} className="outcome-description" headingShift={3} /> : null}

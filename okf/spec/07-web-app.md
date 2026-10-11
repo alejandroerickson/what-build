@@ -90,8 +90,10 @@ the browser's back button and "open in new tab" both work.
   **Story**. A kind named in the query brings its area first. The panel shows Everything and each
   area with its count (`?show=idea|evidence|exploration|story`). With `record_id` it lists every
   matching passage of one source, with a link back to searching everything. A corrected word
-  offers "Search for <word> instead" (`?strict=1`). Nothing holding the words says "Nothing
-  matches" and suggests another word or fewer words. Readers have no search.
+  offers "Search for <word> instead" (`?strict=1`). When more match than the 60 listed, it says
+  "The best 60 of N are listed; add a word to narrow them.", and the palette's All N results counts
+  every match. Nothing holding the words says "Nothing matches" and suggests another word or fewer
+  words. An outcome found opens Idea scrolled to it and marked (`?outcome`). Readers have no search.
 - **A reader** ([§3.5](03-accounts-teams-and-identity.md)) has only the Story: L1 is **Story**
   alone with its count, and the quiet group is gone. The product opens on the Story, and any other
   product screen, opened by a link or typed, takes a reader to the Story, with a toast saying they
@@ -192,7 +194,7 @@ person's organization role is in the account menu, and who has which role is on 
 /instance                                     Organization creators: who may create organizations (instance owners)
 
 /t/:tenant/:team/:product                     → …/idea
-  /idea               ?status                 the product concept, outcomes with counts
+  /idea               ?status&outcome         the product concept, outcomes with counts (outcome: one a search opened, marked)
   /evidence           ?tags&added_by&date_from&date_to&query&include_archived&sort&order
                       (date_from, date_to: the date captured; query: a title search; both from a link)
   /evidence/new                               intake: describe it, add files, create

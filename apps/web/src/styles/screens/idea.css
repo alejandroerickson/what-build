@@ -8,6 +8,10 @@
 .outcome-row {
   grid-template-columns: minmax(0, 1fr) auto;
 }
+/* The outcome a search result opened. */
+.outcome-found {
+  background: var(--select);
+}
 .outcome-title {
   margin: 0;
   font-size: var(--fs-base);

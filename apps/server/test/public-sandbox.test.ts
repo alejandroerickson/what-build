@@ -749,6 +749,10 @@ describe("the baseline and the reset", () => {
     expect(items.some((i) => i.entity_type === "membership" && i.action === "granted")).toBe(true);
     // Only access: no baseline or reset, and nothing that happened in a product.
     expect(items.every((i) => i.entity_type === "membership" || (i.entity_type === "sandbox" && ["invited", "invitation_cancelled", "revoked", "updated"].includes(i.action)))).toBe(true);
+    // A settings change is named as the control panel names it, with its new value, never by its key.
+    const changes = items.filter((i) => i.entity_type === "sandbox" && i.action === "updated").map((i) => (i as unknown as { summary: string }).summary);
+    expect(changes).toContain("Changed the sandbox's settings: what visitors may do (read only).");
+    for (const s of changes) expect(s).not.toMatch(/[a-z]_[a-z]/);
     const text = JSON.stringify(log.body);
     for (const hidden of ["vera@", "viktor@", "Vera", "Viktor"]) expect(text, hidden).not.toContain(hidden);
   });

@@ -87,7 +87,8 @@ or `kind` or `strict` in another mode, is `422 invalid_filter`.
   many matched. Results are scored by how many of the words they hold, in the title above the
   body, with exact words, words side by side and a title equal to the query ranked higher. When
   anything holds every word, only those are returned; otherwise the ones holding the most, with
-  `partial: true` and each result's `missing` words. At most 60 results. The response is
+  `partial: true` and each result's `missing` words. At most 60 results, the best first; `counts`
+  counts every match, so a caller can say when more matched than came back. The response is
   `{ mode, query, terms, ignored, kind_hint, corrections, partial, counts, passages_matched,
   results }`; each result has `kind`, `id`, `title` and `snippet` with the matched stretches as
   `[start, end]` marks, `missing`, `score` and `meta`, and a source its `hits` and `hit_count`.

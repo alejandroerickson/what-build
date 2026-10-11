@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { hitMeta, kindOf, Marked, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse } from "../lib/find.tsx";
+import { hitMeta, kindOf, Marked, matchedCount, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse } from "../lib/find.tsx";
 import type { Product } from "../lib/session.tsx";
 import { Glyph, type GlyphName } from "../ui/index.tsx";
 import { isTypingTarget, shortcutLabel } from "../ui/media.ts";
@@ -101,7 +101,8 @@ function Palette({ app, base, product, text, setText, onClose }: { app: string; 
   };
   const searching = typed && (res.isPending || q !== text);
   const note = d ? understood(d) : null;
-  const total = d?.results.length;
+  // Every match, not only the best 60 the screen lists.
+  const total = d ? matchedCount(d) : undefined;
   return (
     <dialog
       ref={ref}
