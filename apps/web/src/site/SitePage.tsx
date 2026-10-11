@@ -120,6 +120,7 @@ export function SitePage() {
             Already invited? <a href="/signin">Sign in</a>
           </span>
           <span className="site-foot-end">
+            <a href="/privacy">Privacy</a>
             {ANALYTICS_ID ? (
               <button type="button" className="site-foot-link" onClick={() => setCookiesOpen(true)}>
                 Cookies

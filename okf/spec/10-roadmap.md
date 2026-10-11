@@ -3,7 +3,7 @@ type: Roadmap
 title: Phases 0 to 5 are mostly built, and a public sandbox; durability, data rights and public sign-up come next.
 description: What is built and what is not, phase by phase, with acceptance criteria; the open questions that remain, the ones already settled, and the risks.
 tags: [roadmap, status, phases, open-questions, risks]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-11}
 status: stable
 ---
 
@@ -119,8 +119,10 @@ immediately; permanent delete over MCP happens only with every guard of
 ## Phase 6 — Durability, data rights, and public sign-up
 
 Backup configuration and a **rehearsed restore**; product export (built) and import; organization
-export; closing an organization; account deletion; the sub-processors page; abuse limits; the
-operator runbooks ([§9.6](09-data-lifecycle.md)).
+export; closing an organization; account deletion, which also removes the person's counted days of
+use ([§9.1](09-data-lifecycle.md)); the privacy page and its list of providers (built: `/privacy`);
+abuse limits; the operator runbooks
+([§9.6](09-data-lifecycle.md)).
 
 **Running for next to nothing.** A deployment for a few teams should cost only what it stores:
 Cloudflare's free plan in front of the service ([cloud-run.md](../operations/cloud-run.md)), one
@@ -143,6 +145,9 @@ only accumulate is not one people will put real material into.
 - Closing an organization revokes access immediately and removes content within the stated window.
 - Sign-up survives an abuse test: scripted sign-ups, oversized uploads, and a write flood are all
   limited without affecting other organizations.
+- The privacy page of every deployment that takes sign-ups names who runs it, an address kept for
+  privacy requests, and its providers (`WHATBUILD_OPERATOR`, `WHATBUILD_PRIVACY_CONTACT`,
+  `WHATBUILD_PROVIDERS`; [§9.1](09-data-lifecycle.md)).
 - Whether the dev deployment may keep holding a copy of production, which would then be customers'
   data, is decided again
   ([decision](../decisions/releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production.md)).

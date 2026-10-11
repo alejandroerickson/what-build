@@ -79,6 +79,8 @@ adding a near-duplicate.
 | `apps/web/src/routes/**`, `main.tsx`, `shell/**` | `spec/07`, the phase 4 row in `spec/10` |
 | `apps/web/src/styles/tokens.css`, `ui/**` | `DESIGN.md`, `.impeccable/design.json`, decision `studio-design-system` (Story pages do not follow the app's tokens) |
 | A cookie (`setCookie`), a `whatbuild.*` browser storage key, or analytics (`apps/web/src/lib/analytics.ts`, the Worker's analytics settings) | the kinds on `apps/web/src/routes/cookies.tsx`, `spec/09` §9.1, decision `analytics-only-for-people-who-accept-cookies`, `operations/analytics.md` |
+| What is kept about people, or for how long (a new table of personal data, a retention, a provider), or the privacy page (`apps/web/src/routes/privacy.tsx`, `WHATBUILD_OPERATOR`, `WHATBUILD_PRIVACY_CONTACT`, `WHATBUILD_PROVIDERS`) | the page's fixed text and `spec/09` §9.1 (The privacy page), `spec/07`, `operations/cloud-run.md`, `deploy/azure/containerapp.yaml` |
+| What the server counts (`packages/core/src/usage.ts`, `ops/usage.ts`, `apps/server/src/usage-report.ts`, `.agents/skills/read-usage/**`) | `spec/09` §9.1 and Counting without cookies on `apps/web/src/routes/cookies.tsx`, `spec/04` §4.15, decision `the-server-counts-how-whatbuild-is-used-naming-nobody`, `operations/analytics.md` |
 | `seed.ts`, `seed-content.ts` | usually nothing; `process/working-in-this-repository.md` if the sample product changes |
 | A new top-level directory, package, or moved file | `system/repository-map.md`, the `AGENTS.md` path table |
 | Product scope or vocabulary | `project/charter.md`, `spec/01`, `PRODUCT.md` |

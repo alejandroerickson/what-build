@@ -37,12 +37,13 @@ Supporting commitments, each of which is a rule elsewhere in this spec:
 
 | We say | Enforced by |
 |---|---|
-| Operational telemetry stays about the service | [§2.8](02-architecture.md) — request logs carry method, path with ids masked, status and duration; never content, email addresses or tokens (`apps/server/src/app.ts`) |
+| Operational telemetry stays about the service | [§2.8](02-architecture.md) — request logs carry method, path with ids masked and organizations, teams and products named only by kind, status and duration; never content, email addresses or tokens (`apps/server/src/app.ts`). On Cloud Run, the platform's own request log keeps no address with a query or an invitation link in it ([log exclusion](../operations/cloud-run.md)) |
+| Use is counted without naming anyone | Below: counts by operation, and people under a keyed pseudonym kept 14 months, read only by the instance's owners (`packages/core/src/usage.ts`, [decision](../decisions/the-server-counts-how-whatbuild-is-used-naming-nobody.md)) |
 | No model training on your content | [§2.8](02-architecture.md) — there is no language model in the product (`/api/v1/meta` says so) |
 | Isolation per organization | [§3.6](03-accounts-teams-and-identity.md) — three layers, tested on every operation |
 | Export is complete and always available | [§9.4](#94-taking-it-with-you) and [§1.5](01-product.md) |
 | Analytics only for people who accept | The notice and `/cookies` ([§7.11](07-web-app.md)); Google's script loads only after Accept (`apps/web/src/lib/analytics.ts`) |
-| We name our sub-processors | **Planned:** a public page listing the container host, database, object store and email provider, updated before a provider changes. The statement says the database and file store are rented, and links to the page once it exists. |
+| We name our sub-processors | `/privacy` lists the providers the deployment names (`WHATBUILD_PROVIDERS`), below; the sign-in page links to it. Keeping the list current before a provider changes is the operator's. |
 
 **Cookies and browser storage.** WhatBuild uses cookies and browser storage of two kinds. The
 needed kind is always on: the session cookie that keeps a person signed in, two short-lived ones
@@ -62,15 +63,42 @@ same either way, and `/cookies` (or Cookies in the site's footer) changes the an
 ([§7.11](07-web-app.md)). What reaches Google names the page and the action, never the
 organization, product, record or content: page views carry a masked path such as
 `/t/:org/:team/:product/story/:id` and a fixed title; each change the app makes is an event named
-from a fixed word list, such as `assumptions_create`; a request to hear from us is `generate_lead`.
+by the operation the server ran, such as `assumptions_create`; search is counted by what was
+followed (the kind of result and its place in the list) and whether it found anything, never by
+its words; a request to hear from us is `generate_lead`. The instance's owners are never measured,
+nor is any address but the deployment's own.
 Advertising and Google signals are off. The public site's page also counts every visit,
 whatever the answer, with Cloudflare Web Analytics, which sets no cookie
 ([decision](../decisions/analytics-only-for-people-who-accept-cookies.md)).
+
+**Counting use on the server.** Whatever the answer, the server counts how WhatBuild is used, so
+that agents and people who decline are counted too
+([decision](../decisions/the-server-counts-how-whatbuild-is-used-naming-nobody.md)). It reads and
+stores nothing in the browser. Each call to an operation adds one to a count for its day, its
+operation, its door (the web app or an agent), the agent client's family, whether it was in the
+public sandbox, whether an instance owner made it, and how it ended. Each day a person uses a part of
+WhatBuild is kept under a pseudonym, a keyed hash of their account that only the deployment can
+compute, for 14 months. Nothing kept names an organization, a product, a record, an address or
+content. Only the instance's owners read the totals (`products.usage`), which leave the owners out
+unless asked. `/cookies` says so under Counting without cookies.
 
 **In the public sandbox** the statement above is not the whole truth, so every screen there says
 the rest ([§9.7](#97-the-public-sandbox)): what is added is seen by other visitors and erased at
 the next reset. The words come from the server (`sandboxNotice`), so the web app, the invitation
 page and an agent say the same thing.
+
+**The privacy page** (`/privacy`, readable signed out; `apps/web/src/routes/privacy.tsx`), linked
+from the sign-in page, Settings, `/cookies` and the public site's footer. What it says of every
+deployment is fixed text: what is kept, why and for how long (the account; what people add; sessions
+and connected agents, with the deployment's session and agent lifetimes; request logs; the counts
+of use, for 14 months; Google Analytics, when the deployment has it; feedback and interest; backups),
+on what grounds (because a person uses WhatBuild; to run it safely and improve it, which a person
+may object to; or their consent), that providers may handle it abroad, that nothing is sold, and
+what a person can do (export, ask to see, correct, delete or object, complain to their authority).
+What only the deployment knows comes from its settings, in `privacy` from `GET /api/v1/meta`: who
+runs it (`WHATBUILD_OPERATOR`), where to write (`WHATBUILD_PRIVACY_CONTACT`, an address or a page),
+and its providers (`WHATBUILD_PROVIDERS`, `Name: what it does; …`). Without them the page says the
+deployment has not named them yet.
 
 **About agents.** What a connected agent reads goes to whoever runs it, under their terms, not
 ours. The Connect page says so above the address a person is about to paste ([§6.8](06-operations-and-adapters.md)). We make no claims on

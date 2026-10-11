@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
 description: What the production deployment is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, cost, names, and useful commands; backups and the dev deployment have guides of their own.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-11}
 status: stable
 ---
 
@@ -143,6 +143,17 @@ the stream settings to keep, the Worker command and how to read reports.
 
 ```bash
 gcloud run services update whatbuild --region $R --update-env-vars WHATBUILD_ANALYTICS_ID=G-XXXXXXXXXX
+```
+
+**The privacy page.** `/privacy` names who runs the deployment (`WHATBUILD_OPERATOR`), where to
+write about one's data (`WHATBUILD_PRIVACY_CONTACT`, an email address or a web page) and the
+providers that handle it (`WHATBUILD_PROVIDERS`, `Name: what it does; …`)
+([§9.1](../spec/09-data-lifecycle.md)). Without them it says they have not been named. The list
+holds commas, so pass it with gcloud's alternate delimiter:
+
+```bash
+gcloud run services update whatbuild --region $R --update-env-vars \
+  '^|^WHATBUILD_OPERATOR=Example Labs|WHATBUILD_PRIVACY_CONTACT=privacy@example.com|WHATBUILD_PROVIDERS=Google Cloud: hosting, files and logs; Neon: the database; Cloudflare: the public site and its visit counts; Google Analytics: analytics, for those who accept'
 ```
 
 **A public sandbox.** `SANDBOX_TENANT=<slug>` names one organization as the public sandbox
@@ -322,6 +333,7 @@ sends out costs about US$0.12 a GB, and is the one cost that grows with download
 | Secrets | `whatbuild-database-url`, `whatbuild-grant-key`, optional `whatbuild-smtp-url`, `whatbuild-google-client-secret` | read by the runtime identity only |
 | Images | Artifact Registry `whatbuild` | the ten most recent always kept; others deleted after 30 days |
 | Scheduler job | `whatbuild-sandbox-reset` (with `SANDBOX_TENANT`) | wakes the service a minute after the sandbox's reset hour |
+| Log exclusion | `whatbuild-request-addresses` on the `_Default` sink | Cloud Run logs every request itself, with its whole address, the client's IP and its browser, for 30 days. This drops its line for an address with a query (a search's words, a sign-in link's token) or an invitation link; the service's own line for it, masked, stays |
 | Restore points (Neon, optional) | branches `pre-migrate-<time>-<commit>`, secret `whatbuild-neon-api-key` | one per deploy before migrating, the newest three kept; the key reaches only the Neon project and is read by the build identity |
 | Backup (another Postgres, set up by hand) | job `whatbuild-backup`, scheduler job `whatbuild-backup-nightly`, identity `whatbuild-backup`, bucket `<project>-backups`, secret `whatbuild-backup-database-url` | a `pg_dump` each night as a read-only role that bypasses row-level security; the identity adds and reads dumps, never deletes; dumps expire after 35 days ([Backups](backups.md)) |
 
@@ -331,6 +343,7 @@ sends out costs about US$0.12 a GB, and is the one cost that grows with download
 P=my-whatbuild              # the PROJECT_ID; never gcloud's current project
 R=northamerica-northeast2   # the default REGION; use yours
 gcloud run services logs read whatbuild --region $R --limit 100     # structured request logs; no content, no tokens
+gcloud logging sinks describe _Default --project $P --format='value(exclusions[].name)'   # whatbuild-request-addresses
 gcloud run jobs execute whatbuild-migrate --region $R --wait         # migrate by hand
 gcloud run services update whatbuild --region $R --update-env-vars WHATBUILD_SIGNUP_ALLOWLIST=@example.com
 ```
@@ -340,4 +353,5 @@ gcloud run services update whatbuild --region $R --update-env-vars WHATBUILD_SIG
 The specification makes these an acceptance test, not a good intention
 ([§9.3](../spec/09-data-lifecycle.md), [Phase 6](../spec/10-roadmap.md)): a restore from backup
 into a scratch instance, performed and written up; an export round-tripping into a fresh instance;
-abuse limits tested. None of that is done yet.
+abuse limits tested; and the privacy page naming who runs the deployment, an address for privacy
+requests and its providers (The privacy page, above). None of that is done yet.

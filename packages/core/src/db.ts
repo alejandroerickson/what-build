@@ -248,6 +248,32 @@ export interface InterestTable {
   updated_at: Ts;
 }
 
+/**
+ * How the service is used: calls per day, operation, door, agent client and outcome. Names no
+ * organization, product, record or person (`usage.ts`).
+ */
+export interface UsageCallsTable {
+  day: string;
+  operation: string;
+  surface: string;
+  client: string;
+  sandbox: boolean;
+  owner: boolean;
+  outcome: string;
+  calls: Generated<number>;
+}
+
+/** Each day a person used a part of WhatBuild, the person named by a keyed hash of their account. */
+export interface UsagePeopleTable {
+  day: string;
+  person: string;
+  feature: string;
+  surface: string;
+  client: string;
+  sandbox: boolean;
+  owner: boolean;
+}
+
 // ---- Content tables (row-level security on tenant_id) -------------------------------------------
 
 export interface RecordsTable {
@@ -779,6 +805,8 @@ export interface DB {
   sandbox_baselines: SandboxBaselinesTable;
   sandbox_baseline_rows: SandboxBaselineRowsTable;
   tenant_allowances: TenantAllowancesTable;
+  usage_calls: UsageCallsTable;
+  usage_people: UsagePeopleTable;
 }
 
 export type Db = Kysely<DB>;

@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild at three altitudes
 description: The whole system from the top down, the major parts, and the mechanics underneath, with links to the detail.
 tags: [overview, architecture, tenancy, access, mcp]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-11}
 status: stable
 ---
 
@@ -56,7 +56,7 @@ Google Cloud Storage behind a storage port; the official MCP SDK (stateless Stre
 React 19, React Router 7, TanStack Query 5, Vite 7; Vitest. Details in
 [architecture](../spec/02-architecture.md).
 
-**Operations.** 109 operations, each defined once and exposed through both REST and MCP
+**Operations.** 110 operations, each defined once and exposed through both REST and MCP
 ([decision](../decisions/one-registry-two-front-doors.md)).
 
 **Tenancy.** Organization (tenant) → team → product. One shared database and schema; every content

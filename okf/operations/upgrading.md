@@ -23,7 +23,36 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **The server counts how it is used.** Migration `0019_usage` adds two tables: counts of calls per
+  day, operation, door, agent client and outcome, and each day a person used a part of WhatBuild,
+  under a pseudonym derived from `WHATBUILD_GRANT_KEY`. Nothing to set. Rotating the grant key
+  starts the pseudonyms afresh, so everyone then shows as new. The instance's owners
+  (`WHATBUILD_INSTANCE_OWNERS`) read the report with `products(action="usage")`,
+  `GET /api/v1/usage` or `pnpm usage`, and are left out of it unless they ask; a deployment that
+  names no owners has nobody who can read it. `/cookies` gains a paragraph saying so. The skill
+  is now 0.21.0; connected agents see the action after starting a new session.
+- **Cloud Run: drop the platform's log lines that carry a search's words or a link's token.** Cloud
+  Run logs every request with its whole address. A deployment set up before this release adds the
+  exclusion `deploy/cloud-run/setup.sh` now creates, once:
+  `gcloud logging sinks update _Default --project $P --add-exclusion='name=whatbuild-request-addresses,filter=log_id("run.googleapis.com/requests") AND resource.labels.service_name="whatbuild" AND (httpRequest.requestUrl:"?" OR httpRequest.requestUrl:"/invite/" OR httpRequest.requestUrl:"/join/")'`.
+  Without it, those addresses stay in the platform's log for its retention (30 days by default).
+- **A privacy page.** `/privacy` says what is kept, why, for how long, who handles it and whom to
+  ask, linked from sign-in, Settings, Cookies and the site's footer. Set `WHATBUILD_OPERATOR`,
+  `WHATBUILD_PRIVACY_CONTACT` and `WHATBUILD_PROVIDERS` ([Cloud Run](cloud-run.md), the Azure
+  template); without them the page says the deployment has not named who runs it, how to reach
+  them, or its providers.
+- **Request logs name organizations, teams and products only by kind**
+  (`/api/v1/p/:org/:team/:product/…`, `/mcp/t/:org/…`, `/t/:org/…`). A log query or alert that
+  matched a slug in the path stops matching.
+- **Google Analytics changes its event names.** A change in the app is named by the operation the
+  server ran (`files_fetch_url`, `sources_annotate`), no longer by words from its address
+  (`sources_create`, `sources_annotations_create`), so reports across the upgrade see both. Search
+  sends `search_open`, `search_result_open`, `search_all_results`, `search_recent_use` and
+  `search_close`, and redirects are no longer page views. The instance's owners, and visits on any
+  address but the deployment's own (Cloud Run's run.app address), are no longer measured. A
+  deployment that uses Google Analytics turns site search off in enhanced measurement and adds the
+  event-scoped custom dimensions `kind`, `from`, `via`, `found` and `rank`
+  ([analytics](analytics.md)).
 
 ## v0.7.0
 

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { AppError, escapeHtml, gone, invalid, tenantAllowanceOf, newId, notFound, randomToken, safeNext, sha256Hex, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type Mailer } from "@whatbuild/core";
+import { AppError, escapeHtml, gone, invalid, isInstanceOwner, tenantAllowanceOf, newId, notFound, randomToken, safeNext, sha256Hex, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type Mailer } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { sql } from "kysely";
@@ -171,9 +171,23 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     return c.json({ signed_in: true, account, next: safeNext(body.data.next) });
   });
 
-  app.get("/auth/methods", (c) =>
-    c.json({ email_link: config.mailer !== "none", google: Boolean(config.googleClientId && config.googleClientSecret), microsoft: microsoftSignIn(config), dev: config.devAuth, session_days: config.sessionDays, analytics_id: config.analyticsId }),
+  app.get("/auth/methods", async (c) =>
+    c.json({ email_link: config.mailer !== "none", google: Boolean(config.googleClientId && config.googleClientSecret), microsoft: microsoftSignIn(config), dev: config.devAuth, session_days: config.sessionDays, analytics_id: await analyticsFor(c) }),
   );
+
+  /**
+   * The measurement ID, where the app should measure: on the deployment's own address, not another
+   * name for the service (Cloud Run's run.app address), and not for the instance's owners, whose
+   * own use would drown everyone else's.
+   */
+  const analyticsFor = async (c: Context): Promise<string | null> => {
+    if (!config.analyticsId) return null;
+    // A proxy may name several hosts; the first is the one the browser asked for.
+    const host = (c.req.header("x-forwarded-host") ?? c.req.header("host") ?? "").split(",")[0]!.trim().toLowerCase();
+    if (host !== new URL(config.publicBaseUrl).host) return null;
+    const me = await restPrincipal(c, db, config).catch(() => null);
+    return me && isInstanceOwner(config, me.email) ? null : config.analyticsId;
+  };
 
   // ---- OpenID Connect sign-in: the code flow with PKCE, its state kept in a short-lived cookie --
 

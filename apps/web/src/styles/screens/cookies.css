@@ -1,4 +1,4 @@
-/* The cookie notice in the corner of every screen, and the /cookies page it points to. */
+/* The cookie notice in the corner of every screen, the /cookies page it points to, and /privacy. */
 
 /* The notice: a lifted note at the bottom-right inset that blocks nothing. */
 .cookie-notice {
@@ -99,4 +99,23 @@
 }
 .cookie-back {
   margin-top: var(--s-5);
+}
+
+/* The /privacy page: what is kept, each under its lead, then the grounds for it. */
+.privacy-list {
+  display: grid;
+  gap: var(--s-2h);
+  max-width: 68ch;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.privacy-list b {
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+}
+.privacy-grounds {
+  margin-top: var(--s-3h);
 }

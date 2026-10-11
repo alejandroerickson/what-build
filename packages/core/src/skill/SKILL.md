@@ -368,6 +368,11 @@ Starting a new organization (`products(action="create_tenant")`) needs an allowa
 runs this WhatBuild; belonging to an organization never gives one. If it is refused with
 `403 tenant_allowance`, tell the person to ask them, or to ask someone to invite them.
 
+Whoever runs this WhatBuild can read how it is used with `products(action="usage")`, on the
+unscoped connection (`/mcp`; a connector scoped to an organization or a product refuses it):
+calls, features, agent clients, failures and people coming back, as totals that name nobody. It answers only the instance's owners; anyone else gets
+`403 forbidden`.
+
 ## In a public sandbox
 
 A public sandbox is an organization that anyone with an invitation may work in, to try WhatBuild

@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { AppError, PERMISSIONS_POLICY, REST_BODY_MAX_BYTES, SKILL_VERSION, type BlobStore, type Db, type Env, type Mailer, type Ports } from "@whatbuild/core";
 import { Hono } from "hono";
@@ -41,12 +42,33 @@ export const FALLBACK_HTML_POLICY = "default-src 'none'; base-uri 'none'; form-a
 /** The paths whose responses carry people's material, their identity or credentials, which no cache, the browser's included, may keep. */
 const PRIVATE_PATHS = /^\/(api|mcp|auth|oauth)(\/|$)/;
 
+/** Where a path names an organization, a team and a product: the REST routes, the MCP connectors (and the OAuth and OpenID metadata clients ask for beside them), and the app's screens. */
+const SCOPED_PATH = /^(\/api\/v1\/p|\/api\/v1\/teams|\/api\/v1\/tenants|(?:\/\.well-known\/[^/]+)?\/mcp\/t|\/t)\/([^/]+)(?:\/([^/]+)(?:\/([^/]+))?)?/;
 /**
- * A request's path as its log line holds it: ids masked, and the two links that are credentials
- * themselves, an invitation's (/invite/<token>) and a sandbox invitation's (/join/<code>).
+ * The first words of the server's and the app's own paths. Any other path of three or more parts is
+ * a product's path typed without /t/ (the app sends it on), so its first three are names.
  */
-function loggedPath(path: string): string {
-  return path.replace(/^\/invite\/[^/]+/, "/invite/:token").replace(/^\/join\/[^/]+/, "/join/:code").replace(/[0-9A-HJKMNP-TV-Z]{26}/g, ":id");
+const OWN_FIRST = new Set(["api", "mcp", "auth", "oauth", "t", ".well-known", "assets", "invite", "join", "signin", "cookies", "privacy", "settings", "connect", "instance", "welcome", "products", "health", "_system"]);
+const BY_KIND = ["", ":org", ":team", ":product"];
+/** The app's screens directly under an organization: /t/<org>/members and /t/<org>/sandbox. */
+const ORG_SCREENS = new Set(["members", "sandbox"]);
+
+/**
+ * A request's path as its log line holds it: ids masked; organizations, teams and products named
+ * only by kind; and the two links that are credentials themselves, an invitation's
+ * (/invite/<token>) and a sandbox invitation's (/join/<code>).
+ */
+export function loggedPath(path: string): string {
+  return path
+    .replace(/^\/invite\/[^/]+/, "/invite/:token")
+    .replace(/^\/join\/[^/]+/, "/join/:code")
+    .replace(SCOPED_PATH, (whole, prefix: string, ...names: (string | undefined)[]) => {
+      // How many of the names after the prefix are an organization, a team and a product.
+      const depth = prefix === "/api/v1/tenants" || (prefix === "/t" && ORG_SCREENS.has(names[1] ?? "")) ? 1 : prefix === "/api/v1/teams" ? 2 : 3;
+      return [prefix, ...names.slice(0, 3).map((n, i) => (n === undefined ? undefined : i < depth ? BY_KIND[i + 1] : n))].filter((n) => n !== undefined).join("/");
+    })
+    .replace(/^\/([^/]+)\/[^/]+\/[^/]+(?=\/|$)/, (whole, first: string) => (OWN_FIRST.has(first) ? whole : "/:org/:team/:product"))
+    .replace(/[0-9A-HJKMNP-TV-Z]{26}/g, ":id");
 }
 
 export interface Release {
@@ -116,6 +138,8 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
       signupAllowlist: config.signupAllowlist,
       instanceOwners: config.instanceOwners,
       defaultTenantAllowance: config.defaultTenantAllowance,
+      // Derived from the grant key, so a deployment sets nothing new and its pseudonyms are its own.
+      usageKey: createHmac("sha256", config.grantKey).update("whatbuild usage people").digest("base64url"),
     },
   };
 }

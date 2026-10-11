@@ -37,6 +37,8 @@ const NOT_TENANT_DATA: Record<string, string> = {
   oauth_tokens: "directory: OAuth tokens, which are a person's",
   tenant_allowances: "directory: how many organizations an address may create",
   interest: "the public site's interest form; nobody there belongs to an organization yet",
+  usage_calls: "how the service is used: counts of calls, naming no organization, product or person",
+  usage_people: "who came back, under a pseudonym: no organization, product or account",
 };
 
 /** Guarded tables the organization below leaves empty, and why. */

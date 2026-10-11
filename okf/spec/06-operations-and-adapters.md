@@ -1,9 +1,9 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 109 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 110 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-11}
 status: stable
 ---
 
@@ -34,7 +34,7 @@ defineOperation({
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 109. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 110. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
@@ -64,6 +64,10 @@ call came through:
    fails takes nothing from them. Mutating handlers record their activity event
    ([§4.10](04-data-model.md)) and enqueue background jobs in that same transaction; the worker is
    woken after commit.
+6. **Count the call,** however it ended, without delaying it: its operation, door, agent client,
+   sandbox or not, and outcome, and the caller under a pseudonym ([§9.1](09-data-lifecycle.md)).
+   The MCP adapter counts the calls it refuses before `execute`: under the operation when it
+   exists, as `<tool>.(unknown)` for an action that does not, and as `(unknown tool)`.
 
 `ctx` carries the principal, the actor snapshot, the tenant-scoped transaction, the resolved scope
 (tenant, team, product, the caller's role), the sandbox the call is in (or null), the ports, the
@@ -155,12 +159,14 @@ JSON in, JSON out. `GET` (and a body-less `DELETE`) take their fields from the q
 coerced to the schema's types (arrays are comma-separated); other methods take a JSON object body.
 Path parameters are merged into the input. Mutations carry the ETag as `expected_etag` in the
 body, or as an `If-Match` header when the body omits it; a result that has an `etag` is also sent
-as the `ETag` header. Operations that create something answer `201`. Cookie-authenticated writes
+as the `ETag` header. Every successful answer names the operation it ran in
+`X-WhatBuild-Operation`, which the web app counts changes by ([§9.1](09-data-lifecycle.md)).
+Operations that create something answer `201`. Cookie-authenticated writes
 must come from the app's own origin (`403 forbidden_origin`).
 
 ### The operation catalogue
 
-All 109 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 110 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-teams-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -172,6 +178,7 @@ being changed inside the handler.
 | `products` | `tenant_allowances` | `GET /api/v1/tenant-allowances` | instance owner |
 | `products` | `set_tenant_allowance` | `PUT /api/v1/tenant-allowances` | instance owner |
 | `products` | `remove_tenant_allowance` | `POST /api/v1/tenant-allowances/remove` | instance owner |
+| `products` | `usage` | `GET /api/v1/usage` | instance owner |
 | `products` | `create_team` | `POST /api/v1/tenants/:tenant/teams` | tenant admin |
 | `products` | `create` | `POST /api/v1/teams/:tenant/:team/products` | team admin |
 | `products` | `get` | `GET P` | reader |
@@ -476,7 +483,7 @@ the same of a newer version than the instructions named. `unknown_tool` and `unk
 the server's version and its tools or the tool's actions (also in `details`: `server_version`,
 `tools` or `actions`), and say the client may hold a list from another version.
 
-**Tools.** Sixteen tools over the 109 operations: twelve grouped by noun, four standalone.
+**Tools.** Sixteen tools over the 110 operations: twelve grouped by noun, four standalone.
 
 | Tool | Actions |
 |---|---|

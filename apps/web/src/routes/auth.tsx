@@ -171,7 +171,7 @@ export function SignIn() {
           ))}
         </ul>
         <p className="entry-fine-more">
-          A cookie keeps you signed in. <Link to="/cookies">About cookies</Link>
+          A cookie keeps you signed in. <Link to="/cookies">About cookies</Link> · <Link to="/privacy">Privacy</Link>
         </p>
       </section>
     </EntryPage>

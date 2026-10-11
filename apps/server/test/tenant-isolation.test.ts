@@ -255,6 +255,7 @@ const ACCOUNT: Record<string, string> = {
   "products.tenant_allowances": "the instance owners' alone: 403 to anyone else",
   "products.set_tenant_allowance": "the instance owners' alone: 403 to anyone else",
   "products.remove_tenant_allowance": "the instance owners' alone: 403 to anyone else",
+  "products.usage": "the instance owners' alone: 403 to anyone else, and names no organization",
   "sandbox.join": "admits only the holder of a real invitation code",
   get_skill: "the same document for everyone",
   submit_feedback: "write-only: says nothing back about anyone",
@@ -469,12 +470,13 @@ describe("operations that belong to no organization", () => {
     }
   });
 
-  it("refuses the instance's allowances to anyone but its owners, and changes none", async () => {
+  it("refuses the instance's allowances and its usage to anyone but its owners, and changes none", async () => {
     const before = (await h.db.selectFrom("tenant_allowances").selectAll().execute()).length;
     for (const [name, input] of [
       ["products.tenant_allowances", {}],
       ["products.set_tenant_allowance", { email: a.owner.email, allowed: 0 }],
       ["products.remove_tenant_allowance", { email: a.owner.email, expected_etag: "x" }],
+      ["products.usage", {}],
     ] as const) {
       for (const r of await both(name, input)) {
         expect(r.status, `${name} ${JSON.stringify(r.body)}`).toBe(403);

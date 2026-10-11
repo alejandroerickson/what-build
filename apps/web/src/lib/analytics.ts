@@ -64,27 +64,44 @@ export function screenPath(pathname: string): string {
 }
 
 /**
- * What a change the app made was, as an event name built only from known words, never a name, id
- * or slug: `POST /api/v1/p/acme/core/planner/assumptions/01J…/review` is `assumptions_review`, and
- * `PATCH …/assumptions/01J…` is `assumptions_update`.
+ * What a change the app made was, as an event name: the operation the server says it ran
+ * (`X-WhatBuild-Operation`), so `POST …/assumptions/01J…/review` is `assumptions_review` and
+ * `files.fetch_url` is `files_fetch_url`, never a name, id or slug from the address. A change that
+ * is not an operation is sent only if it is one of a few named here, under that name.
  */
-const NOUNS = new Set(["outcomes", "sources", "mockups", "downloads", "assumptions", "annotations", "files", "exports", "settings", "members", "invitations", "products", "tenants", "sandbox", "baselines", "invites", "visitors", "agents", "me", "revisions", "story", "pages", "versions", "tenant-allowances", "auth", "email", "dev-sign-in", "sign-out"]);
-const VERBS = new Set(["review", "archive", "restore", "check-citations", "remove", "revoke", "cancel", "accept", "join", "reset", "role"]);
-const METHOD_VERB: Record<string, string> = { POST: "create", PUT: "update", PATCH: "update", DELETE: "delete" };
-
-export function actionName(method: string, path: string): string {
+const OTHER_CHANGES: [RegExp, string][] = [
   // Google's own name for a sign-up on the landing page, so it can be a key event as it stands.
-  if (path === "/api/v1/interest") return "generate_lead";
-  const parts = path.split("?")[0]!.split("/").filter(Boolean);
-  if (parts[0] === "api" && parts[1] === "v1") parts.splice(0, 2);
-  // The owner of the change: a product, a team or an organization, named only by kind.
-  if (parts[0] === "p") parts.splice(0, 4, ...(parts.length === 4 ? ["product"] : []));
-  else if (parts[0] === "teams") parts.splice(0, 3, ...(parts.length === 3 ? ["team"] : []));
-  else if (parts[0] === "tenants" && parts.length > 2) parts.splice(0, 2);
-  const words = parts.filter((p) => NOUNS.has(p) || VERBS.has(p) || p === "product" || p === "team");
-  const last = words.at(-1);
-  if (!last || !VERBS.has(last)) words.push(METHOD_VERB[method] ?? method.toLowerCase());
-  return words.join("_").replace(/-/g, "_").slice(0, 40);
+  [/^\/api\/v1\/interest$/, "generate_lead"],
+  [/^\/auth\/email$/, "sign_in_link"],
+  [/^\/auth\/sign-out$/, "sign_out"],
+  [/^\/api\/v1\/invitations\/accept$/, "invitation_accept"],
+  [/^\/api\/v1\/me$/, "profile_update"],
+  [/^\/api\/v1\/me\/agents\/[^/]+$/, "agent_disconnect"],
+];
+const OPERATION_NAME = /^[a-z][a-z_]*\.[a-z][a-z_]*$/;
+
+export function actionName(path: string, operation: string | null): string | null {
+  if (operation && OPERATION_NAME.test(operation)) return operation.replace(".", "_").slice(0, 40);
+  const bare = path.split("?")[0]!;
+  return OTHER_CHANGES.find(([pattern]) => pattern.test(bare))?.[1] ?? null;
+}
+
+/**
+ * What a person does with search, never the words: opening it, following a result (of what kind,
+ * and how far down), going on to every result, picking a recent search, and closing it without
+ * following anything (and whether it had found something).
+ */
+export type SearchEvent =
+  | { name: "search_open"; via: "field" | "shortcut" }
+  | { name: "search_result_open"; kind: string; rank?: number; from: "palette" | "screen" }
+  | { name: "search_all_results" }
+  | { name: "search_recent_use" }
+  | { name: "search_close"; found: "yes" | "no" | "waiting" | "not_typed" };
+
+/** Counts what a person did, when they accepted analytics; otherwise nothing. */
+export function track(event: SearchEvent) {
+  const { name, ...params } = event;
+  window.gtag?.("event", name, params);
 }
 
 type Gtag = (...args: unknown[]) => void;
@@ -109,21 +126,36 @@ export function startAnalytics(id: string) {
   };
   window.gtag("consent", "default", { analytics_storage: "granted", ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied" });
   window.gtag("js", new Date());
+  // Masked from the first event on: anything Google sends before the first page view says which screen, never whose.
+  window.gtag("set", maskedPage(location.pathname));
   // Page views are sent by hand, from the screen's path; Google's own would carry the real address.
   window.gtag("config", id, { send_page_view: false, allow_google_signals: false, allow_ad_personalization_signals: false });
-  setChangeListener((method, path) => window.gtag?.("event", actionName(method, path)));
+  setChangeListener((path, operation) => {
+    const name = actionName(path, operation);
+    if (name) window.gtag?.("event", name);
+  });
   const script = document.createElement("script");
   script.async = true;
   script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(id)}`;
   document.head.appendChild(script);
 }
 
+/** What every event says of the page: the masked address, a fixed title, and where the person came from, masked too. */
+export function maskedPage(pathname: string) {
+  const path = screenPath(pathname);
+  const referrer = document.referrer.startsWith(location.origin) ? `${location.origin}${screenPath(new URL(document.referrer).pathname)}` : document.referrer;
+  return { page_location: `${location.origin}${path}`, page_path: path, page_title: "WhatBuild", page_referrer: referrer };
+}
+
+/** Puts the masked address on every event from now on, at once, when the person moves to another screen. */
+export function placePage(pathname: string) {
+  window.gtag?.("set", maskedPage(pathname));
+}
+
 /** Counts a page view. Every event Google sends after it carries the masked address and a fixed title. */
 export function pageView(pathname: string) {
   if (!window.gtag) return;
-  const path = screenPath(pathname);
-  const referrer = document.referrer.startsWith(location.origin) ? `${location.origin}${screenPath(new URL(document.referrer).pathname)}` : document.referrer;
-  window.gtag("set", { page_location: `${location.origin}${path}`, page_path: path, page_title: "WhatBuild", page_referrer: referrer });
+  placePage(pathname);
   window.gtag("event", "page_view");
 }
 

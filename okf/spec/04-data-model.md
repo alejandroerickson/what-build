@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, files, annotations, what uses a source, the assumption register and citations, views and lineage, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, citations, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-11}
 status: stable
 ---
 
@@ -753,7 +753,8 @@ activity.jsonl
   lives in its own tables and is never updated. Every content table has a row-level security
   policy keyed on the transaction-local `app.tenant_id`. Directory tables (accounts, sessions,
   tokens, OAuth clients, tenants, teams, products, memberships, invitations) and the job queue,
-  feedback, the public site's interest form and `schema_migrations` have no row-level security and
+  feedback, the public site's interest form, the usage counts and `schema_migrations` have no
+  row-level security and
   are reached only through the authorization layer. Policies are forced, because the app's role owns
   the tables. [`apps/server/test/row-level-security.test.ts`](../../apps/server/test/row-level-security.test.ts)
   lists each table without the policy with its reason, and fails on any other.
@@ -771,6 +772,14 @@ activity.jsonl
   `tenant_allowances`, a directory table without row-level security keyed by the lower-cased
   address (`allowed`, `note`, `etag`, who gave it and who last changed it), and an index on
   `tenants.created_by->>'account_id'`, which is what an allowance is counted against.
+- **How the service is used** ([§9.1](09-data-lifecycle.md),
+  [`0019_usage.sql`](../../apps/server/src/migrations/0019_usage.sql),
+  [`usage.ts`](../../packages/core/src/usage.ts)): two tables without row-level security that name
+  no organization, product, record or account. `usage_calls` counts calls per UTC day, operation,
+  door (`web`, `mcp`), agent client family, sandbox or not, owner or not, and outcome (`ok` or the
+  error's code). `usage_people` keeps a row for each day a person used a part of WhatBuild (an MCP
+  tool's name) through a door and client, the person named by `personOf`, an HMAC of the account id
+  under a key derived from the grant key. The worker deletes its rows after 14 months.
 - **Blobs** are immutable and keyed opaquely: `t/<tenant_id>/r/<record_id>/f/<file_version_id>`
   for files, `t/<tenant_id>/r/<record_id>/d/<derivation_id>/<sidecar>` for derived sidecars, and
   `t/<tenant_id>/exports/<export_id>.zip` for exports. Keys never encode titles, tags or any other

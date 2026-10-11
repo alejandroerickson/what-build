@@ -61,7 +61,7 @@ export function SettingsPage() {
         </form>
       </Sheet>
       <p className="agents-foot">
-        <Link to="/cookies">Cookies</Link>: what they are for, and your choice about analytics.
+        <Link to="/cookies">Cookies</Link>: what they are for, and your choice about analytics. <Link to="/privacy">Privacy</Link>: what is kept about you, and whom to ask.
       </p>
     </>
   );

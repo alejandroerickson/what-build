@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { serve, type ServerType } from "@hono/node-server";
 import pg from "pg";
-import type { UrlFetcher } from "@whatbuild/core";
+import { usageSettled, type UrlFetcher } from "@whatbuild/core";
 import { inject } from "vitest";
 import { MemoryBlobStore } from "../src/adapters/blobs.ts";
 import { MemoryMailer } from "../src/adapters/misc.ts";
@@ -153,6 +153,7 @@ export async function startHarness(overrides: Partial<ServerConfig> = {}, opts: 
     async close() {
       worker?.stop();
       await new Promise<void>((r) => (server ? server.close(() => r()) : r()));
+      await usageSettled();
       await pool.end();
     },
   };

@@ -3,7 +3,7 @@ type: Bundle Guide
 title: How to read and keep this documentation bundle
 description: What okf/ is, how it is laid out, the reading order, and how to keep it accurate.
 tags: [guide, okf]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-11}
 status: stable
 ---
 
@@ -54,7 +54,8 @@ type), and `okf-decision` to record decisions. Five more skills are procedures f
 [recovering from a bad release](operations/recovering-from-a-bad-release.md), and
 `test-on-a-copy-of-production` for [a copy of production](operations/a-copy-of-production.md). Two conduct the
 [security checks](operations/security-checks.md): `audit-for-leaks` and `triage-security-findings`.
-`run-end-to-end-tests` runs the [end-to-end test plans](operations/end-to-end-tests.md). Prefer correcting a concept to adding a near-duplicate. Validate before committing:
+`run-end-to-end-tests` runs the [end-to-end test plans](operations/end-to-end-tests.md), and `read-usage` reads
+[how a deployment is used](operations/analytics.md). Prefer correcting a concept to adding a near-duplicate. Validate before committing:
 
 ```sh
 python3 okf/tools/validate_okf.py

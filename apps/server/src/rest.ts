@@ -16,6 +16,9 @@ export const SCOPE_PREFIX: Record<OperationDef["scope"], string> = {
   account: "/api/v1",
 };
 
+/** The response header that names the operation a REST call ran. */
+export const OPERATION_HEADER = "X-WhatBuild-Operation";
+
 /** Operations that create something answer 201. */
 const CREATES = /\.(create\w*|publish|promote_mockup|request_upload|add_note|fetch_url|annotate|export)$|^members\.grant$/;
 
@@ -110,6 +113,8 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
         const { result } = await execute(env, principal, op, input, ref);
         const etag = (result as { etag?: unknown } | null)?.etag;
         if (typeof etag === "string") c.header("ETag", `"${etag}"`);
+        // Which operation ran, so the web app counts a change by its name rather than by its address.
+        c.header(OPERATION_HEADER, op.name);
         return c.json(result as object, op.rest.method === "POST" && CREATES.test(op.name) ? 201 : 200);
       } catch (e) {
         const err = toAppError(e);

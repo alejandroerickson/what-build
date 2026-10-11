@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-11}
 status: stable
 ---
 
@@ -284,11 +284,15 @@ deployment is involved
   forwarded, and one plain error for every network failure.
 - **Migrations** are forward-only SQL, applied by `whatbuild migrate` as a separate step before a
   new image serves traffic. An export bundle records its format version.
-- **Observability:** one structured log line per request with method, path (ids masked, and the
-  invitation and sandbox invitation links, `/invite/:token` and `/join/:code`), status and duration. **Never** log source content, Markdown bodies, passage text, email addresses, or
-  tokens. Request ids, principal and tenant ids, operation names and counters are planned.
-  ◆ Decision: operational telemetry about the *service* in the logs; usage analytics only in the
-  browser, only for people who accept it, and only by screen, never by content or name
+- **Observability:** one structured log line per request with method, path (ids masked,
+  organizations, teams and products named only by kind, and the invitation and sandbox invitation
+  links, `/invite/:token` and `/join/:code`), status and duration. **Never** log source content,
+  Markdown bodies, passage text, email addresses, or tokens. Request ids are planned. How the service
+  is used is counted per call in the database, not in the logs (`packages/core/src/usage.ts`).
+  ◆ Decision: operational telemetry about the *service* in the logs; usage counted on the server
+  for everyone, by operation and under pseudonyms, naming nobody
+  ([decision](../decisions/the-server-counts-how-whatbuild-is-used-naming-nobody.md)); browser
+  analytics only for people who accept it, by screen and operation, never by content or name
   ([§9.1](09-data-lifecycle.md)).
 - **Rate limits and quotas** are to be enforced in one middleware shared by both adapters, so
   neither can drift from the other ([§9.2](09-data-lifecycle.md)). Planned: today only sign-in
