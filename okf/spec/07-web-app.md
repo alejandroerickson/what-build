@@ -543,8 +543,9 @@ mockup reaches it by promotion, from the mockup (§7.7).
     Read-only here, and not versioned with the page.
   - A reader gets About alone: Shows, Draws on, Cited passages and Notes for agents are left out, since
     the server sends a reader none of them ([§3.5](03-accounts-teams-and-identity.md)). The Story
-    style row under the tree is left out too, and a Story with no pages says that they appear once
-    the product's team publishes them.
+    style row under the tree is left out too, and so are **Archived pages** in the tree and the
+    export, since the server gives a reader no archived page; a Story with no pages says that they
+    appear once the product's team publishes them.
 - **Export to PDF.** The dialog lists every page as checkboxes, in the Story's order (the tree,
   then the published mockups), then archived pages, with Select all, Clear and a count; it opens with the page or pages it was
   asked for already selected, and the person can change the selection. The count and Select all

@@ -1,5 +1,5 @@
 import {
-  AppError, admitRead, execute, OPERATIONS, printDocument, printResponseHeaders, resolveScope, STORY_RESPONSE_HEADERS, toAppError, unauthenticated, withStoryFrame, withStoryTheme, houseSpecimen, houseStyle, shownHtml, styleSpecimen,
+  AppError, admitRead, execute, OPERATIONS, printDocument, printResponseHeaders, readsOnlyTheStory, resolveScope, STORY_RESPONSE_HEADERS, toAppError, unauthenticated, withStoryFrame, withStoryTheme, houseSpecimen, houseStyle, shownHtml, styleSpecimen,
   type Env, type OperationDef, type Principal, type ScopeRef,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
@@ -179,13 +179,17 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       const theme = storyTheme(c.req.query("theme"));
       const frame = c.req.query("frame") === "1";
       const v = await inTenant(scope.tenant!.tenant_id, async (trx) => {
-        const row = await trx
-          .selectFrom("story_versions")
-          .select(["html", "mockup"])
-          .where("product_id", "=", scope.product!.product_id)
-          .where("page_id", "=", c.req.param("page_id")!)
-          .where("n", "=", Number(c.req.param("version")))
-          .executeTakeFirst();
+        let q = trx
+          .selectFrom("story_versions as v")
+          .innerJoin("story_pages as p", "p.page_id", "v.page_id")
+          .select(["v.html", "v.mockup"])
+          .where("v.product_id", "=", scope.product!.product_id)
+          .where("p.product_id", "=", scope.product!.product_id)
+          .where("v.page_id", "=", c.req.param("page_id")!)
+          .where("v.n", "=", Number(c.req.param("version")));
+        // A reader is given only live pages, as story.get_page gives them.
+        if (readsOnlyTheStory(scope.role)) q = q.where("p.archived_at", "is", null);
+        const row = await q.executeTakeFirst();
         return row ? { html: await shownHtml(trx, row), mockup: Boolean(row.mockup) } : null;
       });
       if (!v) throw new AppError(404, "not_found", "No such Story version.");

@@ -81,7 +81,7 @@ describe("a Story reader", () => {
     expect(product.body).not.toHaveProperty("concept");
   });
 
-  it("reads every Story page and version, without what it draws on or the notes for agents", async () => {
+  it("reads every live Story page and version, without what it draws on or the notes for agents", async () => {
     const tree = await rita.api("GET", `${P}/story/hierarchy`);
     expect(tree.status).toBe(200);
     expect(tree.body.items).toEqual([]);
@@ -125,6 +125,21 @@ describe("a Story reader", () => {
     const doc = await rita.api("GET", `${P}/story/print?page_ids=overview`);
     expect(doc.status).toBe(200);
     expect(doc.body).toContain("Second version.");
+  });
+
+  it("is given no archived page, in the lists or by its address, while the team still is", async () => {
+    const old = await alice.api("POST", `${P}/story/pages/old-plan/versions`, { title: "Old plan", html: html("Old plan", "<h1>Old plan</h1>") });
+    expect((await alice.api("POST", `${P}/story/pages/old-plan/archive`, { expected_etag: old.body.etag })).status).toBe(200);
+    const pages = await rita.api("GET", `${P}/story/pages?include_archived=true`);
+    expect(pages.body.items.map((x: { page_id: string }) => x.page_id)).toEqual(["overview"]);
+    for (const path of [`${P}/story/pages/old-plan`, `${P}/story/pages/old-plan/versions`, `${P}/story/pages/old-plan/versions/1`, `${P}/story/pages/old-plan/versions/1/html`, `${P}/story/print-view?page_ids=old-plan`, `${P}/story/print?page_ids=overview,old-plan`]) {
+      const r = await rita.api("GET", path);
+      expect(r.status, path).toBe(404);
+    }
+    const team = await alice.api("GET", `${P}/story/pages?include_archived=true`);
+    expect(team.body.items.map((x: { page_id: string }) => x.page_id)).toEqual(["old-plan", "overview"]);
+    expect((await alice.api("GET", `${P}/story/pages/old-plan`)).status).toBe(200);
+    expect((await alice.api("GET", `${P}/story/pages/old-plan/versions/1/html`)).status).toBe(200);
   });
 
   it("is refused, with 403 naming their role, by every other operation on the product", async () => {
