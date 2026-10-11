@@ -433,6 +433,10 @@ An append-only event log, written in the same transaction as the mutation that c
 - Events are immutable and are retained for the life of the tenant, with one exception: when an
   insight or a decision became a source (§4.7), its events were relabelled as the source's. They
   are included in a product export.
+- An event about the organization's people and access (a role given, changed or removed, an
+  invitation sent, accepted or cancelled, and the sandbox's invitation links, visitors and
+  settings) is read by the organization's owners and admins with `members.activity`; a product's
+  `activity.list` leaves out the ones that belong to no product.
 - In a public sandbox an event about a product is content: a reset puts the baseline's back
   ([§9.7](09-data-lifecycle.md)). An event about the organization (people, access, the sandbox's
   settings, baselines and resets) has no product, and stays through every reset.

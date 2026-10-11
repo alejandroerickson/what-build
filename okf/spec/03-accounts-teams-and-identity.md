@@ -488,7 +488,9 @@ over it gets; an allowance set to 0 is switched off, so its refusal is `403 sand
 
 Because attribution is a copied snapshot ([§3.9](#39-attribution)), a visitor's name and address
 are never written into the organization's rows: not in an author, not in the activity log, not in
-a baseline. The account id is kept, as everywhere; it is how staff find the person behind a
+a baseline. An access event about someone who is not staff (a role staff gave or removed, an
+invitation they accepted) names them by their made-up name too, and so does the log of what staff
+did (`members.activity`). The account id is kept, as everywhere; it is how staff find the person behind a
 made-up name (`sandbox.visitors`).
 
 **The role fails closed.** `membershipsFor` leaves out a `visitor` grant whose tenant is not a

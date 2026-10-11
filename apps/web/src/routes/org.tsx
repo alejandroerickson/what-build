@@ -1,9 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import { api, ApiError } from "../lib/api.ts";
+import { api, ApiError, qs } from "../lib/api.ts";
 import { aRole, formatDate, ROLE_WORD, scopeWords } from "../lib/format.ts";
 import { useMe, useProducts } from "../lib/session.tsx";
+import { ActivityLog, type ActivityItem } from "../shell/ActivityFeed.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
   Avatar, Button, ButtonLink, Callout, CopyField, Dialog, EmptyState, ErrorCallout, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio, MenuSeparator,
@@ -11,6 +12,7 @@ import {
 } from "../ui/index.tsx";
 import { EntryPage } from "./auth.tsx";
 import "../styles/screens/account.css";
+import "../styles/screens/activity.css";
 import "../styles/screens/org.css";
 
 
@@ -403,11 +405,42 @@ export function MembersPage() {
           </ul>
         </Sheet>
       ) : null}
+      {tenantAdmin && !sandbox?.only_you ? <AccessChanges tenant={tenant} sandbox={Boolean(sandbox)} /> : null}
       {giving ? (
         <GiveAccessDialog tenant={tenant} orgName={orgName} initialEmail={giving.email} onClose={() => setGiving(null)} canManage={canManage} tenantAdmin={tenantAdmin} ownerHere={t?.your_role === "owner"} />
       ) : null}
       {removing ? <RemoveMemberDialog tenant={tenant} orgName={orgName} member={removing.m} lastGrant={removing.g} tenantAdmin={tenantAdmin} onClose={() => setRemoving(null)} /> : null}
     </>
+  );
+}
+
+/**
+ * The organization's access log, for its owners and admins: who gave, changed or removed whose
+ * access, and in a sandbox its invitation links and visitors' seats. A product's own Activity
+ * leaves these out.
+ */
+function AccessChanges({ tenant, sandbox }: { tenant: string; sandbox: boolean }) {
+  const q = useInfiniteQuery({
+    queryKey: ["members", tenant, "activity"],
+    queryFn: ({ pageParam }) =>
+      api<{ items: ActivityItem[]; next_cursor: string | null }>("GET", `/api/v1/tenants/${tenant}/members/activity${qs({ cursor: pageParam, limit: 50 })}`),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.next_cursor ?? undefined,
+  });
+  return (
+    <Sheet labelledBy="access-changes-title">
+      <SheetHeader id="access-changes-title" title="Access changes" />
+      <p className="activity-scope">Only the organization&rsquo;s owners and admins see this log.</p>
+      <ActivityLog
+        query={q}
+        linkOf={(i) => (i.entity_type === "sandbox" ? `/t/${tenant}/sandbox` : null)}
+        empty={
+          <EmptyState size="inline" title="No access changes yet">
+            When someone gives, changes or removes a role, or sends or accepts an invitation{sandbox ? ", or a visitor’s seat is taken away" : ""}, it appears here.
+          </EmptyState>
+        }
+      />
+    </Sheet>
   );
 }
 

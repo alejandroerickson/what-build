@@ -117,3 +117,40 @@ describe("an invitation email", () => {
     expect(mail.text).toContain("/invite/");
   });
 });
+
+describe("the organization's access log", () => {
+  const log = (who: Browser, query = "") => who.api("GET", `/api/v1/tenants/${T}/members/activity${query}`);
+
+  it("shows owners and admins every change to who has access, newest first, with no email address", async () => {
+    await grant(alice, { team: planning, product: "planner", email: "pat@example.com", role: "editor" });
+    const pending = (await list(alice)).body.invitations.find((i: { email: string }) => i.email === "org-invitee@example.com");
+    expect((await alice.api("POST", `/api/v1/tenants/${T}/invitations/cancel`, { invitation_id: pending.invitation_id })).status).toBe(200);
+    expect((await alice.api("POST", `/api/v1/tenants/${T}/members/revoke`, { account_id: ids["hal@example.com"], team: "research", product: "secret-bets" })).status).toBe(200);
+
+    const r = await log(adam, "?limit=200");
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    const items: { action: string; entity_type: string; entity_title: string | null; summary: string; actor: { display_name: string } }[] = r.body.items;
+    expect(items.slice(0, 3).map((i) => i.action)).toEqual(["revoked", "invitation_cancelled", "role_changed"]);
+    expect(items[0]).toMatchObject({ entity_title: "Hal Hidden", summary: "Removed editor on product Secret Bets", actor: { display_name: "Alice Owner" } });
+    expect(items[2]).toMatchObject({ entity_title: "Pat Viewer", summary: "Changed role to editor on product Planner" });
+    expect(items.filter((i) => i.action === "invited")).toHaveLength(4);
+    expect(items.every((i) => i.entity_type === "membership")).toBe(true);
+    const text = JSON.stringify(r.body);
+    for (const address of [...Object.keys(ids), "planner-invitee@", "secret-invitee@", "org-invitee@", "newcomer@"]) expect(text, address).not.toContain(address);
+
+    const page = await log(alice, "?limit=2");
+    expect(page.body.items).toHaveLength(2);
+    const next = await log(alice, `?limit=2&cursor=${page.body.next_cursor}`);
+    expect(next.body.items[0].activity_id < page.body.items[1].activity_id).toBe(true);
+  });
+
+  it("is refused to anyone else, an admin of a product included", async () => {
+    for (const who of [pat, pam]) expect((await log(who)).status).toBe(403);
+  });
+
+  it("stays out of a product's own activity", async () => {
+    const product = await pam.api("GET", `/api/v1/p/${T}/${planning}/planner/activity?limit=200`);
+    expect(product.status).toBe(200);
+    expect(product.body.items.some((i: { entity_type: string }) => i.entity_type === "membership")).toBe(false);
+  });
+});

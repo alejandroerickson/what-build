@@ -1,4 +1,4 @@
-import { json, newId, randomToken, sha256Hex, type Db, type Principal } from "@whatbuild/core";
+import { isSandboxStaff, json, newId, randomToken, sha256Hex, visitorName, type Db, type Principal, type TenantRole } from "@whatbuild/core";
 import { sql } from "kysely";
 import type { Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
@@ -181,12 +181,18 @@ export async function acceptInvitation(db: Db, invitationId: string, account: Ac
   await db.updateTable("invitations").set({ accepted_at: new Date().toISOString(), accepted_by: account.account_id }).where("invitation_id", "=", inv.invitation_id).execute();
   await db.transaction().execute(async (trx) => {
     await sql`select set_config('app.tenant_id', ${inv.tenant_id}, true)`.execute(trx);
+    // In a public sandbox anyone but its staff is known only by their made-up name, in the log too.
+    const tenant = await trx.selectFrom("tenants").select("sandbox").where("tenant_id", "=", inv.tenant_id).executeTakeFirst();
+    const standing = tenant?.sandbox
+      ? await trx.selectFrom("memberships").select("role").where("tenant_id", "=", inv.tenant_id).where("scope_type", "=", "tenant").where("account_id", "=", account.account_id).executeTakeFirst()
+      : undefined;
+    const name = tenant?.sandbox && !isSandboxStaff((standing?.role ?? null) as TenantRole | null) ? visitorName(inv.tenant_id, account.account_id) : account.display_name;
     await trx
       .insertInto("activity")
       .values({
         activity_id: newId(), tenant_id: inv.tenant_id, team_id: inv.scope_type === "team" ? inv.scope_id : null, product_id: inv.scope_type === "product" ? inv.scope_id : null,
-        actor: json(actor), actor_account_id: account.account_id, channel: "web", action: "joined", entity_type: "membership", entity_id: account.account_id,
-        entity_title: account.display_name, summary: `Accepted an invitation as ${inv.role}`,
+        actor: json({ ...actor, display_name: name }), actor_account_id: account.account_id, channel: "web", action: "joined", entity_type: "membership", entity_id: account.account_id,
+        entity_title: name, summary: `Accepted an invitation as ${inv.role}`,
       })
       .execute();
   });

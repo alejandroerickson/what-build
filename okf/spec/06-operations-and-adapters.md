@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 108 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 109 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
 generated: {by: agent:claude, at: 2026-10-10}
 status: stable
@@ -34,7 +34,7 @@ defineOperation({
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 108. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 109. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
@@ -160,7 +160,7 @@ must come from the app's own origin (`403 forbidden_origin`).
 
 ### The operation catalogue
 
-All 108 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 109 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-teams-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -184,6 +184,7 @@ being changed inside the handler.
 | `members` | `grant` | `POST /api/v1/tenants/:tenant/members` | admin at the target |
 | `members` | `revoke` | `POST /api/v1/tenants/:tenant/members/revoke` | admin at the target; tenant admin with `whole_tenant` |
 | `members` | `cancel_invitation` | `POST /api/v1/tenants/:tenant/invitations/cancel` | admin at the target |
+| `members` | `activity` | `GET /api/v1/tenants/:tenant/members/activity` | tenant admin |
 | `sandbox` | `status` | `GET /api/v1/tenants/:tenant/sandbox` | tenant member |
 | `sandbox` | `join` | `POST /api/v1/sandbox/join` | signed in |
 | `sandbox` | `settings` | `GET /api/v1/tenants/:tenant/sandbox/settings` | tenant admin |
@@ -361,6 +362,11 @@ Notes on recent actions:
   it. That needs tenant admin, or owner when they are an owner.
 - `activity.list` takes `by: "people" | "agents"` (agents = calls over MCP), besides
   `entity_type`, `entity_id`, `actor`, `channel` and `since`.
+- `members.activity` is the organization's access log, for its owners and admins: roles given,
+  changed and removed, people removed from the organization, invitations sent, accepted and
+  cancelled, and in a public sandbox its invitation links, removed visitors and changed settings.
+  It takes `actor`, `since`, `limit` and `cursor`, and pages like `activity.list`. A product's
+  `activity.list` leaves these events out, because they belong to the organization.
 
 ### Routes outside the registry
 
@@ -470,12 +476,12 @@ the same of a newer version than the instructions named. `unknown_tool` and `unk
 the server's version and its tools or the tool's actions (also in `details`: `server_version`,
 `tools` or `actions`), and say the client may hold a list from another version.
 
-**Tools.** Sixteen tools over the 108 operations: twelve grouped by noun, four standalone.
+**Tools.** Sixteen tools over the 109 operations: twelve grouped by noun, four standalone.
 
 | Tool | Actions |
 |---|---|
 | `products` | `list`, `create_tenant`, `create_team`, `create`, `get`, `update`, `archive`, `restore`, `export`, `exports` |
-| `members` | `list`, `grant`, `revoke`, `cancel_invitation` |
+| `members` | `list`, `grant`, `revoke`, `cancel_invitation`, `activity` |
 | `sandbox` | `status`, `join`, `settings`, `update_settings`, `save_baseline`, `baselines`, `reset`, `invites`, `create_invite`, `revoke_invite`, `visitors`, `remove_visitor` |
 | `outcomes` | `list`, `get`, `create`, `update`, `revisions`, `get_revision`, `restore_revision` |
 | `sources` | `facets`, `list`, `get`, `create`, `update`, `archive`, `restore`, `annotate`, `list_annotations`, `update_annotation`, `used_by`, `move_to_product`, `copy_to_product`, `delete_impact`, `delete` |

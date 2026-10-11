@@ -59,6 +59,7 @@ const SCOPED: Record<string, Probe> = {
     inside: (a) => [{ account_id: a.member.accountId, team: a.team.id }, { account_id: a.ownerAccountId, whole_tenant: true }],
   },
   "members.cancel_invitation": { input: (a) => ({ invitation_id: a.invitationId }) },
+  "members.activity": { input: () => ({}) },
   "sandbox.status": { input: () => ({}) },
   "sandbox.settings": { input: () => ({}) },
   "sandbox.update_settings": { input: (a) => ({ expected_etag: sandbox(a).settingsEtag, visitor_access: "closed" }) },

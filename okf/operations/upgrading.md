@@ -23,7 +23,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Owners and admins see who changed access.** Members has a new section, Access changes, listing
+  roles given, changed and removed, invitations sent, accepted and cancelled, and in a public
+  sandbox its invitation links, removed visitors and changed settings. Agents read the same log
+  with `members(action="activity")`; connected agents see the new action after starting a new
+  session. Events from before the upgrade are included. The skill is now 0.19.0.
+- **In a public sandbox, access events name a visitor by their made-up name.** Events recorded
+  before the upgrade keep the name they were written with.
 
 ## v0.6.0
 
