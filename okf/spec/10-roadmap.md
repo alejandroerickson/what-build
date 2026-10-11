@@ -145,6 +145,9 @@ only accumulate is not one people will put real material into.
 - Closing an organization revokes access immediately and removes content within the stated window.
 - Sign-up survives an abuse test: scripted sign-ups, oversized uploads, and a write flood are all
   limited without affecting other organizations.
+- The privacy page of every deployment that takes sign-ups names who runs it, an address kept for
+  privacy requests, and its providers (`WHATBUILD_OPERATOR`, `WHATBUILD_PRIVACY_CONTACT`,
+  `WHATBUILD_PROVIDERS`; [§9.1](09-data-lifecycle.md)).
 - Whether the dev deployment may keep holding a copy of production, which would then be customers'
   data, is decided again
   ([decision](../decisions/releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production.md)).

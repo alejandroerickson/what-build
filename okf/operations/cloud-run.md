@@ -353,4 +353,5 @@ gcloud run services update whatbuild --region $R --update-env-vars WHATBUILD_SIG
 The specification makes these an acceptance test, not a good intention
 ([§9.3](../spec/09-data-lifecycle.md), [Phase 6](../spec/10-roadmap.md)): a restore from backup
 into a scratch instance, performed and written up; an export round-tripping into a fresh instance;
-abuse limits tested. None of that is done yet.
+abuse limits tested; and the privacy page naming who runs the deployment, an address for privacy
+requests and its providers (The privacy page, above). None of that is done yet.
