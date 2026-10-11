@@ -18,8 +18,12 @@ export const REFRESH_PREFIX = "wbrt_";
 
 export const sessionCookieName = (secure: boolean) => (secure ? HOST_SESSION_COOKIE : SESSION_COOKIE);
 
-/** Whether a Cookie header carries any of WhatBuild's cookies, prefixed or not. */
-export const carriesOurCookie = (cookieHeader: string | undefined) => /(?:^|;)\s*(?:__Host-)?wb_/.test(cookieHeader ?? "");
+/**
+ * Whether a Cookie header carries any of WhatBuild's cookies, prefixed or not, but the analytics
+ * choice (`wb_cookies`): the page sets that one on the parent domain, so the public site sends it
+ * too, and it grants nothing.
+ */
+export const carriesOurCookie = (cookieHeader: string | undefined) => /(?:^|;)\s*(?:__Host-)?wb_(?!cookies=)/.test(cookieHeader ?? "");
 
 /**
  * Whether a request's Origin is the app's own (or, outside production, a localhost port). A request

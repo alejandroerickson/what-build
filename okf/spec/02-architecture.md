@@ -261,7 +261,9 @@ deployment is involved
   in a sandbox ([§4.11](04-data-model.md)); derived text returned to agents is data, and the skill
   and the MCP server instructions say so.
 - **Cookie-carrying writes must come from the app's own origin**, on every route, because
-  `SameSite=Lax` is not enough on a shared parent domain.
+  `SameSite=Lax` is not enough on a shared parent domain. Every `wb_` cookie counts but
+  `wb_cookies`, the analytics choice: it sits on the parent domain, so the public site's form
+  sends it too, and it grants nothing.
 - **Every response** says `Cross-Origin-Resource-Policy: same-origin`,
   `Cross-Origin-Embedder-Policy: credentialless`, `X-Content-Type-Options: nosniff` and a
   `Permissions-Policy` that turns off the browser features WhatBuild never uses, unless its route

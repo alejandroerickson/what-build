@@ -8,10 +8,10 @@ import { siteRoutes } from "../src/site.ts";
 import { startHarness, type Harness } from "./harness.ts";
 
 /** A request with a Host header of our choosing, which fetch does not allow. */
-function hostRequest(baseUrl: string, host: string, method: string, path: string, body?: unknown) {
+function hostRequest(baseUrl: string, host: string, method: string, path: string, body?: unknown, headers: Record<string, string> = {}) {
   const { port } = new URL(baseUrl);
   return new Promise<{ status: number; location: string | undefined; text: string }>((resolveRes, reject) => {
-    const req = request({ host: "localhost", port, method, path, headers: { host, ...(body ? { "content-type": "application/json" } : {}) } }, (res) => {
+    const req = request({ host: "localhost", port, method, path, headers: { host, ...(body ? { "content-type": "application/json" } : {}), ...headers } }, (res) => {
       let text = "";
       res.on("data", (chunk) => (text += chunk));
       res.on("end", () => resolveRes({ status: res.statusCode ?? 0, location: res.headers.location, text }));
@@ -74,6 +74,14 @@ describe("the public site", () => {
     const rows = await h.db.selectFrom("interest").selectAll().execute();
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ email: "Pat@Example.com", name: "Pat", organization: "Example Co", note: "Pricing pages" });
+  });
+
+  it("takes a request from a visitor who has answered the cookie question, but no cross-origin write that carries a session", async () => {
+    const answered = { origin: `https://${site}`, cookie: "wb_cookies=granted" };
+    const res = await hostRequest(h.baseUrl, site, "POST", "/api/v1/interest", { email: "lee@example.com" }, answered);
+    expect(res.status).toBe(200);
+    const signedIn = await hostRequest(h.baseUrl, site, "POST", "/api/v1/interest", { email: "lee@example.com" }, { ...answered, cookie: "wb_cookies=granted; __Host-wb_session=x" });
+    expect(signedIn.status).toBe(403);
   });
 
   it("refuses a missing address, and thanks a bot without storing anything", async () => {
