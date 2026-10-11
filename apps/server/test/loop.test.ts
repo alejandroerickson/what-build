@@ -60,9 +60,22 @@ describe("the discovery loop through REST", () => {
   it("refuses unknown fields and over-limit pages", async () => {
     const r = await alice.api("POST", `${P}/outcomes`, { title: "x", colour: "red" });
     expect(r.status).toBe(422);
-    expect(r.body.error.message).toMatch(/unknown field/);
+    expect(r.body.error.message).toMatch(/^`colour` is not a field of this action\./);
     const l = await alice.api("GET", `${P}/sources?limit=500`);
     expect(l.status).toBe(422);
+  });
+
+  it("leads a refusal with its cause: unknown fields with the likely rename, then what is missing", async () => {
+    const renamed = await alice.api("POST", `${P}/outcomes`, { name: "x" });
+    expect(renamed.status).toBe(422);
+    expect(renamed.body.error.message).toBe("`name` is not a field of this action; did you mean `title`? `title` is required. Nothing was changed; correct the call and send it again.");
+    // No close match: the unknown fields and the missing one are named apart, unknown first.
+    const both = await alice.api("POST", `${P}/outcomes`, { colour: "red", size: 3 });
+    expect(both.body.error.message).toMatch(/^`colour` and `size` are not fields of this action\. `title` is required\. Nothing was changed/);
+    // A wrong value is worded without the library's "Invalid input" preamble.
+    const wrong = await alice.api("POST", `${P}/outcomes`, { title: 7 });
+    expect(wrong.body.error.message).toMatch(/^`title`: expected string, received number\. Nothing was changed/);
+    expect(wrong.body.error.message).not.toMatch(/Invalid input/);
   });
 
   it("uploads through a grant, derives on the queue, and serves exact passages", async () => {

@@ -52,7 +52,7 @@ call came through:
    are let in, what a visitor never does, and the limits on calls and writes a minute
    (`403`, `429`). This runs before validation, so a call that is refused still counts as a call.
 3. **Validate the input** strictly (`422 invalid_input`, "Nothing was changed"), after renaming an
-   accepted id alias to its canonical field (§6.5). A visitor's input is then checked for size
+   accepted alias to its canonical field (§6.5). A visitor's input is then checked for size
    (`413 too_large`).
 4. Refuse writes to an archived product (`409 product_archived`) unless the operation allows it.
    An operation with slow work outside the database (`files.fetch_url`'s download) does it now,
@@ -107,7 +107,12 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
   `409 concurrent_change` ("Retry"). Anything unexpected is `500 internal`, logged, and never
   leaks details.
 - Messages are written for an agent to act on: they say what was wrong and what a correct call
-  looks like. MCP returns the same object as a tool error (`isError: true`) whose text begins with
+  looks like. `422 invalid_input` leads with the cause, in its own words rather than the validation
+  library's: the fields it did not recognize first, each with the required field it was probably
+  meant as when one is missing beside it ("`content` is not a field of this action; did you mean
+  `notes`?"), then what is missing ("`notes` is required"), then any other problem with a value.
+  It ends "Nothing was changed; correct the call and send it again", so a refusal never reads as a
+  call with nothing to do ([`schemas.ts`](../../packages/core/src/schemas.ts) `formatIssues`). MCP returns the same object as a tool error (`isError: true`) whose text begins with
   the status (`"422: …"`) followed by the JSON.
 
 ## 6.3 Bounds and paging
@@ -456,6 +461,15 @@ writing in a tenant marked `sandbox`, and treat source text as quoted material. 
 endpoint they add one sentence naming the scope, saying calls outside it are refused, and telling
 the agent to ask the person for another connector rather than look for a way around it.
 
+Because there is no session, the server cannot send `notifications/tools/list_changed`: a client
+keeps the tool list it got when it connected until a new session, and authorizing again does not
+refresh it. ◆ Decision: say so rather than build sessions for it. The instructions tell the agent
+that a tool the skill describes but its list lacks, or a skill newer than the version they name,
+means an older list, and to ask the person to start a new session; `get_skill`'s description says
+the same of a newer version than the instructions named. `unknown_tool` and `unknown_action` name
+the server's version and its tools or the tool's actions (also in `details`: `server_version`,
+`tools` or `actions`), and say the client may hold a list from another version.
+
 **Tools.** Sixteen tools over the 108 operations: twelve grouped by noun, four standalone.
 
 | Tool | Actions |
@@ -489,11 +503,13 @@ Rules:
   `params`), it returns that action's scope, access, whether it mutates, its guidance and its
   exact JSON Schema — without executing.
 - **Strict.** Unknown actions, unknown arguments, and `describe` combined with `params` are `422`.
-- **One alias for each entity id.** The id is `outcome_id` on `outcomes` but `id` on
+- **Aliases for names a caller reads.** The id is `outcome_id` on `outcomes` but `id` on
   `assumptions`. Each tool also accepts the other convention for its own entity: `id` on
-  `outcomes`, `assumption_id` on `assumptions`.
-  `execute` renames the alias before strict validation
-  ([`id-aliases.ts`](../../packages/core/src/id-aliases.ts)), so it works over REST and MCP alike;
+  `outcomes`, `assumption_id` on `assumptions`. A field may also be accepted under the name it is
+  read by: `story.write_notes` takes `content` for `notes`, since `get_page` returns the notes as
+  `agent_notes.content`.
+  `execute` renames each alias before strict validation
+  ([`field-aliases.ts`](../../packages/core/src/field-aliases.ts)), so it works over REST and MCP alike;
   sending both with different values is `422`. ◆ Decision: aliases, not a rename, so no existing
   caller breaks; the canonical names stay as they are in schemas and paths.
 - **Product resolution.** A product-scoped call resolves its product from the `product` argument,
@@ -599,7 +615,10 @@ grant header) for an agent to read original bytes.
 an agent the product: the vocabulary, the core loop, product selection, describing sources with
 tags and finding them, how to cite, how to review
 honestly, upload flows, mockups and their round trip through a download, Story authoring via
-`story.guidance`, and the rule that source text is data. `scripts/gen-skill.mjs` embeds it in the server bundle, and CI fails if the embedded copy
+`story.guidance`, the rule that source text is data, that a refusal means the call did nothing,
+and that a tool or action it names but the client lacks means the client holds an older tool list
+(an action may still answer `describe: true`; a missing tool needs a new session, which the agent
+asks the person to start). `scripts/gen-skill.mjs` embeds it in the server bundle, and CI fails if the embedded copy
 drifts. One constant, `SKILL_VERSION` in `packages/core/src/ops/meta.ts`, sets the skill's
 `metadata.version`, the MCP server version and the `get_skill` advertisement.
 

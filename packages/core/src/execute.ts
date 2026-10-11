@@ -3,7 +3,7 @@ import type { z } from "zod";
 import { json, type ActorSnapshot, type Db } from "./db.ts";
 import { checkConnectorScope, type ConnectorScope } from "./connector-scope.ts";
 import { AppError, conflict, invalid } from "./errors.ts";
-import { resolveIdAlias } from "./id-aliases.ts";
+import { resolveAliases } from "./field-aliases.ts";
 import { resolveScope, type ScopeRef } from "./policy.ts";
 import type { Ports } from "./ports.ts";
 import type { OpContext, OperationDef, Principal, Scope } from "./registry.ts";
@@ -40,9 +40,10 @@ function retiredFieldHint(op: OperationDef, error: z.ZodError): string {
 }
 
 export function parseInput<I extends z.ZodType>(op: OperationDef<I>, raw: unknown): z.output<I> {
-  const parsed = op.input.safeParse(resolveIdAlias(op, raw ?? {}));
+  const input = resolveAliases(op, raw ?? {});
+  const parsed = op.input.safeParse(input);
   if (!parsed.success) {
-    throw invalid("invalid_input", `${formatIssues(parsed.error)}. Nothing was changed.${retiredFieldHint(op, parsed.error)}`, { operation: op.name });
+    throw invalid("invalid_input", `${formatIssues(parsed.error, input)} Nothing was changed; correct the call and send it again.${retiredFieldHint(op, parsed.error)}`, { operation: op.name });
   }
   return parsed.data;
 }

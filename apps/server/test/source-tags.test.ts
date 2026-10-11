@@ -83,7 +83,7 @@ describe("describing sources with tags", () => {
   it("refuses the retired kind and organization, and says to use tags", async () => {
     const created = await alice.api("POST", `${P}/sources`, { title: "Interview — Example Co", kind: "interview_transcript", organization: "Example Co" });
     expect(created.status).toBe(422);
-    expect(created.body.error.message).toMatch(/unknown field\(s\) kind, organization/);
+    expect(created.body.error.message).toMatch(/^`kind` and `organization` are not fields of this action\./);
     expect(created.body.error.message).toMatch(/with tags/);
     const listed = await alice.api("GET", `${P}/sources?kind=interview_transcript`);
     expect(listed.status).toBe(422);

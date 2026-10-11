@@ -10,7 +10,7 @@ import { newId } from "../util.ts";
  * never asked to reinstall the same content.
  */
 export const SKILL_NAME = "whatbuild";
-export const SKILL_VERSION = "0.17.0";
+export const SKILL_VERSION = "0.18.0";
 
 export function skillMarkdown(): string {
   return SKILL_TEMPLATE.replace("__SKILL_VERSION__", SKILL_VERSION);
@@ -23,7 +23,7 @@ export const getSkill = defineOperation({
   mutates: false,
   summary: `Get the complete ${SKILL_NAME} skill, version ${SKILL_VERSION}.`,
   description:
-    `Call this if your installed ${SKILL_NAME} skill is absent, unversioned, or not version ${SKILL_VERSION}. Fetching the skill does not install it and changes nothing; propose installing it through your harness.`,
+    `Call this if your installed ${SKILL_NAME} skill is absent, unversioned, or not version ${SKILL_VERSION}. Fetching the skill does not install it and changes nothing; propose installing it through your harness. The version it returns is the server's as it runs now: if it is newer than the version the server's instructions named when your client connected, the server was upgraded since and your client's tool list is older; ask the person to start a new session.`,
   input: z.strictObject({}),
   rest: { method: "GET", path: "/skill" },
   mcp: { tool: "get_skill" },

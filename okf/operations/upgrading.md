@@ -27,6 +27,15 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   pages out for a reader even with `include_archived`, and `story.get_page`, `list_versions`,
   `get_version`, a version's HTML and the print view answer a reader `404` for an archived page.
   The team still reads them. A reader no longer sees the Story's Archived pages group.
+- **Connected agents keep the tool list they connected with.** The MCP endpoint keeps no session,
+  so it cannot tell a client that a release added tools or actions. After a release that adds
+  any, people whose agents were already connected start a new session (in Claude Code, a new
+  conversation or a restart) to see them; authorizing again is not enough. The skill, now 0.18.0,
+  tells agents this, and `unknown_tool` and `unknown_action` say it and name the server's version.
+- **Input refusals** (`422 invalid_input`) name the unrecognized fields first, with the likely
+  intended field, then what is missing ("`notes` is required"), in place of the validation
+  library's wording. A script that matched the old text ("unknown field(s)", "Invalid input")
+  needs the new. `story.write_notes` also accepts `content` for `notes`.
 
 ## v0.5.0
 
