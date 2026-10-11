@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.7.0
+
 - **Owners and admins see who changed access.** Members has a new section, Access changes, listing
   roles given, changed and removed, invitations sent, accepted and cancelled, and in a public
   sandbox its invitation links, removed visitors and changed settings. Agents read the same log
