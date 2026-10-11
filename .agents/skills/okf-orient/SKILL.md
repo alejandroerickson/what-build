@@ -44,6 +44,7 @@ Run `corepack pnpm attention` once per session and tell the person what it print
 | What is built, what is next, open questions | `okf/spec/10-roadmap.md` |
 | Agent-driven end-to-end tests, the golden master, writing a test plan | `okf/operations/end-to-end-tests.md`, then `e2e/plans/README.md` |
 | Running, testing and deploying | `okf/operations/`; the table in `AGENTS.md` names the guide and the skill for each task |
+| Mail: what the server sends, which deployment sends it and through what, setting it up or repairing it | `okf/operations/mail.md` |
 | Releasing, rehearsing on the dev deployment, backups, restoring, recovering | `okf/operations/releasing.md`, `dev-deployment.md`, `backups.md`, `recovering-from-a-bad-release.md` |
 | Rules for a change, and what may never be committed | `okf/process/working-in-this-repository.md` |
 | The concept types and the editing rules | `okf/ontology.md` |

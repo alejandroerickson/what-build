@@ -54,8 +54,9 @@ type), and `okf-decision` to record decisions. Five more skills are procedures f
 [recovering from a bad release](operations/recovering-from-a-bad-release.md), and
 `test-on-a-copy-of-production` for [a copy of production](operations/a-copy-of-production.md). Two conduct the
 [security checks](operations/security-checks.md): `audit-for-leaks` and `triage-security-findings`.
-`run-end-to-end-tests` runs the [end-to-end test plans](operations/end-to-end-tests.md), and `read-usage` reads
-[how a deployment is used](operations/analytics.md). Prefer correcting a concept to adding a near-duplicate. Validate before committing:
+`run-end-to-end-tests` runs the [end-to-end test plans](operations/end-to-end-tests.md), `read-usage` reads
+[how a deployment is used](operations/analytics.md), and `set-up-mail` sets up and repairs a deployment's
+[mail](operations/mail.md). Prefer correcting a concept to adding a near-duplicate. Validate before committing:
 
 ```sh
 python3 okf/tools/validate_okf.py

@@ -69,7 +69,8 @@ const BIG_OK = new Set(["pnpm-lock.yaml"]);
 // ---- What text may not say ---------------------------------------------------------------------
 
 const EMAIL = /[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})\b/g;
-const EMAIL_LOCAL_OK = /^(no-?reply|git)$/i;
+/** Local parts that are no one's: no-reply senders, git, and a printf placeholder in a URL built from a secret. */
+const EMAIL_LOCAL_OK = /^(no-?reply|git|%s)$/i;
 /** Addresses that belong to services, not people: Dependabot signs its commits with GitHub's. */
 const EMAIL_ADDRESS_OK = new Set(["support@github.com"]);
 const EMAIL_DOMAIN_OK = [

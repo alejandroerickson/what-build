@@ -3,7 +3,7 @@ type: Process
 title: Keeping private material out of the repository and finding known vulnerabilities
 description: The checks that keep secrets and private material out of what is published and find known vulnerabilities, where each runs, what to do about a finding, how to audit everything GitHub holds, and how to make the repository public.
 tags: [operations, security, public, privacy, dependencies, ci, agents]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-11}
 status: stable
 ---
 
@@ -53,7 +53,7 @@ hooks stop a leak before it leaves the machine; CI shows what got past them.
 |---|---|
 | `secret` | anything gitleaks's default rules find, less what `.github/gitleaks.toml` allows |
 | `local-path` | an absolute path into a home directory, on macOS, Linux or Windows |
-| `email` | an address outside the synthetic domains (`example.com`, `.example`, `.test`), `what-build.com`, GitHub's no-reply addresses and Google service accounts |
+| `email` | an address outside the synthetic domains (`example.com`, `.example`, `.test`), `what-build.com`, GitHub's no-reply addresses and Google service accounts; a `%s` local part, a placeholder in a URL a command builds from a secret, is not an address |
 | `session-talk` | phrases that report a request made in a session, addressed to the agent or naming the user |
 | `top-level` | a top-level file or directory not in `TOP_LEVEL` |
 | `agent-local` | anything in `.claude/` but the link to the skills |
