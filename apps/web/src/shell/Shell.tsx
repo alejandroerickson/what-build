@@ -5,6 +5,7 @@ import { Callout, Glyph } from "../ui/index.tsx";
 import { isTypingTarget, NARROW_QUERY, PHONE_QUERY, shortcutLabel, useMediaQuery } from "../ui/media.ts";
 import { BrandMark } from "./brand.tsx";
 import { AccountMenu, BrandRow, PlainNav, ProductNav, ProductSwitcher, productSection } from "./panel.tsx";
+import { FindLauncher, FindProvider } from "./find-palette.tsx";
 import { SandboxBanner } from "./PublicSandboxBanner.tsx";
 import { ShellContext, type ShellSlots } from "./slots.tsx";
 
@@ -319,7 +320,9 @@ function Stage({ variant, panel, panelFoot, pillName, section, title, banner, ch
 export function ProductShell({ product, app, children }: { product: Product; app: string; children: ReactNode }) {
   const loc = useLocation();
   const section = productSection(loc.pathname.split("/")[5]);
+  const base = `/api/v1/p/${product.path}`;
   return (
+    <FindProvider app={app} base={base} product={product}>
     <Stage
       variant="product"
       pillName={product.name}
@@ -342,6 +345,7 @@ export function ProductShell({ product, app, children }: { product: Product; app
           <BrandRow to="/" label="WhatBuild, home" onHide={hide} hideLabel={hideLabel} />
           <nav className="panel-nav" aria-label={product.name}>
             <ProductSwitcher current={product} />
+            {product.your_role !== "reader" ? <FindLauncher product={product} /> : null}
             <ProductNav product={product} app={app} section={section.id} />
           </nav>
         </>
@@ -350,6 +354,7 @@ export function ProductShell({ product, app, children }: { product: Product; app
     >
       {children}
     </Stage>
+    </FindProvider>
   );
 }
 

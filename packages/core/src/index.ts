@@ -22,6 +22,7 @@ export * from "./errors.ts";
 export * from "./execute.ts";
 export * from "./source-fields.ts";
 export * from "./media.ts";
+export * from "./plain-query.ts";
 export * from "./policy.ts";
 export * from "./ports.ts";
 export * from "./registry.ts";

@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-11}
 status: stable
 ---
 
@@ -30,6 +30,11 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   session. Events from before the upgrade are included. The skill is now 0.19.0.
 - **In a public sandbox, access events name a visitor by their made-up name.** Events recorded
   before the upgrade keep the name they were written with.
+- **One search for the whole product.** People search everything in a product from the panel's
+  Search field, ⌘K or `/`, as they type, and the Search screen lists results under Idea, Evidence,
+  Exploration and Story. Evidence's panel no longer has its own passages-or-titles search; links to
+  `/search` with the old `mode` or `scope` open the new screen with the same words. Agents get
+  `search`'s new `plain` mode; the skill is now 0.20.0. Nothing to configure.
 
 ## v0.6.0
 

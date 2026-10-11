@@ -371,10 +371,11 @@ Depth is tonal layering plus two shadows. White surfaces lift off the grey canva
 ### Shadow Vocabulary
 - **Resting** (`--shadow`: `0 2px 5px rgb(0 0 0 / 0.08), 0 0 0 0.5px rgb(0 0 0 / 0.12)`): panels, sheets, the pill, callouts, and the current segmented item.
 - **Lifted** (`--shadow-2`: `0 10px 28px rgb(0 0 0 / 0.16), 0 0 0 0.5px rgb(0 0 0 / 0.14)`): menus, dialogs, toasts, the skip link, and the panel or inspector once it becomes a phone drawer.
+- **Flash** (`--shadow-flash`: `0 0 0 1px rgb(255 255 255 / 0.9), 0 0 0 7px rgb(255 255 255 / 0.45), 0 0 90px 28px rgb(255 255 255 / 0.6)`): the search palette alone, for a moment, when it has been left untouched for three seconds; it fades back to Lifted.
 - **Paper** (`--shadow-paper`: `0 0 0 1px rgb(0 0 0 / 0.06), 0 1px 3px rgb(0 0 0 / 0.06)`): the preview frame for an uploaded original, which draws as light paper in both themes.
 
 ### Named Rules
-**The Two Heights Rule.** A surface either rests in the layout or lifts above it. Use no other shadow values, and use no offset or coloured shadows.
+**The Two Heights Rule.** A surface either rests in the layout or lifts above it. Use no other shadow values, and use no offset or coloured shadows. The one exception is the search palette's passing flash.
 
 ## Shapes
 
@@ -405,7 +406,7 @@ Compact and calm. Default buttons read as white tiles with a hairline, not as fi
 
 ### Inputs / Fields
 - **Input:** 28px, 6px corners, Line Strong border on panel fill; the border darkens to Muted on hover. Focus sets an accent border plus the 2px accent ring. Invalid fields turn the border and ring red, with an 11.5px error line and alert glyph below. Readonly fields are borderless on Hover fill.
-- **Find field:** a fill-only search on Hover (Hover Strong on hover) with a faint leading search glyph, used for the panel find, tree filter and in-sheet search. On focus it turns panel white with the accent ring.
+- **Find field:** a fill-only search on Hover (Hover Strong on hover) with a faint leading search glyph, used for the Search screen, the tree filter and in-sheet search. On focus it turns panel white with the accent ring.
 - **Labels:** muted 500 above the control. Hints are faint 11.5px, capped at the 68ch measure.
 
 ### Navigation
@@ -417,6 +418,7 @@ Compact and calm. Default buttons read as white tiles with a hairline, not as fi
 ### Menus, Dialogs, Toasts
 - **Menu:** popover fill, 8px corners, 6px pad, hairline border (Line 2 in dark), lifted shadow. It enters in 120ms with a 2px drop and leaves in 100ms. An item may carry a second line, a faint 11px detail under its text; the item grows to fit it.
 - **Dialog:** 520px max, 12px corners, lifted shadow, a head, a body and a right-aligned foot above a hairline. It enters in 160ms.
+- **Search palette:** opened from the panel's Search field (a Hover-filled 28px button under the product switch reading "Search <product>", with its shortcut in a small key cap), ⌘K / Ctrl+K, or `/`. A 640px popover-fill surface with 12px corners and the lifted shadow, set 12vh from the top over a scrim at 60%. It springs into place over 560ms (a 3px overshoot and a small settle; it simply appears with reduced motion), and if nothing is typed or clicked for three seconds it flashes white once and fades back to Lifted over 1.8s. A 48px field row at 14px holds the search glyph (a spinner while a newer answer loads), the input, and, once something is typed, an **All N results** default button with its key cap. Empty, it is the field alone, or the field with "Recent searches" and Clear above clock-glyph rows. Results are 8px-cornered rows with a 14px faint glyph, a medium title with matched words marked, faint meta at the right and a muted two-line excerpt; the selected row takes the selection wash. There is no footer and no Esc key cap.
 - **Toast:** a 40px popover row with an 8px radius, hairline border and lifted shadow, holding a tone icon, text, an optional action and a close button.
 - **Cookie notice:** a 344px popover note at the bottom-right float inset, with an 8px radius, hairline border and lifted shadow: a faint cookie glyph, 12px muted text with a semibold ink lead-in, then a quiet Cookies link and two default buttons of equal weight, Decline and Accept. It enters 600ms after the screen settles (200ms, 6px rise), never takes focus and blocks nothing; on phones it runs flush along the bottom edge and the page pads clear of it. Its layer (`--z-notice`) sits above the panels and under a drawer's scrim. Not a dialog, and never a primary button.
 
@@ -444,7 +446,7 @@ A rounded square filled with ink, with a W stroked in the panel colour (2.6 stro
 - **Don't** add a top bar, a second rail, an app-level tab strip or extra drawers beside the panel. On phones the panel itself is the drawer.
 - **Don't** set app type above 20px outside the overview's intro, and don't add a display face to the app: the display step is Inter at 600.
 - **Don't** use the accent for decoration, category colour, large fills or more than one filled button in a view.
-- **Don't** use shadows outside the resting, lifted and paper set, including hard offset, coloured or glow shadows.
+- **Don't** use shadows outside the resting, lifted and paper set, including hard offset, coloured or glow shadows. The search palette's passing flash is the one exception.
 - **Don't** add small uppercase labels above titles. Section labels are 11px sentence case in faint 500; a panel section's heading is Subtitle, in ink.
 - **Don't** use text characters or emoji as icons. Every icon is a lucide glyph.
 - **Don't** signal state with colour alone.
