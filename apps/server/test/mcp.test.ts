@@ -103,6 +103,9 @@ describe("MCP", () => {
     await h.worker.drain();
     const hits = text(await client.callTool({ name: "search", arguments: { product: path, query: "approvals" } }));
     expect(hits.hits[0].speaker).toBe("Buyer");
+    // A hit is read by the seq it carries.
+    const hit = text(await client.callTool({ name: "read_passage", arguments: { product: path, record_id: hits.hits[0].record_id, seq: hits.hits[0].seq } }));
+    expect(hit.segments.map((s: { seq: number; text: string }) => [s.seq, s.text])).toEqual([[hits.hits[0].seq, expect.stringContaining("Approvals")]]);
     const passage = text(await client.callTool({ name: "read_passage", arguments: { product: path, record_id: created.record.record_id, start: 0, end: 3 } }));
     expect(passage.unit).toBe("seq");
     expect(passage.segments).toHaveLength(4);

@@ -126,6 +126,15 @@ describe("the discovery loop through REST", () => {
     const tooWide = await alice.api("GET", `${P}/sources/${recordId}/passage?start=0&end=500&unit=seq`);
     expect(tooWide.status).toBe(422);
     expect(tooWide.body.error.code).toBe("window_too_large");
+    expect(tooWide.body.error.message).toContain("segment numbers");
+    // One segment by its seq, as a hit names it: segments, though the source is timed.
+    const one = await alice.api("GET", `${P}/sources/${recordId}/passage?seq=1`);
+    expect(one.body).toMatchObject({ unit: "seq", requested: { start: 1, end: 1 }, returned: { seq_start: 1, seq_end: 1 } });
+    for (const q of ["seq=1&start=0&end=2", "seq=1&unit=ms", "start=0"]) {
+      const refused = await alice.api("GET", `${P}/sources/${recordId}/passage?${q}`);
+      expect(refused.status, q).toBe(422);
+      expect(refused.body.error.code, q).toBe("invalid_input");
+    }
 
     const bytes = await alice.api("GET", `${P}/sources/${recordId}/file?path=call.vtt`);
     expect(bytes.status).toBe(200);

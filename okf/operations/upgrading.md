@@ -23,7 +23,9 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **`read_passage` reads a search hit by its `seq`.** Nothing to set. Its refusals now say that
+  `start` and `end` count segments, not characters. The skill is now 0.22.0; connected agents see
+  the field after starting a new session.
 
 ## v0.8.0
 

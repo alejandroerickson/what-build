@@ -178,9 +178,10 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
       let productArg: unknown;
       const group = DEFINITIONS.groups.get(name);
       if (group) {
+        // The action first, so a call with a stray argument is counted under the operation it meant.
+        op = group.find((o) => o.mcp.action === args["action"]);
         const extra = Object.keys(args).filter((k) => !["action", "params", "describe", "product"].includes(k));
         if (extra.length) throw invalid("unknown_field", `Unknown argument(s) ${extra.join(", ")}. Grouped tools take action, params, describe and product.`);
-        op = group.find((o) => o.mcp.action === args["action"]);
         if (!op)
           throw invalid(
             "unknown_action",

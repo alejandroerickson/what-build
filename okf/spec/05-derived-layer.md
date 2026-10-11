@@ -186,8 +186,10 @@ an occasional `Note:`, as prose.
 
 ## 5.4 Passage reads
 
-`read_passage { record_id, start, end, unit?, speaker?, derivation_id? }` reads **one** window:
+`read_passage { record_id, seq | start, end, unit?, speaker?, derivation_id? }` reads **one** window:
 
+- `seq`: the one segment a search hit or a citation names, by its number; never with `start`,
+  `end` or `unit: "ms"`.
 - `unit: "seq"`: segments `start`..`end` inclusive; always available.
 - `unit: "ms"`: every segment overlapping `[start, end]`; timed sources only
   (`422 untimed_source` otherwise).
@@ -198,8 +200,9 @@ an occasional `Note:`, as prose.
   the names that do), before any "No segments in this range".
 
 Bounds: at most 200 segments **and** at most 600,000 ms (10 minutes) per call. A wider request is
-**refused** with `422 window_too_large` stating the limits; it is not silently clipped. A source
-whose derivation is not `ready` answers `404` naming its status.
+**refused** with `422 window_too_large` stating the limits, and that `start` and `end` count
+segments rather than characters; it is not silently clipped. A source whose derivation is not
+`ready` answers `404` naming its status.
 
 Response:
 

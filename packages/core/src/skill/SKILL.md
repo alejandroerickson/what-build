@@ -194,10 +194,12 @@ Story pages and the product concept, forgiving endings and word order, correctin
 nothing (`corrections` says so; `strict: true` turns it off), and naming `missing` words when nothing
 holds them all. Use `plain` to find where something is across the product, and exact or ranked
 passage search, with its filters, to gather evidence. No mode does semantic matching, and **an empty
-search does not prove the evidence is absent**. `coverage` (exact and ranked) says what was examined. Hits give `record_id` and `seq`, ready for
-`read_passage` and citations. Each passage (segment) is matched on its own: AND, OR and NOT combine
-terms within one passage, so words a transcript splits across neighbouring cues never match
-together. Search the terms separately and read the window around the hits.
+search does not prove the evidence is absent**. `coverage` (exact and ranked) says what was examined.
+Hits give `record_id` and `seq`: `read_passage` with both reads the hit, and `start` and `end` with
+`unit: "seq"` read the window around it. They count segments, not the characters of `char_start`
+and `char_end`. Both serve as citations. Each passage (segment) is matched on its own: AND, OR and
+NOT combine terms within one passage, so words a transcript splits across neighbouring cues never
+match together. Search the terms separately and read the window around the hits.
 
 ## Derived views
 

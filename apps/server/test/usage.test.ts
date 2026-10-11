@@ -46,6 +46,7 @@ describe("counting calls", () => {
     expect((await ana.api("PATCH", `/api/v1/p/${path}`, { colour: "red" })).status).toBe(422);
     await agent.callTool({ name: "products", arguments: { action: "list" } });
     expect((await agent.callTool({ name: "products", arguments: { action: "explode" } })).isError).toBe(true);
+    expect((await agent.callTool({ name: "products", arguments: { action: "get", product_id: "x" } })).isError).toBe(true);
     expect((await agent.callTool({ name: "sources", arguments: { action: "list", product: "no-such/team/product" } })).isError).toBe(true);
     await usageSettled();
 
@@ -56,6 +57,8 @@ describe("counting calls", () => {
         expect.objectContaining({ operation: "products.list", surface: "mcp", client: "Claude Code", outcome: "ok" }),
         expect.objectContaining({ operation: "products.update", surface: "web", outcome: "invalid_input" }),
         expect.objectContaining({ operation: "products.(unknown)", surface: "mcp", outcome: "unknown_action" }),
+        // A stray argument beside a real action counts under that action.
+        expect.objectContaining({ operation: "products.get", surface: "mcp", outcome: "unknown_field" }),
         // Refused before it reached the operation: the product is not there.
         expect.objectContaining({ operation: "sources.list", surface: "mcp", outcome: "not_found" }),
       ]),

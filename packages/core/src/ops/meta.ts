@@ -10,7 +10,7 @@ import { newId } from "../util.ts";
  * never asked to reinstall the same content.
  */
 export const SKILL_NAME = "whatbuild";
-export const SKILL_VERSION = "0.21.0";
+export const SKILL_VERSION = "0.22.0";
 
 export function skillMarkdown(): string {
   return SKILL_TEMPLATE.replace("__SKILL_VERSION__", SKILL_VERSION);
