@@ -55,6 +55,11 @@ export const FIND_KINDS: { id: FindKind | "passage"; label: string; one: string;
 
 export const kindOf = (id: string) => FIND_KINDS.find((k) => k.id === id)!;
 
+/** How many things hold the words in all: results stop at the best 60, and `counts` counts every one. */
+export function matchedCount(d: FindResponse): number {
+  return FIND_KINDS.reduce((n, k) => n + (k.id === "passage" ? 0 : (d.counts[k.id] ?? 0)), 0);
+}
+
 /** The product's four areas, each holding the kinds found in it, in the panel's order. */
 export const FIND_AREAS: { id: string; label: string; glyph: GlyphName; kinds: FindKind[] }[] = [
   { id: "idea", label: "Idea", glyph: "lightbulb", kinds: ["idea", "outcome"] },
@@ -126,6 +131,7 @@ export function resultHref(app: string, r: FindResult): string {
     case "story":
       return `${app}/story/${r.id}`;
     case "outcome":
+      return `${app}/idea?outcome=${encodeURIComponent(r.id)}`;
     case "idea":
       return `${app}/idea`;
   }

@@ -3,7 +3,7 @@ type: System Concept
 title: Agent-driven end-to-end tests on a golden master
 description: An agent follows a written test plan through the real web app and the real MCP server, on a local instance reset each time to a golden master made from production's public sandbox, and reports failures and anomalies.
 tags: [development, testing, qa, e2e, agents, mcp, browser]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-11}
 status: draft
 ---
 
@@ -53,7 +53,8 @@ as the application's role, and shaped into two organizations
 - **The standard organization** (`<slug>-standard`, named "<name> (standard)"): a copy of the
   sandbox organization's teams, products, content, activity and the memberships of everyone but
   its visitors, under new ids, with every reference to an old id rewritten, in columns and in
-  JSON. It is not a sandbox. The files are shared, since blobs never change. After the copy, every
+  JSON. A new id keeps the time of the one it replaces, so lists ordered by id, such as activity,
+  keep their order in the copy. It is not a sandbox. The files are shared, since blobs never change. After the copy, every
   foreign key is checked.
 
 So every plan can run the same products both ways. No sandbox visitor is copied into the
@@ -110,6 +111,9 @@ The plans:
   and the two organizations kept apart.
 - `assumptions-and-the-story`: an agent's cited assumption is reviewed by a person; a Story page
   is published and read by a reader, who is refused everything else.
+- `search`: the palette and the Search screen find every kind of thing by plain words, read as the
+  specification says; the web and MCP's plain mode agree; what one door writes the other finds; a
+  reader has no search.
 - `exploratory`: open-ended, every screen as each role and as a sandbox visitor, at phone width and
   in the dark theme.
 

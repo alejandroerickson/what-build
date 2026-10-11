@@ -131,6 +131,39 @@ export const SANDBOX_LIMITS: LimitInfo[] = [
   { key: "documents_only", group: "switch", label: "Uploads limited to formats the parsers read", unit: "", per: "Each visitor", refusal: "403 sandbox_restricted", help: "On refuses recordings, archives and images, and allows text, Markdown, transcripts, HTML, Word (DOC, DOCX), PDF, spreadsheets and XML." },
 ];
 
+/** The settings that are not limits, named as the control panel names them. */
+const SETTING_NAMES: Partial<Record<SandboxSettingKey, string>> = {
+  visitor_access: "what visitors may do",
+  visitor_agents: "whether visitors' agents may work here",
+  reset_enabled: "the daily reset",
+  reset_time: "the reset time",
+  reset_timezone: "the reset's time zone",
+  max_visitors: "seats",
+  visitor_idle_days: "idle days before a seat is freed",
+};
+
+const ACCESS_NAMES: Record<SandboxSettings["visitor_access"], string> = { write: "read and write", read: "read only", closed: "closed" };
+
+/**
+ * A settings change in a person's words, for the access log: "Changed the sandbox's settings: what
+ * visitors may do (read only); writes for each visitor, each day (200)." Never a setting's key.
+ */
+export function describeSettingsChange(changed: SandboxSettingKey[], next: SandboxSettings): string {
+  const parts = changed.map((k) => {
+    const limit = SANDBOX_LIMITS.find((l) => l.key === k);
+    const lower = (s: string) => s[0]!.toLowerCase() + s.slice(1);
+    const name = limit ? (limit.group === "switch" ? lower(limit.label) : `${lower(limit.label)} for ${lower(limit.per)}`) : (SETTING_NAMES[k] ?? k);
+    const v = next[k];
+    const value =
+      k === "visitor_access" ? ACCESS_NAMES[v as SandboxSettings["visitor_access"]]
+      : typeof v === "boolean" ? (v ? "on" : "off")
+      : typeof v === "number" ? (v === 0 && limit && limit.group !== "switch" ? "off" : v.toLocaleString("en-US"))
+      : String(v);
+    return `${name} (${value})`;
+  });
+  return `Changed the sandbox's settings: ${parts.join("; ")}.`;
+}
+
 // ---- The schedule -------------------------------------------------------------------------------
 
 function wallClock(at: number, timeZone: string) {

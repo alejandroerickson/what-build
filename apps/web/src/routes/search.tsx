@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { Link, useSearchParams } from "react-router";
-import { byArea, FIND_AREAS, hitHref, hitMeta, kindOf, Marked, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse, type FindResult } from "../lib/find.tsx";
+import { byArea, FIND_AREAS, hitHref, hitMeta, kindOf, Marked, matchedCount, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse, type FindResult } from "../lib/find.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { REVIEW_STATUS } from "../lib/status.ts";
 import { understood } from "../shell/find-palette.tsx";
@@ -140,10 +140,17 @@ export function SearchPage() {
 
 function Understood({ d, retry }: { d: FindResponse; retry: string }) {
   const note = understood(d);
-  if (!note && !d.ignored.length) return null;
+  const matched = matchedCount(d);
+  const cut = matched > d.results.length;
+  if (!note && !d.ignored.length && !cut) return null;
   return (
     <p className="find-understood" aria-live="polite">
       {note}
+      {cut ? (
+        <span>
+          {note ? " " : ""}The best {d.results.length} of {matched} are listed; add a word to narrow them.
+        </span>
+      ) : null}
       {d.corrections.length ? (
         <>
           {" "}

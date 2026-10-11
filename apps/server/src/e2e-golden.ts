@@ -88,11 +88,14 @@ export async function copyTenant(c: pg.Client, fromTenantId: string, slug: strin
   const visitors = new Set(people.filter((p) => p.sandbox_only).map((p) => p.account_id));
   for (const m of rows.get("memberships") ?? []) if (m["scope_type"] === "tenant" && m["role"] === "visitor") visitors.add(m["account_id"] as string);
 
-  // Every id the organization's rows name, other than people's: those are the ones made new.
-  const ids = new Map<string, string>([[fromTenantId, newId()]]);
+  // Every id the organization's rows name, other than people's: those are the ones made new. A new
+  // id keeps the old one's time (a ULID's first ten characters), so lists ordered by id, such as
+  // activity, keep the original's order in the copy.
+  const again = (old: string) => old.slice(0, 10) + newId().slice(10);
+  const ids = new Map<string, string>([[fromTenantId, again(fromTenantId)]]);
   for (const list of rows.values())
     for (const row of list)
-      for (const [col, v] of Object.entries(row)) if ((col.endsWith("_id") || col === "id") && typeof v === "string" && ID.test(v) && !accounts.has(v) && !ids.has(v)) ids.set(v, newId());
+      for (const [col, v] of Object.entries(row)) if ((col.endsWith("_id") || col === "id") && typeof v === "string" && ID.test(v) && !accounts.has(v) && !ids.has(v)) ids.set(v, again(v));
   const pattern = new RegExp([...ids.keys()].join("|"), "g");
   const remap = (v: unknown): unknown =>
     typeof v === "string" ? v.replace(pattern, (m) => ids.get(m)!) : Array.isArray(v) ? v.map(remap) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, remap(x)])) : v;
