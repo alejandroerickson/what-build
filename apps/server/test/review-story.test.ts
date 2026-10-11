@@ -158,6 +158,21 @@ describe("notes for agents", () => {
     const act = await alice.api("GET", `${P}/activity?entity_id=overview`);
     expect(act.body.items.map((a: { action: string }) => a.action)).toContain("notes_updated");
   });
+
+  it("takes the notes as content too, the name get_page returns them under, and refuses content and notes that differ", async () => {
+    const page = await alice.api("GET", `${P}/story/pages/overview?include_html=false`);
+    const w = await alice.api("PUT", `${P}/story/pages/overview/notes`, { content: "## Purpose\n\nRead as content.", expected_etag: page.body.agent_notes.etag });
+    expect(w.status).toBe(200);
+    expect(w.body).toMatchObject({ page_id: "overview", changed: true, agent_notes: { content: "## Purpose\n\nRead as content." } });
+    const clash = await alice.api("PUT", `${P}/story/pages/overview/notes`, { content: "one", notes: "two", expected_etag: w.body.agent_notes.etag });
+    expect(clash.status).toBe(422);
+    expect(clash.body.error.message).toMatch(/^`content` and `notes` differ; `content` is another name for `notes`, so send one\. Nothing was changed/);
+    const same = await alice.api("PUT", `${P}/story/pages/overview/notes`, { content: "agreed", notes: "agreed", expected_etag: w.body.agent_notes.etag });
+    expect(same.status).toBe(200);
+    // Elsewhere content is not a field, and the refusal says so before anything else.
+    const other = await alice.api("POST", `${P}/outcomes`, { content: "x" });
+    expect(other.body.error.message).toMatch(/^`content` is not a field of this action; did you mean `title`\? `title` is required\./);
+  });
 });
 
 describe("publishing a later version", () => {

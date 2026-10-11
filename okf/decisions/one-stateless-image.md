@@ -28,6 +28,10 @@ A side project on near-free infrastructure benefits from the fewest moving servi
 - Any instance can serve any request.
 - Splitting the worker into its own service is a configuration change.
 - Large files never pass through the application or a tool call.
+- MCP has no session, so the server cannot tell a connected client that a release added tools
+  (`notifications/tools/list_changed`). The client keeps its list until a new session; the skill,
+  the server's instructions and its `unknown_tool` and `unknown_action` refusals tell the agent to
+  ask the person for one ([06](../spec/06-operations-and-adapters.md)).
 
 ## Constrains
 
