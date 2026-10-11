@@ -270,9 +270,9 @@ h1[tabindex="-1"]:focus {
   gap: var(--s-2);
   min-height: 30px;
   padding: var(--s-2) var(--s-2) var(--s-1);
-  color: var(--faint);
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-medium);
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
 }
 /* A filter in a panel section (Evidence's filters, Exploration's lists): one link per choice. */
 .panel-filter {

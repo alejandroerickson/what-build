@@ -277,9 +277,7 @@ The sources, and everything for reading them.
   search from the list. Then single-select filters, each a link that sets a URL param: **Tags** (All tags and
   the eight most used, each with its count, and "All N" for the rest; `?tags`), **Added by**
   (Anyone and each person who added sources, with counts, shown when more than one person has or
-  while the filter is on; `?added_by`), **Added** (Any time, Past day, Past 7 days, Past 30 days,
-  Past 60 days, Past 90 days: by date added, in short windows because a discovery may last only
-  about 90 days; `?added`) and **Archived** (Hide archived, Include archived; `?include_archived`). The
+  while the filter is on; `?added_by`) and **Archived** (Hide archived, Include archived; `?include_archived`). The
   tags and people come from `sources.facets`. While any filter is on, a "Clear filters" link sits
   above Tags. On a source page the same links lead back to the list.
   Paged. The sheet is titled **Sources** (the section stays Evidence). The filters in use,
