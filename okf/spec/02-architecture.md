@@ -35,7 +35,7 @@ Observed in the `package.json` files, the [`Dockerfile`](../../Dockerfile) and
 | Concern | Choice | Why |
 |---|---|---|
 | Language | **TypeScript** (strict), ES modules | One language across server, web and tooling; the schema → types → JSON Schema path the registry depends on. |
-| Server runtime | **Node.js** 24 (`.nvmrc`, `node:24-slim` image; `engines` allows ≥ 22.18: the parse thread reads its memory with `worker.getHeapStatistics()`, from 22.16, and in development and tests Node strips the types of its entry itself, by default from 22.18) | Boring, universal. No Bun/Deno-only APIs in shared code. |
+| Server runtime | **Node.js** 24 (`.nvmrc`, `node:24-slim` image; `engines` allows 22.22.2 or later on 22, and 24.15 or later: the parse thread reads its memory with `worker.getHeapStatistics()`, from 22.16; in development and tests Node strips the types of its entry itself, by default from 22.18; and the web app's tests run under jsdom, which needs those versions; the server alone, outside the image, runs on 22.18) | Boring, universal. No Bun/Deno-only APIs in shared code. |
 | HTTP | **Hono** on `@hono/node-server` | Small, standards-based (`Request`/`Response`), portable across container hosts. |
 | MCP | **`@modelcontextprotocol/sdk`** | Official SDK. Streamable HTTP transport in stateless mode (no session id, JSON responses). A stdio proxy is planned. |
 | Schemas | **Zod 4** | One strict schema per operation yields TypeScript types, runtime validation, and JSON Schema for MCP tools and `describe`. |
