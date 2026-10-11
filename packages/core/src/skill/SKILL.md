@@ -187,9 +187,14 @@ what the sources say.
 
 ## Search, honestly
 
-Search is lexical: exact text by default, or a ranked query with `"phrases"`, `prefix*`, AND, OR,
-NOT and parentheses. It does no semantic matching, and **an empty search does not prove the evidence
-is absent**. `coverage` says what was examined. Hits give `record_id` and `seq`, ready for
+Search is lexical, in three modes. Exact text is the default; `ranked` takes `"phrases"`,
+`prefix*`, AND, OR, NOT and parentheses. `plain` searches everything in the product the way a person
+types into the app's search box: sources with their best passages, assumptions, outcomes, mockups,
+Story pages and the product concept, forgiving endings and word order, correcting a word that matches
+nothing (`corrections` says so; `strict: true` turns it off), and naming `missing` words when nothing
+holds them all. Use `plain` to find where something is across the product, and exact or ranked
+passage search, with its filters, to gather evidence. No mode does semantic matching, and **an empty
+search does not prove the evidence is absent**. `coverage` (exact and ranked) says what was examined. Hits give `record_id` and `seq`, ready for
 `read_passage` and citations. Each passage (segment) is matched on its own: AND, OR and NOT combine
 terms within one passage, so words a transcript splits across neighbouring cues never match
 together. Search the terms separately and read the window around the hits.

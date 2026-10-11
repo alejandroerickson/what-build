@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { api, qs } from "../lib/api.ts";
 import { actorName, formatDate, plural, relativeTime } from "../lib/format.ts";
@@ -8,7 +8,7 @@ import { derivedStatus } from "../lib/status.ts";
 import type { RecordSummary, SourceFacets } from "../lib/types.ts";
 import { PanelContext, PanelFilter, PanelSection, usePageTitle } from "../shell/slots.tsx";
 import {
-  Button, ButtonLink, EmptyState, ErrorCallout, FiltersInUse, FindField, Glyph, ListRow, Loading, Menu, MenuRadio, Segmented, Sheet, SheetHeader, StatusBadge, Tag,
+  Button, ButtonLink, EmptyState, ErrorCallout, FiltersInUse, Glyph, ListRow, Loading, Menu, MenuRadio, Segmented, Sheet, SheetHeader, StatusBadge, Tag,
 } from "../ui/index.tsx";
 import { FirstUse } from "./first-use.tsx";
 import "../styles/screens/evidence.css";
@@ -74,86 +74,8 @@ export function AddSourceButton() {
 /** How many of a list to show before "All N". */
 const SHOWN = 8;
 
-type FindIn = "passages" | "titles";
-
 /**
- * The panel's search, over passages or titles. Passages opens Search. Titles narrows the list as
- * you type, keeping the words in the URL (`?query=`, which also matches tags and file names); from
- * a source page, Enter opens the list narrowed. Switching to passages takes the words along and
- * drops the title search from the list.
- */
-function SourceFind({ onList }: { onList: boolean }) {
-  const { app } = useProduct();
-  const navigate = useNavigate();
-  const [params, setParams] = useSearchParams();
-  const query = onList ? (params.get("query") ?? "") : "";
-  const [findIn, setFindIn] = useState<FindIn>(query ? "titles" : "passages");
-  const [text, setText] = useState(query);
-  // What this field last wrote, so a change from elsewhere (a chip, Clear filters, going back)
-  // reaches it and its own writes, which land a moment later, do not undo newer typing.
-  const wrote = useRef(query);
-  const mode = useRef(findIn);
-  mode.current = findIn;
-  useEffect(() => {
-    if (query === wrote.current) return;
-    wrote.current = query;
-    if (query) setFindIn("titles");
-    if (query || mode.current === "titles") setText(query);
-  }, [query]);
-  const narrow = (words: string) => {
-    wrote.current = words;
-    const next = new URLSearchParams(params);
-    if (words) next.set("query", words);
-    else next.delete("query");
-    setParams(next, { replace: true });
-  };
-  const type = (v: string) => {
-    setText(v);
-    if (findIn === "titles" && onList) narrow(v.trim());
-  };
-  const choose = (id: string) => {
-    const next = id as FindIn;
-    setFindIn(next);
-    if (onList) narrow(next === "titles" ? text.trim() : "");
-  };
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    const words = text.trim();
-    if (!words) return;
-    if (findIn === "passages") navigate(`${app}/search?q=${encodeURIComponent(words)}`);
-    else if (!onList) navigate(`${app}/evidence?query=${encodeURIComponent(words)}`);
-  };
-  return (
-    <form className="source-panel-find" role="search" onSubmit={submit}>
-      <FindField
-        label={findIn === "passages" ? "Search passages" : "Search titles"}
-        value={text}
-        onChange={(e) => type(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Escape" && text) {
-            e.preventDefault();
-            e.stopPropagation();
-            type("");
-          }
-        }}
-        enterKeyHint="search"
-      />
-      <Segmented
-        label="Search in"
-        equal
-        value={findIn}
-        onChange={choose}
-        items={[
-          { id: "passages", label: "Passages" },
-          { id: "titles", label: "Titles" },
-        ]}
-      />
-    </form>
-  );
-}
-
-/**
- * The Evidence panel context: "Search passages", then single-select filters as links: tags, who
+ * The Evidence panel context: single-select filters as links: tags, who
  * added the source, and whether archived ones are listed. Used on the list (where the links
  * change the list in place) and on a source page (where they lead back to it).
  */
@@ -196,8 +118,7 @@ export function EvidenceFilters() {
       </button>
     ) : undefined;
   return (
-    <PanelContext label="Find and filter sources">
-      <SourceFind onList={onList} />
+    <PanelContext label="Filter sources">
       {active && onList ? (
         <div className="source-panel-clear">
           <Link to={href(Object.fromEntries(FILTER_KEYS.map((k) => [k, ""])))} className="panel-text-button" replace>

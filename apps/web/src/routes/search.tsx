@@ -1,227 +1,238 @@
-import { useQuery } from "@tanstack/react-query";
-import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { Link, useSearchParams } from "react-router";
-import { api, qs } from "../lib/api.ts";
-import { formatCue, formatDate } from "../lib/format.ts";
-import { citationLabels, citations, citedSourceIds, type EvidenceContext } from "../lib/markdown.tsx";
+import { byArea, FIND_AREAS, hitHref, hitMeta, kindOf, Marked, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse, type FindResult } from "../lib/find.tsx";
 import { useProduct } from "../lib/session.tsx";
-import { useSourceTitles } from "../lib/source-titles.ts";
 import { REVIEW_STATUS } from "../lib/status.ts";
-import type { RecordFull } from "../lib/types.ts";
-import { usePageTitle } from "../shell/slots.tsx";
-import { Button, EmptyState, ErrorCallout, FindField, Glyph, Loading, Segmented, Sheet, SheetHeader, StatusBadge } from "../ui/index.tsx";
-import "../styles/screens/evidence.css";
-
-interface SearchResult {
-  records?: Record<string, { title: string; date: string | null; tags: string[]; archived_at: string | null }>;
-  hits?: { record_id: string; seq: number; start_ms: number | null; speaker: string | null; snippet: string; score?: number }[];
-  next_cursor?: string | null;
-  coverage?: { statement: string; records_considered: number };
-  assumptions?: { id: string; statement: string; status: string; citation_count: number }[];
-}
+import { understood } from "../shell/find-palette.tsx";
+import { PanelContext, PanelFilter, PanelSection, usePageTitle } from "../shell/slots.tsx";
+import { EmptyState, ErrorCallout, FindField, Glyph, Loading, Sheet, SheetHeader, StatusBadge } from "../ui/index.tsx";
+import { shortcutLabel } from "../ui/media.ts";
+import "../styles/screens/search.css";
 
 /**
- * Highlight what matched in a snippet, client-side; offsets refer to the source, not the snippet.
- * Exact text matched the whole query as one phrase, so only the phrase is marked; a ranked query
- * matched its words, so each word is.
+ * Search: everything in the product that holds the words, as you type, under the area it belongs to
+ * (Idea, Evidence, Exploration, Story). A source shows once, with its best passages under it. The
+ * panel narrows to one area.
  */
-function highlight(text: string, query: string, exact: boolean): ReactNode {
-  const words = exact
-    ? [query.trim()].filter(Boolean)
-    : [...new Set(query.replace(/["()*]/g, " ").split(/\s+/).filter((w) => w && !/^(AND|OR|NOT)$/.test(w)))].sort((a, b) => b.length - a.length);
-  if (!words.length) return text;
-  const re = new RegExp(`(${words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "gi");
-  return text.split(re).map((part, i) => (i % 2 ? <mark key={i}>{part}</mark> : part));
-}
-
-/** A snippet with its bare citations as "Title ¶N" tokens (not links: the whole hit is one) and the match marked. */
-function snippet(text: string, query: string, exact: boolean, ev: EvidenceContext): ReactNode {
-  const parts = citations(text, "s", ev, false);
-  if (typeof parts === "string") return highlight(parts, query, exact);
-  return (parts as ReactNode[]).map((p, i) => (typeof p === "string" ? <Fragment key={i}>{highlight(p, query, exact)}</Fragment> : p));
-}
-
-const SCOPES = [
-  { id: "passages", label: "Passages" },
-  { id: "assumptions", label: "Assumptions" },
-  { id: "all", label: "Everything" },
-];
-
 export function SearchPage() {
-  const { api: base, app } = useProduct();
+  const { api: base, app, product } = useProduct();
   const [params, setParams] = useSearchParams();
   const q = params.get("q") ?? "";
-  const mode = params.get("mode") === "ranked" ? "ranked" : "substring";
-  const scope = SCOPES.some((s) => s.id === params.get("scope")) ? params.get("scope")! : "passages";
+  const area = FIND_AREAS.find((a) => a.id === params.get("show"));
+  const show = area?.id ?? "";
   const recordId = params.get("record_id") ?? "";
+  const strict = params.get("strict") === "1";
   const [text, setText] = useState(q);
-  const [cursors, setCursors] = useState<string[]>([]);
-  usePageTitle(q ? `Search: ${q}` : "Search");
+  const typed = useDebounced(text, 120);
+  // What this field last wrote to the URL, so going back (a change from elsewhere) reaches the field.
+  const wrote = useRef(q);
   useEffect(() => {
+    const words = typed.trim();
+    if (words === q.trim()) return;
+    wrote.current = words;
+    const next = new URLSearchParams(params);
+    if (words) next.set("q", words);
+    else next.delete("q");
+    next.delete("strict");
+    setParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typed]);
+  useEffect(() => {
+    if (q === wrote.current) return;
+    wrote.current = q;
     setText(q);
-    setCursors([]);
-  }, [q, mode, scope, recordId]);
-  const cursor = cursors[cursors.length - 1];
-  const res = useQuery({
-    queryKey: ["search", base, q, mode, scope, recordId, cursor],
-    queryFn: () => api<SearchResult>("GET", `${base}/search${qs({ query: q, mode, scope, record_id: recordId, cursor, limit: 50 })}`),
-    enabled: Boolean(q),
-    placeholderData: (prev) => prev,
-  });
-  const source = useQuery({
-    queryKey: ["source-brief", base, recordId],
-    queryFn: () => api<Pick<RecordFull, "record_id" | "title">>("GET", `${base}/sources/${recordId}`),
-    enabled: Boolean(recordId),
-    staleTime: 60_000,
-  });
+  }, [q]);
+  usePageTitle(q ? `Search: ${q}` : "Search");
+  const { remember } = useRecentSearches(product.path);
+  // Opening a result makes these words a recent search, in the palette too.
+  const followed = (e: MouseEvent) => {
+    if ((e.target as Element).closest("a[href]")) remember(q);
+  };
+  const res = useFind(base, q, { recordId, strict });
+  const d = q.trim() ? res.data : undefined;
   const link = (patch: Record<string, string>) => {
     const next = new URLSearchParams(params);
     for (const [k, v] of Object.entries(patch)) (v ? next.set(k, v) : next.delete(k));
-    const s = next.toString();
-    return `?${s}`;
+    return `?${next.toString()}`;
   };
-  const d = res.data;
-  const busy = res.isFetching && !res.isPending;
-  const exact = mode === "substring";
-  // Hits from a view or a digest cite other sources; show those as "Title ¶N", never a raw id.
-  const citedIds = [...new Set((d?.hits ?? []).flatMap((h) => citedSourceIds(h.snippet)))];
-  const fetched = useSourceTitles(base, citedIds.filter((id) => !d?.records?.[id]));
-  const titles = Object.fromEntries(citedIds.map((id) => [id, d?.records?.[id]?.title ?? fetched[id]]));
-  const evidence: EvidenceContext = { app, titles, labels: citationLabels(citedIds, titles) };
+  const all = d?.results ?? [];
+  const areas = byArea(all, d?.kind_hint ?? null);
+  const shown = areas.filter((a) => a.results.length && (!area || a.id === area.id));
+  const busy = res.isFetching || typed !== text;
+  const source = recordId ? all[0] : undefined;
+
   return (
     <>
-      <Sheet className="search-sheet">
-        <SheetHeader level={1} title="Search" end={<span className="faint small">Matches words, not meaning.</span>} />
-        <form
-          className="search-bar"
-          role="search"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const next = new URLSearchParams(params);
-            if (text.trim()) next.set("q", text.trim());
-            else next.delete("q");
-            setParams(next);
-          }}
-        >
-          <FindField label={recordId ? "Search this source" : "Search passages"} value={text} onChange={(e) => setText(e.target.value)} placeholder={recordId ? "Search this source" : 'Words or a phrase, e.g. "gate code"'} autoFocus={!q} enterKeyHint="search" />
-          <Button type="submit" variant="primary">
-            Search
-          </Button>
-        </form>
-        <div className="search-options">
-          <Segmented label="What to search" value={scope} items={SCOPES.map((s) => ({ id: s.id, label: s.label, to: link({ scope: s.id === "passages" ? "" : s.id }) }))} />
-          <Segmented
-            label="Matching"
-            value={mode}
-            items={[
-              { id: "substring", label: "Exact text", to: link({ mode: "" }) },
-              { id: "ranked", label: "Ranked", to: link({ mode: "ranked" }) },
-            ]}
+      <Sheet className="find-sheet">
+        <SheetHeader level={1} title="Search" />
+        <div className="find-bar" role="search">
+          <FindField
+            label={recordId ? "Search this source" : `Search ${product.name}`}
+            className="find-big"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && text) {
+                e.preventDefault();
+                e.stopPropagation();
+                setText("");
+              }
+            }}
+            autoFocus
+            enterKeyHint="search"
+            spellCheck={false}
           />
-          {recordId ? (
-            <span className="search-in">
-              <Glyph name="library" size="sm" />
-              <span className="ellipsis">
-                In{" "}
-                <Link to={`${app}/evidence/${recordId}`} className="quiet-link">
-                  {source.data?.title ?? "one source"}
-                </Link>
-              </span>
-              <Link to={link({ record_id: "" })} className="quiet-link">
-                Search all sources
-              </Link>
-            </span>
-          ) : null}
+          {busy && q ? <Glyph name="loader" className="spin find-busy" /> : null}
         </div>
-        {mode === "ranked" ? <p className="search-help">Ranked queries take words, "quoted phrases", prefix*, AND, OR, NOT and parentheses.</p> : null}
+        {d ? <Understood d={d} retry={link({ strict: "1" })} /> : null}
+        {recordId ? (
+          <p className="find-in">
+            <Glyph name="library" size="sm" />
+            <span className="ellipsis">
+              In <Link to={`${app}/evidence/${recordId}`} className="quiet-link">{source?.title ?? "one source"}</Link>
+            </span>
+            <Link to={link({ record_id: "" })} className="quiet-link">
+              Search everything
+            </Link>
+          </p>
+        ) : null}
       </Sheet>
 
-      {!q ? (
-        <EmptyState title="Search the evidence">Search covers each source&rsquo;s primary file, not its origin or supplement files. No results doesn&rsquo;t prove the evidence is absent.</EmptyState>
-      ) : res.isPending ? (
+      {!recordId ? <SearchFilters areas={areas} total={all.length} show={show} link={link} /> : null}
+
+      {!q.trim() ? (
+        <EmptyState title={`Search everything in ${product.name}`}>
+          Sources and their passages, assumptions, outcomes, mockups, the Story and the idea, as you type. Press {shortcutLabel("K")} anywhere to search without
+          leaving the screen.
+        </EmptyState>
+      ) : res.isError ? (
+        <ErrorCallout title="Search didn’t finish" error={res.error} onRetry={() => res.refetch()} />
+      ) : !d ? (
         <Sheet>
           <Loading label="Searching…" lines={6} />
         </Sheet>
-      ) : res.isError ? (
-        <ErrorCallout title="Search didn’t finish" error={res.error} onRetry={() => res.refetch()} />
-      ) : d ? (
-        <div className="search-results" aria-live="polite" aria-busy={busy || undefined}>
-          {d.coverage ? (
-            <p className="search-coverage">
-              <Glyph name="info" size="sm" />
-              {d.coverage.statement}
-            </p>
-          ) : null}
-          {d.hits ? (
-            <Sheet labelledBy="hits-h">
-              <SheetHeader id="hits-h" title="Passages" count={`${d.hits.length}${d.next_cursor ? "+" : ""}`} />
-              {!d.hits.length ? (
-                <EmptyState size="inline" title="No passages match">
-                  {mode === "ranked" ? "Try fewer terms or a broader query." : "Try fewer words, or a ranked query."}
-                </EmptyState>
-              ) : (
-                <ol className="search-hits">
-                  {d.hits.map((h) => {
-                    const r = d.records?.[h.record_id];
-                    return (
-                      <li key={`${h.record_id}:${h.seq}`} className="hit">
-                        <Link to={`${app}/evidence/${h.record_id}?view=passages&seq=${h.seq}`} className="hit-link">
-                          <span className="hit-addr num">¶{h.seq}</span>
-                          <span className="hit-main">
-                            <span className="hit-source">
-                              <b className="ellipsis">{r?.title ?? "Source"}</b>
-                              <span className="faint">
-                                {[r?.date ? formatDate(r.date) : null, h.speaker, h.start_ms !== null ? formatCue(h.start_ms) : null].filter(Boolean).join(" · ")}
-                                {r?.archived_at ? " · archived" : ""}
-                              </span>
-                            </span>
-                            <span className="hit-snippet">{snippet(h.snippet, q, exact, evidence)}</span>
-                          </span>
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ol>
-              )}
-              {d.next_cursor || cursors.length ? (
-                <div className="search-pager">
-                  <Button size="sm" icon="chevron-left" disabled={!cursors.length} onClick={() => setCursors(cursors.slice(0, -1))}>
-                    Previous
-                  </Button>
-                  <Button size="sm" disabled={!d.next_cursor} busy={busy} busyLabel="Loading…" onClick={() => setCursors([...cursors, d.next_cursor!])}>
-                    Next matches
-                  </Button>
-                </div>
-              ) : null}
-            </Sheet>
-          ) : null}
-          {d.assumptions ? (
-            <Sheet labelledBy="reg-h">
-              <SheetHeader id="reg-h" title="Assumptions" count={d.assumptions.length} />
-              {!d.assumptions.length ? (
-                <EmptyState size="inline">None match.</EmptyState>
-              ) : (
-                <ul className="search-entries">
-                  {d.assumptions.map((e) => (
-                    <li key={e.id}>
-                      <Link to={`${app}/exploration/assumptions/${e.id}`} className="search-entry">
-                        <Glyph name="scale" />
-                        <span className="search-entry-main">
-                          <span className="search-entry-title">{highlight(e.statement, q, exact)}</span>
-                          <span className="faint">
-                            Assumption · {e.citation_count} {e.citation_count === 1 ? "citation" : "citations"}
-                          </span>
-                        </span>
-                        <StatusBadge tone={REVIEW_STATUS[e.status]?.tone}>{REVIEW_STATUS[e.status]?.label ?? e.status}</StatusBadge>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Sheet>
-          ) : null}
+      ) : !shown.length ? (
+        <Sheet>
+          <EmptyState size="inline" title={`Nothing ${area ? `in ${area.label} ` : ""}matches “${q.trim()}”`}>
+            Try another word for the same thing, or fewer words.
+          </EmptyState>
+        </Sheet>
+      ) : recordId && source ? (
+        <div className="find-results" onClickCapture={followed}>
+          <Sheet labelledBy="find-hits-h">
+            <SheetHeader id="find-hits-h" title="Passages" count={source.hit_count} />
+            <Hits r={source} app={app} all />
+          </Sheet>
         </div>
-      ) : null}
+      ) : (
+        <div className="find-results" aria-busy={busy || undefined} onClickCapture={followed}>
+          {shown.map((a) => (
+            <Sheet key={a.id} labelledBy={`find-${a.id}-h`}>
+              <SheetHeader id={`find-${a.id}-h`} title={a.label} count={a.results.length} />
+              <ResultList results={a.results} app={app} q={q} />
+            </Sheet>
+          ))}
+        </div>
+      )}
     </>
   );
 }
+
+function Understood({ d, retry }: { d: FindResponse; retry: string }) {
+  const note = understood(d);
+  if (!note && !d.ignored.length) return null;
+  return (
+    <p className="find-understood" aria-live="polite">
+      {note}
+      {d.corrections.length ? (
+        <>
+          {" "}
+          <Link to={retry} className="quiet-link" replace>
+            Search for {d.corrections.map((c) => c.from).join(", ")} instead
+          </Link>
+        </>
+      ) : null}
+      {d.ignored.length ? <span className="faint"> Left out: {d.ignored.join(", ")}.</span> : null}
+    </p>
+  );
+}
+
+/** The panel: narrow to one area. An area with nothing matching is left out. */
+function SearchFilters({ areas, total, show, link }: { areas: { id: string; label: string; results: FindResult[] }[]; total: number; show: string; link: (p: Record<string, string>) => string }) {
+  return (
+    <PanelContext label="Search">
+      <PanelSection title="Show">
+        <PanelFilter to={link({ show: "" })} current={!show} count={total}>
+          Everything
+        </PanelFilter>
+        {FIND_AREAS.map((a) => {
+          const n = areas.find((x) => x.id === a.id)?.results.length;
+          return n || show === a.id ? (
+            <PanelFilter key={a.id} to={link({ show: a.id })} current={show === a.id} count={n}>
+              {a.label}
+            </PanelFilter>
+          ) : null;
+        })}
+      </PanelSection>
+    </PanelContext>
+  );
+}
+
+function ResultList({ results, app, q }: { results: FindResult[]; app: string; q: string }) {
+  return (
+    <ol className="find-list">
+      {results.map((r) => (
+        <li key={`${r.kind}:${r.id}`} className="find-item">
+          <Link to={resultHref(app, r)} className="find-head">
+            <Glyph name={kindOf(r.kind).glyph} />
+            <span className="find-main">
+              <span className="find-title">
+                <Marked text={r.title} marks={r.title_marks} />
+              </span>
+              <span className="find-meta">
+                {resultMeta(r)}
+                {r.missing.length ? <span className="find-missing"> · Missing: {r.missing.map((m, i) => <s key={i}>{(i ? ", " : "") + m}</s>)}</span> : null}
+              </span>
+              {r.snippet ? (
+                <span className="find-snippet">
+                  <Marked text={r.snippet} marks={r.snippet_marks} />
+                </span>
+              ) : null}
+            </span>
+            {r.kind === "assumption" && r.meta.status ? <StatusBadge tone={REVIEW_STATUS[r.meta.status]?.tone}>{REVIEW_STATUS[r.meta.status]?.label ?? r.meta.status}</StatusBadge> : null}
+          </Link>
+          {r.hits?.length ? <Hits r={r} app={app} more={`?q=${encodeURIComponent(q)}&record_id=${r.id}`} /> : null}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** A source's matching passages: the best three, or all of them on the screen for one source. */
+function Hits({ r, app, more, all }: { r: FindResult; app: string; more?: string; all?: boolean }) {
+  const hits = r.hits ?? [];
+  const rest = (r.hit_count ?? 0) - hits.length;
+  return (
+    <ul className={`find-hits${all ? " find-hits-all" : ""}`}>
+      {hits.map((h) => (
+        <li key={h.seq}>
+          <Link to={hitHref(app, r.id, h)} className="find-hit">
+            <span className="find-hit-meta num">{hitMeta(h)}</span>
+            <span className="find-hit-text">
+              <Marked text={h.text} marks={h.marks} />
+            </span>
+          </Link>
+        </li>
+      ))}
+      {rest > 0 && more ? (
+        <li>
+          <Link to={more} className="find-more">
+            <Glyph name="corner-down-right" size="sm" />
+            {rest} more {rest === 1 ? "passage" : "passages"} in this source
+          </Link>
+        </li>
+      ) : null}
+    </ul>
+  );
+}
+

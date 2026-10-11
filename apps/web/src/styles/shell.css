@@ -569,3 +569,262 @@ h1[tabindex="-1"]:focus {
   padding-right: var(--canvas-px);
   padding-left: var(--canvas-px);
 }
+
+/* ---- Find: the panel's Search field and the palette it opens ---------------------------------- */
+
+.find-launch-wrap {
+  padding: 0 var(--s-1h) var(--s-2);
+}
+.find-launch {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1h);
+  width: 100%;
+  height: var(--h-md);
+  padding: 0 var(--s-1h) 0 var(--s-2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--hover);
+  color: var(--faint);
+  font: inherit;
+  font-size: var(--fs-base);
+  text-align: left;
+  transition: background var(--dur-1) var(--ease);
+}
+.find-launch:hover {
+  background: var(--hover-strong);
+  color: var(--muted);
+}
+.find-launch-label {
+  flex: 1;
+  min-width: 0;
+}
+.find-launch kbd,
+.find-pal kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-xs);
+  background: var(--panel);
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  line-height: 1;
+}
+
+.find-pal {
+  width: min(640px, calc(100vw - 24px));
+  max-height: min(600px, calc(100dvh - 96px));
+  margin: max(48px, 12vh) auto auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-lg);
+  background: var(--popover);
+  color: var(--text);
+  box-shadow: var(--shadow-2);
+  overflow: hidden;
+}
+/* It springs into place, landing with a small overshoot. */
+.find-pal[open] {
+  display: flex;
+  flex-direction: column;
+  animation: find-pal-spring 560ms linear both;
+}
+/* Left alone for three seconds after opening, it flashes white once and settles back to the lifted shadow. */
+.find-pal[open].is-flash {
+  animation: find-pal-flash 1.8s var(--ease) both;
+}
+.find-pal::backdrop {
+  background: color-mix(in srgb, var(--scrim) 60%, transparent);
+}
+@keyframes find-pal-spring {
+  0% {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.92);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(3px) scale(1.03);
+  }
+  52% {
+    transform: translateY(-1px) scale(0.985);
+  }
+  74% {
+    transform: scale(1.006);
+  }
+  100% {
+    transform: none;
+  }
+}
+@keyframes find-pal-flash {
+  0%,
+  20% {
+    box-shadow: var(--shadow-flash);
+  }
+}
+.find-pal-field {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s-2h);
+  height: 48px;
+  padding: 0 var(--s-3h) 0 var(--sheet-px);
+  border-bottom: 1px solid var(--line);
+}
+/* With nothing typed and nothing recent, the palette is the field alone. */
+.find-pal-field:only-child {
+  border-bottom: 0;
+}
+/* Every result is a control, not a result: a button at the field's end, with its shortcut. */
+.find-pal-all {
+  flex: none;
+}
+.find-pal-all kbd {
+  margin-right: -4px;
+}
+.find-pal-field > .glyph {
+  color: var(--faint);
+}
+.find-pal-field input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-title);
+  outline: none;
+}
+.find-pal-field input::placeholder {
+  color: var(--faint);
+}
+.find-pal-note {
+  flex: none;
+  margin: 0;
+  padding: var(--s-2) var(--sheet-px) 0;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+.find-pal-note b {
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+}
+.find-pal-note > span + span::before {
+  content: " ";
+}
+.find-pal-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: var(--s-1h);
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  transition: opacity var(--dur-1) var(--ease);
+}
+.find-pal-list[aria-busy="true"] {
+  opacity: 0.72;
+}
+.find-pal-opt {
+  display: grid;
+  grid-template-columns: var(--icon-md) minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--s-2h);
+  padding: 7px var(--s-2h);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.find-pal-opt > .glyph {
+  position: relative;
+  top: 2px;
+  color: var(--faint);
+}
+.find-pal-opt[aria-selected="true"] {
+  background: var(--select);
+}
+.find-pal-opt[aria-selected="true"] > .glyph,
+.find-pal-opt[aria-selected="true"] .find-pal-title {
+  color: var(--select-text);
+}
+.find-pal-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.find-pal-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  min-width: 0;
+  font-weight: var(--fw-medium);
+}
+.find-pal-meta {
+  flex: none;
+  margin-left: auto;
+  color: var(--faint);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-regular);
+}
+.find-pal-line {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--fs-base);
+  line-height: var(--lh-ui);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.find-pal-addr {
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+}
+.find-pal-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--s-2h) var(--s-2h) 0 var(--sheet-px);
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+}
+.find-pal-recent .find-pal-opt {
+  align-items: center;
+  padding-block: 5px;
+}
+.find-pal-recent .find-pal-opt > .glyph {
+  top: 0;
+}
+.find-pal-recent .find-pal-title {
+  font-weight: var(--fw-regular);
+}
+.find-pal-empty {
+  max-width: var(--measure);
+  margin: 0;
+  padding: var(--s-3) var(--sheet-px) var(--s-3h);
+  color: var(--muted);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+@media (max-width: 760px) {
+  .find-pal {
+    width: calc(100vw - 16px);
+    margin-top: 8px;
+    max-height: calc(100dvh - 16px);
+  }
+  .find-pal-meta,
+  .find-pal-all kbd {
+    display: none;
+  }
+}
+/* Without motion it simply appears; the flash, which only brightens, stays. */
+@media (prefers-reduced-motion: reduce) {
+  .find-pal[open]:not(.is-flash) {
+    animation: none;
+  }
+}

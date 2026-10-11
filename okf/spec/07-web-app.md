@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-11}
 status: stable
 ---
 
@@ -54,18 +54,44 @@ the browser's back button and "open in new tab" both work.
 - **Top of the panel:** the W mark and the "WhatBuild" wordmark, linking to the overview (`/`)
   from every screen, with the button that hides the panel at the row's far end. Only the mark and
   wordmark are the link, so a click that misses the hide button does not leave the screen. Then the
-  product switch, showing the product and its organization and team.
+  product switch, showing the product and its organization and team, and under it the **Search**
+  field, "Search <product>" with its shortcut, which opens the search palette (below).
 - **L1**, exactly and in this order: **Idea, Evidence, Exploration, Story**, each with its count:
   every item the stage holds (`stage_counts`, [§4.2](04-data-model.md),
   [decision](../decisions/each-stage-counts-every-item-it-holds.md)). Idea counts outcomes, Evidence
   sources, Exploration mockups and current assumptions together, and Story its pages, those in the
   tree and the Published mockups alike.
   Below them, quieter: **Connect an agent**, **Activity** (§7.9) and the product's **Settings**.
-  Exploration opens on its mockups; the mockups, then the assumptions, are listed in its panel. Search belongs to Evidence. The app's URLs follow the areas
+  Exploration opens on its mockups; the mockups, then the assumptions, are listed in its panel. The app's URLs follow the areas
   (`/evidence`, `/exploration/…`); REST and MCP name the objects (`sources`, `mockups`).
   Exploration was called Synthesis, and a link to `/synthesis/…` opens the same path under
   `/exploration/…`. Exploration once listed insights and decisions too; a link to one opens the
   source it became ([§4.7](04-data-model.md)), and a link to either list opens Exploration.
+- **Search** covers the whole product in one place, by plain words ([§8.2](08-search.md), plain
+  mode). The **palette** opens from the panel's Search field, ⌘K / Ctrl+K, or `/` when not typing,
+  on any product screen. It springs into place with a small overshoot (it simply appears with
+  reduced motion), and if it is left untouched for three seconds it flashes white once and settles
+  to the lifted shadow. It opens as the field alone, with up to six **recent searches** under it
+  when it is empty: searches followed through in that product (a result opened, or every result),
+  newest first, kept in the browser and cleared at sign-out (§9.1); picking one fills the field, and
+  Clear empties the list. Results come as you type, best match first, at most eight: each with its
+  kind's glyph, its title with the words marked, what it is (Source with its date and matching
+  passages, Assumption with its status, Mockup with the page), and a source's best passage or
+  another result's matching text. Arrows (or Ctrl+N and Ctrl+P) move; Enter opens the selected
+  result (a source matched only in its passages opens at that passage). The **All N results**
+  button at the field's end (⌘Enter / Ctrl+Enter) opens the Search screen with the words, and
+  empties the palette. Closing it (Escape or a click outside) keeps the words for next time; another
+  product starts empty. A line under the field says how the words were read: a corrected word
+  ("Showing results for quote."), a kind brought first, or that nothing holds every word.
+  The **Search screen** (`/search?q`) has the same field, searching as you type, and lists the
+  results under the product's four areas, each a sheet in the panel's order: **Idea** (the product
+  concept, then outcomes), **Evidence** (sources, each with its best three passages and "N more
+  passages in this source"), **Exploration** (mockups, then assumptions, with their status) and
+  **Story**. A kind named in the query brings its area first. The panel shows Everything and each
+  area with its count (`?show=idea|evidence|exploration|story`). With `record_id` it lists every
+  matching passage of one source, with a link back to searching everything. A corrected word
+  offers "Search for <word> instead" (`?strict=1`). Nothing holding the words says "Nothing
+  matches" and suggests another word or fewer words. Readers have no search.
 - **A reader** ([§3.5](03-accounts-teams-and-identity.md)) has only the Story: L1 is **Story**
   alone with its count, and the quiet group is gone. The product opens on the Story, and any other
   product screen, opened by a link or typed, takes a reader to the Story, with a toast saying they
@@ -167,11 +193,11 @@ person's organization role is in the account menu, and who has which role is on 
 
 /t/:tenant/:team/:product                     → …/idea
   /idea               ?status                 the product concept, outcomes with counts
-  /evidence           ?tags&added_by&added&query&include_archived&sort&order
-                      (added: 1, 7, 30, 60 or 90 days; query: the title search)
+  /evidence           ?tags&added_by&date_from&date_to&query&include_archived&sort&order
+                      (date_from, date_to: the date captured; query: a title search; both from a link)
   /evidence/new                               intake: describe it, add files, create
   /evidence/:record   ?view=passages|original|notes|files &seq=N &file=<path>
-  /search             ?q&mode&scope&record_id
+  /search             ?q&show&record_id&strict
   /exploration                                → …/exploration/mockups
   /exploration/mockups                        → the mockup last opened here, or the most recent; first use with none
   /exploration/mockups/:id  ?v=N &page=<page_id>  a mockup's canvas, at a version, with a page selected
@@ -270,11 +296,8 @@ The sources, and everything for reading them.
   material it is or where to file it. Multi-file drag-and-drop is supported;
   progress and derivation status are shown until `ready` or a terminal status with a
   plain-language explanation and next step (`needs_transcript` → "add a transcript").
-- **Browse.** The panel's context slot opens with the search: one find field and a **Passages |
-  Titles** toggle under it. Passages (the default) opens Search on Enter. Titles narrows the list
-  as you type (`?query`, which also matches tags and file names; on a source page, Enter opens the
-  list narrowed). Switching takes the words along, and switching to Passages drops the title
-  search from the list. Then single-select filters, each a link that sets a URL param: **Tags** (All tags and
+- **Browse.** The panel's context slot, "Filter sources", holds single-select filters, each a
+  link that sets a URL param: **Tags** (All tags and
   the eight most used, each with its count, and "All N" for the rest; `?tags`), **Added by**
   (Anyone and each person who added sources, with counts, shown when more than one person has or
   while the filter is on; `?added_by`) and **Archived** (Hide archived, Include archived; `?include_archived`). The
@@ -361,10 +384,8 @@ The sources, and everything for reading them.
   to the whole range.
 - **Comments** (annotations) are shown inline under the passage they belong to, and listed in the
   Notes section. A comment on a range also tints every passage it covers.
-- **Search.** Free-text passage search; results are passages in context with speaker and time,
-  under their source's title, linking into the reader at that position. Exact-text results mark the whole
-  phrase; ranked results mark each word. The UI states what was searched
-  ([§8.4](08-search.md)). Assumption results carry their status, as the list does.
+- **Search this source** (the passage reader) opens the Search screen on that source: every
+  passage holding the words, each linking into the reader at that position (§7.2).
 
 ## 7.7 Exploration
 

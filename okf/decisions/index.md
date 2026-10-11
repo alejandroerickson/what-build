@@ -16,6 +16,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 
 - [WhatBuild contains no AI; agents bring the intelligence over MCP](no-ai-in-the-product.md)
 - [Postgres is the only database: rows, search and the job queue](postgres-is-the-only-database.md)
+- [One search covers the whole product and reads plain words, with no model and no index of its own](one-search-reads-plain-words-across-the-whole-product.md)
 - [One stateless container image serves everything and runs the worker](one-stateless-image.md)
 - [Each file is parsed in a worker thread of its own, held to a memory and a time limit, so a file can fail but never take the server down](each-file-is-parsed-in-a-thread-of-its-own-with-memory-and-time-limits.md)
 - [Self-hosting on Azure is done by an agent with the Azure CLI, from instructions in the repository, and shares nothing with the Cloud Run deployment](self-hosting-on-azure-is-agent-led-and-shares-nothing-with-cloud-run.md)

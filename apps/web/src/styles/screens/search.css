@@ -1,0 +1,183 @@
+/* Search: one field over everything in the product, results as you type, a source's passages under it. */
+
+.find-bar {
+  position: relative;
+  padding: var(--s-3) var(--sheet-px) var(--s-3);
+}
+.find-big input {
+  font-size: var(--fs-body);
+}
+/* The field's own glyph stays the search mark; a quiet spinner at its far end says a newer answer is coming. */
+.find-busy {
+  position: absolute;
+  right: calc(var(--sheet-px) + var(--s-2));
+  top: 50%;
+  margin-top: -7px;
+  color: var(--faint);
+  pointer-events: none;
+}
+.find-understood,
+.find-in {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--s-1h);
+  max-width: var(--measure);
+  margin: calc(-1 * var(--s-1)) 0 0;
+  padding: 0 var(--sheet-px) var(--s-3);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+.find-understood b {
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+}
+.find-in .glyph {
+  position: relative;
+  top: 2px;
+  color: var(--faint);
+}
+
+.find-results {
+  display: grid;
+  gap: var(--s-4);
+  align-items: start;
+  margin-top: var(--s-4);
+  transition: opacity var(--dur-1) var(--ease);
+}
+/* An answer for older words stays readable, dimmed a little, until the new one lands. */
+.find-results[aria-busy="true"] {
+  opacity: 0.72;
+}
+
+.find-list,
+.find-hits {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.find-item + .find-item {
+  border-top: 1px solid var(--line);
+}
+.find-head {
+  display: grid;
+  grid-template-columns: var(--icon-md) minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--s-3);
+  padding: 11px var(--sheet-px) 10px;
+  color: var(--text);
+  text-decoration: none;
+}
+.find-head > .glyph {
+  position: relative;
+  top: 2px;
+  color: var(--faint);
+}
+.find-head:hover {
+  background: var(--hover);
+}
+.find-head:hover > .glyph {
+  color: var(--muted);
+}
+.find-head:focus-visible,
+.find-hit:focus-visible,
+.find-more:focus-visible {
+  outline-offset: -2px;
+}
+.find-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.find-title {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+}
+.find-meta {
+  color: var(--faint);
+  font-size: var(--fs-sm);
+}
+.find-missing s {
+  text-decoration-color: var(--line-strong);
+}
+.find-snippet {
+  max-width: var(--measure);
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+/* A source's passages hang under its title, on the same text column, along a hairline. */
+.find-hits {
+  margin: -2px 0 var(--s-2h) calc(var(--sheet-px) + var(--icon-md) + var(--s-3) - var(--s-2h));
+  border-left: 1px solid var(--line);
+}
+.find-hits-all {
+  margin: 0;
+  border-left: 0;
+}
+.find-hits-all > li + li {
+  border-top: 1px solid var(--line);
+}
+.find-hit {
+  display: grid;
+  gap: 1px;
+  max-width: calc(var(--measure) + 2 * var(--s-2h));
+  padding: var(--s-1h) var(--s-2h);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  color: var(--text);
+  text-decoration: none;
+}
+.find-hits-all .find-hit {
+  max-width: none;
+  padding: 11px var(--sheet-px);
+  border-radius: 0;
+}
+.find-hit:hover {
+  background: var(--hover);
+}
+.find-hit-meta {
+  color: var(--faint);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+}
+.find-hit-text {
+  max-width: var(--measure);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.find-more {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1h);
+  margin: var(--s-0) 0 0;
+  padding: var(--s-1) var(--s-2h);
+  border-radius: var(--r-sm);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  text-decoration: none;
+}
+.find-more .glyph {
+  color: var(--faint);
+}
+.find-more:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+
+@media (max-width: 760px) {
+  .find-head {
+    padding-inline: var(--sheet-px);
+  }
+  .find-head .status {
+    display: none;
+  }
+}
+
+.find-results > .sheet {
+  margin: 0;
+}

@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete, closing an organization, the operator runbooks, the public sandbox with its limits, baseline and reset, and how retired insights and decisions became sources.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, sandbox]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-11}
 status: stable
 ---
 
@@ -50,7 +50,8 @@ that protect a sign-in with Google or Microsoft and an agent's connection while 
 ([§3.8](03-accounts-teams-and-identity.md)), display choices kept in the browser under
 `whatbuild.*`, and `wb_cookies`, which remembers the person's answer below. A browser can pass
 from one person to the next, so the display state that is one person's (the product they had open,
-their place in each Story and mockup, the Story's focus, the sandbox notices they have read) is
+their place in each Story and mockup, the Story's focus, the sandbox notices they have read, their
+recent searches in each product) is
 cleared when they sign out or the app finds their session ended; only the device's own choices
 (theme, hidden panels, the canvas's pan or interact mode) stay (`apps/web/src/lib/local-state.ts`).
 The optional kind is
