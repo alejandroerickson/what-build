@@ -406,7 +406,8 @@ sandbox, with the same `?frame=1`, and without `?theme`: a mockup carries its ow
 `story.print_view { page_ids }` (1–50 page ids, comma-separated in a query string) plans a print
 view: exactly the pages named, each at its current version, in the Story's order — a depth-first
 walk of the tree, the pages not yet placed, then the Published mockups in their order, and
-archived pages last, by title. Each page
+archived pages last, by title; a reader is given no archived page, which is missing for them
+([§3.5](03-accounts-teams-and-identity.md)). Each page
 carries `depth` (its depth in the hierarchy) and `level` (its outline level among the chosen
 pages: one more than the number of chosen ancestors, so the outline never skips a level). The
 result also gives `path` and `url` for the document itself.

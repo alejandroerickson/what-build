@@ -83,6 +83,9 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
 - **The worker ships in the same image** and polls the Postgres queue; a commit that enqueues work
   also wakes it. `serve` runs HTTP and the worker in one process unless `WHATBUILD_WORKER=0`;
   `worker` runs the worker alone. Splitting them is a configuration change, not a code change.
+  A worker claims only the kinds of job its version runs (`JOB_KINDS` in
+  `apps/server/src/worker.ts`), so while a release rolls out, an instance of the version before it
+  leaves a kind the new version's migration queued, without spending its attempts.
 - **A file is parsed in a thread of its own.** The worker starts a worker thread for each parse,
   with no environment, a heap of `WHATBUILD_PARSE_MEMORY_MB` (384 by default), half as much again
   for buffers and `WHATBUILD_PARSE_TIMEOUT_SECONDS` (120); a parse past them is stopped and fails,

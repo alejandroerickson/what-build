@@ -31,6 +31,10 @@ product as anyone else does. It revises one consequence of
   role but member) is refused its members and invitations (`members.list`, `403`), and the app
   leaves its Members out for them. The maintainer chose this on 2026-10-10: a Story is often read
   outside the team, and who works on it stays with the team.
+- A reader is given only the Story's live pages. An archived page, one the team took out of the
+  Story, is left out of a reader's page list and print view and answers them `404` by its address,
+  with its versions and HTML; the team still reads it. The maintainer chose this on 2026-10-10:
+  what the team archived is not part of the Story a stakeholder reads.
 - A reader's Story reads leave out what a page draws on: `refs`, `resolved_refs`, `citations`,
   `citation_count` and the page's notes for agents. Their product reads leave out the product
   concept and count Story pages only.
@@ -44,6 +48,7 @@ product as anyone else does. It revises one consequence of
 - A reader's agent sees exactly the reader's Story, as every agent has its person's role.
 - An evidence link inside a page leads a reader nowhere they can read: the app takes them back to
   the Story, with a toast saying they can read only the Story, so the return is never silent.
+- The app's Story shows a reader no Archived pages group, since the server gives them none.
 - The highest role still applies: a reader on a product who is a viewer on its team is a viewer,
   and a reader on one product who is a viewer on another in the same organization sees the people
   on that other product, never those of the one they only read

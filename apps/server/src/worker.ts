@@ -6,6 +6,12 @@ import { pruneOAuthClients } from "./auth/oauth.ts";
 const SIDECARS = ["segments.jsonl", "text.md", "outline.md", "manifest.json"];
 /** A job is tried at most this many times, whether it failed or the process stopped while running it. */
 const MAX_ATTEMPTS = 5;
+/**
+ * The kinds of job this version runs. A worker claims only these, so while a release rolls out, an
+ * instance of the version before it leaves a kind a new migration queued for the new version,
+ * instead of failing it and spending its attempts. A job no running version knows waits.
+ */
+export const JOB_KINDS = ["derive", "export", "move_to_evidence", "delete_blobs"] as const;
 
 interface Job {
   job_id: number;
@@ -112,6 +118,7 @@ export class Worker {
       where job_id = (
         select job_id from jobs
         where done_at is null and attempts < ${MAX_ATTEMPTS} and run_after <= now() and (locked_at is null or locked_at < now() - interval '10 minutes')
+          and kind = any(${[...JOB_KINDS]}::text[])
         order by job_id for update skip locked limit 1)
       returning job_id, tenant_id, kind, payload, attempts`.execute(this.env.db);
     return r.rows[0] ?? null;
@@ -131,6 +138,7 @@ export class Worker {
       where job_id in (
         select job_id from jobs
         where done_at is null and attempts >= ${MAX_ATTEMPTS} and (locked_at is null or locked_at < now() - interval '10 minutes')
+          and kind = any(${[...JOB_KINDS]}::text[])
         order by job_id for update skip locked limit 20)
       returning job_id, tenant_id, kind, payload, attempts`.execute(this.env.db);
     for (const job of abandoned.rows) {

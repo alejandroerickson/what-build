@@ -44,6 +44,16 @@ async function loadPage(ctx: OpContext, page: string, lock = false) {
   return row;
 }
 
+/**
+ * A page as its reader may read it. A Story reader is given only live pages: an archived page is
+ * what the team took out of the Story, so for a reader it is not found, by id as in the lists.
+ */
+async function loadReadablePage(ctx: OpContext, page: string) {
+  const row = await loadPage(ctx, page);
+  if (row.archived_at && readsOnlyTheStory(ctx.scope.role)) throw notFound(`Story page "${page}" has never been published in this product.`);
+  return row;
+}
+
 function pageSummary(p: { page_id: string; title: string; summary: string; version_count: number; current_version_id: string; archived_at: string | null; etag: string; updated_at: string; updated_by: unknown }) {
   return { page_id: p.page_id, title: p.title, summary: p.summary, current_version: p.version_count, current_version_id: p.current_version_id, archived_at: p.archived_at, etag: p.etag, updated_at: p.updated_at, updated_by: p.updated_by };
 }
@@ -212,13 +222,13 @@ export const listPages = defineOperation({
   access: "story",
   mutates: false,
   summary: "The Story's pages, without HTML: title, summary, current version and etag.",
-  description: "Archived pages are left out unless include_archived. The hierarchy (get_hierarchy) is the reader's navigation.",
+  description: "Archived pages are left out unless include_archived; a reader (the Story-only role) is never given them. The hierarchy (get_hierarchy) is the reader's navigation.",
   input: z.strictObject({ include_archived: z.boolean().default(false) }),
   rest: { method: "GET", path: "/story/pages" },
   mcp: { tool: "story", action: "list_pages" },
   async handler(ctx, input) {
     let q = ctx.db.selectFrom("story_pages").selectAll().where("product_id", "=", productId(ctx));
-    if (!input.include_archived) q = q.where("archived_at", "is", null);
+    if (!input.include_archived || readsOnlyTheStory(ctx.scope.role)) q = q.where("archived_at", "is", null);
     const rows = await q.orderBy("title").execute();
     return { items: rows.map(pageSummary) };
   },
@@ -326,12 +336,12 @@ export const getPage = defineOperation({
   mutates: false,
   summary: "Read a Story page's current version, with its HTML, citations, notes for agents, and the page etag you need to publish again.",
   description:
-    "404 means the page has never been published. An archived page stays readable here. Read this before revising a page, and keep what is useful. agent_notes holds what agents keep about the page — its purpose, sources still to fold in, choices about its structure — with its own etag for write_notes; read it before revising. include_html false leaves out the HTML (html_chars and html_sha256 stay). A reader (the Story-only role) gets the page without agent_notes, refs, resolved_refs or citations.",
+    "404 means the page has never been published. An archived page stays readable here, except to a reader (the Story-only role), who gets 404 for it. Read this before revising a page, and keep what is useful. agent_notes holds what agents keep about the page — its purpose, sources still to fold in, choices about its structure — with its own etag for write_notes; read it before revising. include_html false leaves out the HTML (html_chars and html_sha256 stay). A reader (the Story-only role) gets the page without agent_notes, refs, resolved_refs or citations.",
   input: z.strictObject({ page_id: pageId, include_html: z.boolean().default(true) }),
   rest: { method: "GET", path: "/story/pages/:page_id" },
   mcp: { tool: "story", action: "get_page" },
   async handler(ctx, input) {
-    const p = await loadPage(ctx, input.page_id);
+    const p = await loadReadablePage(ctx, input.page_id);
     const notes = readsOnlyTheStory(ctx.scope.role) ? {} : { agent_notes: notesView(p) };
     return { ...pageSummary(p), ...notes, current: await versionView(ctx, p.current_version_id, input.include_html) };
   },
@@ -344,12 +354,12 @@ export const listVersions = defineOperation({
   mutates: false,
   summary: "A page's published versions, newest first, without HTML.",
   description:
-    "Versions are immutable and numbered 1, 2, 3…; read any one with get_version, and restore one with publish from_version. html_sha256 tells versions with identical HTML apart without reading it.",
+    "Versions are immutable and numbered 1, 2, 3…; read any one with get_version, and restore one with publish from_version. html_sha256 tells versions with identical HTML apart without reading it. A reader (the Story-only role) gets 404 for an archived page.",
   input: z.strictObject({ page_id: pageId, limit: z.number().int().min(1).max(100).default(25), before: z.number().int().min(1).optional().describe("Only versions numbered below this.") }),
   rest: { method: "GET", path: "/story/pages/:page_id/versions" },
   mcp: { tool: "story", action: "list_versions" },
   async handler(ctx, input) {
-    await loadPage(ctx, input.page_id);
+    await loadReadablePage(ctx, input.page_id);
     let q = ctx.db
       .selectFrom("story_versions")
       .select(["version_id", "n", "title", "summary", "created_at", "created_by", "citations"])
@@ -372,12 +382,12 @@ export const getVersion = defineOperation({
   access: "story",
   mutates: false,
   summary: "Read one published version of a page, by number.",
-  description: "Includes the page's current archived_at, so a reader browsing history still sees an archive notice. A reader (the Story-only role) gets it without refs, resolved_refs or citations.",
+  description: "Includes the page's current archived_at, so someone browsing history still sees an archive notice. A reader (the Story-only role) gets it without refs, resolved_refs or citations, and gets 404 for an archived page.",
   input: z.strictObject({ page_id: pageId, version: z.number().int().min(1), include_html: z.boolean().default(true) }),
   rest: { method: "GET", path: "/story/pages/:page_id/versions/:version" },
   mcp: { tool: "story", action: "get_version" },
   async handler(ctx, input) {
-    const p = await loadPage(ctx, input.page_id);
+    const p = await loadReadablePage(ctx, input.page_id);
     const v = await ctx.db.selectFrom("story_versions").select("version_id").where("product_id", "=", productId(ctx)).where("page_id", "=", input.page_id).where("n", "=", input.version).executeTakeFirst();
     if (!v) throw notFound(`Page "${input.page_id}" has no version ${input.version}.`);
     return { ...(await versionView(ctx, v.version_id, input.include_html)), page_archived_at: p.archived_at, is_current: v.version_id === p.current_version_id };
@@ -712,7 +722,7 @@ export const archivePage = defineOperation({
   access: "write",
   mutates: true,
   summary: "Archive a Story page: out of the navigation, its sub-pages promoted into its place. Erases nothing.",
-  description: "The page and all its versions stay readable by id. Restore returns it unplaced. Pass the page's etag.",
+  description: "The page and all its versions stay readable by id, except to a reader (the Story-only role), who is given no archived page. Restore returns it unplaced. Pass the page's etag.",
   input: z.strictObject({ page_id: pageId, expected_etag: expectedEtag }),
   rest: { method: "POST", path: "/story/pages/:page_id/archive" },
   mcp: { tool: "story", action: "archive_page" },
@@ -942,7 +952,9 @@ async function printPages(ctx: OpContext, ids: string[]) {
     .select(["p.page_id", "p.title", "p.archived_at", "v.n", "v.created_at", "v.html", "v.mockup"])
     .where("p.product_id", "=", productId(ctx))
     .where("p.page_id", "in", wanted)
-    .execute();
+    .execute()
+    // A reader is given only live pages, so an archived one is missing for them.
+    .then((rs) => (readsOnlyTheStory(ctx.scope.role) ? rs.filter((r) => !r.archived_at) : rs));
   const missing = wanted.filter((w) => !rows.some((r) => r.page_id === w));
   if (missing.length) throw notFound(`These Story pages have never been published in this product: ${missing.join(", ")}.`, { missing });
   const h = await resolvedHierarchy(ctx);
@@ -967,7 +979,7 @@ export const printView = defineOperation({
   mutates: false,
   summary: "Plan a print view of chosen Story pages, to save as PDF from a browser: their order, heading levels and the view's address.",
   description:
-    "Includes exactly the pages named, each at its current version, in the Story's order: a depth-first walk of the tree, the pages not yet placed, then the Published mockups in their order; archived pages after, by title. level is the page's outline level among the chosen pages: 1 for a page with no chosen ancestor. url opens one HTML document — a title block, contents, then each page — that a person prints to PDF from their browser; page scripts do not run there, so content a page draws with JavaScript is left out. 404 lists pages that have never been published.",
+    "Includes exactly the pages named, each at its current version, in the Story's order: a depth-first walk of the tree, the pages not yet placed, then the Published mockups in their order; archived pages after, by title; a reader (the Story-only role) is never given an archived page, which is missing for them. level is the page's outline level among the chosen pages: 1 for a page with no chosen ancestor. url opens one HTML document — a title block, contents, then each page — that a person prints to PDF from their browser; page scripts do not run there, so content a page draws with JavaScript is left out. 404 lists pages that have never been published.",
   input: printInput,
   rest: { method: "GET", path: "/story/print-view" },
   mcp: { tool: "story", action: "print_view" },

@@ -280,7 +280,6 @@ Each has a default so work is not blocked.
 | 9 | **Delete beyond sources** — assumptions, annotations, Story pages, mockups, outcomes, products. | The same guards and tombstones as sources; an assumption's delete is also how a citation snapshot is removed. |
 | 10 | **How WhatBuild describes Exploration** — the journey's line for it on the overview and the public site, the opening of the README, `AGENTS.md` and the charter, and the skill's description. When insights and decisions were retired, each was changed only enough to stop naming them. | As written until the maintainer settles the wording; the tagline stays. |
 | 11 | **Shared parts on a mockup canvas** — several people, each with an agent in their own project, publish pages to one canvas. If the projects do not share styles and components, the pages drift apart. | Pages are self-contained outputs, and each version carries files (a DESIGN.md, components, tokens) that collaborators pull into their projects ([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)). Revisit pages drawn from a shared stylesheet and components if collaborators' pages still drift. |
-| 13 | **Archived Story pages and readers** — a reader is given every Story page and version ([§3.5](03-accounts-teams-and-identity.md)), so the Story's Archived pages group, and an archived page by its address, are shown to readers as to everyone else. The [reader decision](../decisions/a-reader-reads-only-the-story.md) does not say whether a stakeholder should see what agents archived. | As built: readers see archived pages, marked archived. If the maintainer decides readers see only live pages, `story.list_pages`, `story.get_page`, its versions and HTML and the print view leave archived pages out for a reader, in the server, and the app hides the group. |
 | 12 | **Tags that drift apart** — tags are free text, so one team can end up with `interview`, `interviews` and `customer-interview` ([decision](../decisions/sources-are-described-by-tags.md)). | Agents read `sources.facets` before tagging and the app offers the tags in use. If drift appears anyway, an operation that renames or merges a tag across a product's sources. |
 
 **Settled**, and where:
@@ -303,8 +302,8 @@ Each has a default so work is not blocked.
   separate reviewer role, every role but reader reads the activity log; `403` names the role
   ([§3.5](03-accounts-teams-and-identity.md)).
 - Stakeholders who read only the Story get the reader role, not share links: they sign in, and
-  the server gives them the Story's pages, versions and export without what the pages draw on
-  ([decision](../decisions/a-reader-reads-only-the-story.md)).
+  the server gives them the Story's live pages, versions and export without what the pages draw
+  on, and no archived page ([decision](../decisions/a-reader-reads-only-the-story.md)).
 - Sources are not shared across products; they are copied or moved
   ([§3.7](03-accounts-teams-and-identity.md)).
 - Assumptions freeze at first review; corrections supersede ([§4.8](04-data-model.md)).

@@ -247,8 +247,9 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
 | Team | `admin`, `editor`, `viewer`, `reader` | the same role on every product in the team |
 | Product | `admin`, `editor`, `viewer`, `reader` | that product only |
 
-- **Reader** reads only the Story: its pages, every version of them, the hierarchy, and the print
-  view to export it (◆ [decision](../decisions/a-reader-reads-only-the-story.md)). These
+- **Reader** reads only the Story: its live pages, every version of them, the hierarchy, and the
+  print view to export it; an archived page is left out of their lists and print view and answers
+  them `404` by its address (◆ [decision](../decisions/a-reader-reads-only-the-story.md)). These
   operations, and `products.get`, declare the access level `story` (`products.list` lists every
   product the caller holds a role on); every
   other product operation needs viewer and answers a reader `403` ("You are a reader on product

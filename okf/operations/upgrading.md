@@ -23,7 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Story readers** are given only the Story's live pages: `story.list_pages` leaves archived
+  pages out for a reader even with `include_archived`, and `story.get_page`, `list_versions`,
+  `get_version`, a version's HTML and the print view answer a reader `404` for an archived page.
+  The team still reads them. A reader no longer sees the Story's Archived pages group.
 
 ## v0.5.0
 
