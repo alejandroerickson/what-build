@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.8.0
+
 - **The server counts how it is used.** Migration `0019_usage` adds two tables: counts of calls per
   day, operation, door, agent client and outcome, and each day a person used a part of WhatBuild,
   under a pseudonym derived from `WHATBUILD_GRANT_KEY`. Nothing to set. Rotating the grant key
