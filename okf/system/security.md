@@ -40,7 +40,7 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 2. **Agent and server**: an OAuth token bound to the MCP endpoint a person approved; REST takes none.
 3. **Server and database**: one tenant per transaction, under forced row-level security.
 4. **Agent-written HTML and the app**: pages run in an opaque origin with no network access.
-5. **Uploads and the server**: a signed grant per file; parsing in a worker thread held to a memory
+5. **Uploads and the server**: a signed grant per file or mockup archive; an archive read as hostile; parsing in a worker thread held to a memory
    and a time limit, never in a request.
 6. **Server and the internet**: the URL fetcher, the identity providers, mail.
 7. **Edge and service**: the Cloudflare Worker passes requests through; the controls are in the service.
@@ -177,6 +177,14 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   `files.complete_upload` reads the object's size before its bytes, discards one over the grant
   with `413`, and hashes the bytes as it streams them.
 - File paths refuse traversal, backslashes and control characters (`packages/core/src/media.ts`).
+- A mockup version uploaded as a ZIP is read as hostile input (`packages/core/src/zip-archive.ts`,
+  [§6.7](../spec/06-operations-and-adapters.md)). Its grant belongs to one product, one account and
+  one mockup, and publishes once. The central directory is read before anything is inflated, so
+  too many entries, an entry declared over 8 MB and a total declared over 40 MB are refused
+  unexpanded; each entry is inflated a few kilobytes at a time and stopped once it gives more than
+  it declared, and its CRC must match. Names that climb out, absolute names, backslashes,
+  duplicates (also by case), encryption, ZIP64 and anything the manifest does not name are refused.
+  Nothing is unpacked to disk, and every page meets `inspectStoryHtml` as an inline page does.
 - Parsing is a pure function of bytes, run by the worker in a worker thread of its own for each
   file, with an empty environment (`apps/server/src/parse-thread.ts`,
   [decision](../decisions/each-file-is-parsed-in-a-thread-of-its-own-with-memory-and-time-limits.md)).

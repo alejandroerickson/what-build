@@ -631,7 +631,7 @@ pages side by side before the canvas wraps, or null for one row), the `pages` in
 `page_id` (a slug, `[a-z0-9][a-z0-9-]*`, ≤ 80 chars), `title` (1–200), `notes` (Markdown,
 ≤ 10,000, the page's design notes), `width` (240–2,560 CSS pixels, default 1,280; 390 for a
 phone) and `height` (240–4,000, default 800), and its HTML, returned only with `include_html`;
-`html_sha256` and `html_path` (the page's HTML route) are computed on read. Limits: 24 pages and
+`html_sha256` and `html_path` (the page's HTML route) are computed on read. Limits: 48 pages and
 8,000,000 characters of HTML in a version; 50 mockups in a product, archived ones included
 (`409 quota_exceeded`).
 
@@ -680,7 +680,17 @@ holds `brief.md`, `manifest.json` (format `whatbuild-mockup`, format version 1: 
 version, `columns`, who published it and when, the pages in order with their titles, sizes,
 `html_sha256` and file names, the files, the refs and the citations), `pages/<page_id>.html` with
 `pages/<page_id>.notes.md`, and each file under `files/` at its path, so an agent can build the next version in a project of its own and
-publish the pages that changed.
+publish it from there.
+
+**Upload.** The same layout comes back as a ZIP: `mockups.request_upload { mockup_id? }` grants a
+PUT of one archive through the upload relay, and `mockups.publish` takes its `upload_id` in place
+of `pages`, `files` and `brief`, with the same meaning (§6.7). A grant is a `mockup_uploads` row:
+`upload_id`, the product, the mockup or null for a new one, the requester (`principal`),
+`max_bytes`, `blob_key`, `expires_at`, and, once bytes arrive, `uploaded_at`, `size` and `sha256`
+of what arrived; publishing sets `used_at` and the `version_id` it made, so an upload publishes
+once. Its bytes sit in object storage until the worker deletes the row and the bytes a day after
+the grant expires. Row-level security keeps it to its organization, and a public sandbox's reset
+deletes it.
 
 **Archive.** `mockups.archive` and `mockups.restore` take the etag. An archived mockup leaves the
 list unless `include_archived`, and every version stays readable.

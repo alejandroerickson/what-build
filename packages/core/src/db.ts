@@ -572,6 +572,26 @@ export interface MockupFilesTable {
   content: string;
 }
 
+/** A grant to upload a mockup version as a ZIP; publish reads its bytes once. */
+export interface MockupUploadsTable {
+  upload_id: string;
+  tenant_id: string;
+  product_id: string;
+  /** The mockup the upload publishes to, or null for a new mockup. */
+  mockup_id: string | null;
+  principal: Json<ActorSnapshot>;
+  max_bytes: number;
+  blob_key: string;
+  expires_at: Ts;
+  uploaded_at: TsNull;
+  size: number | null;
+  sha256: string | null;
+  used_at: TsNull;
+  /** The version publishing it made. */
+  version_id: string | null;
+  created_at: Ts;
+}
+
 export interface MockupPagesTable {
   version_id: string;
   tenant_id: string;
@@ -769,6 +789,7 @@ export interface DB {
   mockup_versions: MockupVersionsTable;
   mockup_pages: MockupPagesTable;
   mockup_files: MockupFilesTable;
+  mockup_uploads: MockupUploadsTable;
   lineage: LineageTable;
   activity: ActivityTable;
   tombstones: TombstonesTable;

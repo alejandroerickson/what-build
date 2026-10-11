@@ -15,7 +15,7 @@ import {
 import { expectedEtag, id } from "../schemas.ts";
 import { decodeCursor, encodeCursor, newEtag, newId, randomToken, sha256Hex } from "../util.ts";
 import { MAX_BATCH } from "./sources.ts";
-import { MAX_MOCKUPS, MOCKUP_HTML_TOTAL } from "./mockups.ts";
+import { MAX_MOCKUP_PAGES, MAX_MOCKUPS, MOCKUP_ARCHIVE_MAX_BYTES, MOCKUP_HTML_TOTAL } from "./mockups.ts";
 import { MAX_PAGES } from "./story.ts";
 import { STORY_HTML_MAX } from "../story-html.ts";
 
@@ -238,7 +238,9 @@ async function panel(ctx: OpContext, sb: SandboxState) {
       { label: "A request body", value: REST_BODY_MAX_BYTES, unit: "bytes", set_by: null },
       { label: "A Story page", value: STORY_HTML_MAX, unit: "characters", set_by: null },
       { label: "Story pages in a product", value: MAX_PAGES, unit: "pages", set_by: null },
+      { label: "Pages in a mockup version", value: MAX_MOCKUP_PAGES, unit: "pages", set_by: null },
       { label: "A mockup version's HTML, all pages", value: MOCKUP_HTML_TOTAL, unit: "characters", set_by: null },
+      { label: "A mockup version uploaded as a ZIP", value: Math.min(MOCKUP_ARCHIVE_MAX_BYTES, cfg.relayMaxBytes), unit: "bytes", set_by: null },
       { label: "Mockups in a product", value: MAX_MOCKUPS, unit: "mockups", set_by: null },
       { label: "Files on a source", value: 50, unit: "files", set_by: null },
       { label: "Sources in one archive or restore call", value: MAX_BATCH, unit: "sources", set_by: null },

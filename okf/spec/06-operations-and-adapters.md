@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 108 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 109 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
 generated: {by: agent:claude, at: 2026-10-10}
 status: stable
@@ -34,7 +34,7 @@ defineOperation({
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 108. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 109. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
@@ -83,10 +83,10 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
 | 401 | No or invalid identity or grant | `unauthenticated`, `invalid_grant` |
 | 403 | A role too low for the action; a call outside a scoped MCP connector; a cross-origin cookie write; sign-up not allowed; something a visitor to the public sandbox may not do, or may not do for now | `forbidden`, `outside_connector_scope`, `forbidden_origin`, `invite_only`, `invitation_wrong_address`, `sandbox_restricted`, `sandbox_read_only`, `sandbox_closed`, `tenant_allowance` |
 | 404 | Absent — including everything the caller has no role on | `not_found` |
-| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `frozen`, `primary_taken`, `source_in_use`, `export_in_progress`, `last_owner`, `quota_exceeded`, `sandbox_full`, `no_baseline` |
-| 410 | Deliberately deleted, with a tombstone; an invitation no longer usable | `record_deleted`, `invitation_used`, `invitation_expired`, `invite_revoked`, `invite_expired`, `invite_used_up` |
+| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `upload_mismatch`, `already_uploaded`, `slug_taken`, `frozen`, `primary_taken`, `source_in_use`, `export_in_progress`, `last_owner`, `quota_exceeded`, `sandbox_full`, `no_baseline` |
+| 410 | Deliberately deleted, with a tombstone; an invitation or a mockup upload no longer usable | `record_deleted`, `upload_used`, `upload_expired`, `invitation_used`, `invitation_expired`, `invite_revoked`, `invite_expired`, `invite_used_up` |
 | 413 | Body or file beyond a limit | `too_large` |
-| 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `product_required`, `window_too_large`, `quote_not_found`, `invalid_citation`, `cross_product_reference`, `invalid_query`, `invalid_cursor`, `invalid_html`, `invalid_patch`, `confirmation_required`, `confidence_requires_human` |
+| 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `product_required`, `window_too_large`, `quote_not_found`, `invalid_citation`, `cross_product_reference`, `invalid_query`, `invalid_cursor`, `invalid_html`, `invalid_archive`, `invalid_patch`, `confirmation_required`, `confidence_requires_human` |
 | 429 | Rate limited | `rate_limited` |
 
 - **`403` names the role.** A caller with a role on the product but too low for the action gets
@@ -160,7 +160,7 @@ must come from the app's own origin (`403 forbidden_origin`).
 
 ### The operation catalogue
 
-All 108 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 109 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-teams-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -265,6 +265,7 @@ being changed inside the handler.
 | `mockups` | `list_versions` | `GET P/mockups/:mockup_id/versions` | viewer |
 | `mockups` | `get_version` | `GET P/mockups/:mockup_id/versions/:version` | viewer |
 | `mockups` | `publish` | `POST P/mockups` | editor |
+| `mockups` | `request_upload` | `POST P/mockups/uploads` | editor |
 | `mockups` | `archive` | `POST P/mockups/:mockup_id/archive` | editor |
 | `mockups` | `restore` | `POST P/mockups/:mockup_id/restore` | editor |
 | `mockups` | `get_download` | `POST P/mockups/:mockup_id/downloads` | viewer |
@@ -331,7 +332,9 @@ Notes on recent actions:
   keeps its content unless it is sent. `mockups.get` and `get_version` take `include_files` to
   return the files' content.
   `mockups.get_download` gives a version as a ZIP through a grant, for an agent to build the next
-  version elsewhere; `mockups.check_citations` checks a version's citations
+  version elsewhere, and `mockups.request_upload` a grant to PUT a version back as a ZIP in the
+  same layout, which `publish` takes as `upload_id` in place of `pages`, `files` and `brief`
+  ([§6.7](#67-getting-files-in)); `mockups.check_citations` checks a version's citations
   ([§4.12](04-data-model.md)). `mockups.get` lists the Story pages that show its pages.
 - `story.promote_mockup` publishes a Story page version that shows one page of a mockup version,
   on a new page or as an existing page's next version, without copying it; the version reports
@@ -368,6 +371,7 @@ These carry bytes, identity or discovery, not operations:
 
 ```
 PUT  /api/v1/uploads/:grant_id                       upload relay (grant header is the credential)
+PUT  /api/v1/uploads/mockup/:upload_id               the relay for a mockup version's ZIP (grant header is the credential)
 GET  /api/v1/downloads/:file_version_id              file bytes under a download grant
 GET  /api/v1/downloads/export/:export_id             an export ZIP under a download grant
 GET  P/sources/:record_id/file?path=&version=&download=1   file bytes for the web app (ranged)
@@ -470,7 +474,7 @@ the same of a newer version than the instructions named. `unknown_tool` and `unk
 the server's version and its tools or the tool's actions (also in `details`: `server_version`,
 `tools` or `actions`), and say the client may hold a list from another version.
 
-**Tools.** Sixteen tools over the 108 operations: twelve grouped by noun, four standalone.
+**Tools.** Sixteen tools over the 109 operations: twelve grouped by noun, four standalone.
 
 | Tool | Actions |
 |---|---|
@@ -483,7 +487,7 @@ the server's version and its tools or the tool's actions (also in `details`: `se
 | `derived` | `manifest`, `outline`, `text`, `list`, `rederive`, `write_note`, `read_note` |
 | `assumptions` | `list`, `get`, `create`, `update`, `review`, `supersede`, `link`, `unlink`, `archive`, `check_citations` |
 | `story` | `guidance`, `get_style`, `set_style`, `list_pages`, `get_page`, `list_versions`, `get_version`, `publish`, `promote_mockup`, `write_notes`, `check_citations`, `print_view`, `get_hierarchy`, `set_hierarchy`, `archive_page`, `restore_page` |
-| `mockups` | `list`, `get`, `list_versions`, `get_version`, `publish`, `archive`, `restore`, `get_download`, `check_citations` |
+| `mockups` | `list`, `get`, `list_versions`, `get_version`, `publish`, `request_upload`, `archive`, `restore`, `get_download`, `check_citations` |
 | `lineage` | `capture`, `write`, `check` |
 | `activity` | `list` |
 | `search` | standalone |
@@ -608,6 +612,59 @@ In order of preference for an agent (`packages/core/src/ops/files.ts`):
 A source holds at most 50 files and one primary. No operation accepts base64 content.
 `files.get_download` returns a short-lived grant (`GET /api/v1/downloads/:file_version_id` with a
 grant header) for an agent to read original bytes.
+
+### A mockup version as a ZIP
+
+A canvas comes back the way it went out, so its pages and files never pass through a tool call
+(`packages/core/src/ops/mockups.ts`, [decision](../decisions/a-mockup-version-is-published-from-an-uploaded-zip.md)).
+`mockups.get_download` gives a version as a ZIP; the agent changes it in its own project, and:
+
+1. `mockups.request_upload { mockup_id?, size? }` returns `{ upload_id, mockup_id, url, method:
+   "PUT", headers, max_bytes, expires_at, next }`. The grant is for this product, the account that
+   asked, and the mockup named (or a new mockup when `mockup_id` is omitted). It refuses an
+   archived mockup (`409 mockup_archived`) and a declared `size` over `max_bytes` (`413`), which is
+   20 MB, or less through a smaller relay or for a visitor to the public sandbox.
+2. The agent PUTs the ZIP's raw bytes to `url` (`/api/v1/uploads/mockup/:upload_id`, the
+   service's own relay) with those headers. The relay checks the grant, that it has not expired
+   (`401 invalid_grant`) or taken bytes already (`409 already_uploaded`), the sandbox's state, and
+   that the requester can still write to the product, then stores the bytes, at most `max_bytes`,
+   as they arrive. It reads nothing inside them.
+3. `mockups.publish { mockup_id?, expected_etag?, upload_id, title?, summary?, columns?, refs?,
+   citations?, from_version? }` reads the archive in the same transaction as the version it makes.
+   `pages`, `files` and `brief` may not be sent beside `upload_id` (`422`). The upload must be the
+   caller's own (`403`), granted for the same mockup (`409 upload_mismatch`), unexpired (`410
+   upload_expired`), unused (`410 upload_used`), and arrived (`404`). A refused publish leaves it
+   unused.
+
+The archive is `get_download`'s layout: `manifest.json`, `brief.md`, `pages/<page_id>.html`,
+`pages/<page_id>.notes.md` and `files/<path>`, at the top or inside one folder. `manifest.json`'s
+`pages` are the whole canvas in order (`page_id`, and `title`, `width`, `height` to change them),
+and its `files`, when present, the whole set of files, as `pages` and `files` are inline: a page or
+file with no HTML, notes or content in the archive keeps the base version's, `brief.md` replaces
+the brief only when present, and the manifest's `title`, `summary` and `columns` apply unless the
+call sends its own. The manifest's version, `refs`, `citations` and hashes are ignored; refs and
+citations come only from the call. A manifest that names another mockup than `mockup_id` is
+refused (`409 upload_mismatch`). Every page then meets the same checks as an inline publish, every
+problem listed at once (`422 invalid_input` or `invalid_html`).
+
+The archive is read as hostile input (`packages/core/src/zip-archive.ts`), and anything wrong is
+`422 invalid_archive` with every problem in `details.problems`:
+
+- the central directory is read before anything is inflated: at most 246 entries, 8 MB expanded
+  for one entry and 40 MB for all of them, by what the headers declare;
+- each entry is then inflated a few kilobytes at a time and stopped as soon as it gives more than
+  it declared, so a bomb costs no more than those limits; its CRC must match;
+- names that climb out with `..`, absolute names, `\`, control characters, duplicates and names
+  that differ only in capitals are refused, as are encryption, ZIP64, split archives and any
+  compression but deflate or none;
+- every entry must be UTF-8 text, and every entry must be one `manifest.json` names (or
+  `manifest.json` and `brief.md` themselves).
+
+A visitor to the public sandbox meets its limits here as on every write: the grant is no larger
+than the size of one file and what is left of today's upload allowance, the archive counts
+against that allowance when it arrives, and the longest text one field may hold applies to each
+page, note, file and brief in it (`413 too_large`, naming the field). The worker deletes a grant
+and its bytes a day after it expires, used or not; a sandbox reset deletes them at once.
 
 ## 6.8 The skill and the Connect page
 

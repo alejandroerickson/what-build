@@ -1,5 +1,5 @@
 import {
-  AppError, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, effectiveRole, forbidden, membershipsFor, mockupBundle, json, lockSandbox, notFound, roleAtLeast, sandboxForAccount, toAppError,
+  AppError, completeGrant, conflict, countVisitorBytes, DOWNLOAD_GRANT_HEADER, effectiveRole, forbidden, membershipsFor, mockupBundle, json, lockSandbox, notFound, roleAtLeast, sandboxForAccount, toAppError,
   tooLarge, UPLOAD_GRANT_HEADER, type ActorSnapshot, type Env, type OpContext, type Tx,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
@@ -84,6 +84,44 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       });
       if (enqueued.value) env.ports.notifyJobs?.();
       return c.json({ uploaded: true, size: stored.size, sha256: stored.sha256, file: entry, next: 'Received. Now call files(action="complete_upload") with record_id and path, as the grant said: it confirms the file is attached, returns its search_status and what happens next, and adds any provenance (derived_from, derivation_note, derived_by). Repeating it is harmless.' }, 201);
+    } catch (e) {
+      return fail(c, e);
+    }
+  });
+
+  // A mockup version as a ZIP: stored as it arrives, and read only when publish names it.
+  app.put("/api/v1/uploads/mockup/:upload_id", async (c) => {
+    try {
+      const id = c.req.param("upload_id");
+      const claims = env.ports.grants.verify(c.req.header(UPLOAD_GRANT_HEADER) ?? "");
+      if (!claims || claims["purpose"] !== "mockup_upload" || claims["u"] !== id) throw new AppError(401, "invalid_grant", "The upload grant is missing, invalid or expired. Request a new one with mockups(action=\"request_upload\").");
+      const tenantId = String(claims["t"]);
+      const upload = await inTenant(env, tenantId, (trx) => trx.selectFrom("mockup_uploads").selectAll().where("upload_id", "=", id).executeTakeFirst());
+      if (!upload) throw notFound("No such mockup upload.");
+      if (upload.uploaded_at) throw conflict("already_uploaded", "An archive already arrived under this grant. Publish it with mockups(action=\"publish\") and upload_id, or request a new grant to send another.");
+      if (Date.parse(upload.expires_at) < Date.now()) throw new AppError(401, "invalid_grant", "The upload grant has expired. Request a new one.");
+      const sandbox = await sandboxForAccount(env.db, tenantId, upload.principal.account_id);
+      if (sandbox?.visitor && sandbox.settings.visitor_access !== "write")
+        throw new AppError(403, sandbox.settings.visitor_access === "closed" ? "sandbox_closed" : "sandbox_read_only", "This public sandbox is not taking visitors' uploads for now. Nothing was stored; try again later with a new grant.");
+      const role = await inTenant(env, tenantId, async (trx) => {
+        const product = await trx.selectFrom("products").select("team_id").where("product_id", "=", upload.product_id).executeTakeFirst();
+        return effectiveRole(await membershipsFor(trx, upload.principal.account_id, tenantId), { tenant_id: tenantId, team_id: product?.team_id ?? null, product_id: upload.product_id }).role;
+      });
+      if (!roleAtLeast(role, "editor")) throw forbidden("Whoever requested this upload grant can no longer write to this product. Nothing was stored.", { role, needed: "editor" });
+      const max = Math.min(Number(upload.max_bytes), env.config.relayMaxBytes);
+      const declared = c.req.header("content-length");
+      if (declared !== undefined && !/^\d+$/.test(declared)) throw new AppError(400, "invalid_length", "Content-Length is not a number.");
+      if (declared !== undefined && Number(declared) > max) throw tooLarge(`The archive is ${declared} bytes; this grant takes at most ${max}.`, { limit: max });
+      const body = c.req.raw.body;
+      if (!body) throw new AppError(400, "empty_body", "Send the ZIP's bytes as the request body.");
+      const stored = await env.ports.blobs.putStream(upload.blob_key, body, { contentType: "application/zip", maxBytes: max });
+      await inTenant(env, tenantId, async (trx) => {
+        await lockSandbox(trx, tenantId, "shared");
+        await trx.updateTable("mockup_uploads").set({ uploaded_at: new Date().toISOString(), size: stored.size, sha256: stored.sha256 }).where("upload_id", "=", id).execute();
+        // In a public sandbox the archive counts against its requester's uploads, as a source's file does.
+        if (sandbox?.visitor) await countVisitorBytes(trx, sandbox, upload.principal.account_id, stored.size);
+      });
+      return c.json({ uploaded: true, upload_id: id, size: stored.size, sha256: stored.sha256, next: `Received. Now call mockups(action="publish") with upload_id${upload.mockup_id ? ", mockup_id and the mockup's etag" : ""}; it checks every page and publishes the version, or lists every problem and publishes nothing.` }, 201);
     } catch (e) {
       return fail(c, e);
     }

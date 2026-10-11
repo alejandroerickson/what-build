@@ -235,10 +235,23 @@ sandbox.
   earlier version. Every version stays readable.
 - **Build the next version where you work.** `get_download` gives a version as a ZIP through a
   short-lived grant: `brief.md`, `manifest.json`, each page as `pages/<page_id>.html` with
-  `pages/<page_id>.notes.md`, and the version's files under `files/`. Unzip it in a project, change the pages there, then publish the pages
-  that changed. Keep the grant header out of reports.
+  `pages/<page_id>.notes.md`, and the version's files under `files/`. Unzip it in a project and
+  change the pages there.
+- **Publish a canvas on disk by upload, never by pasting it.** Never write pages you have as files
+  out through a tool call: zip the folder in the same layout, call
+  `mockups(action="request_upload", params={mockup_id})` (omit `mockup_id` to create a mockup),
+  PUT the ZIP to `url` with exactly the `headers` (`curl -T canvas.zip -H …`), then
+  `publish` with `upload_id`, `mockup_id` and the etag. `manifest.json`'s `pages` are the canvas in
+  order (add a page there with its `page_id`, `title` and size), its `files` the whole set; a page
+  with no HTML or notes in the archive keeps the base version's, so an unchanged page is carried
+  as it was. `title`, `summary` and `columns` come from the manifest unless you send them; send
+  `refs` and `citations` in the call. Every problem with the archive or its pages is listed at
+  once (`422 invalid_archive`, `invalid_html`), and nothing is published until all are fixed; fix
+  them, zip again and request a new grant. An upload publishes once and expires with its grant.
+  For a small change, such as one short page or a page's notes, publish inline instead.
 - `check_citations` reports whether a version's passages still say what was quoted. A version
-  holds at most 24 pages and 8,000,000 characters of HTML; a product holds at most 50 mockups.
+  holds at most 48 pages and 8,000,000 characters of HTML, and an uploaded ZIP at most 20 MB; a
+  product holds at most 50 mockups.
 
 **Promote a page to the Story** when a person wants stakeholders to see one screen:
 `story(action="promote_mockup", params={mockup_id, mockup_page_id})` makes a Story page that shows

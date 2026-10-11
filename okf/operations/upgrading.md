@@ -30,12 +30,19 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 - **Connected agents keep the tool list they connected with.** The MCP endpoint keeps no session,
   so it cannot tell a client that a release added tools or actions. After a release that adds
   any, people whose agents were already connected start a new session (in Claude Code, a new
-  conversation or a restart) to see them; authorizing again is not enough. The skill, now 0.18.0,
+  conversation or a restart) to see them; authorizing again is not enough. The skill, now 0.19.0,
   tells agents this, and `unknown_tool` and `unknown_action` say it and name the server's version.
 - **Input refusals** (`422 invalid_input`) name the unrecognized fields first, with the likely
   intended field, then what is missing ("`notes` is required"), in place of the validation
   library's wording. A script that matched the old text ("unknown field(s)", "Invalid input")
   needs the new. `story.write_notes` also accepts `content` for `notes`.
+- **Mockups are published from an uploaded ZIP.** Migration 0019 adds `mockup_uploads`, the
+  grants behind `mockups.request_upload`; the archive's bytes go through the upload relay
+  (`PUT /api/v1/uploads/mockup/:upload_id`) into the deployment's object storage, and the worker
+  deletes them a day after the grant expires. Nothing needs setting: a deployment whose relay takes
+  less than 20 MB (`WHATBUILD_RELAY_MAX_BYTES`) grants archives up to its relay's limit. A version
+  now holds 48 pages, up from 24. The skill, at 0.19.0, tells agents with a canvas on disk to
+  upload it; agents connected before the upgrade start a new session to see `request_upload`.
 
 ## v0.5.0
 

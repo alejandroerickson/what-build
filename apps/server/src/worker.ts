@@ -88,7 +88,7 @@ export class Worker {
 
   private lastPrune = 0;
 
-  /** Housekeeping, at most hourly: finished jobs after a week; OAuth registrations nobody connected with; abandoned upload grants and their bytes. */
+  /** Housekeeping, at most hourly: finished jobs after a week; OAuth registrations nobody connected with; abandoned upload grants, and mockup archives, with their bytes. */
   private async prune() {
     if (Date.now() - this.lastPrune < 3600_000) return;
     this.lastPrune = Date.now();
@@ -109,6 +109,12 @@ export class Worker {
       });
       // Bytes that arrived but were never attached (a direct upload nobody completed).
       for (const g of stale) if (g.uploaded_at && g.blob_key) await this.env.ports.blobs.delete(g.blob_key).catch(() => undefined);
+      // A mockup's archive is read once, when its version is published; a day after its grant expires it goes, used or not.
+      const archives = await this.env.db.transaction().execute(async (trx) => {
+        await sql`select set_config('app.tenant_id', ${tenant_id}, true)`.execute(trx);
+        return trx.deleteFrom("mockup_uploads").where("expires_at", "<", new Date(Date.now() - 86400_000).toISOString()).returning(["blob_key", "uploaded_at"]).execute();
+      });
+      for (const a of archives) if (a.uploaded_at) await this.env.ports.blobs.delete(a.blob_key).catch(() => undefined);
     }
   }
 

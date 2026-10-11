@@ -1,4 +1,5 @@
 import { expect } from "vitest";
+import { strToU8, zipSync } from "fflate";
 import type { Browser, Harness } from "./harness.ts";
 
 /**
@@ -30,6 +31,8 @@ export interface Organization {
   hierarchyEtag: string;
   styleEtag: string;
   mockup: { id: string; etag: string; pageId: string };
+  /** An archive uploaded for the mockup and not yet published. */
+  mockupUploadId: string;
   exportId: string;
   invitationId: string;
   member: { accountId: string; email: string };
@@ -96,6 +99,9 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
     files: [{ path: "DESIGN.md", content: `${marker} design notes.` }],
     refs: { assumptions: [as.id] },
   }));
+  const mu = ok(await owner.api("POST", `${P}/mockups/uploads`, { mockup_id: m.mockup_id }));
+  const put = await fetch(mu.url, { method: "PUT", headers: mu.headers, body: zipSync({ "manifest.json": strToU8(JSON.stringify({ pages: [{ page_id: `${marker.toLowerCase()}-plan` }] })) }) });
+  expect(put.status).toBe(201);
   const promoted = ok(await owner.api("POST", `${P}/story/promote-mockup`, { mockup_id: m.mockup_id, mockup_page_id: `${marker.toLowerCase()}-plan`, title: `${marker} promoted plan` }));
 
   const ex = ok(await owner.api("POST", `${P}/exports`, {}));
@@ -133,6 +139,7 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
     hierarchyEtag: tree.etag,
     styleEtag: style.etag,
     mockup: { id: m.mockup_id, etag: m.etag, pageId: `${marker.toLowerCase()}-plan` },
+    mockupUploadId: mu.upload_id,
     exportId: ex.export_id,
     invitationId,
     member: { accountId: memberId, email: memberEmail },
@@ -160,6 +167,7 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
     org.page.id,
     org.promotedPage.id,
     org.mockup.id,
+    org.mockupUploadId,
     org.exportId,
     org.invitationId,
     org.ownerAccountId,

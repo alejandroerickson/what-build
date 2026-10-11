@@ -95,7 +95,8 @@ running on free tiers without a compliance program.
 | Pages of a parsed PDF | 2,000; a longer PDF is stored, not parsed (`too_large`) | Yes |
 | Files per source | 50 | Yes — `409 too_many_files` |
 | Story pages | 50 per product | Yes — `409 quota_exceeded`, quota `story_pages` |
-| Mockups | 50 per product, archived ones included; 24 pages and 8,000,000 characters of HTML, and 50 files and 2,000,000 characters of files, in a version | Yes — `409 quota_exceeded`, quota `mockups`; `422` for a version |
+| Mockups | 50 per product, archived ones included; 48 pages and 8,000,000 characters of HTML, and 50 files and 2,000,000 characters of files, in a version | Yes — `409 quota_exceeded`, quota `mockups`; `422` for a version |
+| A mockup version uploaded as a ZIP | 20 MB (or the relay's limit, if lower), expanding to at most 40 MB, 8 MB for one entry, and 246 entries | Yes — `413 too_large`; `422 invalid_archive` |
 | REST or MCP request body | 5 MB | Yes — `413 too_large` (MCP: `413` with a JSON-RPC error) |
 | Sign-in and OAuth request body | 64 KB | Yes — `413` |
 | Sign-in links | 5 per address per hour | Yes — `429 rate_limited` |
@@ -388,8 +389,9 @@ Rules:
    not reach it. Staff may raise it.
 5. **A visitor uploads through the relay only**, where the size is enforced as the bytes arrive; no
    direct-to-store URL is issued. A grant's `max_bytes` is the lowest of the file limit and what
-   is left of the day's bytes. Bytes are counted when the file is attached, against whoever asked
-   for the grant.
+   is left of the day's bytes. Bytes are counted when the file is attached, or when a mockup's
+   ZIP arrives, against whoever asked for the grant. The longest text one field may hold applies
+   to each page, note, file and brief in a mockup's ZIP as to a call's fields.
 6. **A call that names no organization** (`products.list`, `get_skill`, `submit_feedback`) is
    counted too, for a `sandbox_only` account that is a visitor. It meets only the limits on how
    often.

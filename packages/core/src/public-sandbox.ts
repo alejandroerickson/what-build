@@ -123,7 +123,7 @@ export const SANDBOX_LIMITS: LimitInfo[] = [
   { key: "exports_per_day", group: "frequency", label: "Exports", unit: "exports", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "Product exports a visitor asks for. 0, the default, switches exports off (403 sandbox_restricted) and keeps the sandbox's content in the sandbox." },
   { key: "org_writes_per_day", group: "frequency", label: "Writes", unit: "writes", per: "All visitors together, each day", refusal: "409 quota_exceeded", help: "A ceiling on every visitor's writes added up. 0 switches it off, refused with 403 sandbox_restricted." },
   { key: "file_max_bytes", group: "size", label: "File size", unit: "bytes", per: "Each file", refusal: "413 too_large", help: "Checked as the file uploads." },
-  { key: "bytes_per_day", group: "size", label: "Uploads", unit: "bytes", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "Counted when a file is attached to a source. 0 switches it off, refused with 403 sandbox_restricted." },
+  { key: "bytes_per_day", group: "size", label: "Uploads", unit: "bytes", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "Counted when a file is attached to a source, or a mockup's archive arrives. 0 switches it off, refused with 403 sandbox_restricted." },
   { key: "org_bytes_per_day", group: "size", label: "Uploads", unit: "bytes", per: "All visitors together, each day", refusal: "409 quota_exceeded", help: "A ceiling on every visitor's uploads added up. 0 switches it off, refused with 403 sandbox_restricted." },
   { key: "text_max_chars", group: "size", label: "Text in one field", unit: "characters", per: "Each text field", refusal: "413 too_large", help: "The longest body, note or Story page a visitor may send." },
   { key: "batch_max", group: "size", label: "Sources in one call", unit: "sources", per: "Each call", refusal: "413 too_large", help: "How many sources one archive or restore call may name." },
@@ -455,17 +455,26 @@ export async function visitorUploadLimit(trx: Db, sandbox: SandboxContext, accou
   const s = sandbox.settings;
   if (s.documents_only && !parserFor(file.path, mediaTypeFor(file.path, file.media_type)))
     throw restricted(`This public sandbox takes only files its parsers read: text, Markdown, transcripts (VTT, SRT), HTML, Word (DOC, DOCX), PDF, spreadsheets and XML. ${file.path} is not one of them.`, { path: file.path });
+  return visitorBytesLimit(trx, sandbox, accountId, file.size, fileMaxBytes);
+}
+
+/**
+ * The most bytes a visitor's next upload may take, of any kind: the size of one file, and the bytes
+ * left in today's allowances. A mockup's archive meets this as a source's file does.
+ */
+export async function visitorBytesLimit(trx: Db, sandbox: SandboxContext, accountId: string, size: number | undefined, fileMaxBytes: number): Promise<number> {
+  const s = sandbox.settings;
   if (s.bytes_per_day === 0) throw off("bytes_per_day");
   if (s.org_bytes_per_day === 0) throw off("org_bytes_per_day");
   const used = await usageToday(trx, sandbox, accountId);
   if (used.bytes >= s.bytes_per_day) throw quota(sandbox, "bytes_per_day", used.bytes, "bytes", `each visitor ${s.bytes_per_day} bytes of uploads a day`);
   if (used.org_bytes >= s.org_bytes_per_day) throw quota(sandbox, "org_bytes_per_day", used.org_bytes, "bytes", `${s.org_bytes_per_day} bytes of uploads a day from all visitors together`);
   const limit = Math.min(fileMaxBytes, s.file_max_bytes, s.bytes_per_day - used.bytes, s.org_bytes_per_day - used.org_bytes);
-  if (file.size !== undefined && file.size > limit)
+  if (size !== undefined && size > limit)
     throw tooLarge(
-      file.size > Math.min(fileMaxBytes, s.file_max_bytes)
-        ? `The file is ${file.size} bytes; this public sandbox takes files of at most ${Math.min(fileMaxBytes, s.file_max_bytes)} bytes.`
-        : `The file is ${file.size} bytes, and ${limit} bytes are left in today's upload allowance, which starts again at ${sandbox.day_end}.`,
+      size > Math.min(fileMaxBytes, s.file_max_bytes)
+        ? `The file is ${size} bytes; this public sandbox takes files of at most ${Math.min(fileMaxBytes, s.file_max_bytes)} bytes.`
+        : `The file is ${size} bytes, and ${limit} bytes are left in today's upload allowance, which starts again at ${sandbox.day_end}.`,
       { limit },
     );
   return limit;

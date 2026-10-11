@@ -28,7 +28,9 @@ the names Mockups and Exploration on 2026-10-09.
 - Pages are untrusted, like Story pages: checked by the Story's HTML rules and shown only in its
   sandbox ([decision](story-pages-are-sandboxed-agent-html.md)), without the app's theme.
 - A version downloads as a ZIP (brief, manifest, each page's HTML and notes) through a short-lived
-  grant, so an agent builds the next version in its own project and publishes the pages it changed.
+  grant, so an agent builds the next version in its own project, and goes back up as a ZIP in the
+  same layout ([decision](a-mockup-version-is-published-from-an-uploaded-zip.md)); a small change
+  is still published inline.
 - Agents publish and archive mockups; the web app shows them on a pannable, zoomable canvas and
   downloads them.
 - **Mockups are outputs.** They come from the work a team's agents do in their own projects, where
@@ -74,7 +76,7 @@ the names Mockups and Exploration on 2026-10-09.
   a shared stylesheet and components is the change to revisit (an open question on the
   [roadmap](../spec/10-roadmap.md)).
 - Each version stores every page's HTML and every file in full, so a long run of versions costs
-  storage; 24 pages and 8,000,000 characters of HTML, 50 files and 2,000,000 characters of files a
+  storage; 48 pages and 8,000,000 characters of HTML, 50 files and 2,000,000 characters of files a
   version, and 50 mockups a product, bound it.
 
 ## Constrains
