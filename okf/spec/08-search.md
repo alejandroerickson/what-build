@@ -41,8 +41,10 @@ or `kind` or `strict` in another mode, is `422 invalid_filter`.
   ([§4.4](04-data-model.md)); naming one is `422 invalid_input`.
 - Passage hits: `{ record_id, seq, start_ms, end_ms, speaker, snippet, char_start, char_end,
   score? }`, with each source's `title`, `date`, `tags` and `archived_at` sent once in
-  `records`. A hit's `record_id` and `seq` are
-  directly usable with `read_passage` and as citations. Snippets are at most 160 characters.
+  `records`. A hit's `record_id` and `seq` are directly usable with `read_passage`
+  (`{ record_id, seq }`) and as citations; the window around a hit is `start` and `end` in
+  segments with `unit: "seq"`, never `char_start` and `char_end`. Snippets are at most 160
+  characters.
 - Assumption hits come back as `assumptions` (id, statement, status, citation count).
 - Results are bounded and paged as everywhere ([§6.3](06-operations-and-adapters.md)).
 - The response carries a `coverage` object (§8.4).
