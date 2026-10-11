@@ -335,12 +335,12 @@ A neutral grey studio with a single indigo accent and three status hues; every v
 - **Headline** (600, 20px, 1.25, -0.01em): the h1 of an item screen, such as an assumption or a source.
 - **Lead** (400, 15px, 1.55): a single summary paragraph above prose.
 - **Title** (600, 14px, 1.25): the sheet title, which is the h1 of a list screen, followed by its count in faint 400.
-- **Subtitle** (600, 12.5px): product name, inspector title, h3.
+- **Subtitle** (600, 12.5px): product name, inspector title, h3, panel section headings (in ink, so they stand above the filters and lists under them).
 - **Prose** (400, 13.5px, 1.62, max 68ch): long-form Markdown.
 - **Reading** (400, 13px, 1.55): passages, quotes and empty-state text people read.
 - **Body** (400 or 500, 12px, 1.4): the UI itself, including rows, buttons, menus and forms. Row titles and buttons take 500.
 - **Meta** (400, 11.5px): secondary lines, chips, hints, errors, group headings.
-- **Label** (500, 11px): counts, panel section labels, captions, keyboard hints.
+- **Label** (500, 11px): counts, captions, keyboard hints.
 
 ### Named Rules
 **The Twenty Pixel Ceiling Rule.** Nothing in the app exceeds 20px. When something needs more emphasis, raise its weight or darken its grey. The one exception is the overview's intro (Brand and Display above, tokens `--fs-brand`, `--fs-display` and their `-sm` narrow sizes, `--tracking-brand`, `--tracking-display`), the page people share as a screenshot of WhatBuild; no other screen earns it ([decision](okf/decisions/the-overview-is-the-front-door.md)).
@@ -445,6 +445,6 @@ A rounded square filled with ink, with a W stroked in the panel colour (2.6 stro
 - **Don't** set app type above 20px outside the overview's intro, and don't add a display face to the app: the display step is Inter at 600.
 - **Don't** use the accent for decoration, category colour, large fills or more than one filled button in a view.
 - **Don't** use shadows outside the resting, lifted and paper set, including hard offset, coloured or glow shadows.
-- **Don't** add small uppercase labels above titles. Section labels are 11px sentence case in faint 500.
+- **Don't** add small uppercase labels above titles. Section labels are 11px sentence case in faint 500; a panel section's heading is Subtitle, in ink.
 - **Don't** use text characters or emoji as icons. Every icon is a lucide glyph.
 - **Don't** signal state with colour alone.

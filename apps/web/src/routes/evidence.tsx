@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { api, qs } from "../lib/api.ts";
 import { actorName, formatDate, plural, relativeTime } from "../lib/format.ts";
@@ -50,7 +50,7 @@ export function TagSuggestions({ value, onChange }: { value: string; onChange: (
   );
 }
 
-const FILTER_KEYS = ["tags", "added_by", "added", "date_from", "date_to", "query", "include_archived"] as const;
+const FILTER_KEYS = ["tags", "added_by", "date_from", "date_to", "query", "include_archived"] as const;
 type Filters = Record<(typeof FILTER_KEYS)[number], string>;
 
 export function SourceStatus({ status }: { status: string }) {
@@ -60,26 +60,6 @@ export function SourceStatus({ status }: { status: string }) {
 
 function readFilters(params: URLSearchParams): Filters {
   return Object.fromEntries(FILTER_KEYS.map((k) => [k, params.get(k) ?? ""])) as Filters;
-}
-
-/**
- * When a source was added: a discovery may last only a few months, so the windows are short. The
- * URL keeps the window (`added=7`), not a date, so a shared link means the same thing tomorrow.
- */
-const ADDED = [
-  { id: "", label: "Any time", chip: "" },
-  { id: "1", label: "Past day", chip: "Added in the past day" },
-  { id: "7", label: "Past 7 days", chip: "Added in the past 7 days" },
-  { id: "30", label: "Past 30 days", chip: "Added in the past 30 days" },
-  { id: "60", label: "Past 60 days", chip: "Added in the past 60 days" },
-  { id: "90", label: "Past 90 days", chip: "Added in the past 90 days" },
-] as const;
-
-/** The moment a window of `days` starts, to the minute. */
-function addedSince(days: string): string {
-  const n = Number(days);
-  if (!ADDED.some((a) => a.id && a.id === days)) return "";
-  return new Date(Math.floor(Date.now() / 60_000) * 60_000 - n * 86_400_000).toISOString();
 }
 
 export function AddSourceButton() {
@@ -174,7 +154,7 @@ function SourceFind({ onList }: { onList: boolean }) {
 
 /**
  * The Evidence panel context: "Search passages", then single-select filters as links: tags, who
- * added the source, when, and whether archived ones are listed. Used on the list (where the links
+ * added the source, and whether archived ones are listed. Used on the list (where the links
  * change the list in place) and on a source page (where they lead back to it).
  */
 export function EvidenceFilters() {
@@ -248,13 +228,6 @@ export function EvidenceFilters() {
           ))}
         </PanelSection>
       ) : null}
-      <PanelSection title="Added">
-        {ADDED.map((a) => (
-          <PanelFilter key={a.id || "any"} to={href({ added: a.id })} current={onList && f.added === a.id}>
-            {a.label}
-          </PanelFilter>
-        ))}
-      </PanelSection>
       <PanelSection title="Archived">
         <PanelFilter to={href({ include_archived: "" })} current={onList && f.include_archived !== "1"}>
           Hide archived
@@ -365,16 +338,12 @@ export function EvidencePage() {
   const order: Order = params.get("order") === "asc" || params.get("order") === "desc" ? (params.get("order") as Order) : first;
   usePageTitle("Sources");
   const facets = useSourceFacets(f.include_archived === "1");
-  // Worked out once per window, so the list's query stays the same while it is open.
-  const since = useMemo(() => addedSince(f.added), [f.added]);
-  const { added, ...listed } = f;
-  void added;
   const q = useInfiniteQuery({
-    queryKey: ["sources", base, listed, since, sort, order],
+    queryKey: ["sources", base, f, sort, order],
     queryFn: ({ pageParam }) =>
       api<{ records: RecordSummary[]; next_cursor: string | null }>(
         "GET",
-        `${base}/sources${qs({ ...listed, added_since: since, include_archived: f.include_archived === "1" ? "true" : "", sort, order, cursor: pageParam, limit: 50 })}`,
+        `${base}/sources${qs({ ...f, include_archived: f.include_archived === "1" ? "true" : "", sort, order, cursor: pageParam, limit: 50 })}`,
       ),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_cursor ?? undefined,
@@ -405,8 +374,6 @@ export function EvidencePage() {
   if (f.query) chips.push({ label: `Titles matching “${f.query}”`, to: without(["query"]) });
   if (f.tags) chips.push({ label: `Tagged ${splitTags(f.tags).join(", ")}`, to: without(["tags"]) });
   if (f.added_by) chips.push({ label: `Added by ${facets.data?.added_by.find((p) => p.account_id === f.added_by)?.display_name ?? "one person"}`, to: without(["added_by"]) });
-  const window = ADDED.find((a) => a.id && a.id === f.added);
-  if (window) chips.push({ label: window.chip, to: without(["added"]) });
   if (f.date_from || f.date_to) chips.push({ label: `Captured ${f.date_from ? formatDate(f.date_from) : "any time"} to ${f.date_to ? formatDate(f.date_to) : "now"}`, to: without(["date_from", "date_to"]) });
   if (f.include_archived === "1") chips.push({ label: "Including archived", to: without(["include_archived"]) });
   // "of N" compares with the product's live sources, so it is left out once archived ones are listed.
