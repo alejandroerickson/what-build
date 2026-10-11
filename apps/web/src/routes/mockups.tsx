@@ -7,7 +7,7 @@ import { Markdown, passageHref } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { REVIEW_STATUS, toneFor } from "../lib/status.ts";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
-import { Button, ButtonLink, Callout, Crumbs, Dialog, EmptyState, ErrorCallout, Glyph, Group, KeyValue, Loading, Menu, MenuItem, MenuRadio, MenuSeparator, StatusBadge, TextField, useToast } from "../ui/index.tsx";
+import { Button, ButtonLink, Callout, Crumbs, Dialog, EmptyState, ErrorCallout, Glyph, Group, KeyValue, Loading, Menu, MenuItem, MenuNote, MenuRadio, MenuSeparator, StatusBadge, TextField, useToast } from "../ui/index.tsx";
 import { isTypingTarget, useMediaQuery } from "../ui/media.ts";
 import { FirstUse } from "./first-use.tsx";
 import { FocusToggle, useStoryFocus } from "./story-focus.tsx";
@@ -158,18 +158,29 @@ function readMode(): Mode {
   }
 }
 
+/** What a page's frame tells the canvas: a key pressed or let go inside it, a pinch over it, a press on it. */
+type FrameSignal =
+  | { kind: "key"; key: string }
+  | { kind: "keyup"; key: string }
+  | { kind: "zoom"; clientX: number; clientY: number; dy: number; line: boolean; pinch: boolean }
+  | { kind: "select" };
+
+/** The keys a page's frame passes on to the canvas: focus mode's, the arrows, and the canvas's own. */
+const FRAME_KEYS = new Set(["f", "Escape", "ArrowLeft", "ArrowRight", " ", "h", "H", "v", "V", "0", "1", "2", "+", "=", "-", "_"]);
+
 /**
  * One page in its sandbox, at its own size. The frame is the Story's: the same sandbox, and the
- * frame script that passes F and Esc on and opens links in a new tab. A page that loads another
- * address in its place is put back. In pan mode the frame takes no pointer, so a click selects the
- * page and a drag moves the canvas.
+ * frame script that opens links in a new tab. Told it is on a canvas, the script passes on the
+ * canvas's keys, Space, a pinch and a press, so the canvas works the same once someone is inside a
+ * page. A page that loads another address in its place is put back. In pan mode the frame takes no
+ * pointer, so a click selects the page and a drag moves the canvas.
  */
-function PageFrame({ page, src, title, selected, onKey, frameRef }: {
+function PageFrame({ page, src, title, selected, onSignal, frameRef }: {
   page: CanvasPage;
   src: string;
   title: string;
   selected: boolean;
-  onKey: (k: "f" | "Escape") => void;
+  onSignal: (pageId: string, s: FrameSignal) => void;
   frameRef: (el: HTMLDivElement | null) => void;
 }) {
   const frame = useRef<HTMLIFrameElement>(null);
@@ -178,13 +189,22 @@ function PageFrame({ page, src, title, selected, onKey, frameRef }: {
   const [replaced, setReplaced] = useState(false);
   useEffect(() => {
     const handle = (e: MessageEvent) => {
-      if (e.source !== frame.current?.contentWindow) return;
-      const data = e.data as { whatbuild?: unknown; key?: unknown } | null;
-      if (data?.whatbuild === "story-key" && (data.key === "f" || data.key === "Escape")) onKey(data.key);
+      const el = frame.current;
+      if (!el || e.source !== el.contentWindow) return;
+      const data = e.data as { whatbuild?: unknown; key?: unknown; x?: unknown; y?: unknown; dy?: unknown; line?: unknown; pinch?: unknown } | null;
+      if (data?.whatbuild === "story-key" && typeof data.key === "string" && FRAME_KEYS.has(data.key)) onSignal(page.page_id, { kind: "key", key: data.key });
+      else if (data?.whatbuild === "canvas-keyup" && data.key === " ") onSignal(page.page_id, { kind: "keyup", key: " " });
+      else if (data?.whatbuild === "canvas-select") onSignal(page.page_id, { kind: "select" });
+      else if (data?.whatbuild === "canvas-zoom" && typeof data.x === "number" && typeof data.y === "number" && typeof data.dy === "number" && Number.isFinite(data.x + data.y + data.dy)) {
+        // The page reports its own pixels; the frame is drawn at the canvas's zoom.
+        const r = el.getBoundingClientRect();
+        const scale = r.width / page.width;
+        onSignal(page.page_id, { kind: "zoom", clientX: r.left + data.x * scale, clientY: r.top + data.y * scale, dy: data.dy, line: data.line === true, pinch: data.pinch === true });
+      }
     };
     window.addEventListener("message", handle);
     return () => window.removeEventListener("message", handle);
-  }, [onKey]);
+  }, [onSignal, page.page_id, page.width]);
   return (
     <div ref={frameRef} className="xc-frame" data-page={page.page_id} data-selected={selected ? "" : undefined} style={{ width: page.width, height: page.height }}>
       <iframe
@@ -203,7 +223,10 @@ function PageFrame({ page, src, title, selected, onKey, frameRef }: {
             loads.current = 0;
             setReplaced(true);
             setReloads((n) => n + 1);
+            return;
           }
+          // The sandboxed page has an opaque origin, so the message cannot be addressed to one.
+          frame.current?.contentWindow?.postMessage({ whatbuild: "canvas-host" }, "*");
         }}
       />
       {replaced ? <p className="xc-replaced">This page tried to open another address in its place. WhatBuild put it back.</p> : null}
@@ -217,11 +240,15 @@ function PageFrame({ page, src, title, selected, onKey, frameRef }: {
  *
  * - Pan mode (the hand, H): a drag anywhere moves the canvas and a click selects a page. Interact
  *   mode (the pointer, V): the pages take the pointer, so their links, buttons and scrolling work;
- *   a drag on the background still moves the canvas. Holding Space pans from either mode.
+ *   a drag on the background still moves the canvas, and a press on a page selects it. Holding Space
+ *   pans from either mode, from inside a page too.
  * - Scroll moves the canvas up and down, Shift+scroll sideways; ⌘ or Ctrl with scroll, or a pinch,
- *   zooms about the pointer. In interact mode, scrolling over a page scrolls the page.
- * - + and − zoom, 0 shows 100%, 1 fits the canvas, 2 fits the selected page; each page's label has
- *   its own fit button.
+ *   zooms about the pointer, over a page in interact mode too. In interact mode, scrolling over a
+ *   page scrolls the page.
+ * - + and − zoom, 0 shows 100%, 1 fits the canvas, 2 fits the selected page; ← and → select the
+ *   previous or next page and fit it. Each page's label has its own fit button, and the toolbar
+ *   has the arrows and a list of every key. A page's frame passes these keys on, so they work
+ *   from inside a page.
  */
 function Canvas({ version, pageSrc, selected, onSelect, onKey, fitRequest }: {
   version: MockupVersion;
@@ -248,14 +275,14 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, fitRequest }: {
   const columns = Math.max(1, version.columns ?? version.pages.length);
   const panning = mode === "pan" || space;
 
-  const setMode = (m: Mode) => {
+  const setMode = useCallback((m: Mode) => {
     setModeState(m);
     try {
       localStorage.setItem(MODE_KEY, m);
     } catch {
       // The choice lasts for this visit.
     }
-  };
+  }, []);
 
   // Where each page sits in the world, read once its layout settles; zoom never changes it.
   useLayoutEffect(() => {
@@ -340,15 +367,24 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, fitRequest }: {
     else setView(apply);
   }, [go, view]);
 
+  /** A pinch, or ⌘ or Ctrl with scroll, zooms about the pointer; a pinch arrives as Ctrl with small steps. */
+  const wheelZoom = useCallback(
+    (dy: number, line: boolean, pinch: boolean, clientX: number, clientY: number) => {
+      const r = viewport.current?.getBoundingClientRect();
+      if (!r) return;
+      zoomAt(Math.exp(-dy * (line ? 0.05 : 0.0025) * (pinch ? 4 : 1)), clientX - r.left, clientY - r.top);
+    },
+    [zoomAt],
+  );
+
   // The wheel needs a listener that is not passive, so it can keep the page behind from scrolling.
   useEffect(() => {
     const vp = viewport.current;
     if (!vp) return;
     const wheel = (e: WheelEvent) => {
       e.preventDefault();
-      const r = vp.getBoundingClientRect();
       if (e.ctrlKey || e.metaKey) {
-        zoomAt(Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0025) * (e.ctrlKey && !e.metaKey ? 4 : 1)), e.clientX - r.left, e.clientY - r.top);
+        wheelZoom(e.deltaY, e.deltaMode === 1, e.ctrlKey && !e.metaKey, e.clientX, e.clientY);
         return;
       }
       touched.current = true;
@@ -359,7 +395,56 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, fitRequest }: {
     };
     vp.addEventListener("wheel", wheel, { passive: false });
     return () => vp.removeEventListener("wheel", wheel);
-  }, [zoomAt]);
+  }, [wheelZoom]);
+
+  /** Selects the page before or after the selected one and fits it; with none selected, the first or the last. */
+  const step = useCallback(
+    (by: -1 | 1) => {
+      const pages = version.pages;
+      const at = pages.findIndex((p) => p.page_id === selected);
+      const next = at < 0 ? (by > 0 ? 0 : pages.length - 1) : at + by;
+      const page = pages[next];
+      if (page) fitPage(page.page_id);
+    },
+    [version.pages, selected, fitPage],
+  );
+  const selectedIndex = version.pages.findIndex((p) => p.page_id === selected);
+
+  /** The canvas's keys, pressed in the app or inside a page. False when the key is not one of them here. */
+  const press = useCallback(
+    (k: string): boolean => {
+      if (k === "h" || k === "H") setMode("pan");
+      else if (k === "v" || k === "V") setMode("interact");
+      else if (k === "+" || k === "=") zoomAt(1.25, undefined, undefined, true);
+      else if (k === "-" || k === "_") zoomAt(0.8, undefined, undefined, true);
+      else if (k === "0") zoomAt(1 / view.z, undefined, undefined, true);
+      else if (k === "1") {
+        touched.current = true;
+        fitCanvas();
+      } else if (k === "2") fitPage(selected);
+      else if (k === "ArrowLeft") step(-1);
+      else if (k === "ArrowRight") step(1);
+      // The first Esc clears the selection; only the next leaves focus mode.
+      else if (k === "Escape" && selected) onSelect(null);
+      else return false;
+      return true;
+    },
+    [setMode, zoomAt, view.z, fitCanvas, fitPage, selected, step, onSelect],
+  );
+
+  /** What a page's frame passes on: the same keys, Space held, a pinch, a press that selects the page. */
+  const onSignal = useCallback(
+    (pageId: string, s: FrameSignal) => {
+      if (s.kind === "keyup") setSpace(false);
+      else if (s.kind === "select") {
+        if (pageId !== selected) onSelect(pageId);
+      } else if (s.kind === "zoom") wheelZoom(s.dy, s.line, s.pinch, s.clientX, s.clientY);
+      else if (document.querySelector("dialog[open], .menu")) return;
+      else if (s.key === " ") setSpace(true);
+      else if (!press(s.key) && (s.key === "f" || s.key === "Escape")) onKey(s.key);
+    },
+    [selected, onSelect, wheelZoom, press, onKey],
+  );
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -370,20 +455,7 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, fitRequest }: {
         if (e.target instanceof Element && e.target.closest("button, a[href], summary, select, [role=button], [role=menuitem], [role=menuitemradio], [role=radio], [role=tab]")) return;
         e.preventDefault();
         setSpace(true);
-      } else if (k === "h" || k === "H") setMode("pan");
-      else if (k === "v" || k === "V") setMode("interact");
-      else if (k === "+" || k === "=") zoomAt(1.25, undefined, undefined, true);
-      else if (k === "-" || k === "_") zoomAt(0.8, undefined, undefined, true);
-      else if (k === "0") zoomAt(1 / view.z, undefined, undefined, true);
-      else if (k === "1") {
-        touched.current = true;
-        fitCanvas();
-      } else if (k === "2") fitPage(selected);
-      else if (k === "Escape" && selected) {
-        // The first Esc clears the selection; only the next leaves focus mode.
-        e.preventDefault();
-        onSelect(null);
-      }
+      } else if (press(k) && (k === "Escape" || k === "ArrowLeft" || k === "ArrowRight")) e.preventDefault();
     };
     const up = (e: KeyboardEvent) => {
       if (e.key === " ") setSpace(false);
@@ -398,7 +470,7 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, fitRequest }: {
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", blur);
     };
-  }, [zoomAt, fitCanvas, fitPage, selected, onSelect, view.z]);
+  }, [press]);
 
   const pageAt = (target: EventTarget | null) => (target instanceof HTMLElement ? (target.closest<HTMLElement>(".xc-frame")?.dataset["page"] ?? null) : null);
 
@@ -482,7 +554,7 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, fitRequest }: {
               src={pageSrc(p.page_id)}
               title={`${p.title}, shown in a sandbox`}
               selected={p.page_id === selected}
-              onKey={onKey}
+              onSignal={onSignal}
               frameRef={(el) => {
                 if (el) frames.current.set(p.page_id, el);
                 else frames.current.delete(p.page_id);
@@ -560,10 +632,35 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, fitRequest }: {
           <span className="visually-hidden">Zoom in</span>
         </button>
         <span className="xc-tools-rule" aria-hidden="true" />
-        <button type="button" className="xc-tool" onClick={() => { touched.current = true; fitCanvas(); }} title="Fit the canvas (1)">
+        <button type="button" className="xc-tool" onClick={() => { touched.current = true; fitCanvas(); }} title="Fit the canvas (1)" aria-keyshortcuts="1">
           <Glyph name="scan" />
           <span className="visually-hidden">Fit the canvas</span>
         </button>
+        <span className="xc-tools-rule" aria-hidden="true" />
+        <button type="button" className="xc-tool" onClick={() => step(-1)} disabled={selectedIndex === 0} title="Previous page (←)" aria-keyshortcuts="ArrowLeft">
+          <Glyph name="chevron-left" />
+          <span className="visually-hidden">Previous page</span>
+        </button>
+        <button type="button" className="xc-tool" onClick={() => step(1)} disabled={selectedIndex === version.pages.length - 1} title="Next page (→)" aria-keyshortcuts="ArrowRight">
+          <Glyph name="chevron-right" />
+          <span className="visually-hidden">Next page</span>
+        </button>
+        <span className="xc-tools-rule" aria-hidden="true" />
+        <Menu label="Keyboard shortcuts" title="Keyboard shortcuts" triggerClassName="xc-tool" align="end" side="top" minWidth={240} trigger={<Glyph name="keyboard" />}>
+          <MenuItem onSelect={() => step(-1)} disabled={selectedIndex === 0} kbd="←">Previous page</MenuItem>
+          <MenuItem onSelect={() => step(1)} disabled={selectedIndex === version.pages.length - 1} kbd="→">Next page</MenuItem>
+          <MenuItem onSelect={() => fitPage(selected)} disabled={!selected} kbd="2">Fit the selected page</MenuItem>
+          <MenuItem onSelect={() => { touched.current = true; fitCanvas(); }} kbd="1">Fit the canvas</MenuItem>
+          <MenuSeparator />
+          <MenuItem onSelect={() => zoomAt(1.25, undefined, undefined, true)} kbd="+">Zoom in</MenuItem>
+          <MenuItem onSelect={() => zoomAt(0.8, undefined, undefined, true)} kbd="−">Zoom out</MenuItem>
+          <MenuItem onSelect={() => zoomAt(1 / view.z, undefined, undefined, true)} kbd="0">Zoom to 100%</MenuItem>
+          <MenuSeparator />
+          <MenuItem onSelect={() => setMode("pan")} kbd="H">Pan</MenuItem>
+          <MenuItem onSelect={() => setMode("interact")} kbd="V">Interact</MenuItem>
+          <MenuItem onSelect={() => onKey("f")} kbd="F">Focus mode</MenuItem>
+          <MenuNote>Hold Space and drag to pan from either mode. Esc clears the selection. The keys work from inside a page too.</MenuNote>
+        </Menu>
       </div>
     </div>
   );

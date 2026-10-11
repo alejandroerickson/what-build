@@ -26,6 +26,50 @@
   white-space: nowrap;
 }
 
+/* Focus mode: the board takes the whole window. The crumbs and the version step aside (the crumbs
+   stay for screen readers), and the focus control floats at the top right, over the board. */
+.mockup-view[data-focus] {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  height: auto;
+  min-height: 0;
+  background: var(--canvas);
+}
+.mockup-view[data-focus] > .callout,
+.mockup-view[data-focus] .xc-version {
+  display: none;
+}
+.mockup-view[data-focus] > .story-bar {
+  position: absolute;
+  top: var(--s-3);
+  right: var(--s-3);
+  z-index: 1;
+  background: none;
+}
+.mockup-view[data-focus] > .story-bar > .crumbs {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.mockup-view[data-focus] .story-focus-button,
+.mockup-view[data-focus] .story-focus-hint:not(:empty) {
+  border-radius: var(--r-md);
+  background: var(--popover);
+  box-shadow: var(--shadow);
+}
+.mockup-view[data-focus] .story-focus-hint:not(:empty) {
+  padding: var(--s-1h) var(--s-2);
+}
+.mockup-view[data-focus] .xc-viewport {
+  border-radius: 0;
+  box-shadow: none;
+}
+
 /* ---- Board ------------------------------------------------------------------------------------ */
 
 .xc {

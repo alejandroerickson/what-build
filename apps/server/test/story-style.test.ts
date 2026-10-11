@@ -218,6 +218,40 @@ describe("the app's frame", () => {
     // Until the app has said where its Story lives, nothing is handed over; and only the app may say.
     expect(run(`${base}release-plan`, {}, false)).toEqual({ sent: [], prevented: false, target: "_blank" });
   });
+
+  it("passes the canvas's keys, Space, a pinch and a press on, only once the app says the page is on a canvas", () => {
+    const run = (canvas: boolean) => {
+      const listeners: Record<string, (e: unknown) => void> = {};
+      const sent: unknown[] = [];
+      const parent = { postMessage: (m: unknown) => sent.push(m) };
+      new Function("addEventListener", "parent", FRAME_SCRIPT)((type: string, fn: (e: unknown) => void) => void (listeners[type] = fn), parent);
+      if (canvas) listeners["message"]!({ source: parent, data: { whatbuild: "canvas-host" } });
+      const prevented: string[] = [];
+      const event = (name: string, e: Record<string, unknown>) => listeners[name]!({ target: { tagName: "DIV" }, defaultPrevented: false, preventDefault: () => prevented.push(name), ...e });
+      event("keydown", { key: "2" });
+      event("keydown", { key: " " });
+      event("keydown", { key: "ArrowRight" });
+      event("keydown", { key: "h", target: { tagName: "INPUT" } });
+      event("keyup", { key: " " });
+      event("wheel", { ctrlKey: true, metaKey: false, clientX: 10, clientY: 20, deltaY: -3, deltaMode: 0 });
+      event("wheel", { ctrlKey: false, metaKey: false, clientX: 10, clientY: 20, deltaY: 30, deltaMode: 0 });
+      event("pointerdown", {});
+      return { sent, prevented };
+    };
+    expect(run(true)).toEqual({
+      sent: [
+        { whatbuild: "story-key", key: "2" },
+        { whatbuild: "story-key", key: " " },
+        { whatbuild: "story-key", key: "ArrowRight" },
+        { whatbuild: "canvas-keyup", key: " " },
+        { whatbuild: "canvas-zoom", x: 10, y: 20, dy: -3, line: false, pinch: true },
+        { whatbuild: "canvas-select" },
+      ],
+      prevented: ["keydown", "wheel"],
+    });
+    // On the Story, the page keeps Space, plain keys and the wheel to itself.
+    expect(run(false)).toEqual({ sent: [{ whatbuild: "story-key", key: "ArrowRight" }], prevented: [] });
+  });
 });
 
 describe("publishing a page from its body", () => {
