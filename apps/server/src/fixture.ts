@@ -88,6 +88,20 @@ export function pgDumpCommand(url: string, file: string, extra: string[] = []): 
   return { args: ["--format=custom", ...extra, `--file=${file}`, `--dbname=${rest}`], env: { ...process.env, ...(password !== undefined ? { PGPASSWORD: password } : {}) } };
 }
 
+/**
+ * A database URL for node's Postgres client. `sslrootcert=system` asks libpq for the system's
+ * certificate authorities, but node's client takes it for a file; Node verifies against its own
+ * trusted authorities without it.
+ */
+export function nodePgUrl(url: string) {
+  const q = url.indexOf("?");
+  if (q < 0) return url;
+  const params = new URLSearchParams(url.slice(q + 1));
+  if (params.get("sslrootcert") !== "system") return url;
+  params.delete("sslrootcert");
+  return url.slice(0, q) + (params.size ? `?${params}` : "");
+}
+
 /** What pulled.json says: when, which organizations (or all of them), and where the files went. */
 export type PullRecord = {
   pulled_at: string;
@@ -154,7 +168,7 @@ async function pull(args: string[]) {
  * consumer of a pull restores as it is. The scratch database is dropped.
  */
 async function dumpOrganizations(url: string, slugs: string[], file: string) {
-  const source = new pg.Client({ connectionString: url });
+  const source = new pg.Client({ connectionString: nodePgUrl(url) });
   await source.connect();
   const local = await connectOrStartLocalPg(resolve(root, ".what-build/pg"), PG_PORT);
   const scratch = `pull_${randomBytes(4).toString("hex")}`;

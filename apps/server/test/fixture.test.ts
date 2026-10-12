@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pgDumpCommand } from "../src/fixture.ts";
+import { nodePgUrl, pgDumpCommand } from "../src/fixture.ts";
 
 describe("pulling a copy of a deployment", () => {
   it("gives pg_dump the database's password in its environment, never on its command line", () => {
@@ -17,5 +17,11 @@ describe("pulling a copy of a deployment", () => {
     const none = pgDumpCommand("postgres://backup@db.example/whatbuild", "/tmp/database.dump");
     expect(none.args).toEqual(["--format=custom", "--file=/tmp/database.dump", "--dbname=postgres://backup@db.example/whatbuild"]);
     expect(none.env["PGPASSWORD"]).toBe(process.env["PGPASSWORD"]);
+  });
+
+  it("reads the deployment with node's client using its trusted authorities where libpq would use the system's", () => {
+    expect(nodePgUrl("postgresql://backup:pw@db.example/whatbuild?sslmode=verify-full&sslrootcert=system")).toBe("postgresql://backup:pw@db.example/whatbuild?sslmode=verify-full");
+    expect(nodePgUrl("postgresql://backup:pw@db.example/whatbuild?sslrootcert=system")).toBe("postgresql://backup:pw@db.example/whatbuild");
+    for (const url of ["postgresql://backup:pw@db.example/whatbuild?sslmode=require&sslrootcert=/etc/ca.pem", "postgres://backup@db.example/whatbuild"]) expect(nodePgUrl(url)).toBe(url);
   });
 });
