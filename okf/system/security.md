@@ -164,7 +164,9 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   (`apps/server/src/public-routes.ts`).
   The print view is sandboxed and runs one nonce'd script (`packages/core/src/story-print.ts`).
 - Markdown becomes React elements from a lexer: no HTML from the text reaches the DOM, and only
-  web, mail, fragment and same-origin links are live (`apps/web/src/lib/markdown.tsx`).
+  web, mail, fragment and same-origin links are live (`apps/web/src/lib/markdown.tsx`). A link into
+  the product being read opens in place whatever origin it was written with, so a copy of a
+  deployment's content never sends a reader back to the original.
 
 **Uploads, parsing and files served back** ([derived layer](../spec/05-derived-layer.md)).
 

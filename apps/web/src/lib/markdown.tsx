@@ -34,10 +34,26 @@ function safeHref(href: string | undefined): string | null {
   return SAFE_HREF.test(cleaned) ? cleaned : null;
 }
 
-/** Same-origin absolute links become in-app paths, so they open in place. */
+const PRODUCT_PATH = /^\/t\/[^/?#]+\/[^/?#]+\/[^/?#]+/;
+const ABSOLUTE = /^https?:\/\/[^/?#]+(\/[^?#]*)?([?#].*)?$/i;
+
+/**
+ * Absolute links that open in place, as in-app paths: any on this origin, and any into the product
+ * being read on another origin. An agent writes the address it was given, so a copy of a deployment
+ * (the dev deployment, a local copy of production) holds links to the original's records; those
+ * records are here under the same path, and the link must not send the reader to the original.
+ */
+export function inAppHref(href: string, here: { origin: string; pathname: string }): string {
+  if (href.startsWith(here.origin + "/")) return href.slice(here.origin.length);
+  const product = PRODUCT_PATH.exec(here.pathname)?.[0];
+  const m = product ? ABSOLUTE.exec(href) : null;
+  const path = m?.[1] ?? "";
+  if (!m || (path !== product && !path.startsWith(product + "/"))) return href;
+  return path + (m[2] ?? "");
+}
+
 function inApp(href: string): string {
-  if (typeof window === "undefined" || !href.startsWith(window.location.origin + "/")) return href;
-  return href.slice(window.location.origin.length);
+  return typeof window === "undefined" ? href : inAppHref(href, window.location);
 }
 
 

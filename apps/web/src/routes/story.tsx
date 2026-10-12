@@ -39,7 +39,9 @@ function useScheme(): "light" | "dark" {
  * app never shows someone else's page inside its own frame.
  *
  * storyBase is the address this Story's pages live under. The frame is told it once its document
- * has loaded; all it ever sends back is a page's slug, which is checked again here.
+ * has loaded; all it ever sends back is a page's slug, which is checked again here. home is the
+ * product's own address, so a link the page holds into the product on another deployment (written
+ * there, and copied here) opens here instead.
  */
 const PAGE_SLUG = /^[a-z0-9][a-z0-9-]{0,79}$/;
 const FRAME_KEYS: readonly unknown[] = ["f", "Escape", "ArrowLeft", "ArrowRight"] satisfies StoryKey[];
@@ -50,6 +52,7 @@ export function StoryFrame({
   src,
   onKey,
   storyBase,
+  home,
   onPage,
   size,
 }: {
@@ -58,6 +61,7 @@ export function StoryFrame({
   src: string;
   onKey?: (key: StoryKey) => void;
   storyBase?: string;
+  home?: string;
   onPage?: (pageId: string) => void;
   /** A mockup page's own size: the frame keeps it, scaled down to the room there is, never up. */
   size?: { width: number; height: number };
@@ -113,6 +117,7 @@ export function StoryFrame({
         setLoaded(true);
         // The sandboxed page has an opaque origin, so the message cannot be addressed to one.
         if (storyBase && onPage) frame.current?.contentWindow?.postMessage({ whatbuild: "story-base", base: storyBase }, "*");
+        if (home) frame.current?.contentWindow?.postMessage({ whatbuild: "app-home", home }, "*");
       }}
     />
   );
@@ -337,6 +342,7 @@ export function StoryPage() {
               size={shown.mockup ? { width: shown.mockup.width, height: shown.mockup.height } : undefined}
               onKey={onFrameKey}
               storyBase={`${window.location.origin}${app}/story/`}
+              home={`${window.location.origin}${app}`}
               onPage={(id) => navigate(`${app}/story/${id}`)}
             />
           ) : wantsOld && old.isPending ? (

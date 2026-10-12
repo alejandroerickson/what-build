@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { formatCue, formatDate, formatDateTime, passageText, relativeTime } from "../src/lib/format.ts";
-import { citationLabels, Markdown, markdownText } from "../src/lib/markdown.tsx";
+import { citationLabels, inAppHref, Markdown, markdownText } from "../src/lib/markdown.tsx";
 import { derivedStatusDetail } from "../src/lib/status.ts";
 
 const html = (md: string) => renderToStaticMarkup(<Markdown source={md} />);
@@ -20,6 +20,16 @@ describe("safe Markdown", () => {
     expect(out).not.toContain("javascript:");
     expect(out).not.toContain("<img");
     expect(out).toContain("[pic]");
+  });
+  it("opens a link into the product being read in place, whichever deployment wrote it", () => {
+    const here = { origin: "https://dev.example.com", pathname: "/t/acme/core/planner/exploration/mockups/01ABC" };
+    expect(inAppHref("https://dev.example.com/settings", here)).toBe("/settings");
+    expect(inAppHref("https://app.example.com/t/acme/core/planner/evidence/01DEF?view=passages&seq=28", here)).toBe("/t/acme/core/planner/evidence/01DEF?view=passages&seq=28");
+    expect(inAppHref("https://app.example.com/t/acme/core/planner", here)).toBe("/t/acme/core/planner");
+    // Another product, another part of the original, or a page outside any product: left as written.
+    for (const href of ["https://app.example.com/t/acme/core/other/evidence/01DEF", "https://app.example.com/t/acme/core/planner-2", "https://app.example.com/settings"])
+      expect(inAppHref(href, here)).toBe(href);
+    expect(inAppHref("https://app.example.com/t/acme/core/planner/idea", { origin: "https://dev.example.com", pathname: "/t/acme/members" })).toBe("https://app.example.com/t/acme/core/planner/idea");
   });
   it("renders tables, task lists and headings shifted below the page title", () => {
     const out = html("# Title\n\n| a | b |\n|---|--:|\n| 1 | 2 |\n\n- [x] done\n- [ ] not");

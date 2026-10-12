@@ -206,6 +206,7 @@ function PageFrame({ page, src, title, selected, onSignal, frameRef }: {
   onSignal: (pageId: string, s: FrameSignal) => void;
   frameRef: (el: HTMLDivElement | null) => void;
 }) {
+  const { app } = useProduct();
   const frame = useRef<HTMLIFrameElement>(null);
   const loads = useRef(0);
   const [reloads, setReloads] = useState(0);
@@ -250,6 +251,7 @@ function PageFrame({ page, src, title, selected, onSignal, frameRef }: {
           }
           // The sandboxed page has an opaque origin, so the message cannot be addressed to one.
           frame.current?.contentWindow?.postMessage({ whatbuild: "canvas-host" }, "*");
+          frame.current?.contentWindow?.postMessage({ whatbuild: "app-home", home: `${window.location.origin}${app}` }, "*");
         }}
       />
       {replaced ? <p className="xc-replaced">This page tried to open another address in its place. WhatBuild put it back.</p> : null}
