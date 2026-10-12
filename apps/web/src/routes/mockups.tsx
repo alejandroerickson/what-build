@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
 import { attribution, formatDate, formatDateTime, nestQuotes, plural } from "../lib/format.ts";
@@ -8,7 +8,7 @@ import { useProduct } from "../lib/session.tsx";
 import { REVIEW_STATUS, toneFor } from "../lib/status.ts";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
 import { Button, ButtonLink, Callout, Crumbs, Dialog, EmptyState, ErrorCallout, Glyph, Group, KeyValue, Loading, Menu, MenuItem, MenuNote, MenuRadio, MenuSeparator, StatusBadge, TextField, useToast } from "../ui/index.tsx";
-import { isTypingTarget, useMediaQuery } from "../ui/media.ts";
+import { COARSE_POINTER_QUERY, isTypingTarget, useMediaQuery } from "../ui/media.ts";
 import { FirstUse } from "./first-use.tsx";
 import { FocusToggle, useStoryFocus } from "./story-focus.tsx";
 import { driftWords } from "./story-inspector.tsx";
@@ -150,6 +150,29 @@ interface Box {
 
 const clamp = (z: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
 
+/**
+ * A drag or a pinch on the board, in client pixels. It moves the view by what changed since the
+ * last move, never from where it began, so a finger joining or leaving a pinch carries on from
+ * where the fingers are instead of jumping.
+ */
+interface Gesture {
+  startX: number;
+  startY: number;
+  lastX: number;
+  lastY: number;
+  moved: boolean;
+  /** The page a press began on, which a click without a drag selects. */
+  page: string | null;
+  /** Two fingers down: how far apart they were and where their midpoint was, at the last move. */
+  pinch?: { d: number; x: number; y: number };
+}
+
+/** The first two pointers down: their distance and midpoint, or null with fewer than two. */
+function pinchOf(pointers: Map<number, { x: number; y: number }>): { d: number; x: number; y: number } | null {
+  const [a, b] = [...pointers.values()];
+  return a && b ? { d: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : null;
+}
+
 function readMode(): Mode {
   try {
     return localStorage.getItem(MODE_KEY) === "interact" ? "interact" : "pan";
@@ -245,17 +268,22 @@ function PageFrame({ page, src, title, selected, onSignal, frameRef }: {
  * - Scroll moves the canvas up and down, Shift+scroll sideways; ⌘ or Ctrl with scroll, or a pinch,
  *   zooms about the pointer, over a page in interact mode too. In interact mode, scrolling over a
  *   page scrolls the page.
- * - + and − zoom, 0 shows 100%, 1 fits the canvas, 2 fits the selected page; ← and → select the
- *   previous or next page and fit it. Each page's label has its own fit button, and the toolbar
+ * - On a touch screen one finger drags and two pinch, the point under them staying under them; a
+ *   finger lifting from a pinch leaves the other dragging from where it is. The toolbar's controls
+ *   grow for a thumb, and the zoom buttons and the list of keys give way.
+ * - + and − zoom, 0 shows 100%, 1 fits the canvas, 2 fits the selected page (or the one nearest the
+ *   middle); ← and → select the previous or next page and fit it. Each page's label has its own fit button, and the toolbar
  *   has the arrows and a list of every key. A page's frame passes these keys on, so they work
  *   from inside a page.
  */
-function Canvas({ version, pageSrc, selected, onSelect, onKey, fitRequest }: {
+function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequest }: {
   version: MockupVersion;
   pageSrc: (pageId: string) => string;
   selected: string | null;
   onSelect: (pageId: string | null) => void;
   onKey: (k: "f" | "Escape") => void;
+  /** Whether focus mode is on offer here, so the list of keys names it. */
+  canFocus: boolean;
   /** Bumped by the inspector to fit the selected page. */
   fitRequest: number;
 }) {
@@ -269,8 +297,11 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, fitRequest }: {
   const [dragging, setDragging] = useState(false);
   const [gliding, setGliding] = useState(false);
   const reduceMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
+  // Fingers pinch to zoom and carry no keyboard: the toolbar gives up its zoom buttons and the list
+  // of keys for room to make its controls big enough for a thumb.
+  const coarse = useMediaQuery(COARSE_POINTER_QUERY);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
-  const gesture = useRef<{ x: number; y: number; vx: number; vy: number; moved: boolean; page: string | null; pinch?: { d: number; z: number; cx: number; cy: number } } | null>(null);
+  const gesture = useRef<Gesture | null>(null);
   const touched = useRef(false);
   const columns = Math.max(1, version.columns ?? version.pages.length);
   const panning = mode === "pan" || space;
@@ -331,6 +362,30 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, fitRequest }: {
     },
     [boxes, fitBox, onSelect],
   );
+  // The view as last drawn, for what reads it only when asked, so a drag does not remake them.
+  const shownView = useRef(view);
+  useLayoutEffect(() => {
+    shownView.current = view;
+  }, [view]);
+  /** The page whose middle is nearest the middle of the screen: what "fit the page" means with none selected. */
+  const middlePage = useCallback((): string | null => {
+    const vp = viewport.current;
+    if (!vp) return null;
+    const v = shownView.current;
+    const cx = (vp.clientWidth / 2 - v.x) / v.z;
+    const cy = (vp.clientHeight / 2 - v.y) / v.z;
+    let best: string | null = null;
+    let bestD = Infinity;
+    for (const [id, b] of Object.entries(boxes)) {
+      const d = Math.hypot(b.left + b.width / 2 - cx, b.top + b.height / 2 - cy);
+      if (d < bestD) {
+        bestD = d;
+        best = id;
+      }
+    }
+    return best;
+  }, [boxes]);
+  const fitShown = useCallback(() => fitPage(selected ?? middlePage()), [fitPage, selected, middlePage]);
 
   // Fit the whole canvas when a version opens, and keep it fitted while the window changes until
   // someone moves it.
@@ -421,7 +476,7 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, fitRequest }: {
       else if (k === "1") {
         touched.current = true;
         fitCanvas();
-      } else if (k === "2") fitPage(selected);
+      } else if (k === "2") fitShown();
       else if (k === "ArrowLeft") step(-1);
       else if (k === "ArrowRight") step(1);
       // The first Esc clears the selection; only the next leaves focus mode.
@@ -429,22 +484,25 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, fitRequest }: {
       else return false;
       return true;
     },
-    [setMode, zoomAt, view.z, fitCanvas, fitPage, selected, step, onSelect],
+    [setMode, zoomAt, view.z, fitCanvas, fitShown, selected, step, onSelect],
   );
 
   /** What a page's frame passes on: the same keys, Space held, a pinch, a press that selects the page. */
-  const onSignal = useCallback(
-    (pageId: string, s: FrameSignal) => {
-      if (s.kind === "keyup") setSpace(false);
-      else if (s.kind === "select") {
-        if (pageId !== selected) onSelect(pageId);
-      } else if (s.kind === "zoom") wheelZoom(s.dy, s.line, s.pinch, s.clientX, s.clientY);
-      else if (document.querySelector("dialog[open], .menu")) return;
-      else if (s.key === " ") setSpace(true);
-      else if (!press(s.key) && (s.key === "f" || s.key === "Escape")) onKey(s.key);
-    },
-    [selected, onSelect, wheelZoom, press, onKey],
-  );
+  const handleSignal = (pageId: string, s: FrameSignal) => {
+    if (s.kind === "keyup") setSpace(false);
+    else if (s.kind === "select") {
+      if (pageId !== selected) onSelect(pageId);
+    } else if (s.kind === "zoom") wheelZoom(s.dy, s.line, s.pinch, s.clientX, s.clientY);
+    else if (document.querySelector("dialog[open], .menu")) return;
+    else if (s.key === " ") setSpace(true);
+    else if (!press(s.key) && (s.key === "f" || s.key === "Escape")) onKey(s.key);
+  };
+  // The frames hold one listener that never changes, so moving the view leaves them alone.
+  const signal = useRef(handleSignal);
+  useLayoutEffect(() => {
+    signal.current = handleSignal;
+  });
+  const onSignal = useCallback((pageId: string, s: FrameSignal) => signal.current(pageId, s), []);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -479,50 +537,92 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, fitRequest }: {
     if ((e.target as HTMLElement).closest(".xc-label, .xc-tools")) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    const vp = viewport.current!.getBoundingClientRect();
-    if (pointers.current.size === 2) {
-      const [a, b] = [...pointers.current.values()] as [{ x: number; y: number }, { x: number; y: number }];
-      gesture.current = { x: 0, y: 0, vx: view.x, vy: view.y, moved: true, page: null, pinch: { d: Math.hypot(a.x - b.x, a.y - b.y), z: view.z, cx: (a.x + b.x) / 2 - vp.left, cy: (a.y + b.y) / 2 - vp.top } };
+    // A hand on the board stops a glide, so the view follows the fingers at once.
+    setGliding(false);
+    const pinch = pinchOf(pointers.current);
+    if (pinch) {
+      // A second finger turns the gesture into a pinch, which never selects.
+      gesture.current = { startX: pinch.x, startY: pinch.y, lastX: pinch.x, lastY: pinch.y, moved: true, page: null, pinch };
       return;
     }
-    gesture.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, moved: false, page: pageAt(e.target) };
+    gesture.current = { startX: e.clientX, startY: e.clientY, lastX: e.clientX, lastY: e.clientY, moved: false, page: pageAt(e.target) };
   };
   const onPointerMove = (e: React.PointerEvent) => {
     if (!pointers.current.has(e.pointerId)) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const g = gesture.current;
     if (!g) return;
-    if (g.pinch && pointers.current.size === 2) {
-      const [a, b] = [...pointers.current.values()] as [{ x: number; y: number }, { x: number; y: number }];
-      const z = clamp((g.pinch.z * Math.hypot(a.x - b.x, a.y - b.y)) / g.pinch.d);
-      const { cx, cy } = g.pinch;
+    if (g.pinch) {
+      const now = pinchOf(pointers.current);
+      const r = viewport.current?.getBoundingClientRect();
+      if (!now || !r) return;
+      const was = g.pinch;
+      g.pinch = now;
+      const factor = was.d > 0 ? now.d / was.d : 1;
       touched.current = true;
-      setView({ z, x: cx - ((cx - g.vx) * z) / g.pinch.z, y: cy - ((cy - g.vy) * z) / g.pinch.z });
+      // The point of the page under the fingers' midpoint stays under it as they spread and move.
+      setView((v) => {
+        const z = clamp(v.z * factor);
+        return { z, x: now.x - r.left - ((was.x - r.left - v.x) * z) / v.z, y: now.y - r.top - ((was.y - r.top - v.y) * z) / v.z };
+      });
       return;
     }
-    const dx = e.clientX - g.x;
-    const dy = e.clientY - g.y;
-    if (!g.moved && Math.hypot(dx, dy) < 4) return;
+    if (!g.moved && Math.hypot(e.clientX - g.startX, e.clientY - g.startY) < 4) return;
     if (!g.moved) {
       g.moved = true;
       touched.current = true;
       setDragging(true);
     }
-    setView((v) => ({ ...v, x: g.vx + dx, y: g.vy + dy }));
+    const dx = e.clientX - g.lastX;
+    const dy = e.clientY - g.lastY;
+    g.lastX = e.clientX;
+    g.lastY = e.clientY;
+    setView((v) => ({ ...v, x: v.x + dx, y: v.y + dy }));
   };
   const onPointerUp = (e: React.PointerEvent) => {
-    pointers.current.delete(e.pointerId);
+    if (!pointers.current.delete(e.pointerId)) return;
     const g = gesture.current;
     if (pointers.current.size === 0) {
       // A click without a drag selects the page under it, or clears the selection on the background.
       if (g && !g.moved) onSelect(g.page);
       gesture.current = null;
       setDragging(false);
+      return;
+    }
+    if (!g) return;
+    // A finger lifted: what is still down carries on from where it is, as a pinch or a drag.
+    const pinch = pinchOf(pointers.current);
+    if (pinch) g.pinch = pinch;
+    else {
+      const [p] = [...pointers.current.values()];
+      g.pinch = undefined;
+      g.lastX = p!.x;
+      g.lastY = p!.y;
     }
   };
 
+  // The pages do not change as the view moves, so a drag or a pinch re-renders only the transform
+  // and the labels, never the frames.
+  const pageFrames = useMemo(
+    () =>
+      version.pages.map((p) => (
+        <PageFrame
+          key={p.page_id}
+          page={p}
+          src={pageSrc(p.page_id)}
+          title={`${p.title}, shown in a sandbox`}
+          selected={p.page_id === selected}
+          onSignal={onSignal}
+          frameRef={(el) => {
+            if (el) frames.current.set(p.page_id, el);
+            else frames.current.delete(p.page_id);
+          }}
+        />
+      )),
+    [version.pages, pageSrc, selected, onSignal],
+  );
+
   const worldStyle: CSSProperties = {
-    ["--xc-z" as string]: view.z,
     transform: `translate(${view.x}px, ${view.y}px) scale(${view.z})`,
     gridTemplateColumns: `repeat(${columns}, max-content)`,
     columnGap: GAP_X,
@@ -547,23 +647,24 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, fitRequest }: {
         onPointerCancel={onPointerUp}
       >
         <div ref={world} className="xc-world" style={worldStyle}>
-          {version.pages.map((p) => (
-            <PageFrame
-              key={p.page_id}
-              page={p}
-              src={pageSrc(p.page_id)}
-              title={`${p.title}, shown in a sandbox`}
-              selected={p.page_id === selected}
-              onSignal={onSignal}
-              frameRef={(el) => {
-                if (el) frames.current.set(p.page_id, el);
-                else frames.current.delete(p.page_id);
-              }}
-            />
-          ))}
+          {pageFrames}
         </div>
-        {/* Labels sit above their pages at screen size, so a page's name reads at any zoom. */}
-        <ol className="xc-labels" aria-label="Pages">
+        {/* The selected page's outline, drawn at screen size over it, so it keeps its width at any
+            zoom and the pages never redraw as the view zooms. */}
+        {selected && boxes[selected] ? (
+          <div
+            className="xc-ring"
+            aria-hidden="true"
+            style={{
+              transform: `translate(${view.x + boxes[selected].left * view.z}px, ${view.y + boxes[selected].top * view.z}px)`,
+              width: boxes[selected].width * view.z,
+              height: boxes[selected].height * view.z,
+            }}
+          />
+        ) : null}
+        {/* Labels sit above their pages at screen size, so a page's name reads at any zoom. They
+            move together, so a drag moves one layer and redraws nothing. */}
+        <ol className="xc-labels" aria-label="Pages" style={{ transform: `translate(${view.x}px, ${view.y}px)` }}>
           {version.pages.map((p, i) => {
             const b = boxes[p.page_id];
             if (!b) return null;
@@ -576,7 +677,7 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, fitRequest }: {
                 data-selected={p.page_id === selected ? "" : undefined}
                 data-narrow={w < 200 ? "" : undefined}
                 data-tiny={w < 72 ? "" : undefined}
-                style={{ transform: `translate(${view.x + b.left * view.z}px, ${view.y + b.top * view.z}px)`, width: Math.max(w, 28) }}
+                style={{ transform: `translate(${b.left * view.z}px, ${b.top * view.z}px)`, width: Math.max(w, 28) }}
               >
                 <button type="button" className="xc-label-name" onClick={() => onSelect(p.page_id)} aria-pressed={p.page_id === selected} title={`${p.title} · ${p.width} × ${p.height}`}>
                   <span className="xc-label-n num">{i + 1}</span>
@@ -606,10 +707,12 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, fitRequest }: {
           </button>
         </div>
         <span className="xc-tools-rule" aria-hidden="true" />
-        <button type="button" className="xc-tool" onClick={() => zoomAt(0.8, undefined, undefined, true)} disabled={view.z <= MIN_ZOOM} title="Zoom out (−)">
-          <Glyph name="zoom-out" />
-          <span className="visually-hidden">Zoom out</span>
-        </button>
+        {coarse ? null : (
+          <button type="button" className="xc-tool" onClick={() => zoomAt(0.8, undefined, undefined, true)} disabled={view.z <= MIN_ZOOM} title="Zoom out (−)">
+            <Glyph name="zoom-out" />
+            <span className="visually-hidden">Zoom out</span>
+          </button>
+        )}
         <Menu
           label={`Zoom ${pct}%`}
           triggerClassName="xc-tool xc-zoom num"
@@ -618,22 +721,28 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, fitRequest }: {
           minWidth={200}
           trigger={<>{pct}%</>}
         >
-          <MenuItem onSelect={() => { touched.current = true; fitCanvas(); }} kbd="1">Fit the canvas</MenuItem>
-          <MenuItem onSelect={() => fitPage(selected)} disabled={!selected} kbd="2">Fit the selected page</MenuItem>
+          <MenuItem onSelect={() => { touched.current = true; fitCanvas(); }} kbd={coarse ? undefined : "1"}>Fit the canvas</MenuItem>
+          <MenuItem onSelect={fitShown} kbd={coarse ? undefined : "2"}>{selected ? "Fit the selected page" : "Fit the page in the middle"}</MenuItem>
           <MenuSeparator />
           {[50, 100, 200].map((n) => (
-            <MenuItem key={n} onSelect={() => zoomAt(n / 100 / view.z, undefined, undefined, true)} kbd={n === 100 ? "0" : undefined}>
+            <MenuItem key={n} onSelect={() => zoomAt(n / 100 / view.z, undefined, undefined, true)} kbd={n === 100 && !coarse ? "0" : undefined}>
               {n}%
             </MenuItem>
           ))}
         </Menu>
-        <button type="button" className="xc-tool" onClick={() => zoomAt(1.25, undefined, undefined, true)} disabled={view.z >= MAX_ZOOM} title="Zoom in (+)">
-          <Glyph name="zoom-in" />
-          <span className="visually-hidden">Zoom in</span>
-        </button>
+        {coarse ? null : (
+          <button type="button" className="xc-tool" onClick={() => zoomAt(1.25, undefined, undefined, true)} disabled={view.z >= MAX_ZOOM} title="Zoom in (+)">
+            <Glyph name="zoom-in" />
+            <span className="visually-hidden">Zoom in</span>
+          </button>
+        )}
         <span className="xc-tools-rule" aria-hidden="true" />
-        <button type="button" className="xc-tool" onClick={() => { touched.current = true; fitCanvas(); }} title="Fit the canvas (1)" aria-keyshortcuts="1">
+        <button type="button" className="xc-tool" onClick={fitShown} title={selected ? "Fit the selected page (2)" : "Fit the page in the middle (2)"} aria-keyshortcuts="2">
           <Glyph name="scan" />
+          <span className="visually-hidden">{selected ? "Fit the selected page" : "Fit the page in the middle"}</span>
+        </button>
+        <button type="button" className="xc-tool" onClick={() => { touched.current = true; fitCanvas(); }} title="Fit the canvas (1)" aria-keyshortcuts="1">
+          <Glyph name="layout-grid" />
           <span className="visually-hidden">Fit the canvas</span>
         </button>
         <span className="xc-tools-rule" aria-hidden="true" />
@@ -645,22 +754,26 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, fitRequest }: {
           <Glyph name="chevron-right" />
           <span className="visually-hidden">Next page</span>
         </button>
-        <span className="xc-tools-rule" aria-hidden="true" />
-        <Menu label="Keyboard shortcuts" title="Keyboard shortcuts" triggerClassName="xc-tool" align="end" side="top" minWidth={240} trigger={<Glyph name="keyboard" />}>
-          <MenuItem onSelect={() => step(-1)} disabled={selectedIndex === 0} kbd="←">Previous page</MenuItem>
-          <MenuItem onSelect={() => step(1)} disabled={selectedIndex === version.pages.length - 1} kbd="→">Next page</MenuItem>
-          <MenuItem onSelect={() => fitPage(selected)} disabled={!selected} kbd="2">Fit the selected page</MenuItem>
-          <MenuItem onSelect={() => { touched.current = true; fitCanvas(); }} kbd="1">Fit the canvas</MenuItem>
-          <MenuSeparator />
-          <MenuItem onSelect={() => zoomAt(1.25, undefined, undefined, true)} kbd="+">Zoom in</MenuItem>
-          <MenuItem onSelect={() => zoomAt(0.8, undefined, undefined, true)} kbd="−">Zoom out</MenuItem>
-          <MenuItem onSelect={() => zoomAt(1 / view.z, undefined, undefined, true)} kbd="0">Zoom to 100%</MenuItem>
-          <MenuSeparator />
-          <MenuItem onSelect={() => setMode("pan")} kbd="H">Pan</MenuItem>
-          <MenuItem onSelect={() => setMode("interact")} kbd="V">Interact</MenuItem>
-          <MenuItem onSelect={() => onKey("f")} kbd="F">Focus mode</MenuItem>
-          <MenuNote>Hold Space and drag to pan from either mode. Esc clears the selection. The keys work from inside a page too.</MenuNote>
-        </Menu>
+        {coarse ? null : (
+          <>
+            <span className="xc-tools-rule" aria-hidden="true" />
+            <Menu label="Keyboard shortcuts" title="Keyboard shortcuts" triggerClassName="xc-tool" align="end" side="top" minWidth={240} trigger={<Glyph name="keyboard" />}>
+              <MenuItem onSelect={() => step(-1)} disabled={selectedIndex === 0} kbd="←">Previous page</MenuItem>
+              <MenuItem onSelect={() => step(1)} disabled={selectedIndex === version.pages.length - 1} kbd="→">Next page</MenuItem>
+              <MenuItem onSelect={fitShown} kbd="2">{selected ? "Fit the selected page" : "Fit the page in the middle"}</MenuItem>
+              <MenuItem onSelect={() => { touched.current = true; fitCanvas(); }} kbd="1">Fit the canvas</MenuItem>
+              <MenuSeparator />
+              <MenuItem onSelect={() => zoomAt(1.25, undefined, undefined, true)} kbd="+">Zoom in</MenuItem>
+              <MenuItem onSelect={() => zoomAt(0.8, undefined, undefined, true)} kbd="−">Zoom out</MenuItem>
+              <MenuItem onSelect={() => zoomAt(1 / view.z, undefined, undefined, true)} kbd="0">Zoom to 100%</MenuItem>
+              <MenuSeparator />
+              <MenuItem onSelect={() => setMode("pan")} kbd="H">Pan</MenuItem>
+              <MenuItem onSelect={() => setMode("interact")} kbd="V">Interact</MenuItem>
+              {canFocus ? <MenuItem onSelect={() => onKey("f")} kbd="F">Focus mode</MenuItem> : null}
+              <MenuNote>Hold Space and drag to pan from either mode. Esc clears the selection. The keys work from inside a page too.</MenuNote>
+            </Menu>
+          </>
+        )}
       </div>
     </div>
   );
@@ -1048,7 +1161,8 @@ export function MockupPage() {
     retry: (n, err) => !(err instanceof ApiError && err.isNotFound) && n < 2,
     queryFn: () => api<MockupVersion>("GET", `${base}/mockups/${mockupId}/versions/${asked}`),
   });
-  const focusMode = useStoryFocus(e.isSuccess);
+  // On a phone too: the board gains the whole screen.
+  const focusMode = useStoryFocus(e.isSuccess, { onPhone: true });
   usePageTitle(e.data?.title ?? null);
   // The selected page lives in the URL (?page=), so a link can open a canvas at one page.
   const selected = params.get("page");
@@ -1127,6 +1241,7 @@ export function MockupPage() {
           selected={shown.pages.some((p) => p.page_id === selected) ? selected : null}
           onSelect={select}
           onKey={focusMode.onKey}
+          canFocus={focusMode.available}
           fitRequest={fitRequest}
         /> : <Loading variant="lines" />}
       <Inspector title={x.title}>{shown ? <MockupInspector
