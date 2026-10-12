@@ -32,7 +32,8 @@ what the plan expects, and report. The system, with every command, is described 
    asked for a fresh one or for newer data, build it with `pnpm e2e golden` from the newest pull
    (`ls .what-build/fixtures`, or the main checkout's in a worktree). To take a new pull, use
    `pnpm fixture pull` only when the person asks for one, following the
-   `test-on-a-copy-of-production` skill. Stop the instance (`pnpm e2e stop`) before building.
+   `test-on-a-copy-of-production` skill; it takes the public sandbox, which is all the golden
+   master keeps. Stop the instance (`pnpm e2e stop`) before building.
 3. **Serve.** Run `pnpm dev:e2e > .what-build/e2e/server.log 2>&1` in the background with a long
    time limit, and wait until `curl -sf http://localhost:5283/health` answers. It runs beside
    `pnpm dev`. A failed migration or job, or a 5xx, in `server.log` is a finding; `GET /mcp 405`

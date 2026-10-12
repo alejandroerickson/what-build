@@ -7,7 +7,7 @@ copy.
 
 Run `corepack pnpm attention`. It prints what is waiting in this repository: Dependabot's pull
 requests and alerts, a failed run on `main`, an accepted vulnerability whose time is up, changes
-production lacks, git hooks that are off. If it prints anything, tell the person in a line or two
+production lacks, git hooks that are off, copies of production that hold every organization. If it prints anything, tell the person in a line or two
 before you start their task, and offer to handle each item with the skill it names. The maintainer
 works on many projects and will not remember this one's chores; this is how they hear of them. Do
 not act on an item unasked.
@@ -67,9 +67,10 @@ that folder. If your tool does not load skills, read the `SKILL.md` files direct
 | `okf-decision` | When a change makes, revises or reverses a durable choice. |
 | `azure-self-host` | When asked to host, update or repair a self-hosted copy on Azure with the Azure CLI. |
 | `make-a-release` | When asked to release a version or move production: publish the release, approve the deploy. |
-| `rehearse-on-the-dev-deployment` | Before production runs a release that migrates, or when asked to deploy to dev, refresh or reset dev's copy of production, set dev up, or rehearse a restore. |
+| `rehearse-on-the-dev-deployment` | Before production runs a release that migrates, or when asked to deploy to dev, refresh or reset dev's copy of production, change which organizations dev holds, set dev up, or rehearse a restore. |
 | `recover-a-deployment` | When a new version broke a deployment (Cloud Run or Azure): roll back, restore the database. |
-| `test-on-a-copy-of-production` | When asked to QA or test end to end on real data, or to try migrations on a copy of production. |
+| `test-on-a-copy-of-production` | When asked to QA or test end to end on real data, to put the sandbox or an organization into the test database, or to try migrations on a copy of production. |
+| `copy-an-organization` | When asked to dump, export, extract or move an organization or the sandbox, to keep an organization out of a copy, or to give an organization a deployment of its own. |
 | `audit-for-leaks` | When asked to check the repository or its history for secrets or private material, when something may have leaked, or to make the repository public. |
 | `triage-security-findings` | When `pnpm security`, the Security or CodeQL workflow, or Dependabot reports something; when adding or upgrading a dependency; before a release. |
 | `run-end-to-end-tests` | When asked to run the end-to-end, smoke or acceptance tests or a test plan, to QA the app through the browser and MCP, or to build the golden master. |
@@ -103,6 +104,7 @@ conducts each one that changes something:
 | know what is backed up, check that backups run, restore a dump, perform the restore drill | `backups.md` | `rehearse-on-the-dev-deployment` (the drill) |
 | go back after a release broke a deployment | `recovering-from-a-bad-release.md` | `recover-a-deployment` |
 | test on a copy of production on this machine | `a-copy-of-production.md` | `test-on-a-copy-of-production` |
+| copy some organizations out of a deployment (the sandbox by default): to test on, to dev, or into another deployment's new database | `copying-an-organization.md` | `copy-an-organization` |
 | find out how a deployment is used (features, agents, people coming back, the site); connect its analytics | `analytics.md` | `read-usage` |
 | know what mail a deployment sends and through what; set it up, check it, rotate its token, change provider | `mail.md` | `set-up-mail` |
 

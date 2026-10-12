@@ -1,5 +1,6 @@
 import { BASELINE_TABLES, hashParts, inputFingerprint, isCurrent, json, newId, partHash, type Db, type LineageInput } from "@whatbuild/core";
 import type pg from "pg";
+import { checkReferences, storedColumns } from "./organization-copy.ts";
 
 /**
  * Shaping a restored copy of production into the end-to-end golden master
@@ -22,14 +23,6 @@ async function tablesWith(c: pg.Client, column: string) {
   return r.rows.map((x) => x.table_name);
 }
 
-async function storedColumns(c: pg.Client, table: string) {
-  const r = await c.query<{ attname: string }>(
-    "select attname from pg_attribute where attrelid = to_regclass($1) and attnum > 0 and not attisdropped and attgenerated = '' order by attnum",
-    [`public.${table}`],
-  );
-  return r.rows.map((x) => x.attname);
-}
-
 /**
  * Remove every organization but one, the accounts that belong to none of what is left, and what
  * only a running deployment needs: sessions, tokens, sign-in links, the public site's interest
@@ -49,24 +42,7 @@ export async function keepOnlyTenant(c: pg.Client, tenantId: string) {
     await c.query("rollback");
     throw e;
   }
-  await checkReferences(c);
-}
-
-/** Every foreign key holds: a deletion with checks off left nothing pointing at a row that is gone. */
-export async function checkReferences(c: pg.Client) {
-  const fks = await c.query<{ child: string; parent: string; cols: string[]; pcols: string[] }>(`
-    select conrelid::regclass::text as child, confrelid::regclass::text as parent,
-      array(select attname::text from pg_attribute where attrelid = conrelid and attnum = any(conkey) order by array_position(conkey, attnum)) as cols,
-      array(select attname::text from pg_attribute where attrelid = confrelid and attnum = any(confkey) order by array_position(confkey, attnum)) as pcols
-    from pg_constraint where contype = 'f' and connamespace = 'public'::regnamespace`);
-  const broken: string[] = [];
-  for (const fk of fks.rows) {
-    const notNull = fk.cols.map((col) => `c.${col} is not null`).join(" and ");
-    const match = fk.cols.map((col, i) => `p.${fk.pcols[i]} = c.${col}`).join(" and ");
-    const r = await c.query<{ n: number }>(`select count(*)::int as n from ${fk.child} c where ${notNull} and not exists (select 1 from ${fk.parent} p where ${match})`);
-    if (r.rows[0]!.n) broken.push(`${r.rows[0]!.n} rows of ${fk.child} (${fk.cols.join(", ")}) point at missing ${fk.parent}`);
-  }
-  if (broken.length) throw new Error(`The golden master would have broken references:\n  ${broken.join("\n  ")}`);
+  await checkReferences(c, "The golden master");
 }
 
 /**
@@ -118,7 +94,7 @@ export async function copyTenant(c: pg.Client, fromTenantId: string, slug: strin
     await c.query("rollback");
     throw e;
   }
-  await checkReferences(c);
+  await checkReferences(c, "The golden master");
   return ids;
 }
 

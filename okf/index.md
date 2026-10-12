@@ -27,6 +27,7 @@ server with the same operations. There is no AI inside.
   [self-hosting on Azure](operations/azure.md), [Analytics](operations/analytics.md) and [Mail](operations/mail.md).
 - **Making a release, or moving production?** [Releasing](operations/releasing.md).
 - **Rehearsing a release, or deploying to dev?** [The dev deployment](operations/dev-deployment.md).
+- **Copying an organization**, to test on, to dev, or into another deployment? [Copying an organization](operations/copying-an-organization.md).
 - **Backups, or restoring one?** [Backups](operations/backups.md).
 - **A release broke a deployment?** [Recovering from a bad release](operations/recovering-from-a-bad-release.md).
 - **Setting up email, or invitations not arriving?** [Mail](operations/mail.md).
@@ -43,7 +44,8 @@ server with the same operations. There is no AI inside.
   hosting a copy on Azure (`azure-self-host`), publishing a release (`make-a-release`),
   rehearsing on the dev deployment (`rehearse-on-the-dev-deployment`), recovering a deployment a
   release broke (`recover-a-deployment`), testing on a local copy of production
-  (`test-on-a-copy-of-production`), running the end-to-end test plans
+  (`test-on-a-copy-of-production`), moving an organization into another deployment
+  (`copy-an-organization`), running the end-to-end test plans
   (`run-end-to-end-tests`), reading how a deployment is used (`read-usage`), and setting up and
   repairing a deployment's mail (`set-up-mail`).
 - `PRODUCT.md`: users, purpose and principles. `DESIGN.md` and `.impeccable/design.json`: the

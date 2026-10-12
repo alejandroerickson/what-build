@@ -1,6 +1,6 @@
 ---
 name: test-on-a-copy-of-production
-description: Pull a private copy of the production deployment's database and files, load it into the local app, and serve it with pending migrations applied. Use it for manual QA, agent-driven end-to-end tests, or trying a release's migrations on real data before production. Use it when asked to test or QA against production data, real data, a production copy, dump or fixture, to try a migration on the deployment's data, or to serve that copy locally.
+description: Pull a private copy of the production deployment's public sandbox, or of the organizations named, with their files, load it into the local app, and serve it with pending migrations applied. Use it for manual QA, agent-driven end-to-end tests, or trying a release's migrations on real data before production. Use it when asked to test or QA against production data, real data, a production copy, dump or fixture, to put the sandbox or an organization into the test database, to try a migration on the deployment's data, or to serve that copy locally.
 ---
 
 # Test on a copy of production
@@ -11,6 +11,10 @@ Read it before the first command. This file says how to conduct the work.
 
 ## What must stay true
 
+- **Only the organizations needed.** `pnpm fixture pull` takes the public sandbox and nothing of
+  the others (`okf/operations/copying-an-organization.md`). Name others with `--org` only when the
+  person names them. Pull `--all` only for a migration that needs every organization's content,
+  say so first, and delete that pull once it has served.
 - **The copy is real people's data.** It stays in `.what-build/`, on this machine. Never commit
   it, upload it, or paste or quote it into the repository, a commit message, an issue or a pull
   request. That includes names, addresses, organizations, titles and text. In your report to the
@@ -27,8 +31,9 @@ Read it before the first command. This file says how to conduct the work.
 
 ## Procedure
 
-1. **Choose the copy.** Pull a fresh one with `pnpm fixture pull` unless the person names an
-   existing pull. `ls .what-build/fixtures` lists the pulls.
+1. **Choose the copy.** Pull a fresh one with `pnpm fixture pull` (the public sandbox), or
+   `pnpm fixture pull --org <slug>[,<slug>…]` for the organizations the person names, unless they
+   name an existing pull. `pnpm fixture list` lists the pulls and what each holds.
 2. **Load it.** Stop any running `pnpm dev` or `pnpm dev:fixture`, then run `pnpm fixture load`.
    It prints the organizations, products and accounts in the copy, and the last migration it has.
 3. **Serve it.** Run `pnpm dev:fixture` in the background with a long time limit, and wait for the
@@ -52,7 +57,7 @@ Read it before the first command. This file says how to conduct the work.
    `run-end-to-end-tests` skill. To start again from the pulled state, stop the server and
    load again.
 7. **Report** to the person:
-   - which pull you used;
+   - which pull you used, and which organizations it holds;
    - what migrated;
    - what you checked, what failed, and what you could not check.
 

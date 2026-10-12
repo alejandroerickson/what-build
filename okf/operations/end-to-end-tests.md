@@ -42,8 +42,9 @@ corepack pnpm e2e golden 2026-10-10T1621Z # from a named pull
 corepack pnpm e2e golden --org <slug>     # keep another organization than the public sandbox
 ```
 
-It is made from a pull of production ([a copy of production](a-copy-of-production.md)), restored
-as the application's role, and shaped into two organizations
+It is made from a pull of production ([a copy of production](a-copy-of-production.md)): a pull of
+the public sandbox, `pnpm fixture pull`'s default, is all it needs. It is restored as the
+application's role, and shaped into two organizations
 ([decision](../decisions/end-to-end-tests-are-plans-an-agent-runs-on-a-golden-master.md)):
 
 - **The sandbox organization:** the organization production names as its public sandbox, as it was
