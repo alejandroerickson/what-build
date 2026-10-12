@@ -95,7 +95,7 @@ export function SitePage() {
                   <TextField label="Email" type="email" autoComplete="email" required maxLength={320} value={form.email} onChange={set("email")} />
                   <TextField label="Name" optional autoComplete="name" maxLength={200} value={form.name} onChange={set("name")} />
                   <TextField label="Team or company" optional autoComplete="organization" maxLength={200} value={form.organization} onChange={set("organization")} />
-                  <TextArea label="What are you deciding?" optional rows={3} maxLength={2000} value={form.note} onChange={set("note")} hint="The product question on your team’s mind." />
+                  <TextArea label="What are you deciding?" optional rows={3} maxLength={2000} value={form.note} onChange={set("note")} />
                 </FormGrid>
                 {/* People never see this field; bots fill it in and are ignored. */}
                 <div className="site-trap" aria-hidden="true">

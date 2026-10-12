@@ -81,7 +81,7 @@ export function ErrorCallout({ error, onRetry, title, inset, retryLabel }: { err
         title={title ?? "This changed while you were working"}
         action={onRetry ? <Button size="sm" onClick={onRetry}>{retryLabel ?? "Load their version"}</Button> : undefined}
       >
-        Someone else saved a newer version. Your input is still here: load theirs, check what changed, then save again.
+        Someone else saved a newer version. Your changes are still here: load theirs, then save again.
       </Callout>
     );
   if (api?.code === "quota_exceeded")

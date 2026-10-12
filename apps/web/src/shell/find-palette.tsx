@@ -188,7 +188,7 @@ function Palette({ app, base, product, text, setText, via, onClose }: { app: str
       ) : null}
       {typed && d && !d.results.length ? (
         <p className="find-pal-empty">
-          Nothing in {product.name} matches “{text.trim()}”. Try another word for the same thing.
+          Nothing in {product.name} matches “{text.trim()}”. Try another word.
         </p>
       ) : null}
       {opts.length ? (
@@ -240,7 +240,7 @@ export function understood(d: FindResponse): ReactNode {
       </span>,
     );
   if (d.kind_hint) parts.push(<span key="k">{kindOf(d.kind_hint).label} first.</span>);
-  if (d.partial) parts.push(<span key="p">Nothing has all your words; these have most of them.</span>);
+  if (d.partial) parts.push(<span key="p">Nothing has all your words.</span>);
   return parts.length ? parts : null;
 }
 

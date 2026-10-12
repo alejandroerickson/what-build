@@ -44,7 +44,7 @@ export function ReleaseItem({ release }: { release: Release | undefined }) {
     return (
       <>
         <MenuSeparator />
-        <MenuNote>Development server, running from source</MenuNote>
+        <MenuNote>Development server</MenuNote>
       </>
     );
   const name = (

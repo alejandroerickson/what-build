@@ -105,7 +105,7 @@ export function StyleDialog({ view, scheme, onClose }: { view: StyleView; scheme
       wide
       onClose={onClose}
       title="Story style"
-      description="Every Story page in this product follows one design system: your company’s own, or a house style. Preview them here, then ask your agent to switch."
+      description="Every Story page follows one style. Preview one, then ask your agent to switch."
       footer={<Button onClick={onClose}>Close</Button>}
     >
       <div className="style-picker">
@@ -154,7 +154,7 @@ export function StyleDialog({ view, scheme, onClose }: { view: StyleView; scheme
         </div>
       </div>
       <div className="style-own">
-        <p className="style-ask-label">Have a design system or brand guide of your own? Share it with your agent and ask:</p>
+        <p className="style-ask-label">To use your own design system, share it with your agent and ask:</p>
         <CopyField value="Make our WhatBuild Story follow our design system." label="What to ask your agent to use your design system" />
       </div>
     </Dialog>

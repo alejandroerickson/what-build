@@ -70,17 +70,17 @@ export function SandboxBanner({ tenant }: { tenant: { slug: string; name: string
       >
         {staff ? (
           <>
-            Visitors read and write here under made-up names. Everything added since the baseline, your own changes included, is erased{" "}
-            {s.resets.next_at ? `${resetWords(s.resets)} (next ${untilTime(s.resets.next_at)})` : "when you reset it"}. Save a new baseline to keep them.
+            Visitors work here under made-up names. Everything added since the baseline, yours included, is erased{" "}
+            {s.resets.next_at ? `${resetWords(s.resets)} (next ${untilTime(s.resets.next_at)})` : "when you reset it"}. Save a new baseline to keep your changes.
           </>
         ) : reader ? (
           <>
-            You read this product&rsquo;s Story here and write nothing, and nobody here sees who you are. What visitors add is erased{" "}
+            You can only read the Story here. What visitors add is erased{" "}
             {s.resets.next_at ? `${resetWords(s.resets)} (next ${untilTime(s.resets.next_at)})` : "whenever the sandbox is reset"}.
           </>
         ) : (
           <>
-            {s.you.role === "member" ? "Everyone here, visitors included, sees" : "Other visitors see"} what you add, under the name <b>{s.you.appears_as}</b>, and nobody here sees who you are. Everything added is erased{" "}
+            {s.you.role === "member" ? "Everyone here sees" : "Other visitors see"} what you add, under the name <b>{s.you.appears_as}</b>. Everything added is erased{" "}
             {s.resets.next_at ? `${resetWords(s.resets)} (next ${untilTime(s.resets.next_at)})` : "whenever the sandbox is reset"}. Don&rsquo;t add anything private.
           </>
         )}

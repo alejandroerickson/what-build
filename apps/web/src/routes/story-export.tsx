@@ -36,7 +36,7 @@ export function ExportDialog({ tree, archived, preselect, onClose }: { tree: Arr
       open
       onClose={onClose}
       title="Export to PDF"
-      description="The PDF opens with a contents list, then each selected page’s current version, in the Story’s order."
+      description="Each page’s current version opens in a new tab. In your browser’s print dialog, choose Save as PDF."
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
@@ -78,9 +78,6 @@ export function ExportDialog({ tree, archived, preselect, onClose }: { tree: Arr
           </fieldset>
         ))}
       </div>
-      <p className="small muted">
-        It opens in a new tab with your browser&rsquo;s print dialog: choose Save as PDF. The PDF leaves out what a page draws on, its cited passages, its notes for agents, earlier versions, and anything a page draws with scripts.
-      </p>
     </Dialog>
   );
 }

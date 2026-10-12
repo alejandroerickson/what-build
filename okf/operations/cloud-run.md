@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
 description: What the production deployment is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, cost, names, and useful commands; backups and the dev deployment have guides of their own.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-12}
 status: stable
 ---
 
@@ -282,8 +282,8 @@ tells them apart by Host. Put them in front of the service one of three ways:
   `run.app` URL), `SITE_HOST` and `APP_URL`, as `wrangler.toml` shows, and give the Worker the
   custom domains `example.com`, `www.example.com` and `app.example.com`. Cloudflare issues the
   certificates. The Worker serves the public site from the build it was deployed with, so
-  visitors never wake the service, and passes on only the site's form; redeploy it when the page
-  changes. Everything for the app goes to the service: Cloud Run picks a service by Host and the
+  visitors never wake the service, and passes on only the site's form; deploy it again with each
+  release production takes ([releasing](releasing.md)), or the site keeps an older page. Everything for the app goes to the service: Cloud Run picks a service by Host and the
   free plan cannot rewrite it, so the Worker sends each request to the `run.app` name and passes
   the browser's domain in `X-Forwarded-Host`. The free plan allows 100,000 Worker requests a day;
   the `run.app` address keeps serving. Most of WhatBuild's callers are agents, which Cloudflare's bot defences take for

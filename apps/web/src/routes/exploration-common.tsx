@@ -36,7 +36,7 @@ export function useCopyLink() {
     navigator.clipboard
       .writeText(window.location.href)
       .then(() => toast("Link copied."))
-      .catch(() => toast("Couldn’t copy. Copy the link from your browser’s address bar instead.", { tone: "negative" }));
+      .catch(() => toast("Couldn’t copy. Copy the link from the address bar.", { tone: "negative" }));
   };
 }
 
@@ -65,7 +65,7 @@ export function HistoryDialog({ tool, id, etag, onClose, render }: {
   const restore = useMutation({
     mutationFn: () => api("POST", `${base}/${tool}/${id}/revisions/${n}/restore`, { outcome_id: id, n, expected_etag: etag }),
     onSuccess: () => {
-      toast("Restored as a new revision. The text it replaced is kept too.");
+      toast("Version restored.");
       void qc.invalidateQueries();
       onClose();
     },
@@ -76,7 +76,7 @@ export function HistoryDialog({ tool, id, etag, onClose, render }: {
       open
       onClose={onClose}
       title="Earlier versions"
-      description="Every edit keeps the text it replaced. Restoring saves the old text as a new revision, so nothing is lost."
+      description="Restoring one keeps the current text as an earlier version."
       wide
     >
       {list.isPending ? (
@@ -84,7 +84,7 @@ export function HistoryDialog({ tool, id, etag, onClose, render }: {
       ) : list.isError ? (
         <ErrorCallout error={list.error} onRetry={() => list.refetch()} inset />
       ) : !items.length ? (
-        <EmptyState size="inline">No earlier versions yet. The first edit keeps the text it replaces here.</EmptyState>
+        <EmptyState size="inline">No earlier versions yet.</EmptyState>
       ) : (
         <div className="history">
           <ul className="history-list" aria-label="Versions">

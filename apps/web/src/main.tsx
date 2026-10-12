@@ -48,7 +48,7 @@ function RouteError() {
   return (
     <div className="center-page stack">
       <h1>Something went wrong</h1>
-      <p className="muted">{e?.message ?? "An unexpected error."} Reload the page, or go back to your products.</p>
+      <p className="muted">{e?.message ?? "An unexpected error."} Reload the page to try again.</p>
       <ButtonLink to="/" variant="primary">Go to your products</ButtonLink>
     </div>
   );
@@ -64,9 +64,9 @@ function ProductNotFound({ error }: { error: unknown }) {
   return (
     <PlainShell>
       <Sheet labelledBy="product-missing-title">
-        <SheetHeader level={1} id="product-missing-title" title={status === 404 ? "This product does not exist, or you cannot see it" : "This product could not be loaded"} />
+        <SheetHeader level={1} id="product-missing-title" title={status === 404 ? "This product doesn’t exist, or you can’t see it" : "This product couldn’t be loaded"} />
         <EmptyState size="inline" action={<ButtonLink to="/">Your products</ButtonLink>}>
-          {status === 404 ? "If you expected to see it, ask one of its admins to give you a role." : error instanceof Error ? error.message : "Reload the page to try again."}
+          {status === 404 ? "To see it, ask one of its admins for a role." : error instanceof Error ? error.message : "Reload the page to try again."}
         </EmptyState>
       </Sheet>
     </PlainShell>
@@ -130,7 +130,7 @@ function BackToStory({ to }: { to: string }) {
   const navigate = useNavigate();
   const told = useRef(false);
   useEffect(() => {
-    if (!told.current) toast("You can read only this product’s Story, so it opened instead.");
+    if (!told.current) toast("You can only read this product’s Story.");
     told.current = true;
     navigate(to, { replace: true });
   }, [navigate, to, toast]);

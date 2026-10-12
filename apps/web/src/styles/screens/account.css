@@ -231,20 +231,6 @@
 .entry-fine p {
   margin: 0;
 }
-.entry-promises {
-  display: grid;
-  gap: var(--s-1h);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.entry-promises b {
-  color: var(--muted);
-  font-weight: var(--fw-semibold);
-}
-.entry-fine .entry-fine-more {
-  margin-top: var(--s-3);
-}
 
 @media (max-width: 760px) {
   .account-actions {

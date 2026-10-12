@@ -58,8 +58,8 @@ that what one door writes the other finds at once, and that a reader has no sear
      the typo as typed and finds nothing;
    - the passage word with "the" and "of" around it; *Expect:* the Search screen says "Left out: the,
      of" and finds what the word alone finds;
-   - the passage word and a made-up word; *Expect:* "Nothing has all your words; these have most of
-     them.", and each result names the made-up word as Missing;
+   - the passage word and a made-up word; *Expect:* "Nothing has all your words.", and each result
+     names the made-up word as Missing;
    - a made-up word alone; *Expect:* "Nothing in <product> matches …" with a suggestion, and no
      error;
    - "mockups" and a word from a mockup; *Expect:* "Mockups first.", and the mockup leads;
@@ -72,8 +72,8 @@ that what one door writes the other finds at once, and that a reader has no sear
    Everything's. Choose Evidence in the panel. *Expect:* only Evidence's sheet, `?show=evidence` in
    the address, and Everything brings the rest back. Then search a word most sources hold, so that
    more than 60 things match. *Expect:* the palette's button counts every match (the sum of the
-   response's `counts` over MCP, passages aside), and the Search screen says "The best 60 of N are
-   listed; add a word to narrow them."
+   response's `counts` over MCP, passages aside), and the Search screen says "Showing the best 60 of
+   N. Add a word to narrow them."
 8. **Web, as Sam.** On the Search screen, find the source with the most matching passages. *Expect:*
    it is listed once, with its best three passages and "N more passages in this source". Follow
    that. *Expect:* every matching passage of that source, as many as the source's hits said, and a

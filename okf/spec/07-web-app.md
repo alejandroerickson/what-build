@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-12}
 status: stable
 ---
 
@@ -92,7 +92,7 @@ the browser's back button and "open in new tab" both work.
   area with its count (`?show=idea|evidence|exploration|story`). With `record_id` it lists every
   matching passage of one source, with a link back to searching everything. A corrected word
   offers "Search for <word> instead" (`?strict=1`). When more match than the 60 listed, it says
-  "The best 60 of N are listed; add a word to narrow them.", and the palette's All N results counts
+  "Showing the best 60 of N. Add a word to narrow them.", and the palette's All N results counts
   every match. Nothing holding the words says "Nothing matches" and suggests another word or fewer
   words. An outcome found opens Idea scrolled to it and marked (`?outcome`). Readers have no search.
 - **A reader** ([§3.5](03-accounts-teams-and-identity.md)) has only the Story: L1 is **Story**
@@ -169,14 +169,15 @@ place.
 introduces WhatBuild and is good to share as a screenshot. An intro sheet carries the mark and
 wordmark, the question "What to build?", the tagline "Product discovery at the speed of AI
 Engineering.", two sentences on what the app does, and a link to Connect an agent. Beside it, small and
-quiet, the WhatBuild journey: Idea, Evidence, Exploration and Story, each with a line on what
-it holds. It carries no counts; those are on each product below. Below, one sheet per organization, headed by its name alone, lists its active products (name,
+quiet, "From idea to story": Idea, Evidence, Exploration and Story, each with a line on what a
+team does there. It carries no counts; those are on each product below. Below, one sheet per organization, headed by its name alone, lists its active products (name,
 product concept as plain words clamped to two lines, its Markdown markers dropped, last update, and the team only when the organization has more than one), each
 with links to Idea, Evidence, Exploration and Story and their counts, so any section of any product
-is one click away. A product where the person is a reader says "You read this product's Story."
+is one click away. A product where the person is a reader says "You can read its Story."
 in place of its concept, and links to the Story alone, with its count. Team admins get **New product**, a dialog on the overview (`?create=1`), so
 cancelling leaves the person there; it asks for a team only when they can create in more than one.
-An organization with no product the person can see says so, and says who can create one. The
+An organization with no product the person can see says so, and, to someone who cannot create
+one, whom to ask. The
 overview is the only list of products: `/products` redirects to it. Roles are not shown here; the
 person's organization role is in the account menu, and who has which role is on Members.
 
@@ -246,9 +247,9 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    ([§3.2](03-accounts-teams-and-identity.md)); in development, "sign in as" a seeded account. An
    email link opens a page the server renders, naming the address, whose one button, Sign in,
    signs in and returns to `next`. Wherever sign-in returns to is a path on this origin or `/`,
-   by the server's rule (`safeNext`). The
-   data statement ([§9.1](09-data-lifecycle.md)) is on the sign-in page, in full, not behind a link,
-   followed by one line on cookies that links to `/cookies`.
+   by the server's rule (`safeNext`). Under the form, one line says WhatBuild is a free preview
+   and links to Privacy, which opens with the data statement ([§9.1](09-data-lifecycle.md)), and
+   to Cookies.
 2. **First run** (`/welcome`): name the organization and the first product in one form, for an
    account that may create one ([§3.3](03-accounts-teams-and-identity.md)). The same form, titled
    New organization, starts another. An account that may not says so: the people who run the
@@ -343,9 +344,7 @@ The sources, and everything for reading them.
     speaker-turn outline is left out, since the passages already show speaker and time; the sheet
     is left out when there is nothing to show — then every comment on the source, each linking to
     its passage) and **Files** (every file with its role, "Searched" or "Kept, not searched",
-    versions, download, and add file, each previewable file's name opening it in Original; with
-    files besides the primary, one line: "Only the
-    primary file is searched. The others are kept for download."). A non-primary file's role changes from its row menu,
+    versions, download, and add files, each previewable file's name opening it in Original). A non-primary file's role changes from its row menu,
     confirmed in a dialog that says what the change does. Original states a recording's length
     beside the player when the parse read one.
   - **Inspector,** titled Details: **About** (the three dates together — Date captured
@@ -365,7 +364,7 @@ The sources, and everything for reading them.
     changed ("Changed: title, 28 Sept 2026", "Archived", "Deleted"). When `lineage.check` finds any
     input changed, archived, deleted or missing, the page also shows an attention callout, "This
     view may be out of date", saying when it was built, from what, how many inputs changed since,
-    that views are not rebuilt automatically, and "See what changed", which opens the inspector
+    to ask an agent to rebuild it, and "See what changed", which opens the inspector
     at Built from.
   - **Status:** a source that is not `ready` shows a callout with the status's explanation and next
     step. The server's `status_detail` is added only where it says more (a size or an error).
@@ -475,9 +474,9 @@ them. Its one write is promoting a page to the Story.
 - **On the Story** ([decision](../decisions/agents-maintain-the-story-people-read-it.md)). Under
   the page picker, each Story page that shows the selected page is named and linked with the
   mockup version it shows. An editor whose page is not on the Story gets **Promote to Story**: a
-  dialog says that a new Story page will show the page as it is in the version shown, that nothing
-  is copied, that it stays on that version until someone promotes a newer one, and that it joins
-  the end of the Story's Published mockups, which agents keep in order, and asks for its title (the page's own by default). Where a
+  dialog says that a new Story page at the end of Published mockups will show the page as it is in
+  the version shown, and that it stays on that version until someone promotes a newer one, and asks
+  for its title (the page's own by default). Where a
   Story page shows the selected page at another version, **Show version N** moves it to the version
   shown, as its next version. A toast confirms that the page is under Published mockups, with
   Open to go to the page.
@@ -499,7 +498,7 @@ them. Its one write is promoting a page to the Story.
   formatting, when the primary file has a newer version, and when the source was parsed again
   since the citation), links grouped by type, and the full review history. Actions: review
   (status + required note, optional confidence; before the first review the form says that saving
-  freezes the statement, body and citations), link, supersede (opens a prefilled new entry).
+  freezes the wording and citations, and always that reviews can't be edited), link, supersede (opens a prefilled new entry).
   Frozen fields ([§4.8](04-data-model.md)) are shown as such, with "supersede" as the path to
   change them.
 - **New and edit entries** ([decision](../decisions/register-entries-may-start-uncited.md)):
@@ -569,11 +568,10 @@ mockup reaches it by promotion, from the mockup (§7.7).
 - **The inspector** carries everything else about the page:
   - **About:** who published the shown version and when, and its version number. With more than
     one version, the number is a menu of every version with its date, and choosing one shows it
-    (`?v=N`). A line says that agents write and maintain the Story, and **Export to PDF…** opens
-    the export with this page selected.
+    (`?v=N`). **Export to PDF…** opens the export with this page selected.
   - **Shows:** for a page from a mockup, the mockup page, linked to it on the canvas, the mockup and
-    the version shown; when the mockup has a newer version, a line says so and that the page stays
-    on its version until someone promotes the newer one.
+    the version shown; when the mockup has a newer version, a line says so and to promote it from
+    the mockup.
   - **Draws on:** the version's references — outcomes, sources, assumptions — each linked.
   - **Cited passages:** each citation as the source title, its address (¶8–9, linking to the
     passage) and a snapshot quote, with its `story.check_citations` status in words, worded as
@@ -590,10 +588,11 @@ mockup reaches it by promotion, from the mockup (§7.7).
   then the published mockups), then archived pages, with Select all, Clear and a count; it opens with the page or pages it was
   asked for already selected, and the person can change the selection. The count and Select all
   cover the pages the Story shows; an archived page goes in only when ticked, and the count adds it
-  ("3 of 24 pages selected, and 1 archived"). It says what the PDF holds:
-  a contents list, then each selected page at its current version under its title, with its
-  version number and publish date. It says what it leaves out: what a page draws on, its cited
-  passages and notes, earlier versions, and anything a page draws with scripts. **Open print view**
+  ("3 of 24 pages selected, and 1 archived"). One line says that each page's current version opens
+  in a new tab, to save as PDF from the browser's print dialog. The PDF holds a contents list, then
+  each selected page at its current version under its title, with its version number and publish
+  date; it leaves out what a page draws on, its cited passages and notes, earlier versions, and
+  anything a page draws with scripts. **Open print view**
   opens the print view in a new tab ([§7.3](#73-routes)), which opens the browser's print dialog to
   save it as PDF. In the print view each page's own headings sit one level under its title in the
   outline (`aria-level`; the tags, and so the page's styling, stay as they are).
@@ -636,9 +635,9 @@ offers archive only.
 2. **Delete** sits inside the same menu, below a separator, styled as destructive, never
    pre-selected and never the primary button of any dialog.
 3. Choosing it opens a dialog that leads with **"Delete permanently. This cannot be undone."** and
-   shows the `delete_impact` result as plain sentences before any control: *4 files (218 MB), 2
-   derivations, 1 annotation, 3 revisions. **2 citations in 2 assumptions point at this
-   record** and will be left pointing at a tombstone — their quoted text will be kept.* When
+   shows the `delete_impact` result as plain sentences before any control: *This deletes 4 stored
+   files (218 MB) and 1 comment. **2 citations in 2 assumptions** will point at a record of the
+   deletion. Their quotes are kept.* When
    Story versions cite the source, it counts them, earlier versions included, and lists each page
    with which of its versions do ("Current version and 2 earlier").
 4. The dialog asks for a reason, and requires the person to type the object's title to enable the
@@ -684,7 +683,7 @@ never described as deleting. A list row showing an archived object says *Archive
   invitation".
 - **Connect an agent** (`/connect`, or `…/connect` inside a product). [§6.8](06-operations-and-adapters.md):
   what the agent can reach (one product, one organization, or everything) and the MCP server URL for
-  that scope, with a sentence saying WhatBuild refuses anything outside it; sign-in; a first request
+  that scope; sign-in; a first request
   to try; connected agents, each with what it can reach and who holds the connection, and
   disconnect; the plain statement about
   where an agent sends what it reads, and an optional skill download. Connected agents appear here
@@ -704,7 +703,8 @@ never described as deleting. A list row showing an archived object says *Archive
   analytics, Google Analytics with the person's choice, which they change here at any time. Then
   how the server counts use without cookies, and how to clear them ([§9.1](09-data-lifecycle.md)).
   It lists no individual cookies.
-- **Privacy** (`/privacy`, readable signed out; `apps/web/src/routes/privacy.tsx`). What is kept,
+- **Privacy** (`/privacy`, readable signed out; `apps/web/src/routes/privacy.tsx`). The data
+  statement ([§9.1](09-data-lifecycle.md)), then what is kept,
   why and for how long, who else handles it, and what a person can do, with who runs the
   deployment, its contact and its providers from `/api/v1/meta` ([§9.1](09-data-lifecycle.md)).
   Linked from the sign-in page, Settings, Cookies and the public site's footer.
@@ -762,7 +762,7 @@ never described as deleting. A list row showing an archived object says *Archive
     Off, and `sandbox.status` gives its refusal as `403 sandbox_restricted`. The notice above every
     screen says who sees what the person adds: other visitors, for a visitor; everyone there, for a
     member; visitors, under their own name, for staff. A member who reads only the Story is told
-    instead that they read the Story and write nothing, and its one-line form says "You read the
+    instead that they can only read the Story, and its one-line form says "You read the
     Story." Where exports are set to 0, a product's Export sheet says exporting is off for visitors
     and offers no Export button, except to staff.
   - **Members** in the sandbox shows anyone but staff only themselves, and shows staff the

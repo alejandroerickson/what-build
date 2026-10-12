@@ -53,7 +53,7 @@ async function checkTarget(ctx: OpContext, recordId: string, path: string, role:
     throw conflict("role_mismatch", `${path} is already a ${same.role} file on this source; upload a new version with role ${same.role}, or use another path.`);
   if (role === "primary" && !same) {
     const primary = existing.find((f) => f.role === "primary");
-    if (primary) throw conflict("primary_taken", `This source's primary file is ${primary.path}. Upload a new version to that path, or create a new source.`);
+    if (primary) throw conflict("primary_taken", `This source’s primary file is ${primary.path}. Upload a new version to that path, or create a new source.`);
     const reserved = await ctx.db
       .selectFrom("upload_grants")
       .select("path")
@@ -184,7 +184,7 @@ export async function completeGrant(ctx: OpContext, grantId: string, provenanceO
       // A direct-to-store upload: read what actually landed, its size before any of its bytes.
       const stat = await ctx.ports.blobs.stat(g.blob_key!);
       if (!stat)
-        throw notFound(`No bytes have arrived for ${g.path} yet. PUT the file to the grant's url first, then call complete_upload again.`);
+        throw notFound(`No bytes have arrived for ${g.path} yet. PUT the file to the grant’s url first, then call complete_upload again.`);
       const limit = Number(g.max_bytes);
       if (stat.size > limit) {
         await ctx.ports.blobs.delete(g.blob_key!);
@@ -202,7 +202,7 @@ export async function completeGrant(ctx: OpContext, grantId: string, provenanceO
     if (!file) {
       if (g.role === "primary") {
         const other = await ctx.db.selectFrom("files").select("path").where("record_id", "=", g.record_id).where("role", "=", "primary").executeTakeFirst();
-        if (other) throw conflict("primary_taken", `The file ${g.path} arrived but is not attached: this source's primary is already ${other.path}. Create a new source for it, then upload again.`);
+        if (other) throw conflict("primary_taken", `The file ${g.path} arrived but isn’t attached: this source’s primary is already ${other.path}. Create a new source for it, then upload again.`);
       }
       const file_id = newId();
       await ctx.db
@@ -326,7 +326,7 @@ export const addNote = defineOperation({
   mcp: { tool: "files", action: "add_note" },
   async handler(ctx, input) {
     await loadRecord(ctx, input.record_id, { live: true });
-    if (!NOTE_EXTENSIONS.includes(extensionOf(input.path))) throw invalid("invalid_path", `A note's path needs a text extension: ${NOTE_EXTENSIONS.join(" ")}.`);
+    if (!NOTE_EXTENSIONS.includes(extensionOf(input.path))) throw invalid("invalid_path", `A note’s path needs a text extension: ${NOTE_EXTENSIONS.join(" ")}.`);
     const bytes = new TextEncoder().encode(input.text);
     if (bytes.byteLength > NOTE_MAX_BYTES || input.text.split("\n").length > NOTE_MAX_LINES)
       throw invalid("note_too_long", `A note is at most ${NOTE_MAX_BYTES} bytes and ${NOTE_MAX_LINES} lines. Use files(action="request_upload") for anything longer.`);
@@ -385,14 +385,14 @@ export const fetchUrl = defineOperation({
     await ctx.read((c) => loadRecord(c, input.record_id, { live: true }));
     if (ctx.sandbox?.visitor) visitorMayFetchUrl(ctx.sandbox);
     const fetcher = ctx.ports.fetcher;
-    if (!fetcher) throw notFound("Fetching URLs is not available on this deployment.");
+    if (!fetcher) throw notFound("Fetching URLs isn’t available on this deployment.");
     return inFetchPlace(ctx.principal.account_id, async () => {
       try {
         return await fetcher.fetch(input.url, ctx.ports.config.urlFetchMaxBytes);
       } catch (e) {
         if (e instanceof AppError) throw e;
         // What the network said can name hosts behind the server: the caller gets a plain refusal.
-        throw invalid("fetch_failed", "Could not fetch that URL. Check the address, or download the file and upload it with files(action=\"request_upload\").");
+        throw invalid("fetch_failed", "Couldn’t fetch that URL. Check the address, or download the file and upload it with files(action=\"request_upload\").");
       }
     });
   },
@@ -421,10 +421,10 @@ export const setRole = defineOperation({
     const f = await ctx.db.selectFrom("files").selectAll().where("record_id", "=", r.record_id).where("path", "=", input.path).executeTakeFirst();
     if (!f) throw notFound(`No file ${input.path} on this source.`);
     if (f.role === input.role) return (await fileEntries(ctx, r.record_id, (await derivedStatuses(ctx, [r.record_id])).get(r.record_id)!.derived_status)).find((e) => e.path === input.path);
-    if (f.role === "primary") throw conflict("primary_fixed", "The primary file's role cannot change. Create a new source with the right primary instead.");
+    if (f.role === "primary") throw conflict("primary_fixed", "The primary file’s role can’t change. Create a new source with the right primary instead.");
     if (input.role === "primary") {
       const other = await ctx.db.selectFrom("files").select("path").where("record_id", "=", r.record_id).where("role", "=", "primary").executeTakeFirst();
-      if (other) throw conflict("primary_taken", `This source's primary is ${other.path}.`);
+      if (other) throw conflict("primary_taken", `This source’s primary is ${other.path}.`);
     }
     await ctx.db.updateTable("files").set({ role: input.role, role_changed_at: ctx.now, role_changed_by: json(ctx.actor) }).where("file_id", "=", f.file_id).execute();
     await ctx.db.updateTable("records").set({ etag: newEtag() }).where("record_id", "=", r.record_id).execute();
@@ -452,7 +452,7 @@ export const getDownload = defineOperation({
     if (!f) throw notFound(`No file ${input.path} on this source.`);
     const vid = input.file_version_id ?? f.current_version_id;
     const v = vid ? await ctx.db.selectFrom("file_versions").selectAll().where("file_version_id", "=", vid).where("file_id", "=", f.file_id).executeTakeFirst() : undefined;
-    if (!v) throw notFound("That file version does not exist.");
+    if (!v) throw notFound("That file version doesn’t exist.");
     const expiresAt = new Date(Date.parse(ctx.now) + ctx.ports.config.grantTtlSeconds * 1000);
     const token = ctx.ports.grants.sign({ v: 1, purpose: "download", t: tenantId(ctx), fv: v.file_version_id, exp: Math.floor(expiresAt.getTime() / 1000) });
     return {

@@ -262,7 +262,7 @@ function Specimen() {
         <SheetBody>
           <FormGrid>
             <TextField label="Product name" defaultValue="Crewboard" hint="Shown in the panel and in links." />
-            <TextField label="Slug" defaultValue="crewboard" readOnly hint="Read-only: set when the product was made." />
+            <TextField label="Slug" defaultValue="crewboard" readOnly hint="Set when the product was made." />
             <TextField label="Organization" optional placeholder="Greenline Landscaping" />
             <TextField label="Date" defaultValue="2026-13-40" error="Use a real date, like 2026-08-14." />
             <TextField label="Team" defaultValue="Product team" disabled />
@@ -378,21 +378,21 @@ function Specimen() {
       </div>
 
       <div className="stack">
-        <Callout title="Only the primary file is searched.">The transcript is parsed into passages and searched. The audio recording is kept with the source but never searched.</Callout>
-        <Callout tone="attention" title="This product is archived">It is read-only. An admin can restore it in Settings.</Callout>
+        <Callout title="Only the primary file is searched">The audio recording is kept for download.</Callout>
+        <Callout tone="attention" title="This product is archived">It’s read-only. An admin can restore it in Settings.</Callout>
         <Callout tone="positive" title="Uploaded">Parsing starts in a moment.</Callout>
-        <ErrorCallout error={new ApiError(0, "network", "WhatBuild could not be reached. Check your connection and try again.")} onRetry={() => {}} />
+        <ErrorCallout error={new ApiError(0, "network", "WhatBuild couldn’t be reached. Check your connection and try again.")} onRetry={() => {}} />
         <ErrorCallout error={new ApiError(409, "stale_etag", "That changed since you loaded it.")} onRetry={() => {}} />
         <ErrorCallout error={new ApiError(409, "quota_exceeded", "This team has used its 5 GB of file storage.")} />
         <EmptyState title="No sources yet" action={<Button variant="primary" icon="plus">Add a source</Button>}>
-          Sources are the evidence: interviews, call notes, survey exports. Add one, or ask your agent to add them.
+          Add one, or ask your agent to.
         </EmptyState>
       </div>
 
       <Sheet>
         <SheetHeader title="Loading, empty, in a sheet" />
         <Loading lines={2} />
-        <EmptyState size="inline" title="No passages match “weekly”." action={<Button size="sm">Clear the search</Button>} />
+        <EmptyState size="inline" title="No passages match “weekly”" action={<Button size="sm">Clear the search</Button>} />
         <SheetBody>
           <Callout inset tone="info">An inset callout sits inside a sheet or the inspector.</Callout>
         </SheetBody>
@@ -403,7 +403,7 @@ function Specimen() {
         <SheetBody>
           <div className="row">
             <Button onClick={() => toast("Note added.")}>Show a toast</Button>
-            <Button onClick={() => toast("Archived. It is out of lists and search.", { action: { label: "Undo", onClick: () => toast("Restored.") } })}>With Undo</Button>
+            <Button onClick={() => toast("Archived.", { action: { label: "Undo", onClick: () => toast("Restored.") } })}>With Undo</Button>
             <Button onClick={() => toast("The upload failed. Try again.", { tone: "negative" })}>An error</Button>
             <Button onClick={() => setDialog(true)}>Open a dialog</Button>
           </div>

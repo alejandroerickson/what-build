@@ -115,7 +115,7 @@ describe("before the deployment names a sandbox", () => {
     const status = await olive.api("GET", `${T}/sandbox`);
     expect(status.status).toBe(404);
     // Said to a person: what this organization is, never how a deployment is configured.
-    expect(status.body.error.message).toMatch(/^Sample Sandbox is not a public sandbox/);
+    expect(status.body.error.message).toMatch(/^Sample Sandbox isn’t a public sandbox/);
     expect(status.body.error.message).not.toMatch(/WHATBUILD|deployment/);
     expect((await olive.api("GET", `${T}/sandbox/settings`)).status).toBe(404);
     expect((await olive.api("POST", `${T}/sandbox/invites`, { label: "Too early", places: 5 })).status).toBe(404);
@@ -335,7 +335,7 @@ describe("the public sandbox", () => {
     const status = (await colleague.api("GET", `${T}/sandbox`)).body;
     expect(status.you).toMatchObject({ role: "member", appears_as: made.body.created_by.display_name });
     expect(status.you.can).toMatch(/made-up name/);
-    expect(status.notice).toMatch(/Everyone here, visitors included, sees what you add, under a made-up name/);
+    expect(status.notice).toMatch(/Everyone here sees what you add, under a made-up name/);
     expect(status.notice).not.toMatch(/Other visitors/);
     expect(status.allowances.find((a: { key: string }) => a.key === "writes_per_day").used).toBeGreaterThan(0);
     const viaAgent = new Client({ name: "colleague-agent", version: "1.0.0" });
@@ -360,7 +360,7 @@ describe("the public sandbox", () => {
     expect(status.you).toMatchObject({ role: "member", appears_as: null, story_only: true });
     expect(status.you.can).toMatch(/Read the Story/);
     expect(status.you.can).toMatch(/write nothing/);
-    expect(status.notice).toMatch(/You read the Story here, and write nothing/);
+    expect(status.notice).toMatch(/You can only read the Story here/);
     expect(status.notice).not.toMatch(/what you add/);
     // Anyone who may write is told what others see of it, as before.
     expect((await vera.api("GET", `${T}/sandbox`)).body.you.story_only).toBeUndefined();

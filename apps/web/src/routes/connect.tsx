@@ -3,7 +3,7 @@ import { useState, type ReactNode } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { api } from "../lib/api.ts";
 import { formatDate, relativeTime } from "../lib/format.ts";
-import { useMe, useProducts } from "../lib/session.tsx";
+import { useProducts } from "../lib/session.tsx";
 import { useLastProduct } from "../shell/panel.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import { AgentFace, Button, ChoiceRow, CopyField, Dialog, EmptyState, ErrorCallout, Loading, SelectField, Sheet, SheetBody, SheetHeader, useToast } from "../ui/index.tsx";
@@ -48,7 +48,7 @@ function heldBy(r: ConnectedAgent["returns_to"]): string {
   return places.length ? `Held by ${places.join(" or ")}` : "";
 }
 
-function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {
+function Step({ n, title, children }: { n: number; title: string; children?: ReactNode }) {
   return (
     <li className="agents-step">
       <span className="agents-step-n num" aria-hidden="true">
@@ -127,10 +127,10 @@ export function ConnectPage() {
       <Sheet className="agents-sheet" labelledBy="agents-title">
         <SheetHeader level={1} id="agents-title" title="Connect an agent" />
         <SheetBody className="agents-intro">
-          <p className="muted">Your agent works as you, with your access, and Activity shows what it changes. What it reads goes to whoever runs the agent, under their terms.</p>
+          <p className="muted">What your agent reads goes to whoever runs it, under their terms.</p>
         </SheetBody>
         {info.isPending ? (
-          <Loading lines={3} variant="lines" label="Loading the server address…" />
+          <Loading lines={3} variant="lines" label="Loading the MCP server URL…" />
         ) : info.isError ? (
           <SheetBody>
             <ErrorCallout inset error={info.error} onRetry={() => info.refetch()} />
@@ -148,7 +148,7 @@ export function ConnectPage() {
                   disabled={!items.length}
                   onChange={() => pick({ reach: "product", ...(product ? { product: product.path } : {}) })}
                   label="One product"
-                  hint={items.length ? "Only the product you choose." : "You have no product yet."}
+                  hint={items.length ? undefined : "You have no product yet."}
                 />
                 <ChoiceRow
                   type="radio"
@@ -167,7 +167,7 @@ export function ConnectPage() {
                   checked={reach === "all"}
                   onChange={() => pick({ reach: "all" })}
                   label="Everything you can reach"
-                  hint={orgs > 1 ? `Every product you can open, across all ${orgs} of your organizations.` : "Every product you can open, including in organizations you join later."}
+                  hint="Every product you can open, including in organizations you join later."
                 />
               </fieldset>
               {reach === "product" && product ? (
@@ -211,19 +211,15 @@ export function ConnectPage() {
               <p className="agents-fence" aria-live="polite">
                 {scopedName ? (
                   <>
-                    Your agent can work only in <strong>{scopedName}</strong>. WhatBuild refuses anything it tries elsewhere, so nothing lands in another {reach === "product" ? "product" : "organization"} by mistake. Name the connector after {scopedName}, so you can tell your connectors apart and turn one off.
+                    Name the connector after <strong>{scopedName}</strong>.
                   </>
-                ) : (
-                  <>Your agent can work in every product you can open. For one that stays in a single organization or product, choose that above and add it as its own connector.</>
-                )}
+                ) : null}
               </p>
             </Step>
-            <Step n={3} title="Sign in when it asks">
-              <p>Your browser opens WhatBuild so you can approve the connection.</p>
-            </Step>
+            <Step n={3} title="Sign in when it asks" />
             <Step n={4} title="Ask it to start">
               <p>
-                For example: &ldquo;Add the interview notes in my downloads to {named?.name ?? "my product"} as a source, then list the passages about how people plan their week.&rdquo;
+                For example: &ldquo;Add the interview notes in my downloads to {named?.name ?? "my product"} as a source.&rdquo;
               </p>
             </Step>
           </ol>
@@ -232,7 +228,7 @@ export function ConnectPage() {
       <ConnectedSheet />
       {c ? (
         <p className="agents-foot">
-          Your agent gets the {c.skill.name} skill (version {c.skill.version}) from the server. You can also <a href={c.skill.zip_url}>download it</a> to install yourself.
+          To install the {c.skill.name} skill (version {c.skill.version}) yourself, <a href={c.skill.zip_url}>download it</a>.
         </p>
       ) : null}
     </>
@@ -259,7 +255,7 @@ function DisconnectDialog({ name, onConfirm, onClose, busy, error }: { name: str
         </>
       }
     >
-      {error ? <ErrorCallout inset error={error} /> : <p className="muted">What it already did stays in Activity.</p>}
+      {error ? <ErrorCallout inset error={error} /> : null}
     </Dialog>
   );
 }
@@ -267,7 +263,6 @@ function DisconnectDialog({ name, onConfirm, onClose, busy, error }: { name: str
 /** Agents signed in with OAuth, account-wide. */
 function ConnectedSheet() {
   const q = useQuery({ queryKey: ["agents"], queryFn: () => api<{ items: ConnectedAgent[] }>("GET", "/api/v1/me/agents") });
-  const me = useMe();
   const qc = useQueryClient();
   const toast = useToast();
   const [target, setTarget] = useState<{ family_id: string; client_name: string } | null>(null);
@@ -298,9 +293,7 @@ function ConnectedSheet() {
                 <span className="account-name">{a.client_name}</span>
                 <span className="account-reach">{reachLabel(a.reach)}</span>
                 {heldBy(a.returns_to) ? <span className="account-sub">{heldBy(a.returns_to)}</span> : null}
-                <span className="account-sub">
-                  Acting as {me.data?.display_name ?? "you"} · connected {formatDate(a.created_at)}
-                </span>
+                <span className="account-sub">Connected {formatDate(a.created_at)}</span>
                 <span className="account-sub">Last active {relativeTime(a.last_used_at)}</span>
               </div>
               <Button size="sm" onClick={() => setTarget(a)}>
@@ -310,9 +303,7 @@ function ConnectedSheet() {
           ))}
         </ul>
       ) : (
-        <EmptyState size="inline" title="No agent connected yet">
-          Yours appears here once it signs in.
-        </EmptyState>
+        <EmptyState size="inline" title="No agent connected yet" />
       )}
       {target ? (
         <DisconnectDialog

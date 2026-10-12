@@ -239,7 +239,7 @@ export function PassageReader({ record }: { record: RecordFull }) {
           <Loading label="Loading passages…" lines={6} />
         ) : q.isError ? (
           <div className="sheet-body">
-            <ErrorCallout inset title="These passages could not be loaded" error={q.error} onRetry={() => q.refetch()} />
+            <ErrorCallout inset title="Passages couldn’t be loaded" error={q.error} onRetry={() => q.refetch()} />
           </div>
         ) : (
           <ol className="passage-list" ref={listRef} aria-busy={q.isFetching || undefined}>
@@ -420,7 +420,6 @@ export function CommentForm({ recordId, seqStart, seqEnd, onDone }: { recordId: 
     >
       <TextArea
         label={seqStart !== undefined ? `Comment on ${address(seqStart, seqEnd)}` : "Comment on the whole source"}
-        hint="Your observation about this passage."
         required
         maxLength={2000}
         rows={3}

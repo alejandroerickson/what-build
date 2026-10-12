@@ -112,7 +112,7 @@ export const capture = defineOperation({
       if (seen.has(key)) throw invalid("duplicate_input", `Input ${key} is listed twice.`);
       seen.add(key);
       const f = await fingerprint(ctx, ref);
-      if (f.status !== "ok") throw conflict("input_unavailable", `Input ${ref.kind} ${ref.id} is ${f.status}; a view cannot be built on it.`);
+      if (f.status !== "ok") throw conflict("input_unavailable", `Input ${ref.kind} ${ref.id} is ${f.status}; a view can’t be built on it.`);
       out.push({ kind: ref.kind, id: ref.id, fingerprint: f.fingerprint! });
     }
     return { inputs: out, captured_at: ctx.now };
@@ -142,7 +142,7 @@ export const write = defineOperation({
   mcp: { tool: "lineage", action: "write" },
   async handler(ctx, input) {
     const view = await loadRecord(ctx, input.record_id, { live: true });
-    if (input.inputs.some((i) => i.kind === "record" && i.id === view.record_id)) throw invalid("invalid_input", "A view cannot list itself as an input.");
+    if (input.inputs.some((i) => i.kind === "record" && i.id === view.record_id)) throw invalid("invalid_input", "A view can’t list itself as an input.");
     if (input.captured_at && Date.parse(input.captured_at) > Date.parse(ctx.now)) throw invalid("invalid_input", "captured_at is in the future; pass it exactly as capture returned it.");
     const existing = await ctx.db.selectFrom("lineage").select("record_id").where("record_id", "=", view.record_id).executeTakeFirst();
     if (existing) throw conflict("lineage_exists", "This source already has lineage; create a new view to regenerate.");

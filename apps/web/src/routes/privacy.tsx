@@ -23,6 +23,14 @@ function Contact({ to }: { to: string }) {
   return <>{to}</>;
 }
 
+/** The data statement (okf/spec/09-data-lifecycle.md §9.1); the sign-in page carries its first line. */
+const DATA_STATEMENT: [lead: string, rest: string][] = [
+  ["A free preview.", "We don’t promise uptime or durability, so don’t keep anything here whose loss or exposure would hurt."],
+  ["Kept apart.", "Your content is isolated per organization, encrypted in transit, and encrypted at rest as far as our providers do it. We rent the database and the file store, and can’t promise anything on their behalf."],
+  ["Never sold or trained on.", "No ads, nothing sold, and no model trained on your content. There is no AI in WhatBuild."],
+  ["Yours to take.", "Export is always available and always complete."],
+];
+
 function Kept({ lead, children }: { lead: string; children: ReactNode }) {
   return (
     <li>
@@ -51,8 +59,14 @@ export function PrivacyPage() {
             <ErrorCallout title="This page didn’t load" error={q.error} onRetry={() => q.refetch()} />
           ) : (
             <>
-              <p>What this WhatBuild keeps about you, why, for how long, and whom to ask.</p>
-              <p className="cookie-kind">
+              <ul className="privacy-list">
+                {DATA_STATEMENT.map(([lead, rest]) => (
+                  <Kept key={lead} lead={lead}>
+                    {rest}
+                  </Kept>
+                ))}
+              </ul>
+              <p className="cookie-kind privacy-grounds">
                 {p.operator ? `${p.operator} runs this WhatBuild and decides what happens to what it keeps.` : "Whoever runs this WhatBuild decides what happens to what it keeps. They have not named themselves here yet."}{" "}
                 {p.contact ? (
                   <>
@@ -125,7 +139,7 @@ export function PrivacyPage() {
               )}
               <p className="cookie-kind privacy-grounds">
                 Providers may handle it outside your country, under their own data-protection terms. An agent you connect reads what you let it; what happens to that is up to
-                whoever runs the agent. Nothing is sold, there are no ads, and no model is trained on your content.
+                whoever runs the agent.
               </p>
             </SheetBody>
           </Sheet>
@@ -133,7 +147,6 @@ export function PrivacyPage() {
             <SheetHeader id="privacy-rights" title="What you can do" />
             <SheetBody>
               <ul className="privacy-list">
-                <Kept lead="Take it.">Export takes everything in a product, at any time.</Kept>
                 <Kept lead="Ask.">
                   To see what is kept about you, have it corrected or deleted, stop the counting of your use, or take it with you, write to {ask}.
                 </Kept>

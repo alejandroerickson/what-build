@@ -91,9 +91,7 @@ export function ActivityPage() {
           <span className="sep-dot"> </span>
           <Link to={href({ entity_type: null, entity_id: null })}>Show all</Link>
         </p>
-      ) : (
-        <p className="activity-scope activity-scope-quiet">People and agents share one log.</p>
-      )}
+      ) : null}
       <ActivityFeed {...filter} query={q} />
     </Sheet>
   );
@@ -118,7 +116,7 @@ export function ProductSettingsPage() {
       <OrganizationSheet />
       {isAdmin ? <ArchiveSheet /> : null}
       <p className="settings-foot">
-        These settings belong to this product. Your display name is in <Link to="/settings">your own settings</Link>.
+        Your display name is in <Link to="/settings">your own settings</Link>.
       </p>
     </div>
   );
@@ -163,7 +161,7 @@ function ProductDetails() {
       {!isAdmin ? (
         <div className="settings-note">
           <Callout inset tone="info">
-            Only admins of this product can change these. You are {product.your_role === "editor" ? "an editor" : "a viewer"} here.
+            Only admins can change these. You&rsquo;re {product.your_role === "editor" ? "an editor" : "a viewer"} here.
           </Callout>
         </div>
       ) : archived ? (
@@ -185,7 +183,7 @@ function ProductDetails() {
         <TextField label="Team" value={`${product.team.name} · ${product.tenant.name}`} readOnly />
         <TextArea
           label="Product concept"
-          hint={editable ? "Who it is for, the problem they have, and how the product solves it, in a few sentences. It heads the Idea screen." : undefined}
+          hint={editable ? "Who it’s for, their problem, and how the product solves it." : undefined}
           value={concept}
           onChange={(e) => setConcept(e.target.value)}
           readOnly={!editable}
@@ -336,7 +334,7 @@ function PeopleSheet() {
       {isAdmin && product.archived_at ? (
         <div className="settings-note">
           <Callout inset tone="info">
-            The product&rsquo;s content stays read-only while it is archived, but who can open it is still yours to change: you can give or remove roles here.
+            You can still change roles while the product is archived.
           </Callout>
         </div>
       ) : null}
@@ -344,7 +342,7 @@ function PeopleSheet() {
         <Loading label="Loading people…" lines={3} />
       ) : q.isError ? (
         <div className="settings-note">
-          <ErrorCallout inset error={q.error} onRetry={() => q.refetch()} />
+          <ErrorCallout inset title="People couldn’t be loaded" error={q.error} onRetry={() => q.refetch()} />
         </div>
       ) : (
         <>
@@ -432,12 +430,11 @@ function PeopleSheet() {
             ))}
           </ul>
           {q.data.sandbox?.only_you ? (
-            <p className="people-foot">{product.tenant.name} is a public sandbox. Visitors never see each other, so only you are listed, under your made-up name.</p>
+            <p className="people-foot">Visitors to this public sandbox don&rsquo;t see each other, so only you are listed.</p>
           ) : (
             <p className="people-foot">
-              Admins also manage people and settings, editors read and write, viewers read, and readers read only the Story. Team and organization roles cover every product in them; change those in{" "}
-              <Link to={membersLink}>{product.tenant.name} members</Link>.
-              {q.data.sandbox ? ` ${product.tenant.name} is a public sandbox, so its ${(q.data.sandbox.visitors ?? 0).toLocaleString("en-US")} visitors can edit this product too. They’re listed in Sandbox controls.` : ""}
+              Change team and organization roles in <Link to={membersLink}>{product.tenant.name} members</Link>.
+              {q.data.sandbox ? ` ${(q.data.sandbox.visitors ?? 0).toLocaleString("en-US")} sandbox ${q.data.sandbox.visitors === 1 ? "visitor" : "visitors"} can edit this product too. They’re listed in Sandbox controls.` : ""}
             </p>
           )}
         </>
@@ -523,9 +520,9 @@ function AddPeopleDialog({ onClose, existing }: { onClose: () => void; existing:
             org.isPending ? (
               <Loading lines={1} variant="lines" />
             ) : org.isError ? (
-              <ErrorCallout inset error={org.error} onRetry={() => org.refetch()} />
+              <ErrorCallout inset title="The organization’s people couldn’t be loaded" error={org.error} onRetry={() => org.refetch()} />
             ) : (
-              <SelectField label="Person" value={person} onChange={(e) => setPerson(e.target.value)} hint={`People in ${product.tenant.name}${org.data?.partial ? " on the teams and products you can open" : ""} who have no access to ${product.name} yet.`}>
+              <SelectField label="Person" value={person} onChange={(e) => setPerson(e.target.value)} hint={org.data?.partial ? "Only people on the teams and products you can open are listed." : undefined}>
                 <option value="">Choose someone…</option>
                 {candidates.map((m) => (
                   <option key={m.account_id} value={m.account_id}>
@@ -535,7 +532,7 @@ function AddPeopleDialog({ onClose, existing }: { onClose: () => void; existing:
               </SelectField>
             )
           ) : (
-            <TextField label="Email" type="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} hint="People already on WhatBuild get access right away. Anyone else gets an invitation." />
+            <TextField label="Email" type="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} />
           )}
           <SelectField label="Role" value={role} onChange={(e) => setRole(e.target.value as Role)}>
             {ROLES.map((r) => (
@@ -590,12 +587,11 @@ function ExportSheet() {
       />
       <SheetBody>
         <p className="muted">
-          Everything in this product as one ZIP: every source file and version, passages, notes, outcomes, assumptions with their reviews, every mockup and Story version, and
-          the activity log. It&rsquo;s plain JSON, Markdown and HTML, readable without WhatBuild.{" "}
-          {exportsOff ? "Exporting is off for visitors in this public sandbox, so its content stays in the sandbox." : "Anyone with access can export, at any time."}
+          Everything in this product, every version included, as one ZIP of JSON, Markdown and HTML files.
+          {exportsOff ? " Exporting is off for visitors to this public sandbox." : ""}
         </p>
         {start.isError ? <ErrorCallout inset error={start.error} /> : null}
-        {list.isError ? <ErrorCallout inset error={list.error} onRetry={() => list.refetch()} /> : null}
+        {list.isError ? <ErrorCallout inset title="Exports couldn’t be loaded" error={list.error} onRetry={() => list.refetch()} /> : null}
       </SheetBody>
       {items.length ? (
         <ul className="export-list">
@@ -637,11 +633,11 @@ function OrganizationSheet() {
       <SheetBody>
         {t ? (
           <p className="muted">
-            {t.name} has {t.teams.length === 1 ? "one team" : `${t.teams.length} teams`}
-            {t.teams.length ? `, ${list(t.teams.map((x) => x.name))}` : ""}. You can see {inOrg.length === 1 ? "one product" : `${inOrg.length} products`} in it: {list(inOrg.map((p) => p.name))}.
+            {t.name} has {t.teams.length === 1 ? "1 team" : `${t.teams.length} teams`}
+            {t.teams.length ? `, ${list(t.teams.map((x) => x.name))}` : ""}. You can see {inOrg.length === 1 ? "1 product" : `${inOrg.length} products`} in it: {list(inOrg.map((p) => p.name))}.
           </p>
         ) : products.isError ? (
-          <ErrorCallout inset error={products.error} onRetry={() => products.refetch()} />
+          <ErrorCallout inset title="The organization couldn’t be loaded" error={products.error} onRetry={() => products.refetch()} />
         ) : (
           <Loading lines={1} variant="lines" />
         )}
@@ -673,7 +669,7 @@ function ArchiveSheet() {
         <p className="muted">
           {archived
             ? `Restoring puts ${product.name} back in product lists and makes it writable again.`
-            : `Archiving hides ${product.name} from product lists and makes it read-only. Every source, passage and Story page is kept, and it still counts toward storage. You can restore it later.`}
+            : `Archiving hides ${product.name} from product lists and makes it read-only. It still counts toward storage. You can restore it later.`}
         </p>
         {change.isError ? (
           <ErrorCallout inset error={change.error} onRetry={change.error instanceof ApiError && change.error.code === "stale_etag" ? refresh : undefined} />

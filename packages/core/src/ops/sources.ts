@@ -21,7 +21,7 @@ export async function loadRecord(ctx: OpContext, recordId: string, opts: { lock?
   if (!row) {
     const tomb = await ctx.db.selectFrom("tombstones").selectAll().where("object_id", "=", recordId).where("product_id", "=", productId(ctx)).executeTakeFirst();
     if (tomb) throw gone("record_deleted", `Source ${recordId} was deleted permanently on ${tomb.deleted_at}.`, { tombstone: tomb });
-    throw notFound(`Source ${recordId} does not exist in this product.`);
+    throw notFound(`Source ${recordId} doesn’t exist in this product.`);
   }
   if (opts.live && row.archived_at) throw conflict("record_archived", `Source ${recordId} is archived; restore it first.`);
   return row;
@@ -138,7 +138,7 @@ function readSortCursor(cursor: string): { v: string | null; id: string } {
 }
 
 function badCursor() {
-  return invalid("invalid_cursor", "This cursor does not belong to this sort. Pass next_cursor back with the same filters and sort.");
+  return invalid("invalid_cursor", "This cursor doesn’t belong to this sort. Pass next_cursor back with the same filters and sort.");
 }
 
 /** Passages as the app writes them: ¶4 for one, ¶4–6 for a range. */
@@ -424,7 +424,7 @@ async function checkRelated(ctx: OpContext, ids: string[] | undefined, self?: st
   const found = await ctx.db.selectFrom("records").select(["record_id", "product_id"]).where("record_id", "in", list).execute();
   for (const i of list) {
     const f = found.find((x) => x.record_id === i);
-    if (!f) throw invalid("unknown_reference", `Related source ${i} does not exist.`);
+    if (!f) throw invalid("unknown_reference", `Related source ${i} doesn’t exist.`);
     if (f.product_id !== productId(ctx)) throw invalid("cross_product_reference", `Related source ${i} is in another product.`);
   }
   return list;
@@ -648,7 +648,7 @@ export const annotate = defineOperation({
         .orderBy("seq")
         .execute();
       if (segs.length !== input.seq_end - input.seq_start + 1)
-        throw invalid("out_of_range", "That segment range does not exist in full in the source's current passages.");
+        throw invalid("out_of_range", "That segment range doesn’t exist in full in the source’s current passages.");
       // Each change of speaker opens with the speaker's name, so a note across turns keeps who said what.
       const text = segs.map((s, i) => (s.speaker && s.speaker !== segs[i - 1]?.speaker ? `${s.speaker}: ${s.text}` : s.text)).join("\n\n");
       anchor = {
@@ -728,7 +728,7 @@ export const updateAnnotation = defineOperation({
   mcp: { tool: "sources", action: "update_annotation" },
   async handler(ctx, input) {
     const a = await ctx.db.selectFrom("annotations").selectAll().where("annotation_id", "=", input.annotation_id).where("product_id", "=", productId(ctx)).forUpdate().executeTakeFirst();
-    if (!a) throw notFound(`Note ${input.annotation_id} does not exist in this product.`);
+    if (!a) throw notFound(`Note ${input.annotation_id} doesn’t exist in this product.`);
     checkEtag(input.expected_etag, a.etag, "note");
     if (input.archive_reason !== undefined && input.archived !== true) throw invalid("invalid_input", "archive_reason goes with archived: true.");
     if (input.note !== undefined && input.note !== a.note) {
@@ -900,7 +900,7 @@ export const moveSource = defineOperation({
     const pages = await storyPagesUsing(ctx, r.record_id, { includeArchived: true });
     const mockups = await mockupsUsing(ctx, r.record_id, { includeArchived: true });
     if (entries.length || lineage.length || related.length || pages.length || mockups.length)
-      throw conflict("source_in_use", "This source is referenced in its product, and references never cross products. Remove the references, or copy the source instead.", {
+      throw conflict("source_in_use", "This source is referenced in its product, so it can’t move. Remove the references, or copy it instead.", {
         assumptions: entries.map((e) => ({ id: e.entry_id, statement: e.statement })),
         views: lineage.map((l) => l.record_id),
         related_sources: related.map((x) => x.record_id),
@@ -1067,7 +1067,7 @@ export const deleteSource = defineOperation({
   mcp: { tool: "sources", action: "delete" },
   async handler(ctx, input) {
     if (input.confirm !== DELETE_CONFIRMATION)
-      throw invalid("confirmation_required", `Deleting is permanent. Set confirm to exactly "${DELETE_CONFIRMATION}" — or archive instead.`);
+      throw invalid("confirmation_required", `Deleting is permanent. Set confirm to exactly "${DELETE_CONFIRMATION}", or archive instead.`);
     const r = await loadRecord(ctx, input.record_id, { lock: true });
     if (!sameEtag(input.expected_etag, r.etag)) checkEtag(input.expected_etag, r.etag, "source");
     const im = await impact(ctx, r);

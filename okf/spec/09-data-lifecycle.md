@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete, closing an organization, the operator runbooks, the public sandbox with its limits, baseline and reset, and how retired insights and decisions became sources.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, sandbox]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-12}
 status: stable
 ---
 
@@ -16,10 +16,11 @@ of it is not built yet, it says so.
 
 ## 9.1 What we tell people
 
-This text — not a paraphrase of it — is shown in full on the sign-in page, under the heading
-"Your data in WhatBuild", and kept in the repository (`apps/web/src/routes/auth.tsx`) so a change
-to it is a reviewable commit. It is four short statements, each under a lead-in, so a person can
-take it in at a glance.
+This text — not a paraphrase of it — opens the privacy page, and is kept in the repository
+(`apps/web/src/routes/privacy.tsx`) so a change to it is a reviewable commit. It is four short
+statements, each under a lead-in. The sign-in page carries only the first, as one line under the
+form ("WhatBuild is a free preview: don’t keep anything here you can’t afford to lose."), with
+links to Privacy and Cookies.
 
 > **A free preview.** We don’t promise uptime or durability, so don’t keep anything here whose
 > loss or exposure would hurt.
@@ -88,8 +89,8 @@ the next reset. The words come from the server (`sandboxNotice`), so the web app
 page and an agent say the same thing.
 
 **The privacy page** (`/privacy`, readable signed out; `apps/web/src/routes/privacy.tsx`), linked
-from the sign-in page, Settings, `/cookies` and the public site's footer. What it says of every
-deployment is fixed text: what is kept, why and for how long (the account; what people add; sessions
+from the sign-in page, Settings, `/cookies` and the public site's footer. It opens with the
+statement above. What it says of every deployment is fixed text: what is kept, why and for how long (the account; what people add; sessions
 and connected agents, with the deployment's session and agent lifetimes; request logs; the counts
 of use, for 14 months; Google Analytics, when the deployment has it; feedback and interest; backups),
 on what grounds (because a person uses WhatBuild; to run it safely and improve it, which a person

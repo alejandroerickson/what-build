@@ -40,7 +40,7 @@ function tokenize(q: string): Tok[] {
       i++;
     } else if (c === '"') {
       const end = q.indexOf('"', i + 1);
-      if (end === -1) throw invalid("invalid_query", "A quoted phrase is not closed.");
+      if (end === -1) throw invalid("invalid_query", "A quoted phrase isn’t closed.");
       const phrase = q.slice(i + 1, end).trim();
       if (!phrase) throw invalid("invalid_query", "A quoted phrase is empty.");
       toks.push({ k: "phrase", v: phrase });
@@ -105,7 +105,7 @@ export function parseRanked(q: string): Node {
     if (p.k === "lp") {
       if (peek()?.k === "rp") throw invalid("invalid_query", "Empty parentheses.");
       const inner = parseOr();
-      if (peek()?.k !== "rp") throw invalid("invalid_query", "A parenthesis is not closed.");
+      if (peek()?.k !== "rp") throw invalid("invalid_query", "A parenthesis isn’t closed.");
       pos++;
       return inner;
     }
@@ -201,7 +201,7 @@ async function searchPassages(ctx: OpContext, i: Input) {
   let next: string | null = null;
   if (i.mode === "substring") {
     const c = i.cursor ? decodeCursor<[string, number]>(i.cursor) : undefined;
-    if (i.cursor && !c) throw invalid("invalid_cursor", "That cursor does not belong to this search.");
+    if (i.cursor && !c) throw invalid("invalid_cursor", "That cursor doesn’t belong to this search.");
     const after = c ? sql`and (s.record_id < ${c[0]} or (s.record_id = ${c[0]} and s.seq > ${c[1]}))` : sql``;
     const res = await sql<(typeof rows)[number]>`
       select s.record_id, s.seq, s.text, s.speaker, s.start_ms, s.end_ms, s.char_start, s.char_end, null::float as score
@@ -218,7 +218,7 @@ async function searchPassages(ctx: OpContext, i: Input) {
   } else {
     const q = tsquery(parseRanked(i.query));
     const offset = i.cursor ? decodeCursor<number>(i.cursor) : 0;
-    if (i.cursor && typeof offset !== "number") throw invalid("invalid_cursor", "That cursor does not belong to this search.");
+    if (i.cursor && typeof offset !== "number") throw invalid("invalid_cursor", "That cursor doesn’t belong to this search.");
     const res = await sql<(typeof rows)[number]>`
       select s.record_id, s.seq, s.text, s.speaker, s.start_ms, s.end_ms, s.char_start, s.char_end,
         ts_rank_cd(s.tsv, q.query)::float as score

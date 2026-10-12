@@ -924,7 +924,7 @@
 .intake-files {
   display: grid;
   gap: var(--s-2);
-  padding: 0 var(--sheet-px) var(--s-3h);
+  padding: var(--s-3h) var(--sheet-px);
 }
 .intake-drop {
   display: grid;

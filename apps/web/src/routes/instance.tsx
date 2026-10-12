@@ -86,7 +86,7 @@ export function InstancePage() {
       />
       <SheetBody className="instance-intro">
         <p className="muted">
-          Only the people listed here can start organizations, each up to the number they&rsquo;re given. As an owner of this WhatBuild, you can start any number. Organizations someone is invited to don&rsquo;t count.
+          Each person listed can start organizations up to the number they&rsquo;re given. Owners can start any number.
         </p>
         {q.data ? (
           <p className="muted">
@@ -101,9 +101,7 @@ export function InstancePage() {
           <ErrorCallout inset error={q.error} onRetry={() => q.refetch()} />
         </SheetBody>
       ) : !items.length ? (
-        <EmptyState size="inline" title="Nobody else can start one yet">
-          Add someone&rsquo;s email to let them start organizations. They don&rsquo;t need an account yet: while sign-up is invite-only, this also lets them sign up.
-        </EmptyState>
+        <EmptyState size="inline" title="Nobody else can start one yet" />
       ) : (
         <div className="instance-rows">
           {items.map((a) => (
@@ -188,7 +186,7 @@ function AllowanceDialog({ current, onClose }: { current: Allowance | null; onCl
       onClose={onClose}
       dismissable={!save.isPending}
       title={current ? `How many can ${current.email} start?` : "Let someone start organizations"}
-      description="The number counts every organization their account has started. Organizations they’re invited to don’t count."
+      description="The number counts every organization they’ve started, not ones they’re invited to."
       footer={
         <>
           <Button onClick={onClose} disabled={save.isPending}>
@@ -209,9 +207,9 @@ function AllowanceDialog({ current, onClose }: { current: Allowance | null; onCl
       >
         {current ? null : <TextField label="Email" type="email" required maxLength={320} value={email} onChange={(e) => setEmail(e.target.value)} hint="The email they sign in with. They don’t need an account yet." />}
         <TextField label="Organizations they can start" type="number" required min={0} max={1000} step={1} value={allowed} onChange={(e) => setAllowed(e.target.value)} hint={current ? `They’ve started ${current.created}. 0 stops them starting more.` : "0 means none, whatever the default."} />
-        <TextField label="Note" optional maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} hint="For this WhatBuild’s owners. The person doesn’t see it." />
+        <TextField label="Note" optional maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} hint="Only owners see it." />
         <ChoiceRow label="Tell them by email" hint="Sent only when the number goes up and they can still start one." checked={notify} onChange={(e) => setNotify(e.target.checked)} />
-        {taken ? <ErrorCallout inset error={new Error("This address already has an allowance. Close this and use Change on its row.")} /> : save.isError ? <ErrorCallout inset error={save.error} /> : null}
+        {taken ? <ErrorCallout inset error={new Error("This email already has an allowance. Close this and use Change on its row.")} /> : save.isError ? <ErrorCallout inset error={save.error} /> : null}
       </form>
     </Dialog>
   );

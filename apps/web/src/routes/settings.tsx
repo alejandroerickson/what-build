@@ -40,13 +40,13 @@ export function SettingsPage() {
           <FormGrid className="account-form">
             <TextField
               label="Display name"
-              hint="Shown beside everything you write, and everything your agents write."
+              hint="Shown beside what you and your agents write."
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={100}
               required
             />
-            <TextField label="Email" value={me.data?.email ?? ""} readOnly hint="You sign in with this email." />
+            <TextField label="Email" value={me.data?.email ?? ""} readOnly />
           </FormGrid>
           {save.isError ? (
             <div className="account-note">
@@ -61,7 +61,7 @@ export function SettingsPage() {
         </form>
       </Sheet>
       <p className="agents-foot">
-        <Link to="/cookies">Cookies</Link>: what they are for, and your choice about analytics. <Link to="/privacy">Privacy</Link>: what is kept about you, and whom to ask.
+        <Link to="/cookies">Cookies and analytics</Link> · <Link to="/privacy">Privacy</Link>
       </p>
     </>
   );

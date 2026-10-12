@@ -182,6 +182,7 @@ describe("the consent page", () => {
     expect(page).toContain("Let “Claude” work in WhatBuild as you?");
     expect(page).toContain("“Claude” is the name the agent gave itself. WhatBuild hasn’t verified it.");
     expect(page).toContain("Allow hands this connection to <strong>attacker.example</strong>.");
+    expect(page).toContain("You can disconnect it later under Connect an agent in WhatBuild.");
     for (const local of ["http://127.0.0.1:9999/callback", "http://localhost:33418/", "cursor://anysphere.cursor-mcp/oauth/callback"]) {
       const id = await register(local, "Local agent");
       const html = await (await fetch(authorizeUrl(id, local, "x"), { headers: { cookie: alice.cookie } })).text();

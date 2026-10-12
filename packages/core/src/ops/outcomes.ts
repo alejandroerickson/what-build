@@ -17,7 +17,7 @@ async function load(ctx: OpContext, outcomeId: string, lock = false) {
   let q = ctx.db.selectFrom("outcomes").selectAll().where("outcome_id", "=", outcomeId).where("product_id", "=", productId(ctx));
   if (lock) q = q.forUpdate();
   const row = await q.executeTakeFirst();
-  if (!row) throw notFound(`Outcome ${outcomeId} does not exist in this product.`);
+  if (!row) throw notFound(`Outcome ${outcomeId} doesn’t exist in this product.`);
   return row as Row;
 }
 

@@ -68,7 +68,7 @@ function Shows({ mockup: m }: { mockup: MockupShown }) {
       </p>
       {newer ? (
         <p className="story-about-note">
-          The mockup has a newer version, {m.current_version}. This page stays on version {m.version} until someone promotes the newer one from the mockup.
+          The mockup has a newer version, {m.current_version}. Promote it from the mockup to show it here.
         </p>
       ) : null}
     </Group>
@@ -81,7 +81,7 @@ export function StoryInspectorBody({ page, shown, versions, onExport }: {
   versions: VersionItem[] | undefined;
   onExport: () => void;
 }) {
-  const { app, api: base, storyOnly } = useProduct();
+  const { app, api: base } = useProduct();
   const [params, setParams] = useSearchParams();
   const citations = shown.citations ?? [];
   const checks = useQuery({
@@ -136,9 +136,6 @@ export function StoryInspectorBody({ page, shown, versions, onExport }: {
             },
           ]}
         />
-        <p className="story-about-note">
-          {storyOnly ? "Agents write and maintain the Story." : "Agents write and maintain the Story, and a page of a mockup can be promoted to it from the mockup."} You can read any version.
-        </p>
         <Button size="sm" icon="download" className="story-export-button" onClick={onExport}>
           Export to PDF…
         </Button>
@@ -169,7 +166,7 @@ export function StoryInspectorBody({ page, shown, versions, onExport }: {
               ))}
             </div>
           ) : (
-            <EmptyState size="inline">This version lists nothing it draws on. Agents list outcomes, sources and assumptions when they publish.</EmptyState>
+            <EmptyState size="inline">This version lists nothing it draws on.</EmptyState>
           )}
         </Group>
       ) : null}
@@ -195,7 +192,7 @@ export function StoryInspectorBody({ page, shown, versions, onExport }: {
                       {check ? (
                         <StatusBadge tone={check.version_drift && check.status === "ok" ? "attention" : toneFor("citation", check.status)}>{driftWords(check)}</StatusBadge>
                       ) : checks.isError ? (
-                        <span className="faint">Could not check against the source</span>
+                        <span className="faint">Couldn’t check against the source</span>
                       ) : (
                         <span className="faint">Checking against the source…</span>
                       )}
@@ -205,7 +202,7 @@ export function StoryInspectorBody({ page, shown, versions, onExport }: {
               })}
             </ol>
           ) : (
-            <EmptyState size="inline">No passages cited on this version. Agents cite the exact passages a page rests on when they publish it.</EmptyState>
+            <EmptyState size="inline">No passages cited on this version.</EmptyState>
           )}
         </Group>
       ) : null}
@@ -222,9 +219,7 @@ export function StoryInspectorBody({ page, shown, versions, onExport }: {
             ) : null}
           </>
         ) : (
-          <EmptyState size="inline">
-            Agents keep notes here as they write and maintain this page: what it&rsquo;s for, sources still to fold in, choices about its structure. They read them before revising it.
-          </EmptyState>
+          <EmptyState size="inline">No notes yet.</EmptyState>
         )}
       </Group>
       ) : null}

@@ -20,7 +20,7 @@ async function derivationFor(ctx: OpContext, recordId: string, derivationId?: st
   const did = derivationId ?? r.current_derivation_id;
   if (!did) throw notFound(`Source ${recordId} has no derived text yet. Check sources(action="get") for its derived_status.`);
   const d = await ctx.db.selectFrom("derivations").selectAll().where("derivation_id", "=", did).where("record_id", "=", recordId).executeTakeFirst();
-  if (!d) throw notFound(`Derivation ${did} does not belong to source ${recordId}.`);
+  if (!d) throw notFound(`Derivation ${did} doesn’t belong to source ${recordId}.`);
   return { record: r, derivation: d };
 }
 
@@ -252,7 +252,7 @@ export const readPassage = defineOperation({
       if (input.start !== undefined || input.end !== undefined) throw invalid("invalid_input", "Give `seq` for one segment, or `start` and `end` for a window, not both.");
       if (input.unit === "ms") throw invalid("invalid_input", "`seq` is a segment number: omit unit, or give start and end in milliseconds instead.");
     } else if (input.start === undefined || input.end === undefined)
-      throw invalid("invalid_input", "`start` and `end` are required, or `seq` for one segment, such as a search hit's.");
+      throw invalid("invalid_input", "`start` and `end` are required, or `seq` for one segment, such as a search hit’s.");
     const start = input.seq ?? input.start!;
     const end = input.seq ?? input.end!;
     if (end < start) throw invalid("invalid_window", "end must not be before start.");
