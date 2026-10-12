@@ -51,7 +51,8 @@ only on a Story page, a mockup and a source page — an inspector on the right. 
 takes the full width. There are no in-app tabs: one screen at a time, and rows are real links, so
 the browser's back button and "open in new tab" both work.
 
-- **Top of the panel:** the W mark and the "WhatBuild" wordmark, linking to the overview (`/`)
+- **Top of the panel:** the W mark ([decision](../decisions/the-mark-is-a-w-in-a-panel-with-a-title-bar.md))
+  and the "WhatBuild" wordmark, linking to the overview (`/`)
   from every screen, with the button that hides the panel at the row's far end. Only the mark and
   wordmark are the link, so a click that misses the hide button does not leave the screen. Then the
   product switch, showing the product and its organization and team, and under it the **Search**

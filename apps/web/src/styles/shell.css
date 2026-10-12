@@ -106,6 +106,10 @@ h1[tabindex="-1"]:focus {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+.brand-mark .brand-mark-rule {
+  stroke-width: 0.9;
+  stroke-linecap: butt;
+}
 
 .panel-nav {
   flex: none;

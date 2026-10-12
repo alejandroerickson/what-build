@@ -77,7 +77,8 @@ permissions and one activity log.
 - A synthetic sample product ("Crewboard", in `apps/server/src/seed-content.ts`): four sources,
   outcomes, an assumption, a mockup and two Story pages. All people and organizations are
   invented; no real customer material exists in this repository and none may be fabricated as real.
-- The brand is the W mark (`apps/web/public/favicon.svg`) with the wordmark "WhatBuild". The type
+- The brand is the W mark (`apps/web/public/favicon.svg`), a W in a rounded tile under a title-bar
+  line like one of the app's panels, with the wordmark "WhatBuild". The type
   is Inter and the accent is indigo, in the Studio design system documented in `DESIGN.md`. The
   domain what-build.com is registered.
 
