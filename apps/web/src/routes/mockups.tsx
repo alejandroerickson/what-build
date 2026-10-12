@@ -296,6 +296,9 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequ
   const [space, setSpace] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [gliding, setGliding] = useState(false);
+  // Whether the view is being moved by hand, until it has kept still a moment.
+  const [moving, setMoving] = useState(false);
+  const settle = useRef<number | undefined>(undefined);
   const reduceMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
   // Fingers pinch to zoom and carry no keyboard: the toolbar gives up its zoom buttons and the list
   // of keys for room to make its controls big enough for a thumb.
@@ -305,6 +308,19 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequ
   const touched = useRef(false);
   const columns = Math.max(1, version.columns ?? version.pages.length);
   const panning = mode === "pan" || space;
+
+  /**
+   * Marks the view as moving by hand, and as settled once it keeps still. Only while it moves is the
+   * board its own layer: kept as one, Chrome keeps drawing it at the largest zoom it was shown at, so
+   * after zooming far in and back out a phone runs out of graphics memory, and a panel that opens
+   * over the board, the toolbar and the labels are not drawn at all.
+   */
+  const nudge = useCallback(() => {
+    setMoving(true);
+    window.clearTimeout(settle.current);
+    settle.current = window.setTimeout(() => setMoving(false), 200);
+  }, []);
+  useEffect(() => () => window.clearTimeout(settle.current), []);
 
   const setMode = useCallback((m: Mode) => {
     setModeState(m);
@@ -427,9 +443,10 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequ
     (dy: number, line: boolean, pinch: boolean, clientX: number, clientY: number) => {
       const r = viewport.current?.getBoundingClientRect();
       if (!r) return;
+      nudge();
       zoomAt(Math.exp(-dy * (line ? 0.05 : 0.0025) * (pinch ? 4 : 1)), clientX - r.left, clientY - r.top);
     },
-    [zoomAt],
+    [zoomAt, nudge],
   );
 
   // The wheel needs a listener that is not passive, so it can keep the page behind from scrolling.
@@ -443,6 +460,7 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequ
         return;
       }
       touched.current = true;
+      nudge();
       const step = e.deltaMode === 1 ? 16 : 1;
       const dx = (e.shiftKey ? e.deltaY || e.deltaX : e.deltaX) * step;
       const dy = (e.shiftKey ? 0 : e.deltaY) * step;
@@ -450,7 +468,7 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequ
     };
     vp.addEventListener("wheel", wheel, { passive: false });
     return () => vp.removeEventListener("wheel", wheel);
-  }, [wheelZoom]);
+  }, [wheelZoom, nudge]);
 
   /** Selects the page before or after the selected one and fits it; with none selected, the first or the last. */
   const step = useCallback(
@@ -560,6 +578,7 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequ
       g.pinch = now;
       const factor = was.d > 0 ? now.d / was.d : 1;
       touched.current = true;
+      nudge();
       // The point of the page under the fingers' midpoint stays under it as they spread and move.
       setView((v) => {
         const z = clamp(v.z * factor);
@@ -573,6 +592,7 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequ
       touched.current = true;
       setDragging(true);
     }
+    nudge();
     const dx = e.clientX - g.lastX;
     const dy = e.clientY - g.lastY;
     g.lastX = e.clientX;
@@ -638,6 +658,7 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequ
         data-mode={panning ? "pan" : "interact"}
         data-dragging={dragging ? "" : undefined}
         data-gliding={gliding ? "" : undefined}
+        data-moving={moving ? "" : undefined}
         role="region"
         aria-roledescription="canvas"
         aria-label={`${version.title}: ${plural(version.pages.length, "page")}`}

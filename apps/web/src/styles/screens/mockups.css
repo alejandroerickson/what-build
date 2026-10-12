@@ -125,6 +125,11 @@
   display: grid;
   align-items: start;
   transform-origin: 0 0;
+}
+/* Its own layer only while a hand moves it, so it is drawn afresh at the zoom it settles at: a layer
+   kept for good stays drawn at the largest zoom it was shown at, and on a phone that exhausts the
+   graphics memory, leaving a panel opened over the board undrawn. */
+.xc-viewport[data-moving] .xc-world {
   will-change: transform;
 }
 .xc-viewport[data-gliding] .xc-world,
