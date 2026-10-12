@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 110 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-12}
 status: stable
 ---
 
@@ -648,9 +648,7 @@ configure but one address. It shows:
   choice follows, to copy: everything gives `/mcp`; an organization gives `/mcp/t/<tenant>`
   (`tenant_url_template` from `/api/v1/connect`); a product gives its address
   (`bound_url_template`), filled in from the product's path, so nobody types a tenant or team.
-  Under the URL, a sentence says where the agent can work and that WhatBuild refuses anything
-  elsewhere, and suggests naming the connector after its scope so the person can tell connectors
-  apart and turn one off in their agent. Opened inside a product, that product is chosen first;
+  For one product or organization, a line under the URL suggests naming the connector after it. Opened inside a product, that product is chosen first;
   elsewhere, the organization of the last product opened, or everything for someone with no
   product. The choice is in the URL: `?reach=product|organization|all` with `?product=<path>` or
   `?org=<slug>` (an older `?product=all` means everything). A client that supports MCP
@@ -665,8 +663,8 @@ configure but one address. It shows:
   disconnect control;
 - **a plain statement about the agent's side of the trip**, above the steps: what the agent reads
   goes to whoever runs it, under their terms ([§9.1](09-data-lifecycle.md));
-- a note that the server offers the agent the skill (its instructions name the version), with an
-  optional ZIP download for installing it by hand.
+- an optional ZIP download of the skill, with its version, for installing it by hand (the server
+  offers it to the agent anyway).
 
 ## 6.9 Feedback
 

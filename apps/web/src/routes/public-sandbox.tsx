@@ -127,7 +127,7 @@ export function SandboxPage() {
       <NotASandbox />
     ) : (
       <Sheet labelledBy="sandbox-missing">
-        <SheetHeader level={1} id="sandbox-missing" title="The sandbox could not be loaded" />
+        <SheetHeader level={1} id="sandbox-missing" title="The sandbox couldn’t be loaded" />
         <EmptyState size="inline" action={<ButtonLink to="/">Your products</ButtonLink>}>
           {status.error instanceof Error ? status.error.message : "Reload the page to try again."}
         </EmptyState>
@@ -139,10 +139,8 @@ export function SandboxPage() {
 function NotASandbox() {
   return (
     <Sheet labelledBy="sandbox-missing">
-      <SheetHeader level={1} id="sandbox-missing" title="This organization is not a public sandbox" />
-      <EmptyState size="inline" action={<ButtonLink to="/">Your products</ButtonLink>}>
-        Only one organization here is the public sandbox. This isn&rsquo;t it, or you aren&rsquo;t in it.
-      </EmptyState>
+      <SheetHeader level={1} id="sandbox-missing" title="This organization isn’t a public sandbox" />
+      <EmptyState size="inline" action={<ButtonLink to="/">Your products</ButtonLink>} />
     </Sheet>
   );
 }
@@ -162,7 +160,7 @@ function VisitorView({ status: s }: { status: SandboxStatus }) {
                 <dt>You read</dt>
                 <dd>
                   <b>The Story</b>
-                  <span className="muted"> You write nothing here. Nobody here sees your name or email, and you see nobody else&rsquo;s.</span>
+                  <span className="muted"> You write nothing here. Visitors don’t see one another’s names or emails.</span>
                 </dd>
               </div>
             ) : (
@@ -170,7 +168,7 @@ function VisitorView({ status: s }: { status: SandboxStatus }) {
                 <dt>You write as</dt>
                 <dd>
                   <b>{s.you.appears_as}</b>
-                  <span className="muted"> Nobody here sees your name or email, and you see nobody else&rsquo;s.</span>
+                  <span className="muted"> Visitors don’t see one another’s names or emails.</span>
                 </dd>
               </div>
             )}
@@ -215,7 +213,7 @@ function VisitorView({ status: s }: { status: SandboxStatus }) {
           </Table>
         </div>
         <p className="sandbox-foot">
-          Daily counts start over at the next reset, <span title={formatDateTime(s.allowances_restart_at)}>{untilTime(s.allowances_restart_at)}</span>. Reading and searching are never limited by the day.
+          Daily counts start over at the next reset, <span title={formatDateTime(s.allowances_restart_at)}>{untilTime(s.allowances_restart_at)}</span>.
           {off.map((a) => ` ${a.label}: ${a.limit ? "on" : "off"}.`).join("")}
         </p>
       </Sheet>
@@ -275,7 +273,7 @@ function ControlPanel({ tenant }: { tenant: string }) {
     patch.mutate(Object.fromEntries(changed.map((k) => [k, draft[k]])), {
       onSuccess: () => {
         setDraft({});
-        toast("Saved. Changes apply from each visitor’s next request.");
+        toast("Saved.");
       },
     });
   const t = p.today;
@@ -300,7 +298,7 @@ function ControlPanel({ tenant }: { tenant: string }) {
         />
         <SheetBody className="sandbox-about">
           <p className="muted">
-            Anyone with an invitation works in {p.organization.name} as a visitor: they edit content under a made-up name and see nobody else. Owners and admins work under their own names, without these limits.
+            Visitors write under made-up names. Owners and admins write under their own, without these limits.
           </p>
           <dl className="sandbox-facts">
             <div>
@@ -312,19 +310,19 @@ function ControlPanel({ tenant }: { tenant: string }) {
                   value={s.visitor_access}
                   onChange={(v) => v !== s.visitor_access && now({ visitor_access: v }, v === "write" ? "Visitors can write again." : v === "read" ? "Visitors can only read now. Everyone keeps their seat." : "Closed to visitors. Everyone keeps their seat.")}
                 />
-                {s.visitor_access === "write" ? null : <span className="muted">{s.visitor_access === "read" ? "Visitors can read, search, and export if the export limit allows." : "Visitors can’t open the sandbox until you reopen it."}</span>}
+                {s.visitor_access === "read" ? <span className="muted">Visitors can still export, within the export limit.</span> : null}
               </dd>
             </div>
             <div>
               <dt>Visitors&rsquo; agents</dt>
               <dd className="sandbox-control">
                 <Segmented
-                  label="Whether visitors' agents may work here"
+                  label="Whether visitors’ agents may work here"
                   items={[{ id: "on", label: "Allowed" }, { id: "off", label: "Off" }]}
                   value={s.visitor_agents ? "on" : "off"}
-                  onChange={(v) => (v === "on") !== s.visitor_agents && now({ visitor_agents: v === "on" }, v === "on" ? "Visitors’ agents can connect." : "Visitors’ agents are off. Visitors can still use the web app.")}
+                  onChange={(v) => (v === "on") !== s.visitor_agents && now({ visitor_agents: v === "on" }, v === "on" ? "Visitors’ agents can connect." : "Visitors’ agents are off.")}
                 />
-                <span className="muted">Over MCP, under the same limits as the visitor.</span>
+                <span className="muted">Under the same limits as the visitor.</span>
               </dd>
             </div>
             <div>
@@ -394,7 +392,7 @@ function ControlPanel({ tenant }: { tenant: string }) {
         >
         <div className="sandbox-scroll">
           <Table className="sandbox-limits" head={["Limit", "Counted over", "Value", "Default", "Over the limit"]}>
-              <LimitRow label="Seats" help="How many visitors the sandbox holds. Invitations can’t admit more." per="The sandbox" refusal="409 sandbox_full" fallback={amount(p.defaults.max_visitors, "")}>
+              <LimitRow label="Seats" help="How many visitors the sandbox holds." per="The sandbox" refusal="409 sandbox_full" fallback={amount(p.defaults.max_visitors, "")}>
                 <NumberCell label="Seats" value={value("max_visitors") as number} onChange={(v) => set("max_visitors", v)} />
               </LimitRow>
               <LimitRow label="Idle days before a seat is freed" help="A visitor who hasn’t signed in or used an agent for this long loses their seat at the next reset. 0 keeps every seat." per="Each visitor" refusal="" fallback={amount(p.defaults.visitor_idle_days, "")}>
@@ -422,7 +420,6 @@ function ControlPanel({ tenant }: { tenant: string }) {
             type="time"
             value={String(value("reset_time"))}
             onChange={(e) => e.target.value && set("reset_time", e.target.value)}
-            hint="If the service is asleep at that time, the reset runs before the next request is served."
           />
           <TextField
             label="Time zone"
@@ -430,14 +427,14 @@ function ControlPanel({ tenant }: { tenant: string }) {
             onChange={(e) => set("reset_timezone", e.target.value.trim())}
             list="sandbox-zones"
             spellCheck={false}
-            hint="An IANA name, such as America/Los_Angeles. The reset keeps its local time when the clocks change."
+            hint="An IANA name, such as America/Los_Angeles."
           />
           <div className="field">
             <span className="field-label">Resets</span>
             <div className="field-control">
               <label className="sandbox-switch">
                 <input type="checkbox" checked={Boolean(value("reset_enabled"))} onChange={(e) => set("reset_enabled", e.target.checked)} />
-                <span>{value("reset_enabled") ? "On: the sandbox resets every day" : "Off: it resets only when you choose Reset now"}</span>
+                <span>{value("reset_enabled") ? "On" : "Off"}</span>
               </label>
             </div>
           </div>
@@ -602,7 +599,7 @@ function Baselines({ tenant, inUse, onReset }: { tenant: string; inUse: Baseline
         </SheetBody>
       ) : !q.data.items.length ? (
         <EmptyState size="inline" title="No baseline yet">
-          A baseline is a snapshot of the organization&rsquo;s content, and every reset returns to it. Until you save one, nothing resets. Set the content up as visitors should find it, then choose Save baseline.
+          Nothing resets until you save one. Set up the content as visitors should find it, then choose Save baseline.
         </EmptyState>
       ) : (
         <ul className="sandbox-list">
@@ -630,7 +627,7 @@ function Baselines({ tenant, inUse, onReset }: { tenant: string; inUse: Baseline
           ))}
         </ul>
       )}
-      <p className="sandbox-foot">The newest three are kept. A baseline holds content, not people or roles, so a reset never restores access that was removed.</p>
+      <p className="sandbox-foot">The newest 3 are kept.</p>
     </Sheet>
   );
 }
@@ -674,10 +671,10 @@ function SaveBaselineDialog({ tenant, today, access, onClose, onSaved }: { tenan
         {today.writes ? (
           <Callout inset tone="attention" title={`Visitors have made ${plural(today.writes, "write")} today`}>
             The baseline will include what they added. To leave it out, reset first, make your changes, then save.
-            {access === "write" ? " Set visitors to read only while you work, so nothing new arrives." : ""}
+            {access === "write" ? " Set visitors to Read only while you work." : ""}
           </Callout>
         ) : null}
-        <TextField label="Note" optional maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} hint="What this baseline is, for whoever reads the list later." />
+        <TextField label="Note" optional maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} />
         {save.isError ? <ErrorCallout inset error={save.error} /> : null}
       </form>
     </Dialog>
@@ -722,7 +719,7 @@ function ResetDialog({ tenant, name, baseline, today, onClose, onDone }: { tenan
           <li>What owners and admins changed since the baseline, unless you save a new baseline first.</li>
           <li>Uploads and exports in progress, and the day&rsquo;s counts.</li>
         </ul>
-        {reset.isError ? <ErrorCallout inset error={reset.error} /> : <p className="muted">Visitors keep their seats and everyone keeps their role. Links to anything in the baseline keep working.</p>}
+        {reset.isError ? <ErrorCallout inset error={reset.error} /> : <p className="muted">Visitors keep their seats and everyone keeps their role.</p>}
       </div>
     </Dialog>
   );
@@ -766,9 +763,7 @@ function Invitations({ tenant, seats }: { tenant: string; seats: Panel["seats"] 
           <ErrorCallout inset error={q.error} onRetry={() => q.refetch()} />
         </SheetBody>
       ) : !q.data.items.length ? (
-        <EmptyState size="inline" title="No invitations yet">
-          The sandbox is invite-only. An invitation is one link for as many people as you choose: share it with a group, or create one for a single person.
-        </EmptyState>
+        <EmptyState size="inline" title="No invitations yet" />
       ) : (
         <ul className="sandbox-list">
           {q.data.items.map((i) => (
@@ -854,7 +849,7 @@ function InviteDialog({ tenant, seats, onClose }: { tenant: string; seats: Panel
             if (valid) make.mutate();
           }}
         >
-          <TextField label="Where you’ll share it" required maxLength={100} value={label} onChange={(e) => setLabel(e.target.value)} hint="Names the invitation in the list: “Launch post”, “Workshop, 12 October”." />
+          <TextField label="Where you’ll share it" required maxLength={100} value={label} onChange={(e) => setLabel(e.target.value)} hint="Such as “Launch post” or “Workshop, 12 October”." />
           <TextField
             label="Places"
             type="number"
@@ -929,7 +924,7 @@ function Visitors({ tenant, seats }: { tenant: string; seats: Panel["seats"] }) 
         </SheetBody>
       ) : !items.length ? (
         <EmptyState size="inline" title={query ? `No visitor matches “${query}”` : "No visitors yet"}>
-          {query ? "Search by name, email, or made-up name, such as Visitor 4F2A9C." : "Create an invitation and share its link. Everyone who enters is listed here."}
+          {query ? "Search by name, email, or made-up name, such as Visitor 4F2A9C." : "Create an invitation and share its link."}
         </EmptyState>
       ) : (
         <ul className="sandbox-list">
@@ -959,7 +954,7 @@ function Visitors({ tenant, seats }: { tenant: string; seats: Panel["seats"] }) 
         </div>
       ) : null}
       <p className="sandbox-foot">
-        Only owners and admins see this list. Visitors see each other only under made-up names, which you can search for here. The organization&rsquo;s own people are in <Link to={`/t/${tenant}/members`}>Members</Link>.
+        The organization&rsquo;s own people are in <Link to={`/t/${tenant}/members`}>Members</Link>.
       </p>
       {removing ? (
         <Dialog
@@ -1045,13 +1040,13 @@ export function JoinSandbox() {
             <SheetHeader level={1} id="join-title" title="You’re invited to try WhatBuild" />
             <SheetBody className="entry-form">
               <p>
-                {i!.organization} is a worked example of a product discovery, from its sources to its Story. Read it, search it and change it, by hand or with your own agent.
+                {i!.organization} is a worked example of a product discovery. You can change it by hand or with your own agent.
               </p>
               <Callout inset tone="attention" title="Public, and erased">
                 {i!.notice.replace(/^This is a public sandbox\.\s*/, "")}
               </Callout>
               <ul className="join-terms">
-                <li>Your made-up name looks like Visitor 4F2A9C. Nobody sees your real name or email, and you see nobody else&rsquo;s.</li>
+                <li>You write under a made-up name, such as Visitor 4F2A9C. Visitors don’t see one another’s names or emails.</li>
                 <li>You can edit content, but not manage products or people, or delete anything permanently.</li>
                 <li>
                   Each day you can add {plural(i!.limits.sources_per_day, "source")} ({formatBytes(i!.limits.bytes_per_day)} in all, {formatBytes(i!.limits.file_max_bytes)} a file) and make {plural(i!.limits.writes_per_day, "change")}.

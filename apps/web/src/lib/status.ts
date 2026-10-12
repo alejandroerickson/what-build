@@ -7,22 +7,22 @@ import type { StatusTone } from "../ui/index.tsx";
  */
 export const DERIVED_STATUS: Record<string, { label: string; tone: StatusTone; explain: string; next?: string; detail?: true }> = {
   ready: { label: "Ready", tone: "positive", explain: "Parsed into passages; its primary file is searched." },
-  pending: { label: "Processing", tone: "progress", explain: "Queued for parsing. Passages and the outline appear when it finishes." },
+  pending: { label: "Processing", tone: "progress", explain: "Passages appear when parsing finishes." },
   awaiting_file: { label: "No file yet", tone: "neutral", explain: "This source has no primary file yet.", next: "Add a file." },
   needs_transcript: {
     label: "Needs transcript",
     tone: "attention",
-    explain: "A recording is stored and playable, but WhatBuild does not transcribe.",
-    next: "Add the transcript as its own source, with the transcript as its primary file.",
+    explain: "WhatBuild doesn’t transcribe recordings.",
+    next: "Add the transcript as its own source.",
   },
   unsupported: {
     label: "Not parsed",
     tone: "neutral",
-    explain: "No parser reads this format. The file is stored and downloadable.",
-    next: "Add a text, Markdown, VTT, SRT, DOC, DOCX, XLSX, PDF or HTML version as a new source.",
+    explain: "WhatBuild can’t read this format. The file is kept for download.",
+    next: "Add a text, Markdown, VTT, SRT, DOC, DOCX, XLSX, CSV, TSV, PDF or HTML version as a new source.",
   },
-  too_large: { label: "Too large to parse", tone: "attention", explain: "Stored in full, but over the parsing limit.", next: "Add a shorter digest as a new source and keep this file as its origin.", detail: true },
-  failed: { label: "Parsing failed", tone: "negative", explain: "The file is stored, but its text could not be read.", next: "Check it opens elsewhere; upload a clean copy as a new source.", detail: true },
+  too_large: { label: "Too large to parse", tone: "attention", explain: "The file is kept, but it’s over the size limit for parsing.", next: "Add a shorter digest as a new source and keep this file as its origin.", detail: true },
+  failed: { label: "Parsing failed", tone: "negative", explain: "The file is kept, but its text couldn’t be read.", next: "Check that it opens elsewhere, then add a clean copy as a new source.", detail: true },
 };
 
 export function derivedStatus(status: string) {

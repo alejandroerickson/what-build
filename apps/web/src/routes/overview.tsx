@@ -76,7 +76,7 @@ export function OverviewPage() {
       ) : products.isError ? (
         <Sheet label="Products">
           <div className="sheet-body">
-            <ErrorCallout inset title="Your products could not be loaded" error={products.error} onRetry={() => products.refetch()} />
+            <ErrorCallout inset title="Your products couldn’t be loaded" error={products.error} onRetry={() => products.refetch()} />
           </div>
         </Sheet>
       ) : (
@@ -138,11 +138,11 @@ function Organization({ tenant, products, showArchived, onShowArchived, onCreate
         </ul>
       ) : !tenant.teams.length ? (
         <EmptyState size="inline" title="Nothing to open yet">
-          You&rsquo;re in {tenant.name} without a role on any team or product. Ask one of its admins for one.
+          Ask an admin of {tenant.name} for a role on a team or product.
         </EmptyState>
       ) : (
-        <EmptyState size="inline" title="No products to open">
-          {canCreate ? "Create one to start a discovery." : "Ask a team admin to create one, or to give you a role on one."}
+        <EmptyState size="inline" title="No products yet">
+          {canCreate ? null : "Ask a team admin to add you to one."}
         </EmptyState>
       )}
       {archived.length ? (
@@ -168,7 +168,7 @@ function ProductEntry({ product: p, showTeam }: { product: ProductSummary; showT
           <Link to={`/t/${p.path}/${productHome(p.your_role)}`}>{p.name}</Link>
         </h3>
         {reader ? (
-          <p className="overview-product-concept faint">You read this product&rsquo;s Story.</p>
+          <p className="overview-product-concept faint">You can read its Story.</p>
         ) : p.concept?.trim() ? (
           <p className="overview-product-concept">{markdownText(p.concept)}</p>
         ) : (

@@ -111,7 +111,7 @@ export function StoryTree({ tree, archived, current, onExport, style, onStyle }:
           ) : filtering ? (
             <p className="story-tree-none">No pages match “{query.trim()}”.</p>
           ) : (
-            <p className="story-tree-none">No pages yet. An agent writes the first one.</p>
+            <p className="story-tree-none">No pages yet.</p>
           )}
         </PanelSection>
         {tree.mockups.length ? (

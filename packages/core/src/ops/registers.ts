@@ -27,7 +27,7 @@ async function checkLinks(ctx: OpContext, selfId: string | null, links: Register
     const key = `${l.id}:${l.type}`;
     if (seen.has(key)) throw invalid("invalid_link", `Duplicate link ${l.type} → ${l.id}.`);
     seen.add(key);
-    if (l.id === selfId) throw invalid("invalid_link", "An entry cannot link to itself.");
+    if (l.id === selfId) throw invalid("invalid_link", "An assumption can’t link to itself.");
   }
   const ids = uniq(links.map((l) => l.id));
   if (!ids.length) return;
@@ -142,7 +142,7 @@ function registerOps(): OperationDef[] {
     let q = ctx.db.selectFrom("register_entries").selectAll().where("entry_id", "=", entryId).where("product_id", "=", productId(ctx));
     if (lock) q = q.forUpdate();
     const row = await q.executeTakeFirst();
-    if (!row || row.kind !== kind) throw notFound(`Assumption ${entryId} does not exist in this product.`);
+    if (!row || row.kind !== kind) throw notFound(`Assumption ${entryId} doesn’t exist in this product.`);
     return row;
   }
 
@@ -392,7 +392,7 @@ function registerOps(): OperationDef[] {
       const row = await load(ctx, input.id, true);
       checkEtag(input.expected_etag, row.etag, kind);
       const reviewerType = input.reviewer_type ?? defaultReviewerType(ctx);
-      if (input.confidence && reviewerType !== "human") throw invalid("confidence_requires_human", "confidence is recorded only for a human reviewer's own judgment.");
+      if (input.confidence && reviewerType !== "human") throw invalid("confidence_requires_human", "confidence is recorded only for a human reviewer’s own judgment.");
       await appendReview(ctx, row, { status: input.status, note: input.note, reviewer_type: reviewerType, confidence: input.confidence ?? null });
       await recordActivity(ctx, { action: "reviewed", entity_type: kind, entity_id: row.entry_id, entity_title: row.statement, summary: `Marked ${input.status}${input.confidence ? ` with ${input.confidence} confidence` : ""}${reviewerType === "agent" ? " (agent review)" : ""}` });
       return detail(ctx, await load(ctx, row.entry_id));
@@ -457,7 +457,7 @@ function registerOps(): OperationDef[] {
       const row = await load(ctx, input.id, true);
       checkEtag(input.expected_etag, row.etag, kind);
       const links = row.links.filter((l) => !(l.id === input.target_id && l.type === input.type));
-      if (links.length === row.links.length) throw notFound("No such link on this entry.");
+      if (links.length === row.links.length) throw notFound("No such link on this assumption.");
       await ctx.db.updateTable("register_entries").set({ links: json(links), etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("entry_id", "=", row.entry_id).execute();
       await recordActivity(ctx, { action: "unlinked", entity_type: kind, entity_id: row.entry_id, entity_title: row.statement, summary: `Removed a ${input.type} link` });
       return detail(ctx, await load(ctx, row.entry_id));

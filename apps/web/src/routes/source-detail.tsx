@@ -118,7 +118,7 @@ export function SourceDetailPage() {
           <EvidenceFilters />
           <PageHeader crumbs={[{ label: "Evidence", to: `${app}/evidence` }, { label: "Deleted source" }]} title="This source was deleted" />
           <EmptyState action={<ButtonLink to={`${app}/evidence`}>Back to Evidence</ButtonLink>}>
-            {`${t.title ?? "It"} was deleted permanently by ${t.deleted_by?.display_name ?? "someone"} on ${formatDate(t.deleted_at)}. Reason: ${t.reason ?? "not given"}. Quotes cited from it are kept where they were cited.`}
+            {`${t.title ?? "It"} was deleted by ${t.deleted_by?.display_name ?? "someone"} on ${formatDate(t.deleted_at)}. Reason: ${t.reason ?? "not given"}. Quotes cited from it are kept.`}
           </EmptyState>
         </>
       );
@@ -127,7 +127,7 @@ export function SourceDetailPage() {
     return (
       <>
         <EvidenceFilters />
-        <PageHeader crumbs={[{ label: "Evidence", to: `${app}/evidence` }, { label: "Source" }]} title="This source could not be loaded" />
+        <PageHeader crumbs={[{ label: "Evidence", to: `${app}/evidence` }, { label: "Source" }]} title="This source couldn’t be loaded" />
         <ErrorCallout error={q.error} onRetry={() => q.refetch()} />
       </>
     );
@@ -151,7 +151,7 @@ export function SourceDetailPage() {
         <div className="source-notices">
       {r.archived_at ? (
         <Callout tone="attention" title={`Archived ${relativeTime(r.archived_at)}`} action={canWrite ? <RestoreButton record={r} /> : undefined}>
-          Read-only. Its files and passages are kept and can still be cited, but lists and search, including your agents&rsquo;, leave it out until it&rsquo;s restored.
+          Read-only, and left out of lists and search, including your agents&rsquo;, until it&rsquo;s restored.
         </Callout>
       ) : null}
       {r.derived_status !== "ready" ? (
@@ -283,8 +283,7 @@ function StaleViewNotice({ recordId }: { recordId: string }) {
           </Button>
         }
       >
-        It was built on {formatDate(l.registered_at)} from {describeInputs(l.input_checks)}, and {moved === 1 ? "1 of them has" : `${moved} of them have`} changed since.
-        Views aren&rsquo;t rebuilt automatically: read it as of that date, or ask your agent to rebuild it.
+        Built on {formatDate(l.registered_at)} from {describeInputs(l.input_checks)}; {moved === 1 ? "1 has" : `${moved} have`} changed since. Ask your agent to rebuild it.
       </Callout>
     </div>
   );
@@ -340,8 +339,7 @@ function BuiltFrom({ recordId }: { recordId: string }) {
           <StatusBadge tone={l.stale ? "attention" : "positive"}>{l.stale ? `${moved.length} changed since` : "Up to date"}</StatusBadge>
         </p>
         <p className="source-inspector-note">
-          {describeInputs(l.input_checks)}, as they stood on {formatDate(l.registered_at)}, when {attribution(l.registered_by)} built it.{" "}
-          {l.stale ? "It is not rebuilt automatically." : "None has changed since."}
+          Built by {attribution(l.registered_by)} on {formatDate(l.registered_at)} from {describeInputs(l.input_checks)}.
         </p>
         {l.query_spec?.description ? <p className="source-inspector-note source-built-how">{l.query_spec.description}</p> : null}
         {moved.length ? (
@@ -387,7 +385,7 @@ function useArchive(record: SourceRecord) {
       void qc.invalidateQueries({ queryKey: ["sources", base] });
       void qc.invalidateQueries({ queryKey: ["product"] });
       toast(
-        restore ? "Restored. It’s back in lists and search." : "Archived. It’s out of lists and search, including your agents’. Nothing was erased.",
+        restore ? "Restored." : "Archived. It’s out of lists and search, including your agents’.",
         restore ? {} : { action: { label: "Undo", onClick: () => m.mutate(true) } },
       );
     },
@@ -497,7 +495,6 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
     queryKey: ["used-by", base, r.record_id],
     queryFn: () => api<CitedIn>("GET", `${base}/sources/${r.record_id}/used-by`),
   });
-  const primary = r.files.find((f) => f.role === "primary");
   const versions = r.files.reduce((n, f) => n + Math.max(1, f.versions.length), 0);
   const c = cited.data;
   const citedCount = c ? c.assumptions.length + c.related.length + (c.story_pages?.length ?? 0) + (c.mockups?.length ?? 0) : undefined;
@@ -550,17 +547,17 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
               ))}
             </ul>
           ) : (
-            <EmptyState size="inline">No files yet. {primary ? "" : "The primary file is what gets parsed and searched."}</EmptyState>
+            <EmptyState size="inline">No files yet.</EmptyState>
           )}
           {versions > r.files.length ? <p className="source-inspector-note">{plural(versions, "stored version")} in all.</p> : null}
         </Group>
         <Group title="Cited in" count={citedCount}>
           {cited.isPending ? (
-            <Loading variant="lines" lines={2} label="Loading where it is cited…" />
+            <Loading variant="lines" lines={2} label="Loading where it’s cited…" />
           ) : cited.isError ? (
             <ErrorCallout inset error={cited.error} onRetry={() => cited.refetch()} />
           ) : !citedCount ? (
-            <EmptyState size="inline">Not cited yet. Assumptions, mockups, Story pages and other sources that use it appear here.</EmptyState>
+            <EmptyState size="inline">Not cited yet.</EmptyState>
           ) : (
             <ul className="source-cited">
               {c!.assumptions.map((e) => (
@@ -651,7 +648,7 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
         {canWrite ? (
           <Group title={r.archived_at ? "Archived" : "Archive"}>
             <p className="source-inspector-note">
-              {r.archived_at ? "Out of lists and search. Nothing was erased." : "Takes it out of lists and search, including your agents’. Nothing is erased, and you can restore it any time."}
+              {r.archived_at ? "Out of lists and search." : "Takes it out of lists and search, including your agents’. You can restore it any time."}
             </p>
             <Button
               size="sm"
@@ -723,7 +720,7 @@ function OriginalView({ record }: { record: SourceRecord }) {
     queryKey: ["file-text", base, record.record_id, f?.path],
     queryFn: async () => {
       const res = await fetch(fileUrl(base, record.record_id, f!.path));
-      if (!res.ok) throw new Error("The file could not be read.");
+      if (!res.ok) throw new Error("The file couldn’t be read.");
       return res.text();
     },
     enabled: Boolean(f) && !tooBig && ["html", "markdown", "text"].includes(kind),
@@ -733,7 +730,7 @@ function OriginalView({ record }: { record: SourceRecord }) {
       <Sheet>
         <SheetHeader title="Original" />
         <EmptyState size="inline" title="No file on this source yet">
-          Add the file from the menu, or ask your agent to upload it.
+          Add one from the menu, or ask your agent to upload it.
         </EmptyState>
       </Sheet>
     );
@@ -767,7 +764,7 @@ function OriginalView({ record }: { record: SourceRecord }) {
         <span className={f.searchable ? "text-ok" : undefined}>{searchWords(f)}.</span>{" "}
         {f.role === "primary"
           ? `${f.path} is the primary file${f.searchable ? `, parsed into ${plural(record.segment_count, "passage")}` : ""}.`
-          : `${f.path} is ${f.role === "origin" ? "the origin file" : "a supplement"}, kept for download.`}{" "}
+          : `${f.path} is ${f.role === "origin" ? "the origin file" : "a supplement"}.`}{" "}
         <span className="faint">
           <span title={f.media_type ?? undefined}>{fileTypeName(f.media_type, f.path)}</span> · {formatBytes(f.size)}
           {length ? ` · ${clockLength(length)} long` : ""}
@@ -792,7 +789,7 @@ function OriginalView({ record }: { record: SourceRecord }) {
         ) : text.isPending ? (
           <Loading label="Loading the file…" variant="lines" lines={5} />
         ) : text.isError ? (
-          <ErrorCallout inset title="The file could not be read" error={text.error} onRetry={() => text.refetch()} />
+          <ErrorCallout inset title="The file couldn’t be read" error={text.error} onRetry={() => text.refetch()} />
         ) : kind === "markdown" ? (
           <Markdown source={text.data ?? ""} className="prose source-preview-prose" />
         ) : kind === "html" ? (
@@ -848,7 +845,7 @@ function NotesView({ record, outline, notes, fileOutline }: { record: SourceReco
         ) : null}
         {!record.annotations.length ? (
           <EmptyState size="inline" title="No comments yet">
-            {writable ? "Select passages in Passages and choose Comment, or comment on the whole source." : "Comments people write on passages appear here."}
+            {writable ? "Select passages in Passages and choose Comment." : null}
           </EmptyState>
         ) : (
           <ul className="source-comments">
@@ -912,7 +909,7 @@ function FilesView({ record, onAdd }: { record: SourceRecord; onAdd?: () => void
     onSuccess: (_, { path, role }) => {
       void qc.invalidateQueries({ queryKey: key });
       setChange(null);
-      toast(`${path} is now ${role === "primary" ? "the primary file" : `${ROLE_LABEL[role]?.toLowerCase()}`}.`);
+      toast(`${path} is now ${role === "primary" ? "the primary file" : role === "origin" ? "an origin file" : "a supplement"}.`);
     },
   });
   const hasPrimary = record.files.some((x) => x.role === "primary");
@@ -926,16 +923,14 @@ function FilesView({ record, onAdd }: { record: SourceRecord; onAdd?: () => void
         end={
           onAdd ? (
             <Button size="sm" icon="upload" onClick={onAdd}>
-              Add file
+              Add files
             </Button>
           ) : undefined
         }
       />
-      {record.files.some((x) => x.role !== "primary") ? <p className="source-original-line">Only the primary file is searched. The others are kept for download.</p> : null}
       {!record.files.length ? (
-        <EmptyState size="inline" title="No files yet" action={onAdd ? <Button size="sm" onClick={onAdd}>Add file</Button> : undefined}>
-          This source holds only its details.
-          {record.pending_primary_path ? ` An upload of ${record.pending_primary_path} is in progress.` : ""}
+        <EmptyState size="inline" title="No files yet" action={onAdd ? <Button size="sm" onClick={onAdd}>Add files</Button> : undefined}>
+          {record.pending_primary_path ? `An upload of ${record.pending_primary_path} is in progress.` : null}
         </EmptyState>
       ) : (
         <ul className={`source-files${writable && record.files.some((x) => x.role !== "primary") ? " source-files-with-menus" : ""}`}>
@@ -1020,13 +1015,12 @@ function FilesView({ record, onAdd }: { record: SourceRecord; onAdd?: () => void
           <p>
             <b>{change.path}</b>{" "}
             {change.role === "primary"
-              ? "will be parsed into passages and searched. A primary file’s role can’t be changed afterwards. To use a different primary, create a new source."
+              ? "will be parsed into passages and searched. You can’t change the primary file afterwards."
               : change.role === "origin"
-                ? "will be kept as an original behind this source’s primary text. It’s still kept, not searched."
-                : "will be kept beside the source as supporting material. It’s still kept, not searched."}{" "}
-            The file itself doesn&rsquo;t change, and the source&rsquo;s activity records the new role.
+                ? "will be kept as the original behind the primary file."
+                : "will be kept as supporting material."}
           </p>
-          {setRole.isError ? <ErrorCallout inset error={setRole.error} title="The role was not changed" /> : null}
+          {setRole.isError ? <ErrorCallout inset error={setRole.error} title="The role couldn’t be changed" /> : null}
         </Dialog>
       ) : null}
     </Sheet>
@@ -1062,7 +1056,7 @@ function EditDetails({ record, onClose, onReload }: { record: SourceRecord; onCl
     onSuccess: (res) => {
       void qc.invalidateQueries({ queryKey: key });
       void qc.invalidateQueries({ queryKey: ["sources", base] });
-      toast(res.changed.length ? "Saved. Its passages and citations are unchanged." : "Nothing changed.");
+      toast(res.changed.length ? "Saved." : "Nothing changed.");
       onClose();
     },
   });
@@ -1072,7 +1066,6 @@ function EditDetails({ record, onClose, onReload }: { record: SourceRecord; onCl
       open
       onClose={onClose}
       title="Edit details"
-      description="Fix mistakes here. Every passage address and citation keeps working."
       dismissable={!save.isPending}
       footer={
         <>
@@ -1086,8 +1079,8 @@ function EditDetails({ record, onClose, onReload }: { record: SourceRecord; onCl
       }
     >
       <TextField label="Title" value={f.title} onChange={set("title")} required maxLength={300} />
-      <TextField label="Date captured" type="date" hint="When the meeting happened, or the document is dated. Not when it was added." value={f.date} onChange={set("date")} optional />
-      <TextField label="Tags" value={f.tags} onChange={set("tags")} optional hint="Comma-separated: what it is, whom it concerns, what it bears on." />
+      <TextField label="Date captured" type="date" hint="When the meeting happened, or the document is dated." value={f.date} onChange={set("date")} optional />
+      <TextField label="Tags" value={f.tags} onChange={set("tags")} optional hint="Comma-separated." />
       <TagSuggestions value={f.tags} onChange={(tags) => setF({ ...f, tags })} />
       <TextField label="Participants" value={f.participants} onChange={set("participants")} optional hint="Comma-separated." />
       <TextField label="Where it came from" value={f.source_system} onChange={set("source_system")} optional />
@@ -1172,7 +1165,7 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["sources", base] });
       void qc.invalidateQueries({ queryKey: ["product"] });
-      toast(`Deleted “${record.title}” permanently. The activity log records who, when and why.`);
+      toast(`Deleted “${record.title}”. The activity log records who, when and why.`);
       navigate(`${app}/evidence`);
     },
   });
@@ -1213,14 +1206,14 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
       ) : i ? (
         <div className="stack-sm source-impact">
           <p>
-            This destroys {plural(i.file_versions, "stored file")} ({formatBytes(i.bytes)}), {plural(i.derivations, "parse")} and {plural(i.annotations, "comment")}.
+            This deletes {plural(i.file_versions, "stored file")} ({formatBytes(i.bytes)}) and {plural(i.annotations, "comment")}.
           </p>
           {i.citations.length ? (
             <p>
               <strong>
-                {plural(i.citations.reduce((n, c) => n + c.count, 0), "citation")} in {plural(i.citations.length, "assumption")} point at this source
+                {plural(i.citations.reduce((n, c) => n + c.count, 0), "citation")} in {plural(i.citations.length, "assumption")}
               </strong>{" "}
-              and will point at a record of the deletion instead. Their quoted text is kept.
+              will point at a record of the deletion. Their quotes are kept.
             </p>
           ) : null}
           {storyPages.length ? (
@@ -1290,7 +1283,6 @@ function AddFiles({ record, onClose }: { record: SourceRecord; onClose: () => vo
       onClose={onClose}
       dismissable={!running}
       title="Add files"
-      description="Only the primary file is parsed into passages and searched. Everything else is kept with the source."
       footer={
         <>
           <Button onClick={onClose} disabled={running}>
@@ -1307,12 +1299,12 @@ function AddFiles({ record, onClose }: { record: SourceRecord; onClose: () => vo
         {!hasPrimary ? (
           <ChoiceRow type="radio" variant="boxed" name="role" checked={role === "primary"} onChange={() => setRole("primary")} label="The primary file" hint="Parsed into passages and searched." />
         ) : null}
-        <ChoiceRow type="radio" variant="boxed" name="role" checked={role === "origin"} onChange={() => setRole("origin")} label="Origin files" hint="The full originals behind a digest. Kept, not searched." />
-        <ChoiceRow type="radio" variant="boxed" name="role" checked={role === "supplement"} onChange={() => setRole("supplement")} label="Supplements" hint="Slides, an appendix, a screenshot. Kept, not searched." />
+        <ChoiceRow type="radio" variant="boxed" name="role" checked={role === "origin"} onChange={() => setRole("origin")} label="Origin files" hint="The originals behind a digest. Not searched." />
+        <ChoiceRow type="radio" variant="boxed" name="role" checked={role === "supplement"} onChange={() => setRole("supplement")} label="Supplements" hint="Supporting material, such as slides. Not searched." />
       </fieldset>
       {record.pending_primary_path && !hasPrimary ? (
         <Callout inset tone="info">
-          An upload of {record.pending_primary_path} as the primary is in progress; name your file the same to finish it.
+          An upload of {record.pending_primary_path} as the primary file is in progress. Choose a file with the same name to finish it.
         </Callout>
       ) : null}
       <input type="file" className="source-file-input" multiple={role !== "primary"} aria-label="Files to add" onChange={(e) => setItems([...(e.target.files ?? [])].map((file) => ({ file, role, state: "waiting" as const, loaded: 0 })))} />

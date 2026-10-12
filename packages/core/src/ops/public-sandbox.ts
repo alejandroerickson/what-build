@@ -24,7 +24,7 @@ export const RESET_CONFIRMATION = "reset the sandbox";
 const tenant = z.string().min(1).describe("Tenant slug or id.");
 
 function sandboxOf(ctx: OpContext): SandboxContext {
-  if (!ctx.sandbox) throw notFound(`${ctx.scope.tenant!.name} is not a public sandbox, so it has no sandbox settings, limits or invitations.`);
+  if (!ctx.sandbox) throw notFound(`${ctx.scope.tenant!.name} isn’t a public sandbox.`);
   return ctx.sandbox;
 }
 
@@ -42,7 +42,7 @@ export function sandboxStanding(tenantRole: string | null | undefined): SandboxS
 /** What others see of what a person adds, by how they stand in the sandbox. */
 const WHO_SEES: Record<SandboxStanding, string> = {
   visitor: "Other visitors see what you add, under a made-up name.",
-  member: "Everyone here, visitors included, sees what you add, under a made-up name.",
+  member: "Everyone here sees what you add, under a made-up name.",
   staff: "Visitors see what you add, under your own name.",
 };
 
@@ -52,7 +52,7 @@ export function sandboxNotice(state: Pick<SandboxState, "settings" | "baseline_i
   const erased = s.reset_enabled && state.baseline_id
     ? `Everything added is erased every day at ${s.reset_time} (${s.reset_timezone.replace(/_/g, " ")} time)`
     : "Everything added may be erased at any time";
-  if (readsOnlyTheStory) return `This is a public sandbox. You read the Story here, and write nothing. ${erased}.`;
+  if (readsOnlyTheStory) return `This is a public sandbox. You can only read the Story here. ${erased}.`;
   return `This is a public sandbox. ${WHO_SEES[as]} ${erased}. Don’t add anything private.`;
 }
 
@@ -156,7 +156,7 @@ export const joinSandbox = defineOperation({
       .select(["i.invite_id", "i.tenant_id", "i.max_uses", "i.used", "i.expires_at", "i.revoked_at", "i.created_by", "t.slug", "t.name", "t.sandbox"])
       .where("i.code_hash", "=", sha256Hex(input.code))
       .executeTakeFirst();
-    if (!inv || !inv.sandbox) throw notFound("This invitation link is not valid. Check that the whole link was copied, or ask for a new one.");
+    if (!inv || !inv.sandbox) throw notFound("This invitation link isn’t valid. Check that the whole link was copied, or ask for a new one.");
     // Joins are counted one at a time, so neither the invitation nor the sandbox takes one too many.
     await lockSettings(ctx.db, inv.tenant_id);
     const sb = await loadSandbox(ctx.db, inv.tenant_id);
@@ -484,7 +484,7 @@ export const listSandboxVisitors = defineOperation({
         eb.or([eb(sql<string>`lower(a.display_name)`, "like", `%${needle}%`), eb(sql<string>`lower(a.email)`, "like", `%${needle}%`), eb(VISITOR_CODE_SQL, "=", needle.toUpperCase())]),
       );
     const after = input.cursor ? decodeCursor<string>(input.cursor) : undefined;
-    if (input.cursor && !after) throw invalid("invalid_cursor", "That cursor is not one this list issued.");
+    if (input.cursor && !after) throw invalid("invalid_cursor", "That cursor isn’t from this list.");
     if (after) q = q.where("m.membership_id", "<", after);
     const rows = await q.orderBy("m.membership_id", "desc").limit(input.limit + 1).execute();
     const page = rows.slice(0, input.limit);
@@ -516,7 +516,7 @@ export const removeSandboxVisitor = defineOperation({
       .where("role", "=", "visitor")
       .where("account_id", "=", input.account_id)
       .executeTakeFirst();
-    if (!m) throw notFound("That account is not a visitor in this sandbox.");
+    if (!m) throw notFound("That account isn’t a visitor in this sandbox.");
     // Every grant they hold here: a visitor given a role on a product as well loses that too.
     await ctx.db.deleteFrom("memberships").where("tenant_id", "=", sb.tenant_id).where("account_id", "=", input.account_id).execute();
     const appears_as = visitorName(sb.tenant_id, input.account_id);

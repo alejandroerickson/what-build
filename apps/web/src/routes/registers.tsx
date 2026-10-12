@@ -122,9 +122,9 @@ export function RegisterListPage({ kind }: { kind: Kind }) {
         ) : !list.data.items.length ? (
           <FirstUse
             title={`No ${kind} yet`}
-            ask={`List the assumptions ${product.name} depends on, and record the riskiest few in WhatBuild, citing passages where the evidence speaks to them.`}
+            ask={`List the assumptions ${product.name} depends on and record the riskiest in WhatBuild, citing the passages that bear on them.`}
           >
-            {MEANING[kind]} Record the few the team relies on. Start with one sentence, and cite passages when you have them.
+            {MEANING[kind]}
           </FirstUse>
         ) : narrowed ? (
           <EmptyState size="inline" title={`No ${kind} match these filters`} action={<ButtonLink size="sm" to={path}>Show all {kind}</ButtonLink>} />
@@ -133,9 +133,7 @@ export function RegisterListPage({ kind }: { kind: Kind }) {
             size="inline"
             title={`No current ${kind}`}
             action={<ButtonLink size="sm" to={searchWith(path, params, { show: "refuted" })}>Show refuted or replaced</ButtonLink>}
-          >
-            Every {ONE[kind].toLowerCase()} here has been refuted or replaced.
-          </EmptyState>
+          />
         )
       ) : (
         <div>
@@ -219,12 +217,12 @@ function driftWords(c: CitationCheck): string {
           ? `Moved to ${span(c.relocated.seq_start, c.relocated.seq_end)}`
           : "Moved in the source"
         : c.status === "text_changed"
-          ? "Source text changed; the snapshot is kept"
+          ? "Source text changed"
           : c.status === "record_archived"
             ? "Source archived"
             : c.status === "record_deleted"
-              ? "Source deleted; the quote is kept"
-              : "Source not found; the quote is kept";
+              ? "Source deleted"
+              : "Source not found";
   return citationCheckWords(base, c);
 }
 
@@ -303,19 +301,19 @@ function ReviewForm({ entry, kind, onSaved }: { entry: RegisterEntry; kind: Kind
       }}
     >
       <FormGrid>
-        <SelectField label="Status" value={status} onChange={(ev) => setStatus(ev.target.value)} hint="A review can change the status. To correct the wording, supersede the entry.">
+        <SelectField label="Status" value={status} onChange={(ev) => setStatus(ev.target.value)}>
           <option value={entry.status}>Keep: {current}</option>
           {entry.status !== "confirmed" ? <option value="confirmed">Confirm</option> : null}
           {entry.status !== "refuted" ? <option value="refuted">Refute</option> : null}
           {entry.status !== "unconfirmed" ? <option value="unconfirmed">Reopen: unconfirmed</option> : null}
         </SelectField>
-        <SelectField label="Your confidence" optional value={confidence} onChange={(ev) => setConfidence(ev.target.value)} hint="How usable this is for current work, within its stated scope. Not a vote on truth.">
+        <SelectField label="Your confidence" optional value={confidence} onChange={(ev) => setConfidence(ev.target.value)}>
           <option value="">Not stated</option>
           <option value="low">Low: unresolved concerns limit its use</option>
           <option value="medium">Medium: usable with stated caveats</option>
           <option value="high">High: ready within its scope</option>
         </SelectField>
-        <TextArea label="Why" required maxLength={2000} rows={3} value={note} onChange={(ev) => setNote(ev.target.value)} hint="Say what your judgment rests on. Reviews are never edited; a changed mind is a new review." />
+        <TextArea label="Why" required maxLength={2000} rows={3} value={note} onChange={(ev) => setNote(ev.target.value)} />
       </FormGrid>
       {stale ? (
         <Callout
@@ -337,14 +335,12 @@ function ReviewForm({ entry, kind, onSaved }: { entry: RegisterEntry; kind: Kind
             </Button>
           }
         >
-          Your note is still here. Load their review, check it, then save yours.
+          Your note is still here. Load their review, then save yours.
         </Callout>
       ) : review.isError ? (
-        <ErrorCallout title="The review was not saved" error={review.error} inset />
+        <ErrorCallout title="Your review couldn’t be saved" error={review.error} inset />
       ) : null}
-      {!entry.frozen ? (
-        <p className="small muted register-freeze-note">Saving a review freezes this entry&rsquo;s statement, body and citations. After that, a correction supersedes it.</p>
-      ) : null}
+      <p className="small muted register-freeze-note">{entry.frozen ? "Reviews can’t be edited." : "Saving freezes the wording and citations. Reviews can’t be edited."}</p>
       <div className="register-form-actions">
         <Button type="submit" variant="primary" disabled={!note.trim()} busy={review.isPending} busyLabel="Saving…">
           Save review
@@ -386,7 +382,7 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
   if (q.isError)
     return (
       <>
-        <PageHeader crumbs={crumbsFor(ONE[kind])} title={`This ${ONE[kind].toLowerCase()} could not be loaded`} />
+        <PageHeader crumbs={crumbsFor(ONE[kind])} title={`This ${ONE[kind].toLowerCase()} couldn’t be loaded`} />
         <ErrorCallout error={q.error} onRetry={() => q.refetch()} />
       </>
     );
@@ -398,6 +394,7 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
   const outLinks = e.links.map((l) => ({ key: `out:${l.id}:${l.type}`, word: LINK_WORD[l.type]?.[0] ?? l.type, kind: l.kind ?? kind.slice(0, -1), id: l.id, statement: l.statement ?? "An entry", status: l.status }));
   const inLinks = e.linked_from.map((l) => ({ key: `in:${l.id}:${l.type}`, word: LINK_WORD[l.type]?.[1] ?? l.type, kind: l.kind, id: l.id, statement: l.statement, status: l.status }));
   const links = [...outLinks, ...inLinks];
+  const corrections = e.linked_from.filter((l) => l.type === "supersedes");
 
   return (
     <>
@@ -417,7 +414,7 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
             {e.frozen ? (
               <>
                 <span className="sep-dot" aria-hidden="true" />
-                <span title="The wording froze at the first review. A correction supersedes the entry.">Wording frozen</span>
+                <span title="Frozen at the first review. To correct it, ask your agent to supersede it.">Wording frozen</span>
               </>
             ) : null}
             {e.tags.map((t) => (
@@ -448,15 +445,14 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
       />
       {setArchived.isError ? <ErrorCallout error={setArchived.error} onRetry={() => setArchived.reset()} retryLabel="Dismiss" /> : null}
       {e.status === "superseded" ? (
-        <Callout tone="info" title="Superseded">
-          A corrected entry replaced this one.{" "}
-          {e.linked_from
-            .filter((l) => l.type === "supersedes")
-            .map((l) => (
-              <Link key={l.id} to={`${app}/exploration/${l.kind}s/${l.id}`}>
-                Read the correction
-              </Link>
-            ))}
+        <Callout tone="info" title="Replaced by a correction">
+          {corrections.length
+            ? corrections.map((l) => (
+                <Link key={l.id} to={`${app}/exploration/${l.kind}s/${l.id}`}>
+                  Read the correction
+                </Link>
+              ))
+            : null}
         </Callout>
       ) : null}
       {archived ? (
@@ -471,7 +467,7 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
             ) : null
           }
         >
-          It stays readable, with its citations and reviews, and can no longer be reviewed.
+          It can’t be reviewed until it’s restored.
         </Callout>
       ) : null}
       {e.body ? (
@@ -489,12 +485,9 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
           count={e.citations.length}
           end={
             e.citations.length ? (
-              <>
-                <span className="faint small hide-narrow">Each citation keeps a snapshot of the exact text</span>
-                <Button size="sm" icon="circle-check" onClick={() => void check.refetch()} busy={check.isFetching} busyLabel="Checking…">
-                  Check again
-                </Button>
-              </>
+              <Button size="sm" icon="circle-check" onClick={() => void check.refetch()} busy={check.isFetching} busyLabel="Checking…">
+                Check again
+              </Button>
             ) : null
           }
         />
@@ -507,7 +500,7 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
         ) : null}
         {check.isError ? (
           <SheetBody>
-            <ErrorCallout error={check.error} inset title="The citations could not be checked" onRetry={() => void check.refetch()} />
+            <ErrorCallout error={check.error} inset title="The citations couldn’t be checked" onRetry={() => void check.refetch()} />
           </SheetBody>
         ) : null}
         {e.citations.length ? (
@@ -518,9 +511,7 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
           </ol>
         ) : (
           <EmptyState size="inline">
-            {e.frozen
-              ? `No passages cited. The wording was reviewed without them.`
-              : `No passages cited yet. Your agent can cite the passages this ${ONE[kind].toLowerCase()} rests on, until someone reviews it.`}
+            {e.frozen ? "No passages cited." : "No passages cited yet. Your agent can cite them."}
           </EmptyState>
         )}
       </Sheet>
@@ -571,7 +562,7 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
             })}
           </ol>
         ) : (
-          <EmptyState size="inline">Not reviewed yet.{canReview ? " Add the first review below." : ""}</EmptyState>
+          <EmptyState size="inline">Not reviewed yet.</EmptyState>
         )}
         {canReview ? (
           <div className="register-review">
@@ -594,7 +585,7 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
 // ---- New or edit --------------------------------------------------------------------------------
 
 const WHY_HINT: Record<Kind, string> = {
-  assumptions: "What it rests on, and what would change if it turned out false. Markdown.",
+  assumptions: "What it rests on. Markdown.",
 };
 
 /**
@@ -618,8 +609,8 @@ export function EntryEditPage({ kind }: { kind: Kind }) {
     return (
       <>
         <PageHeader crumbs={crumbs} title={heading} />
-        <Callout tone="info" title={`You can read ${kind} here, but not record them`}>
-          Your role in this product is viewer, or the product is archived. An admin of the product can change your role.
+        <Callout tone="info" title={`You can’t record ${kind} here`}>
+          You’re a viewer, or the product is archived. An admin of the product can change that.
         </Callout>
       </>
     );
@@ -635,8 +626,8 @@ export function EntryEditPage({ kind }: { kind: Kind }) {
     return (
       <>
         <PageHeader crumbs={crumbs} title={heading} />
-        <Callout tone="info" title="This entry has been reviewed, so its wording is frozen" action={<ButtonLink size="sm" to={`${listPath}/${existing.data.id}`}>Back to the entry</ButtonLink>}>
-          A review refers to the exact words reviewed. To correct it, ask your agent to supersede it with a corrected entry.
+        <Callout tone="info" title="The wording froze at the first review" action={<ButtonLink size="sm" to={`${listPath}/${existing.data.id}`}>Back to the entry</ButtonLink>}>
+          To correct it, ask your agent to supersede it with a corrected entry.
         </Callout>
       </>
     );
@@ -711,7 +702,7 @@ function EntryForm({ kind, crumbs, heading, initial, outcomes, preselect, onSave
             value={statement}
             onChange={(e) => setStatement(e.target.value)}
             autoFocus={!initial}
-            hint={`The ${one} in one sentence. You can edit it until someone reviews it.`}
+            hint={`The ${one} in one sentence.`}
           />
           <TextArea label="Why" optional maxLength={10_000} rows={6} value={body} onChange={(e) => setBody(e.target.value)} hint={WHY_HINT[kind]} />
           <div className="field" role="group" aria-labelledby="entry-outcomes">
@@ -739,9 +730,7 @@ function EntryForm({ kind, crumbs, heading, initial, outcomes, preselect, onSave
             <span className="field-label">Cited passages</span>
             <div className="field-control">
               <p className="field-hint entry-form-cites">
-                {initial?.citations.length
-                  ? `${plural(initial.citations.length, "passage")} cited. Your agent can change them until someone reviews this ${one}.`
-                  : `None yet. Your agent can cite the passages this rests on, until someone reviews it.`}
+                {initial?.citations.length ? `${plural(initial.citations.length, "passage")} cited. Your agent can change them.` : "None yet. Your agent can cite them."}
               </p>
             </div>
           </div>
@@ -750,9 +739,9 @@ function EntryForm({ kind, crumbs, heading, initial, outcomes, preselect, onSave
           <div className="entry-form-notice">
             <Callout tone="attention" inset title={frozenNow ? "Someone reviewed this entry while you were editing" : "Someone changed this entry while you were editing"}>
               {frozenNow
-                ? "Its wording is now frozen, so your change can’t be saved. Copy what you need. A correction supersedes the entry."
+                ? "Its wording is now frozen, so your change can’t be saved. Copy your text, and ask your agent to supersede the entry with it."
                 : theirs
-                  ? <>Their version: <strong>{theirs.statement}</strong>. Your text is still here. Saving again replaces theirs; their text is kept as an earlier version.</>
+                  ? <>Their version: <strong>{theirs.statement}</strong>. Your text is still here. Saving again replaces theirs, which is kept as an earlier version.</>
                   : "Your text is still here. Copy what you need, reload to see their version, and apply your change again."}
             </Callout>
           </div>

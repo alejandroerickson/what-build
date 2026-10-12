@@ -1,11 +1,11 @@
 import { Glyph, type GlyphName } from "../ui/glyph.tsx";
 
-/** The WhatBuild journey in the order the panel tells it, with what each stage holds. */
+/** The four stages in the order the panel lists them, with what a team does in each. */
 const JOURNEY: { id: string; label: string; icon: GlyphName; about: string }[] = [
-  { id: "idea", label: "Idea", icon: "lightbulb", about: "The outcomes you want and the concept you’re testing." },
-  { id: "evidence", label: "Evidence", icon: "library", about: "Interviews, calls and documents, searchable in one place." },
-  { id: "exploration", label: "Exploration", icon: "blend", about: "Mockup canvases and assumptions." },
-  { id: "story", label: "Story", icon: "book-open", about: "Pages for stakeholders, written by your agent, ready to export." },
+  { id: "idea", label: "Idea", icon: "lightbulb", about: "Say who it’s for and the outcomes you want." },
+  { id: "evidence", label: "Evidence", icon: "library", about: "Gather user research, team discussions and documents." },
+  { id: "exploration", label: "Exploration", icon: "blend", about: "Mock up directions and review the assumptions behind them." },
+  { id: "story", label: "Story", icon: "book-open", about: "Show stakeholders what to build, and why." },
 ];
 
 /** The journey beside an intro: on the overview, and on the public site. Styled in overview.css. */
@@ -13,7 +13,7 @@ export function Journey() {
   return (
     <aside className="overview-loop" aria-labelledby="overview-loop-title">
       <h2 id="overview-loop-title" className="overview-loop-title">
-        The WhatBuild journey
+        From idea to story
       </h2>
       <ol className="overview-loop-steps">
         {JOURNEY.map((step) => (

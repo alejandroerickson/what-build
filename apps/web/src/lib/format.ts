@@ -179,6 +179,6 @@ export function citationCheckWords(base: string, c: { version_drift: boolean; de
   const notes: string[] = [];
   if (c.quote_match === "normalized") notes.push("matched ignoring formatting");
   if (c.version_drift) notes.push("newer file version");
-  else if (c.derivation_changed) notes.push("source re-parsed since this was cited");
+  else if (c.derivation_changed) notes.push("source re-parsed");
   return [base, ...notes].join(" · ");
 }

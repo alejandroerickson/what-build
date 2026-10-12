@@ -107,8 +107,7 @@ export function SearchPage() {
 
       {!q.trim() ? (
         <EmptyState title={`Search everything in ${product.name}`}>
-          Sources and their passages, assumptions, outcomes, mockups, the Story and the idea, as you type. Press {shortcutLabel("K")} anywhere to search without
-          leaving the screen.
+          Press {shortcutLabel("K")} on any screen to search without leaving it.
         </EmptyState>
       ) : res.isError ? (
         <ErrorCallout title="Search didn’t finish" error={res.error} onRetry={() => res.refetch()} />
@@ -119,7 +118,7 @@ export function SearchPage() {
       ) : !shown.length ? (
         <Sheet>
           <EmptyState size="inline" title={`Nothing ${area ? `in ${area.label} ` : ""}matches “${q.trim()}”`}>
-            Try another word for the same thing, or fewer words.
+            Try another word, or fewer words.
           </EmptyState>
         </Sheet>
       ) : recordId && source ? (
@@ -153,7 +152,7 @@ function Understood({ d, retry }: { d: FindResponse; retry: string }) {
       {note}
       {cut ? (
         <span>
-          {note ? " " : ""}The best {d.results.length} of {matched} are listed; add a word to narrow them.
+          {note ? " " : ""}Showing the best {d.results.length} of {matched}. Add a word to narrow them.
         </span>
       ) : null}
       {d.corrections.length ? (

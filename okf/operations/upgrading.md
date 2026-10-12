@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-12}
 status: stable
 ---
 
@@ -23,7 +23,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Shorter interface text throughout the app, the public site and the sign-in emails.** Nothing
+  to set. The sign-in page ends with one line on the free preview, linking to Privacy, which now
+  opens with the data statement.
+- **Behind Cloudflare, deploy the Worker again with this release, and with every release after
+  it.** The public site's page is served from the Worker's own build, not the image: until it is
+  deployed again, the site keeps the page of the release it was deployed with
+  ([releasing](releasing.md)).
 
 ## v0.8.3
 

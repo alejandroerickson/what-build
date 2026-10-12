@@ -10,14 +10,6 @@ import { usePageTitle } from "../shell/slots.tsx";
 import { Button, ButtonLink, Callout, EmptyState, ErrorCallout, Loading, Sheet, SheetBody, SheetHeader, TextField, useToast } from "../ui/index.tsx";
 import "../styles/screens/account.css";
 
-/** The data statement (okf/spec/09-data-lifecycle.md §9.1): each promise under a lead-in a person can scan. */
-const DATA_STATEMENT: [lead: string, rest: string][] = [
-  ["A free preview.", "We don’t promise uptime or durability, so don’t keep anything here whose loss or exposure would hurt."],
-  ["Kept apart.", "Your content is isolated per organization, encrypted in transit, and encrypted at rest as far as our providers do it. We rent the database and the file store, and can’t promise anything on their behalf."],
-  ["Never sold or trained on.", "No ads, nothing sold, and no model trained on your content. There is no AI in WhatBuild."],
-  ["Yours to take.", "Export is always available and always complete."],
-];
-
 /**
  * A screen outside the shell (sign-in, first run, accepting an invitation): the mark and wordmark
  * above one narrow column of sheets on the canvas.
@@ -73,10 +65,10 @@ export function SignIn() {
         <SheetHeader level={1} id="signin-title" title={next.startsWith("/invite/") ? "Sign in to accept your invitation" : toSandbox ? "Sign in to enter the sandbox" : "Sign in to WhatBuild"} />
         <SheetBody className="entry-form">
           {next.startsWith("/invite/") && !error ? <p className="muted">Use the email your invitation was sent to.</p> : null}
-          {toSandbox && !error ? <p className="muted">Any email works. Nobody in the sandbox sees it: you write under a made-up name.</p> : null}
+          {toSandbox && !error ? <p className="muted">Any email works. Others in the sandbox see a made-up name.</p> : null}
           {error === "link_expired" ? (
             <Callout inset tone="attention" title="That sign-in link has expired">
-              Links work once, for 15 minutes. Enter your email for a new one.
+              Enter your email for a new one.
             </Callout>
           ) : error === "invite_only" && toSandbox ? (
             <Callout inset tone="attention" title="That invitation has no places left">
@@ -161,19 +153,10 @@ export function SignIn() {
           ) : null}
         </Sheet>
       ) : null}
-      <section className="entry-fine" aria-labelledby="data-h">
-        <h2 id="data-h">Your data in WhatBuild</h2>
-        <ul className="entry-promises">
-          {DATA_STATEMENT.map(([lead, rest]) => (
-            <li key={lead}>
-              <b>{lead}</b> {rest}
-            </li>
-          ))}
-        </ul>
-        <p className="entry-fine-more">
-          A cookie keeps you signed in. <Link to="/cookies">About cookies</Link> · <Link to="/privacy">Privacy</Link>
-        </p>
-      </section>
+      {/* The data statement (okf/spec/09-data-lifecycle.md §9.1): its first line here, all of it on Privacy. */}
+      <p className="entry-fine">
+        WhatBuild is a free preview: don’t keep anything here you can’t afford to lose. <Link to="/privacy">Privacy</Link> · <Link to="/cookies">Cookies</Link>
+      </p>
     </EntryPage>
   );
 }

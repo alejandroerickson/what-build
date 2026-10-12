@@ -20,7 +20,7 @@ function signInLinkPage(email: string, token: string): string {
     "Sign in",
     `<h1>Sign in to WhatBuild</h1>
 <p>You’re signing in as <strong>${escapeHtml(email)}</strong>.</p>
-<p class="muted">The link works once, for 15 minutes after it was sent. If you didn’t ask for it, close this page.</p>
+<p class="muted">If you didn’t ask for this link, close this page.</p>
 <form method="post" action="/auth/verify"><input type="hidden" name="token" value="${escapeHtml(token)}">
 <div class="row"><button type="submit" class="primary">Sign in</button></div>
 </form>`,
@@ -91,31 +91,31 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
   app.onError((err, c) => {
     if (err instanceof AppError) return errorJson(c, err);
     console.error(err);
-    return c.json({ error: { code: "internal", status: 500, message: "Unexpected error." } }, 500);
+    return c.json({ error: { code: "internal", status: 500, message: "WhatBuild hit an unexpected error. Try again." } }, 500);
   });
 
   /** Email a single-use sign-in link. The same response whether or not an account exists. */
   app.post("/auth/email", async (c) => {
-    if (config.mailer === "none") throw notFound("Email sign-in links are not configured on this server. Use another sign-in method.");
+    if (config.mailer === "none") throw notFound("Sign-in links by email aren’t set up on this server. Sign in another way.");
     const body = z.strictObject({ email: z.string().trim().email().max(320), next: z.string().max(2000).optional() }).safeParse(await c.req.json().catch(() => ({})));
-    if (!body.success) throw invalid("invalid_input", "Enter an email address.");
+    if (!body.success) throw invalid("invalid_input", "Enter a valid email.");
     const email = body.data.email;
-    if (!(await admission(email, body.data.next))) throw new AppError(403, "invite_only", "WhatBuild is invite-only for now. Ask someone who uses it to invite this address.");
+    if (!(await admission(email, body.data.next))) throw new AppError(403, "invite_only", "WhatBuild is invite-only for now. Ask someone who uses it to invite this email.");
     const recent = await db
       .selectFrom("email_tokens")
       .select((eb) => eb.fn.countAll<number>().as("n"))
       .where(sql<boolean>`lower(email) = lower(${email})`)
       .where("created_at", ">", new Date(Date.now() - 3600_000).toISOString())
       .executeTakeFirst();
-    if (Number(recent?.n ?? 0) >= SIGN_IN_LINKS_PER_HOUR) throw new AppError(429, "rate_limited", "Too many sign-in links for this address in the last hour. Use the latest one, or try again later.");
+    if (Number(recent?.n ?? 0) >= SIGN_IN_LINKS_PER_HOUR) throw new AppError(429, "rate_limited", "Too many sign-in links for this email in the last hour. Use the latest one, or try again later.");
     const token = randomToken();
     await db
       .insertInto("email_tokens")
       .values({ token_hash: sha256Hex(token), email, purpose: "sign_in", redirect: safeNext(body.data.next), expires_at: new Date(Date.now() + 15 * 60_000).toISOString() })
       .execute();
     const link = `${config.publicBaseUrl}/auth/verify?token=${token}`;
-    await mailer.send({ to: email, subject: "Your WhatBuild sign-in link", text: `Sign in to WhatBuild:\n\n${link}\n\nThe link works once and expires in 15 minutes. If you didn't ask for it, you can ignore this email.\n` });
-    return c.json({ sent: true, ...(config.env !== "production" && config.mailer === "console" ? { dev_note: "In development the link is printed in the server's terminal." } : {}) });
+    await mailer.send({ to: email, subject: "Your WhatBuild sign-in link", text: `Sign in to WhatBuild:\n\n${link}\n\nThe link works once, for 15 minutes. If you didn’t ask for it, ignore this email.\n` });
+    return c.json({ sent: true, ...(config.env !== "production" && config.mailer === "console" ? { dev_note: "In development, the link is printed in the server’s terminal." } : {}) });
   });
 
   /** Opening the link: a page with one button, which posts it back. Nothing is read but the link's own row. */
@@ -162,7 +162,7 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
   app.post("/auth/dev-sign-in", async (c) => {
     if (!config.devAuth) throw notFound("Not available.");
     const body = z.strictObject({ email: z.string().trim().email(), display_name: z.string().max(100).optional(), next: z.string().optional() }).safeParse(await c.req.json().catch(() => ({})));
-    if (!body.success) throw invalid("invalid_input", "Enter an email address.");
+    if (!body.success) throw invalid("invalid_input", "Enter a valid email.");
     // Development lets any address in; it still marks the account a sandbox invitation alone would have admitted.
     const how = await admission(body.data.email, body.data.next);
     const { account } = await findOrCreateAccount(db, body.data.email, body.data.display_name, how === "sandbox");
@@ -241,7 +241,7 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
   // ---- Google sign-in (optional; on when a client id and secret are configured) ---------------
 
   app.get("/auth/google", async (c) => {
-    if (!config.googleClientId) throw notFound("Google sign-in is not configured.");
+    if (!config.googleClientId) throw notFound("Google sign-in isn’t set up on this server.");
     return beginOidc(c, "/auth/google", "https://accounts.google.com/o/oauth2/v2/auth", { client_id: config.googleClientId });
   });
 
@@ -259,12 +259,12 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
   const MICROSOFT_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   app.get("/auth/microsoft", async (c) => {
-    if (!microsoftSignIn(config)) throw notFound("Microsoft sign-in is not configured.");
+    if (!microsoftSignIn(config)) throw notFound("Microsoft sign-in isn’t set up on this server.");
     return beginOidc(c, "/auth/microsoft", `https://login.microsoftonline.com/${config.microsoftTenant}/oauth2/v2.0/authorize`, { client_id: config.microsoftClientId! });
   });
 
   app.get("/auth/microsoft/callback", async (c) => {
-    if (!microsoftSignIn(config)) throw notFound("Microsoft sign-in is not configured.");
+    if (!microsoftSignIn(config)) throw notFound("Microsoft sign-in isn’t set up on this server.");
     const tenant = config.microsoftTenant!;
     const done = await finishOidc(c, "/auth/microsoft", `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, { client_id: config.microsoftClientId!, client_secret: config.microsoftClientSecret! });
     if (!done) return c.redirect("/signin?error=microsoft_failed");
@@ -352,7 +352,7 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     const body = z.strictObject({ token: z.string().min(10) }).safeParse(await c.req.json().catch(() => ({})));
     if (!body.success) throw invalid("invalid_input", "Missing invitation token.");
     const inv = await db.selectFrom("invitations").selectAll().where("token_hash", "=", sha256Hex(body.data.token)).executeTakeFirst();
-    if (!inv) throw notFound("This invitation link is not valid. Check that the whole link was copied, or ask for a new one.");
+    if (!inv) throw notFound("This invitation link isn’t valid. Check that the whole link was copied, or ask for a new one.");
     const tenant = await db.selectFrom("tenants").select(["slug", "name"]).where("tenant_id", "=", inv.tenant_id).executeTakeFirst();
     const scope =
       inv.scope_type === "team"
@@ -363,15 +363,15 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     const accepted = { tenant, scope_type: inv.scope_type, scope: scope?.name ?? null, role: inv.role };
     if (inv.accepted_at) {
       // Signing in accepts every invitation to that address, so the link often arrives already used by this same person.
-      if (inv.accepted_by !== p.account_id) throw gone("invitation_used", "This invitation was already accepted by a different account. Ask whoever invited you for a new link.");
+      if (inv.accepted_by !== p.account_id) throw gone("invitation_used", "This invitation was accepted by another account. Ask whoever invited you for a new link.");
       const held = await db.selectFrom("memberships").select("membership_id").where("scope_type", "=", inv.scope_type).where("scope_id", "=", inv.scope_id).where("account_id", "=", p.account_id).executeTakeFirst();
-      if (!held) throw gone("invitation_used", `You accepted this invitation earlier, and that access has since been removed. Ask an admin of ${tenant?.name ?? "the organization"} to give it back.`);
+      if (!held) throw gone("invitation_used", `You accepted this invitation earlier, and that access was removed. Ask an admin of ${tenant?.name ?? "the organization"} to give it back.`);
       return c.json({ accepted: true, already: true, ...accepted });
     }
     if (Date.parse(inv.expires_at) < Date.now()) throw gone("invitation_expired", "This invitation expired or was cancelled. Ask whoever invited you for a new link.");
     // An invitation belongs to the address it was sent to: the link is a pointer, not a bearer credential.
     if (inv.email.toLowerCase() !== p.email.toLowerCase())
-      throw new AppError(403, "invitation_wrong_address", `This invitation was sent to ${maskEmail(inv.email)}, and you are signed in as ${p.email}. Sign in with the email it was sent to, and you join right away.`, {
+      throw new AppError(403, "invitation_wrong_address", `This invitation was sent to ${maskEmail(inv.email)}, and you’re signed in as ${p.email}. Sign in with that email to join.`, {
         invited: maskEmail(inv.email),
       });
     await acceptInvitation(db, inv.invitation_id, { account_id: p.account_id, email: p.email, display_name: p.display_name });

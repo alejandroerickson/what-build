@@ -3,7 +3,7 @@ type: Decision
 title: The overview is WhatBuild's front door, and the one screen with display type
 description: `/` and the WhatBuild mark open an overview that introduces the product and lists every product with a link to each section; only its intro is set above the 20px ceiling.
 tags: [decision, web, design, navigation]
-generated: {by: agent:claude, at: 2026-10-09}
+generated: {by: agent:claude, at: 2026-10-12}
 status: stable
 ---
 
@@ -25,9 +25,9 @@ what each stage holds instead.
 
 - `/` is the overview, for everyone who belongs to an organization; people with none still go to
   first run. The W mark and wordmark in the panel link to it from every screen.
-- The overview introduces WhatBuild, shows small and quiet the WhatBuild journey
-  (Idea, Evidence, Exploration, Story) with a line on what each holds, and lists each organization's
-  products.
+- The overview introduces WhatBuild, shows small and quiet the four stages
+  (Idea, Evidence, Exploration, Story) with a line on what a team does in each, and lists each
+  organization's products.
   Each product row links to its four sections with their counts, one click each.
 - The overview is the only list of products. New product opens as a dialog on it, and archived
   products appear on it only when asked for; `/products` redirects to it. It shows no roles and no

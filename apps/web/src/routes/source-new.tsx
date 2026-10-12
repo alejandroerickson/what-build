@@ -154,13 +154,13 @@ export function SourceNewPage() {
   const failed = items.filter((i) => i.state === "failed").length;
   const total = items.reduce((n, i) => n + i.file.size, 0);
   const loaded = items.reduce((n, i) => n + (i.state === "done" ? i.file.size : i.loaded), 0);
-  const header = <PageHeader crumbs={[{ label: "Evidence", to: `${app}/evidence` }, { label: "Add a source" }]} title="Add a source" meta={<span>Anything the team learns from: notes, a transcript, a document, a photo of the whiteboard. WhatBuild parses it into passages your team and your agents can cite.</span>} />;
+  const header = <PageHeader crumbs={[{ label: "Evidence", to: `${app}/evidence` }, { label: "Add a source" }]} title="Add a source" />;
   if (!canWrite)
     return (
       <>
         {header}
         <EmptyState title="You can’t add sources to this product" action={<ButtonLink to={`${app}/evidence`}>Back to Evidence</ButtonLink>}>
-          Viewers can read and search sources. An admin of the product can make you an editor.
+          An admin of this product can make you an editor.
         </EmptyState>
       </>
     );
@@ -193,7 +193,7 @@ export function SourceNewPage() {
             set={{ title: setTitle, date: setDate, tags: setTags, participants: setParticipants, sourceSystem: setSourceSystem, provenance: setProvenance }}
           />
           <div className="intake-foot">
-            <span className="intake-foot-note">Tags are how the team finds it again.</span>
+            <span className="intake-foot-note" />
             <ButtonLink to={`${app}/evidence`} variant="quiet">
               Cancel
             </ButtonLink>
@@ -214,10 +214,7 @@ export function SourceNewPage() {
 
       {step === 1 ? (
         <Sheet as="section" labelledBy="intake-h" className="intake-sheet">
-          <SheetHeader id="intake-h" title="Add files" end={<span className="faint small">Optional. You or your agent can add them later.</span>} />
-          <SheetBody>
-            <p className="muted">The primary file is the source itself: WhatBuild parses it into passages. Only the primary file is searched; origin and supplement files are kept in full for download and never affect search.</p>
-          </SheetBody>
+          <SheetHeader id="intake-h" title="Add files" end={<span className="faint small">Optional. You can add them later.</span>} />
           <div className="intake-files">
             {primary ? (
               <ul className="intake-file-list">
@@ -226,18 +223,18 @@ export function SourceNewPage() {
             ) : (
               <DropZone
                 label="Primary file: searched"
-                hint="VTT, SRT, text, Markdown, DOC, DOCX, XLSX, PDF or HTML parse into passages. Images, audio and video are stored and shown; add a transcript as its own source to search a recording."
+                hint="VTT, SRT, text, Markdown, DOC, DOCX, XLSX, CSV, TSV, PDF or HTML. Images, audio and video aren’t searched; to search a recording, add its transcript as its own source."
                 multiple={false}
                 onFiles={(f) => f[0] && setItems([...items, { file: f[0], role: "primary", state: "waiting", loaded: 0 }])}
               />
             )}
             {primary && primary.file.size >= 10 * MiB && !RECORDING.test(primary.file.type) ? (
               <Callout inset tone="attention" title="Consider a digest">
-                {primary.file.size > 25 * MiB ? "Over 25 MB, this file will be stored but not parsed or searched. " : "Large documents search poorly. "}
-                Add a short digest of what bears on your questions as the primary, and attach this file as an origin.
+                {primary.file.size > 25 * MiB ? "Files over 25 MB are kept but not searched. " : "Large documents search poorly. "}
+                Add a short digest as the primary file and attach this one as an origin.
               </Callout>
             ) : null}
-            <DropZone label="Origin files: kept, not searched" hint="The full originals behind a digest, kept for download and checking." multiple onFiles={(f) => setItems([...items, ...f.map((file) => ({ file, role: "origin" as const, state: "waiting" as const, loaded: 0 }))])} />
+            <DropZone label="Origin files: kept, not searched" hint="The full originals behind a digest." multiple onFiles={(f) => setItems([...items, ...f.map((file) => ({ file, role: "origin" as const, state: "waiting" as const, loaded: 0 }))])} />
             <DropZone label="Supplements: kept, not searched" hint="Slides for a call, an appendix, a screenshot." multiple onFiles={(f) => setItems([...items, ...f.map((file) => ({ file, role: "supplement" as const, state: "waiting" as const, loaded: 0 }))])} />
             {items.some((i) => i.role !== "primary") ? (
               <ul className="intake-file-list">
@@ -279,7 +276,7 @@ export function SourceNewPage() {
             </ul>
           ) : (
             <SheetBody>
-              <p className="muted">No files. The source holds only its details until you add one.</p>
+              <p className="muted">No files yet.</p>
             </SheetBody>
           )}
           {run.isPending && total ? (
@@ -289,12 +286,12 @@ export function SourceNewPage() {
           ) : null}
           {run.isError || (failed && !run.isPending) ? (
             <SheetBody>
-              {run.isError ? <ErrorCallout inset title="The source could not be created" error={run.error} /> : null}
+              {run.isError ? <ErrorCallout inset title="The source couldn’t be created" error={run.error} /> : null}
               {failed && !run.isPending ? (
                 <Callout
                   inset
                   tone="attention"
-                  title={failed === 1 ? "One file did not upload" : `${failed} files did not upload`}
+                  title={failed === 1 ? "One file didn’t upload" : `${failed} files didn’t upload`}
                   action={
                     <Button size="sm" onClick={() => navigate(`${app}/evidence/${recordId}`)}>
                       Open the source anyway
@@ -335,14 +332,14 @@ function DescribeForm({ touched, errors, fields: v, set }: {
   return (
     <div className="intake-describe">
       <FormGrid>
-        <TextField label="Title" hint="How the team refers to it: who, what, when. Not the file name." required maxLength={300} value={v.title} onChange={(e) => set.title(e.target.value)} error={touched ? errors.title : null} autoFocus />
-        <TextField label="Date captured" type="date" hint="When the meeting or workshop happened, or the document is dated. Not today." optional value={v.date} onChange={(e) => set.date(e.target.value)} />
-        <TextField label="Tags" optional hint="Comma-separated: what it is, whom it concerns, what it bears on. For example: workshop, example co, scheduling." value={v.tags} onChange={(e) => set.tags(e.target.value)} />
+        <TextField label="Title" required maxLength={300} value={v.title} onChange={(e) => set.title(e.target.value)} error={touched ? errors.title : null} autoFocus />
+        <TextField label="Date captured" type="date" hint="When the meeting happened or the document is dated, not today." optional value={v.date} onChange={(e) => set.date(e.target.value)} />
+        <TextField label="Tags" optional hint="Comma-separated: what it is, whom it concerns, what it bears on." value={v.tags} onChange={(e) => set.tags(e.target.value)} />
         <TagSuggestions value={v.tags} onChange={set.tags} />
         {more ? (
           <>
             <TextField label="Participants" optional hint="Comma-separated names or roles." value={v.participants} onChange={(e) => set.participants(e.target.value)} />
-            <TextField label="Where it came from" optional hint="A meeting tool, a wiki, a research tool." value={v.sourceSystem} onChange={(e) => set.sourceSystem(e.target.value)} />
+            <TextField label="Where it came from" optional hint="For example, a meeting tool or a wiki." value={v.sourceSystem} onChange={(e) => set.sourceSystem(e.target.value)} />
             <SelectField label="Relationship to the evidence" value={v.provenance} onChange={(e) => set.provenance(e.target.value)}>
               <option value="unknown">Not specified</option>
               <option value="primary">Primary source</option>

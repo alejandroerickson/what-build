@@ -102,7 +102,7 @@ export function MockupsIndex() {
   const list = useMockupList();
   usePageTitle("Mockups");
   if (list.isPending) return <Loading variant="lines" />;
-  if (list.isError) return <ErrorCallout title="The mockups could not be loaded" error={list.error} onRetry={() => list.refetch()} />;
+  if (list.isError) return <ErrorCallout title="Mockups couldn’t be loaded" error={list.error} onRetry={() => list.refetch()} />;
   const items = list.data.items;
   if (items.length) {
     let remembered: string | null = null;
@@ -117,8 +117,8 @@ export function MockupsIndex() {
   return (
     <div className="mockup-view">
       <Crumbs label="Location" currentAsHeading items={[{ label: "Exploration" }, { label: "Mockups" }]} />
-      <FirstUse title="No mockups yet" ask={`Explore ${product.name} in WhatBuild: read the outcomes and assumptions, then mock up two or three directions side by side in one mockup, with a brief.`}>
-        A mockup is a canvas of pages your agent builds from the evidence: screens, flows and alternatives side by side, each with design notes, and a brief that says what the canvas explores and why. Every version is kept, and an agent can download one to build the next.
+      <FirstUse title="No mockups yet" ask={`Read the outcomes and assumptions of ${product.name} in WhatBuild, then mock up a few directions side by side in one mockup, with a brief.`}>
+        A mockup is a canvas of pages your agent builds from the evidence: screens, flows or alternatives side by side.
       </FirstUse>
     </div>
   );
@@ -632,7 +632,7 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequ
           key={p.page_id}
           page={p}
           src={pageSrc(p.page_id)}
-          title={`${p.title}, shown in a sandbox`}
+          title={p.title}
           selected={p.page_id === selected}
           onSignal={onSignal}
           frameRef={(el) => {
@@ -720,11 +720,11 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequ
 
       <div className="xc-tools" role="toolbar" aria-label="Canvas">
         <div className="xc-modes" role="radiogroup" aria-label="Mode">
-          <button type="button" role="radio" aria-checked={mode === "pan"} className="xc-tool" onClick={() => setMode("pan")} title="Pan: drag to move, click to select (H, or hold Space)">
+          <button type="button" role="radio" aria-checked={mode === "pan"} className="xc-tool" onClick={() => setMode("pan")} title="Pan (H)">
             <Glyph name="hand" />
             <span className="visually-hidden">Pan</span>
           </button>
-          <button type="button" role="radio" aria-checked={mode === "interact"} className="xc-tool" onClick={() => setMode("interact")} title="Interact: use the pages themselves (V)">
+          <button type="button" role="radio" aria-checked={mode === "interact"} className="xc-tool" onClick={() => setMode("interact")} title="Interact with the pages (V)">
             <Glyph name="pointer" />
             <span className="visually-hidden">Interact</span>
           </button>
@@ -793,7 +793,7 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequ
               <MenuItem onSelect={() => setMode("pan")} kbd="H">Pan</MenuItem>
               <MenuItem onSelect={() => setMode("interact")} kbd="V">Interact</MenuItem>
               {canFocus ? <MenuItem onSelect={() => onKey("f")} kbd="F">Focus mode</MenuItem> : null}
-              <MenuNote>Hold Space and drag to pan from either mode. Esc clears the selection. The keys work from inside a page too.</MenuNote>
+              <MenuNote>Hold Space and drag to pan. Esc clears the selection.</MenuNote>
             </Menu>
           </>
         )}
@@ -827,7 +827,7 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, on
   const toast = useToast();
   const [downloading, setDownloading] = useState(false);
   const isCurrent = shown.version === e.current_version;
-  const numbered = isCurrent ? `${shown.version}, the current one` : `${shown.version} of ${e.current_version}`;
+  const numbered = isCurrent ? `${shown.version}, current` : `${shown.version} of ${e.current_version}`;
   const refs = shown.resolved_refs;
   const refCount = REF_KINDS.reduce((n, k) => n + (refs[k.kind]?.length ?? 0), 0);
   const index = shown.pages.findIndex((p) => p.page_id === selected);
@@ -868,7 +868,7 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, on
               value:
                 versions && versions.length > 1 ? (
                   <Menu
-                    label={`Version ${numbered}. Choose a version to show`}
+                    label={`Version ${numbered}. Choose a version`}
                     triggerClassName="field-button"
                     align="start"
                     minWidth={240}
@@ -901,7 +901,6 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, on
         <Button size="sm" icon="download" className="story-export-button" onClick={download} disabled={downloading}>
           {downloading ? "Preparing…" : `Download version ${shown.version}`}
         </Button>
-        <p className="story-about-note">A ZIP with the brief, each page&rsquo;s HTML and notes, the version&rsquo;s files and a manifest: what an agent needs to build the next version.</p>
       </Group>
 
       <Group title="Page">
@@ -933,10 +932,10 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, on
           page.notes.trim() ? (
             <Markdown source={page.notes} className="prose story-notes xc-notes" headingShift={3} />
           ) : (
-            <EmptyState size="inline">No notes on this page. Agents write them when they publish: what the page tries, and what to watch for.</EmptyState>
+            <EmptyState size="inline">No notes on this page.</EmptyState>
           )
         ) : (
-          <p className="xc-hint">Select a page on the canvas to read its notes.</p>
+          <p className="xc-hint">Select a page to read its notes.</p>
         )}
       </Group>
 
@@ -944,7 +943,7 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, on
         {shown.brief.trim() ? (
           <Markdown source={shown.brief} className="prose story-notes xc-brief" headingShift={2} />
         ) : (
-          <EmptyState size="inline">This version has no brief. Agents write one when they publish: what the canvas explores, for whom, and what each page tries.</EmptyState>
+          <EmptyState size="inline">This version has no brief.</EmptyState>
         )}
       </Group>
 
@@ -992,7 +991,7 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, on
                     {check ? (
                       <StatusBadge tone={check.version_drift && check.status === "ok" ? "attention" : toneFor("citation", check.status)}>{driftWords(check)}</StatusBadge>
                     ) : checks.isError ? (
-                      <span className="faint">Could not check against the source</span>
+                      <span className="faint">Couldn’t check against the source</span>
                     ) : (
                       <span className="faint">Checking against the source…</span>
                     )}
@@ -1042,7 +1041,7 @@ function Files({ mockupId, shown }: { mockupId: string; shown: MockupVersion }) 
           ))}
         </ul>
       ) : (
-        <EmptyState size="inline">No files on this version. Agents add what collaborators share when they publish, such as a DESIGN.md or components; they come with the download.</EmptyState>
+        <EmptyState size="inline">No files on this version.</EmptyState>
       )}
       {open ? (
         <Dialog
@@ -1050,7 +1049,6 @@ function Files({ mockupId, shown }: { mockupId: string; shown: MockupVersion }) 
           wide
           onClose={() => setOpen(null)}
           title={open}
-          description={`A file version ${shown.version} carries, for collaborators to pull into their projects. Pages never use it.`}
           footer={
             <>
               <Button onClick={() => setOpen(null)}>Close</Button>
@@ -1065,7 +1063,7 @@ function Files({ mockupId, shown }: { mockupId: string; shown: MockupVersion }) 
           ) : full.isError ? (
             <ErrorCallout inset error={full.error} onRetry={() => full.refetch()} />
           ) : file?.content === undefined ? (
-            <EmptyState size="inline">This file is not on the version any more.</EmptyState>
+            <EmptyState size="inline">This file isn’t on this version any more.</EmptyState>
           ) : /\.(md|markdown)$/i.test(file.path) ? (
             <Markdown source={file.content} className="prose story-notes xc-file-text" headingShift={1} />
           ) : (
@@ -1136,8 +1134,8 @@ function OnTheStory({ mockup, shown, page }: { mockup: MockupView; shown: Mockup
           title={asking === "new" ? "Promote to Story" : `Show version ${shown.version} on the Story`}
           description={
             asking === "new"
-              ? `A new Story page will show “${page.title}” as it is in version ${shown.version} of this mockup. Nothing is copied: the page stays on version ${shown.version} until someone promotes a newer one. It joins the end of the Story’s Published mockups, which agents keep in order.`
-              : `“${asking.title}” will show “${page.title}” as it is in version ${shown.version}, as its next version. Its earlier versions stay readable.`
+              ? `A new Story page at the end of Published mockups will show “${page.title}” as it is in version ${shown.version}. It stays on version ${shown.version} until someone promotes a newer one.`
+              : `“${asking.title}” will show “${page.title}” as it is in version ${shown.version}. Its earlier versions stay readable.`
           }
           footer={
             <>
@@ -1162,7 +1160,7 @@ function OnTheStory({ mockup, shown, page }: { mockup: MockupView; shown: Mockup
 
 export function MockupPage() {
   const { mockupId } = useParams();
-  const { api: base, app, product } = useProduct();
+  const { api: base, app, product, canWrite } = useProduct();
   const [params, setParams] = useSearchParams();
   const vParam = params.get("v");
   const asked = vParam && /^\d+$/.test(vParam) ? Number(vParam) : null;
@@ -1225,11 +1223,11 @@ export function MockupPage() {
       <div className="mockup-view">
         <Crumbs label="Location" currentAsHeading items={crumbs} />
         {gone ? (
-          <EmptyState title="This mockup is not in this product" action={<ButtonLink to={`${app}/exploration/mockups`}>Open mockups</ButtonLink>}>
+          <EmptyState title="This mockup isn’t in this product" action={<ButtonLink to={`${app}/exploration/mockups`}>Open mockups</ButtonLink>}>
             The link may be mistyped, or the mockup belongs to another product.
           </EmptyState>
         ) : (
-          <ErrorCallout title="This mockup could not be loaded" error={e.error} onRetry={() => e.refetch()} />
+          <ErrorCallout title="This mockup couldn’t be loaded" error={e.error} onRetry={() => e.refetch()} />
         )}
       </div>
     );
@@ -1248,11 +1246,11 @@ export function MockupPage() {
       </div>
       {x.archived_at ? (
         <Callout tone="attention" title="This mockup is archived">
-          It is out of the list. Every version is still here.
+          {canWrite ? "Your agent can restore it." : null}
         </Callout>
       ) : null}
       {wantsOld && old.data ? (
-        <Callout tone="attention" title={`You are looking at an earlier version: ${old.data.version} of ${x.current_version}`} action={<Button size="sm" onClick={() => onVersion(x.current_version)}>Show the current version</Button>} />
+        <Callout tone="attention" title={`You’re looking at an earlier version: ${old.data.version} of ${x.current_version}`} action={<Button size="sm" onClick={() => onVersion(x.current_version)}>Show the current version</Button>} />
       ) : null}
       {wantsOld && old.isError ? (
         <Callout tone="attention" title={`This mockup has no version ${asked}`} action={<Button size="sm" onClick={() => onVersion(x.current_version)}>Show the current version</Button>} />

@@ -19,7 +19,7 @@ export class AppError extends Error {
   }
 }
 
-export const unauthenticated = (message = "Sign in first: no usable identity was presented.") =>
+export const unauthenticated = (message = "Sign in first.") =>
   new AppError(401, "unauthenticated", message);
 
 export const forbidden = (message: string, details?: Record<string, unknown>) =>

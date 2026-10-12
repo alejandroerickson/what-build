@@ -23,7 +23,7 @@ export const readUsage = defineOperation({
   mcp: { tool: "products", action: "usage" },
   async handler(ctx, input) {
     if (!isInstanceOwner(ctx.ports.config, ctx.principal.email))
-      throw forbidden("Only an owner of this WhatBuild instance reads how it is used. The deployment names its owners.");
+      throw forbidden("Only an owner of this WhatBuild instance can see how it’s used.");
     return usageReport(ctx.db, OPERATIONS, input);
   },
 });

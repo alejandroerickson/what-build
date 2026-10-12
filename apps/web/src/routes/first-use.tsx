@@ -32,7 +32,7 @@ export function FirstUse({ title, children, ask }: { title: string; children: Re
         setTimeout(() => setCopied(false), 1600);
         toast("Copied. Paste it to your agent.");
       })
-      .catch(() => toast("Couldn’t copy. Select the text and copy it yourself.", { tone: "negative" }));
+      .catch(() => toast("Couldn’t copy. Select the text and copy it.", { tone: "negative" }));
   return (
     <div className="empty empty-inline first-use">
       <p className="empty-title">{title}</p>

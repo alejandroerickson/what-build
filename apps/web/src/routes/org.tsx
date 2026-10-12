@@ -51,17 +51,17 @@ export function Welcome() {
           <SheetBody className="entry-form">
             {sandboxOnly ? (
               <p>
-                Your account works only in the public sandbox. To enter, open your invitation link. If you were in before, your seat was freed after a long time away, or removed by the sandbox&rsquo;s admins.
+                Your account works only in the public sandbox. To enter, open your invitation link.
               </p>
             ) : !hasOrgs ? (
               <>
-                <p>You&rsquo;re signed in, but not in an organization yet. Ask someone who uses WhatBuild to invite you, and their products appear here.</p>
+                <p>You&rsquo;re not in an organization yet. Ask someone who uses WhatBuild to invite you.</p>
                 <p className="muted">To start an organization of your own, ask this WhatBuild&rsquo;s owners.</p>
               </>
             ) : (
               <p className="muted">
-                {allowance.allowed ? `You’ve started ${allowance.created === 1 ? "one organization" : `${allowance.created} organizations`}, the most this account can. ` : ""}
-                This WhatBuild&rsquo;s owners decide who can start organizations, and how many.
+                {allowance.allowed ? `You’ve started ${allowance.created === 1 ? "1 organization" : `${allowance.created} organizations`}, the most this account can. ` : ""}
+                To start another, ask this WhatBuild&rsquo;s owners.
               </p>
             )}
           </SheetBody>
@@ -84,22 +84,22 @@ export function Welcome() {
           }}
         >
           <p className="muted">
-            Name your organization and the first product you&rsquo;re exploring. You can invite colleagues and connect an agent next.
+            Name your organization and its first product.
             {allowance?.remaining
-              ? ` This account can start ${allowance.remaining === 1 ? "one" : allowance.remaining}${allowance.created ? " more" : ""} organization${allowance.remaining === 1 ? "" : "s"}.`
+              ? ` This account can start ${allowance.remaining}${allowance.created ? " more" : ""} organization${allowance.remaining === 1 ? "" : "s"}.`
               : ""}
           </p>
-          <TextField label="Organization" hint="Your company or group. Other organizations can’t see anything in it." required maxLength={100} value={org} onChange={(e) => setOrg(e.target.value)} />
-          <TextField label="Product" hint="What this discovery is about. You can add more products later." required maxLength={100} value={product} onChange={(e) => setProduct(e.target.value)} />
-          <TextArea label="Product concept" optional hint="Who it’s for, the problem they have, and how the product solves it. Shown at the top of Idea." maxLength={2000} rows={3} value={concept} onChange={(e) => setConcept(e.target.value)} />
+          <TextField label="Organization" hint="Your company or group." required maxLength={100} value={org} onChange={(e) => setOrg(e.target.value)} />
+          <TextField label="Product" hint="What this discovery is about." required maxLength={100} value={product} onChange={(e) => setProduct(e.target.value)} />
+          <TextArea label="Product concept" optional hint="Who it’s for, their problem, and how the product solves it." maxLength={2000} rows={3} value={concept} onChange={(e) => setConcept(e.target.value)} />
           {create.isError ? <ErrorCallout inset error={create.error} /> : null}
-          <Button type="submit" variant="primary" busy={create.isPending} busyLabel="Creating…" disabled={!org.trim() || !product.trim()}>
-            Create organization
+          <Button type="submit" variant="primary" busy={create.isPending} busyLabel="Starting…" disabled={!org.trim() || !product.trim()}>
+            Start organization
           </Button>
         </form>
       </Sheet>
       <p className="entry-foot">
-        Have an invitation? Open its link to join that organization instead.{hasOrgs ? <> <Link to="/">Back to your products</Link></> : null}
+        Have an invitation? Open its link instead.{hasOrgs ? <> <Link to="/">Back to your products</Link></> : null}
       </p>
     </EntryPage>
   );
@@ -140,7 +140,7 @@ const ORG_ROLE_HINT: Record<string, string> = {
   owner: "Admin of everything, and can make other owners",
   admin: "Admin of every team and product",
   member: "Opens only what they have a role on",
-  visitor: "In a public sandbox: edits every product, sees no people",
+  visitor: "Edits every product, sees no people",
 };
 
 export function MembersPage() {
@@ -220,7 +220,7 @@ export function MembersPage() {
         <SheetHeader level={1} id="members-title" title="Members" />
         <SheetBody>
           <EmptyState title="Members aren’t shown to Story readers" action={<ButtonLink to="/">Go to your products</ButtonLink>}>
-            You read only the Story in {orgName}, so who works on its products stays with its team. An admin of one of its products can give you more access.
+            An admin of one of its products can give you more access.
           </EmptyState>
         </SheetBody>
       </Sheet>
@@ -238,19 +238,16 @@ export function MembersPage() {
         <SheetBody className="members-intro">
           {sandbox?.only_you ? (
             <Callout inset tone="info" title={`${orgName} is a public sandbox`}>
-              Only its owners and admins see who is here, so only you are listed, under your made-up name. <Link to={`/t/${tenant}/sandbox`}>About this sandbox</Link>
+              Only you are listed, under your made-up name. <Link to={`/t/${tenant}/sandbox`}>About this sandbox</Link>
             </Callout>
           ) : sandbox ? (
             <Callout inset tone="info" title={`${orgName} is a public sandbox`} action={<ButtonLink size="sm" to={`/t/${tenant}/sandbox`}>Sandbox controls</ButtonLink>}>
-              {!sandbox.visitors ? "No visitors yet" : sandbox.visitors === 1 ? "1 visitor has a seat" : `${sandbox.visitors.toLocaleString("en-US")} visitors have seats`}. Visitors aren&rsquo;t listed here and can&rsquo;t see this list; they&rsquo;re managed in Sandbox controls.
+              {!sandbox.visitors ? "No visitors yet" : sandbox.visitors === 1 ? "1 visitor has a seat" : `${sandbox.visitors.toLocaleString("en-US")} visitors have seats`}. Visitors aren&rsquo;t listed here.
             </Callout>
           ) : null}
           {sandbox?.only_you ? null : (
           <>
-          <p className="muted">
-            People join {orgName} only when someone gives them access. Everyone has an organization role; team and product roles decide which products they can open.
-            {q.data?.partial ? " You see the people on the teams and products you can open, and the organization’s owners and admins." : ""}
-          </p>
+          {q.data?.partial ? <p className="muted">You see the people on the teams and products you can open, and the organization&rsquo;s owners and admins.</p> : null}
           <div className="members-legend">
             <div className="members-legend-group">
               <p id="legend-org" className="members-legend-head">Roles in the organization</p>
@@ -274,7 +271,7 @@ export function MembersPage() {
             </div>
           </div>
           <p className="members-legend-foot">
-            A team role covers every product in the team, and the highest role wins. With no role on a product, a person can&rsquo;t see it.
+            A team role covers every product in the team, and the highest role wins.
           </p>
           </>
           )}
@@ -405,7 +402,7 @@ export function MembersPage() {
           </ul>
         </Sheet>
       ) : null}
-      {tenantAdmin && !sandbox?.only_you ? <AccessChanges tenant={tenant} sandbox={Boolean(sandbox)} /> : null}
+      {tenantAdmin && !sandbox?.only_you ? <AccessChanges tenant={tenant} /> : null}
       {giving ? (
         <GiveAccessDialog tenant={tenant} orgName={orgName} initialEmail={giving.email} onClose={() => setGiving(null)} canManage={canManage} tenantAdmin={tenantAdmin} ownerHere={t?.your_role === "owner"} />
       ) : null}
@@ -419,7 +416,7 @@ export function MembersPage() {
  * access, and in a sandbox its invitation links and visitors' seats. A product's own Activity
  * leaves these out.
  */
-function AccessChanges({ tenant, sandbox }: { tenant: string; sandbox: boolean }) {
+function AccessChanges({ tenant }: { tenant: string }) {
   const q = useInfiniteQuery({
     queryKey: ["members", tenant, "activity"],
     queryFn: ({ pageParam }) =>
@@ -430,15 +427,10 @@ function AccessChanges({ tenant, sandbox }: { tenant: string; sandbox: boolean }
   return (
     <Sheet labelledBy="access-changes-title">
       <SheetHeader id="access-changes-title" title="Access changes" />
-      <p className="activity-scope">Only the organization&rsquo;s owners and admins see this log.</p>
       <ActivityLog
         query={q}
         linkOf={(i) => (i.entity_type === "sandbox" ? `/t/${tenant}/sandbox` : null)}
-        empty={
-          <EmptyState size="inline" title="No access changes yet">
-            When someone gives, changes or removes a role, or sends or accepts an invitation{sandbox ? ", or a visitor’s seat is taken away" : ""}, it appears here.
-          </EmptyState>
-        }
+        empty={<EmptyState size="inline" title="No access changes yet" />}
       />
     </Sheet>
   );
@@ -479,8 +471,8 @@ function RemoveMemberDialog({ tenant, orgName, member: m, lastGrant, tenantAdmin
       title={`Remove ${m.display_name} from ${orgName}?`}
       description={
         lastGrant
-          ? `${grantWords(lastGrant)} is ${m.display_name}’s only role here, so removing it removes them from the organization. They can no longer open any of its products.`
-          : `${m.display_name} loses every role here and can no longer open any of its products.`
+          ? `${grantWords(lastGrant)} is ${m.display_name}’s only role here, so removing it removes them from the organization.`
+          : `${m.display_name} loses every role here.`
       }
       footer={
         <>
@@ -509,10 +501,7 @@ function RemoveMemberDialog({ tenant, orgName, member: m, lastGrant, tenantAdmin
         {remove.isError ? (
           <ErrorCallout inset error={remove.error} />
         ) : (
-          <p className="muted">
-            What they wrote stays, attributed to them. You can give them access again any time.
-            {lastGrant && tenantAdmin ? " To keep them in the organization with no product access, choose Remove role, keep as member." : ""}
-          </p>
+          <p className="muted">What they wrote stays, attributed to them.</p>
         )}
       </div>
     </Dialog>
@@ -522,12 +511,12 @@ function RemoveMemberDialog({ tenant, orgName, member: m, lastGrant, tenantAdmin
 const ROLE_MEANING: Record<string, string> = {
   owner: "Admin of every team and product, and can make other owners.",
   admin: "Admin of every team and product in the organization.",
-  member: "Belongs to the organization but can’t open any product until they also have a team or product role.",
+  member: "Can’t open any product until they also have a team or product role.",
 };
 const SCOPE_ROLE_MEANING: Record<string, string> = {
   viewer: "Reads everything, changes nothing.",
-  reader: "Reads only the Story: its pages, their versions and their export. Sees no evidence, assumptions or mockups.",
-  editor: "Reads and writes everything in the product, including the Story.",
+  reader: "Reads only the Story.",
+  editor: "Reads and writes everything, including the Story.",
   admin: "Reads and writes, and also manages settings and people.",
 };
 
@@ -582,7 +571,7 @@ function GiveAccessDialog({ tenant, orgName, initialEmail, onClose, canManage, t
       onClose={onClose}
       dismissable={!grant.isPending}
       title="Give someone access"
-      description={`People already on WhatBuild get the role right away. Anyone else gets an invitation link that works for 7 days. Either way, they join ${orgName}.`}
+      description="People already on WhatBuild get the role right away. Anyone else gets an invitation link that works for 7 days."
       footer={
         link ? (
           <Button variant="primary" onClick={onClose}>
@@ -603,7 +592,7 @@ function GiveAccessDialog({ tenant, orgName, initialEmail, onClose, canManage, t
       {link ? (
         <div className="stack-sm">
           <Callout inset tone="positive" title="Invitation created">
-            We email it where email is set up. You can also share the link yourself: it works once, within 7 days, and only for {email.trim()}.
+            We email it where email is set up. You can also share the link: it works once, within 7 days, and only for {email.trim()}.
           </Callout>
           <CopyField label="Invitation link" value={link} />
         </div>
@@ -639,7 +628,7 @@ function GiveAccessDialog({ tenant, orgName, initialEmail, onClose, canManage, t
           </SelectField>
           {!target && role === "member" ? (
             <Callout inset tone="attention" title="A member can’t open any product yet">
-              To let them read or write, choose a team or product under Give access to instead.
+              To let them read or write, choose a team or product under Give access to.
             </Callout>
           ) : null}
           {grant.isError ? <ErrorCallout inset error={grant.error} /> : null}

@@ -113,7 +113,7 @@ export function FocusToggle({ focus, hint, onToggle }: { focus: boolean; hint: b
       <p className="story-focus-hint" role="status">
         {hint ? (
           <>
-            Panels hidden so the page stands alone. <kbd>F</kbd> or <kbd>Esc</kbd> brings them back.
+            Panels hidden. <kbd>F</kbd> or <kbd>Esc</kbd> brings them back.
           </>
         ) : null}
       </p>

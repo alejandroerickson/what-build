@@ -48,7 +48,7 @@ describe("citationCheckWords", () => {
   });
   it("says when the quote matched only ignoring formatting, and when the source was parsed again", () => {
     expect(citationCheckWords("Matches the source", { version_drift: false, derivation_changed: true, quote_match: "normalized" })).toBe(
-      "Matches the source · matched ignoring formatting · source re-parsed since this was cited",
+      "Matches the source · matched ignoring formatting · source re-parsed",
     );
   });
   it("names a newer file version rather than the re-parse it caused", () => {

@@ -18,7 +18,7 @@ export class ApiError extends Error {
 }
 
 const DEFAULT_MESSAGES: Record<number, string> = {
-  0: "WhatBuild could not be reached. Check your connection and try again.",
+  0: "WhatBuild couldn’t be reached. Check your connection and try again.",
   401: "Your sign-in has expired. Sign in again.",
   403: "You don’t have access to do that.",
   404: "That doesn’t exist, or you don’t have access to it.",

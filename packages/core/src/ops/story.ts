@@ -188,7 +188,7 @@ export const setStyle = defineOperation({
         ? { name: current.name, summary: current.summary, based_on: current.based_on, rules: current.rules, stylesheet: current.stylesheet, specimen_html: current.specimen_html }
         : null;
     if (!start && (!input.name || !input.rules || !input.stylesheet))
-      throw invalid("invalid_input", "The first Story style needs house_style, or name, rules and stylesheet for the team's own design system.");
+      throw invalid("invalid_input", "The first Story style needs house_style, or name, rules and stylesheet for the team’s own design system.");
     const next = {
       name: input.name ?? start!.name,
       summary: input.summary ?? start?.summary ?? "",
@@ -431,7 +431,7 @@ function bodyDocument(title: string, stylesheet: string, body: string) {
 /** The same page under another stylesheet: the first <style> block is replaced, the rest kept. */
 function restyled(html: string, stylesheet: string) {
   const block = /<style>[\s\S]*?<\/style>/;
-  if (!block.test(html)) throw invalid("invalid_input", "This page has no <style> block to replace. Publish it again with body, which takes the product's Story style.");
+  if (!block.test(html)) throw invalid("invalid_input", "This page has no <style> block to replace. Publish it again with body, which takes the product’s Story style.");
   return html.replace(block, () => `<style>\n${stylesheet}</style>`);
 }
 
@@ -497,11 +497,11 @@ export const publish = defineOperation({
     const ways = [input.html !== undefined && "html", input.body !== undefined && "body", input.patch_html && "patch_html", input.restyle && "restyle"].filter(Boolean);
     if (ways.length > 1) throw invalid("invalid_input", `Pass one of html, body, patch_html and restyle, not ${ways.join(" and ")}.`);
     if (!existing) {
-      if (input.expected_etag) throw conflict("stale_etag", `Page "${input.page_id}" does not exist yet; omit expected_etag for its first version.`);
+      if (input.expected_etag) throw conflict("stale_etag", `Page "${input.page_id}" doesn’t exist yet; omit expected_etag for its first version.`);
       if (input.from_version) throw notFound(`Page "${input.page_id}" has never been published, so it has no version ${input.from_version}.`);
-      if (!input.title) throw invalid("invalid_input", "A page's first version needs a title.");
-      if (input.patch_html) throw invalid("invalid_input", "patch_html edits an earlier version; a page's first version needs html or body.");
-      if (input.restyle) throw invalid("invalid_input", "restyle changes an earlier version's stylesheet; a page's first version needs html or body.");
+      if (!input.title) throw invalid("invalid_input", "A page’s first version needs a title.");
+      if (input.patch_html) throw invalid("invalid_input", "patch_html edits an earlier version; a page’s first version needs html or body.");
+      if (input.restyle) throw invalid("invalid_input", "restyle changes an earlier version’s stylesheet; a page’s first version needs html or body.");
       const summary = input.summary ?? "";
       const html = input.html ?? (input.body !== undefined ? bodyDocument(input.title, await titleStylesheet(ctx), input.body) : titlePageHtml(input.title, summary, await titleStylesheet(ctx)));
       const problems = inspectStoryHtml(html);
@@ -509,7 +509,7 @@ export const publish = defineOperation({
       const refs = await validateRefs(ctx, input.refs ?? EMPTY_REFS);
       const citations = await snapshotAll(ctx, input.citations ?? [], "page version");
       const count = await ctx.db.selectFrom("story_pages").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst();
-      if (Number(count?.n ?? 0) >= MAX_PAGES) throw conflict("quota_exceeded", `A product's Story holds at most ${MAX_PAGES} pages.`, { quota: "story_pages", limit: MAX_PAGES, used: Number(count?.n ?? 0), unit: "pages" });
+      if (Number(count?.n ?? 0) >= MAX_PAGES) throw conflict("quota_exceeded", `A product’s Story holds at most ${MAX_PAGES} pages.`, { quota: "story_pages", limit: MAX_PAGES, used: Number(count?.n ?? 0), unit: "pages" });
       await ctx.db
         .insertInto("story_versions")
         .values({ version_id, tenant_id: tenantId(ctx), product_id: pid, page_id: input.page_id, n: 1, title: input.title, summary, html, refs: json(refs), citations: json(citations), previous_version_id: null, created_by: json(ctx.actor) })
@@ -692,7 +692,7 @@ export const setHierarchy = defineOperation({
     const inTree = ids.filter((x) => live.get(x)?.shows_mockup);
     if (inTree.length) throw invalid("invalid_hierarchy", `These pages show mockup pages, so they belong in mockups, not items: ${inTree.join(", ")}.`);
     const notMockups = (order ?? []).filter((x) => !live.get(x)?.shows_mockup);
-    if (notMockups.length) throw invalid("invalid_hierarchy", `These pages do not show a mockup page, so they belong in items, not mockups: ${notMockups.join(", ")}.`);
+    if (notMockups.length) throw invalid("invalid_hierarchy", `These pages don’t show a mockup page, so they belong in items, not mockups: ${notMockups.join(", ")}.`);
     const etag = newEtag();
     const set = { items: json(bareNodes(input.items)), ...(order ? { mockups: json(order) } : {}), etag };
     if (h) await ctx.db.updateTable("story_hierarchies").set({ ...set, updated_at: ctx.now, updated_by: json(ctx.actor) }).where("product_id", "=", productId(ctx)).execute();
@@ -875,9 +875,9 @@ export const promoteMockup = defineOperation({
     const version_id = newId();
     let pageIdOut: string;
     if (!existing) {
-      if (input.expected_etag) throw conflict("stale_etag", `Page "${input.page_id}" does not exist yet; omit expected_etag to create it.`);
+      if (input.expected_etag) throw conflict("stale_etag", `Page "${input.page_id}" doesn’t exist yet; omit expected_etag to create it.`);
       const count = await ctx.db.selectFrom("story_pages").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst();
-      if (Number(count?.n ?? 0) >= MAX_PAGES) throw conflict("quota_exceeded", `A product's Story holds at most ${MAX_PAGES} pages.`, { quota: "story_pages", limit: MAX_PAGES, used: Number(count?.n ?? 0), unit: "pages" });
+      if (Number(count?.n ?? 0) >= MAX_PAGES) throw conflict("quota_exceeded", `A product’s Story holds at most ${MAX_PAGES} pages.`, { quota: "story_pages", limit: MAX_PAGES, used: Number(count?.n ?? 0), unit: "pages" });
       pageIdOut = input.page_id ?? (await freeSlug(ctx, mp.page_id));
       const title = input.title ?? mp.title;
       const summary = input.summary ?? `From the mockup "${m.title}", version ${mv.n}.`;

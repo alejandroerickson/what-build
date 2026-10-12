@@ -27,9 +27,9 @@ export interface ActivityFilter {
 
 const VERBS: Record<string, string> = {
   "source:created": "added the source",
-  "source:copied": "copied in the source",
+  "source:copied": "copied in",
   "source:copied_out": "copied out",
-  "source:updated": "edited the details of",
+  "source:updated": "edited",
   "source:reorganized": "refiled",
   "source:file_added": "added a file to",
   "source:file_role_changed": "changed a file role on",
@@ -38,7 +38,7 @@ const VERBS: Record<string, string> = {
   "source:note_archived": "archived a comment on",
   "source:note_restored": "restored a comment on",
   "source:derived": "finished parsing",
-  "source:rederive_requested": "asked to parse again",
+  "source:rederive_requested": "asked to re-parse",
   "source:archived": "archived",
   "source:restored": "restored",
   "source:deleted": "deleted",
@@ -63,7 +63,7 @@ const VERBS: Record<string, string> = {
   "story_page:updated": "published a new version of",
   "story_page:archived": "archived the page",
   "story_page:restored": "restored the page",
-  "story_page:notes_updated": "updated the notes for agents on",
+  "story_page:notes_updated": "edited the notes for agents on",
   "mockup:created": "made the mockup",
   "mockup:updated": "published a new version of",
   "mockup:archived": "archived the mockup",
@@ -183,9 +183,7 @@ export function ActivityFeed(filter: ActivityFilter & { query?: ReturnType<typeo
           size="inline"
           title={filtered ? "Nothing matches this view yet" : "Nothing has changed yet"}
           action={filtered ? undefined : <ButtonLink to="/connect" size="sm" icon="bot">Connect an agent</ButtonLink>}
-        >
-          {filtered ? "Changes appear here as soon as someone makes them." : "Every change appears here, whether a person or an agent made it: a source added, an assumption recorded, a Story page published."}
-        </EmptyState>
+        />
       }
     />
   );
@@ -202,7 +200,7 @@ export function ActivityLog({ query: q, linkOf, empty }: { query: ActivityPages;
   if (q.isError)
     return (
       <div className="activity-state">
-        <ErrorCallout inset title="Activity could not be loaded" error={q.error} onRetry={() => q.refetch()} />
+        <ErrorCallout inset title="Activity couldn’t be loaded" error={q.error} onRetry={() => q.refetch()} />
       </div>
     );
   const items = q.data.pages.flatMap((p) => p.items);

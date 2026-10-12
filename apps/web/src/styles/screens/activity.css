@@ -15,9 +15,6 @@
   color: var(--text);
   font-weight: var(--fw-medium);
 }
-.activity-scope-quiet {
-  color: var(--faint);
-}
 .activity-state {
   padding: var(--s-3) var(--sheet-px);
 }

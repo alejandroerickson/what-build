@@ -215,7 +215,7 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; cl
   app.onError((err, c) => {
     if (err instanceof AppError) return c.json({ error: err.toJSON() }, err.status as 400);
     console.error(err);
-    return c.json({ error: { code: "internal", status: 500, message: "Unexpected error." } }, 500);
+    return c.json({ error: { code: "internal", status: 500, message: "WhatBuild hit an unexpected error. Try again." } }, 500);
   });
   return app;
 }

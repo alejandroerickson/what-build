@@ -3,7 +3,7 @@ type: System Concept
 title: A release is a version tag on main, published as a GitHub release with its image; a deployment that follows releases moves when one is published.
 description: For the agent asked to release a version or move production; what a release is, how versions are numbered, publishing one with gh, what the Release workflow adds, and approving the Cloud Run deploy it starts.
 tags: [operations, releases, versions, tags, deployment, cloud-run]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-12}
 status: stable
 ---
 
@@ -109,6 +109,21 @@ curl -s -X POST -H "Authorization: Bearer $(gcloud auth print-access-token)" -H 
   -d '{"approvalResult":{"decision":"APPROVED","comment":"<version>, asked for by <who>"}}'
 gcloud builds log $B --project $P --region $R --stream
 curl -s https://app.what-build.com/api/v1/meta                    # release.version is the tag
+```
+
+**Then deploy the Worker.** Behind Cloudflare, the public site comes from the Worker, which serves
+the web app built when it was last deployed, never from the image
+([decision](../decisions/the-public-site-is-one-page-built-with-the-app.md)). Until it is deployed
+again, the site shows the page of whatever release it was deployed with. Once `/api/v1/meta`
+reports the new version, build the web app from the release's tag and deploy the Worker with the
+command in [analytics](analytics.md), which passes all its settings from `.env`:
+
+```bash
+git worktree add ../what-build-<version> <version> && cd ../what-build-<version>
+corepack pnpm install --frozen-lockfile
+# then the build and `npx wrangler deploy …` from analytics.md, with .env loaded
+grep -o 'assets/site-[^"]*' apps/web/dist/site/index.html        # the page this build serves
+curl -s https://what-build.com/ | grep -o 'assets/site-[^"]*'     # the same name, once deployed
 ```
 
 `gcloud builds` has no `approve` outside the beta component (`gcloud beta builds approve`), so

@@ -71,7 +71,7 @@ function OutcomeForm({ initial, onDone, onCancel }: { initial?: Outcome; onDone:
         {initial ? "Edit outcome" : "New outcome"}
       </h2>
       <FormGrid>
-        <TextField label="Outcome" hint="What the user achieves with the product, not a feature." required maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
+        <TextField label="Outcome" hint="What the product’s users should be able to achieve." required maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
         <TextArea label="What success means" optional hint="Markdown: bold, lists and links." maxLength={2000} rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
         <SelectField label="Status" value={status} onChange={(e) => setStatus(e.target.value as Outcome["status"])}>
           <option value="active">Active</option>
@@ -145,7 +145,7 @@ function ConceptSheet() {
           }}
         >
           <FormGrid>
-            <TextArea label="Product concept" hint="Who it is for, the problem they have, and how the product solves it. Markdown." maxLength={2000} rows={4} value={concept} onChange={(e) => setConcept(e.target.value)} autoFocus />
+            <TextArea label="Product concept" hint="Who it’s for, their problem, and how the product solves it. Markdown." maxLength={2000} rows={4} value={concept} onChange={(e) => setConcept(e.target.value)} autoFocus />
           </FormGrid>
           {save.isError ? <ErrorCallout error={save.error} inset onRetry={() => void qc.invalidateQueries({ queryKey: ["product"] })} /> : null}
           <div className="outcome-form-actions">
@@ -160,7 +160,7 @@ function ConceptSheet() {
           {product.concept ? (
             <Markdown source={product.concept} className="prose idea-concept-text" headingShift={2} />
           ) : (
-            <p className="faint">No product concept yet. {canEdit ? "Say who the product is for, the problem they have, and how it solves it." : "An admin of this product can write it."}</p>
+            <p className="faint">No product concept yet.{canEdit ? null : " An admin of this product can write it."}</p>
           )}
         </SheetBody>
       )}
@@ -256,11 +256,11 @@ export function IdeaPage() {
               title="No outcomes yet"
               ask={
                 product.concept?.trim()
-                  ? `Read the product concept of ${product.name} in WhatBuild and propose two or three outcomes. Add them once I agree.`
-                  : `Interview me about ${product.name}, then write its product concept and two or three outcomes in WhatBuild.`
+                  ? `Propose outcomes for ${product.name} in WhatBuild from its product concept, and add the ones I agree to.`
+                  : `Interview me about ${product.name}, then write its product concept and outcomes in WhatBuild.`
               }
             >
-              An outcome is something the product&rsquo;s users should be able to achieve, written from their side, not as a feature. Two or three are enough to start.
+              An outcome is what the product&rsquo;s users should be able to achieve.
             </FirstUse>
           )
         ) : (

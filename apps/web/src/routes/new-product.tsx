@@ -33,7 +33,6 @@ export function CreateProductDialog({ onClose, tenants }: { onClose: () => void;
       onClose={onClose}
       dismissable={!create.isPending}
       title="New product"
-      description={teams.length ? "Each product is one discovery, with its own outcomes, sources, mockups and Story." : undefined}
       footer={
         teams.length ? (
           <>
@@ -67,7 +66,7 @@ export function CreateProductDialog({ onClose, tenants }: { onClose: () => void;
             </SelectField>
           ) : null}
           <TextField label="Name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
-          <TextArea label="Product concept" optional rows={3} maxLength={2000} value={concept} onChange={(e) => setConcept(e.target.value)} hint="Who it’s for, the problem they have, and how the product solves it. Shown at the top of Idea." />
+          <TextArea label="Product concept" optional rows={3} maxLength={2000} value={concept} onChange={(e) => setConcept(e.target.value)} hint="Who it’s for, their problem, and how the product solves it." />
           {create.isError ? <ErrorCallout inset error={create.error} /> : null}
         </form>
       ) : (
@@ -75,7 +74,7 @@ export function CreateProductDialog({ onClose, tenants }: { onClose: () => void;
           Creating a product needs an admin role on a team. Ask a team admin
           {me.data?.tenant_allowance.remaining !== 0 ? (
             <>
-              , or <Link to="/welcome">set up your own organization</Link>
+              , or <Link to="/welcome">start your own organization</Link>
             </>
           ) : null}
           .

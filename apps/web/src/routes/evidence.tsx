@@ -135,7 +135,7 @@ export function EvidenceFilters() {
             {t.tag}
           </PanelFilter>
         ))}
-        {facets.isSuccess && !tags.length ? <p className="source-panel-note">No tags yet. Tag a source to filter by it here.</p> : null}
+        {facets.isSuccess && !tags.length ? <p className="source-panel-note">No tags yet.</p> : null}
       </PanelSection>
       {people.length > 1 || f.added_by ? (
         <PanelSection title="Added by" end={more(people.length, allPeople, () => setAllPeople(!allPeople))}>
@@ -316,20 +316,20 @@ export function EvidencePage() {
           <Loading label="Loading sources…" lines={6} />
         ) : q.isError ? (
           <div className="sheet-body">
-            <ErrorCallout inset title="Sources could not be loaded" error={q.error} onRetry={() => q.refetch()} />
+            <ErrorCallout inset title="Sources couldn’t be loaded" error={q.error} onRetry={() => q.refetch()} />
           </div>
         ) : !records.length ? (
           active.length && (product.counts.sources ?? 0) > 0 ? (
             f.query && chips.length === 1 ? (
               <EmptyState size="inline" title={`No source titles match “${f.query}”`} action={<ButtonLink to={without(["query"])}>Clear the search</ButtonLink>}>
-                A title search looks in titles, tags and file names. To search what sources say, switch the search to Passages.
+                This looks in titles, tags and file names. Use Search to find what sources say.
               </EmptyState>
             ) : (
               <EmptyState size="inline" title="No sources match these filters" action={<ButtonLink to={`${app}/evidence`}>Clear filters</ButtonLink>} />
             )
           ) : (
             <FirstUse title="No sources yet" ask={`Add these meeting notes to ${product.name} in WhatBuild as a source.`}>
-              Meeting transcripts and notes, documents, whiteboard photos: anything the team learns from. WhatBuild parses each one into passages that assumptions, mockups and Story pages can cite.
+              Anything the team learns from: meeting notes, transcripts, documents, whiteboard photos.
             </FirstUse>
           )
         ) : (

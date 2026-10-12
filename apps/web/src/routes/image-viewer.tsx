@@ -355,9 +355,7 @@ export function ImageViewer({ images, current, onSelect, downloadUrl }: { images
           </div>
         ) : status === "error" ? (
           <div className="image-viewer-overlay">
-            <EmptyState size="inline" title="This browser can’t display this image format" action={<a className="btn btn-secondary btn-sm" href={downloadUrl}>Download</a>}>
-              Download it to open it in an image viewer.
-            </EmptyState>
+            <EmptyState size="inline" title="This browser can’t display this image format" action={<a className="btn btn-secondary btn-sm" href={downloadUrl}>Download</a>} />
           </div>
         ) : null}
       </div>

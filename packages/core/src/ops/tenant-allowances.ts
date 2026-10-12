@@ -17,7 +17,7 @@ const address = z.string().trim().email().max(320).transform((s) => s.toLowerCas
 
 function requireInstanceOwner(ctx: OpContext) {
   if (!isInstanceOwner(ctx.ports.config, ctx.principal.email))
-    throw forbidden("Only an owner of this WhatBuild instance decides who may create organizations. The deployment names its owners.");
+    throw forbidden("Only an owner of this WhatBuild instance can let people start organizations.");
 }
 
 type AllowanceRow = { email: string; allowed: number; note: string; etag: string; created_at: string; created_by: unknown; updated_at: string; updated_by: unknown };
@@ -103,7 +103,7 @@ export const setTenantAllowance = defineOperation({
   async handler(ctx, input) {
     requireInstanceOwner(ctx);
     if (isInstanceOwner(ctx.ports.config, input.email))
-      throw invalid("instance_owner", `${input.email} is an owner of this instance and may create any number of organizations already.`);
+      throw invalid("instance_owner", `${input.email} is an owner of this instance and can already start any number of organizations.`);
     const existing = await ctx.db.selectFrom("tenant_allowances").selectAll().where("email", "=", input.email).forUpdate().executeTakeFirst();
     const actor = json(ctx.actor);
     if (existing) {
@@ -132,7 +132,7 @@ export const setTenantAllowance = defineOperation({
         subject: `${who} let you start ${n === 1 ? "an organization" : "organizations"} on WhatBuild`,
         text:
           `${who} let you start ${n === 1 ? "one organization" : `up to ${n} organizations`} on WhatBuild.\n\n` +
-          `Sign in with this address to start one: ${ctx.ports.config.publicBaseUrl}/welcome\n`,
+          `Sign in with this email to start one:\n${ctx.ports.config.publicBaseUrl}/welcome\n`,
       });
       notified = true;
     }

@@ -471,11 +471,11 @@ async function requireAdminOf(ctx: OpContext, target: Awaited<ReturnType<typeof 
   });
   if (target.scope_type === "tenant") {
     const needed: TenantRole = role === "owner" ? "owner" : "admin";
-    if (!tenantRoleAtLeast(tenantRole, needed)) throw forbidden(`Changing tenant roles needs a tenant ${needed}.`, { needed });
+    if (!tenantRoleAtLeast(tenantRole, needed)) throw forbidden(`Changing organization roles needs an organization ${needed}.`, { needed });
   } else if (!roleAtLeast(eff, "admin")) {
     // A team or product the caller has no role on does not exist for them: 404, without its name.
     if (eff === null && (target.scope_type === "product" || !(await holdsAProductIn(ctx, memberships, target.team_id!)))) throw hiddenScope(target.scope_type);
-    throw forbidden(`Managing members of ${target.scope_type} ${target.name} needs admin there; you are ${eff ?? "not a member"}.`, { role: eff, needed: "admin" });
+    throw forbidden(`Managing members of ${target.scope_type} ${target.name} needs admin there; you’re ${eff ?? "not a member"}.`, { role: eff, needed: "admin" });
   }
 }
 
@@ -554,7 +554,7 @@ export const listMembers = defineOperation({
     const me = ctx.principal.account_id;
     const mine = await membershipsFor(ctx.db, me, tid);
     if (readsOnlyTheStoryIn(mine, tid))
-      throw forbidden(`You read only the Story in ${ctx.scope.tenant!.name}, so its members are not shown to you. Viewer access to one of its teams or products shows them.`, { role: "reader", needed: "viewer" });
+      throw forbidden(`You read only the Story in ${ctx.scope.tenant!.name}, so you can’t see its members. Viewer access to one of its teams or products shows them.`, { role: "reader", needed: "viewer" });
     // In a public sandbox nobody but its staff sees another person, and its visitors are counted, not listed.
     const sandbox = Boolean(ctx.scope.tenant!.sandbox);
     const onlySelf = sandbox && !isSandboxStaff(ctx.scope.tenantRole);
@@ -567,7 +567,7 @@ export const listMembers = defineOperation({
       target = await resolveGrantTarget(ctx, { team: input.team, product: input.product }).catch(() => null);
       const role = target ? effectiveRole(mine, { tenant_id: tid, team_id: target.team_id, product_id: target.product_id }).role : null;
       if (!target || !role) throw hiddenScope("product");
-      if (!roleAtLeast(role, "viewer")) throw forbidden(`You are a reader on product ${target.name}; members.list needs viewer.`, { role, needed: "viewer" });
+      if (!roleAtLeast(role, "viewer")) throw forbidden(`You’re a reader on product ${target.name}; members.list needs viewer.`, { role, needed: "viewer" });
     } else if (input.product) target = await resolveGrantTarget(ctx, { team: input.team, product: input.product });
     let people = ctx.db
       .selectFrom("memberships as m")
@@ -668,7 +668,7 @@ export const grantMember = defineOperation({
     const target = await resolveGrantTarget(ctx, input);
     await requireAdminOf(ctx, target, input.role);
     const allowed = target.scope_type === "tenant" ? ["owner", "admin", "member"] : PRODUCT_ROLES;
-    if (!allowed.includes(input.role)) throw invalid("invalid_role", `Role ${input.role} does not apply to a ${target.scope_type}; use ${allowed.join(", ")}.`);
+    if (!allowed.includes(input.role)) throw invalid("invalid_role", `Role ${input.role} doesn’t apply to ${target.scope_type === "tenant" ? "an organization" : `a ${target.scope_type}`}; use ${allowed.join(", ")}.`);
     const tid = ctx.scope.tenant!.tenant_id;
     const account = await ctx.db.selectFrom("accounts").select(["account_id", "display_name"]).where(sql<boolean>`lower(email) = lower(${input.email})`).where("deleted_at", "is", null).executeTakeFirst();
     if (!account) {
@@ -689,8 +689,8 @@ export const grantMember = defineOperation({
         text:
           `${who} invited you to ${where} on WhatBuild, as ${/^[aeiou]/.test(input.role) ? "an" : "a"} ${input.role}.\n\n` +
           `Accept the invitation:\n${link}\n\n` +
-          `The link works once, within 7 days, when you sign in with this email address.\n` +
-          `The name in quotation marks is the one the person who invited you gave WhatBuild.\n`,
+          `The link works once, within 7 days, when you sign in with this email.\n` +
+          `The name in quotation marks is the one the inviter gave WhatBuild.\n`,
       });
       await recordActivity(ctx, { action: "invited", entity_type: "membership", entity_id: invitation_id, entity_title: target.name, summary: `Invited someone as ${input.role}` });
       // The link is returned to the inviter too, so an invitation works even where no email is sent.
@@ -701,7 +701,7 @@ export const grantMember = defineOperation({
       // Only an owner changes an owner's role, as only an owner removes one.
       await requireAdminOf(ctx, target, "owner");
       const owners = await ctx.db.selectFrom("memberships").select("membership_id").where("scope_type", "=", "tenant").where("scope_id", "=", tid).where("role", "=", "owner").execute();
-      if (owners.length <= 1) throw conflict("last_owner", "A tenant keeps at least one owner. Make someone else owner first.");
+      if (owners.length <= 1) throw conflict("last_owner", "An organization keeps at least one owner. Make someone else owner first.");
     }
     if (existing) await ctx.db.updateTable("memberships").set({ role: input.role }).where("membership_id", "=", existing.membership_id).execute();
     else
@@ -739,12 +739,12 @@ export const revokeMember = defineOperation({
     if (input.whole_tenant) {
       if (input.team || input.product) throw invalid("invalid_input", "whole_tenant removes every grant; leave team and product out.");
       const grants = await ctx.db.selectFrom("memberships").select(["membership_id", "role", "scope_type"]).where("tenant_id", "=", tid).where("account_id", "=", input.account_id).execute();
-      if (!grants.length) throw notFound("That person is not in this tenant.");
+      if (!grants.length) throw notFound("That person isn’t in this organization.");
       const tenantTarget = await resolveGrantTarget(ctx, {});
       await requireAdminOf(ctx, tenantTarget, grants.some((g) => g.role === "owner") ? "owner" : "admin");
       if (grants.some((g) => g.role === "owner")) {
         const owners = await ctx.db.selectFrom("memberships").select("membership_id").where("scope_type", "=", "tenant").where("scope_id", "=", tid).where("role", "=", "owner").execute();
-        if (owners.length <= 1) throw conflict("last_owner", "A tenant keeps at least one owner.");
+        if (owners.length <= 1) throw conflict("last_owner", "An organization keeps at least one owner. Make someone else owner first.");
       }
       await ctx.db.deleteFrom("memberships").where("tenant_id", "=", tid).where("account_id", "=", input.account_id).execute();
       const acct = await ctx.db.selectFrom("accounts").select("display_name").where("account_id", "=", input.account_id).executeTakeFirst();
@@ -756,11 +756,11 @@ export const revokeMember = defineOperation({
     // Admin of the team or product first, so a non-admin learns nothing of who holds a role there.
     if (target.scope_type !== "tenant") await requireAdminOf(ctx, target, "admin");
     const m = await ctx.db.selectFrom("memberships").select(["membership_id", "role"]).where("scope_type", "=", target.scope_type).where("scope_id", "=", target.scope_id).where("account_id", "=", input.account_id).executeTakeFirst();
-    if (!m) throw notFound("That person holds no role at that scope.");
+    if (!m) throw notFound("That person has no role there.");
     await requireAdminOf(ctx, target, m.role);
     if (m.role === "owner") {
       const owners = await ctx.db.selectFrom("memberships").select("membership_id").where("scope_type", "=", "tenant").where("scope_id", "=", ctx.scope.tenant!.tenant_id).where("role", "=", "owner").execute();
-      if (owners.length <= 1) throw conflict("last_owner", "A tenant keeps at least one owner.");
+      if (owners.length <= 1) throw conflict("last_owner", "An organization keeps at least one owner. Make someone else owner first.");
     }
     await ctx.db.deleteFrom("memberships").where("membership_id", "=", m.membership_id).execute();
     const acct = await ctx.db.selectFrom("accounts").select("display_name").where("account_id", "=", input.account_id).executeTakeFirst();

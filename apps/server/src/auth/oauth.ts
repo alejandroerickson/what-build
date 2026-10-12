@@ -116,8 +116,9 @@ function consentPage(p: { client: string; redirect: string; account: string; ema
 <p class="muted">${named} is the name the agent gave itself. WhatBuild hasn’t verified it.</p>
 <p>${destinationSentence(p.redirect)}</p>
 <p>Signed in as <strong>${escapeHtml(p.account)}</strong> (${escapeHtml(p.email)}).</p>
-<p>${reachSentence(p.reach)} Its changes are recorded as yours, made through the agent.</p>
-<p class="muted">What it reads goes to whoever runs the agent, under their terms, not ours.</p>
+<p>${reachSentence(p.reach)} Its changes are recorded as yours, through the agent.</p>
+<p class="muted">What it reads goes to whoever runs the agent, under their terms.</p>
+<p class="muted">You can disconnect it later under Connect an agent in WhatBuild.</p>
 <form method="post" action="/oauth/authorize">${inputs}<input type="hidden" name="csrf" value="${escapeHtml(p.csrf)}">
 <div class="row"><button type="submit" name="decision" value="allow" class="primary">Allow</button><button type="submit" name="decision" value="deny">Deny</button></div>
 </form>`,
@@ -233,12 +234,12 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
     const client = q["client_id"] ? await loadClient(q["client_id"]) : undefined;
     if (!client) return c.text("Unknown client. The MCP client must register first.", 400);
     const redirect = q["redirect_uri"] ?? "";
-    if (!client.redirect_uris.includes(redirect)) return c.text("That redirect URI is not registered for this client.", 400);
+    if (!client.redirect_uris.includes(redirect)) return c.text("That redirect URI isn’t registered for this client.", 400);
     // Anyone can register a client with any https redirect URI, so nothing goes back to it until a
     // person has chosen Allow or Deny: an error before that is said here (RFC 9700, section 4.11.2).
     const refuse = (error: string, description: string) => {
       c.header("Cache-Control", "no-store");
-      return c.text(`This MCP client asked for something WhatBuild doesn't do (${error}): ${description} Tell whoever makes the client.`, 400);
+      return c.text(`This MCP client asked for something WhatBuild doesn’t do (${error}): ${description} Tell whoever makes the client.`, 400);
     };
     if (q["response_type"] !== "code") return refuse("unsupported_response_type", "Only the authorization code flow is supported.");
     if (!q["code_challenge"] || q["code_challenge_method"] !== "S256") return refuse("invalid_request", "PKCE with S256 is required.");
@@ -277,7 +278,7 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
     // Allow approves what the page showed, to the person it showed it to, and nothing else.
     const sent = { client_id: client.client_id, redirect_uri: f["redirect_uri"]!, code_challenge: f["code_challenge"] ?? "", state: f["state"] ?? "", resource: f["resource"] ?? "" };
     if (!same(seal, consentSeal(config.grantKey, csrf, account.account_id, sent)))
-      return c.text("This consent form doesn't match the request it was shown for. Start the connection again from your MCP client.", 400);
+      return c.text("This consent form doesn’t match the request it was shown for. Start the connection again from your MCP client.", 400);
     const u = new URL(f["redirect_uri"]!);
     if (f["state"]) u.searchParams.set("state", f["state"]);
     u.searchParams.set("iss", base);

@@ -126,7 +126,7 @@ export function StoryFrame({
     <div className="story-frame-wrap" ref={wrap}>
       {replaced ? (
         <Callout tone="attention" title="This page tried to open another address in its place">
-          WhatBuild put the page back. Its links open in a new tab.
+          WhatBuild put the page back.
         </Callout>
       ) : null}
       {size ? (
@@ -227,7 +227,7 @@ export function StoryPage() {
     return (
       <div className="stack">
         <h1 className="visually-hidden">Story</h1>
-        <ErrorCallout title="The Story could not be loaded" error={h.error} onRetry={() => h.refetch()} />
+        <ErrorCallout title="The Story couldn’t be loaded" error={h.error} onRetry={() => h.refetch()} />
       </div>
     );
 
@@ -253,11 +253,11 @@ export function StoryPage() {
         <Sheet label="Story">
           {storyOnly ? (
             <EmptyState title="No Story pages yet">
-              The Story is a set of pages that tells stakeholders where this discovery stands. Its pages appear here once the product&rsquo;s team publishes them.
+              Pages appear here once the product&rsquo;s team publishes them.
             </EmptyState>
           ) : (
             <FirstUse title="No Story pages yet" ask={`Draft the first Story page for ${product.name} in WhatBuild from its outcomes and evidence.`}>
-              The Story is a set of pages that tells stakeholders where this discovery stands, in your company&rsquo;s design system or a house style. Agents write and arrange it. You read it here and export it to PDF.
+              The Story tells stakeholders where this discovery stands.
               {style.data ? (
                 <p className="story-first-style">
                   <Button size="sm" variant="quiet" icon="palette" onClick={() => setStyling(true)}>
@@ -290,11 +290,11 @@ export function StoryPage() {
         {tree}
         <Crumbs label="Page location" currentAsHeading items={crumbs} />
         {gone ? (
-          <EmptyState title="This page is not in the Story" action={root ? <ButtonLink to={`${app}/story/${root}`}>Open the Story</ButtonLink> : undefined}>
-            The link may be mistyped, or the page was never published here. A published page keeps its link for good, even when archived.
+          <EmptyState title="This page isn’t in the Story" action={root ? <ButtonLink to={`${app}/story/${root}`}>Open the Story</ButtonLink> : undefined}>
+            The link may be mistyped, or the page was never published here.
           </EmptyState>
         ) : (
-          <ErrorCallout title="This Story page could not be loaded" error={page.error} onRetry={() => page.refetch()} />
+          <ErrorCallout title="This Story page couldn’t be loaded" error={page.error} onRetry={() => page.refetch()} />
         )}
         {dialogs}
       </div>
@@ -317,14 +317,12 @@ export function StoryPage() {
       ) : (
         <>
           {p.archived_at ? (
-            <Callout tone="attention" title="This page is archived">
-              An agent took it out of the Story&rsquo;s navigation. You can still read its versions here.
-            </Callout>
+            <Callout tone="attention" title="This page is archived" />
           ) : null}
           {wantsOld && old.data ? (
             <Callout
               tone="attention"
-              title={`You are reading an earlier version: ${old.data.version} of ${p.current_version}`}
+              title={`You’re reading an earlier version: ${old.data.version} of ${p.current_version}`}
               action={<ButtonLink size="sm" to={`${app}/story/${pageId}`}>Show the current version</ButtonLink>}
             />
           ) : null}
@@ -336,7 +334,7 @@ export function StoryPage() {
           {shown ? (
             <StoryFrame
               key={`${pageId}:${shown.version}:${scheme}`}
-              title={`${shown.title}, shown in a sandbox`}
+              title={shown.title}
               scheme={scheme}
               src={`${base}/story/pages/${pageId}/versions/${shown.version}/html${shown.mockup ? "" : `?theme=${scheme}`}`}
               size={shown.mockup ? { width: shown.mockup.width, height: shown.mockup.height } : undefined}

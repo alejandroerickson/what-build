@@ -3,7 +3,7 @@ type: Specification
 title: Accounts belong to tenants, tenants hold teams, teams run products, and one role check decides every call.
 description: The account → tenant → team → product hierarchy, sign-in, roles and what they grant, addressing and isolation, moving sources between products, caller identity, attribution, and who is who in the public sandbox.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, sandbox]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-12}
 status: stable
 ---
 
@@ -405,7 +405,8 @@ client), or posted by another account, answers `400` on WhatBuild's own page, an
 the client.
 
 The consent page tells the person the agent will act as them, what it can reach (everything, one organization or one
-product, named), and that the passages it reads go to whoever runs the agent. Any
+product, named), that the passages it reads go to whoever runs the agent, and that they can
+disconnect it under Connect an agent. Any
 MCP client registers itself, so no client is configured in advance, and any client may call
 itself anything: the consent page shows the name in quotation marks as the name the agent gave
 itself, which WhatBuild has not verified, and says where Allow hands the connection, the redirect
@@ -473,8 +474,8 @@ link and holds the tenant role `visitor`; or `member`, for someone staff gave a 
 treated as a visitor is (the made-up name, the limits, no administering, nobody else seen) and is
 told so. The notice each is shown says who sees what they add, and under which name. A member
 who reads only the Story there (a reader wherever they hold a role) writes nothing, so they are
-told that instead: `you.story_only` is true, `appears_as` is null, and the notice and `you.can`
-say they read the Story and write nothing. Each allowance in the status names the refusal a call
+told that instead: `you.story_only` is true, `appears_as` is null, the notice says they can only
+read the Story, and `you.can` that they write nothing. Each allowance in the status names the refusal a call
 over it gets; an allowance set to 0 is switched off, so its refusal is `403 sandbox_restricted`.
 
 | A visitor | How |

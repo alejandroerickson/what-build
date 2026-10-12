@@ -153,7 +153,7 @@ export interface SafeUrlFetcherOptions {
 const unreachable = () =>
   invalid(
     "fetch_failed",
-    'Could not fetch that URL: no public HTTPS server answered it in time with a valid certificate. Check the address, or download the file and upload it with files(action="request_upload").',
+    'Couldn’t fetch that URL: no public HTTPS server answered in time with a valid certificate. Check the address, or download the file and upload it with files(action="request_upload").',
   );
 
 type Hop = { redirect?: string; headers: Record<string, string | string[] | undefined>; body?: Uint8Array };
@@ -181,7 +181,7 @@ export class SafeUrlFetcher implements UrlFetcher {
     let current = new URL(url);
     for (let hop = 0; hop < 5; hop++) {
       if (current.protocol !== "https:") throw invalid("unsafe_url", "Only https:// URLs can be fetched.");
-      if (current.username || current.password) throw invalid("unsafe_url", "URLs with credentials cannot be fetched.");
+      if (current.username || current.password) throw invalid("unsafe_url", "URLs with credentials can’t be fetched.");
       const literal = ipLiteral(current);
       if (literal !== null && !isPublicAddress(literal))
         throw invalid("unsafe_url", "Only public addresses are fetched: this URL, or one it redirected to, names a private, local or reserved address.");
