@@ -1,9 +1,9 @@
 ---
 type: System Concept
 title: A copy of production on your machine, for manual QA, agent-driven end-to-end tests and trying migrations on real data
-description: Pulling the deployment's database and files, loading them into the embedded Postgres, serving them with pending migrations applied, and keeping the copy private.
+description: Pulling the public sandbox or other organizations of the deployment, with their files, loading them into the embedded Postgres, serving them with pending migrations applied, and keeping the copy private.
 tags: [development, testing, qa, production, fixture, migrations]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-11}
 status: stable
 ---
 
@@ -14,7 +14,9 @@ production deployment has real volume and history: products agents built up over
 pages, revisions, citations that drifted, and rows in the shape older releases left them. Use it
 for manual QA, for agent-driven end-to-end tests, and to watch a release's migrations run on real
 data before production does ([decision](../decisions/qa-uses-a-private-copy-of-production.md)).
-The skill `test-on-a-copy-of-production` conducts it.
+A copy holds the public sandbox, or the organizations named, and nothing of the others
+([copying an organization](copying-an-organization.md)). The skill `test-on-a-copy-of-production`
+conducts it.
 
 ## It holds real people's data
 
@@ -26,7 +28,8 @@ The skill `test-on-a-copy-of-production` conducts it.
   names, addresses, organizations, titles or text. Tests, the seed and screenshots stay synthetic.
 - Served, it sends no mail (mail prints to the terminal) and reads and writes only its local copy
   of the files, never the deployment's bucket.
-- Delete a pull you no longer need with `rm -r .what-build/fixtures/<name>`.
+- Delete a pull you no longer need with `rm -r .what-build/fixtures/<name>`. `pnpm attention`
+  reports each pull of every organization until it is gone.
 
 ## What you need
 
@@ -37,19 +40,23 @@ The skill `test-on-a-copy-of-production` conducts it.
 ## Pull
 
 ```sh
-corepack pnpm fixture pull
+corepack pnpm fixture pull                     # the public sandbox
+corepack pnpm fixture pull --org <slug> …      # the organizations named
+corepack pnpm fixture pull --all               # every organization
+corepack pnpm fixture list                     # the pulls, and what each holds
 ```
 
-It dumps the database with `pg_dump` as the read-only backup role (the secret
+It reads the organizations' rows through the read-only backup role (the secret
 `whatbuild-backup-database-url`; [Cloud Run](cloud-run.md), under backups), which reads every
-organization's rows and can change nothing. It copies the files bucket,
-`gs://<project>-whatbuild-files`, beside the dump, with the type and hash the local file store
-keeps for each file. The files matter: a source's passages and outline are files, so without them
-every source opens empty. Pulling reads production and changes nothing there.
+organization's rows and can change nothing, and copies their folders of the files bucket,
+`gs://<project>-whatbuild-files`, with the type and hash the local file store keeps for each file.
+The files matter: a source's passages and outline are files, so without them every source opens
+empty. Pulling reads production and changes nothing there. What a copy holds and leaves behind,
+and every option, are in [copying an organization](copying-an-organization.md).
 
 Each pull is a new folder named for its UTC time, such as `.what-build/fixtures/2026-10-10T0411Z/`,
-holding `database.dump`, `files/` and `pulled.json`. `pulled.json` is written last, so a pull that
-stopped part-way is never loaded.
+holding `database.dump`, `files/` and `pulled.json`, which names the organizations. `pulled.json`
+is written last, so a pull that stopped part-way is never loaded.
 
 For another deployment, set `WHATBUILD_FIXTURE_DATABASE_URL` to a role that reads everything and
 bypasses row-level security, as the backup role does. Set `WHATBUILD_FIXTURE_BUCKET` to its
@@ -63,7 +70,8 @@ corepack pnpm fixture load                    # the newest pull
 corepack pnpm fixture load 2026-10-10T0411Z   # a named one
 ```
 
-It replaces the database `fixture` in the embedded Postgres with the dump. That is the server
+It replaces the database `fixture` in the embedded Postgres with the dump, and says which
+organizations it holds. That is the server
 `pnpm dev` runs, and the load starts it if it is not running. The dump is restored as the
 application's role, the way [Cloud Run](cloud-run.md) restores a backup. The load also replaces
 `.what-build/fixture-blobs` with a working copy of the files. The synthetic database, `whatbuild`,
@@ -108,7 +116,9 @@ does not have, so they run on the synthetic data. The agent-driven
 
 ## Before a release that migrates
 
-1. Pull a fresh copy and load it.
+1. Pull a fresh copy and load it. The sandbox's content shows most migrations; for one that
+   rewrites content the sandbox lacks, name more organizations, or pull `--all` and delete that
+   pull afterwards.
 2. Serve it with the release's code.
 3. Check three things:
    - every migration applies;

@@ -1,7 +1,7 @@
 ---
 type: System Concept
-title: The dev deployment is a second Cloud Run deployment, laid out like production and holding a copy of its data, where a release is rehearsed before production moves.
-description: For the maintainer and the agent working for them; what the dev deployment is and how it differs from production, where its values are, rehearsing a release on it, putting it back, refreshing its copy of production, setting one up from nothing, and keeping its data private.
+title: The dev deployment is a second Cloud Run deployment, laid out like production and holding a copy of its public sandbox or other organizations named, where a release is rehearsed before production moves.
+description: For the maintainer and the agent working for them; what the dev deployment is and how it differs from production, where its values are, rehearsing a release on it, putting it back, refreshing its copy of production's organizations, setting one up from nothing, and keeping its data private.
 tags: [operations, deployment, dev, rehearsal, migrations, cloud-run, neon, production]
 generated: {by: agent:claude, at: 2026-10-11}
 status: stable
@@ -13,8 +13,8 @@ Production moves only when a release's build is approved ([releasing](releasing.
 release that migrates can be undone only by restoring the database
 ([recovering from a bad release](recovering-from-a-bad-release.md)). So before production's build
 of a release that adds a migration is approved, the release is deployed to the **dev deployment**,
-which holds a recent copy of production, and its migrations and the jobs they queue are watched
-there ([decision](../decisions/releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production.md)).
+which holds a recent copy of production's public sandbox, or of the organizations named, and its
+migrations and the jobs they queue are watched there ([decision](../decisions/releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production.md)).
 The skill `rehearse-on-the-dev-deployment` conducts the work in this guide.
 
 [A copy of production](a-copy-of-production.md) on your own machine tries the code. The dev
@@ -27,7 +27,8 @@ service that production's build runs, on production's data.
 |---|---|---|
 | Google Cloud project | its own | its own, with the same names inside ([Cloud Run](cloud-run.md#what-is-where)) |
 | Postgres | a Neon project, branch `production` | its own Neon project on the free plan: branch `main`, whose parent `prod-copy` holds the copy as it was loaded |
-| Files | its bucket | its own bucket, with a copy of production's files |
+| Organizations | all of them | the ones `NEON_DEV_COPY_ORGANIZATIONS` names, copied from production; nothing of the others ([decision](../decisions/a-copy-of-production-holds-only-the-organizations-it-is-for.md)) |
+| Files | its bucket | its own bucket, with the copied organizations' files |
 | Deploys | a trigger on release tags, after approval | by hand, any tag or commit of `main`; no trigger |
 | Sign-in | Google, with its own OAuth client | Google, with an OAuth client of its own in the same Google Auth Platform project as production's |
 | Instance owners, sign-up allowlist | the maintainer | the same |
@@ -51,6 +52,7 @@ In `.env` in the maintainer's clone, beside production's:
 | `NEON_DEV_BRANCH` | `main`, the branch the service uses |
 | `NEON_DEV_COPY_BRANCH` | `prod-copy`, the copy as it was loaded |
 | `NEON_DEV_COPY_TAKEN` | when the copy was taken from production, in UTC |
+| `NEON_DEV_COPY_ORGANIZATIONS` | the organizations the copy holds, by slug, comma-separated: production's public sandbox unless the maintainer names others, or `all`. `pnpm attention` reports a dev deployment whose `.env` has no such line. |
 
 The secrets are in the dev project's Secret Manager: `whatbuild-database-url`,
 `whatbuild-grant-key`, `whatbuild-google-client-secret` and `whatbuild-neon-api-key`, a Neon key
@@ -180,26 +182,30 @@ reset: files a rehearsal wrote stay, unreferenced and harmless.
 
 ## Refreshing the copy
 
-Load a new copy of production into `prod-copy`, then put dev back. The service keeps running on
-`main` while the copy loads.
+Load a new copy of production's organizations into `prod-copy`, then put dev back. The service
+keeps running on `main` while the copy loads. The copy holds the organizations
+`NEON_DEV_COPY_ORGANIZATIONS` names and nothing of the others
+([copying an organization](copying-an-organization.md)); to change which, say so to the
+maintainer, and record the new list in step 5.
 
-**1. Files.** Mirror production's bucket into dev's. It reads production and changes nothing there:
-
-```bash
-gcloud storage rsync --recursive --delete-unmatched-destination-objects \
-  gs://$PP-whatbuild-files gs://$P-whatbuild-files
-```
-
-**2. The database.** Dump production through its read-only role, replace the database `whatbuild`
-on `prod-copy` as the administrator, and restore the dump into it as `whatbuild`, as
-[Backups](backups.md#restoring-a-dump) explains. The connections are `prod-copy`'s, not `main`'s:
-`APP` is dev's database URL with `prod-copy`'s host.
+**1. The copy.** Pull the organizations from production into a directory only you can read, with
+their files sent straight into dev's bucket, which is left holding theirs alone. It reads
+production and changes nothing there. Pass `--org` with `NEON_DEV_COPY_ORGANIZATIONS`, nothing for
+production's public sandbox, or `--all` if it says `all`:
 
 ```bash
 umask 077; D=$(mktemp -d)
-pg_dump --format=custom --file=$D/database.dump \
-  "$(gcloud secrets versions access latest --secret whatbuild-backup-database-url --project $PP)"
-date -u +%Y-%m-%dT%H%MZ                          # the copy's time, for NEON_DEV_COPY_TAKEN
+WHATBUILD_FIXTURE_DIR=$D GCP_PROJECT=$PP corepack pnpm fixture pull --org <slug>[,<slug>…] \
+  --files-into gs://$P-whatbuild-files
+F=$(ls -d $D/*/)                                 # the pull; its pulled.json names what it holds
+```
+
+**2. The database.** Replace the database `whatbuild` on `prod-copy` as the administrator, and
+restore the pull's dump into it as `whatbuild`, as [Backups](backups.md#restoring-a-dump) explains.
+The connections are `prod-copy`'s, not `main`'s: `APP` is dev's database URL with `prod-copy`'s
+host.
+
+```bash
 ADMIN=$(neon connection-string prod-copy --project-id $N --role-name neondb_owner --database-name neondb)
 HOST=$(python3 -c 'import sys, urllib.parse as u; print(u.urlsplit(sys.argv[1]).hostname.replace("-pooler", ""))' "$ADMIN")
 APP=$(gcloud secrets versions access latest --secret whatbuild-database-url --project $P |
@@ -207,19 +213,29 @@ APP=$(gcloud secrets versions access latest --secret whatbuild-database-url --pr
 psql "$ADMIN" -v ON_ERROR_STOP=1 -c 'GRANT whatbuild TO neondb_owner WITH SET TRUE, INHERIT TRUE' \
   -c 'DROP DATABASE IF EXISTS whatbuild WITH (FORCE)' -c 'CREATE DATABASE whatbuild OWNER whatbuild' \
   -c 'REVOKE whatbuild FROM neondb_owner'
-pg_restore -l $D/database.dump | grep -vE 'COMMENT - EXTENSION|STATISTICS DATA' > $D/restore.list
+pg_restore -l $F/database.dump | grep -vE 'COMMENT - EXTENSION|STATISTICS DATA' > $D/restore.list
 pg_restore --no-owner --no-privileges --exit-on-error --single-transaction --use-list=$D/restore.list \
-  --dbname="$APP&sslrootcert=system" $D/database.dump
-rm -r $D
+  --dbname="$APP&sslrootcert=system" $F/database.dump
 ```
 
-**3. Check it** against production's backup role ([Backups](backups.md#checking-a-restore)), with
-`TO="$APP&sslrootcert=system"`.
+**3. Check it** against the rows the pull recorded: make `to.txt` as
+[Backups](backups.md#checking-a-restore) does, with `TO="$APP&sslrootcert=system"`, and `from.txt`
+from the pull. Every table matches:
+
+```bash
+python3 -c 'import json, sys; [print(t, n) for t, n in json.load(open(sys.argv[1]))["rows"].items()]' \
+  $F/pulled.json | LC_ALL=C sort > from.txt
+```
+
+A copy of `--all` records no rows: compare it with production's backup role as `FROM`, as that
+section does. Then keep `pulled_at` and the slugs from `$F/pulled.json` for step 5, and
+`rm -r $D`.
 
 **4. Put dev back** ([above](#putting-it-back)), so that `main` is the new copy, and deploy the
 release production runs.
 
-**5. Record** the copy's time as `NEON_DEV_COPY_TAKEN` in `.env`.
+**5. Record** in `.env` the copy's time (`pulled_at`) as `NEON_DEV_COPY_TAKEN`, and the slugs it
+holds as `NEON_DEV_COPY_ORGANIZATIONS` (or `all`).
 
 The copy's accounts sign in with Google as they do on production. Browser sessions and agents'
 tokens from production do not work on dev: sessions belong to production's domain, and access
@@ -300,7 +316,7 @@ gcloud run services update whatbuild --project $P --region $R --update-env-vars 
 rm "$F"
 ```
 
-**6. Production's data**, by [refreshing the copy](#refreshing-the-copy). Its last step deploys
+**6. Production's organizations**, by [refreshing the copy](#refreshing-the-copy). Its last step deploys
 the release, which names the service by it and makes the first restore point.
 
 **7. Production's sandbox**, if production names one:
@@ -318,9 +334,11 @@ The copy is real people's data. Dev holds it while WhatBuild has no customers, b
 choice ([decision](../decisions/releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production.md)),
 and that is decided again before public sign-up opens ([roadmap](../spec/10-roadmap.md)).
 
-- A copy goes from production to dev directly. Dumps live in a directory only you can read and are
-  deleted once loaded. Nothing from the copy goes into the repository, a commit, an issue or a
-  pull request.
+- Dev holds only the organizations named; nothing of another leaves production for it
+  ([decision](../decisions/a-copy-of-production-holds-only-the-organizations-it-is-for.md)).
+- A copy goes from production to dev through a directory only you can read, deleted once loaded,
+  never through a pull kept in `.what-build/fixtures`. Nothing from the copy goes into the
+  repository, a commit, an issue or a pull request.
 - Production is only read: through the backup role and its bucket, never the application's
   database secret.
 - Every command names its project (`--project`, `--project-id`), never `gcloud`'s current one, so a

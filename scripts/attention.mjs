@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 // What in this repository is waiting for someone, for an agent to tell the person at the start of
 // a session (AGENTS.md): dependency updates and alerts, a red run on main, an accepted vulnerability
-// whose time is up, unreleased changes production lacks, git hooks that are off. Each line names
-// the skill that handles it. Prints nothing when nothing is waiting.
+// whose time is up, unreleased changes production lacks, git hooks that are off, copies of
+// production that hold more organizations than they need. Each line names the skill that handles
+// it. Prints nothing when nothing is waiting.
 //
 //   pnpm attention
 
 import { execFile } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 
 const run = promisify(execFile);
@@ -49,6 +51,36 @@ function accepted() {
     const left = Math.ceil((Date.parse(until) - Date.now()) / 86_400_000);
     if (left <= 30) say(`the accepted vulnerability ${id} ${left < 0 ? "expired" : "expires"} on ${until}: fix it or look at it again`, "triage-security-findings");
   }
+}
+
+// Local: copies of production holding every organization, where one of a few would do
+// (okf/operations/copying-an-organization.md). Pulls and .env live in the main checkout.
+async function copies() {
+  const common = await out("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"]).catch(() => "");
+  const top = common ? dirname(common) : ".";
+  const pulls = resolve(process.env.WHATBUILD_FIXTURE_DIR ?? join(top, ".what-build/fixtures"));
+  const whole = (existsSync(pulls) ? readdirSync(pulls) : []).filter((d) => {
+    try {
+      const r = JSON.parse(readFileSync(join(pulls, d, "pulled.json"), "utf8"));
+      return !Array.isArray(r.organizations);
+    } catch {
+      return false;
+    }
+  });
+  if (whole.length)
+    say(
+      `${whole.length === 1 ? "a pull" : `${whole.length} pulls`} of production in .what-build/fixtures (${whole.join(", ")}) ${whole.length === 1 ? "holds" : "hold"} every organization: delete ${whole.length === 1 ? "it" : "them"} once done (\`rm -r .what-build/fixtures/<name>\`); a pull of the organizations you test on is enough`,
+      "test-on-a-copy-of-production",
+    );
+  let env = "";
+  try {
+    env = readFileSync(join(top, ".env"), "utf8");
+  } catch {
+    return;
+  }
+  const has = (key) => new RegExp(`^${key}=\\S`, "m").test(env);
+  if (has("NEON_DEV_PROJECT") && !has("NEON_DEV_COPY_ORGANIZATIONS"))
+    say("the dev deployment's copy of production holds every organization, from before copies could be limited: refresh it with only the organizations it should hold", "rehearse-on-the-dev-deployment");
 }
 
 async function github() {
@@ -112,7 +144,7 @@ async function github() {
   }
 }
 
-await Promise.all([hooks(), github()]);
+await Promise.all([hooks(), github(), copies()]);
 accepted();
 
 if (lines.length) {

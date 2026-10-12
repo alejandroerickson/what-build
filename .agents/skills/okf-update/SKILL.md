@@ -69,6 +69,7 @@ adding a near-duplicate.
 | `dev.ts`, root `package.json` scripts, ports, `.nvmrc`, `scripts/*.mjs` | `operations/local-development.md`, decision `development-substitutes-adapters-never-behavior` |
 | `e2e.ts`, `e2e-golden.ts`, `e2e-browser.ts`, `e2e-mcp.ts`, `dev.ts --e2e`, `e2e/plans/**`, `.agents/skills/run-end-to-end-tests/**` | `operations/end-to-end-tests.md`, decision `end-to-end-tests-are-plans-an-agent-runs-on-a-golden-master`; a screen or operation a plan names: that plan |
 | `fixture.ts`, `dev.ts --fixture`, `.agents/skills/test-on-a-copy-of-production/**` | `operations/a-copy-of-production.md`, decision `qa-uses-a-private-copy-of-production` |
+| `organization-copy.ts`, the options of `pnpm fixture pull`, `.agents/skills/copy-an-organization/**`, or a new table without `tenant_id` | `operations/copying-an-organization.md`, decision `a-copy-of-production-holds-only-the-organizations-it-is-for`, the refresh in `operations/dev-deployment.md` |
 | `.agents/skills/rehearse-on-the-dev-deployment/**`, the dev deployment's layout, how a copy of production reaches it, or when a release is rehearsed | `operations/dev-deployment.md`, decision `releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production`, the `make-a-release` skill |
 | What a deployment backs up, the nightly dump, restoring a dump, the restore drill | `operations/backups.md`, `spec/09` §9.3 and §9.6, the Phase 6 row in `spec/10` |
 | `.github/workflows/**` | `operations/local-development.md` (CI), `operations/security-checks.md`, the phase 0 row in `spec/10` |

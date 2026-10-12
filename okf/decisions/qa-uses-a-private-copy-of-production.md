@@ -1,9 +1,9 @@
 ---
 type: Decision
 title: Manual QA and end-to-end tests may use a copy of production that stays on the maintainer's machine
-description: A copy of the deployment's database and files is pulled with a read-only role into an ignored folder, loaded into its own local database, and served with pending migrations applied; it is never committed, shared or quoted.
+description: A copy of the deployment's public sandbox or other organizations named, with their files, is pulled with a read-only role into an ignored folder, loaded into its own local database, and served with pending migrations applied; it is never committed, shared or quoted.
 tags: [decision, development, testing, qa, production, privacy]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-11}
 status: stable
 ---
 
@@ -19,11 +19,14 @@ agents could use again and again. The repository is public, and the copy is real
 
 ## Decision
 
-- A copy is pulled when someone asks for one. The database is dumped as the deployment's read-only
-  backup role, and the files bucket is copied with it, because passages and outlines are files.
+- A copy is pulled when someone asks for one, of the public sandbox or the organizations named, and
+  of nothing else ([decision](a-copy-of-production-holds-only-the-organizations-it-is-for.md)). Their
+  rows are read as the deployment's read-only backup role, and their files are copied with them,
+  because passages and outlines are files.
 - Copies live under `.what-build/`, which git ignores, on the maintainer's machine. Nothing from a
   copy is committed, uploaded, shared or quoted in the repository, a commit, an issue or a pull
-  request. The dev deployment takes its own copy straight from production, never from a pull
+  request. The dev deployment takes its own copy from production through a temporary directory, never
+  from a pull kept there
   ([decision](releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production.md)).
 - A copy is loaded into its own database, `fixture`, in the embedded Postgres, next to the
   synthetic `whatbuild` database, and is served with `pnpm dev:fixture`. That runs pending
@@ -52,7 +55,7 @@ agents could use again and again. The repository is public, and the copy is real
 
 ## Constrains
 
-- `apps/server/src/fixture.ts` (pull and load), the `--fixture` mode of `apps/server/src/dev.ts`,
+- `apps/server/src/fixture.ts` (pull and load) and `apps/server/src/organization-copy.ts`, the `--fixture` mode of `apps/server/src/dev.ts`,
   and the end-to-end golden master built from a pull (`apps/server/src/e2e.ts`).
   The fixture mode must keep mail printed and files local, and must not seed sample content.
 

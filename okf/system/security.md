@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild keeps each organization's material to its own people, and treats agent-written HTML, uploads and source text as hostile
 description: The threat model: what is protected, who the attackers are, the trust boundaries, and each control with where it lives in code and the decision that governs it.
 tags: [security, threat-model, tenancy, identity, oauth, sandbox, uploads]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-11}
 status: draft
 ---
 
@@ -250,7 +250,7 @@ bodies, query strings or headers: the path's ids are masked, and so are the two 
 credentials themselves, `/invite/:token` and `/join/:code`. An unexpected error answers `500`
 without detail (`app.ts`). Emails show a sender's chosen name on one line, quoted and bounded
 (`quotedName`). The web app's files are served only from inside their folder (`insideRoot`).
-`pnpm fixture pull` gives `pg_dump` the password in `PGPASSWORD`. The image is built from an allow-list (`.dockerignore`) and runs as `node` with
+`pnpm fixture pull` gives `pg_dump` the password in `PGPASSWORD`, and reads only the rows of the organizations it copies ([copying an organization](../operations/copying-an-organization.md)). The image is built from an allow-list (`.dockerignore`) and runs as `node` with
 `NODE_ENV=production`; a server started without it is production all the same. CI gives pull requests a read-only token; production moves only on an
 approved release ([decision](../decisions/production-runs-releases-after-approval.md)). The Worker
 (`deploy/cloudflare/worker.js`) sets `X-Forwarded-Host`, which `site.ts` uses only to pick a page.

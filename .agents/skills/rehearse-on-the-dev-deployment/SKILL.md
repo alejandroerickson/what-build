@@ -1,6 +1,6 @@
 ---
 name: rehearse-on-the-dev-deployment
-description: Work on WhatBuild's dev deployment, a second Cloud Run deployment that holds a copy of production; rehearse a release or a commit of main (its migrations above all) before production moves, refresh its copy of production's database and files, put it back to the copy, set one up from nothing, or perform the restore drill there. Use when asked to deploy to dev or staging, to rehearse, try or test a release or migration on a deployment, to copy production's data to dev, to reset or refresh dev, to set up a dev deployment, or to rehearse a restore from backup.
+description: Work on WhatBuild's dev deployment, a second Cloud Run deployment that holds a copy of production's public sandbox or other organizations named; rehearse a release or a commit of main (its migrations above all) before production moves, refresh its copy of those organizations and their files, change which organizations it holds, put it back to the copy, set one up from nothing, or perform the restore drill there. Use when asked to deploy to dev or staging, to rehearse, try or test a release or migration on a deployment, to copy production's data, the sandbox or an organization to dev, to keep an organization out of dev, to reset or refresh dev, to set up a dev deployment, or to rehearse a restore from backup.
 ---
 
 # Rehearse on the dev deployment
@@ -21,6 +21,11 @@ command. This file is how to conduct the work.
   time, never `gcloud`'s current project. Never write the values into the repository.
 - **Dev shares nothing with production**: no secret, OAuth client, database or bucket. It sends no
   mail, and never gets mail settings: its addresses are real people's (`okf/operations/mail.md`).
+- **Dev holds only the organizations named.** `NEON_DEV_COPY_ORGANIZATIONS` in `.env` names them:
+  production's public sandbox unless the maintainer names others. Never copy another organization
+  to dev unless the maintainer names it, and record the list after every refresh. If the line is
+  missing, dev still holds every organization from before copies were limited: tell the
+  maintainer and offer a refresh.
 - **The copy is real people's data.** Keep dumps in a directory only you can read and delete them
   once loaded. Nothing from the copy goes into the repository, a commit, an issue or a pull
   request; in a report to the maintainer you may say what you saw.
@@ -50,7 +55,7 @@ approved):
    Say plainly whether production's build should be approved.
 
 **Putting it back, refreshing the copy, setting one up:** the guide's sections of those names, in
-order. After a refresh, update `NEON_DEV_COPY_TAKEN` in `.env`.
+order. After a refresh, update `NEON_DEV_COPY_TAKEN` and `NEON_DEV_COPY_ORGANIZATIONS` in `.env`.
 
 **The restore drill:** `okf/operations/backups.md`, "The restore drill". Record its date and
 elapsed time where the guide says; that record is a fact about the system, not a session note.
