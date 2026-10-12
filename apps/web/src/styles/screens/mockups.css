@@ -2,17 +2,29 @@
    zoomed as a whole. Page labels and the toolbar stay at screen size; the brief, the version and the
    selected page's notes sit in the inspector. */
 
-/* The canvas takes the whole width between the panels, not the reading measure. */
-.canvas-wrap:has(.mockup-view) {
+/* The canvas takes the whole width between the panels, not the reading measure, and the board fills
+   the window below the bar and any banner, with a gutter under it. The shell's canvas does not
+   scroll here: on a phone a scroll would slide the board and its toolbar under the window's edge. */
+.canvas-wrap:has(> .mockup-view) {
+  display: flex;
+  flex-direction: column;
   max-width: none;
+  height: 100%;
+}
+.stage .canvas:has(.canvas-wrap > .mockup-view) {
+  padding-bottom: var(--s-6);
+}
+@media (max-width: 760px) {
+  .stage .canvas:has(.canvas-wrap > .mockup-view) {
+    padding-bottom: var(--s-3);
+  }
 }
 
 .mockup-view {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: var(--s-3);
-  /* The shell's canvas is the scroller; the board fills the window below the bar instead of growing it. */
-  height: calc(100dvh - var(--canvas-pt) - var(--s-6));
   min-height: 420px;
 }
 .mockup-view > .first-use,
@@ -69,13 +81,22 @@
   border-radius: 0;
   box-shadow: none;
 }
+/* A touch screen has no F key to name. */
+@media (pointer: coarse) {
+  .mockup-view .story-focus-kbd {
+    display: none;
+  }
+}
 
 /* ---- Board ------------------------------------------------------------------------------------ */
 
+/* The browser never zooms the app from the board or its toolbar: a pinch there zooms the canvas, and
+   one that began on the toolbar would otherwise leave the app zoomed with the toolbar off the screen. */
 .xc {
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
+  touch-action: none;
 }
 /* A sheet-shaped board one step down from the canvas, so white pages lift off it in both themes. */
 .xc-viewport {
@@ -107,8 +128,15 @@
   will-change: transform;
 }
 .xc-viewport[data-gliding] .xc-world,
+.xc-viewport[data-gliding] .xc-labels,
 .xc-viewport[data-gliding] .xc-label {
   transition: transform var(--dur-3) var(--ease);
+}
+.xc-viewport[data-gliding] .xc-ring {
+  transition:
+    transform var(--dur-3) var(--ease),
+    width var(--dur-3) var(--ease),
+    height var(--dur-3) var(--ease);
 }
 
 /* ---- Pages ------------------------------------------------------------------------------------ */
@@ -128,11 +156,15 @@
 .xc-viewport[data-mode="pan"] .xc-frame iframe {
   pointer-events: none;
 }
-/* The selected page: the one place the accent appears on the board. The outline grows as the board
-   zooms out, so it stays visible at any zoom. */
-.xc-frame[data-selected] {
-  outline: calc(2px / var(--xc-z, 1)) solid var(--accent);
-  outline-offset: 0;
+/* The selected page: the one place the accent appears on the board. Its outline sits over the page
+   at screen size, so it keeps its width at any zoom. */
+.xc-ring {
+  position: absolute;
+  top: 0;
+  left: 0;
+  outline: 2px solid var(--accent);
+  pointer-events: none;
+  will-change: transform;
 }
 .xc-replaced {
   position: absolute;
@@ -147,13 +179,16 @@
 
 /* ---- Labels: screen size, above each page ---------------------------------------------------- */
 
+/* The labels move as one layer, translated by the view; each sits at its page's place at the zoom. */
 .xc-labels {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
   margin: 0;
   padding: 0;
   list-style: none;
   pointer-events: none;
+  will-change: transform;
 }
 .xc-label {
   position: absolute;
@@ -242,10 +277,12 @@
 
 /* ---- Toolbar ---------------------------------------------------------------------------------- */
 
+/* Its own layer above the board, so moving the pages under it never repaints it. */
 .xc-tools {
   position: absolute;
   bottom: var(--s-3);
   left: 50%;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: var(--s-0);
@@ -254,6 +291,7 @@
   background: var(--popover);
   box-shadow: var(--shadow);
   transform: translateX(-50%);
+  will-change: transform;
 }
 .xc-modes {
   display: flex;
@@ -273,7 +311,13 @@
   cursor: pointer;
   transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
 }
-.xc-tool:hover:not(:disabled),
+/* Only a real hover: a tapped control keeps :hover on a touch screen, which would hide which mode is on. */
+@media (hover: hover) {
+  .xc-tool:hover:not(:disabled) {
+    background: var(--hover);
+    color: var(--text);
+  }
+}
 .xc-tool[aria-expanded="true"] {
   background: var(--hover);
   color: var(--text);
@@ -283,7 +327,9 @@
   opacity: 0.5;
   cursor: default;
 }
-.xc-tool[aria-checked="true"] {
+/* The mode that is on wins over any hover. */
+.xc-tool[aria-checked="true"],
+.xc-tool[aria-checked="true"]:hover {
   background: var(--select);
   color: var(--select-text);
 }
@@ -297,6 +343,31 @@
   width: 1px;
   margin: var(--s-1) var(--s-1);
   background: var(--line);
+}
+/* For a thumb: controls 44px tall with larger glyphs. Without the zoom buttons and the list of keys
+   (a pinch zooms, and there is no keyboard to list), the bar still fits the narrowest phone. */
+@media (pointer: coarse) {
+  .xc-tools {
+    bottom: calc(var(--s-3) + env(safe-area-inset-bottom, 0px));
+    padding: var(--s-1);
+    border-radius: var(--r-lg);
+  }
+  .xc-tool {
+    min-width: 40px;
+    height: 44px;
+    border-radius: var(--r-md);
+  }
+  .xc-tool .glyph {
+    width: 20px;
+    height: 20px;
+  }
+  .xc-zoom {
+    min-width: 56px;
+    font-size: var(--fs-body);
+  }
+  .xc-tools-rule {
+    margin: var(--s-2) 0;
+  }
 }
 
 /* ---- Inspector -------------------------------------------------------------------------------- */
@@ -398,7 +469,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .xc-viewport[data-gliding] .xc-world,
-  .xc-viewport[data-gliding] .xc-label {
+  .xc-viewport[data-gliding] .xc-labels,
+  .xc-viewport[data-gliding] .xc-label,
+  .xc-viewport[data-gliding] .xc-ring {
     transition: none;
   }
 }

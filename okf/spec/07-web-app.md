@@ -416,8 +416,8 @@ counts, filters and search work on what is loaded.
 ### Mockups
 
 ([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)) A mockup opens as a
-canvas the full width of the window: every page of the shown version at its own size in its
-sandboxed frame ([§4.12](04-data-model.md)), laid out `columns` to a row (one row when null),
+canvas the full width of the window and its height below the crumbs, so the screen itself does not
+scroll: every page of the shown version at its own size in its sandboxed frame ([§4.12](04-data-model.md)), laid out `columns` to a row (one row when null),
 on a dotted board. Agents publish mockups; the screen reads them and offers nothing that changes
 them. Its one write is promoting a page to the Story.
 
@@ -433,14 +433,20 @@ them. Its one write is promoting a page to the Story.
   pointer. **Interact** (the pointer, `V`): the pages take the pointer, so their links, buttons and
   scrolling work, a drag on the board still moves the canvas, and a press on a page selects it.
   Holding Space pans from either mode. The browser remembers the mode (`whatbuild.mockup.mode`).
+  On a touch screen one finger drags the canvas and two pinch it: the point under the fingers
+  stays under them as they spread and move, and when one lifts, the other carries on as a drag
+  from where it is. In interact mode a touch that begins on a page is the page's.
 - **Scroll and zoom.** Scroll moves the canvas up and down, and Shift with scroll sideways; ⌘ or
   Ctrl with scroll, or a pinch, zooms about the pointer, from 5% to 400%, over a page in interact
   mode too. The toolbar has zoom out, the zoom level (a menu: Fit the canvas, Fit the selected page,
-  50%, 100%, 200%), zoom in, fit the canvas, the previous and next page, and a list of every key
-  (each one also runs from the list). Keys: `+` and `−`, `0` for 100%, `1` fits the canvas, `2`
-  fits the selected page, `←` and `→` select and fit the previous or next page (with none
-  selected, the last or the first). Every control names its key in its tooltip. Moves glide
-  unless the person prefers reduced motion.
+  50%, 100%, 200%), zoom in, fit the selected page, fit the canvas, the previous and next page, and
+  a list of every key (each one also runs from the list). Keys: `+` and `−`, `0` for 100%, `1`
+  fits the canvas, `2` fits the selected page (with none selected, it selects and fits the page
+  nearest the middle of the screen), `←` and `→` select and fit the previous or next page (with
+  none selected, the last or the first). Every control names its key in its tooltip. Moves glide
+  unless the person prefers reduced motion. Where a finger is the pointer, the toolbar's controls
+  are 44px tall, and zoom in, zoom out and the list of keys give way: a pinch zooms, and there is
+  no keyboard to list. A pinch that begins on the toolbar does not zoom the app.
 - **Keys from inside a page.** Once someone is working inside a page, its keys go to the page's
   frame, not the app. The frame script ([§4.12](04-data-model.md)) is told the page is on a canvas
   and passes the canvas's keys on, with Space held and let go and a pinch over the page, so they
@@ -450,7 +456,9 @@ them. Its one write is promoting a page to the Story.
   can open a mockup at one page; Esc clears it, and a second Esc leaves focus mode.
 - **Focus mode** works as on the Story (§7.8) and shares its remembered choice, except that the
   board takes the whole window: the crumbs, the version and any notice above the board step aside,
-  and only the focus control (floating at the top right) and the toolbar remain.
+  and only the focus control (floating at the top right) and the toolbar remain. It is offered on a
+  phone too, where the board gains the whole screen; there it never turns on by itself, the
+  remembered choice still holds, and the control names no key.
 - **The inspector:** **Version** (a menu of every version with its date, who published the shown
   one and when, its page count, **Download version N** for the ZIP an agent builds the next version
   from, [§4.12](04-data-model.md)); **Page** (a menu of the pages with a Fit button, then the

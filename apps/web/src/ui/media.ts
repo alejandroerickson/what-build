@@ -7,6 +7,8 @@ import { useSyncExternalStore } from "react";
 export const PHONE_QUERY = "(max-width: 760px)";
 export const NARROW_QUERY = "(max-width: 1100px)";
 export const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+/** A finger is the main pointer: controls need room for a thumb, and there may be no keyboard. */
+export const COARSE_POINTER_QUERY = "(pointer: coarse)";
 
 export function useMediaQuery(query: string): boolean {
   return useSyncExternalStore(

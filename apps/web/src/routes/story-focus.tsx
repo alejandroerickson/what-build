@@ -35,38 +35,42 @@ function saveChoice(on: boolean) {
  * - F toggles it and Esc leaves it, from the app or from inside the page (the frame passes the keys
  *   on). Not while typing, with a dialog or menu open, or at phone width, where the panels are
  *   drawers already.
+ * - A screen that gains more than the panels' room (a mockup's canvas takes the whole screen) offers
+ *   it on a phone too (`onPhone`). There it never turns on by itself, since its hint is about keys,
+ *   but the remembered choice holds.
  * - Leaving the Story ends it; the panels come back as they were.
  */
-export function useStoryFocus(ready: boolean) {
+export function useStoryFocus(ready: boolean, { onPhone = false }: { onPhone?: boolean } = {}) {
   const slots = useSlots();
   const setShellFocus = slots?.setFocus;
   const focus = Boolean(slots?.focus);
   const isPhone = useMediaQuery(PHONE_QUERY);
+  const blocked = isPhone && !onPhone;
   const [hint, setHint] = useState(false);
   const decided = useRef(false);
   const last = useRef(focus);
 
   useEffect(() => {
-    if (!ready || isPhone || decided.current || !setShellFocus) return;
+    if (!ready || blocked || decided.current || !setShellFocus) return;
     decided.current = true;
     const choice = readChoice();
-    if (choice === null) {
+    if (choice === null && !isPhone) {
       setHint(true);
       setShellFocus(true);
     } else if (choice === "on") setShellFocus(true);
-  }, [ready, isPhone, setShellFocus]);
+  }, [ready, blocked, isPhone, setShellFocus]);
 
   // Remember each change, including the shell's panel shortcuts ending focus mode.
   useEffect(() => {
     if (last.current === focus) return;
     last.current = focus;
-    if (decided.current && !isPhone) saveChoice(focus);
+    if (decided.current && !blocked) saveChoice(focus);
     if (!focus) setHint(false);
-  }, [focus, isPhone]);
+  }, [focus, blocked]);
 
   useEffect(() => {
-    if (isPhone) setShellFocus?.(false);
-  }, [isPhone, setShellFocus]);
+    if (blocked) setShellFocus?.(false);
+  }, [blocked, setShellFocus]);
   useEffect(() => () => setShellFocus?.(false), [setShellFocus]);
 
   useEffect(() => {
@@ -75,7 +79,7 @@ export function useStoryFocus(ready: boolean) {
     return () => clearTimeout(t);
   }, [hint]);
 
-  const available = ready && !isPhone && Boolean(setShellFocus);
+  const available = ready && !blocked && Boolean(setShellFocus);
   const onKey = useCallback(
     (key: StoryKey) => {
       if (!available) return;
