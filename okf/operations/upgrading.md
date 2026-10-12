@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.8.4
+
 - **Shorter interface text throughout the app, the public site and the sign-in emails.** Nothing
   to set. The sign-in page ends with one line on the free preview, linking to Privacy, which now
   opens with the data statement.
@@ -30,6 +34,8 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   it.** The public site's page is served from the Worker's own build, not the image: until it is
   deployed again, the site keeps the page of the release it was deployed with
   ([releasing](releasing.md)).
+- **From v0.7.0 or earlier**, also take v0.8.0's notes below: it adds migration `0019_usage` and
+  a log exclusion for Cloud Run.
 
 ## v0.8.3
 
