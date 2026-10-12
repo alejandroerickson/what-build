@@ -530,7 +530,11 @@ click on any other link that would replace the page in its frame into a new tab.
 the app tells the frame the address its Story's pages live under once the frame has loaded; on a
 plain click (no modifier key, the main button) on a link under that address the script stops the
 click and posts only the page's slug, which the app checks against the slug pattern before it
-shows that page in place. The stored HTML is never changed. The app resets a frame that loads a second document (a
+shows that page in place. The app also tells the frame its product's own address, and a click on
+a link into that product written with another deployment's address (an agent writes the address it
+was given, and a copy of a deployment keeps it) is pointed at this deployment before it goes
+anywhere, so the dev deployment and a local copy of production never send a reader to production.
+The stored HTML is never changed. The app resets a frame that loads a second document (a
 page navigating itself by script) and says so, and the app's own pages send
 `Cross-Origin-Opener-Policy: same-origin`, so a Story page cannot keep a handle to an app tab it
 opened and redirect it later. The print view drops scripts, event handlers and every element

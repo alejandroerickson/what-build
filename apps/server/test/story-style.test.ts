@@ -219,6 +219,22 @@ describe("the app's frame", () => {
     expect(run(`${base}release-plan`, {}, false)).toEqual({ sent: [], prevented: false, target: "_blank" });
   });
 
+  it("points a link into the product on another deployment at this one, once the app says where it is", () => {
+    const run = (href: string, told = true) => {
+      const listeners: Record<string, (e: unknown) => void> = {};
+      const parent = { postMessage: () => undefined };
+      const a = { href, getAttribute: () => href, setAttribute: () => undefined, hasAttribute: () => false };
+      new Function("addEventListener", "parent", FRAME_SCRIPT)((type: string, fn: (e: unknown) => void) => void (listeners[type] = fn), parent);
+      if (told) listeners["message"]!({ source: parent, data: { whatbuild: "app-home", home: "https://dev.example/t/acme/core/planner" } });
+      listeners["click"]!({ target: { closest: () => a }, button: 0, defaultPrevented: false, preventDefault: () => undefined });
+      return a.href;
+    };
+    expect(run("https://app.example/t/acme/core/planner/evidence/01ABC?seq=4")).toBe("https://dev.example/t/acme/core/planner/evidence/01ABC?seq=4");
+    expect(run("https://app.example/t/acme/core/planner")).toBe("https://dev.example/t/acme/core/planner");
+    for (const href of ["https://app.example/t/acme/core/other/idea", "https://app.example/t/acme/core/planner-2/idea", "https://example.com/story"]) expect(run(href)).toBe(href);
+    expect(run("https://app.example/t/acme/core/planner/idea", false)).toBe("https://app.example/t/acme/core/planner/idea");
+  });
+
   it("passes the canvas's keys, Space, a pinch and a press on, only once the app says the page is on a canvas", () => {
     const run = (canvas: boolean) => {
       const listeners: Record<string, (e: unknown) => void> = {};
