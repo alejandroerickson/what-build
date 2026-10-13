@@ -3,7 +3,7 @@ type: Decision
 title: Self-hosting on Azure is done by an agent with the Azure CLI, from instructions in the repository, and shares nothing with the Cloud Run deployment
 description: An organization runs its own copy on Azure by pointing an agent at the repository; the instructions name the resources and adapt to the organization, and no file of the Cloud Run deployment is involved.
 tags: [decision, deployment, azure, self-hosting, agents, operations]
-generated: {by: agent:claude, at: 2026-10-01}
+generated: {by: agent:codex, at: 2026-10-12}
 status: stable
 ---
 
@@ -33,6 +33,10 @@ none of it may disturb the hosted service's deployments.
 - What self-hosting needs from the server is specified before it is built, and built as a
   general feature of the one image: sign-in with Microsoft work accounts is in the server, off
   unless configured; the Azure Blob adapter is specified.
+
+- Every deployment verifies the database recovery configuration and records a pre-migration
+  recovery target before starting migrations. A failed or missing check blocks migrations;
+  setup defaults alone are not evidence that recovery is available.
 
 ## Consequences
 

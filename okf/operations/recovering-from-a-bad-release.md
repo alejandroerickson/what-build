@@ -3,7 +3,7 @@ type: System Concept
 title: When a new version breaks a WhatBuild deployment, go back to the last good version, and restore the database first if the new one migrated it.
 description: For the operator of any WhatBuild deployment and the agent working for them; how to see what runs, tell whether the bad version changed the schema, go back on Cloud Run (Neon, Cloud SQL, another Postgres) or Azure, check it, and fix forward.
 tags: [operations, recovery, rollback, migrations, deployment, cloud-run, neon, azure, runbook]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:codex, at: 2026-10-12}
 status: stable
 ---
 
@@ -132,7 +132,9 @@ recent nightly dump from before the deploy, as [Backups](backups.md#restoring-a-
 into a new database, and point `whatbuild-database-url` at it. Anything written since that dump is
 lost.
 
-**Azure Database for PostgreSQL** (14 days of point-in-time recovery). The restore is a new
+**Azure Database for PostgreSQL.** Use the server, backup metadata and pre-migration UTC time
+recorded by the [deployment recovery check](azure.md#deploying-a-new-version). Verify that the
+chosen time is still available; retention expires and transaction-log backups can lag. The restore is a new
 server; give it the original's firewall rule and `pg_trgm` allow-listing if it lacks them
 ([Azure](azure.md), step 4), then point the vault's `whatbuild-database-url` at it and restart:
 
