@@ -544,6 +544,10 @@
   display: grid;
   align-content: start;
   gap: 2px;
+  max-height: min(680px, 72dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 .style-list-label {
   margin: var(--s-2) 0 var(--s-1);
@@ -584,6 +588,11 @@
   font-weight: var(--fw-regular);
 }
 .style-option-sub {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   color: var(--muted);
   font-size: var(--fs-xs);
   line-height: 1.4;
@@ -596,9 +605,14 @@
   gap: var(--s-3);
   min-width: 0;
 }
+.style-view {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
 .style-specimen {
   position: relative;
-  height: min(420px, 46dvh);
+  height: min(520px, 54dvh);
   overflow: hidden;
   border: 1px solid var(--line-2);
   border-radius: var(--r-sm);
@@ -610,6 +624,13 @@
   height: 100%;
   border: 0;
   transform-origin: 0 0;
+}
+.style-specimen-phone {
+  background: var(--canvas);
+}
+.style-specimen-phone .style-specimen-frame {
+  margin: 0 auto;
+  border-inline: 1px solid var(--line-2);
 }
 .style-specimen-status {
   position: absolute;

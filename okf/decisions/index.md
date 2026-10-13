@@ -3,7 +3,7 @@ type: Index
 title: Decisions
 description: Architectural decision records, each with its context, the choice, and what it constrains.
 tags: [index, decisions, adr]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-13}
 status: stable
 ---
 
@@ -41,6 +41,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Each Story page keeps notes for agents, separate from its versions](story-notes-are-agent-memory.md)
 - [Agents write and arrange the Story; the web app reads it](agents-maintain-the-story-people-read-it.md)
 - [Story pages follow the team's design system, never WhatBuild's](story-pages-follow-the-teams-design-system.md)
+- [Story pages name typefaces the server carries, and the server embeds them when it shows a page](story-pages-name-typefaces-the-server-carries.md)
 - [Marking an insight reviewed applies to the revision that was read](insight-review-marks-a-revision.md) (superseded)
 - [Story PDF export is a composed print view saved by the browser](pdf-export-uses-browser-print.md)
 - [Mockups are versioned canvases of agent-made HTML, in a stage called Exploration](mockups-are-versioned-canvases-in-exploration.md)

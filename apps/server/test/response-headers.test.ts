@@ -55,7 +55,7 @@ async function htmlResponses(): Promise<[string, Headers][]> {
     ["the public site", await onHost(site, "/")],
     ["a Story page", await get(`${P}/story/pages/overview/versions/1/html?frame=1`)],
     ["a mockup page", await get(`${P}/mockups/${mockupId}/versions/1/pages/board/html?frame=1`)],
-    ["a house style's specimen", await get(`${P}/story/house-styles/briefing/specimen?theme=light`)],
+    ["a house style's specimen", await get(`${P}/story/house-styles/clear/specimen?theme=light`)],
     ["the print view", await get(`${P}/story/print?page_ids=overview`)],
     ["the OAuth consent page", consent.headers],
   ];

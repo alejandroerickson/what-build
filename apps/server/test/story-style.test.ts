@@ -1,7 +1,8 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { FRAME_SCRIPT, HOUSE_STYLES, houseSpecimen, inspectStoryCss, inspectStoryHtml, withStoryFrame } from "@whatbuild/core";
+import { composePrintDocument, FRAME_SCRIPT, HOUSE_STYLE_IDS, HOUSE_STYLES, houseSpecimen, inspectStoryCss, inspectStoryHtml, STORY_FONTS, storyFontFaces, storyFontsNamed, withStoryFonts, withStoryFrame } from "@whatbuild/core";
+import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { staticRoutes } from "../src/public-routes.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
@@ -10,6 +11,7 @@ let h: Harness;
 let alice: Browser;
 let vic: Browser;
 let P: string;
+let tenantId: string;
 
 beforeAll(async () => {
   h = await startHarness();
@@ -18,13 +20,16 @@ beforeAll(async () => {
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Style Co" });
   const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Planner" });
   P = `/api/v1/p/${p.body.path}`;
+  tenantId = t.body.tenant.tenant_id;
   await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, product: "planner", email: "vic@example.com", role: "viewer" });
 });
 afterAll(async () => h?.close());
 
+const ALL_IDS = ["clear", "large", "report", "tonal", "wide", "pastel", "wayfinding", "isotype", "blocks", "riso"];
+
 describe("house styles", () => {
   it("are complete, valid and self-contained", () => {
-    expect(HOUSE_STYLES.map((s) => s.id)).toEqual(["broadsheet", "tufte", "swiss", "briefing"]);
+    expect(HOUSE_STYLES.map((s) => s.id)).toEqual(ALL_IDS);
     for (const s of HOUSE_STYLES) {
       expect(inspectStoryCss(s.stylesheet), s.id).toEqual([]);
       expect(inspectStoryHtml(houseSpecimen(s)), s.id).toEqual([]);
@@ -36,21 +41,74 @@ describe("house styles", () => {
 
   it("each style the whole vocabulary, plans and landing pages included", () => {
     for (const s of HOUSE_STYLES) {
-      for (const selector of [".timeline", ".lines", ".facts", ".pages a", ".tag", "h2[data-label]::before", "::selection"])
+      for (const selector of [".timeline", ".lines", ".facts", ".pages a", ".tag", "h2[data-label]::before", "::selection", "mark", ".quotes", ".flow", ".diagram .node", ".diagram .edge", ".shot .screen", ".pin", ".pins", ".tally"])
         expect(s.stylesheet, `${s.id} ${selector}`).toContain(selector);
       // A step may hold a link or bold text, so its number is placed beside the text, not in a grid.
       expect(s.stylesheet, s.id).not.toMatch(/\.steps li \{[^}]*display: grid/);
     }
     const specimen = houseSpecimen(HOUSE_STYLES[2]!);
-    for (const markup of ['<section class="wide"', '<ol class="timeline">', '<ul class="lines">', '<dl class="facts">', '<nav class="pages"'])
+    for (const markup of ['<section class="wide"', '<ol class="timeline">', '<ul class="lines">', '<dl class="facts">', '<nav class="pages"', '<li aria-current="step">', '<li data-state="done">', '<div class="quotes">', "<mark>", '<ol class="flow">', '<figure class="diagram">', '<figure class="shot" data-device="phone">', '<span class="pin"', '<ol class="pins">', '<span class="tally"'])
       expect(specimen, markup).toContain(markup);
+  });
+
+  it("give every style a designed dark scheme of its own, not the light one inverted", () => {
+    for (const s of HOUSE_STYLES) {
+      const dark = /\[data-wb-theme="dark"\] \{([^}]*)\}/.exec(s.stylesheet)![1]!;
+      const paper = /--paper: (#[0-9a-f]{6})/.exec(dark)?.[1];
+      expect(paper, s.id).toBeDefined();
+      expect(paper, s.id).not.toBe("#000000");
+    }
   });
 
   it("name each typeface once, so a page's stylesheet stays small", () => {
     for (const s of HOUSE_STYLES) {
       expect(s.stylesheet.match(/Helvetica Neue/g)?.length ?? 0, s.id).toBeLessThanOrEqual(1);
-      expect(s.stylesheet.length, s.id).toBeLessThan(16_000);
+      // A face WhatBuild carries is named, never embedded: the server adds it when it shows the page.
+      expect(s.stylesheet, s.id).not.toContain("data:font/");
+      expect(s.stylesheet.length, s.id).toBeLessThan(28_000);
     }
+  });
+
+  it("each use a typeface the server carries", () => {
+    for (const s of HOUSE_STYLES) expect(storyFontsNamed(s.stylesheet).length, s.id).toBeGreaterThan(0);
+  });
+});
+
+describe("carried typefaces", () => {
+  const page = (style: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>T</title><style>${style}</style></head><body><p>x</p></body></html>`;
+
+  it("embed the faces a page names in quotes, in a style block at the start of its head", () => {
+    const html = page(`body { font-family: "Red Hat Text", sans-serif; } h1 { font-family: 'Signika'; }`);
+    expect(storyFontsNamed(html).map((f) => f.family)).toEqual(["Red Hat Text", "Signika"]);
+    const shown = withStoryFonts(html);
+    expect(shown.startsWith('<!doctype html><html lang="en"><head><style>\n@font-face { font-family: "Red Hat Text"; src: url(data:font/woff2;base64,')).toBe(true);
+    expect(shown).toContain('font-family: "Signika"; src: url(data:font/woff2;base64,');
+    expect(shown).not.toContain('font-family: "Red Hat Display";');
+    expect(shown.endsWith(html.slice(html.indexOf("<meta")))).toBe(true);
+    expect(inspectStoryHtml(shown)).toEqual([]);
+  });
+
+  it("leave a page that names none exactly as stored, and find a page with no head", () => {
+    const plain = page("body { font-family: system-ui, sans-serif; }");
+    expect(withStoryFonts(plain)).toBe(plain);
+    expect(withStoryFonts('<p style="font-family: \'Jost\'">x</p>')).toMatch(/^<style>\n@font-face \{ font-family: "Jost";[^]*<\/style><p style/);
+  });
+
+  it("each exist, and come with their licence", async () => {
+    const { readFileSync } = await import("node:fs");
+    const readme = readFileSync(new URL("../../../packages/core/src/story-fonts/README.md", import.meta.url), "utf8");
+    for (const f of STORY_FONTS) {
+      expect(storyFontFaces(`"${f.family}"`), f.family).toContain(`font-weight: ${f.weight}`);
+      expect(readme, f.family).toContain(`| \`${f.file}\` | ${f.family} |`);
+    }
+    expect(readme).toContain("SIL OPEN FONT LICENSE Version 1.1");
+  });
+
+  it("are declared once for a print view, outside the pages' shadow roots", () => {
+    const html = houseSpecimen(HOUSE_STYLES.find((s) => s.id === "report")!);
+    const doc = composePrintDocument({ productName: "P", exportedAt: "2026-10-13T00:00:00Z", nonce: "n", pages: [1, 2].map((i) => ({ page_id: `p${i}`, title: `P${i}`, version: 1, published_at: "2026-10-13T00:00:00Z", level: 1, html })) });
+    expect(doc.match(/@font-face \{ font-family: "Libre Franklin"/g)).toHaveLength(1);
+    expect(doc.indexOf('@font-face { font-family: "Libre Franklin"')).toBeLessThan(doc.indexOf("<template"));
   });
 });
 
@@ -76,7 +134,8 @@ describe("Story guidance", () => {
     const g = await vic.api("GET", `${P}/story/guidance`);
     expect(g.status).toBe(200);
     expect(g.body.product_style).toMatchObject({ none: true });
-    expect(g.body.house_styles.map((s: { id: string }) => s.id)).toEqual(["broadsheet", "tufte", "swiss", "briefing"]);
+    expect(g.body.house_styles.map((s: { id: string }) => s.id)).toEqual(ALL_IDS);
+    expect(g.body.carried_typefaces.families).toEqual(STORY_FONTS.map((f) => f.family));
     expect(g.body.house_styles[0].stylesheet).toBeUndefined();
     expect(g.body.design_passes.map((p: { pass: string }) => p.pass)).toEqual(expect.arrayContaining(["critique", "distill", "bolder", "quieter", "typeset", "layout", "adapt", "polish"]));
     expect(JSON.stringify(g.body.design_tools)).toContain("Impeccable");
@@ -85,8 +144,8 @@ describe("Story guidance", () => {
   });
 
   it("returns one house style in full on request", async () => {
-    const g = await vic.api("GET", `${P}/story/guidance?section=style&house_style=swiss`);
-    expect(g.body.house_style.id).toBe("swiss");
+    const g = await vic.api("GET", `${P}/story/guidance?section=style&house_style=wide`);
+    expect(g.body.house_style.id).toBe("wide");
     expect(g.body.house_style.stylesheet).toContain("--accent");
     expect(g.body.house_style.starter_html).toContain('<main class="page">');
     expect((await vic.api("GET", `${P}/story/guidance?house_style=inter`)).status).toBe(422);
@@ -99,33 +158,50 @@ describe("the product's Story style", () => {
   it("starts empty, and the first style needs a house style or a whole design system", async () => {
     const s = await vic.api("GET", `${P}/story/style`);
     expect(s.body.style).toBeNull();
-    expect(s.body.house_styles).toHaveLength(4);
+    expect(s.body.house_styles).toHaveLength(HOUSE_STYLE_IDS.length);
     expect((await alice.api("PUT", `${P}/story/style`, { name: "Ours" })).status).toBe(422);
-    expect((await vic.api("PUT", `${P}/story/style`, { house_style: "tufte" })).status).toBe(403);
+    expect((await vic.api("PUT", `${P}/story/style`, { house_style: "clear" })).status).toBe(403);
     expect((await vic.api("GET", `${P}/story/style/specimen`)).status).toBe(404);
   });
 
   it("adopts a house style whole, and records it", async () => {
-    const r = await alice.api("PUT", `${P}/story/style`, { house_style: "tufte" });
+    const r = await alice.api("PUT", `${P}/story/style`, { house_style: "clear" });
     expect(r.status).toBe(200);
-    expect(r.body.style).toMatchObject({ name: "Tufte", based_on: "tufte", kind: "house", has_own_specimen: false });
+    expect(r.body.style).toMatchObject({ name: "Clear", based_on: "clear", kind: "house", has_own_specimen: false });
     etag = r.body.style.etag;
     const act = await vic.api("GET", `${P}/activity?limit=5`);
-    expect(act.body.items[0].summary).toBe("Adopted the Tufte house style for the Story");
+    expect(act.body.items[0].summary).toBe("Adopted the Clear house style for the Story");
     const g = await vic.api("GET", `${P}/story/guidance?section=checklist`);
-    expect(g.body.product_style).toMatchObject({ name: "Tufte", based_on: "tufte" });
+    expect(g.body.product_style).toMatchObject({ name: "Clear", based_on: "clear" });
   });
 
   it("needs the style's etag to change it, and carries forward what an update omits", async () => {
-    expect((await alice.api("PUT", `${P}/story/style`, { name: "Tufte, ours" })).status).toBe(409);
-    const r = await alice.api("PUT", `${P}/story/style`, { name: "Tufte, ours", expected_etag: etag });
+    expect((await alice.api("PUT", `${P}/story/style`, { name: "Clear, ours" })).status).toBe(409);
+    const r = await alice.api("PUT", `${P}/story/style`, { name: "Clear, ours", expected_etag: etag });
     expect(r.status).toBe(200);
     const s = await vic.api("GET", `${P}/story/style`);
-    expect(s.body.style).toMatchObject({ name: "Tufte, ours", based_on: "tufte" });
-    expect(s.body.style.stylesheet).toBe(HOUSE_STYLES[1]!.stylesheet);
+    expect(s.body.style).toMatchObject({ name: "Clear, ours", based_on: "clear" });
+    expect(s.body.style.stylesheet).toBe(HOUSE_STYLES.find((s) => s.id === "clear")!.stylesheet);
     etag = s.body.style.etag;
-    const same = await alice.api("PUT", `${P}/story/style`, { name: "Tufte, ours", expected_etag: etag });
+    const same = await alice.api("PUT", `${P}/story/style`, { name: "Clear, ours", expected_etag: etag });
     expect(same.body.changed).toBe(false);
+  });
+
+  it("keeps a product's copy of a house style that has since been retired, and lets it change", async () => {
+    const setBasedOn = (id: string) =>
+      h.db.transaction().execute(async (trx) => {
+        await sql`select set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
+        await sql`update story_styles set based_on = ${id}`.execute(trx);
+      });
+    await setBasedOn("tufte");
+    const s = await vic.api("GET", `${P}/story/style`);
+    expect(s.body.style).toMatchObject({ name: "Clear, ours", based_on: "tufte", based_on_name: null, kind: "house" });
+    expect(s.body.style.stylesheet).toBe(HOUSE_STYLES.find((s) => s.id === "clear")!.stylesheet);
+    const r = await alice.api("PUT", `${P}/story/style`, { summary: "Ours now.", expected_etag: s.body.style.etag });
+    expect(r.status).toBe(200);
+    expect(r.body.style).toMatchObject({ based_on: "tufte", summary: "Ours now." });
+    await setBasedOn("clear");
+    etag = (await vic.api("GET", `${P}/story/style`)).body.style.etag;
   });
 
   it("refuses a stylesheet or specimen that would reach the network", async () => {
@@ -154,12 +230,16 @@ describe("the product's Story style", () => {
   });
 
   it("serves each house style's specimen in the sandbox", async () => {
-    const r = await vic.api("GET", `${P}/story/house-styles/briefing/specimen?theme=light`);
+    const r = await vic.api("GET", `${P}/story/house-styles/wide/specimen?theme=light`);
     expect(r.status).toBe(200);
     expect(r.headers.get("content-security-policy")).toContain("connect-src 'none'");
-    expect(r.body).toContain("scroll-snap-type");
+    expect(r.body).toContain("font-stretch: var(--wide)");
     expect(r.body).not.toContain(FRAME_SCRIPT);
     expect((await vic.api("GET", `${P}/story/house-styles/inter/specimen`)).status).toBe(404);
+    const carried = await vic.api("GET", `${P}/story/house-styles/wayfinding/specimen?theme=dark&frame=1`);
+    expect(carried.body).toContain('@font-face { font-family: "Signika"; src: url(data:font/woff2;base64,');
+    expect(carried.body).toContain('data-wb-theme="dark"');
+    expect(carried.headers.get("content-security-policy")).toContain("font-src data:");
   });
 });
 
@@ -174,6 +254,16 @@ describe("the app's frame", () => {
     expect(framed.body).toBe(withStoryFrame(html, "dark"));
     expect(framed.body).toContain('<html data-wb-theme="dark" lang="en">');
     expect(framed.body.endsWith(`<script>${FRAME_SCRIPT}</script>`)).toBe(true);
+  });
+
+  it("embeds the carried typefaces a stored page names when it shows it, and stores the page as published", async () => {
+    const html = `<!doctype html><html lang="en"><head><title>T</title><style>body { font-family: "Jost", sans-serif; }</style></head><body><main class="page"><h1>Hello</h1></main></body></html>`;
+    expect((await alice.api("POST", `${P}/story/pages/typeset/versions`, { title: "Typeset", html })).status).toBeLessThan(300);
+    const shown = await vic.api("GET", `${P}/story/pages/typeset/versions/1/html?theme=light`);
+    expect(shown.body).toContain('@font-face { font-family: "Jost"; src: url(data:font/woff2;base64,');
+    expect(shown.body).toContain('data-wb-theme="light"');
+    const page = await vic.api("GET", `${P}/story/pages/typeset`);
+    expect(JSON.stringify(page.body)).not.toContain("data:font/woff2");
   });
 
   it("sends only key names and page slugs to the app, and opens other in-frame links in a new tab", () => {
@@ -301,14 +391,14 @@ describe("publishing a page from its body", () => {
 
   it("gives a page the product's new style and keeps its content", async () => {
     const current = (await vic.api("GET", `${P}/story/style`)).body.style;
-    const swiss = await alice.api("PUT", `${P}/story/style`, { house_style: "swiss", expected_etag: current.etag });
-    expect(swiss.status).toBe(200);
+    const wide = await alice.api("PUT", `${P}/story/style`, { house_style: "wide", expected_etag: current.etag });
+    expect(wide.status).toBe(200);
     const pub = await alice.api("POST", `${P}/story/pages/plan/versions`, { restyle: true, expected_etag: etag });
     expect(pub.status).toBeLessThan(300);
     expect(pub.body.current_version).toBe(2);
     expect(pub.body.carried_forward).toEqual(["title", "summary", "refs", "citations"]);
     const html = (await vic.api("GET", `${P}/story/pages/plan/versions/2/html`)).body as string;
-    expect(html).toContain(`<style>\n${HOUSE_STYLES[2]!.stylesheet}</style>`);
+    expect(html).toContain(`<style>\n${HOUSE_STYLES.find((s) => s.id === "wide")!.stylesheet}</style>`);
     expect(html).not.toContain(current.stylesheet);
     expect(html).toContain(`<body>\n${body}\n</body>`);
     // A page with no stylesheet of its own has nothing to replace.

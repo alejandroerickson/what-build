@@ -322,14 +322,16 @@ WhatBuild's own look — it is the team's document, often read outside the team.
   system every page follows, with its rules and stylesheet. Follow its rules. When there is none,
   ask the person whether their company has a design system or brand guide for reports like this.
   If it does, build a stylesheet from it and save it with `set_style` (name, rules, stylesheet).
-  If not, offer the house styles — Broadsheet, Tufte, Swiss grid, Briefing deck (`guidance` with
-  `house_style` shows one in full) — and adopt their pick with `set_style { house_style }`. People
-  can preview every house style in the web app (the Story style section under the Story's page
-  tree). When a Story needs something the style lacks, add it to the style, not to one page.
-  `specimen_html` is optional: without it the app previews the style on its own sample page, which
-  uses the guidance's shared vocabulary. Give a specimen only for a team style that adds components
-  of its own: a whole page in the style, stylesheet included, that shows each of them once with
-  plausible content.
+  If not, offer the house styles (`guidance` lists each with what it is best for, and
+  `house_style` shows one in full) and adopt their pick with `set_style { house_style }`. People
+  can preview every house style in the web app, light and dark, desktop and phone (the Story style
+  section under the Story's page tree). When a Story needs something the style lacks, add it to
+  the style, not to one page. A style may name a typeface WhatBuild carries
+  (`carried_typefaces`): the server embeds it when the page is shown, so never send a font file
+  for one. `specimen_html` is optional: without it the app previews the style on its own sample
+  page, which uses the guidance's shared vocabulary. Give a specimen only for a team style that
+  adds components of its own: a whole page in the style, stylesheet included, that shows each of
+  them once with plausible content.
 - **Publish the body, not the stylesheet.** `publish { body }` takes only the markup inside
   `<body>`, usually one `<main class="page">`, and wraps it in a document with the product's Story
   style. You never send the stylesheet, and every page carries the same one. Send `html` only for
@@ -338,8 +340,10 @@ WhatBuild's own look — it is the team's document, often read outside the team.
 - **Give the Story a front door.** The top page states what the whole Story concludes and links
   the pages beneath it (`nav.pages`). In the app, a link to another page of the same Story
   (`links.story_page` in the guidance) shows that page in place; every other link opens in a new
-  tab. For what will be delivered and when, the guidance has a timeline, a line per item and
-  labelled facts, and compositions for a front page, a plan and a scope.
+  tab. For what will be delivered and when, the guidance has a timeline that marks where the team
+  is, a line per item and labelled facts; to show what changes, a flow, a diagram and a mockup
+  snippet with numbered pins; for evidence, a wall of quotations and a tally; and compositions for
+  a front page, a plan and a scope.
 - **Follow the sources' own rules on naming.** A Story is often read outside the team. If an
   agreement or consent note among the sources limits naming an organisation, its people or its
   figures, quote by role on every page.
