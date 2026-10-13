@@ -38,6 +38,10 @@ none of it may disturb the hosted service's deployments.
   recovery target before starting migrations. A failed or missing check blocks migrations;
   setup defaults alone are not evidence that recovery is available.
 
+- Before deployment, operators review every intervening release’s upgrade requirements and
+  verify the live identity-provider configuration. Deployment success and verified interactive
+  sign-in are reported separately; health checks cannot prove identity acceptance.
+
 ## Consequences
 
 - A deployment can differ per organization without a branch of the code or of a script.

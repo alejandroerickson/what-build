@@ -109,12 +109,18 @@ organization, which is where care is needed.
 
 ## Later tasks
 
-- **A new version**: "Deploying a new version" in the guide. Build the commit, verify the actual
+- **A new version**: "Deploying a new version" in the guide. First read `upgrading.md` at the
+  target ref for every release after the running version, and complete each applicable action.
+  Run the guide’s Microsoft sign-in preflight against the live app registration and current
+  public/custom URL before dispatching or approving a deploy. A failed or unreadable check
+  blocks proceeding. Build the commit, verify the actual
   database backup retention and restore window, and record the pre-migration UTC time, server,
   backup metadata and previous/target images in the private deployment record before starting
   the migration job. Stop if recovery cannot be verified or recorded. Distinguish verified
   automatic backups from a fresh backup and a tested restore. Then run the job and see it
-  succeed, move the app, and check `server_version`.
+  succeed, move the app, and check `server_version`. Complete a fresh browser sign-in and open
+  a product. If the operator must finish it, report sign-in as awaiting verification; health
+  and version checks never prove login works.
 - **A new version broke it**: the `recover-a-deployment` skill.
 - **A setting**: `az containerapp update --set-env-vars`; a secret is a new version in the vault.
 - **Microsoft sign-in on a deployment made without it**: add the secret reference and the
