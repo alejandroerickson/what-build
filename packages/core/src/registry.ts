@@ -7,6 +7,12 @@ import type { SandboxContext } from "./public-sandbox.ts";
 export type ProductRole = "reader" | "viewer" | "editor" | "admin";
 /** `visitor` exists only in a public sandbox: an editor of every product there, and nothing more. */
 export type TenantRole = "visitor" | "member" | "admin" | "owner";
+/**
+ * What an agent's connection may do, chosen by the person when they connect it: the most it does,
+ * whatever their own role. `viewer` reads, `editor` also writes and archives, `admin` also deletes
+ * permanently and manages products and people. It never adds to the person's own role.
+ */
+export type ConnectionLevel = "viewer" | "editor" | "admin";
 
 /** The authenticated caller. No input field can set or alter it. */
 export interface Principal {
@@ -18,6 +24,8 @@ export interface Principal {
   client: string | null;
   /** The account was created on a sandbox invitation alone, so the sandbox's limits follow it everywhere. */
   sandbox_only?: boolean;
+  /** An agent's connection level; absent for a person in the web app, who acts with their own role. */
+  level?: ConnectionLevel;
 }
 
 export interface TenantRef {
@@ -97,8 +105,15 @@ export interface OperationDef<I extends z.ZodType = z.ZodType, O = unknown, P = 
   rest: { method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE"; path: string };
   /** The MCP tool and action. A tool with no action is a standalone tool. */
   mcp: { tool: string; action?: string };
-  /** Writes allowed while the product is archived (only restore). */
+  /** Writes allowed while the product is archived (restore, and deleting the product). */
   allowArchivedProduct?: boolean;
+  /**
+   * The connection level an agent needs to call it, when its access alone does not say: by default
+   * `admin` and `owner` need admin, `write` and any other write need editor, and reads need viewer.
+   */
+  connection?: ConnectionLevel;
+  /** Offered only to a person in the web app, never to an agent: closing an organization. */
+  webOnly?: boolean;
   /**
    * Runs alone in a public sandbox: it waits for every call in progress there, and holds new ones
    * until it commits. For saving a baseline and resetting to one.
@@ -111,6 +126,33 @@ export interface OperationDef<I extends z.ZodType = z.ZodType, O = unknown, P = 
    */
   prepare?: (ctx: PrepareContext, input: z.output<I>) => Promise<P>;
   handler: (ctx: OpContext, input: z.output<I>, ...prepared: undefined extends P ? [prepared?: P] : [prepared: P]) => Promise<O>;
+}
+
+const LEVEL_RANK: Record<ConnectionLevel, number> = { viewer: 0, editor: 1, admin: 2 };
+
+/** A connection level as the person chose it. */
+export const LEVEL_NAMES: Record<ConnectionLevel, string> = { viewer: "Read only", editor: "Edit", admin: "Admin" };
+
+/** The connection level an operation needs. */
+export function connectionNeeds(op: Pick<OperationDef, "access" | "mutates" | "connection">): ConnectionLevel {
+  if (op.connection) return op.connection;
+  if (op.access === "admin" || op.access === "owner") return "admin";
+  if (op.access === "write" || (op.access === "any" && op.mutates)) return "editor";
+  return "viewer";
+}
+
+/** Whether a connection at `level` may call the operation. A person in the web app has no level and may call anything their role allows. */
+export function levelAllows(level: ConnectionLevel | undefined, op: Pick<OperationDef, "access" | "mutates" | "connection" | "webOnly">): boolean {
+  if (!level) return true;
+  if (op.webOnly) return false;
+  return LEVEL_RANK[level] >= LEVEL_RANK[connectionNeeds(op)];
+}
+
+/** The lower of a role and a connection level: what an agent may do where the person holds `role`. */
+export function capRole(role: ProductRole | null, level: ConnectionLevel | undefined): ProductRole | null {
+  if (!level || !role || role === "reader") return role;
+  const rank: Record<ProductRole, number> = { reader: -1, viewer: 0, editor: 1, admin: 2 };
+  return rank[role] <= LEVEL_RANK[level] ? role : level;
 }
 
 export function defineOperation<I extends z.ZodType, O, P = undefined>(def: OperationDef<I, O, P>): OperationDef<I, O, P> {

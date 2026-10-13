@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, files, annotations, what uses a source, the assumption register and citations, views and lineage, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, citations, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-12}
 status: stable
 ---
 
@@ -141,7 +141,8 @@ A source is one discovery event or document. It is stored as a **record**, so it
   and report `record_archived`; `restore` puts it back. This is the default and the first action
   the UI offers.
 - **Delete** ([§9.5](09-data-lifecycle.md)) destroys the source and every byte under it,
-  permanently. Editors may do it, through either adapter. It requires the current etag, a reason,
+  permanently. Admins may do it, through either adapter (an agent on an Admin connection). It
+  requires the current etag, a reason,
   and `confirm` set to exactly `delete permanently`, and it leaves a tombstone, so citations report
   `record_deleted` and reads return `410 record_deleted` rather than a bare `404`.
   `sources.delete_impact` previews what it will destroy and which citations it will orphan,
@@ -776,6 +777,15 @@ activity.jsonl
   `tenant_allowances`, a directory table without row-level security keyed by the lower-cased
   address (`allowed`, `note`, `etag`, who gave it and who last changed it), and an index on
   `tenants.created_by->>'account_id'`, which is what an allowance is counted against.
+- **Tombstones** ([§9.5](09-data-lifecycle.md),
+  [`0021_tombstones_per_product.sql`](../../apps/server/src/migrations/0021_tombstones_per_product.sql))
+  are keyed by product, object type and object id, since a Story page's id is unique only within
+  its product, with an index on the object id for citation checks. A product's own tombstone
+  carries its id as both product and object.
+- **Agent connection levels** ([§3.8](03-accounts-teams-and-identity.md),
+  [`0020_connection_levels.sql`](../../apps/server/src/migrations/0020_connection_levels.sql)):
+  `oauth_codes.level` and `oauth_tokens.level`, one of `viewer`, `editor` (the default, for every
+  connection made before levels existed) and `admin`.
 - **How the service is used** ([§9.1](09-data-lifecycle.md),
   [`0019_usage.sql`](../../apps/server/src/migrations/0019_usage.sql),
   [`usage.ts`](../../packages/core/src/usage.ts)): two tables without row-level security that name

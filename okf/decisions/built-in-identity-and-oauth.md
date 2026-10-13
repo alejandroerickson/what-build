@@ -3,7 +3,7 @@ type: Decision
 title: WhatBuild runs its own sign-in and its own OAuth 2.1 server for agents
 description: Email links, Google and Microsoft sign-in and sessions are built in, agents connect only through WhatBuild's own OAuth server, and there are no personal access tokens.
 tags: [decision, identity, oauth, mcp, security]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-12}
 status: stable
 ---
 
@@ -21,7 +21,7 @@ MCP clients expect OAuth discovery and dynamic registration against the server t
 - Web sessions use an `HttpOnly` cookie, `__Host-wb_session` over HTTPS so that no other host under the parent domain can set it. REST answers that session only and refuses any bearer token.
 - No personal access tokens. Scripts and clients that cannot sign in in a browser are not supported; an agent connects over MCP.
 - For MCP, WhatBuild is its own OAuth 2.1 authorization server: discovery metadata, dynamic client registration, PKCE, one-hour access tokens, rotating refresh tokens (reusing a refresh token or an authorization code revokes the connection), and an Allow that approves only what its consent page showed.
-- A token is the person: it carries exactly that person's roles, limited to the MCP endpoint it was approved for when that endpoint is scoped to an organization or a product ([decision](a-scoped-mcp-connector-is-a-fence.md)).
+- A token is the person, at most: it carries that person's roles, capped by the level they chose for the connection ([decision](an-agent-connection-has-a-level-the-person-chooses.md)), and limited to the MCP endpoint it was approved for when that endpoint is scoped to an organization or a product ([decision](a-scoped-mcp-connector-is-a-fence.md)).
 
 ## Consequences
 

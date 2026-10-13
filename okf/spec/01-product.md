@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild turns a team's discovery material into cited insight and a story, with agents as first-class contributors.
 description: Who the product is for, the core loop, the four screens, the vocabulary, the non-negotiable behaviors, and what the product is not.
 tags: [spec, product, vocabulary, principles]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-12}
 status: stable
 ---
 
@@ -115,7 +115,8 @@ of them is now sources.
    **Archive is the reversible default and always the first thing offered**: it takes an object out
    of listings, out of the UI's main views, and out of the search space an agent can reach, and
    erases nothing; restore puts it back. **Delete is permanent**, and it exists on both surfaces,
-   for editors, because people upload the wrong thing and are entitled to have it gone. It is
+   for admins, because people upload the wrong thing and are entitled to have it gone; an agent
+   deletes only on a connection its person set to Admin. It is
    always explicit, always attributed, always described in those words, always previewable before
    it happens, and always leaves a tombstone so nothing that pointed at the object is left guessing
    ([§9.5](09-data-lifecycle.md)).

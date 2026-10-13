@@ -64,7 +64,7 @@ permissions and one activity log.
 - Only a source's primary file is parsed and searched; originals and supplements are kept, never
   searched, and the UI says so.
 - Citations snapshot the exact text; drift is reported, never repaired silently.
-- Archive is the reversible default everywhere; delete is permanent, explicit and guarded.
+- Archive is the reversible default everywhere; delete is permanent, explicit, guarded and an admin's.
 - Story pages are agent-authored, self-contained HTML shown in a sandbox. Agents write and arrange
   the Story; people read it and export it to PDF. Pages follow the product's Story style: the
   company's own design system, or a house style an agent adopted for the product. Never

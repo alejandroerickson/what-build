@@ -44,9 +44,15 @@ organization). A product has four parts, named as the person sees them in the we
    the person's choice, not a fault: tell them the work belongs elsewhere and ask them to use a
    connector scoped there (or the unscoped one). Never look for a way around it.
 3. **Know your role.** Each product lists `your_role`: reader (the Story only, without what its
-   pages draw on), viewer (read only), editor (read and write), admin (also membership and product
-   settings). A 403 names the role you have and the one needed;
+   pages draw on), viewer (read only), editor (read, write and archive), admin (also permanent
+   delete, membership and product settings). A 403 names the role you have and the one needed;
    do not retry a forbidden write — tell the person who can grant access.
+   Your connection has a **level** the person chose when they connected you: Read only, Edit (the
+   usual one) or Admin. `products(action="list")` gives it as `connection_level`, and `your_role`
+   is already capped by it: you act as the lower of the person's role and your level. You are
+   offered only the actions your level allows, and anything above it is refused with
+   `403 connection_level`. That is the person's choice: tell them what needs a higher level, and
+   that only they can raise it, under Connect an agent. Never look for a way around it.
 4. **Notice a public sandbox.** A tenant that `products(action="list")` marks `sandbox: true` is
    public, and is erased every day. Read "In a public sandbox" below before you write there.
 
@@ -343,14 +349,26 @@ with `members(action="activity")`.
 
 ## Archive, and delete
 
-Archive is the reversible default: it takes a source, assumption, mockup or page out of lists
-and out of search, including yours, and erases nothing. **Delete is permanent.** Only when the person asks:
-call `sources(action="delete_impact")`, show them exactly what would be destroyed (including
-citations, and the Story and mockup versions it would orphan), and only then delete with their reason, the
-impact's `etag` as `expected_etag`, and `confirm: "delete permanently"`. What gates a delete is the
-person's approval of its impact, not a turn boundary: never slip a delete into a run of other
-actions on a general instruction. If they approved deleting a specific source in advance, still
-read its `delete_impact` first, and stop to ask when it would destroy more than they approved.
+Archive is the reversible default: it takes a source, comment, assumption, outcome, mockup or
+Story page out of lists and out of search, including yours, and erases nothing. When the person
+says "delete", "remove" or "get rid of", archive unless they say they want it gone for good.
+
+**Delete is permanent.** It needs admin and an Admin connection, so on an Edit connection you are
+not offered it at all. Only when the person asks: call the matching impact first
+(`sources`, `assumptions`, `outcomes` or `mockups` with `action="delete_impact"`,
+`story(action="delete_page_impact")`, `products(action="delete_impact")` for a whole product),
+show them exactly what would be destroyed (citations, links, the Story and mockup versions that
+name it), and only then delete with their reason, the impact's `etag` as `expected_etag`, and
+`confirm: "delete permanently"`. A comment has no impact: show the person the comment itself,
+then `sources(action="delete_annotation")` with its etag. A whole product also needs `name`, typed
+exactly as the person confirmed it; offer an export first. A mockup can't be deleted while a Story
+page shows it.
+
+What gates a delete is the person's approval of its impact, not a turn boundary: never slip a
+delete into a run of other actions on a general instruction. If they approved deleting something
+specific in advance, still read its impact first, and stop to ask when it would destroy more than
+they approved. A deleted thing leaves a tombstone: reading it answers `410` with who deleted it,
+when and why. Deleting an organization is its owner's act in the web app; you are never offered it.
 `sources(action="update")` takes the etag from `get`.
 
 ## Moving between products

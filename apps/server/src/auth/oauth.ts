@@ -1,5 +1,5 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import { escapeHtml, json, newId, randomToken, sha256Hex, type Db } from "@whatbuild/core";
+import { escapeHtml, json, newId, randomToken, sha256Hex, type ConnectionLevel, type Db } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { sql } from "kysely";
@@ -87,11 +87,30 @@ function formTarget(u: string): string {
 
 /** What the consent page says the agent may reach. */
 function reachSentence(r: ConnectorReach): string {
-  if (r.kind === "all") return "It can read and change everything you can, in every product you can open.";
-  if (r.kind === "tenant")
-    return `It can read and change everything you can in the organization <strong>${escapeHtml(r.name ?? r.path)}</strong>, and nothing outside it.`;
+  if (r.kind === "all") return "It reaches every product you can open.";
+  if (r.kind === "tenant") return `It reaches the organization <strong>${escapeHtml(r.name ?? r.path)}</strong>, and nothing outside it.`;
   const where = r.name ? `${escapeHtml(r.name)}</strong>${r.tenant_name ? ` (${escapeHtml(r.tenant_name)})` : ""}` : `${escapeHtml(r.path)}</strong>`;
-  return `It can read and change everything you can in the product <strong>${where}, and nothing outside it.`;
+  return `It reaches the product <strong>${where}, and nothing outside it.`;
+}
+
+/** The levels a person chooses between, in the words the consent page and Connect an agent use. */
+export const LEVEL_CHOICES: { level: ConnectionLevel; name: string; does: string }[] = [
+  { level: "viewer", name: "Read only", does: "Reads what you can. Changes nothing." },
+  { level: "editor", name: "Edit", does: "Reads, writes and archives. Never deletes permanently or manages products and people." },
+  { level: "admin", name: "Admin", does: "Everything you can do, including deleting permanently and managing products and people." },
+];
+
+/** The level a connection gets when the person doesn't choose: it can work, and it can't delete. */
+export const DEFAULT_LEVEL: ConnectionLevel = "editor";
+
+export const isLevel = (v: unknown): v is ConnectionLevel => v === "viewer" || v === "editor" || v === "admin";
+
+function levelChoice(): string {
+  const options = LEVEL_CHOICES.map(
+    (c) =>
+      `<label class="choice"><input type="radio" name="level" value="${c.level}"${c.level === DEFAULT_LEVEL ? " checked" : ""}><span><b>${escapeHtml(c.name)}</b>${escapeHtml(c.does)}</span></label>`,
+  ).join("");
+  return `<fieldset><legend>What it may do there</legend>${options}<p class="muted">It never does more than you can yourself.</p></fieldset>`;
 }
 
 /**
@@ -118,8 +137,9 @@ function consentPage(p: { client: string; redirect: string; account: string; ema
 <p>Signed in as <strong>${escapeHtml(p.account)}</strong> (${escapeHtml(p.email)}).</p>
 <p>${reachSentence(p.reach)} Its changes are recorded as yours, through the agent.</p>
 <p class="muted">What it reads goes to whoever runs the agent, under their terms.</p>
-<p class="muted">You can disconnect it later under Connect an agent in WhatBuild.</p>
+<p class="muted">You can change or disconnect it later under Connect an agent in WhatBuild.</p>
 <form method="post" action="/oauth/authorize">${inputs}<input type="hidden" name="csrf" value="${escapeHtml(p.csrf)}">
+${levelChoice()}
 <div class="row"><button type="submit" name="decision" value="allow" class="primary">Allow</button><button type="submit" name="decision" value="deny">Deny</button></div>
 </form>`,
   );
@@ -286,12 +306,15 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
       u.searchParams.set("error", "access_denied");
       return c.redirect(u.toString());
     }
+    // The person's own choice on the page; a form without one gets the default.
+    const level = f["level"] === undefined || f["level"] === "" ? DEFAULT_LEVEL : f["level"];
+    if (!isLevel(level)) return c.text("Choose what the agent may do: Read only, Edit or Admin.", 400);
     const code = randomToken();
     await db
       .insertInto("oauth_codes")
       .values({
         code_hash: sha256Hex(code), client_id: client.client_id, account_id: account.account_id, redirect_uri: sent.redirect_uri,
-        code_challenge: sent.code_challenge, resource: sent.resource, scope: SCOPE, expires_at: new Date(Date.now() + 10 * 60_000).toISOString(),
+        code_challenge: sent.code_challenge, resource: sent.resource, scope: SCOPE, level, expires_at: new Date(Date.now() + 10 * 60_000).toISOString(),
       })
       .execute();
     u.searchParams.set("code", code);
@@ -302,14 +325,14 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
   const revokeConnection = (family: string) =>
     db.updateTable("oauth_tokens").set({ revoked_at: new Date().toISOString() }).where("family_id", "=", family).where("revoked_at", "is", null).execute();
 
-  const issue = async (into: Db, client_id: string, account_id: string, resource: string, family: string) => {
+  const issue = async (into: Db, client_id: string, account_id: string, resource: string, family: string, level: ConnectionLevel) => {
     const access = `${ACCESS_PREFIX}${randomToken(30)}`;
     const refresh = `${REFRESH_PREFIX}${randomToken(30)}`;
     await into
       .insertInto("oauth_tokens")
       .values([
-        { token_hash: sha256Hex(access), kind: "access", client_id, account_id, resource, scope: SCOPE, family_id: family, expires_at: new Date(Date.now() + config.accessTokenSeconds * 1000).toISOString() },
-        { token_hash: sha256Hex(refresh), kind: "refresh", client_id, account_id, resource, scope: SCOPE, family_id: family, expires_at: new Date(Date.now() + config.refreshTokenDays * 86400_000).toISOString() },
+        { token_hash: sha256Hex(access), kind: "access", client_id, account_id, resource, scope: SCOPE, family_id: family, level, expires_at: new Date(Date.now() + config.accessTokenSeconds * 1000).toISOString() },
+        { token_hash: sha256Hex(refresh), kind: "refresh", client_id, account_id, resource, scope: SCOPE, family_id: family, level, expires_at: new Date(Date.now() + config.refreshTokenDays * 86400_000).toISOString() },
       ])
       .execute();
     return { access_token: access, token_type: "Bearer", expires_in: config.accessTokenSeconds, refresh_token: refresh, scope: SCOPE };
@@ -336,14 +359,14 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
           .where("client_id", "=", client.client_id)
           .where("used_at", "is", null)
           .where("expires_at", ">", now)
-          .returning(["account_id", "redirect_uri", "code_challenge", "resource", "family_id"])
+          .returning(["account_id", "redirect_uri", "code_challenge", "resource", "family_id", "level"])
           .executeTakeFirst();
         if (!row) return null;
         if (f["redirect_uri"] !== row.redirect_uri) return { error: "invalid_grant", description: "redirect_uri does not match the authorization request." };
         const challenge = createHash("sha256").update(f["code_verifier"] ?? "").digest("base64url");
         if (challenge !== row.code_challenge) return { error: "invalid_grant", description: "PKCE verification failed." };
         if (f["resource"] && f["resource"] !== row.resource) return { error: "invalid_target", description: "resource does not match the authorization request." };
-        return { tokens: await issue(trx, client.client_id, row.account_id, row.resource, row.family_id!) };
+        return { tokens: await issue(trx, client.client_id, row.account_id, row.resource, row.family_id!, row.level) };
       });
       if (!exchanged) {
         // A code presented again has leaked: the connection it made is revoked (RFC 6749, section 4.1.2).
@@ -368,9 +391,10 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
           .where("client_id", "=", client.client_id)
           .where("revoked_at", "is", null)
           .where("expires_at", ">", now)
-          .returning(["account_id", "resource", "family_id"])
+          .returning(["account_id", "resource", "family_id", "level"])
           .executeTakeFirst();
-        return row ? issue(trx, client.client_id, row.account_id, row.resource, row.family_id) : null;
+        // A refreshed connection keeps its level, including one the person changed since.
+        return row ? issue(trx, client.client_id, row.account_id, row.resource, row.family_id, row.level) : null;
       });
       if (rotated) return c.json(rotated);
       const row = await db.selectFrom("oauth_tokens").select(["client_id", "family_id", "expires_at", "revoked_at"]).where("token_hash", "=", hash).where("kind", "=", "refresh").executeTakeFirst();

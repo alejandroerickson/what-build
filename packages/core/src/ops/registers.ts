@@ -3,6 +3,7 @@ import { z } from "zod";
 import { checkEtag, keepRevision, normalizeDimensions, normalizeTags, productId, recordActivity, tenantId } from "../common.ts";
 import { checkCitationList, CITATION_MAX_COUNT, citationInput, citationViews, snapshotAll } from "../citations.ts";
 import { json, type RegisterEntriesTable, type RegisterLink } from "../db.ts";
+import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, dropRevisions, leaveTombstone, mockupVersionsReferring, refuseIfDeleted, storyVersionsReferring } from "../deletion.ts";
 import { conflict, invalid, notFound } from "../errors.ts";
 import { defineOperation, type OpContext, type OperationDef } from "../registry.ts";
 import { authorType, dimensions, expectedEtag, id, provenanceDepth, tags } from "../schemas.ts";
@@ -142,8 +143,39 @@ function registerOps(): OperationDef[] {
     let q = ctx.db.selectFrom("register_entries").selectAll().where("entry_id", "=", entryId).where("product_id", "=", productId(ctx));
     if (lock) q = q.forUpdate();
     const row = await q.executeTakeFirst();
+    if (!row) await refuseIfDeleted(ctx, kind, entryId, `Assumption ${entryId}`);
     if (!row || row.kind !== kind) throw notFound(`Assumption ${entryId} doesn’t exist in this product.`);
     return row;
+  }
+
+  /** What deleting an assumption destroys, and what points at it. */
+  async function deletion(ctx: OpContext, row: Row) {
+    const linkedFrom = await ctx.db
+      .selectFrom("register_entries")
+      .select(["entry_id", "statement", "links"])
+      .where("product_id", "=", productId(ctx))
+      .where("entry_id", "!=", row.entry_id)
+      .where(sql<boolean>`links @> ${JSON.stringify([{ id: row.entry_id }])}::jsonb`)
+      .execute();
+    const story = await storyVersionsReferring(ctx, "assumptions", row.entry_id);
+    const mockups = await mockupVersionsReferring(ctx, "assumptions", row.entry_id);
+    return {
+      id: row.entry_id,
+      statement: row.statement,
+      etag: row.etag,
+      status: row.status,
+      archived: Boolean(row.archived_at),
+      review_count: row.review_count,
+      citation_count: row.citations.length,
+      links: row.links.length,
+      linked_from: linkedFrom.flatMap((e) => e.links.filter((l) => l.id === row.entry_id).map((l) => ({ id: e.entry_id, statement: e.statement, type: l.type }))),
+      story_versions_referring: story,
+      mockup_versions_referring: mockups,
+      after_delete:
+        `Its statement, body, ${row.citations.length} citation${row.citations.length === 1 ? "" : "s"} with their quoted snapshots, ${row.review_count} review${row.review_count === 1 ? "" : "s"} and earlier text go. ` +
+        `Links to it from other assumptions are removed. Story page and mockup versions that list it in refs keep their text, and that ref stops resolving.`,
+      reversible_alternative: `${tool}(action="archive") takes it out of lists and search and erases nothing; to correct the claim itself, review or supersede it.`,
+    };
   }
 
   const createFields = {
@@ -502,7 +534,60 @@ function registerOps(): OperationDef[] {
     },
   });
 
-  return [list, get, create, update, review, supersede, link, unlink, archive, checkCitations] as OperationDef[];
+  const deleteImpact = defineOperation({
+    name: `${tool}.delete_impact`,
+    scope: "product",
+    access: "read",
+    mutates: false,
+    summary: `Preview exactly what deleting a ${kind} would destroy, and what points at it.`,
+    description: `Read-only. Show the person this result before proposing a delete. linked_from lists the other assumptions whose links to it would be removed; story_versions_referring and mockup_versions_referring list every version, current or earlier, that names it in its refs. Pass this result's etag as the delete's expected_etag.`,
+    input: z.strictObject({ id: idField }),
+    rest: { method: "GET", path: `/${tool}/:id/delete-impact` },
+    mcp: { tool, action: "delete_impact" },
+    async handler(ctx, input) {
+      return deletion(ctx, await load(ctx, input.id));
+    },
+  });
+
+  const deleteEntry = defineOperation({
+    name: `${tool}.delete`,
+    scope: "product",
+    access: "admin",
+    mutates: true,
+    summary: `DELETE PERMANENTLY — cannot be undone. Destroys a ${kind} with its citations, reviews and history; archive is the reversible alternative.`,
+    description:
+      `Archive (${tool}(action="archive")) is the reversible alternative, and review or supersede corrects the claim itself; one of those is almost always what is wanted. Deleting is also how a citation's quoted snapshot is removed for good. ` +
+      DELETE_GUIDANCE +
+      " Leaves a tombstone: reads return 410 with who, when and why.",
+    input: z.strictObject({ id: idField, ...deleteGuards }),
+    rest: { method: "DELETE", path: `/${tool}/:id` },
+    mcp: { tool, action: "delete" },
+    async handler(ctx, input) {
+      checkConfirmation(input.confirm, "archive");
+      const row = await load(ctx, input.id, true);
+      checkEtag(input.expected_etag, row.etag, kind);
+      const impact = await deletion(ctx, row);
+      // Links to it go from the entries that hold them; their etags change, so no stale write puts one back.
+      for (const e of new Set(impact.linked_from.map((l) => l.id))) {
+        const other = await load(ctx, e, true);
+        await ctx.db
+          .updateTable("register_entries")
+          .set({ links: json(other.links.filter((l) => l.id !== row.entry_id)), etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) })
+          .where("entry_id", "=", other.entry_id)
+          .execute();
+      }
+      await leaveTombstone(ctx, { object_type: kind, object_id: row.entry_id, title: row.statement, reason: input.reason });
+      await dropRevisions(ctx, kind, [row.entry_id]);
+      await ctx.db.deleteFrom("register_entries").where("entry_id", "=", row.entry_id).execute();
+      await recordActivity(ctx, { action: "deleted", entity_type: kind, entity_id: row.entry_id, entity_title: row.statement, summary: "Deleted the assumption permanently" });
+      const { etag, reversible_alternative, ...rest } = impact;
+      void etag;
+      void reversible_alternative;
+      return { deleted: true, ...rest, reason: input.reason };
+    },
+  });
+
+  return [list, get, create, update, review, supersede, link, unlink, archive, checkCitations, deleteImpact, deleteEntry] as OperationDef[];
 }
 
 export const registerOpsList = registerOps();

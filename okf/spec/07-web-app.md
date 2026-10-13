@@ -626,22 +626,38 @@ a diff. It is also the first place to look when a `409` surprises someone.
 ## 7.10 Archiving and deleting
 
 One pattern, used identically wherever an object can be removed
-([§9.5](09-data-lifecycle.md)). Permanent delete exists for sources today; every other object
-offers archive only.
+([§9.5](09-data-lifecycle.md)). Archive is offered to editors; permanent delete to admins only, on
+a product that isn't archived (`canDelete`). One dialog serves every delete
+([`delete-dialog.tsx`](../../apps/web/src/routes/delete-dialog.tsx)).
+
+| Object | Archive | Delete |
+|---|---|---|
+| Source | its actions menu | its actions menu |
+| Comment | — | a delete button on the comment, wherever it shows |
+| Assumption | its actions menu | its actions menu |
+| Outcome | its row's menu on Idea | its row's menu |
+| Story page | in its delete dialog, as the alternative (agents archive Story pages otherwise) | the inspector's About, under Export |
+| Mockup | in its delete dialog, as the alternative | the inspector's Version, under Download |
+| Product | Settings, Archive this product | Settings, Delete this product |
+| Organization | — | Members, Delete this organization, for owners, never in a public sandbox |
 
 1. The visible control is **Archive**. It is a plain, ordinary action with no confirmation beyond
    an undo toast, because it is reversible. Its tooltip says what archiving does: takes this out of
    your views and out of what an agent can search, keeps everything.
 2. **Delete** sits inside the same menu, below a separator, styled as destructive, never
    pre-selected and never the primary button of any dialog.
-3. Choosing it opens a dialog that leads with **"Delete permanently. This cannot be undone."** and
-   shows the `delete_impact` result as plain sentences before any control: *This deletes 4 stored
-   files (218 MB) and 1 comment. **2 citations in 2 assumptions** will point at a record of the
-   deletion. Their quotes are kept.* When
-   Story versions cite the source, it counts them, earlier versions included, and lists each page
-   with which of its versions do ("Current version and 2 earlier").
-4. The dialog asks for a reason, and requires the person to type the object's title to enable the
-   button. Archive is offered again, in the dialog, as the secondary action.
+3. Choosing it opens a dialog titled as a question ("Delete this assumption permanently?"), that
+   says it can't be undone and shows the object's preview as plain sentences before any control:
+   *This deletes 4 stored files (218 MB) and 1 comment. **2 citations in 2 assumptions** will point
+   at a record of the deletion. Their quotes are kept.* When Story versions cite a source, it
+   counts them, earlier versions included, and lists each page with which of its versions do
+   ("Current version and 2 earlier"); for an assumption or outcome it counts the Story page and
+   mockup versions that name it. A mockup a Story page shows lists those pages, and its delete
+   stays disabled.
+4. The dialog asks for a reason, which the button needs. A source also needs its title typed, and
+   a whole product or organization its name. Archive is offered again, in the dialog, as the
+   secondary action, wherever the object can be archived; elsewhere the secondary action is
+   Cancel.
 5. Afterwards, a toast states what was deleted and that the activity log records who, when and
    why. Nothing is silently gone.
 
@@ -675,6 +691,10 @@ never described as deleting. A list row showing an archived object says *Archive
   that members aren't shown to Story readers, with a way back to their products
   ([§3.5](03-accounts-teams-and-identity.md)). The page knows this from `products.list`'s
   `story_only` and asks for the members only once that has loaded, so it is never refused.
+  Last, an organization's owners see **Delete this organization** (never in a public sandbox):
+  the dialog lists its products and counts its sources, files and people, and needs a reason and
+  the organization's name typed (§7.10, [§9.5](09-data-lifecycle.md)). It is the only place an
+  organization is deleted; afterwards the overview opens.
 - **Invitation** (`/invite/:token`). Accepts the invitation and opens the overview with a toast
   naming the organization and role. A link already accepted by the same person (signing in accepts
   it) is the same success. Otherwise it names why the link can't be used and offers signing in
@@ -684,12 +704,14 @@ never described as deleting. A list row showing an archived object says *Archive
 - **Connect an agent** (`/connect`, or `…/connect` inside a product). [§6.8](06-operations-and-adapters.md):
   what the agent can reach (one product, one organization, or everything) and the MCP server URL for
   that scope; sign-in; a first request
-  to try; connected agents, each with what it can reach and who holds the connection, and
-  disconnect; the plain statement about
+  to try, after saying the agent will ask what it may do (Read only, Edit or Admin); connected
+  agents, each with what it can reach, who holds the connection, its level with a menu to change
+  it, and disconnect; the plain statement about
   where an agent sends what it reads, and an optional skill download. Connected agents appear here
   and nowhere else.
 - **Product settings** (`…/settings`, in the product's shell): name, slug and product concept; **People**;
-  export; the organization; and archive or restore. **People** lists everyone who can reach this
+  export; the organization; and, for admins, archive or restore and **Delete this product**,
+  whose dialog counts everything in it and needs a reason and the product's name typed (§7.10). **People** lists everyone who can reach this
   product and how, in words: a product role, or a role inherited from the team or the
   organization (`members.list` with `product`). Product admins get a role picker (admin, editor,
   viewer, reader) for product roles, **Add people** (pick someone already in the organization whom

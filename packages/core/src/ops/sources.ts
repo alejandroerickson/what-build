@@ -2,6 +2,7 @@ import { sql, type Selectable } from "kysely";
 import { z } from "zod";
 import { checkEtag, keepRevision, normalizeDimensions, normalizeTags, productId, recordActivity, tenantId } from "../common.ts";
 import { json, type RecordsTable } from "../db.ts";
+import { checkConfirmation, DELETE_CONFIRMATION, DELETE_GUIDANCE, deleteGuards, dropRevisions, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
 import { conflict, gone, invalid, notFound } from "../errors.ts";
 import { SEARCH_RULE } from "../source-fields.ts";
 import { effectiveRole, membershipsFor, roleAtLeast } from "../policy.ts";
@@ -12,7 +13,6 @@ import { newEtag, newId, sameEtag, slugify, uniq } from "../util.ts";
 type RecordRow = Selectable<RecordsTable>;
 
 export const MAX_BATCH = 200;
-export const DELETE_CONFIRMATION = "delete permanently";
 
 export async function loadRecord(ctx: OpContext, recordId: string, opts: { lock?: boolean; live?: boolean } = {}): Promise<RecordRow> {
   let q = ctx.db.selectFrom("records").selectAll().where("record_id", "=", recordId).where("product_id", "=", productId(ctx));
@@ -759,6 +759,35 @@ export const updateAnnotation = defineOperation({
   },
 });
 
+export const deleteAnnotation = defineOperation({
+  name: "sources.delete_annotation",
+  scope: "product",
+  access: "admin",
+  mutates: true,
+  summary: "DELETE PERMANENTLY — cannot be undone. Delete one note on a source; archiving it is the reversible alternative.",
+  description:
+    "Destroys the note, its tags, its anchor and its earlier text, and leaves a tombstone: reads of it return 410 with who, when and why. Nothing cites a note, so there is no delete_impact: show the person the note itself (from list_annotations) and delete only once they approve. " +
+    `This is permanent and cannot be undone. Needs admin, and a connection at Admin. Never slip a delete into a run of other actions. Pass the note's etag as expected_etag, the person's reason, and confirm set to exactly "${DELETE_CONFIRMATION}".`,
+  input: z.strictObject({ annotation_id: id("annotation"), ...deleteGuards }),
+  rest: { method: "DELETE", path: "/annotations/:annotation_id" },
+  mcp: { tool: "sources", action: "delete_annotation" },
+  async handler(ctx, input) {
+    checkConfirmation(input.confirm, "archive it with sources(action=\"update_annotation\", archived: true)");
+    const a = await ctx.db.selectFrom("annotations").selectAll().where("annotation_id", "=", input.annotation_id).where("product_id", "=", productId(ctx)).forUpdate().executeTakeFirst();
+    if (!a) {
+      await refuseIfDeleted(ctx, "annotation", input.annotation_id, `Note ${input.annotation_id}`);
+      throw notFound(`Note ${input.annotation_id} doesn’t exist in this product.`);
+    }
+    checkEtag(input.expected_etag, a.etag, "note");
+    const r = await ctx.db.selectFrom("records").select("title").where("record_id", "=", a.record_id).executeTakeFirst();
+    await leaveTombstone(ctx, { object_type: "annotation", object_id: a.annotation_id, title: truncateQuote(a.note, 200), reason: input.reason });
+    await dropRevisions(ctx, "annotation", [a.annotation_id]);
+    await ctx.db.deleteFrom("annotations").where("annotation_id", "=", a.annotation_id).execute();
+    await recordActivity(ctx, { action: "note_deleted", entity_type: "source", entity_id: a.record_id, entity_title: r?.title ?? null, summary: "Deleted a note permanently" });
+    return { deleted: true, annotation_id: a.annotation_id, record_id: a.record_id, reason: input.reason };
+  },
+});
+
 // ---- Connections --------------------------------------------------------------------------------
 
 /** Story pages whose current version cites a source or lists it in refs. */
@@ -1052,26 +1081,24 @@ export const deleteImpact = defineOperation({
 export const deleteSource = defineOperation({
   name: "sources.delete",
   scope: "product",
-  access: "write",
+  access: "admin",
   mutates: true,
   summary: "DELETE PERMANENTLY — cannot be undone. Destroys a source's files, passages and notes; archive is the reversible alternative.",
   description:
-    "This is permanent and cannot be undone. Archive (sources.archive) is the reversible alternative and almost always what is wanted. Requires editor, expected_etag, a reason, and confirm set to exactly \"delete permanently\". expected_etag is the etag from the delete_impact result you showed the person; if the source changed since, the delete is refused with 409 stale_etag, so preview again. Call delete_impact first, show the person what it will destroy, and delete only once they approve that impact: never slip a delete into a run of other actions, and even with a delete approved in advance, read delete_impact first and stop to ask when it would destroy more than they approved. Leaves a tombstone: reads return 410 with who, when and why, and citations keep their quoted text.",
-  input: z.strictObject({
-    record_id: id("source"),
-    expected_etag: expectedEtag,
-    reason: z.string().trim().min(1).max(500),
-    confirm: z.string().describe(`Must be exactly "${DELETE_CONFIRMATION}".`),
-  }),
+    "Archive (sources.archive) is the reversible alternative and almost always what is wanted. " +
+    DELETE_GUIDANCE +
+    " Leaves a tombstone: reads return 410 with who, when and why, and citations keep their quoted text.",
+  input: z.strictObject({ record_id: id("source"), ...deleteGuards }),
   rest: { method: "DELETE", path: "/sources/:record_id" },
   mcp: { tool: "sources", action: "delete" },
   async handler(ctx, input) {
-    if (input.confirm !== DELETE_CONFIRMATION)
-      throw invalid("confirmation_required", `Deleting is permanent. Set confirm to exactly "${DELETE_CONFIRMATION}", or archive instead.`);
+    checkConfirmation(input.confirm, "archive");
     const r = await loadRecord(ctx, input.record_id, { lock: true });
     if (!sameEtag(input.expected_etag, r.etag)) checkEtag(input.expected_etag, r.etag, "source");
     const im = await impact(ctx, r);
-    await ctx.db.insertInto("tombstones").values({ tenant_id: tenantId(ctx), product_id: productId(ctx), object_type: "source", object_id: r.record_id, title: r.title, reason: input.reason, deleted_by: json(ctx.actor) }).execute();
+    await leaveTombstone(ctx, { object_type: "source", object_id: r.record_id, title: r.title, reason: input.reason });
+    const notes = await ctx.db.selectFrom("annotations").select("annotation_id").where("record_id", "=", r.record_id).execute();
+    await dropRevisions(ctx, "annotation", notes.map((n) => n.annotation_id));
     await ctx.db.deleteFrom("records").where("record_id", "=", r.record_id).execute();
     // Blobs shared with a copy in another product stay until nothing refers to them.
     const stillUsed = im._blobs.length
@@ -1088,5 +1115,5 @@ export const deleteSource = defineOperation({
 
 export const sourceOps = [
   sourceFacets, listSources, getSource, createSource, updateSource, archiveSources, restoreSources,
-  annotate, listAnnotations, updateAnnotation, usedBy, moveSource, copySource, deleteImpact, deleteSource,
+  annotate, listAnnotations, updateAnnotation, deleteAnnotation, usedBy, moveSource, copySource, deleteImpact, deleteSource,
 ];

@@ -6,7 +6,7 @@ import { AppError, conflict, invalid } from "./errors.ts";
 import { resolveAliases } from "./field-aliases.ts";
 import { resolveScope, type ScopeRef } from "./policy.ts";
 import type { Ports } from "./ports.ts";
-import type { OpContext, OperationDef, Principal, Scope } from "./registry.ts";
+import { capRole, connectionNeeds, LEVEL_NAMES, levelAllows, type OpContext, type OperationDef, type Principal, type Scope } from "./registry.ts";
 import { admitVisitor, checkVisitorInput, countVisitorWrite, isVisitor, loadSandbox, lockSandbox, visitorActor, visitorName, type SandboxContext } from "./public-sandbox.ts";
 import { formatIssues } from "./schemas.ts";
 import { countCall } from "./usage.ts";
@@ -120,9 +120,15 @@ async function run(
   connector: ConnectorScope | null,
   reached: { scope?: Scope },
 ): Promise<{ result: unknown; scope: Scope }> {
+  // What the operation is comes before where it lands: refusing a call for its kind tells nothing about any product.
+  if (op.webOnly && principal.surface !== "web")
+    throw new AppError(403, "web_only", `Only a person can do ${op.name}, in the WhatBuild web app. Nothing was changed.`);
+  if (!levelAllows(principal.level, op)) throw connectionLevelTooLow(op, principal);
   // Scope first: a caller who cannot see the product learns nothing, not even whether their input was valid.
   const raw = (rawInput && typeof rawInput === "object" ? rawInput : {}) as Record<string, unknown>;
-  const scope = await resolveScope(env.db, principal, op.scope, op.access, refFromInput(op, raw, ref), op.name);
+  const resolved = await resolveScope(env.db, principal, op.scope, op.access, refFromInput(op, raw, ref), op.name);
+  // An agent acts with the lower of the person's role and its connection's level.
+  const scope: Scope = principal.level ? { ...resolved, role: capRole(resolved.role, principal.level) } : resolved;
   reached.scope = scope;
   if (connector) checkConnectorScope(connector, op, scope);
   const sandbox = await sandboxOf(env, principal, scope);
@@ -164,6 +170,19 @@ async function run(
   const result = await inTransaction((ctx) => op.handler(ctx, input as never, prepared), "call");
   if (enqueued) env.ports.notifyJobs?.();
   return { result, scope };
+}
+
+/** The refusal for an agent whose connection is below what the operation needs. */
+function connectionLevelTooLow(op: OperationDef, principal: Principal): AppError {
+  const level = principal.level!;
+  const needed = connectionNeeds(op);
+  return new AppError(
+    403,
+    "connection_level",
+    `This connection is set to ${LEVEL_NAMES[level]}, and ${op.name} needs ${LEVEL_NAMES[needed]}. Nothing was changed. ` +
+      `Tell the person: only they can raise it, under Connect an agent in WhatBuild. Never look for a way around it.`,
+    { level, needed },
+  );
 }
 
 export function toAppError(e: unknown): AppError {

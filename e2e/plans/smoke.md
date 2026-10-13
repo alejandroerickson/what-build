@@ -33,7 +33,8 @@ other plans will too.
    access changes; the sandbox page shows its settings, baseline and
    invitations, and the standard organization has no sandbox page.
 6. **Web, as Riley.** Find the archived product among archived products, in either organization.
-   *Expect:* it is listed as archived and can be opened; nothing offers to delete it.
+   *Expect:* it is listed as archived and can be opened; only its Settings offers to delete it,
+   to Riley as an admin, as Delete this product permanently, behind its typed name.
 7. **Web, as Jordan (reader).** Sign in, then open the product's Evidence, Exploration and a source
    by their addresses. *Expect:* Jordan reaches the Story and reads its pages; every other address
    takes Jordan back to the Story (`okf/decisions/a-reader-reads-only-the-story.md`), without

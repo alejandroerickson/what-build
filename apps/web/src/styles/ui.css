@@ -980,6 +980,22 @@ a.chip:hover {
   border-top: 1px solid var(--line);
 }
 
+/* What a permanent delete destroys, inside its dialog. */
+.delete-impact {
+  display: grid;
+  gap: var(--s-2);
+}
+.delete-impact p {
+  line-height: 1.5;
+}
+.delete-impact-list {
+  display: grid;
+  gap: var(--s-1);
+  margin: 0;
+  padding-left: var(--s-4);
+  line-height: 1.5;
+}
+
 /* ---- Sheets and lists ------------------------------------------------------------------------- */
 
 .sheet {

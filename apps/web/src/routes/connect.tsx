@@ -6,7 +6,7 @@ import { formatDate, relativeTime } from "../lib/format.ts";
 import { useProducts } from "../lib/session.tsx";
 import { useLastProduct } from "../shell/panel.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
-import { AgentFace, Button, ChoiceRow, CopyField, Dialog, EmptyState, ErrorCallout, Loading, SelectField, Sheet, SheetBody, SheetHeader, useToast } from "../ui/index.tsx";
+import { AgentFace, Button, ChoiceRow, CopyField, Dialog, EmptyState, ErrorCallout, Glyph, Loading, Menu, MenuNote, MenuRadio, SelectField, Sheet, SheetBody, SheetHeader, useToast } from "../ui/index.tsx";
 import "../styles/screens/account.css";
 
 interface ConnectInfo {
@@ -24,10 +24,20 @@ type Reach =
   | { kind: "tenant"; path: string; name: string | null }
   | { kind: "product"; path: string; name: string | null; tenant_name: string | null };
 
+/** What a connection may do: never more than the person can. */
+type Level = "viewer" | "editor" | "admin";
+
+const LEVELS: { level: Level; name: string; does: string }[] = [
+  { level: "viewer", name: "Read only", does: "Reads what you can. Changes nothing." },
+  { level: "editor", name: "Edit", does: "Reads, writes and archives. Never deletes." },
+  { level: "admin", name: "Admin", does: "Also deletes, and manages products and people." },
+];
+
 interface ConnectedAgent {
   client_name: string;
   family_id: string;
   reach: Reach;
+  level: Level;
   /** Where the agent's client receives its connection: web hosts, or an app on the computer that connected it. */
   returns_to: { hosts: string[]; local: boolean };
   last_used_at: string | null;
@@ -41,6 +51,8 @@ function reachLabel(r: Reach): string {
   if (r.kind === "tenant") return `Only the organization ${r.name ?? r.path}`;
   return `Only the product ${r.name ?? r.path}${r.name && r.tenant_name ? ` in ${r.tenant_name}` : ""}`;
 }
+
+const levelName = (l: Level) => LEVELS.find((x) => x.level === l)?.name ?? l;
 
 /** Who holds a connection, since an agent's name is whatever it called itself. */
 function heldBy(r: ConnectedAgent["returns_to"]): string {
@@ -216,7 +228,9 @@ export function ConnectPage() {
                 ) : null}
               </p>
             </Step>
-            <Step n={3} title="Sign in when it asks" />
+            <Step n={3} title="Sign in when it asks, and choose what it may do">
+              <p>Edit is the default. Choose Admin only for an agent that should delete permanently or manage products and people.</p>
+            </Step>
             <Step n={4} title="Ask it to start">
               <p>
                 For example: &ldquo;Add the interview notes in my downloads to {named?.name ?? "my product"} as a source.&rdquo;
@@ -266,6 +280,16 @@ function ConnectedSheet() {
   const qc = useQueryClient();
   const toast = useToast();
   const [target, setTarget] = useState<{ family_id: string; client_name: string } | null>(null);
+  const setLevel = useMutation({
+    mutationFn: (v: { agent: ConnectedAgent; level: Level }) => api("PATCH", `/api/v1/me/agents/${v.agent.family_id}`, { level: v.level }),
+    onSuccess: (_r, { agent, level }) => {
+      void qc.invalidateQueries({ queryKey: ["agents"] });
+      toast(`${agent.client_name} is set to ${LEVELS.find((l) => l.level === level)!.name}.`, {
+        action: { label: "Undo", onClick: () => setLevel.mutate({ agent: { ...agent, level }, level: agent.level }) },
+      });
+    },
+    onError: (e) => toast(`Couldn’t change what the agent may do. ${(e as Error).message}`, { tone: "negative" }),
+  });
   const disconnect = useMutation({
     mutationFn: (family: string) => api("DELETE", `/api/v1/me/agents/${family}`),
     onSuccess: () => {
@@ -296,9 +320,30 @@ function ConnectedSheet() {
                 <span className="account-sub">Connected {formatDate(a.created_at)}</span>
                 <span className="account-sub">Last active {relativeTime(a.last_used_at)}</span>
               </div>
-              <Button size="sm" onClick={() => setTarget(a)}>
-                Disconnect
-              </Button>
+              <div className="agents-row-actions">
+                <Menu
+                  label={`What ${a.client_name} may do: ${levelName(a.level)}. Change it`}
+                  triggerClassName="btn btn-secondary btn-sm"
+                  align="end"
+                  minWidth={340}
+                  trigger={
+                    <>
+                      <span>{levelName(a.level)}</span>
+                      <Glyph name="chevron-down" size="sm" />
+                    </>
+                  }
+                >
+                  {LEVELS.map((l) => (
+                    <MenuRadio key={l.level} checked={l.level === a.level} detail={l.does} onSelect={() => l.level !== a.level && setLevel.mutate({ agent: a, level: l.level })}>
+                      {l.name}
+                    </MenuRadio>
+                  ))}
+                  <MenuNote>It never does more than you can yourself.</MenuNote>
+                </Menu>
+                <Button size="sm" onClick={() => setTarget(a)}>
+                  Disconnect
+                </Button>
+              </div>
             </li>
           ))}
         </ul>

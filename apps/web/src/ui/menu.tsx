@@ -258,7 +258,7 @@ export function MenuRadio({ checked, onSelect, keepOpen, ...slots }: ItemSlots &
       role="menuitemradio"
       aria-checked={checked}
       aria-disabled={slots.disabled || undefined}
-      className="menu-item"
+      className={`menu-item${slots.detail ? " menu-item-2" : ""}`}
       tabIndex={-1}
       onClick={() => {
         if (slots.disabled) return;
@@ -279,7 +279,7 @@ export function MenuCheckbox({ checked, onChange, ...slots }: ItemSlots & { chec
       role="menuitemcheckbox"
       aria-checked={checked}
       aria-disabled={slots.disabled || undefined}
-      className="menu-item"
+      className={`menu-item${slots.detail ? " menu-item-2" : ""}`}
       tabIndex={-1}
       onClick={() => !slots.disabled && onChange(!checked)}
     >

@@ -10,6 +10,7 @@ import {
   Button, ButtonLink, Callout, Chip, EmptyState, ErrorCallout, FormGrid, Glyph, IconButton, Loading, Menu, MenuItem, MenuSeparator, Segmented, SelectField, Sheet,
   SheetBody, SheetHeader, StatusBadge, TextArea, TextField, useToast,
 } from "../ui/index.tsx";
+import { DeleteDialog, Referring, type VersionReferring } from "./delete-dialog.tsx";
 import { FirstUse } from "./first-use.tsx";
 import { HistoryDialog } from "./exploration-common.tsx";
 import "../styles/screens/idea.css";
@@ -181,8 +182,17 @@ function LinkedChips({ o }: { o: Outcome }) {
   );
 }
 
+/** What deleting an outcome destroys, as outcomes.delete_impact reports it. */
+interface OutcomeImpact {
+  etag: string;
+  assumptions: { id: string; statement: string }[];
+  story_versions_referring: (VersionReferring & { page_id: string })[];
+  mockup_versions_referring: (VersionReferring & { mockup_id: string })[];
+}
+
 export function IdeaPage() {
-  const { product, api: base, app, canWrite } = useProduct();
+  const { product, api: base, app, canWrite, canDelete } = useProduct();
+  const [deleting, setDeleting] = useState<Outcome | null>(null);
   const [params] = useSearchParams();
   const status = params.get("status") ?? "";
   // An outcome a search result opened (?outcome=<id>), scrolled to and marked.
@@ -323,6 +333,11 @@ export function IdeaPage() {
                           Restore
                         </MenuItem>
                       ) : null}
+                      {canDelete ? (
+                        <MenuItem icon="trash" tone="danger" onSelect={() => setDeleting(o)}>
+                          Delete permanently…
+                        </MenuItem>
+                      ) : null}
                     </Menu>
                     )}
                   </div>
@@ -332,6 +347,31 @@ export function IdeaPage() {
           </ol>
         )}
       </Sheet>
+      {deleting ? (
+        <DeleteDialog<OutcomeImpact>
+          title="Delete this outcome permanently?"
+          impactPath={`${base}/outcomes/${deleting.outcome_id}/delete-impact`}
+          deletePath={`${base}/outcomes/${deleting.outcome_id}`}
+          alternative={
+            deleting.status === "archived"
+              ? undefined
+              : { label: "Archive instead", onSelect: () => patch.mutate({ o: deleting, body: { status: "archived" }, undo: deleting.status }) }
+          }
+          renderImpact={(i) => (
+            <>
+              <p>This deletes “{deleting.title}”.</p>
+              {i.assumptions.length ? <p>{plural(i.assumptions.length, "assumption")} serve it, and will no longer be linked to it.</p> : null}
+              <Referring story={i.story_versions_referring} mockups={i.mockup_versions_referring} />
+            </>
+          )}
+          onDeleted={() => {
+            refresh();
+            toast(`Deleted “${deleting.title}”. The activity log records who, when and why.`);
+            setDeleting(null);
+          }}
+          onClose={() => setDeleting(null)}
+        />
+      ) : null}
       {history ? (
         <HistoryDialog
           tool="outcomes"

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { checkEtag, EMPTY_REFS, productId, recordActivity, tenantId, validateRefs } from "../common.ts";
 import { checkCitationList, CITATION_MAX_COUNT, citationInput, citationViews, snapshotAll } from "../citations.ts";
 import { json, type Db, type MockupPageRef, type Refs, type StoryNode } from "../db.ts";
+import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
 import { conflict, invalid, notFound } from "../errors.ts";
 import { readsOnlyTheStory } from "../policy.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
@@ -40,7 +41,11 @@ async function loadPage(ctx: OpContext, page: string, lock = false) {
   let q = ctx.db.selectFrom("story_pages").selectAll().where("product_id", "=", productId(ctx)).where("page_id", "=", page);
   if (lock) q = q.forUpdate();
   const row = await q.executeTakeFirst();
-  if (!row) throw notFound(`Story page "${page}" has never been published in this product.`);
+  if (!row) {
+    // A reader is told no more of a deleted page than of an archived one.
+    if (!readsOnlyTheStory(ctx.scope.role)) await refuseIfDeleted(ctx, "story_page", page, `Story page "${page}"`);
+    throw notFound(`Story page "${page}" has never been published in this product.`);
+  }
   return row;
 }
 
@@ -1017,5 +1022,82 @@ export const printDocument = defineOperation({
   },
 });
 
-export const storyOps = [guidance, getStyle, setStyle, listPages, getPage, listVersions, getVersion, publish, promoteMockup, writeNotes, checkStoryCitations, printView, getHierarchy, setHierarchy, archivePage, restorePage];
+/** What deleting a Story page destroys. */
+async function pageDeletion(ctx: OpContext, p: Awaited<ReturnType<typeof loadPage>>) {
+  const h = await ctx.db.selectFrom("story_hierarchies").select(["items", "mockups"]).where("product_id", "=", productId(ctx)).executeTakeFirst();
+  const promoted = h ? removeFromTree(h.items, p.page_id).promoted : [];
+  const current = await ctx.db.selectFrom("story_versions").select("mockup").where("version_id", "=", p.current_version_id).executeTakeFirst();
+  return {
+    page_id: p.page_id,
+    title: p.title,
+    etag: p.etag,
+    archived: Boolean(p.archived_at),
+    version_count: p.version_count,
+    sub_pages_promoted: promoted,
+    shows_mockup: current?.mockup ? { mockup_id: current.mockup.mockup_id, version: current.mockup.version, page_id: current.mockup.page_id } : null,
+    after_delete:
+      `Every version of the page (${p.version_count}) goes, with its HTML, notes, refs and citations. ` +
+      (promoted.length ? `Its ${promoted.length} sub-page${promoted.length === 1 ? "" : "s"} move up into its place in the navigation. ` : "") +
+      "Links to it from other pages stop opening. A mockup it shows is not touched.",
+    reversible_alternative: 'story(action="archive_page") takes it out of the navigation and erases nothing.',
+  };
+}
+
+export const pageDeleteImpact = defineOperation({
+  name: "story.delete_page_impact",
+  scope: "product",
+  access: "read",
+  mutates: false,
+  summary: "Preview exactly what deleting a Story page would destroy.",
+  description: "Read-only. Show the person this result before proposing a delete. sub_pages_promoted lists the sub-pages that would move up into its place. Pass this result's etag as the delete's expected_etag.",
+  input: z.strictObject({ page_id: pageId }),
+  rest: { method: "GET", path: "/story/pages/:page_id/delete-impact" },
+  mcp: { tool: "story", action: "delete_page_impact" },
+  async handler(ctx, input) {
+    return pageDeletion(ctx, await loadPage(ctx, input.page_id));
+  },
+});
+
+export const deletePage = defineOperation({
+  name: "story.delete_page",
+  scope: "product",
+  access: "admin",
+  mutates: true,
+  summary: "DELETE PERMANENTLY — cannot be undone. Destroys a Story page with every version; archive_page is the reversible alternative.",
+  description:
+    'Archiving (story(action="archive_page")) is the reversible alternative and almost always what is wanted. ' +
+    DELETE_GUIDANCE.replace("the matching delete_impact", "delete_page_impact").replace("read delete_impact first", "read delete_page_impact first") +
+    " Leaves a tombstone: reads return 410 with who, when and why, except to a reader, who is told only that there is no such page.",
+  input: z.strictObject({ page_id: pageId, ...deleteGuards }),
+  rest: { method: "DELETE", path: "/story/pages/:page_id" },
+  mcp: { tool: "story", action: "delete_page" },
+  async handler(ctx, input) {
+    checkConfirmation(input.confirm, 'archive it with story(action="archive_page")');
+    const p = await loadPage(ctx, input.page_id, true);
+    checkEtag(input.expected_etag, p.etag, "story page");
+    const impact = await pageDeletion(ctx, p);
+    const h = await ctx.db.selectFrom("story_hierarchies").selectAll().where("product_id", "=", productId(ctx)).forUpdate().executeTakeFirst();
+    if (h) {
+      const r = removeFromTree(h.items, p.page_id);
+      const mockups = h.mockups.filter((x) => x !== p.page_id);
+      await ctx.db.updateTable("story_hierarchies").set({ items: json(r.nodes), mockups: json(mockups), etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("product_id", "=", productId(ctx)).execute();
+    }
+    await leaveTombstone(ctx, { object_type: "story_page", object_id: p.page_id, title: p.title, reason: input.reason });
+    await ctx.db.deleteFrom("story_versions").where("product_id", "=", productId(ctx)).where("page_id", "=", p.page_id).execute();
+    await ctx.db.deleteFrom("story_pages").where("product_id", "=", productId(ctx)).where("page_id", "=", p.page_id).execute();
+    await recordActivity(ctx, {
+      action: "deleted",
+      entity_type: "story_page",
+      entity_id: p.page_id,
+      entity_title: p.title,
+      summary: impact.sub_pages_promoted.length ? `Deleted the page permanently; promoted ${impact.sub_pages_promoted.length} sub-page${impact.sub_pages_promoted.length === 1 ? "" : "s"}` : "Deleted the page permanently",
+    });
+    const { etag, reversible_alternative, ...rest } = impact;
+    void etag;
+    void reversible_alternative;
+    return { deleted: true, ...rest, reason: input.reason };
+  },
+});
+
+export const storyOps = [guidance, getStyle, setStyle, listPages, getPage, listVersions, getVersion, publish, promoteMockup, writeNotes, checkStoryCitations, printView, getHierarchy, setHierarchy, archivePage, restorePage, pageDeleteImpact, deletePage];
 

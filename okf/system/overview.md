@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild at three altitudes
 description: The whole system from the top down, the major parts, and the mechanics underneath, with links to the detail.
 tags: [overview, architecture, tenancy, access, mcp]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-12}
 status: stable
 ---
 
@@ -56,7 +56,8 @@ Google Cloud Storage behind a storage port; the official MCP SDK (stateless Stre
 React 19, React Router 7, TanStack Query 5, Vite 7; Vitest. Details in
 [architecture](../spec/02-architecture.md).
 
-**Operations.** 110 operations, each defined once and exposed through both REST and MCP
+**Operations.** 123 operations, each defined once and exposed through both REST and MCP, but for
+deleting an organization, which only its owner does, in the web app
 ([decision](../decisions/one-registry-two-front-doors.md)).
 
 **Tenancy.** Organization (tenant) → team → product. One shared database and schema; every content
@@ -67,10 +68,14 @@ row-level security. Blob keys start with the tenant. References never cross prod
 
 **Access.** Application-level, per product: roles at organization, team and product level, the
 highest applies, no per-object permissions. A reader, the lowest team or product role, reaches
-only the Story ([decision](../decisions/a-reader-reads-only-the-story.md)). The database enforces
-only the tenant boundary. A token is the person
+only the Story ([decision](../decisions/a-reader-reads-only-the-story.md)); editors archive and
+admins delete ([decision](../decisions/archive-by-default-delete-guarded.md)). The database
+enforces only the tenant boundary. A token is the person, at most: each agent connection has the
+level its person chose (Read only, Edit or Admin), which caps their role and the actions the agent
+is offered
 ([decision](../decisions/access-is-per-product-roles.md),
-[decision](../decisions/built-in-identity-and-oauth.md)).
+[decision](../decisions/built-in-identity-and-oauth.md),
+[decision](../decisions/an-agent-connection-has-a-level-the-person-chooses.md)).
 
 **The public sandbox.** A deployment may name one organization as its public sandbox
 (`WHATBUILD_SANDBOX_TENANT`). Anyone holding an invitation link enters it as a visitor: an editor
@@ -97,7 +102,8 @@ in-app tabs; rows are real links; works in a phone browser, light and dark
 ## 100 ft: mechanics
 
 **One request.** Identify the caller (cookie on REST, OAuth token on MCP → account,
-surface, client) → resolve tenant, team and product → authorize (`404`/`403`) → in a public
+surface, client, and for an agent its connection's level) → refuse an operation above that level
+(`403`) → resolve tenant, team and product → authorize (`404`/`403`) → in a public
 sandbox, admit the visitor and count the call (`403`/`429`) → validate with the
 operation's schema (`422` lists every problem) → open a transaction with `app.tenant_id` set → run
 the handler (etag check, `409 stale_etag`; actor snapshot; activity event) → answer as JSON or MCP

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
-import { aRole, formatBytes, formatDate, formatDateTime, relativeTime, scopeWords } from "../lib/format.ts";
+import { aRole, formatBytes, formatDate, formatDateTime, plural, relativeTime, scopeWords } from "../lib/format.ts";
 import { useSandboxStatus } from "../lib/public-sandbox.ts";
 import { useProduct, useProducts } from "../lib/session.tsx";
 import { ActivityFeed, ENTITY_LABEL, useActivity, type ActivityFilter } from "../shell/ActivityFeed.tsx";
@@ -11,6 +11,7 @@ import {
   Avatar, Button, Callout, CopyField, Dialog, ErrorCallout, FormGrid, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio,
   MenuSeparator, Segmented, SelectField, Sheet, SheetBody, SheetHeader, StatusBadge, TextArea, TextField, useToast,
 } from "../ui/index.tsx";
+import { DeleteDialog, listed } from "./delete-dialog.tsx";
 import "../styles/screens/activity.css";
 import "../styles/screens/settings.css";
 
@@ -115,6 +116,7 @@ export function ProductSettingsPage() {
       <ExportSheet />
       <OrganizationSheet />
       {isAdmin ? <ArchiveSheet /> : null}
+      {isAdmin ? <DeleteProductSheet /> : null}
       <p className="settings-foot">
         Your display name is in <Link to="/settings">your own settings</Link>.
       </p>
@@ -642,6 +644,76 @@ function OrganizationSheet() {
           <Loading lines={1} variant="lines" />
         )}
       </SheetBody>
+    </Sheet>
+  );
+}
+
+/** What deleting a product destroys, as products.delete_impact reports it. */
+interface ProductImpact {
+  etag: string;
+  contents: { sources: number; stored_files: number; bytes: number; comments: number; outcomes: number; assumptions: number; story_pages: number; mockups: number; exports: number; people: number };
+}
+
+/** Delete the whole product, with its name typed, one step past archiving it. */
+function DeleteProductSheet() {
+  const { product, api: base } = useProduct();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  return (
+    <Sheet labelledBy="delete-product-title">
+      <SheetHeader id="delete-product-title" title="Delete this product" />
+      <SheetBody className="stack-sm">
+        <p className="muted">Deleting {product.name} erases everything in it, archived or not, and can’t be undone. Export it first to keep a copy.</p>
+        <div>
+          <Button variant="danger" icon="trash" onClick={() => setOpen(true)}>
+            Delete {product.name} permanently…
+          </Button>
+        </div>
+      </SheetBody>
+      {open ? (
+        <DeleteDialog<ProductImpact>
+          title={`Delete ${product.name} permanently?`}
+          impactPath={`${base}/delete-impact`}
+          deletePath={base}
+          typeToConfirm={{ what: "product", name: product.name }}
+          renderImpact={({ contents: c }) => {
+            const held = [
+              c.sources > 0 &&
+                [plural(c.sources, "source"), listed([c.stored_files > 0 && `${plural(c.stored_files, "stored file")} (${formatBytes(c.bytes)})`, c.comments > 0 && plural(c.comments, "comment")])]
+                  .filter(Boolean)
+                  .join(", with "),
+              listed([c.outcomes > 0 && plural(c.outcomes, "outcome"), c.assumptions > 0 && plural(c.assumptions, "assumption")]),
+              listed([c.mockups > 0 && plural(c.mockups, "mockup"), c.story_pages > 0 && plural(c.story_pages, "Story page")]),
+              c.exports > 0 && plural(c.exports, "export"),
+              "its activity log",
+            ].filter((x): x is string => Boolean(x));
+            return (
+              <>
+                <p>Everything in {product.name} goes, archived or not:</p>
+                <ul className="delete-impact-list">
+                  {held.map((h) => (
+                    <li key={h}>{h}</li>
+                  ))}
+                </ul>
+                {c.people ? <p>{c.people === 1 ? "1 person loses their role" : `${c.people} people lose their roles`} on this product.</p> : null}
+              </>
+            );
+          }}
+          onDeleted={() => {
+            void qc.invalidateQueries({ queryKey: ["products"] });
+            try {
+              localStorage.removeItem("whatbuild.last-product");
+            } catch {
+              // Storage may be blocked.
+            }
+            toast(`Deleted ${product.name}.`);
+            navigate("/");
+          }}
+          onClose={() => setOpen(false)}
+        />
+      ) : null}
     </Sheet>
   );
 }

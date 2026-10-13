@@ -3,7 +3,7 @@ type: Decision
 title: Every capability is one registered operation, exposed through both REST and MCP
 description: Operations are defined once with a Zod schema, access level, REST route and MCP action; both transports are generated from the registry.
 tags: [decision, architecture, operations, rest, mcp]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-12}
 status: stable
 ---
 
@@ -16,7 +16,7 @@ The web app, scripts and agents must be able to do the same things with the same
 ## Decision
 
 - Each operation is declared once in `packages/core/src/ops/` with its name, scope, access (`read`, `write`, `admin`), input schema, REST mapping, MCP mapping and handler.
-- REST routes and MCP tools are generated from that registry. Every operation has both (110 today).
+- REST routes and MCP tools are generated from that registry. Every operation has both (123 today), but deleting an organization and its preview, which only an owner does, in the web app ([decision](archive-by-default-delete-guarded.md)).
 - If the web app needs something, it becomes an operation; the UI has no private back door.
 
 ## Consequences

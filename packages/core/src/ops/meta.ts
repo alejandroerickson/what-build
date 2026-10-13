@@ -10,7 +10,7 @@ import { newId } from "../util.ts";
  * never asked to reinstall the same content.
  */
 export const SKILL_NAME = "whatbuild";
-export const SKILL_VERSION = "0.22.0";
+export const SKILL_VERSION = "0.23.0";
 
 export function skillMarkdown(): string {
   return SKILL_TEMPLATE.replace("__SKILL_VERSION__", SKILL_VERSION);
@@ -37,6 +37,7 @@ export const submitFeedback = defineOperation({
   scope: "account",
   access: "any",
   mutates: true,
+  connection: "viewer",
   summary: "Report a tool that failed, wording that confused you, or a capability you wish existed. Write-only.",
   description:
     "Goes to the maintainers; there is no way to read it back, and it touches no source. Say what happened, what you expected, and any suggestion. Categories: issue (a tool failed or behaved unexpectedly), confusion (a description misled you), feature_request (something you wish existed), other. Never include secrets or source content.",

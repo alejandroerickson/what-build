@@ -29,8 +29,12 @@ export interface Harness {
    * and that cookie, if one was set.
    */
   followSignInLink(): Promise<{ response: Response; cookie: string | undefined }>;
-  /** An access token approved by `browser`, for the MCP endpoint at `resourcePath` (by default `/mcp`). */
-  connectAgent(browser: Browser, clientName?: string, resourcePath?: string): Promise<string>;
+  /**
+   * An access token approved by `browser`, for the MCP endpoint at `resourcePath` (by default `/mcp`),
+   * at the connection `level` the person chose (by default admin, so the agent may do all they can;
+   * null sends the form without a choice).
+   */
+  connectAgent(browser: Browser, clientName?: string, resourcePath?: string, level?: "viewer" | "editor" | "admin" | null): Promise<string>;
   close(): Promise<void>;
 }
 
@@ -123,7 +127,7 @@ export async function startHarness(overrides: Partial<ServerConfig> = {}, opts: 
       const cookie = response.headers.getSetCookie().map((c) => c.split(";")[0]!).find((c) => /^(?:__Host-)?wb_session=./.test(c));
       return { response, cookie };
     },
-    async connectAgent(browser, clientName = "test-agent", resourcePath = "/mcp") {
+    async connectAgent(browser, clientName = "test-agent", resourcePath = "/mcp", level = "admin") {
       const redirect = "http://127.0.0.1:9999/callback";
       const reg = (await (await fetch(`${baseUrl}/oauth/register`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ client_name: clientName, redirect_uris: [redirect] }) })).json()) as { client_id: string };
       const verifier = randomBytes(32).toString("base64url");
@@ -138,7 +142,7 @@ export async function startHarness(overrides: Partial<ServerConfig> = {}, opts: 
         method: "POST",
         redirect: "manual",
         headers: { cookie: `${browser.cookie}; ${consent}`, "content-type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ ...fields, csrf, decision: "allow" }),
+        body: new URLSearchParams({ ...fields, csrf, decision: "allow", ...(level ? { level } : {}) }),
       });
       const code = new URL(decide.headers.get("location")!).searchParams.get("code")!;
       const tokens = (await (

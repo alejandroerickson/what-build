@@ -113,6 +113,12 @@
 .account-main {
   min-width: 0;
 }
+.agents-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s-2);
+}
 .account-name {
   display: block;
   font-weight: var(--fw-medium);

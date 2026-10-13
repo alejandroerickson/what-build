@@ -1,4 +1,5 @@
 import type { ColumnType, Generated, Kysely, Transaction } from "kysely";
+import type { ConnectionLevel } from "./registry.ts";
 
 /** A jsonb column: read as the value, written as a JSON string. */
 export type Json<T> = ColumnType<T, string, string>;
@@ -132,6 +133,8 @@ export interface OauthCodesTable {
   used_at: TsNull;
   /** The connection (`oauth_tokens.family_id`) the code made when it was exchanged; null until then. */
   family_id: string | null;
+  /** The connection level the person chose when they approved it. */
+  level: Def<ConnectionLevel>;
 }
 
 export interface OauthTokensTable {
@@ -146,6 +149,8 @@ export interface OauthTokensTable {
   expires_at: Ts;
   last_used_at: TsNull;
   revoked_at: TsNull;
+  /** What the connection may do: the same on every token of one connection (`family_id`). */
+  level: Def<ConnectionLevel>;
 }
 
 export interface TenantsTable {

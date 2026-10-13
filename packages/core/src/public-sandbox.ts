@@ -357,11 +357,6 @@ function quota(sandbox: SandboxState, name: SandboxSettingKey, used: number, uni
   });
 }
 
-/** Operations a visitor never runs, and what to do instead. */
-const VISITOR_REFUSED: Record<string, string> = {
-  "sources.delete": "Permanent delete is off for visitors in a public sandbox. Archive the source instead with sources(action=\"archive\"); the next reset puts everything back.",
-};
-
 /** Operations counted against a daily allowance beyond the count of writes. */
 const DAILY: Record<string, { counter: Counter; setting: SandboxSettingKey; unit: string; what: (n: number) => string }> = {
   "sources.create": { counter: "sources", setting: "sources_per_day", unit: "sources", what: (n) => `each visitor ${n} new sources a day` },
@@ -417,8 +412,6 @@ export async function admitVisitor(db: Db, sandbox: SandboxContext, principal: P
     // Export is never blocked by a read-only state; its own daily allowance still applies.
     if (op.mutates && s.visitor_access === "read" && op.name !== "products.export")
       throw new AppError(403, "sandbox_read_only", `This public sandbox is read-only for visitors for now, so ${op.name} was refused. Reading and searching still work.`);
-    const refused = VISITOR_REFUSED[op.name];
-    if (refused) throw restricted(refused);
     switchedOff(sandbox, op);
   }
 

@@ -2,7 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
-import { aRole, formatDate, ROLE_WORD, scopeWords } from "../lib/format.ts";
+import { aRole, formatBytes, formatDate, ROLE_WORD, scopeWords } from "../lib/format.ts";
 import { useMe, useProducts } from "../lib/session.tsx";
 import { ActivityLog, type ActivityItem } from "../shell/ActivityFeed.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
@@ -11,6 +11,7 @@ import {
   SelectField, Sheet, SheetBody, SheetHeader, StatusBadge, TextArea, TextField, useToast,
 } from "../ui/index.tsx";
 import { EntryPage } from "./auth.tsx";
+import { DeleteDialog } from "./delete-dialog.tsx";
 import "../styles/screens/account.css";
 import "../styles/screens/activity.css";
 import "../styles/screens/org.css";
@@ -403,11 +404,83 @@ export function MembersPage() {
         </Sheet>
       ) : null}
       {tenantAdmin && !sandbox?.only_you ? <AccessChanges tenant={tenant} /> : null}
+      {t?.your_role === "owner" && !t.sandbox ? <DeleteOrganizationSheet tenant={tenant} orgName={orgName} /> : null}
       {giving ? (
         <GiveAccessDialog tenant={tenant} orgName={orgName} initialEmail={giving.email} onClose={() => setGiving(null)} canManage={canManage} tenantAdmin={tenantAdmin} ownerHere={t?.your_role === "owner"} />
       ) : null}
       {removing ? <RemoveMemberDialog tenant={tenant} orgName={orgName} member={removing.m} lastGrant={removing.g} tenantAdmin={tenantAdmin} onClose={() => setRemoving(null)} /> : null}
     </>
+  );
+}
+
+/** What deleting an organization destroys, as products.delete_tenant_impact reports it. */
+interface OrganizationImpact {
+  contents: { teams: number; products: { product_id: string; name: string; archived: boolean }[]; sources: number; stored_files: number; bytes: number; people: number; pending_invitations: number };
+}
+
+/**
+ * Delete the whole organization: an owner's act in the web app alone, never an agent's, with the
+ * organization's name typed to confirm.
+ */
+function DeleteOrganizationSheet({ tenant, orgName }: { tenant: string; orgName: string }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  return (
+    <Sheet labelledBy="delete-org-title">
+      <SheetHeader id="delete-org-title" title="Delete this organization" />
+      <SheetBody className="stack-sm">
+        <p className="muted">Deleting {orgName} erases every team and product in it, and every role and invitation. It can’t be undone.</p>
+        <div>
+          <Button variant="danger" icon="trash" onClick={() => setOpen(true)}>
+            Delete {orgName} permanently…
+          </Button>
+        </div>
+      </SheetBody>
+      {open ? (
+        <DeleteDialog<OrganizationImpact>
+          title={`Delete ${orgName} permanently?`}
+          impactPath={`/api/v1/tenants/${tenant}/delete-impact`}
+          deletePath={`/api/v1/tenants/${tenant}`}
+          typeToConfirm={{ what: "organization", name: orgName }}
+          renderImpact={({ contents: c }) => (
+            <>
+              <p>
+                Everything in {orgName} goes at once: {c.teams === 1 ? "its team" : `its ${c.teams} teams`} and {c.products.length === 1 ? "its product" : `all ${c.products.length} of its products`}, with{" "}
+                {c.sources === 1 ? "1 source" : `${c.sources} sources`} and {c.stored_files === 1 ? "1 stored file" : `${c.stored_files} stored files`} ({formatBytes(c.bytes)}).
+              </p>
+              {c.products.length ? (
+                <ul className="delete-impact-list">
+                  {c.products.map((p) => (
+                    <li key={p.product_id}>
+                      {p.name}
+                      {p.archived ? <span className="faint"> · archived</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <p>
+                {c.people === 1 ? "1 person loses" : `${c.people} people lose`} their roles here
+                {c.pending_invitations ? `, and ${c.pending_invitations === 1 ? "1 invitation stops" : `${c.pending_invitations} invitations stop`} working` : ""}. Their accounts, and their roles in
+                other organizations, stay.
+              </p>
+            </>
+          )}
+          onDeleted={() => {
+            void qc.invalidateQueries({ queryKey: ["products"] });
+            try {
+              if (localStorage.getItem("whatbuild.last-product")?.startsWith(`${tenant}/`)) localStorage.removeItem("whatbuild.last-product");
+            } catch {
+              // Storage may be blocked.
+            }
+            toast(`Deleted ${orgName}.`);
+            navigate("/");
+          }}
+          onClose={() => setOpen(false)}
+        />
+      ) : null}
+    </Sheet>
   );
 }
 
