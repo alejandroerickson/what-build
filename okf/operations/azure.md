@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild self-hosts on Azure Container Apps with Azure Database for PostgreSQL and a mounted file share, set up by an agent with the Azure CLI.
 description: What a self-hosted deployment on Azure is made of, how each resource is configured, the commands that create it, sign-in with a Microsoft work account, the variations between organizations, deploying a new version, cost and removal.
 tags: [operations, deployment, azure, self-hosting, container-apps, entra]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:codex, at: 2026-10-12}
 status: draft
 ---
 
@@ -469,10 +469,60 @@ organization rarely wants it.
 
 ## Deploying a new version
 
-From a clean checkout of the commit: build, migrate, then move the app. A deploy changes the
-image and `WHATBUILD_RELEASE`; every other setting stays. Note the time in UTC before migrating:
-the database's point-in-time restore goes back to a moment, and if the new version breaks the
-deployment, [recovering from a bad release](recovering-from-a-bad-release.md) takes it back.
+From a clean checkout of the commit: build, verify recovery, migrate, then move the app.
+A deploy changes the image and `WHATBUILD_RELEASE`; every other setting stays.
+
+**Before every migration job**, including a redeploy, verify the actual database's backup
+configuration. Do not infer it from the setup defaults or a previous successful deploy. Confirm
+that `AZ_POSTGRES` names the server used by the app and migration job. The deployment identity
+needs read access to that server (for example, Reader scoped to the server); a failed read stops
+the deploy. This guide requires at least 14 days of retention and an available past restore
+window:
+
+```bash
+set -euo pipefail
+: "${AZ_SUBSCRIPTION:?Set the deployment subscription}"
+: "${AZ_RG:?Set the deployment resource group}"
+: "${AZ_POSTGRES:?Set the deployment PostgreSQL server}"
+BACKUP_JSON=$(az postgres flexible-server show --subscription "$AZ_SUBSCRIPTION" \
+  -g "$AZ_RG" -n "$AZ_POSTGRES" --query backup -o json)
+export BACKUP_JSON
+python3 - <<'PYCHECK'
+import json, os
+from datetime import datetime, timezone
+backup = json.loads(os.environ["BACKUP_JSON"])
+days = backup.get("backupRetentionDays")
+earliest = backup.get("earliestRestoreDate")
+if not isinstance(days, int) or isinstance(days, bool) or days < 14:
+    raise SystemExit("Backup check failed: at least 14 days of retention required")
+if not earliest:
+    raise SystemExit("Backup check failed: earliest restore time unavailable")
+start = datetime.fromisoformat(earliest.replace("Z", "+00:00"))
+now = datetime.now(timezone.utc)
+if start.tzinfo is None or start >= now:
+    raise SystemExit("Backup check failed: no past restore window available")
+print(f"Verified backup retention: {days} days; earliest restore time: {earliest}")
+PYCHECK
+```
+
+After this check, immediately before starting the migration job, record
+`date -u +%Y-%m-%dT%H:%M:%SZ`, the subscription and server, the returned backup metadata, and the
+previous and target image/release in the deployment's private run log or workflow summary.
+Write this record **before** starting migrations, so it survives a migration failure. Stop if
+verification or recording fails. Never put database credentials or connection strings in it.
+
+This verifies automatic point-in-time recovery configuration; it does **not** create a fresh
+backup or prove a restore works. The recorded time is a pre-migration recovery target, not
+confirmation that logs up to that second have been archived. Azure documents transaction-log
+backup lag of up to five minutes; check available restore times during recovery
+([Microsoft backup documentation](https://learn.microsoft.com/en-us/azure/postgresql/backup-restore/concepts-backup-restore)).
+If the deployment requires a fresh backup, take an on-demand backup and confirm completion
+before migrating; do not silently substitute this metadata check. Keep restore drills separate.
+For a database hosted elsewhere, verify its equivalent recovery mechanism before proceeding.
+
+If a migration fails, earlier migrations in that job may already have committed even though the
+old app is still serving. Use [recovering from a bad release](recovering-from-a-bad-release.md)
+with the recorded time and previous image; restoring loses writes after the chosen point.
 
 ```bash
 WB_IMAGE_TAG=$(git rev-parse --short=7 HEAD)
@@ -493,11 +543,13 @@ WB_IMAGE_TAG=v0.2.0
 az acr import --subscription "$AZ_SUBSCRIPTION" -n "$AZ_ACR" --source "ghcr.io/<owner>/what-build:$WB_IMAGE_TAG" --image "whatbuild:$WB_IMAGE_TAG"
 ```
 
-**A pipeline of your own.** The three commands above are all a deploy is, so the usual shape is a
+**A pipeline of your own.** Run the recovery check and deployment commands above from a
 small repository of the organization's that pins a release, runs them from a workflow signed in
 by OIDC to an identity with `AcrPush` and `Container Registry Tasks Contributor` on the registry
 and `Container Apps Contributor` and `Container Apps Jobs Contributor` on the resource group, and
-holds the approvals. That repository is the organization's; this one documents the steps.
+holds the approvals. It also reads the PostgreSQL backup metadata and records the recovery
+check before starting the migration job. That repository is the organization's; this one
+documents the steps.
 
 Changing a setting is `az containerapp update --set-env-vars NAME=value` (the same variables as
 [cloud-run.md](cloud-run.md), with the `WHATBUILD_` prefix); a secret is a new version in the

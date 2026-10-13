@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-10-12}
+generated: {by: agent:codex, at: 2026-10-12}
 status: stable
 ---
 
@@ -22,6 +22,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   upgrading.
 
 ## Unreleased
+
+- **Azure operators:** before migrations, verify PostgreSQL backup retention and the restore
+  window and record recovery details as described in [the Azure guide](azure.md#deploying-a-new-version).
+  Deployment pipelines need read access to the database server and its configured name.
 
 - **Migrations `0020_connection_levels` and `0021_tombstones_per_product`.** The first adds a level
   to every agent connection; the second re-keys tombstones by product. Rehearse on the dev

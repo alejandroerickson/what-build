@@ -109,8 +109,12 @@ organization, which is where care is needed.
 
 ## Later tasks
 
-- **A new version**: "Deploying a new version" in the guide. Note the time in UTC, build the
-  commit, run the migration job and see it succeed, then move the app; check `server_version`.
+- **A new version**: "Deploying a new version" in the guide. Build the commit, verify the actual
+  database backup retention and restore window, and record the pre-migration UTC time, server,
+  backup metadata and previous/target images in the private deployment record before starting
+  the migration job. Stop if recovery cannot be verified or recorded. Distinguish verified
+  automatic backups from a fresh backup and a tested restore. Then run the job and see it
+  succeed, move the app, and check `server_version`.
 - **A new version broke it**: the `recover-a-deployment` skill.
 - **A setting**: `az containerapp update --set-env-vars`; a secret is a new version in the vault.
 - **Microsoft sign-in on a deployment made without it**: add the secret reference and the
