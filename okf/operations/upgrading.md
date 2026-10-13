@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.9.0
+
 - **Azure operators:** review every skipped release and run the live Microsoft sign-in
   [preflight](azure.md#upgrade-and-sign-in-preflight) before approving deployment. After it, test
   a fresh browser sign-in at the public/custom URL; report that separately from health checks.
