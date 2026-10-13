@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **Azure operators:** review every skipped release and run the live Microsoft sign-in
+  [preflight](azure.md#upgrade-and-sign-in-preflight) before approving deployment. After it, test
+  a fresh browser sign-in at the public/custom URL; report that separately from health checks.
+
 - **Azure operators:** before migrations, verify PostgreSQL backup retention and the restore
   window and record recovery details as described in [the Azure guide](azure.md#deploying-a-new-version).
   Deployment pipelines need read access to the database server and its configured name.

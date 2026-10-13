@@ -472,6 +472,74 @@ organization rarely wants it.
 From a clean checkout of the commit: build, verify recovery, migrate, then move the app.
 A deploy changes the image and `WHATBUILD_RELEASE`; every other setting stays.
 
+### Upgrade and sign-in preflight
+
+Before dispatching or approving a deployment, read the running version from `/api/v1/meta` and
+review [upgrading](upgrading.md) at the target ref for **every release since that version**,
+including releases skipped by the upgrade. Match each required action to the live deployment.
+Resolve settings and identity-provider requirements before migrations or switching the image;
+image builds and health checks cannot find a missing identity claim.
+
+For Microsoft sign-in, read the actual app registration in the configured identity tenant, which
+may differ from the resource subscription's tenant. Verify the `email` and `xms_edov` ID-token
+claims and the callback for the deployment's current public/custom URL. A signup allowlist is
+not proof that the identity provider verified an address. Do not add an unverified domain to
+`WHATBUILD_MICROSOFT_DOMAINS` just to make a failed check pass. If a deployment deliberately uses
+that documented alternative, verify its domain authority separately and record the evidence.
+
+The operator's Azure CLI account must be able to read both the container app and the registration.
+This read-only check uses Python 3 and leaves the active CLI account unchanged. Run it before the
+deploy; a denied read or failed check blocks proceeding. Do not grant the deployment identity
+broad directory permissions just to run it from a pipeline. Load the deployment's names into the
+environment first (`AZ_SUBSCRIPTION`, `AZ_RG`, `AZ_APP`, `WB_PUBLIC_URL`):
+
+```bash
+python3 - <<'PYSIGNIN'
+import json, os, subprocess, urllib.request, urllib.parse, uuid
+
+def az(*args):
+    result = subprocess.run(["az", *args, "-o", "json"], capture_output=True, text=True)
+    if result.returncode:
+        raise SystemExit("Azure read failed; check the signed-in account and its read permissions")
+    return json.loads(result.stdout)
+
+# Read only public configuration, never a secret value.
+env = az("containerapp", "show", "--subscription", os.environ["AZ_SUBSCRIPTION"],
+         "-g", os.environ["AZ_RG"], "-n", os.environ["AZ_APP"], "--query",
+         "properties.template.containers[0].env[?name=='WHATBUILD_MICROSOFT_TENANT' || "
+         "name=='WHATBUILD_MICROSOFT_CLIENT_ID' || name=='WHATBUILD_PUBLIC_URL']")
+values = {item["name"]: item.get("value") for item in env}
+tenant = str(uuid.UUID(values["WHATBUILD_MICROSOFT_TENANT"]))
+client = str(uuid.UUID(values["WHATBUILD_MICROSOFT_CLIENT_ID"]))
+public = values["WHATBUILD_PUBLIC_URL"]
+if public != os.environ["WB_PUBLIC_URL"] or not public.startswith("https://"):
+    raise SystemExit("Public URL does not match the deployment URL")
+access = az("account", "get-access-token", "--tenant", tenant, "--resource-type", "ms-graph")
+params = urllib.parse.urlencode({"$filter": f"appId eq '{client}'",
+                                "$select": "appId,optionalClaims,web"})
+request = urllib.request.Request("https://graph.microsoft.com/v1.0/applications?" + params,
+                                headers={"Authorization": "Bearer " + access["accessToken"]})
+with urllib.request.urlopen(request, timeout=30) as response:
+    registrations = json.load(response)["value"]
+if len(registrations) != 1:
+    raise SystemExit("Expected exactly one app registration in the configured identity tenant")
+registration = registrations[0]
+claims = {item["name"] for item in (registration.get("optionalClaims") or {}).get("idToken", [])}
+if not {"email", "xms_edov"} <= claims:
+    raise SystemExit("Microsoft ID-token claims must include email and xms_edov")
+callback = public.rstrip("/") + "/auth/microsoft/callback"
+if callback not in (registration.get("web") or {}).get("redirectUris", []):
+    raise SystemExit("The custom/public URL callback is missing from the app registration")
+print("Microsoft sign-in configuration check passed; browser sign-in still needs testing")
+PYSIGNIN
+```
+
+Record the reviewed current/target releases, completed upgrade actions and sign-in configuration
+check in the private deployment record. On pipelines whose workload identity cannot read the
+identity tenant, the operator completes this check before approving the production environment.
+
+### Recovery and migration
+
 **Before every migration job**, including a redeploy, verify the actual database's backup
 configuration. Do not infer it from the setup defaults or a previous successful deploy. Confirm
 that `AZ_POSTGRES` names the server used by the app and migration job. The deployment identity
@@ -533,6 +601,12 @@ az containerapp update --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP
   --image "$AZ_ACR.azurecr.io/whatbuild:$WB_IMAGE_TAG" --set-env-vars "WHATBUILD_RELEASE=$WB_IMAGE_TAG" -o none
 curl -s "$WB_PUBLIC_URL/api/v1/meta"    # server_version is the new tag
 ```
+
+After deployment, check `/health` and `/api/v1/meta`, then complete a **fresh Microsoft browser
+sign-in at the public/custom URL** and open an existing product. A cached session, a redirect back
+from Microsoft or `auth.microsoft: true` is not a successful sign-in test. The callback can still
+reject the returned identity. If the operator must finish MFA, report “deployed; sign-in awaiting
+verification” until that test succeeds. Do not report sign-in as verified from a health check.
 
 **From a released image.** A tag `v*` on the repository publishes the image as
 `ghcr.io/<owner>/what-build:<tag>` ([decision](../decisions/releases-are-tags-with-a-published-image.md)).
