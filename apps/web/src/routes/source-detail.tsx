@@ -404,7 +404,7 @@ function RestoreButton({ record }: { record: SourceRecord }) {
 }
 
 function SourceActions({ record: r, onDialog }: { record: SourceRecord; onDialog: (d: "edit" | "delete" | "files") => void }) {
-  const { canWrite } = useProduct();
+  const { canWrite, canDelete } = useProduct();
   const toast = useToast();
   const archive = useArchive(r);
   return (
@@ -442,9 +442,11 @@ function SourceActions({ record: r, onDialog }: { record: SourceRecord; onDialog
               Archive
             </MenuItem>
           )}
-          <MenuItem icon="trash" tone="danger" onSelect={() => onDialog("delete")}>
-            Delete permanently…
-          </MenuItem>
+          {canDelete ? (
+            <MenuItem icon="trash" tone="danger" onSelect={() => onDialog("delete")}>
+              Delete permanently…
+            </MenuItem>
+          ) : null}
         </>
       ) : null}
     </Menu>

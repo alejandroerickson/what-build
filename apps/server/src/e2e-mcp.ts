@@ -16,9 +16,10 @@ const TOKENS = join(E2E_DIR, "mcp");
 const PEOPLE: Record<string, string> = { riley: "riley@example.com", sam: "sam@example.com", jordan: "jordan@example.com" };
 const REDIRECT = "http://127.0.0.1:9/callback";
 
-const HELP = `pnpm e2e mcp <command> [--as riley|sam|jordan|<email>] [--endpoint /mcp/t/<org>[/<team>/<product>]]
+const HELP = `pnpm e2e mcp <command> [--as riley|sam|jordan|<email>] [--endpoint /mcp/t/<org>[/<team>/<product>]] [--level viewer|editor|admin]
 
-  connect                 connect as that person (sam by default) through OAuth, as an agent would
+  connect                 connect as that person (sam by default) through OAuth, as an agent would,
+                          at the level chosen on the consent page (editor, Edit, unless --level says)
   info                    the server's name, version and instructions
   tools [--full]          the tools and their descriptions (--full adds each input schema)
   call <tool> '<json>'    call a tool with these arguments, and print its result
@@ -30,7 +31,8 @@ const HELP = `pnpm e2e mcp <command> [--as riley|sam|jordan|<email>] [--endpoint
 
 A call connects first when it needs to. The endpoint defaults to /mcp (everything the person can reach).`;
 
-type Saved = { email: string; endpoint: string; client_id: string; access_token: string; expires_at: number };
+type Level = "viewer" | "editor" | "admin";
+type Saved = { email: string; endpoint: string; level: Level; client_id: string; access_token: string; expires_at: number };
 
 function option(args: string[], flag: string) {
   const i = args.indexOf(flag);
@@ -51,8 +53,8 @@ const cookiesOf = (res: Response) =>
     .join("; ");
 const decode = (s: string) => s.replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
 
-/** Register, sign in, allow on the consent page, and exchange the code: the whole OAuth connection. */
-async function connect(email: string, endpoint: string): Promise<Saved> {
+/** Register, sign in, allow on the consent page at a level, and exchange the code: the whole OAuth connection. */
+async function connect(email: string, endpoint: string, level: Level): Promise<Saved> {
   const base = e2eBaseUrl();
   const fail = async (step: string, res: Response) => new Error(`MCP connection failed at ${step}: ${res.status} ${(await res.text()).slice(0, 300)}`);
   const reg = await fetch(`${base}/oauth/register`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ client_name: "WhatBuild end-to-end agent", redirect_uris: [REDIRECT] }) });
@@ -72,6 +74,7 @@ async function connect(email: string, endpoint: string): Promise<Saved> {
   const form = new URLSearchParams();
   for (const m of html.matchAll(/<input type="hidden" name="([^"]+)" value="([^"]*)">/g)) form.set(decode(m[1]!), decode(m[2]!));
   form.set("decision", "allow");
+  form.set("level", level);
   const allow = await fetch(`${base}/oauth/authorize`, { method: "POST", headers: { cookie: `${session}; ${cookiesOf(consent)}`, origin: base, "content-type": "application/x-www-form-urlencoded" }, body: form, redirect: "manual" });
   const code = new URL(allow.headers.get("location") ?? REDIRECT).searchParams.get("code");
   if (!code) throw await fail("Allow", allow);
@@ -79,18 +82,18 @@ async function connect(email: string, endpoint: string): Promise<Saved> {
   const token = await fetch(`${base}/oauth/token`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ grant_type: "authorization_code", code, redirect_uri: REDIRECT, client_id, code_verifier: verifier, resource }) });
   if (!token.ok) throw await fail("the token exchange", token);
   const t = (await token.json()) as { access_token: string; expires_in: number };
-  const saved: Saved = { email, endpoint, client_id, access_token: t.access_token, expires_at: Date.now() + (t.expires_in - 60) * 1000 };
+  const saved: Saved = { email, endpoint, level, client_id, access_token: t.access_token, expires_at: Date.now() + (t.expires_in - 60) * 1000 };
   mkdirSync(TOKENS, { recursive: true });
-  writeFileSync(tokenFile(email, endpoint), JSON.stringify(saved));
+  writeFileSync(tokenFile(email, endpoint, level), JSON.stringify(saved));
   return saved;
 }
 
-const tokenFile = (email: string, endpoint: string) => join(TOKENS, `${email}${endpoint.replace(/\//g, "_")}.json`);
+const tokenFile = (email: string, endpoint: string, level: Level) => join(TOKENS, `${email}${endpoint.replace(/\//g, "_")}.${level}.json`);
 
-async function session(email: string, endpoint: string, fresh = false) {
-  const file = tokenFile(email, endpoint);
+async function session(email: string, endpoint: string, level: Level, fresh = false) {
+  const file = tokenFile(email, endpoint, level);
   let saved = !fresh && existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as Saved) : null;
-  if (!saved || saved.expires_at < Date.now()) saved = await connect(email, endpoint);
+  if (!saved || saved.expires_at < Date.now()) saved = await connect(email, endpoint, level);
   const client = new Client({ name: "whatbuild-e2e", version: "1.0.0" });
   const transport = new StreamableHTTPClientTransport(new URL(`${e2eBaseUrl()}${endpoint}`), { requestInit: { headers: { Authorization: `Bearer ${saved.access_token}` } } });
   await client.connect(transport);
@@ -98,13 +101,13 @@ async function session(email: string, endpoint: string, fresh = false) {
 }
 
 /** A session, connecting again once if the token was forgotten (a reset to the golden master forgets every token). */
-async function withClient<T>(email: string, endpoint: string, fn: (c: Client) => Promise<T>): Promise<T> {
+async function withClient<T>(email: string, endpoint: string, level: Level, fn: (c: Client) => Promise<T>): Promise<T> {
   let client: Client;
   try {
-    client = await session(email, endpoint);
+    client = await session(email, endpoint, level);
   } catch (e) {
     if (!/401|Unauthorized|invalid_token/i.test(String(e))) throw e;
-    client = await session(email, endpoint, true);
+    client = await session(email, endpoint, level, true);
   }
   try {
     return await fn(client);
@@ -114,23 +117,25 @@ async function withClient<T>(email: string, endpoint: string, fn: (c: Client) =>
 }
 
 export async function mcpCommand(args: string[]) {
-  const [cmd, tool, raw] = args.filter((a, i) => !a.startsWith("--") && !["--as", "--endpoint"].includes(args[i - 1] ?? ""));
+  const [cmd, tool, raw] = args.filter((a, i) => !a.startsWith("--") && !["--as", "--endpoint", "--level"].includes(args[i - 1] ?? ""));
   if (!cmd || cmd === "help") return console.log(HELP);
   const who = option(args, "--as") ?? "sam";
   const email = PEOPLE[who.toLowerCase()] ?? who;
   const endpoint = option(args, "--endpoint") ?? "/mcp";
+  const level = (option(args, "--level") ?? "editor") as Level;
+  if (!["viewer", "editor", "admin"].includes(level)) throw new Error(`--level is viewer, editor or admin, not ${level}.`);
 
   if (cmd === "connect") {
-    const s = await connect(email, endpoint);
-    record({ surface: "mcp", as: email, command: ["connect", endpoint], ok: true });
-    return console.log(`Connected as ${s.email} to ${e2eBaseUrl()}${s.endpoint}.`);
+    const s = await connect(email, endpoint, level);
+    record({ surface: "mcp", as: email, command: ["connect", endpoint, level], ok: true });
+    return console.log(`Connected as ${s.email} to ${e2eBaseUrl()}${s.endpoint}, at ${s.level}.`);
   }
   if (cmd === "info")
-    return withClient(email, endpoint, async (c) => {
+    return withClient(email, endpoint, level, async (c) => {
       console.log(JSON.stringify({ server: c.getServerVersion(), instructions: c.getInstructions() }, null, 2));
     });
   if (cmd === "tools")
-    return withClient(email, endpoint, async (c) => {
+    return withClient(email, endpoint, level, async (c) => {
       for (const t of (await c.listTools()).tools) {
         console.log(`## ${t.name}\n${t.description ?? ""}`);
         if (args.includes("--full")) console.log(JSON.stringify(t.inputSchema, null, 2));
@@ -145,7 +150,7 @@ export async function mcpCommand(args: string[]) {
     } catch {
       throw new Error(`The arguments are not JSON: ${raw}`);
     }
-    return withClient(email, endpoint, async (c) => {
+    return withClient(email, endpoint, level, async (c) => {
       const res = (await c.callTool({ name: tool, arguments: input })) as { isError?: boolean; content: { type: string; text?: string }[] };
       const text = res.content.map((b) => (b.type === "text" ? b.text : `[${b.type}]`)).join("\n");
       const pretty = (() => {

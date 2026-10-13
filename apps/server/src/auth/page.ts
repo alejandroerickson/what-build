@@ -17,7 +17,12 @@ button{font:inherit;font-weight:500;height:28px;padding:0 12px;border-radius:6px
 button:hover{background:var(--hover)}
 button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-text)}
-button.primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}`;
+button.primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+fieldset{border:0;margin:16px 0 0;padding:0;min-width:0}legend{font-weight:600;margin:0 0 8px;padding:0}
+.choice{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin:0 0 6px;cursor:pointer}
+.choice:hover{background:var(--hover)}.choice:has(input:checked){border-color:var(--accent)}
+.choice input{margin:3px 0 0;accent-color:var(--accent)}input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.choice b{display:block;font-weight:500;font-size:13px;color:var(--text)}.choice span{color:var(--muted);font-size:12px}`;
 
 /** A page: `title` for the tab, `body` the panel's HTML, already escaped. */
 export function authPage(title: string, body: string): string {

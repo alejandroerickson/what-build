@@ -4,7 +4,7 @@ import { checkEtag, keepRevision, recordActivity } from "../common.ts";
 import { json, type Db } from "../db.ts";
 import { AppError, conflict, forbidden, invalid, notFound } from "../errors.ts";
 import { effectiveRole, isSandboxStaff, membershipsFor, PRODUCT_ROLES, readsOnlyTheStory, readsOnlyTheStoryIn, roleAtLeast, tenantRoleAtLeast } from "../policy.ts";
-import { defineOperation, type OpContext, type ProductRole, type TenantRole } from "../registry.ts";
+import { capRole, defineOperation, type OpContext, type ProductRole, type TenantRole } from "../registry.ts";
 import { visitorName } from "../public-sandbox.ts";
 import { requireTenantAllowance } from "../tenant-allowance.ts";
 import { expectedEtag, slug } from "../schemas.ts";
@@ -131,7 +131,7 @@ export const listProducts = defineOperation({
   mutates: false,
   summary: "List every product you can reach, across your tenants and teams, with your role and counts of what each holds.",
   description:
-    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` (one number per kind) and `stage_counts` (their totals per stage) are the ones products(action=\"get\") reports. Where your_role is reader you may read only the Story: such an item has no concept and counts only story_pages. A tenant marked story_only is one where you read only the Story everywhere, so its members are not listed to you. A tenant with `sandbox: true` is a public sandbox: what is added there is seen by other visitors and erased at its next reset, so read sandbox(action=\"status\") and tell the person before writing.",
+    "Start here when you do not know which product to work in. Each item has `path` (tenant/team/product slugs) and `product_id`; pass either as `product` on product-scoped calls. Confirm the product with the person before your first write in a conversation. Archived products are left out unless include_archived is true. Each item's `counts` (one number per kind) and `stage_counts` (their totals per stage) are the ones products(action=\"get\") reports. Through an agent, your_role is the person's role capped by the connection's level, which connection_level gives (viewer reads, editor also writes and archives, admin also deletes permanently and manages products and people). Where your_role is reader you may read only the Story: such an item has no concept and counts only story_pages. A tenant marked story_only is one where you read only the Story everywhere, so its members are not listed to you. A tenant with `sandbox: true` is a public sandbox: what is added there is seen by other visitors and erased at its next reset, so read sandbox(action=\"status\") and tell the person before writing.",
   input: z.strictObject({ include_archived: z.boolean().default(false) }),
   rest: { method: "GET", path: "/me/products" },
   mcp: { tool: "products", action: "list" },
@@ -153,7 +153,8 @@ export const listProducts = defineOperation({
       .execute();
     const items = rows
       .map((r) => {
-        const { role } = effectiveRole(memberships, { tenant_id: r.tenant_id, team_id: r.team_id, product_id: r.product_id });
+        // Through an agent, the role is what its connection lets it do there.
+        const role = capRole(effectiveRole(memberships, { tenant_id: r.tenant_id, team_id: r.team_id, product_id: r.product_id }).role, ctx.principal.level);
         return role
           ? {
               product_id: r.product_id,
@@ -180,6 +181,7 @@ export const listProducts = defineOperation({
     const tenants = await ctx.db.selectFrom("tenants").select(["tenant_id", "slug", "name", "sandbox"]).where("tenant_id", "in", tenantIds).orderBy("name").execute();
     const teams = await ctx.db.selectFrom("teams").select(["team_id", "tenant_id", "slug", "name", "archived_at"]).where("tenant_id", "in", tenantIds).orderBy("name").execute();
     return {
+      ...(ctx.principal.level ? { connection_level: ctx.principal.level } : {}),
       items: items.map((i) => ({ ...i, ...countsFor(i.your_role, counts.get(i.product_id)!) })),
       tenants: tenants.map(({ sandbox, ...t }) => {
         const tr = memberships.find((m) => m.scope_type === "tenant" && m.scope_id === t.tenant_id)?.role ?? null;
@@ -192,7 +194,7 @@ export const listProducts = defineOperation({
           your_role: tr,
           teams: teams
             .filter((tm) => tm.tenant_id === t.tenant_id)
-            .map((tm) => ({ ...tm, your_role: effectiveRole(memberships, { tenant_id: t.tenant_id, team_id: tm.team_id }).role }))
+            .map((tm) => ({ ...tm, your_role: capRole(effectiveRole(memberships, { tenant_id: t.tenant_id, team_id: tm.team_id }).role, ctx.principal.level) }))
             .filter((tm) => tm.your_role || items.some((i) => i.team.team_id === tm.team_id)),
         };
       }),
@@ -205,6 +207,7 @@ export const createTenant = defineOperation({
   scope: "account",
   access: "any",
   mutates: true,
+  connection: "admin",
   summary: "Create a tenant (an organization) with its first team; you become its owner. Needs an allowance.",
   description:
     "A tenant is the isolation boundary: nothing in it is visible to any other tenant. It starts with one team; create products in that team with products(action=\"create\"). Only an instance owner, or an account whose allowance has room, may create one; belonging to a tenant never lets anyone create one. Refused with 403 tenant_allowance otherwise: tell the person to ask whoever runs this WhatBuild.",
@@ -655,6 +658,7 @@ export const grantMember = defineOperation({
   scope: "tenant",
   access: "any",
   mutates: true,
+  connection: "admin",
   summary: "Give someone a role on the tenant, a team, or a product; invites them by email if they have no account.",
   description:
     "Admins of the target grant roles there: product admins on their product, team admins on their team, tenant admins on the tenant (owners for owner). Roles: tenant owner|admin|member; team and product admin|editor|viewer|reader. A reader reads only the Story: its pages, their versions and their export, without the evidence, assumptions and mockups behind them. Granting again replaces the role at that scope. Someone without an account gets an invitation link by email, valid 7 days.",
@@ -725,6 +729,7 @@ export const revokeMember = defineOperation({
   scope: "tenant",
   access: "any",
   mutates: true,
+  connection: "admin",
   summary: "Remove someone's role at one scope, or remove them from the tenant entirely. Their past writes and attribution stay.",
   description:
     "Revokes the grant at exactly the scope named. Other grants the person holds (on other teams or products) are untouched; a person whose last grant goes is no longer in the tenant. With whole_tenant, revokes every grant they hold in the tenant at once (needs tenant admin, and owner if they are an owner). A tenant keeps at least one owner.",
@@ -776,6 +781,7 @@ export const cancelInvitation = defineOperation({
   scope: "tenant",
   access: "any",
   mutates: true,
+  connection: "admin",
   summary: "Cancel an outstanding invitation.",
   description: "The invitation link stops working at once.",
   input: z.strictObject({ tenant: z.string().min(1), invitation_id: z.string().min(1) }),

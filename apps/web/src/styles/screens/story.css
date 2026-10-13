@@ -342,6 +342,9 @@
 .story-export-button {
   margin-top: var(--s-2h);
 }
+.story-delete-button {
+  margin-top: var(--s-1);
+}
 
 .story-refs {
   display: grid;

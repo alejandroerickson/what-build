@@ -9,6 +9,7 @@ import { REVIEW_STATUS, toneFor } from "../lib/status.ts";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
 import { Button, ButtonLink, Callout, Crumbs, Dialog, EmptyState, ErrorCallout, Glyph, Group, KeyValue, Loading, Menu, MenuItem, MenuNote, MenuRadio, MenuSeparator, StatusBadge, TextField, useToast } from "../ui/index.tsx";
 import { COARSE_POINTER_QUERY, isTypingTarget, useMediaQuery } from "../ui/media.ts";
+import { DeleteDialog } from "./delete-dialog.tsx";
 import { FirstUse } from "./first-use.tsx";
 import { FocusToggle, useStoryFocus } from "./story-focus.tsx";
 import { driftWords } from "./story-inspector.tsx";
@@ -823,9 +824,10 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, on
   onSelect: (pageId: string | null) => void;
   onFit: () => void;
 }) {
-  const { app, api: base } = useProduct();
+  const { app, api: base, canDelete } = useProduct();
   const toast = useToast();
   const [downloading, setDownloading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const isCurrent = shown.version === e.current_version;
   const numbered = isCurrent ? `${shown.version}, current` : `${shown.version} of ${e.current_version}`;
   const refs = shown.resolved_refs;
@@ -901,6 +903,12 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, on
         <Button size="sm" icon="download" className="story-export-button" onClick={download} disabled={downloading}>
           {downloading ? "Preparing…" : `Download version ${shown.version}`}
         </Button>
+        {canDelete ? (
+          <Button size="sm" variant="quiet" icon="trash" className="story-delete-button" onClick={() => setDeleting(true)}>
+            Delete permanently…
+          </Button>
+        ) : null}
+        {deleting ? <DeleteMockup mockup={e} onClose={() => setDeleting(false)} /> : null}
       </Group>
 
       <Group title="Page">
@@ -1278,5 +1286,76 @@ export function MockupPage() {
             onFit={() => setFitRequest((n) => n + 1)}
           /> : <Loading variant="lines" />}</Inspector>
     </div>
+  );
+}
+
+/** What deleting a mockup destroys, as mockups.delete_impact reports it. */
+interface MockupImpact {
+  etag: string;
+  version_count: number;
+  story_pages_showing: { page_id: string; title: string; archived: boolean }[];
+  earlier_story_versions_showing: { page_id: string; title: string; version: number }[];
+}
+
+/** Delete a mockup for good. A Story page that shows it holds it: that page goes, or gets HTML of its own, first. */
+function DeleteMockup({ mockup, onClose }: { mockup: MockupView; onClose: () => void }) {
+  const { app, api: base } = useProduct();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const navigate = useNavigate();
+  const archive = useMutation({
+    mutationFn: () => api("POST", `${base}/mockups/${mockup.mockup_id}/archive`, { expected_etag: mockup.etag }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["mockup", base, mockup.mockup_id] });
+      void qc.invalidateQueries({ queryKey: ["mockups", base] });
+      toast("Mockup archived.");
+    },
+    onError: () => toast("The mockup couldn’t be archived. Reload and try again.", { tone: "negative" }),
+  });
+  return (
+    <DeleteDialog<MockupImpact>
+      title="Delete this mockup permanently?"
+      impactPath={`${base}/mockups/${mockup.mockup_id}/delete-impact`}
+      deletePath={`${base}/mockups/${mockup.mockup_id}`}
+      alternative={{ label: "Archive instead", disabled: Boolean(mockup.archived_at), onSelect: () => archive.mutate() }}
+      allowed={(i) => !i.story_pages_showing.length}
+      renderImpact={(i) =>
+        i.story_pages_showing.length ? (
+          <>
+            <p>
+              <strong>{i.story_pages_showing.length === 1 ? "A Story page shows" : `${i.story_pages_showing.length} Story pages show`} this mockup.</strong> Delete{" "}
+              {i.story_pages_showing.length === 1 ? "that page" : "those pages"} first.
+            </p>
+            <ul className="delete-impact-list">
+              {i.story_pages_showing.map((p) => (
+                <li key={p.page_id}>
+                  <Link to={`${app}/story/${p.page_id}`}>{p.title}</Link>
+                  {p.archived ? <span className="faint"> · archived</span> : null}
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <>
+            <p>
+              This deletes “{mockup.title}” with {i.version_count === 1 ? "its only version" : `all ${i.version_count} of its versions`}: their pages, notes, files and brief.
+            </p>
+            {i.earlier_story_versions_showing.length ? (
+              <p>
+                {i.earlier_story_versions_showing.length === 1 ? "An earlier version of a Story page shows it, and will" : `${i.earlier_story_versions_showing.length} earlier versions of Story pages show it, and will`}{" "}
+                show an empty page.
+              </p>
+            ) : null}
+          </>
+        )
+      }
+      onDeleted={() => {
+        void qc.invalidateQueries({ queryKey: ["mockups", base] });
+        void qc.invalidateQueries({ queryKey: ["product"] });
+        toast(`Deleted “${mockup.title}”. The activity log records who, when and why.`);
+        navigate(`${app}/exploration/mockups`);
+      }}
+      onClose={onClose}
+    />
   );
 }

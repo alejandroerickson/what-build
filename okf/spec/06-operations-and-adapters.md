@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 110 operations with their REST routes and MCP tools, authorization, upload flows, the skill and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 123 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
 generated: {by: agent:claude, at: 2026-10-12}
 status: stable
@@ -28,43 +28,52 @@ defineOperation({
   input: z.strictObject({ … }),          // Zod; strict = unknown fields rejected
   rest: { method: "POST", path: "/assumptions/:id/review" },
   mcp: { tool: "assumptions", action: "review" },
-  allowArchivedProduct: false,           // true only for products.restore and products.export
+  allowArchivedProduct: false,           // true only for products.restore, products.export and deleting the product
   exclusive: false,                      // true only for sandbox.save_baseline and sandbox.reset
+  connection: undefined,                 // the agent connection level it needs, when its access alone does not say
+  webOnly: false,                        // true only for deleting an organization and its preview
   handler: async (ctx, input) => { … },
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 110. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 123. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
 OpenAPI document.
 
 A **parity test** (`apps/server/test/mcp.test.ts`, "adapter parity") fails if any operation is
-unreachable from either adapter, or if any tool action exists that is not in the registry.
+unreachable from either adapter, or if any tool action exists that is not in the registry. The one
+exception is what only a person does in the web app (`webOnly`): deleting an organization and its
+preview, which MCP never lists and `execute` refuses to anything but the web app.
 
 `execute` (`packages/core/src/execute.ts`) is the one way an operation runs, whichever door the
 call came through:
 
-1. **Resolve and authorize the scope first** ([§3.6](03-accounts-teams-and-identity.md)): a caller
-   who cannot see the product gets `404` before their input is even validated.
-2. **In a public sandbox, admit the visitor** ([§9.7](09-data-lifecycle.md)): whether visitors
+1. **Refuse what the caller may not call at all**, before anything about a product is resolved:
+   an operation only a person does in the web app (`403 web_only`), and, for an agent, one above
+   its connection's level (`403 connection_level`, [§3.8](03-accounts-teams-and-identity.md)).
+   Neither says anything about any product.
+2. **Resolve and authorize the scope** ([§3.6](03-accounts-teams-and-identity.md)): a caller
+   who cannot see the product gets `404` before their input is even validated. For an agent the
+   role in the scope is then capped by its connection's level.
+3. **In a public sandbox, admit the visitor** ([§9.7](09-data-lifecycle.md)): whether visitors
    are let in, what a visitor never does, and the limits on calls and writes a minute
    (`403`, `429`). This runs before validation, so a call that is refused still counts as a call.
-3. **Validate the input** strictly (`422 invalid_input`, "Nothing was changed"), after renaming an
+4. **Validate the input** strictly (`422 invalid_input`, "Nothing was changed"), after renaming an
    accepted alias to its canonical field (§6.5). A visitor's input is then checked for size
    (`413 too_large`).
-4. Refuse writes to an archived product (`409 product_archived`) unless the operation allows it.
+5. Refuse writes to an archived product (`409 product_archived`) unless the operation allows it.
    An operation with slow work outside the database (`files.fetch_url`'s download) does it now,
    in its `prepare` step, holding no database connection; its checks read through a short
    read-only transaction of their own, and what it fetched is handed to the handler.
-5. **Run the handler in one transaction** scoped to the tenant (`app.tenant_id` set for row-level
+6. **Run the handler in one transaction** scoped to the tenant (`app.tenant_id` set for row-level
    security). In a sandbox the transaction holds the sandbox's lock, shared, or alone when the
    operation is `exclusive`; a visitor's daily allowances are counted inside it, so a call that
    fails takes nothing from them. Mutating handlers record their activity event
    ([§4.10](04-data-model.md)) and enqueue background jobs in that same transaction; the worker is
    woken after commit.
-6. **Count the call,** however it ended, without delaying it: its operation, door, agent client,
+7. **Count the call,** however it ended, without delaying it: its operation, door, agent client,
    sandbox or not, and outcome, and the caller under a pseudonym ([§9.1](09-data-lifecycle.md)).
    The MCP adapter counts the calls it refuses before `execute`: under the operation when it
    exists, as `<tool>.(unknown)` for an action that does not, and as `(unknown tool)`.
@@ -85,18 +94,19 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
 |---|---|---|
 | 400 | Malformed upload request (relay only) | `invalid_length`, `empty_body` |
 | 401 | No or invalid identity or grant | `unauthenticated`, `invalid_grant` |
-| 403 | A role too low for the action; a call outside a scoped MCP connector; a cross-origin cookie write; sign-up not allowed; something a visitor to the public sandbox may not do, or may not do for now | `forbidden`, `outside_connector_scope`, `forbidden_origin`, `invite_only`, `invitation_wrong_address`, `sandbox_restricted`, `sandbox_read_only`, `sandbox_closed`, `tenant_allowance` |
+| 403 | A role too low for the action; an agent connection's level too low for it; something only a person does in the web app; a call outside a scoped MCP connector; a cross-origin cookie write; sign-up not allowed; something a visitor to the public sandbox may not do, or may not do for now | `forbidden`, `connection_level`, `web_only`, `outside_connector_scope`, `forbidden_origin`, `invite_only`, `invitation_wrong_address`, `sandbox_restricted`, `sandbox_read_only`, `sandbox_closed`, `tenant_allowance` |
 | 404 | Absent — including everything the caller has no role on | `not_found` |
-| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `frozen`, `primary_taken`, `source_in_use`, `export_in_progress`, `last_owner`, `quota_exceeded`, `sandbox_full`, `no_baseline` |
-| 410 | Deliberately deleted, with a tombstone; an invitation no longer usable | `record_deleted`, `invitation_used`, `invitation_expired`, `invite_revoked`, `invite_expired`, `invite_used_up` |
+| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `frozen`, `primary_taken`, `source_in_use`, `mockup_on_story`, `sandbox_organization`, `export_in_progress`, `last_owner`, `quota_exceeded`, `sandbox_full`, `no_baseline` |
+| 410 | Deliberately deleted, with a tombstone; an invitation no longer usable | `record_deleted`, `assumption_deleted`, `outcome_deleted`, `story_page_deleted`, `mockup_deleted`, `annotation_deleted`, `invitation_used`, `invitation_expired`, `invite_revoked`, `invite_expired`, `invite_used_up` |
 | 413 | Body or file beyond a limit | `too_large` |
-| 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `product_required`, `window_too_large`, `quote_not_found`, `invalid_citation`, `cross_product_reference`, `invalid_query`, `invalid_cursor`, `invalid_html`, `invalid_patch`, `confirmation_required`, `confidence_requires_human` |
+| 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `product_required`, `window_too_large`, `quote_not_found`, `invalid_citation`, `cross_product_reference`, `invalid_query`, `invalid_cursor`, `invalid_html`, `invalid_patch`, `confirmation_required`, `name_mismatch`, `confidence_requires_human` |
 | 429 | Rate limited | `rate_limited` |
 
 - **`403` names the role.** A caller with a role on the product but too low for the action gets
   `403` with `{ role, needed }` in `details` ("You are a viewer on product …; outcomes.create
   needs editor"). With no role at all the answer is `404`, never `403`
-  ([§3.5](03-accounts-teams-and-identity.md)).
+  ([§3.5](03-accounts-teams-and-identity.md)). `connection_level` carries `{ level, needed }`
+  and says that only the person raises it, under Connect an agent.
 - **`quota_exceeded`** carries `{ quota, limit, used, unit }` in `details`. It is returned for the
   50 Story pages and the 50 mockups a product holds ([§9.2](09-data-lifecycle.md)) and for a visitor's daily
   allowances in the public sandbox, which add `resets_at` ([§9.7](09-data-lifecycle.md)). A sandbox
@@ -166,7 +176,7 @@ must come from the app's own origin (`403 forbidden_origin`).
 
 ### The operation catalogue
 
-All 110 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 123 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-teams-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -185,6 +195,10 @@ being changed inside the handler.
 | `products` | `update` | `PATCH P` | admin |
 | `products` | `archive` | `POST P/archive` | admin |
 | `products` | `restore` | `POST P/restore` | admin |
+| `products` | `delete_impact` | `GET P/delete-impact` | admin |
+| `products` | `delete` | `DELETE P` | admin |
+| `products` | `delete_tenant_impact` | `GET /api/v1/tenants/:tenant/delete-impact` | owner, in the web app only |
+| `products` | `delete_tenant` | `DELETE /api/v1/tenants/:tenant` | owner, in the web app only |
 | `products` | `export` | `POST P/exports` | viewer |
 | `products` | `exports` | `GET P/exports` | viewer |
 | `members` | `list` | `GET /api/v1/tenants/:tenant/members` | tenant member |
@@ -211,6 +225,8 @@ being changed inside the handler.
 | `outcomes` | `revisions` | `GET P/outcomes/:outcome_id/revisions` | viewer |
 | `outcomes` | `get_revision` | `GET P/outcomes/:outcome_id/revisions/:n` | viewer |
 | `outcomes` | `restore_revision` | `POST P/outcomes/:outcome_id/revisions/:n/restore` | editor |
+| `outcomes` | `delete_impact` | `GET P/outcomes/:outcome_id/delete-impact` | viewer |
+| `outcomes` | `delete` | `DELETE P/outcomes/:outcome_id` | admin |
 | `sources` | `facets` | `GET P/sources/facets` | viewer |
 | `sources` | `list` | `GET P/sources` | viewer |
 | `sources` | `get` | `GET P/sources/:record_id` | viewer |
@@ -221,11 +237,12 @@ being changed inside the handler.
 | `sources` | `annotate` | `POST P/sources/:record_id/annotations` | editor |
 | `sources` | `list_annotations` | `GET P/sources/:record_id/annotations` | viewer |
 | `sources` | `update_annotation` | `PATCH P/annotations/:annotation_id` | editor |
+| `sources` | `delete_annotation` | `DELETE P/annotations/:annotation_id` | admin |
 | `sources` | `used_by` | `GET P/sources/:record_id/used-by` | viewer |
 | `sources` | `move_to_product` | `POST P/sources/:record_id/move` | editor |
 | `sources` | `copy_to_product` | `POST P/sources/:record_id/copy` | editor |
 | `sources` | `delete_impact` | `GET P/sources/:record_id/delete-impact` | viewer |
-| `sources` | `delete` | `DELETE P/sources/:record_id` | editor |
+| `sources` | `delete` | `DELETE P/sources/:record_id` | admin |
 | `files` | `request_upload` | `POST P/sources/:record_id/uploads` | editor |
 | `files` | `create_upload` | `POST P/sources/with-upload` | editor |
 | `files` | `complete_upload` | `POST P/sources/:record_id/uploads/complete` | editor |
@@ -252,6 +269,8 @@ being changed inside the handler.
 | `assumptions` | `unlink` | `POST P/assumptions/:id/unlink` | editor |
 | `assumptions` | `archive` | `POST P/assumptions/:id/archive` | editor |
 | `assumptions` | `check_citations` | `POST P/assumptions/:id/check-citations` | viewer |
+| `assumptions` | `delete_impact` | `GET P/assumptions/:id/delete-impact` | viewer |
+| `assumptions` | `delete` | `DELETE P/assumptions/:id` | admin |
 | `story` | `guidance` | `GET P/story/guidance` | viewer |
 | `story` | `get_style` | `GET P/story/style` | viewer |
 | `story` | `set_style` | `PUT P/story/style` | editor |
@@ -268,6 +287,8 @@ being changed inside the handler.
 | `story` | `set_hierarchy` | `PUT P/story/hierarchy` | editor |
 | `story` | `archive_page` | `POST P/story/pages/:page_id/archive` | editor |
 | `story` | `restore_page` | `POST P/story/pages/:page_id/restore` | editor |
+| `story` | `delete_page_impact` | `GET P/story/pages/:page_id/delete-impact` | viewer |
+| `story` | `delete_page` | `DELETE P/story/pages/:page_id` | admin |
 | `mockups` | `list` | `GET P/mockups` | viewer |
 | `mockups` | `get` | `GET P/mockups/:mockup_id` | viewer |
 | `mockups` | `list_versions` | `GET P/mockups/:mockup_id/versions` | viewer |
@@ -277,6 +298,8 @@ being changed inside the handler.
 | `mockups` | `restore` | `POST P/mockups/:mockup_id/restore` | editor |
 | `mockups` | `get_download` | `POST P/mockups/:mockup_id/downloads` | viewer |
 | `mockups` | `check_citations` | `GET P/mockups/:mockup_id/check-citations` | viewer |
+| `mockups` | `delete_impact` | `GET P/mockups/:mockup_id/delete-impact` | viewer |
+| `mockups` | `delete` | `DELETE P/mockups/:mockup_id` | admin |
 | `lineage` | `capture` | `POST P/lineage/capture` | viewer |
 | `lineage` | `write` | `POST P/sources/:record_id/lineage` | editor |
 | `lineage` | `check` | `GET P/sources/:record_id/lineage` | viewer |
@@ -483,20 +506,22 @@ the same of a newer version than the instructions named. `unknown_tool` and `unk
 the server's version and its tools or the tool's actions (also in `details`: `server_version`,
 `tools` or `actions`), and say the client may hold a list from another version.
 
-**Tools.** Sixteen tools over the 110 operations: twelve grouped by noun, four standalone.
+**Tools.** Sixteen tools over the 121 operations an agent may be offered (all 123 but deleting an
+organization and its preview): twelve grouped by noun, four standalone. A connection is listed
+only the actions its level allows (below).
 
 | Tool | Actions |
 |---|---|
-| `products` | `list`, `create_tenant`, `create_team`, `create`, `get`, `update`, `archive`, `restore`, `export`, `exports` |
+| `products` | `list`, `create_tenant`, `create_team`, `create`, `get`, `update`, `archive`, `restore`, `delete_impact`, `delete`, `export`, `exports` |
 | `members` | `list`, `grant`, `revoke`, `cancel_invitation`, `activity` |
 | `sandbox` | `status`, `join`, `settings`, `update_settings`, `save_baseline`, `baselines`, `reset`, `invites`, `create_invite`, `revoke_invite`, `visitors`, `remove_visitor` |
-| `outcomes` | `list`, `get`, `create`, `update`, `revisions`, `get_revision`, `restore_revision` |
-| `sources` | `facets`, `list`, `get`, `create`, `update`, `archive`, `restore`, `annotate`, `list_annotations`, `update_annotation`, `used_by`, `move_to_product`, `copy_to_product`, `delete_impact`, `delete` |
+| `outcomes` | `list`, `get`, `create`, `update`, `delete_impact`, `delete`, `revisions`, `get_revision`, `restore_revision` |
+| `sources` | `facets`, `list`, `get`, `create`, `update`, `archive`, `restore`, `annotate`, `list_annotations`, `update_annotation`, `delete_annotation`, `used_by`, `move_to_product`, `copy_to_product`, `delete_impact`, `delete` |
 | `files` | `request_upload`, `create_upload`, `complete_upload`, `add_note`, `fetch_url`, `set_role`, `get_download` |
 | `derived` | `manifest`, `outline`, `text`, `list`, `rederive`, `write_note`, `read_note` |
-| `assumptions` | `list`, `get`, `create`, `update`, `review`, `supersede`, `link`, `unlink`, `archive`, `check_citations` |
-| `story` | `guidance`, `get_style`, `set_style`, `list_pages`, `get_page`, `list_versions`, `get_version`, `publish`, `promote_mockup`, `write_notes`, `check_citations`, `print_view`, `get_hierarchy`, `set_hierarchy`, `archive_page`, `restore_page` |
-| `mockups` | `list`, `get`, `list_versions`, `get_version`, `publish`, `archive`, `restore`, `get_download`, `check_citations` |
+| `assumptions` | `list`, `get`, `create`, `update`, `review`, `supersede`, `link`, `unlink`, `archive`, `check_citations`, `delete_impact`, `delete` |
+| `story` | `guidance`, `get_style`, `set_style`, `list_pages`, `get_page`, `list_versions`, `get_version`, `publish`, `promote_mockup`, `write_notes`, `check_citations`, `print_view`, `get_hierarchy`, `set_hierarchy`, `archive_page`, `restore_page`, `delete_page_impact`, `delete_page` |
+| `mockups` | `list`, `get`, `list_versions`, `get_version`, `publish`, `archive`, `restore`, `get_download`, `check_citations`, `delete_impact`, `delete` |
 | `lineage` | `capture`, `write`, `check` |
 | `activity` | `list` |
 | `search` | standalone |
@@ -530,17 +555,24 @@ Rules:
   scope; otherwise `422 product_required` listing up to 50 of those products ([§3.6](03-accounts-teams-and-identity.md)).
 - **Scoped means scoped.** On a scoped endpoint the scope is checked in `execute`, after
   authorization and before the handler, so a refused call changes nothing and writes no activity.
+- **Listed by level.** `tools/list` answers each connection with only the actions its level allows
+  ([§3.8](03-accounts-teams-and-identity.md)): Read only is offered reads, Edit also writes and
+  archives, Admin also permanent deletes and managing products and people. A call to an action
+  above the level, from a client that knows it anyway, reaches `execute` and is refused with
+  `403 connection_level`, which says what it needs; it is never `unknown_action`.
 - **Results** are JSON in one text content block. Product-scoped results add `scope`
-  (tenant, team, product with its path, `your_role`, and `public_sandbox: true` in the public
-  sandbox). Tools whose actions are all reads carry read-only annotations.
+  (tenant, team, product with its path, `your_role` capped by the connection's level,
+  `connection_level`, and `public_sandbox: true` in the public sandbox). Tools whose actions are all reads carry read-only annotations.
 - **Source text is data.** The server instructions, tool descriptions and the skill state that
   text returned from sources is quoted material, never instructions to the agent.
-- **Delete is on the MCP surface, and it is guarded rather than hidden.** An agent that can create
-  a source can delete one ([§9.5](09-data-lifecycle.md)). The guards are `expected_etag` + `reason`
-  + `confirm: "delete permanently"`, a read-only `delete_impact` preview, and a skill that requires
-  an agent to show that preview to the person and to delete only once they approve that impact,
-  never slipped into a run of other actions. The `delete` action's summary and guidance lead with *permanent, cannot be undone*
-  and name `archive` as the reversible alternative.
+- **Delete is on the MCP surface for an Admin connection, and guarded there.** An agent whose
+  person is an admin and who connected it at Admin can delete what that person can
+  ([§9.5](09-data-lifecycle.md)); on any other level it is not offered a delete. The guards are
+  `expected_etag` + `reason` + `confirm: "delete permanently"` (and the name, for a product), a
+  read-only preview, and a skill that requires an agent to show that preview to the person and to
+  delete only once they approve that impact, never slipped into a run of other actions. Every
+  delete's summary and guidance lead with *permanent, cannot be undone* and name archive as the
+  reversible alternative. Deleting an organization is never offered.
 - **Planned:** a stdio transport (a thin local proxy holding the endpoint URL and a credential) for
   clients that cannot speak HTTP.
 
@@ -551,12 +583,14 @@ Rules:
 - **OAuth 2.1** per the MCP authorization specification (`apps/server/src/auth/oauth.ts`):
   protected-resource metadata, authorization-server metadata, dynamic client registration,
   authorization code with PKCE, resource indicators, rotating refresh tokens. The person consents
-  in a browser and the token represents them. `POST /oauth/authorize` approves only the request
-  the consent page showed, sealed in its `wb_consent` cookie, and a code or refresh token used
-  twice revokes the connection it made.
+  in a browser and the token represents them, at the level they choose there (Read only, Edit or
+  Admin), which caps their role and never adds to it. `POST /oauth/authorize` approves only the
+  request the consent page showed, sealed in its `wb_consent` cookie, and a code or refresh token
+  used twice revokes the connection it made.
 - **REST answers the browser session only.** There are no personal access tokens: a bearer token
-  on REST is refused, and scripts connect as agents over MCP. Connected agents are listed and
-  disconnected on the Connect an agent page. The session cookie is `__Host-wb_session` over HTTPS
+  on REST is refused, and scripts connect as agents over MCP. Connected agents are listed, their
+  level changed (`PATCH /api/v1/me/agents/:family { level }`, the session only) and disconnected on
+  the Connect an agent page. The session cookie is `__Host-wb_session` over HTTPS
   and `wb_session` over HTTP ([§3.8](03-accounts-teams-and-identity.md#38-identity-of-the-caller)).
 - **Sign-in endpoints** (`apps/server/src/auth/routes.ts`): `POST /auth/email` sends a link;
   `GET /auth/verify?token=` shows its page and changes nothing, and `POST /auth/verify` (form field
@@ -654,13 +688,14 @@ configure but one address. It shows:
   `?org=<slug>` (an older `?product=all` means everything). A client that supports MCP
   authorization finds sign-in on its own from the server's OAuth discovery metadata, registers
   itself and opens the browser;
-- that the client will ask them to sign in, and a suggestion for a first request;
+- that the client will ask them to sign in and to choose what it may do (Read only, Edit, chosen
+  unless they change it, or Admin), and a suggestion for a first request;
 - the agents connected now, each with what it can reach ("Only the organization Acme", "Only the
   product Crewboard in Acme", "Every product you can open", from `reach` in
   `GET /api/v1/me/agents`), who holds the connection ("Held by claude.ai", "Held by an app on your
   computer", from `returns_to`: `{ hosts, local }`, the `https` hosts of its client's redirect
-  URIs and whether any is loopback or a private-use scheme), when it was last used and a
-  disconnect control;
+  URIs and whether any is loopback or a private-use scheme), when it was last used, its level
+  with a control to change it (with Undo), and a disconnect control;
 - **a plain statement about the agent's side of the trip**, above the steps: what the agent reads
   goes to whoever runs it, under their terms ([§9.1](09-data-lifecycle.md));
 - an optional ZIP download of the skill, with its version, for installing it by hand (the server

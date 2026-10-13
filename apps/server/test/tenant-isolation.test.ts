@@ -44,6 +44,10 @@ const SCOPED: Record<string, Probe> = {
   "products.update": { input: (a) => ({ expected_etag: a.product.etag, name: "Renamed by an outsider" }) },
   "products.archive": { input: (a) => ({ expected_etag: a.product.etag }) },
   "products.restore": { input: (a) => ({ expected_etag: a.product.etag }) },
+  "products.delete_impact": { input: () => ({}) },
+  "products.delete": { input: (a) => ({ expected_etag: a.product.etag, name: a.marker, reason: "Removed by an outsider", confirm: "delete permanently" }) },
+  "products.delete_tenant_impact": { input: () => ({}) },
+  "products.delete_tenant": { input: (a) => ({ name: a.marker, reason: "Removed by an outsider", confirm: "delete permanently" }) },
   "products.export": { input: () => ({}) },
   "products.exports": { input: () => ({}) },
   "members.list": { input: (a) => ({ product: a.product.id }) },
@@ -75,6 +79,8 @@ const SCOPED: Record<string, Probe> = {
   "outcomes.get": { input: (a) => ({ outcome_id: a.outcome.id }) },
   "outcomes.create": { input: () => ({ title: "Planted outcome" }) },
   "outcomes.update": { input: (a) => ({ outcome_id: a.outcome.id, expected_etag: a.outcome.etag, title: "Changed by an outsider" }) },
+  "outcomes.delete_impact": { input: (a) => ({ outcome_id: a.outcome.id }) },
+  "outcomes.delete": { input: (a) => ({ outcome_id: a.outcome.id, expected_etag: a.outcome.etag, reason: "Removed by an outsider", confirm: "delete permanently" }) },
   "outcomes.revisions": { input: (a) => ({ outcome_id: a.outcome.id }) },
   "outcomes.get_revision": { input: (a) => ({ outcome_id: a.outcome.id, n: 1 }) },
   "outcomes.restore_revision": { input: (a) => ({ outcome_id: a.outcome.id, n: 1, expected_etag: a.outcome.etag }) },
@@ -101,6 +107,7 @@ const SCOPED: Record<string, Probe> = {
   "sources.annotate": { input: (a) => ({ record_id: a.source.id, note: "Planted annotation", seq_start: 0, seq_end: 1 }) },
   "sources.list_annotations": { input: (a) => ({ record_id: a.source.id, include_archived: true }) },
   "sources.update_annotation": { input: (a) => ({ annotation_id: a.annotation.id, expected_etag: a.annotation.etag, note: "Changed by an outsider" }) },
+  "sources.delete_annotation": { input: (a) => ({ annotation_id: a.annotation.id, expected_etag: a.annotation.etag, reason: "Removed by an outsider", confirm: "delete permanently" }) },
   "sources.used_by": { input: (a) => ({ record_id: a.source.id }) },
   "sources.move_to_product": {
     input: (a) => ({ record_id: a.source.id, to_product: a.annex.id, expected_etag: a.source.etag }),
@@ -190,6 +197,8 @@ const SCOPED: Record<string, Probe> = {
   "assumptions.unlink": { input: (a) => ({ id: a.assumption.id, expected_etag: a.assumption.etag, target_id: a.linked.id, type: "supports" }) },
   "assumptions.archive": { input: (a) => ({ id: a.assumption.id, expected_etag: a.assumption.etag, archived: true }) },
   "assumptions.check_citations": { input: (a) => ({ id: a.assumption.id }) },
+  "assumptions.delete_impact": { input: (a) => ({ id: a.assumption.id }) },
+  "assumptions.delete": { input: (a) => ({ id: a.assumption.id, expected_etag: a.assumption.etag, reason: "Removed by an outsider", confirm: "delete permanently" }) },
   "story.guidance": { input: () => ({}) },
   "story.get_style": { input: () => ({ include_stylesheet: true }) },
   "story.set_style": { input: (a) => ({ house_style: "tufte", expected_etag: a.styleEtag }) },
@@ -219,6 +228,8 @@ const SCOPED: Record<string, Probe> = {
   },
   "story.archive_page": { input: (a) => ({ page_id: a.page.id, expected_etag: a.page.etag }) },
   "story.restore_page": { input: (a) => ({ page_id: a.page.id, expected_etag: a.page.etag }) },
+  "story.delete_page_impact": { input: (a) => ({ page_id: a.page.id }) },
+  "story.delete_page": { input: (a) => ({ page_id: a.page.id, expected_etag: a.page.etag, reason: "Removed by an outsider", confirm: "delete permanently" }) },
   "mockups.list": { input: () => ({ include_archived: true }) },
   "mockups.get": { input: (a) => ({ mockup_id: a.mockup.id, include_html: true, include_files: true }) },
   "mockups.list_versions": { input: (a) => ({ mockup_id: a.mockup.id }) },
@@ -235,6 +246,8 @@ const SCOPED: Record<string, Probe> = {
   "mockups.restore": { input: (a) => ({ mockup_id: a.mockup.id, expected_etag: a.mockup.etag }) },
   "mockups.get_download": { input: (a) => ({ mockup_id: a.mockup.id }) },
   "mockups.check_citations": { input: (a) => ({ mockup_id: a.mockup.id }) },
+  "mockups.delete_impact": { input: (a) => ({ mockup_id: a.mockup.id }) },
+  "mockups.delete": { input: (a) => ({ mockup_id: a.mockup.id, expected_etag: a.mockup.etag, reason: "Removed by an outsider", confirm: "delete permanently" }) },
   "lineage.capture": { input: (a) => ({ inputs: [{ kind: "record", id: a.source.id }, { kind: "assumption", id: a.assumption.id }] }) },
   "lineage.write": {
     input: (a) => ({ record_id: a.view.id, inputs: [{ kind: "record", id: a.source.id, fingerprint: "0".repeat(64) }], query_spec: { description: "Planted." } }),
@@ -395,7 +408,10 @@ describe("another organization's product, team or tenant, with its real ids", ()
       for (const [door, call] of [["REST", rest], ["MCP", mcp]] as const) {
         const r = await call(op, a, input);
         const leaks = leaked(a, r.body, r.sent);
-        if (r.status !== 404 || r.body?.error?.code !== "not_found" || leaks.length) failures.push(`${door} ${op.name} → ${r.status} ${JSON.stringify(r.body).slice(0, 200)}${leaks.length ? ` LEAKED ${leaks.join(", ")}` : ""}`);
+        // What only a person does in the web app is not there at all for an agent.
+        const expected = door === "MCP" && op.webOnly ? "unknown_action" : "not_found";
+        if ((expected === "not_found" && r.status !== 404) || r.body?.error?.code !== expected || leaks.length)
+          failures.push(`${door} ${op.name} → ${r.status} ${JSON.stringify(r.body).slice(0, 200)}${leaks.length ? ` LEAKED ${leaks.join(", ")}` : ""}`);
       }
     }
     expect(failures).toEqual([]);

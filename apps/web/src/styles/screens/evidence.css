@@ -800,6 +800,9 @@
   color: var(--text);
   font-weight: var(--fw-medium);
 }
+.comment-delete {
+  margin-left: auto;
+}
 .comment-text {
   max-width: var(--measure);
   font-size: var(--fs-body);

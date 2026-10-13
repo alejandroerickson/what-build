@@ -7,7 +7,8 @@ import { bareCitations, citationLabels, citations, citationText, citedSourceIds,
 import { useProduct } from "../lib/session.tsx";
 import { useSourceTitles } from "../lib/source-titles.ts";
 import type { Annotation, RecordFull, Segment } from "../lib/types.ts";
-import { Button, ErrorCallout, FindField, Glyph, Loading, Menu, MenuGroup, MenuItem, Sheet, SheetHeader, Tag, TextArea, TextField, useToast } from "../ui/index.tsx";
+import { Button, ErrorCallout, FindField, Glyph, IconButton, Loading, Menu, MenuGroup, MenuItem, Sheet, SheetHeader, Tag, TextArea, TextField, useToast } from "../ui/index.tsx";
+import { DeleteDialog } from "./delete-dialog.tsx";
 import "../styles/screens/evidence.css";
 
 interface Passage {
@@ -366,6 +367,10 @@ export function PassageReader({ record }: { record: RecordFull }) {
 
 /** One person's comment on a source, optionally on a passage range. */
 export function Comment({ annotation: a, showAddress, linkAddress }: { annotation: Annotation; showAddress?: boolean; linkAddress?: boolean }) {
+  const { api: base, canDelete } = useProduct();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [deleting, setDeleting] = useState(false);
   const addr = a.seq_start !== null && a.seq_end !== null ? address(a.seq_start, a.seq_end) : null;
   return (
     <article className="comment">
@@ -385,8 +390,23 @@ export function Comment({ annotation: a, showAddress, linkAddress }: { annotatio
         {a.tags.map((t) => (
           <Tag key={t}>{t}</Tag>
         ))}
+        {canDelete ? <IconButton size="sm" icon="trash" label="Delete this comment permanently" className="comment-delete" onClick={() => setDeleting(true)} /> : null}
       </div>
       <Markdown source={a.note} className="prose comment-text" headingShift={3} />
+      {deleting ? (
+        <DeleteDialog
+          title="Delete this comment permanently?"
+          etag={a.etag}
+          deletePath={`${base}/annotations/${a.annotation_id}`}
+          renderImpact={() => <p>This deletes the comment by {attribution(a.created_by)}, with its earlier text.</p>}
+          onDeleted={() => {
+            void qc.invalidateQueries({ queryKey: ["source", base, a.record_id] });
+            toast("Comment deleted. The activity log records who, when and why.");
+            setDeleting(false);
+          }}
+          onClose={() => setDeleting(false)}
+        />
+      ) : null}
     </article>
   );
 }

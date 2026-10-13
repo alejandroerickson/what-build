@@ -3,7 +3,7 @@ type: Decision
 title: The public sandbox is one organization the deployment names, where invited visitors edit under made-up names and a daily reset puts a saved baseline back
 description: One shared organization instead of a copy per visitor; admission by invitation links with places and a cap on seats; visitors never see each other; limits are settings enforced in one layer.
 tags: [decision, sandbox, tenancy, roles, privacy, limits, invitations]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-12}
 status: stable
 ---
 
@@ -24,7 +24,7 @@ of every row and a product-cloning feature that does not exist.
 - **One organization, named by the deployment** (`WHATBUILD_SANDBOX_TENANT`). The server writes
   the choice to `tenants.sandbox` at start-up, and policy reads it from there.
 - **Its owners and admins are its staff. Everyone else there is a visitor**, whatever role they
-  hold: their role stops at editor, they meet the limits, and they cannot delete permanently.
+  hold: their role stops at editor, they meet the limits, and they cannot delete permanently, which needs admin.
   What they are told stays true: someone staff gave a role is a member treated as a visitor, and
   `sandbox.status` and the notice say so rather than call them a visitor.
 - **A visitor writes under a made-up name** (`Visitor 4F2A9C`, from a hash of the tenant and the

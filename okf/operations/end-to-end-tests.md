@@ -3,7 +3,7 @@ type: System Concept
 title: Agent-driven end-to-end tests on a golden master
 description: An agent follows a written test plan through the real web app and the real MCP server, on a local instance reset each time to a golden master made from production's public sandbox, and reports failures and anomalies.
 tags: [development, testing, qa, e2e, agents, mcp, browser]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-12}
 status: draft
 ---
 
@@ -137,9 +137,11 @@ driver is for any agent that has a shell.
 
 ## The MCP client
 
-`pnpm e2e mcp help` lists the commands. `--as` picks the person (`sam` by default) and
-`--endpoint` a scoped endpoint such as `/mcp/t/harbor-labs`. The first call connects: it registers
-a client, signs the person in, posts Allow on the consent page, and exchanges the code with PKCE,
+`pnpm e2e mcp help` lists the commands. `--as` picks the person (`sam` by default),
+`--endpoint` a scoped endpoint such as `/mcp/t/harbor-labs`, and `--level` the connection's level
+(`viewer`, `editor`, the default as on the consent page, or `admin`; an agent deletes only at
+`admin`). The first call connects: it registers a client, signs the person in, posts Allow with
+the level on the consent page, and exchanges the code with PKCE,
 the same requests a person's MCP client and browser make, so the OAuth server is tested on every
 run. Tokens are kept in `.what-build/e2e/mcp/` and made again when they expire or a reset forgets
 them. `tools` prints the tool descriptions an agent sees; `call` prints a tool's result, or its

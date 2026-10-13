@@ -146,11 +146,11 @@ describe("a token approved for a scoped connector", () => {
     const reg = await fetch(`${h.baseUrl}/oauth/register`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ client_name: "Consent check", redirect_uris: ["http://127.0.0.1:9999/callback"] }) });
     const clientId = ((await reg.json()) as { client_id: string }).client_id;
     const org = await (await fetch(authorize(`/mcp/t/${acme}`), { headers: { cookie: alice.cookie } })).text();
-    expect(org).toContain("in the organization <strong>Acme</strong>, and nothing outside it");
+    expect(org).toContain("reaches the organization <strong>Acme</strong>, and nothing outside it");
     const product = await (await fetch(authorize(`/mcp/t/${onboarding}`), { headers: { cookie: alice.cookie } })).text();
-    expect(product).toContain("in the product <strong>Onboarding</strong> (Acme), and nothing outside it");
+    expect(product).toContain("reaches the product <strong>Onboarding</strong> (Acme), and nothing outside it");
     const all = await (await fetch(authorize("/mcp"), { headers: { cookie: alice.cookie } })).text();
-    expect(all).toContain("in every product you can open");
+    expect(all).toContain("reaches every product you can open");
     // Said on WhatBuild's page: nothing goes back to a client before the person decides.
     const bad = await fetch(authorize("/mcp/elsewhere"), { headers: { cookie: alice.cookie }, redirect: "manual" });
     expect(bad.status).toBe(400);

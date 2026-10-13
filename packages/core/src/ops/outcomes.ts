@@ -2,6 +2,7 @@ import { sql, type Selectable } from "kysely";
 import { z } from "zod";
 import { checkEtag, keepRevision, productId, recordActivity, tenantId } from "../common.ts";
 import { json, type OutcomesTable } from "../db.ts";
+import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, dropRevisions, leaveTombstone, mockupVersionsReferring, refuseIfDeleted, storyVersionsReferring } from "../deletion.ts";
 import { notFound } from "../errors.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag, id } from "../schemas.ts";
@@ -17,7 +18,10 @@ async function load(ctx: OpContext, outcomeId: string, lock = false) {
   let q = ctx.db.selectFrom("outcomes").selectAll().where("outcome_id", "=", outcomeId).where("product_id", "=", productId(ctx));
   if (lock) q = q.forUpdate();
   const row = await q.executeTakeFirst();
-  if (!row) throw notFound(`Outcome ${outcomeId} doesn’t exist in this product.`);
+  if (!row) {
+    await refuseIfDeleted(ctx, "outcome", outcomeId, `Outcome ${outcomeId}`);
+    throw notFound(`Outcome ${outcomeId} doesn’t exist in this product.`);
+  }
   return row as Row;
 }
 
@@ -177,4 +181,79 @@ export const updateOutcome = defineOperation({
   },
 });
 
-export const outcomeOps = [listOutcomes, getOutcome, createOutcome, updateOutcome];
+/** What deleting an outcome destroys, and what points at it. */
+async function deletion(ctx: OpContext, row: Row) {
+  const assumptions = await ctx.db
+    .selectFrom("register_entries")
+    .select(["entry_id", "statement"])
+    .where("product_id", "=", productId(ctx))
+    .where(sql<boolean>`${row.outcome_id} = any(outcome_ids)`)
+    .orderBy("entry_id", "desc")
+    .execute();
+  return {
+    outcome_id: row.outcome_id,
+    title: row.title,
+    etag: row.etag,
+    status: row.status,
+    assumptions: assumptions.map((a) => ({ id: a.entry_id, statement: a.statement })),
+    story_versions_referring: await storyVersionsReferring(ctx, "outcomes", row.outcome_id),
+    mockup_versions_referring: await mockupVersionsReferring(ctx, "outcomes", row.outcome_id),
+    after_delete:
+      "Its title, description and earlier text go. It is removed from the outcome_ids of the assumptions that serve it. Story page and mockup versions that list it in refs keep their text, and that ref stops resolving.",
+    reversible_alternative: 'outcomes(action="update", status: "archived") takes it out of the list and keeps it linkable.',
+  };
+}
+
+export const outcomeDeleteImpact = defineOperation({
+  name: "outcomes.delete_impact",
+  scope: "product",
+  access: "read",
+  mutates: false,
+  summary: "Preview exactly what deleting an outcome would destroy, and what points at it.",
+  description:
+    "Read-only. Show the person this result before proposing a delete. assumptions lists the assumptions it would be removed from; story_versions_referring and mockup_versions_referring list every version, current or earlier, that names it in its refs. Pass this result's etag as the delete's expected_etag.",
+  input: z.strictObject({ outcome_id: outcomeId }),
+  rest: { method: "GET", path: "/outcomes/:outcome_id/delete-impact" },
+  mcp: { tool: "outcomes", action: "delete_impact" },
+  async handler(ctx, input) {
+    return deletion(ctx, await load(ctx, input.outcome_id));
+  },
+});
+
+export const deleteOutcome = defineOperation({
+  name: "outcomes.delete",
+  scope: "product",
+  access: "admin",
+  mutates: true,
+  summary: "DELETE PERMANENTLY — cannot be undone. Destroys an outcome and its history; archiving it is the reversible alternative.",
+  description:
+    'Setting its status to archived (outcomes(action="update")) is the reversible alternative and almost always what is wanted. ' +
+    DELETE_GUIDANCE +
+    " Leaves a tombstone: reads return 410 with who, when and why.",
+  input: z.strictObject({ outcome_id: outcomeId, ...deleteGuards }),
+  rest: { method: "DELETE", path: "/outcomes/:outcome_id" },
+  mcp: { tool: "outcomes", action: "delete" },
+  async handler(ctx, input) {
+    checkConfirmation(input.confirm, 'archive it with outcomes(action="update", status: "archived")');
+    const row = await load(ctx, input.outcome_id, true);
+    checkEtag(input.expected_etag, row.etag, "outcome");
+    const impact = await deletion(ctx, row);
+    // The assumptions that served it stop naming it; their etags change, so no stale write names it again.
+    for (const a of impact.assumptions)
+      await ctx.db
+        .updateTable("register_entries")
+        .set({ outcome_ids: sql`array_remove(outcome_ids, ${row.outcome_id})`, etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) })
+        .where("entry_id", "=", a.id)
+        .execute();
+    await leaveTombstone(ctx, { object_type: "outcome", object_id: row.outcome_id, title: row.title, reason: input.reason });
+    await dropRevisions(ctx, "outcome", [row.outcome_id]);
+    await ctx.db.deleteFrom("outcomes").where("outcome_id", "=", row.outcome_id).execute();
+    await recordActivity(ctx, { action: "deleted", entity_type: "outcome", entity_id: row.outcome_id, entity_title: row.title, summary: "Deleted the outcome permanently" });
+    const { etag, reversible_alternative, ...rest } = impact;
+    void etag;
+    void reversible_alternative;
+    return { deleted: true, ...rest, reason: input.reason };
+  },
+});
+
+export const outcomeOps = [listOutcomes, getOutcome, createOutcome, updateOutcome, outcomeDeleteImpact, deleteOutcome];

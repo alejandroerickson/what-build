@@ -3,7 +3,7 @@ type: Index
 title: The WhatBuild specification is ten documents, read in order.
 description: What WhatBuild is in one paragraph, the ten spec files with what each settles, the conventions they share, and the decisions that shape the rest.
 tags: [spec, index, conventions]
-generated: {by: agent:claude, at: 2026-09-28T00:00:00Z}
+generated: {by: agent:claude, at: 2026-10-12}
 status: stable
 ---
 
@@ -37,7 +37,7 @@ That is how it is developed and how CI runs it.
 | 6 | [Operations and adapters](06-operations-and-adapters.md) | The operation registry, REST, MCP tools, skill delivery, upload flows |
 | 7 | [Web application](07-web-app.md) | The shell, screens and routes (behavior; the look is in [DESIGN.md](../../DESIGN.md)) |
 | 8 | [Search and retrieval](08-search.md) | Lexical search now, the retrieval improvements planned |
-| 9 | [Data lifecycle](09-data-lifecycle.md) | Quotas, backups, versioning, export, archive and delete, closing a tenant, what we tell people |
+| 9 | [Data lifecycle](09-data-lifecycle.md) | Quotas, backups, versioning, export, archive and delete, deleting a tenant, what we tell people |
 | 10 | [Roadmap](10-roadmap.md) | Build phases with acceptance criteria and status, and open questions |
 
 ## Conventions
@@ -72,7 +72,8 @@ That is how it is developed and how CI runs it.
    at the tenant; the highest applies. What you cannot see answers `404`; what you can see but may
    not change answers `403` with both roles named. Agents act with exactly their person's role.
 6. **Destruction is never a side effect.** Archive is the reversible default; delete is permanent,
-   guarded, available to editors through both adapters, and leaves a tombstone.
+   guarded, available to admins through both adapters (to an agent only at Admin), and leaves a
+   tombstone.
    → [Data lifecycle §9.5](09-data-lifecycle.md)
 7. **Data leaves as easily as it arrives.** A product exports completely, in an open format, for
    anyone who can read it, at any time, never blocked by a quota. → [Data lifecycle](09-data-lifecycle.md)

@@ -3,7 +3,7 @@ type: Decision
 title: MCP exposes 16 tools, grouped by the kind of object, with an action parameter
 description: Twelve tools group each noun's operations behind `action` and `params`; four stand alone.
 tags: [decision, mcp, agents]
-generated: {by: agent:claude, at: 2026-10-09}
+generated: {by: agent:claude, at: 2026-10-12}
 status: stable
 ---
 
@@ -18,6 +18,7 @@ More than a hundred separate tools would crowd an agent's context and bury the w
 - Grouped tools: products, members, sandbox, sources, files, derived, outcomes, assumptions, mockups, story, lineage, activity. Each takes `action`, `params`, `product`, and `describe` (returns the action's schema and guidance instead of running it).
 - Standalone tools: `search`, `read_passage`, `get_skill`, `submit_feedback`.
 - Tools whose actions are all reads carry read-only annotations.
+- A connection is listed only the actions its level allows ([decision](an-agent-connection-has-a-level-the-person-chooses.md)).
 - Every product-scoped result echoes the tenant, team, product and the caller's role.
 
 ## Consequences

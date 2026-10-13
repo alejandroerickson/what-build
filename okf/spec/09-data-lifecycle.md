@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
-description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete, closing an organization, the operator runbooks, the public sandbox with its limits, baseline and reset, and how retired insights and decisions became sources.
+description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, the public sandbox with its limits, baseline and reset, and how retired insights and decisions became sources.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, sandbox]
 generated: {by: agent:claude, at: 2026-10-12}
 status: stable
@@ -250,79 +250,132 @@ been here".
 |---|---|
 | Sources | `sources.archive` / `sources.restore` (up to 200 at once) |
 | Assumptions | `assumptions.archive { archived: true | false }` |
-| Annotations | `sources.update_annotation { archived, archive_reason? }` |
+| Comments (annotations) | `sources.update_annotation { archived, archive_reason? }` |
 | Outcomes | `outcomes.update { status: "archived" }`, and back |
 | Story pages | `story.archive_page` / `story.restore_page` (subpages move up into its place) |
 | Mockups | `mockups.archive` / `mockups.restore` |
 | Products | `products.archive` / `products.restore` (admin); an archived product is read-only |
 
-- Reversible, erases nothing, and keeps every id resolvable.
+- Reversible, erases nothing, and keeps every id resolvable. Editors archive; archiving a product
+  is an admin's.
 - It takes the object **out of listings, out of the UI's main views, and out of the search space an
   agent can reach** ([§8.2](08-search.md)). That last part is the point: archiving is how a team
   says "stop showing me this, and stop letting the agent find it", without losing it.
 - Citations to an archived source report `record_archived` and still resolve.
 - Archiving does **not** free storage. Deleting does, and the UI says so.
 - **Archive is what every destructive-looking control offers first.** Delete is available from the
-  same place, one step further in, and never pre-selected.
+  same place, one step further in, and never pre-selected; its dialog offers Archive instead.
 
 ### Delete — permanent, and said plainly
 
-Built for **sources**: `sources.delete { record_id, expected_etag, reason, confirm }`. Planned for
-assumptions, annotations, Story pages, outcomes and products, in the same shape.
+Everything that can be archived can also be deleted, and so can an organization:
 
-- **Available to editors, through both adapters** — REST and MCP alike
-  ([§3.5](03-accounts-teams-and-identity.md)). Adapter parity is not suspended for the operations
-  that matter most: an agent that can create a source can delete one.
+| Object | Preview | Delete |
+|---|---|---|
+| Source | `sources.delete_impact` | `sources.delete` |
+| Comment | — (nothing points at it: the comment itself is shown) | `sources.delete_annotation` |
+| Assumption | `assumptions.delete_impact` | `assumptions.delete` |
+| Outcome | `outcomes.delete_impact` | `outcomes.delete` |
+| Story page | `story.delete_page_impact` | `story.delete_page` |
+| Mockup | `mockups.delete_impact` | `mockups.delete` |
+| Product | `products.delete_impact` | `products.delete` |
+| Organization | `products.delete_tenant_impact` | `products.delete_tenant` (owners, web app only) |
+
+- **Admins delete** ([§3.5](03-accounts-teams-and-identity.md)): product admins, and so team admins
+  and organization owners and admins for what they administer. Editors archive and never delete.
+  ◆ [Decision](../decisions/archive-by-default-delete-guarded.md).
+- **Through both adapters**, but an agent deletes only on a connection its person set to Admin
+  ([§3.8](03-accounts-teams-and-identity.md)): on Read only or Edit it is not offered a delete,
+  and a call to one is refused with `403 connection_level`. Deleting an organization is never
+  offered to an agent.
 - **Permanent. Immediately.** There is no trash and no grace period. Every surface that offers it
   says it is permanent and cannot be undone, in those words, not "remove" and not "dismiss".
 - **Three guards, none of them a permission:**
   1. `expected_etag` is required — you cannot delete an object you have not read. It is the
-     `etag` in the `delete_impact` result; a source changed since the preview is refused with
-     `409 stale_etag`.
+     `etag` in the preview's result (the comment's own etag for a comment); an object changed
+     since the preview is refused with `409 stale_etag`. An organization has no etag; its name is
+     its guard.
   2. `reason`, 1–500 characters, recorded on the tombstone.
   3. `confirm` must be the exact literal string `"delete permanently"`; anything else is
      `422 confirmation_required`. It exists so that no action enum, retry, or loose parameter
      can destroy something by accident.
-- **Preview first.** `sources.delete_impact { record_id }` is a read-only operation returning
-  exactly what would be destroyed: file versions and bytes, derivations, annotations, the
+- **A whole product or organization is also named.** `products.delete` and
+  `products.delete_tenant` take `name`, which must be its name exactly; anything else is
+  `422 name_mismatch`. The web app asks the person to type it.
+- **Preview first.** Each preview is read-only and returns exactly what would be destroyed and
+  what points at it. For a source: file versions and bytes, derivations, annotations, the
   assumptions whose citations point at the source, the other sources that list it as related, the
   Story pages whose current version cites it, and `story_versions_citing`: every page version,
   current or earlier, that cites it (`page_id`, `version`, `count`, `is_current`), and the same
-  for mockups (`mockup_versions_citing`, by `mockup_id`). `after_delete`
-  says that those citations keep their quoted text and will report `record_deleted`. The web UI
-  shows this inside the confirmation dialog. The skill requires an agent to call it and show the
-  person the result before proposing a delete, and to delete only once the person approves that
-  impact (a delete approved in advance still waits for the preview), never slipped into a run of
-  other actions.
-- **What it removes:** the source and, with it, its files and file versions, derivations,
-  segments (the searchable text), annotations and agent notes; a background job then deletes the
-  file bytes and sidecars. Bytes still used by a copy in another product stay until nothing refers
-  to them.
+  for mockups (`mockup_versions_citing`, by `mockup_id`). For an assumption: its reviews and
+  citations, the other assumptions that link to it (`linked_from`), and the Story page and mockup
+  versions whose refs name it (`story_versions_referring`, `mockup_versions_referring`). For an
+  outcome: the assumptions that serve it and the versions whose refs name it. For a Story page:
+  its versions and the sub-pages that would move up. For a mockup: its versions and the Story
+  pages that show it. For a product or organization: everything it holds, counted. Each says in
+  `after_delete` what becomes of what points at it. The web UI shows this inside the confirmation
+  dialog. The skill requires an agent to call it and show the person the result before proposing
+  a delete, and to delete only once the person approves that impact (a delete approved in advance
+  still waits for the preview), never slipped into a run of other actions.
+- **What each removes:**
+  - A source: its files and file versions, derivations, segments (the searchable text),
+    annotations and agent notes; a background job then deletes the file bytes and sidecars. Bytes
+    still used by a copy in another product stay until nothing refers to them.
+  - A comment: its text, anchor, tags and earlier text.
+  - An assumption: its statement, body, citations with their snapshots, reviews and earlier text.
+    The links other assumptions hold to it are removed from them (their etags change).
+  - An outcome: its title, description and earlier text. Assumptions stop naming it in
+    `outcome_ids` (their etags change).
+  - A Story page: every version, with its HTML, notes, refs and citations; its sub-pages move up
+    into its place, as when it is archived.
+  - A mockup: every version, with its pages, notes, files and brief. Refused with
+    `409 mockup_on_story` while a Story page's current version shows it (archived pages included):
+    that page is deleted, or published with HTML of its own, first. An earlier Story page version
+    that showed it then shows nothing.
+  - A product: everything in it, archived or not (concept, outcomes, sources, comments,
+    assumptions, mockups, the Story, exports, revisions, its activity and its tombstones), the
+    roles and invitations on it alone, and its bytes, except those a copy in another product still
+    uses. Allowed while it is archived.
+  - An organization: every team and product with all they hold, its activity, every role and
+    invitation in it, its jobs, and its bytes. Its people keep their accounts and their roles
+    elsewhere; feedback sent to the maintainers is kept. A public sandbox can't be deleted
+    (`409 sandbox_organization`): its staff close it to visitors instead.
+- Story page and mockup versions that name a deleted assumption or outcome in their refs keep
+  their text, as every version does; the ref stops resolving, and its link in the app stops opening.
 - **Leaves a tombstone:** `{ object_type, object_id, product_id, title, reason, deleted_at,
-  deleted_by }`. Reads return `410 record_deleted` with the tombstone; `check_citations` reports
-  `record_deleted` ([§4.8](04-data-model.md)); lineage reports `deleted`; the activity log records
-  it. Nothing that pointed at the object is left guessing.
-- **Citation snapshots survive a delete.** A snapshot is a quotation the team wrote down, not a
-  copy of the source, and a reviewed assumption does not silently lose its evidence because someone
-  tidied the sources. ◆ Decision: if the snapshot itself must go, delete the assumption too
-  (planned, as above).
+  deleted_by }`, keyed by product, type and id, since a Story page's id is unique only within its
+  product (a page deleted again under the same id keeps the latest). Reads return `410` with the
+  tombstone: `record_deleted` for a source, `<type>_deleted` (`assumption_deleted`,
+  `outcome_deleted`, `story_page_deleted`, `mockup_deleted`, `annotation_deleted`) for the rest,
+  except that a reader is answered `404` for a deleted Story page, as for an archived one.
+  `check_citations` reports `record_deleted` ([§4.8](04-data-model.md)); lineage reports
+  `deleted`; the activity log records it. A deleted product leaves its tombstone and a `deleted`
+  event on its team; an addressed call to it answers `404`. A deleted organization leaves nothing.
+- **Citation snapshots survive a source's delete.** A snapshot is a quotation the team wrote down,
+  not a copy of the source, and a reviewed assumption does not silently lose its evidence because
+  someone tidied the sources. ◆ Decision: if the snapshot itself must go, delete the assumption too.
 - **Backups.** Deleted content is gone from the product at once. In the Cloud Run deployment,
   deleted bytes linger as noncurrent bucket versions for 30 days, and deleted rows age out of
   database backups as they roll. We say that rather than claim instant erasure, because instant
   erasure from a provider's point-in-time recovery window is not something we can perform.
+- **No undelete.** A tombstone keeps who deleted what, when and why, never the content, so nothing
+  deleted can be put back from the product. Undelete would need deleted content kept for a time
+  first; it is on the [roadmap](10-roadmap.md).
 
-### Close an organization (planned)
+### Delete an organization
 
 An owner-only operation, because it is organization lifecycle, not content
-([§3.5](03-accounts-teams-and-identity.md)), offered in the web app only, behind a typed
-confirmation.
+([§3.5](03-accounts-teams-and-identity.md)), offered in the web app only: the Members page shows
+an owner Delete this organization, behind its typed name. `execute` refuses it to anything but a
+person in the web app (`403 web_only`), and MCP lists neither it nor its preview.
 
-- An export is offered first, and the UI waits for the person to decline it explicitly.
-- The organization becomes inaccessible immediately (every write refused, reads `404` after the
-  grace period), sessions and tokens scoped to it stop working, and invitations are void.
-- Content is removed from live systems **within 7 days**, which leaves room to reverse a mistake by
-  contacting us during that window, and ages out of backups as they roll off, **within 35 days** in
-  total.
+- It is permanent at once, like every other delete: the organization is gone from the product
+  immediately, and its bytes from the file store shortly after, through jobs that outlive it.
+  Sessions and tokens need nothing done: with the organization's roles gone, they reach nothing
+  in it. An agent connector scoped to it answers `404`.
+- An export is not offered first, since export is per product; the dialog says what will go.
+- ◆ Decision: no grace period. Earlier plans held content for 7 days so a mistake could be reversed
+  by contacting the operator; that waits for undelete.
 
 ### Delete an account (planned)
 
@@ -351,9 +404,8 @@ Planned, each a deliverable of [Phase 6](10-roadmap.md):
 
 - **incident** — what we tell people, and how fast. A plain page and an honest note, no status
   page theatre.
-- **erasure** — the support path for the few cases the product deliberately does not automate: a
-  closed organization inside the 7-day window, and content that must be removed from a snapshot a
-  reviewed assumption froze.
+- **erasure** — the support path for what the product deliberately does not automate: content
+  that must also be removed from backups and noncurrent bucket versions before they age out.
 
 ## 9.7 The public sandbox
 
@@ -496,9 +548,10 @@ service scales to nothing, so no timer can promise the hour. Instead:
 An instance trusts what it last read about the schedule for at most 30 seconds. A reset that fails
 is logged and tried again at the next request; it never stops the request.
 
-**Deleting in a sandbox.** A visitor cannot delete permanently. When staff delete a source that a
-baseline holds, its rows go and its blobs stay, because a reset would bring the source back; the
-blobs go once no kept baseline refers to them.
+**Deleting in a sandbox.** A visitor cannot delete permanently: deleting needs admin, which a
+visitor never is. When staff delete a source or a product that a baseline holds, its rows go and
+its blobs stay, because a reset would bring it back; the blobs go once no kept baseline refers to
+them. The sandbox organization itself can't be deleted.
 
 **Not built:** a baseline that can be taken out of the database and put into another deployment.
 A baseline lives in the database it was saved in, beside blobs in that deployment's store.

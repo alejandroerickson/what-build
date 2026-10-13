@@ -10,9 +10,10 @@ import { PROVENANCE_LABEL, REVIEW_STATUS, toneFor } from "../lib/status.ts";
 import type { CitationView, RegisterEntry, RegisterSummary } from "../lib/types.ts";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
-  Button, ButtonLink, Callout, ChoiceRow, EmptyState, ErrorCallout, FiltersInUse, FormGrid, Glyph, ListRow, Loading, Menu, MenuItem, MenuNote, PageHeader, SelectField, Sheet,
+  Button, ButtonLink, Callout, ChoiceRow, EmptyState, ErrorCallout, FiltersInUse, FormGrid, Glyph, ListRow, Loading, Menu, MenuItem, MenuNote, MenuSeparator, PageHeader, SelectField, Sheet,
   SheetBody, SheetHeader, StatusBadge, Tag, TextArea, useToast,
 } from "../ui/index.tsx";
+import { DeleteDialog, listed, Referring, type VersionReferring } from "./delete-dialog.tsx";
 import { Byline, searchWith, useCopyLink } from "./exploration-common.tsx";
 import { FirstUse } from "./first-use.tsx";
 import { entryViews, Marked, TitleFind, useEntryList } from "./exploration-panel.tsx";
@@ -350,9 +351,20 @@ function ReviewForm({ entry, kind, onSaved }: { entry: RegisterEntry; kind: Kind
   );
 }
 
+/** What deleting an assumption destroys, as assumptions.delete_impact reports it. */
+interface EntryImpact {
+  etag: string;
+  review_count: number;
+  citation_count: number;
+  linked_from: { id: string; statement: string; type: string }[];
+  story_versions_referring: (VersionReferring & { page_id: string })[];
+  mockup_versions_referring: (VersionReferring & { mockup_id: string })[];
+}
+
 export function RegisterEntryPage({ kind }: { kind: Kind }) {
   const { id = "" } = useParams();
-  const { api: base, app, canWrite } = useProduct();
+  const { api: base, app, canWrite, canDelete } = useProduct();
+  const [deleting, setDeleting] = useState(false);
   const navigate = useNavigate();
   const qc = useQueryClient();
   const copyLink = useCopyLink();
@@ -427,23 +439,63 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
             <Button icon="link" onClick={copyLink}>
               Copy link
             </Button>
-            {canWrite && !archived ? (
+            {(canWrite && !archived) || canDelete ? (
               <Menu label="More actions" triggerClassName="icon-btn icon-btn-md" trigger={<Glyph name="ellipsis" />} align="end">
-                {!e.frozen ? (
+                {canWrite && !archived && !e.frozen ? (
                   <MenuItem icon="pencil" onSelect={() => navigate(`${listPath}/${e.id}/edit`)}>
                     Edit
                   </MenuItem>
                 ) : null}
-                <MenuItem icon="archive" onSelect={() => setArchived.mutate({ archived: true, etag: e.etag, undo: true })}>
-                  Archive
-                </MenuItem>
-                <MenuNote>Archiving takes it out of lists and search. Nothing is erased.</MenuNote>
+                {canWrite && !archived ? (
+                  <>
+                    <MenuItem icon="archive" onSelect={() => setArchived.mutate({ archived: true, etag: e.etag, undo: true })}>
+                      Archive
+                    </MenuItem>
+                    <MenuNote>Archiving takes it out of lists and search. Nothing is erased.</MenuNote>
+                  </>
+                ) : null}
+                {canDelete ? (
+                  <>
+                    <MenuSeparator />
+                    <MenuItem icon="trash" tone="danger" onSelect={() => setDeleting(true)}>
+                      Delete permanently…
+                    </MenuItem>
+                  </>
+                ) : null}
               </Menu>
             ) : null}
           </>
         }
       />
       {setArchived.isError ? <ErrorCallout error={setArchived.error} onRetry={() => setArchived.reset()} retryLabel="Dismiss" /> : null}
+      {deleting ? (
+        <DeleteDialog<EntryImpact>
+          title={`Delete this ${ONE[kind].toLowerCase()} permanently?`}
+          impactPath={`${base}/${kind}/${e.id}/delete-impact`}
+          deletePath={`${base}/${kind}/${e.id}`}
+          alternative={{ label: "Archive instead", disabled: archived || !canWrite, onSelect: () => setArchived.mutate({ archived: true, etag: e.etag, undo: true }) }}
+          renderImpact={(i) => (
+            <>
+              <p>
+                This deletes the {ONE[kind].toLowerCase()}
+                {i.citation_count || i.review_count
+                  ? ` with its ${listed([i.citation_count > 0 && plural(i.citation_count, "citation"), i.review_count > 0 && plural(i.review_count, "review")])}`
+                  : ""}
+                .
+              </p>
+              {i.linked_from.length ? <p>{plural(i.linked_from.length, "other assumption")} link to it, and those links will be removed.</p> : null}
+              <Referring story={i.story_versions_referring} mockups={i.mockup_versions_referring} />
+            </>
+          )}
+          onDeleted={() => {
+            void qc.invalidateQueries({ queryKey: ["register", base, kind] });
+            void qc.invalidateQueries({ queryKey: ["product"] });
+            toast(`Deleted “${e.statement}”. The activity log records who, when and why.`);
+            navigate(listPath);
+          }}
+          onClose={() => setDeleting(false)}
+        />
+      ) : null}
       {e.status === "superseded" ? (
         <Callout tone="info" title="Replaced by a correction">
           {corrections.length

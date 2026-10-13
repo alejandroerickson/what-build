@@ -243,7 +243,7 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
 
 | Level | Roles | What the role grants |
 |---|---|---|
-| Tenant | `owner`, `admin`, `member`, `visitor` | owner and admin: admin of every team and product in the tenant; owner: tenant lifecycle. member: nothing by itself. visitor: editor of every product, in the public sandbox only ([§3.10](#310-the-public-sandbox)) |
+| Tenant | `owner`, `admin`, `member`, `visitor` | owner and admin: admin of every team and product in the tenant; owner: tenant lifecycle (deleting the organization). member: nothing by itself. visitor: editor of every product, in the public sandbox only ([§3.10](#310-the-public-sandbox)) |
 | Team | `admin`, `editor`, `viewer`, `reader` | the same role on every product in the team |
 | Product | `admin`, `editor`, `viewer`, `reader` | that product only |
 
@@ -264,11 +264,12 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   people: `members.list` answers `403`, and `products.list` marks that organization
   `story_only`. A reader writes nothing: the upload relay checks the role of whoever requested a grant again
   when the bytes arrive, so a grant given to an editor stores nothing once they are a reader.
-- **Viewer** reads everything in the product. **Editor** also writes: sources, files, notes,
-  outcomes, assumptions and reviews, mockups, the Story, and permanent deletes of sources
-  (guarded, [§9.5](09-data-lifecycle.md)). **Admin** also manages the product (rename, archive) and
-  its people. Creating a product needs admin of its team (tenant owners and admins are admins of
-  every team); creating a team needs tenant admin.
+- **Viewer** reads everything in the product. **Editor** also writes: sources, files, comments,
+  outcomes, assumptions and reviews, mockups, the Story, and archives any of them. **Admin** also
+  deletes permanently, anything that can be archived and the product itself (guarded,
+  [§9.5](09-data-lifecycle.md)), and manages the product (rename, archive) and its people.
+  Creating a product needs admin of its team (tenant owners and admins are admins of every team);
+  creating a team needs tenant admin. Deleting the organization needs its owner, in the web app.
 - **The effective role is the highest that applies.** A product grant can raise access but never
   lower an inherited one. ◆ Decision: no negative overrides — they make "who can see this?"
   unanswerable at a glance.
@@ -293,6 +294,8 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   last grant takes them out of the tenant; `members.revoke` with `whole_tenant` removes every grant
   at once.
 - ◆ Decision: reviewing (confirm, refute) is an editor right; there is no separate reviewer role.
+- ◆ Decision: permanent delete is an admin right; there is no separate delete permission. An
+  editor archives ([decision](../decisions/archive-by-default-delete-guarded.md)).
 - ◆ Decision: every role but reader can read the product's activity log.
 
 ## 3.6 Addressing and isolation
@@ -310,8 +313,9 @@ On MCP a product-scoped call resolves its product in this order: the `product` a
 `tenant/team/product`); the product the endpoint is scoped to; the only unarchived product the
 caller can reach inside the endpoint's scope; otherwise `422 product_required` listing those
 products ([`apps/server/src/mcp.ts`](../../apps/server/src/mcp.ts)). Every product-scoped MCP
-result echoes `scope` (tenant, team, product, `your_role`) so an agent and the person reading its
-transcript can see where a write landed.
+result echoes `scope` (tenant, team, product, `your_role` capped by the connection's level, and
+`connection_level`) so an agent and the person reading its transcript can see where a write landed
+and what it may do there.
 
 **A scoped endpoint is a fence, not a default**
 (◆ [decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). Whatever roles the person holds
@@ -406,7 +410,7 @@ the client.
 
 The consent page tells the person the agent will act as them, what it can reach (everything, one organization or one
 product, named), that the passages it reads go to whoever runs the agent, and that they can
-disconnect it under Connect an agent. Any
+disconnect it under Connect an agent, and asks what it may do there (below). Any
 MCP client registers itself, so no client is configured in advance, and any client may call
 itself anything: the consent page shows the name in quotation marks as the name the agent gave
 itself, which WhatBuild has not verified, and says where Allow hands the connection, the redirect
@@ -431,9 +435,29 @@ token is the person: it never widens what they can do. It is bound to the resour
 for, which must be one of the MCP endpoints (`invalid_target` otherwise), and serves that endpoint
 and the ones inside it only: a token approved for `/mcp/t/acme` works on `/mcp/t/acme` and on
 Acme's product endpoints, and answers `401` on `/mcp` and on any other organization. A refresh
-keeps the resource. Connected agents are listed, each with what it can reach and who holds the
-connection (the hosts of its client's redirect URIs, or an app on the person's computer), and
-disconnected on the Connect an agent page.
+keeps the resource. Connected agents are listed, each with what it can reach, its level and who
+holds the connection (the hosts of its client's redirect URIs, or an app on the person's
+computer), and changed or disconnected on the Connect an agent page.
+
+**A connection's level.** The person chooses on the consent page what the agent may do: **Read
+only** (`viewer`), **Edit** (`editor`, chosen unless they change it) or **Admin** (`admin`)
+(◆ [decision](../decisions/an-agent-connection-has-a-level-the-person-chooses.md)). The level is
+kept on the authorization code and on every token of the connection (`oauth_tokens.level`), and a
+refresh keeps it. It is a ceiling on the person's role, never an addition: wherever the agent
+calls, it acts as the lower of the two (`capRole`), so an editor's Admin connection still acts as
+an editor, and an admin's Edit connection as one too.
+
+- Each operation needs a level: `admin` and `owner` access need Admin, writes need Edit, reads
+  need Read only; an operation may say otherwise (`connection`): managing people, creating an
+  organization and the instance's allowances need Admin, and `submit_feedback` Read only.
+- `execute` refuses an operation above the connection's level with `403 connection_level`, before
+  it resolves any scope, naming the level it has and the one needed. MCP lists only the actions
+  the level allows, so an Edit connection is never offered a permanent delete.
+- `products.list` gives `connection_level` and caps each `your_role` by it.
+- Only the person changes it, under Connect an agent (`PATCH /api/v1/me/agents/<connection>`,
+  which takes the web app's session alone), and the change holds from the agent's next call. No
+  operation an agent can call reaches a connection's level, so an agent cannot raise its own.
+- A connection made before levels existed is Edit.
 
 **No personal access tokens.** REST answers the web app's session only, and refuses any bearer
 token; an agent connects over MCP with OAuth, so every agent connection is one a person approved in
@@ -484,7 +508,7 @@ over it gets; an allowance set to 0 is switched off, so its refusal is `403 sand
 | administers nothing | In a sandbox a role stops at editor for anyone but staff (`effectiveRole`), so every operation that needs admin answers `403`, and so do the `members` writes. |
 | writes under a made-up name | `Visitor ` and six hexadecimal digits, from a SHA-256 of the tenant and account ids (`visitorName`). `execute` puts it in the actor snapshot and hides the account's own name and address from the handler. |
 | sees no other person | `members.list` returns the caller alone, under the made-up name, with no address and no invitations. |
-| cannot delete permanently | `sources.delete` answers `403 sandbox_restricted`. Archive remains. |
+| cannot delete permanently | Deleting needs admin, so every delete answers `403`. Archive remains. |
 | meets the limits | [§9.7](09-data-lifecycle.md). |
 
 Because attribution is a copied snapshot ([§3.9](#39-attribution)), a visitor's name and address

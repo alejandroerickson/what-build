@@ -327,11 +327,11 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     const agents = await db
       .selectFrom("oauth_tokens as t")
       .innerJoin("oauth_clients as c", "c.client_id", "t.client_id")
-      .select(["c.client_name", "c.redirect_uris", "t.family_id", "t.resource", (eb) => eb.fn.max("t.last_used_at").as("last_used_at"), (eb) => eb.fn.min("t.created_at").as("created_at")])
+      .select(["c.client_name", "c.redirect_uris", "t.family_id", "t.resource", "t.level", (eb) => eb.fn.max("t.last_used_at").as("last_used_at"), (eb) => eb.fn.min("t.created_at").as("created_at")])
       .where("t.account_id", "=", p.account_id)
       .where("t.revoked_at", "is", null)
       .where("t.expires_at", ">", new Date().toISOString())
-      .groupBy(["c.client_id", "c.client_name", "c.redirect_uris", "t.family_id", "t.resource"])
+      .groupBy(["c.client_id", "c.client_name", "c.redirect_uris", "t.family_id", "t.resource", "t.level"])
       .execute();
     // A connection keeps the resource it was approved for, so each one reaches one scope; and its
     // client was given its tokens at a registered redirect URI, so that is where the connection is held.
@@ -339,6 +339,25 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
       agents.map(async ({ resource, redirect_uris, ...a }) => ({ ...a, reach: await connectorReach(db, p.account_id, resource), returns_to: returnsTo(redirect_uris) })),
     );
     return c.json({ items });
+  });
+
+  /**
+   * Change what one connection may do. Only a person signed in to the web app can: an agent has no
+   * session, and no operation an agent can call reaches this, so no agent raises its own level.
+   */
+  app.patch("/api/v1/me/agents/:family", async (c) => {
+    const p = await requirePrincipal(c);
+    const body = z.strictObject({ level: z.enum(["viewer", "editor", "admin"]) }).safeParse(await c.req.json().catch(() => ({})));
+    if (!body.success) throw invalid("invalid_input", "level is viewer (Read only), editor (Edit) or admin (Admin).");
+    const changed = await db
+      .updateTable("oauth_tokens")
+      .set({ level: body.data.level })
+      .where("family_id", "=", c.req.param("family"))
+      .where("account_id", "=", p.account_id)
+      .where("revoked_at", "is", null)
+      .executeTakeFirst();
+    if (!Number(changed.numUpdatedRows)) throw notFound("No such connection. It may have been disconnected.");
+    return c.json({ family_id: c.req.param("family"), level: body.data.level });
   });
 
   app.delete("/api/v1/me/agents/:family", async (c) => {

@@ -88,6 +88,7 @@ export const setTenantAllowance = defineOperation({
   scope: "account",
   access: "any",
   mutates: true,
+  connection: "admin",
   summary: "Let an address create a number of organizations, or change how many (instance owners).",
   description:
     "allowed counts every organization the address's account has created, so 1 with one already created lets it create no more. 0 lets it create none, whatever the default. The address need not have an account yet: while sign-up is limited, an allowance above 0 also lets it sign up. To change an existing allowance pass expected_etag from products(action=\"tenant_allowances\"). With notify (the default), an address whose allowance grows is told by email where to start. Use remove_tenant_allowance to return an address to the default.",
@@ -145,6 +146,7 @@ export const removeTenantAllowance = defineOperation({
   scope: "account",
   access: "any",
   mutates: true,
+  connection: "admin",
   summary: "Return an address to the default allowance (instance owners).",
   description:
     "Removes the allowance an instance owner gave the address, so it may create as many organizations as default_allowed, counting those it created. Organizations it already created stay as they are. Pass expected_etag from products(action=\"tenant_allowances\").",

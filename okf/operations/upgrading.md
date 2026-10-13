@@ -23,7 +23,22 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Migrations `0020_connection_levels` and `0021_tombstones_per_product`.** The first adds a level
+  to every agent connection; the second re-keys tombstones by product. Rehearse on the dev
+  deployment first ([dev-deployment](dev-deployment.md)); going back to an earlier release means
+  restoring the database ([recovering from a bad release](recovering-from-a-bad-release.md)),
+  though an earlier release also runs on the new schema.
+- **Every agent already connected becomes Edit.** It keeps reading, writing and archiving, but
+  can no longer delete a source, manage people, or create, archive or change products. Tell the
+  admins whose agents do those: they raise the agent to Admin under Connect an agent, or connect it
+  again and choose Admin. New connections ask the person which level they want.
+- **Editors can no longer delete sources permanently; admins can, and can now also delete
+  comments, assumptions, outcomes, Story pages, mockups and whole products.** Nothing to set. An
+  editor who deleted sources asks an admin, or archives.
+- **An organization's owner can delete the organization**, from its Members page in the web app.
+  Nothing to set. It is immediate and can't be undone; a public sandbox can't be deleted.
+- **The skill is now 0.23.0.** Connected agents see the new delete actions, and the levels, after
+  starting a new session.
 
 ## v0.8.4
 

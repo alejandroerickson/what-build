@@ -119,6 +119,8 @@ interface ProductCtx {
   app: string;
   canWrite: boolean;
   isAdmin: boolean;
+  /** An admin, in a product that isn't archived: may delete permanently. */
+  canDelete: boolean;
   /** A reader: the Story is all there is of the product for them. */
   storyOnly: boolean;
 }
@@ -141,6 +143,7 @@ export function ProductProvider({ children, fallback }: { children: (ctx: Produc
     app: `/t/${path}`,
     canWrite: (q.data.your_role === "editor" || q.data.your_role === "admin") && !q.data.archived_at,
     isAdmin: q.data.your_role === "admin",
+    canDelete: q.data.your_role === "admin" && !q.data.archived_at,
     storyOnly: q.data.your_role === "reader",
   };
   try {

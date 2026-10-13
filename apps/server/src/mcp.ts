@@ -2,8 +2,8 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import {
-  AppError, countCall, effectiveRole, execute, invalid, membershipsFor, narrowProductList, OPERATIONS, parseInput, parseProductRef, resolveConnectorScope, REST_BODY_MAX_BYTES, SKILL_NAME, SKILL_VERSION, toAppError,
-  type ConnectorScope, type Env, type OperationDef, type Principal, type Scope, type ScopeRef,
+  AppError, countCall, effectiveRole, execute, invalid, levelAllows, membershipsFor, narrowProductList, OPERATIONS, parseInput, parseProductRef, resolveConnectorScope, REST_BODY_MAX_BYTES, SKILL_NAME, SKILL_VERSION, toAppError,
+  type ConnectionLevel, type ConnectorScope, type Env, type OperationDef, type Principal, type Scope, type ScopeRef,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
@@ -40,10 +40,17 @@ function jsonSchema(op: OperationDef): Record<string, unknown> {
   return s;
 }
 
-export function toolDefinitions() {
+/**
+ * The tools an agent is offered: every operation but those a person does only in the web app, and,
+ * for a connection at `level`, only the actions that level allows. Without a level, every action
+ * any connection may be offered, which is what a call is looked up in, so a call above the
+ * connection's level is answered with what it needs rather than as unknown.
+ */
+export function toolDefinitions(level?: ConnectionLevel) {
   const groups = new Map<string, OperationDef[]>();
   const standalone: OperationDef[] = [];
   for (const op of OPERATIONS) {
+    if (op.webOnly || !levelAllows(level, op)) continue;
     if (op.mcp.action) groups.set(op.mcp.tool, [...(groups.get(op.mcp.tool) ?? []), op]);
     else standalone.push(op);
   }
@@ -87,6 +94,12 @@ export function toolDefinitions() {
 
 const DEFINITIONS = toolDefinitions();
 const TOOL_NAMES = DEFINITIONS.tools.map((t) => t.name);
+/** What each connection level lists: an Edit connection is never shown a permanent delete. */
+const LISTED: Record<ConnectionLevel, ReturnType<typeof toolDefinitions>["tools"]> = {
+  viewer: toolDefinitions("viewer").tools,
+  editor: toolDefinitions("editor").tools,
+  admin: toolDefinitions("admin").tools,
+};
 
 export const SERVER_INSTRUCTIONS =
   `This server uses the ${SKILL_NAME} skill, version ${SKILL_VERSION}. Before using its tools, check the installed skill's metadata.version. ` +
@@ -137,13 +150,15 @@ async function resolveProduct(env: Env, principal: Principal, given: string | un
 /** Refusals for a call that names no product, team or tenant (or names one in a form that is not a reference). */
 const UNADDRESSED = new Set(["product_required", "team_required", "tenant_required", "invalid_product"]);
 
-function scopeEcho(scope: Scope) {
+function scopeEcho(scope: Scope, level: ConnectionLevel | undefined) {
   if (!scope.product) return undefined;
   return {
     tenant: scope.tenant?.slug,
     team: scope.team?.slug,
     product: { product_id: scope.product.product_id, name: scope.product.name, path: `${scope.tenant?.slug}/${scope.team?.slug}/${scope.product.slug}` },
+    // The person's role there, capped by the connection's level.
     your_role: scope.role,
+    ...(level ? { connection_level: level } : {}),
     ...(scope.tenant?.sandbox ? { public_sandbox: true } : {}),
   };
 }
@@ -166,7 +181,7 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
   // Resolved on the first tool call, so listing tools costs no lookup.
   let connector: Promise<ConnectorScope> | null = null;
   const connectorScope = () => (bound ? (connector ??= resolveConnectorScope(env.db, principal, bound)) : Promise.resolve(null));
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: DEFINITIONS.tools }));
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: principal.level ? LISTED[principal.level] : DEFINITIONS.tools }));
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const name = req.params.name;
     const args = (req.params.arguments ?? {}) as Record<string, unknown>;
@@ -224,7 +239,7 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
         throw e;
       }
       const { result, scope } = ran;
-      const echo = scopeEcho(scope);
+      const echo = scopeEcho(scope, principal.level);
       const shown = fence && op.name === "products.list" ? narrowProductList(fence, result as Parameters<typeof narrowProductList>[1]) : result;
       return textResult(echo ? { ...(shown as object), scope: echo } : shown);
     } catch (e) {

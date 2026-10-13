@@ -314,12 +314,11 @@ describe("the public sandbox", () => {
       const r = await vera.api(method, path, body);
       expect(r.status, `${method} ${path} → ${JSON.stringify(r.body)}`).toBe(403);
     }
-    // Permanent delete is off for visitors; archive is what they have.
+    // Permanent delete needs admin, which a visitor never is; archive is what they have.
     const impact = await vera.api("GET", `${P}/sources/${seededSource}/delete-impact`);
     const del = await vera.api("DELETE", `${P}/sources/${seededSource}`, { expected_etag: impact.body.etag, reason: "tidying", confirm: "delete permanently" });
     expect(del.status).toBe(403);
-    expect(del.body.error).toMatchObject({ code: "sandbox_restricted" });
-    expect(del.body.error.message).toMatch(/Archive the source instead/);
+    expect(del.body.error).toMatchObject({ code: "forbidden", details: { role: "editor", needed: "admin" } });
     expect((await vera.api("GET", `${P}/sources/${seededSource}`)).status).toBe(200);
   });
 

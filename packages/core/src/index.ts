@@ -1,4 +1,5 @@
 import { activityOps } from "./ops/activity.ts";
+import { deleteOps } from "./ops/deletes.ts";
 import { derivedOps } from "./ops/derived.ts";
 import { mockupOps } from "./ops/mockups.ts";
 import { exportOps } from "./ops/export.ts";
@@ -19,6 +20,7 @@ import type { OperationDef } from "./registry.ts";
 
 export * from "./connector-scope.ts";
 export * from "./db.ts";
+export { DELETE_CONFIRMATION } from "./deletion.ts";
 export * from "./errors.ts";
 export * from "./execute.ts";
 export * from "./source-fields.ts";
@@ -53,6 +55,7 @@ export { FRAME_SCRIPT, THEME_ATTRIBUTE, withStoryFrame, withStoryTheme } from ".
 /** Every operation, defined once. REST routes, MCP tools and `describe` are generated from this list. */
 export const OPERATIONS: OperationDef[] = [
   ...productOps,
+  ...deleteOps,
   ...tenantAllowanceOps,
   ...usageOps,
   ...sandboxOps,

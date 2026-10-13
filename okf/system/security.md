@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild keeps each organization's material to its own people, and treats agent-written HTML, uploads and source text as hostile
 description: The threat model: what is protected, who the attackers are, the trust boundaries, and each control with where it lives in code and the decision that governs it.
 tags: [security, threat-model, tenancy, identity, oauth, sandbox, uploads]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-12}
 status: draft
 ---
 
@@ -114,6 +114,13 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   it to: an Allow whose resource, code challenge, `state` or client differs, or that another
   account posts, is refused. The connected-agents list says who holds each connection the same
   way.
+- A connection has the level the person chose on the consent page (Read only, Edit by default,
+  or Admin), stored on its tokens. It caps the person's role, never adds to it: `execute` refuses
+  an operation above it (`403 connection_level`) before resolving any scope, and MCP lists only
+  what it allows, so an agent on an Edit connection is never offered a permanent delete. Only a
+  web session changes a level (`PATCH /api/v1/me/agents/…`); REST refuses bearer tokens, so an
+  agent cannot raise its own. Deleting an organization is refused to anything but a person in the
+  web app (`403 web_only`) and never listed to an agent.
 - Nothing goes to a client's redirect URI before the person chooses Allow or Deny: an error in an
   authorization request (response type, PKCE, resource) is said on WhatBuild's own page, signed in
   or not, so no registered URI is reached from WhatBuild's domain without a person's choice
@@ -237,7 +244,7 @@ use it unless staff turn it on.
 In a sandbox every role stops at editor except its owners' and admins', and a visitor's grant counts
 only while the deployment names the sandbox (`effectiveRole`, `membershipsFor`). A visitor writes
 under a made-up name `execute` puts in the actor snapshot, sees only themselves in `members.list`,
-and cannot delete permanently. Admission is by 144-bit codes stored as hashes, with places and a
+and cannot delete permanently, which needs admin. Admission is by 144-bit codes stored as hashes, with places and a
 cap on seats. Limits on calls, writes, sources, bytes, sizes, formats and exports are settings
 enforced in `execute` and the upload path (`packages/core/src/public-sandbox.ts`). The daily reset
 holds the sandbox's lock alone, drops its pending jobs and puts the baseline back.

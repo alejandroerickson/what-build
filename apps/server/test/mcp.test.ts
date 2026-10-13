@@ -34,12 +34,14 @@ beforeAll(async () => {
 afterAll(async () => h?.close());
 
 describe("adapter parity", () => {
-  it("reaches every operation from both REST and MCP, and nothing else", () => {
+  it("reaches every operation from both REST and MCP, and nothing else, but what only a person does in the web app", () => {
     const { tools, groups, standalone } = toolDefinitions();
     const viaMcp = new Set<string>();
     for (const [, ops] of groups) for (const o of ops) viaMcp.add(o.name);
     for (const [, o] of standalone) viaMcp.add(o.name);
-    expect([...viaMcp].sort()).toEqual(OPERATIONS.map((o) => o.name).sort());
+    expect([...viaMcp].sort()).toEqual(OPERATIONS.filter((o) => !o.webOnly).map((o) => o.name).sort());
+    // Closing an organization is the only thing an agent is never offered.
+    expect(OPERATIONS.filter((o) => o.webOnly).map((o) => o.name).sort()).toEqual(["products.delete_tenant", "products.delete_tenant_impact"]);
     const restKeys = OPERATIONS.map((o) => `${o.rest.method} ${o.scope} ${o.rest.path}`);
     expect(new Set(restKeys).size).toBe(restKeys.length);
     expect(tools.length).toBeLessThanOrEqual(16);
