@@ -43,7 +43,7 @@ export interface FindResult {
   /** Words this result does not contain. */
   missing: string[];
   score: number;
-  /** Kind-specific: a source's date and tags, an assumption's or outcome's status, a mockup page. */
+  /** Kind-specific: a source's date and tags, an assumption's status, a mockup page. */
   meta: Record<string, unknown>;
   /** A source's matching passages, best first, and how many there are. */
   hits?: Omit<Hit, "found">[];
@@ -175,9 +175,9 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
         where product_id = ${pid} and kind = 'assumption' and archived_at is null and tsv @@ ${tsq}`.execute(ctx.db)
       : null,
     want("outcome")
-      ? sql<{ outcome_id: string; title: string; description: string; status: string }>`
-        select outcome_id, title, description, status from outcomes
-        where product_id = ${pid} and status <> 'archived' and to_tsvector('simple', title || ' ' || description) @@ ${tsq}`.execute(ctx.db)
+      ? sql<{ outcome_id: string; title: string; description: string }>`
+        select outcome_id, title, description from outcomes
+        where product_id = ${pid} and archived_at is null and to_tsvector('simple', title || ' ' || description) @@ ${tsq}`.execute(ctx.db)
       : null,
     want("mockup")
       ? sql<{ mockup_id: string; title: string; summary: string; brief: string; page_id: string | null; page_title: string | null; notes: string | null; text: string | null }>`
@@ -206,7 +206,7 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
     out.push({ kind, id: idv, title: doc.title, title_marks: s.title.ranges, snippet: s.snippet, snippet_marks: s.snippet_marks, missing: missingWords(p, s.found), score: round(s.score), meta });
   };
   for (const a of assumptions?.rows ?? []) push("assumption", a.entry_id, { title: a.statement, body: [a.body] }, { status: a.status, citation_count: a.citation_count });
-  for (const o of outcomes?.rows ?? []) push("outcome", o.outcome_id, { title: o.title, body: [o.description] }, { status: o.status });
+  for (const o of outcomes?.rows ?? []) push("outcome", o.outcome_id, { title: o.title, body: [o.description] }, {});
   // A mockup is one result; the page that matches best is the one it opens on.
   const byMockup = new Map<string, NonNullable<typeof mockups>["rows"]>();
   for (const m of mockups?.rows ?? []) byMockup.set(m.mockup_id, [...(byMockup.get(m.mockup_id) ?? []), m]);

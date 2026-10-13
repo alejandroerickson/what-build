@@ -5,9 +5,9 @@ import { api, ApiError, qs } from "../lib/api.ts";
 import { plural } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
-import { toneFor } from "../lib/status.ts";
+import { PanelContext, PanelFilter, PanelSection } from "../shell/slots.tsx";
 import {
-  Button, ButtonLink, Callout, Chip, EmptyState, ErrorCallout, FormGrid, Glyph, IconButton, Loading, Menu, MenuItem, MenuSeparator, Segmented, SelectField, Sheet,
+  Button, ButtonLink, Callout, EmptyState, ErrorCallout, FormGrid, Glyph, IconButton, Loading, Menu, MenuItem, MenuSeparator, Sheet,
   SheetBody, SheetHeader, StatusBadge, TextArea, TextField, useToast,
 } from "../ui/index.tsx";
 import { DeleteDialog, Referring, type VersionReferring } from "./delete-dialog.tsx";
@@ -15,39 +15,31 @@ import { FirstUse } from "./first-use.tsx";
 import { HistoryDialog } from "./exploration-common.tsx";
 import "../styles/screens/idea.css";
 
+/**
+ * An outcome is current or archived, and points at nothing: assumptions, mockups and Story pages
+ * point at it, and are read against it.
+ */
 interface Outcome {
   outcome_id: string;
   title: string;
   description: string;
-  status: "active" | "achieved" | "archived";
   position: number;
+  archived_at: string | null;
   etag: string;
-  counts: { assumptions: number };
 }
-
-const STATUS_WORD: Record<Outcome["status"], string> = { active: "Active", achieved: "Achieved", archived: "Archived" };
-
-const VIEWS = [
-  // Active and achieved: archived outcomes have their own view.
-  { id: "", label: "Current" },
-  { id: "active", label: "Active" },
-  { id: "achieved", label: "Achieved" },
-  { id: "archived", label: "Archived" },
-];
 
 function OutcomeForm({ initial, onDone, onCancel }: { initial?: Outcome; onDone: () => void; onCancel: () => void }) {
   const { api: base } = useProduct();
   const qc = useQueryClient();
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
-  const [status, setStatus] = useState<Outcome["status"]>(initial?.status ?? "active");
   // After a 409 the latest version is loaded here; saving again writes over it, with the person's text kept.
   const [theirs, setTheirs] = useState<Outcome | null>(null);
   const save = useMutation({
     mutationFn: () =>
       initial
-        ? api("PATCH", `${base}/outcomes/${initial.outcome_id}`, { expected_etag: theirs?.etag ?? initial.etag, title, description, status })
-        : api("POST", `${base}/outcomes`, { title, description, status }),
+        ? api("PATCH", `${base}/outcomes/${initial.outcome_id}`, { expected_etag: theirs?.etag ?? initial.etag, title, description })
+        : api("POST", `${base}/outcomes`, { title, description }),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["outcomes", base] });
       void qc.invalidateQueries({ queryKey: ["product"] });
@@ -73,18 +65,13 @@ function OutcomeForm({ initial, onDone, onCancel }: { initial?: Outcome; onDone:
       </h2>
       <FormGrid>
         <TextField label="Outcome" hint="What the product’s users should be able to achieve." required maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
-        <TextArea label="What success means" optional hint="Markdown: bold, lists and links." maxLength={2000} rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
-        <SelectField label="Status" value={status} onChange={(e) => setStatus(e.target.value as Outcome["status"])}>
-          <option value="active">Active</option>
-          <option value="achieved">Achieved</option>
-          {initial?.status === "archived" ? <option value="archived">Archived</option> : null}
-        </SelectField>
+        <TextArea label="What success means" optional hint="What changes for the users when it’s achieved. The evidence belongs in sources and assumptions." maxLength={2000} rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
       </FormGrid>
       {stale ? (
         <Callout tone="attention" inset title="Someone changed this outcome while you were editing">
           {theirs ? (
             <>
-              Their version: <strong>{theirs.title}</strong> ({STATUS_WORD[theirs.status]}). Your text is still here. Save again to replace theirs; their text is kept
+              Their version: <strong>{theirs.title}</strong>. Your text is still here. Save again to replace theirs; their text is kept
               in Earlier versions.
             </>
           ) : (
@@ -169,16 +156,20 @@ function ConceptSheet() {
   );
 }
 
-function LinkedChips({ o }: { o: Outcome }) {
+/** Whether archived outcomes are listed too, as Evidence offers for sources. */
+function IdeaPanel({ includeArchived }: { includeArchived: boolean }) {
   const { app } = useProduct();
-  const { assumptions } = o.counts;
-  if (!assumptions) return <p className="outcome-none">Nothing linked yet.</p>;
   return (
-    <div className="chips outcome-chips">
-      <Chip to={`${app}/exploration/assumptions?outcome_id=${o.outcome_id}`} icon="scale">
-        {plural(assumptions, "assumption")}
-      </Chip>
-    </div>
+    <PanelContext label="Filter outcomes">
+      <PanelSection title="Archived">
+        <PanelFilter to={`${app}/idea`} current={!includeArchived}>
+          Hide archived
+        </PanelFilter>
+        <PanelFilter to={`${app}/idea?include_archived=1`} current={includeArchived}>
+          Include archived
+        </PanelFilter>
+      </PanelSection>
+    </PanelContext>
   );
 }
 
@@ -194,38 +185,44 @@ export function IdeaPage() {
   const { product, api: base, app, canWrite, canDelete } = useProduct();
   const [deleting, setDeleting] = useState<Outcome | null>(null);
   const [params] = useSearchParams();
-  const status = params.get("status") ?? "";
+  const includeArchived = params.get("include_archived") === "1";
   // An outcome a search result opened (?outcome=<id>), scrolled to and marked.
   const found = params.get("outcome");
   const qc = useQueryClient();
   const toast = useToast();
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [history, setHistory] = useState<Outcome | null>(null);
-  const q = useQuery({ queryKey: ["outcomes", base, status], queryFn: () => api<{ items: Outcome[] }>("GET", `${base}/outcomes${qs({ status })}`) });
+  const q = useQuery({
+    queryKey: ["outcomes", base, includeArchived],
+    queryFn: () => api<{ items: Outcome[]; archived_hidden: number }>("GET", `${base}/outcomes${qs({ include_archived: includeArchived ? "true" : "" })}`),
+  });
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ["outcomes", base] });
     void qc.invalidateQueries({ queryKey: ["product"] });
   };
+  const failed = (e: Error) => {
+    refresh();
+    toast(e instanceof ApiError && e.code === "stale_etag" ? "Someone changed that outcome just now. The list is reloaded; try again." : e.message, { tone: "negative" });
+  };
   const patch = useMutation({
-    mutationFn: ({ o, body }: { o: Outcome; body: Record<string, unknown>; undo?: Outcome["status"] }) =>
-      api<Outcome>("PATCH", `${base}/outcomes/${o.outcome_id}`, { expected_etag: o.etag, ...body }),
-    onSuccess: (next, { o, undo }) => {
+    mutationFn: ({ o, body }: { o: Outcome; body: Record<string, unknown> }) => api<Outcome>("PATCH", `${base}/outcomes/${o.outcome_id}`, { expected_etag: o.etag, ...body }),
+    onSuccess: refresh,
+    onError: failed,
+  });
+  const setArchived = useMutation({
+    mutationFn: ({ o, archived }: { o: Outcome; archived: boolean; undo?: boolean }) =>
+      api<Outcome>("POST", `${base}/outcomes/${o.outcome_id}/${archived ? "archive" : "restore"}`, { expected_etag: o.etag }),
+    onSuccess: (next, { o, archived, undo }) => {
       refresh();
-      if (undo)
-        toast(next.status === "archived" ? `Archived “${o.title}”.` : next.status === "achieved" ? `Marked “${o.title}” achieved.` : `“${o.title}” is active again.`, {
-          action: { label: "Undo", onClick: () => patch.mutate({ o: next, body: { status: undo } }) },
-        });
+      if (undo) toast(archived ? `Archived “${o.title}”.` : `Restored “${o.title}”.`, { action: { label: "Undo", onClick: () => setArchived.mutate({ o: next, archived: !archived }) } });
     },
-    onError: (e) => {
-      refresh();
-      toast(e instanceof ApiError && e.code === "stale_etag" ? "Someone changed that outcome just now. The list is reloaded; try again." : (e as Error).message, { tone: "negative" });
-    },
+    onError: failed,
   });
   const items = q.data?.items ?? [];
   useEffect(() => {
     if (found && q.data) document.getElementById(`outcome-${found}`)?.scrollIntoView({ block: "center" });
   }, [found, q.data]);
-  const reorderable = canWrite && !status;
+  const reorderable = canWrite && !includeArchived;
   const moveTo = (o: Outcome, i: number, dir: -1 | 1) => {
     const j = i + dir;
     const beyond = items[j + dir];
@@ -236,13 +233,13 @@ export function IdeaPage() {
   return (
     <>
       <ConceptSheet />
+      <IdeaPanel includeArchived={includeArchived} />
       <Sheet labelledBy="outcomes-h" className="outcomes-sheet">
         <SheetHeader
           level={1}
           id="outcomes-h"
           title="Outcomes"
           count={q.data ? items.length : undefined}
-          filter={<Segmented label="Show" value={status} items={VIEWS.map((v) => ({ ...v, to: `${app}/idea${v.id ? `?status=${v.id}` : ""}` }))} />}
           end={
             canWrite && editing !== "new" ? (
               <Button icon="plus" onClick={() => setEditing("new")}>
@@ -259,8 +256,12 @@ export function IdeaPage() {
             <ErrorCallout error={q.error} onRetry={() => q.refetch()} inset />
           </SheetBody>
         ) : !items.length ? (
-          editing === "new" ? null : status && (status === "archived" || (product.counts.outcomes ?? 0) > 0) ? (
-            <EmptyState size="inline" title={`No ${STATUS_WORD[status as Outcome["status"]]?.toLowerCase() ?? ""} outcomes`} action={<ButtonLink to={`${app}/idea`} size="sm">Show current outcomes</ButtonLink>} />
+          editing === "new" ? null : q.data.archived_hidden ? (
+            <EmptyState
+              size="inline"
+              title="No current outcomes"
+              action={<ButtonLink to={`${app}/idea?include_archived=1`} size="sm">Include {plural(q.data.archived_hidden, "archived outcome")}</ButtonLink>}
+            />
           ) : (
             <FirstUse
               title="No outcomes yet"
@@ -270,7 +271,7 @@ export function IdeaPage() {
                   : `Interview me about ${product.name}, then write its product concept and outcomes in WhatBuild.`
               }
             >
-              An outcome is what the product&rsquo;s users should be able to achieve.
+              An outcome is what the product&rsquo;s users should be able to achieve. Outcomes are the compass: the evidence, assumptions, mockups and Story are read against them.
             </FirstUse>
           )
         ) : (
@@ -281,20 +282,23 @@ export function IdeaPage() {
                   <OutcomeForm initial={o} onDone={() => setEditing(null)} onCancel={() => setEditing(null)} />
                 </li>
               ) : (
-                <li key={o.outcome_id} id={`outcome-${o.outcome_id}`} className={`list-row outcome-row${found === o.outcome_id ? " outcome-found" : ""}`}>
+                <li
+                  key={o.outcome_id}
+                  id={`outcome-${o.outcome_id}`}
+                  className={`list-row outcome-row${o.archived_at ? " is-archived" : ""}${found === o.outcome_id ? " outcome-found" : ""}`}
+                >
                   <div className="list-main">
                     <h2 className="outcome-title">{o.title}</h2>
                     {o.description ? <Markdown source={o.description} className="outcome-description" headingShift={3} /> : null}
-                    <LinkedChips o={o} />
                   </div>
                   <div className="outcome-side">
-                    <StatusBadge tone={toneFor("outcome", o.status)}>{STATUS_WORD[o.status]}</StatusBadge>
+                    {o.archived_at ? <StatusBadge tone="neutral">Archived</StatusBadge> : null}
                     {/* Someone who cannot change outcomes here (a viewer, or anyone on an archived product) gets the one thing they can do, not a menu of nothing. */}
                     {!canWrite ? (
                       <IconButton size="sm" icon="clock" label={`Earlier versions of ${o.title}`} onClick={() => setHistory(o)} />
                     ) : (
                     <Menu label={`Actions for ${o.title}`} triggerClassName="icon-btn icon-btn-sm" trigger={<Glyph name="ellipsis" />} align="end">
-                      {canWrite && o.status !== "archived" ? (
+                      {canWrite && !o.archived_at ? (
                         <MenuItem icon="pencil" onSelect={() => setEditing(o.outcome_id)}>
                           Edit
                         </MenuItem>
@@ -309,27 +313,17 @@ export function IdeaPage() {
                           </MenuItem>
                         </>
                       ) : null}
-                      {canWrite && o.status === "active" ? (
-                        <MenuItem icon="circle-check" onSelect={() => patch.mutate({ o, body: { status: "achieved" }, undo: "active" })}>
-                          Mark achieved
-                        </MenuItem>
-                      ) : null}
-                      {canWrite && o.status === "achieved" ? (
-                        <MenuItem icon="target" onSelect={() => patch.mutate({ o, body: { status: "active" }, undo: "achieved" })}>
-                          Mark active again
-                        </MenuItem>
-                      ) : null}
                       <MenuItem icon="clock" onSelect={() => setHistory(o)}>
                         Earlier versions
                       </MenuItem>
                       {canWrite ? <MenuSeparator /> : null}
-                      {canWrite && o.status !== "archived" ? (
-                        <MenuItem icon="archive" onSelect={() => patch.mutate({ o, body: { status: "archived" }, undo: o.status })}>
+                      {canWrite && !o.archived_at ? (
+                        <MenuItem icon="archive" onSelect={() => setArchived.mutate({ o, archived: true, undo: true })}>
                           Archive
                         </MenuItem>
                       ) : null}
-                      {canWrite && o.status === "archived" ? (
-                        <MenuItem icon="archive-restore" onSelect={() => patch.mutate({ o, body: { status: "active" }, undo: "archived" })}>
+                      {canWrite && o.archived_at ? (
+                        <MenuItem icon="archive-restore" onSelect={() => setArchived.mutate({ o, archived: false, undo: true })}>
                           Restore
                         </MenuItem>
                       ) : null}
@@ -352,11 +346,7 @@ export function IdeaPage() {
           title="Delete this outcome permanently?"
           impactPath={`${base}/outcomes/${deleting.outcome_id}/delete-impact`}
           deletePath={`${base}/outcomes/${deleting.outcome_id}`}
-          alternative={
-            deleting.status === "archived"
-              ? undefined
-              : { label: "Archive instead", onSelect: () => patch.mutate({ o: deleting, body: { status: "archived" }, undo: deleting.status }) }
-          }
+          alternative={deleting.archived_at ? undefined : { label: "Archive instead", onSelect: () => setArchived.mutate({ o: deleting, archived: true, undo: true }) }}
           renderImpact={(i) => (
             <>
               <p>This deletes “{deleting.title}”.</p>

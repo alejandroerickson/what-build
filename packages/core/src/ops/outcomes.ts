@@ -3,16 +3,40 @@ import { z } from "zod";
 import { checkEtag, keepRevision, productId, recordActivity, tenantId } from "../common.ts";
 import { json, type OutcomesTable } from "../db.ts";
 import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, dropRevisions, leaveTombstone, mockupVersionsReferring, refuseIfDeleted, storyVersionsReferring } from "../deletion.ts";
-import { notFound } from "../errors.ts";
+import { invalid, notFound } from "../errors.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag, id } from "../schemas.ts";
 import { newEtag, newId } from "../util.ts";
 
-const STATUS = z.enum(["active", "achieved", "archived"]);
-
 type Row = Selectable<OutcomesTable>;
 
 const outcomeId = id("outcome").describe("The outcome id. id is accepted as another name for it.");
+
+/**
+ * What an outcome is, said once for every operation that writes one. Outcomes are the product's
+ * compass: the evidence, the assumptions, the mockups and the Story are all read against them, so
+ * an outcome says where the product is going and never retells how the team found out.
+ */
+const WHAT_AN_OUTCOME_IS =
+  "An outcome is what the product's users should be able to achieve with it: the compass the evidence, assumptions, mockups and Story are read against, so write it to last. " +
+  "Title: what the user achieves, from their side (\"The crew lead plans next week in minutes\"). Description: what success looks like for them, in a few sentences. " +
+  "Neither cites or retells evidence: no sources, passages, calls, emails, dates, named customers or people who asked, journeys, assumptions or mockups. " +
+  "Evidence belongs in sources, and what it suggests in assumptions, which point at the outcome through outcome_ids. An id or a link to a record is refused. Keep the set small.";
+
+/** Any id names a record (a source, a passage's source, an assumption, a mockup, a Story page), and an outcome names none. */
+const RECORD_ID = /\b[0-9A-HJKMNP-TV-Z]{26}\b/;
+
+function refuseReferences(text: { title?: string; description?: string }) {
+  for (const field of ["title", "description"] as const) {
+    const found = text[field] && RECORD_ID.exec(text[field]!);
+    if (found)
+      throw invalid(
+        "outcome_cites_a_record",
+        `An outcome cites nothing: its ${field} names the record ${found[0]}. Say what the users achieve and what success looks like for them, and put the evidence in an assumption that points at this outcome through outcome_ids.`,
+        { field, id: found[0] },
+      );
+  }
+}
 
 async function load(ctx: OpContext, outcomeId: string, lock = false) {
   let q = ctx.db.selectFrom("outcomes").selectAll().where("outcome_id", "=", outcomeId).where("product_id", "=", productId(ctx));
@@ -28,19 +52,8 @@ async function load(ctx: OpContext, outcomeId: string, lock = false) {
 /** Referenced outcomes that are archived: hidden from the outcomes list, but still linkable. */
 export async function archivedOutcomeIds(ctx: OpContext, ids: string[]): Promise<Set<string>> {
   if (!ids.length) return new Set();
-  const rows = await ctx.db.selectFrom("outcomes").select("outcome_id").where("product_id", "=", productId(ctx)).where("status", "=", "archived").where("outcome_id", "in", [...new Set(ids)]).execute();
+  const rows = await ctx.db.selectFrom("outcomes").select("outcome_id").where("product_id", "=", productId(ctx)).where("archived_at", "is not", null).where("outcome_id", "in", [...new Set(ids)]).execute();
   return new Set(rows.map((r) => r.outcome_id));
-}
-
-async function withCounts(ctx: OpContext, rows: Row[]) {
-  if (!rows.length) return [];
-  const ids = rows.map((r) => r.outcome_id);
-  const assumptionCounts = await sql<{ id: string; n: number }>`
-    select o.id, count(*)::int as n
-    from register_entries r, unnest(r.outcome_ids) as o(id)
-    where r.product_id = ${productId(ctx)} and r.kind = 'assumption' and r.archived_at is null and r.status in ('unconfirmed', 'confirmed') and o.id = any(${ids})
-    group by o.id`.execute(ctx.db);
-  return rows.map((r) => ({ ...r, counts: { assumptions: assumptionCounts.rows.find((c) => c.id === r.outcome_id)?.n ?? 0 } }));
 }
 
 export const listOutcomes = defineOperation({
@@ -48,11 +61,13 @@ export const listOutcomes = defineOperation({
   scope: "product",
   access: "read",
   mutates: false,
-  summary: "List the product's outcomes in order, with how many assumptions point at each.",
+  summary: "List the product's outcomes in order: the compass every other part of the product is read against.",
   description:
-    "Outcomes are what the product's users should be able to achieve with it, under the product concept. Read them before writing anything that serves them, and link to them through outcome_ids on an assumption and refs.outcomes on a mockup or Story page. Archived outcomes are left out unless status is \"archived\"; archived_hidden says how many were left out. An archived outcome can still be linked, and assumptions flag such links in archived_outcome_ids. Counts cover current (unconfirmed or confirmed) assumptions; superseded and refuted ones are not counted.",
+    "Outcomes are what the product's users should be able to achieve with it, under the product concept. Read them at the start of any work in a product, and check what you write against them. " +
+    "Assumptions point at them through outcome_ids, and mockups and Story pages through refs.outcomes; an outcome points at nothing. To see the assumptions that serve one, list assumptions with its outcome_id. " +
+    "Archived outcomes are left out unless include_archived; archived_hidden says how many were left out. An archived outcome can still be linked, and assumptions flag such links in archived_outcome_ids.",
   input: z.strictObject({
-    status: STATUS.optional().describe("Only this status. Omit for active and achieved."),
+    include_archived: z.boolean().default(false),
     query: z.string().max(500).optional().describe("Case-insensitive substring of title or description."),
     limit: z.number().int().min(1).max(100).default(100),
     cursor: z.string().optional(),
@@ -61,14 +76,14 @@ export const listOutcomes = defineOperation({
   mcp: { tool: "outcomes", action: "list" },
   async handler(ctx, input) {
     let q = ctx.db.selectFrom("outcomes").selectAll().where("product_id", "=", productId(ctx));
-    q = input.status ? q.where("status", "=", input.status) : q.where("status", "!=", "archived");
+    if (!input.include_archived) q = q.where("archived_at", "is", null);
     if (input.query) q = q.where(sql<boolean>`(title ilike ${"%" + input.query + "%"} or description ilike ${"%" + input.query + "%"})`);
     if (input.cursor) q = q.where("position", ">", Number(input.cursor));
     const rows = (await q.orderBy("position").orderBy("outcome_id").limit(input.limit + 1).execute()) as Row[];
-    const items = await withCounts(ctx, rows.slice(0, input.limit));
+    const items = rows.slice(0, input.limit);
     let archived_hidden = 0;
-    if (!input.status) {
-      let a = ctx.db.selectFrom("outcomes").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", productId(ctx)).where("status", "=", "archived");
+    if (!input.include_archived) {
+      let a = ctx.db.selectFrom("outcomes").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", productId(ctx)).where("archived_at", "is not", null);
       if (input.query) a = a.where(sql<boolean>`(title ilike ${"%" + input.query + "%"} or description ilike ${"%" + input.query + "%"})`);
       archived_hidden = Number((await a.executeTakeFirst())?.n ?? 0);
     }
@@ -76,7 +91,7 @@ export const listOutcomes = defineOperation({
       items,
       next_cursor: rows.length > input.limit ? String(items[items.length - 1]!.position) : null,
       archived_hidden,
-      ...(archived_hidden ? { note: `${archived_hidden} archived outcome${archived_hidden === 1 ? " is" : "s are"} not listed; pass status "archived" to see ${archived_hidden === 1 ? "it" : "them"}.` } : {}),
+      ...(archived_hidden ? { note: `${archived_hidden} archived outcome${archived_hidden === 1 ? " is" : "s are"} not listed; pass include_archived to see ${archived_hidden === 1 ? "it" : "them"}.` } : {}),
     };
   },
 });
@@ -87,13 +102,12 @@ export const getOutcome = defineOperation({
   access: "read",
   mutates: false,
   summary: "Read one outcome with its etag.",
-  description: "The etag guards update.",
+  description: "The etag guards update, archive and restore.",
   input: z.strictObject({ outcome_id: outcomeId }),
   rest: { method: "GET", path: "/outcomes/:outcome_id" },
   mcp: { tool: "outcomes", action: "get" },
   async handler(ctx, input) {
-    const [row] = await withCounts(ctx, [await load(ctx, input.outcome_id)]);
-    return row;
+    return load(ctx, input.outcome_id);
   },
 });
 
@@ -102,30 +116,28 @@ export const createOutcome = defineOperation({
   scope: "product",
   access: "write",
   mutates: true,
-  summary: "Add an outcome: something the product's users should be able to achieve with it, not a feature or a task.",
-  description:
-    "Name what the user achieves, from their side (\"The crew lead plans next week in minutes\"), and in the description what success looks like for them. Not a feature list or a task list. Keep the active set small. A new outcome goes to the end of the order unless position places it.",
+  summary: "Add an outcome: something the product's users should be able to achieve with it, not a feature, a task or a finding.",
+  description: `${WHAT_AN_OUTCOME_IS} Propose outcomes to the person and add them once they agree. A new outcome goes to the end of the order unless position places it.`,
   input: z.strictObject({
     title: z.string().trim().min(1).max(200),
-    description: z.string().max(2000).default("").describe("Markdown, up to 2,000 characters."),
-    status: STATUS.default("active"),
+    description: z.string().max(2000).default("").describe("Markdown, up to 2,000 characters: what success looks like for the users."),
     position: z.number().optional().describe("Ordering key, as on update: to place the outcome between two others, use a value between their positions. Omit to put it last."),
   }),
   rest: { method: "POST", path: "/outcomes" },
   mcp: { tool: "outcomes", action: "create" },
   async handler(ctx, input) {
+    refuseReferences(input);
     const last = await ctx.db.selectFrom("outcomes").select((eb) => eb.fn.max("position").as("p")).where("product_id", "=", productId(ctx)).executeTakeFirst();
     const outcome_id = newId();
     await ctx.db
       .insertInto("outcomes")
       .values({
         outcome_id, tenant_id: tenantId(ctx), product_id: productId(ctx), title: input.title, description: input.description,
-        status: input.status, position: input.position ?? Number(last?.p ?? 0) + 1, etag: newEtag(), created_by: json(ctx.actor), updated_by: json(ctx.actor),
+        position: input.position ?? Number(last?.p ?? 0) + 1, etag: newEtag(), created_by: json(ctx.actor), updated_by: json(ctx.actor),
       })
       .execute();
-    await recordActivity(ctx, { action: "created", entity_type: "outcome", entity_id: outcome_id, entity_title: input.title, summary: `Added an ${input.status} outcome` });
-    const [row] = await withCounts(ctx, [await load(ctx, outcome_id)]);
-    return row;
+    await recordActivity(ctx, { action: "created", entity_type: "outcome", entity_id: outcome_id, entity_title: input.title, summary: "Added an outcome" });
+    return load(ctx, outcome_id);
   },
 });
 
@@ -134,33 +146,33 @@ export const updateOutcome = defineOperation({
   scope: "product",
   access: "write",
   mutates: true,
-  summary: "Change an outcome's title, description, status or position. Pass only what changes.",
+  summary: "Change an outcome's title, description or position. Pass only what changes.",
   description:
-    "Requires expected_etag from your latest read. Fields you omit keep their values. Setting status to archived retires it; achieved keeps it visible. The previous title and description are kept as a revision.",
+    `Requires expected_etag from your latest read. Fields you omit keep their values. The previous title and description are kept as a revision. ${WHAT_AN_OUTCOME_IS} ` +
+    "An outcome changes when the person changes what the product is for, not when evidence arrives: when evidence challenges one, tell the person and propose new wording rather than adding the evidence to it. To retire one, archive it.",
   input: z.strictObject({
     outcome_id: outcomeId,
     expected_etag: expectedEtag,
     title: z.string().trim().min(1).max(200).optional(),
     description: z.string().max(2000).optional(),
-    status: STATUS.optional(),
     position: z.number().optional().describe("Ordering key; to move between two outcomes, use a value between their positions."),
   }),
   rest: { method: "PATCH", path: "/outcomes/:outcome_id" },
   mcp: { tool: "outcomes", action: "update" },
   async handler(ctx, input) {
+    refuseReferences(input);
     const row = await load(ctx, input.outcome_id, true);
     checkEtag(input.expected_etag, row.etag, "outcome");
     const textChanged =
       (input.title !== undefined && input.title !== row.title) || (input.description !== undefined && input.description !== row.description);
     if (textChanged) await keepRevision(ctx, "outcome", row.outcome_id, { title: row.title, description: row.description }, row.updated_at, row.updated_by);
-    const changed = (["title", "description", "status", "position"] as const).filter((k) => input[k] !== undefined && input[k] !== row[k]);
+    const changed = (["title", "description", "position"] as const).filter((k) => input[k] !== undefined && input[k] !== row[k]);
     if (changed.length) {
       await ctx.db
         .updateTable("outcomes")
         .set({
           title: input.title ?? row.title,
           description: input.description ?? row.description,
-          status: input.status ?? row.status,
           position: input.position ?? row.position,
           etag: newEtag(),
           updated_at: ctx.now,
@@ -168,17 +180,65 @@ export const updateOutcome = defineOperation({
         })
         .where("outcome_id", "=", row.outcome_id)
         .execute();
-      const statusChange = input.status && input.status !== row.status;
       await recordActivity(ctx, {
-        action: statusChange ? (input.status === "archived" ? "archived" : row.status === "archived" ? "restored" : input.status!) : changed.includes("position") && changed.length === 1 ? "reordered" : "updated",
+        action: changed.includes("position") && changed.length === 1 ? "reordered" : "updated",
         entity_type: "outcome",
         entity_id: row.outcome_id,
         entity_title: input.title ?? row.title,
-        summary: statusChange ? `Changed status from ${row.status} to ${input.status}` : `Changed ${changed.join(", ")}`,
+        summary: `Changed ${changed.join(", ")}`,
       });
     }
-    const [next] = await withCounts(ctx, [await load(ctx, row.outcome_id)]);
-    return next;
+    return load(ctx, row.outcome_id);
+  },
+});
+
+/** Archive or restore: one switch, two operations, as for sources and mockups. */
+async function setArchived(ctx: OpContext, input: { outcome_id: string; expected_etag: string }, archived: boolean) {
+  const row = await load(ctx, input.outcome_id, true);
+  checkEtag(input.expected_etag, row.etag, "outcome");
+  if (Boolean(row.archived_at) === archived) return row;
+  await ctx.db
+    .updateTable("outcomes")
+    .set({ archived_at: archived ? ctx.now : null, etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) })
+    .where("outcome_id", "=", row.outcome_id)
+    .execute();
+  await recordActivity(ctx, {
+    action: archived ? "archived" : "restored",
+    entity_type: "outcome",
+    entity_id: row.outcome_id,
+    entity_title: row.title,
+    summary: archived ? "Archived the outcome" : "Restored the outcome",
+  });
+  return load(ctx, row.outcome_id);
+}
+
+export const archiveOutcome = defineOperation({
+  name: "outcomes.archive",
+  scope: "product",
+  access: "write",
+  mutates: true,
+  summary: "Archive an outcome the product no longer aims at: out of the list, still linkable, its text kept.",
+  description: "Pass the outcome's etag. Assumptions that point at it flag it in archived_outcome_ids. Restore brings it back.",
+  input: z.strictObject({ outcome_id: outcomeId, expected_etag: expectedEtag }),
+  rest: { method: "POST", path: "/outcomes/:outcome_id/archive" },
+  mcp: { tool: "outcomes", action: "archive" },
+  async handler(ctx, input) {
+    return setArchived(ctx, input, true);
+  },
+});
+
+export const restoreOutcome = defineOperation({
+  name: "outcomes.restore",
+  scope: "product",
+  access: "write",
+  mutates: true,
+  summary: "Restore an archived outcome.",
+  description: "Pass the outcome's etag. It returns to its place in the order.",
+  input: z.strictObject({ outcome_id: outcomeId, expected_etag: expectedEtag }),
+  rest: { method: "POST", path: "/outcomes/:outcome_id/restore" },
+  mcp: { tool: "outcomes", action: "restore" },
+  async handler(ctx, input) {
+    return setArchived(ctx, input, false);
   },
 });
 
@@ -195,13 +255,13 @@ async function deletion(ctx: OpContext, row: Row) {
     outcome_id: row.outcome_id,
     title: row.title,
     etag: row.etag,
-    status: row.status,
+    archived: Boolean(row.archived_at),
     assumptions: assumptions.map((a) => ({ id: a.entry_id, statement: a.statement })),
     story_versions_referring: await storyVersionsReferring(ctx, "outcomes", row.outcome_id),
     mockup_versions_referring: await mockupVersionsReferring(ctx, "outcomes", row.outcome_id),
     after_delete:
       "Its title, description and earlier text go. It is removed from the outcome_ids of the assumptions that serve it. Story page and mockup versions that list it in refs keep their text, and that ref stops resolving.",
-    reversible_alternative: 'outcomes(action="update", status: "archived") takes it out of the list and keeps it linkable.',
+    reversible_alternative: 'outcomes(action="archive") takes it out of the list and keeps it linkable.',
   };
 }
 
@@ -228,14 +288,14 @@ export const deleteOutcome = defineOperation({
   mutates: true,
   summary: "DELETE PERMANENTLY — cannot be undone. Destroys an outcome and its history; archiving it is the reversible alternative.",
   description:
-    'Setting its status to archived (outcomes(action="update")) is the reversible alternative and almost always what is wanted. ' +
+    'Archiving it (outcomes(action="archive")) is the reversible alternative and almost always what is wanted. ' +
     DELETE_GUIDANCE +
     " Leaves a tombstone: reads return 410 with who, when and why.",
   input: z.strictObject({ outcome_id: outcomeId, ...deleteGuards }),
   rest: { method: "DELETE", path: "/outcomes/:outcome_id" },
   mcp: { tool: "outcomes", action: "delete" },
   async handler(ctx, input) {
-    checkConfirmation(input.confirm, 'archive it with outcomes(action="update", status: "archived")');
+    checkConfirmation(input.confirm, 'archive it with outcomes(action="archive")');
     const row = await load(ctx, input.outcome_id, true);
     checkEtag(input.expected_etag, row.etag, "outcome");
     const impact = await deletion(ctx, row);
@@ -257,4 +317,4 @@ export const deleteOutcome = defineOperation({
   },
 });
 
-export const outcomeOps = [listOutcomes, getOutcome, createOutcome, updateOutcome, outcomeDeleteImpact, deleteOutcome];
+export const outcomeOps = [listOutcomes, getOutcome, createOutcome, updateOutcome, archiveOutcome, restoreOutcome, outcomeDeleteImpact, deleteOutcome];

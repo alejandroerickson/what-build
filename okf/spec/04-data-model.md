@@ -25,7 +25,7 @@ Every editable object carries:
 | `etag` | Opaque string; changes on every successful mutation. |
 | `created_at`, `created_by` | Timestamp and actor snapshot ([§3.9](03-accounts-teams-and-identity.md)). Sources say `uploaded_at`, `uploaded_by`. |
 | `updated_at`, `updated_by` | Same, for the latest mutation. |
-| `archived_at` | Where the type supports archive (sources, annotations, assumptions, Story pages, mockups). Outcomes archive through `status: "archived"` instead. Archived objects are excluded from lists and search unless asked for, and remain readable by id. |
+| `archived_at` | Where the type supports archive (sources, annotations, outcomes, assumptions, Story pages, mockups). Archived objects are excluded from lists and search unless asked for, and remain readable by id. |
 
 **Concurrency.** Every update, review, link, single-object archive and restore, and every Story
 publish after a page's first version requires the current etag (`expected_etag` in the input, or
@@ -80,21 +80,24 @@ slip in a re-sent text shows up in the result.
 ## 4.2 Outcomes
 
 An outcome is what the product's users should be able to achieve with it. Outcomes sit under the
-product concept ([§3.4](03-accounts-teams-and-identity.md)) on the Idea screen.
+product concept ([§3.4](03-accounts-teams-and-identity.md)) on the Idea screen, and are the compass
+the evidence, assumptions, mockups and Story are read against
+([decision](../decisions/a-product-starts-with-an-idea-concept-and-outcomes.md)).
 
 | Field | Rule |
 |---|---|
 | `outcome_id` | |
-| `title` | 1–200 chars. |
-| `description` | Markdown, 0–2,000 chars. |
-| `status` | `active` (default), `achieved`, `archived`. |
+| `title` | 1–200 chars. What the users achieve. |
+| `description` | Markdown, 0–2,000 chars. What success looks like for them. |
+| `archived_at` | Null while the outcome is current. An outcome is current or archived; it has no other state. |
 | `position` | Ordering key within the product. `create` takes one to place a new outcome (a value between two others' positions puts it between them); omitted, it goes last. Reorder is an update. |
 
-Assumptions, and Story and mockup versions, point *to* outcomes; outcomes hold no outgoing
-references. Reads return `counts.assumptions`: the current (`unconfirmed` or `confirmed`)
-assumptions that point at each. Superseded and refuted ones are not counted, so a count matches
-the register's default view and what `assumptions.list` returns without a status.
-`products.get` and `products.list` count assumptions the same way.
+Assumptions, and Story and mockup versions, point *to* outcomes; an outcome cites nothing. Its
+title and description may not hold a record id: `create` and `update` refuse one with `422
+outcome_cites_a_record`, naming the field and the id. Reads carry no count of what points at an
+outcome; `assumptions.list` with `outcome_id` lists the assumptions that serve one.
+`products.get` and `products.list` count only current (`unconfirmed` or `confirmed`) assumptions,
+the ones `assumptions.list` returns without a status.
 
 Product reads return `counts`, one number per kind (`sources`, `outcomes`, `assumptions`,
 `mockups`, `story_pages`, archived items left out), and `stage_counts`, the total of every item each
@@ -104,8 +107,8 @@ product concept is one field, not an item), `evidence` the sources, `exploration
 the current assumptions, and `story` the live Story pages, which are exactly the pages in the tree,
 the unplaced ones and the Published mockups (§4.11).
 
-`outcomes.list` leaves archived outcomes out unless asked for `status: "archived"`, and says
-how many it left out: `archived_hidden` (the count, honouring `query`) and, when it is not zero, a
+`outcomes.archive` and `outcomes.restore` set and clear `archived_at`. `outcomes.list` leaves
+archived outcomes out unless `include_archived`, and says how many it left out: `archived_hidden` (the count, honouring `query`) and, when it is not zero, a
 `note`. An archived outcome can still be referenced. Assumptions (`outcome_ids`) return
 `archived_outcome_ids`: the referenced outcomes that are archived, so a link to one is visible
 rather than accidental.

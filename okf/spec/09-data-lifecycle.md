@@ -259,7 +259,7 @@ been here".
 | Sources | `sources.archive` / `sources.restore` (up to 200 at once) |
 | Assumptions | `assumptions.archive { archived: true | false }` |
 | Comments (annotations) | `sources.update_annotation { archived, archive_reason? }` |
-| Outcomes | `outcomes.update { status: "archived" }`, and back |
+| Outcomes | `outcomes.archive` / `outcomes.restore` |
 | Story pages | `story.archive_page` / `story.restore_page` (subpages move up into its place) |
 | Mockups | `mockups.archive` / `mockups.restore` |
 | Products | `products.archive` / `products.restore` (admin); an archived product is read-only |

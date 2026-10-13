@@ -219,11 +219,11 @@ describe("the discovery loop through REST", () => {
     expect(sup.status).toBe(200);
     const d = await alice.api("POST", `${P}/assumptions`, { statement: "Plans move to Monday.", citations: cite, outcome_ids: [o.body.outcome_id] });
     await alice.api("POST", `${P}/assumptions/${d.body.id}/review`, { expected_etag: d.body.etag, status: "refuted", note: "Friday stayed." });
+    // The outcome itself counts nothing; the assumptions list filtered by it shows what serves it.
     const objs = await alice.api("GET", `${P}/outcomes`);
-    const mine = objs.body.items.find((x: { outcome_id: string }) => x.outcome_id === o.body.outcome_id);
-    expect(mine.counts).toEqual({ assumptions: 1 });
-    const onOutcome = await alice.api("GET", `${P}/assumptions?status=unconfirmed,confirmed&outcome_id=${o.body.outcome_id}`);
-    expect(onOutcome.body.items).toHaveLength(mine.counts.assumptions);
+    expect(objs.body.items.find((x: { outcome_id: string }) => x.outcome_id === o.body.outcome_id)).not.toHaveProperty("counts");
+    const onOutcome = await alice.api("GET", `${P}/assumptions?outcome_id=${o.body.outcome_id}`);
+    expect(onOutcome.body.items.map((x: { id: string }) => x.id)).toEqual([sup.body.entry.id]);
     const product = await alice.api("GET", P);
     const current = await alice.api("GET", `${P}/assumptions?status=unconfirmed,confirmed&limit=100`);
     expect(product.body.counts.assumptions).toBe(current.body.items.length);

@@ -50,6 +50,7 @@ const VERBS: Record<string, string> = {
   "outcome:created": "added the outcome",
   "outcome:updated": "edited the outcome",
   "outcome:reordered": "reordered the outcome",
+  // Recorded before an outcome was simply current or archived.
   "outcome:achieved": "marked achieved",
   "outcome:active": "reopened the outcome",
   "outcome:archived": "archived the outcome",

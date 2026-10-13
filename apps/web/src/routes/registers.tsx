@@ -73,7 +73,7 @@ export function RegisterListPage({ kind }: { kind: Kind }) {
   const path = `${app}/exploration/${kind}`;
   usePageTitle(TITLE[kind]);
   const outcomes = useQuery({
-    queryKey: ["outcomes", base, ""],
+    queryKey: ["outcomes", base, false],
     enabled: Boolean(outcome),
     queryFn: () => api<{ items: { outcome_id: string; title: string }[] }>("GET", `${base}/outcomes`),
   });
@@ -652,7 +652,7 @@ export function EntryEditPage({ kind }: { kind: Kind }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const existing = useQuery({ queryKey: ["entry", base, kind, id], enabled: Boolean(id), queryFn: () => api<RegisterEntry>("GET", `${base}/${kind}/${id}`) });
-  const outcomes = useQuery({ queryKey: ["outcomes", base, ""], queryFn: () => api<{ items: { outcome_id: string; title: string }[] }>("GET", `${base}/outcomes`) });
+  const outcomes = useQuery({ queryKey: ["outcomes", base, false], queryFn: () => api<{ items: { outcome_id: string; title: string }[] }>("GET", `${base}/outcomes`) });
   const heading = id ? `Edit ${ONE[kind].toLowerCase()}` : `New ${ONE[kind].toLowerCase()}`;
   usePageTitle(heading);
   const listPath = `${app}/exploration/${kind}`;

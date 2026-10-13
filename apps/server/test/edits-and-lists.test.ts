@@ -184,11 +184,11 @@ describe("register lists", () => {
     expect(narrowed.body).toMatchObject({ not_current_hidden: 0 });
     expect(narrowed.body.note).toBeUndefined();
 
-    // The same number everywhere: the list, the product's counts in products.list and get, and the outcome's.
+    // The same number everywhere: the list, the product's counts in products.list and get, and the list filtered by the outcome.
     const listed = (await alice.api("GET", "/api/v1/me/products")).body.items.find((i: any) => i.product_id === p.body.product_id);
     expect(listed.counts.assumptions).toBe(current.length);
     expect((await alice.api("GET", Q)).body.counts.assumptions).toBe(current.length);
-    expect((await alice.api("GET", `${Q}/outcomes`)).body.items[0].counts.assumptions).toBe(current.length);
+    expect((await alice.api("GET", `${Q}/assumptions?outcome_id=${outcome.body.outcome_id}`)).body.items).toHaveLength(current.length);
 
     // Over MCP too, and asking for every status lists every entry with nothing left out.
     const client = new Client({ name: "count-test", version: "1" });
@@ -203,21 +203,60 @@ describe("register lists", () => {
 });
 
 describe("archived outcomes", () => {
-  it("are counted when hidden from the list, and flagged where they are referenced", async () => {
+  it("are counted when hidden from the list, listed when included, and flagged where they are referenced", async () => {
     const live = await alice.api("POST", `${P}/outcomes`, { title: "Close faster" });
-    const gone = await alice.api("POST", `${P}/outcomes`, { title: "Retired aim", status: "archived" });
+    const made = await alice.api("POST", `${P}/outcomes`, { title: "Retired aim" });
+    expect(made.body.archived_at).toBeNull();
+    expect(made.body).not.toHaveProperty("status");
+    expect(made.body).not.toHaveProperty("counts");
+    const stale = await alice.api("POST", `${P}/outcomes/${made.body.outcome_id}/archive`, { expected_etag: "nope" });
+    expect(stale.status).toBe(409);
+    const gone = await alice.api("POST", `${P}/outcomes/${made.body.outcome_id}/archive`, { expected_etag: made.body.etag });
+    expect(gone.status).toBe(200);
+    expect(gone.body.archived_at).not.toBeNull();
     const list = await alice.api("GET", `${P}/outcomes`);
     expect(list.body.items.map((o: any) => o.outcome_id)).toEqual([live.body.outcome_id]);
     expect(list.body.archived_hidden).toBe(1);
-    expect(list.body.note).toContain('status "archived"');
-    const archived = await alice.api("GET", `${P}/outcomes?status=archived`);
-    expect(archived.body).toMatchObject({ archived_hidden: 0 });
-    expect(archived.body.note).toBeUndefined();
+    expect(list.body.note).toContain("include_archived");
+    const all = await alice.api("GET", `${P}/outcomes?include_archived=true`);
+    expect(all.body.items.map((o: any) => o.outcome_id)).toEqual([live.body.outcome_id, gone.body.outcome_id]);
+    expect(all.body).toMatchObject({ archived_hidden: 0 });
+    expect(all.body.note).toBeUndefined();
 
     const a = await alice.api("POST", `${P}/assumptions`, { statement: "Linked too.", citations: cite(), outcome_ids: [gone.body.outcome_id] });
     expect(a.body.archived_outcome_ids).toEqual([gone.body.outcome_id]);
     const al = await alice.api("GET", `${P}/assumptions?query=Linked`);
     expect(al.body.items[0].archived_outcome_ids).toEqual([gone.body.outcome_id]);
+
+    const back = await alice.api("POST", `${P}/outcomes/${gone.body.outcome_id}/restore`, { expected_etag: gone.body.etag });
+    expect(back.status).toBe(200);
+    expect(back.body.archived_at).toBeNull();
+    expect((await alice.api("GET", `${P}/outcomes`)).body.items.map((o: any) => o.outcome_id)).toEqual([live.body.outcome_id, gone.body.outcome_id]);
+    const events = (await alice.api("GET", `${P}/activity?entity_id=${gone.body.outcome_id}`)).body.items.map((e: any) => e.action);
+    expect(events).toEqual(expect.arrayContaining(["archived", "restored"]));
+  });
+
+  it("have no status to set: an outcome is current until archived", async () => {
+    const r = await alice.api("POST", `${P}/outcomes`, { title: "Done already", status: "achieved" });
+    expect(r.status).toBe(422);
+  });
+});
+
+describe("what an outcome holds", () => {
+  it("refuses an id or a link to a record in its title or description, and says where the evidence goes", async () => {
+    const cited = await alice.api("POST", `${P}/outcomes`, { title: "Crews plan the week", description: `As source ${recordId}, segments 4–6 shows.` });
+    expect(cited.status).toBe(422);
+    expect(cited.body.error.code).toBe("outcome_cites_a_record");
+    expect(cited.body.error.message).toContain("outcome_ids");
+    expect(cited.body.error.details).toMatchObject({ field: "description", id: recordId });
+    const linked = await alice.api("POST", `${P}/outcomes`, { title: `Plan the week [call](/t/a/b/c/evidence/${recordId})` });
+    expect(linked.status).toBe(422);
+
+    const plain = await alice.api("POST", `${P}/outcomes`, { title: "Crews plan the week", description: "Friday planning takes under half an hour." });
+    expect(plain.status).toBe(201);
+    const edited = await alice.api("PATCH", `${P}/outcomes/${plain.body.outcome_id}`, { expected_etag: plain.body.etag, description: `See source ${recordId}.` });
+    expect(edited.status).toBe(422);
+    expect((await alice.api("GET", `${P}/outcomes/${plain.body.outcome_id}`)).body.description).toBe("Friday planning takes under half an hour.");
   });
 });
 

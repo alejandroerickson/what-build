@@ -19,6 +19,10 @@
   line-height: var(--lh-ui);
   letter-spacing: 0;
 }
+.outcome-row.is-archived .outcome-title {
+  color: var(--muted);
+  font-weight: var(--fw-regular);
+}
 .outcome-description {
   margin-top: 3px;
   color: var(--muted);
@@ -34,20 +38,12 @@
 .outcome-description ol {
   padding-left: 1.4em;
 }
-.outcome-chips {
-  margin-top: var(--s-2);
-}
-.outcome-none {
-  margin-top: var(--s-1h);
-  color: var(--faint);
-  font-size: var(--fs-sm);
-}
 .outcome-side {
   display: flex;
   align-items: center;
   gap: var(--s-1h);
   align-self: start;
-  /* Line the badge up with the title's first line. */
+  /* Line the menu, and an archived outcome's badge, up with the title's first line. */
   margin-top: -3px;
 }
 .outcome-editing {
@@ -88,13 +84,6 @@
 }
 
 @media (max-width: 760px) {
-  .outcome-row {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .outcome-side {
-    grid-column: 1;
-    margin-top: var(--s-1);
-  }
   .outcome-form-actions {
     padding-left: 0;
   }
