@@ -84,7 +84,7 @@ async function countProducts(db: Db, productIds: string[]): Promise<Map<string, 
   );
   add(
     await db.selectFrom("outcomes").select(["product_id", (eb) => eb.fn.countAll<number>().as("n")])
-      .where("product_id", "in", productIds).where("status", "!=", "archived").groupBy("product_id").execute(),
+      .where("product_id", "in", productIds).where("archived_at", "is", null).groupBy("product_id").execute(),
     "outcomes",
   );
   add(

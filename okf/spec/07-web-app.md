@@ -273,13 +273,17 @@ seeded accounts.
 The screen's model and names are a decision: [A product starts with its idea](../decisions/a-product-starts-with-an-idea-concept-and-outcomes.md).
 
 The landing screen. The product concept first; then outcomes as aligned cards in a centered
-content band that adapts to narrow screens. Create, edit inline, reorder, change status. Each card
-shows how many assumptions point at it, linking to the assumptions filtered by that outcome; the
-number is the one the linked list shows (current ones, [§4.2](04-data-model.md)). The default view, **Current**, lists active and achieved outcomes; Active, Achieved and
-Archived are filters (`?status=`). With no outcomes, the list says what an outcome is and gives
-the request to copy for an agent (interview the person, then write the concept and outcomes); New
-outcome and Write the product concept stay in their headers. Nothing on the screen prescribes an
-order of steps.
+content band that adapts to narrow screens. Create, edit inline, reorder, archive and restore. A
+card holds the outcome's title and what success means, and nothing that points away from it: no
+links or counts of the assumptions, mockups or Story pages that serve it
+([§4.2](04-data-model.md)). The form's help says the evidence belongs in sources and assumptions.
+The panel's **Archived** section offers Hide archived (the default) and Include archived
+(`?include_archived=1`), as Evidence does for sources; an archived outcome shows an Archived badge
+and offers Restore, and the list is reordered only while archived ones are hidden. With no
+current outcomes but archived ones, the list offers to include them. With no outcomes, the list
+says what an outcome is and gives the request to copy for an agent (interview the person, then
+write the concept and outcomes); New outcome and Write the product concept stay in their
+headers. Nothing on the screen prescribes an order of steps.
 
 **Empty lists** ([decision](../decisions/empty-lists-lead-with-the-agent.md)). Outcomes, Sources,
 Mockups, Assumptions and the Story share one first-use state: "No … yet", what belongs

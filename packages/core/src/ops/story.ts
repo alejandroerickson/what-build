@@ -252,7 +252,7 @@ export async function resolveRefs(ctx: OpContext, refs: Refs): Promise<Record<ke
   const pid = productId(ctx);
   const some = (ids: string[] | undefined) => (ids?.length ? ids : [""]);
   const [outcomes, sources, entries] = await Promise.all([
-    ctx.db.selectFrom("outcomes").select(["outcome_id as id", "title", "status"]).where("product_id", "=", pid).where("outcome_id", "in", some(refs.outcomes)).execute(),
+    ctx.db.selectFrom("outcomes").select(["outcome_id as id", "title", "archived_at"]).where("product_id", "=", pid).where("outcome_id", "in", some(refs.outcomes)).execute(),
     ctx.db.selectFrom("records").select(["record_id as id", "title", "archived_at"]).where("product_id", "=", pid).where("record_id", "in", some(refs.sources)).execute(),
     ctx.db
       .selectFrom("register_entries")
@@ -265,7 +265,7 @@ export async function resolveRefs(ctx: OpContext, refs: Refs): Promise<Record<ke
   return {
     outcomes: (refs.outcomes ?? []).map((i) => {
       const o = outcomes.find((x) => x.id === i);
-      return o ? { id: i, title: o.title, status: o.status, archived: o.status === "archived", missing: false } : missing(i);
+      return o ? { id: i, title: o.title, status: null, archived: Boolean(o.archived_at), missing: false } : missing(i);
     }),
     sources: (refs.sources ?? []).map((i) => {
       const r = sources.find((x) => x.id === i);

@@ -31,7 +31,6 @@ function refStatus(kind: RefKind, r: ResolvedRef): string | null {
   if (r.missing) return "No longer in this product";
   if (r.archived) return "Archived";
   if (kind === "assumptions" && r.status) return REVIEW_STATUS[r.status]?.label ?? r.status;
-  if (kind === "outcomes" && r.status === "achieved") return "Achieved";
   return null;
 }
 

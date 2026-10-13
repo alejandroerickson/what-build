@@ -444,8 +444,8 @@ export interface OutcomesTable {
   product_id: string;
   title: string;
   description: string;
-  status: "active" | "achieved" | "archived";
   position: number;
+  archived_at: TsNull;
   etag: string;
   created_at: Ts;
   created_by: Json<ActorSnapshot>;

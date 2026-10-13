@@ -23,7 +23,18 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Migration `0023_outcomes_current_or_archived`.** An outcome is current or archived: archived
+  outcomes keep their archive as `archived_at`, achieved ones become current, and the `status`
+  column goes, in saved sandbox baselines too. Rehearse on the dev deployment first
+  ([dev-deployment](dev-deployment.md)); going back to an earlier release means restoring the
+  database ([recovering from a bad release](recovering-from-a-bad-release.md)).
+- **Outcomes lose their status, and agents read them as the compass.** Nothing to set. People see
+  Hide archived and Include archived on Idea where Active, Achieved and Archived were, and no
+  assumption chips under an outcome. Agents archive and restore with `outcomes(action="archive")`
+  and `restore`, list archived ones with `include_archived`, and get no `counts` on an outcome; a
+  `status` sent to `outcomes` is refused, and so is an outcome whose text holds a record id
+  (`outcome_cites_a_record`). The skill is 0.25.0: connected agents are asked to update it, and
+  to start a new session for the new actions.
 
 ## v0.9.0
 

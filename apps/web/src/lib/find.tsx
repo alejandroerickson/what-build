@@ -149,7 +149,6 @@ export function resultMeta(r: FindResult): string {
     if (r.hit_count) parts.push(`${r.hit_count} matching ${r.hit_count === 1 ? "passage" : "passages"}`);
   }
   if (r.kind === "assumption" && r.meta.status) parts.push(REVIEW_STATUS[r.meta.status]?.label ?? r.meta.status);
-  if (r.kind === "outcome" && r.meta.status) parts.push(r.meta.status === "achieved" ? "Achieved" : "Active");
   if (r.kind === "mockup" && r.meta.page_title) parts.push(`page “${r.meta.page_title}”`);
   return parts.join(" · ");
 }
