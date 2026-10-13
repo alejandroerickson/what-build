@@ -49,8 +49,9 @@ export { printDocument, shownHtml } from "./ops/story.ts";
 export { MOCKUP_UPLOAD_PURPOSE, mockupBundle, readCanvasZip } from "./ops/mockups.ts";
 export { SKILL_NAME, SKILL_VERSION, skillMarkdown } from "./ops/meta.ts";
 export { GUIDANCE_VERSION } from "./story-guidance.ts";
-export { HOUSE_STYLES, houseSpecimen, houseStyle, pageDocument, specimenBody, styleSpecimen, type HouseStyle } from "./story-styles.ts";
+export { HOUSE_STYLE_IDS, HOUSE_STYLES, houseSpecimen, houseStyle, pageDocument, specimenBody, styleSpecimen, type HouseStyle } from "./story-styles.ts";
 export { FRAME_SCRIPT, THEME_ATTRIBUTE, withStoryFrame, withStoryTheme } from "./story-theme.ts";
+export { STORY_FONTS, storyFontFaces, storyFontsNamed, withStoryFonts, type StoryFont } from "./story-fonts.ts";
 
 /** Every operation, defined once. REST routes, MCP tools and `describe` are generated from this list. */
 export const OPERATIONS: OperationDef[] = [

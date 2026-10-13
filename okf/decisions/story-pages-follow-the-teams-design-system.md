@@ -3,7 +3,7 @@ type: Decision
 title: Story pages follow the team's design system, never WhatBuild's
 description: Each product has one Story style, the company's own design system or an adopted house style, and the guidance gives agents taste and design passes instead of the app's tokens.
 tags: [decision, story, design, agents]
-generated: {by: agent:claude, at: 2026-09-29}
+generated: {by: agent:claude, at: 2026-10-13}
 status: stable
 ---
 
@@ -23,12 +23,21 @@ taste and design tools they may already have.
 - Each product has at most one **Story style** (`story_styles`): a name, Markdown rules and one
   stylesheet, adopted from a house style or written from the company's own design system.
   `story.get_style` and `story.set_style` read and replace it, with its own etag.
-- Four **house styles** ship with the server (`packages/core/src/story-styles.ts`): Broadsheet,
-  Tufte, Swiss grid and Briefing deck. They style one shared semantic vocabulary, so content moves
-  between styles unchanged. None uses WhatBuild's tokens.
+- **House styles** ship with the server, one per file in `packages/core/src/house-styles/`: ten
+  plain, screen-first styles that imitate no printed or physical object, listed from the quietest
+  to the loudest (Clear, Large, Report, Tonal, Wide, Pastel, Wayfinding, Isotype, Blocks and
+  Riso). They style one shared semantic vocabulary, so content moves between styles unchanged.
+  None uses WhatBuild's tokens. Each sets its type in typefaces the server carries
+  ([decision](story-pages-name-typefaces-the-server-carries.md)) and designs its dark scheme
+  rather than inverting its light one. The original four (Broadsheet, Tufte, Swiss grid and
+  Briefing deck) and the editorial and object-like styles tried beside these were removed on
+  2026-10-13: a product that adopted one keeps its copy, which reads as a house style no longer in
+  the catalogue until an agent replaces it.
 - The vocabulary covers what stakeholders are told, not only what was found: an account of the
-  evidence (quotes, notes, figures, comparisons) and a plan (dated milestones, a line per item,
-  labelled facts, links to the pages beneath a page).
+  evidence (quotes, a wall of quotes with the key words marked, notes, figures, a tally of how many
+  out of how many, comparisons), a plan (dated milestones with the reached and current ones marked,
+  a line per item, labelled facts, links to the pages beneath a page), and what changes (a flow,
+  an SVG diagram whose shapes the style colours, a mockup snippet with numbered pins).
 - An agent publishes a page's body and the server puts the product's stylesheet around it
   (`story.publish { body }`), so every page carries the same stylesheet and an agent never sends
   it. What a Story needs beyond the vocabulary goes into the product's style, not into one page.
@@ -36,9 +45,10 @@ taste and design tools they may already have.
   anti-patterns, compositions, named design passes, and asks agents to use a design skill such as
   Impeccable when they have one and to mention it once when they do not. Guidance text is
   WhatBuild's own; no third-party skill text is embedded.
-- The web app previews the product's style and every house style on one sample page, in the same
-  sandbox as a Story page, and gives people the words to ask their agent for a change. It never
-  sets the style itself ([decision](agents-maintain-the-story-people-read-it.md)).
+- The web app previews the product's style and every house style on one sample page (the front
+  page of a release plan, using the whole vocabulary), light or dark and at desktop or phone width,
+  in the same sandbox as a Story page, and gives people the words to ask their agent for a change.
+  It never sets the style itself ([decision](agents-maintain-the-story-people-read-it.md)).
 
 ## Consequences
 
@@ -52,6 +62,8 @@ taste and design tools they may already have.
 - `story-guidance.ts` and `story-styles.ts` never import or copy `apps/web/src/styles/tokens.css`;
   a server test fails if the guidance mentions the app's accent or font.
 - A house style must pass the page validator, carry light and dark schemes, and style the whole
-  shared vocabulary (`VOCABULARY`).
+  shared vocabulary (`VOCABULARY`); `BASE` in `house-styles/kit.ts` gives every style the
+  vocabulary's structure, and each style its character. Its type is a carried typeface or a system
+  stack, never an embedded font file.
 
 Specified in: [04-data-model §4.11](../spec/04-data-model.md), [07-web-app §7.8](../spec/07-web-app.md).

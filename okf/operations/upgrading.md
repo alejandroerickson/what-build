@@ -64,6 +64,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   citations are not changed.
 - **The Story's PDF shows dates in the reader's time zone.** Nothing to set. The print view's dates
   were UTC.
+- **The Story's house styles are ten new ones**, listed from the quietest to the loudest: Clear,
+  Large, Report, Tonal, Wide, Pastel, Wayfinding, Isotype, Blocks and Riso. Nothing to set.
+  Broadsheet, Tufte, Swiss grid and Briefing deck are gone: a product that adopted one keeps its
+  copy, and its published pages keep their look, until an agent adopts another style and
+  republishes them with `restyle`. The styles name eleven typefaces the image now carries (about
+  420 KB), which the server embeds when it shows or prints a page that names one.
 - **The skill is now 0.24.0.** Connected agents see the new delete actions, the levels, mockups'
   `request_upload` (upload a canvas as a ZIP instead of sending page HTML) and `files.create_uploads`
   after starting a new session. It also tells them:
@@ -71,6 +77,9 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   - to keep a page of what waits on the person in the Story;
   - to upload a digest of a session whose findings the team will need;
   - to publish a canvas whole rather than over several versions.
+  - which house styles there are and what each is best for, the typefaces WhatBuild carries, and
+    the Story vocabulary's new blocks: a timeline that marks where the team is, a flow, a diagram,
+    a mockup snippet with numbered pins, a wall of quotations and a tally.
 
 ## v0.8.4
 

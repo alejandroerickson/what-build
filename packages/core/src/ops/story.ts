@@ -11,7 +11,7 @@ import { expectedEtag, id } from "../schemas.ts";
 import { escapeHtml, inspectStoryCss, inspectStoryHtml, STORY_CSS_MAX, STORY_HTML_MAX } from "../story-html.ts";
 import { composePrintDocument, PRINT_MAX_PAGES, printOrder } from "../story-print.ts";
 import {
-  ANTI_PATTERNS, catalogue, CHECKLIST, components, COMPOSITIONS, CONTENT_RULES, DESIGN_PASSES, DESIGN_TOOLS, GUIDANCE_VERSION, linkTemplates, SANDBOX_RULES,
+  ANTI_PATTERNS, CARRIED_TYPEFACES, catalogue, CHECKLIST, components, COMPOSITIONS, CONTENT_RULES, DESIGN_PASSES, DESIGN_TOOLS, GUIDANCE_VERSION, linkTemplates, SANDBOX_RULES,
   starterHtml, STYLE_WORKFLOW, TASTE, VOCABULARY, WORKFLOW, WRITING,
 } from "../story-guidance.ts";
 import { HOUSE_STYLE_IDS, houseStyle, pageDocument, PLAIN_STYLESHEET } from "../story-styles.ts";
@@ -100,7 +100,7 @@ export const guidance = defineOperation({
     "Read this before publishing. The Story follows the product's Story style (get_style), never WhatBuild's app look: the team's own design system, or a house style adopted for the product. house_style returns that style's full stylesheet, rules and a starter page, so you can show it or adopt it. section narrows the response: all, style, design, components, writing, checklist. Every section keeps the rendering rules, link templates and limits.",
   input: z.strictObject({
     section: z.enum(GUIDANCE_SECTIONS).default("all"),
-    house_style: z.enum(HOUSE_STYLE_IDS).optional().describe("A house style to return in full: broadsheet, tufte, swiss or briefing."),
+    house_style: z.enum(HOUSE_STYLE_IDS).optional().describe(`A house style to return in full: ${HOUSE_STYLE_IDS.join(", ")}.`),
   }),
   rest: { method: "GET", path: "/story/guidance" },
   mcp: { tool: "story", action: "guidance" },
@@ -122,7 +122,7 @@ export const guidance = defineOperation({
       limits: { html_characters: STORY_HTML_MAX, stylesheet_characters: STORY_CSS_MAX, inline_scripts: 10, script_characters: 32000, pages_per_product: MAX_PAGES, hierarchy_depth: MAX_DEPTH },
       ...(picked ? { house_style: { ...picked, starter_html: starterHtml(picked.stylesheet) } } : {}),
     };
-    const style = { style_workflow: STYLE_WORKFLOW, house_styles: catalogue(), vocabulary: VOCABULARY };
+    const style = { style_workflow: STYLE_WORKFLOW, house_styles: catalogue(), carried_typefaces: CARRIED_TYPEFACES, vocabulary: VOCABULARY };
     const design = { taste: TASTE, anti_patterns: ANTI_PATTERNS, design_passes: DESIGN_PASSES, design_tools: DESIGN_TOOLS, sandbox_rules: SANDBOX_RULES, compositions: COMPOSITIONS };
     switch (input.section) {
       case "style":
@@ -167,7 +167,7 @@ export const setStyle = defineOperation({
   mutates: true,
   summary: "Set the product's Story style: adopt a house style, or save the team's own design system as one stylesheet and its rules.",
   description:
-    "house_style adopts a house style whole (broadsheet, tufte, swiss or briefing); pass other fields with it to adapt it. Without house_style, fields you omit carry forward from the current style; the first style needs name, rules and stylesheet, and is the team's own. Pass based_on: null when you replace an adopted house style with the team's own design system. A team stylesheet should style the shared vocabulary (guidance → vocabulary) so pages can move between styles; the app previews it on a sample page unless you pass specimen_html, a page in the style, validated like a Story page. The stylesheet follows the same rules as a page's <style>: no @import and data: URIs only. expected_etag is the style's etag, required once a style exists. Setting a style does not restyle published pages: republish them in the new style.",
+    `house_style adopts a house style whole (${HOUSE_STYLE_IDS.join(", ")}); pass other fields with it to adapt it. Without house_style, fields you omit carry forward from the current style; the first style needs name, rules and stylesheet, and is the team's own. Pass based_on: null when you replace an adopted house style with the team's own design system. A team stylesheet should style the shared vocabulary (guidance → vocabulary) so pages can move between styles; the app previews it on a sample page unless you pass specimen_html, a page in the style, validated like a Story page. The stylesheet follows the same rules as a page's <style>: no @import and data: URIs only. A typeface WhatBuild carries (guidance → carried_typefaces) needs no font file: name it in quotes in font-family. expected_etag is the style's etag, required once a style exists. Setting a style does not restyle published pages: republish them in the new style.`,
   input: z.strictObject({
     house_style: z.enum(HOUSE_STYLE_IDS).optional().describe("Adopt this house style."),
     name: z.string().trim().min(1).max(80).optional(),

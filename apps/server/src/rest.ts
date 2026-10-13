@@ -1,5 +1,5 @@
 import {
-  AppError, admitRead, execute, OPERATIONS, printDocument, printResponseHeaders, readsOnlyTheStory, resolveScope, STORY_RESPONSE_HEADERS, toAppError, unauthenticated, withStoryFrame, withStoryTheme, houseSpecimen, houseStyle, shownHtml, styleSpecimen,
+  AppError, admitRead, execute, OPERATIONS, printDocument, printResponseHeaders, readsOnlyTheStory, resolveScope, STORY_RESPONSE_HEADERS, toAppError, unauthenticated, withStoryFonts, withStoryFrame, withStoryTheme, houseSpecimen, houseStyle, HOUSE_STYLE_IDS, shownHtml, styleSpecimen,
   type Env, type OperationDef, type Principal, type ScopeRef,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
@@ -61,9 +61,14 @@ function storyTheme(theme: string | undefined): "light" | "dark" | undefined {
   return theme;
 }
 
-/** Story HTML as the sandbox serves it: the sandboxing headers, the theme, and the frame script when the app's frame asks. */
-function storyHtml(c: Context, html: string, theme: "light" | "dark" | undefined, frame: boolean) {
+/**
+ * Story HTML as the sandbox serves it: the sandboxing headers, the carried typefaces the page names
+ * (never for a mockup, which carries its own look), the theme, and the frame script when the app's
+ * frame asks.
+ */
+function storyHtml(c: Context, stored: string, theme: "light" | "dark" | undefined, frame: boolean, fonts = true) {
   for (const [k, val] of Object.entries(STORY_RESPONSE_HEADERS)) c.header(k, val);
+  const html = fonts ? withStoryFonts(stored) : stored;
   return c.body(frame ? withStoryFrame(html, theme) : theme ? withStoryTheme(html, theme) : html);
 }
 
@@ -198,8 +203,8 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
         return row ? { html: await shownHtml(trx, row), mockup: Boolean(row.mockup) } : null;
       });
       if (!v) throw new AppError(404, "not_found", "No such Story version.");
-      // A mockup page carries its own look, so it takes no theme.
-      return storyHtml(c, v.html, v.mockup ? undefined : theme, frame);
+      // A mockup page carries its own look, so it takes neither the theme nor the carried typefaces.
+      return storyHtml(c, v.html, v.mockup ? undefined : theme, frame, !v.mockup);
     } catch (e) {
       return errorResponse(c, toAppError(e));
     }
@@ -222,7 +227,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
           .executeTakeFirst(),
       );
       if (!p) throw new AppError(404, "not_found", "No such mockup page.");
-      return storyHtml(c, p.html, undefined, c.req.query("frame") === "1");
+      return storyHtml(c, p.html, undefined, c.req.query("frame") === "1", false);
     } catch (e) {
       return errorResponse(c, toAppError(e));
     }
@@ -248,7 +253,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       await scoped(c);
       const theme = storyTheme(c.req.query("theme"));
       const style = houseStyle(c.req.param("style")!);
-      if (!style) throw new AppError(404, "not_found", "No such house style: broadsheet, tufte, swiss or briefing.");
+      if (!style) throw new AppError(404, "not_found", `No such house style: ${HOUSE_STYLE_IDS.join(", ")}.`);
       return storyHtml(c, houseSpecimen(style), theme, c.req.query("frame") === "1");
     } catch (e) {
       return errorResponse(c, toAppError(e));

@@ -32,6 +32,8 @@ await build({
   logLevel: "info",
 });
 cpSync(join(here, "src/migrations"), join(dist, "migrations"), { recursive: true });
+// The typefaces Story pages carry, with their licence, where packages/core/src/story-fonts.ts looks for them from the bundle.
+cpSync(join(here, "../../packages/core/src/story-fonts"), join(dist, "story-fonts"), { recursive: true });
 const commit = /^[0-9a-f]{40}$/.test(process.env.WHATBUILD_COMMIT ?? "") ? process.env.WHATBUILD_COMMIT : null;
 writeFileSync(join(dist, "build.json"), JSON.stringify({ commit, built_at: new Date().toISOString() }) + "\n");
 

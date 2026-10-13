@@ -31,7 +31,7 @@ let teamSlug: string;
 let recordId: string;
 
 const html = (title: string, body: string) =>
-  `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title><style>${houseStyle("tufte")!.stylesheet}</style></head><body><main class="page">${body}</main></body></html>`;
+  `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title><style>${houseStyle("clear")!.stylesheet}</style></head><body><main class="page">${body}</main></body></html>`;
 
 beforeAll(async () => {
   h = await startHarness();

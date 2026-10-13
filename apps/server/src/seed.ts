@@ -100,8 +100,8 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
     ref,
   );
 
-  await call(env, samAgent, "story.set_style", { house_style: "broadsheet" }, ref);
-  const sampleStylesheet = houseStyle("broadsheet")!.stylesheet;
+  await call(env, samAgent, "story.set_style", { house_style: "clear" }, ref);
+  const sampleStylesheet = houseStyle("clear")!.stylesheet;
   await call(
     env,
     samAgent,

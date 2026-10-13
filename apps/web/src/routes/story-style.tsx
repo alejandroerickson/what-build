@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api.ts";
 import { attribution, relativeTime } from "../lib/format.ts";
 import { useProduct } from "../lib/session.tsx";
-import { Button, CopyField, Dialog, Glyph, Loading } from "../ui/index.tsx";
+import { Button, CopyField, Dialog, Glyph, Loading, Segmented } from "../ui/index.tsx";
 import type { Actor } from "./story-model.ts";
 
 /** A house style as story.get_style lists it. */
@@ -36,7 +36,7 @@ export function useStoryStyle() {
   return useQuery({ queryKey: ["story-style", base], enabled: !storyOnly, queryFn: () => api<StyleView>("GET", `${base}/story/style?include_stylesheet=false`) });
 }
 
-/** How the style reads in one line: "Broadsheet, a house style" or "Acme reports, your design system". */
+/** How the style reads in one line: "Clear, a house style" or "Acme reports, your design system". */
 export function styleLine(s: NonNullable<StyleView["style"]>): string {
   if (s.kind === "team") return "Your design system";
   return s.based_on_name && s.based_on_name !== s.name ? `Adapted from ${s.based_on_name}` : "A house style";
@@ -44,15 +44,18 @@ export function styleLine(s: NonNullable<StyleView["style"]>): string {
 
 /** Desktop width a preview is laid out at, then scaled to fit, so a style shows its real composition. */
 const PREVIEW_WIDTH = 1280;
+/** The width a phone preview is laid out at, shown at full size. */
+const PHONE_WIDTH = 390;
 
 /**
  * A style's specimen in the same sandbox as a Story page. Wide enough boxes show the desktop layout
- * scaled down; a narrow box shows the page as a phone would.
+ * scaled down; a narrow box, or the phone view, shows the page as a phone would.
  */
-function Specimen({ src, title }: { src: string; title: string }) {
+function Specimen({ src, title, phone }: { src: string; title: string; phone: boolean }) {
   const box = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [loaded, setLoaded] = useState(false);
+  useEffect(() => setLoaded(false), [src, phone]);
   useEffect(() => {
     const el = box.current;
     if (!el) return;
@@ -60,19 +63,20 @@ function Specimen({ src, title }: { src: string; title: string }) {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const scale = width >= 560 && width < PREVIEW_WIDTH ? width / PREVIEW_WIDTH : 1;
+  const scale = !phone && width >= 560 && width < PREVIEW_WIDTH ? width / PREVIEW_WIDTH : 1;
+  const frameStyle = phone && width > PHONE_WIDTH ? { width: PHONE_WIDTH } : scale < 1 ? { width: PREVIEW_WIDTH, height: `${100 / scale}%`, transform: `scale(${scale})` } : undefined;
   return (
-    <div ref={box} className="style-specimen">
+    <div ref={box} className={`style-specimen${phone ? " style-specimen-phone" : ""}`}>
       {width ? (
         <iframe
-          key={src}
+          key={`${src}|${phone ? "phone" : "desktop"}`}
           title={title}
           className="style-specimen-frame"
           sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
           referrerPolicy="no-referrer"
           src={src}
           onLoad={() => setLoaded(true)}
-          style={scale < 1 ? { width: PREVIEW_WIDTH, height: `${100 / scale}%`, transform: `scale(${scale})` } : undefined}
+          style={frameStyle}
         />
       ) : null}
       {loaded ? null : (
@@ -86,15 +90,18 @@ function Specimen({ src, title }: { src: string; title: string }) {
 
 /**
  * The Story style: which design system the Story's pages follow, and the house styles an agent can
- * adopt, each previewed on the same sample page. People choose; their agent makes the change, so
- * the dialog gives them the words to ask with.
+ * adopt, each previewed on the same sample page, light or dark, on a desktop or a phone. People
+ * choose; their agent makes the change, so the dialog gives them the words to ask with.
  */
 export function StyleDialog({ view, scheme, onClose }: { view: StyleView; scheme: "light" | "dark"; onClose: () => void }) {
   const { api: base } = useProduct();
   const current = view.style;
   const [picked, setPicked] = useState<string>(current ? "current" : (view.house_styles[0]?.id ?? ""));
+  // A style is judged in both schemes and at both sizes, so the preview can show either without changing the app's theme.
+  const [previewScheme, setPreviewScheme] = useState<"light" | "dark">(scheme);
+  const [device, setDevice] = useState<"desktop" | "phone">("desktop");
   const house = view.house_styles.find((h) => h.id === picked);
-  const src = picked === "current" ? `${base}/story/style/specimen?theme=${scheme}` : `${base}/story/house-styles/${picked}/specimen?theme=${scheme}`;
+  const src = picked === "current" ? `${base}/story/style/specimen?theme=${previewScheme}` : `${base}/story/house-styles/${picked}/specimen?theme=${previewScheme}`;
   const title = picked === "current" ? current?.name ?? "Current style" : house?.name ?? "";
   const ask = house
     ? `Adopt the ${house.name} house style for our WhatBuild Story.`
@@ -131,7 +138,11 @@ export function StyleDialog({ view, scheme, onClose }: { view: StyleView; scheme
           ))}
         </div>
         <div className="style-detail">
-          <Specimen src={src} title={`${title}, a sample Story page`} />
+          <div className="style-view">
+            <Segmented label="Preview scheme" value={previewScheme} onChange={(id) => setPreviewScheme(id as "light" | "dark")} items={[{ id: "light", label: "Light" }, { id: "dark", label: "Dark" }]} />
+            <Segmented label="Preview size" value={device} onChange={(id) => setDevice(id as "desktop" | "phone")} items={[{ id: "desktop", label: "Desktop" }, { id: "phone", label: "Phone" }]} />
+          </div>
+          <Specimen src={src} title={`${title}, a sample Story page`} phone={device === "phone"} />
           <div className="style-about">
             {picked === "current" && current ? (
               <p className="small muted">

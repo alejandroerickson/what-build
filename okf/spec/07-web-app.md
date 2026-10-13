@@ -559,12 +559,14 @@ mockup reaches it by promotion, from the mockup (§7.7).
   pages** folds away below. The only row
   action is export: each row's menu offers **Export this page to PDF…** and, for a page with
   subpages, **Export with its subpages…**. Under the tree, **Story style** names the product's
-  Story style ("A house style", "Adapted from Tufte", "Your design system", or "None yet") and
+  Story style ("A house style", "Adapted from Clear", "Your design system", or "None yet") and
   opens the style dialog.
-- **The style dialog** lists the style in use and the four house styles, and shows the chosen one
-  on the same sample page, in the Story sandbox, laid out at desktop width and scaled to fit, with
-  a link to open it full size. For a house style it says what it is best for and its character,
-  and gives a sentence to copy and send to an agent ("Adopt the Tufte house style for our
+- **The style dialog** lists the style in use and every house style, and shows the chosen one
+  on the same sample page (the front page of a release plan that uses the whole vocabulary), in
+  the Story sandbox, laid out at desktop width and scaled to fit, with a link to open it full size.
+  Two segmented controls switch the preview between light and dark (starting from the app's
+  theme, which they leave alone) and between desktop and a 390px phone. For a house style it says what it is best for and its character,
+  and gives a sentence to copy and send to an agent ("Adopt the Clear house style for our
   WhatBuild Story."); a second sentence asks an agent to follow the company's own design system.
   The dialog changes nothing itself ([decision](../decisions/story-pages-follow-the-teams-design-system.md)).
 - **The inspector** carries everything else about the page:

@@ -24,7 +24,7 @@ let teamSlug: string;
 let recordId: string;
 
 const html = (title: string, body: string) =>
-  `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title><style>${houseStyle("tufte")!.stylesheet}</style></head><body><main class="page">${body}</main></body></html>`;
+  `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title><style>${houseStyle("clear")!.stylesheet}</style></head><body><main class="page">${body}</main></body></html>`;
 
 beforeAll(async () => {
   h = await startHarness();
@@ -158,7 +158,7 @@ describe("a Story reader", () => {
   });
 
   it("cannot download a source's file, an export or a style specimen", async () => {
-    for (const path of [`${P}/sources/${recordId}/file?path=call.vtt`, `${P}/exports/01ARZ3NDEKTSV4RRFFQ69G5FAV/file`, `${P}/story/house-styles/tufte/specimen`]) {
+    for (const path of [`${P}/sources/${recordId}/file?path=call.vtt`, `${P}/exports/01ARZ3NDEKTSV4RRFFQ69G5FAV/file`, `${P}/story/house-styles/clear/specimen`]) {
       const r = await rita.api("GET", path);
       expect(r.status, path).toBe(403);
     }

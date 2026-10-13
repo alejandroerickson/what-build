@@ -616,22 +616,43 @@ lists every problem. Setting a style changes no published page. The app previews
 version, `?theme=` and `?frame=1` included). A product export holds it as `story/style.json` and
 `story/style.css`.
 
-**House styles** ([`story-styles.ts`](../../packages/core/src/story-styles.ts)): **Broadsheet**
-(an editorial long read), **Tufte** (a book page with a wide margin for notes), **Swiss grid** (a
-twelve-column grotesk grid) and **Briefing deck** (full-screen slides you scroll). Each carries a
-light and a dark scheme, uses system font stacks named once as custom properties (`--sans`,
-`--text`, `--display`), and styles one shared semantic vocabulary
-(`.page`, `.opening` with an optional `.kicker`, `.lead` and `.meta`, sections, `.quote`, `.note`,
-`.callout`, `.status`, `.figures`, `.columns`, `.table-wrap`, `.steps`, `details`; and for plans
-and front pages `section.wide`, `h2[data-label]`, `ol.timeline`, `ul.lines` with `.tag`,
-`dl.facts` and `nav.pages`), so content moves between
-styles unchanged; each adds signature moves of its own. They also set what a browser draws for
-itself: the selection, the scrollbar, the focus ring, and where a printed page may break.
+**House styles** (one per file in [`house-styles/`](../../packages/core/src/house-styles/), listed
+by [`story-styles.ts`](../../packages/core/src/story-styles.ts)), in the catalogue's order, from
+the quietest to the loudest: **Clear** (public-service clarity: big bold type, a step-by-step
+plan, tags and summary lists, a yellow focus), **Large** (big type for a large screen or a
+meeting, monochrome), **Report** (an executive status report: navy and amber, statuses as filled,
+half and empty circles), **Tonal** (one sea-green hue at every surface step, large rounded
+containers, pill statuses), **Wide** (extended headings over a normal body, signal orange),
+**Pastel** (pale colour tiles under dark type), **Wayfinding** (bold signs: a plan as a route with
+stops), **Isotype** (pictorial statistics: counts as rows of figures), **Blocks** (neo-brutalist
+blocks with hard shadows, every one square to the page) and **Riso** (two inks, grain and
+misregistration). Each carries a light and a dark scheme, names its faces once as custom
+properties, in typefaces the server carries, and styles one shared semantic vocabulary
+(`.page`, `.opening` with an optional `.kicker`, `.lead` and `.meta`, sections, `.quote`, `.note`, `.callout`, `.status`, `.figures`,
+`.columns`, `.table-wrap`, `.steps`, `details`; for plans and front pages `section.wide`,
+`h2[data-label]`, `ol.timeline` with `data-state="done"` and `aria-current="step"`, `ul.lines`
+with `.tag`, `dl.facts` and `nav.pages`; and for evidence and what changes `div.quotes`, `mark`,
+`span.tally`, `ol.flow`, `figure.diagram` with SVG classes `node`, `edge`, `head` and `label`, and
+`figure.shot` with `.screen`, `.pin` and `ol.pins`), so content moves between styles unchanged;
+`BASE` in `house-styles/kit.ts` gives every style the vocabulary's structure, and each adds
+signature moves of its own. They also set what a browser draws for itself: the selection, the
+scrollbar, the focus ring, and where a printed page may break. A product that adopted a house
+style since removed keeps its copy: it reads as a house style with its `based_on` id and no
+`based_on_name`, and an agent can still change or replace it.
+
+**Carried typefaces** ([`story-fonts.ts`](../../packages/core/src/story-fonts.ts),
+[decision](../decisions/story-pages-name-typefaces-the-server-carries.md)): Archivo (with its
+width axis, 62% to 125%), Bricolage Grotesque, Figtree, Gabarito, Jost, Libre Franklin, Onest,
+Public Sans, Red Hat Display, Red Hat Text and Signika, the faces the house styles use, each the
+Latin subset of its variable font under the SIL Open Font License. A page or stylesheet that
+names one in quotes in `font-family` gets an `@font-face` for it, as a data URI, when the server shows the page or a
+specimen, and once for the whole print view; stored pages and what agents read never hold font
+data, and mockup pages get none. `story.guidance` lists them as `carried_typefaces`.
 
 **Guidance.** `story.guidance { section?, house_style? }` returns versioned authoring guidance
 ([`story-guidance.ts`](../../packages/core/src/story-guidance.ts)): how to settle the Story style
 with the person, the house style catalogue and the shared vocabulary, taste principles,
-anti-patterns, compositions (a narrative, a decision, a front page, a plan, a scope and others), named design passes (critique, distill, bolder, quieter, typeset,
+anti-patterns, compositions (a narrative, a decision, a front page, a plan, a scope and others), recipes for every block of the vocabulary, the carried typefaces, named design passes (critique, distill, bolder, quieter, typeset,
 layout, adapt, polish), a push to use a design skill such as Impeccable when the agent has one and
 to mention it once when it does not, the sandbox rules, recipes, writing rules and a checklist.
 It carries no stylesheet of its own and nothing of the app's look; `house_style` returns that

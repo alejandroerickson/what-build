@@ -1,6 +1,7 @@
 import { parseHtml } from "@whatbuild/parsers";
 import { serialize } from "parse5";
 import type { StoryNode } from "./db.ts";
+import { storyFontFaces } from "./story-fonts.ts";
 import { escapeHtml, PERMISSIONS_POLICY } from "./story-html.ts";
 
 /**
@@ -456,6 +457,8 @@ export function composePrintDocument(input: { productName: string; exportedAt: s
       );
     })
     .join("\n");
+  // A face declared inside a shadow root is not used by it, so the carried typefaces the pages name are declared once, here.
+  const fonts = storyFontFaces(pages.map((p) => p.html).join("\n"));
   const script =
     `var local = new Intl.DateTimeFormat("en-GB", ${JSON.stringify(DATE_FORMAT)});` +
     'document.querySelectorAll("time[datetime]").forEach(function (t) { t.textContent = local.format(new Date(t.getAttribute("datetime"))); });' +
@@ -467,7 +470,7 @@ export function composePrintDocument(input: { productName: string; exportedAt: s
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(productName)} — Story</title>
-<style>${PRINT_CSS}</style>
+<style>${PRINT_CSS}</style>${fonts ? `\n<style>${fonts}</style>` : ""}
 </head>
 <body>
 <div class="print-doc">

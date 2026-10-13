@@ -78,7 +78,7 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
   const cap = ok(await owner.api("POST", `${P}/lineage/capture`, { inputs: [{ kind: "record", id: src.record_id }, { kind: "assumption", id: as.id }] }), 200);
   ok(await owner.api("POST", `${P}/sources/${view.record_id}/lineage`, { record_id: view.record_id, inputs: cap.inputs, captured_at: cap.captured_at, query_spec: { description: `${marker} lineage query.` } }), 200);
 
-  const style = ok(await owner.api("PUT", `${P}/story/style`, { house_style: "swiss" }), 200);
+  const style = ok(await owner.api("PUT", `${P}/story/style`, { house_style: "report" }), 200);
   const page = ok(await owner.api("POST", `${P}/story/pages/${marker.toLowerCase()}-overview/versions`, {
     title: `${marker} where we stand`,
     body: `<h1>${marker} where we stand</h1><p>${marker} the Story says crews plan on Fridays.</p>`,
