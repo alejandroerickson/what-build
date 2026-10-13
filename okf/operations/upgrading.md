@@ -55,9 +55,16 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 - **`check_citations` reports `valid` when every quote holds in a source's newer file**, and says
   whether a source was parsed again since a snapshot (`rederived`). Nothing to set. A newer file
   not yet parsed still makes it `false`, with `unverified_note`.
-- **The skill is now 0.24.0.** Connected agents see the new delete actions, the levels, and
-  mockups' `request_upload` (upload a canvas as a ZIP instead of sending page HTML) after starting
-  a new session.
+- **`files.create_uploads` creates up to 20 sources with a grant each in one call**, and a PUT to
+  a grant's own URL now says the file is attached, with no `complete_upload` to follow. Nothing to
+  set; `complete_upload` still works, and is still needed after a PUT to a `direct` URL.
+- **Citations follow their quote after a source is parsed again.** Nothing to set. A citation's
+  link in the app opens where its quote is now, the passages marked as cited move with it, and
+  `sources.used_by` gives each citation's current range (`moved_from`, `quote_not_found`). Stored
+  citations are not changed.
+- **The skill is now 0.24.0.** Connected agents see the new delete actions, the levels, mockups'
+  `request_upload` (upload a canvas as a ZIP instead of sending page HTML) and `files.create_uploads`
+  after starting a new session.
 
 ## v0.8.4
 

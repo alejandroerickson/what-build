@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { api } from "../lib/api.ts";
-import { attribution, citationCheckWords, formatDate, formatDateTime, nestQuotes, relativeTime } from "../lib/format.ts";
+import { attribution, citationCheckWords, citedAt, formatDate, formatDateTime, nestQuotes, relativeTime } from "../lib/format.ts";
 import { Markdown, passageHref } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { REVIEW_STATUS, toneFor } from "../lib/status.ts";
@@ -186,13 +186,14 @@ export function StoryInspectorBody({ page, shown, versions, onExport }: {
             <ol className="story-cites">
               {citations.map((c) => {
                 const check = checks.data?.citations.find((x) => x.index === c.index);
+                const at = citedAt(c, check);
                 return (
                   <li key={c.index} className="story-cite">
                     <div className="story-cite-head">
                       <Link className="story-cite-source story-ref-link" to={`${app}/evidence/${c.record_id}`}>
                         {c.source_title ?? "Source"}
                       </Link>
-                      <Link className="story-cite-address num" to={passageHref(app, c.record_id, c.seq_start, c.seq_end)} aria-label={`Passage ${address(c.seq_start, c.seq_end)} in ${c.source_title ?? "the source"}`}>
+                      <Link className="story-cite-address num" to={passageHref(app, c.record_id, at?.seq_start, at?.seq_end)} aria-label={`Passage ${address(c.seq_start, c.seq_end)} in ${c.source_title ?? "the source"}`}>
                         {address(c.seq_start, c.seq_end)}
                       </Link>
                     </div>

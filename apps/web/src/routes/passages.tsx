@@ -87,7 +87,11 @@ interface CitingEntry {
   to: string;
   seq_start: number;
   seq_end: number;
+  quote_not_found?: boolean;
 }
+
+/** A citation of this source as used-by gives it: where its quote is in the current passages. */
+type CitedRange = { seq_start: number; seq_end: number; quote_not_found?: boolean };
 
 /**
  * The passage reader: a window of passages by number, never the whole source. The URL holds the
@@ -123,18 +127,20 @@ export function PassageReader({ record }: { record: RecordFull }) {
     queryKey: ["used-by", base, record.record_id],
     queryFn: () =>
       api<{
-        assumptions: { id: string; statement: string; citations: { seq_start: number; seq_end: number }[] }[];
-        story_pages?: { page_id: string; title: string; citations: { seq_start: number; seq_end: number }[] }[];
-        mockups?: { mockup_id: string; title: string; citations: { seq_start: number; seq_end: number }[] }[];
+        assumptions: { id: string; statement: string; citations: CitedRange[] }[];
+        story_pages?: { page_id: string; title: string; citations: CitedRange[] }[];
+        mockups?: { mockup_id: string; title: string; citations: CitedRange[] }[];
       }>("GET", `${base}/sources/${record.record_id}/used-by`),
   });
-  const citing: CitingEntry[] = cited.data
+  // A quote the source no longer holds marks no passage: the citation's own page says so.
+  const citing: CitingEntry[] = (cited.data
     ? [
         ...cited.data.assumptions.flatMap((e) => e.citations.map((c, i) => ({ key: `a${e.id}.${i}`, kind: "Assumption" as const, title: e.statement, to: `${app}/exploration/assumptions/${e.id}`, ...c }))),
         ...(cited.data.mockups ?? []).flatMap((m) => m.citations.map((c, i) => ({ key: `m${m.mockup_id}.${i}`, kind: "Mockup" as const, title: m.title, to: `${app}/exploration/mockups/${m.mockup_id}`, ...c }))),
         ...(cited.data.story_pages ?? []).flatMap((p) => p.citations.map((c, i) => ({ key: `s${p.page_id}.${i}`, kind: "Story page" as const, title: p.title, to: `${app}/story/${p.page_id}`, ...c }))),
       ]
-    : [];
+    : []
+  ).filter((c) => !c.quote_not_found);
   const q = useQuery({
     queryKey: ["passage", base, record.record_id, start, end],
     queryFn: () => api<Passage>("GET", `${base}/sources/${record.record_id}/passage${qs({ start, end, unit: "seq" })}`),

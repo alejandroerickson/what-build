@@ -342,4 +342,26 @@ describe("the discovery loop through REST", () => {
     const onboarding = list.body.items.find((i: { path: string }) => i.path !== p.body.path);
     expect(onboarding.counts.outcomes).toBeGreaterThan(1);
   });
+
+  it("creates several sources with a grant each, attached by their PUTs alone", async () => {
+    const titles = ["Support call — Example Co, Sep 2026", "Finance notes — Example Co, Sep 2026"];
+    const batch = await alice.api("POST", `${P}/sources/with-uploads`, { sources: titles.map((title, i) => ({ title, path: `notes-${i}.txt`, role: "primary" })) });
+    expect(batch.status).toBe(201);
+    expect(batch.body.items.map((x: { record: { title: string } }) => x.record.title)).toEqual(titles);
+    for (const [i, item] of batch.body.items.entries()) {
+      const put = await fetch(item.upload.url, { method: "PUT", headers: item.upload.headers, body: `Notes number ${i}.\n` });
+      expect(put.status).toBe(201);
+      // The PUT attaches the file; no complete_upload follows.
+      expect(((await put.json()) as { file: { path: string } }).file.path).toBe(`notes-${i}.txt`);
+      const got = await alice.api("GET", `${P}/sources/${item.record.record_id}?detail=full`);
+      expect(got.body.files.map((f: { path: string }) => f.path)).toEqual([`notes-${i}.txt`]);
+    }
+    // One entry refused refuses the batch, names the entry, and creates nothing.
+    const refused = await alice.api("POST", `${P}/sources/with-uploads`, { sources: [{ title: "Kept back — one", path: "one.txt" }, { title: "Kept back — two", path: "../two.txt" }] });
+    expect(refused.status).toBe(422);
+    expect(refused.body.error.message).toMatch(/^sources\[1\] \(Kept back — two\): .*Nothing was created\.$/);
+    expect(refused.body.error.details.index).toBe(1);
+    const listed = await alice.api("GET", `${P}/sources?query=${encodeURIComponent("Kept back")}`);
+    expect(listed.body.records).toEqual([]);
+  });
 });

@@ -83,7 +83,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
         return completeGrant(ctx, grant.grant_id);
       });
       if (enqueued.value) env.ports.notifyJobs?.();
-      return c.json({ uploaded: true, size: stored.size, sha256: stored.sha256, file: entry, next: 'Received. Now call files(action="complete_upload") with record_id and path, as the grant said: it confirms the file is attached, returns its search_status and what happens next, and adds any provenance (derived_from, derivation_note, derived_by). Repeating it is harmless.' }, 201);
+      return c.json({ uploaded: true, size: stored.size, sha256: stored.sha256, file: entry, next: "Attached: file says whether it is searched, and what happens next. No complete_upload is needed; call it only to add provenance (derived_from, derivation_note, derived_by) you did not give with the grant." }, 201);
     } catch (e) {
       return fail(c, e);
     }

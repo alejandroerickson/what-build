@@ -245,8 +245,12 @@ labelled so.
 `sources.used_by` lists everything in the product built on a source: assumptions with a citation
 into it, live Story pages and mockups whose current version cites it or lists it in `refs`, live
 sources whose `related_records` name it (`related`), and live views whose lineage lists it as a
-direct input. Each citation names its segment range. The web app shows the list as a source's
-**Cited in**.
+direct input. Each citation names the segment range its quote is in now: the stored range until
+the source is parsed again, and after that the range the quote is found in (`citedRanges` in
+`packages/core/src/citations.ts`, the same matcher as `check_citations`). A quote found outside its
+stored range gives the new one, with the stored range as `moved_from`; one no longer found keeps the
+stored range with `quote_not_found`. Nothing stored changes. The web app shows the list as a
+source's **Cited in**, and marks the passages it names, leaving out a quote no longer found.
 
 Evidence is cited in prose as a source id and segment range ("source 01K…, segments 4–6"); the
 web app renders such citations in Markdown, and links to sources and passages, as evidence links
@@ -360,7 +364,9 @@ the passage the labelled speaker, or none, and is reported with `quote_match: "n
 must still agree. The order of preference is exact in the range, normalised in the range, exact
 elsewhere, normalised elsewhere.
 
-It reports. It never rewrites a citation or a snapshot. The original passage stays readable
+It reports. It never rewrites a citation or a snapshot. Readers follow the quote instead: the web
+app's link from a citation to its passage opens where the check found it (`relocated`), and opens
+the source without a range when the quote is gone (`text_changed`). The original passage stays readable
 through its retained derivation ([§5.5](05-derived-layer.md)) unless the source was deleted, and
 even then the **snapshot text survives**, because a citation snapshot is a quotation the team wrote
 down, not a copy of the source ([§9.5](09-data-lifecycle.md)).

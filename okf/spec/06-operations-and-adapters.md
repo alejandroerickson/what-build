@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 124 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 125 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
 generated: {by: agent:claude, at: 2026-10-13}
 status: stable
@@ -36,7 +36,7 @@ defineOperation({
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 124. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 125. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
@@ -180,7 +180,7 @@ must come from the app's own origin (`403 forbidden_origin`).
 
 ### The operation catalogue
 
-All 124 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 125 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-teams-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -249,6 +249,7 @@ being changed inside the handler.
 | `sources` | `delete` | `DELETE P/sources/:record_id` | admin |
 | `files` | `request_upload` | `POST P/sources/:record_id/uploads` | editor |
 | `files` | `create_upload` | `POST P/sources/with-upload` | editor |
+| `files` | `create_uploads` | `POST P/sources/with-uploads` | editor |
 | `files` | `complete_upload` | `POST P/sources/:record_id/uploads/complete` | editor |
 | `files` | `add_note` | `POST P/sources/:record_id/notes` | editor |
 | `files` | `fetch_url` | `POST P/sources/:record_id/fetch` | editor |
@@ -520,7 +521,7 @@ the same of a newer version than the instructions named. `unknown_tool` and `unk
 the server's version and its tools or the tool's actions (also in `details`: `server_version`,
 `tools` or `actions`), and say the client may hold a list from another version.
 
-**Tools.** Sixteen tools over the 122 operations an agent may be offered (all 124 but deleting an
+**Tools.** Sixteen tools over the 123 operations an agent may be offered (all 125 but deleting an
 organization and its preview): twelve grouped by noun, four standalone. A connection is listed
 only the actions its level allows (below).
 
@@ -531,7 +532,7 @@ only the actions its level allows (below).
 | `sandbox` | `status`, `join`, `settings`, `update_settings`, `save_baseline`, `baselines`, `reset`, `invites`, `create_invite`, `revoke_invite`, `visitors`, `remove_visitor` |
 | `outcomes` | `list`, `get`, `create`, `update`, `delete_impact`, `delete`, `revisions`, `get_revision`, `restore_revision` |
 | `sources` | `facets`, `list`, `get`, `create`, `update`, `archive`, `restore`, `annotate`, `list_annotations`, `update_annotation`, `delete_annotation`, `used_by`, `move_to_product`, `copy_to_product`, `delete_impact`, `delete` |
-| `files` | `request_upload`, `create_upload`, `complete_upload`, `add_note`, `fetch_url`, `set_role`, `get_download` |
+| `files` | `request_upload`, `create_upload`, `create_uploads`, `complete_upload`, `add_note`, `fetch_url`, `set_role`, `get_download` |
 | `derived` | `manifest`, `outline`, `text`, `list`, `rederive`, `write_note`, `read_note` |
 | `assumptions` | `list`, `get`, `create`, `update`, `review`, `supersede`, `link`, `unlink`, `archive`, `check_citations`, `delete_impact`, `delete` |
 | `story` | `guidance`, `get_style`, `set_style`, `list_pages`, `get_page`, `list_versions`, `get_version`, `publish`, `promote_mockup`, `write_notes`, `check_citations`, `print_view`, `get_hierarchy`, `set_hierarchy`, `archive_page`, `restore_page`, `delete_page_impact`, `delete_page` |
@@ -624,9 +625,11 @@ Rules:
 In order of preference for an agent (`packages/core/src/ops/files.ts`):
 
 1. **Upload grant** — `files.request_upload { record_id, path, role, media_type?, size? }`, or
-   `files.create_upload` to create the source and get its first grant in one call. The result is
+   `files.create_upload` to create the source and get its first grant in one call, or
+   `files.create_uploads { sources: [...] }` for up to 20 such sources at once (all are created or
+   none, and a refusal names the entry by index). The result is
    `{ grant_id, url, method: "PUT", headers, max_bytes, expires_at, next, warnings }`
-   (`create_upload` returns `{ record, upload, warnings }`). `warnings` flags, without refusing, a
+   (`create_upload` returns `{ record, upload, warnings }`, `create_uploads` a list of them as `items`). `warnings` flags, without refusing, a
    primary whose format no parser reads, since a primary cannot be replaced (upload a PDF export as
    the primary and keep the original as `origin`), and for `create_upload` a live source with the
    same title and date. The agent PUTs the
@@ -636,9 +639,10 @@ In order of preference for an agent (`packages/core/src/ops/files.ts`):
    (`403 forbidden` otherwise, for someone made a reader or viewer, or removed, since), then
    stores the bytes, records size and SHA-256 **from what arrived**, not from the
    agent's claims, attaches the file at once, and enqueues derivation if it is primary; its
-   response says the bytes were received and to call `files.complete_upload` next.
-   `files.complete_upload` then confirms idempotently and can add provenance (`derived_from`,
-   `derivation_note`, `derived_by`). It returns the file entry (`searchable`, `search_status`) and a
+   `201` response carries the file entry, so nothing more need be called.
+   `files.complete_upload` attaches a file PUT to a `direct` URL; after the relay it only confirms,
+   idempotently, and can add provenance (`derived_from`, `derivation_note`, `derived_by`). Both
+   return the file entry (`searchable`, `search_status`) and a
    `note` on what happens next that agrees with it: the primary is being parsed, is ready, is a
    recording that needs a transcript as its own source, or is in a format no parser reads (with the
    formats that are parsed). The last two are said at once, before the worker has run. It also

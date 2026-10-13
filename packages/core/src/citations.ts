@@ -163,6 +163,30 @@ export async function checkCitationList(ctx: OpContext, citations: CitationSnaps
   };
 }
 
+export type CitedRange = { seq_start: number; seq_end: number; moved_from?: { seq_start: number; seq_end: number }; quote_not_found?: true };
+
+/**
+ * Where citations of one source stand in its current passages, for a reader's link or mark. While
+ * the source has not been parsed again since a snapshot, that is the stored range. After, it is
+ * the range the quote is found in now, with the stored one as moved_from, or the stored range with
+ * quote_not_found. A quote found within its stored range keeps that range, as check_citations
+ * calls it ok. Nothing stored changes. The passages are read once, and only if some citation needs them.
+ */
+export async function citedRanges(ctx: OpContext, recordId: string) {
+  const r = await ctx.db.selectFrom("records").select("current_derivation_id").where("record_id", "=", recordId).executeTakeFirst();
+  const current = r?.current_derivation_id ?? null;
+  let passages: Passage[] | undefined;
+  return async (c: CitationSnapshot): Promise<CitedRange> => {
+    const stored = { seq_start: c.seq_start, seq_end: c.seq_end };
+    if (!current || c.derivation_id === current) return stored;
+    passages ??= await ctx.db.selectFrom("segments").select(["seq", "text", "speaker"]).where("derivation_id", "=", current).orderBy("seq").execute();
+    const found = locateQuote(passages, c.quote, c, c.speakers ?? []);
+    if (!found) return { ...stored, quote_not_found: true };
+    if (found.seq_start >= c.seq_start && found.seq_end <= c.seq_end) return stored;
+    return { seq_start: found.seq_start, seq_end: found.seq_end, moved_from: stored };
+  };
+}
+
 // ---- Finding a quote in a source's passages ----------------------------------------------------
 
 /** Emphasis and code markers: runs of `*` or `_` at a word edge (never inside snake_case or 2*3), and every backtick. */

@@ -1,7 +1,8 @@
 import { sql, type Selectable } from "kysely";
 import { z } from "zod";
 import { checkEtag, keepRevision, normalizeDimensions, normalizeTags, productId, recordActivity, tenantId } from "../common.ts";
-import { json, type RecordsTable } from "../db.ts";
+import { citedRanges, type CitedRange } from "../citations.ts";
+import { json, type CitationSnapshot, type RecordsTable } from "../db.ts";
 import { checkConfirmation, DELETE_CONFIRMATION, DELETE_GUIDANCE, deleteGuards, dropRevisions, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
 import { conflict, gone, invalid, notFound } from "../errors.ts";
 import { SEARCH_RULE } from "../source-fields.ts";
@@ -791,7 +792,7 @@ export const deleteAnnotation = defineOperation({
 // ---- Connections --------------------------------------------------------------------------------
 
 /** Story pages whose current version cites a source or lists it in refs. */
-async function storyPagesUsing(ctx: OpContext, recordId: string, opts: { includeArchived: boolean }) {
+async function storyPagesUsing(ctx: OpContext, recordId: string, opts: { includeArchived: boolean }, rangeOf = (c: CitationSnapshot): CitedRange | Promise<CitedRange> => ({ seq_start: c.seq_start, seq_end: c.seq_end })) {
   let q = ctx.db
     .selectFrom("story_pages as p")
     .innerJoin("story_versions as v", "v.version_id", "p.current_version_id")
@@ -800,18 +801,18 @@ async function storyPagesUsing(ctx: OpContext, recordId: string, opts: { include
     .where(sql<boolean>`(v.citations @> ${JSON.stringify([{ record_id: recordId }])}::jsonb or v.refs->'sources' ? ${recordId})`);
   if (!opts.includeArchived) q = q.where("p.archived_at", "is", null);
   const rows = await q.orderBy("p.title").execute();
-  return rows.map((r) => ({
+  return Promise.all(rows.map(async (r) => ({
     page_id: r.page_id,
     title: r.title,
     version: r.n,
     archived_at: r.archived_at,
     referenced: r.refs.sources.includes(recordId),
-    citations: r.citations.filter((c) => c.record_id === recordId).map((c) => ({ seq_start: c.seq_start, seq_end: c.seq_end })),
-  }));
+    citations: await Promise.all(r.citations.filter((c) => c.record_id === recordId).map(rangeOf)),
+  })));
 }
 
 /** Mockups whose current version cites a source or lists it in refs. */
-async function mockupsUsing(ctx: OpContext, recordId: string, opts: { includeArchived: boolean }) {
+async function mockupsUsing(ctx: OpContext, recordId: string, opts: { includeArchived: boolean }, rangeOf = (c: CitationSnapshot): CitedRange | Promise<CitedRange> => ({ seq_start: c.seq_start, seq_end: c.seq_end })) {
   let q = ctx.db
     .selectFrom("mockups as m")
     .innerJoin("mockup_versions as v", "v.version_id", "m.current_version_id")
@@ -820,14 +821,14 @@ async function mockupsUsing(ctx: OpContext, recordId: string, opts: { includeArc
     .where(sql<boolean>`(v.citations @> ${JSON.stringify([{ record_id: recordId }])}::jsonb or v.refs->'sources' ? ${recordId})`);
   if (!opts.includeArchived) q = q.where("m.archived_at", "is", null);
   const rows = await q.orderBy("m.title").execute();
-  return rows.map((r) => ({
+  return Promise.all(rows.map(async (r) => ({
     mockup_id: r.mockup_id,
     title: r.title,
     version: r.n,
     archived_at: r.archived_at,
     referenced: r.refs.sources.includes(recordId),
-    citations: r.citations.filter((c) => c.record_id === recordId).map((c) => ({ seq_start: c.seq_start, seq_end: c.seq_end })),
-  }));
+    citations: await Promise.all(r.citations.filter((c) => c.record_id === recordId).map(rangeOf)),
+  })));
 }
 
 export const usedBy = defineOperation({
@@ -837,12 +838,13 @@ export const usedBy = defineOperation({
   mutates: false,
   summary: "Everything built on a source: assumptions that cite it, Story pages and mockups that cite or reference it, other sources that list it as related, and views whose lineage lists it as an input.",
   description:
-    "Each citation names its exact segment range, so you can read the passage that supports it. Story pages and mockups are judged by their current version; archived pages, mockups, sources and views are left out. related lists the sources whose related_records name this one. Views are those that list this source as a direct input; call lineage(action=\"check\") on one to see whether it is stale.",
+    "Each citation names the segment range its quote is in now, so you can read the passage that supports it: after the source is parsed again, a quote found elsewhere gives its new range with the stored one as moved_from, and one no longer found keeps the stored range with quote_not_found. Story pages and mockups are judged by their current version; archived pages, mockups, sources and views are left out. related lists the sources whose related_records name this one. Views are those that list this source as a direct input; call lineage(action=\"check\") on one to see whether it is stale.",
   input: z.strictObject({ record_id: id("source") }),
   rest: { method: "GET", path: "/sources/:record_id/used-by" },
   mcp: { tool: "sources", action: "used_by" },
   async handler(ctx, input) {
     await loadRecord(ctx, input.record_id);
+    const rangeOf = await citedRanges(ctx, input.record_id);
     const entries = await ctx.db
       .selectFrom("register_entries")
       .select(["entry_id", "statement", "status", "citations", "updated_at"])
@@ -863,16 +865,18 @@ export const usedBy = defineOperation({
       .limit(100)
       .execute();
     return {
-      assumptions: entries.map((e) => ({
-        id: e.entry_id,
-        statement: e.statement,
-        status: e.status,
-        updated_at: e.updated_at,
-        citations: e.citations.filter((c) => c.record_id === input.record_id).map((c) => ({ seq_start: c.seq_start, seq_end: c.seq_end })),
-      })),
+      assumptions: await Promise.all(
+        entries.map(async (e) => ({
+          id: e.entry_id,
+          statement: e.statement,
+          status: e.status,
+          updated_at: e.updated_at,
+          citations: await Promise.all(e.citations.filter((c) => c.record_id === input.record_id).map(rangeOf)),
+        })),
+      ),
       related,
-      story_pages: (await storyPagesUsing(ctx, input.record_id, { includeArchived: false })).map(({ archived_at, ...p }) => (void archived_at, p)),
-      mockups: (await mockupsUsing(ctx, input.record_id, { includeArchived: false })).map(({ archived_at, ...m }) => (void archived_at, m)),
+      story_pages: (await storyPagesUsing(ctx, input.record_id, { includeArchived: false }, rangeOf)).map(({ archived_at, ...p }) => (void archived_at, p)),
+      mockups: (await mockupsUsing(ctx, input.record_id, { includeArchived: false }, rangeOf)).map(({ archived_at, ...m }) => (void archived_at, m)),
       views: await ctx.db
         .selectFrom("lineage as l")
         .innerJoin("records as r", "r.record_id", "l.record_id")

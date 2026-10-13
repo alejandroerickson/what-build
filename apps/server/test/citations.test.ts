@@ -139,6 +139,33 @@ describe("checking citations after a new version of the file", () => {
     expect(read.body.unverified_note).toBeUndefined();
     expect(read.body.citations[0]).toMatchObject({ status: "ok", version_drift: true, derivation_changed: true });
   });
+
+  it("points what uses the source at where each quote is now, and at none once it is gone", async () => {
+    const recordId = await upload("notes", "moved.md", NOTES);
+    const a = await alice.api("POST", `${P}/assumptions`, {
+      statement: "Sign-off is on Fridays.",
+      citations: [
+        { record_id: recordId, seq_start: 2, seq_end: 2, quote: "signs off on Fridays" },
+        { record_id: recordId, seq_start: 1, seq_end: 1, quote: "plan by the week" },
+      ],
+    });
+    expect(a.status).toBe(201);
+    const before = await alice.api("GET", `${P}/sources/${recordId}/used-by`);
+    expect(before.body.assumptions[0].citations).toEqual([{ seq_start: 2, seq_end: 2 }, { seq_start: 1, seq_end: 1 }]);
+    // Two paragraphs added above renumber the sign-off; the planning line is dropped.
+    const grant = await alice.api("POST", `${P}/sources/${recordId}/uploads`, { path: "moved.md", role: "primary" });
+    const next = "# Planning\n\nNew opening.\n\nAnother new paragraph.\n\nThe ops lead signs off on Fridays.\n";
+    expect((await fetch(grant.body.url, { method: "PUT", headers: grant.body.headers, body: next })).status).toBe(201);
+    await h.worker.drain();
+    const after = await alice.api("GET", `${P}/sources/${recordId}/used-by`);
+    expect(after.body.assumptions[0].citations).toEqual([
+      { seq_start: 3, seq_end: 3, moved_from: { seq_start: 2, seq_end: 2 } },
+      { seq_start: 1, seq_end: 1, quote_not_found: true },
+    ]);
+    // The snapshot itself is unchanged.
+    const entry = await alice.api("GET", `${P}/assumptions/${a.body.id}`);
+    expect(entry.body.citations.map((c: { seq_start: number }) => c.seq_start)).toEqual([2, 1]);
+  });
 });
 
 describe("citing a quote that differs only in markup", () => {

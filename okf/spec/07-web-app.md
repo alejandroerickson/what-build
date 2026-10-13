@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-10-12}
+generated: {by: agent:claude, at: 2026-10-13}
 status: stable
 ---
 
@@ -376,7 +376,7 @@ The sources, and everything for reading them.
   copy a citation reference for an agent; the selection bar docks above the pager and never
   covers it. Reading aids:
   - a passage cited by assumptions, mockups or Story pages carries "Cited by N", a menu of
-    them;
+    them, placed where each quote is now after the source is parsed again (`sources.used_by`);
   - a passage that cites other sources the bare way (a view or digest: "source <id>, segments
     4–6") shows each citation as a "Title ¶4–6" token, and a "Cites" line of links to them;
   - a table stored as a header passage and one passage per row ("A: x | B: y") is laid out in
@@ -574,7 +574,7 @@ mockup reaches it by promotion, from the mockup (§7.7).
     the mockup.
   - **Draws on:** the version's references — outcomes, sources, assumptions — each linked.
   - **Cited passages:** each citation as the source title, its address (¶8–9, linking to the
-    passage) and a snapshot quote, with its `story.check_citations` status in words, worded as
+    passage, or to where the check found the quote once it moved) and a snapshot quote, with its `story.check_citations` status in words, worded as
     on an assumption.
   - **Notes for agents:** the page's Markdown notes, which agents read before revising the page and
     update after publishing (what it is for, sources still to fold in, choices about its structure).

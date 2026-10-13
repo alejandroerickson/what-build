@@ -128,6 +128,10 @@ const SCOPED: Record<string, Probe> = {
     input: () => ({ title: "Planted upload", path: "planted.md", role: "primary" }),
     inside: (a) => [{ title: "Planted upload", tags: ["view"], path: "planted.md", role: "primary", related_records: [a.source.id] }],
   },
+  "files.create_uploads": {
+    input: () => ({ sources: [{ title: "Planted upload", path: "planted.md", role: "primary" }] }),
+    inside: (a) => [{ sources: [{ title: "Planted upload", tags: ["view"], path: "planted.md", role: "primary", related_records: [a.source.id] }] }],
+  },
   "files.complete_upload": { input: (a) => ({ record_id: a.source.id, path: a.source.path }) },
   "files.add_note": { input: (a) => ({ record_id: a.source.id, path: "planted.md", text: "Planted note.", role: "supplement" }) },
   // A public address only; the call must be refused long before anything is fetched.
