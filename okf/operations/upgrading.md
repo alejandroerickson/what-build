@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.10.0
+
 - **Migration `0023_outcomes_current_or_archived`.** An outcome is current or archived: archived
   outcomes keep their archive as `archived_at`, achieved ones become current, and the `status`
   column goes, in saved sandbox baselines too. Rehearse on the dev deployment first
