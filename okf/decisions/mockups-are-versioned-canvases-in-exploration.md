@@ -39,6 +39,14 @@ the names Mockups and Exploration on 2026-10-09.
   2026-10-09, rejecting a shared stylesheet and shared components that pages would use, with a
   reservation: it may not hold up when several people, each in their own project, work on one
   canvas.
+- **A mockup's look is its own.** A canvas may be a wireframe that deliberately looks unlike the
+  product, a high-fidelity copy of it, or document-like pages and charts. No mockup version
+  draws on the product's Story style, and the Story style takes no files from a mockup. An agent
+  may carry parts of a mockup's design into the Story style by writing them into it. The
+  maintainer chose this on 2026-10-13, rejecting one design system for both.
+- **A canvas is published whole.** An agent builds it in its own project and publishes it in one
+  call, uploading it as a ZIP when it is large. Rejected on 2026-10-13: staging versions that
+  gather pages over several calls before one commit, which the upload makes unneeded.
 - **A version carries files for collaborators**: text files such as a DESIGN.md, components and
   tokens, which people see in the inspector and agents pull into their projects with the
   download, so collaborators share the conventions behind a canvas. They belong to the version

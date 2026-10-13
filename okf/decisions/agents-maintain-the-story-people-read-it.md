@@ -3,7 +3,7 @@ type: Decision
 title: Agents write and arrange the Story; the web app reads it
 description: Every change to a Story page or its tree goes through an agent over MCP, except promoting a mockup page from the mockup; the web app shows pages, versions and their evidence, and exports them.
 tags: [decision, story, agents, web]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-13}
 status: stable
 ---
 
@@ -32,6 +32,13 @@ promote a mockup page to the Story from the mockup, since that adds a page witho
   of their own; the maintainer chose this on 2026-10-10.
 - A version has no change note. The activity log records each version, and the page's notes hold
   an agent's working context.
+- **The Story is where agents present anything to people**: stakeholders, the team, and the person
+  an agent works for. When that person wants something kept in front of them (what waits on their
+  review, questions to ask, choices still open), the agent publishes a Story page and keeps it
+  current. There is no review queue, task list or other type for it. Pages are HTML so that agents
+  can present to people densely, and a use that emerges is served by a page, not by a type and a
+  screen of its own. The maintainer chose this on 2026-10-13, so that the app's paths do not fill
+  with features for every way it gets used.
 - The operations are unchanged apart from the note: agents, and REST clients with write access,
   still publish, arrange, archive and restore.
 

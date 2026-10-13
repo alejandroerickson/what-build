@@ -3,7 +3,7 @@ type: Decision
 title: Insights and decisions are retired, and what a product held of them becomes sources in Evidence
 description: Exploration holds mockups and assumptions only; existing insights and decisions are moved into Evidence as Markdown sources with the same ids, by a worker job a migration queues.
 tags: [decision, exploration, evidence, migration, mcp, product]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-13}
 status: stable
 ---
 
@@ -31,6 +31,11 @@ sources, without changing what a source is. This replaces the
 - A migration queues the move and the worker does it, because only the worker reaches object
   storage; the migration jobs of the Cloud Run and Azure deployments have no storage access.
 - Old app links to an insight or a decision open its source.
+- Rejected again on 2026-10-13: decisions as a lightweight type with a status (proposed, decided,
+  superseded) and links. Decisions belong to the people, who make them as they work, and agents
+  work within them as they are asked; recording each as it is made adds a step that gives no one
+  anything. A decision a team wants agents to see can be a source like any other; no guidance
+  describes a convention for one.
 - Rejected: one decision log per product. It would collapse every link and reference to one
   decision into a link to the whole log.
 

@@ -62,9 +62,15 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   link in the app opens where its quote is now, the passages marked as cited move with it, and
   `sources.used_by` gives each citation's current range (`moved_from`, `quote_not_found`). Stored
   citations are not changed.
+- **The Story's PDF shows dates in the reader's time zone.** Nothing to set. The print view's dates
+  were UTC.
 - **The skill is now 0.24.0.** Connected agents see the new delete actions, the levels, mockups'
   `request_upload` (upload a canvas as a ZIP instead of sending page HTML) and `files.create_uploads`
-  after starting a new session.
+  after starting a new session. It also tells them:
+  - to give the person times in their own time zone;
+  - to keep a page of what waits on the person in the Story;
+  - to upload a digest of a session whose findings the team will need;
+  - to publish a canvas whole rather than over several versions.
 
 ## v0.8.4
 

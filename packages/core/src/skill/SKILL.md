@@ -22,7 +22,8 @@ organization). A product has four parts, named as the person sees them in the we
 - **Exploration** — **mockups** (canvases of HTML pages you build from the evidence, each page
   with design notes, under a brief), and one small reviewed **register**: the assumptions the team
   relies on, cited to exact passages where evidence exists.
-- **Story** — versioned HTML pages that tell stakeholders where the discovery stands.
+- **Story** — versioned HTML pages that show people where the discovery stands: stakeholders, the
+  team, and the person you work for.
 
 ## Before anything else
 
@@ -71,7 +72,8 @@ arguments. Unknown actions and fields are refused (422), and errors begin with t
 say what a correct call looks like. Every list is paged: pass `next_cursor` back as `cursor`.
 An item's id is `outcome_id` on outcomes and `id` on assumptions; each also accepts the other
 form (`id`, or `assumption_id`). `story(action="write_notes")` takes the notes as `notes`, and
-also as `content`, the name `get_page` returns them under.
+also as `content`, the name `get_page` returns them under. Times in results are UTC (ISO 8601):
+when you tell the person a time, give it in their own time zone.
 
 **A refusal means the call did nothing.** `422 invalid_input` names first the fields it did not
 recognize (with the one you probably meant), then the fields that are missing, and ends with
@@ -139,6 +141,11 @@ report, a raw export over roughly 20 pages or 10 MB), write a focused digest of 
 discovery questions and upload that as the primary. Attach the original with role `origin` and give
 the digest `derived_from`, `derivation_note` (what was kept and left out) and `derived_by: "agent"`.
 Recordings, transcripts and interview notes are the evidence itself: upload them whole.
+
+**Your own work can be evidence.** When a session of yours found or settled something the team's
+people and agents will need later, upload a digest of it as a source: what was found, decided and
+left open, and the sources it rests on, tagged as an agent's working session. Never upload a whole
+session transcript.
 
 **Only the primary file is searched.** Origin and supplement files are stored in full and never
 searched; every file entry says `searchable` and `search_status`. Tell the person which file is
@@ -256,7 +263,9 @@ sandbox.
 - **Each page is one self-contained HTML document**, shown in a sandbox with no network at the size
   you give: `width` 1280 for a desktop screen or 390 for a phone, and a `height`. The Story's
   sandbox rules apply: inline CSS and scripts, images and fonts as `data:` URIs, no remote
-  resources, forms or frames. A mockup carries its own look; it does not follow the Story style.
+  resources, forms or frames. A mockup carries its own look (a wireframe, the product itself, or
+  a document) and never follows the Story style, though you may carry parts of a mockup's design
+  into the Story style.
   Keep shared styles, components and any design system in your working project, and inline what
   each page needs when you publish: WhatBuild never draws a page from shared parts.
 - **Share the conventions with `files`.** A version carries text files for collaborators, such as
@@ -284,6 +293,8 @@ sandbox.
   them, so a ZIP of a later version need hold only the pages that changed. The files it lists, or
   else the ones under `files/`, are the whole set. One publish reads an upload; compare each page's
   `html_sha256` with your own files' hashes. Send a page's HTML inline only for a small page.
+  Build the whole canvas in your project and publish it once: never spread one canvas over
+  several versions to get it through tool calls.
 - `check_citations` reports whether a version's passages still say what was quoted. A version
   holds at most 24 pages and 8,000,000 characters of HTML; a product holds at most 50 mockups.
 
@@ -355,6 +366,10 @@ restore a page; its one way in is promoting a mockup page from the mockup. When 
 of the rest, you do it for them. A page that shows a mockup page (`current.mockup` in `get_page`)
 has no HTML of its own: `patch_html` and `restyle` are refused there, and `html` or `body` replace
 the mockup page with a page of your own.
+
+**A page for the person you work for.** When they ask you to keep something in front of them (what
+waits on their review, questions to ask, choices still open), publish it as a Story page and keep
+it current. The Story is where you present anything to people; there is no separate to-do list.
 
 - **Cite what the page rests on.** `publish` takes `citations` — up to 20 exact passages,
   `{record_id, seq_start, seq_end, quote?}`, snapshotted like an assumption's citations — beside `refs`.

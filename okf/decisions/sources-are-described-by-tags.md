@@ -3,7 +3,7 @@ type: Decision
 title: Sources are described by a title and tags; there are no kinds, folders or organization field
 description: What a source is, whom it concerns and what it bears on are tags, which people and agents reuse through sources.facets, because a closed list of kinds slowed intake and changed nothing about storage or search.
 tags: [decision, sources, evidence, tags, mcp, web, product]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-13}
 status: stable
 ---
 
@@ -34,6 +34,10 @@ added them, when, words in the title, and what the material concerns. The mainta
   source's own (`other` adds none), in sandbox baselines too, then drops the three columns.
 - Rejected: a shorter list of kinds. It is still a choice at intake that changes nothing about
   storage or search.
+- Rejected on 2026-10-13: a structured field for where a file came from outside WhatBuild (a
+  repository, a commit range). A file's `derivation_note` says so in words.
+- Rejected on 2026-10-13: importing agents' session transcripts as sources. A whole session holds
+  far more than a team should share; an agent uploads a digest of what its session found instead.
 - Rejected: keeping organization as a field. It is one more thing to fill in, and a tag filters
   the same.
 

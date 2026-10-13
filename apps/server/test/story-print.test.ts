@@ -127,7 +127,9 @@ describe("the composed document", () => {
 
   it("has a title block with the product and export date, then contents in the given order", () => {
     expect(html).toContain("<h1>Crewboard &lt;beta&gt;</h1>");
-    expect(html).toContain("exported 26 September 2026 · 3 pages");
+    // Dates are written in UTC and rewritten by the print script in the reader's time zone.
+    expect(html).toContain('exported <time datetime="2026-09-26T10:00:00.000Z">26 September 2026</time> · 3 pages');
+    expect(html).toMatch(/<script nonce="[^"]+">var local = new Intl\.DateTimeFormat\("en-GB", \{"day":"numeric","month":"long","year":"numeric"\}\);document\.querySelectorAll\("time\[datetime\]"\)/);
     const contents = html.slice(html.indexOf("<nav"), html.indexOf("</nav>"));
     expect([...contents.matchAll(/href="#page-([a-z-]+)"/g)].map((m) => m[1])).toEqual(["overview", "detail", "other"]);
   });
@@ -135,7 +137,7 @@ describe("the composed document", () => {
   it("gives each page a heading at its level, in order, with its version", () => {
     const headings = [...html.matchAll(/<h(\d) class="print-heading" id="title-([a-z-]+)">/g)].map((m) => `${m[2]}:h${m[1]}`);
     expect(headings).toEqual(["overview:h2", "detail:h3", "other:h2"]);
-    expect(html).toContain("Version 3 · published 20 September 2026");
+    expect(html).toContain('Version 3 · published <time datetime="2026-09-20T08:00:00.000Z">20 September 2026</time>');
     // The page's own leading h1 repeated the title, so only the section heading remains.
     expect(html.match(/>Overview</g)).toHaveLength(2); // contents link and section heading
   });

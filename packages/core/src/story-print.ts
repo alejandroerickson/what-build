@@ -425,9 +425,13 @@ h5.print-heading, h6.print-heading { font-size: 15px; }
 }
 `;
 
-function formatDate(iso: string): string {
+const DATE_FORMAT = { day: "numeric", month: "long", year: "numeric" } as const;
+
+/** A date for the reader: written in UTC, and rewritten by the print script in the reader's own time zone. */
+function dateElement(iso: string): string {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(d);
+  if (Number.isNaN(d.getTime())) return escapeHtml(iso);
+  return `<time datetime="${escapeHtml(d.toISOString())}">${escapeHtml(new Intl.DateTimeFormat("en-GB", { ...DATE_FORMAT, timeZone: "UTC" }).format(d))}</time>`;
 }
 
 /** Compose the print view. Pure: the same input gives the same document. */
@@ -446,13 +450,15 @@ export function composePrintDocument(input: { productName: string; exportedAt: s
       return (
         `<section class="print-section" id="page-${p.page_id}" data-level="${p.level}" aria-labelledby="title-${p.page_id}">\n` +
         `<h${h} class="print-heading" id="title-${p.page_id}">${escapeHtml(p.title)}</h${h}>\n` +
-        `<p class="print-meta">Version ${p.version} · published ${escapeHtml(formatDate(p.published_at))}</p>\n` +
+        `<p class="print-meta">Version ${p.version} · published ${dateElement(p.published_at)}</p>\n` +
         `<div data-print-page="${p.page_id}"${host}><template shadowrootmode="open">${styles}${prepared.body}</template></div>\n` +
         `</section>`
       );
     })
     .join("\n");
   const script =
+    `var local = new Intl.DateTimeFormat("en-GB", ${JSON.stringify(DATE_FORMAT)});` +
+    'document.querySelectorAll("time[datetime]").forEach(function (t) { t.textContent = local.format(new Date(t.getAttribute("datetime"))); });' +
     'document.getElementById("print-now").addEventListener("click", function () { window.print(); });' +
     'window.addEventListener("load", function () { setTimeout(function () { window.print(); }, 300); });';
   return `<!doctype html>
@@ -468,7 +474,7 @@ export function composePrintDocument(input: { productName: string; exportedAt: s
 <div class="print-bar" role="note"><p>Print view of ${count}. Choose Save as PDF in the print dialog. Content drawn by a page's scripts is left out.</p><button type="button" id="print-now">Print or save as PDF</button></div>
 <header class="print-title">
 <h1>${escapeHtml(productName)}</h1>
-<p class="print-when">Story · exported ${escapeHtml(formatDate(exportedAt))} · ${count}</p>
+<p class="print-when">Story · exported ${dateElement(exportedAt)} · ${count}</p>
 </header>
 <nav class="print-contents" aria-labelledby="contents-title">
 <h2 id="contents-title">Contents</h2>

@@ -151,6 +151,7 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
   with `truncated` and totals.
 - Passages: at most 200 segments and 10 minutes per read ([§5.4](05-derived-layer.md)).
 - Lists return summaries — never bodies, HTML, or derived text.
+- Times are UTC, in ISO 8601 ([decision](../decisions/times-are-utc-in-data-and-local-where-shown.md)).
 - REST request bodies are limited to 5 MB (`413 too_large`), and so are MCP's (`413`, read only
   once the token is checked); file bytes and mockup canvases go through upload grants
   (§6.7). Sign-in (`/auth/*`) and OAuth (`/oauth/*`) bodies are limited to 64 KB (`413`).
@@ -472,7 +473,9 @@ result also gives `path` and `url` for the document itself.
 tab and save as PDF with the browser's print dialog. The server renders no PDF
 (`packages/core/src/story-print.ts`). The document has:
 
-- a title block (the product name and the export date) and a contents list;
+- a title block (the product name and the export date) and a contents list. Each date is a
+  `<time>` written in UTC, which the document's script rewrites in the reader's time zone
+  ([decision](../decisions/times-are-utc-in-data-and-local-where-shown.md));
 - each page's title as a heading at its level (the document title is `h1`, a top-level page `h2`,
   capped at `h6`), a line with its version and publication date, then the page itself. A leading
   `<h1>` in the page that repeats its title is dropped;
@@ -483,7 +486,7 @@ tab and save as PDF with the browser's print dialog. The server renders no PDF
 - `@page` margins, and a page break before each top-level section.
 
 Page scripts and inline event handlers are removed, and the response's policy runs only the one
-nonce'd script that opens the print dialog on load:
+nonce'd script, which puts the dates in the reader's time zone and opens the print dialog on load:
 `sandbox allow-modals allow-scripts; default-src 'none'; script-src 'nonce-…'; style-src 'unsafe-inline'; img-src data:; font-src data:; …`
 — without `allow-same-origin`, so the view runs in an opaque origin. Content a page draws with
 JavaScript does not appear.

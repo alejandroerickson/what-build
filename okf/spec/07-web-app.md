@@ -33,6 +33,8 @@ design system: tokens, type, components and the rules for using them — is docu
   REST answers honestly: a source, assumption or other object that does not exist answers `404`,
   and its page says it was not found while the browser's console reports the `404` of the request.
   ◆ Decision: that console line is by design; the API is not bent to hide it.
+- **Times are shown in the viewer's own time zone**, though the API gives them in UTC
+  ([decision](../decisions/times-are-utc-in-data-and-local-where-shown.md)).
 - Works on narrow screens. Meets WCAG 2.2 AA. Fully keyboard-operable.
 - **Interface text says one thing once.** A heading states the fact, the body adds only what the
   heading did not, and a rule is explained where it applies, not ahead of time. Words are plain and
