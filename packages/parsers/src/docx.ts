@@ -217,7 +217,7 @@ function tableBlocks(tbl: XmlElement, st: DocxState): Block[] {
  */
 export const docxParser: FormatParser = {
   name: "docx",
-  version: "6",
+  version: "7",
   parse(bytes, _fileName, options = {}) {
     const files = unzipParts(
       bytes,

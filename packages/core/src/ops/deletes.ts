@@ -120,7 +120,8 @@ export const deleteProduct = defineOperation({
     const grants = records.length ? await db.selectFrom("upload_grants").select("blob_key").where("record_id", "in", records).where("uploaded_at", "is not", null).execute() : [];
     const derivations = records.length ? await db.selectFrom("derivations").select("blob_prefix").where("record_id", "in", records).execute() : [];
     const exports = await db.selectFrom("exports").select(["export_id", "blob_key"]).where("product_id", "=", pid).execute();
-    const keys = [...new Set([...versions, ...grants, ...exports].map((r) => r.blob_key).filter((k): k is string => Boolean(k)))];
+    const canvases = await db.selectFrom("mockup_uploads").select("blob_key").where("product_id", "=", pid).where("uploaded_at", "is not", null).where("used_at", "is", null).execute();
+    const keys = [...new Set([...versions, ...grants, ...exports, ...canvases].map((r) => r.blob_key).filter((k): k is string => Boolean(k)))];
     // Work queued for the product would find nothing; it goes now.
     await sql`
       delete from jobs where tenant_id = ${tid} and done_at is null and kind in ('derive', 'export', 'move_to_evidence')
@@ -135,7 +136,7 @@ export const deleteProduct = defineOperation({
       ...(await db.selectFrom("register_entries").select("entry_id").where("product_id", "=", pid).execute()).map((r) => r.entry_id),
     ];
     await db.deleteFrom("revisions").where("object_id", "in", authored).execute();
-    for (const table of ["mockup_files", "mockup_pages", "mockup_versions", "mockups", "story_versions", "story_pages", "story_hierarchies", "story_styles", "register_entries", "outcomes", "insights", "exports", "activity", "tombstones"] as const)
+    for (const table of ["mockup_uploads", "mockup_files", "mockup_pages", "mockup_versions", "mockups", "story_versions", "story_pages", "story_hierarchies", "story_styles", "register_entries", "outcomes", "insights", "exports", "activity", "tombstones"] as const)
       await db.deleteFrom(table).where("product_id", "=", pid).execute();
     // A source takes its files, versions, uploads, passages, notes and lineage with it.
     await db.deleteFrom("records").where("product_id", "=", pid).execute();
@@ -160,7 +161,7 @@ export const deleteProduct = defineOperation({
 // ---- An organization ----------------------------------------------------------------------------
 
 /** Every table that holds an organization's rows and is not content a baseline holds, children first. */
-const ORGANIZATION_TABLES = ["jobs", "sandbox_baseline_rows", "sandbox_baselines", "sandbox_usage", "sandbox_invites", "sandbox_settings", "exports", "upload_grants"] as const;
+const ORGANIZATION_TABLES = ["jobs", "sandbox_baseline_rows", "sandbox_baselines", "sandbox_usage", "sandbox_invites", "sandbox_settings", "exports", "upload_grants", "mockup_uploads"] as const;
 
 async function organizationDeletion(ctx: OpContext) {
   const tid = tenantId(ctx);
@@ -239,8 +240,9 @@ export const deleteOrganization = defineOperation({
     const versions = await db.selectFrom("file_versions").select("blob_key").where("tenant_id", "=", tid).execute();
     const grants = await db.selectFrom("upload_grants").select("blob_key").where("tenant_id", "=", tid).where("uploaded_at", "is not", null).execute();
     const exports = await db.selectFrom("exports").select("blob_key").where("tenant_id", "=", tid).execute();
+    const canvases = await db.selectFrom("mockup_uploads").select("blob_key").where("tenant_id", "=", tid).where("uploaded_at", "is not", null).where("used_at", "is", null).execute();
     const derivations = await db.selectFrom("derivations").select("blob_prefix").where("tenant_id", "=", tid).execute();
-    const keys = [...new Set([...versions, ...grants, ...exports].map((r) => r.blob_key).filter((k): k is string => Boolean(k)))];
+    const keys = [...new Set([...versions, ...grants, ...exports, ...canvases].map((r) => r.blob_key).filter((k): k is string => Boolean(k)))];
 
     for (const table of ORGANIZATION_TABLES) await sql`delete from ${sql.table(table)} where tenant_id = ${tid}`.execute(db);
     // Content, children before what they refer to: the order a sandbox's reset deletes in.

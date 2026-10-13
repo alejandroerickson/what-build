@@ -247,3 +247,28 @@ describe("id aliases", () => {
     await client.close();
   });
 });
+
+describe("calls that once cost an agent a refusal", () => {
+  it("places a new outcome by position, as update does", async () => {
+    const first = await alice.api("POST", `${P}/outcomes`, { title: "Position first", position: -10 });
+    expect(first.status).toBe(201);
+    const list = await alice.api("GET", `${P}/outcomes`);
+    expect(list.body.items[0].outcome_id).toBe(first.body.outcome_id);
+  });
+
+  it("says derived text reads by offset and limit when sent start and end", async () => {
+    const r = await alice.api("GET", `${P}/sources/${recordId}/derived/text?start=0&end=2`);
+    expect(r.status).toBe(422);
+    expect(r.body.error.message).toMatch(/send offset and limit/);
+    expect((await alice.api("GET", `${P}/sources/${recordId}/derived/text?offset=0&limit=20`)).status).toBe(200);
+  });
+
+  it("saves a Story's first hierarchy without expected_etag, and asks for it after", async () => {
+    expect((await alice.api("POST", `${P}/story/pages/overview/versions`, { title: "Overview", body: "<main class=\"page\"><h1>Overview</h1></main>" })).status).toBe(201);
+    const first = await alice.api("PUT", `${P}/story/hierarchy`, { items: [{ page_id: "overview", children: [] }] });
+    expect(first.status, JSON.stringify(first.body)).toBe(200);
+    const second = await alice.api("PUT", `${P}/story/hierarchy`, { items: [{ page_id: "overview", children: [] }] });
+    expect(second.status).toBe(409);
+    expect(second.body.error.message).toMatch(/get_hierarchy/);
+  });
+});

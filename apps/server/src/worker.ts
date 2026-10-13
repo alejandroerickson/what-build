@@ -88,7 +88,7 @@ export class Worker {
 
   private lastPrune = 0;
 
-  /** Housekeeping, at most hourly: finished jobs after a week; OAuth registrations nobody connected with; people's days of use after 14 months; abandoned upload grants and their bytes. */
+  /** Housekeeping, at most hourly: finished jobs after a week; OAuth registrations nobody connected with; people's days of use after 14 months; abandoned upload grants and canvas uploads, and their bytes. */
   private async prune() {
     if (Date.now() - this.lastPrune < 3600_000) return;
     this.lastPrune = Date.now();
@@ -110,6 +110,22 @@ export class Worker {
       });
       // Bytes that arrived but were never attached (a direct upload nobody completed).
       for (const g of stale) if (g.uploaded_at && g.blob_key) await this.env.ports.blobs.delete(g.blob_key).catch(() => undefined);
+      // A canvas's ZIP: one never published goes a day after its grant expired; a published one's
+      // bytes went when it was published, and its row a week later.
+      const canvases = await this.env.db.transaction().execute(async (trx) => {
+        await sql`select set_config('app.tenant_id', ${tenant_id}, true)`.execute(trx);
+        return trx
+          .deleteFrom("mockup_uploads")
+          .where((eb) =>
+            eb.or([
+              eb.and([eb("used_at", "is", null), eb("expires_at", "<", new Date(Date.now() - 86400_000).toISOString())]),
+              eb("used_at", "<", new Date(Date.now() - 7 * 86400_000).toISOString()),
+            ]),
+          )
+          .returning(["blob_key", "uploaded_at", "used_at"])
+          .execute();
+      });
+      for (const u of canvases) if (u.uploaded_at && !u.used_at) await this.env.ports.blobs.delete(u.blob_key).catch(() => undefined);
     }
   }
 

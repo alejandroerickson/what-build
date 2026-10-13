@@ -242,6 +242,7 @@ const SCOPED: Record<string, Probe> = {
       { title: "Planted mockup", brief: "Planted.", pages: [{ page_id: "p", title: "P", html: page("P") }], citations: [{ record_id: a.source.id, seq_start: 1, seq_end: 1 }] },
     ],
   },
+  "mockups.request_upload": { input: () => ({}) },
   "mockups.archive": { input: (a) => ({ mockup_id: a.mockup.id, expected_etag: a.mockup.etag }) },
   "mockups.restore": { input: (a) => ({ mockup_id: a.mockup.id, expected_etag: a.mockup.etag }) },
   "mockups.get_download": { input: (a) => ({ mockup_id: a.mockup.id }) },

@@ -191,6 +191,66 @@ describe("plain text and Markdown", () => {
     ]);
   });
 
+  it("reads a timed label on its own line as the speaker of the paragraphs below it", async () => {
+    const md = [
+      "# Working session",
+      "",
+      "Kept: every message. Dropped: tool calls.",
+      "",
+      "## 1. Scope",
+      "",
+      "**Dana** (14:02 UTC):",
+      "",
+      "Plan the week first.",
+      "",
+      "Then the crews.",
+      "",
+      "Decision: ship it.",
+      "",
+      "**Sam, agent** (14:03 UTC):",
+      "",
+      "- Week plan drafted",
+      "",
+      "**Dana** (14:05 UTC):",
+      "Good.",
+      "",
+      "## 2. Next",
+      "",
+      "Unattributed note.",
+      "",
+      "**Sam** (14:09 UTC): Pricing next.",
+      "",
+      "**Sam** (14:10 UTC):",
+      "",
+      "Done.",
+    ].join("\n");
+    const r = await derive(utf8(md), "session.md");
+    expectOffsetsExact(r);
+    expect(r.segments.map((s) => [s.speaker, s.text])).toEqual([
+      [null, "# Working session"],
+      [null, "Kept: every message. Dropped: tool calls."],
+      [null, "## 1. Scope"],
+      ["Dana", "Plan the week first."],
+      ["Dana", "Then the crews."],
+      ["Dana", "Decision: ship it."],
+      ["Sam, agent", "Week plan drafted"],
+      ["Dana", "Good."],
+      [null, "## 2. Next"],
+      [null, "Unattributed note."],
+      ["Sam", "Pricing next."],
+      ["Sam", "Done."],
+    ]);
+  });
+
+  it("takes neither untimed labels nor a few timed ones for a transcript", async () => {
+    const notes = "Decisions:\n\nShip Friday.\n\nActions:\n\nCall Dana.\n\nDecisions:\n\nHold pricing.\n\nActions:\n\nCall Sam.\n";
+    const few = "Dana (09:00):\n\nHello.\n\nSam (09:01):\n\nHi.\n";
+    for (const text of [notes, few]) {
+      const r = await derive(utf8(text), "notes.md");
+      expect(r.segments.every((s) => s.speaker === null)).toBe(true);
+    }
+  });
+
   it("splits an oversized paragraph at sentence boundaries under 2,000 characters", async () => {
     const sentence = "This sentence is exactly long enough to be repeated many times over. ";
     const r = await derive(utf8(sentence.repeat(100)), "long.txt");

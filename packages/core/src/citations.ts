@@ -104,7 +104,8 @@ export async function citationViews(ctx: OpContext, citations: CitationSnapshot[
  * or record_missing, plus version_drift when the primary file has a newer version, and
  * derivation_changed (with current_derivation_id) when the source was parsed again after the
  * snapshot. A quote that matches only once markup, spacing and speaker labels are set aside says
- * so in quote_match and note.
+ * so in quote_match and note. valid is true when every citation is ok against the passages of each
+ * source's current file; rederived says whether any source was parsed again since its snapshot.
  */
 export async function checkCitationList(ctx: OpContext, citations: CitationSnapshot[]) {
   const results = [];
@@ -152,7 +153,14 @@ export async function checkCitationList(ctx: OpContext, citations: CitationSnaps
       archived: Boolean(r.archived_at),
     });
   }
-  return { valid: results.every((x) => x.status === "ok" && !x.version_drift), citations: results };
+  // A newer file whose passages are not the ones checked (not parsed yet, or failed) leaves a quote unverified.
+  const unverified = results.some((x) => x.version_drift && !("derivation_changed" in x && x.derivation_changed));
+  return {
+    valid: !unverified && results.every((x) => x.status === "ok"),
+    rederived: results.some((x) => "derivation_changed" in x && x.derivation_changed),
+    ...(unverified ? { unverified_note: "A cited source has a newer file whose passages have not been read yet (it is still being parsed, or parsing failed), so its quotes were checked against the earlier file. Check again once the source's derived_status is ready." } : {}),
+    citations: results,
+  };
 }
 
 // ---- Finding a quote in a source's passages ----------------------------------------------------

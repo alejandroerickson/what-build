@@ -5,7 +5,7 @@ import type { Browser, Harness } from "./harness.ts";
  * An organization with something in every kind of row a product holds: outcomes and their
  * revisions, tagged sources with files, derivations, passages, annotations and agent notes, assumptions
  * with citations, links and reviews, a Story with a style, a hierarchy, notes and a promoted mockup
- * page, a mockup with files, lineage, an export, an invitation and a second member. Every text it
+ * page, a mockup with files and a canvas upload, lineage, an export, an invitation and a second member. Every text it
  * writes carries `marker`, so a test can tell whether any of it reached someone else.
  */
 export interface Organization {
@@ -96,6 +96,8 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
     files: [{ path: "DESIGN.md", content: `${marker} design notes.` }],
     refs: { assumptions: [as.id] },
   }));
+  // A canvas upload in progress: its grant, with nothing published from it yet.
+  ok(await owner.api("POST", `${P}/mockups/uploads`, {}));
   const promoted = ok(await owner.api("POST", `${P}/story/promote-mockup`, { mockup_id: m.mockup_id, mockup_page_id: `${marker.toLowerCase()}-plan`, title: `${marker} promoted plan` }));
 
   const ex = ok(await owner.api("POST", `${P}/exports`, {}));

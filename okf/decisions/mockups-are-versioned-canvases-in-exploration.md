@@ -3,7 +3,7 @@ type: Decision
 title: Mockups are versioned canvases of agent-made HTML, in a stage called Exploration
 description: Agents build directions as sandboxed HTML pages on a canvas under a brief, versioned as a whole and downloadable to build the next one; the third stage is named Exploration.
 tags: [decision, mockups, exploration, story, security, web, agents]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-13}
 status: stable
 ---
 
@@ -29,6 +29,8 @@ the names Mockups and Exploration on 2026-10-09.
   sandbox ([decision](story-pages-are-sandboxed-agent-html.md)), without the app's theme.
 - A version downloads as a ZIP (brief, manifest, each page's HTML and notes) through a short-lived
   grant, so an agent builds the next version in its own project and publishes the pages it changed.
+  The same layout uploads as a ZIP through a grant, so an agent can publish a canvas without
+  sending its pages' HTML through a tool call.
 - Agents publish and archive mockups; the web app shows them on a pannable, zoomable canvas and
   downloads them.
 - **Mockups are outputs.** They come from the work a team's agents do in their own projects, where

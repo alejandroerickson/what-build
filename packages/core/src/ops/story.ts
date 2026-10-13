@@ -667,18 +667,18 @@ export const setHierarchy = defineOperation({
   access: "write",
   mutates: true,
   summary: "Replace the Story's navigation tree, and order its Published mockups. Uses the hierarchy's own etag; never touches page content.",
-  description: `items is the whole tree, not a patch: nodes are {page_id, children}; the title and description get_hierarchy adds are accepted and ignored, so its items can be sent back as they are. Each page at most once, depth at most ${MAX_DEPTH}, every page live and published, and none showing a mockup page: those are always in the Published mockups section, never in the tree. Pages you leave out of items become unplaced; to place an unplaced page, add it to items. mockups orders that section, a flat list of the page ids that show mockup pages; ones you leave out follow in the order their current versions were published, and omitting mockups keeps the order as it is. Pass expected_etag from get_hierarchy, or null before the first save.`,
+  description: `items is the whole tree, not a patch: nodes are {page_id, children}; the title and description get_hierarchy adds are accepted and ignored, so its items can be sent back as they are. Each page at most once, depth at most ${MAX_DEPTH}, every page live and published, and none showing a mockup page: those are always in the Published mockups section, never in the tree. Pages you leave out of items become unplaced; to place an unplaced page, add it to items. mockups orders that section, a flat list of the page ids that show mockup pages; ones you leave out follow in the order their current versions were published, and omitting mockups keeps the order as it is. Pass expected_etag from get_hierarchy; before the first save its etag is null, and expected_etag may be null or left out.`,
   input: z.strictObject({
     items: z.array(nodeSchema).max(MAX_PAGES),
     mockups: z.array(pageId).max(MAX_PAGES).optional().describe("The order of the Published mockups: ids of pages whose current version shows a mockup page. Omit it to keep the order as it is."),
-    expected_etag: expectedEtag.nullable(),
+    expected_etag: expectedEtag.nullable().optional().describe("The etag get_hierarchy gave; null, or omitted, before the first save (get_hierarchy then gives etag: null)."),
   }),
   rest: { method: "PUT", path: "/story/hierarchy" },
   mcp: { tool: "story", action: "set_hierarchy" },
   async handler(ctx, input) {
     const h = await ctx.db.selectFrom("story_hierarchies").selectAll().where("product_id", "=", productId(ctx)).forUpdate().executeTakeFirst();
     if (h) {
-      if (!input.expected_etag) throw conflict("stale_etag", "The hierarchy has been saved before; read it and pass its etag.", { current_etag: h.etag });
+      if (!input.expected_etag) throw conflict("stale_etag", "The hierarchy has been saved before; read it with get_hierarchy and pass its etag as expected_etag.", { current_etag: h.etag });
       checkEtag(input.expected_etag, h.etag, "story hierarchy");
     } else if (input.expected_etag) throw conflict("stale_etag", "No hierarchy has been saved yet; pass expected_etag null.");
     const ids = flatten(input.items);
@@ -811,7 +811,7 @@ export const checkStoryCitations = defineOperation({
   mutates: false,
   summary: "Re-resolve a Story page version's citations against the sources as they are now. Reports drift; never rewrites.",
   description:
-    "Checks the current version unless version is given. Per citation: ok, relocated (text intact at another range, which it gives), text_changed, record_archived, record_deleted or record_missing, plus version_drift when the source's primary file has a newer version than the snapshot's. A matching quote establishes textual integrity only, not truth.",
+    "Checks the current version unless version is given. Per citation: ok, relocated (text intact at another range, which it gives), text_changed, record_archived, record_deleted or record_missing, plus version_drift when the source's primary file has a newer version than the snapshot's. A matching quote establishes textual integrity only, not truth. valid is true when every citation is ok against the passages of each source's current file; rederived says a source was parsed again since a snapshot, so read those passages before relying on an ok.",
   input: z.strictObject({ page_id: pageId, version: z.number().int().min(1).optional() }),
   rest: { method: "GET", path: "/story/pages/:page_id/check-citations" },
   mcp: { tool: "story", action: "check_citations" },

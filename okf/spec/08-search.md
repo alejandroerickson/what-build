@@ -3,7 +3,7 @@ type: Specification
 title: Search is lexical, bounded, and says exactly what it examined.
 description: The search operation as built (substring, ranked and plain modes, scopes, filters, coverage), dimensions, and the planned retrieval work (dimension registry, attachment tiers, semantic search, approximate relocation, recursive lineage).
 tags: [spec, search, retrieval, coverage]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-13}
 status: stable
 ---
 
@@ -61,6 +61,9 @@ or `kind` or `strict` in another mode, is `422 invalid_filter`.
 - Each passage (segment) is matched on its own, in both modes: `AND`, `OR` and `NOT` combine terms
   within one passage, so words a transcript splits across neighbouring cues never match together.
   The `search` description says so.
+- Queries match each source's parsed text, not its file as written: Markdown emphasis and code
+  markers, HTML tags and a transcript's speaker labels are not in it ([§5.3](05-derived-layer.md)),
+  so a query for the markup or the label finds nothing. The `search` description says so too.
 - Passages are searched over the segments of each source's *current* derivation, primary file
   only. Assumptions are searched over statement and body.
 - Archived sources and assumptions are excluded unless `include_archived`.

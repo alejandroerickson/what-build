@@ -123,6 +123,24 @@ describe("checking citations after a re-parse", () => {
   });
 });
 
+describe("checking citations after a new version of the file", () => {
+  it("is valid once every quote holds in the new file's passages, and not while they are unread", async () => {
+    const recordId = await upload("notes", "record.md", NOTES);
+    const a = await alice.api("POST", `${P}/assumptions`, { statement: "Plans are weekly.", citations: [{ record_id: recordId, seq_start: 1, seq_end: 1, quote: "plan by the week" }] });
+    expect(a.status).toBe(201);
+    const grant = await alice.api("POST", `${P}/sources/${recordId}/uploads`, { path: "record.md", role: "primary" });
+    expect((await fetch(grant.body.url, { method: "PUT", headers: grant.body.headers, body: NOTES + "\nAdded at the end.\n" })).status).toBe(201);
+    const unread = await alice.api("POST", `${P}/assumptions/${a.body.id}/check-citations`, {});
+    expect(unread.body).toMatchObject({ valid: false, rederived: false });
+    expect(unread.body.unverified_note).toMatch(/newer file/);
+    await h.worker.drain();
+    const read = await alice.api("POST", `${P}/assumptions/${a.body.id}/check-citations`, {});
+    expect(read.body).toMatchObject({ valid: true, rederived: true });
+    expect(read.body.unverified_note).toBeUndefined();
+    expect(read.body.citations[0]).toMatchObject({ status: "ok", version_drift: true, derivation_changed: true });
+  });
+});
+
 describe("citing a quote that differs only in markup", () => {
   it("refuses it, and gives the passage's own words to quote", async () => {
     const recordId = await upload("notes", "brief.md", NOTES);

@@ -20,6 +20,23 @@ const FIELD_ALIASES: Record<string, Alias[]> = {
   "story.write_notes": [{ canonical: "notes", alias: "content" }],
 };
 
+/**
+ * Fields a caller sends to the wrong operation because a neighbouring one takes them, and what to
+ * say: refused as unknown, with the hint added to the message.
+ */
+const WRONG_FIELD_HINTS: Record<string, { fields: string[]; hint: string }> = {
+  "derived.text": {
+    fields: ["start", "end", "unit"],
+    hint: " derived(action=\"text\") reads by code-point offset: send offset and limit. start and end, in segments, are read_passage's.",
+  },
+};
+
+/** A hint when a call names a field a neighbouring operation takes, or "". */
+export function wrongFieldHint(op: OperationDef, unknownKeys: string[]): string {
+  const h = WRONG_FIELD_HINTS[op.name];
+  return h && unknownKeys.some((k) => h.fields.includes(k)) ? h.hint : "";
+}
+
 /** The aliases an operation accepts. Canonical names stay as they are, so no caller breaks. */
 export function aliasesOf(op: OperationDef): Alias[] {
   const shape = (op.input as unknown as { shape?: Record<string, unknown> }).shape ?? {};

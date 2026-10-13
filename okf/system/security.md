@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild keeps each organization's material to its own people, and treats agent-written HTML, uploads and source text as hostile
 description: The threat model: what is protected, who the attackers are, the trust boundaries, and each control with where it lives in code and the decision that governs it.
 tags: [security, threat-model, tenancy, identity, oauth, sandbox, uploads]
-generated: {by: agent:claude, at: 2026-10-12}
+generated: {by: agent:claude, at: 2026-10-13}
 status: draft
 ---
 
@@ -185,6 +185,11 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   size (`x-goog-content-length-range`, `directUploadSigning` in `blobs-gcs.ts`), and
   `files.complete_upload` reads the object's size before its bytes, discards one over the grant
   with `413`, and hashes the bytes as it streams them.
+- A mockup canvas uploaded as a ZIP comes through the relay only, under a grant of its own purpose
+  (`mockup_upload`), and is refused to a visitor to the public sandbox, whose text is capped field
+  by field. Publish unpacks it with the parsers' `unzipParts`, which stops at 48 MB unpacked
+  however the archive claims its sizes, takes only the canvas's own entries, and checks every page
+  by the Story's HTML rules as if it had been sent in the call (`packages/core/src/ops/mockups.ts`).
 - File paths refuse traversal, backslashes and control characters (`packages/core/src/media.ts`).
 - Parsing is a pure function of bytes, run by the worker in a worker thread of its own for each
   file, with an empty environment (`apps/server/src/parse-thread.ts`,

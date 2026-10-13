@@ -3,7 +3,7 @@ type: Specification
 title: Every source's primary file is parsed into immutable, passage-addressable text that any client can read by segment or time.
 description: Derivations and when they run, the four sidecars, derivation statuses, the parsers by format, the read_passage contract, and the other derived reads.
 tags: [spec, derived-layer, parsers, passages, sidecars]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-13}
 status: stable
 ---
 
@@ -83,8 +83,10 @@ with one newline.
 
 - Timed sources: one cue per paragraph. The speaker is carried on the segment, not written into
   the text.
-- Untimed transcripts (plain text, Markdown, DOCX): one turn per segment, the speaker on the
-  segment and the `Name:` label removed from the text, as for timed sources.
+- Untimed transcripts (plain text, Markdown, DOCX, DOC): one turn per segment, the speaker on the
+  segment and the `Name:` label removed from the text, as for timed sources. In plain text and
+  Markdown, a turn under a timed label on a line of its own (§5.3) is one segment per paragraph or
+  list item, each with the label's speaker; the label line itself is not in the text.
 - Documents: headings kept as their own segments; a `# Page N` heading per PDF page; each list
   item its own segment, a numbered item keeping its number (`1.`) and a bullet dropping its
   marker; tables (DOCX, HTML, Markdown pipe tables) one segment per row with the header repeated
@@ -151,7 +153,7 @@ extension ([`packages/parsers/src/index.ts`](../../packages/parsers/src/index.ts
 | Format | Notes |
 |---|---|
 | Plain text (`.txt`, `.text`) | Paragraphs split on blank lines; ATX headings become heading segments and feed the outline; each list item (`-`, `*`, `+`, `1.`) and each pipe-table row is its own segment. A transcript is read one turn per segment with its speaker (below). |
-| Markdown (`.md`, `.markdown`) | Everything plain text does, plus setext headings; blockquote markers and thematic breaks dropped; inline emphasis and code markers (`**`, `__`, `*`, `_`, backticks) stripped where they are clearly markup, never inside words or code spans. `**Name:** words` is a speaker turn. |
+| Markdown (`.md`, `.markdown`) | Everything plain text does, plus setext headings; blockquote markers and thematic breaks dropped; inline emphasis and code markers (`**`, `__`, `*`, `_`, backticks) stripped where they are clearly markup, never inside words or code spans. `**Name:** words` is a speaker turn, and `**Name** (14:02 UTC):` on a line of its own a timed label (below). |
 | WebVTT, SRT | Cue timing; speakers from `<v Name>` voice tags and from `Name:` prefixes; caption markup stripped. |
 | DOCX | Headings (a Title above Heading 1), paragraphs, tables, the accepted view of tracked changes, comments. A paragraph in a decimal Word list (numbered directly or by its style) starts with its number as Word counts it (`2.`, `1.1.`); bullets and other number formats (letters, roman numerals) get no marker. `Name: words` paragraphs, including a bold `Name:` run, are speaker turns in a transcript (below). |
 | DOC (`.doc`, `application/msword`) | The format is read from the file's first bytes, never from its name, and the `doc_format` fact records it. A **Word binary document** (an OLE2 compound file) from Word 97-2003 (`word97`), or from Word 6.0 or Word 95 (`word6`), gives its main text through the piece table, with 8-bit Windows-1252 and UTF-16 pieces: one segment per paragraph, built-in heading styles (Title, Subtitle, Heading 1-9) as headings at DOCX's levels, tables one segment per row with the header repeated as in DOCX, field results kept and field codes dropped, page and section breaks as paragraph breaks, and `Name: words` paragraphs as speaker turns in a transcript. Word 97 tables come from the paragraphs' table flags; Word 6 tables are inferred from cell marks, the first row setting the width. Headers, footnotes, comments and list numbers are not read. Encrypted documents, fast-saved Word 6 and Word 95 documents and Word 2 and older documents fail with the reason. A **DOCX package** under a `.doc` name is read by the DOCX parser (`docx`); a **MIME HTML** file (Word's "Web Page" save, wiki Word exports) has its first `text/html` part, quoted-printable or base64, read by the HTML parser (`mhtml`); **plain HTML** is read by the HTML parser in the character set its `<meta>` declares (`html`). Rich Text Format and anything else fail with the reason, as does HTML with no readable text. |
@@ -166,7 +168,18 @@ it was saved as. A file is a transcript when it has at least four lines (paragra
 least 60% of them are `Name:` turns (a capitalised name of up to 41 characters, or a bracketed
 label, optionally after a timestamp), and at least half of those turns come from a name that speaks
 more than once. The last condition keeps field lines such as `Project:`, `Date:` and `Location:`, and
-an occasional `Note:`, as prose.
+an occasional `Note:`, as prose. A short aside in brackets may stand between the name and the colon,
+`Dana (14:02 UTC): words`; the aside is dropped and the speaker is `Dana`.
+
+Plain text and Markdown also read a transcript whose turns start with a **timed label on a line of
+its own**, the words in the paragraphs below it: `Dana (14:02 UTC):` (in Markdown also
+`**Dana** (14:02 UTC):`) or `[14:02] Dana:`. The name may say what the speaker is, with a comma:
+`Sam, agent (14:03 UTC):`. The time, in the aside or before the name, is required, so a line such as
+`Attendees:` is never taken for a label. A file is read this way when it has at least four such
+labels and at least half of them are by a name that recurs. Each paragraph and list item after a
+label is then a segment with that speaker, until the next label, an inline turn, a heading or a
+thematic break. In such a file an inline `Name: words` line is a turn only when `Name` is one of the
+labels' speakers, so a line like `Decision: ship it` inside a turn stays that speaker's words.
 
 - No speech-to-text and no OCR in the product. A recording is stored, playable, and awaits a
   transcript. (An agent with its own transcription tool can add one as a file with

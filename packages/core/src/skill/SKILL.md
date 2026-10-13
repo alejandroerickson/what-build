@@ -147,6 +147,27 @@ parser reads (a primary cannot be replaced, so upload a PDF export as the primar
 original as `origin`), a source with the same title and date, a source that still has no
 primary, and a fetched URL's `#fragment`, which never reaches the server.
 
+## How a file becomes passages
+
+The primary is parsed into passages (segments), numbered `seq` from 0, which search returns and
+citations point at. Knowing how lets you write a file that cites well, and change one safely.
+
+- **Text and Markdown:** a paragraph (lines up to a blank line), an ATX or setext heading, a list
+  item and a table row are each a segment; a fenced code block is one. A paragraph over 2,000
+  characters is split at sentence ends into several. Emphasis and code markers are taken out of the
+  text, so quote the words, not the markup.
+- **Transcripts with speakers.** WebVTT and SRT give each cue its times and speaker. An untimed file
+  (text, Markdown, Word) is read as a transcript when most of its lines are turns, `Name: words`,
+  optionally after a clock (`[00:01:02] Dana: …`) or with `**Name:**` in bold; each turn is a
+  segment with its speaker. A record of a working session can instead put a label with a time on a
+  line of its own, `**Dana** (14:02 UTC):` or `**Sam, agent** (14:03 UTC):`, and the turn's
+  paragraphs below it: each paragraph and list item is a segment with that speaker, until the next
+  label or a heading. It takes at least four labels, most by names that speak more than once.
+- **A new version renumbers.** Uploading a new version of a primary parses it again, and segment
+  numbers follow the new text: an edit early in a file moves every later number. Adding text at
+  the end leaves earlier numbers as they were. Afterwards run `check_citations` on what cites the
+  source: a quote found at another range is `relocated`, with the new range.
+
 ## The idea: product concept and outcomes
 
 The product concept is the product's `concept` field (`products(action="get")`; admins change it
@@ -177,7 +198,8 @@ success looks like for them. Keep the active set small. Link assumptions to outc
   the product's counts count; `not_current_hidden` says how many refuted or superseded ones it left
   out. Pass `status` to list those, for example before recording a premise the team already refuted.
 - `check_citations` reports whether cited passages still say what was quoted. A matching quote shows
-  textual integrity, not truth.
+  textual integrity, not truth. `valid` is true when every citation is `ok` against each source's
+  current file; `rederived` says a source was parsed again since a snapshot.
 - `derived(action="rederive")` parses a source again. It is done when `derived(action="manifest")`
   shows a `derivation_id` other than the `previous_derivation_id` it returned. Afterwards,
   `check_citations` marks each citation whose source was parsed again with `derivation_changed`;
@@ -248,8 +270,17 @@ sandbox.
   earlier version. Every version stays readable.
 - **Build the next version where you work.** `get_download` gives a version as a ZIP through a
   short-lived grant: `brief.md`, `manifest.json`, each page as `pages/<page_id>.html` with
-  `pages/<page_id>.notes.md`, and the version's files under `files/`. Unzip it in a project, change the pages there, then publish the pages
-  that changed. Keep the grant header out of reports.
+  `pages/<page_id>.notes.md`, and the version's files under `files/`. Unzip it in a project, change
+  the pages there, and publish the next version. Keep the grant header out of reports.
+- **Upload pages; never type them into a call.** A page's HTML is the bytes of a file, so send it
+  the way you send a source: zip the canvas in the download's layout,
+  `mockups(action="request_upload")`, PUT the ZIP to its `url` with its `headers`, then
+  `publish { upload_id }` (with `mockup_id` and the etag for a later version, and `refs` or
+  `citations` if they change). `manifest.json` lists every page in order (`page_id`, and `title`,
+  `width`, `height` for a new one or a change); a page whose HTML or notes the ZIP leaves out keeps
+  them, so a ZIP of a later version need hold only the pages that changed. The files it lists, or
+  else the ones under `files/`, are the whole set. One publish reads an upload; compare each page's
+  `html_sha256` with your own files' hashes. Send a page's HTML inline only for a small page.
 - `check_citations` reports whether a version's passages still say what was quoted. A version
   holds at most 24 pages and 8,000,000 characters of HTML; a product holds at most 50 mockups.
 
@@ -281,6 +312,10 @@ WhatBuild's own look — it is the team's document, often read outside the team.
   `house_style` shows one in full) — and adopt their pick with `set_style { house_style }`. People
   can preview every house style in the web app (the Story style section under the Story's page
   tree). When a Story needs something the style lacks, add it to the style, not to one page.
+  `specimen_html` is optional: without it the app previews the style on its own sample page, which
+  uses the guidance's shared vocabulary. Give a specimen only for a team style that adds components
+  of its own: a whole page in the style, stylesheet included, that shows each of them once with
+  plausible content.
 - **Publish the body, not the stylesheet.** `publish { body }` takes only the markup inside
   `<body>`, usually one `<main class="page">`, and wraps it in a document with the product's Story
   style. You never send the stylesheet, and every page carries the same one. Send `html` only for

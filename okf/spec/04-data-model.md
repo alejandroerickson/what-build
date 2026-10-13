@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, files, annotations, what uses a source, the assumption register and citations, views and lineage, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, citations, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-10-12}
+generated: {by: agent:claude, at: 2026-10-13}
 status: stable
 ---
 
@@ -88,7 +88,7 @@ product concept ([§3.4](03-accounts-teams-and-identity.md)) on the Idea screen.
 | `title` | 1–200 chars. |
 | `description` | Markdown, 0–2,000 chars. |
 | `status` | `active` (default), `achieved`, `archived`. |
-| `position` | Ordering key within the product; new outcomes go last; reorder is an update. |
+| `position` | Ordering key within the product. `create` takes one to place a new outcome (a value between two others' positions puts it between them); omitted, it goes last. Reorder is an update. |
 
 Assumptions, and Story and mockup versions, point *to* outcomes; outcomes hold no outgoing
 references. Reads return `counts.assumptions`: the current (`unconfirmed` or `confirmed`)
@@ -342,6 +342,15 @@ version or a re-derive), and then `current_derivation_id` names the derivation c
 `ok` with `derivation_changed` says only that the quote is still in the range; the range's edges may
 cover different text, so read the passage before relying on it.
 
+The result's top-level `valid` is true when every citation is `ok` against the passages of its
+source's current file. A newer file version is not by itself a reason for `false`: once the new file
+is parsed and every quote holds in it, the citations are valid, with `version_drift` still reported
+on each. `valid` is false while a cited source has a newer file whose passages have not been read
+(its parse is pending or failed: `version_drift` without `derivation_changed`), because the quote was
+then checked against the earlier file; the result then carries `unverified_note`, which says to check
+again once the source's `derived_status` is `ready`. `rederived` is true when any citation has
+`derivation_changed`.
+
 Against a newer derivation the quote is looked for exactly first. If that fails it is matched again
 with emphasis and code markers (`*`, `_` at a word edge, backticks), runs of whitespace, and a
 `Name:` label at the start of a line set aside on both sides, the label only when the name is a
@@ -578,6 +587,10 @@ one HTML document for a browser to print to PDF ([§6.4](06-operations-and-adapt
   page out of the order. `set_hierarchy` refuses a page showing a mockup page in the tree, and any
   other page in `mockups` (`422 invalid_hierarchy`).
 
+`set_hierarchy` takes the hierarchy's etag as `expected_etag`. Before the first save there is none
+(`get_hierarchy` gives `etag: null`), and `expected_etag` is null or left out; once saved, leaving
+it out is `409 stale_etag`, saying to read `get_hierarchy` and pass its etag.
+
 Every published page appears exactly once, in the tree or among the Published mockups
 ([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)).
 
@@ -669,6 +682,41 @@ follows the Story's HTML rules (§4.11) and is checked at publish (`422 invalid_
 HTML was checked when it was first published.
 ◆ Decision: a version is the whole canvas, not one page. The pages of a canvas are read and
 compared together, so they are published, numbered and downloaded together.
+
+**Uploading a canvas.** An agent can send a canvas as a ZIP instead of putting its pages' HTML in
+the call. `mockups.request_upload { size? }` returns a grant, `{ upload_id, method: "PUT", url,
+headers, max_bytes, expires_at, next }`, for one PUT of the ZIP to the upload relay (§6.7); a
+`size` over `max_bytes` is refused at once (`413 too_large`). `max_bytes` is 25 MB, or the relay's
+limit when that is lower. A visitor to a public sandbox is refused (`403`): a visitor's text is
+capped field by field, so a visitor publishes pages in the call. `mockups.publish { upload_id }`
+then reads the ZIP, in `get_download`'s layout, so a downloaded version round-trips:
+
+- `manifest.json` lists the canvas's pages in order, `[{ page_id, title?, width?, height? }]`, and
+  may give `title`, `summary`, `columns` and `files` (`[{ path }]`). Its other fields, `refs` and
+  `citations` among them, are not read: those are passed in the call.
+- `brief.md` is the brief; `pages/<page_id>.html` and `pages/<page_id>.notes.md` hold a page's
+  HTML and notes; `files/<path>` holds a file.
+- One folder around everything is allowed, and the litter of ZIP tools (`__MACOSX/`, `.DS_Store`,
+  folder entries) is ignored. Anything else, a page file for a page the manifest does not list, a
+  file that is not UTF-8, or an empty or oversized page is refused, with every problem listed at
+  once (`422 invalid_upload`). The ZIP is at most 48 MB unpacked, and is read without unpacking
+  more than that.
+
+A page whose HTML or notes the ZIP leaves out keeps the base version's, so a ZIP may carry only the
+pages that changed, with every page still listed. When `manifest.json` lists `files`, that list is
+the whole set and a listed path missing from `files/` keeps the base's content; without a list,
+the files under `files/` are the whole set; with neither, the version keeps the base's files. The
+call may not also send `pages` or `files` (`422 invalid_input`), nor a `brief` when the ZIP has
+`brief.md`; a `title`, `summary` or `columns` in the call wins over the manifest's. Everything
+else (`mockup_id`, `expected_etag`, `refs`, `citations`, `from_version`) is passed as usual, and the
+pages' HTML is checked as if it had been sent.
+
+The ZIP is read before the transaction, so a large one holds no database connection. An upload is
+published once: publish marks it used, and a second publish of it is `409 upload_used`; one whose
+bytes have not arrived is `404`. After publishing, its bytes are deleted and the result names
+`from_upload`. The grant's state is a `mockup_uploads` row (who asked, the product, the expiry,
+when the bytes arrived, their size and SHA-256, when publish used them and for which version);
+how long it is kept is in §9.2.
 
 **Rendering.** A page's HTML is served by `GET …/mockups/{mockup_id}/versions/{n}/pages/{page_id}/html`
 with the Story's sandbox: the same Content-Security-Policy and frame, and the same frame script
