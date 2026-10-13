@@ -39,6 +39,7 @@ export const NOT_IN_BASELINE: Record<string, string> = {
   sandbox_baseline_rows: "The baselines themselves.",
   jobs: "Work in progress; a reset drops what has not run.",
   upload_grants: "An upload in progress does not outlive a reset.",
+  mockup_uploads: "An upload in progress does not outlive a reset.",
   exports: "A visitor's export does not outlive a reset.",
   feedback: "Goes to the maintainers, and names no tenant.",
 };
@@ -77,9 +78,10 @@ async function liveBlobs(trx: Db, tenantId: string): Promise<BlobRefs> {
   const versions = await trx.selectFrom("file_versions").select("blob_key").where("tenant_id", "=", tenantId).execute();
   const grants = await trx.selectFrom("upload_grants").select("blob_key").where("tenant_id", "=", tenantId).where("uploaded_at", "is not", null).execute();
   const exports = await trx.selectFrom("exports").select("blob_key").where("tenant_id", "=", tenantId).execute();
+  const canvases = await trx.selectFrom("mockup_uploads").select("blob_key").where("tenant_id", "=", tenantId).where("uploaded_at", "is not", null).where("used_at", "is", null).execute();
   const derivations = await trx.selectFrom("derivations").select("blob_prefix").where("tenant_id", "=", tenantId).execute();
   return {
-    keys: new Set([...versions, ...grants, ...exports].map((r) => r.blob_key).filter((k): k is string => Boolean(k))),
+    keys: new Set([...versions, ...grants, ...exports, ...canvases].map((r) => r.blob_key).filter((k): k is string => Boolean(k))),
     prefixes: new Set(derivations.map((d) => d.blob_prefix)),
   };
 }
@@ -204,7 +206,7 @@ export async function resetToBaseline(
   const before = await liveBlobs(trx, tenantId);
 
   await sql`delete from jobs where tenant_id = ${tenantId} and done_at is null and kind in ('derive', 'export', 'move_to_evidence')`.execute(trx);
-  for (const table of ["exports", "upload_grants", ...[...BASELINE_TABLES].reverse()])
+  for (const table of ["exports", "upload_grants", "mockup_uploads", ...[...BASELINE_TABLES].reverse()])
     await sql`delete from ${sql.table(table)} where tenant_id = ${tenantId}${contentOf(table)}`.execute(trx);
   await trx.deleteFrom("sandbox_usage").where("tenant_id", "=", tenantId).execute();
 

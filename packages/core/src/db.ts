@@ -359,6 +359,23 @@ export interface UploadGrantsTable {
   created_at: Ts;
 }
 
+/** A ZIP of a mockup canvas on its way to mockups.publish: the grant's state and the bytes' place. */
+export interface MockupUploadsTable {
+  upload_id: string;
+  tenant_id: string;
+  product_id: string;
+  blob_key: string;
+  max_bytes: number;
+  principal: Json<ActorSnapshot>;
+  expires_at: Ts;
+  uploaded_at: TsNull;
+  size: number | null;
+  sha256: string | null;
+  used_at: TsNull;
+  used_by_version_id: string | null;
+  created_at: Ts;
+}
+
 export interface DerivationsTable {
   derivation_id: string;
   tenant_id: string;
@@ -783,6 +800,7 @@ export interface DB {
   files: FilesTable;
   file_versions: FileVersionsTable;
   upload_grants: UploadGrantsTable;
+  mockup_uploads: MockupUploadsTable;
   derivations: DerivationsTable;
   segments: SegmentsTable;
   annotations: AnnotationsTable;

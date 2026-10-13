@@ -24,16 +24,18 @@ async function upload(tag: string, path: string, body: string | Uint8Array) {
   const recordId: string = created.body.record.record_id;
   const put = await fetch(created.body.upload.url, { method: "PUT", headers: created.body.upload.headers, body });
   expect(put.status).toBe(201);
-  const putBody = (await put.json()) as { next: string };
+  const putBody = (await put.json()) as { next: string; file: Record<string, unknown> };
   const completed = await alice.api("POST", `${P}/sources/${recordId}/uploads/complete`, { record_id: recordId, path });
   expect(completed.status).toBe(200);
-  return { recordId, putNext: putBody.next, completed: completed.body };
+  return { recordId, putNext: putBody.next, putFile: putBody.file, completed: completed.body };
 }
 
 describe("what upload, read and search say about a source", () => {
   it("tells the truth about a primary before and after parsing", async () => {
-    const { putNext, completed } = await upload("notes", "visit.md", "# Visit\n\n- Crews text the office.\n- Nobody called it a crisis.\n");
-    expect(putNext).toMatch(/^Received\. Now call files\(action="complete_upload"\)/);
+    const { putNext, putFile, completed } = await upload("notes", "visit.md", "# Visit\n\n- Crews text the office.\n- Nobody called it a crisis.\n");
+    // The PUT attaches the file and says what will happen to it; complete_upload only confirms.
+    expect(putNext).toMatch(/^Attached: .*No complete_upload is needed/);
+    expect(putFile).toMatchObject({ search_status: "pending", searchable: false, note: expect.stringMatching(/being parsed/) });
     expect(completed).toMatchObject({ search_status: "pending", searchable: false });
     expect(completed.note).toMatch(/being parsed/);
     await h.worker.drain();

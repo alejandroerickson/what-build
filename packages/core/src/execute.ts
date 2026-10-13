@@ -3,7 +3,7 @@ import type { z } from "zod";
 import { json, type ActorSnapshot, type Db } from "./db.ts";
 import { checkConnectorScope, type ConnectorScope } from "./connector-scope.ts";
 import { AppError, conflict, invalid } from "./errors.ts";
-import { resolveAliases } from "./field-aliases.ts";
+import { resolveAliases, wrongFieldHint } from "./field-aliases.ts";
 import { resolveScope, type ScopeRef } from "./policy.ts";
 import type { Ports } from "./ports.ts";
 import { capRole, connectionNeeds, LEVEL_NAMES, levelAllows, type OpContext, type OperationDef, type Principal, type Scope } from "./registry.ts";
@@ -33,11 +33,11 @@ const RETIRED_SOURCE_FIELDS = new Set(["kind", "organization", "folder"]);
 const RETIRED_SOURCE_HINT =
   " Sources have no kind, organization or folder any more: say what the material is and whom it concerns with tags, reusing the ones sources(action=\"facets\") lists.";
 
-/** A hint when a call to a sources, files or search operation names a field sources no longer have. */
+/** A hint for fields the call named that this operation does not take: ones sources no longer have, or a neighbouring operation's. */
 function retiredFieldHint(op: OperationDef, error: z.ZodError): string {
-  if (!["sources", "files", "search"].includes(op.mcp.tool)) return "";
-  const named = error.issues.some((i) => i.code === "unrecognized_keys" && (i as { keys: string[] }).keys.some((k) => RETIRED_SOURCE_FIELDS.has(k)));
-  return named ? RETIRED_SOURCE_HINT : "";
+  const unknown = error.issues.filter((i) => i.code === "unrecognized_keys").flatMap((i) => (i as { keys: string[] }).keys);
+  const retired = ["sources", "files", "search"].includes(op.mcp.tool) && unknown.some((k) => RETIRED_SOURCE_FIELDS.has(k));
+  return (retired ? RETIRED_SOURCE_HINT : "") + wrongFieldHint(op, unknown);
 }
 
 export function parseInput<I extends z.ZodType>(op: OperationDef<I>, raw: unknown): z.output<I> {

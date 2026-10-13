@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:codex, at: 2026-10-12}
+generated: {by: agent:claude, at: 2026-10-13}
 status: stable
 ---
 
@@ -31,8 +31,9 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   window and record recovery details as described in [the Azure guide](azure.md#deploying-a-new-version).
   Deployment pipelines need read access to the database server and its configured name.
 
-- **Migrations `0020_connection_levels` and `0021_tombstones_per_product`.** The first adds a level
-  to every agent connection; the second re-keys tombstones by product. Rehearse on the dev
+- **Migrations `0020_connection_levels`, `0021_tombstones_per_product` and `0022_mockup_uploads`.**
+  The first adds a level to every agent connection; the second re-keys tombstones by product; the
+  third adds one table, for mockup canvases uploaded as a ZIP. Rehearse on the dev
   deployment first ([dev-deployment](dev-deployment.md)); going back to an earlier release means
   restoring the database ([recovering from a bad release](recovering-from-a-bad-release.md)),
   though an earlier release also runs on the new schema.
@@ -45,8 +46,31 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   editor who deleted sources asks an admin, or archives.
 - **An organization's owner can delete the organization**, from its Members page in the web app.
   Nothing to set. It is immediate and can't be undone; a public sandbox can't be deleted.
-- **The skill is now 0.23.0.** Connected agents see the new delete actions, and the levels, after
-  starting a new session.
+- **Transcripts read speaker labels with an aside, and timed labels on a line of their own.**
+  Nothing to set. `Dana (14:02 UTC): words` is now a turn by Dana, and in plain text and Markdown a
+  transcript whose turns start with `**Dana** (14:02 UTC):` or `[14:02] Dana:` alone on a line gives
+  each paragraph below it Dana as its speaker. Sources already parsed keep their passages until
+  they are parsed again (`derived.rederive`); an agent that rederives one should check the
+  citations that rest on it afterwards.
+- **`check_citations` reports `valid` when every quote holds in a source's newer file**, and says
+  whether a source was parsed again since a snapshot (`rederived`). Nothing to set. A newer file
+  not yet parsed still makes it `false`, with `unverified_note`.
+- **`files.create_uploads` creates up to 20 sources with a grant each in one call**, and a PUT to
+  a grant's own URL now says the file is attached, with no `complete_upload` to follow. Nothing to
+  set; `complete_upload` still works, and is still needed after a PUT to a `direct` URL.
+- **Citations follow their quote after a source is parsed again.** Nothing to set. A citation's
+  link in the app opens where its quote is now, the passages marked as cited move with it, and
+  `sources.used_by` gives each citation's current range (`moved_from`, `quote_not_found`). Stored
+  citations are not changed.
+- **The Story's PDF shows dates in the reader's time zone.** Nothing to set. The print view's dates
+  were UTC.
+- **The skill is now 0.24.0.** Connected agents see the new delete actions, the levels, mockups'
+  `request_upload` (upload a canvas as a ZIP instead of sending page HTML) and `files.create_uploads`
+  after starting a new session. It also tells them:
+  - to give the person times in their own time zone;
+  - to keep a page of what waits on the person in the Story;
+  - to upload a digest of a session whose findings the team will need;
+  - to publish a canvas whole rather than over several versions.
 
 ## v0.8.4
 

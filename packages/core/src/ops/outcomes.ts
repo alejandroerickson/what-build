@@ -104,11 +104,12 @@ export const createOutcome = defineOperation({
   mutates: true,
   summary: "Add an outcome: something the product's users should be able to achieve with it, not a feature or a task.",
   description:
-    "Name what the user achieves, from their side (\"The crew lead plans next week in minutes\"), and in the description what success looks like for them. Not a feature list or a task list. Keep the active set small. New outcomes go to the end of the order.",
+    "Name what the user achieves, from their side (\"The crew lead plans next week in minutes\"), and in the description what success looks like for them. Not a feature list or a task list. Keep the active set small. A new outcome goes to the end of the order unless position places it.",
   input: z.strictObject({
     title: z.string().trim().min(1).max(200),
     description: z.string().max(2000).default("").describe("Markdown, up to 2,000 characters."),
     status: STATUS.default("active"),
+    position: z.number().optional().describe("Ordering key, as on update: to place the outcome between two others, use a value between their positions. Omit to put it last."),
   }),
   rest: { method: "POST", path: "/outcomes" },
   mcp: { tool: "outcomes", action: "create" },
@@ -119,7 +120,7 @@ export const createOutcome = defineOperation({
       .insertInto("outcomes")
       .values({
         outcome_id, tenant_id: tenantId(ctx), product_id: productId(ctx), title: input.title, description: input.description,
-        status: input.status, position: Number(last?.p ?? 0) + 1, etag: newEtag(), created_by: json(ctx.actor), updated_by: json(ctx.actor),
+        status: input.status, position: input.position ?? Number(last?.p ?? 0) + 1, etag: newEtag(), created_by: json(ctx.actor), updated_by: json(ctx.actor),
       })
       .execute();
     await recordActivity(ctx, { action: "created", entity_type: "outcome", entity_id: outcome_id, entity_title: input.title, summary: `Added an ${input.status} outcome` });

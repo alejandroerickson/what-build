@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, the public sandbox with its limits, baseline and reset, and how retired insights and decisions became sources.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, sandbox]
-generated: {by: agent:claude, at: 2026-10-12}
+generated: {by: agent:claude, at: 2026-10-13}
 status: stable
 ---
 
@@ -126,6 +126,7 @@ running on free tiers without a compliance program.
 | Files per source | 50 | Yes — `409 too_many_files` |
 | Story pages | 50 per product | Yes — `409 quota_exceeded`, quota `story_pages` |
 | Mockups | 50 per product, archived ones included; 24 pages and 8,000,000 characters of HTML, and 50 files and 2,000,000 characters of files, in a version | Yes — `409 quota_exceeded`, quota `mockups`; `422` for a version |
+| A mockup canvas uploaded as a ZIP | 25 MB packed, or the relay's limit when lower; 48 MB unpacked | Yes — `413 too_large`; `422 invalid_upload` past the unpacked size |
 | REST or MCP request body | 5 MB | Yes — `413 too_large` (MCP: `413` with a JSON-RPC error) |
 | Sign-in and OAuth request body | 64 KB | Yes — `413` |
 | Sign-in links | 5 per address per hour | Yes — `429 rate_limited` |
@@ -203,6 +204,13 @@ from backup on request. The product-level answer to "I broke it" is:
 | Superseded assumptions — corrections never overwrite | [§4.8](04-data-model.md) |
 | Archive and restore — for sources, assumptions, annotations, outcomes, Story pages, mockups, products | §9.5 |
 | Activity — who changed what, when, through which surface | [§4.10](04-data-model.md) |
+
+**Uploads on their way in are not kept.** A mockup canvas uploaded as a ZIP
+([§4.12](04-data-model.md)) is read once, by the publish that names it, and its bytes are deleted
+once that version is published; the row that recorded the upload goes 7 days later. One never
+published goes, with its bytes, a day after its grant expired. The worker's hourly housekeeping
+does both (`apps/server/src/worker.ts`), as it removes the bytes of a file upload nobody
+completed.
 
 Not versioned, deliberately: source metadata edits (the activity log names the operation and the
 actor, which is enough to understand and redo), and any future embeddings (rebuildable, so
@@ -333,11 +341,12 @@ Everything that can be archived can also be deleted, and so can an organization:
     that page is deleted, or published with HTML of its own, first. An earlier Story page version
     that showed it then shows nothing.
   - A product: everything in it, archived or not (concept, outcomes, sources, comments,
-    assumptions, mockups, the Story, exports, revisions, its activity and its tombstones), the
+    assumptions, mockups and canvases uploaded for them, the Story, exports, revisions, its
+    activity and its tombstones), the
     roles and invitations on it alone, and its bytes, except those a copy in another product still
     uses. Allowed while it is archived.
   - An organization: every team and product with all they hold, its activity, every role and
-    invitation in it, its jobs, and its bytes. Its people keep their accounts and their roles
+    invitation in it, its jobs, its uploads in progress, and its bytes. Its people keep their accounts and their roles
     elsewhere; feedback sent to the maintainers is kept. A public sandbox can't be deleted
     (`409 sandbox_organization`): its staff close it to visitors instead.
 - Story page and mockup versions that name a deleted assumption or outcome in their refs keep
@@ -497,8 +506,8 @@ the activity events that belong to a product. Each row is held
 as JSON, without its generated columns, with its ids.
 
 - **Not in a baseline:** memberships and invitations of either kind, because access is not
-  content; the sandbox's own settings, counters and baselines; jobs, uploads in progress and
-  exports; and the organization's own activity events. A test requires every table with a
+  content; the sandbox's own settings, counters and baselines; jobs, uploads in progress (a
+  source's file or a mockup canvas) and exports; and the organization's own activity events. A test requires every table with a
   `tenant_id` to be on one list or the other.
 - **Blobs are referred to, never copied.** They are immutable and keyed by file version.
 - **It holds what is there**, what visitors added included. Staff who want it clean reset first,

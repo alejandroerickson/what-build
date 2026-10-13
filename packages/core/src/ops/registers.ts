@@ -524,7 +524,7 @@ function registerOps(): OperationDef[] {
     mutates: false,
     summary: `Re-resolve every citation of a ${kind} against the sources as they are now. Reports drift; never rewrites.`,
     description:
-      "Per citation: ok, relocated (text intact at another range, which it gives), text_changed, record_archived, record_deleted or record_missing, plus version_drift when the source's primary file has a newer version than the snapshot's. A matching quote establishes textual integrity only, not truth. Check after a re-parse before relying on a conclusion.",
+      "Per citation: ok, relocated (text intact at another range, which it gives), text_changed, record_archived, record_deleted or record_missing, plus version_drift when the source's primary file has a newer version than the snapshot's. A matching quote establishes textual integrity only, not truth. Check after a re-parse before relying on a conclusion. valid is true when every citation is ok against the passages of each source's current file; rederived says a source was parsed again since a snapshot, so read those passages before relying on an ok.",
     input: z.strictObject({ id: idField }),
     rest: { method: "POST", path: `/${tool}/:id/check-citations` },
     mcp: { tool, action: "check_citations" },

@@ -171,6 +171,14 @@ export function fileTypeName(mediaType: string | null | undefined, path?: string
   return t || "Unknown type";
 }
 
+type Range = { seq_start: number; seq_end: number };
+
+/** Where a citation's link opens: where the check found the quote now, the stored range, or the source's start once its quote is gone. */
+export function citedAt(c: Range, check?: { status: string; relocated?: Range | null }): Range | null {
+  if (check?.status === "relocated" && check.relocated) return check.relocated;
+  return check?.status === "text_changed" ? null : c;
+}
+
 /**
  * What a citation check says beyond its status, in words: a quote found only once formatting was
  * set aside, a newer primary file, or a re-parse of the same file since the citation was made.

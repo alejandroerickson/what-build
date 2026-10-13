@@ -16,6 +16,7 @@ export { MAX_PDF_PAGES } from "./pdf.ts";
 export { recordingDurationMs, type ByteReader } from "./media.ts";
 export { DEFAULT_PARSE_CAP_BYTES } from "./types.ts";
 export { HtmlLimitError, MAX_HTML_DEPTH, parseHtml } from "./html.ts";
+export { unzipParts } from "./zip.ts";
 
 export const RECORDING_EXTENSIONS = [
   ".mp3", ".mp4", ".m4a", ".wav", ".mov", ".webm", ".mkv", ".aac", ".flac", ".ogg", ".wma", ".m4v", ".opus",

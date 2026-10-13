@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
-import { attribution, citationCheckWords, formatCue, nestQuotes, plural, relativeTime } from "../lib/format.ts";
+import { attribution, citationCheckWords, citedAt, formatCue, nestQuotes, plural, relativeTime } from "../lib/format.ts";
 import { findByTitle } from "../lib/fuzzy.ts";
 import { Markdown, passageHref } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
@@ -231,10 +231,10 @@ function CitationRow({ c, check, checking }: { c: CitationView; check?: Citation
   const { app } = useProduct();
   const tone = check ? toneFor("citation", check.status) : "neutral";
   const good = check?.status === "ok" && !check.version_drift;
-  const at = check?.status === "relocated" && check.relocated ? check.relocated : c;
+  const at = citedAt(c, check);
   return (
     <li className="entry-cite-row">
-      <Link className="entry-cite-address num" to={passageHref(app, c.record_id, at.seq_start, at.seq_end)} aria-label={`${span(c.seq_start, c.seq_end)} in ${c.source_title ?? "the source"}`}>
+      <Link className="entry-cite-address num" to={passageHref(app, c.record_id, at?.seq_start, at?.seq_end)} aria-label={`${span(c.seq_start, c.seq_end)} in ${c.source_title ?? "the source"}`}>
         {span(c.seq_start, c.seq_end)}
       </Link>
       <div className="entry-cite-main">

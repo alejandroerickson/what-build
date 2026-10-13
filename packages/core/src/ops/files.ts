@@ -114,8 +114,8 @@ async function issueGrant(
     expires_at: expiresAt.toISOString(),
     ...(direct ? { direct } : {}),
     next:
-      "PUT the file's raw bytes to url with exactly these headers (one request, no multipart), then call files(action=\"complete_upload\") with record_id and path. " +
-      (direct ? "For a file over max_bytes use `direct` instead: PUT to direct.url with direct.headers, then complete the same way. " : "") +
+      "PUT the file's raw bytes to url with exactly these headers (one request, no multipart). A 201 means the file is attached, and its response says whether it will be searched; no complete_upload is needed. " +
+      (direct ? "For a file over max_bytes use `direct` instead: PUT to direct.url with direct.headers, then call files(action=\"complete_upload\") with record_id and path to attach it. " : "") +
       "Keep the grant header out of reports and logs.",
   };
 }
@@ -137,7 +137,7 @@ export const requestUpload = defineOperation({
   mutates: true,
   summary: "Get a short-lived grant to PUT one file's bytes to a source. Never pass file bytes through a tool call.",
   description:
-    `Returns {url, method: "PUT", headers, max_bytes, expires_at, warnings}; warnings flag a primary no parser reads, before any bytes move. Send the local file's bytes with your own shell or HTTP tool (curl -T file -H …), then call complete_upload. Grants are single-file, create-only, and expire. ${SEARCH_RULE} Never encode file content as base64 in a tool argument; if you cannot reach the URL, ask the person to use the web upload instead.`,
+    `Returns {url, method: "PUT", headers, max_bytes, expires_at, warnings}; warnings flag a primary no parser reads, before any bytes move. Send the local file's bytes with your own shell or HTTP tool (curl -T file -H …); a 201 from url means the file is attached. Only a PUT to a \`direct\` url needs complete_upload afterwards. Grants are single-file, create-only, and expire. ${SEARCH_RULE} Never encode file content as base64 in a tool argument; if you cannot reach the URL, ask the person to use the web upload instead.`,
   input: z.strictObject({ record_id: id("source"), ...requestUploadInput }),
   rest: { method: "POST", path: "/sources/:record_id/uploads" },
   mcp: { tool: "files", action: "request_upload" },
@@ -149,6 +149,20 @@ export const requestUpload = defineOperation({
   },
 });
 
+const createUploadInput = z.strictObject({ ...recordMetadata, ...requestUploadInput });
+
+/** Create one source and a grant for its first file. */
+async function createWithUpload(ctx: OpContext, input: z.output<typeof createUploadInput>) {
+  checkPath(input.path);
+  const { path, role, media_type, size, derived_from, derivation_note, derived_by, ...meta } = input;
+  const warnings = [...(await duplicateWarnings(ctx, meta)), ...unparsedPrimaryWarnings(path, role, media_type)];
+  const r = await insertRecord(ctx, meta);
+  const upload = await issueGrant(ctx, r.record_id, { path, role, media_type, size, derived_from, derivation_note, derived_by });
+  return { record: recordSummary(r, { derived_status: "pending", segment_count: 0, file_count: 0 }), upload, warnings };
+}
+
+export const CREATE_UPLOADS_MAX = 20;
+
 export const createUpload = defineOperation({
   name: "files.create_upload",
   scope: "product",
@@ -156,17 +170,37 @@ export const createUpload = defineOperation({
   mutates: true,
   summary: "Create a source and get an upload grant for its first file, in one call.",
   description:
-    "Takes sources.create's metadata plus the file's path and role. Returns {record, upload, warnings}; PUT the bytes to upload.url with upload.headers, then call complete_upload. Read warnings first: they flag a primary no parser reads, and an existing source with the same title and date. Prefer a digest to a bulk upload for long or mostly off-topic documents, and keep the original as an origin file.",
-  input: z.strictObject({ ...recordMetadata, ...requestUploadInput }),
+    "Takes sources.create's metadata plus the file's path and role. Returns {record, upload, warnings}; PUT the bytes to upload.url with upload.headers, and a 201 means the file is attached. For several sources at once, use create_uploads. Read warnings first: they flag a primary no parser reads, and an existing source with the same title and date. Prefer a digest to a bulk upload for long or mostly off-topic documents, and keep the original as an origin file.",
+  input: createUploadInput,
   rest: { method: "POST", path: "/sources/with-upload" },
   mcp: { tool: "files", action: "create_upload" },
   async handler(ctx, input) {
-    checkPath(input.path);
-    const { path, role, media_type, size, derived_from, derivation_note, derived_by, ...meta } = input;
-    const warnings = [...(await duplicateWarnings(ctx, meta)), ...unparsedPrimaryWarnings(path, role, media_type)];
-    const r = await insertRecord(ctx, meta);
-    const upload = await issueGrant(ctx, r.record_id, { path, role, media_type, size, derived_from, derivation_note, derived_by });
-    return { record: recordSummary(r, { derived_status: "pending", segment_count: 0, file_count: 0 }), upload, warnings };
+    return createWithUpload(ctx, input);
+  },
+});
+
+export const createUploads = defineOperation({
+  name: "files.create_uploads",
+  scope: "product",
+  access: "write",
+  mutates: true,
+  summary: `Create up to ${CREATE_UPLOADS_MAX} sources, each with an upload grant for its first file, in one call.`,
+  description:
+    "Each entry of sources takes what create_upload takes. Returns {items: [{record, upload, warnings}]} in the order given; PUT each file's bytes to its own upload.url with its upload.headers, one request per file, and a 201 means that file is attached. Every source is created or none is: a refusal names the entry. Check sources(action=\"list\", query=…) for each first, as for create_upload.",
+  input: z.strictObject({ sources: z.array(createUploadInput).min(1).max(CREATE_UPLOADS_MAX) }),
+  rest: { method: "POST", path: "/sources/with-uploads" },
+  mcp: { tool: "files", action: "create_uploads" },
+  async handler(ctx, input) {
+    const items = [];
+    for (const [i, entry] of input.sources.entries()) {
+      try {
+        items.push(await createWithUpload(ctx, entry));
+      } catch (e) {
+        if (e instanceof AppError) throw new AppError(e.status, e.code, `sources[${i}] (${entry.title}): ${e.message} Nothing was created.`, { ...e.details, index: i });
+        throw e;
+      }
+    }
+    return { items };
   },
 });
 
@@ -281,7 +315,7 @@ export const completeUpload = defineOperation({
   mutates: true,
   summary: "Attach the bytes you PUT under a grant to the source. Idempotent.",
   description:
-    "Call after the PUT succeeds. The stored object's own size, hash and type decide the entry. A primary starts parsing; check sources.get(detail=\"brief\") for derived_status. Adding a file changes the source's etag; record_etag is the new one. warnings says when the source still has no primary, so nothing on it is searched. 404 means no bytes arrived yet — PUT first. A repeat returns the existing entry; provenance fields given on a repeat are added. Tell the person which file is searched.",
+    "A PUT to a grant's url attaches the file itself, and this only confirms it. Call it after a PUT to a grant's direct url, which it attaches, or to add provenance to a file. The stored object's own size, hash and type decide the entry. A primary starts parsing; check sources.get(detail=\"brief\") for derived_status. Adding a file changes the source's etag; record_etag is the new one. warnings says when the source still has no primary, so nothing on it is searched. 404 means no bytes arrived yet — PUT first. A repeat returns the existing entry; provenance fields given on a repeat are added. Tell the person which file is searched.",
   input: z.strictObject({ record_id: id("source"), path: z.string().min(1).max(200), ...provenance }),
   rest: { method: "POST", path: "/sources/:record_id/uploads/complete" },
   mcp: { tool: "files", action: "complete_upload" },
@@ -469,4 +503,4 @@ export const getDownload = defineOperation({
   },
 });
 
-export const fileOps = [requestUpload, createUpload, completeUpload, addNote, fetchUrl, setRole, getDownload];
+export const fileOps = [requestUpload, createUpload, createUploads, completeUpload, addNote, fetchUrl, setRole, getDownload];

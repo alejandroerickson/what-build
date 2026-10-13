@@ -1,4 +1,4 @@
-import { looksLikeTranscript, speakerTurn } from "./speakers.ts";
+import { labelledSpeakers, looksLikeTranscript, speakerLabel, speakerTurn } from "./speakers.ts";
 import { tableBlocks } from "./tables.ts";
 import { decodeText } from "./text.ts";
 import type { Block, FormatParser } from "./types.ts";
@@ -230,18 +230,25 @@ function prepare(source: string, markdown: boolean): Line[] {
 
 function parseText(source: string, markdown: boolean): { blocks: Block[]; facts: Record<string, number> } {
   const lines = prepare(source, markdown);
-  const transcript = looksLikeTranscript(lines.filter((l) => l.kind === "line").map((l) => l.text));
+  const texts = lines.filter((l) => l.kind === "line").map((l) => l.text);
+  // In a transcript of timed labels, a "Name: words" line is a turn only when the name is one of its speakers.
+  const labelled = looksLikeTranscript(texts) ? null : labelledSpeakers(texts);
+  const transcript = Boolean(labelled) || looksLikeTranscript(texts);
   const blocks: Block[] = [];
   let para: string[] = [];
   let item: string | null = null;
   let turn: Block | null = null;
+  // Who is speaking after a timed label on a line of its own: every paragraph and list item until
+  // the next label, turn, heading or break.
+  let voice: string | null = null;
   let tables = 0;
   const flush = () => {
     if (turn) blocks.push(turn);
     turn = null;
-    if (item !== null) blocks.push({ text: item.replace(/\s+/g, " ").trim() });
+    const said = voice ? { speaker: voice } : {};
+    if (item !== null) blocks.push({ text: item.replace(/\s+/g, " ").trim(), ...said });
     item = null;
-    if (para.length) blocks.push({ text: para.join(" ").replace(/\s+/g, " ") });
+    if (para.length) blocks.push({ text: para.join(" ").replace(/\s+/g, " "), ...said });
     para = [];
   };
   for (let i = 0; i < lines.length; i++) {
@@ -259,10 +266,12 @@ function parseText(source: string, markdown: boolean): { blocks: Block[]; facts:
     const h = atxHeading(line);
     if (h?.[0] && h[1]) {
       flush();
+      voice = null;
       blocks.push({ text: `${h[0]} ${h[1]}`, heading_level: h[0].length });
       continue;
     }
     if (markdown && para.length === 1 && item === null && !turn && SETEXT_UNDERLINE.test(line)) {
+      voice = null;
       const level = line.trim().startsWith("=") ? 1 : 2;
       blocks.push({ text: `${"#".repeat(level)} ${para[0]}`, heading_level: level });
       para = [];
@@ -270,12 +279,20 @@ function parseText(source: string, markdown: boolean): { blocks: Block[]; facts:
     }
     if (markdown && THEMATIC_BREAK.test(line)) {
       flush();
+      voice = null;
       continue;
     }
     if (transcript) {
-      const t = speakerTurn(line);
-      if (t) {
+      const label = speakerLabel(line);
+      if (label) {
         flush();
+        voice = label;
+        continue;
+      }
+      const t = speakerTurn(line);
+      if (t && (!labelled || labelled.has(t.speaker.toLowerCase()))) {
+        flush();
+        voice = null;
         turn = { text: t.text, speaker: t.speaker };
         continue;
       }
@@ -323,11 +340,12 @@ function parseText(source: string, markdown: boolean): { blocks: Block[]; facts:
 /**
  * Plain text. Paragraphs split on blank lines; ATX headings, list items and pipe-table rows become
  * their own segments. A text whose lines are mostly "Name:" turns is read as a transcript, one turn
- * per segment with its speaker.
+ * per segment with its speaker. So is one whose turns start with a timed label on a line of their
+ * own, "Dana (14:02):", each paragraph below a label being a segment with that speaker.
  */
 export const plaintextParser: FormatParser = {
   name: "plaintext",
-  version: "5",
+  version: "6",
   parse(bytes) {
     return parseText(decodeText(bytes), false);
   },
@@ -340,7 +358,7 @@ export const plaintextParser: FormatParser = {
  */
 export const markdownParser: FormatParser = {
   name: "markdown",
-  version: "2",
+  version: "3",
   parse(bytes) {
     return parseText(decodeText(bytes), true);
   },

@@ -1,3 +1,4 @@
+import { unzipParts } from "@whatbuild/parsers";
 import { sql } from "kysely";
 import { strToU8, zipSync } from "fflate";
 import { z } from "zod";
@@ -5,10 +6,10 @@ import { checkEtag, EMPTY_REFS, productId, recordActivity, tenantId, validateRef
 import { checkCitationList, CITATION_MAX_COUNT, citationInput, citationViews, snapshotAll } from "../citations.ts";
 import { json, type Tx } from "../db.ts";
 import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
-import { conflict, invalid, notFound } from "../errors.ts";
-import { DOWNLOAD_GRANT_HEADER } from "./files.ts";
-import { defineOperation, type OpContext } from "../registry.ts";
-import { expectedEtag, id } from "../schemas.ts";
+import { AppError, conflict, forbidden, invalid, notFound, tooLarge } from "../errors.ts";
+import { DOWNLOAD_GRANT_HEADER, UPLOAD_GRANT_HEADER } from "./files.ts";
+import { defineOperation, type OpContext, type PrepareContext } from "../registry.ts";
+import { expectedEtag, formatIssues, id } from "../schemas.ts";
 import { inspectStoryHtml, STORY_HTML_MAX } from "../story-html.ts";
 import { newEtag, newId, sha256Hex } from "../util.ts";
 import { resolveRefs, storyPagesShowing } from "./story.ts";
@@ -26,6 +27,10 @@ export const BRIEF_MAX = 50_000;
 export const PAGE_NOTES_MAX = 10_000;
 export const MAX_MOCKUP_FILES = 50;
 export const MOCKUP_FILES_TOTAL = 2_000_000;
+/** A canvas uploaded as a ZIP: at most this many bytes packed, and this many once unpacked. */
+export const MOCKUP_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
+const MOCKUP_UPLOAD_UNPACKED_MAX = 48 * 1024 * 1024;
+export const MOCKUP_UPLOAD_PURPOSE = "mockup_upload";
 const DEFAULT_WIDTH = 1280;
 const DEFAULT_HEIGHT = 800;
 
@@ -217,6 +222,176 @@ export const getMockupVersion = defineOperation({
   },
 });
 
+export const requestMockupUpload = defineOperation({
+  name: "mockups.request_upload",
+  scope: "product",
+  access: "write",
+  mutates: true,
+  summary: "Get a short-lived grant to PUT a canvas as a ZIP, for publish to read by upload_id. Use it instead of sending page HTML through a tool call.",
+  description:
+    `PUT one ZIP to url with exactly the headers given (curl -T canvas.zip -H …), then call publish with upload_id and whatever else changes (mockup_id and expected_etag for a later version, refs, citations). The ZIP has get_download's layout, so a download round-trips: manifest.json lists the canvas's pages in order, [{page_id, title?, width?, height?}], and may give title, summary, columns and files ([{path}]); brief.md is the brief; pages/<page_id>.html and pages/<page_id>.notes.md hold a page's HTML and notes; files/<path> holds a file the version carries. A page whose HTML or notes the ZIP leaves out keeps the base version's, so a ZIP can carry only the pages that changed, with every page still listed. The files listed in manifest.json are the whole set, a listed path missing from files/ keeping the base's content; without a files list, the files under files/ are the whole set, and with none either the version keeps the base's files. refs and citations in manifest.json are not read: pass them in the call. Everything else in the ZIP is refused, and one top-level folder around it all is allowed. At most ${MOCKUP_UPLOAD_MAX_BYTES / 1024 / 1024} MB packed; the grant expires, publish reads an upload once, and an upload nobody publishes is discarded a day after its grant expires. Keep the grant header out of reports and logs.`,
+  input: z.strictObject({ size: z.number().int().min(0).optional().describe("The ZIP's size in bytes, when known, so an oversized one is refused before it transfers.") }),
+  rest: { method: "POST", path: "/mockups/uploads" },
+  mcp: { tool: "mockups", action: "request_upload" },
+  async handler(ctx, input) {
+    // A visitor's text is capped field by field (checkVisitorInput); a ZIP would carry it past that.
+    if (ctx.sandbox?.visitor) throw forbidden("In a public sandbox, publish a mockup's pages in the call itself; uploading a canvas is for organizations of your own.");
+    const max = Math.min(MOCKUP_UPLOAD_MAX_BYTES, ctx.ports.config.relayMaxBytes);
+    if (input.size !== undefined && input.size > max) throw tooLarge(`A canvas's ZIP is at most ${max} bytes; this one is ${input.size}.`, { limit: max });
+    const upload_id = newId();
+    const expiresAt = new Date(Date.parse(ctx.now) + ctx.ports.config.grantTtlSeconds * 1000);
+    await ctx.db
+      .insertInto("mockup_uploads")
+      .values({
+        upload_id, tenant_id: tenantId(ctx), product_id: productId(ctx), blob_key: `t/${tenantId(ctx)}/p/${productId(ctx)}/mockup-uploads/${upload_id}`,
+        max_bytes: max, principal: json(ctx.actor), expires_at: expiresAt.toISOString(),
+      })
+      .execute();
+    const token = ctx.ports.grants.sign({ v: 1, purpose: MOCKUP_UPLOAD_PURPOSE, u: upload_id, t: tenantId(ctx), exp: Math.floor(expiresAt.getTime() / 1000) });
+    return {
+      upload_id,
+      method: "PUT" as const,
+      url: `${ctx.ports.config.publicBaseUrl}/api/v1/uploads/mockup/${upload_id}`,
+      headers: { [UPLOAD_GRANT_HEADER]: token, "Content-Type": "application/zip" },
+      max_bytes: max,
+      expires_at: expiresAt.toISOString(),
+      next: 'PUT the ZIP\'s raw bytes to url with exactly these headers (one request, no multipart), then call mockups(action="publish") with upload_id. Keep the grant header out of reports and logs.',
+    };
+  },
+});
+
+const manifestPage = z.object({
+  page_id: pageSlug,
+  title: z.string().trim().min(1).max(200).optional(),
+  width: z.number().int().min(240).max(2560).optional(),
+  height: z.number().int().min(240).max(4000).optional(),
+});
+/** manifest.json as publish reads it. Not strict: a downloaded manifest's other fields are ignored. */
+const manifestSchema = z.object({
+  title: z.string().trim().min(1).max(200).optional(),
+  summary: z.string().max(2000).optional(),
+  columns: z.number().int().min(1).max(12).nullable().optional(),
+  pages: z.array(manifestPage).min(1).max(MAX_MOCKUP_PAGES),
+  files: z.array(z.object({ path: filePath })).max(MAX_MOCKUP_FILES).optional(),
+});
+
+/** What a canvas's ZIP gives publish, in the shape of its own input. */
+export interface CanvasUpload {
+  upload_id: string;
+  title?: string;
+  summary?: string;
+  columns?: number | null;
+  brief?: string;
+  pages: z.infer<typeof pageInput>[];
+  files?: z.infer<typeof fileInput>[];
+}
+
+/** Entries a ZIP tool adds that are not part of what was zipped. */
+const ZIP_LITTER = (name: string) => name.endsWith("/") || name.startsWith("__MACOSX/") || name.includes("/__MACOSX/") || /(^|\/)\.DS_Store$/.test(name);
+
+/**
+ * Read a canvas from a ZIP in get_download's layout. Every problem is listed at once (422); nothing
+ * is checked against the base version here, so a page the ZIP leaves HTML out of carries forward
+ * as one left out of publish's pages would.
+ */
+export function readCanvasZip(uploadId: string, bytes: Uint8Array): CanvasUpload {
+  let entries: Record<string, Uint8Array>;
+  try {
+    entries = unzipParts(bytes, (name) => !ZIP_LITTER(name), MOCKUP_UPLOAD_UNPACKED_MAX);
+  } catch (e) {
+    throw invalid("invalid_upload", `Nothing was published: the upload is not a ZIP WhatBuild can read (${(e as Error).message}). Zip the canvas again and request a new upload.`);
+  }
+  const problems: string[] = [];
+  const names = Object.keys(entries);
+  // One folder around everything, as zipping a folder makes, is set aside.
+  let prefix = "";
+  if (!("manifest.json" in entries)) {
+    const nested = names.filter((n) => /^[^/]+\/manifest\.json$/.test(n));
+    if (nested.length === 1 && names.every((n) => n.startsWith(nested[0]!.slice(0, -"manifest.json".length)))) prefix = nested[0]!.slice(0, -"manifest.json".length);
+    else throw invalid("invalid_upload", "Nothing was published: the ZIP has no manifest.json at its top. Use get_download's layout: manifest.json, brief.md, pages/<page_id>.html, pages/<page_id>.notes.md and files/<path>.");
+  }
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  const text = new Map<string, string>();
+  for (const name of names) {
+    const rel = name.slice(prefix.length);
+    try {
+      text.set(rel, decoder.decode(entries[name]!).replace(/^\uFEFF/, ""));
+    } catch {
+      problems.push(`${rel} is not UTF-8 text.`);
+    }
+  }
+  let manifest: z.infer<typeof manifestSchema>;
+  try {
+    const parsed = manifestSchema.safeParse(JSON.parse(text.get("manifest.json") ?? ""));
+    if (!parsed.success) throw invalid("invalid_upload", `Nothing was published: manifest.json: ${formatIssues(parsed.error)}`);
+    manifest = parsed.data;
+  } catch (e) {
+    if (e instanceof AppError) throw e;
+    throw invalid("invalid_upload", "Nothing was published: manifest.json is not JSON.");
+  }
+  const listed = new Set(manifest.pages.map((p) => p.page_id));
+  const listedFiles = manifest.files ? new Set(manifest.files.map((f) => f.path)) : null;
+  const carried: z.infer<typeof fileInput>[] = [];
+  for (const rel of text.keys()) {
+    if (rel === "manifest.json" || rel === "brief.md") continue;
+    const page = /^pages\/([^/]+?)(\.notes\.md|\.html)$/.exec(rel);
+    if (page) {
+      if (!listed.has(page[1]!)) problems.push(`${rel} belongs to page ${page[1]}, which manifest.json's pages does not list.`);
+      continue;
+    }
+    if (rel.startsWith("files/")) {
+      const path = rel.slice("files/".length);
+      const ok = filePath.safeParse(path);
+      if (!ok.success) problems.push(`${rel}: ${ok.error.issues[0]?.message ?? "not a file path"}.`);
+      else if (listedFiles && !listedFiles.has(path)) problems.push(`${rel} is not in manifest.json's files.`);
+      else if (!listedFiles) carried.push({ path, content: text.get(rel)! });
+      continue;
+    }
+    problems.push(`${rel} is not part of a canvas: a ZIP holds manifest.json, brief.md, pages/<page_id>.html, pages/<page_id>.notes.md and files/<path>.`);
+  }
+  const pages = manifest.pages.map((p) => {
+    const html = text.get(`pages/${p.page_id}.html`);
+    const notes = text.get(`pages/${p.page_id}.notes.md`);
+    if (html !== undefined && !html.trim()) problems.push(`pages/${p.page_id}.html is empty.`);
+    if (html !== undefined && html.length > STORY_HTML_MAX) problems.push(`pages/${p.page_id}.html holds ${html.length} characters; a page holds at most ${STORY_HTML_MAX}.`);
+    if (notes !== undefined && notes.length > PAGE_NOTES_MAX) problems.push(`pages/${p.page_id}.notes.md holds ${notes.length} characters; a page's notes hold at most ${PAGE_NOTES_MAX}.`);
+    return { ...p, ...(html !== undefined ? { html } : {}), ...(notes !== undefined ? { notes } : {}) };
+  });
+  const brief = text.get("brief.md");
+  if (brief !== undefined && brief.length > BRIEF_MAX) problems.push(`brief.md holds ${brief.length} characters; a brief holds at most ${BRIEF_MAX}.`);
+  if (problems.length) throw invalid("invalid_upload", `Nothing was published: ${problems.join(" ")}`, { problems });
+  const files = listedFiles ? manifest.files!.map((f) => ({ path: f.path, ...(text.has(`files/${f.path}`) ? { content: text.get(`files/${f.path}`)! } : {}) })) : carried.length ? carried.sort((a, b) => (a.path < b.path ? -1 : 1)) : undefined;
+  return {
+    upload_id: uploadId,
+    ...(manifest.title !== undefined ? { title: manifest.title } : {}),
+    ...(manifest.summary !== undefined ? { summary: manifest.summary } : {}),
+    ...(manifest.columns !== undefined ? { columns: manifest.columns } : {}),
+    ...(brief !== undefined ? { brief } : {}),
+    pages,
+    ...(files ? { files } : {}),
+  };
+}
+
+/** An upload publish may read: in this product, its bytes arrived, and not read before. */
+async function usableUpload(ctx: OpContext, uploadId: string, lock = false) {
+  let q = ctx.db.selectFrom("mockup_uploads").selectAll().where("product_id", "=", productId(ctx)).where("upload_id", "=", uploadId);
+  if (lock) q = q.forUpdate();
+  const u = await q.executeTakeFirst();
+  if (!u) throw notFound(`There is no mockup upload ${uploadId} in this product. Request one with mockups(action="request_upload").`);
+  if (u.used_at) throw conflict("upload_used", `Upload ${uploadId} was already published. Request a new upload for another version.`);
+  if (!u.uploaded_at) throw notFound(`No bytes have arrived for upload ${uploadId} yet. PUT the ZIP to the grant's url first.`);
+  return u;
+}
+
+/** Read an upload's ZIP before the transaction, so a large one holds no database connection. */
+async function prepareCanvas(ctx: PrepareContext, input: { upload_id?: string | undefined; pages?: unknown; files?: unknown }): Promise<CanvasUpload | null> {
+  if (!input.upload_id) return null;
+  const both = (["pages", "files"] as const).filter((k) => input[k] !== undefined);
+  if (both.length) throw invalid("invalid_input", `Nothing was published: the upload carries the canvas's pages and files; send ${both.join(" and ")} in the ZIP or in the call, not both.`);
+  const u = await ctx.read((c) => usableUpload(c, input.upload_id!));
+  return readCanvasZip(u.upload_id, await ctx.ports.blobs.get(u.blob_key));
+}
+
 type PageRow = { page_id: string; title: string; notes: string; width: number; height: number; html: string };
 type FileRow = { path: string; content: string };
 
@@ -227,7 +402,7 @@ export const publishMockup = defineOperation({
   mutates: true,
   summary: "Publish the next version of a mockup's canvas, or create a mockup with its first version. A later version keeps whatever you omit.",
   description:
-    `Without mockup_id, creates a mockup: give a title, a brief and at least one page with a title and html. With mockup_id, publishes the next version: pass the mockup's etag, and send only what changes. pages, when given, is the whole canvas in order: a page you leave out is dropped from this version, and a page whose page_id was on the base version keeps its title, notes, size and html unless you send them, so a version that changes one page sends that page's html alone. The brief is Markdown: what the canvas explores, for whom, the questions it is meant to answer, and what each page tries; write it for the next agent as much as for people. Each page is one self-contained HTML document shown in a sandboxed frame of width × height CSS pixels (default ${DEFAULT_WIDTH} × ${DEFAULT_HEIGHT}; 390 wide for a phone): inline CSS and bounded inline scripts, images and fonts as data: URIs, no remote resources, forms or frames; every problem is listed at once (422). columns sets how many pages sit side by side before the canvas wraps; null keeps one row. files carries text files for collaborators to pull into their own projects (DESIGN.md, components, tokens), at most ${MAX_MOCKUP_FILES} and ${(MOCKUP_FILES_TOTAL / 1_000_000).toFixed(0)} million characters a version; WhatBuild never uses them to draw a page, so inline what a page needs. Like pages, files when given is the whole set: a path that was on the base keeps its content unless you send it, a path you leave out is dropped, a new path needs content, and [] drops them all; omit files to keep them. refs links the outcomes, sources and assumptions the canvas explores, and citations up to ${CITATION_MAX_COUNT} exact passages, {record_id, seq_start, seq_end, quote?}, frozen as snapshots. from_version: N starts from that earlier version instead of the current one. At most ${MAX_MOCKUP_PAGES} pages, ${(MOCKUP_HTML_TOTAL / 1_000_000).toFixed(0)} million characters of HTML in all, and ${MAX_MOCKUPS} mockups in a product, archived ones included.`,
+    `Without mockup_id, creates a mockup: give a title, a brief and at least one page with a title and html. With mockup_id, publishes the next version: pass the mockup's etag, and send only what changes. pages, when given, is the whole canvas in order: a page you leave out is dropped from this version, and a page whose page_id was on the base version keeps its title, notes, size and html unless you send them, so a version that changes one page sends that page's html alone. The brief is Markdown: what the canvas explores, for whom, the questions it is meant to answer, and what each page tries; write it for the next agent as much as for people. Each page is one self-contained HTML document shown in a sandboxed frame of width × height CSS pixels (default ${DEFAULT_WIDTH} × ${DEFAULT_HEIGHT}; 390 wide for a phone): inline CSS and bounded inline scripts, images and fonts as data: URIs, no remote resources, forms or frames; every problem is listed at once (422). columns sets how many pages sit side by side before the canvas wraps; null keeps one row. files carries text files for collaborators to pull into their own projects (DESIGN.md, components, tokens), at most ${MAX_MOCKUP_FILES} and ${(MOCKUP_FILES_TOTAL / 1_000_000).toFixed(0)} million characters a version; WhatBuild never uses them to draw a page, so inline what a page needs. Like pages, files when given is the whole set: a path that was on the base keeps its content unless you send it, a path you leave out is dropped, a new path needs content, and [] drops them all; omit files to keep them. refs links the outcomes, sources and assumptions the canvas explores, and citations up to ${CITATION_MAX_COUNT} exact passages, {record_id, seq_start, seq_end, quote?}, frozen as snapshots. from_version: N starts from that earlier version instead of the current one. To keep page HTML out of the call, upload the canvas as a ZIP (request_upload) and pass upload_id: the ZIP gives pages, files and the brief, and the call gives the rest. At most ${MAX_MOCKUP_PAGES} pages, ${(MOCKUP_HTML_TOTAL / 1_000_000).toFixed(0)} million characters of HTML in all, and ${MAX_MOCKUPS} mockups in a product, archived ones included.`,
   input: z.strictObject({
     mockup_id: id("mockup").optional().describe("Omit to create a mockup."),
     title: z.string().trim().min(1).max(200).optional(),
@@ -239,12 +414,30 @@ export const publishMockup = defineOperation({
     refs: refsInput.describe("The outcomes, sources and assumptions this canvas explores, in full. Omit on a later version to keep them."),
     citations: z.array(citationInput).max(CITATION_MAX_COUNT).optional(),
     from_version: z.number().int().min(1).optional(),
+    upload_id: id("mockup upload").optional().describe('A canvas uploaded as a ZIP (mockups(action="request_upload")): its pages, files, brief, title, summary and columns, in place of sending them here.'),
     expected_etag: expectedEtag.optional(),
   }),
   rest: { method: "POST", path: "/mockups" },
   mcp: { tool: "mockups", action: "publish" },
-  async handler(ctx, input) {
+  prepare: prepareCanvas,
+  async handler(ctx, call, canvas) {
     const pid = productId(ctx);
+    if (canvas) {
+      if (call.brief !== undefined && canvas.brief !== undefined) throw invalid("invalid_input", "Nothing was published: the upload has a brief.md and the call a brief; send the brief in one of them.");
+      await usableUpload(ctx, canvas.upload_id, true);
+    }
+    // What the call omits, the upload gives; what both omit carries forward.
+    const input = canvas
+      ? {
+          ...call,
+          title: call.title ?? canvas.title,
+          summary: call.summary ?? canvas.summary,
+          columns: call.columns !== undefined ? call.columns : canvas.columns,
+          brief: call.brief ?? canvas.brief,
+          pages: canvas.pages,
+          files: canvas.files,
+        }
+      : call;
     const existing = input.mockup_id ? await loadMockup(ctx, input.mockup_id, true) : null;
     let base: { n: number; version_id: string; title: string; summary: string; brief: string; columns: number | null; refs: typeof EMPTY_REFS; citations: unknown[]; pages: PageRow[]; files: FileRow[] } | null = null;
     if (existing) {
@@ -340,8 +533,18 @@ export const publishMockup = defineOperation({
       entity_title: title,
       summary: `${existing ? `Published version ${n}${input.from_version ? ` from version ${input.from_version}` : ""} with` : "Created the mockup with"} ${pages.length} page${pages.length === 1 ? "" : "s"}${files.length ? ` and ${files.length} file${files.length === 1 ? "" : "s"}` : ""}`,
     });
+    if (canvas) {
+      const u = await ctx.db
+        .updateTable("mockup_uploads")
+        .set({ used_at: ctx.now, used_by_version_id: version_id })
+        .where("upload_id", "=", canvas.upload_id)
+        .returning("blob_key")
+        .executeTakeFirstOrThrow();
+      // The ZIP has done its work: its pages and files are in the version now.
+      await ctx.enqueue("delete_blobs", { keys: [u.blob_key], prefixes: [] });
+    }
     const e = await loadMockup(ctx, mockup_id);
-    return { ...summaryView(e), current: await versionView(ctx, e.current_version_id, false), based_on_version: base?.n ?? null };
+    return { ...summaryView(e), current: await versionView(ctx, e.current_version_id, false), based_on_version: base?.n ?? null, ...(canvas ? { from_upload: canvas.upload_id } : {}) };
   },
 });
 
@@ -421,7 +624,7 @@ export const checkMockupCitations = defineOperation({
   mutates: false,
   summary: "Re-resolve a mockup version's citations against the sources as they are now. Reports drift; never rewrites.",
   description:
-    "Checks the current version unless version is given, with the statuses story(action=\"check_citations\") reports: ok, relocated (with the new range), text_changed, record_archived, record_deleted or record_missing, plus version_drift when the source's primary file has a newer version than the snapshot's.",
+    "Checks the current version unless version is given, with the statuses story(action=\"check_citations\") reports: ok, relocated (with the new range), text_changed, record_archived, record_deleted or record_missing, plus version_drift when the source's primary file has a newer version than the snapshot's. valid is true when every citation is ok against the passages of each source's current file; rederived says a source was parsed again since a snapshot, so read those passages before relying on an ok.",
   input: z.strictObject({ mockup_id: id("mockup"), version: z.number().int().min(1).optional() }),
   rest: { method: "GET", path: "/mockups/:mockup_id/check-citations" },
   mcp: { tool: "mockups", action: "check_citations" },
@@ -525,7 +728,7 @@ export const deleteMockup = defineOperation({
   },
 });
 
-export const mockupOps = [listMockups, getMockup, listMockupVersions, getMockupVersion, publishMockup, archiveMockup, restoreMockup, getMockupDownload, checkMockupCitations, mockupDeleteImpact, deleteMockup];
+export const mockupOps = [listMockups, getMockup, listMockupVersions, getMockupVersion, requestMockupUpload, publishMockup, archiveMockup, restoreMockup, getMockupDownload, checkMockupCitations, mockupDeleteImpact, deleteMockup];
 
 /**
  * One version of a mockup as a ZIP, for the download grant's route: brief.md, manifest.json,

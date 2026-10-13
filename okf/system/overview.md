@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild at three altitudes
 description: The whole system from the top down, the major parts, and the mechanics underneath, with links to the detail.
 tags: [overview, architecture, tenancy, access, mcp]
-generated: {by: agent:claude, at: 2026-10-12}
+generated: {by: agent:claude, at: 2026-10-13}
 status: stable
 ---
 
@@ -56,7 +56,7 @@ Google Cloud Storage behind a storage port; the official MCP SDK (stateless Stre
 React 19, React Router 7, TanStack Query 5, Vite 7; Vitest. Details in
 [architecture](../spec/02-architecture.md).
 
-**Operations.** 123 operations, each defined once and exposed through both REST and MCP, but for
+**Operations.** 125 operations, each defined once and exposed through both REST and MCP, but for
 deleting an organization, which only its owner does, in the web app
 ([decision](../decisions/one-registry-two-front-doors.md)).
 
@@ -110,7 +110,8 @@ the handler (etag check, `409 stale_etag`; actor snapshot; activity event) → a
 text with the scope echoed.
 
 **From upload to passage.** Request a signed upload grant → bytes go to object storage →
-`complete_upload` registers the file → a parse job is queued → the worker parses the primary file,
+the upload relay registers the file as they arrive (`complete_upload` does, after a PUT straight to
+the bucket) → a parse job is queued → the worker parses the primary file,
 in a thread of its own held to a memory and a time limit, into an immutable derivation
 (`segments.jsonl`, `text.md`, `outline.md`, `manifest.json`) → passages are indexed in the same
 transaction that makes them current ([derived layer](../spec/05-derived-layer.md),

@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-10-12}
+generated: {by: agent:claude, at: 2026-10-13}
 status: stable
 ---
 
@@ -33,6 +33,8 @@ design system: tokens, type, components and the rules for using them — is docu
   REST answers honestly: a source, assumption or other object that does not exist answers `404`,
   and its page says it was not found while the browser's console reports the `404` of the request.
   ◆ Decision: that console line is by design; the API is not bent to hide it.
+- **Times are shown in the viewer's own time zone**, though the API gives them in UTC
+  ([decision](../decisions/times-are-utc-in-data-and-local-where-shown.md)).
 - Works on narrow screens. Meets WCAG 2.2 AA. Fully keyboard-operable.
 - **Interface text says one thing once.** A heading states the fact, the body adds only what the
   heading did not, and a rule is explained where it applies, not ahead of time. Words are plain and
@@ -376,7 +378,7 @@ The sources, and everything for reading them.
   copy a citation reference for an agent; the selection bar docks above the pager and never
   covers it. Reading aids:
   - a passage cited by assumptions, mockups or Story pages carries "Cited by N", a menu of
-    them;
+    them, placed where each quote is now after the source is parsed again (`sources.used_by`);
   - a passage that cites other sources the bare way (a view or digest: "source <id>, segments
     4–6") shows each citation as a "Title ¶4–6" token, and a "Cites" line of links to them;
   - a table stored as a header passage and one passage per row ("A: x | B: y") is laid out in
@@ -574,7 +576,7 @@ mockup reaches it by promotion, from the mockup (§7.7).
     the mockup.
   - **Draws on:** the version's references — outcomes, sources, assumptions — each linked.
   - **Cited passages:** each citation as the source title, its address (¶8–9, linking to the
-    passage) and a snapshot quote, with its `story.check_citations` status in words, worded as
+    passage, or to where the check found the quote once it moved) and a snapshot quote, with its `story.check_citations` status in words, worded as
     on an assumption.
   - **Notes for agents:** the page's Markdown notes, which agents read before revising the page and
     update after publishing (what it is for, sources still to fold in, choices about its structure).

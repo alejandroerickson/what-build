@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-13}
 status: stable
 ---
 
@@ -112,7 +112,8 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
   the grant's size so the bucket refuses a larger body. Either way the application registers the
   file from the stored object's own size, hash and sniffed type, never from caller claims: a
   direct upload's size is read before any of its bytes, and its hash from the bytes as they stream
-  ([§6.7](06-operations-and-adapters.md)).
+  ([§6.7](06-operations-and-adapters.md)). A mockup canvas uploaded as a ZIP takes the relay only
+  ([§4.12](04-data-model.md)).
 
 ## 2.4 Ports
 
@@ -272,8 +273,8 @@ deployment is involved
   otherwise, and files served back say `private, no-store`. Every HTML response's
   `Content-Security-Policy` defines `frame-ancestors`, `form-action` and `base-uri`, which have no
   fallback; one whose route set no policy gets `default-src 'none'` and all three at `'none'`.
-- **Request bodies** under `/api/v1` and to `/mcp` are limited to 5 MB; files travel through
-  upload grants. `/mcp` reads a body only once it knows the caller.
+- **Request bodies** under `/api/v1` and to `/mcp` are limited to 5 MB; files and mockup
+  canvases travel through upload grants. `/mcp` reads a body only once it knows the caller.
   Under `/auth` and `/oauth`, which anyone may call, they are limited to 64 KB.
 - **URL fetch is SSRF-hardened:** HTTPS only, public addresses only, checked again on every
   redirect: an address written in the URL, in any notation, is checked before connecting, since

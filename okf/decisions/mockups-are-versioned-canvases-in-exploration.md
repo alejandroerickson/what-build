@@ -3,7 +3,7 @@ type: Decision
 title: Mockups are versioned canvases of agent-made HTML, in a stage called Exploration
 description: Agents build directions as sandboxed HTML pages on a canvas under a brief, versioned as a whole and downloadable to build the next one; the third stage is named Exploration.
 tags: [decision, mockups, exploration, story, security, web, agents]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-13}
 status: stable
 ---
 
@@ -29,6 +29,8 @@ the names Mockups and Exploration on 2026-10-09.
   sandbox ([decision](story-pages-are-sandboxed-agent-html.md)), without the app's theme.
 - A version downloads as a ZIP (brief, manifest, each page's HTML and notes) through a short-lived
   grant, so an agent builds the next version in its own project and publishes the pages it changed.
+  The same layout uploads as a ZIP through a grant, so an agent can publish a canvas without
+  sending its pages' HTML through a tool call.
 - Agents publish and archive mockups; the web app shows them on a pannable, zoomable canvas and
   downloads them.
 - **Mockups are outputs.** They come from the work a team's agents do in their own projects, where
@@ -37,6 +39,14 @@ the names Mockups and Exploration on 2026-10-09.
   2026-10-09, rejecting a shared stylesheet and shared components that pages would use, with a
   reservation: it may not hold up when several people, each in their own project, work on one
   canvas.
+- **A mockup's look is its own.** A canvas may be a wireframe that deliberately looks unlike the
+  product, a high-fidelity copy of it, or document-like pages and charts. No mockup version
+  draws on the product's Story style, and the Story style takes no files from a mockup. An agent
+  may carry parts of a mockup's design into the Story style by writing them into it. The
+  maintainer chose this on 2026-10-13, rejecting one design system for both.
+- **A canvas is published whole.** An agent builds it in its own project and publishes it in one
+  call, uploading it as a ZIP when it is large. Rejected on 2026-10-13: staging versions that
+  gather pages over several calls before one commit, which the upload makes unneeded.
 - **A version carries files for collaborators**: text files such as a DESIGN.md, components and
   tokens, which people see in the inspector and agents pull into their projects with the
   download, so collaborators share the conventions behind a canvas. They belong to the version

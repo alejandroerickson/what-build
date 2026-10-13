@@ -104,7 +104,8 @@ export async function citationViews(ctx: OpContext, citations: CitationSnapshot[
  * or record_missing, plus version_drift when the primary file has a newer version, and
  * derivation_changed (with current_derivation_id) when the source was parsed again after the
  * snapshot. A quote that matches only once markup, spacing and speaker labels are set aside says
- * so in quote_match and note.
+ * so in quote_match and note. valid is true when every citation is ok against the passages of each
+ * source's current file; rederived says whether any source was parsed again since its snapshot.
  */
 export async function checkCitationList(ctx: OpContext, citations: CitationSnapshot[]) {
   const results = [];
@@ -152,7 +153,38 @@ export async function checkCitationList(ctx: OpContext, citations: CitationSnaps
       archived: Boolean(r.archived_at),
     });
   }
-  return { valid: results.every((x) => x.status === "ok" && !x.version_drift), citations: results };
+  // A newer file whose passages are not the ones checked (not parsed yet, or failed) leaves a quote unverified.
+  const unverified = results.some((x) => x.version_drift && !("derivation_changed" in x && x.derivation_changed));
+  return {
+    valid: !unverified && results.every((x) => x.status === "ok"),
+    rederived: results.some((x) => "derivation_changed" in x && x.derivation_changed),
+    ...(unverified ? { unverified_note: "A cited source has a newer file whose passages have not been read yet (it is still being parsed, or parsing failed), so its quotes were checked against the earlier file. Check again once the source's derived_status is ready." } : {}),
+    citations: results,
+  };
+}
+
+export type CitedRange = { seq_start: number; seq_end: number; moved_from?: { seq_start: number; seq_end: number }; quote_not_found?: true };
+
+/**
+ * Where citations of one source stand in its current passages, for a reader's link or mark. While
+ * the source has not been parsed again since a snapshot, that is the stored range. After, it is
+ * the range the quote is found in now, with the stored one as moved_from, or the stored range with
+ * quote_not_found. A quote found within its stored range keeps that range, as check_citations
+ * calls it ok. Nothing stored changes. The passages are read once, and only if some citation needs them.
+ */
+export async function citedRanges(ctx: OpContext, recordId: string) {
+  const r = await ctx.db.selectFrom("records").select("current_derivation_id").where("record_id", "=", recordId).executeTakeFirst();
+  const current = r?.current_derivation_id ?? null;
+  let passages: Passage[] | undefined;
+  return async (c: CitationSnapshot): Promise<CitedRange> => {
+    const stored = { seq_start: c.seq_start, seq_end: c.seq_end };
+    if (!current || c.derivation_id === current) return stored;
+    passages ??= await ctx.db.selectFrom("segments").select(["seq", "text", "speaker"]).where("derivation_id", "=", current).orderBy("seq").execute();
+    const found = locateQuote(passages, c.quote, c, c.speakers ?? []);
+    if (!found) return { ...stored, quote_not_found: true };
+    if (found.seq_start >= c.seq_start && found.seq_end <= c.seq_end) return stored;
+    return { seq_start: found.seq_start, seq_end: found.seq_end, moved_from: stored };
+  };
 }
 
 // ---- Finding a quote in a source's passages ----------------------------------------------------

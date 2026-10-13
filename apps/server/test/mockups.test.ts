@@ -1,4 +1,5 @@
-import { unzipSync, strFromU8 } from "fflate";
+import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
+import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
@@ -8,6 +9,7 @@ let vic: Browser;
 let rita: Browser;
 let P: string;
 let tenantSlug: string;
+let tenantId: string;
 let teamSlug: string;
 let assumptionId: string;
 
@@ -22,6 +24,7 @@ beforeAll(async () => {
   const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Planner", concept: "A planner for finance teams." });
   P = `/api/v1/p/${p.body.path}`;
   tenantSlug = t.body.tenant.slug;
+  tenantId = t.body.tenant.tenant_id ?? t.body.tenant.id;
   teamSlug = t.body.team.slug;
   const a = await alice.api("POST", `${P}/assumptions`, { statement: "Finance leads want the close on one screen." });
   assumptionId = a.body.id;
@@ -495,5 +498,116 @@ describe("files a mockup version carries", () => {
     const ex = (await alice.api("GET", `${P}/exports`)).body.items[0];
     const bundle = unzipSync(new Uint8Array(await (await fetch(ex.download.url, { headers: ex.download.headers })).arrayBuffer()));
     expect(strFromU8(bundle[`mockups/${mockupId}/v1/files/components/row.html`]!)).toContain('class="row"');
+  });
+});
+
+describe("publishing a canvas uploaded as a ZIP", () => {
+  let mockupId: string;
+  let etag: string;
+
+  async function upload(b: Browser, zip: Record<string, string>) {
+    const g = await b.api("POST", `${P}/mockups/uploads`, {});
+    expect(g.status).toBe(201);
+    const bytes = zipSync(Object.fromEntries(Object.entries(zip).map(([k, v]) => [k, strToU8(v)])));
+    const put = await fetch(g.body.url, { method: "PUT", headers: g.body.headers, body: bytes });
+    expect(put.status).toBe(201);
+    return g.body.upload_id as string;
+  }
+
+  it("creates a mockup from a ZIP in the download's layout, inside one folder, title and pages from its manifest", async () => {
+    const manifest = { title: "Upload board", summary: "Uploaded.", columns: 2, pages: [{ page_id: "board", title: "Board" }, { page_id: "phone", title: "Phone", width: 390, height: 844 }] };
+    const uploadId = await upload(alice, {
+      "canvas/manifest.json": JSON.stringify(manifest),
+      "canvas/brief.md": "# Upload board\n\nDoes a board read at a glance?",
+      "canvas/pages/board.html": page("Board"),
+      "canvas/pages/board.notes.md": "Wide.",
+      "canvas/pages/phone.html": page("Phone"),
+      "canvas/files/DESIGN.md": "# Board",
+    });
+    const r = await alice.api("POST", `${P}/mockups`, { upload_id: uploadId, refs: { assumptions: [assumptionId] } });
+    expect(r.status).toBe(201);
+    mockupId = r.body.mockup_id;
+    etag = r.body.etag;
+    expect(r.body).toMatchObject({ title: "Upload board", summary: "Uploaded.", current_version: 1, from_upload: uploadId });
+    expect(r.body.current).toMatchObject({ brief: "# Upload board\n\nDoes a board read at a glance?", columns: 2 });
+    expect(r.body.current.pages).toEqual([
+      expect.objectContaining({ page_id: "board", title: "Board", notes: "Wide.", width: 1280 }),
+      expect.objectContaining({ page_id: "phone", title: "Phone", notes: "", width: 390, height: 844 }),
+    ]);
+    expect(r.body.current.files).toEqual([expect.objectContaining({ path: "DESIGN.md" })]);
+    expect(r.body.current.resolved_refs.assumptions[0]).toMatchObject({ id: assumptionId });
+    // Read once: the bytes go, and the upload can't make a second version.
+    await h.worker.drain();
+    const row = await h.db.transaction().execute(async (trx) => {
+      await sql`select set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
+      return trx.selectFrom("mockup_uploads").selectAll().where("upload_id", "=", uploadId).executeTakeFirstOrThrow();
+    });
+    expect(row.used_at).not.toBeNull();
+    expect(await h.blobs.stat(row.blob_key)).toBeNull();
+    const again = await alice.api("POST", `${P}/mockups`, { mockup_id: mockupId, expected_etag: etag, upload_id: uploadId });
+    expect(again.status).toBe(409);
+    expect(again.body.error.code).toBe("upload_used");
+  });
+
+  it("round-trips a download: changes one page, adds one, and carries forward what the ZIP leaves out", async () => {
+    const g = await alice.api("POST", `${P}/mockups/${mockupId}/downloads`, {});
+    const zip = unzipSync(new Uint8Array(await (await fetch(g.body.url, { headers: g.body.headers })).arrayBuffer()));
+    const manifest = JSON.parse(strFromU8(zip["manifest.json"]!));
+    manifest.pages.push({ page_id: "list", title: "List" });
+    const uploadId = await upload(alice, {
+      "manifest.json": JSON.stringify(manifest),
+      "pages/board.html": page("Board, denser"),
+      "pages/list.html": page("List"),
+    });
+    const r = await alice.api("POST", `${P}/mockups`, { mockup_id: mockupId, expected_etag: etag, upload_id: uploadId, summary: "From the call." });
+    expect(r.status).toBe(201);
+    etag = r.body.etag;
+    expect(r.body).toMatchObject({ current_version: 2, based_on_version: 1, summary: "From the call." });
+    expect(r.body.current.brief).toBe("# Upload board\n\nDoes a board read at a glance?");
+    expect(r.body.current.pages.map((p: { page_id: string }) => p.page_id)).toEqual(["board", "phone", "list"]);
+    expect(r.body.current.pages[0]).toMatchObject({ notes: "Wide." });
+    expect(r.body.current.files).toEqual([expect.objectContaining({ path: "DESIGN.md" })]);
+    const v = await alice.api("GET", `${P}/mockups/${mockupId}/versions/2?include_html=true`);
+    expect(v.body.pages[0].html).toContain("Board, denser");
+    expect(v.body.pages[1].html).toContain("Phone");
+  });
+
+  it("refuses what is not a canvas, every problem at once, and pages sent beside an upload", async () => {
+    const bad = await upload(alice, {
+      "manifest.json": JSON.stringify({ pages: [{ page_id: "board" }] }),
+      "pages/board.html": page("Board"),
+      "pages/ghost.html": page("Ghost"),
+      "notes.txt": "stray",
+    });
+    const r = await alice.api("POST", `${P}/mockups`, { mockup_id: mockupId, expected_etag: etag, upload_id: bad });
+    expect(r.status).toBe(422);
+    expect(r.body.error.code).toBe("invalid_upload");
+    expect(r.body.error.message).toMatch(/pages\/ghost\.html belongs to page ghost/);
+    expect(r.body.error.message).toMatch(/notes\.txt is not part of a canvas/);
+    const both = await alice.api("POST", `${P}/mockups`, { mockup_id: mockupId, expected_etag: etag, upload_id: bad, pages: [{ page_id: "board" }] });
+    expect(both.status).toBe(422);
+    expect(both.body.error.message).toMatch(/send pages in the ZIP or in the call/);
+    // Bad HTML in a ZIP is refused as it is in a call.
+    const remote = await upload(alice, { "manifest.json": JSON.stringify({ pages: [{ page_id: "board" }] }), "pages/board.html": page("Board").replace("</head>", '<link rel="stylesheet" href="https://example.com/x.css"></head>') });
+    expect((await alice.api("POST", `${P}/mockups`, { mockup_id: mockupId, expected_etag: etag, upload_id: remote })).status).toBe(422);
+
+    const g = await alice.api("POST", `${P}/mockups/uploads`, {});
+    expect((await alice.api("POST", `${P}/mockups`, { mockup_id: mockupId, expected_etag: etag, upload_id: g.body.upload_id })).status).toBe(404);
+    expect((await fetch(g.body.url, { method: "PUT", headers: { ...g.body.headers, "X-WhatBuild-Upload-Grant": "x.y" }, body: "x" })).status).toBe(401);
+    expect((await fetch(g.body.url, { method: "PUT", headers: g.body.headers, body: "not a zip" })).status).toBe(201);
+    const notZip = await alice.api("POST", `${P}/mockups`, { mockup_id: mockupId, expected_etag: etag, upload_id: g.body.upload_id });
+    expect(notZip.status).toBe(422);
+    expect(notZip.body.error.code).toBe("invalid_upload");
+    expect((await fetch(g.body.url, { method: "PUT", headers: g.body.headers, body: "again" })).status).toBe(409);
+    const v = await alice.api("GET", `${P}/mockups/${mockupId}`);
+    expect(v.body.current_version).toBe(2);
+  });
+
+  it("gives a viewer no upload grant, and keeps an upload to its product", async () => {
+    expect((await vic.api("POST", `${P}/mockups/uploads`, {})).status).toBe(403);
+    const other = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Elsewhere", concept: "Another product." });
+    const uploadId = await upload(alice, { "manifest.json": JSON.stringify({ title: "X", pages: [{ page_id: "a", title: "A" }] }), "pages/a.html": page("A") });
+    const r = await alice.api("POST", `/api/v1/p/${other.body.path}/mockups`, { upload_id: uploadId });
+    expect(r.status).toBe(404);
   });
 });
