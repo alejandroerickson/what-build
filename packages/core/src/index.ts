@@ -45,7 +45,7 @@ export { completeGrant, DOWNLOAD_GRANT_HEADER, UPLOAD_GRANT_HEADER, blobKeyFor }
 export { createTenantWithTeam, uniqueTenantSlug } from "./ops/products.ts";
 export { isInstanceOwner, tenantAllowanceOf, type TenantAllowance } from "./tenant-allowance.ts";
 export { RESET_CONFIRMATION, sandboxNotice } from "./ops/public-sandbox.ts";
-export { printDocument, shownHtml } from "./ops/story.ts";
+export { PREVIEWS_KEPT, printDocument, shownHtml, STORY_PREVIEW_PURPOSE } from "./ops/story.ts";
 export { MOCKUP_UPLOAD_PURPOSE, mockupBundle, readCanvasZip } from "./ops/mockups.ts";
 export { SKILL_NAME, SKILL_VERSION, skillMarkdown } from "./ops/meta.ts";
 export { GUIDANCE_VERSION } from "./story-guidance.ts";

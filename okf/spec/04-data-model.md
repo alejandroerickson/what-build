@@ -505,9 +505,10 @@ in the product's style.
 
 **A page from a mockup.** A version may show one page of a mockup version instead of HTML of its
 own ([§4.12](#412-mockups)): `story.promote_mockup { mockup_id, mockup_page_id, version?, page_id?,
-title?, summary?, expected_etag? }` publishes it, on a new page (named after the mockup page's slug,
-with `-2`, `-3`… when that is taken, and titled with its title) or, with `page_id` and the page's
-etag, as an existing page's next version. `version` is the mockup version, the current one by
+title?, summary?, expected_etag? }` publishes it, on a new page or, with an existing page's
+`page_id` and its etag, as that page's next version. A new page takes the `page_id` given when no
+page has it yet, and otherwise the mockup page's slug, with `-2`, `-3`… when that is taken; it is
+titled with the mockup page's title unless `title` is given. `version` is the mockup version, the current one by
 default. The version stores `mockup` (`mockup_id`, `mockup_version_id`, `version`, `page_id`) and
 no HTML: mockup versions are immutable, so the page is read from the mockup when it is shown and is
 never copied. It takes the mockup version's refs and citations. It stays on that mockup version until
@@ -565,6 +566,21 @@ page navigating itself by script) and says so, and the app's own pages send
 opened and redirect it later. The print view drops scripts, event handlers and every element a
 Story page may not hold, forms included, whatever a stored page holds (a mockup page it shows
 too).
+
+**Preview.** `story.preview` takes exactly what `story.publish` takes and runs the same code up to
+the point of writing ([`ops/story.ts`](../../packages/core/src/ops/story.ts), `draftVersion`):
+every check, in the same order, with the same errors (a list of problems says "The page would not
+be published"), and the same document. It writes no version, page or activity. It stores the
+document publish would store (or, for a version that keeps showing a mockup page, that page) in
+`story_previews`, and returns its `html_sha256` with a download grant to GET it
+(`GET /api/v1/downloads/story-preview/{preview_id}`, [§6.4](06-operations-and-adapters.md)),
+served exactly as a version's HTML is: the same sandbox headers, the carried typefaces embedded,
+and `?theme=light|dark`. Publishing the same call then stores a version whose `html_sha256` is the
+preview's, unless the page or the Story style changed in between. A preview lasts as long as its
+grant (30 minutes by default) and a product keeps its 20 newest; it is refused where publish would
+be (a viewer, an archived product, a public sandbox not taking visitors' writes) and is never a
+write in a sandbox's allowances ([§9.7](09-data-lifecycle.md),
+[decision](../decisions/a-story-preview-is-the-document-publish-would-store.md)).
 
 **Citations.** A version may carry up to 20 `citations`, `{ record_id, seq_start, seq_end,
 quote? }`, snapshotted exactly as an assumption's citations are (§4.8), with the same quote budget of
@@ -922,5 +938,9 @@ activity.jsonl
   `t/<tenant_id>/exports/<export_id>.zip` for exports. Keys never encode titles, tags or any other
   metadata, so no metadata change ever moves bytes, and a key names its tenant. A copied source shares its
   original's file blobs; delete frees a blob only when no file version still refers to it.
+- **Story previews** ([`0024_story_previews.sql`](../../apps/server/src/migrations/0024_story_previews.sql)):
+  `story_previews` holds each document `story.preview` made (`preview_id`, the product, `page_id`,
+  `html`, `shows_mockup`, `created_by`, `expires_at`), with the row-level security policy. Nothing
+  refers to a row; the grant names it, and it goes when the grant expires (§4.11).
 - **Segments** of every derivation are also loaded into Postgres for passage reads, with the
   current derivation's segments flagged `is_current`; only those are indexed for search.

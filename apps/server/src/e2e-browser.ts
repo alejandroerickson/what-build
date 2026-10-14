@@ -18,7 +18,8 @@ const PEOPLE: Record<string, string> = { riley: "riley@example.com", sam: "sam@e
 
 const HELP = `pnpm e2e browser <command>   (the browser starts with the first command, headless; start --headed to watch)
 
-  open <path|url>                 go to a page of the app (/t/harbor-labs/…) or any URL
+  open <path|url>                 go to a page of the app (/t/harbor-labs/…) or any URL; each
+    [--header "Name: value"]      --header is sent with that request only (a Story preview's grant)
   signin <riley|sam|jordan|email> sign in through the development sign-in, with the browser's
                                   storage cleared first, and open the overview
   signout                         forget the session and the browser's storage
@@ -101,9 +102,16 @@ async function daemon(headed: boolean) {
     const [cmd, a, b] = positional(args);
     const pick = (l: Locator) => (flags.nth !== undefined ? l.nth(Number(flags.nth)) : l);
     switch (cmd) {
-      case "open":
-        await page.goto(need(a, "a path or URL"));
+      case "open": {
+        const url = need(a, "a path or URL");
+        const headers = Object.fromEntries(valuesOf(args, "--header").map((h) => [h.slice(0, h.indexOf(":")).trim(), h.slice(h.indexOf(":") + 1).trim()]));
+        if (!Object.keys(headers).length) await page.goto(url);
+        else {
+          await page.setExtraHTTPHeaders(headers);
+          await page.goto(url).finally(() => page.setExtraHTTPHeaders({}));
+        }
         return `opened ${page.url()}`;
+      }
       case "signin": {
         const email = PEOPLE[need(a, "riley, sam, jordan or an email").toLowerCase()] ?? a!;
         // A new person starts clean: the app keeps some state per browser (the last Story page, the
@@ -205,8 +213,13 @@ function valueOf(args: string[], flag: string) {
   return i >= 0 ? args[i + 1] : undefined;
 }
 
+/** Every value given after `flag`, which may be repeated. */
+function valuesOf(args: string[], flag: string) {
+  return args.flatMap((a, i) => (a === flag && args[i + 1] !== undefined ? [args[i + 1]!] : [])).filter((v) => v.includes(":"));
+}
+
 function positional(args: string[]) {
-  return args.filter((a, i) => !a.startsWith("--") && args[i - 1] !== "--nth");
+  return args.filter((a, i) => !a.startsWith("--") && args[i - 1] !== "--nth" && args[i - 1] !== "--header");
 }
 
 function need(v: string | undefined, what: string): string {

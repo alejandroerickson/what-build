@@ -24,10 +24,13 @@ Citations, roles and what a reader can and cannot reach are all checked on the w
    offers), with a short note. *Expect:* its status changes, and the review is attributed to Riley
    on the web.
 5. **MCP, as Sam.** Get the assumption. *Expect:* the review from step 4, with Riley as reviewer.
-6. **MCP, as Sam.** Read the Story guidance and the house style, then publish a new Story page that
-   summarizes the assumption and cites the same passage, and place it under the overview page in the
-   hierarchy. *Expect:* the page is published as version 1, and the hierarchy shows it where it was
-   placed.
+6. **MCP, as Sam.** Read the Story guidance and the house style, then preview a new Story page that
+   summarizes the assumption and cites the same passage, open the preview's url in the browser with
+   its grant (`open <url> --header "<name>: <value>"`) at desktop and phone width (`viewport 390
+   844`), light and dark (`theme dark`, or `?theme=dark` on the url), then publish the same call and place the
+   page under the overview page in the hierarchy. *Expect:* the preview creates no page (the Story
+   does not list it) and opens in the house style; the page is published as version 1 with the
+   preview's `html_sha256`, and the hierarchy shows it where it was placed.
 7. **Web, as Jordan (reader).** Open the Story. *Expect:* the new page is in the tree where step 6
    put it; it renders in the house style, with its HTML as published; the page's details offer no
    citations or references, which a reader is not given (the decision on readers); a link in the
@@ -35,8 +38,8 @@ Citations, roles and what a reader can and cannot reach are all checked on the w
    only the Story.
 8. **Web, as Jordan.** Try to open the assumption from step 1 by its address. *Expect:* refused,
    with a clear message.
-9. **MCP, as Jordan.** Try to create an assumption, and to publish a Story page. *Expect:* both
-   refused with a permission error, and nothing written (check the activity log as Sam).
+9. **MCP, as Jordan.** Try to create an assumption, and to preview and publish a Story page.
+   *Expect:* all refused with a permission error, and nothing written (check the activity log as Sam).
 10. **MCP, as Sam.** Publish a second version of the page with a small change. **Web, as Jordan.**
     Reload the page. *Expect:* the new version shows, and the earlier version is still reachable
     from its history.

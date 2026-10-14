@@ -182,6 +182,12 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   `MOCKUP_RESPONSE_HEADERS`, the same with `allow-forms` (`pageResponseHeaders`). The print view
   has a policy of its own, without `allow-forms`, and drops forms and scripts. A
   version's ZIP and a product export are attachments, never rendered.
+- A Story preview (`story.preview`) is checked by the same code as a publish and served by the
+  same function as a version's HTML (`storyHtml` in `apps/server/src/rest.ts`), in the same
+  sandbox, so nothing reaches a browser through a preview that publishing would refuse. Its
+  document opens only under a download grant of its own purpose (`story_preview`), never with a
+  session, and lives no longer than the grant
+  ([decision](../decisions/a-story-preview-is-the-document-publish-would-store.md)).
 - The app frames pages with `<iframe sandbox>` and takes only a key name or a page slug from the
   frame it made (`apps/web/src/routes/story.tsx`). App pages send `Cross-Origin-Opener-Policy:
   same-origin`, `X-Frame-Options: DENY`, `frame-ancestors 'none'` and `script-src 'self'`

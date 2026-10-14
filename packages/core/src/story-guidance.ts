@@ -11,7 +11,7 @@
 import { STORY_FONTS } from "./story-fonts.ts";
 import { HOUSE_STYLES, VOCABULARY, pageDocument, type HouseStyle } from "./story-styles.ts";
 
-export const GUIDANCE_VERSION = "3.1.0";
+export const GUIDANCE_VERSION = "3.2.0";
 
 /** The typefaces the server embeds in a page that names them; no font file is ever sent for these. */
 export const CARRIED_TYPEFACES = {
@@ -91,7 +91,7 @@ export const DESIGN_PASSES = [
   { pass: "quieter", when: "The page shouts.", checks: ["Remove all but one accent use per section.", "Replace boxes with space and rules.", "Reduce the number of type sizes.", "Drop decoration that carries no meaning."] },
   { pass: "typeset", when: "Before polishing any page.", checks: ["Running text at 60 to 75 characters.", "Headings balanced (text-wrap: balance) and set as statements.", "Real quotation marks, apostrophes and dashes.", "Lining, tabular numbers in tables and figures."] },
   { pass: "layout", when: "The page is a single column of equal blocks.", checks: ["Is there a reason for every column break?", "Do notes sit beside what they explain?", "Does spacing group related things and separate unrelated ones?", "Does reading order match source order?"] },
-  { pass: "adapt", when: "Before publishing.", checks: ["Check at about 390px wide: no horizontal page scroll, tables scroll inside .table-wrap, grids stack in reading order.", "Check in dark as well as light if the style has a dark scheme.", "Check the print view: slides and bands become ordinary blocks, and on paper the page is about 680px wide, so its narrow layout applies."] },
+  { pass: "adapt", when: "Before publishing, on the page's preview.", checks: ["Check at about 390px wide: no horizontal page scroll, tables scroll inside .table-wrap, grids stack in reading order.", "Check in dark as well as light if the style has a dark scheme (?theme=dark on the preview).", "Check the print view: slides and bands become ordinary blocks, and on paper the page is about 680px wide, so its narrow layout applies."] },
   { pass: "polish", when: "Last.", checks: ["Read it in rendered order.", "Check every quotation, count, date and link against the linked material.", "Headings, link text and table labels make sense out of context.", "Focus is visible; no meaning carried by colour alone."] },
 ];
 
@@ -103,7 +103,7 @@ export const DESIGN_TOOLS = {
   why: "Pages are better when a design skill reviews them. People rarely know these exist; tell them.",
   use: [
     "If your harness has a design skill installed, use it on every page before publishing: for example Impeccable (impeccable.style) with its critique, distill, bolder, quieter, typeset, layout, adapt and polish commands, or Anthropic's frontend-design skill. Run them on the page's HTML as you would on a web page.",
-    "If you can render HTML (a browser tool, a headless browser or a screenshot tool), render the page at desktop and about 390px wide, in light and dark, and look at it before publishing. Fix what you see; don't publish blind.",
+    'Look at every page before publishing it. Send the publish call to story(action="preview") instead: it makes every check publish makes and gives a grant to GET the exact document publish would store, in the Story style and the page sandbox. Open it with a browser tool, a headless browser or a screenshot tool, sending the grant\'s headers, at desktop width (1280) and about 390px wide, with ?theme=light and ?theme=dark. Fix what you see; don\'t publish blind.',
     "If no design skill is installed, tell the person once, in one sentence, that installing one improves Story pages (Impeccable installs with `npx impeccable install`), then run the DESIGN_PASSES here yourself.",
   ],
 };
@@ -198,7 +198,7 @@ export const CHECKLIST = [
   { check: "Style", question: "Does the page follow the product's Story style (published with body, or with the stylesheet pasted in), and not WhatBuild's app look?" },
   { check: "Audience and purpose", question: "Does the opening give this reader the one thing they need first?" },
   { check: "Evidence and interpretation", question: "Is every observation linked to a passage, and every interpretation labelled?" },
-  { check: "Design passes", question: "Did you run critique, typeset, layout, adapt and polish (with a design skill if you have one), and render the page to look at it?" },
+  { check: "Design passes", question: "Did you run critique, typeset, layout, adapt and polish (with a design skill if you have one), and look at the page's preview at desktop and phone width, in light and dark?" },
   { check: "Anti-patterns", question: "Is the page free of every item in anti_patterns?" },
   { check: "Structure and access", question: "One h1, logical headings, labelled tables, links that say where they go, AA contrast, no colour-only meaning, readable at 390px?" },
   { check: "Publishing", question: "Did you read the current version, pass its etag, send refs and citations in full when they change, and place the page in the hierarchy (unless your instructions say not to)?" },
@@ -211,6 +211,7 @@ export const WORKFLOW = [
   "Cite the exact passages the page rests on in citations (up to 20), and list the objects it draws on in refs. When you pass either list, pass it in full: it replaces the previous one.",
   "On a later version send only what changes: html, refs and citations you omit carry forward from the current version. patch_html fixes a sentence by exact find and replace; from_version restores an earlier version as a new one. Compare html_sha256 to confirm identical HTML.",
   "Publish with body: only the markup inside <body>. WhatBuild wraps it in a document with the product's Story style, so you never send the stylesheet and every page carries the same one. Send html only for a whole document of your own.",
+  'Preview before you publish: send the same call to story(action="preview"). It refuses what publish would refuse, publishes nothing, and returns a grant to GET the exact page publish would store. Look at it at desktop and phone width, in light and dark, then send the same params to publish.',
   "Use the hierarchy to find related pages; give each page a short lower-case page_id; link related pages inline, and link the pages beneath a page from it (nav.pages).",
   "summary describes the page itself and shows in navigation. Keep mechanics — citation ranges, merges to stay within the citation limit, ids — in the notes for agents; the activity log already records each version.",
   "Publishing does not place a page: set_hierarchy does, with its own etag. Place each new page unless your instructions say otherwise; then leave it unplaced and say so.",

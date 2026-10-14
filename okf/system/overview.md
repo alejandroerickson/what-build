@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild at three altitudes
 description: The whole system from the top down, the major parts, and the mechanics underneath, with links to the detail.
 tags: [overview, architecture, tenancy, access, mcp]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -56,7 +56,7 @@ Google Cloud Storage behind a storage port; the official MCP SDK (stateless Stre
 React 19, React Router 7, TanStack Query 5, Vite 7; Vitest. Details in
 [architecture](../spec/02-architecture.md).
 
-**Operations.** 127 operations, each defined once and exposed through both REST and MCP, but for
+**Operations.** 128 operations, each defined once and exposed through both REST and MCP, but for
 deleting an organization, which only its owner does, in the web app
 ([decision](../decisions/one-registry-two-front-doors.md)).
 
@@ -123,8 +123,10 @@ transaction that makes them current ([derived layer](../spec/05-derived-layer.md
 `mockups publish` a canvas with its brief, or `get_download` a version, build the next one in a
 project and publish the pages that changed
 ([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)) → read
-`story guidance` and the page's notes, `story publish` with citations, update the notes,
-`set_hierarchy` ([decision](../decisions/story-notes-are-agent-memory.md)).
+`story guidance` and the page's notes, `story preview` the call and look at the page it would
+store, `story publish` the same call with citations, update the notes, `set_hierarchy`
+([decision](../decisions/story-notes-are-agent-memory.md),
+[decision](../decisions/a-story-preview-is-the-document-publish-would-store.md)).
 
 **Data.** Identity, tenancy, evidence (records, files, derivations, segments, annotations, agent
 notes), synthesis (outcomes, revisions, assumptions, reviews), mockups (versions,

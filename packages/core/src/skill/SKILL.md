@@ -81,6 +81,23 @@ recognize (with the one you probably meant), then the fields that are missing, a
 "Nothing was changed". That never means there was nothing to change: fix the call and send it
 again before you move on.
 
+**Retrying after a lost response.** A call that ends without an answer (a transport error such as
+"error sending request", a timeout, a dropped connection) may or may not have landed.
+
+- A write that passes `expected_etag` is safe to send again as it is: if the first landed, the
+  retry fails with `409 stale_etag`, and reading the item shows your change. So are the writes
+  that need no etag the first time and refuse a second call without one: a page's first
+  `story(action="publish")`, `promote_mockup` with a new `page_id`, `write_notes` on empty notes,
+  the first `set_hierarchy` and the first `set_style`; and `mockups(action="publish")` from an
+  `upload_id`, since an upload publishes once (`409 upload_used`).
+- A write without an etag may make a second object when sent again, so read first and resend only
+  if nothing landed: creating an outcome, an assumption or a source (`sources(action="create")`,
+  `files(action="create_upload")`, `create_uploads`), a comment (`annotate`), a copy of a source
+  (`copy_to_product`), a mockup (`publish` without `mockup_id` or `upload_id`), a Story page from a
+  mockup (`promote_mockup` without `page_id`), a product, team or organization without a `slug`,
+  and a sandbox invitation. `activity(action="list")` and the item's list show what landed.
+- `story(action="preview")` and every read change nothing, and are always safe to repeat.
+
 **When a tool or action is missing.** This server keeps no session, so it cannot tell your client
 when an upgrade adds tools or actions; the client keeps the tool list it got when it connected,
 and authorizing again does not refresh it. If a tool this skill describes is not in your tool
@@ -348,7 +365,8 @@ sandbox.
 
 **Promote a page to the Story** when a person wants stakeholders to see one screen:
 `story(action="promote_mockup", params={mockup_id, mockup_page_id})` makes a Story page that shows
-that page as it is in the mockup's current version (or `version: N`), named after it. Nothing is
+that page as it is in the mockup's current version (or `version: N`), under the `page_id` you give,
+or named after the mockup page when you give none. Nothing is
 copied, and it stays on that version: when the mockup moves on, promote again with the Story
 page's `page_id` and its etag to show the newer version as the page's next version. `mockups get`
 lists the Story pages that show its pages (`story_pages`). A promoted page joins the end of the
@@ -398,9 +416,17 @@ WhatBuild's own look — it is the team's document, often read outside the team.
 - **Design with taste, and check it.** The guidance gives taste principles, anti-patterns to
   avoid, compositions and named design passes (critique, distill, bolder, quieter, typeset, layout,
   adapt, polish). Compose each page for its content rather than stacking the same recipes. If you
-  have a design skill such as Impeccable, run its commands on the page before publishing; if you
-  can render HTML, look at the page at desktop and phone width in light and dark. If no design
-  skill is installed, tell the person once that one would improve their Story pages.
+  have a design skill such as Impeccable, run its commands on the page before publishing. If no
+  design skill is installed, tell the person once that one would improve their Story pages.
+- **Preview, then publish.** Send the call you mean to publish to `story(action="preview")`
+  first, with the same params. It refuses what `publish` would refuse, with the same error, and
+  publishes nothing; otherwise it returns `html_sha256` and a short-lived grant to GET the exact
+  document `publish` would store, in the Story style and the page sandbox. Open its `url` with its
+  `headers` in a browser tool, a headless browser (Playwright:
+  `new_context(extra_http_headers=headers, viewport={"width": 390, "height": 844})`) or a
+  screenshot tool, at 1280 and 390 wide, adding `?theme=light` and `?theme=dark`, and look at
+  each. Fix what you see, preview again, then send the same params to `publish`. Keep the grant
+  header out of reports.
 
 Read a page with `get_page` before revising and pass its etag; omit the etag only for a new
 page (`include_html: false` reads a page's notes, refs and citations without its HTML). Publishing
