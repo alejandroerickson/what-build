@@ -1,11 +1,15 @@
 import { hostname } from "node:os";
-import { blobsSafeToDelete, lockSandbox, markExportFailed, pruneUsage, runDerivation, runEvidenceMove, runExport, stagedPrototypeKeys, type Env } from "@whatbuild/core";
+import {
+  blobsSafeToDelete, lockSandbox, markExportFailed, pruneFeedbackCounts, pruneUsage, runDerivation, runEvidenceMove, runExport, sendFeedbackDigest, stagedPrototypeKeys, type Env,
+} from "@whatbuild/core";
 import { sql } from "kysely";
 import { pruneOAuthClients } from "./auth/oauth.ts";
 
 const SIDECARS = ["segments.jsonl", "text.md", "outline.md", "manifest.json"];
 /** A job is tried at most this many times, whether it failed or the process stopped while running it. */
 const MAX_ATTEMPTS = 5;
+/** How often an instance looks whether the feedback digest is due. */
+const DIGEST_CHECK_MS = 10 * 60_000;
 /**
  * The kinds of job this version runs. A worker claims only these, so while a release rolls out, an
  * instance of the version before it leaves a kind a new migration queued for the new version,
@@ -71,6 +75,7 @@ export class Worker {
         this.again = false;
         for (;;) {
           await this.prune().catch((e) => this.log(`prune: ${(e as Error).message}`));
+          await this.feedbackDigest().catch((e) => this.log(`feedback digest: ${(e as Error).message}`));
           await this.giveUpAbandoned().catch((e) => this.log(`give up: ${(e as Error).message}`));
           const job = await this.claim();
           if (!job) break;
@@ -87,14 +92,27 @@ export class Worker {
   }
 
   private lastPrune = 0;
+  private lastDigestCheck = 0;
 
-  /** Housekeeping, at most hourly: finished jobs after a week; OAuth registrations nobody connected with; people's days of use after 14 months; abandoned upload grants and canvas uploads, and their bytes; expired Story previews. */
+  /**
+   * The feedback digest, when the deployment names an address for it: looked at on start and every
+   * ten minutes while the instance is alive; `sendFeedbackDigest` decides whether one is due.
+   */
+  private async feedbackDigest() {
+    if (!this.env.ports.config.feedbackEmail || Date.now() - this.lastDigestCheck < DIGEST_CHECK_MS) return;
+    this.lastDigestCheck = Date.now();
+    const sent = await sendFeedbackDigest(this.env.db, this.env.ports);
+    if (sent) this.log(`feedback digest: ${sent} report(s) sent`);
+  }
+
+  /** Housekeeping, at most hourly: finished jobs after a week; OAuth registrations nobody connected with; people's days of use after 14 months; feedback counts of days that are over; abandoned upload grants and canvas uploads, and their bytes; expired Story previews. */
   private async prune() {
     if (Date.now() - this.lastPrune < 3600_000) return;
     this.lastPrune = Date.now();
     await sql`delete from jobs where done_at < now() - interval '7 days'`.execute(this.env.db);
     await pruneOAuthClients(this.env.db);
     await pruneUsage(this.env.db);
+    await pruneFeedbackCounts(this.env.db);
     // A sandbox's counters: a minute's are read within that minute, a day's until the next reset.
     await sql`delete from sandbox_usage where (bucket = 'minute' and starts_at < now() - interval '1 hour') or starts_at < now() - interval '3 days'`.execute(this.env.db);
     const tenants = await sql<{ tenant_id: string }>`select distinct tenant_id from tenants`.execute(this.env.db);

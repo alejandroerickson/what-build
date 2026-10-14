@@ -121,8 +121,12 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   an operation above it (`403 connection_level`) before resolving any scope, and MCP lists only
   what it allows, so an agent on an Edit connection is never offered a permanent delete. Only a
   web session changes a level (`PATCH /api/v1/me/agents/…`); REST refuses bearer tokens, so an
-  agent cannot raise its own. Deleting an organization is refused to anything but a person in the
+  agent cannot raise its own. The person's feedback switch on a connection works the same way: off,
+  `submit_feedback` is neither listed nor answered (`403 feedback_off`). Deleting an organization is refused to anything but a person in the
   web app (`403 web_only`) and never listed to an agent.
+- Feedback names nobody: a report keeps no account, only an address its sender chose to share,
+  and a person with their agents sends at most 10 a day, a deployment taking at most 200
+  ([§4.13](../spec/04-data-model.md#413-feedback)).
 - Nothing goes to a client's redirect URI before the person chooses Allow or Deny: an error in an
   authorization request (response type, PKCE, resource) is said on WhatBuild's own page, signed in
   or not, so no registered URI is reached from WhatBuild's domain without a person's choice

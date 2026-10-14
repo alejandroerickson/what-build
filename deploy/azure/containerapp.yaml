@@ -92,6 +92,10 @@ properties:
           #   secretRef: smtp-url
           # - name: WHATBUILD_MAIL_FROM
           #   value: "WhatBuild <no-reply@example.com>"
+          # Where the daily digest of feedback goes; it needs the SMTP settings above. Without it,
+          # feedback stays in the database.
+          # - name: WHATBUILD_FEEDBACK_EMAIL
+          #   value: "feedback@example.com"
           # - name: WHATBUILD_MICROSOFT_TENANT
           #   value: ${AZ_IDENTITY_TENANT}
           # - name: WHATBUILD_MICROSOFT_CLIENT_ID

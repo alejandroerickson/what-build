@@ -151,6 +151,8 @@ export interface OauthTokensTable {
   revoked_at: TsNull;
   /** What the connection may do: the same on every token of one connection (`family_id`). */
   level: Def<ConnectionLevel>;
+  /** Whether the connection is offered submit_feedback; like the level, the same on every token of one connection. */
+  feedback: Def<boolean>;
 }
 
 export interface TenantsTable {
@@ -238,8 +240,26 @@ export interface FeedbackTable {
   tool: string | null;
   details: string | null;
   server_version: string;
-  submitted_by: Json<ActorSnapshot>;
+  /** Who sent a report made before feedback named nobody; null since. */
+  submitted_by: JsonNull<ActorSnapshot>;
+  /** The door it came through: `web` or `mcp`. */
+  surface: string | null;
+  /** An agent's family (`clientFamily`), never the name its client registered. */
+  client: string | null;
+  /** The part of the web app the person was on. */
+  screen: string | null;
+  /** The person's address, only when they chose to share it for a reply. */
+  reply_to: string | null;
+  /** When the report went out in the daily digest; null until then. */
+  sent_at: TsNull;
   received_at: Ts;
+}
+
+/** How many reports a person sent on one day, for the daily limit; it never says which. */
+export interface FeedbackCountsTable {
+  account_id: string;
+  day: string;
+  sent: number;
 }
 
 /** A request, from the public site, to hear when WhatBuild opens. Write-only; operators read it directly. */
@@ -828,6 +848,7 @@ export interface DB {
   invitations: InvitationsTable;
   jobs: JobsTable;
   feedback: FeedbackTable;
+  feedback_counts: FeedbackCountsTable;
   interest: InterestTable;
   records: RecordsTable;
   files: FilesTable;

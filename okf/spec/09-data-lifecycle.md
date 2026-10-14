@@ -92,7 +92,9 @@ page and an agent say the same thing.
 from the sign-in page, Settings, `/cookies` and the public site's footer. It opens with the
 statement above. What it says of every deployment is fixed text: what is kept, why and for how long (the account; what people add; sessions
 and connected agents, with the deployment's session and agent lifetimes; request logs; the counts
-of use, for 14 months; Google Analytics, when the deployment has it; feedback and interest; backups),
+of use, for 14 months; Google Analytics, when the deployment has it; feedback, without the sender's
+name or address unless they share it, and mailed once a day to the people who run the deployment,
+and interest; backups),
 on what grounds (because a person uses WhatBuild; to run it safely and improve it, which a person
 may object to; or their consent), that providers may handle it abroad, that nothing is sold, and
 what a person can do (export, ask to see, correct, delete or object, complain to their authority).

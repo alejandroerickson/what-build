@@ -113,6 +113,9 @@ its memory read there, before production moves.
   setting on the service, so a deployment that sends mail passes `MAIL_FROM` each time: without it
   the sender falls back to `no-reply@localhost`, which providers refuse, and sign-in links and
   invitations to new addresses fail.
+- **Feedback by email** — with mail, also pass `FEEDBACK_EMAIL=<address>`, and that address gets a
+  digest of people's and agents' feedback at most once a day. Without it, feedback stays in the
+  database. A re-run replaces it too, so pass it each time ([mail](mail.md#the-feedback-digest)).
 - **Microsoft work accounts** — `setup.sh` does not set it up. Register the application as the
   [Azure guide](azure.md#sign-in) does, with the optional ID-token claims `email` and `xms_edov`
   and the redirect URI `https://<your-url>/auth/microsoft/callback`, store its secret as

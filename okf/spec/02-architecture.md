@@ -145,7 +145,7 @@ interfaces; adapters live in [`apps/server/src/adapters`](../../apps/server/src/
 |---|---|---|---|---|
 | `BlobStore` | Immutable, create-only blobs: `put`, `putStream` (size-capped), `get`, ranged `getStream`, `stat`, `delete`; optional signed upload and download URLs | Google Cloud Storage | filesystem (`.what-build/blobs`) | in-memory |
 | `GrantSigner` | Sign and verify upload and download grants | HMAC with `WHATBUILD_GRANT_KEY` | the same, with a fixed development key | the same |
-| `Mailer` | Sign-in links and invitations | SMTP, or none (email links then off) | printed to the terminal | captured in memory |
+| `Mailer` | Sign-in links, invitations, allowance notices and the daily feedback digest | SMTP, or none (email links then off) | printed to the terminal | captured in memory |
 | `UrlFetcher` | Size-capped, SSRF-safe HTTPS fetch for `files.fetch_url` | yes | yes | yes |
 | `FileParser` | Parse one file's bytes into its sidecars, away from the requests | a worker thread per file, with memory and time limits | the same | the same |
 

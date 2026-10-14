@@ -34,6 +34,8 @@
 #   TENANT_ALLOWANCE    how many organizations any other address may create (optional; default 0)
 #   SMTP_URL            smtp(s)://user:pass@host:port for sign-in links and invitations (optional)
 #   MAIL_FROM           e.g. "WhatBuild <hello@what-build.com>"
+#   FEEDBACK_EMAIL      the address that gets the daily digest of people's and agents' feedback
+#                       (optional; needs SMTP_URL). Without it, feedback stays in the database.
 #   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET   an OAuth web client for "Continue with Google" (optional).
 #                       The secret may instead be created in Secret Manager as
 #                       whatbuild-google-client-secret, and only GOOGLE_CLIENT_ID passed.
@@ -177,6 +179,7 @@ OWNERS="${INSTANCE_OWNERS:-$(gcloud config get-value account 2>/dev/null)}"
 ENV_VARS="WHATBUILD_GCS_BUCKET=$BUCKET,WHATBUILD_SIGNUP_ALLOWLIST=${ALLOW//,/;},WHATBUILD_INSTANCE_OWNERS=${OWNERS//,/;}"
 [ -n "${TENANT_ALLOWANCE:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_TENANT_ALLOWANCE=$TENANT_ALLOWANCE"
 [ -n "${MAIL_FROM:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_MAIL_FROM=$MAIL_FROM"
+[ -n "${FEEDBACK_EMAIL:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_FEEDBACK_EMAIL=$FEEDBACK_EMAIL"
 [ -n "${GOOGLE_CLIENT_ID:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID"
 [ -n "${SIGNED_URLS:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_GCS_SIGNED_URLS=1"
 [ -n "${SANDBOX_TENANT:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_SANDBOX_TENANT=$SANDBOX_TENANT"

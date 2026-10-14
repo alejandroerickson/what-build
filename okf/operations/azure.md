@@ -464,6 +464,12 @@ Store `smtp://<username>:<password>@<host>:587`, with both parts percent-encoded
 `WHATBUILD_MAIL_FROM` in the definition. Without mail, invitations are links that whoever invites
 copies and sends. [Mail](mail.md) has what the server sends and what breaks it.
 
+**Feedback by email.** People and their agents can always send feedback; it names nobody unless
+its sender shares an address. With mail working, uncomment `WHATBUILD_FEEDBACK_EMAIL` in the definition
+and set it to the address that should get a digest of it at most once a day: the organization's own,
+or one WhatBuild's maintainers give it, to pass its people's feedback on to them. Without it,
+feedback stays in the deployment's database ([mail](mail.md#the-feedback-digest)).
+
 **Google sign-in** works as on Cloud Run ([cloud-run.md](cloud-run.md)), with
 `WHATBUILD_GOOGLE_CLIENT_ID` and a vault secret for `WHATBUILD_GOOGLE_CLIENT_SECRET`; a Microsoft
 organization rarely wants it.

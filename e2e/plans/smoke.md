@@ -53,6 +53,11 @@ other plans will too.
     an empty result.
 12. **Web, any person.** At phone width (390 × 844) and in the dark theme, revisit the overview, a
     source and a Story page. *Expect:* nothing overflows, overlaps or becomes unreadable.
+13. **Web, as Sam.** On a source, choose Submit feedback in the account menu, choose Bug, write a
+    line saying it is an end-to-end test, and send it. *Expect:* the dialog says it sends the
+    words, the kind, the release and "Evidence, a source", and not Sam's name or address unless
+    the box to share it with the developer of WhatBuild is ticked; the dialog never shows Sam's
+    address; it closes with a thank-you toast. Do not tick the box.
 
 ## Look out for
 

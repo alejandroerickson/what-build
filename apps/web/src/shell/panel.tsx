@@ -6,6 +6,7 @@ import { Avatar, Glyph, IconButton, Menu, MenuGroup, MenuItem, MenuLabel, MenuRa
 import { shortcutLabel } from "../ui/media.ts";
 import { CreateProductDialog } from "../routes/new-product.tsx";
 import { BrandMark } from "./brand.tsx";
+import { FeedbackDialog } from "./feedback-dialog.tsx";
 import { ReleaseItem, useRelease } from "./release.tsx";
 import { useTheme } from "./theme.ts";
 
@@ -180,8 +181,8 @@ export function PlainNav({ section }: { section: string }) {
 
 /**
  * The panel footer: the signed-in person, and the account menu: their email, their role in each
- * organization with its members, the theme, their settings, and sign out. An organization where the
- * person reads only the Story is left out: its members are not shown to them.
+ * organization with its members, the theme, their settings, feedback, and sign out. An organization
+ * where the person reads only the Story is left out: its members are not shown to them.
  */
 export function AccountMenu() {
   const me = useMe();
@@ -190,6 +191,8 @@ export function AccountMenu() {
   const tenants = (useProducts().data?.tenants ?? []).filter((t) => !t.story_only);
   const release = useRelease();
   const name = me.data?.display_name ?? "Signed in";
+  // Mounted on first use and kept, so a draft survives closing the dialog.
+  const [feedback, setFeedback] = useState<"closed" | "open" | null>(null);
   return (
     <div className="panel-foot">
       <Menu
@@ -256,12 +259,16 @@ export function AccountMenu() {
         <MenuItem icon="settings" to="/settings">
           Settings
         </MenuItem>
+        <MenuItem icon="message-square" onSelect={() => setFeedback("open")}>
+          Submit feedback
+        </MenuItem>
         <MenuSeparator />
         <MenuItem icon="log-out" onSelect={() => void signOut()}>
           Sign out
         </MenuItem>
         <ReleaseItem release={release} />
       </Menu>
+      {feedback ? <FeedbackDialog open={feedback === "open"} onClose={() => setFeedback("closed")} /> : null}
     </div>
   );
 }

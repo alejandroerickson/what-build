@@ -98,12 +98,12 @@ async function accountBySession(db: Db, token: string, opts: { legacyCookie?: bo
 }
 
 /** The account behind an access token, when the token was issued for `endpoint` or an endpoint containing it. */
-export async function accountByAccessToken(db: Db, token: string, endpoint: string): Promise<(AccountRow & { client_name: string; level: ConnectionLevel }) | null> {
+export async function accountByAccessToken(db: Db, token: string, endpoint: string): Promise<(AccountRow & { client_name: string; level: ConnectionLevel; feedback: boolean }) | null> {
   const row = await db
     .selectFrom("oauth_tokens as t")
     .innerJoin("accounts as a", "a.account_id", "t.account_id")
     .innerJoin("oauth_clients as c", "c.client_id", "t.client_id")
-    .select(["a.account_id", "a.email", "a.display_name", "a.sandbox_only", "t.resource", "t.token_hash", "t.last_used_at", "t.level", "c.client_name"])
+    .select(["a.account_id", "a.email", "a.display_name", "a.sandbox_only", "t.resource", "t.token_hash", "t.last_used_at", "t.level", "t.feedback", "c.client_name"])
     .where("t.token_hash", "=", sha256Hex(token))
     .where("t.kind", "=", "access")
     .where("t.revoked_at", "is", null)
@@ -129,7 +129,7 @@ export async function mcpPrincipal(c: Context, db: Db, endpoint: string): Promis
   if (!auth?.startsWith("Bearer ")) return null;
   const token = auth.slice(7).trim();
   const a = await accountByAccessToken(db, token, endpoint);
-  return a ? { ...principalFor(a, "oauth", "mcp", a.client_name.slice(0, 64)), level: a.level } : null;
+  return a ? { ...principalFor(a, "oauth", "mcp", a.client_name.slice(0, 64)), level: a.level, ...(a.feedback ? {} : { feedback: false }) } : null;
 }
 
 export async function createSession(db: Db, accountId: string, days: number, userAgent: string | undefined): Promise<string> {

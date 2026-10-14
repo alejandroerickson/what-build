@@ -3,7 +3,7 @@ type: System Concept
 title: Copying an organization out of a deployment, into a local copy, the golden master, the dev deployment or another deployment's new database
 description: What a copy of one or more organizations holds and leaves behind, taking one with pnpm fixture pull, where each kind of copy goes, moving an organization into another deployment, and what a copy cannot do.
 tags: [operations, production, privacy, tenancy, fixture, dev, migrations]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-14}
 status: draft
 ---
 
@@ -24,7 +24,7 @@ The skill `copy-an-organization` conducts moving one into another deployment.
 | the organizations: settings, teams, products and everything in them, invitations, activity, a sandbox's baselines, queued jobs | every other organization |
 | the accounts their rows refer to, chiefly their members, with addresses and names | every other account |
 | the record of migrations, so the database it lands in knows its schema | sessions, agents' connections and tokens, sign-in links |
-| their files: everything under `t/<tenant_id>/` in the bucket | allowances to create organizations, the public site's interest list, usage counts |
+| their files: everything under `t/<tenant_id>/` in the bucket | allowances to create organizations, the public site's interest list, usage counts, feedback and its daily counts |
 
 The schema comes from the deployment (`pg_dump --schema-only`). The organizations' rows are read in
 one snapshot, as `pg_dump` reads, through a role that sees every organization and changes nothing:

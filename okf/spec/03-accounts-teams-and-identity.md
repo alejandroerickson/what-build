@@ -471,6 +471,12 @@ an editor, and an admin's Edit connection as one too.
   operation an agent can call reaches a connection's level, so an agent cannot raise its own.
 - A connection made before levels existed is Edit.
 
+A connection also has a **feedback switch** (`oauth_tokens.feedback`), on unless the person turns
+it off under Connect an agent (`PATCH /api/v1/me/agents/<connection> { feedback }`, the session
+only), and kept by a refresh like the level. Off, MCP does not list `submit_feedback`, a call to it
+is refused with `403 feedback_off`, and the server's instructions say the person turned it off
+([§6.9](06-operations-and-adapters.md#69-feedback)).
+
 **No personal access tokens.** REST answers the web app's session only, and refuses any bearer
 token; an agent connects over MCP with OAuth, so every agent connection is one a person approved in
 a browser and can see and disconnect ([decision](../decisions/built-in-identity-and-oauth.md)).
