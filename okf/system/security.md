@@ -197,6 +197,9 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   web, mail, fragment and same-origin links are live (`apps/web/src/lib/markdown.tsx`). A link into
   the product being read opens in place whatever origin it was written with, so a copy of a
   deployment's content never sends a reader back to the original.
+- A page opened on another name for the deployment (`run.app`, Container Apps' default host) is
+  redirected to `WHATBUILD_PUBLIC_URL`, where the session cookie and the own-origin check for
+  writes live; machines' paths are answered on any host (`apps/server/src/canonical-host.ts`).
 
 **Uploads, parsing and files served back** ([derived layer](../spec/05-derived-layer.md)).
 

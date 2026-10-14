@@ -118,6 +118,18 @@ const STALE_LIST =
   " If you were told of a tool or action that is not here, your client may hold a tool list from another version of this server: it keeps the list it got when it connected." +
   " Tell the person, and ask them to start a new session (in Claude Code, a new conversation or a restart).";
 
+/**
+ * The sentence that names the deployment's own address. A deployment may answer on other names too
+ * (Cloud Run's run.app address, Container Apps' default host, an earlier domain), and links written
+ * with one of those lead people away from their session, so agents write the public URL.
+ */
+export function addressInstruction(base: string): string {
+  return (
+    ` This deployment's address is ${base}. Write every link to WhatBuild with it (the links story(action="guidance") gives already are), ` +
+    "never with another host name you have seen for this deployment."
+  );
+}
+
 /** The sentence a scoped connector adds to the instructions. The path comes from the address, so only plain slugs are repeated. */
 function scopeInstruction(bound: ScopeRef): string {
   const path = [bound.tenant, bound.team, bound.product].filter(Boolean).join("/");
@@ -177,7 +189,7 @@ function errorResult(e: unknown) {
 function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
   const server = new Server(
     { name: SKILL_NAME, version: SKILL_VERSION, title: "WhatBuild" },
-    { capabilities: { tools: {} }, instructions: bound ? SERVER_INSTRUCTIONS + scopeInstruction(bound) : SERVER_INSTRUCTIONS },
+    { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS + addressInstruction(env.ports.config.publicBaseUrl) + (bound ? scopeInstruction(bound) : "") },
   );
   // Resolved on the first tool call, so listing tools costs no lookup.
   let connector: Promise<ConnectorScope> | null = null;

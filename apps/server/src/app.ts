@@ -6,6 +6,7 @@ import { bodyLimit } from "hono/body-limit";
 import { FsBlobStore, MemoryBlobStore } from "./adapters/blobs.ts";
 import { ConsoleMailer, HmacGrantSigner, MemoryMailer, SafeUrlFetcher, SmtpMailer } from "./adapters/misc.ts";
 import { carriesOurCookie, isOwnOrigin } from "./auth/identity.ts";
+import { canonicalHost } from "./canonical-host.ts";
 import { oauthRoutes } from "./auth/oauth.ts";
 import { authRoutes } from "./auth/routes.ts";
 import type { ServerConfig } from "./config.ts";
@@ -198,6 +199,9 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; cl
     if (p.startsWith("/api/") || p.startsWith("/mcp") || p.startsWith("/auth/")) await clock.resetIfDue().catch((e) => console.error("sandbox reset:", e));
     return next();
   });
+
+  // A page opened on another name for this deployment moves to the public URL; the site's host keeps its own.
+  app.use("*", canonicalHost(deps.config));
 
   // First, so the public site's host never reaches the app's routes.
   app.route("/", siteRoutes({ db: deps.db, config: deps.config }));

@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild self-hosts on Azure Container Apps with Azure Database for PostgreSQL and a mounted file share, set up by an agent with the Azure CLI.
 description: What a self-hosted deployment on Azure is made of, how each resource is configured, the commands that create it, sign-in with a Microsoft work account, the variations between organizations, deploying a new version, cost and removal.
 tags: [operations, deployment, azure, self-hosting, container-apps, entra]
-generated: {by: agent:codex, at: 2026-10-12}
+generated: {by: agent:claude, at: 2026-10-14}
 status: draft
 ---
 
@@ -646,7 +646,28 @@ az containerapp update --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP
 ```
 
 Add `https://app.example.com/auth/microsoft/callback` to the app registration's redirect URIs, and
-record the new `WB_PUBLIC_URL`. OAuth metadata, upload grants and links all use it.
+record the new `WB_PUBLIC_URL`. OAuth metadata, sign-in and invitation links, upload grants, the
+Story's link templates and the MCP server's instructions all use it: it is the deployment's one
+address.
+
+The default host (`*.azurecontainerapps.io`) keeps answering, so nothing written with it breaks:
+
+- A person who opens a page there (a link an agent wrote before the domain, a bookmark) is sent to
+  the same path on the new address, where their session is; on the default host they would have
+  none, and a sign-in started there would fail.
+- Health checks, `/api` (with upload and download grants), `/mcp`, `/oauth` and `/.well-known` are
+  answered there as before, never redirected. An agent's access is for the address it connected
+  to, so every agent connected before the change is refused (`401`) until the person connects it
+  again with the new address (`https://app.example.com/mcp`, or a scoped connector under it): tell
+  them when you change it.
+- A link into the product being read opens in place in the web app and in Story and mockup pages
+  whatever host it names, even after that host stops reaching the app. Links anywhere else follow
+  the redirect only while their host reaches the app, so keep an earlier domain pointed at it for as
+  long as content links to it.
+
+Behind a proxy of the organization's (Application Gateway, Front Door) that sends the default host
+as `Host` and does not pass the browser's host in `X-Forwarded-Host`, every page would redirect to
+itself: set `WHATBUILD_REDIRECT_TO_PUBLIC_URL=0` there, or have the proxy forward the host.
 
 ### Who can reach it
 

@@ -34,6 +34,14 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   own (forms whose submissions go nowhere, scripts without a budget, a page that scrolls past its
   height, the mockup quota). Nothing to set: connected agents are asked to update it, and to start
   a new session for the new action.
+- **A page opened on another name for the deployment moves to `WHATBUILD_PUBLIC_URL`.** People who
+  open the app on Cloud Run's `run.app` address, Container Apps' default host or an earlier domain
+  still pointed at it land on the same page at the public URL, signed in; probes, agents, `/api`,
+  `/mcp` and OAuth are answered where they ask, as before. Nothing to do behind the Cloudflare
+  Worker, a Cloud Run domain mapping, Container Apps' own custom domains, or with no custom
+  domain. A deployment behind a proxy that sends the service's own host name as `Host` and no
+  `X-Forwarded-Host` sets `WHATBUILD_REDIRECT_TO_PUBLIC_URL=0` before taking the release, or its
+  pages redirect to themselves. Connected agents are told the public URL to write links with.
 
 ## v0.10.0
 

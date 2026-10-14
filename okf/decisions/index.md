@@ -60,6 +60,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [The overview is WhatBuild's front door, and the one screen with display type](the-overview-is-the-front-door.md)
 - [The WhatBuild mark is one W in a rounded tile with a title-bar line, like one of the app's panels](the-mark-is-a-w-in-a-panel-with-a-title-bar.md)
 - [The public site is one page built with the app, served from Cloudflare's edge or by host from the image](the-public-site-is-one-page-built-with-the-app.md)
+- [The app has one address, and a page opened on another of the deployment's names moves to it](the-app-has-one-address-and-pages-on-other-hosts-move-to-it.md)
 - [Lists filter from the panel; a table's header only sorts or searches](lists-filter-from-the-panel.md)
 - [An empty list says what belongs in it and what to ask an agent; adding by hand stays in the header](empty-lists-lead-with-the-agent.md)
 - [An assumption may be recorded before any evidence cites it](register-entries-may-start-uncited.md)
