@@ -81,6 +81,23 @@ recognize (with the one you probably meant), then the fields that are missing, a
 "Nothing was changed". That never means there was nothing to change: fix the call and send it
 again before you move on.
 
+**Retrying after a lost response.** A call that ends without an answer (a transport error such as
+"error sending request", a timeout, a dropped connection) may or may not have landed.
+
+- A write that passes `expected_etag` is safe to send again as it is: if the first landed, the
+  retry fails with `409 stale_etag`, and reading the item shows your change. So are the writes
+  that need no etag the first time and refuse a second call without one: a page's first
+  `story(action="publish")`, `promote_mockup` with a new `page_id`, `write_notes` on empty notes,
+  the first `set_hierarchy` and the first `set_style`; and `mockups(action="publish")` from an
+  `upload_id`, since an upload publishes once (`409 upload_used`).
+- A write without an etag may make a second object when sent again, so read first and resend only
+  if nothing landed: creating an outcome, an assumption or a source (`sources(action="create")`,
+  `files(action="create_upload")`, `create_uploads`), a comment (`annotate`), a copy of a source
+  (`copy_to_product`), a mockup (`publish` without `mockup_id` or `upload_id`), a Story page from a
+  mockup (`promote_mockup` without `page_id`), a product, team or organization without a `slug`,
+  and a sandbox invitation. `activity(action="list")` and the item's list show what landed.
+- `story(action="preview")` and every read change nothing, and are always safe to repeat.
+
 **When a tool or action is missing.** This server keeps no session, so it cannot tell your client
 when an upgrade adds tools or actions; the client keeps the tool list it got when it connected,
 and authorizing again does not refresh it. If a tool this skill describes is not in your tool
@@ -288,14 +305,58 @@ sandbox.
   answer, and what each page tries. Read the outcomes and assumptions it bears on first, list them
   in `refs` (outcomes, sources, assumptions), and cite the passages behind it in `citations` (up to
   20, as on a Story page).
-- **Each page is one self-contained HTML document**, shown in a sandbox with no network at the size
-  you give: `width` 1280 for a desktop screen or 390 for a phone, and a `height`. The Story's
-  sandbox rules apply: inline CSS and scripts, images and fonts as `data:` URIs, no remote
-  resources, forms or frames. A mockup carries its own look (a wireframe, the product itself, or
-  a document) and never follows the Story style, though you may carry parts of a mockup's design
-  into the Story style.
+- **A page is one self-contained HTML document, or an entry into the version's prototype**
+  (below), shown in a sandbox with no network at the size you give: `width` 1280 for a desktop screen or 390 for a phone, and a `height` (at most 4000).
+  A mockup page has rules of its own, looser than a Story page's, so a working prototype fits:
+  inline CSS; inline scripts and event handlers of any number and length; forms and their
+  controls, whose `submit` handlers run but whose submissions go nowhere, so handle `submit` and
+  call `preventDefault()` (and give a form no `target`); images, fonts and media as `data:` URIs.
+  Refused: anything loaded from elsewhere (a `src` or CSS `url()` that is not `data:`,
+  `@import`, `<script src>`, `<link>`), frames and embeds (`<iframe>`, `<embed>`, `<object>`
+  and the like), `<base>` and `<meta http-equiv>`. A page holds at most 1,000,000 characters. A
+  refusal lists every problem, each with the page, the rule and the element, and a refused
+  publish changes nothing and leaves an upload unused, so publishing is a safe way to check a
+  canvas. A mockup carries its own look
+  (a wireframe, the product itself, or a document) and never follows the Story style, though you
+  may carry parts of a mockup's design into the Story style.
   Keep shared styles, components and any design system in your working project, and inline what
   each page needs when you publish: WhatBuild never draws a page from shared parts.
+- **A team's prototype comes in as it is.** When the team already has a clickable prototype of
+  several files (HTML documents that link to one another, scripts, stylesheets, fonts, images,
+  media, fixtures such as JSON or PDFs, iframes of its own documents), never flatten it into pages:
+  upload it under `prototype/` in the canvas ZIP, and give each canvas page an `entry` in
+  `manifest.json` instead of HTML: the path of one of its HTML documents, with a `?query` and
+  `#fragment` if the page starts somewhere particular (`app/checkout.html?plan=pro#step-2`).
+  Several pages may enter one prototype, a page for each route people should see. Its files are
+  any bytes, kept byte for byte, and are not held to a page's rules; they load only one another.
+  What that means for how you build it:
+  - **Relative addresses only.** `./app.js`, `css/site.css`, `../img/logo.png` resolve inside it.
+    A root-relative address (`/assets/app.js`) points outside the prototype and does not load, so
+    build with a relative base (Vite `base: './'`, or the like). `fetch()` resolves against the
+    document, as it does at home.
+  - **No network.** Nothing loads from another site; a link elsewhere opens a new tab.
+  - **A prototype is stateless.** `localStorage`, `sessionStorage`, IndexedDB and `document.cookie`
+    are unavailable in WhatBuild's sandbox, and touching one throws. Each document load starts
+    fresh: keep state in script variables while a document is open, or in the address (its query
+    or hash) to carry it across documents. Guard storage calls with `try`/`catch` or remove them,
+    so the prototype behaves as it does in your local run.
+  - **Forms** run their `submit` handlers and submit nowhere. A link between its documents moves
+    within the page's frame; a document is never opened in a tab of its own, and a PDF it links
+    to does not open in the frame (browsers refuse a PDF in a sandbox), though its scripts can fetch
+    the bytes.
+  - **Read `prototype_warnings`** in publish's result: each names a file and what will not work
+    there (a root-relative or remote address, an address the prototype does not hold, a script
+    that uses browser storage or cookies). A warning never refuses; fix what it names and publish
+    again.
+  - `poster` (an image in the prototype, at most 2 MB) is what the Story's print view shows for an
+    entry page, which cannot print itself. Limits: 2,000 files and 64 MB a prototype, 25 MB a
+    file, 500 MB of distinct prototype bytes in a product. A version published without an upload
+    keeps its base's prototype, and its pages may enter it.
+- **A page taller than its `height` scrolls inside its frame.** On the canvas people see its first
+  `height` pixels until they switch to interact mode and scroll it; a Story page that shows it
+  scrolls the same way. A long document can be one page that scrolls, or several pages side by
+  side (`columns`) that people see whole on the canvas. Both work: choose by how people will read
+  it, and ask the person when you cannot tell.
 - **Share the conventions with `files`.** A version carries text files for collaborators, such as
   a DESIGN.md, components and tokens. People see them in the inspector, and they come with the
   download under `files/`, so the next person's agent builds in the same way. Like `pages`, `files`
@@ -310,7 +371,8 @@ sandbox.
   earlier version. Every version stays readable.
 - **Build the next version where you work.** `get_download` gives a version as a ZIP through a
   short-lived grant: `brief.md`, `manifest.json`, each page as `pages/<page_id>.html` with
-  `pages/<page_id>.notes.md`, and the version's files under `files/`. Unzip it in a project, change
+  `pages/<page_id>.notes.md`, the version's files under `files/`, and its prototype under
+  `prototype/`, every file byte for byte with its `sha256` in the manifest. Unzip it in a project, change
   the pages there, and publish the next version. Keep the grant header out of reports.
 - **Upload pages; never type them into a call.** A page's HTML is the bytes of a file, so send it
   the way you send a source: zip the canvas in the download's layout,
@@ -319,21 +381,34 @@ sandbox.
   `citations` if they change). `manifest.json` lists every page in order (`page_id`, and `title`,
   `width`, `height` for a new one or a change); a page whose HTML or notes the ZIP leaves out keeps
   them, so a ZIP of a later version need hold only the pages that changed. The files it lists, or
-  else the ones under `files/`, are the whole set. One publish reads an upload; compare each page's
-  `html_sha256` with your own files' hashes. Send a page's HTML inline only for a small page.
+  else the ones under `files/`, are the whole set. So is the prototype: the paths `manifest.json`
+  lists under `prototype` (a listed path missing from `prototype/` keeps the base's bytes), or
+  else the files under `prototype/`; with neither, the base's prototype carries forward, and
+  `"prototype": []` drops it. Bytes the base already holds are not stored again, so a version that
+  changes one file of a prototype costs one file. One publish reads an upload, and its result
+  gives the ZIP's `size` and `sha256` under `upload`. Compare each page's `html_sha256`, and each
+  file's `sha256`, with your own files' hashes: they hash the text as UTF-8, so they match
+  `shasum -a 256` of a UTF-8 file (one saved with a byte-order mark loses it). `html_chars` and a
+  file's `chars` count characters as a JavaScript string does, not bytes, and so do the limits.
+  Send a page's HTML inline only for a small page.
   Build the whole canvas in your project and publish it once: never spread one canvas over
   several versions to get it through tool calls.
 - `check_citations` reports whether a version's passages still say what was quoted. A version
-  holds at most 24 pages and 8,000,000 characters of HTML; a product holds at most 50 mockups.
+  holds at most 48 pages and 8,000,000 characters of HTML; a product holds at most 50 mockups,
+  archived ones included. `list` leaves archived mockups out and says how many in
+  `archived_hidden`, and its `quota` gives `used` and `limit`: when a product nears the limit,
+  publish new versions of the mockups it has, and ask the person before creating more.
 
 **Promote a page to the Story** when a person wants stakeholders to see one screen:
 `story(action="promote_mockup", params={mockup_id, mockup_page_id})` makes a Story page that shows
-that page as it is in the mockup's current version (or `version: N`), named after it. Nothing is
+that page as it is in the mockup's current version (or `version: N`), under the `page_id` you give,
+or named after the mockup page when you give none. Nothing is
 copied, and it stays on that version: when the mockup moves on, promote again with the Story
 page's `page_id` and its etag to show the newer version as the page's next version. `mockups get`
 lists the Story pages that show its pages (`story_pages`). A promoted page joins the end of the
 Story's **Published mockups**, a section of its own after the page tree, where readers flip through
-them in order; it never goes in the tree. To reorder the section, pass every promoted page's id in
+them in order; it never goes in the tree. A promoted entry shows its prototype, and a reader can
+move through that version's whole prototype from it, but sees nothing else of the mockup. To reorder the section, pass every promoted page's id in
 the order you want as `set_hierarchy`'s `mockups`. People can promote a page from the mockup in
 the web app too.
 
@@ -378,9 +453,17 @@ WhatBuild's own look — it is the team's document, often read outside the team.
 - **Design with taste, and check it.** The guidance gives taste principles, anti-patterns to
   avoid, compositions and named design passes (critique, distill, bolder, quieter, typeset, layout,
   adapt, polish). Compose each page for its content rather than stacking the same recipes. If you
-  have a design skill such as Impeccable, run its commands on the page before publishing; if you
-  can render HTML, look at the page at desktop and phone width in light and dark. If no design
-  skill is installed, tell the person once that one would improve their Story pages.
+  have a design skill such as Impeccable, run its commands on the page before publishing. If no
+  design skill is installed, tell the person once that one would improve their Story pages.
+- **Preview, then publish.** Send the call you mean to publish to `story(action="preview")`
+  first, with the same params. It refuses what `publish` would refuse, with the same error, and
+  publishes nothing; otherwise it returns `html_sha256` and a short-lived grant to GET the exact
+  document `publish` would store, in the Story style and the page sandbox. Open its `url` with its
+  `headers` in a browser tool, a headless browser (Playwright:
+  `new_context(extra_http_headers=headers, viewport={"width": 390, "height": 844})`) or a
+  screenshot tool, at 1280 and 390 wide, adding `?theme=light` and `?theme=dark`, and look at
+  each. Fix what you see, preview again, then send the same params to `publish`. Keep the grant
+  header out of reports.
 
 Read a page with `get_page` before revising and pass its etag; omit the etag only for a new
 page (`include_html: false` reads a page's notes, refs and citations without its HTML). Publishing

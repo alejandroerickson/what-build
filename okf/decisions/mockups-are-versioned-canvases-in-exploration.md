@@ -3,7 +3,7 @@ type: Decision
 title: Mockups are versioned canvases of agent-made HTML, in a stage called Exploration
 description: Agents build directions as sandboxed HTML pages on a canvas under a brief, versioned as a whole and downloadable to build the next one; the third stage is named Exploration.
 tags: [decision, mockups, exploration, story, security, web, agents]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -25,8 +25,23 @@ the names Mockups and Exploration on 2026-10-09.
   outcomes, sources and assumptions it explores and cite passages.
 - **A version is the whole canvas.** Every publish makes the next version; a later version keeps
   the fields and the pages it does not change.
-- Pages are untrusted, like Story pages: checked by the Story's HTML rules and shown only in its
-  sandbox ([decision](story-pages-are-sandboxed-agent-html.md)), without the app's theme.
+- Pages are untrusted, like Story pages, and shown only in the Story's sandbox
+  ([decision](story-pages-are-sandboxed-agent-html.md)), without the app's theme.
+- **A version may carry a prototype**, a team's multi-file prototype as it is, and a page may be an
+  entry into it instead of a document of its own: a path to one of its HTML documents. Its files
+  are served from a capability path of their own, stateless and confined to that version
+  ([decision](mockups-carry-prototypes-served-from-a-capability-path.md)). "Prototype" names that
+  multi-file part only; it is still rejected as the name of a whole mockup (below).
+- **A mockup page has HTML rules of its own**, because a canvas holds working prototypes as well
+  as screens: scripts of any number and length, and forms, whose submit handlers run and whose
+  submissions go nowhere. Like a
+  Story page it is self-contained (nothing loaded from elsewhere, no frames, `<base>`, `<link>` or
+  `<meta http-equiv>`) and holds at most 1,000,000 characters, and a version 8,000,000. A Story
+  page keeps its own rules, a script budget and no forms, since the Story is for reading. Every
+  refusal names the surface it belongs to. A visitor to a public sandbox has the same rules, under
+  its cap on what one field holds. The maintainer chose this on 2026-10-14, replacing the Story's
+  rules for mockup pages: a budget on script length bounds nothing the sandbox does not, and kept
+  interactive prototypes off the canvas.
 - A version downloads as a ZIP (brief, manifest, each page's HTML and notes) through a short-lived
   grant, so an agent builds the next version in its own project and publishes the pages it changed.
   The same layout uploads as a ZIP through a grant, so an agent can publish a canvas without
@@ -83,14 +98,27 @@ the names Mockups and Exploration on 2026-10-09.
   not through WhatBuild drawing pages from them. If their pages still drift apart, pages drawn from
   a shared stylesheet and components is the change to revisit (an open question on the
   [roadmap](../spec/10-roadmap.md)).
+- An agent can publish an existing prototype as it is. Its forms work as far as their submit
+  handlers; a submission the handler does not stop goes nowhere, so a prototype calls
+  `preventDefault()`. A page promoted to the Story is the mockup's page, so it keeps the mockup's
+  rules and sandbox there.
 - Each version stores every page's HTML and every file in full, so a long run of versions costs
-  storage; 24 pages and 8,000,000 characters of HTML, 50 files and 2,000,000 characters of files a
-  version, and 50 mockups a product, bound it.
+  storage; 48 pages and 8,000,000 characters of HTML, 50 files and 2,000,000 characters of files a
+  version, and 50 mockups a product, bound it. A prototype's bytes are stored once per mockup by
+  hash, and bounded by its own limits.
 
 ## Constrains
 
-- Mockup HTML is checked by `inspectStoryHtml` and served by the Story's sandboxed responses
-  (`packages/core/src/story-html.ts`, `apps/server/src/rest.ts`); there is no looser path.
+- Each surface's rules are one `PageRules` in `packages/core/src/html-rules.ts`; mockup HTML is
+  checked by `inspectMockupHtml`, sent in a call or in an uploaded ZIP, and served only by the
+  Story's sandboxed responses (`STORY_RESPONSE_HEADERS` in `packages/core/src/story-html.ts`,
+  `apps/server/src/rest.ts`); there is no looser path for a page's own HTML. A prototype's files
+  are served by their own route, under the prototype's policy (`apps/server/src/prototype.ts`).
+- A mockup page's sandbox allows forms, so a submit handler runs; it is safe only because every
+  response that serves a page says `form-action 'none'`, so no submission goes anywhere. The
+  sandbox for each surface is one constant in `packages/core/src/page-sandbox.ts`, used by the
+  responses (`pageResponseHeaders`) and by the app's frames alike; a Story page's has no
+  `allow-forms` (held by `apps/server/test/mockups.test.ts`).
 - A source that a mockup cites or lists is reported, guarded on move and counted in a delete's
   impact exactly as for Story pages (`packages/core/src/ops/sources.ts`).
 - Whether a page is a published mockup follows its current version (`story_versions.mockup`), and

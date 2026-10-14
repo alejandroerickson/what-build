@@ -19,7 +19,7 @@ const GROUP_SENTENCES: Record<string, string> = {
   derived: "Read a source's parse: manifest, outline, text windows and older derivations; re-parse; and keep agent-written summaries or notes.",
   outcomes: "Read and maintain the product's outcomes: what its users should be able to achieve with it, the compass the rest of the product is read against. Read them first. An outcome cites nothing and is current or archived. Updates change only the fields you pass and keep old text as revisions.",
   assumptions: "The assumption register: premises the team treats as true, optionally cited to exact passages, with attributed reviews.",
-  story: "Read and publish the Story: versioned, sandboxed HTML pages for stakeholders, citing exact passages, each with notes for agents, arranged in a hierarchy with its own etag. Pages follow the product's Story style (get_style, set_style): the team's own design system or an adopted house style, never WhatBuild's look. Read guidance first, then the style, and a page's notes before revising it.",
+  story: "Read and publish the Story: versioned, sandboxed HTML pages for stakeholders, citing exact passages, each with notes for agents, arranged in a hierarchy with its own etag. Pages follow the product's Story style (get_style, set_style): the team's own design system or an adopted house style, never WhatBuild's look. Read guidance first, then the style, and a page's notes before revising it; preview a page, and look at it, before publishing it.",
   mockups: "Read and publish mockups: canvases of agent-made HTML pages (screens, flows, alternatives) in Exploration, each with design notes per page and a Markdown brief that says what the canvas explores. A version is the whole canvas. Download a version as a ZIP to build the next one elsewhere, then publish the pages that changed.",
   lineage: "Record and check the direct inputs a derived view was built from, so staleness can be reported.",
   activity: "What changed in the product, who changed it, and whether an agent did it.",
@@ -118,6 +118,18 @@ const STALE_LIST =
   " If you were told of a tool or action that is not here, your client may hold a tool list from another version of this server: it keeps the list it got when it connected." +
   " Tell the person, and ask them to start a new session (in Claude Code, a new conversation or a restart).";
 
+/**
+ * The sentence that names the deployment's own address. A deployment may answer on other names too
+ * (Cloud Run's run.app address, Container Apps' default host, an earlier domain), and links written
+ * with one of those lead people away from their session, so agents write the public URL.
+ */
+export function addressInstruction(base: string): string {
+  return (
+    ` This deployment's address is ${base}. Write every link to WhatBuild with it (the links story(action="guidance") gives already are), ` +
+    "never with another host name you have seen for this deployment."
+  );
+}
+
 /** The sentence a scoped connector adds to the instructions. The path comes from the address, so only plain slugs are repeated. */
 function scopeInstruction(bound: ScopeRef): string {
   const path = [bound.tenant, bound.team, bound.product].filter(Boolean).join("/");
@@ -177,7 +189,7 @@ function errorResult(e: unknown) {
 function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
   const server = new Server(
     { name: SKILL_NAME, version: SKILL_VERSION, title: "WhatBuild" },
-    { capabilities: { tools: {} }, instructions: bound ? SERVER_INSTRUCTIONS + scopeInstruction(bound) : SERVER_INSTRUCTIONS },
+    { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS + addressInstruction(env.ports.config.publicBaseUrl) + (bound ? scopeInstruction(bound) : "") },
   );
   // Resolved on the first tool call, so listing tools costs no lookup.
   let connector: Promise<ConnectorScope> | null = null;

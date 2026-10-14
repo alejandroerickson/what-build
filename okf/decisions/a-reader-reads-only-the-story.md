@@ -3,7 +3,7 @@ type: Decision
 title: A reader reads only the Story, never the evidence behind it
 description: A team or product role below viewer for stakeholders, enforced by the server: Story pages, their versions and their export, without what the pages draw on.
 tags: [decision, access, roles, story, stakeholders]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -38,6 +38,11 @@ product as anyone else does. It revises one consequence of
 - A reader's Story reads leave out what a page draws on: `refs`, `resolved_refs`, `citations`,
   `citation_count` and the page's notes for agents. Their product reads leave out the product
   concept and count Story pages only.
+- A Story page that shows an entry into a mockup's prototype gives a reader that prototype's
+  address, which reaches every file of that one mockup version's prototype, since a prototype is
+  what its entry opens; nothing else of the mockup (its brief, notes, files, other pages or
+  versions) reaches a reader. The maintainer chose this on 2026-10-14
+  ([decision](mockups-carry-prototypes-served-from-a-capability-path.md)).
 - The server never changes a page's HTML for a reader. What its author wrote, including mentions
   of the evidence, is the reader's to read; the evidence itself is out of reach.
 - Rejected: hiding the rest only in the web app, since the API and MCP would still serve it;

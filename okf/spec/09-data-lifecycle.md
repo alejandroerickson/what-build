@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, the public sandbox with its limits, baseline and reset, and how retired insights and decisions became sources.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, sandbox]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -125,8 +125,10 @@ running on free tiers without a compliance program.
 | Pages of a parsed PDF | 2,000; a longer PDF is stored, not parsed (`too_large`) | Yes |
 | Files per source | 50 | Yes — `409 too_many_files` |
 | Story pages | 50 per product | Yes — `409 quota_exceeded`, quota `story_pages` |
-| Mockups | 50 per product, archived ones included; 24 pages and 8,000,000 characters of HTML, and 50 files and 2,000,000 characters of files, in a version | Yes — `409 quota_exceeded`, quota `mockups`; `422` for a version |
-| A mockup canvas uploaded as a ZIP | 25 MB packed, or the relay's limit when lower; 48 MB unpacked | Yes — `413 too_large`; `422 invalid_upload` past the unpacked size |
+| Mockups | 50 per product, archived ones included; 48 pages and 8,000,000 characters of HTML, and 50 files and 2,000,000 characters of files, in a version | Yes — `409 quota_exceeded`, quota `mockups`; `422` for a version |
+| A mockup's prototype | 2,000 files and 64 MB in a version, 25 MB a file; 500 MB of distinct prototype bytes per product | Yes — `422 invalid_upload`; `409 quota_exceeded`, quota `prototype_bytes` |
+| A mockup canvas uploaded as a ZIP | 25 MB packed, or the relay's limit when lower; 96 MB unpacked and 2,148 entries | Yes — `413 too_large`; `422 invalid_upload` past the unpacked size or the entries |
+| Story previews | 20 per product, each kept as long as its grant (30 minutes by default) | Yes — a new one drops the oldest, whose grant then answers `404` |
 | REST or MCP request body | 5 MB | Yes — `413 too_large` (MCP: `413` with a JSON-RPC error) |
 | Sign-in and OAuth request body | 64 KB | Yes — `413` |
 | Sign-in links | 5 per address per hour | Yes — `429 rate_limited` |
@@ -185,7 +187,8 @@ most likely to be skipped under time pressure, so it is an acceptance criterion 
 is the [dev deployment](../operations/dev-deployment.md).
 
 **Object storage.** Blobs are immutable and keyed opaquely (`t/<tenant>/r/<record>/f/<file
-version>`), so nothing is ever overwritten in place ([§4.15](04-data-model.md)) — the common cause
+version>`; a mockup's prototype files by upload and hash, `t/<tenant>/p/<product>/mockup-prototypes/<upload>/<sha256>`,
+shared by the versions of one mockup and deleted with it), so nothing is ever overwritten in place ([§4.15](04-data-model.md)) — the common cause
 of "the backup has the corrupted version too" does not apply. The deployment's bucket is versioned,
 and noncurrent versions are deleted after 30 days. **Planned:** a nightly manifest of keys and
 sizes, so a restore can be checked against the database rather than hoped about.
@@ -210,7 +213,9 @@ from backup on request. The product-level answer to "I broke it" is:
 once that version is published; the row that recorded the upload goes 7 days later. One never
 published goes, with its bytes, a day after its grant expired. The worker's hourly housekeeping
 does both (`apps/server/src/worker.ts`), as it removes the bytes of a file upload nobody
-completed.
+completed. **Nor are Story previews:** the document `story.preview` made is kept as long as its
+grant, a product keeps only its 20 newest, the same housekeeping removes expired ones, and a public
+sandbox's reset removes them all ([§4.11](04-data-model.md)).
 
 Not versioned, deliberately: source metadata edits (the activity log names the operation and the
 actor, which is enough to understand and redo), and any future embeddings (rebuildable, so
@@ -494,6 +499,11 @@ Rules:
    `403 sandbox_restricted`, like a switch that is off, with `{ setting, limit: 0 }` in `details` and
    a message that says it is off for visitors, never that it starts again at the next reset.
    `sandbox.status` still lists it, and the app shows it to a visitor as Off.
+9. **A Story preview is a call, not a write.** `story.preview` changes nothing anyone sees, so it
+   takes nothing from the writes a visitor or the organization has left; its text meets
+   `text_max_chars` as a publish's does. It is refused wherever publishing would be: while
+   `visitor_access` is `read` (`403 sandbox_read_only`) and while writing is switched off
+   (`403 sandbox_restricted`). Its document is served under its grant, and a reset drops it.
 
 ### The baseline
 

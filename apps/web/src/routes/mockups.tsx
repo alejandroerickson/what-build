@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { MOCKUP_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
-import { attribution, citedAt, formatDate, formatDateTime, nestQuotes, plural } from "../lib/format.ts";
+import { attribution, citedAt, formatBytes, formatDate, formatDateTime, nestQuotes, plural } from "../lib/format.ts";
 import { Markdown, passageHref } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { REVIEW_STATUS, toneFor } from "../lib/status.ts";
@@ -41,8 +42,24 @@ interface CanvasPage {
   notes: string;
   width: number;
   height: number;
-  html_sha256: string;
-  html_path: string;
+  /** A page with HTML of its own. */
+  html_sha256?: string;
+  html_path?: string;
+  /** A page that enters the version's prototype: the path (with a query and fragment) and its frame's address. */
+  entry?: string | null;
+  poster?: string | null;
+  prototype_url?: string | null;
+}
+
+/** A version's prototype: a team's multi-file prototype, served under a short-lived address of its own. */
+interface PrototypeInfo {
+  file_count: number;
+  bytes: number;
+  /** The prototype's address, a capability that lasts until expires_at. */
+  base_url: string;
+  expires_at: string;
+  /** What the frame's sandbox attribute must say, as the server's policy does. */
+  sandbox: string;
 }
 
 type RefKind = "outcomes" | "sources" | "assumptions";
@@ -56,6 +73,7 @@ interface MockupVersion {
   pages: CanvasPage[];
   /** Text files the version carries for collaborators: never used to draw a page. */
   files: MockupFile[];
+  prototype?: PrototypeInfo | null;
   resolved_refs: Record<RefKind, ResolvedRef[]>;
   citations: CitationView[];
   published_at: string;
@@ -199,25 +217,56 @@ const FRAME_KEYS = new Set(["f", "Escape", "ArrowLeft", "ArrowRight", " ", "h", 
  * canvas's keys, Space, a pinch and a press, so the canvas works the same once someone is inside a
  * page. A page that loads another address in its place is put back. In pan mode the frame takes no
  * pointer, so a click selects the page and a drag moves the canvas.
+ *
+ * A page that enters a prototype moves between the prototype's documents inside its frame, so a
+ * second load is not a replacement: each of the prototype's documents says it has loaded
+ * (frame-ready, from the frame script the prototype route adds), and a load that does not say so
+ * within a moment is put back.
  */
-function PageFrame({ page, src, title, selected, onSignal, frameRef }: {
+function PageFrame({ page, src, title, selected, onSignal, frameRef, prototype }: {
   page: CanvasPage;
   src: string;
   title: string;
   selected: boolean;
   onSignal: (pageId: string, s: FrameSignal) => void;
   frameRef: (el: HTMLDivElement | null) => void;
+  /** Set for a page that enters the version's prototype: the sandbox its frame takes. */
+  prototype?: { sandbox: string } | null;
 }) {
   const { app } = useProduct();
   const frame = useRef<HTMLIFrameElement>(null);
   const loads = useRef(0);
+  const ready = useRef(false);
+  const waiting = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [reloads, setReloads] = useState(0);
   const [replaced, setReplaced] = useState(false);
+  // The sandboxed page has an opaque origin, so the message cannot be addressed to one.
+  const hello = useCallback(() => {
+    frame.current?.contentWindow?.postMessage({ whatbuild: "canvas-host" }, "*");
+    frame.current?.contentWindow?.postMessage({ whatbuild: "app-home", home: `${window.location.origin}${app}` }, "*");
+  }, [app]);
+  const putBack = useCallback(() => {
+    ready.current = false;
+    loads.current = 0;
+    setReplaced(true);
+    setReloads((n) => n + 1);
+  }, []);
+  useEffect(() => () => {
+    if (waiting.current) clearTimeout(waiting.current);
+  }, []);
   useEffect(() => {
     const handle = (e: MessageEvent) => {
       const el = frame.current;
       if (!el || e.source !== el.contentWindow) return;
       const data = e.data as { whatbuild?: unknown; key?: unknown; x?: unknown; y?: unknown; dy?: unknown; line?: unknown; pinch?: unknown } | null;
+      if (data?.whatbuild === "frame-ready" && prototype) {
+        if (waiting.current) {
+          clearTimeout(waiting.current);
+          waiting.current = null;
+          hello();
+        } else ready.current = true;
+        return;
+      }
       if (data?.whatbuild === "story-key" && typeof data.key === "string" && FRAME_KEYS.has(data.key)) onSignal(page.page_id, { kind: "key", key: data.key });
       else if (data?.whatbuild === "canvas-keyup" && data.key === " ") onSignal(page.page_id, { kind: "keyup", key: " " });
       else if (data?.whatbuild === "canvas-select") onSignal(page.page_id, { kind: "select" });
@@ -230,7 +279,7 @@ function PageFrame({ page, src, title, selected, onSignal, frameRef }: {
     };
     window.addEventListener("message", handle);
     return () => window.removeEventListener("message", handle);
-  }, [onSignal, page.page_id, page.width]);
+  }, [onSignal, page.page_id, page.width, prototype, hello]);
   return (
     <div ref={frameRef} className="xc-frame" data-page={page.page_id} data-selected={selected ? "" : undefined} style={{ width: page.width, height: page.height }}>
       <iframe
@@ -240,20 +289,27 @@ function PageFrame({ page, src, title, selected, onSignal, frameRef }: {
         width={page.width}
         height={page.height}
         loading="lazy"
-        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+        sandbox={prototype?.sandbox ?? MOCKUP_PAGE_SANDBOX}
         referrerPolicy="no-referrer"
-        src={`${src}?frame=1`}
+        src={prototype ? src : `${src}?frame=1`}
         onLoad={() => {
-          loads.current += 1;
-          if (loads.current > 1) {
-            loads.current = 0;
-            setReplaced(true);
-            setReloads((n) => n + 1);
+          if (prototype) {
+            // One of the prototype's own documents has said so already, or will in a moment.
+            if (ready.current) {
+              ready.current = false;
+              hello();
+            } else waiting.current = setTimeout(() => {
+              waiting.current = null;
+              putBack();
+            }, 1500);
             return;
           }
-          // The sandboxed page has an opaque origin, so the message cannot be addressed to one.
-          frame.current?.contentWindow?.postMessage({ whatbuild: "canvas-host" }, "*");
-          frame.current?.contentWindow?.postMessage({ whatbuild: "app-home", home: `${window.location.origin}${app}` }, "*");
+          loads.current += 1;
+          if (loads.current > 1) {
+            putBack();
+            return;
+          }
+          hello();
         }}
       />
       {replaced ? <p className="xc-replaced">This page tried to open another address in its place. WhatBuild put it back.</p> : null}
@@ -283,7 +339,7 @@ function PageFrame({ page, src, title, selected, onSignal, frameRef }: {
  */
 function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, pageView, onPageView, showRequest }: {
   version: MockupVersion;
-  pageSrc: (pageId: string) => string;
+  pageSrc: (page: CanvasPage) => string;
   selected: string | null;
   onSelect: (pageId: string | null) => void;
   onKey: (k: "f" | "Escape") => void;
@@ -662,7 +718,8 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, pageVie
         <PageFrame
           key={p.page_id}
           page={p}
-          src={pageSrc(p.page_id)}
+          src={pageSrc(p)}
+          prototype={p.prototype_url && version.prototype ? { sandbox: version.prototype.sandbox } : null}
           title={p.title}
           selected={p.page_id === selected}
           onSignal={onSignal}
@@ -672,7 +729,7 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, pageVie
           }}
         />
       )),
-    [version.pages, pageSrc, selected, onSignal],
+    [version.pages, version.prototype, pageSrc, selected, onSignal],
   );
 
   const worldStyle: CSSProperties = {
@@ -948,6 +1005,9 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, pa
             { label: "By", value: attribution(shown.published_by) },
             { label: "Date", value: <time dateTime={shown.published_at}>{formatDateTime(shown.published_at)}</time> },
             { label: "Pages", value: <span className="num">{shown.pages.length}</span> },
+            ...(shown.prototype
+              ? [{ label: "Prototype", value: <span className="num">{plural(shown.prototype.file_count, "file")} · {formatBytes(shown.prototype.bytes)}</span> }]
+              : []),
           ]}
         />
         <Button size="sm" icon="download" className="story-export-button" onClick={download} disabled={downloading}>
@@ -988,6 +1048,11 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, pa
             Fill
           </Button>
         </div>
+        {page?.entry ? (
+          <p className="xc-entry">
+            Enters the prototype at <code className="ellipsis" title={page.entry}>{page.entry}</code>
+          </p>
+        ) : null}
         {page ? <OnTheStory mockup={e} shown={shown} page={page} /> : null}
         {page ? (
           page.notes.trim() ? (
@@ -1263,6 +1328,19 @@ export function MockupPage() {
     [params, setParams],
   );
 
+  // A prototype's address lasts hours: back on a tab whose address is nearly spent, read the version again.
+  const pinnedPrototype = useRef<{ version: number; info: PrototypeInfo } | null>(null);
+  useEffect(() => {
+    const onVisible = () => {
+      const kept = pinnedPrototype.current;
+      if (document.visibilityState !== "visible" || !kept || Date.parse(kept.info.expires_at) - Date.now() > PROTOTYPE_KEEP_MS) return;
+      void e.refetch();
+      if (wantsOld) void old.refetch();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [e, old, wantsOld]);
+
   useEffect(() => {
     if (!e.isSuccess || !mockupId) return;
     try {
@@ -1309,6 +1387,7 @@ export function MockupPage() {
 
   const x = e.data;
   const shown = wantsOld ? old.data : x.current;
+  const pinned = pinPrototype(pinnedPrototype, shown);
   return (
     <div className="mockup-view" data-focus={focusMode.focus ? "" : undefined}>
       <div className="story-bar">
@@ -1332,7 +1411,11 @@ export function MockupPage() {
       {shown ? <Canvas
           key={shown.version}
           version={shown}
-          pageSrc={(pageId) => `${base}/mockups/${x.mockup_id}/versions/${shown.version}/pages/${pageId}/html`}
+          pageSrc={(p) =>
+            p.prototype_url && shown.prototype && pinned
+              ? `${pinned.base_url}${p.prototype_url.slice(shown.prototype.base_url.length)}`
+              : `${base}/mockups/${x.mockup_id}/versions/${shown.version}/pages/${p.page_id}/html`
+          }
           selected={shown.pages.some((p) => p.page_id === selected) ? selected : null}
           onSelect={select}
           onKey={focusMode.onKey}
@@ -1359,6 +1442,23 @@ export function MockupPage() {
           /> : <Loading variant="lines" />}</Inspector>
     </div>
   );
+}
+
+/** How long before its expiry a prototype's address is replaced by a fresher one. */
+const PROTOTYPE_KEEP_MS = 30 * 60_000;
+
+/**
+ * The prototype address the shown version's frames use. The server rounds an address's expiry to
+ * the hour, so a read later in the day gives a new one; the frames keep the one they opened with
+ * until it nears its end, since a new address reloads every frame and loses where people were.
+ */
+function pinPrototype(kept: { current: { version: number; info: PrototypeInfo } | null }, shown: MockupVersion | undefined): PrototypeInfo | null {
+  const info = shown?.prototype ?? null;
+  if (!shown || !info) return null;
+  const k = kept.current;
+  if (k && k.version === shown.version && Date.parse(k.info.expires_at) - Date.now() > PROTOTYPE_KEEP_MS) return k.info;
+  kept.current = { version: shown.version, info };
+  return info;
 }
 
 /** What deleting a mockup destroys, as mockups.delete_impact reports it. */

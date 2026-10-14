@@ -1,11 +1,12 @@
+import { strToU8, zipSync } from "fflate";
 import { expect } from "vitest";
 import type { Browser, Harness } from "./harness.ts";
 
 /**
  * An organization with something in every kind of row a product holds: outcomes and their
  * revisions, tagged sources with files, derivations, passages, annotations and agent notes, assumptions
- * with citations, links and reviews, a Story with a style, a hierarchy, notes and a promoted mockup
- * page, a mockup with files and a canvas upload, lineage, an export, an invitation and a second member. Every text it
+ * with citations, links and reviews, a Story with a style, a hierarchy, notes, a preview and a promoted
+ * mockup page, a mockup with files and a canvas upload, a mockup whose page enters a prototype, lineage, an export, an invitation and a second member. Every text it
  * writes carries `marker`, so a test can tell whether any of it reached someone else.
  */
 export interface Organization {
@@ -30,6 +31,8 @@ export interface Organization {
   hierarchyEtag: string;
   styleEtag: string;
   mockup: { id: string; etag: string; pageId: string };
+  /** A mockup published from a ZIP, whose one page enters its prototype. */
+  prototypeMockup: { id: string };
   exportId: string;
   invitationId: string;
   member: { accountId: string; email: string };
@@ -87,6 +90,8 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
   }));
   const notes = ok(await owner.api("PUT", `${P}/story/pages/${page.page_id}/notes`, { notes: `${marker} notes for agents.` }), 200);
   const tree = ok(await owner.api("PUT", `${P}/story/hierarchy`, { items: [{ page_id: page.page_id, children: [] }], expected_etag: null }), 200);
+  // A preview of the page's next version, held for its grant.
+  ok(await owner.api("POST", `${P}/story/pages/${page.page_id}/preview`, { body: `<p>${marker} a draft of the next version.</p>`, expected_etag: page.etag }), 200);
 
   const html = (title: string) => `<!doctype html><html lang="en"><head><title>${title}</title></head><body><p>${title}</p></body></html>`;
   const m = ok(await owner.api("POST", `${P}/mockups`, {
@@ -96,6 +101,15 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
     files: [{ path: "DESIGN.md", content: `${marker} design notes.` }],
     refs: { assumptions: [as.id] },
   }));
+  // A mockup whose page enters a prototype, uploaded as a ZIP.
+  const g = ok(await owner.api("POST", `${P}/mockups/uploads`, {}));
+  const zip = zipSync({
+    "manifest.json": strToU8(JSON.stringify({ title: `${marker} prototype`, pages: [{ page_id: "start", title: `${marker} start`, entry: "index.html#start" }] })),
+    "prototype/index.html": strToU8(`<!doctype html><html lang="en"><head><link rel="stylesheet" href="app.css"><title>${marker} prototype</title></head><body><p>${marker} prototype</p></body></html>`),
+    "prototype/app.css": strToU8(`/* ${marker} */ body { margin: 0 }`),
+  });
+  expect((await fetch(g.url, { method: "PUT", headers: g.headers, body: zip })).status).toBe(201);
+  const proto = ok(await owner.api("POST", `${P}/mockups`, { upload_id: g.upload_id }));
   // A canvas upload in progress: its grant, with nothing published from it yet.
   ok(await owner.api("POST", `${P}/mockups/uploads`, {}));
   const promoted = ok(await owner.api("POST", `${P}/story/promote-mockup`, { mockup_id: m.mockup_id, mockup_page_id: `${marker.toLowerCase()}-plan`, title: `${marker} promoted plan` }));
@@ -135,6 +149,7 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
     hierarchyEtag: tree.etag,
     styleEtag: style.etag,
     mockup: { id: m.mockup_id, etag: m.etag, pageId: `${marker.toLowerCase()}-plan` },
+    prototypeMockup: { id: proto.mockup_id },
     exportId: ex.export_id,
     invitationId,
     member: { accountId: memberId, email: memberEmail },
@@ -162,6 +177,7 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
     org.page.id,
     org.promotedPage.id,
     org.mockup.id,
+    org.prototypeMockup.id,
     org.exportId,
     org.invitationId,
     org.ownerAccountId,

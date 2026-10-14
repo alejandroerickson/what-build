@@ -3,7 +3,7 @@ type: System Concept
 title: When a new version breaks a WhatBuild deployment, go back to the last good version, and restore the database first if the new one migrated it.
 description: For the operator of any WhatBuild deployment and the agent working for them; how to see what runs, tell whether the bad version changed the schema, go back on Cloud Run (Neon, Cloud SQL, another Postgres) or Azure, check it, and fix forward.
 tags: [operations, recovery, rollback, migrations, deployment, cloud-run, neon, azure, runbook]
-generated: {by: agent:codex, at: 2026-10-12}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -37,6 +37,12 @@ hand, delete rows from `schema_migrations`, or edit a migration file to undo it.
   began; the build's log and the migration job's execution carry exact times.
 - If people are using the deployment, tell them it is being restored and that recent changes may
   be lost.
+- **A Microsoft sign-in refused with a reference** ("WhatBuild couldn't confirm your email with
+  Microsoft", or "That Microsoft sign-in came from another directory") is usually the identity
+  provider's configuration, not the code: an earlier release adds no missing claim. Find the log
+  line with that reference first
+  ([When Microsoft sign-in is refused](azure.md#when-microsoft-sign-in-is-refused)); it says which
+  check failed and how to fix it.
 
 ## 2. What runs now, and what ran before
 

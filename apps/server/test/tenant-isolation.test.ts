@@ -219,6 +219,13 @@ const SCOPED: Record<string, Probe> = {
       { page_id: "planted-cites", title: "Planted", body: "<p>Planted.</p>", citations: [{ record_id: a.source.id, seq_start: 1, seq_end: 1 }] },
     ],
   },
+  "story.preview": {
+    input: (a) => ({ page_id: a.page.id, expected_etag: a.page.etag, title: "Previewed by an outsider", body: "<p>Planted.</p>" }),
+    inside: (a) => [
+      { page_id: "planted-preview", title: "Planted", body: "<p>Planted.</p>", refs: { outcomes: [a.outcome.id], sources: [a.source.id], assumptions: [a.assumption.id] } },
+      { page_id: "planted-preview-cites", title: "Planted", body: "<p>Planted.</p>", citations: [{ record_id: a.source.id, seq_start: 1, seq_end: 1 }] },
+    ],
+  },
   "story.promote_mockup": { input: (a) => ({ mockup_id: a.mockup.id, mockup_page_id: a.mockup.pageId, title: "Promoted by an outsider" }) },
   "story.write_notes": { input: (a) => ({ page_id: a.page.id, notes: "Planted notes.", expected_etag: a.page.notesEtag }) },
   "story.check_citations": { input: (a) => ({ page_id: a.page.id }) },

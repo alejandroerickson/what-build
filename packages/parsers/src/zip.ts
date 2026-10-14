@@ -17,6 +17,26 @@ const STEP = 16 * 1024;
  * declared size over the budget is refused before anything is inflated.
  */
 export function unzipParts(bytes: Uint8Array, wanted: (name: string) => boolean, maxBytes: number): Record<string, Uint8Array> {
+  const parts: Record<string, Uint8Array> = {};
+  for (const e of zipEntries(bytes, wanted, maxBytes)) parts[e.name] = e.data;
+  return parts;
+}
+
+/** One entry of a ZIP as zipEntries reads it. */
+export interface ZipEntry {
+  /** The name as the archive stores it, decoded as UTF-8 when the archive says so. */
+  name: string;
+  data: Uint8Array;
+  /** The archive marks it a symbolic link (a Unix mode of S_IFLNK); its data is then the link's target. */
+  symlink: boolean;
+}
+
+/**
+ * Every entry `wanted` names, in the archive's order, two entries of one name included, unpacked
+ * within the same budget as unzipParts. `maxEntries`, when given, refuses an archive whose central
+ * directory lists more entries than that, before anything is inflated.
+ */
+export function zipEntries(bytes: Uint8Array, wanted: (name: string) => boolean, maxBytes: number, maxEntries?: number): ZipEntry[] {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const check = (at: number, size: number) => {
     if (!Number.isSafeInteger(at) || at < 0 || at + size > bytes.length) throw new Error("invalid zip data");
@@ -48,18 +68,21 @@ export function unzipParts(bytes: Uint8Array, wanted: (name: string) => boolean,
       at = u64(z + 48);
     }
   }
+  if (maxEntries !== undefined && count > maxEntries) throw new TooManyEntriesError(`the archive holds ${count} entries; at most ${maxEntries} are read`);
 
-  const parts: Record<string, Uint8Array> = {};
+  const entries: ZipEntry[] = [];
   let left = maxBytes;
   // Every central directory entry is at least 46 bytes, so a bogus count cannot loop past the file.
   for (let i = 0; i < count; i++) {
     if (u32(at) !== CENTRAL) throw new Error("invalid zip data");
+    const madeBy = u16(at + 4);
     const flags = u16(at + 8);
     const method = u16(at + 10);
     let packed = u32(at + 20);
     let declared = u32(at + 24);
     const nameLength = u16(at + 28);
     const extraLength = u16(at + 30);
+    const external = u32(at + 38);
     let local = u32(at + 42);
     check(at + 46, nameLength + extraLength + u16(at + 32));
     const nameBytes = bytes.subarray(at + 46, at + 46 + nameLength);
@@ -94,12 +117,17 @@ export function unzipParts(bytes: Uint8Array, wanted: (name: string) => boolean,
       else throw new Error(`unknown compression type ${method}`);
       if (part.length > left) throw tooLarge(maxBytes);
       left -= part.length;
-      parts[name] = part;
+      // Made on Unix (host 3), the upper half of the external attributes is the file's mode.
+      const symlink = madeBy >> 8 === 3 && ((external >>> 16) & 0o170000) === 0o120000;
+      entries.push({ name, data: part, symlink });
     }
     at = next;
   }
-  return parts;
+  return entries;
 }
+
+/** An archive listing more entries than its reader takes. */
+export class TooManyEntriesError extends Error {}
 
 function tooLarge(maxBytes: number) {
   return new TooLargeError(`the file unpacks to more than ${maxBytes} bytes; files over ${maxBytes} bytes are stored but not parsed`);

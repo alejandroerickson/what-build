@@ -438,6 +438,10 @@ them. Its one write is promoting a page to the Story.
   pointer. **Interact** (the pointer, `V`): the pages take the pointer, so their links, buttons and
   scrolling work, a drag on the board still moves the canvas, and a press on a page selects it.
   Holding Space pans from either mode. The browser remembers the mode (`whatbuild.mockup.mode`).
+  A page's frame is its width × height: content taller than the height scrolls inside the frame.
+  In pan mode the canvas shows the page's first `height` pixels and a scroll over it moves the
+  canvas; in interact mode a scroll over the page scrolls the page, and at its end stops there
+  without moving the canvas.
   On a touch screen one finger drags the canvas and two pinch it: the point under the fingers
   stays under them as they spread and move, and when one lifts, the other carries on as a drag
   from where it is. In interact mode a touch that begins on a page is the page's.
@@ -460,6 +464,15 @@ them. Its one write is promoting a page to the Story.
   frame, not the app. The frame script ([§4.12](04-data-model.md)) is told the page is on a canvas
   and passes the canvas's keys on, with Space held and let go and a pinch over the page, so they
   work the same from inside a page; while typing in a page they stay with it.
+- **A page that enters a prototype** ([§4.12](04-data-model.md#412-mockups)) is framed at its
+  entry's address, in the sandbox the server names for it, and works as the prototype does at
+  home: its links move between its documents inside the frame, its scripts, styles, fonts, images
+  and fixtures load from the prototype, and its nested iframes show its own documents. Every one of
+  its documents carries the frame script, so the canvas's keys work from each, and each says it
+  has loaded; a load that does not within a moment is another address in its place, and is put
+  back. The frame keeps the address it opened with until the address nears its expiry, so reading
+  the mockup again does not reload the frames; a tab that comes back with the address nearly spent
+  reads the version again.
 - **Selection.** Clicking a page, its label or its name in the inspector selects it: an accent
   outline that keeps its width at any zoom. The selection is in the address (`?page=`), so a link
   can open a mockup at one page; Esc clears it, and a second Esc leaves focus mode.
@@ -469,11 +482,11 @@ them. Its one write is promoting a page to the Story.
   phone too, where the board gains the whole screen; there it never turns on by itself, the
   remembered choice still holds, and the control names no key.
 - **The inspector:** **Version** (a menu of every version with its date, who published the shown
-  one and when, its page count, **Download version N** for the ZIP an agent builds the next version
-  from, [§4.12](04-data-model.md)); **Page** (a menu of the pages with Fit and Fill buttons, as
-  `2` and `3`, then the
-  selected page's notes as Markdown, or a line asking the person to select a page; and where the
-  page stands in the Story, below); **Brief** (the
+  one and when, its page count, its prototype's files and size when it carries one, **Download
+  version N** for the ZIP an agent builds the next version from, [§4.12](04-data-model.md));
+  **Page** (a menu of the pages with Fit and Fill buttons, as `2` and `3`, then where the selected
+  page enters the prototype, if it does, and its notes as Markdown, or a line asking the person to
+  select a page; and where the page stands in the Story, below); **Brief** (the
   version's brief as Markdown); **Files** (the files the version carries, each with its length;
   one opens in a dialog as rendered Markdown or as source text, never as HTML, with Copy);
   **Explores** (the outcomes, assumptions and sources it links, with
@@ -542,12 +555,15 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
   shown (with **Show the current version**), or the page tried to open another address in its
   place, and was put back.
 - **A page from a mockup** ([§4.11](04-data-model.md)) is shown at its own size, scaled down and
-  never up, on paper as on the canvas, without the app's theme. Its crumbs read Story › Published
-  mockups › the page. A control beside the crumbs, and `2` and `3` (from inside the page too),
-  choose between **fit**, the whole page within the room under the crumbs, and **fill**, the
-  page's width filling the measure with its top at the top, to scroll down through it. The choice
-  holds while flipping, and the browser remembers it (`whatbuild.story.mockup-view`, fill until
-  chosen).
+  never up, on paper as on the canvas, without the app's theme. Content taller than the page's
+  height scrolls inside its frame, scaled with it. Its crumbs read Story › Published mockups › the
+  page. A control beside the crumbs, and `2` and `3` (from inside the page too), choose between
+  **fit**, the whole page within the room under the crumbs, and **fill**, the page's width filling
+  the measure with its top at the top, to scroll down through it. The choice holds while flipping,
+  and the browser remembers it (`whatbuild.story.mockup-view`, fill until chosen). A promoted entry
+  into a prototype is framed at its entry's address, as on the canvas, for a reader too: the
+  prototype's links move between its documents inside the frame, and a load that is not one of
+  them is put back.
 - **Flipping through the published mockups.** On a published mockup, a small control beside the
   crumbs gives its place ("2 of 5") between buttons to the previous and next one, and ← and →
   flip to them, in focus mode or not, from the app or from inside the page (the frame passes the

@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild self-hosts on Azure Container Apps with Azure Database for PostgreSQL and a mounted file share, set up by an agent with the Azure CLI.
 description: What a self-hosted deployment on Azure is made of, how each resource is configured, the commands that create it, sign-in with a Microsoft work account, the variations between organizations, deploying a new version, cost and removal.
 tags: [operations, deployment, azure, self-hosting, container-apps, entra]
-generated: {by: agent:codex, at: 2026-10-12}
+generated: {by: agent:claude, at: 2026-10-14}
 status: draft
 ---
 
@@ -427,7 +427,8 @@ rm -rf "$T"
   verified domains there (`WB_MICROSOFT_DOMAINS`, comma-separated, each exact, so a subdomain is
   listed too): then a person whose email attribute is empty signs in by their user principal name,
   which is taken only in a listed domain. Without the claim and with no domain listed, every
-  Microsoft sign-in is refused with "That Microsoft account can't sign in here".
+  Microsoft sign-in is refused with "WhatBuild couldn't confirm your email with Microsoft"
+  ([When Microsoft sign-in is refused](#when-microsoft-sign-in-is-refused)).
 - **A registration made before `xms_edov` was asked for** gets it with
   `az ad app update --id "$WB_MICROSOFT_CLIENT_ID" --optional-claims '{"idToken": [{"name": "email", "essential": false}, {"name": "xms_edov", "essential": false}]}'`
   (with the identity directory active); the next sign-in's token carries it.
@@ -466,6 +467,41 @@ copies and sends. [Mail](mail.md) has what the server sends and what breaks it.
 **Google sign-in** works as on Cloud Run ([cloud-run.md](cloud-run.md)), with
 `WHATBUILD_GOOGLE_CLIENT_ID` and a vault secret for `WHATBUILD_GOOGLE_CLIENT_SECRET`; a Microsoft
 organization rarely wants it.
+
+### When Microsoft sign-in is refused
+
+Microsoft can sign someone in and WhatBuild still refuse the identity it sends back. The person
+then sees a message with a reference such as `K7Q2-M9XD`, and the server logs one line carrying
+the same reference: which check failed, what the token held, and in `fix` what to change. Find it
+by the reference they pass on:
+
+```bash
+az containerapp logs show --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP" --tail 300 | grep K7Q2-M9XD
+# or in the workspace: ContainerAppConsoleLogs_CL | where Log_s has "K7Q2-M9XD"
+```
+
+```json
+{"severity":"WARNING","event":"microsoft_sign_in_refused","reference":"K7Q2-M9XD","check":"email",
+ "email_claim":true,"xms_edov_claim":false,"xms_edov_true":false,"email_domain_listed":false,
+ "upn_claim":true,"upn_domain_listed":false,"domains_listed":0,"fix":"…","guide":"okf/operations/azure.md#when-microsoft-sign-in-is-refused"}
+```
+
+The line names claims and says yes or no; it never holds the token, an address, a name or a
+claim's value. `domains_listed` counts the domains in `WHATBUILD_MICROSOFT_DOMAINS`.
+
+| The line says | The person sees | What it means, and the fix |
+|---|---|---|
+| `"check":"directory"`, with `mismatched` naming some of `aud`, `tid`, `iss` | "That Microsoft sign-in came from another directory" (`/signin?error=microsoft_wrong_directory`) | The ID token was not issued to this app registration in the configured directory. `aud`: `WHATBUILD_MICROSOFT_CLIENT_ID` is not the registration's application (client) ID. `tid` or `iss`: `WHATBUILD_MICROSOFT_TENANT` is not the directory's ID. Read both with the identity directory active (`az ad app list --display-name WhatBuild --query "[].appId"` and `az account show --query tenantId`) and correct the setting. |
+| `"check":"email"`, `"email_claim":false` | "WhatBuild couldn't confirm your email with Microsoft" (`/signin?error=microsoft_no_verified_email`) | The token carries no email address, and the user principal name is not in a listed domain. Ask for the optional claims `email` and `xms_edov` (the `az ad app update` under [Sign-in](#sign-in)), give the person an email attribute in the directory, or, for a directory whose people sign in by user principal name, list its own verified domain. |
+| `"check":"email"`, `"xms_edov_claim":false` | the same | The registration does not ask for `xms_edov`, so no address has its domain's evidence. This is the usual cause on a registration made before WhatBuild asked for the claim. Run the `az ad app update` under [Sign-in](#sign-in) with the identity directory active; the next sign-in carries the claim, with no redeploy. |
+| `"check":"email"`, `"xms_edov_claim":true`, `"xms_edov_true":false` | the same | Entra says the address's domain is not verified by its owner, and the refusal is right. If the directory does own the domain, verify it there (Custom domain names in the Entra admin center); list it in `WHATBUILD_MICROSOFT_DOMAINS` only once the directory is the authority for it. |
+
+Never list a domain in `WHATBUILD_MICROSOFT_DOMAINS` just to make a refusal go away: it tells
+WhatBuild to take every address the directory gives in that domain
+([§3.2](../spec/03-accounts-teams-and-identity.md#sign-in-with-microsoft-work-accounts)). Then ask
+the person to sign in again; each attempt has a reference of its own. "That sign-in didn't work",
+with no reference, is a sign-in that never got an identity back (a missing cookie, a wrong
+`state`, or a refused token request, most often an expired client secret), and logs nothing.
 
 ## Deploying a new version
 
@@ -605,7 +641,9 @@ curl -s "$WB_PUBLIC_URL/api/v1/meta"    # server_version is the new tag
 After deployment, check `/health` and `/api/v1/meta`, then complete a **fresh Microsoft browser
 sign-in at the public/custom URL** and open an existing product. A cached session, a redirect back
 from Microsoft or `auth.microsoft: true` is not a successful sign-in test. The callback can still
-reject the returned identity. If the operator must finish MFA, report “deployed; sign-in awaiting
+reject the returned identity; its message then carries a reference, and
+[When Microsoft sign-in is refused](#when-microsoft-sign-in-is-refused) finds the log line that
+says why. If the operator must finish MFA, report “deployed; sign-in awaiting
 verification” until that test succeeds. Do not report sign-in as verified from a health check.
 
 **From a released image.** A tag `v*` on the repository publishes the image as
@@ -646,7 +684,28 @@ az containerapp update --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP
 ```
 
 Add `https://app.example.com/auth/microsoft/callback` to the app registration's redirect URIs, and
-record the new `WB_PUBLIC_URL`. OAuth metadata, upload grants and links all use it.
+record the new `WB_PUBLIC_URL`. OAuth metadata, sign-in and invitation links, upload grants, the
+Story's link templates and the MCP server's instructions all use it: it is the deployment's one
+address.
+
+The default host (`*.azurecontainerapps.io`) keeps answering, so nothing written with it breaks:
+
+- A person who opens a page there (a link an agent wrote before the domain, a bookmark) is sent to
+  the same path on the new address, where their session is; on the default host they would have
+  none, and a sign-in started there would fail.
+- Health checks, `/api` (with upload and download grants), `/mcp`, `/oauth` and `/.well-known` are
+  answered there as before, never redirected. An agent's access is for the address it connected
+  to, so every agent connected before the change is refused (`401`) until the person connects it
+  again with the new address (`https://app.example.com/mcp`, or a scoped connector under it): tell
+  them when you change it.
+- A link into the product being read opens in place in the web app and in Story and mockup pages
+  whatever host it names, even after that host stops reaching the app. Links anywhere else follow
+  the redirect only while their host reaches the app, so keep an earlier domain pointed at it for as
+  long as content links to it.
+
+Behind a proxy of the organization's (Application Gateway, Front Door) that sends the default host
+as `Host` and does not pass the browser's host in `X-Forwarded-Host`, every page would redirect to
+itself: set `WHATBUILD_REDIRECT_TO_PUBLIC_URL=0` there, or have the proxy forward the host.
 
 ### Who can reach it
 

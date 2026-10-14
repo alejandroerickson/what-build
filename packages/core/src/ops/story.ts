@@ -6,6 +6,9 @@ import { json, type Db, type MockupPageRef, type Refs, type StoryNode } from "..
 import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
 import { conflict, invalid, notFound } from "../errors.ts";
 import { readsOnlyTheStory } from "../policy.ts";
+import type { BlobStore } from "../ports.ts";
+import { entryAddress, prototypeAddress, prototypeNotice } from "../prototype.ts";
+import { refuseVisitorWrite } from "../public-sandbox.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag, id } from "../schemas.ts";
 import { escapeHtml, inspectStoryCss, inspectStoryHtml, STORY_CSS_MAX, STORY_HTML_MAX } from "../story-html.ts";
@@ -16,6 +19,7 @@ import {
 } from "../story-guidance.ts";
 import { HOUSE_STYLE_IDS, houseStyle, pageDocument, PLAIN_STYLESHEET } from "../story-styles.ts";
 import { newEtag, newId, randomToken, sha256Hex, uniq } from "../util.ts";
+import { DOWNLOAD_GRANT_HEADER } from "./files.ts";
 
 export const MAX_PAGES = 50;
 export const MAX_DEPTH = 6;
@@ -150,7 +154,7 @@ export const getStyle = defineOperation({
   mutates: false,
   summary: "The product's Story style: the design system every Story page follows, with its rules and stylesheet. Also lists the house styles.",
   description:
-    "Read this before writing or restyling any page, and paste the stylesheet into the page's <style>. style is null until someone sets one: then ask the person whether their company has a design system to follow, or offer a house style (guidance with house_style shows one in full), and save the choice with set_style. kind is house (adopted from a house style, possibly adapted) or team (the team's own design system). include_stylesheet false leaves the CSS out.",
+    "Read this before writing or restyling any page, and paste the stylesheet into the page's <style>. style is null until someone sets one: then ask the person whether their company has a design system to follow, or offer a house style (guidance with house_style shows one in full), and save the choice with set_style. kind is house (adopted from a house style, possibly adapted) or team (the team's own design system). include_stylesheet false leaves the CSS out. To see a page in the style, preview it: the page a preview serves carries the stylesheet where publish puts it, so a page published with body never needs the CSS from here.",
   input: z.strictObject({ include_stylesheet: z.boolean().default(true) }),
   rest: { method: "GET", path: "/story/style" },
   mcp: { tool: "story", action: "get_style" },
@@ -280,18 +284,37 @@ export async function resolveRefs(ctx: OpContext, refs: Refs): Promise<Record<ke
 
 /**
  * The HTML a version shows: its own, or the page of a mockup version it points at. Mockup versions
- * are immutable, so the Story holds the reference and never a copy.
+ * are immutable, so the Story holds the reference and never a copy. A mockup page that enters its
+ * version's prototype has no HTML of its own: the app frames the entry, and anywhere else that needs
+ * HTML gets a notice, with the page's poster when `blobs` is given to read it.
  */
-export async function shownHtml(db: Db, v: { html: string; mockup: MockupPageRef | null }): Promise<string> {
+export async function shownHtml(db: Db, v: { html: string; mockup: MockupPageRef | null }, blobs?: BlobStore): Promise<string> {
   if (!v.mockup) return v.html;
-  const p = await db.selectFrom("mockup_pages").select("html").where("version_id", "=", v.mockup.mockup_version_id).where("page_id", "=", v.mockup.page_id).executeTakeFirst();
+  const p = await db.selectFrom("mockup_pages").select(["html", "entry", "poster"]).where("version_id", "=", v.mockup.mockup_version_id).where("page_id", "=", v.mockup.page_id).executeTakeFirst();
+  if (p && p.html === null) {
+    const poster = blobs && p.poster
+      ? await db.selectFrom("mockup_prototype_files").select(["media_type", "blob_key"]).where("version_id", "=", v.mockup.mockup_version_id).where("path", "=", p.poster).executeTakeFirst()
+      : null;
+    return prototypeNotice(poster ? { media_type: poster.media_type, data: await blobs!.get(poster.blob_key) } : null);
+  }
   return p?.html ?? "";
 }
 
-/** What a reader needs to lay out a mockup page (its size); the team also sees which mockup and version it is. */
+/**
+ * What a reader needs to lay out a mockup page (its size) and, for an entry into a prototype, the
+ * address its frame opens: a reader reaches that version's whole prototype, which is what the
+ * prototype is, and nothing else of the mockup. The team also sees which mockup and version it is.
+ */
 async function mockupView(ctx: OpContext, ref: MockupPageRef) {
-  const page = await ctx.db.selectFrom("mockup_pages").select(["title", "width", "height"]).where("version_id", "=", ref.mockup_version_id).where("page_id", "=", ref.page_id).executeTakeFirst();
-  const size = { width: page?.width ?? 1280, height: page?.height ?? 800 };
+  const page = await ctx.db.selectFrom("mockup_pages").select(["title", "width", "height", "entry"]).where("version_id", "=", ref.mockup_version_id).where("page_id", "=", ref.page_id).executeTakeFirst();
+  const address = page?.entry ? prototypeAddress(ctx.ports, tenantId(ctx), ref.mockup_version_id, ctx.now) : null;
+  const size = {
+    width: page?.width ?? 1280,
+    height: page?.height ?? 800,
+    ...(address && page?.entry
+      ? { entry: page.entry, prototype_url: `${address.base_url}${entryAddress(page.entry)}`, prototype_sandbox: address.sandbox, prototype_expires_at: address.expires_at }
+      : {}),
+  };
   if (readsOnlyTheStory(ctx.scope.role)) return size;
   const m = await ctx.db.selectFrom("mockups").select(["title", "version_count", "archived_at"]).where("product_id", "=", productId(ctx)).where("mockup_id", "=", ref.mockup_id).executeTakeFirst();
   return {
@@ -441,7 +464,7 @@ function restyled(html: string, stylesheet: string) {
 }
 
 /** Apply exact find/replace edits in order; each find must occur exactly once in the text it meets. */
-function patchHtml(html: string, edits: { find: string; replace: string }[]) {
+function patchHtml(html: string, edits: { find: string; replace: string }[], refused: string) {
   const problems: string[] = [];
   let out = html;
   edits.forEach(({ find, replace }, i) => {
@@ -450,12 +473,105 @@ function patchHtml(html: string, edits: { find: string; replace: string }[]) {
     else if (out.indexOf(find, at + 1) >= 0) problems.push(`Edit ${i + 1}: its find text occurs more than once; include more context.`);
     else out = out.slice(0, at) + replace + out.slice(at + find.length);
   });
-  if (problems.length) throw invalid("invalid_patch", `The page was not published: ${problems.join(" ")}`, { problems });
+  if (problems.length) throw invalid("invalid_patch", `${refused}: ${problems.join(" ")}`, { problems });
   return out;
 }
 
 /** The fields a later version takes from its base version when the call omits them. */
 const CARRIED = ["title", "summary", "html", "refs", "citations"] as const;
+
+const publishInput = z.strictObject({
+  page_id: pageId.default("overview"),
+  title: z.string().trim().min(1).max(200).optional().describe("Required on a page's first version; omit it later to keep the title."),
+  summary: z.string().max(2000).optional().describe("A short description of the page, shown in navigation and lists. Omit it on a later version to keep it."),
+  html: z.string().min(1).max(STORY_HTML_MAX).optional().describe("The whole page. On a first version, omit it for a generated title page; on a later version, omit it to keep the HTML."),
+  body: z
+    .string()
+    .min(1)
+    .max(STORY_HTML_MAX)
+    .optional()
+    .describe('Instead of html: only the markup inside <body>, usually one <main class="page">. WhatBuild wraps it in a document with the product\'s Story style stylesheet, so you never send the stylesheet.'),
+  restyle: z.boolean().optional().describe("A later version only, instead of html, body or patch_html: keep the page and replace its stylesheet with the product's current Story style. Use it on each page after set_style."),
+  patch_html: z
+    .array(z.strictObject({ find: z.string().min(1).max(20_000), replace: z.string().max(100_000) }))
+    .min(1)
+    .max(50)
+    .optional()
+    .describe("A later version only, instead of html: exact find/replace edits applied in order to the base version's HTML. Each find must occur exactly once, or nothing is published."),
+  refs: refsInput.describe("The objects the page draws on, in full. Omit it on a later version to keep the refs."),
+  citations: z
+    .array(citationInput)
+    .max(CITATION_MAX_COUNT)
+    .optional()
+    .describe(`Up to ${CITATION_MAX_COUNT} exact passages the page draws on, in full: {record_id, seq_start, seq_end, quote?}. Read each passage first. Omit it on a later version to keep the citations.`),
+  from_version: z.number().int().min(1).optional().describe("Start from this earlier version instead of the current one: omitted fields are taken from it. Alone, it restores that version as a new one."),
+  expected_etag: expectedEtag.optional(),
+});
+
+type PublishInput = z.output<typeof publishInput>;
+
+/**
+ * The version a publish call makes, with every check story.publish makes, in its order, and
+ * nothing written. publish stores it and preview shows it, so the two never disagree. `refused`
+ * begins each refusal that lists problems: what publish did, or what it would do.
+ */
+async function draftVersion(ctx: OpContext, input: PublishInput, opts: { lock: boolean; refused: string }) {
+  const pid = productId(ctx);
+  let pq = ctx.db.selectFrom("story_pages").selectAll().where("product_id", "=", pid).where("page_id", "=", input.page_id);
+  if (opts.lock) pq = pq.forUpdate();
+  const existing = await pq.executeTakeFirst();
+  const ways = [input.html !== undefined && "html", input.body !== undefined && "body", input.patch_html && "patch_html", input.restyle && "restyle"].filter(Boolean);
+  if (ways.length > 1) throw invalid("invalid_input", `Pass one of html, body, patch_html and restyle, not ${ways.join(" and ")}.`);
+  if (!existing) {
+    if (input.expected_etag) throw conflict("stale_etag", `Page "${input.page_id}" doesn’t exist yet; omit expected_etag for its first version.`);
+    if (input.from_version) throw notFound(`Page "${input.page_id}" has never been published, so it has no version ${input.from_version}.`);
+    if (!input.title) throw invalid("invalid_input", "A page’s first version needs a title.");
+    if (input.patch_html) throw invalid("invalid_input", "patch_html edits an earlier version; a page’s first version needs html or body.");
+    if (input.restyle) throw invalid("invalid_input", "restyle changes an earlier version’s stylesheet; a page’s first version needs html or body.");
+    const summary = input.summary ?? "";
+    const html = input.html ?? (input.body !== undefined ? bodyDocument(input.title, await titleStylesheet(ctx), input.body) : titlePageHtml(input.title, summary, await titleStylesheet(ctx)));
+    const problems = inspectStoryHtml(html);
+    if (problems.length) throw invalid("invalid_html", `${opts.refused}: ${problems.join(" ")}`, { problems });
+    const refs = await validateRefs(ctx, input.refs ?? EMPTY_REFS);
+    const citations = await snapshotAll(ctx, input.citations ?? [], "page version");
+    const count = await ctx.db.selectFrom("story_pages").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst();
+    if (Number(count?.n ?? 0) >= MAX_PAGES) throw conflict("quota_exceeded", `A product’s Story holds at most ${MAX_PAGES} pages.`, { quota: "story_pages", limit: MAX_PAGES, used: Number(count?.n ?? 0), unit: "pages" });
+    return { existing: null, n: 1, title: input.title, summary, html, refs, citations, mockup: null, carried: [] as (typeof CARRIED)[number][], based_on_version: null };
+  }
+  if (existing.archived_at) throw conflict("page_archived", `Page "${input.page_id}" is archived; restore it before publishing.`);
+  if (!input.expected_etag) throw conflict("stale_etag", `Page "${input.page_id}" exists; read it with get_page and pass its etag.`, { current_etag: existing.etag });
+  checkEtag(input.expected_etag, existing.etag, "story page");
+  let base = ctx.db.selectFrom("story_versions").select(["n", "title", "summary", "html", "refs", "citations", "mockup"]).where("product_id", "=", pid).where("page_id", "=", input.page_id);
+  base = input.from_version ? base.where("n", "=", input.from_version) : base.where("version_id", "=", existing.current_version_id);
+  const from = await base.executeTakeFirst();
+  if (!from) throw notFound(`Page "${input.page_id}" has no version ${input.from_version}; its versions run from 1 to ${existing.version_count}.`, { version_count: existing.version_count });
+  const carried = CARRIED.filter((f) => input[f] === undefined && !(f === "html" && ways.length > 0));
+  const title = input.title ?? from.title;
+  const summary = input.summary ?? from.summary;
+  if (from.mockup && (input.patch_html || input.restyle))
+    throw invalid("invalid_input", `Version ${from.n} shows page "${from.mockup.page_id}" of a mockup, so it has no HTML of its own to ${input.patch_html ? "patch" : "restyle"}. Send html or body to replace it, or promote_mockup to show another version of the mockup page.`);
+  if (input.restyle && !(await loadStyle(ctx))) throw conflict("no_story_style", "This product has no Story style to restyle the page in. Set one with set_style first.");
+  // A version that shows a mockup page keeps showing it until html or body replaces it.
+  const keepsMockup = from.mockup && input.html === undefined && input.body === undefined ? from.mockup : null;
+  // A generated title page follows a new title or summary rather than keeping the old one.
+  const html = keepsMockup
+    ? ""
+    : input.html ??
+    (input.body !== undefined
+      ? bodyDocument(title, await titleStylesheet(ctx), input.body)
+      : input.patch_html
+        ? patchHtml(from.html, input.patch_html, opts.refused)
+        : input.restyle
+          ? restyled(from.html, await titleStylesheet(ctx))
+          : isTitlePage(from.html, from.title, from.summary)
+            ? titlePageHtml(title, summary, await titleStylesheet(ctx))
+            : from.html);
+  const problems = keepsMockup ? [] : inspectStoryHtml(html);
+  if (problems.length) throw invalid("invalid_html", `${opts.refused}: ${problems.join(" ")}`, { problems });
+  const refs = input.refs ? await validateRefs(ctx, input.refs) : from.refs;
+  const citations = input.citations ? await snapshotAll(ctx, input.citations, "page version") : from.citations;
+  return { existing, n: existing.version_count + 1, title, summary, html, refs, citations, mockup: keepsMockup, carried, based_on_version: input.from_version ?? existing.version_count };
+}
 
 export const publish = defineOperation({
   name: "story.publish",
@@ -464,120 +580,98 @@ export const publish = defineOperation({
   mutates: true,
   summary: "Publish a new version of a Story page (creating the page on its first version). A later version keeps whatever you omit.",
   description:
-    `Call guidance first, and get_page before revising (read its agent_notes too). A page's first version: omit expected_etag, give a title, and give body (or html for a whole document of your own, or neither for a generated title page). Prefer body: it is only the markup inside <body>, and WhatBuild puts the product's Story style around it, so the stylesheet is never sent and every page carries the same one. A later version: pass the page etag and send only what changes — the title, summary, html, refs and citations you omit are taken from the current version, and carried_forward in the result names them. To change a sentence, patch_html applies exact find/replace edits instead of re-sending the page. After set_style, restyle: true gives a page the new stylesheet and keeps its content. from_version: N starts from that earlier version instead, so from_version alone restores it as a new version; compare html_sha256 to confirm the HTML is identical. Pass an empty list to clear refs or citations. The HTML is validated and every problem is listed at once (422). citations lists up to ${CITATION_MAX_COUNT} exact passages the page draws on, {record_id, seq_start, seq_end, quote?}, each frozen as a snapshot, as an assumption's citations are; carried citations keep their snapshots. summary describes the page itself. Publishing never places the page in the navigation: call set_hierarchy afterwards, and update the page's notes with write_notes (agent_notes_etag is in the result). Never invent facts, owners or dates, and never present an unconfirmed assumption as settled.`,
-  input: z.strictObject({
-    page_id: pageId.default("overview"),
-    title: z.string().trim().min(1).max(200).optional().describe("Required on a page's first version; omit it later to keep the title."),
-    summary: z.string().max(2000).optional().describe("A short description of the page, shown in navigation and lists. Omit it on a later version to keep it."),
-    html: z.string().min(1).max(STORY_HTML_MAX).optional().describe("The whole page. On a first version, omit it for a generated title page; on a later version, omit it to keep the HTML."),
-    body: z
-      .string()
-      .min(1)
-      .max(STORY_HTML_MAX)
-      .optional()
-      .describe('Instead of html: only the markup inside <body>, usually one <main class="page">. WhatBuild wraps it in a document with the product\'s Story style stylesheet, so you never send the stylesheet.'),
-    restyle: z.boolean().optional().describe("A later version only, instead of html, body or patch_html: keep the page and replace its stylesheet with the product's current Story style. Use it on each page after set_style."),
-    patch_html: z
-      .array(z.strictObject({ find: z.string().min(1).max(20_000), replace: z.string().max(100_000) }))
-      .min(1)
-      .max(50)
-      .optional()
-      .describe("A later version only, instead of html: exact find/replace edits applied in order to the base version's HTML. Each find must occur exactly once, or nothing is published."),
-    refs: refsInput.describe("The objects the page draws on, in full. Omit it on a later version to keep the refs."),
-    citations: z
-      .array(citationInput)
-      .max(CITATION_MAX_COUNT)
-      .optional()
-      .describe(`Up to ${CITATION_MAX_COUNT} exact passages the page draws on, in full: {record_id, seq_start, seq_end, quote?}. Read each passage first. Omit it on a later version to keep the citations.`),
-    from_version: z.number().int().min(1).optional().describe("Start from this earlier version instead of the current one: omitted fields are taken from it. Alone, it restores that version as a new one."),
-    expected_etag: expectedEtag.optional(),
-  }),
+    `Call guidance first, and get_page before revising (read its agent_notes too). Send the same call to preview first: it checks everything publish checks and gives you the exact page to look at, publishing nothing. A page's first version: omit expected_etag, give a title, and give body (or html for a whole document of your own, or neither for a generated title page). Prefer body: it is only the markup inside <body>, and WhatBuild puts the product's Story style around it, so the stylesheet is never sent and every page carries the same one. A later version: pass the page etag and send only what changes — the title, summary, html, refs and citations you omit are taken from the current version, and carried_forward in the result names them. To change a sentence, patch_html applies exact find/replace edits instead of re-sending the page. After set_style, restyle: true gives a page the new stylesheet and keeps its content. from_version: N starts from that earlier version instead, so from_version alone restores it as a new version; compare html_sha256 to confirm the HTML is identical. Pass an empty list to clear refs or citations. The HTML is validated and every problem is listed at once (422). citations lists up to ${CITATION_MAX_COUNT} exact passages the page draws on, {record_id, seq_start, seq_end, quote?}, each frozen as a snapshot, as an assumption's citations are; carried citations keep their snapshots. summary describes the page itself. Publishing never places the page in the navigation: call set_hierarchy afterwards, and update the page's notes with write_notes (agent_notes_etag is in the result). If a response is lost, sending the same call again is safe: once the version has landed it fails with stale_etag, and get_page shows it. Never invent facts, owners or dates, and never present an unconfirmed assumption as settled.`,
+  input: publishInput,
   rest: { method: "POST", path: "/story/pages/:page_id/versions" },
   mcp: { tool: "story", action: "publish" },
   async handler(ctx, input) {
     const pid = productId(ctx);
-    const existing = await ctx.db.selectFrom("story_pages").selectAll().where("product_id", "=", pid).where("page_id", "=", input.page_id).forUpdate().executeTakeFirst();
+    const d = await draftVersion(ctx, input, { lock: true, refused: "The page was not published" });
     const version_id = newId();
-    let carried: (typeof CARRIED)[number][] = [];
-    const ways = [input.html !== undefined && "html", input.body !== undefined && "body", input.patch_html && "patch_html", input.restyle && "restyle"].filter(Boolean);
-    if (ways.length > 1) throw invalid("invalid_input", `Pass one of html, body, patch_html and restyle, not ${ways.join(" and ")}.`);
-    if (!existing) {
-      if (input.expected_etag) throw conflict("stale_etag", `Page "${input.page_id}" doesn’t exist yet; omit expected_etag for its first version.`);
-      if (input.from_version) throw notFound(`Page "${input.page_id}" has never been published, so it has no version ${input.from_version}.`);
-      if (!input.title) throw invalid("invalid_input", "A page’s first version needs a title.");
-      if (input.patch_html) throw invalid("invalid_input", "patch_html edits an earlier version; a page’s first version needs html or body.");
-      if (input.restyle) throw invalid("invalid_input", "restyle changes an earlier version’s stylesheet; a page’s first version needs html or body.");
-      const summary = input.summary ?? "";
-      const html = input.html ?? (input.body !== undefined ? bodyDocument(input.title, await titleStylesheet(ctx), input.body) : titlePageHtml(input.title, summary, await titleStylesheet(ctx)));
-      const problems = inspectStoryHtml(html);
-      if (problems.length) throw invalid("invalid_html", `The page was not published: ${problems.join(" ")}`, { problems });
-      const refs = await validateRefs(ctx, input.refs ?? EMPTY_REFS);
-      const citations = await snapshotAll(ctx, input.citations ?? [], "page version");
-      const count = await ctx.db.selectFrom("story_pages").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst();
-      if (Number(count?.n ?? 0) >= MAX_PAGES) throw conflict("quota_exceeded", `A product’s Story holds at most ${MAX_PAGES} pages.`, { quota: "story_pages", limit: MAX_PAGES, used: Number(count?.n ?? 0), unit: "pages" });
-      await ctx.db
-        .insertInto("story_versions")
-        .values({ version_id, tenant_id: tenantId(ctx), product_id: pid, page_id: input.page_id, n: 1, title: input.title, summary, html, refs: json(refs), citations: json(citations), previous_version_id: null, created_by: json(ctx.actor) })
-        .execute();
+    const values = { version_id, tenant_id: tenantId(ctx), product_id: pid, page_id: input.page_id, n: d.n, title: d.title, summary: d.summary, html: d.html, refs: json(d.refs), citations: json(d.citations), created_by: json(ctx.actor) };
+    if (!d.existing) {
+      await ctx.db.insertInto("story_versions").values({ ...values, previous_version_id: null }).execute();
       await ctx.db
         .insertInto("story_pages")
-        .values({ tenant_id: tenantId(ctx), product_id: pid, page_id: input.page_id, title: input.title, summary, current_version_id: version_id, version_count: 1, etag: newEtag(), agent_notes_etag: newEtag(), created_by: json(ctx.actor), updated_by: json(ctx.actor) })
+        .values({ tenant_id: tenantId(ctx), product_id: pid, page_id: input.page_id, title: d.title, summary: d.summary, current_version_id: version_id, version_count: 1, etag: newEtag(), agent_notes_etag: newEtag(), created_by: json(ctx.actor), updated_by: json(ctx.actor) })
         .execute();
-      await recordActivity(ctx, { action: "published", entity_type: "story_page", entity_id: input.page_id, entity_title: input.title, summary: "Published the first version" });
+      await recordActivity(ctx, { action: "published", entity_type: "story_page", entity_id: input.page_id, entity_title: d.title, summary: "Published the first version" });
     } else {
-      if (existing.archived_at) throw conflict("page_archived", `Page "${input.page_id}" is archived; restore it before publishing.`);
-      if (!input.expected_etag) throw conflict("stale_etag", `Page "${input.page_id}" exists; read it with get_page and pass its etag.`, { current_etag: existing.etag });
-      checkEtag(input.expected_etag, existing.etag, "story page");
-      let base = ctx.db.selectFrom("story_versions").select(["n", "title", "summary", "html", "refs", "citations", "mockup"]).where("product_id", "=", pid).where("page_id", "=", input.page_id);
-      base = input.from_version ? base.where("n", "=", input.from_version) : base.where("version_id", "=", existing.current_version_id);
-      const from = await base.executeTakeFirst();
-      if (!from) throw notFound(`Page "${input.page_id}" has no version ${input.from_version}; its versions run from 1 to ${existing.version_count}.`, { version_count: existing.version_count });
-      carried = CARRIED.filter((f) => input[f] === undefined && !(f === "html" && ways.length > 0));
-      const title = input.title ?? from.title;
-      const summary = input.summary ?? from.summary;
-      if (from.mockup && (input.patch_html || input.restyle))
-        throw invalid("invalid_input", `Version ${from.n} shows page "${from.mockup.page_id}" of a mockup, so it has no HTML of its own to ${input.patch_html ? "patch" : "restyle"}. Send html or body to replace it, or promote_mockup to show another version of the mockup page.`);
-      if (input.restyle && !(await loadStyle(ctx))) throw conflict("no_story_style", "This product has no Story style to restyle the page in. Set one with set_style first.");
-      // A version that shows a mockup page keeps showing it until html or body replaces it.
-      const keepsMockup = from.mockup && input.html === undefined && input.body === undefined ? from.mockup : null;
-      // A generated title page follows a new title or summary rather than keeping the old one.
-      const html = keepsMockup
-        ? ""
-        : input.html ??
-        (input.body !== undefined
-          ? bodyDocument(title, await titleStylesheet(ctx), input.body)
-          : input.patch_html
-            ? patchHtml(from.html, input.patch_html)
-            : input.restyle
-              ? restyled(from.html, await titleStylesheet(ctx))
-              : isTitlePage(from.html, from.title, from.summary)
-                ? titlePageHtml(title, summary, await titleStylesheet(ctx))
-                : from.html);
-      const problems = keepsMockup ? [] : inspectStoryHtml(html);
-      if (problems.length) throw invalid("invalid_html", `The page was not published: ${problems.join(" ")}`, { problems });
-      const refs = input.refs ? await validateRefs(ctx, input.refs) : from.refs;
-      const citations = input.citations ? await snapshotAll(ctx, input.citations, "page version") : from.citations;
-      const n = existing.version_count + 1;
-      await ctx.db
-        .insertInto("story_versions")
-        .values({ version_id, tenant_id: tenantId(ctx), product_id: pid, page_id: input.page_id, n, title, summary, html, refs: json(refs), citations: json(citations), mockup: keepsMockup ? json(keepsMockup) : null, previous_version_id: existing.current_version_id, created_by: json(ctx.actor) })
-        .execute();
+      await ctx.db.insertInto("story_versions").values({ ...values, mockup: d.mockup ? json(d.mockup) : null, previous_version_id: d.existing.current_version_id }).execute();
       await ctx.db
         .updateTable("story_pages")
-        .set({ title, summary, current_version_id: version_id, version_count: n, etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) })
+        .set({ title: d.title, summary: d.summary, current_version_id: version_id, version_count: d.n, etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) })
         .where("product_id", "=", pid)
         .where("page_id", "=", input.page_id)
         .execute();
-      await recordActivity(ctx, { action: "updated", entity_type: "story_page", entity_id: input.page_id, entity_title: title, summary: `Published version ${n}${input.from_version ? ` from version ${input.from_version}` : ""}` });
+      await recordActivity(ctx, { action: "updated", entity_type: "story_page", entity_id: input.page_id, entity_title: d.title, summary: `Published version ${d.n}${input.from_version ? ` from version ${input.from_version}` : ""}` });
     }
     const p = await loadPage(ctx, input.page_id);
     return {
       ...pageSummary(p),
       current: await versionView(ctx, p.current_version_id, false),
-      based_on_version: existing ? (input.from_version ?? existing.version_count) : null,
-      carried_forward: carried,
+      based_on_version: d.based_on_version,
+      carried_forward: d.carried,
       agent_notes_etag: p.agent_notes_etag,
       placed: await isPlaced(ctx, input.page_id),
+    };
+  },
+});
+
+/** The grant purpose that GETs a preview's document. */
+export const STORY_PREVIEW_PURPOSE = "story_preview";
+/** The previews a product keeps at once; a new one beyond them drops the oldest. */
+export const PREVIEWS_KEPT = 20;
+
+export const preview = defineOperation({
+  name: "story.preview",
+  scope: "product",
+  access: "write",
+  mutates: false,
+  summary: "Check a publish without publishing: the same call, every check publish makes, and a short-lived grant to GET the exact page it would store.",
+  description:
+    `Send exactly what you would send to publish. preview makes every check publish makes, and refuses with the same error where publish would (422 invalid_html listing every problem, 409 stale_etag, 404 for an unknown from_version…); it creates no version, records no activity and changes nothing anyone sees. Otherwise it returns what publish would make (new_page, based_on_version, carried_forward, title, summary, html_chars, html_sha256) and a grant: GET url with exactly the headers given to receive the document publish would store, served as a published page is, in the same sandbox and with the carried typefaces embedded. Add ?theme=light or ?theme=dark for the app's light and dark schemes; without one the page follows the browser's. Open it in a browser at desktop width (1280) and phone width (390), in light and dark, and look at it; a headless browser takes the headers as extra HTTP headers (Playwright: new_context(extra_http_headers=headers, viewport=…)). When it looks right, send the same params to publish: its html_sha256 matches the preview's unless the page or the Story style changed in between. The grant expires (expires_at) and a product keeps its ${PREVIEWS_KEPT} newest previews; preview again for a new one. Keep the grant header out of reports and logs.`,
+  input: publishInput,
+  rest: { method: "POST", path: "/story/pages/:page_id/preview" },
+  mcp: { tool: "story", action: "preview" },
+  async handler(ctx, input) {
+    // A preview answers whether publish would, so it is refused wherever publish would be.
+    if (ctx.scope.product!.archived_at) throw conflict("product_archived", `Product ${ctx.scope.product!.name} is archived and read-only. Restore it first.`);
+    if (ctx.sandbox?.visitor) refuseVisitorWrite(ctx.sandbox, { name: "story.preview", mutates: true });
+    const d = await draftVersion(ctx, input, { lock: false, refused: "The page would not be published" });
+    const shown = await shownHtml(ctx.db, d);
+    const pid = productId(ctx);
+    // A preview lives as long as its grant, and a product keeps only its newest ones.
+    const kept = await ctx.db.selectFrom("story_previews").select("preview_id").where("product_id", "=", pid).where("expires_at", ">", ctx.now).orderBy("created_at", "desc").orderBy("preview_id", "desc").limit(PREVIEWS_KEPT - 1).execute();
+    let drop = ctx.db.deleteFrom("story_previews").where("product_id", "=", pid);
+    if (kept.length) drop = drop.where("preview_id", "not in", kept.map((k) => k.preview_id));
+    await drop.execute();
+    const preview_id = newId();
+    const expiresAt = new Date(Date.parse(ctx.now) + ctx.ports.config.grantTtlSeconds * 1000);
+    await ctx.db
+      .insertInto("story_previews")
+      .values({ preview_id, tenant_id: tenantId(ctx), product_id: pid, page_id: input.page_id, html: shown, shows_mockup: Boolean(d.mockup), created_by: json(ctx.actor), expires_at: expiresAt.toISOString(), created_at: ctx.now })
+      .execute();
+    const token = ctx.ports.grants.sign({ v: 1, purpose: STORY_PREVIEW_PURPOSE, t: tenantId(ctx), sp: preview_id, exp: Math.floor(expiresAt.getTime() / 1000) });
+    return {
+      page_id: input.page_id,
+      new_page: !d.existing,
+      based_on_version: d.based_on_version,
+      carried_forward: d.carried,
+      title: d.title,
+      summary: d.summary,
+      ...(d.mockup ? { shows_mockup: { mockup_id: d.mockup.mockup_id, version: d.mockup.version, page_id: d.mockup.page_id } } : {}),
+      html_chars: shown.length,
+      html_sha256: sha256Hex(shown),
+      published: false,
+      preview: {
+        preview_id,
+        method: "GET",
+        url: `${ctx.ports.config.publicBaseUrl}/api/v1/downloads/story-preview/${preview_id}`,
+        headers: { [DOWNLOAD_GRANT_HEADER]: token },
+        expires_at: expiresAt.toISOString(),
+      },
+      next: "GET url with these headers in a browser at 1280 and 390 wide, adding ?theme=light and ?theme=dark, and look at each. Then send the same params to publish. Keep the grant header out of reports and logs.",
     };
   },
 });
@@ -847,12 +941,14 @@ export const promoteMockup = defineOperation({
   mutates: true,
   summary: "Show one page of a mockup in the Story: a Story page version that points at that page as it is in one mockup version, never a copy.",
   description:
-    "Without page_id, creates a Story page named after the mockup page (its slug, with -2, -3… if that is taken), titled with the mockup page's title unless you give one. With page_id of an existing page and its etag, publishes that page's next version showing the mockup page, which is how a Story page moves to a newer mockup version: it never follows the mockup by itself. version is the mockup version, the current one when omitted. The version takes the mockup version's refs and citations. The Story page shows the mockup page at its own size, scaled to fit, in the same sandbox; a Story reader sees it there and nothing else of the mockup. Publishing html or body on the page later replaces it with HTML of its own. The page joins the end of the Story's Published mockups, a section of its own after the navigation tree, where every page showing a mockup page appears and none of them is ever in the tree; reorder the section with set_hierarchy's mockups. Once html or body replaces the mockup page, the page leaves the section and is unplaced.",
+    "page_id chooses the Story page. A page_id no page has yet creates the page under that id. The page_id of an existing page, with its etag, publishes that page's next version showing the mockup page, which is how a Story page moves to a newer mockup version: it never follows the mockup by itself. Without page_id, the new page's id is the mockup page's own slug, with -2, -3… if that is taken. A new page is titled with the mockup page's title unless you give one. Name the page_id when you can: if a response is lost, the same call sent again then fails with stale_etag instead of making a second page. version is the mockup version, the current one when omitted. The version takes the mockup version's refs and citations. The Story page shows the mockup page at its own size, scaled to fit, in the same sandbox; a Story reader sees it there and nothing else of the mockup. Publishing html or body on the page later replaces it with HTML of its own. The page joins the end of the Story's Published mockups, a section of its own after the navigation tree, where every page showing a mockup page appears and none of them is ever in the tree; reorder the section with set_hierarchy's mockups. Once html or body replaces the mockup page, the page leaves the section and is unplaced.",
   input: z.strictObject({
     mockup_id: id("mockup"),
     mockup_page_id: mockupPageId,
     version: z.number().int().min(1).optional().describe("The mockup version; the current one when omitted."),
-    page_id: pageId.optional().describe("The Story page. Omit it for a new page; name an existing one, with expected_etag, to show the mockup page there as its next version."),
+    page_id: pageId
+      .optional()
+      .describe("The Story page. An id no page has yet creates the page under it; an existing page's id, with expected_etag, shows the mockup page there as its next version. Omitted, a new page takes the mockup page's slug (with -2, -3… if taken)."),
     title: z.string().trim().min(1).max(200).optional().describe("The Story page's title: the mockup page's title for a new page, or the page's own title for an existing one, when omitted."),
     summary: z.string().max(2000).optional().describe("A short description of the Story page."),
     expected_etag: expectedEtag.optional(),
@@ -968,7 +1064,7 @@ async function printPages(ctx: OpContext, ids: string[]) {
   const pages = [];
   for (const slot of order) {
     const r = rows.find((x) => x.page_id === slot.page_id)!;
-    pages.push({ page_id: r.page_id, title: r.title, version: r.n, published_at: r.created_at, archived: Boolean(r.archived_at), depth: slot.depth, level: slot.level, html: await shownHtml(ctx.db, r) });
+    pages.push({ page_id: r.page_id, title: r.title, version: r.n, published_at: r.created_at, archived: Boolean(r.archived_at), depth: slot.depth, level: slot.level, html: await shownHtml(ctx.db, r, ctx.ports.blobs) });
   }
   return pages;
 }
@@ -1099,5 +1195,5 @@ export const deletePage = defineOperation({
   },
 });
 
-export const storyOps = [guidance, getStyle, setStyle, listPages, getPage, listVersions, getVersion, publish, promoteMockup, writeNotes, checkStoryCitations, printView, getHierarchy, setHierarchy, archivePage, restorePage, pageDeleteImpact, deletePage];
+export const storyOps = [guidance, getStyle, setStyle, listPages, getPage, listVersions, getVersion, preview, publish, promoteMockup, writeNotes, checkStoryCitations, printView, getHierarchy, setHierarchy, archivePage, restorePage, pageDeleteImpact, deletePage];
 

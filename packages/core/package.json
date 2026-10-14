@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./page-sandbox": "./src/page-sandbox.ts",
     "./safe-next": "./src/safe-next.ts"
   },
   "scripts": {

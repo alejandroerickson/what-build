@@ -44,8 +44,8 @@ export interface Browser {
   api<T = any>(method: string, path: string, body?: unknown, headers?: Record<string, string>): Promise<{ status: number; body: T; headers: Headers }>;
 }
 
-/** A fresh database, migrated, behind a real HTTP server on a random port. */
-export async function startHarness(overrides: Partial<ServerConfig> = {}, opts: { fetcher?: UrlFetcher } = {}): Promise<Harness> {
+/** A fresh database, migrated, behind a real HTTP server on a random port. `overrides` may be a function of the server's address, for settings that name it. */
+export async function startHarness(overrides: Partial<ServerConfig> | ((baseUrl: string) => Partial<ServerConfig>) = {}, opts: { fetcher?: UrlFetcher } = {}): Promise<Harness> {
   const name = `t_${randomBytes(6).toString("hex")}`;
   const admin = new pg.Client({ connectionString: inject("adminUrl") });
   await admin.connect();
@@ -63,7 +63,7 @@ export async function startHarness(overrides: Partial<ServerConfig> = {}, opts: 
     });
   });
   const baseUrl = `http://localhost:${port}`;
-  const config: ServerConfig = { ...loadConfig({ NODE_ENV: "test", WHATBUILD_PUBLIC_URL: baseUrl, DATABASE_URL: url }), mailer: "memory", blobStore: "memory", defaultTenantAllowance: 100, ...overrides };
+  const config: ServerConfig = { ...loadConfig({ NODE_ENV: "test", WHATBUILD_PUBLIC_URL: baseUrl, DATABASE_URL: url }), mailer: "memory", blobStore: "memory", defaultTenantAllowance: 100, ...(typeof overrides === "function" ? overrides(baseUrl) : overrides) };
   const blobs = new MemoryBlobStore();
   const mailer = new MemoryMailer();
   let worker: Worker | null = null;

@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -105,6 +105,27 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
   `https://what-build.com`), requests whose Host is that site get its one page and its interest
   form; `www.` redirects to it and every other path redirects to the app at `WHATBUILD_PUBLIC_URL`
   ([decision](../decisions/the-public-site-is-one-page-built-with-the-app.md)).
+- **One address for the app.** `WHATBUILD_PUBLIC_URL` is the address the server writes into
+  everything (OAuth metadata and callbacks, sign-in and invitation links, upload and download
+  grants, the Story's link templates), and the MCP server's instructions tell agents to write links
+  with it. A deployment also answers on other names (Cloud Run's `run.app` address, Container Apps'
+  default host, an earlier domain), where a person has no session. A browser's page load there
+  (`GET` or `HEAD` with `Sec-Fetch-Mode: navigate`) is redirected, `302`, to the same path and query
+  on the public URL; the host is `X-Forwarded-Host` when a proxy sends it, else `Host`. `/health`,
+  `/api`, `/mcp`, `/oauth` and `/.well-known`, every request without that header (probes, agents),
+  loopback hosts and the public site's host are answered where they asked, and nothing is
+  redirected when the public URL is a loopback address. `WHATBUILD_REDIRECT_TO_PUBLIC_URL=0` turns
+  it off, for a proxy that sends its own host name and no `X-Forwarded-Host`
+  ([decision](../decisions/the-app-has-one-address-and-pages-on-other-hosts-move-to-it.md)).
+- **Prototypes from a capability path, on the app's origin or a content site.** A mockup's
+  prototype is served by one route, `/prototypes/<grant>/<path>`, whose grant names one mockup
+  version and no account, in an opaque origin confined to that address
+  ([§4.12](04-data-model.md#412-mockups),
+  [decision](../decisions/mockups-carry-prototypes-served-from-a-capability-path.md)). The route
+  is never redirected to the public URL. `WHATBUILD_CONTENT_URL` (an origin on another registrable
+  domain than the app's, such as `https://usercontent.example.net`) moves it to a host of its own,
+  which answers nothing else, and the app's `frame-src` names it; unset, prototypes are served from
+  the app's origin. `WHATBUILD_PROTOTYPE_GRANT_HOURS` (8) is how long an address lasts.
 - **One upload path for everyone.** An upload grant always points at the service's own relay
   (at most 25 MiB, under Cloud Run's 32 MiB request cap), because agents' sandboxes often cannot
   reach the object store. When the bucket can sign URLs (`WHATBUILD_GCS_SIGNED_URLS=1`), the grant

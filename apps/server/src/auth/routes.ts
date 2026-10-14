@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { AppError, escapeHtml, gone, invalid, isInstanceOwner, tenantAllowanceOf, newId, notFound, randomToken, safeNext, sha256Hex, SIGN_IN_LINKS_PER_HOUR, unauthenticated, type Db, type Mailer } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
@@ -43,6 +43,20 @@ function idTokenClaims<T>(idToken: string | undefined): Partial<T> {
   } catch {
     return {};
   }
+}
+
+/** Where whoever runs a deployment reads how to fix a refused Microsoft sign-in. */
+export const MICROSOFT_REFUSAL_GUIDE = "okf/operations/azure.md#when-microsoft-sign-in-is-refused";
+
+const REFERENCE_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+/**
+ * A short reference for one refused sign-in, which the sign-in page shows and the server's log
+ * line carries, so whoever runs the deployment finds the line someone reads out: "K7Q2-M9XD".
+ */
+export function signInReference(): string {
+  const chars = [...randomBytes(8)].map((b) => REFERENCE_ALPHABET[b & 31]).join("");
+  return `${chars.slice(0, 4)}-${chars.slice(4)}`;
 }
 
 function errorJson(c: Context, e: AppError) {
@@ -258,6 +272,18 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
 
   const MICROSOFT_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+  /**
+   * A Microsoft sign-in the checks refused: one log line for whoever runs the deployment, saying
+   * which check failed and how to fix it, and the sign-in page with a reference to that line. The
+   * line holds claim names and booleans only, never a token, an address, a name or a claim's value.
+   */
+  const refuseMicrosoft = (c: Context, error: "microsoft_wrong_directory" | "microsoft_no_verified_email", detail: { check: "directory" | "email"; fix: string } & Record<string, unknown>) => {
+    const reference = signInReference();
+    const { check, fix, ...found } = detail;
+    console.warn(JSON.stringify({ at: new Date().toISOString(), severity: "WARNING", event: "microsoft_sign_in_refused", reference, check, ...found, fix, guide: MICROSOFT_REFUSAL_GUIDE }));
+    return c.redirect(`/signin?error=${error}&ref=${reference}`);
+  };
+
   app.get("/auth/microsoft", async (c) => {
     if (!microsoftSignIn(config)) throw notFound("Microsoft sign-in isn’t set up on this server.");
     return beginOidc(c, "/auth/microsoft", `https://login.microsoftonline.com/${config.microsoftTenant}/oauth2/v2.0/authorize`, { client_id: config.microsoftClientId! });
@@ -278,7 +304,38 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     const listed = (address: unknown): address is string => typeof address === "string" && MICROSOFT_EMAIL.test(address) && config.microsoftDomains.includes(domainOf(address));
     const verified = typeof claims.email === "string" && MICROSOFT_EMAIL.test(claims.email) && [true, "true", 1, "1"].includes(claims.xms_edov as never);
     const email = verified || listed(claims.email) ? claims.email : listed(claims.preferred_username) ? claims.preferred_username : undefined;
-    if (!fromDirectory || !email) return c.redirect("/signin?error=microsoft_unverified");
+    if (!fromDirectory) {
+      const mismatched = [
+        claims.aud === config.microsoftClientId ? null : "aud",
+        claims.tid?.toLowerCase() === tenant ? null : "tid",
+        claims.iss?.toLowerCase() === `https://login.microsoftonline.com/${tenant}/v2.0` ? null : "iss",
+      ].filter((k) => k !== null);
+      return refuseMicrosoft(c, "microsoft_wrong_directory", {
+        check: "directory",
+        mismatched,
+        fix:
+          `The ID token was not issued to this deployment's app registration in its directory (${mismatched.join(", ")} did not match). ` +
+          "Check that WHATBUILD_MICROSOFT_TENANT is the directory (tenant) ID and WHATBUILD_MICROSOFT_CLIENT_ID the app registration's application (client) ID.",
+      });
+    }
+    if (!email) {
+      // Which evidence the token carried, as booleans: never an address, a name or a claim's value.
+      const evidence = {
+        email_claim: typeof claims.email === "string" && MICROSOFT_EMAIL.test(claims.email),
+        xms_edov_claim: claims.xms_edov !== undefined && claims.xms_edov !== null,
+        xms_edov_true: [true, "true", 1, "1"].includes(claims.xms_edov as never),
+        email_domain_listed: listed(claims.email),
+        upn_claim: typeof claims.preferred_username === "string" && MICROSOFT_EMAIL.test(claims.preferred_username),
+        upn_domain_listed: listed(claims.preferred_username),
+        domains_listed: config.microsoftDomains.length,
+      };
+      const fix = !evidence.email_claim
+        ? "The ID token carries no email address. Add the optional ID-token claims email and xms_edov to the app registration; for people with no email attribute, list the directory's own verified domain of their user principal names in WHATBUILD_MICROSOFT_DOMAINS."
+        : !evidence.xms_edov_claim
+          ? "The ID token has no xms_edov claim, so nothing says the address's domain is verified. Add the optional ID-token claim xms_edov to the app registration (az ad app update --optional-claims), or list a domain the directory has verified in WHATBUILD_MICROSOFT_DOMAINS."
+          : "Entra says the address's domain is not verified by its owner, and WHATBUILD_MICROSOFT_DOMAINS does not list it. The refusal is right unless the directory is the authority for that domain: then verify the domain in the directory, or list it in WHATBUILD_MICROSOFT_DOMAINS.";
+      return refuseMicrosoft(c, "microsoft_no_verified_email", { check: "email", ...evidence, fix });
+    }
     return completeSignIn(c, email, claims.name, done.saved.next);
   });
 

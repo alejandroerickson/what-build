@@ -91,12 +91,17 @@ const ANALYTICS_SOURCES = {
   "connect-src": "https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com",
 };
 
-/** PAGE_SECURITY_HEADERS, letting Google Analytics in when the deployment uses it. */
-export function pageHeaders(analytics: boolean) {
-  if (!analytics) return PAGE_SECURITY_HEADERS;
+/**
+ * PAGE_SECURITY_HEADERS, letting Google Analytics in when the deployment uses it, and letting the
+ * app frame prototypes from the content site when it has one (and nothing else from there).
+ */
+export function pageHeaders(analytics: boolean, contentUrl: string | null = null) {
+  if (!analytics && !contentUrl) return PAGE_SECURITY_HEADERS;
   const csp = PAGE_SECURITY_HEADERS["Content-Security-Policy"].split("; ").map((d) => {
-    const name = d.split(" ")[0] as keyof typeof ANALYTICS_SOURCES;
-    return ANALYTICS_SOURCES[name] ? `${d} ${ANALYTICS_SOURCES[name]}` : d;
+    const directive = d.split(" ")[0]!;
+    const name = directive as keyof typeof ANALYTICS_SOURCES;
+    const withAnalytics = analytics && ANALYTICS_SOURCES[name] ? `${d} ${ANALYTICS_SOURCES[name]}` : d;
+    return contentUrl && directive === "frame-src" ? `${withAnalytics} ${contentUrl}/prototypes/` : withAnalytics;
   });
   return { ...PAGE_SECURITY_HEADERS, "Content-Security-Policy": csp.join("; ") };
 }
@@ -112,8 +117,8 @@ export function insideRoot(root: string, file: string): boolean {
  * are cached forever; index.html never. An unknown path without an extension is the app shell; an
  * unknown path with one is a 404, so a stale chunk after a deploy is never answered with HTML.
  */
-export function staticRoutes(dist: string, opts: { analytics?: boolean } = {}) {
-  const headers = pageHeaders(Boolean(opts.analytics));
+export function staticRoutes(dist: string, opts: { analytics?: boolean; contentUrl?: string | null } = {}) {
+  const headers = pageHeaders(Boolean(opts.analytics), opts.contentUrl ?? null);
   const root = resolve(dist);
   const app = new Hono();
   const indexPath = join(root, "index.html");

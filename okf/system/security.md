@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild keeps each organization's material to its own people, and treats agent-written HTML, uploads and source text as hostile
 description: The threat model: what is protected, who the attackers are, the trust boundaries, and each control with where it lives in code and the decision that governs it.
 tags: [security, threat-model, tenancy, identity, oauth, sandbox, uploads]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-14}
 status: draft
 ---
 
@@ -63,7 +63,9 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   token's `xms_edov` (Entra's word that the domain's owner verified it), or a domain the
   deployment lists in `WHATBUILD_MICROSOFT_DOMAINS`, the only domains in which a user principal
   name is taken; so a directory's administrator cannot sign in as an address in someone else's
-  domain by giving it to a directory user. Both use PKCE S256 and a random `state` in an
+  domain by giving it to a directory user. A refused Microsoft sign-in logs which check failed
+  as claim names and booleans, under a random reference the sign-in page shows; never the token,
+  an address, a name or a claim's value. Both use PKCE S256 and a random `state` in an
   `HttpOnly` cookie scoped to the flow for ten minutes.
 - Development sign-in, the fixed development grant key and printed mail exist only when
   `NODE_ENV` is exactly `development` or `test`; a server started with it unset, or set to anything
@@ -159,21 +161,66 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 **Agent-written HTML** ([decision](../decisions/story-pages-are-sandboxed-agent-html.md),
 [decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)).
 
-- At publish a page must be one self-contained document: no external resources, forms, frames,
-  `<base>` or `<meta http-equiv>`, bounded inline scripts, 1 MB (`packages/core/src/story-html.ts`).
-  This helps authors; the response is the boundary.
+- At publish a page must be one self-contained document: no external resources, frames, `<link>`,
+  `<base>` or `<meta http-equiv>`, 1 MB. A Story page also has bounded inline scripts and no
+  forms; a mockup page has neither limit, so a working prototype fits
+  (`packages/core/src/html-rules.ts`, one `PageRules` for each surface). This helps authors; the
+  response is the boundary. The script budget is no control: inside the sandbox a few lines of
+  script do whatever a long one does, and the policy allows neither `eval` nor WebAssembly (no
+  `'unsafe-eval'` or `'wasm-unsafe-eval'`).
+- No form submission goes anywhere: every response that serves a page says
+  `form-action 'none'`, the print view's too, which stops a submission whatever its `target`,
+  `formaction`, `formtarget` or method, a `javascript:` action and `form.submit()` included. A
+  mockup page's sandbox adds `allow-forms`, in its responses and the app's frames, so a
+  prototype's `submit` handler runs; a Story page's has none. Forms add no capability: a page's
+  script already reads what is typed into an input, which a Story page may hold, and could already
+  open a tab at any address it builds (`allow-popups`). Each surface's sandbox is one constant
+  (`packages/core/src/page-sandbox.ts`) that the headers and the frames both take
+  (`apps/server/test/mockups.test.ts` holds them).
 - Every response serving page HTML carries `STORY_RESPONSE_HEADERS`: a CSP `sandbox` without
   `allow-same-origin` (an opaque origin), `default-src 'none'`, `connect-src 'none'`,
-  `form-action 'none'`, `frame-ancestors 'self'`, `no-store`, `nosniff`, `no-referrer`.
+  `form-action 'none'`, `frame-ancestors 'self'`, `no-store`, `nosniff`, `no-referrer`: a Story
+  page and a style's specimen; a mockup page, on its canvas and on the Story, carries
+  `MOCKUP_RESPONSE_HEADERS`, the same with `allow-forms` (`pageResponseHeaders`). The print view
+  has a policy of its own, without `allow-forms`, and drops forms and scripts. A
+  version's ZIP and a product export are attachments, never rendered.
+- A Story preview (`story.preview`) is checked by the same code as a publish and served by the
+  same function as a version's HTML (`storyHtml` in `apps/server/src/rest.ts`), in the same
+  sandbox, so nothing reaches a browser through a preview that publishing would refuse. Its
+  document opens only under a download grant of its own purpose (`story_preview`), never with a
+  session, and lives no longer than the grant
+  ([decision](../decisions/a-story-preview-is-the-document-publish-would-store.md)).
 - The app frames pages with `<iframe sandbox>` and takes only a key name or a page slug from the
   frame it made (`apps/web/src/routes/story.tsx`). App pages send `Cross-Origin-Opener-Policy:
   same-origin`, `X-Frame-Options: DENY`, `frame-ancestors 'none'` and `script-src 'self'`
   (`apps/server/src/public-routes.ts`).
   The print view is sandboxed and runs one nonce'd script (`packages/core/src/story-print.ts`).
+- A mockup's **prototype**, a team's multi-file prototype, is served by one route,
+  `/prototypes/<grant>/<path>` (`apps/server/src/prototype.ts`,
+  [decision](../decisions/mockups-carry-prototypes-served-from-a-capability-path.md)). The grant
+  in the path is its only authority: HMAC-signed for one tenant and one immutable version, naming no
+  account, for 8 hours. The route reads no cookie or Authorization header, sets none, never
+  redirects (a policy's path is not checked after a redirect), decodes a path part by part and looks
+  it up as a row of that version, and refuses a service worker's script. Every response carries
+  `prototypeResponseHeaders` (`packages/core/src/prototype.ts`): a CSP `sandbox` without
+  `allow-same-origin`, every source limited to the version's own address, `worker-src`,
+  `object-src` and `form-action` `'none'`, `nosniff` with a type fixed at publish from an
+  allowlist (anything else an attachment), `no-referrer`, `private, no-store`, CORP `cross-origin`
+  and `Access-Control-Allow-Origin: *` without credentials (its own loads come from an opaque
+  origin), and COEP `credentialless`. A prototype's loads carry no session: an opaque origin's
+  requests are cross-site, `credentialless` strips the credentials of the rest, and CORS ones send
+  none cross-origin. On the app's origin a prototype's document is never served at the top level
+  (`Sec-Fetch-Dest: document`), where it would stand under WhatBuild's own address, and it gets
+  no `allow-modals`; `WHATBUILD_CONTENT_URL` moves the route to a site of its own, which answers
+  nothing else. The app frames a prototype in the sandbox the server names and puts back a load
+  that is not one of its documents (each says so through the frame script).
 - Markdown becomes React elements from a lexer: no HTML from the text reaches the DOM, and only
   web, mail, fragment and same-origin links are live (`apps/web/src/lib/markdown.tsx`). A link into
   the product being read opens in place whatever origin it was written with, so a copy of a
   deployment's content never sends a reader back to the original.
+- A page opened on another name for the deployment (`run.app`, Container Apps' default host) is
+  redirected to `WHATBUILD_PUBLIC_URL`, where the session cookie and the own-origin check for
+  writes live; machines' paths are answered on any host (`apps/server/src/canonical-host.ts`).
 
 **Uploads, parsing and files served back** ([derived layer](../spec/05-derived-layer.md)).
 
@@ -187,9 +234,13 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   with `413`, and hashes the bytes as it streams them.
 - A mockup canvas uploaded as a ZIP comes through the relay only, under a grant of its own purpose
   (`mockup_upload`), and is refused to a visitor to the public sandbox, whose text is capped field
-  by field. Publish unpacks it with the parsers' `unzipParts`, which stops at 48 MB unpacked
-  however the archive claims its sizes, takes only the canvas's own entries, and checks every page
-  by the Story's HTML rules as if it had been sent in the call (`packages/core/src/ops/mockups.ts`).
+  by field. Publish unpacks it with the parsers' `zipEntries`, which stops at 96 MB unpacked
+  however the archive claims its sizes and refuses more than 2,148 entries before inflating any;
+  publish takes only the canvas's own entries, refuses a name used twice and a symbolic link, and
+  checks every page by a mockup page's rules as if it had been sent in the call
+  (`packages/core/src/ops/mockups.ts`). A prototype's paths are normalised to NFC and refuse dot
+  parts, absolute paths, `\ : * ? " < > | #`, control characters and names that collide once case
+  is set aside (`prototypePath`); its bytes are stored under ids and their hash, never their path.
 - File paths refuse traversal, backslashes and control characters (`packages/core/src/media.ts`).
 - Parsing is a pure function of bytes, run by the worker in a worker thread of its own for each
   file, with an empty environment (`apps/server/src/parse-thread.ts`,
@@ -252,7 +303,10 @@ under a made-up name `execute` puts in the actor snapshot, sees only themselves 
 and cannot delete permanently, which needs admin. Admission is by 144-bit codes stored as hashes, with places and a
 cap on seats. Limits on calls, writes, sources, bytes, sizes, formats and exports are settings
 enforced in `execute` and the upload path (`packages/core/src/public-sandbox.ts`). The daily reset
-holds the sandbox's lock alone, drops its pending jobs and puts the baseline back.
+holds the sandbox's lock alone, drops its pending jobs and puts the baseline back. A visitor's
+mockup page has a mockup page's rules, with no script budget: the budget is no control (above),
+and the cap on what one field holds (200,000 characters by default) already bounds a page, and
+the daily writes bound how many.
 
 **Secrets, logs and delivery.** Configuration comes from the environment (`config.ts`); secrets
 live in Secret Manager or Key Vault (`deploy/cloud-run/setup.sh`, `deploy/azure/containerapp.yaml`),
@@ -286,5 +340,14 @@ other's work until the reset. These trade-offs are deliberate; each names what w
 - The limit on concurrent URL fetches is counted per instance; a deployment runs one.
 - PDFs open inline on the app's origin, since browsers will not render a sandboxed PDF; serving
   page HTML and uploaded files from a separate origin is planned ([roadmap](../spec/10-roadmap.md)).
+- A prototype's address is a grant in a URL, unlike every other grant, because a frame sends no
+  header and relative addresses must carry it. It reads one immutable version, names nobody and
+  lasts 8 hours; a prototype can send its own address away (a popup may open any URL), and with it
+  only what it already holds, and the platform's request logs keep it as they keep invitation
+  links. A prototype's scripts may use `eval`, which reaches nothing their own code cannot.
+- Prototypes are served from the app's origin until a content site is set, as every Story and
+  mockup page is: a browser bug that escapes the sandbox would land on the app's origin
+  ([decision](../decisions/mockups-carry-prototypes-served-from-a-capability-path.md),
+  [roadmap](../spec/10-roadmap.md#planned--mockups-prototypes-next)).
 - Files are parsed one at a time, each for at most the parse time limit, so one person's uploads
   can delay another's parsing; a budget per sandbox visitor is planned ([roadmap](../spec/10-roadmap.md)).

@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 
 const api = process.env["WHATBUILD_API"] ?? "http://localhost:8787";
-const proxied = ["/api", "/auth", "/oauth", "/mcp", "/.well-known", "/whatbuild-skill.md", "/whatbuild-skill.zip", "/health", "/invite-accept"];
+const proxied = ["/api", "/auth", "/oauth", "/mcp", "/.well-known", "/whatbuild-skill.md", "/whatbuild-skill.zip", "/health", "/invite-accept", "/prototypes"];
 
 export default defineConfig({
   plugins: [react()],

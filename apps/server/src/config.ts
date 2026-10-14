@@ -7,8 +7,21 @@ export interface ServerConfig {
   env: "development" | "test" | "production";
   port: number;
   publicBaseUrl: string;
+  /**
+   * Send a browser that opens a page on another name for this deployment to publicBaseUrl
+   * (canonical-host.ts). On unless WHATBUILD_REDIRECT_TO_PUBLIC_URL is 0.
+   */
+  redirectToPublicUrl: boolean;
   /** The public site's origin (e.g. https://what-build.com), served by host beside the app; null for none. */
   siteUrl: string | null;
+  /**
+   * A content site of its own for mockups' prototypes (WHATBUILD_CONTENT_URL): an origin on another
+   * registrable domain than the app's, served by this image by host. Null serves prototypes from the
+   * app's own origin (prototype.ts).
+   */
+  contentUrl: string | null;
+  /** How long a prototype's address lasts, in seconds (WHATBUILD_PROTOTYPE_GRANT_HOURS, 8 by default). */
+  prototypeGrantSeconds: number;
   databaseUrl: string;
   /** Allow the development-only "sign in as" control. Never on in production. */
   devAuth: boolean;
@@ -115,12 +128,34 @@ function num(v: string | undefined, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+/**
+ * WHATBUILD_CONTENT_URL as the origin it must be: a scheme and a host, no path, on another host than
+ * the app's, and over HTTPS in production. Being on another registrable domain (not a subdomain of
+ * the app's, which would be same-site) is the operator's to choose; the guide says so.
+ */
+function contentOrigin(v: string | undefined, publicBaseUrl: string, mode: ServerConfig["env"]): string | null {
+  const raw = v?.trim();
+  if (!raw) return null;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error("WHATBUILD_CONTENT_URL must be an origin such as https://usercontent.example.net.");
+  }
+  if (!/^https?:$/.test(url.protocol) || url.pathname.replace(/\/+$/, "") !== "" || url.search || url.hash || url.username)
+    throw new Error("WHATBUILD_CONTENT_URL must be an origin, a scheme and a host with no path, such as https://usercontent.example.net.");
+  if (mode === "production" && url.protocol !== "https:") throw new Error("WHATBUILD_CONTENT_URL must use https in production.");
+  if (url.host.toLowerCase() === new URL(publicBaseUrl).host.toLowerCase()) throw new Error("WHATBUILD_CONTENT_URL must name another host than WHATBUILD_PUBLIC_URL; leave it unset to serve prototypes from the app's own origin.");
+  return url.origin;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   // Development behaviour (sign in as anyone, a published grant key, printed mail) only when asked
   // for by name: a server started with NODE_ENV unset, misspelt or anything else runs as production.
   const mode: ServerConfig["env"] = env["NODE_ENV"] === "development" || env["NODE_ENV"] === "test" ? env["NODE_ENV"] : "production";
   const port = num(env["PORT"], 8787);
   const publicBaseUrl = (env["WHATBUILD_PUBLIC_URL"] ?? `http://localhost:${mode === "development" ? num(env["WHATBUILD_WEB_PORT"], 5273) : port}`).replace(/\/+$/, "");
+  const contentUrl = contentOrigin(env["WHATBUILD_CONTENT_URL"], publicBaseUrl, mode);
   const grantKey = env["WHATBUILD_GRANT_KEY"] ?? (mode === "production" ? "" : "development-only-grant-key-not-secret");
   if (mode === "production" && grantKey.length < 32) throw new Error("WHATBUILD_GRANT_KEY must be set to at least 32 random characters in production.");
   const blobStore = (env["WHATBUILD_BLOB_STORE"] ?? (env["WHATBUILD_GCS_BUCKET"] ? "gcs" : "fs")) as ServerConfig["blobStore"];
@@ -137,7 +172,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     env: mode,
     port,
     publicBaseUrl,
+    redirectToPublicUrl: env["WHATBUILD_REDIRECT_TO_PUBLIC_URL"]?.trim() !== "0",
     siteUrl: env["WHATBUILD_SITE_URL"] ? env["WHATBUILD_SITE_URL"].replace(/\/+$/, "") : null,
+    contentUrl,
+    prototypeGrantSeconds: Math.max(60, Math.round(num(env["WHATBUILD_PROTOTYPE_GRANT_HOURS"], 8) * 3600)),
     databaseUrl: env["DATABASE_URL"] ?? "",
     devAuth,
     blobStore,

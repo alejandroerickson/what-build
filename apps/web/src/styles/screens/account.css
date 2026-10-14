@@ -194,6 +194,12 @@
   color: var(--faint);
   font-size: var(--fs-sm);
 }
+/* A refused sign-in's reference, read out or pasted to whoever runs the server. */
+.entry-reference {
+  font-family: var(--mono);
+  white-space: nowrap;
+  user-select: all;
+}
 .entry-people {
   margin: 0;
   padding: 0;

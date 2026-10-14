@@ -15,7 +15,7 @@ import {
 import { expectedEtag, id } from "../schemas.ts";
 import { decodeCursor, encodeCursor, newEtag, newId, randomToken, sha256Hex } from "../util.ts";
 import { MAX_BATCH } from "./sources.ts";
-import { MAX_MOCKUPS, MOCKUP_HTML_TOTAL } from "./mockups.ts";
+import { MAX_MOCKUPS, MOCKUP_HTML_TOTAL, MOCKUP_PAGE_MAX } from "./mockups.ts";
 import { MAX_PAGES } from "./story.ts";
 import { STORY_HTML_MAX } from "../story-html.ts";
 
@@ -238,6 +238,7 @@ async function panel(ctx: OpContext, sb: SandboxState) {
       { label: "A request body", value: REST_BODY_MAX_BYTES, unit: "bytes", set_by: null },
       { label: "A Story page", value: STORY_HTML_MAX, unit: "characters", set_by: null },
       { label: "Story pages in a product", value: MAX_PAGES, unit: "pages", set_by: null },
+      { label: "A mockup page", value: MOCKUP_PAGE_MAX, unit: "characters", set_by: null },
       { label: "A mockup version's HTML, all pages", value: MOCKUP_HTML_TOTAL, unit: "characters", set_by: null },
       { label: "Mockups in a product", value: MAX_MOCKUPS, unit: "mockups", set_by: null },
       { label: "Files on a source", value: 50, unit: "files", set_by: null },

@@ -37,6 +37,9 @@ const DEV_PEOPLE = [
   { email: "jordan@example.com", name: "Jordan Ellis", role: "Reads only the Crewboard Story" },
 ];
 
+/** The form of the reference the server gives a refused sign-in (`signInReference` in apps/server/src/auth/routes.ts). */
+const SIGN_IN_REFERENCE = /^[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/;
+
 export function SignIn() {
   const [params] = useSearchParams();
   // The server's rule: a path on this origin, or home.
@@ -56,7 +59,22 @@ export function SignIn() {
   });
   if (me.data) return <Navigate to={next} replace />;
   const error = params.get("error");
+  // The server's reference for a refused sign-in, shown only in its own form, so a crafted link cannot put words here.
+  const ref = params.get("ref");
+  const reference = ref && SIGN_IN_REFERENCE.test(ref) ? ref : null;
   const emailLink = !methods.data || methods.data.email_link;
+  // A refused Microsoft sign-in the person can do nothing about but pass on.
+  const tellOperator = (
+    <>
+      tell whoever runs WhatBuild here
+      {reference ? (
+        <>
+          , with the reference <strong className="entry-reference">{reference}</strong>
+        </>
+      ) : null}
+      .{emailLink ? " Meanwhile, you can use an email link." : null}
+    </>
+  );
   // An invitation to the public sandbox admits whoever holds it, with any address.
   const toSandbox = next.startsWith("/join/");
   return (
@@ -78,9 +96,18 @@ export function SignIn() {
             <Callout inset tone="attention" title="WhatBuild is invite-only for now">
               Ask someone who uses it to invite you.
             </Callout>
+          ) : error === "microsoft_no_verified_email" ? (
+            <Callout inset tone="attention" title="WhatBuild couldn’t confirm your email with Microsoft">
+              Microsoft signed you in, but didn’t send what this server needs to confirm your address. That’s usually the server’s setup, not your account: {tellOperator}
+            </Callout>
+          ) : error === "microsoft_wrong_directory" ? (
+            <Callout inset tone="attention" title="That Microsoft sign-in came from another directory">
+              WhatBuild here takes accounts from one organization’s directory. If you used your work account in it, the server’s setup may be wrong: {tellOperator}
+            </Callout>
           ) : error === "microsoft_unverified" ? (
-            <Callout inset tone="attention" title="That Microsoft account can’t sign in here">
-              Use your work account in this organization’s directory{emailLink ? ", or an email link" : ""}.
+            // From a link made before the two refusals had codes of their own.
+            <Callout inset tone="attention" title="That Microsoft sign-in didn’t work here">
+              If you used your work account, the server’s setup may be at fault: {tellOperator}
             </Callout>
           ) : error ? (
             <Callout inset tone="attention" title="That sign-in didn’t work">

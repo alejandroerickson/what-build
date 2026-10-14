@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { STORY_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api.ts";
 import { attribution, relativeTime } from "../lib/format.ts";
@@ -72,7 +73,7 @@ function Specimen({ src, title, phone }: { src: string; title: string; phone: bo
           key={`${src}|${phone ? "phone" : "desktop"}`}
           title={title}
           className="style-specimen-frame"
-          sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+          sandbox={STORY_PAGE_SANDBOX}
           referrerPolicy="no-referrer"
           src={src}
           onLoad={() => setLoaded(true)}

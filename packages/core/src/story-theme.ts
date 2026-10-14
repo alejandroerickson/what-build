@@ -43,10 +43,18 @@ export function withStoryTheme(html: string, theme: "light" | "dark"): string {
  *   (and keeps it from scrolling the page), a pinch or ⌘/Ctrl with scroll (and keeps the browser from
  *   zooming), and a press on the page, which selects it: once a person works inside a page, the
  *   canvas around it would otherwise hear nothing.
+ *
+ * In a mockup's prototype (frameScript with its address), a link into the prototype is left to
+ * navigate the frame, as the prototype's own links do at home; on the app's origin one with a
+ * target opens in the frame too, since a prototype's document is never served at the top level
+ * there. Each document says it has loaded (frame-ready), so the app tells its own documents from
+ * an address that replaced them.
  */
-export const FRAME_SCRIPT =
+export function frameScript(prototype?: { base: string; inPlace: boolean }): string {
+  const proto = prototype ? JSON.stringify(prototype.base).replace(/</g, "\\u003c") : "null";
+  return (
   "(function(){" +
-  "var story=null,canvas=false,home=null;" +
+  `var story=null,canvas=false,home=null,proto=${proto},inPlace=${prototype?.inPlace ? "true" : "false"};` +
   "function typing(t){return t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));}" +
   'function send(m){parent.postMessage(m,"*");}' +
   'addEventListener("message",function(e){' +
@@ -69,6 +77,7 @@ export const FRAME_SCRIPT =
   'addEventListener("click",function(e){' +
   'var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;' +
   'if(!a||a.getAttribute("href").charAt(0)==="#")return;' +
+  'if(proto&&a.href.indexOf(proto)===0){if(inPlace&&a.hasAttribute("target"))a.setAttribute("target","_self");return;}' +
   'var h=home&&/^(https?:\\/\\/[^\\/?#]+)(\\/[^?#]*)?/i.exec(a.href);' +
   'if(h&&h[1].toLowerCase()!==home[1].toLowerCase()&&(h[2]===home[2]||(h[2]||"").indexOf(home[2]+"/")===0))a.href=home[1]+a.href.slice(h[1].length);' +
   'if(story&&!e.defaultPrevented&&e.button===0&&!e.metaKey&&!e.ctrlKey&&!e.shiftKey&&!e.altKey&&!a.hasAttribute("download")&&a.href.indexOf(story)===0){' +
@@ -77,9 +86,20 @@ export const FRAME_SCRIPT =
   'var t=(a.getAttribute("target")||"").toLowerCase();' +
   'if(!t||t==="_self"||t==="_parent"||t==="_top"){a.setAttribute("target","_blank");a.setAttribute("rel","noopener noreferrer");}' +
   "},true);" +
-  "})();";
+  'if(proto)send({whatbuild:"frame-ready"});' +
+  "})();"
+  );
+}
+
+/** The script the app's frame adds to a page it shows (frameScript, without a prototype). */
+export const FRAME_SCRIPT = frameScript();
 
 /** A stored page as the app's frame shows it: its theme, and the frame script at the end of the document. */
 export function withStoryFrame(html: string, theme: "light" | "dark" | undefined): string {
   return `${theme ? withStoryTheme(html, theme) : html}\n<script>${FRAME_SCRIPT}</script>`;
+}
+
+/** A prototype's HTML document as the prototype route serves it: the frame script for its address at the end. */
+export function withPrototypeFrame(html: string, base: string, inPlace: boolean): string {
+  return `${html}\n<script>${frameScript({ base, inPlace })}</script>`;
 }

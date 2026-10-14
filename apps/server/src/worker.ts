@@ -1,5 +1,5 @@
 import { hostname } from "node:os";
-import { blobsSafeToDelete, lockSandbox, markExportFailed, pruneUsage, runDerivation, runEvidenceMove, runExport, type Env } from "@whatbuild/core";
+import { blobsSafeToDelete, lockSandbox, markExportFailed, pruneUsage, runDerivation, runEvidenceMove, runExport, stagedPrototypeKeys, type Env } from "@whatbuild/core";
 import { sql } from "kysely";
 import { pruneOAuthClients } from "./auth/oauth.ts";
 
@@ -88,7 +88,7 @@ export class Worker {
 
   private lastPrune = 0;
 
-  /** Housekeeping, at most hourly: finished jobs after a week; OAuth registrations nobody connected with; people's days of use after 14 months; abandoned upload grants and canvas uploads, and their bytes. */
+  /** Housekeeping, at most hourly: finished jobs after a week; OAuth registrations nobody connected with; people's days of use after 14 months; abandoned upload grants and canvas uploads, and their bytes; expired Story previews. */
   private async prune() {
     if (Date.now() - this.lastPrune < 3600_000) return;
     this.lastPrune = Date.now();
@@ -122,10 +122,21 @@ export class Worker {
               eb("used_at", "<", new Date(Date.now() - 7 * 86400_000).toISOString()),
             ]),
           )
-          .returning(["blob_key", "uploaded_at", "used_at"])
+          .returning(["upload_id", "product_id", "blob_key", "uploaded_at", "used_at"])
           .execute();
       });
-      for (const u of canvases) if (u.uploaded_at && !u.used_at) await this.env.ports.blobs.delete(u.blob_key).catch(() => undefined);
+      for (const u of canvases) {
+        if (!u.uploaded_at || u.used_at) continue;
+        // A publish that failed may have stored the prototype's bytes already; they go with the ZIP.
+        const zip = await this.env.ports.blobs.get(u.blob_key).catch(() => null);
+        if (zip) for (const key of stagedPrototypeKeys(tenant_id, u.product_id, u.upload_id, zip)) await this.env.ports.blobs.delete(key).catch(() => undefined);
+        await this.env.ports.blobs.delete(u.blob_key).catch(() => undefined);
+      }
+      // A Story preview goes once its grant has expired.
+      await this.env.db.transaction().execute(async (trx) => {
+        await sql`select set_config('app.tenant_id', ${tenant_id}, true)`.execute(trx);
+        await trx.deleteFrom("story_previews").where("expires_at", "<", new Date().toISOString()).execute();
+      });
     }
   }
 

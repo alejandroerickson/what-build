@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild at three altitudes
 description: The whole system from the top down, the major parts, and the mechanics underneath, with links to the detail.
 tags: [overview, architecture, tenancy, access, mcp]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -33,8 +33,9 @@ agents do most intake and synthesis over MCP; stakeholders read the Story, often
 **The loop**, which is also the navigation order: **Idea** (the product concept, and the outcomes its users should achieve) →
 **Evidence** (sources, each described by a title and tags and parsed into passages;
 [decision](../decisions/sources-are-described-by-tags.md)) → **Exploration** (mockups: versioned canvases of
-pages built from the evidence, each under a brief; and the assumption register, cited and
-reviewed) → **Story** (versioned pages for stakeholders). Insights and decisions were retired, and
+pages built from the evidence, each under a brief, whose pages may enter a team's multi-file
+prototype carried as it is ([decision](../decisions/mockups-carry-prototypes-served-from-a-capability-path.md));
+and the assumption register, cited and reviewed) → **Story** (versioned pages for stakeholders). Insights and decisions were retired, and
 what a product held of them became sources
 ([decision](../decisions/insights-and-decisions-are-retired-into-evidence.md)).
 
@@ -56,7 +57,7 @@ Google Cloud Storage behind a storage port; the official MCP SDK (stateless Stre
 React 19, React Router 7, TanStack Query 5, Vite 7; Vitest. Details in
 [architecture](../spec/02-architecture.md).
 
-**Operations.** 127 operations, each defined once and exposed through both REST and MCP, but for
+**Operations.** 128 operations, each defined once and exposed through both REST and MCP, but for
 deleting an organization, which only its owner does, in the web app
 ([decision](../decisions/one-registry-two-front-doors.md)).
 
@@ -123,8 +124,10 @@ transaction that makes them current ([derived layer](../spec/05-derived-layer.md
 `mockups publish` a canvas with its brief, or `get_download` a version, build the next one in a
 project and publish the pages that changed
 ([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)) → read
-`story guidance` and the page's notes, `story publish` with citations, update the notes,
-`set_hierarchy` ([decision](../decisions/story-notes-are-agent-memory.md)).
+`story guidance` and the page's notes, `story preview` the call and look at the page it would
+store, `story publish` the same call with citations, update the notes, `set_hierarchy`
+([decision](../decisions/story-notes-are-agent-memory.md),
+[decision](../decisions/a-story-preview-is-the-document-publish-would-store.md)).
 
 **Data.** Identity, tenancy, evidence (records, files, derivations, segments, annotations, agent
 notes), synthesis (outcomes, revisions, assumptions, reviews), mockups (versions,

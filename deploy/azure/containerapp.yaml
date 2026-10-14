@@ -56,6 +56,11 @@ properties:
             secretRef: grant-key
           - name: WHATBUILD_PUBLIC_URL
             value: ${WB_PUBLIC_URL}
+          # A page opened on another host (the default *.azurecontainerapps.io one) moves to
+          # WHATBUILD_PUBLIC_URL. Only behind a proxy that sends this app's own host name and no
+          # X-Forwarded-Host, which would loop, turn that off:
+          # - name: WHATBUILD_REDIRECT_TO_PUBLIC_URL
+          #   value: "0"
           - name: WHATBUILD_RELEASE
             value: "${WB_IMAGE_TAG}"
           # Files go to the mounted share through the filesystem adapter.

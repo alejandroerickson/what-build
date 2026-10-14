@@ -3,7 +3,7 @@ type: Index
 title: Decisions
 description: Architectural decision records, each with its context, the choice, and what it constrains.
 tags: [index, decisions, adr]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -43,9 +43,11 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Agents write and arrange the Story; the web app reads it](agents-maintain-the-story-people-read-it.md) (superseded)
 - [Story pages follow the team's design system, never WhatBuild's](story-pages-follow-the-teams-design-system.md)
 - [Story pages name typefaces the server carries, and the server embeds them when it shows a page](story-pages-name-typefaces-the-server-carries.md)
+- [A Story preview is the document publish would store, made by publish's own code, held for its grant's life and served in the page sandbox](a-story-preview-is-the-document-publish-would-store.md)
 - [Marking an insight reviewed applies to the revision that was read](insight-review-marks-a-revision.md) (superseded)
 - [Story PDF export is a composed print view saved by the browser](pdf-export-uses-browser-print.md)
 - [Mockups are versioned canvases of agent-made HTML, in a stage called Exploration](mockups-are-versioned-canvases-in-exploration.md)
+- [A mockup version may carry a team's prototype as it is, served in the sandbox from a short-lived capability path](mockups-carry-prototypes-served-from-a-capability-path.md)
 - [Each stage's count is the total of every item the stage holds](each-stage-counts-every-item-it-holds.md)
 - [Insights and decisions are retired, and what a product held of them becomes sources in Evidence](insights-and-decisions-are-retired-into-evidence.md)
 - [Archive is the reversible default; delete is permanent, guarded, and an admin's](archive-by-default-delete-guarded.md)
@@ -59,6 +61,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [The overview is WhatBuild's front door, and the one screen with display type](the-overview-is-the-front-door.md)
 - [The WhatBuild mark is one W in a rounded tile with a title-bar line, like one of the app's panels](the-mark-is-a-w-in-a-panel-with-a-title-bar.md)
 - [The public site is one page built with the app, served from Cloudflare's edge or by host from the image](the-public-site-is-one-page-built-with-the-app.md)
+- [The app has one address, and a page opened on another of the deployment's names moves to it](the-app-has-one-address-and-pages-on-other-hosts-move-to-it.md)
 - [Lists filter from the panel; a table's header only sorts or searches](lists-filter-from-the-panel.md)
 - [An empty list says what belongs in it and what to ask an agent; adding by hand stays in the header](empty-lists-lead-with-the-agent.md)
 - [An assumption may be recorded before any evidence cites it](register-entries-may-start-uncited.md)
