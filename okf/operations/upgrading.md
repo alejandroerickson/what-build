@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.12.0
+
 - **Migration `0026_feedback_digest`.** It adds columns to `feedback` (where a report came from,
   an address its sender shared, when it was mailed) and makes its `submitted_by` nullable, adds a
   table of daily counts per person, and adds `oauth_tokens.feedback`, true by default. Rehearse on
