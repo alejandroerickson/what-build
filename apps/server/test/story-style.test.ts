@@ -335,6 +335,7 @@ describe("the app's frame", () => {
       const prevented: string[] = [];
       const event = (name: string, e: Record<string, unknown>) => listeners[name]!({ target: { tagName: "DIV" }, defaultPrevented: false, preventDefault: () => prevented.push(name), ...e });
       event("keydown", { key: "2" });
+      event("keydown", { key: "1" });
       event("keydown", { key: " " });
       event("keydown", { key: "ArrowRight" });
       event("keydown", { key: "h", target: { tagName: "INPUT" } });
@@ -347,6 +348,7 @@ describe("the app's frame", () => {
     expect(run(true)).toEqual({
       sent: [
         { whatbuild: "story-key", key: "2" },
+        { whatbuild: "story-key", key: "1" },
         { whatbuild: "story-key", key: " " },
         { whatbuild: "story-key", key: "ArrowRight" },
         { whatbuild: "canvas-keyup", key: " " },
@@ -355,8 +357,8 @@ describe("the app's frame", () => {
       ],
       prevented: ["keydown", "wheel"],
     });
-    // On the Story, the page keeps Space, plain keys and the wheel to itself.
-    expect(run(false)).toEqual({ sent: [{ whatbuild: "story-key", key: "ArrowRight" }], prevented: [] });
+    // On the Story, the page keeps Space, the canvas's other keys and the wheel to itself; 2 and 3 fit or fill a published mockup.
+    expect(run(false)).toEqual({ sent: [{ whatbuild: "story-key", key: "2" }, { whatbuild: "story-key", key: "ArrowRight" }], prevented: [] });
   });
 });
 

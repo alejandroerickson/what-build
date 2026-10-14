@@ -5,8 +5,8 @@ import { isTypingTarget, PHONE_QUERY, useMediaQuery } from "../ui/media.ts";
 
 const FOCUS_KEY = "whatbuild.story.focus";
 
-/** The keys a page's frame passes on: F and Esc for focus mode, the arrows for flipping through published mockups. */
-export type StoryKey = "f" | "Escape" | "ArrowLeft" | "ArrowRight";
+/** The keys a page's frame passes on: F and Esc for focus mode, the arrows for flipping through published mockups, 2 and 3 to fit or fill one. */
+export type StoryKey = "f" | "Escape" | "ArrowLeft" | "ArrowRight" | "2" | "3";
 
 function readChoice(): "on" | "off" | null {
   try {

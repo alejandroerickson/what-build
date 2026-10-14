@@ -4,10 +4,12 @@ title: Agents write and arrange the Story; the web app reads it
 description: Every change to a Story page or its tree goes through an agent over MCP, except promoting a mockup page from the mockup; the web app shows pages, versions and their evidence, and exports them.
 tags: [decision, story, agents, web]
 generated: {by: agent:claude, at: 2026-10-13}
-status: stable
+status: deprecated
 ---
 
 # Agents write and arrange the Story; the web app reads it
+
+Superseded on 2026-10-14 by [Agents write the Story; people read it, and may arrange, archive and delete its pages by hand](agents-write-the-story-people-arrange-it.md).
 
 ## Context
 

@@ -8,13 +8,14 @@ import { Inspector, usePageTitle } from "../shell/slots.tsx";
 import { useMediaQuery } from "../ui/media.ts";
 import { Button, ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, Loading, Sheet } from "../ui/index.tsx";
 import { FirstUse } from "./first-use.tsx";
+import { DeletePage, useArchiveActions, type PageActions, type PageRef } from "./story-actions.tsx";
 import { ExportDialog } from "./story-export.tsx";
 import { StoryInspectorBody } from "./story-inspector.tsx";
-import { mockupStop, split, trail, type Hierarchy, type PageSummary, type PageView, type VersionItem, type VersionView } from "./story-model.ts";
-import { MockupFlip, useFlipKeys, type FlipKey } from "./story-flip.tsx";
+import { mockupStop, trail, type Hierarchy, type PageSummary, type PageView, type VersionItem, type VersionView } from "./story-model.ts";
+import { MockupFlip, PAGE_VIEW_KEYS, PageViewToggle, useFlipKeys, usePageView, usePageViewKeys, type FlipKey, type PageView as MockupPageView } from "./story-flip.tsx";
 import { FocusToggle, useStoryFocus, type StoryKey } from "./story-focus.tsx";
 import { StyleDialog, styleLine, useStoryStyle } from "./story-style.tsx";
-import { StoryTree } from "./story-tree.tsx";
+import { StoryTree, useArrange } from "./story-tree.tsx";
 import "../styles/screens/story.css";
 
 /**
@@ -44,7 +45,7 @@ function useScheme(): "light" | "dark" {
  * there, and copied here) opens here instead.
  */
 const PAGE_SLUG = /^[a-z0-9][a-z0-9-]{0,79}$/;
-const FRAME_KEYS: readonly unknown[] = ["f", "Escape", "ArrowLeft", "ArrowRight"] satisfies StoryKey[];
+const FRAME_KEYS: readonly unknown[] = ["f", "Escape", "ArrowLeft", "ArrowRight", "2", "3"] satisfies StoryKey[];
 
 export function StoryFrame({
   title,
@@ -55,6 +56,7 @@ export function StoryFrame({
   home,
   onPage,
   size,
+  view = "fill",
 }: {
   title: string;
   scheme: "light" | "dark";
@@ -65,20 +67,23 @@ export function StoryFrame({
   onPage?: (pageId: string) => void;
   /** A mockup page's own size: the frame keeps it, scaled down to the room there is, never up. */
   size?: { width: number; height: number };
+  /** For a mockup page: scaled to the room's width (fill), or to its width and height (fit). */
+  view?: MockupPageView;
 }) {
   const [loaded, setLoaded] = useState(false);
-  const [room, setRoom] = useState(0);
+  const [room, setRoom] = useState({ width: 0, height: 0 });
   const wrap = useRef<HTMLDivElement>(null);
+  const fitted = Boolean(size) && view === "fit";
   useLayoutEffect(() => {
     if (!size || !wrap.current) return;
     const el = wrap.current;
-    const measure = () => setRoom(el.clientWidth);
+    const measure = () => setRoom({ width: el.clientWidth, height: el.clientHeight });
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
   }, [size]);
-  const scale = size && room ? Math.min(1, room / size.width) : 1;
+  const scale = size && room.width ? Math.min(1, room.width / size.width, fitted && room.height ? room.height / size.height : 1) : 1;
   const [reloads, setReloads] = useState(0);
   const [replaced, setReplaced] = useState(false);
   const loads = useRef(0);
@@ -123,7 +128,7 @@ export function StoryFrame({
   );
 
   return (
-    <div className="story-frame-wrap" ref={wrap}>
+    <div className="story-frame-wrap" ref={wrap} data-fit={fitted ? "" : undefined}>
       {replaced ? (
         <Callout tone="attention" title="This page tried to open another address in its place">
           WhatBuild put the page back.
@@ -147,7 +152,7 @@ export function StoryFrame({
 
 export function StoryPage() {
   const { pageId } = useParams();
-  const { api: base, app, product, storyOnly } = useProduct();
+  const { api: base, app, product, storyOnly, canWrite } = useProduct();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const scheme = useScheme();
@@ -159,6 +164,7 @@ export function StoryPage() {
   const style = useStoryStyle();
 
   const h = useQuery({ queryKey: ["story-tree", base], queryFn: () => api<Hierarchy>("GET", `${base}/story/hierarchy`) });
+  const arrange = useArrange(base, h.data);
   const pages = useQuery({ queryKey: ["story-pages", base], queryFn: () => api<{ items: PageSummary[] }>("GET", `${base}/story/pages?include_archived=true`) });
   const page = useQuery({
     queryKey: ["story-page", base, pageId],
@@ -195,8 +201,14 @@ export function StoryPage() {
 
   const all = pages.data?.items ?? [];
   const archived = all.filter((p) => p.archived_at);
-  const arrangement = h.data ? split(h.data) : { pages: [], mockups: [] };
+  const arrangement = arrange.tree;
   const titleOf = (id: string) => all.find((p) => p.page_id === id)?.title ?? id;
+  const refOf = (id: string): PageRef | undefined => all.find((p) => p.page_id === id);
+
+  // Arranging, archiving and deleting pages by hand; agents do the same through MCP.
+  const [deleting, setDeleting] = useState<PageRef | null>(null);
+  const { archive, restore } = useArchiveActions(arrangement);
+  const actions: PageActions = { archive, restore, remove: setDeleting };
 
   // On a published mockup, the arrows and the control beside the crumbs flip to the ones either side.
   const stop = pageId ? mockupStop(arrangement, pageId) : null;
@@ -210,15 +222,32 @@ export function StoryPage() {
     [prevId, nextId, app, navigate],
   );
   useFlipKeys(stop ? flip : null);
-  const onFrameKey = (key: StoryKey) => (key === "ArrowLeft" || key === "ArrowRight" ? stop && flip(key) : focusMode.onKey(key));
+  // Fit (2) or fill (3) a published mockup; the choice holds as the arrows flip to the next one.
+  const [mockupView, setMockupView] = usePageView("whatbuild.story.mockup-view", "fill");
+  usePageViewKeys(stop ? setMockupView : null);
+  const onFrameKey = (key: StoryKey) => {
+    if (key === "ArrowLeft" || key === "ArrowRight") stop && flip(key);
+    else if (key === "2" || key === "3") stop && setMockupView(PAGE_VIEW_KEYS[key]!);
+    else focusMode.onKey(key);
+  };
 
   const styleRow = style.data ? (style.data.style ? { name: style.data.style.name, line: styleLine(style.data.style) } : null) : undefined;
-  const tree = h.data ? <StoryTree tree={arrangement} archived={archived} current={pageId} onExport={setExporting} style={styleRow} onStyle={() => setStyling(true)} /> : null;
+  const tree = h.data ? (
+    <StoryTree arrange={arrange} archived={archived} refOf={refOf} current={pageId} onExport={setExporting} actions={actions} style={styleRow} onStyle={() => setStyling(true)} />
+  ) : null;
 
   const dialogs = (
     <>
       {exporting ? <ExportDialog tree={arrangement} archived={archived} preselect={exporting} onClose={() => setExporting(null)} /> : null}
       {styling && style.data ? <StyleDialog view={style.data} scheme={scheme} onClose={() => setStyling(false)} /> : null}
+      {deleting ? (
+        <DeletePage
+          page={deleting}
+          onArchive={archive}
+          onDeleted={() => deleting.page_id === pageId && navigate(`${app}/story`)}
+          onClose={() => setDeleting(null)}
+        />
+      ) : null}
     </>
   );
 
@@ -309,15 +338,26 @@ export function StoryPage() {
       {tree}
       <div className="story-bar">
         <Crumbs label="Page location" currentAsHeading items={crumbs} />
+        {stop ? <PageViewToggle view={mockupView} onView={setMockupView} /> : null}
         {stop ? <MockupFlip {...stop} onFlip={flip} /> : null}
         {focusMode.available ? <FocusToggle focus={focusMode.focus} hint={focusMode.hint} onToggle={focusMode.toggle} /> : null}
       </div>
       {!p ? (
-        <Loading variant="lines" />
+        <>
+          <Loading variant="lines" />
+          {/* Kept while the next page loads, so the inspector does not slide away and back. */}
+          <Inspector title={title}>
+            <Loading variant="lines" />
+          </Inspector>
+        </>
       ) : (
         <>
           {p.archived_at ? (
-            <Callout tone="attention" title="This page is archived" />
+            <Callout
+              tone="attention"
+              title="This page is archived"
+              action={canWrite ? <Button size="sm" icon="archive-restore" onClick={() => restore(p)}>Restore</Button> : undefined}
+            />
           ) : null}
           {wantsOld && old.data ? (
             <Callout
@@ -338,6 +378,7 @@ export function StoryPage() {
               scheme={scheme}
               src={`${base}/story/pages/${pageId}/versions/${shown.version}/html${shown.mockup ? "" : `?theme=${scheme}`}`}
               size={shown.mockup ? { width: shown.mockup.width, height: shown.mockup.height } : undefined}
+              view={mockupView}
               onKey={onFrameKey}
               storyBase={`${window.location.origin}${app}/story/`}
               home={`${window.location.origin}${app}`}
@@ -348,7 +389,7 @@ export function StoryPage() {
           ) : null}
           <Inspector title={p.title}>
             {shown ? (
-              <StoryInspectorBody page={p} shown={shown} versions={versions.data?.items} onExport={() => setExporting([p.page_id])} />
+              <StoryInspectorBody page={p} shown={shown} versions={versions.data?.items} onExport={() => setExporting([p.page_id])} actions={actions} />
             ) : (
               <Loading variant="lines" />
             )}

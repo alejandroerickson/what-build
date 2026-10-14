@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -444,11 +444,15 @@ them. Its one write is promoting a page to the Story.
 - **Scroll and zoom.** Scroll moves the canvas up and down, and Shift with scroll sideways; ⌘ or
   Ctrl with scroll, or a pinch, zooms about the pointer, from 5% to 400%, over a page in interact
   mode too. The toolbar has zoom out, the zoom level (a menu: Fit the canvas, Fit the selected page,
-  50%, 100%, 200%), zoom in, fit the selected page, fit the canvas, the previous and next page, and
-  a list of every key (each one also runs from the list). Keys: `+` and `−`, `0` for 100%, `1`
-  fits the canvas, `2` fits the selected page (with none selected, it selects and fits the page
-  nearest the middle of the screen), `←` and `→` select and fit the previous or next page (with
-  none selected, the last or the first). Every control names its key in its tooltip. Moves glide
+  Fill the width with the selected page, 50%, 100%, 200%), zoom in, fit and fill the selected
+  page, fit the canvas, the previous and next page, and a list of every key (each one also runs
+  from the list). Keys: `+` and `−`, `0` for 100%, `1` fits the canvas, `2` fits the selected page
+  to the screen and `3` fills the screen's width with it, its top at the top, to scroll down
+  through a long page (with none selected, either selects the page nearest the middle of the
+  screen); `←` and `→` select the previous or next page (with none selected, the last or the
+  first) and show it the way `2` or `3` last did. Fit and fill sit together in the toolbar with
+  the one in use marked, and the browser remembers which (`whatbuild.mockup.page-view`, fit until
+  chosen). Every control names its key in its tooltip. Moves glide
   unless the person prefers reduced motion. Where a finger is the pointer, the toolbar's controls
   are 44px tall, and zoom in, zoom out and the list of keys give way: a pinch zooms, and there is
   no keyboard to list. A pinch that begins on the toolbar does not zoom the app.
@@ -466,7 +470,8 @@ them. Its one write is promoting a page to the Story.
   remembered choice still holds, and the control names no key.
 - **The inspector:** **Version** (a menu of every version with its date, who published the shown
   one and when, its page count, **Download version N** for the ZIP an agent builds the next version
-  from, [§4.12](04-data-model.md)); **Page** (a menu of the pages with a Fit button, then the
+  from, [§4.12](04-data-model.md)); **Page** (a menu of the pages with Fit and Fill buttons, as
+  `2` and `3`, then the
   selected page's notes as Markdown, or a line asking the person to select a page; and where the
   page stands in the Story, below); **Brief** (the
   version's brief as Markdown); **Files** (the files the version carries, each with its length;
@@ -477,7 +482,7 @@ them. Its one write is promoting a page to the Story.
 - A callout above the canvas appears only for a state the person must know: the mockup is
   archived, an earlier version is shown (with **Show the current version**), or the version asked
   for does not exist.
-- **On the Story** ([decision](../decisions/agents-maintain-the-story-people-read-it.md)). Under
+- **On the Story** ([decision](../decisions/agents-write-the-story-people-arrange-it.md)). Under
   the page picker, each Story page that shows the selected page is named and linked with the
   mockup version it shows. An editor whose page is not on the Story gets **Promote to Story**: a
   dialog says that a new Story page at the end of Published mockups will show the page as it is in
@@ -517,9 +522,9 @@ them. Its one write is promoting a page to the Story.
 ## 7.8 Story
 
 The Story reads like a wiki: the page tree on the left, the page in the middle, its details on
-the right. Agents write, arrange, archive and restore it; the screen reads it and offers nothing
-that changes it ([decision](../decisions/agents-maintain-the-story-people-read-it.md)). A page of a
-mockup reaches it by promotion, from the mockup (§7.7).
+the right. Agents write its pages; people read them, and arrange, archive, restore and delete them
+by hand as agents can ([decision](../decisions/agents-write-the-story-people-arrange-it.md)). A
+page of a mockup reaches it by promotion, from the mockup (§7.7).
 
 - **Reader first.** The page tree sits in the panel's context slot, and the canvas holds the crumbs
   (the current one is the screen's heading), the focus mode control, and then the page, with
@@ -529,13 +534,20 @@ mockup reaches it by promotion, from the mockup (§7.7).
   pinned at the top. Opens
   the last page this browser read in this product, otherwise the first root page. Pages render
   only in the sandboxed frame ([§4.11](04-data-model.md)); the frame follows the app's theme.
-  Until the frame has its document, skeleton lines stand in for the page. A callout appears above
-  the page only for a state the reader must know: the page is archived, an earlier version is
+  Until the frame has its document, skeleton lines stand in for the page, and the inspector stays
+  in place with skeleton lines of its own, so moving between pages never slides it away and back.
+  A callout appears above
+  the page only for a state the reader must know: the page is archived (with **Restore** for an
+  editor), an earlier version is
   shown (with **Show the current version**), or the page tried to open another address in its
   place, and was put back.
-- **A page from a mockup** ([§4.11](04-data-model.md)) is shown at its own size, scaled down to the
-  measure and never up, on paper as on the canvas, without the app's theme. Its crumbs read Story ›
-  Published mockups › the page.
+- **A page from a mockup** ([§4.11](04-data-model.md)) is shown at its own size, scaled down and
+  never up, on paper as on the canvas, without the app's theme. Its crumbs read Story › Published
+  mockups › the page. A control beside the crumbs, and `2` and `3` (from inside the page too),
+  choose between **fit**, the whole page within the room under the crumbs, and **fill**, the
+  page's width filling the measure with its top at the top, to scroll down through it. The choice
+  holds while flipping, and the browser remembers it (`whatbuild.story.mockup-view`, fill until
+  chosen).
 - **Flipping through the published mockups.** On a published mockup, a small control beside the
   crumbs gives its place ("2 of 5") between buttons to the previous and next one, and ← and →
   flip to them, in focus mode or not, from the app or from inside the page (the frame passes the
@@ -558,11 +570,26 @@ mockup reaches it by promotion, from the mockup (§7.7).
   At phone width, where the panels are drawers already, there is no focus mode.
 - **The tree.** A keyboard tree (one tab stop, arrow keys to move and to open or close a branch)
   with "Find a page", the current page marked and its ancestors kept open. **Story pages** is the
-  tree, with pages an agent has not placed yet at its end; **Published mockups** lists every page
-  promoted from a mockup, in the order agents set, each with a screen glyph; and **Archived
-  pages** folds away below. The only row
-  action is export: each row's menu offers **Export this page to PDF…** and, for a page with
-  subpages, **Export with its subpages…**. Under the tree, **Story style** names the product's
+  tree, with pages not placed yet at its end; **Published mockups** lists every page promoted from
+  a mockup, in the order set, each with a screen glyph; and **Archived pages** folds away below.
+- **Arranging by hand.** For an editor, each row has a handle (shown on hover, focus and the
+  current row, always on touch): dragging it puts the page before or after another, or inside one
+  to nest it, with a bar or a ring showing where it lands, and a strip at the end of the tree for
+  the end of the top level; Esc cancels. With a row focused, Alt and ↑ or ↓ swap it with its
+  neighbour, Alt and → nests it under the page above, and Alt and ← moves it out to follow its
+  parent; the move is announced and the page keeps focus. Published mockups reorder the same way
+  but never nest, and never enter the tree. A move shows at once and saves the whole arrangement
+  with `story.set_hierarchy`, placing every page the tree shows; a drag confirms with a toast with
+  **Undo**. A move refused (a page into its own subpages, deeper than six levels) says why. If the
+  Story changed meanwhile, the move is applied to the newer tree and saved again once; if it no
+  longer fits, the tree shows the Story as it is and a notice above it says so. Moving is off while
+  "Find a page" filters the tree.
+- **Row actions.** Each row's menu offers **Export this page to PDF…** and, for a page with
+  subpages, **Export with its subpages…**; then **Archive** for an editor and **Delete
+  permanently…** for an admin, as everywhere (§7.10). An archived page's row offers **Restore**,
+  export and delete. Archiving moves the page's subpages up into its place, and its toast's
+  **Undo** restores the page and puts the navigation back as it was; a restored page returns at
+  the end of the tree, or of the Published mockups. Under the tree, **Story style** names the product's
   Story style ("A house style", "Adapted from Clear", "Your design system", or "None yet") and
   opens the style dialog.
 - **The style dialog** lists the style in use and every house style, and shows the chosen one
@@ -576,7 +603,8 @@ mockup reaches it by promotion, from the mockup (§7.7).
 - **The inspector** carries everything else about the page:
   - **About:** who published the shown version and when, and its version number. With more than
     one version, the number is a menu of every version with its date, and choosing one shows it
-    (`?v=N`). **Export to PDF…** opens the export with this page selected.
+    (`?v=N`). **Export to PDF…** opens the export with this page selected; beside it, **Archive**
+    (or **Restore**) for an editor and **Delete permanently…** for an admin.
   - **Shows:** for a page from a mockup, the mockup page, linked to it on the canvas, the mockup and
     the version shown; when the mockup has a newer version, a line says so and to promote it from
     the mockup.
@@ -591,7 +619,8 @@ mockup reaches it by promotion, from the mockup (§7.7).
     the server sends a reader none of them ([§3.5](03-accounts-teams-and-identity.md)). The Story
     style row under the tree is left out too, and so are **Archived pages** in the tree and the
     export, since the server gives a reader no archived page; a Story with no pages says that they
-    appear once the product's team publishes them.
+    appear once the product's team publishes them. A reader or viewer arranges, archives and
+    deletes nothing: the tree has no handles, and its menus only export.
 - **Export to PDF.** The dialog lists every page as checkboxes, in the Story's order (the tree,
   then the published mockups), then archived pages, with Select all, Clear and a count; it opens with the page or pages it was
   asked for already selected, and the person can change the selection. The count and Select all
@@ -644,7 +673,7 @@ a product that isn't archived (`canDelete`). One dialog serves every delete
 | Comment | — | a delete button on the comment, wherever it shows |
 | Assumption | its actions menu | its actions menu |
 | Outcome | its row's menu on Idea | its row's menu |
-| Story page | in its delete dialog, as the alternative (agents archive Story pages otherwise) | the inspector's About, under Export |
+| Story page | its row's menu in the tree, and the inspector's About | its row's menu, and the inspector's About |
 | Mockup | in its delete dialog, as the alternative | the inspector's Version, under Download |
 | Product | Settings, Archive this product | Settings, Delete this product |
 | Organization | — | Members, Delete this organization, for owners, never in a public sandbox |
