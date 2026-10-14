@@ -136,7 +136,7 @@ export const deleteProduct = defineOperation({
       ...(await db.selectFrom("register_entries").select("entry_id").where("product_id", "=", pid).execute()).map((r) => r.entry_id),
     ];
     await db.deleteFrom("revisions").where("object_id", "in", authored).execute();
-    for (const table of ["mockup_uploads", "mockup_files", "mockup_pages", "mockup_versions", "mockups", "story_versions", "story_pages", "story_hierarchies", "story_styles", "register_entries", "outcomes", "insights", "exports", "activity", "tombstones"] as const)
+    for (const table of ["mockup_uploads", "story_previews", "mockup_files", "mockup_pages", "mockup_versions", "mockups", "story_versions", "story_pages", "story_hierarchies", "story_styles", "register_entries", "outcomes", "insights", "exports", "activity", "tombstones"] as const)
       await db.deleteFrom(table).where("product_id", "=", pid).execute();
     // A source takes its files, versions, uploads, passages, notes and lineage with it.
     await db.deleteFrom("records").where("product_id", "=", pid).execute();
@@ -161,7 +161,7 @@ export const deleteProduct = defineOperation({
 // ---- An organization ----------------------------------------------------------------------------
 
 /** Every table that holds an organization's rows and is not content a baseline holds, children first. */
-const ORGANIZATION_TABLES = ["jobs", "sandbox_baseline_rows", "sandbox_baselines", "sandbox_usage", "sandbox_invites", "sandbox_settings", "exports", "upload_grants", "mockup_uploads"] as const;
+const ORGANIZATION_TABLES = ["jobs", "sandbox_baseline_rows", "sandbox_baselines", "sandbox_usage", "sandbox_invites", "sandbox_settings", "exports", "upload_grants", "mockup_uploads", "story_previews"] as const;
 
 async function organizationDeletion(ctx: OpContext) {
   const tid = tenantId(ctx);

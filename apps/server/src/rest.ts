@@ -1,5 +1,5 @@
 import {
-  AppError, admitRead, execute, OPERATIONS, printDocument, printResponseHeaders, readsOnlyTheStory, resolveScope, STORY_RESPONSE_HEADERS, toAppError, unauthenticated, withStoryFonts, withStoryFrame, withStoryTheme, houseSpecimen, houseStyle, HOUSE_STYLE_IDS, shownHtml, styleSpecimen,
+  AppError, admitRead, execute, MOCKUP_RESPONSE_HEADERS, OPERATIONS, printDocument, printResponseHeaders, readsOnlyTheStory, resolveScope, STORY_RESPONSE_HEADERS, toAppError, unauthenticated, withStoryFonts, withStoryFrame, withStoryTheme, houseSpecimen, houseStyle, HOUSE_STYLE_IDS, shownHtml, styleSpecimen,
   type Env, type OperationDef, type Principal, type ScopeRef,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
@@ -56,19 +56,20 @@ function errorResponse(c: Context, e: AppError) {
   return c.json({ error: e.toJSON() }, e.status as 400);
 }
 
-function storyTheme(theme: string | undefined): "light" | "dark" | undefined {
+export function storyTheme(theme: string | undefined): "light" | "dark" | undefined {
   if (theme !== undefined && theme !== "light" && theme !== "dark") throw new AppError(422, "invalid_input", "theme must be light or dark.");
   return theme;
 }
 
 /**
- * Story HTML as the sandbox serves it: the sandboxing headers, the carried typefaces the page names
- * (never for a mockup, which carries its own look), the theme, and the frame script when the app's
- * frame asks.
+ * A page as the sandbox serves it: its surface's sandboxing headers (a mockup page's allows forms,
+ * whose submissions form-action 'none' still stops), the carried typefaces the page names (never
+ * for a mockup, which carries its own look), the theme, and the frame script when the app's frame
+ * asks. A Story preview is served by the same function, so it is shown as its version would be.
  */
-function storyHtml(c: Context, stored: string, theme: "light" | "dark" | undefined, frame: boolean, fonts = true) {
-  for (const [k, val] of Object.entries(STORY_RESPONSE_HEADERS)) c.header(k, val);
-  const html = fonts ? withStoryFonts(stored) : stored;
+export function storyHtml(c: Context, stored: string, theme: "light" | "dark" | undefined, frame: boolean, mockup = false) {
+  for (const [k, val] of Object.entries(mockup ? MOCKUP_RESPONSE_HEADERS : STORY_RESPONSE_HEADERS)) c.header(k, val);
+  const html = mockup ? stored : withStoryFonts(stored);
   return c.body(frame ? withStoryFrame(html, theme) : theme ? withStoryTheme(html, theme) : html);
 }
 
@@ -203,15 +204,17 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
         return row ? { html: await shownHtml(trx, row), mockup: Boolean(row.mockup) } : null;
       });
       if (!v) throw new AppError(404, "not_found", "No such Story version.");
-      // A mockup page carries its own look, so it takes neither the theme nor the carried typefaces.
-      return storyHtml(c, v.html, v.mockup ? undefined : theme, frame, !v.mockup);
+      // A mockup page carries its own look, so it takes neither the theme nor the carried typefaces,
+      // and keeps its own sandbox, which allows forms.
+      return storyHtml(c, v.html, v.mockup ? undefined : theme, frame, v.mockup);
     } catch (e) {
       return errorResponse(c, toAppError(e));
     }
   });
 
-  // A mockup page is served exactly as a Story page is: the same sandbox and the same frame
-  // script, but never the app's theme, since a mockup carries its own look.
+  // A mockup page is served as a Story page is, with the same frame script, but in a mockup page's
+  // sandbox (forms allowed, form-action 'none') and never with the app's theme, since a mockup
+  // carries its own look.
   app.get(`${SCOPE_PREFIX.product}/mockups/:mockup_id/versions/:version/pages/:page_id/html`, async (c) => {
     try {
       const scope = await scoped(c);
@@ -227,7 +230,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
           .executeTakeFirst(),
       );
       if (!p) throw new AppError(404, "not_found", "No such mockup page.");
-      return storyHtml(c, p.html, undefined, c.req.query("frame") === "1", false);
+      return storyHtml(c, p.html, undefined, c.req.query("frame") === "1", true);
     } catch (e) {
       return errorResponse(c, toAppError(e));
     }

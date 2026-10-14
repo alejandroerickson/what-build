@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { inspectMockupHtml, inspectStoryHtml, MOCKUP_PAGE_RULES, MOCKUP_PAGE_SANDBOX, MOCKUP_RESPONSE_HEADERS, STORY_PAGE_RULES, STORY_PAGE_SANDBOX, STORY_RESPONSE_HEADERS } from "@whatbuild/core";
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -238,10 +241,25 @@ describe("what a mockup draws on", () => {
     const t = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Crowded" });
     const Q = `/api/v1/p/${t.body.path}`;
     for (let i = 0; i < 50; i++) expect((await alice.api("POST", `${Q}/mockups`, { title: `M${i}`, pages: [{ page_id: "a", title: "A", html: page("A") }] })).status).toBe(201);
+    const full = await alice.api("GET", `${Q}/mockups`);
+    expect(full.body).toMatchObject({ archived_hidden: 0, quota: { used: 50, limit: 50, unit: "mockups", archived_included: true } });
+    expect(full.body.note).toBeUndefined();
+    // Archived mockups leave the list and still count.
+    for (const m of full.body.items.slice(0, 3)) expect((await alice.api("POST", `${Q}/mockups/${m.mockup_id}/archive`, { expected_etag: m.etag })).status).toBe(200);
+    const list = await alice.api("GET", `${Q}/mockups`);
+    expect(list.body.items).toHaveLength(47);
+    expect(list.body).toMatchObject({ archived_hidden: 3, quota: { used: 50, limit: 50 } });
+    expect(list.body.note).toBe("3 archived mockups are not listed; pass include_archived to see them. Archived mockups count toward the product's 50; 50 are used.");
+    const all = await alice.api("GET", `${Q}/mockups?include_archived=true`);
+    expect(all.body.items).toHaveLength(50);
+    expect(all.body).toMatchObject({ archived_hidden: 0, quota: { used: 50 } });
     const over = await alice.api("POST", `${Q}/mockups`, { title: "One more", pages: [{ page_id: "a", title: "A", html: page("A") }] });
     expect(over.status).toBe(409);
     expect(over.body.error.code).toBe("quota_exceeded");
-    expect(over.body.error.details).toMatchObject({ quota: "mockups", limit: 50, used: 50 });
+    expect(over.body.error.details).toMatchObject({ quota: "mockups", limit: 50, used: 50, archived: 3 });
+    expect(over.body.error.message).toMatch(/at most 50 mockups, archived ones included, and this one holds 50 \(3 archived\)/);
+    // The product's counts are what the stages show: live mockups only.
+    expect((await alice.api("GET", Q)).body.counts.mockups).toBe(47);
   });
 });
 
@@ -609,5 +627,256 @@ describe("publishing a canvas uploaded as a ZIP", () => {
     const uploadId = await upload(alice, { "manifest.json": JSON.stringify({ title: "X", pages: [{ page_id: "a", title: "A" }] }), "pages/a.html": page("A") });
     const r = await alice.api("POST", `/api/v1/p/${other.body.path}/mockups`, { upload_id: uploadId });
     expect(r.status).toBe(404);
+  });
+});
+
+/** A working prototype: fifteen scripts of some 130,000 characters, event handlers and a form. */
+const prototype = (() => {
+  const script = (i: number) => `<script>/* step ${i} */ const state${i} = ${JSON.stringify({ rows: Array.from({ length: 360 }, (_, n) => `Row ${n} of the board`) })};</script>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Prototype</title><style>body{font:16px system-ui}</style></head><body>
+<h1>Book a crew</h1>
+<form id="book" action="https://example.com/collect" method="post"><label>Address <input name="address"></label><select name="crew"><option>North</option></select><textarea name="note"></textarea><button type="submit" onclick="window.picked = true">Book</button></form>
+${Array.from({ length: 15 }, (_, i) => script(i)).join("\n")}
+</body></html>`;
+})();
+
+describe("a page's rules, by the surface that shows it", () => {
+  it("lets a mockup page be a working prototype: scripts of any number and length, and forms", () => {
+    expect(prototype.length).toBeGreaterThan(120_000);
+    expect(inspectMockupHtml(prototype)).toEqual([]);
+    expect(MOCKUP_PAGE_RULES).toMatchObject({ surface: "mockup page", maxChars: 1_000_000, maxScripts: null, scriptBudget: null });
+  });
+
+  it("keeps a Story page's rules as they were, and says they are the Story's", () => {
+    expect(STORY_PAGE_RULES).toMatchObject({ surface: "Story page", maxChars: 1_000_000, maxScripts: 10, scriptBudget: 32_000 });
+    const problems = inspectStoryHtml(prototype);
+    expect(problems).toHaveLength(3);
+    expect(problems[0]).toBe("<form> is not allowed in a Story page: a Story page is for reading, so it holds no forms.");
+    expect(problems[1]).toBe("The Story page has 15 inline scripts; a Story page holds at most 10.");
+    expect(problems[2]).toMatch(/^Inline scripts and event handlers total \d+ characters; a Story page allows at most 32000, since the Story is for reading; an interactive prototype belongs on a mockup's canvas/);
+  });
+
+  it("refuses in a mockup page what loads from elsewhere, frames, or redirects, naming the surface, the rule and the element", () => {
+    const html = `<!doctype html><html><head><meta http-equiv="refresh" content="0;url=https://example.com/"><base href="https://example.com/"><link rel="stylesheet" href="https://example.com/a.css">
+<style>@import url(https://example.com/b.css); .hero { background: url(https://example.com/hero.png); }</style>
+<script src="https://example.com/app.js"></script></head><body>
+<iframe src="https://example.com/embed"></iframe><embed src="data:text/plain,x"><object></object>
+<img src="https://example.com/x.png"><div style="background: url('https://example.com/bg.png')">x</div>
+</body></html>`;
+    const problems = inspectMockupHtml(html);
+    for (const p of problems) {
+      expect(p, p).toContain("mockup page");
+      expect(p, p).not.toMatch(/Story/);
+    }
+    expect(problems).toEqual(
+      expect.arrayContaining([
+        '<meta http-equiv="refresh"> is not allowed in a mockup page: no refresh, redirect or policy metadata.',
+        "<base> is not allowed in a mockup page: it would change where the page's links and resources point.",
+        "<link> is not allowed in a mockup page: it loads a resource from elsewhere; put CSS in a <style> block, and fonts and images in data: URIs.",
+        "@import is not allowed in a mockup page's <style> block (@import url(https://example.com/b.css)): keep the page self-contained.",
+        "A <style> block loads an external resource with url(https://example.com/b.css), which a mockup page may not: use data: URIs.",
+        "<script src> is not allowed in a mockup page: scripts must be inline (this one loads https://example.com/app.js).",
+        "<iframe> is not allowed in a mockup page: a page frames and embeds no other document.",
+        '<iframe src="https://example.com/embed"> loads an external resource, which a mockup page may not: embed images, fonts and media as data: URIs.',
+        "<embed> is not allowed in a mockup page: a page frames and embeds no other document.",
+        "<object> is not allowed in a mockup page: a page frames and embeds no other document.",
+        '<img src="https://example.com/x.png"> loads an external resource, which a mockup page may not: embed images, fonts and media as data: URIs.',
+        "A style attribute on <div> loads an external resource with url('https://example.com/bg.png'), which a mockup page may not: use data: URIs.",
+      ]),
+    );
+    // A frameset is a document of its own; its frames are named too.
+    expect(inspectMockupHtml('<!doctype html><html><frameset><frame src="data:text/html,x"></frameset></html>')).toEqual([
+      "<frameset> is not allowed in a mockup page: a page frames and embeds no other document.",
+      "<frame> is not allowed in a mockup page: a page frames and embeds no other document.",
+    ]);
+    expect(inspectMockupHtml(`<!doctype html><p>${"x".repeat(1_000_000)}</p>`)[0]).toBe("The mockup page is 1000022 characters; a mockup page holds at most 1000000.");
+    expect(inspectMockupHtml(`${"<div>".repeat(600)}x`)).toEqual(["The mockup page's HTML nests elements more than 512 deep."]);
+  });
+});
+
+describe("a working prototype on a canvas", () => {
+  let Q: string;
+  let mockupId: string;
+
+  beforeAll(async () => {
+    const p = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Prototypes" });
+    Q = `/api/v1/p/${p.body.path}`;
+  });
+
+  it("publishes pages with long scripts and forms", async () => {
+    const r = await alice.api("POST", `${Q}/mockups`, { title: "Booking", pages: [{ page_id: "book", title: "Book a crew", html: prototype }] });
+    expect(r.status, JSON.stringify(r.body).slice(0, 500)).toBe(201);
+    mockupId = r.body.mockup_id;
+    expect(r.body.current.pages[0].html_chars).toBe(prototype.length);
+  });
+
+  it("serves the page, and the Story's view of it, in a sandbox where a submit handler runs and a submission goes nowhere", async () => {
+    const policy = async (path: string) => {
+      const res = await raw(alice, path);
+      expect(res.status, path).toBe(200);
+      const csp = res.headers.get("content-security-policy") ?? "";
+      expect(csp, path).not.toContain("allow-same-origin");
+      expect(csp, path).toContain("form-action 'none'");
+      expect(csp, path).toContain("connect-src 'none'");
+      return { csp, html: await res.text() };
+    };
+    const mockupSandbox = /^sandbox allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox; /;
+    for (const path of [`${Q}/mockups/${mockupId}/versions/1/pages/book/html`, `${Q}/mockups/${mockupId}/versions/1/pages/book/html?frame=1`]) {
+      const { csp, html } = await policy(path);
+      expect(csp, path).toMatch(mockupSandbox);
+      expect(html).toContain('<form id="book"');
+    }
+    const promoted = await alice.api("POST", `${Q}/story/promote-mockup`, { mockup_id: mockupId, mockup_page_id: "book" });
+    expect(promoted.status).toBe(201);
+    const story = await policy(`${Q}/story/pages/book/versions/1/html?frame=1`);
+    expect(story.csp).toMatch(mockupSandbox);
+    expect(story.html).toContain('<form id="book"');
+    // A Story page of its own, and a style's specimen, keep the Story's sandbox: no forms.
+    expect((await alice.api("POST", `${Q}/story/pages/plan/versions`, { title: "Plan", html: page("Plan") })).status).toBe(201);
+    for (const path of [`${Q}/story/pages/plan/versions/1/html?frame=1`, `${Q}/story/house-styles/clear/specimen`]) {
+      const { csp } = await policy(path);
+      expect(csp, path).toMatch(/^sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox; /);
+      expect(csp, path).not.toContain("allow-forms");
+    }
+    // The print view runs no page script and drops the form, under a policy of its own.
+    const print = await raw(alice, `${Q}/story/print?page_ids=book`);
+    expect(print.status).toBe(200);
+    const csp = print.headers.get("content-security-policy") ?? "";
+    expect(csp).toMatch(/^sandbox /);
+    expect(csp).not.toContain("allow-forms");
+    expect(csp).toContain("form-action 'none'");
+    const doc = await print.text();
+    expect(doc).toContain("Book a crew");
+    expect(doc).not.toContain("<form");
+  });
+
+  it("frames a page in the app in the sandbox its responses give it: forms for a mockup page alone, and never the same origin", () => {
+    expect(STORY_PAGE_SANDBOX).toBe("allow-scripts allow-popups allow-popups-to-escape-sandbox");
+    expect(MOCKUP_PAGE_SANDBOX).toBe("allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox");
+    expect(MOCKUP_RESPONSE_HEADERS["Content-Security-Policy"]).toBe(STORY_RESPONSE_HEADERS["Content-Security-Policy"]!.replace(STORY_PAGE_SANDBOX, MOCKUP_PAGE_SANDBOX));
+    // The app's frames take the same constants, never a sandbox written out.
+    const frames: Record<string, string[]> = {
+      "mockups.tsx": ["sandbox={MOCKUP_PAGE_SANDBOX}"],
+      "story.tsx": ["sandbox={size ? MOCKUP_PAGE_SANDBOX : STORY_PAGE_SANDBOX}"],
+      "story-style.tsx": ["sandbox={STORY_PAGE_SANDBOX}"],
+    };
+    for (const [file, uses] of Object.entries(frames)) {
+      const source = readFileSync(new URL(`../../web/src/routes/${file}`, import.meta.url), "utf8");
+      expect([...source.matchAll(/sandbox=\{[^}]*\}/g)].map((m) => m[0]), file).toEqual(uses);
+      expect(source, file).not.toMatch(/sandbox="allow/);
+    }
+  });
+
+  it("refuses, naming the page, the mockup page's rule and the element, and never the Story", async () => {
+    const m = await alice.api("GET", `${Q}/mockups/${mockupId}`);
+    const bad = await alice.api("POST", `${Q}/mockups`, {
+      mockup_id: mockupId,
+      expected_etag: m.body.etag,
+      pages: [{ page_id: "book" }, { page_id: "embed", title: "Embed", html: page("Embed").replace("</body>", '<iframe src="https://example.com/map"></iframe></body>') }],
+    });
+    expect(bad.status).toBe(422);
+    expect(bad.body.error.code).toBe("invalid_html");
+    expect(bad.body.error.details.problems).toEqual([
+      "embed: <iframe> is not allowed in a mockup page: a page frames and embeds no other document.",
+      'embed: <iframe src="https://example.com/map"> loads an external resource, which a mockup page may not: embed images, fonts and media as data: URIs.',
+    ]);
+    expect(bad.body.error.message).not.toMatch(/Story/);
+    const big = await alice.api("POST", `${Q}/mockups`, { mockup_id: mockupId, expected_etag: m.body.etag, pages: [{ page_id: "book", html: "x".repeat(1_000_001) }] });
+    expect(big.status).toBe(422);
+    expect(big.body.error.message).toMatch(/a mockup page holds at most 1000000 characters/);
+    expect((await alice.api("GET", `${Q}/mockups/${mockupId}`)).body.current_version).toBe(1);
+  });
+});
+
+describe("what publishing an upload tells and keeps", () => {
+  let Q: string;
+  const sha = (b: Uint8Array | string) => createHash("sha256").update(b).digest("hex");
+
+  beforeAll(async () => {
+    const p = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Uploads" });
+    Q = `/api/v1/p/${p.body.path}`;
+  });
+
+  /** PUT a ZIP of these entries, raw bytes or text; the grant's id, the ZIP and what the PUT answered. */
+  async function put(entries: Record<string, string | Uint8Array>) {
+    const g = await alice.api("POST", `${Q}/mockups/uploads`, {});
+    const zip = zipSync(Object.fromEntries(Object.entries(entries).map(([k, v]) => [k, typeof v === "string" ? strToU8(v) : v])));
+    const res = await fetch(g.body.url, { method: "PUT", headers: g.body.headers, body: zip });
+    expect(res.status).toBe(201);
+    return { uploadId: g.body.upload_id as string, zip, answered: (await res.json()) as { size: number; sha256: string } };
+  }
+  const uploadRow = (uploadId: string) =>
+    h.db.transaction().execute(async (trx) => {
+      await sql`select set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
+      return trx.selectFrom("mockup_uploads").selectAll().where("upload_id", "=", uploadId).executeTakeFirstOrThrow();
+    });
+
+  it("gives the upload's size and sha256, and says what chars and sha256 measure: text, hashed as UTF-8, without a byte-order mark", async () => {
+    const bom = new Uint8Array([0xef, 0xbb, 0xbf]);
+    const withBom = (text: string) => new Uint8Array([...bom, ...strToU8(text)]);
+    const html = page("Café ☕ 🚀");
+    const notes = "Crème brûlée 🍮\n";
+    const { uploadId, zip, answered } = await put({
+      "manifest.json": JSON.stringify({ title: "Hashes", pages: [{ page_id: "menu", title: "Menu" }] }),
+      "pages/menu.html": withBom(html),
+      "files/notes.md": withBom(notes),
+    });
+    expect(answered).toMatchObject({ size: zip.length, sha256: sha(zip) });
+    const r = await alice.api("POST", `${Q}/mockups`, { upload_id: uploadId });
+    expect(r.status, JSON.stringify(r.body)).toBe(201);
+    expect(r.body.from_upload).toBe(uploadId);
+    expect(r.body.upload).toEqual({ upload_id: uploadId, size: zip.length, sha256: sha(zip) });
+    const pageView = r.body.current.pages[0];
+    expect(pageView.html_chars).toBe(html.length);
+    expect(Buffer.byteLength(html, "utf8")).toBeGreaterThan(html.length);
+    expect(pageView.html_sha256).toBe(sha(strToU8(html)));
+    expect(pageView.html_sha256).not.toBe(sha(withBom(html)));
+    expect(r.body.current.files).toEqual([{ path: "notes.md", chars: notes.length, sha256: sha(strToU8(notes)) }]);
+    // A publish without an upload says nothing of one.
+    const next = await alice.api("POST", `${Q}/mockups`, { mockup_id: r.body.mockup_id, expected_etag: r.body.etag, title: "Hashes again" });
+    expect(next.status).toBe(201);
+    expect(next.body.upload).toBeUndefined();
+    expect(next.body.from_upload).toBeUndefined();
+  });
+
+  it("changes nothing and keeps the upload when publish is refused, so publishing is a safe check", async () => {
+    const m = await alice.api("POST", `${Q}/mockups`, { title: "Safe check", pages: [{ page_id: "a", title: "A", html: page("A v1") }] });
+    const activity = async () => (await alice.api("GET", `${Q}/activity?entity_type=mockup&entity_id=${m.body.mockup_id}`)).body.items.length;
+    const before = await activity();
+    // A page the rules refuse: nothing published, and the upload is still unused.
+    const bad = await put({ "manifest.json": JSON.stringify({ pages: [{ page_id: "a" }] }), "pages/a.html": page("A v2").replace("</head>", '<base href="https://example.com/"></head>') });
+    const refused = await alice.api("POST", `${Q}/mockups`, { mockup_id: m.body.mockup_id, expected_etag: m.body.etag, upload_id: bad.uploadId });
+    expect(refused.status).toBe(422);
+    expect(refused.body.error.message).toMatch(/^Nothing was published: a: <base> is not allowed in a mockup page/);
+    expect((await uploadRow(bad.uploadId)).used_at).toBeNull();
+    // A call refused for another reason leaves a good upload to publish once the call is right.
+    const good = await put({ "manifest.json": JSON.stringify({ pages: [{ page_id: "a" }] }), "pages/a.html": page("A v2") });
+    const stale = await alice.api("POST", `${Q}/mockups`, { mockup_id: m.body.mockup_id, expected_etag: "stale", upload_id: good.uploadId });
+    expect(stale.status).toBe(409);
+    const got = await alice.api("GET", `${Q}/mockups/${m.body.mockup_id}`);
+    expect(got.body).toMatchObject({ current_version: 1, etag: m.body.etag });
+    expect(await activity()).toBe(before);
+    expect((await uploadRow(good.uploadId)).used_at).toBeNull();
+    const published = await alice.api("POST", `${Q}/mockups`, { mockup_id: m.body.mockup_id, expected_etag: m.body.etag, upload_id: good.uploadId });
+    expect(published.status).toBe(201);
+    expect(published.body.upload).toMatchObject({ upload_id: good.uploadId, size: good.zip.length });
+  });
+
+  it("holds each uploaded page to its limit and the version to its total", async () => {
+    const huge = (n: number) => `<!doctype html><html><head><title>Big</title></head><body><script>/*${"x".repeat(n)}*/</script></body></html>`;
+    const over = await put({ "manifest.json": JSON.stringify({ title: "Big", pages: [{ page_id: "big", title: "Big" }] }), "pages/big.html": huge(1_000_000) });
+    const one = await alice.api("POST", `${Q}/mockups`, { upload_id: over.uploadId });
+    expect(one.status).toBe(422);
+    expect(one.body.error.code).toBe("invalid_upload");
+    expect(one.body.error.message).toMatch(/pages\/big\.html holds \d+ characters; a mockup page holds at most 1000000\./);
+    const pages = Array.from({ length: 9 }, (_, i) => `p${i}`);
+    const many = await put({
+      "manifest.json": JSON.stringify({ title: "Many", pages: pages.map((p) => ({ page_id: p, title: p })) }),
+      ...Object.fromEntries(pages.map((p) => [`pages/${p}.html`, huge(950_000)])),
+    });
+    const total = await alice.api("POST", `${Q}/mockups`, { upload_id: many.uploadId });
+    expect(total.status).toBe(422);
+    expect(total.body.error.code).toBe("invalid_html");
+    expect(total.body.error.details.problems).toEqual([expect.stringMatching(/^The pages total \d+ characters of HTML; a version holds at most 8000000\.$/)]);
   });
 });

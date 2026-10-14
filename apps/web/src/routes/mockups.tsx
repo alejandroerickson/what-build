@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { MOCKUP_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
@@ -239,7 +240,7 @@ function PageFrame({ page, src, title, selected, onSignal, frameRef }: {
         width={page.width}
         height={page.height}
         loading="lazy"
-        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+        sandbox={MOCKUP_PAGE_SANDBOX}
         referrerPolicy="no-referrer"
         src={`${src}?frame=1`}
         onLoad={() => {

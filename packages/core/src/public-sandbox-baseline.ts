@@ -40,6 +40,7 @@ export const NOT_IN_BASELINE: Record<string, string> = {
   jobs: "Work in progress; a reset drops what has not run.",
   upload_grants: "An upload in progress does not outlive a reset.",
   mockup_uploads: "An upload in progress does not outlive a reset.",
+  story_previews: "A preview lasts as long as its grant, and not past a reset.",
   exports: "A visitor's export does not outlive a reset.",
   feedback: "Goes to the maintainers, and names no tenant.",
 };
@@ -206,7 +207,7 @@ export async function resetToBaseline(
   const before = await liveBlobs(trx, tenantId);
 
   await sql`delete from jobs where tenant_id = ${tenantId} and done_at is null and kind in ('derive', 'export', 'move_to_evidence')`.execute(trx);
-  for (const table of ["exports", "upload_grants", "mockup_uploads", ...[...BASELINE_TABLES].reverse()])
+  for (const table of ["exports", "upload_grants", "mockup_uploads", "story_previews", ...[...BASELINE_TABLES].reverse()])
     await sql`delete from ${sql.table(table)} where tenant_id = ${tenantId}${contentOf(table)}`.execute(trx);
   await trx.deleteFrom("sandbox_usage").where("tenant_id", "=", tenantId).execute();
 

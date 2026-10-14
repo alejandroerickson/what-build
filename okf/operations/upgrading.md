@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -23,7 +23,17 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Migration `0024_story_previews`.** It adds one table, for the documents `story.preview`
+  holds for half an hour. Rehearse on the dev deployment first ([dev-deployment](dev-deployment.md));
+  an earlier release also runs on the new schema, which only adds a table.
+- **Agents can preview a Story page before publishing it.** Nothing to set. `story(action="preview")`
+  takes what `publish` takes, refuses what it would refuse, publishes nothing and returns a grant to
+  open the exact page in a browser.
+- **The skill is 0.26.0.** It teaches previewing a Story page before publishing it, which writes
+  are safe to send again after a lost response, and the HTML rules a mockup page now has of its
+  own (forms whose submissions go nowhere, scripts without a budget, a page that scrolls past its
+  height, the mockup quota). Nothing to set: connected agents are asked to update it, and to start
+  a new session for the new action.
 
 ## v0.10.0
 

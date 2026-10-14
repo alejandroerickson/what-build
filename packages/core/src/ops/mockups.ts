@@ -10,7 +10,7 @@ import { AppError, conflict, forbidden, invalid, notFound, tooLarge } from "../e
 import { DOWNLOAD_GRANT_HEADER, UPLOAD_GRANT_HEADER } from "./files.ts";
 import { defineOperation, type OpContext, type PrepareContext } from "../registry.ts";
 import { expectedEtag, formatIssues, id } from "../schemas.ts";
-import { inspectStoryHtml, STORY_HTML_MAX } from "../story-html.ts";
+import { inspectMockupHtml, MOCKUP_PAGE_RULES } from "../html-rules.ts";
 import { newEtag, newId, sha256Hex } from "../util.ts";
 import { resolveRefs, storyPagesShowing } from "./story.ts";
 
@@ -22,6 +22,8 @@ import { resolveRefs, storyPagesShowing } from "./story.ts";
 
 export const MAX_MOCKUPS = 50;
 export const MAX_MOCKUP_PAGES = 24;
+/** The most characters one page holds. */
+export const MOCKUP_PAGE_MAX = MOCKUP_PAGE_RULES.maxChars;
 export const MOCKUP_HTML_TOTAL = 8_000_000;
 export const BRIEF_MAX = 50_000;
 export const PAGE_NOTES_MAX = 10_000;
@@ -34,6 +36,20 @@ export const MOCKUP_UPLOAD_PURPOSE = "mockup_upload";
 const DEFAULT_WIDTH = 1280;
 const DEFAULT_HEIGHT = 800;
 
+/** What a mockup page may hold and what is refused, as publish and request_upload say it (html-rules.ts). */
+const PAGE_RULES_TEXT =
+  `What a page may hold: inline CSS; inline scripts and event handlers, of any number and length; forms and their controls, whose submit handlers run but whose submissions go nowhere (form-action 'none'), so handle submit, call preventDefault and give a form no target; images, fonts and media as data: URIs; links. ` +
+  `Refused: anything loaded from elsewhere (a src, srcset, poster or the like that is not a data: URI, a url() in CSS that is neither data: nor a #fragment, @import, <script src>, <link>), frames and embeds (<iframe>, <frame>, <frameset>, <embed>, <object>, <portal>), <base> and <meta http-equiv>. ` +
+  `A page holds at most ${MOCKUP_PAGE_MAX} characters, and a version ${MOCKUP_HTML_TOTAL} in all, counted as a JavaScript string's length, not in bytes.`;
+const SAFE_CHECK_TEXT =
+  "Every problem is listed at once (422), each naming the page, the rule and the element. A refused publish changes nothing and leaves an upload unused, so publishing is a safe way to check a canvas.";
+/** What a frame does with a page taller than it, as the canvas and the Story show it. */
+const TALL_PAGES_TEXT =
+  "Content taller than a page's height scrolls inside its frame: on the canvas people see the first height pixels in pan mode, its default, and scroll the rest in interact mode; on the Story a promoted page scrolls inside its frame. A long document can be one page that scrolls, or several pages side by side (columns) that people see whole on the canvas; both work, so choose by how people will read it.";
+/** What chars and sha256 mean, for a page's HTML and for a file. */
+const HASHES_TEXT =
+  "html_chars and a file's chars are the text's length as a JavaScript string counts it (UTF-16 code units, so an emoji counts two), never bytes. html_sha256 and a file's sha256 are SHA-256 of the text encoded as UTF-8, so they equal a hash of a UTF-8 file's bytes (shasum -a 256), except that a file in an uploaded ZIP loses a leading byte-order mark.";
+
 const pageSlug = z
   .string()
   .regex(/^[a-z0-9][a-z0-9-]{0,79}$/, "a lower-case slug: letters, digits and hyphens, up to 80 characters")
@@ -45,7 +61,12 @@ const pageInput = z.strictObject({
   notes: z.string().max(PAGE_NOTES_MAX).optional().describe("Markdown design notes shown beside the page. Omit to keep them."),
   width: z.number().int().min(240).max(2560).optional().describe(`The frame's width in CSS pixels: ${DEFAULT_WIDTH} for a desktop screen, 390 for a phone. Omit to keep it.`),
   height: z.number().int().min(240).max(4000).optional().describe(`The frame's height in CSS pixels, default ${DEFAULT_HEIGHT}. Omit to keep it.`),
-  html: z.string().min(1).max(STORY_HTML_MAX).optional().describe("The whole page, one self-contained document. Required for a new page; omit to keep the base version's."),
+  html: z
+    .string()
+    .min(1)
+    .max(MOCKUP_PAGE_MAX, `a mockup page holds at most ${MOCKUP_PAGE_MAX} characters`)
+    .optional()
+    .describe("The whole page, one self-contained document. Required for a new page; omit to keep the base version's."),
 });
 
 const filePath = z
@@ -146,21 +167,35 @@ export const listMockups = defineOperation({
   access: "read",
   mutates: false,
   summary: "The product's mockups, most recently changed first: title, summary, current version and etag, without pages.",
-  description: "Archived mockups are left out unless include_archived. page_count is the current version's.",
+  description: `Archived mockups are left out unless include_archived; archived_hidden says how many were left out. page_count is the current version's. quota is how many mockups the product holds, {used, limit}: archived ones count, and publishing a new mockup at the limit (${MAX_MOCKUPS}) is refused with 409 quota_exceeded, so when used nears the limit, ask the person whether to publish a new version of a mockup instead, or delete one they no longer need.`,
   input: z.strictObject({ include_archived: z.boolean().default(false) }),
   rest: { method: "GET", path: "/mockups" },
   mcp: { tool: "mockups", action: "list" },
   async handler(ctx, input) {
-    let q = ctx.db
+    const rows = await ctx.db
       .selectFrom("mockups as m")
       .selectAll("m")
       .select((eb) => eb.selectFrom("mockup_pages as p").whereRef("p.version_id", "=", "m.current_version_id").select(eb.fn.countAll<number>().as("n")).as("page_count"))
-      .where("m.product_id", "=", productId(ctx));
-    if (!input.include_archived) q = q.where("m.archived_at", "is", null);
-    const rows = await q.orderBy("m.updated_at", "desc").execute();
-    return { items: rows.map((r) => ({ ...summaryView(r), page_count: Number(r.page_count ?? 0) })) };
+      .where("m.product_id", "=", productId(ctx))
+      .orderBy("m.updated_at", "desc")
+      .execute();
+    const shown = input.include_archived ? rows : rows.filter((r) => !r.archived_at);
+    const archived_hidden = rows.length - shown.length;
+    return {
+      items: shown.map((r) => ({ ...summaryView(r), page_count: Number(r.page_count ?? 0) })),
+      archived_hidden,
+      quota: mockupQuota(rows.length),
+      ...(archived_hidden
+        ? { note: `${archived_hidden} archived mockup${archived_hidden === 1 ? " is" : "s are"} not listed; pass include_archived to see ${archived_hidden === 1 ? "it" : "them"}. Archived mockups count toward the product's ${MAX_MOCKUPS}; ${rows.length} are used.` }
+        : {}),
+    };
   },
 });
+
+/** How many mockups a product holds against its limit, archived ones included, as quota_exceeded reports it. */
+function mockupQuota(used: number) {
+  return { used, limit: MAX_MOCKUPS, unit: "mockups", archived_included: true };
+}
 
 export const getMockup = defineOperation({
   name: "mockups.get",
@@ -169,7 +204,7 @@ export const getMockup = defineOperation({
   mutates: false,
   summary: "Read a mockup's current version: its brief, its pages with their notes, what it draws on, the Story pages that show its pages, and the etag to publish again.",
   description:
-    "Read this before publishing a new version, and read the brief first: it says what the canvas explores. Pages come without HTML unless include_html; each has html_path (a GET in the web app's session) and html_sha256. files lists what the version carries for collaborators (path, chars, sha256), with each file's content when include_files. To work on the canvas outside WhatBuild, get_download gives the whole version as a ZIP. story_pages lists the Story pages whose current version shows one of its pages (story promote_mockup), with the mockup version each shows.",
+    `Read this before publishing a new version, and read the brief first: it says what the canvas explores. Pages come without HTML unless include_html; each has html_path (a GET in the web app's session), html_sha256 and, without include_html, html_chars. files lists what the version carries for collaborators (path, chars, sha256), with each file's content when include_files. ${HASHES_TEXT} To work on the canvas outside WhatBuild, get_download gives the whole version as a ZIP. story_pages lists the Story pages whose current version shows one of its pages (story promote_mockup), with the mockup version each shows.`,
   input: z.strictObject({ mockup_id: id("mockup"), include_html: z.boolean().default(false), include_files: z.boolean().default(false).describe("Include each file's content.") }),
   rest: { method: "GET", path: "/mockups/:mockup_id" },
   mcp: { tool: "mockups", action: "get" },
@@ -229,7 +264,7 @@ export const requestMockupUpload = defineOperation({
   mutates: true,
   summary: "Get a short-lived grant to PUT a canvas as a ZIP, for publish to read by upload_id. Use it instead of sending page HTML through a tool call.",
   description:
-    `PUT one ZIP to url with exactly the headers given (curl -T canvas.zip -H …), then call publish with upload_id and whatever else changes (mockup_id and expected_etag for a later version, refs, citations). The ZIP has get_download's layout, so a download round-trips: manifest.json lists the canvas's pages in order, [{page_id, title?, width?, height?}], and may give title, summary, columns and files ([{path}]); brief.md is the brief; pages/<page_id>.html and pages/<page_id>.notes.md hold a page's HTML and notes; files/<path> holds a file the version carries. A page whose HTML or notes the ZIP leaves out keeps the base version's, so a ZIP can carry only the pages that changed, with every page still listed. The files listed in manifest.json are the whole set, a listed path missing from files/ keeping the base's content; without a files list, the files under files/ are the whole set, and with none either the version keeps the base's files. refs and citations in manifest.json are not read: pass them in the call. Everything else in the ZIP is refused, and one top-level folder around it all is allowed. At most ${MOCKUP_UPLOAD_MAX_BYTES / 1024 / 1024} MB packed; the grant expires, publish reads an upload once, and an upload nobody publishes is discarded a day after its grant expires. Keep the grant header out of reports and logs.`,
+    `PUT one ZIP to url with exactly the headers given (curl -T canvas.zip -H …), then call publish with upload_id and whatever else changes (mockup_id and expected_etag for a later version, refs, citations). The ZIP has get_download's layout, so a download round-trips: manifest.json lists the canvas's pages in order, [{page_id, title?, width?, height?}], and may give title, summary, columns and files ([{path}]); brief.md is the brief; pages/<page_id>.html and pages/<page_id>.notes.md hold a page's HTML and notes; files/<path> holds a file the version carries. A page whose HTML or notes the ZIP leaves out keeps the base version's, so a ZIP can carry only the pages that changed, with every page still listed. The files listed in manifest.json are the whole set, a listed path missing from files/ keeping the base's content; without a files list, the files under files/ are the whole set, and with none either the version keeps the base's files. refs and citations in manifest.json are not read: pass them in the call. Everything else in the ZIP is refused, and one top-level folder around it all is allowed. Each page in it is checked as one sent in the call is. ${PAGE_RULES_TEXT} Files are UTF-8 text. At most ${MOCKUP_UPLOAD_MAX_BYTES / 1024 / 1024} MB packed. ${SAFE_CHECK_TEXT} An upload's bytes cannot be replaced: to change a page, PUT a new ZIP under a new upload. The grant expires, a successful publish reads an upload once and answers with its size and sha256, and an upload nobody publishes is discarded a day after its grant expires. Keep the grant header out of reports and logs.`,
   input: z.strictObject({ size: z.number().int().min(0).optional().describe("The ZIP's size in bytes, when known, so an oversized one is refused before it transfers.") }),
   rest: { method: "POST", path: "/mockups/uploads" },
   mcp: { tool: "mockups", action: "request_upload" },
@@ -353,7 +388,7 @@ export function readCanvasZip(uploadId: string, bytes: Uint8Array): CanvasUpload
     const html = text.get(`pages/${p.page_id}.html`);
     const notes = text.get(`pages/${p.page_id}.notes.md`);
     if (html !== undefined && !html.trim()) problems.push(`pages/${p.page_id}.html is empty.`);
-    if (html !== undefined && html.length > STORY_HTML_MAX) problems.push(`pages/${p.page_id}.html holds ${html.length} characters; a page holds at most ${STORY_HTML_MAX}.`);
+    if (html !== undefined && html.length > MOCKUP_PAGE_MAX) problems.push(`pages/${p.page_id}.html holds ${html.length} characters; a mockup page holds at most ${MOCKUP_PAGE_MAX}.`);
     if (notes !== undefined && notes.length > PAGE_NOTES_MAX) problems.push(`pages/${p.page_id}.notes.md holds ${notes.length} characters; a page's notes hold at most ${PAGE_NOTES_MAX}.`);
     return { ...p, ...(html !== undefined ? { html } : {}), ...(notes !== undefined ? { notes } : {}) };
   });
@@ -402,7 +437,7 @@ export const publishMockup = defineOperation({
   mutates: true,
   summary: "Publish the next version of a mockup's canvas, or create a mockup with its first version. A later version keeps whatever you omit.",
   description:
-    `Without mockup_id, creates a mockup: give a title, a brief and at least one page with a title and html. With mockup_id, publishes the next version: pass the mockup's etag, and send only what changes. pages, when given, is the whole canvas in order: a page you leave out is dropped from this version, and a page whose page_id was on the base version keeps its title, notes, size and html unless you send them, so a version that changes one page sends that page's html alone. The brief is Markdown: what the canvas explores, for whom, the questions it is meant to answer, and what each page tries; write it for the next agent as much as for people. Each page is one self-contained HTML document shown in a sandboxed frame of width × height CSS pixels (default ${DEFAULT_WIDTH} × ${DEFAULT_HEIGHT}; 390 wide for a phone): inline CSS and bounded inline scripts, images and fonts as data: URIs, no remote resources, forms or frames; every problem is listed at once (422). columns sets how many pages sit side by side before the canvas wraps; null keeps one row. files carries text files for collaborators to pull into their own projects (DESIGN.md, components, tokens), at most ${MAX_MOCKUP_FILES} and ${(MOCKUP_FILES_TOTAL / 1_000_000).toFixed(0)} million characters a version; WhatBuild never uses them to draw a page, so inline what a page needs. Like pages, files when given is the whole set: a path that was on the base keeps its content unless you send it, a path you leave out is dropped, a new path needs content, and [] drops them all; omit files to keep them. refs links the outcomes, sources and assumptions the canvas explores, and citations up to ${CITATION_MAX_COUNT} exact passages, {record_id, seq_start, seq_end, quote?}, frozen as snapshots. from_version: N starts from that earlier version instead of the current one. To keep page HTML out of the call, upload the canvas as a ZIP (request_upload) and pass upload_id: the ZIP gives pages, files and the brief, and the call gives the rest. At most ${MAX_MOCKUP_PAGES} pages, ${(MOCKUP_HTML_TOTAL / 1_000_000).toFixed(0)} million characters of HTML in all, and ${MAX_MOCKUPS} mockups in a product, archived ones included.`,
+    `Without mockup_id, creates a mockup: give a title, a brief and at least one page with a title and html. With mockup_id, publishes the next version: pass the mockup's etag, and send only what changes. pages, when given, is the whole canvas in order: a page you leave out is dropped from this version, and a page whose page_id was on the base version keeps its title, notes, size and html unless you send them, so a version that changes one page sends that page's html alone. The brief is Markdown: what the canvas explores, for whom, the questions it is meant to answer, and what each page tries; write it for the next agent as much as for people. Each page is one self-contained HTML document shown in a sandboxed frame of width × height CSS pixels (default ${DEFAULT_WIDTH} × ${DEFAULT_HEIGHT}; 390 wide for a phone; height at most 4000), with no network. ${PAGE_RULES_TEXT} ${SAFE_CHECK_TEXT} ${TALL_PAGES_TEXT} columns sets how many pages sit side by side before the canvas wraps; null keeps one row. files carries text files for collaborators to pull into their own projects (DESIGN.md, components, tokens), at most ${MAX_MOCKUP_FILES} and ${(MOCKUP_FILES_TOTAL / 1_000_000).toFixed(0)} million characters a version; WhatBuild never uses them to draw a page, so inline what a page needs. Like pages, files when given is the whole set: a path that was on the base keeps its content unless you send it, a path you leave out is dropped, a new path needs content, and [] drops them all; omit files to keep them. refs links the outcomes, sources and assumptions the canvas explores, and citations up to ${CITATION_MAX_COUNT} exact passages, {record_id, seq_start, seq_end, quote?}, frozen as snapshots. from_version: N starts from that earlier version instead of the current one. To keep page HTML out of the call, upload the canvas as a ZIP (request_upload) and pass upload_id: the ZIP gives pages, files and the brief, and the call gives the rest, and the result names from_upload with upload {upload_id, size, sha256}, the ZIP's own bytes as its PUT answered. At most ${MAX_MOCKUP_PAGES} pages, ${(MOCKUP_HTML_TOTAL / 1_000_000).toFixed(0)} million characters of HTML in all, and ${MAX_MOCKUPS} mockups in a product, archived ones included (list gives quota, used and limit).`,
   input: z.strictObject({
     mockup_id: id("mockup").optional().describe("Omit to create a mockup."),
     title: z.string().trim().min(1).max(200).optional(),
@@ -422,9 +457,12 @@ export const publishMockup = defineOperation({
   prepare: prepareCanvas,
   async handler(ctx, call, canvas) {
     const pid = productId(ctx);
+    let upload: { upload_id: string; size: number | null; sha256: string | null } | null = null;
     if (canvas) {
       if (call.brief !== undefined && canvas.brief !== undefined) throw invalid("invalid_input", "Nothing was published: the upload has a brief.md and the call a brief; send the brief in one of them.");
-      await usableUpload(ctx, canvas.upload_id, true);
+      const u = await usableUpload(ctx, canvas.upload_id, true);
+      // The ZIP's own bytes, as the PUT answered them, so an agent can tell which ZIP was published.
+      upload = { upload_id: u.upload_id, size: u.size === null ? null : Number(u.size), sha256: u.sha256 };
     }
     // What the call omits, the upload gives; what both omit carries forward.
     const input = canvas
@@ -454,9 +492,20 @@ export const publishMockup = defineOperation({
       if (input.from_version) throw invalid("invalid_input", "from_version needs a mockup_id.");
       if (!input.title) throw invalid("invalid_input", "A new mockup needs a title.");
       if (!input.pages) throw invalid("invalid_input", "A new mockup needs at least one page.");
-      const count = await ctx.db.selectFrom("mockups").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst();
-      if (Number(count?.n ?? 0) >= MAX_MOCKUPS)
-        throw conflict("quota_exceeded", `A product holds at most ${MAX_MOCKUPS} mockups, archived ones included.`, { quota: "mockups", limit: MAX_MOCKUPS, used: Number(count?.n ?? 0), unit: "mockups" });
+      const count = await ctx.db
+        .selectFrom("mockups")
+        .select((eb) => [eb.fn.countAll<number>().as("n"), eb.fn.count<number>("archived_at").as("archived")])
+        .where("product_id", "=", pid)
+        .executeTakeFirst();
+      const used = Number(count?.n ?? 0);
+      if (used >= MAX_MOCKUPS) {
+        const archived = Number(count?.archived ?? 0);
+        throw conflict(
+          "quota_exceeded",
+          `Nothing was published: a product holds at most ${MAX_MOCKUPS} mockups, archived ones included, and this one holds ${used}${archived ? ` (${archived} archived)` : ""}. Publish a new version of one of them instead, or ask the person whether to delete one they no longer need (mockups list with include_archived shows them all).`,
+          { quota: "mockups", ...mockupQuota(used), archived },
+        );
+      }
     }
 
     const problems: string[] = [];
@@ -488,7 +537,7 @@ export const publishMockup = defineOperation({
     // Only pages whose HTML changed need checking again; carried HTML passed when it was published.
     for (const p of input.pages ?? []) {
       if (p.html === undefined) continue;
-      for (const msg of inspectStoryHtml(p.html)) problems.push(`${p.page_id}: ${msg}`);
+      for (const msg of inspectMockupHtml(p.html)) problems.push(`${p.page_id}: ${msg}`);
     }
     const total = pages.reduce((n, p) => n + p.html.length, 0);
     if (total > MOCKUP_HTML_TOTAL) problems.push(`The pages total ${total} characters of HTML; a version holds at most ${MOCKUP_HTML_TOTAL}.`);
@@ -544,7 +593,7 @@ export const publishMockup = defineOperation({
       await ctx.enqueue("delete_blobs", { keys: [u.blob_key], prefixes: [] });
     }
     const e = await loadMockup(ctx, mockup_id);
-    return { ...summaryView(e), current: await versionView(ctx, e.current_version_id, false), based_on_version: base?.n ?? null, ...(canvas ? { from_upload: canvas.upload_id } : {}) };
+    return { ...summaryView(e), current: await versionView(ctx, e.current_version_id, false), based_on_version: base?.n ?? null, ...(upload ? { from_upload: upload.upload_id, upload } : {}) };
   },
 });
 

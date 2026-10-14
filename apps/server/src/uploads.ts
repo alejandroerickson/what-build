@@ -1,11 +1,11 @@
 import {
-  AppError, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, effectiveRole, forbidden, membershipsFor, mockupBundle, json, lockSandbox, MOCKUP_UPLOAD_PURPOSE, notFound, roleAtLeast, sandboxForAccount, toAppError,
-  tooLarge, UPLOAD_GRANT_HEADER, type ActorSnapshot, type Env, type OpContext, type Tx,
+  AppError, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, effectiveRole, forbidden, membershipsFor, mockupBundle, json, lockSandbox, MOCKUP_UPLOAD_PURPOSE, notFound, roleAtLeast, sandboxForAccount, STORY_PREVIEW_PURPOSE,
+  toAppError, tooLarge, UPLOAD_GRANT_HEADER, type ActorSnapshot, type Env, type OpContext, type Tx,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { sql } from "kysely";
 import type { ServerConfig } from "./config.ts";
-import { streamFile } from "./rest.ts";
+import { storyHtml, storyTheme, streamFile } from "./rest.ts";
 
 async function inTenant<T>(env: Env, tenantId: string, fn: (trx: Tx) => Promise<T>): Promise<T> {
   return env.db.transaction().execute(async (trx) => {
@@ -150,6 +150,26 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
         "X-Content-Type-Options": "nosniff",
         "Cache-Control": "no-store",
       });
+    } catch (e) {
+      return fail(c, e);
+    }
+  });
+
+  // The document story.preview checked: what publish would store, served exactly as a published
+  // version is (the same sandbox, typefaces and ?theme), for an agent to look at before publishing.
+  app.get("/api/v1/downloads/story-preview/:preview_id", async (c) => {
+    try {
+      const claims = env.ports.grants.verify(c.req.header(DOWNLOAD_GRANT_HEADER) ?? "");
+      if (!claims || claims["purpose"] !== STORY_PREVIEW_PURPOSE || claims["sp"] !== c.req.param("preview_id"))
+        throw new AppError(401, "invalid_grant", "The preview grant is missing, invalid or expired. Preview again with story(action=\"preview\").");
+      const theme = storyTheme(c.req.query("theme"));
+      const p = await inTenant(env, String(claims["t"]), (trx) =>
+        trx.selectFrom("story_previews").select(["html", "shows_mockup", "expires_at"]).where("preview_id", "=", c.req.param("preview_id")).executeTakeFirst(),
+      );
+      if (!p || Date.parse(p.expires_at) < Date.now()) throw notFound("That preview has expired or was replaced by newer ones. Preview again with story(action=\"preview\").");
+      // A Story page in the Story's sandbox (page-sandbox.ts). A mockup page carries its own look, so
+      // it takes neither the theme nor the carried typefaces, and keeps a mockup page's sandbox.
+      return storyHtml(c, p.html, p.shows_mockup ? undefined : theme, false, p.shows_mockup);
     } catch (e) {
       return fail(c, e);
     }

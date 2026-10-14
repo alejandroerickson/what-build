@@ -394,6 +394,18 @@ function switchedOff(sandbox: SandboxContext, op: Pick<OperationDef, "name" | "m
   if (daily && s[daily.setting] === 0) throw off(daily.setting);
 }
 
+/**
+ * What stops a visitor's write in an open sandbox: writes paused (read-only) or switched off. A
+ * Story preview asks it as a write, so it is refused wherever publishing would be.
+ */
+export function refuseVisitorWrite(sandbox: SandboxContext, op: Pick<OperationDef, "name" | "mutates">): void {
+  if (!op.mutates) return;
+  // Export is never blocked by a read-only state; its own daily allowance still applies.
+  if (sandbox.settings.visitor_access === "read" && op.name !== "products.export")
+    throw new AppError(403, "sandbox_read_only", `This public sandbox is read-only for visitors for now, so ${op.name} was refused. Reading and searching still work.`);
+  switchedOff(sandbox, op);
+}
+
 /** What a visitor may always ask, so that a person and an agent can learn the state they are refused in. */
 const ALWAYS_ANSWERED = new Set(["sandbox.status"]);
 
@@ -409,10 +421,7 @@ export async function admitVisitor(db: Db, sandbox: SandboxContext, principal: P
       throw new AppError(403, "sandbox_closed", "This public sandbox is closed to visitors for now. Nothing of yours was changed; try again later.");
     if (principal.surface === "mcp" && !s.visitor_agents)
       throw restricted("Agents are turned off for visitors in this public sandbox. Use the web app instead.");
-    // Export is never blocked by a read-only state; its own daily allowance still applies.
-    if (op.mutates && s.visitor_access === "read" && op.name !== "products.export")
-      throw new AppError(403, "sandbox_read_only", `This public sandbox is read-only for visitors for now, so ${op.name} was refused. Reading and searching still work.`);
-    switchedOff(sandbox, op);
+    refuseVisitorWrite(sandbox, op);
   }
 
   const minute = new Date(Math.floor(Date.now() / 60_000) * 60_000).toISOString();

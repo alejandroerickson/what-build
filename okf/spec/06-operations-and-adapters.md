@@ -1,9 +1,9 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 127 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 128 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -36,7 +36,7 @@ defineOperation({
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 127. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 128. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
@@ -108,7 +108,8 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
   ([§3.5](03-accounts-teams-and-identity.md)). `connection_level` carries `{ level, needed }`
   and says that only the person raises it, under Connect an agent.
 - **`quota_exceeded`** carries `{ quota, limit, used, unit }` in `details`. It is returned for the
-  50 Story pages and the 50 mockups a product holds ([§9.2](09-data-lifecycle.md)) and for a visitor's daily
+  50 Story pages and the 50 mockups a product holds ([§9.2](09-data-lifecycle.md)), the mockups'
+  adding `archived`, and for a visitor's daily
   allowances in the public sandbox, which add `resets_at` ([§9.7](09-data-lifecycle.md)). A sandbox
   allowance set to 0 is switched off and answers `403 sandbox_restricted` instead.
 - **`429`** is returned for sign-in links (five per address per hour), for a fourth URL fetch a
@@ -181,7 +182,7 @@ must come from the app's own origin (`403 forbidden_origin`).
 
 ### The operation catalogue
 
-All 127 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 128 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-teams-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -286,6 +287,7 @@ being changed inside the handler.
 | `story` | `get_page` | `GET P/story/pages/:page_id` | reader |
 | `story` | `list_versions` | `GET P/story/pages/:page_id/versions` | reader |
 | `story` | `get_version` | `GET P/story/pages/:page_id/versions/:version` | reader |
+| `story` | `preview` | `POST P/story/pages/:page_id/preview` | editor |
 | `story` | `publish` | `POST P/story/pages/:page_id/versions` | editor |
 | `story` | `promote_mockup` | `POST P/story/promote-mockup` | editor |
 | `story` | `write_notes` | `PUT P/story/pages/:page_id/notes` | editor |
@@ -351,6 +353,12 @@ Notes on recent actions:
   `from_version` starts from an earlier version, which restores it
   ([§4.11](04-data-model.md)). Versions report `html_sha256`. A version has no change note:
   `note` is refused like any unknown field (`422`), and versions do not return one.
+- `story.preview` takes exactly `story.publish`'s input and makes every check publish makes, in
+  the same code, refusing with the same errors; it creates no version, records no activity and
+  answers `200`. It returns what publish would make (`new_page`, `based_on_version`,
+  `carried_forward`, `title`, `summary`, `html_chars`, `html_sha256`, `published: false`) and
+  `preview { preview_id, method: "GET", url, headers, expires_at }`, a download grant for the
+  document publish would store ([§4.11](04-data-model.md)).
 - `story.get_style` and `story.set_style` read and replace the product's Story style, the design
   system every page follows: an adopted house style (`house_style`) or the team's own
   (`name`, `rules`, `stylesheet`), with its own etag; `422 invalid_style` lists every problem
@@ -372,8 +380,14 @@ Notes on recent actions:
   return the files' content. `mockups.request_upload` returns a grant to PUT the canvas as a ZIP
   in `get_download`'s layout, and `mockups.publish { upload_id }` reads it in place of `pages`,
   `files` and the brief, so no page's HTML travels through a tool call; it is refused to a visitor
-  to a public sandbox (`403`), and the result names `from_upload` ([§4.12](04-data-model.md),
-  §6.7).
+  to a public sandbox (`403`), and the result names `from_upload` and gives `upload { upload_id,
+  size, sha256 }`, the ZIP as its PUT answered ([§4.12](04-data-model.md), §6.7). A page is held
+  to a mockup page's HTML rules, not a Story page's: scripts without a budget, and forms whose
+  submit handlers run and whose submissions go nowhere. `publish`'s and `request_upload`'s
+  descriptions state what a page may hold and what is refused, that a refused publish changes
+  nothing and leaves an upload unused, and what a frame does with a page taller than its height.
+  `mockups.list` returns `archived_hidden` (and a `note` when it is not zero) and
+  `quota { used, limit, unit, archived_included }`.
   `mockups.get_download` gives a version as a ZIP through a grant, for an agent to build the next
   version elsewhere; `mockups.check_citations` checks a version's citations
   ([§4.12](04-data-model.md)). `mockups.get` lists the Story pages that show its pages.
@@ -430,6 +444,7 @@ GET  P/story/pages/:page_id/versions/:version/html?theme=light|dark   Story page
 GET  P/story/print?page_ids=…                        the Story print view (HTML)
 GET  P/mockups/:mockup_id/versions/:version/pages/:page_id/html   a mockup page's HTML
 GET  /api/v1/downloads/mockup/:version_id            a mockup version's ZIP under a download grant
+GET  /api/v1/downloads/story-preview/:preview_id?theme=light|dark   a Story preview's HTML under its grant
 GET  /api/v1/meta                                    server and skill version, release, sign-in methods (public)
 GET  /api/v1/connect                                 what the Connect page shows
 GET|PATCH /api/v1/me; GET /api/v1/me/agents; DELETE /api/v1/me/agents/:family
@@ -458,7 +473,14 @@ network, no same-origin access and no framing outside the app. `?theme=light|dar
 app's resolved theme onto the page's `<html>` for that response only; the stored HTML is
 unchanged. It is a Story read, so a reader reaches it; a source's file, an export's file, the
 style specimens and a mockup page's HTML need viewer. A mockup page's HTML is served in the same
-sandbox, with the same `?frame=1`, and without `?theme`: a mockup carries its own look.
+sandbox, with the same `?frame=1`, and without `?theme`: a mockup carries its own look. Its
+sandbox adds `allow-forms`, so a prototype's submit handler runs, here and on the Story's route
+when a version shows a mockup page; every page's policy says `form-action 'none'`, so a
+submission goes nowhere, wherever it is shown.
+A Story preview's document is served by the same code as a version's HTML, in the Story's
+sandbox (a mockup page's when the preview keeps showing one), `?theme` and the carried typefaces
+included, to whoever holds its grant (`X-WhatBuild-Download-Grant`): no session opens it, and an
+expired or dropped preview is `404`.
 
 ### The Story print view
 
@@ -526,7 +548,7 @@ the same of a newer version than the instructions named. `unknown_tool` and `unk
 the server's version and its tools or the tool's actions (also in `details`: `server_version`,
 `tools` or `actions`), and say the client may hold a list from another version.
 
-**Tools.** Sixteen tools over the 125 operations an agent may be offered (all 127 but deleting an
+**Tools.** Sixteen tools over the 126 operations an agent may be offered (all 128 but deleting an
 organization and its preview): twelve grouped by noun, four standalone. A connection is listed
 only the actions its level allows (below).
 
@@ -540,7 +562,7 @@ only the actions its level allows (below).
 | `files` | `request_upload`, `create_upload`, `create_uploads`, `complete_upload`, `add_note`, `fetch_url`, `set_role`, `get_download` |
 | `derived` | `manifest`, `outline`, `text`, `list`, `rederive`, `write_note`, `read_note` |
 | `assumptions` | `list`, `get`, `create`, `update`, `review`, `supersede`, `link`, `unlink`, `archive`, `check_citations`, `delete_impact`, `delete` |
-| `story` | `guidance`, `get_style`, `set_style`, `list_pages`, `get_page`, `list_versions`, `get_version`, `publish`, `promote_mockup`, `write_notes`, `check_citations`, `print_view`, `get_hierarchy`, `set_hierarchy`, `archive_page`, `restore_page`, `delete_page_impact`, `delete_page` |
+| `story` | `guidance`, `get_style`, `set_style`, `list_pages`, `get_page`, `list_versions`, `get_version`, `preview`, `publish`, `promote_mockup`, `write_notes`, `check_citations`, `print_view`, `get_hierarchy`, `set_hierarchy`, `archive_page`, `restore_page`, `delete_page_impact`, `delete_page` |
 | `mockups` | `list`, `get`, `list_versions`, `get_version`, `request_upload`, `publish`, `archive`, `restore`, `get_download`, `check_citations`, `delete_impact`, `delete` |
 | `lineage` | `capture`, `write`, `check` |
 | `activity` | `list` |

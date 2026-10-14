@@ -88,7 +88,7 @@ export class Worker {
 
   private lastPrune = 0;
 
-  /** Housekeeping, at most hourly: finished jobs after a week; OAuth registrations nobody connected with; people's days of use after 14 months; abandoned upload grants and canvas uploads, and their bytes. */
+  /** Housekeeping, at most hourly: finished jobs after a week; OAuth registrations nobody connected with; people's days of use after 14 months; abandoned upload grants and canvas uploads, and their bytes; expired Story previews. */
   private async prune() {
     if (Date.now() - this.lastPrune < 3600_000) return;
     this.lastPrune = Date.now();
@@ -126,6 +126,11 @@ export class Worker {
           .execute();
       });
       for (const u of canvases) if (u.uploaded_at && !u.used_at) await this.env.ports.blobs.delete(u.blob_key).catch(() => undefined);
+      // A Story preview goes once its grant has expired.
+      await this.env.db.transaction().execute(async (trx) => {
+        await sql`select set_config('app.tenant_id', ${tenant_id}, true)`.execute(trx);
+        await trx.deleteFrom("story_previews").where("expires_at", "<", new Date().toISOString()).execute();
+      });
     }
   }
 

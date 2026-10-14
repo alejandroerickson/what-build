@@ -376,6 +376,19 @@ export interface MockupUploadsTable {
   created_at: Ts;
 }
 
+/** A document story.preview made, held for its grant to GET until it expires. */
+export interface StoryPreviewsTable {
+  preview_id: string;
+  tenant_id: string;
+  product_id: string;
+  page_id: string;
+  html: string;
+  shows_mockup: boolean;
+  created_by: Json<ActorSnapshot>;
+  expires_at: Ts;
+  created_at: Ts;
+}
+
 export interface DerivationsTable {
   derivation_id: string;
   tenant_id: string;
@@ -814,6 +827,7 @@ export interface DB {
   story_versions: StoryVersionsTable;
   story_hierarchies: StoryHierarchiesTable;
   story_styles: StoryStylesTable;
+  story_previews: StoryPreviewsTable;
   mockups: MockupsTable;
   mockup_versions: MockupVersionsTable;
   mockup_pages: MockupPagesTable;
