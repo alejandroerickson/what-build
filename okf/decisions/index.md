@@ -52,6 +52,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Insights and decisions are retired, and what a product held of them becomes sources in Evidence](insights-and-decisions-are-retired-into-evidence.md)
 - [Archive is the reversible default; delete is permanent, guarded, and an admin's](archive-by-default-delete-guarded.md)
 - [An agent connection has a level the person chooses, which caps their role](an-agent-connection-has-a-level-the-person-chooses.md)
+- [Feedback names nobody and reaches the people who run WhatBuild in a daily digest](feedback-names-nobody-and-reaches-the-maintainers-in-a-daily-digest.md)
 - [Local development may substitute adapters, never behavior](development-substitutes-adapters-never-behavior.md)
 - [Manual QA and end-to-end tests may use a copy of production that stays on the maintainer's machine](qa-uses-a-private-copy-of-production.md)
 - [A copy of production holds only the organizations it is for, by default the public sandbox, and nothing of any other leaves production](a-copy-of-production-holds-only-the-organizations-it-is-for.md)

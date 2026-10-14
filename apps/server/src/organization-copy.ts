@@ -11,11 +11,12 @@ export type Organization = { tenant_id: string; slug: string; name: string; sand
 
 /**
  * What belongs to the deployment rather than to an organization, and stays behind: sign-in and
- * connections, allowances to create organizations, the public site's interest list, usage counts.
+ * connections, allowances to create organizations, the public site's interest list, usage counts,
+ * and how much feedback each person sent today.
  */
 export const DEPLOYMENT_TABLES = [
   "sessions", "email_tokens", "personal_access_tokens", "oauth_clients", "oauth_codes", "oauth_tokens",
-  "tenant_allowances", "interest", "usage_calls", "usage_people",
+  "tenant_allowances", "interest", "usage_calls", "usage_people", "feedback_counts",
 ];
 
 /** The organizations named by slug, or, with none named, the deployment's public sandbox. Reads no other organization. */

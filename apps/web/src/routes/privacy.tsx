@@ -112,7 +112,8 @@ export function PrivacyPage() {
                   </Kept>
                 ) : null}
                 <Kept lead="What you send.">
-                  Feedback from you or your agent, and a request on the public site to hear when WhatBuild opens. To answer it and improve WhatBuild. Kept until it is no longer
+                  Feedback from you or your agent, without your name or your address unless you share it to be answered, and a request on the public site to hear when
+                  WhatBuild opens. To answer it and improve WhatBuild; feedback may go once a day by email to the people who run this WhatBuild. Kept until it is no longer
                   needed, or until you ask for it to be removed.
                 </Kept>
                 <Kept lead="Backups.">Copies of the database, to recover from a failure. Kept for a limited time, then deleted.</Kept>

@@ -325,14 +325,14 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
   const revokeConnection = (family: string) =>
     db.updateTable("oauth_tokens").set({ revoked_at: new Date().toISOString() }).where("family_id", "=", family).where("revoked_at", "is", null).execute();
 
-  const issue = async (into: Db, client_id: string, account_id: string, resource: string, family: string, level: ConnectionLevel) => {
+  const issue = async (into: Db, client_id: string, account_id: string, resource: string, family: string, level: ConnectionLevel, feedback = true) => {
     const access = `${ACCESS_PREFIX}${randomToken(30)}`;
     const refresh = `${REFRESH_PREFIX}${randomToken(30)}`;
     await into
       .insertInto("oauth_tokens")
       .values([
-        { token_hash: sha256Hex(access), kind: "access", client_id, account_id, resource, scope: SCOPE, family_id: family, level, expires_at: new Date(Date.now() + config.accessTokenSeconds * 1000).toISOString() },
-        { token_hash: sha256Hex(refresh), kind: "refresh", client_id, account_id, resource, scope: SCOPE, family_id: family, level, expires_at: new Date(Date.now() + config.refreshTokenDays * 86400_000).toISOString() },
+        { token_hash: sha256Hex(access), kind: "access", client_id, account_id, resource, scope: SCOPE, family_id: family, level, feedback, expires_at: new Date(Date.now() + config.accessTokenSeconds * 1000).toISOString() },
+        { token_hash: sha256Hex(refresh), kind: "refresh", client_id, account_id, resource, scope: SCOPE, family_id: family, level, feedback, expires_at: new Date(Date.now() + config.refreshTokenDays * 86400_000).toISOString() },
       ])
       .execute();
     return { access_token: access, token_type: "Bearer", expires_in: config.accessTokenSeconds, refresh_token: refresh, scope: SCOPE };
@@ -391,10 +391,10 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
           .where("client_id", "=", client.client_id)
           .where("revoked_at", "is", null)
           .where("expires_at", ">", now)
-          .returning(["account_id", "resource", "family_id", "level"])
+          .returning(["account_id", "resource", "family_id", "level", "feedback"])
           .executeTakeFirst();
-        // A refreshed connection keeps its level, including one the person changed since.
-        return row ? issue(trx, client.client_id, row.account_id, row.resource, row.family_id, row.level) : null;
+        // A refreshed connection keeps its level and its feedback switch, including ones the person changed since.
+        return row ? issue(trx, client.client_id, row.account_id, row.resource, row.family_id, row.level, row.feedback) : null;
       });
       if (rotated) return c.json(rotated);
       const row = await db.selectFrom("oauth_tokens").select(["client_id", "family_id", "expires_at", "revoked_at"]).where("token_hash", "=", hash).where("kind", "=", "refresh").executeTakeFirst();

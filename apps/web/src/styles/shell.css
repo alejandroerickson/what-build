@@ -832,3 +832,45 @@ h1[tabindex="-1"]:focus {
     animation: none;
   }
 }
+
+/* Submit feedback, from the account menu: a kind, the message, and what is sent. */
+.feedback-message {
+  min-height: 136px;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.feedback-sent {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-2h) var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--hover);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+.feedback-sent .kv-row {
+  grid-template-columns: 52px minmax(0, 1fr);
+}
+.feedback-sent dd {
+  color: var(--muted);
+}
+/* The checkbox lines up with the text above it, and its hover steps up from the well's fill. */
+.feedback-reply {
+  align-items: flex-start;
+  margin: 0 calc(-1 * var(--s-2)) calc(-1 * var(--s-1));
+  color: var(--text);
+  font-size: var(--fs-base);
+}
+.feedback-reply input {
+  margin-top: 2px;
+}
+.feedback-reply:hover {
+  background: var(--hover-strong);
+}
+/* Four kinds don't fit in a row on a phone: two by two. */
+@media (max-width: 520px) {
+  .feedback-kinds {
+    grid-auto-flow: row;
+    grid-template-columns: 1fr 1fr;
+  }
+}

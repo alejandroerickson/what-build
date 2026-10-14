@@ -23,7 +23,23 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Migration `0026_feedback_digest`.** It adds columns to `feedback` (where a report came from,
+  an address its sender shared, when it was mailed) and makes its `submitted_by` nullable, adds a
+  table of daily counts per person, and adds `oauth_tokens.feedback`, true by default. Rehearse on
+  the dev deployment first ([dev-deployment](dev-deployment.md)); an earlier release runs on the
+  new schema, except that one inserting feedback would leave `submitted_by` filled as before.
+- **Feedback can arrive by email.** Optional: set `WHATBUILD_FEEDBACK_EMAIL` to an address, on a
+  deployment that sends mail, and it gets a digest of new feedback at most once a day
+  ([mail](mail.md#the-feedback-digest)). Production sets it to the maintainer's address from
+  `.env`. Without it nothing changes: feedback stays in the database.
+- **People send feedback from the app.** Nothing to set. **Submit feedback** in the account menu
+  says what is sent, and reports name nobody unless the sender shares an address. A person and
+  their agents send at most 10 a day (`429 rate_limited`).
+- **Each agent connection can be kept from sending feedback.** Nothing to set: connections keep
+  `submit_feedback`, and a person turns it off under Connect an agent.
+- **The skill is 0.28.0.** It says feedback names nobody, its daily limit, and that a missing
+  `submit_feedback` was turned off by the person, not left out of an old tool list. Connected
+  agents are asked to update it.
 
 ## v0.11.1
 

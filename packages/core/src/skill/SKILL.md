@@ -609,5 +609,12 @@ what visitors have added too, so reset first unless the person means to keep it.
 ## When something is wrong
 
 If a tool fails, behaves unexpectedly, or its description misled you, call `submit_feedback` with
-what happened, what you expected, and any suggestion. One honest report is better than silently
-working around a broken tool — otherwise the next agent walks into the same trap.
+what happened, what you expected, and any suggestion; name the tool in `tool`. One honest report is
+better than silently working around a broken tool — otherwise the next agent walks into the same
+trap. It goes to the developer of WhatBuild without the person's name, so leave names, secrets
+and source text out of it. A person and their agents send at most ten a day.
+
+The person may turn `submit_feedback` off for your connection. Then it is not in your tool list and
+the server's instructions say so: it is missing on purpose, not from an old tool list, so don't ask
+for a new session over it and don't send feedback another way. Tell the person what went wrong
+instead.

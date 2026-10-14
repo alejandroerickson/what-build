@@ -1,7 +1,9 @@
 import { z } from "zod";
-import { json } from "../db.ts";
+import { AppError, invalid } from "../errors.ts";
+import { countFeedback, FEEDBACK_PER_DAY } from "../feedback.ts";
 import { defineOperation } from "../registry.ts";
 import { SKILL_TEMPLATE } from "../skill/skill-text.ts";
+import { clientFamily } from "../usage.ts";
 import { newId } from "../util.ts";
 
 /**
@@ -10,7 +12,7 @@ import { newId } from "../util.ts";
  * never asked to reinstall the same content.
  */
 export const SKILL_NAME = "whatbuild";
-export const SKILL_VERSION = "0.27.0";
+export const SKILL_VERSION = "0.28.0";
 
 export function skillMarkdown(): string {
   return SKILL_TEMPLATE.replace("__SKILL_VERSION__", SKILL_VERSION);
@@ -38,27 +40,37 @@ export const submitFeedback = defineOperation({
   access: "any",
   mutates: true,
   connection: "viewer",
-  summary: "Report a tool that failed, wording that confused you, or a capability you wish existed. Write-only.",
+  summary: "Report a tool that failed, wording that confused you, or something that could be better or that you wish existed. Write-only.",
   description:
-    "Goes to the maintainers; there is no way to read it back, and it touches no source. Say what happened, what you expected, and any suggestion. Categories: issue (a tool failed or behaved unexpectedly), confusion (a description misled you), feature_request (something you wish existed), other. Never include secrets or source content.",
+    `Goes to the developer of WhatBuild without the person's name or address; there is no way to read it back, no reply channel, and it touches no source. Say what happened, what you expected, and any suggestion. Categories: issue (a tool failed or behaved unexpectedly), confusion (a description misled you), improvement (something works but could work better), feature_request (something you wish existed), other. Name the tool in \`tool\`. Never include secrets, people's names or source content. A person and their agents may send ${FEEDBACK_PER_DAY} a day; past that it answers 429 rate_limited. The person may turn this tool off for your connection; then it is not listed, and you send no feedback another way.`,
   input: z.strictObject({
-    category: z.enum(["issue", "confusion", "feature_request", "other"]),
+    category: z.enum(["issue", "confusion", "improvement", "feature_request", "other"]),
     message: z.string().trim().min(1).max(4000),
     tool: z.string().max(64).optional(),
     details: z.string().max(4000).optional(),
+    screen: z.string().trim().max(64).optional().describe("The part of the web app a person sent it from. Agents leave it out."),
+    reply: z.boolean().optional().describe("Web app only: send the person's address with it, so they can be answered. Agents leave it out."),
   }),
   rest: { method: "POST", path: "/feedback" },
   mcp: { tool: "submit_feedback" },
   async handler(ctx, input) {
+    if (ctx.principal.feedback === false)
+      throw new AppError(403, "feedback_off", "The person turned off submit_feedback for this connection, in Connect an agent. Send no feedback another way; tell them what went wrong instead.");
+    if (input.reply && ctx.principal.surface !== "web") throw invalid("invalid_input", "Only a person shares their address for a reply, in the web app. Leave reply out.");
+    await countFeedback(ctx.db, ctx.principal.account_id);
     const feedback_id = newId();
     await ctx.db
       .insertInto("feedback")
       .values({
         feedback_id, tenant_id: null, category: input.category, message: input.message, tool: input.tool ?? null, details: input.details ?? null,
-        server_version: ctx.ports.config.serverVersion, submitted_by: json(ctx.actor),
+        server_version: ctx.ports.config.serverVersion, surface: ctx.principal.surface, client: clientFamily(ctx.principal) || null, screen: input.screen || null,
+        reply_to: input.reply && ctx.principal.email ? ctx.principal.email : null,
       })
       .execute();
-    return { feedback_id, received: true, note: "Thank you. Maintainers read these; there is no reply channel." };
+    const note = input.reply
+      ? "Thank you. It goes to the developer of WhatBuild with your address, so they can answer."
+      : "Thank you. It goes to the developer of WhatBuild without your name or address; there is no reply channel.";
+    return { feedback_id, received: true, note };
   },
 });
 

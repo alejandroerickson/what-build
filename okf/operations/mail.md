@@ -1,9 +1,9 @@
 ---
 type: System Concept
 title: Mail - what WhatBuild sends, how each deployment sends it, and production's Cloudflare Email Sending
-description: The three messages the server sends, the settings that choose a mailer, which deployments send mail and which never do, production's setup on Cloudflare Email Sending over SMTP, checking it, rotating its token, changing provider, and what breaks it.
+description: The messages the server sends (three while a request waits, and the daily feedback digest), the settings that choose a mailer, which deployments send mail and which never do, production's setup on Cloudflare Email Sending over SMTP, checking it, rotating its token, changing provider, and what breaks it.
 tags: [operations, mail, smtp, cloudflare, invitations, sign-in, cloud-run, azure, runbook]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -14,7 +14,7 @@ this guide.
 
 ## What WhatBuild sends
 
-Plain text, one message at a time, while the request that causes it waits:
+Plain text, one message at a time. Three are sent while the request that causes it waits:
 
 | Message | Sent when | Code |
 |---|---|---|
@@ -22,8 +22,15 @@ Plain text, one message at a time, while the request that causes it waits:
 | An invitation | someone gives a role to an address that has no account | `packages/core/src/ops/products.ts` |
 | An allowance notice | an instance owner lets an address start organizations, and asks to tell them | `packages/core/src/ops/tenant-allowances.ts` |
 
-Nothing else sends mail: not the site's interest form, not feedback. Sign-in links and
-invitations are specified in [§3](../spec/03-accounts-teams-and-identity.md).
+The fourth is sent by the worker, not a request:
+
+| Message | Sent when | Code |
+|---|---|---|
+| The feedback digest | the deployment names `WHATBUILD_FEEDBACK_EMAIL`, there is feedback not yet sent, and no digest went out in the last 24 hours; looked at when an instance starts and every ten minutes while it runs | `packages/core/src/feedback.ts`, `apps/server/src/worker.ts` |
+
+Nothing else sends mail: not the site's interest form. Sign-in links and invitations are
+specified in [§3](../spec/03-accounts-teams-and-identity.md), feedback in
+[§4.13](../spec/04-data-model.md#413-feedback).
 
 **A message that cannot be sent fails its request.** An invitation or an allowance runs in one
 transaction with its message, so a failed send leaves nothing behind and the person sees an
@@ -31,12 +38,17 @@ internal error; a failed sign-in link answers `500`. A deployment whose mail is 
 cannot invite anyone new, while one with no mail at all can: the person inviting is shown the link
 to pass on, and the sign-in page offers no email link.
 
+**A digest that cannot be sent waits.** Its reports are marked sent in the same transaction as the
+message, so a failed send leaves them unsent, the service logs `feedback digest:` with the SMTP
+error, and the next look, ten minutes later, tries again.
+
 ## The settings
 
 | Setting | What it does |
 |---|---|
 | `WHATBUILD_SMTP_URL` | `smtp://` or `smtps://user:password@host:port`, both parts percent-encoded. Always from a secret (`whatbuild-smtp-url`), never a plain value. |
 | `WHATBUILD_MAIL_FROM` | The sender, for example `WhatBuild <noreply@example.com>`. Its domain must be one the provider sends for. Unset, it is `WhatBuild <no-reply@localhost>`, which every real provider refuses. |
+| `WHATBUILD_FEEDBACK_EMAIL` | One address that gets the daily feedback digest. Optional; unset, or with no mailer, feedback stays in the database, and a deployment that sets it without mail logs a warning when it starts. People can send feedback either way. |
 | `WHATBUILD_MAILER` | `smtp`, `none`, `console` or `memory`. Unset, it is `smtp` when there is an SMTP URL, otherwise `none` in production and `console` in development. Production takes only `smtp` or `none`. |
 
 With `none`, sign-in by email link is off (`/api/v1/meta` reports `auth.email_link: false`) and
@@ -152,6 +164,33 @@ records, store its SMTP URL as a new version of `whatbuild-smtp-url`, make a rev
 remove Cloudflare's sending records and token, and change the privacy page's providers. Record the
 new choice by superseding the decision.
 
+## The feedback digest
+
+People send feedback from **Submit feedback** in the account menu, and agents with
+`submit_feedback`; a report names nobody unless its sender shared their address
+([decision](../decisions/feedback-names-nobody-and-reaches-the-maintainers-in-a-daily-digest.md)).
+A deployment with mail and `WHATBUILD_FEEDBACK_EMAIL` mails what is new to that address once a day:
+`WhatBuild feedback: 3 reports from <host>`, each report's kind, door, release and time over its
+words, and `Reply to:` where its sender shared an address.
+
+**Production** sends it to the maintainer, whose address is `FEEDBACK_EMAIL` in `.env` and never in
+the repository. It is an ordinary setting, which a release deploy keeps:
+
+```bash
+gcloud run services update whatbuild --project $P --region $R --update-env-vars "WHATBUILD_FEEDBACK_EMAIL=$FEEDBACK_EMAIL"
+```
+
+The service sends once it wakes: when a request arrives, or at the sandbox reset's scheduled wake.
+Remove the setting (`--remove-env-vars WHATBUILD_FEEDBACK_EMAIL`) to stop it; reports then stay in
+the database.
+
+**Another deployment**, self-hosted or not, chooses its own address: `FEEDBACK_EMAIL` for `setup.sh`
+([Cloud Run](cloud-run.md)), or `WHATBUILD_FEEDBACK_EMAIL` in the container app's definition
+([Azure](azure.md#sign-in)). To pass its people's feedback to WhatBuild's maintainers, it names an
+address they give it. It needs working mail first (above); without it, feedback stays in the
+deployment's own database, where `select * from feedback where sent_at is null` reads it. The dev
+deployment sends no mail, so it sends no digest.
+
 ## When mail fails
 
 | Sign | Cause | Fix |
@@ -161,6 +200,7 @@ new choice by superseding the decision.
 | `550 5.7.1 … not enabled for domain` | the sender's domain is not onboarded under the token's account, or was onboarded a minute ago | onboard it, or wait a minute |
 | The sender is `no-reply@localhost` | `WHATBUILD_MAIL_FROM` is unset, most often after re-running `setup.sh` without `MAIL_FROM` | set it again (step 4) |
 | No email link on the sign-in page | the service has no SMTP URL | step 4 |
+| No feedback digest arrives | `WHATBUILD_FEEDBACK_EMAIL` unset, the deployment has no mail (it logs a warning when it starts), nothing new since the last digest, or one went out in the last 24 hours | set the address; read `feedback digest:` in the logs |
 | The message arrives as spam | DKIM or SPF not passing | check the records under Email Sending, and the message's `Authentication-Results` header |
 
 ```bash

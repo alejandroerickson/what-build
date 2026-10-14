@@ -94,7 +94,7 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
 |---|---|---|
 | 400 | Malformed upload request (relay only) | `invalid_length`, `empty_body` |
 | 401 | No or invalid identity or grant | `unauthenticated`, `invalid_grant` |
-| 403 | A role too low for the action; an agent connection's level too low for it; something only a person does in the web app; a call outside a scoped MCP connector; a cross-origin cookie write; sign-up not allowed; something a visitor to the public sandbox may not do, or may not do for now | `forbidden`, `connection_level`, `web_only`, `outside_connector_scope`, `forbidden_origin`, `invite_only`, `invitation_wrong_address`, `sandbox_restricted`, `sandbox_read_only`, `sandbox_closed`, `tenant_allowance` |
+| 403 | A role too low for the action; an agent connection's level too low for it; feedback turned off for an agent connection; something only a person does in the web app; a call outside a scoped MCP connector; a cross-origin cookie write; sign-up not allowed; something a visitor to the public sandbox may not do, or may not do for now | `forbidden`, `connection_level`, `feedback_off`, `web_only`, `outside_connector_scope`, `forbidden_origin`, `invite_only`, `invitation_wrong_address`, `sandbox_restricted`, `sandbox_read_only`, `sandbox_closed`, `tenant_allowance` |
 | 404 | Absent — including everything the caller has no role on | `not_found` |
 | 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `frozen`, `primary_taken`, `source_in_use`, `mockup_on_story`, `already_uploaded`, `upload_used`, `sandbox_organization`, `export_in_progress`, `last_owner`, `quota_exceeded`, `sandbox_full`, `no_baseline` |
 | 410 | Deliberately deleted, with a tombstone; an invitation no longer usable | `record_deleted`, `assumption_deleted`, `outcome_deleted`, `story_page_deleted`, `mockup_deleted`, `annotation_deleted`, `invitation_used`, `invitation_expired`, `invite_revoked`, `invite_expired`, `invite_used_up` |
@@ -453,7 +453,7 @@ GET  /api/v1/downloads/story-preview/:preview_id?theme=light|dark   a Story prev
 GET  /prototypes/:grant/<path>                       a mockup prototype's file; the grant in the path is the credential (§4.12)
 GET  /api/v1/meta                                    server and skill version, release, sign-in methods (public)
 GET  /api/v1/connect                                 what the Connect page shows
-GET|PATCH /api/v1/me; GET /api/v1/me/agents; DELETE /api/v1/me/agents/:family
+GET|PATCH /api/v1/me; GET /api/v1/me/agents; PATCH|DELETE /api/v1/me/agents/:family
 POST /api/v1/invitations/accept
 GET  /api/v1/sandbox/invite?code=                    what a sandbox invitation is, before sign-in (public)
 POST /api/v1/sandbox/reset-if-due                    runs a sandbox's reset if its hour has passed (public)
@@ -640,8 +640,8 @@ Rules:
   used twice revokes the connection it made.
 - **REST answers the browser session only.** There are no personal access tokens: a bearer token
   on REST is refused, and scripts connect as agents over MCP. Connected agents are listed, their
-  level changed (`PATCH /api/v1/me/agents/:family { level }`, the session only) and disconnected on
-  the Connect an agent page. The session cookie is `__Host-wb_session` over HTTPS
+  level and feedback switch changed (`PATCH /api/v1/me/agents/:family { level?, feedback? }`, the
+  session only) and disconnected on the Connect an agent page. The session cookie is `__Host-wb_session` over HTTPS
   and `wb_session` over HTTP ([§3.8](03-accounts-teams-and-identity.md#38-identity-of-the-caller)).
 - **Sign-in endpoints** (`apps/server/src/auth/routes.ts`): `POST /auth/email` sends a link;
   `GET /auth/verify?token=` shows its page and changes nothing, and `POST /auth/verify` (form field
@@ -760,7 +760,8 @@ configure but one address. It shows:
   `GET /api/v1/me/agents`), who holds the connection ("Held by claude.ai", "Held by an app on your
   computer", from `returns_to`: `{ hosts, local }`, the `https` hosts of its client's redirect
   URIs and whether any is loopback or a private-use scheme), when it was last used, its level
-  with a control to change it (with Undo), and a disconnect control;
+  with a control to change it (with Undo), a **Can submit feedback** checkbox, on unless the person
+  turns it off, with a line saying what it allows (with Undo), and a disconnect control;
 - **a plain statement about the agent's side of the trip**, above the steps: what the agent reads
   goes to whoever runs it, under their terms ([§9.1](09-data-lifecycle.md));
 - an optional ZIP download of the skill, with its version, for installing it by hand (the server
@@ -768,6 +769,13 @@ configure but one address. It shows:
 
 ## 6.9 Feedback
 
-`submit_feedback { category, message, tool?, details? }` is available on both adapters and is
-write-only ([§4.13](04-data-model.md)). The skill asks agents to use it when a tool's behavior or
-guidance misled them, so the product's agent surface improves from real use.
+`submit_feedback { category, message, tool?, details?, screen?, reply? }` is available on both
+adapters and is write-only, names nobody, and is limited to 10 a day for a person and their agents
+([§4.13](04-data-model.md#413-feedback)). The web app sends it from **Submit feedback** in the
+account menu ([§7](07-web-app.md)). The skill asks agents to use it when a tool's behavior or
+guidance misled them, so the product's agent surface improves from real use. A connection whose
+person turned feedback off is not offered the tool, is refused it with `403 feedback_off`, and is
+told so in the server's instructions, so it does not take the missing tool for an old tool list.
+The people who run the deployment get the reports in a daily digest at `WHATBUILD_FEEDBACK_EMAIL`
+([mail](../operations/mail.md),
+◆ [decision](../decisions/feedback-names-nobody-and-reaches-the-maintainers-in-a-daily-digest.md)).

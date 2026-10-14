@@ -146,6 +146,8 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
       defaultTenantAllowance: config.defaultTenantAllowance,
       // Derived from the grant key, so a deployment sets nothing new and its pseudonyms are its own.
       usageKey: createHmac("sha256", config.grantKey).update("whatbuild usage people").digest("base64url"),
+      // A deployment that sends no mail keeps its feedback in the database.
+      feedbackEmail: config.mailer === "none" ? null : config.feedbackEmail,
     },
   };
 }

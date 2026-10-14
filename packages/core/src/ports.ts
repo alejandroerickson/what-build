@@ -89,6 +89,8 @@ export interface CoreConfig {
   defaultTenantAllowance?: number;
   /** The key people's use is counted under (`usage.ts`); without it calls are counted and people are not. */
   usageKey?: string;
+  /** Where the daily feedback digest goes (`feedback.ts`); null or absent, feedback stays in the database. */
+  feedbackEmail?: string | null;
 }
 
 export interface Ports {

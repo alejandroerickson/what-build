@@ -3,7 +3,7 @@ type: Decision
 title: A copy of production holds only the organizations it is for, by default the public sandbox, and nothing of any other leaves production
 description: Pulls, the golden master and the dev deployment take the organizations named (the public sandbox unless others are), read from production in one snapshot, so that an organization kept private never reaches a copy.
 tags: [decision, development, testing, dev, production, privacy, operations, tenancy]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -23,7 +23,7 @@ and to be able to take one organization out of a deployment into another databas
   `--org`. Their rows are read in one snapshot through the read-only backup role, and only theirs
   leave production: teams, products, content, jobs, the accounts their rows refer to, and the
   record of migrations. The deployment's own rows stay: sessions, connections, sign-in links,
-  allowances, the interest list and usage counts. Their files are their folders, `t/<tenant_id>/`.
+  allowances, the interest list, usage counts, and feedback with its daily counts. Their files are their folders, `t/<tenant_id>/`.
 - **A pull is an ordinary dump** of a database holding only them, so the local copy, the golden
   master and the dev deployment restore it as they restore any dump.
 - **The dev deployment holds the organizations `.env` names** (`NEON_DEV_COPY_ORGANIZATIONS`), the

@@ -255,3 +255,18 @@
     padding-top: var(--s-10);
   }
 }
+
+/* Whether a connected agent may send feedback: under its details, its box in line with their text.
+   The row grows with it, so its face and controls stay level with its name. */
+.account-row:has(.agents-feedback) {
+  align-items: start;
+}
+.agents-feedback {
+  align-items: flex-start;
+  margin: var(--s-1h) 0 0 calc(-1 * var(--s-2));
+  min-height: 0;
+  max-width: 52ch;
+}
+.agents-feedback input {
+  margin-top: 2px;
+}

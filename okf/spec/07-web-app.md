@@ -108,11 +108,20 @@ the browser's back button and "open in new tab" both work.
   where they read only the Story is left out, since its members are not shown to them); the theme
   (Light, Dark or System, which is the default; remembered per browser); **New organization**,
   while they may still create one; **Organization creators**, for an owner of the instance;
-  **Settings** (their own display name); and Sign out. Last, under a hairline, is the release this
+  **Settings** (their own display name); **Submit feedback**; and Sign out. Last, under a hairline, is the release this
   WhatBuild runs, from `/api/v1/meta`: "Release v0.3.1", or "Commit 1a2b3c4" for a
   build that is not a release, linking to the release notes or the commit on GitHub in a new tab;
   the commit and build time stay in `/api/v1/meta`. A development
   server says so instead. Nothing in it is also in the panel.
+- **Submit feedback** opens a dialog: a kind (Bug, Improvement, Feature request or Other; none
+  chosen sends Other, and choosing one again clears it), the message, whose label and prompt follow
+  the kind, and a well that says what is sent (their words, the kind, the release and the part of
+  the app they are on, such as "Evidence, a source", never an organization, product or item) and
+  what is not (their name, their address, their organizations and anything in them), with a box to
+  share their address with the developer of WhatBuild so they can reply; the dialog never shows the
+  address itself. The well changes as they choose. `⌘↵` / `Ctrl+↵`
+  sends; a draft survives closing the dialog; past the day's limit the dialog says so
+  ([§6.9](06-operations-and-adapters.md#69-feedback)).
 - **Hiding.** The panel hides completely, never to an icon rail, with its button or `⌘\` / `Ctrl+\`
   (ignored while typing in a field), and the choice is remembered per browser. While it is hidden
   a small floating pill with the mark brings the panel back. It is the same size whatever the
@@ -759,7 +768,8 @@ never described as deleting. A list row showing an archived object says *Archive
   that scope; sign-in; a first request
   to try, after saying the agent will ask what it may do (Read only, Edit or Admin); connected
   agents, each with what it can reach, who holds the connection, its level with a menu to change
-  it, and disconnect; the plain statement about
+  it, a **Can submit feedback** checkbox under its details (when a tool fails or confuses it, it may
+  tell the developer of WhatBuild), and disconnect; the plain statement about
   where an agent sends what it reads, and an optional skill download. Connected agents appear here
   and nowhere else.
 - **Product settings** (`…/settings`, in the product's shell): name, slug and product concept; **People**;

@@ -20,7 +20,7 @@ const DIRECTORY_WITH_TENANT_ID: Record<string, string> = {
   memberships: "directory: the grants authorization reads",
   invitations: "directory: looked up by token before the invitee belongs to the organization",
   jobs: "the job queue: claimed across tenants by the worker, which then scopes each job's transaction",
-  feedback: "write-only from both front doors; operators read it directly",
+  feedback: "write-only from both front doors; it names no organization, and its digest goes to the deployment's own address",
   sandbox_settings: "operational: a public sandbox's switches and limits, read before a visitor is admitted",
   sandbox_invites: "operational: looked up by code before the caller belongs to the sandbox",
   sandbox_usage: "operational: the counters behind a sandbox's limits",
@@ -37,6 +37,7 @@ const NOT_TENANT_DATA: Record<string, string> = {
   oauth_tokens: "directory: OAuth tokens, which are a person's",
   tenant_allowances: "directory: how many organizations an address may create",
   interest: "the public site's interest form; nobody there belongs to an organization yet",
+  feedback_counts: "how many reports a person sent today, for the daily limit; no organization, and never which reports",
   usage_calls: "how the service is used: counts of calls, naming no organization, product or person",
   usage_people: "who came back, under a pseudonym: no organization, product or account",
 };

@@ -38,6 +38,8 @@ interface ConnectedAgent {
   family_id: string;
   reach: Reach;
   level: Level;
+  /** Whether it is offered submit_feedback: on unless the person turns it off. */
+  feedback: boolean;
   /** Where the agent's client receives its connection: web hosts, or an app on the computer that connected it. */
   returns_to: { hosts: string[]; local: boolean };
   last_used_at: string | null;
@@ -274,7 +276,7 @@ function DisconnectDialog({ name, onConfirm, onClose, busy, error }: { name: str
   );
 }
 
-/** Agents signed in with OAuth, account-wide. */
+/** Agents signed in with OAuth, account-wide: what each may reach and do, whether it may submit feedback, and disconnecting it. */
 function ConnectedSheet() {
   const q = useQuery({ queryKey: ["agents"], queryFn: () => api<{ items: ConnectedAgent[] }>("GET", "/api/v1/me/agents") });
   const qc = useQueryClient();
@@ -289,6 +291,16 @@ function ConnectedSheet() {
       });
     },
     onError: (e) => toast(`Couldn’t change what the agent may do. ${(e as Error).message}`, { tone: "negative" }),
+  });
+  const setFeedback = useMutation({
+    mutationFn: (v: { agent: ConnectedAgent; feedback: boolean }) => api("PATCH", `/api/v1/me/agents/${v.agent.family_id}`, { feedback: v.feedback }),
+    onSuccess: (_r, { agent, feedback }) => {
+      void qc.invalidateQueries({ queryKey: ["agents"] });
+      toast(feedback ? `${agent.client_name} can submit feedback.` : `${agent.client_name} can no longer submit feedback.`, {
+        action: { label: "Undo", onClick: () => setFeedback.mutate({ agent: { ...agent, feedback }, feedback: !feedback }) },
+      });
+    },
+    onError: (e) => toast(`Couldn’t change whether the agent may submit feedback. ${(e as Error).message}`, { tone: "negative" }),
   });
   const disconnect = useMutation({
     mutationFn: (family: string) => api("DELETE", `/api/v1/me/agents/${family}`),
@@ -319,6 +331,14 @@ function ConnectedSheet() {
                 {heldBy(a.returns_to) ? <span className="account-sub">{heldBy(a.returns_to)}</span> : null}
                 <span className="account-sub">Connected {formatDate(a.created_at)}</span>
                 <span className="account-sub">Last active {relativeTime(a.last_used_at)}</span>
+                <ChoiceRow
+                  className="agents-feedback"
+                  label="Can submit feedback"
+                  hint="When a tool fails or confuses it, it may tell the developer of WhatBuild. Its reports never name you."
+                  checked={a.feedback}
+                  disabled={setFeedback.isPending && setFeedback.variables?.agent.family_id === a.family_id}
+                  onChange={(e) => setFeedback.mutate({ agent: a, feedback: e.target.checked })}
+                />
               </div>
               <div className="agents-row-actions">
                 <Menu

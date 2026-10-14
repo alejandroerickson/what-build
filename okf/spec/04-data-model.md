@@ -916,11 +916,28 @@ where HTML is needed, is a notice, with the poster in the print view.
 
 ## 4.13 Feedback
 
-`submit_feedback { category, message, tool?, details? }`: `category` is `issue`, `confusion`,
-`feature_request`, or `other`; `message` 1–4,000 chars; `tool` ≤ 64 chars; `details` ≤ 4,000
-chars. Account-level (not tied to a tenant), attributed, stored with the server version, and
-**write-only**: there is no read operation in either adapter. Operators read feedback from the
-store directly.
+`submit_feedback { category, message, tool?, details?, screen?, reply? }`: `category` is `issue`
+(a bug), `confusion`, `improvement`, `feature_request` or `other`; `message` 1–4,000 chars; `tool`
+≤ 64 chars; `details` ≤ 4,000 chars; `screen` ≤ 64 chars, the part of the web app it was sent from;
+`reply`, the web app only, adds the signed-in person's address (an agent's `reply` is `422`).
+Account-level (not tied to a tenant) and **write-only**: there is no read operation in either
+adapter.
+
+A report **names nobody**: it keeps its kind, its words, the release (`server_version`), the door
+(`surface`: `web` or `mcp`), an agent's family (`client`, from `clientFamily`, never the name its
+client registered) or the `screen`, and `reply_to` only when the person shared their address.
+`submitted_by` holds who sent a report made before this, and is null since. One person, with their
+agents, sends at most 10 a UTC day (`feedback_counts`, a count per account and day that never says
+which reports, deleted once the day is over), and a deployment takes at most 200 a day; past
+either, `429 rate_limited`. An agent connection whose person turned feedback off is refused with
+`403 feedback_off` ([§3.8](03-accounts-teams-and-identity.md#38-identity-of-the-caller)).
+
+**The digest.** With `WHATBUILD_FEEDBACK_EMAIL` set and mail configured, the worker mails what is
+unsent (`sent_at` null) to that address in one plain-text message, at most 100 reports, at most once
+every 24 hours and only when there is something new, and sets `sent_at` on each report in the same
+transaction, so a send that fails leaves them for the next try ([mail](../operations/mail.md)).
+Otherwise reports stay in the database for whoever runs the deployment
+(◆ [decision](../decisions/feedback-names-nobody-and-reaches-the-maintainers-in-a-daily-digest.md)).
 
 **Interest.** The public site's form (`POST /api/v1/interest { email, name?, organization?,
 note? }`, no sign-in) records someone asking to hear when WhatBuild opens: `email` ≤ 320 chars,
@@ -972,7 +989,7 @@ activity.jsonl
   lives in its own tables and is never updated. Every content table has a row-level security
   policy keyed on the transaction-local `app.tenant_id`. Directory tables (accounts, sessions,
   tokens, OAuth clients, tenants, teams, products, memberships, invitations) and the job queue,
-  feedback, the public site's interest form, the usage counts and `schema_migrations` have no
+  feedback and its daily counts, the public site's interest form, the usage counts and `schema_migrations` have no
   row-level security and
   are reached only through the authorization layer. Policies are forced, because the app's role owns
   the tables. [`apps/server/test/row-level-security.test.ts`](../../apps/server/test/row-level-security.test.ts)

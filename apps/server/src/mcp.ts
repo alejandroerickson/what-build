@@ -101,6 +101,16 @@ const LISTED: Record<ConnectionLevel, ReturnType<typeof toolDefinitions>["tools"
   admin: toolDefinitions("admin").tools,
 };
 
+/** What a connection lists: its level's tools, without submit_feedback where the person turned it off. */
+function listedFor(principal: Principal) {
+  const tools = principal.level ? LISTED[principal.level] : DEFINITIONS.tools;
+  return principal.feedback === false ? tools.filter((t) => t.name !== "submit_feedback") : tools;
+}
+
+/** Said when the person turned feedback off, so the agent doesn't take the missing tool for an old tool list. */
+const FEEDBACK_OFF =
+  " The person turned off submit_feedback for this connection: it is missing on purpose, not from an old tool list. Send no feedback another way.";
+
 export const SERVER_INSTRUCTIONS =
   `This server uses the ${SKILL_NAME} skill, version ${SKILL_VERSION}. Before using its tools, check the installed skill's metadata.version. ` +
   "If it matches, use the installed skill without fetching it again. If the skill is absent, unversioned, or a different version, call get_skill for the complete current SKILL.md, " +
@@ -189,12 +199,15 @@ function errorResult(e: unknown) {
 function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
   const server = new Server(
     { name: SKILL_NAME, version: SKILL_VERSION, title: "WhatBuild" },
-    { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS + addressInstruction(env.ports.config.publicBaseUrl) + (bound ? scopeInstruction(bound) : "") },
+    {
+      capabilities: { tools: {} },
+      instructions: SERVER_INSTRUCTIONS + addressInstruction(env.ports.config.publicBaseUrl) + (bound ? scopeInstruction(bound) : "") + (principal.feedback === false ? FEEDBACK_OFF : ""),
+    },
   );
   // Resolved on the first tool call, so listing tools costs no lookup.
   let connector: Promise<ConnectorScope> | null = null;
   const connectorScope = () => (bound ? (connector ??= resolveConnectorScope(env.db, principal, bound)) : Promise.resolve(null));
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: principal.level ? LISTED[principal.level] : DEFINITIONS.tools }));
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: listedFor(principal) }));
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const name = req.params.name;
     const args = (req.params.arguments ?? {}) as Record<string, unknown>;

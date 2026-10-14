@@ -23,6 +23,7 @@ export * from "./db.ts";
 export { DELETE_CONFIRMATION } from "./deletion.ts";
 export * from "./errors.ts";
 export * from "./execute.ts";
+export { digestMessage, FEEDBACK_KINDS, FEEDBACK_PER_DAY, pruneFeedbackCounts, sendFeedbackDigest } from "./feedback.ts";
 export * from "./source-fields.ts";
 export * from "./media.ts";
 export * from "./plain-query.ts";

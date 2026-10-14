@@ -35,6 +35,8 @@ export interface ServerConfig {
   mailer: "console" | "smtp" | "memory" | "none";
   smtpUrl: string | null;
   mailFrom: string;
+  /** Where the daily feedback digest goes (WHATBUILD_FEEDBACK_EMAIL); null keeps feedback in the database only. */
+  feedbackEmail: string | null;
   googleClientId: string | null;
   googleClientSecret: string | null;
   /** The one Microsoft Entra directory whose work accounts may sign in, by its ID (a GUID); null for none. */
@@ -163,6 +165,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   // One directory, by ID: never common, organizations, consumers or a domain, which would admit other directories' accounts.
   const microsoftTenant = env["WHATBUILD_MICROSOFT_TENANT"]?.trim() || null;
   if (microsoftTenant && !GUID.test(microsoftTenant)) throw new Error("WHATBUILD_MICROSOFT_TENANT must be the directory's ID, a GUID.");
+  const feedbackEmail = env["WHATBUILD_FEEDBACK_EMAIL"]?.trim() || null;
+  if (feedbackEmail && !/^[^\s@<>]+@[^\s@<>]+$/.test(feedbackEmail)) throw new Error("WHATBUILD_FEEDBACK_EMAIL must be one email address.");
   const mailer = (env["WHATBUILD_MAILER"]?.trim() || (env["WHATBUILD_SMTP_URL"] ? "smtp" : mode === "production" ? "none" : "console")) as ServerConfig["mailer"];
   if (!MAILERS.includes(mailer)) throw new Error(`WHATBUILD_MAILER must be one of ${MAILERS.join(", ")}.`);
   // The console mailer prints every sign-in link to the log, and the memory one delivers nothing.
@@ -186,6 +190,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     mailer,
     smtpUrl: env["WHATBUILD_SMTP_URL"] ?? null,
     mailFrom: env["WHATBUILD_MAIL_FROM"] ?? "WhatBuild <no-reply@localhost>",
+    feedbackEmail,
     googleClientId: env["WHATBUILD_GOOGLE_CLIENT_ID"] ?? null,
     googleClientSecret: env["WHATBUILD_GOOGLE_CLIENT_SECRET"] ?? null,
     microsoftTenant: microsoftTenant?.toLowerCase() ?? null,
