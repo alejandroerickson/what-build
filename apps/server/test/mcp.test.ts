@@ -67,6 +67,8 @@ describe("MCP", () => {
     expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(["sources", "files", "search", "read_passage", "get_skill", "story"]));
     // The client keeps the list it connected with, so the instructions say what a missing tool means.
     expect(client.getInstructions()).toMatch(/start a new session/);
+    // Agents write links with the deployment's own address, never another name it answers on.
+    expect(client.getInstructions()).toContain(`This deployment's address is ${h.baseUrl}.`);
     const skill = text(await client.callTool({ name: "get_skill", arguments: {} }));
     expect(skill.content).toContain(`version: "${SKILL_VERSION}"`);
     await client.close();

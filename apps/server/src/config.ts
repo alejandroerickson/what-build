@@ -7,6 +7,11 @@ export interface ServerConfig {
   env: "development" | "test" | "production";
   port: number;
   publicBaseUrl: string;
+  /**
+   * Send a browser that opens a page on another name for this deployment to publicBaseUrl
+   * (canonical-host.ts). On unless WHATBUILD_REDIRECT_TO_PUBLIC_URL is 0.
+   */
+  redirectToPublicUrl: boolean;
   /** The public site's origin (e.g. https://what-build.com), served by host beside the app; null for none. */
   siteUrl: string | null;
   databaseUrl: string;
@@ -137,6 +142,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     env: mode,
     port,
     publicBaseUrl,
+    redirectToPublicUrl: env["WHATBUILD_REDIRECT_TO_PUBLIC_URL"]?.trim() !== "0",
     siteUrl: env["WHATBUILD_SITE_URL"] ? env["WHATBUILD_SITE_URL"].replace(/\/+$/, "") : null,
     databaseUrl: env["DATABASE_URL"] ?? "",
     devAuth,

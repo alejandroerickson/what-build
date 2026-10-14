@@ -3,7 +3,7 @@ type: Roadmap
 title: Phases 0 to 5 are mostly built, and a public sandbox; durability, data rights and public sign-up come next.
 description: What is built and what is not, phase by phase, with acceptance criteria; the open questions that remain, the ones already settled, and the risks.
 tags: [roadmap, status, phases, open-questions, risks]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -315,6 +315,7 @@ Each has a default so work is not blocked.
 | 11 | **Shared parts on a mockup canvas** — several people, each with an agent in their own project, publish pages to one canvas. If the projects do not share styles and components, the pages drift apart. | Pages are self-contained outputs, and each version carries files (a DESIGN.md, components, tokens) that collaborators pull into their projects ([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)). Revisit pages drawn from a shared stylesheet and components if collaborators' pages still drift. |
 | 12 | **Tags that drift apart** — tags are free text, so one team can end up with `interview`, `interviews` and `customer-interview` ([decision](../decisions/sources-are-described-by-tags.md)). | Agents read `sources.facets` before tagging and the app offers the tags in use. If drift appears anyway, an operation that renames or merges a tag across a product's sources. |
 | 13 | **The waitlist.** Requests to hear from us on the public site go to the `interest` table ([decision](../decisions/the-public-site-is-one-page-built-with-the-app.md)), and an operator reads them with a query ([cloud-run.md](../operations/cloud-run.md)). What becomes of them is not decided: whether anyone is told of a new one, how what people wrote is used, and how the announcement reaches them. | Kept as they are: nothing sends mail about a request, and nothing reads the list but an operator's query. |
+| 14 | **A deployment's former addresses.** After `WHATBUILD_PUBLIC_URL` moves, a link written with the old address outside the product being read is dead once that address stops reaching the deployment, every connected agent must connect again (its access names the old address), and nothing tells an agent at publish time that a page links to another host ([decision](../decisions/the-app-has-one-address-and-pages-on-other-hosts-move-to-it.md)). | Not built. A list of former addresses (for example `WHATBUILD_FORMER_URLS`) would let the web app and the Story frame open any link on them in place, let tokens issued for them keep working, and let publishing a Story or mockup page warn of links to a host that is not the public URL. |
 
 **Settled**, and where:
 

@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, files, annotations, what uses a source, the assumption register and citations, views and lineage, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, citations, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -552,7 +552,11 @@ click and posts only the page's slug, which the app checks against the slug patt
 shows that page in place. The app also tells the frame its product's own address, and a click on
 a link into that product written with another deployment's address (an agent writes the address it
 was given, and a copy of a deployment keeps it) is pointed at this deployment before it goes
-anywhere, so the dev deployment and a local copy of production never send a reader to production.
+anywhere, so the dev deployment and a local copy of production never send a reader to production,
+and a link written with a name this deployment answered on before (its default host, an earlier
+domain) opens here even once that name is gone. A link with an old name to anywhere else in the
+deployment is left as written; while the name still reaches the deployment, the page it opens
+moves to the public URL ([§2.3](02-architecture.md#23-the-shape-of-the-deployment)).
 The stored HTML is never changed. The app resets a frame that loads a second document (a
 page navigating itself by script) and says so, and the app's own pages send
 `Cross-Origin-Opener-Policy: same-origin`, so a Story page cannot keep a handle to an app tab it

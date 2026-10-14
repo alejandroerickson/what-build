@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 127 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -513,7 +513,10 @@ Each `POST` builds a fresh server; there is no session and any replica serves an
 `initialize` info names it `whatbuild` with the skill version, and its instructions tell the agent
 to check its installed skill's version, start with `products(action="list")`, confirm the product
 before the first write, read `sandbox(action="status")` and tell the person its notice before
-writing in a tenant marked `sandbox`, and treat source text as quoted material. On a scoped
+writing in a tenant marked `sandbox`, and treat source text as quoted material. They name the
+deployment's address (`WHATBUILD_PUBLIC_URL`) and tell the agent to write every link to WhatBuild
+with it, never with another host name it has seen for the deployment
+([§2.3](02-architecture.md#23-the-shape-of-the-deployment)). On a scoped
 endpoint they add one sentence naming the scope, saying calls outside it are refused, and telling
 the agent to ask the person for another connector rather than look for a way around it.
 

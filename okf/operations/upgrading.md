@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -23,7 +23,14 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **A page opened on another name for the deployment moves to `WHATBUILD_PUBLIC_URL`.** People who
+  open the app on Cloud Run's `run.app` address, Container Apps' default host or an earlier domain
+  still pointed at it land on the same page at the public URL, signed in; probes, agents, `/api`,
+  `/mcp` and OAuth are answered where they ask, as before. Nothing to do behind the Cloudflare
+  Worker, a Cloud Run domain mapping, Container Apps' own custom domains, or with no custom
+  domain. A deployment behind a proxy that sends the service's own host name as `Host` and no
+  `X-Forwarded-Host` sets `WHATBUILD_REDIRECT_TO_PUBLIC_URL=0` before taking the release, or its
+  pages redirect to themselves. Connected agents are told the public URL to write links with.
 
 ## v0.10.0
 

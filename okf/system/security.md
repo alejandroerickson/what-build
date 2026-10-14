@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild keeps each organization's material to its own people, and treats agent-written HTML, uploads and source text as hostile
 description: The threat model: what is protected, who the attackers are, the trust boundaries, and each control with where it lives in code and the decision that governs it.
 tags: [security, threat-model, tenancy, identity, oauth, sandbox, uploads]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-14}
 status: draft
 ---
 
@@ -174,6 +174,9 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   web, mail, fragment and same-origin links are live (`apps/web/src/lib/markdown.tsx`). A link into
   the product being read opens in place whatever origin it was written with, so a copy of a
   deployment's content never sends a reader back to the original.
+- A page opened on another name for the deployment (`run.app`, Container Apps' default host) is
+  redirected to `WHATBUILD_PUBLIC_URL`, where the session cookie and the own-origin check for
+  writes live; machines' paths are answered on any host (`apps/server/src/canonical-host.ts`).
 
 **Uploads, parsing and files served back** ([derived layer](../spec/05-derived-layer.md)).
 
