@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild keeps each organization's material to its own people, and treats agent-written HTML, uploads and source text as hostile
 description: The threat model: what is protected, who the attackers are, the trust boundaries, and each control with where it lives in code and the decision that governs it.
 tags: [security, threat-model, tenancy, identity, oauth, sandbox, uploads]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-14}
 status: draft
 ---
 
@@ -63,7 +63,9 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   token's `xms_edov` (Entra's word that the domain's owner verified it), or a domain the
   deployment lists in `WHATBUILD_MICROSOFT_DOMAINS`, the only domains in which a user principal
   name is taken; so a directory's administrator cannot sign in as an address in someone else's
-  domain by giving it to a directory user. Both use PKCE S256 and a random `state` in an
+  domain by giving it to a directory user. A refused Microsoft sign-in logs which check failed
+  as claim names and booleans, under a random reference the sign-in page shows; never the token,
+  an address, a name or a claim's value. Both use PKCE S256 and a random `state` in an
   `HttpOnly` cookie scoped to the flow for ten minutes.
 - Development sign-in, the fixed development grant key and printed mail exist only when
   `NODE_ENV` is exactly `development` or `test`; a server started with it unset, or set to anything

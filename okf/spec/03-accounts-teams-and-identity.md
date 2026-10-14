@@ -3,7 +3,7 @@ type: Specification
 title: Accounts belong to tenants, tenants hold teams, teams run products, and one role check decides every call.
 description: The account → tenant → team → product hierarchy, sign-in, roles and what they grant, addressing and isolation, moving sources between products, caller identity, attribution, and who is who in the public sandbox.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, sandbox]
-generated: {by: agent:claude, at: 2026-10-12}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -158,10 +158,19 @@ the directory is the authority for that domain. With neither (the claim not conf
 domains listed), every Microsoft sign-in is refused. The server MUST NOT accept a token from any
 other directory, and MUST NOT offer a mode that admits many.
 
-A refusal for a missing or mismatched claim, or an address without that evidence, redirects to
-`/signin?error=microsoft_unverified`; a
+A token whose `aud`, `tid` or `iss` does not match redirects to
+`/signin?error=microsoft_wrong_directory&ref=<reference>`; one from the directory with no address
+that has that evidence, to `/signin?error=microsoft_no_verified_email&ref=<reference>`; a
 missing cookie, a wrong `state`, a missing `code` or a failed token request, to
-`/signin?error=microsoft_failed`. An accepted sign-in then does exactly what the others do:
+`/signin?error=microsoft_failed`. Each of the first two writes one warning line to the server's
+log (`"event":"microsoft_sign_in_refused"`) with the same reference (eight characters such as
+`K7Q2-M9XD`, new for each refusal), the check that failed (`directory` or `email`), which of
+`aud`, `tid` and `iss` mismatched or which evidence the token carried, as booleans, how to fix it,
+and the guide that explains it
+([azure.md](../operations/azure.md#when-microsoft-sign-in-is-refused)). The line MUST NOT hold the
+token, an address, a name or any claim's value. The diagnosis changes nothing about what is
+accepted. `/signin?error=microsoft_unverified`, which earlier releases sent for both refusals,
+still shows a message. An accepted sign-in then does exactly what the others do:
 admission (invite-only mode, invitations, a sandbox invitation), `findOrCreateAccount` with the
 address and the `name` claim, acceptance of the invitations addressed to it, a session, and a
 redirect to `next`.
@@ -171,7 +180,10 @@ redirect to `next`.
 
 **The sign-in screen** ([§7](07-web-app.md)) offers the method as it offers Google: a link to
 `/auth/microsoft?next=…`. Its message for a failed sign-in MUST NOT point to the email link on a
-deployment that has none.
+deployment that has none. For the two refusals it allows that the server's setup may be at fault,
+asks the person to tell whoever runs WhatBuild and shows the reference to give them, and never
+sends a person who may be signing in correctly off to find another account. It shows `ref` only
+in the server's form, so a crafted link cannot put words on the page.
 
 ◆ Decision: a named method bound to one directory, not a general OpenID Connect setting, because
 what makes an address trustworthy differs between providers (Google says `email_verified`; Entra

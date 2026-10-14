@@ -125,7 +125,11 @@ organization, which is where care is needed.
 - **A setting**: `az containerapp update --set-env-vars`; a secret is a new version in the vault.
 - **Microsoft sign-in on a deployment made without it**: add the secret reference and the
   `WHATBUILD_MICROSOFT_*` settings, and check `/api/v1/meta` reports `microsoft: true`.
-- **Microsoft sign-in refuses everyone** ("That Microsoft account can't sign in here"): the app
-  registration lacks the optional claim `xms_edov` and no domain is listed in
-  `WHATBUILD_MICROSOFT_DOMAINS`; the guide's Sign-in section has the command that adds the claim.
+- **Microsoft sign-in is refused** ("WhatBuild couldn't confirm your email with Microsoft", or
+  "That Microsoft sign-in came from another directory", with a reference such as `K7Q2-M9XD`):
+  find the app's log line with that reference (`"event":"microsoft_sign_in_refused"`). Its
+  `check`, booleans and `fix` say what is wrong; the guide's "When Microsoft sign-in is refused"
+  maps each to its fix. Most often `"xms_edov_claim":false`: the app registration lacks the
+  optional claim `xms_edov`, and the guide's Sign-in section has the command that adds it. Never
+  list a domain in `WHATBUILD_MICROSOFT_DOMAINS` just to make the refusal go away.
 - **Removal**: only when asked, after an export, with the resource group's name confirmed.

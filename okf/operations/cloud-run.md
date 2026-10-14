@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
 description: What the production deployment is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, cost, names, and useful commands; backups and the dev deployment have guides of their own.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-10-12}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -120,7 +120,10 @@ its memory read there, before production moves.
   `WHATBUILD_MICROSOFT_CLIENT_ID` and `WHATBUILD_MICROSOFT_CLIENT_SECRET` (from the secret) on the
   service. An address is taken from the directory only when the token's `xms_edov` says its domain
   is verified, or its domain is listed in `WHATBUILD_MICROSOFT_DOMAINS`
-  ([§3.2](../spec/03-accounts-teams-and-identity.md#sign-in-with-microsoft-work-accounts)).
+  ([§3.2](../spec/03-accounts-teams-and-identity.md#sign-in-with-microsoft-work-accounts)). A
+  refused sign-in shows a reference; the service's log line with it says which check failed and
+  how to fix it ([When Microsoft sign-in is refused](azure.md#when-microsoft-sign-in-is-refused);
+  on Cloud Run, `gcloud logging read 'jsonPayload.reference="<reference>"'`).
 
 **Who can join.** `SIGNUP_ALLOWLIST` (emails and `@domains`, comma-separated) limits who may create
 an account; by default it is only the `gcloud` account that ran the script. Anyone who is invited
