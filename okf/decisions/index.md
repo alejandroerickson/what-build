@@ -3,7 +3,7 @@ type: Index
 title: Decisions
 description: Architectural decision records, each with its context, the choice, and what it constrains.
 tags: [index, decisions, adr]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -45,6 +45,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Marking an insight reviewed applies to the revision that was read](insight-review-marks-a-revision.md) (superseded)
 - [Story PDF export is a composed print view saved by the browser](pdf-export-uses-browser-print.md)
 - [Mockups are versioned canvases of agent-made HTML, in a stage called Exploration](mockups-are-versioned-canvases-in-exploration.md)
+- [A mockup version may carry a team's prototype as it is, a bundle of files served in the sandbox from a short-lived capability path](mockups-carry-prototype-bundles-served-from-a-capability-path.md) (draft)
 - [Each stage's count is the total of every item the stage holds](each-stage-counts-every-item-it-holds.md)
 - [Insights and decisions are retired, and what a product held of them becomes sources in Evidence](insights-and-decisions-are-retired-into-evidence.md)
 - [Archive is the reversible default; delete is permanent, guarded, and an admin's](archive-by-default-delete-guarded.md)

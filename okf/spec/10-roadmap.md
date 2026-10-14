@@ -3,7 +3,7 @@ type: Roadmap
 title: Phases 0 to 5 are mostly built, and a public sandbox; durability, data rights and public sign-up come next.
 description: What is built and what is not, phase by phase, with acceptance criteria; the open questions that remain, the ones already settled, and the risks.
 tags: [roadmap, status, phases, open-questions, risks]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -205,7 +205,119 @@ from the [security checks](../operations/security-checks.md).
 | Item | What it answers |
 |---|---|
 | Uploaded HTML previewed from a sandboxed route | The uploaded-HTML preview inherits the app's content security policy, so the app keeps `style-src 'unsafe-inline'` for it. Serving the preview from its own sandboxed route, as Story pages are, would let the app's policy drop it, and the ZAP rule for directives without a fallback (10055) become a failure. |
-| Story and mockup HTML, and uploaded files, from a separate origin | The sandbox gives each page an opaque origin and no network. Serving page HTML from its own origin through short-lived signed addresses would keep a page that escaped the sandbox away from the app's origin too, and would let PDFs, which browsers will not render sandboxed, open away from it as well. It needs a second host name and a domain mapping. |
+| Story and mockup HTML, and uploaded files, from a separate origin | The sandbox gives each page an opaque origin and no network. Serving page HTML from its own origin through short-lived signed addresses would keep a page that escaped the sandbox away from the app's origin too, and would let PDFs, which browsers will not render sandboxed, open away from it as well. It needs a second host name and a domain mapping. A mockup's prototype bundle would move there by a setting ([below](#planned--prototype-bundles-in-mockups)). |
+
+## Planned — Prototype bundles in mockups
+
+**Planned; not built.** A mockup version may carry a team's prototype as it is, and canvas pages
+enter it ([draft decision](../decisions/mockups-carry-prototype-bundles-served-from-a-capability-path.md)).
+What follows is the design the build starts from; [§4.12](04-data-model.md#412-mockups) and
+[§7.7](07-web-app.md#77-exploration) take it over once built.
+
+**Data.** One forward-only migration, after any the mockup HTML rules add:
+
+- `mockup_pages.entry` and `mockup_pages.poster` (text, null); `html` becomes nullable, and a check
+  holds that a page has exactly one of `html` and `entry`.
+- `mockup_bundle_files (version_id, tenant_id, product_id, path, size, sha256, media_type,
+  blob_key)`, keyed by `(version_id, path)`, with the row-level security policy and an index on
+  `(tenant_id, blob_key)`. A version's bundle is its rows; carrying it forward copies rows.
+- Blobs at `t/<tenant>/p/<product>/mockup-bundles/<upload_id>/<sha256>`, through the blob port
+  (Cloud Storage, or the filesystem adapter on a disk or the Azure file share). A file whose hash a
+  file of the base version has takes that file's key and stores nothing, so every blob belongs to
+  one mockup and goes with it. Keys hold ids and hashes only, never a bundle's paths.
+
+**Upload.** The canvas ZIP gains `bundle/<path>`; manifest format version 2, and version 1 still
+reads. A manifest page may give `entry` (a bundle HTML path, then `?query` and `#fragment` if
+wanted, at most 500 characters past the path) and `poster` (a bundle image). A `bundle` list in
+the manifest, `[{path, sha256?}]`, is the whole set, a listed path missing from `bundle/` keeping
+the base's bytes (and its hash, if given, must match); without a list, the files under `bundle/`
+are the whole set; with neither, the base's bundle carries forward; `"bundle": []` drops it. An
+entry must name an HTML file of the version's bundle. Paths are relative and `/`-separated,
+normalised to NFC (a macOS ZIP's names arrive decomposed), at most 400 characters and 16 folders
+deep, with no empty, `.` or `..` part and none of `\ : * ? " < > |` or a control character; two
+paths equal without case, or once normalised, are refused. The archive must name each entry once
+(today the last of two wins), hold no symbolic link and no encrypted entry, and use stored or
+deflated entries. It is read one entry at a time and each written to the store as it comes, within
+the unpacked budget, so memory holds the ZIP and one entry. Publish answers with `bundle_warnings`:
+root-relative and remote addresses in HTML and CSS, which will not load. The download has the same
+layout, its manifest listing each bundle file's size, hash and type, and uploading it again stores
+nothing new.
+
+**Limits**, first guesses against a 1 GiB instance: 2,000 files and 64 MB in a bundle, 25 MB a
+file, 96 MB unpacked for the whole ZIP (still 25 MB packed through the relay); 48 pages on a canvas
+(from 24, for prototypes with many routes); 500 MB of distinct bundle bytes in a product
+(`409 quota_exceeded`, quota `mockup_bundle_bytes`) until stored bytes are counted against the
+organization's 1 GB ([§9.2](09-data-lifecycle.md)).
+
+**Serving.** `GET` and `HEAD /bundles/<grant>/<path>`, answered by one route with the headers the
+decision lists. An empty path or one ending in `/` serves its `index.html`; a path is
+percent-decoded strictly, and an encoded `/`, `\`, NUL or dot segment is `404`; `Range` works for
+media; a request with `Sec-Fetch-Dest: document` on the app's origin and one with a
+`Service-Worker` header are `403`. Types by extension: HTML, CSS, JavaScript (`js`, `mjs`), JSON
+and source maps, SVG, PNG, JPEG, GIF, WebP, AVIF, ICO, WOFF, WOFF2, TTF, OTF, MP4, WebM, Ogg,
+MP3, WAV, M4A, WebVTT, PDF; `txt`, `csv`, `md`, `xml`, `xhtml` and `xsl` as `text/plain`;
+`charset=utf-8` only on text that is valid UTF-8; anything else `application/octet-stream` as an
+attachment. HTML gets the frame script on the way out, never in storage. The grant lasts
+`WHATBUILD_BUNDLE_GRANT_HOURS` (8), its expiry rounded up to the hour. The server's log line reads
+`/bundles/:grant/…`; the platform's request logs keep the address, as they keep invitation links.
+`WHATBUILD_CONTENT_URL`, when set, is the only host the route answers on; the app's `frame-src`
+names it, and the frames there may open a document at the top level and show dialogs. Locally,
+`http://127.0.0.1:<api port>` is a site apart from `http://localhost:<web port>`.
+
+**Web app.** A frame's address is the bundle's address and the page's entry, kept until the page
+is shown again, and fetched afresh when the tab returns within the grant's last hour. The frame
+adds `allow-forms` (and `allow-modals` on a content site), so a form's own script runs while
+`form-action 'none'` keeps it off the network. Each document that loads says so through the frame
+script, and the app sends it the canvas's messages again; a load that does not within a second is
+put back. A link within the bundle navigates in place, on the app's origin even one with a target,
+which would open a refused top-level document.
+Pan and interact work as now; keys pass from the bundle's top documents, not from its own iframes.
+The inspector gains **Bundle**: its files, size and types, and the selected page's entry. The
+Story's frame shows a promoted entry at its page's size; the print view shows its poster, or says it
+is a prototype to open in WhatBuild.
+
+**Lifecycle.** Deleting a mockup removes its bundle rows and queues its blob keys through
+`blobsSafeToDelete`, so a sandbox baseline keeps what it holds; `public-sandbox-baseline.ts` adds
+the table to the blobs live rows refer to; an upload never published takes its staged prefix with
+it when the worker discards it; delete impact counts bundle files and bytes. Copying an
+organization takes the rows and the `t/<tenant>/` blobs as it does now. The product export writes
+`mockups/<mockup_id>/v<n>/bundle/<path>`. Backups change nothing: blobs are create-only, under the
+bucket's versions or the file share's snapshots. The skill tells agents to build with a relative
+base, use no network, and keep state out of browser storage.
+
+**Out of scope.** Server code, rewrites (a deep path of an app that routes with history needs its
+entry document first), root-relative addresses, the network, service and web workers,
+WebAssembly, lasting browser storage, a bundle that frames another mockup, editing bundle files in
+the app, searching them, and visitors adding them.
+
+**Tests.** In `apps/server/test/`: each archive refusal (traversal, absolute and drive paths,
+backslashes, duplicates, case and NFC/NFD collisions, symbolic links, encryption, a ZIP bomb
+stopped at the budget, too many entries, a file too large); entry rules, carry-forward, the
+`bundle` list, the hash check and blobs reused by hash; limits, etags, roles and the visitor's
+refusal; a download whose every file has its upload's hash, uploaded again with no new blob;
+every response's headers, unknown types, the grant's purpose, expiry, tampering and version
+binding; encoded traversal; `Sec-Fetch-Dest: document`, `Service-Worker` and methods other than
+GET and HEAD refused; a request with another tenant's session cookie served exactly what the grant
+names, and one with a cookie and no grant refused; a deleted mockup's files gone at once; a reader
+given an address only for a live promoted page; sandbox reset, organization copy and export
+holding bundles; the log line masked. In the browser (`scripts/e2e.mjs`), on a synthetic bundle
+of three documents: a module and a classic script, CSS with a relative font and image, a JSON
+fixture fetched, a PDF fixture linked, an iframe of another of its documents, a form handled by
+script, and storage in use; every file loads, links move in place without a put-back, a link off
+the bundle is put back, keys pass from each document, nothing submits, a top-level open is
+refused, no load carries the session cookie, the nested frame loads, and a canvas of 25 entries is
+timed.
+
+**Open questions**, each with a default:
+
+| Question | Default |
+|---|---|
+| A content site: register a domain apart from what-build.com now, or later? | Later; the route serves from the app's origin, and the setting is ready. |
+| A reader reaches the promoted version's whole bundle, not one page. | Yes: the prototype is the page. |
+| Stand-ins in the frame script for `localStorage`, `sessionStorage` and `document.cookie`, kept in the frame's `window.name` so state crosses the bundle's documents in one frame. | Built, in the frame only, gone when the frame reloads. |
+| One subdomain of a content site per view, with `allow-same-origin`, so storage, caching and root-relative addresses work. | Not until a content site exists. |
+| A canvas of many entries at a small zoom: posters in place of frames? | Frames load lazily, as now; decide on the 25-entry timing. |
+| "Bundle" also names a product's export ([§4.14](04-data-model.md#414-the-product-bundle)). | "A mockup's bundle" in prose, `bundle/` in the ZIP. |
 
 ## Planned — Undelete
 
