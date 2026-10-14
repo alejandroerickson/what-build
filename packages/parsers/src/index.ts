@@ -14,7 +14,7 @@ export type { Block, DerivationStatus, ParsedFile, ParseResult, Segment } from "
 export { codePointLength, sliceCodePoints, MAX_SEGMENT_CHARS, MAX_SEGMENTS, readSegments, toParsedFile } from "./text.ts";
 export { MAX_PDF_PAGES } from "./pdf.ts";
 export { recordingDurationMs, type ByteReader } from "./media.ts";
-export { DEFAULT_PARSE_CAP_BYTES } from "./types.ts";
+export { DEFAULT_PARSE_CAP_BYTES, TooLargeError } from "./types.ts";
 export { HtmlLimitError, MAX_HTML_DEPTH, parseHtml } from "./html.ts";
 export { TooManyEntriesError, unzipParts, zipEntries, type ZipEntry } from "./zip.ts";
 

@@ -1,4 +1,4 @@
-import { TooManyEntriesError, zipEntries } from "@whatbuild/parsers";
+import { TooLargeError, TooManyEntriesError, zipEntries } from "@whatbuild/parsers";
 import { sql } from "kysely";
 import { strToU8, zipSync } from "fflate";
 import { z } from "zod";
@@ -396,6 +396,7 @@ export function readCanvasZip(uploadId: string, bytes: Uint8Array): CanvasUpload
     list = zipEntries(bytes, (name) => !ZIP_LITTER(name), MOCKUP_UPLOAD_UNPACKED_MAX, MOCKUP_UPLOAD_MAX_ENTRIES);
   } catch (e) {
     if (e instanceof TooManyEntriesError) throw invalid("invalid_upload", `Nothing was published: ${e.message}. A canvas's ZIP holds at most ${MOCKUP_UPLOAD_MAX_ENTRIES} entries.`);
+    if (e instanceof TooLargeError) throw invalid("invalid_upload", `Nothing was published: the ZIP unpacks to more than ${MOCKUP_UPLOAD_UNPACKED_MAX / MIB} MB, and a canvas's ZIP unpacks to at most that. Leave out what the canvas does not need and request a new upload.`);
     throw invalid("invalid_upload", `Nothing was published: the upload is not a ZIP WhatBuild can read (${(e as Error).message}). Zip the canvas again and request a new upload.`);
   }
   const problems: string[] = [];
