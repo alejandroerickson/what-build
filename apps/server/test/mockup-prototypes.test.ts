@@ -482,7 +482,9 @@ describe("what a prototype's ZIP may not hold", () => {
   it("stops a ZIP bomb at the unpacked budget, and refuses too many entries and a file too large", async () => {
     const bomb = await publish(zipSync({ "manifest.json": strToU8(page), "prototype/index.html": new Uint8Array(97 * MiB) }, { level: 9 }));
     expect(bomb.status).toBe(422);
-    expect(bomb.body.error.message).toContain("unpacks to more than");
+    expect(bomb.body.error.message).toBe(
+      "Nothing was published: the ZIP unpacks to more than 96 MB, and a canvas's ZIP unpacks to at most that. Leave out what the canvas does not need and request a new upload.",
+    );
     const big = await publish(zipSync({ "manifest.json": strToU8(page), "prototype/index.html": strToU8("<p>a</p>"), "prototype/video.mp4": new Uint8Array(26 * MiB) }, { level: 9 }));
     expect(big.status).toBe(422);
     expect(big.body.error.details.problems).toEqual([`prototype/video.mp4 is ${26 * MiB} bytes; a prototype file is at most ${25 * MiB}.`]);
