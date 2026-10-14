@@ -25,6 +25,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 Nothing yet.
 
+## v0.11.1
+
+- **Nothing to change.** A canvas ZIP that unpacks past 96 MB is refused with a message that says so.
+- **From v0.10.0 or earlier**, also take v0.11.0's notes below: it adds migrations
+  `0024_story_previews` and `0025_mockup_prototypes`, and moves pages opened on another name for
+  the deployment to `WHATBUILD_PUBLIC_URL`.
+
 ## v0.11.0
 
 - **Migration `0024_story_previews`.** It adds one table, for the documents `story.preview`
