@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.11.0
+
 - **Migration `0024_story_previews`.** It adds one table, for the documents `story.preview`
   holds for half an hour. Rehearse on the dev deployment first ([dev-deployment](dev-deployment.md));
   an earlier release also runs on the new schema, which only adds a table.
