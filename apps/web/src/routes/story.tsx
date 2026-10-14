@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { MOCKUP_PAGE_SANDBOX, STORY_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
@@ -63,7 +64,7 @@ export function StoryFrame({
   storyBase?: string;
   home?: string;
   onPage?: (pageId: string) => void;
-  /** A mockup page's own size: the frame keeps it, scaled down to the room there is, never up. */
+  /** A mockup page's own size: the frame keeps it, scaled down to the room there is, never up, in a mockup page's sandbox. */
   size?: { width: number; height: number };
 }) {
   const [loaded, setLoaded] = useState(false);
@@ -103,7 +104,7 @@ export function StoryFrame({
       title={title}
       className={size ? "story-frame-mockup" : "story-frame"}
       style={size ? { width: size.width, height: size.height, transform: `scale(${scale})` } : { colorScheme: scheme }}
-      sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+      sandbox={size ? MOCKUP_PAGE_SANDBOX : STORY_PAGE_SANDBOX}
       referrerPolicy="no-referrer"
       src={`${src}${src.includes("?") ? "&" : "?"}frame=1`}
       onLoad={() => {

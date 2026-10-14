@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -438,6 +438,10 @@ them. Its one write is promoting a page to the Story.
   pointer. **Interact** (the pointer, `V`): the pages take the pointer, so their links, buttons and
   scrolling work, a drag on the board still moves the canvas, and a press on a page selects it.
   Holding Space pans from either mode. The browser remembers the mode (`whatbuild.mockup.mode`).
+  A page's frame is its width × height: content taller than the height scrolls inside the frame.
+  In pan mode the canvas shows the page's first `height` pixels and a scroll over it moves the
+  canvas; in interact mode a scroll over the page scrolls the page, and at its end stops there
+  without moving the canvas.
   On a touch screen one finger drags the canvas and two pinch it: the point under the fingers
   stays under them as they spread and move, and when one lifts, the other carries on as a drag
   from where it is. In interact mode a touch that begins on a page is the page's.
@@ -534,8 +538,8 @@ mockup reaches it by promotion, from the mockup (§7.7).
   shown (with **Show the current version**), or the page tried to open another address in its
   place, and was put back.
 - **A page from a mockup** ([§4.11](04-data-model.md)) is shown at its own size, scaled down to the
-  measure and never up, on paper as on the canvas, without the app's theme. Its crumbs read Story ›
-  Published mockups › the page.
+  measure and never up, on paper as on the canvas, without the app's theme. Content taller than
+  the page's height scrolls inside its frame, scaled with it. Its crumbs read Story › Published mockups › the page.
 - **Flipping through the published mockups.** On a published mockup, a small control beside the
   crumbs gives its place ("2 of 5") between buttons to the previous and next one, and ← and →
   flip to them, in focus mode or not, from the app or from inside the page (the frame passes the

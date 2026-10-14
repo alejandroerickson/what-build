@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild keeps each organization's material to its own people, and treats agent-written HTML, uploads and source text as hostile
 description: The threat model: what is protected, who the attackers are, the trust boundaries, and each control with where it lives in code and the decision that governs it.
 tags: [security, threat-model, tenancy, identity, oauth, sandbox, uploads]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-14}
 status: draft
 ---
 
@@ -159,12 +159,29 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 **Agent-written HTML** ([decision](../decisions/story-pages-are-sandboxed-agent-html.md),
 [decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)).
 
-- At publish a page must be one self-contained document: no external resources, forms, frames,
-  `<base>` or `<meta http-equiv>`, bounded inline scripts, 1 MB (`packages/core/src/story-html.ts`).
-  This helps authors; the response is the boundary.
+- At publish a page must be one self-contained document: no external resources, frames, `<link>`,
+  `<base>` or `<meta http-equiv>`, 1 MB. A Story page also has bounded inline scripts and no
+  forms; a mockup page has neither limit, so a working prototype fits
+  (`packages/core/src/html-rules.ts`, one `PageRules` for each surface). This helps authors; the
+  response is the boundary. The script budget is no control: inside the sandbox a few lines of
+  script do whatever a long one does, and the policy allows neither `eval` nor WebAssembly (no
+  `'unsafe-eval'` or `'wasm-unsafe-eval'`).
+- No form submission goes anywhere: every response that serves a page says
+  `form-action 'none'`, the print view's too, which stops a submission whatever its `target`,
+  `formaction`, `formtarget` or method, a `javascript:` action and `form.submit()` included. A
+  mockup page's sandbox adds `allow-forms`, in its responses and the app's frames, so a
+  prototype's `submit` handler runs; a Story page's has none. Forms add no capability: a page's
+  script already reads what is typed into an input, which a Story page may hold, and could already
+  open a tab at any address it builds (`allow-popups`). Each surface's sandbox is one constant
+  (`packages/core/src/page-sandbox.ts`) that the headers and the frames both take
+  (`apps/server/test/mockups.test.ts` holds them).
 - Every response serving page HTML carries `STORY_RESPONSE_HEADERS`: a CSP `sandbox` without
   `allow-same-origin` (an opaque origin), `default-src 'none'`, `connect-src 'none'`,
-  `form-action 'none'`, `frame-ancestors 'self'`, `no-store`, `nosniff`, `no-referrer`.
+  `form-action 'none'`, `frame-ancestors 'self'`, `no-store`, `nosniff`, `no-referrer`: a Story
+  page and a style's specimen; a mockup page, on its canvas and on the Story, carries
+  `MOCKUP_RESPONSE_HEADERS`, the same with `allow-forms` (`pageResponseHeaders`). The print view
+  has a policy of its own, without `allow-forms`, and drops forms and scripts. A
+  version's ZIP and a product export are attachments, never rendered.
 - The app frames pages with `<iframe sandbox>` and takes only a key name or a page slug from the
   frame it made (`apps/web/src/routes/story.tsx`). App pages send `Cross-Origin-Opener-Policy:
   same-origin`, `X-Frame-Options: DENY`, `frame-ancestors 'none'` and `script-src 'self'`
@@ -189,7 +206,7 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   (`mockup_upload`), and is refused to a visitor to the public sandbox, whose text is capped field
   by field. Publish unpacks it with the parsers' `unzipParts`, which stops at 48 MB unpacked
   however the archive claims its sizes, takes only the canvas's own entries, and checks every page
-  by the Story's HTML rules as if it had been sent in the call (`packages/core/src/ops/mockups.ts`).
+  by a mockup page's rules as if it had been sent in the call (`packages/core/src/ops/mockups.ts`).
 - File paths refuse traversal, backslashes and control characters (`packages/core/src/media.ts`).
 - Parsing is a pure function of bytes, run by the worker in a worker thread of its own for each
   file, with an empty environment (`apps/server/src/parse-thread.ts`,
@@ -252,7 +269,10 @@ under a made-up name `execute` puts in the actor snapshot, sees only themselves 
 and cannot delete permanently, which needs admin. Admission is by 144-bit codes stored as hashes, with places and a
 cap on seats. Limits on calls, writes, sources, bytes, sizes, formats and exports are settings
 enforced in `execute` and the upload path (`packages/core/src/public-sandbox.ts`). The daily reset
-holds the sandbox's lock alone, drops its pending jobs and puts the baseline back.
+holds the sandbox's lock alone, drops its pending jobs and puts the baseline back. A visitor's
+mockup page has a mockup page's rules, with no script budget: the budget is no control (above),
+and the cap on what one field holds (200,000 characters by default) already bounds a page, and
+the daily writes bound how many.
 
 **Secrets, logs and delivery.** Configuration comes from the environment (`config.ts`); secrets
 live in Secret Manager or Key Vault (`deploy/cloud-run/setup.sh`, `deploy/azure/containerapp.yaml`),

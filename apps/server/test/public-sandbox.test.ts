@@ -476,6 +476,21 @@ describe("limits on what a visitor does", () => {
     await set({ text_max_chars: SANDBOX_DEFAULTS.text_max_chars, batch_max: SANDBOX_DEFAULTS.batch_max });
   });
 
+  it("holds a visitor's mockup page to the cap on a field, never to a script budget", async () => {
+    // A working prototype: twelve scripts, more than a Story page's 32,000 characters of them, and a form.
+    const scripts = Array.from({ length: 12 }, (_, i) => `<script>const step${i} = ${JSON.stringify("x".repeat(3500))};</script>`).join("");
+    const html = `<!doctype html><html><head><title>Prototype</title></head><body><form><input name="q"><button>Go</button></form>${scripts}</body></html>`;
+    const made = await vera.api("POST", `${P}/mockups`, { title: "A visitor's prototype", pages: [{ page_id: "proto", title: "Prototype", html }] });
+    expect(made.status, JSON.stringify(made.body).slice(0, 300)).toBe(201);
+    await set({ text_max_chars: 30_000 });
+    const over = await vera.api("POST", `${P}/mockups`, { mockup_id: made.body.mockup_id, expected_etag: made.body.etag, pages: [{ page_id: "proto", html }] });
+    expect(over.status).toBe(413);
+    expect(over.body.error.details).toMatchObject({ field: "pages[0].html", limit: 30_000, unit: "characters" });
+    await set({ text_max_chars: SANDBOX_DEFAULTS.text_max_chars });
+    // Uploading a canvas, which would carry text past that cap, stays for organizations of one's own.
+    expect((await vera.api("POST", `${P}/mockups/uploads`, {})).status).toBe(403);
+  });
+
   it("limits what a visitor uploads: the kind of file, its size, and the day's bytes", async () => {
     const recording = await viktor.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Sample recording", path: "call.m4a", role: "primary" });
     expect(recording.status).toBe(403);

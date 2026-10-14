@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 127 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -108,7 +108,8 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
   ([§3.5](03-accounts-teams-and-identity.md)). `connection_level` carries `{ level, needed }`
   and says that only the person raises it, under Connect an agent.
 - **`quota_exceeded`** carries `{ quota, limit, used, unit }` in `details`. It is returned for the
-  50 Story pages and the 50 mockups a product holds ([§9.2](09-data-lifecycle.md)) and for a visitor's daily
+  50 Story pages and the 50 mockups a product holds ([§9.2](09-data-lifecycle.md)), the mockups'
+  adding `archived`, and for a visitor's daily
   allowances in the public sandbox, which add `resets_at` ([§9.7](09-data-lifecycle.md)). A sandbox
   allowance set to 0 is switched off and answers `403 sandbox_restricted` instead.
 - **`429`** is returned for sign-in links (five per address per hour), for a fourth URL fetch a
@@ -372,8 +373,14 @@ Notes on recent actions:
   return the files' content. `mockups.request_upload` returns a grant to PUT the canvas as a ZIP
   in `get_download`'s layout, and `mockups.publish { upload_id }` reads it in place of `pages`,
   `files` and the brief, so no page's HTML travels through a tool call; it is refused to a visitor
-  to a public sandbox (`403`), and the result names `from_upload` ([§4.12](04-data-model.md),
-  §6.7).
+  to a public sandbox (`403`), and the result names `from_upload` and gives `upload { upload_id,
+  size, sha256 }`, the ZIP as its PUT answered ([§4.12](04-data-model.md), §6.7). A page is held
+  to a mockup page's HTML rules, not a Story page's: scripts without a budget, and forms whose
+  submit handlers run and whose submissions go nowhere. `publish`'s and `request_upload`'s
+  descriptions state what a page may hold and what is refused, that a refused publish changes
+  nothing and leaves an upload unused, and what a frame does with a page taller than its height.
+  `mockups.list` returns `archived_hidden` (and a `note` when it is not zero) and
+  `quota { used, limit, unit, archived_included }`.
   `mockups.get_download` gives a version as a ZIP through a grant, for an agent to build the next
   version elsewhere; `mockups.check_citations` checks a version's citations
   ([§4.12](04-data-model.md)). `mockups.get` lists the Story pages that show its pages.
@@ -458,7 +465,10 @@ network, no same-origin access and no framing outside the app. `?theme=light|dar
 app's resolved theme onto the page's `<html>` for that response only; the stored HTML is
 unchanged. It is a Story read, so a reader reaches it; a source's file, an export's file, the
 style specimens and a mockup page's HTML need viewer. A mockup page's HTML is served in the same
-sandbox, with the same `?frame=1`, and without `?theme`: a mockup carries its own look.
+sandbox, with the same `?frame=1`, and without `?theme`: a mockup carries its own look. Its
+sandbox adds `allow-forms`, so a prototype's submit handler runs, here and on the Story's route
+when a version shows a mockup page; every page's policy says `form-action 'none'`, so a
+submission goes nowhere, wherever it is shown.
 
 ### The Story print view
 

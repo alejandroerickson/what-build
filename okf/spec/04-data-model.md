@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, files, annotations, what uses a source, the assumption register and citations, views and lineage, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, citations, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -514,17 +514,21 @@ never copied. It takes the mockup version's refs and citations. It stays on that
 it is promoted again; reading it returns `mockup` with the page's `width` and `height` and, for
 every role but a reader, the mockup's title, the version shown and the mockup's current version.
 The page appears among the Story's Published mockups (Hierarchy, below).
-`html`, `html_chars` and `html_sha256` describe the mockup page. A later `publish` without `html` or
+`html`, `html_chars` and `html_sha256` describe the mockup page, which keeps the mockup's HTML
+rules (§4.12) and sandbox on the Story: it may hold scripts of any length and a form, whose
+submission goes nowhere. A later `publish` without `html` or
 `body` keeps showing the mockup page; `html` or `body` replaces it with HTML of the page's own; and
 `patch_html` and `restyle` are refused (`422`), since there is no HTML of its own to change.
 ◆ Decision: a promoted page stays on its mockup version. A Story is read outside the team, and work
 in progress on a mockup should not appear in it unannounced.
 
-**HTML rules**, validated at publish (`422 invalid_html` listing every problem at once;
-[`story-html.ts`](../../packages/core/src/story-html.ts)):
+**HTML rules**, validated at publish (`422 invalid_html` listing every problem at once, each
+naming the Story page, the rule, the limit and the element; `STORY_PAGE_RULES` in
+[`html-rules.ts`](../../packages/core/src/html-rules.ts), where a mockup page's rules sit beside
+them, §4.12):
 
 - One self-contained document, ≤ 1,000,000 chars; inline CSS; at most 10 inline scripts, and
-  inline scripts and event handlers together ≤ 32,000 chars.
+  inline scripts and event handlers together ≤ 32,000 chars, since the Story is for reading.
 - No external references of any kind: `src`, `srcset`, `poster` and similar attributes, style
   `url()` and CSS must use `data:` URIs, quoted or not (a stylesheet may also name a fragment,
   `url(#id)`); no `@import`; `<script src>` is refused. Ordinary `<a href>` links are allowed.
@@ -536,7 +540,9 @@ Content-Security-Policy (`sandbox allow-scripts allow-popups allow-popups-to-esc
 default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src
 data:; media-src data:; connect-src 'none'; …`), and the web app shows it in an
 `<iframe sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox">`, never
-`allow-same-origin`. The page therefore runs in an opaque origin, can make no network request, and
+`allow-same-origin` (a mockup page's sandbox adds `allow-forms`, §4.12; both are constants in
+[`page-sandbox.ts`](../../packages/core/src/page-sandbox.ts)). The page therefore runs in an
+opaque origin, can make no network request, submits no form anywhere (`form-action 'none'`), and
 reaches nothing of the application. Validation is a courtesy to authors; the sandbox is the
 security boundary. This matters because the author of a Story page and its reader are routinely
 different people.
@@ -556,8 +562,9 @@ anywhere, so the dev deployment and a local copy of production never send a read
 The stored HTML is never changed. The app resets a frame that loads a second document (a
 page navigating itself by script) and says so, and the app's own pages send
 `Cross-Origin-Opener-Policy: same-origin`, so a Story page cannot keep a handle to an app tab it
-opened and redirect it later. The print view drops scripts, event handlers and every element
-publishing refuses, whatever a stored page holds.
+opened and redirect it later. The print view drops scripts, event handlers and every element a
+Story page may not hold, forms included, whatever a stored page holds (a mockup page it shows
+too).
 
 **Citations.** A version may carry up to 20 `citations`, `{ record_id, seq_start, seq_end,
 quote? }`, snapshotted exactly as an assumption's citations are (§4.8), with the same quote budget of
@@ -682,10 +689,18 @@ pages side by side before the canvas wraps, or null for one row), the `pages` in
 (outcomes, sources and assumptions), `citations`, `published_at` and `published_by`. A page:
 `page_id` (a slug, `[a-z0-9][a-z0-9-]*`, ≤ 80 chars), `title` (1–200), `notes` (Markdown,
 ≤ 10,000, the page's design notes), `width` (240–2,560 CSS pixels, default 1,280; 390 for a
-phone) and `height` (240–4,000, default 800), and its HTML, returned only with `include_html`;
-`html_sha256` and `html_path` (the page's HTML route) are computed on read. Limits: 24 pages and
-8,000,000 characters of HTML in a version; 50 mockups in a product, archived ones included
-(`409 quota_exceeded`).
+phone) and `height` (240–4,000, default 800), and its HTML, returned only with `include_html`
+(otherwise `html_chars`); `html_sha256` and `html_path` (the page's HTML route) are computed on
+read. Limits: 24 pages and 8,000,000 characters of HTML in a version; 50 mockups in a product,
+archived ones included (`409 quota_exceeded`, whose details give `used`, `limit` and how many are
+`archived`).
+
+**Characters and hashes.** Every count of characters here, a limit, `html_chars` or a file's
+`chars`, is a JavaScript string's length: UTF-16 code units, so a character outside the Basic
+Multilingual Plane, such as an emoji, counts two, and bytes are never counted. `html_sha256` and a
+file's `sha256` are the SHA-256 of the text encoded as UTF-8 (`sha256Hex`), so they equal a hash
+of a UTF-8 file's bytes; a page or file read from an uploaded ZIP has lost a leading byte-order
+mark, so its hash is of the bytes after it.
 
 **Files.** A version carries text files for collaborators to pull into their own projects: a
 DESIGN.md, components, tokens. A file is a `path` (relative, ≤ 200 chars, folders separated by
@@ -707,9 +722,29 @@ and HTML unless they are sent, so a version that changes one page sends only tha
 `files`, when passed, is the whole set in the same way: a path on the base keeps its content
 unless it is sent, a path left out is dropped, `[]` drops them all, and omitting `files` keeps
 them. A new page needs a title and HTML, and a new file its content (`422 invalid_input`, listing
-every problem). HTML that is sent
-follows the Story's HTML rules (§4.11) and is checked at publish (`422 invalid_html`); carried
-HTML was checked when it was first published.
+every problem). HTML that is sent is checked at publish against a mockup page's rules
+(`422 invalid_html`, listing every problem at once, each naming the page, the rule, the limit and
+the element); carried HTML was checked when it was first published. A refused publish changes
+nothing and leaves an upload unused, so publishing is a safe way to check a canvas.
+
+**HTML rules** for a mockup page (`MOCKUP_PAGE_RULES` in
+[`html-rules.ts`](../../packages/core/src/html-rules.ts),
+[decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)), which a canvas of
+working prototypes needs and a Story page does not have (§4.11):
+
+- One self-contained document, ≤ 1,000,000 chars; inline CSS; inline scripts and event handlers
+  of any number and length.
+- Forms and their controls work as far as their `submit` handlers, and a submission goes
+  nowhere: a mockup page's sandbox allows forms, and its policy says `form-action 'none'`
+  (Rendering, below). A prototype handles `submit` and calls `preventDefault()`.
+- No external references, as on a Story page: `src`, `srcset`, `poster` and similar attributes,
+  style `url()` and CSS use `data:` URIs (a stylesheet may also name a fragment); no `@import`;
+  no `<script src>`.
+- No `<iframe>`, `<frame>`, `<frameset>`, `<object>`, `<embed>`, `<portal>`, `<link>`, `<base>`,
+  or `<meta http-equiv>`.
+
+A visitor to a public sandbox has the same rules, and the sandbox's cap on what one field holds
+([§3.10](03-accounts-teams-and-identity.md)). Every refusal names the mockup page, never the Story.
 ◆ Decision: a version is the whole canvas, not one page. The pages of a canvas are read and
 compared together, so they are published, numbered and downloaded together.
 
@@ -744,14 +779,20 @@ pages' HTML is checked as if it had been sent.
 The ZIP is read before the transaction, so a large one holds no database connection. An upload is
 published once: publish marks it used, and a second publish of it is `409 upload_used`; one whose
 bytes have not arrived is `404`. After publishing, its bytes are deleted and the result names
-`from_upload`. The grant's state is a `mockup_uploads` row (who asked, the product, the expiry,
+`from_upload` and gives `upload { upload_id, size, sha256 }`, the ZIP's own size in bytes and
+SHA-256 as its PUT answered them. A refused publish leaves the upload unused, to publish once the
+call is right; its bytes cannot be replaced, so a changed page needs a new upload. The grant's state is a `mockup_uploads` row (who asked, the product, the expiry,
 when the bytes arrived, their size and SHA-256, when publish used them and for which version);
 how long it is kept is in §9.2.
 
 **Rendering.** A page's HTML is served by `GET …/mockups/{mockup_id}/versions/{n}/pages/{page_id}/html`
-with the Story's sandbox: the same Content-Security-Policy and frame, and the same frame script
-with `?frame=1` (§4.11). It takes no `?theme`, because a mockup carries its own look. Any role but
-a reader may read it.
+with the Story's sandbox and one addition, `allow-forms`, in the Content-Security-Policy and in
+the app's frame alike, and with the same frame script with `?frame=1` (§4.11). The Story's own
+HTML route serves a page that shows a mockup page in the same mockup sandbox. It takes no `?theme`, because a mockup carries its own look. Any role but
+a reader may read it. A page's frame is its `width` × `height`; content taller than `height`
+scrolls inside the frame, on the canvas in interact mode and on the Story ([§7.7](07-web-app.md),
+[§7.8](07-web-app.md)). A long document can be one page that scrolls or several pages side by
+side; the choice is how people will read it.
 
 **Citations and refs** work as on a Story version (§4.11): up to 20 citations, snapshotted as an
 assumption's citations are (§4.8), each returned with its source's current title, and every `refs` id
@@ -770,7 +811,11 @@ version, `columns`, who published it and when, the pages in order with their tit
 publish the pages that changed.
 
 **Archive.** `mockups.archive` and `mockups.restore` take the etag. An archived mockup leaves the
-list unless `include_archived`, and every version stays readable.
+list unless `include_archived`, and every version stays readable. `mockups.list` says how many
+archived mockups it left out (`archived_hidden`, and a `note` when there are any), and always
+gives `quota { used, limit, unit, archived_included }`: the product's mockups against its 50,
+archived ones counted, so an agent sees the limit before a publish meets it. `products.get`'s
+counts stay the live mockups the stage shows.
 
 **On the Story.** A page of a mockup version can be promoted to the Story (§4.11).
 `mockups.get` returns `story_pages`: each Story page whose current version shows one of the

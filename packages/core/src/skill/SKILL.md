@@ -289,13 +289,26 @@ sandbox.
   in `refs` (outcomes, sources, assumptions), and cite the passages behind it in `citations` (up to
   20, as on a Story page).
 - **Each page is one self-contained HTML document**, shown in a sandbox with no network at the size
-  you give: `width` 1280 for a desktop screen or 390 for a phone, and a `height`. The Story's
-  sandbox rules apply: inline CSS and scripts, images and fonts as `data:` URIs, no remote
-  resources, forms or frames. A mockup carries its own look (a wireframe, the product itself, or
-  a document) and never follows the Story style, though you may carry parts of a mockup's design
-  into the Story style.
+  you give: `width` 1280 for a desktop screen or 390 for a phone, and a `height` (at most 4000).
+  A mockup page has rules of its own, looser than a Story page's, so a working prototype fits:
+  inline CSS; inline scripts and event handlers of any number and length; forms and their
+  controls, whose `submit` handlers run but whose submissions go nowhere, so handle `submit` and
+  call `preventDefault()` (and give a form no `target`); images, fonts and media as `data:` URIs.
+  Refused: anything loaded from elsewhere (a `src` or CSS `url()` that is not `data:`,
+  `@import`, `<script src>`, `<link>`), frames and embeds (`<iframe>`, `<embed>`, `<object>`
+  and the like), `<base>` and `<meta http-equiv>`. A page holds at most 1,000,000 characters. A
+  refusal lists every problem, each with the page, the rule and the element, and a refused
+  publish changes nothing and leaves an upload unused, so publishing is a safe way to check a
+  canvas. A mockup carries its own look
+  (a wireframe, the product itself, or a document) and never follows the Story style, though you
+  may carry parts of a mockup's design into the Story style.
   Keep shared styles, components and any design system in your working project, and inline what
   each page needs when you publish: WhatBuild never draws a page from shared parts.
+- **A page taller than its `height` scrolls inside its frame.** On the canvas people see its first
+  `height` pixels until they switch to interact mode and scroll it; a Story page that shows it
+  scrolls the same way. A long document can be one page that scrolls, or several pages side by
+  side (`columns`) that people see whole on the canvas. Both work: choose by how people will read
+  it, and ask the person when you cannot tell.
 - **Share the conventions with `files`.** A version carries text files for collaborators, such as
   a DESIGN.md, components and tokens. People see them in the inspector, and they come with the
   download under `files/`, so the next person's agent builds in the same way. Like `pages`, `files`
@@ -319,12 +332,19 @@ sandbox.
   `citations` if they change). `manifest.json` lists every page in order (`page_id`, and `title`,
   `width`, `height` for a new one or a change); a page whose HTML or notes the ZIP leaves out keeps
   them, so a ZIP of a later version need hold only the pages that changed. The files it lists, or
-  else the ones under `files/`, are the whole set. One publish reads an upload; compare each page's
-  `html_sha256` with your own files' hashes. Send a page's HTML inline only for a small page.
+  else the ones under `files/`, are the whole set. One publish reads an upload, and its result
+  gives the ZIP's `size` and `sha256` under `upload`. Compare each page's `html_sha256`, and each
+  file's `sha256`, with your own files' hashes: they hash the text as UTF-8, so they match
+  `shasum -a 256` of a UTF-8 file (one saved with a byte-order mark loses it). `html_chars` and a
+  file's `chars` count characters as a JavaScript string does, not bytes, and so do the limits.
+  Send a page's HTML inline only for a small page.
   Build the whole canvas in your project and publish it once: never spread one canvas over
   several versions to get it through tool calls.
 - `check_citations` reports whether a version's passages still say what was quoted. A version
-  holds at most 24 pages and 8,000,000 characters of HTML; a product holds at most 50 mockups.
+  holds at most 24 pages and 8,000,000 characters of HTML; a product holds at most 50 mockups,
+  archived ones included. `list` leaves archived mockups out and says how many in
+  `archived_hidden`, and its `quota` gives `used` and `limit`: when a product nears the limit,
+  publish new versions of the mockups it has, and ask the person before creating more.
 
 **Promote a page to the Story** when a person wants stakeholders to see one screen:
 `story(action="promote_mockup", params={mockup_id, mockup_page_id})` makes a Story page that shows
