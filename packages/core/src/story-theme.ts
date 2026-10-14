@@ -26,8 +26,8 @@ export function withStoryTheme(html: string, theme: "light" | "dark"): string {
  * The script the app's frame adds to a page it shows. It runs inside the page's sandbox, in the
  * page's opaque origin, and does five things:
  *
- * - Passes F and Esc (focus mode) and the left and right arrows (flipping through the Story's
- *   published mockups) to the app, since keys pressed inside a frame never reach the page around
+ * - Passes F and Esc (focus mode), the left and right arrows (flipping through the Story's
+ *   published mockups) and 2 and 3 (fitting a mockup page to the screen or filling its width) to the app, since keys pressed inside a frame never reach the page around
  *   it. Only the key's name is sent; the app checks the message came from its frame. A key the
  *   page itself handled (its default prevented) is not passed on.
  * - Hands a plain click on a link to another page of the same Story to the app, which shows that
@@ -64,7 +64,7 @@ export function frameScript(prototype?: { base: string; inPlace: boolean }): str
   'if(e.data.whatbuild==="canvas-host")canvas=true;});' +
   'addEventListener("keydown",function(e){' +
   "if(e.defaultPrevented||e.metaKey||e.ctrlKey||e.altKey||typing(e.target))return;" +
-  'var k=e.key==="Escape"||e.key==="ArrowLeft"||e.key==="ArrowRight"?e.key:(e.key==="f"||e.key==="F")?"f":canvas&&/^[ hHvV012+=_-]$/.test(e.key)?e.key:null;' +
+  'var k=e.key==="Escape"||e.key==="ArrowLeft"||e.key==="ArrowRight"||e.key==="2"||e.key==="3"?e.key:(e.key==="f"||e.key==="F")?"f":canvas&&/^[ hHvV01+=_-]$/.test(e.key)?e.key:null;' +
   "if(!k)return;" +
   'if(k===" ")e.preventDefault();' +
   'send({whatbuild:"story-key",key:k});});' +

@@ -12,6 +12,7 @@ import { Button, ButtonLink, Callout, Crumbs, Dialog, EmptyState, ErrorCallout, 
 import { COARSE_POINTER_QUERY, isTypingTarget, useMediaQuery } from "../ui/media.ts";
 import { DeleteDialog } from "./delete-dialog.tsx";
 import { FirstUse } from "./first-use.tsx";
+import { usePageView, type PageView } from "./story-flip.tsx";
 import { FocusToggle, useStoryFocus } from "./story-focus.tsx";
 import { driftWords } from "./story-inspector.tsx";
 import type { Actor, CitationCheck, CitationView, ResolvedRef } from "./story-model.ts";
@@ -208,7 +209,7 @@ type FrameSignal =
   | { kind: "select" };
 
 /** The keys a page's frame passes on to the canvas: focus mode's, the arrows, and the canvas's own. */
-const FRAME_KEYS = new Set(["f", "Escape", "ArrowLeft", "ArrowRight", " ", "h", "H", "v", "V", "0", "1", "2", "+", "=", "-", "_"]);
+const FRAME_KEYS = new Set(["f", "Escape", "ArrowLeft", "ArrowRight", " ", "h", "H", "v", "V", "0", "1", "2", "3", "+", "=", "-", "_"]);
 
 /**
  * One page in its sandbox, at its own size. The frame is the Story's: the same sandbox, and the
@@ -331,11 +332,12 @@ function PageFrame({ page, src, title, selected, onSignal, frameRef, prototype }
  *   finger lifting from a pinch leaves the other dragging from where it is. The toolbar's controls
  *   grow for a thumb, and the zoom buttons and the list of keys give way.
  * - + and − zoom, 0 shows 100%, 1 fits the canvas, 2 fits the selected page (or the one nearest the
- *   middle); ← and → select the previous or next page and fit it. Each page's label has its own fit button, and the toolbar
- *   has the arrows and a list of every key. A page's frame passes these keys on, so they work
- *   from inside a page.
+ *   middle) to the screen, and 3 fills the screen's width with it, its top at the top, to scroll
+ *   down through it. ← and → select the previous or next page and show it the way 2 or 3 last did.
+ *   Each page's label has its own fit button, and the toolbar has fit and fill, the arrows and a list
+ *   of every key. A page's frame passes these keys on, so they work from inside a page.
  */
-function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequest }: {
+function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, pageView, onPageView, showRequest }: {
   version: MockupVersion;
   pageSrc: (page: CanvasPage) => string;
   selected: string | null;
@@ -343,8 +345,11 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequ
   onKey: (k: "f" | "Escape") => void;
   /** Whether focus mode is on offer here, so the list of keys names it. */
   canFocus: boolean;
-  /** Bumped by the inspector to fit the selected page. */
-  fitRequest: number;
+  /** Fit or fill: how a page is shown when the arrows or the inspector select it. */
+  pageView: PageView;
+  onPageView: (v: PageView) => void;
+  /** Bumped by the inspector to show the selected page, the way pageView says. */
+  showRequest: number;
 }) {
   const viewport = useRef<HTMLDivElement>(null);
   const world = useRef<HTMLDivElement>(null);
@@ -423,19 +428,34 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequ
     },
     [go],
   );
+  /** The box's width filling the screen and its top at the top, room left for its label above it. */
+  const fillBox = useCallback(
+    (b: Box | undefined, glide = true) => {
+      const vp = viewport.current;
+      if (!vp || !b || !b.width) return;
+      const pad = 48;
+      const z = clamp((vp.clientWidth - pad * 2) / b.width);
+      const v = { z, x: (vp.clientWidth - b.width * z) / 2 - b.left * z, y: pad + 24 - b.top * z };
+      if (glide) go(v);
+      else setView(v);
+    },
+    [go],
+  );
   const worldBox = useCallback((): Box | undefined => {
     const w = world.current;
     return w ? { left: 0, top: 0, width: w.offsetWidth, height: w.offsetHeight } : undefined;
   }, []);
   const fitCanvas = useCallback((glide = true) => fitBox(worldBox(), glide), [fitBox, worldBox]);
-  const fitPage = useCallback(
-    (id: string | null) => {
+  /** Selects a page and shows it fitted or filling the width; the way the arrows show pages, unless said. */
+  const showPage = useCallback(
+    (id: string | null, how: PageView = pageView) => {
       if (!id) return;
       touched.current = true;
       onSelect(id);
-      fitBox(boxes[id]);
+      if (how === "fill") fillBox(boxes[id]);
+      else fitBox(boxes[id]);
     },
-    [boxes, fitBox, onSelect],
+    [boxes, fitBox, fillBox, onSelect, pageView],
   );
   // The view as last drawn, for what reads it only when asked, so a drag does not remake them.
   const shownView = useRef(view);
@@ -460,7 +480,16 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequ
     }
     return best;
   }, [boxes]);
-  const fitShown = useCallback(() => fitPage(selected ?? middlePage()), [fitPage, selected, middlePage]);
+  /** Fit (2) or fill (3) the selected page, or the one in the middle, and show the next ones the same way. */
+  const showShown = useCallback(
+    (how: PageView) => {
+      onPageView(how);
+      showPage(selected ?? middlePage(), how);
+    },
+    [onPageView, showPage, selected, middlePage],
+  );
+  const fitShown = useCallback(() => showShown("fit"), [showShown]);
+  const fillShown = useCallback(() => showShown("fill"), [showShown]);
 
   // Fit the whole canvas when a version opens, and keep it fitted while the window changes until
   // someone moves it.
@@ -478,10 +507,10 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequ
     return () => ro.disconnect();
   }, [fitCanvas]);
   useEffect(() => {
-    if (fitRequest) fitPage(selected);
-    // Only a new request fits; selecting a page from the inspector's list does too, through it.
+    if (showRequest) showPage(selected);
+    // Only a new request shows the page; selecting a page from the inspector's list does too, through it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fitRequest]);
+  }, [showRequest]);
 
   const zoomAt = useCallback((factor: number, cx?: number, cy?: number, glide = false) => {
     const vp = viewport.current;
@@ -529,16 +558,16 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequ
     return () => vp.removeEventListener("wheel", wheel);
   }, [wheelZoom, nudge]);
 
-  /** Selects the page before or after the selected one and fits it; with none selected, the first or the last. */
+  /** Selects the page before or after the selected one and shows it as the last one was; with none selected, the first or the last. */
   const step = useCallback(
     (by: -1 | 1) => {
       const pages = version.pages;
       const at = pages.findIndex((p) => p.page_id === selected);
       const next = at < 0 ? (by > 0 ? 0 : pages.length - 1) : at + by;
       const page = pages[next];
-      if (page) fitPage(page.page_id);
+      if (page) showPage(page.page_id);
     },
-    [version.pages, selected, fitPage],
+    [version.pages, selected, showPage],
   );
   const selectedIndex = version.pages.findIndex((p) => p.page_id === selected);
 
@@ -554,6 +583,7 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequ
         touched.current = true;
         fitCanvas();
       } else if (k === "2") fitShown();
+      else if (k === "3") fillShown();
       else if (k === "ArrowLeft") step(-1);
       else if (k === "ArrowRight") step(1);
       // The first Esc clears the selection; only the next leaves focus mode.
@@ -561,7 +591,7 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequ
       else return false;
       return true;
     },
-    [setMode, zoomAt, view.z, fitCanvas, fitShown, selected, step, onSelect],
+    [setMode, zoomAt, view.z, fitCanvas, fitShown, fillShown, selected, step, onSelect],
   );
 
   /** What a page's frame passes on: the same keys, Space held, a pinch, a press that selects the page. */
@@ -767,7 +797,16 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequ
                     {p.width} × {p.height}
                   </span>
                 </button>
-                <button type="button" className="xc-label-fit" onClick={() => fitPage(p.page_id)} aria-label={`Fit ${p.title} to the screen`} title="Fit to the screen (2)">
+                <button
+                  type="button"
+                  className="xc-label-fit"
+                  onClick={() => {
+                    onPageView("fit");
+                    showPage(p.page_id, "fit");
+                  }}
+                  aria-label={`Fit ${p.title} to the screen`}
+                  title="Fit to the screen (2)"
+                >
                   <Glyph name="scan" size="sm" />
                 </button>
               </li>
@@ -804,6 +843,7 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequ
         >
           <MenuItem onSelect={() => { touched.current = true; fitCanvas(); }} kbd={coarse ? undefined : "1"}>Fit the canvas</MenuItem>
           <MenuItem onSelect={fitShown} kbd={coarse ? undefined : "2"}>{selected ? "Fit the selected page" : "Fit the page in the middle"}</MenuItem>
+          <MenuItem onSelect={fillShown} kbd={coarse ? undefined : "3"}>{selected ? "Fill the width with the selected page" : "Fill the width with the page in the middle"}</MenuItem>
           <MenuSeparator />
           {[50, 100, 200].map((n) => (
             <MenuItem key={n} onSelect={() => zoomAt(n / 100 / view.z, undefined, undefined, true)} kbd={n === 100 && !coarse ? "0" : undefined}>
@@ -818,10 +858,17 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequ
           </button>
         )}
         <span className="xc-tools-rule" aria-hidden="true" />
-        <button type="button" className="xc-tool" onClick={fitShown} title={selected ? "Fit the selected page (2)" : "Fit the page in the middle (2)"} aria-keyshortcuts="2">
-          <Glyph name="scan" />
-          <span className="visually-hidden">{selected ? "Fit the selected page" : "Fit the page in the middle"}</span>
-        </button>
+        {/* Fit and fill show a page now, and are how the arrows show the next one: the one in use is marked. */}
+        <div className="xc-modes" role="radiogroup" aria-label="Show pages">
+          <button type="button" role="radio" aria-checked={pageView === "fit"} className="xc-tool" onClick={fitShown} title={selected ? "Fit the selected page (2)" : "Fit the page in the middle (2)"} aria-keyshortcuts="2">
+            <Glyph name="scan" />
+            <span className="visually-hidden">{selected ? "Fit the selected page" : "Fit the page in the middle"}</span>
+          </button>
+          <button type="button" role="radio" aria-checked={pageView === "fill"} className="xc-tool" onClick={fillShown} title={selected ? "Fill the width with the selected page (3)" : "Fill the width with the page in the middle (3)"} aria-keyshortcuts="3">
+            <Glyph name="move-horizontal" />
+            <span className="visually-hidden">{selected ? "Fill the width with the selected page" : "Fill the width with the page in the middle"}</span>
+          </button>
+        </div>
         <button type="button" className="xc-tool" onClick={() => { touched.current = true; fitCanvas(); }} title="Fit the canvas (1)" aria-keyshortcuts="1">
           <Glyph name="layout-grid" />
           <span className="visually-hidden">Fit the canvas</span>
@@ -842,6 +889,7 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequ
               <MenuItem onSelect={() => step(-1)} disabled={selectedIndex === 0} kbd="←">Previous page</MenuItem>
               <MenuItem onSelect={() => step(1)} disabled={selectedIndex === version.pages.length - 1} kbd="→">Next page</MenuItem>
               <MenuItem onSelect={fitShown} kbd="2">{selected ? "Fit the selected page" : "Fit the page in the middle"}</MenuItem>
+              <MenuItem onSelect={fillShown} kbd="3">{selected ? "Fill the width with the selected page" : "Fill the width with the page in the middle"}</MenuItem>
               <MenuItem onSelect={() => { touched.current = true; fitCanvas(); }} kbd="1">Fit the canvas</MenuItem>
               <MenuSeparator />
               <MenuItem onSelect={() => zoomAt(1.25, undefined, undefined, true)} kbd="+">Zoom in</MenuItem>
@@ -851,7 +899,7 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, fitRequ
               <MenuItem onSelect={() => setMode("pan")} kbd="H">Pan</MenuItem>
               <MenuItem onSelect={() => setMode("interact")} kbd="V">Interact</MenuItem>
               {canFocus ? <MenuItem onSelect={() => onKey("f")} kbd="F">Focus mode</MenuItem> : null}
-              <MenuNote>Hold Space and drag to pan. Esc clears the selection.</MenuNote>
+              <MenuNote>The arrows show each page as 2 or 3 last did. Hold Space and drag to pan. Esc clears the selection.</MenuNote>
             </Menu>
           </>
         )}
@@ -872,14 +920,16 @@ function refLink(app: string, kind: RefKind, id: string) {
   return kind === "outcomes" ? `${app}/idea` : kind === "sources" ? `${app}/evidence/${id}` : `${app}/exploration/assumptions/${id}`;
 }
 
-function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, onFit }: {
+function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, pageView, onShow }: {
   e: MockupView;
   shown: MockupVersion;
   versions: VersionItem[] | undefined;
   onVersion: (n: number) => void;
   selected: string | null;
   onSelect: (pageId: string | null) => void;
-  onFit: () => void;
+  pageView: PageView;
+  /** Shows the selected page fitted or filling the width, as 2 and 3 do. */
+  onShow: (how: PageView) => void;
 }) {
   const { app, api: base, canDelete } = useProduct();
   const toast = useToast();
@@ -991,8 +1041,11 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, on
               </MenuRadio>
             ))}
           </Menu>
-          <Button size="sm" icon="scan" onClick={onFit} disabled={!page} title="Fit to the screen (2)">
+          <Button size="sm" icon="scan" onClick={() => onShow("fit")} disabled={!page} aria-pressed={pageView === "fit"} title="Fit to the screen (2)">
             Fit
+          </Button>
+          <Button size="sm" icon="move-horizontal" onClick={() => onShow("fill")} disabled={!page} aria-pressed={pageView === "fill"} title="Fill the width, to scroll through the page (3)">
+            Fill
           </Button>
         </div>
         {page?.entry ? (
@@ -1261,7 +1314,10 @@ export function MockupPage() {
   usePageTitle(e.data?.title ?? null);
   // The selected page lives in the URL (?page=), so a link can open a canvas at one page.
   const selected = params.get("page");
-  const [fitRequest, setFitRequest] = useState(0);
+  const [showRequest, setShowRequest] = useState(0);
+  // Fit (2) or fill (3): how the arrows and the inspector show a page, remembered in this browser.
+  const [pageView, setPageView] = usePageView("whatbuild.mockup.page-view", "fit");
+  const mockups = useMockupList();
   const select = useCallback(
     (pageId: string | null) => {
       const next = new URLSearchParams(params);
@@ -1303,7 +1359,16 @@ export function MockupPage() {
 
   const crumbs = [{ label: "Exploration" }, { label: "Mockups" }, { label: e.isError ? "Not found" : (e.data?.title ?? "…") }];
 
-  if (e.isPending) return <Loading variant="lines" />;
+  if (e.isPending)
+    return (
+      <>
+        <Loading variant="lines" />
+        {/* Kept while the next mockup loads, so the inspector does not slide away and back. */}
+        <Inspector title={mockups.data?.items.find((m) => m.mockup_id === mockupId)?.title ?? "Mockup"}>
+          <Loading variant="lines" />
+        </Inspector>
+      </>
+    );
   if (e.isError) {
     const gone = e.error instanceof ApiError && e.error.isNotFound;
     return (
@@ -1355,7 +1420,9 @@ export function MockupPage() {
           onSelect={select}
           onKey={focusMode.onKey}
           canFocus={focusMode.available}
-          fitRequest={fitRequest}
+          pageView={pageView}
+          onPageView={setPageView}
+          showRequest={showRequest}
         /> : <Loading variant="lines" />}
       <Inspector title={x.title}>{shown ? <MockupInspector
             e={x}
@@ -1365,9 +1432,13 @@ export function MockupPage() {
             selected={shown.pages.some((p) => p.page_id === selected) ? selected : null}
             onSelect={(id) => {
               select(id);
-              setFitRequest((n) => n + 1);
+              setShowRequest((n) => n + 1);
             }}
-            onFit={() => setFitRequest((n) => n + 1)}
+            pageView={pageView}
+            onShow={(how) => {
+              setPageView(how);
+              setShowRequest((n) => n + 1);
+            }}
           /> : <Loading variant="lines" />}</Inspector>
     </div>
   );

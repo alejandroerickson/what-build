@@ -1,13 +1,12 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { useQuery } from "@tanstack/react-query";
+import { Link, useSearchParams } from "react-router";
 import { api } from "../lib/api.ts";
 import { attribution, citationCheckWords, citedAt, formatDate, formatDateTime, nestQuotes, relativeTime } from "../lib/format.ts";
 import { Markdown, passageHref } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { REVIEW_STATUS, toneFor } from "../lib/status.ts";
-import { Button, EmptyState, Glyph, Group, KeyValue, Menu, MenuRadio, StatusBadge, useToast } from "../ui/index.tsx";
-import { DeleteDialog } from "./delete-dialog.tsx";
+import { Button, EmptyState, Glyph, Group, KeyValue, Menu, MenuRadio, StatusBadge } from "../ui/index.tsx";
+import type { PageActions } from "./story-actions.tsx";
 import type { CitationCheck, MockupShown, PageView, RefKind, ResolvedRef, VersionItem, VersionView } from "./story-model.ts";
 
 const REF_KINDS: { kind: RefKind; label: string }[] = [
@@ -76,15 +75,15 @@ function Shows({ mockup: m }: { mockup: MockupShown }) {
   );
 }
 
-export function StoryInspectorBody({ page, shown, versions, onExport }: {
+export function StoryInspectorBody({ page, shown, versions, onExport, actions }: {
   page: PageView;
   shown: VersionView;
   versions: VersionItem[] | undefined;
   onExport: () => void;
+  actions: PageActions;
 }) {
-  const { app, api: base, canDelete } = useProduct();
+  const { app, api: base, canWrite, canDelete } = useProduct();
   const [params, setParams] = useSearchParams();
-  const [deleting, setDeleting] = useState(false);
   const citations = shown.citations ?? [];
   const checks = useQuery({
     queryKey: ["story-citations", base, page.page_id, shown.version],
@@ -138,15 +137,27 @@ export function StoryInspectorBody({ page, shown, versions, onExport }: {
             },
           ]}
         />
-        <Button size="sm" icon="download" className="story-export-button" onClick={onExport}>
-          Export to PDF…
-        </Button>
-        {canDelete ? (
-          <Button size="sm" variant="quiet" icon="trash" className="story-delete-button" onClick={() => setDeleting(true)}>
-            Delete permanently…
+        <div className="story-about-actions">
+          <Button size="sm" icon="download" onClick={onExport}>
+            Export to PDF…
           </Button>
-        ) : null}
-        {deleting ? <DeletePage page={page} onClose={() => setDeleting(false)} /> : null}
+          {canWrite ? (
+            page.archived_at ? (
+              <Button size="sm" variant="quiet" icon="archive-restore" onClick={() => actions.restore(page)}>
+                Restore
+              </Button>
+            ) : (
+              <Button size="sm" variant="quiet" icon="archive" onClick={() => actions.archive(page)}>
+                Archive
+              </Button>
+            )
+          ) : null}
+          {canDelete ? (
+            <Button size="sm" variant="quiet" icon="trash" onClick={() => actions.remove(page)}>
+              Delete permanently…
+            </Button>
+          ) : null}
+        </div>
       </Group>
 
       {shown.mockup?.mockup_id ? <Shows mockup={shown.mockup} /> : null}
@@ -233,57 +244,5 @@ export function StoryInspectorBody({ page, shown, versions, onExport }: {
       </Group>
       ) : null}
     </div>
-  );
-}
-
-/** What deleting a Story page destroys, as story.delete_page_impact reports it. */
-interface PageImpact {
-  etag: string;
-  archived: boolean;
-  version_count: number;
-  sub_pages_promoted: string[];
-}
-
-/** Delete a Story page for good; archiving it, which the team otherwise leaves to agents, is offered beside it. */
-function DeletePage({ page, onClose }: { page: PageView; onClose: () => void }) {
-  const { app, api: base } = useProduct();
-  const qc = useQueryClient();
-  const toast = useToast();
-  const navigate = useNavigate();
-  const refresh = () => {
-    void qc.invalidateQueries({ queryKey: ["story-tree", base] });
-    void qc.invalidateQueries({ queryKey: ["story-pages", base] });
-    void qc.invalidateQueries({ queryKey: ["product"] });
-  };
-  const archive = useMutation({
-    mutationFn: () => api("POST", `${base}/story/pages/${page.page_id}/archive`, { expected_etag: page.etag }),
-    onSuccess: () => {
-      refresh();
-      void qc.invalidateQueries({ queryKey: ["story-page", base, page.page_id] });
-      toast("Page archived.");
-    },
-    onError: () => toast("The page couldn’t be archived. Reload and try again.", { tone: "negative" }),
-  });
-  return (
-    <DeleteDialog<PageImpact>
-      title="Delete this Story page permanently?"
-      impactPath={`${base}/story/pages/${page.page_id}/delete-impact`}
-      deletePath={`${base}/story/pages/${page.page_id}`}
-      alternative={{ label: "Archive instead", disabled: Boolean(page.archived_at), onSelect: () => archive.mutate() }}
-      renderImpact={(i) => (
-        <>
-          <p>
-            This deletes “{page.title}” with {i.version_count === 1 ? "its only version" : `all ${i.version_count} of its versions`}, their notes and citations.
-          </p>
-          {i.sub_pages_promoted.length ? <p>Its {i.sub_pages_promoted.length === 1 ? "sub-page moves" : `${i.sub_pages_promoted.length} sub-pages move`} up into its place.</p> : null}
-        </>
-      )}
-      onDeleted={() => {
-        refresh();
-        toast(`Deleted “${page.title}”. The activity log records who, when and why.`);
-        navigate(`${app}/story`);
-      }}
-      onClose={onClose}
-    />
   );
 }

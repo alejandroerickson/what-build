@@ -26,27 +26,25 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 - **Migration `0024_story_previews`.** It adds one table, for the documents `story.preview`
   holds for half an hour. Rehearse on the dev deployment first ([dev-deployment](dev-deployment.md));
   an earlier release also runs on the new schema, which only adds a table.
-- **Agents can preview a Story page before publishing it.** Nothing to set. `story(action="preview")`
-  takes what `publish` takes, refuses what it would refuse, publishes nothing and returns a grant to
-  open the exact page in a browser.
-- **The skill is 0.27.0.** It teaches previewing a Story page before publishing it, which writes
-  are safe to send again after a lost response, the HTML rules a mockup page now has of its own
-  (forms whose submissions go nowhere, scripts without a budget, a page that scrolls past its
-  height, the mockup quota), and uploading a team's prototype as it is (relative addresses, no
-  network, stateless, and the warnings publish gives). Nothing to set: connected agents are asked
-  to update it, and to start a new session for the new action.
 - **Migration `0025_mockup_prototypes`.** It adds one table, for a mockup version's prototype
   files, and two nullable columns to `mockup_pages`, whose `html` becomes nullable with a check
   that a page has HTML or an entry. Rehearse on the dev deployment first
   ([dev-deployment](dev-deployment.md)); an earlier release reading a version that has an entry
   page would fail on its null HTML, so going back after a prototype is published means restoring
   the database ([recovering from a bad release](recovering-from-a-bad-release.md)).
+- **Agents can preview a Story page before publishing it.** Nothing to set. `story(action="preview")`
+  takes what `publish` takes, refuses what it would refuse, publishes nothing and returns a grant to
+  open the exact page in a browser.
 - **Mockups carry a team's prototype as it is.** Nothing to set: prototypes are served from the
   app's own origin under `/prototypes/`, and a canvas holds up to 48 pages. A deployment that wants
   them on a site of their own sets `WHATBUILD_CONTENT_URL` to an origin on another registrable
   domain (never a subdomain of the app's), points that host at the service, and nothing else
   changes; `WHATBUILD_PROTOTYPE_GRANT_HOURS` (8) sets how long a prototype's address lasts. A proxy
   in front that routes by path must pass `/prototypes/` to the service.
+- **People arrange, archive and delete Story pages in the app again.** Nothing to set. Editors
+  drag pages in the Story's tree (or use Alt and the arrow keys) and archive or restore them from
+  a page's menu; admins delete them there too. Mockups gain Fill (`3`) beside Fit (`2`), on the
+  canvas and on a published mockup in the Story.
 - **A page opened on another name for the deployment moves to `WHATBUILD_PUBLIC_URL`.** People who
   open the app on Cloud Run's `run.app` address, Container Apps' default host or an earlier domain
   still pointed at it land on the same page at the public URL, signed in; probes, agents, `/api`,
@@ -55,6 +53,14 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   domain. A deployment behind a proxy that sends the service's own host name as `Host` and no
   `X-Forwarded-Host` sets `WHATBUILD_REDIRECT_TO_PUBLIC_URL=0` before taking the release, or its
   pages redirect to themselves. Connected agents are told the public URL to write links with.
+- **The skill is 0.27.0.** It teaches previewing a Story page before publishing it; that people
+  now arrange, archive and delete Story pages in the app, so an agent reads the hierarchy again
+  before setting it and keeps the arrangement they chose; which writes are safe to send again
+  after a lost response; the HTML rules a mockup page now has of its own (forms whose submissions
+  go nowhere, scripts without a budget, a page that scrolls past its height, the mockup quota);
+  and uploading a team's prototype as it is (relative addresses, no network, stateless, and the
+  warnings publish gives). Nothing to set: connected agents are asked to update it, and to start a
+  new session for the new action.
 
 ## v0.10.0
 

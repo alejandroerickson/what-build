@@ -387,6 +387,11 @@
   flex: 1;
   min-width: 0;
 }
+/* Fit or fill, whichever the arrows show pages with, is marked as the toolbar marks it. */
+.xc-page-pick > .btn[aria-pressed="true"] {
+  background: var(--select);
+  color: var(--select-text);
+}
 .xc-notes,
 .xc-brief {
   margin-top: var(--s-2h);

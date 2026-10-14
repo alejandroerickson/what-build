@@ -48,7 +48,7 @@ taste and design tools they may already have.
 - The web app previews the product's style and every house style on one sample page (the front
   page of a release plan, using the whole vocabulary), light or dark and at desktop or phone width,
   in the same sandbox as a Story page, and gives people the words to ask their agent for a change.
-  It never sets the style itself ([decision](agents-maintain-the-story-people-read-it.md)).
+  It never sets the style itself ([decision](agents-write-the-story-people-arrange-it.md)).
 
 ## Consequences
 

@@ -65,8 +65,8 @@ permissions and one activity log.
   searched, and the UI says so.
 - Citations snapshot the exact text; drift is reported, never repaired silently.
 - Archive is the reversible default everywhere; delete is permanent, explicit, guarded and an admin's.
-- Story pages are agent-authored, self-contained HTML shown in a sandbox. Agents write and arrange
-  the Story; people read it and export it to PDF. Pages follow the product's Story style: the
+- Story pages are agent-authored, self-contained HTML shown in a sandbox. Agents write the Story;
+  people read it, export it to PDF, and arrange, archive and delete its pages by hand. Pages follow the product's Story style: the
   company's own design system, or a house style an agent adopted for the product. Never
   WhatBuild's own look, since a Story is often read outside the team.
 - Vocabulary is fixed: source, passage, segment, outcome, mockup, assumption, Story, archive. Never "findings", "claims", "document store" or a storage path in the UI.
