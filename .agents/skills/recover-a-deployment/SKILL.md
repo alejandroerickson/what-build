@@ -27,6 +27,10 @@ file is how to conduct the work.
 
 ## Procedure
 
+A Microsoft sign-in refused with a reference is usually the app registration, not the release:
+find its log line first (the guide's step 1), and fix forward if it names a claim or a setting.
+Rolling back adds no missing claim.
+
 1. **Establish what runs.** `GET /api/v1/meta` gives the release; the platform's revision list
    gives the one before it (step 2 of the guide). Tell the person the bad and good releases.
 2. **Find out whether the bad release migrated.** Release notes, the migration job's log, or
