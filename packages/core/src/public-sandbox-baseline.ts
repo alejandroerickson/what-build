@@ -24,7 +24,7 @@ export const BASELINE_TABLES = [
   "records", "files", "file_versions", "derivations", "segments", "annotations", "agent_notes", "lineage",
   "outcomes", "insights", "revisions", "register_entries", "reviews",
   "story_pages", "story_versions", "story_hierarchies", "story_styles",
-  "mockups", "mockup_versions", "mockup_pages", "mockup_files",
+  "mockups", "mockup_versions", "mockup_pages", "mockup_files", "mockup_prototype_files",
   "activity", "tombstones",
 ] as const;
 
@@ -81,8 +81,9 @@ async function liveBlobs(trx: Db, tenantId: string): Promise<BlobRefs> {
   const exports = await trx.selectFrom("exports").select("blob_key").where("tenant_id", "=", tenantId).execute();
   const canvases = await trx.selectFrom("mockup_uploads").select("blob_key").where("tenant_id", "=", tenantId).where("uploaded_at", "is not", null).where("used_at", "is", null).execute();
   const derivations = await trx.selectFrom("derivations").select("blob_prefix").where("tenant_id", "=", tenantId).execute();
+  const prototypes = await trx.selectFrom("mockup_prototype_files").select("blob_key").distinct().where("tenant_id", "=", tenantId).execute();
   return {
-    keys: new Set([...versions, ...grants, ...exports, ...canvases].map((r) => r.blob_key).filter((k): k is string => Boolean(k))),
+    keys: new Set([...versions, ...grants, ...exports, ...canvases, ...prototypes].map((r) => r.blob_key).filter((k): k is string => Boolean(k))),
     prefixes: new Set(derivations.map((d) => d.blob_prefix)),
   };
 }
@@ -94,9 +95,9 @@ export async function baselineBlobs(trx: Db, tenantId: string, baselineIds?: str
   const r = await sql<{ table_name: string; ref: string | null }>`
     select distinct table_name, coalesce(row->>'blob_key', row->>'blob_prefix') as ref
     from sandbox_baseline_rows
-    where tenant_id = ${tenantId} and table_name in ('file_versions', 'derivations') ${only}`.execute(trx);
+    where tenant_id = ${tenantId} and table_name in ('file_versions', 'mockup_prototype_files', 'derivations') ${only}`.execute(trx);
   return {
-    keys: new Set(r.rows.filter((x) => x.table_name === "file_versions" && x.ref).map((x) => x.ref!)),
+    keys: new Set(r.rows.filter((x) => x.table_name !== "derivations" && x.ref).map((x) => x.ref!)),
     prefixes: new Set(r.rows.filter((x) => x.table_name === "derivations" && x.ref).map((x) => x.ref!)),
   };
 }

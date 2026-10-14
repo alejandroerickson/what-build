@@ -402,6 +402,19 @@
   font-size: var(--fs-sm);
 }
 
+/* Where a page enters its version's prototype: one line, the path in code. */
+.xc-entry {
+  display: flex;
+  gap: var(--s-1);
+  min-width: 0;
+  margin: var(--s-2h) 0 0;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+}
+.xc-entry code {
+  min-width: 0;
+}
+
 /* The files a version carries: a path per row, opened as text in a dialog. */
 .xc-files {
   display: grid;

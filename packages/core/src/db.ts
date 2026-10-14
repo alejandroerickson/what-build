@@ -644,7 +644,27 @@ export interface MockupPagesTable {
   notes: string;
   width: number;
   height: number;
-  html: string;
+  /** The page's own document, or null for a page that enters the version's prototype. */
+  html: string | null;
+  /** A path in the version's prototype, with a query and a fragment if wanted; null for a page with HTML of its own. */
+  entry: ColumnType<string | null, string | null | undefined, string | null>;
+  /** A prototype image the Story's print view shows for an entry page. */
+  poster: ColumnType<string | null, string | null | undefined, string | null>;
+}
+
+/** One file of a mockup version's prototype: its bytes are a blob, given back byte for byte. */
+export interface MockupPrototypeFilesTable {
+  version_id: string;
+  tenant_id: string;
+  product_id: string;
+  /** Relative, `/` between folders, NFC (prototype.ts). */
+  path: string;
+  size: number;
+  sha256: string;
+  /** Chosen once at publish from the path (prototypeMediaType). */
+  media_type: string;
+  /** t/<tenant>/p/<product>/mockup-prototypes/<upload_id>/<sha256>: ids and a hash, never the path. */
+  blob_key: string;
 }
 
 export interface StoryHierarchiesTable {
@@ -832,6 +852,7 @@ export interface DB {
   mockup_versions: MockupVersionsTable;
   mockup_pages: MockupPagesTable;
   mockup_files: MockupFilesTable;
+  mockup_prototype_files: MockupPrototypeFilesTable;
   lineage: LineageTable;
   activity: ActivityTable;
   tombstones: TombstonesTable;

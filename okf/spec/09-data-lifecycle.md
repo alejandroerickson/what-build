@@ -125,8 +125,9 @@ running on free tiers without a compliance program.
 | Pages of a parsed PDF | 2,000; a longer PDF is stored, not parsed (`too_large`) | Yes |
 | Files per source | 50 | Yes — `409 too_many_files` |
 | Story pages | 50 per product | Yes — `409 quota_exceeded`, quota `story_pages` |
-| Mockups | 50 per product, archived ones included; 24 pages and 8,000,000 characters of HTML, and 50 files and 2,000,000 characters of files, in a version | Yes — `409 quota_exceeded`, quota `mockups`; `422` for a version |
-| A mockup canvas uploaded as a ZIP | 25 MB packed, or the relay's limit when lower; 48 MB unpacked | Yes — `413 too_large`; `422 invalid_upload` past the unpacked size |
+| Mockups | 50 per product, archived ones included; 48 pages and 8,000,000 characters of HTML, and 50 files and 2,000,000 characters of files, in a version | Yes — `409 quota_exceeded`, quota `mockups`; `422` for a version |
+| A mockup's prototype | 2,000 files and 64 MB in a version, 25 MB a file; 500 MB of distinct prototype bytes per product | Yes — `422 invalid_upload`; `409 quota_exceeded`, quota `prototype_bytes` |
+| A mockup canvas uploaded as a ZIP | 25 MB packed, or the relay's limit when lower; 96 MB unpacked and 2,148 entries | Yes — `413 too_large`; `422 invalid_upload` past the unpacked size or the entries |
 | Story previews | 20 per product, each kept as long as its grant (30 minutes by default) | Yes — a new one drops the oldest, whose grant then answers `404` |
 | REST or MCP request body | 5 MB | Yes — `413 too_large` (MCP: `413` with a JSON-RPC error) |
 | Sign-in and OAuth request body | 64 KB | Yes — `413` |
@@ -186,7 +187,8 @@ most likely to be skipped under time pressure, so it is an acceptance criterion 
 is the [dev deployment](../operations/dev-deployment.md).
 
 **Object storage.** Blobs are immutable and keyed opaquely (`t/<tenant>/r/<record>/f/<file
-version>`), so nothing is ever overwritten in place ([§4.15](04-data-model.md)) — the common cause
+version>`; a mockup's prototype files by upload and hash, `t/<tenant>/p/<product>/mockup-prototypes/<upload>/<sha256>`,
+shared by the versions of one mockup and deleted with it), so nothing is ever overwritten in place ([§4.15](04-data-model.md)) — the common cause
 of "the backup has the corrupted version too" does not apply. The deployment's bucket is versioned,
 and noncurrent versions are deleted after 30 days. **Planned:** a nightly manifest of keys and
 sizes, so a restore can be checked against the database rather than hoped about.

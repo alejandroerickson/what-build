@@ -387,7 +387,12 @@ Notes on recent actions:
   descriptions state what a page may hold and what is refused, that a refused publish changes
   nothing and leaves an upload unused, and what a frame does with a page taller than its height.
   `mockups.list` returns `archived_hidden` (and a `note` when it is not zero) and
-  `quota { used, limit, unit, archived_included }`.
+  `quota { used, limit, unit, archived_included }`. A version may carry a prototype, uploaded under
+  `prototype/` in the ZIP, and a page may give `entry` (and `poster`) instead of `html`; reads give
+  the version's `prototype { file_count, bytes, base_url, expires_at, sandbox }` (with its files
+  under `include_files`) and each entry page's `prototype_url`, and `publish` answers with
+  `prototype_warnings`. `publish`'s and `request_upload`'s descriptions state that a prototype is
+  stateless, uses relative addresses and no network, and what its warnings mean.
   `mockups.get_download` gives a version as a ZIP through a grant, for an agent to build the next
   version elsewhere; `mockups.check_citations` checks a version's citations
   ([§4.12](04-data-model.md)). `mockups.get` lists the Story pages that show its pages.
@@ -445,6 +450,7 @@ GET  P/story/print?page_ids=…                        the Story print view (HTM
 GET  P/mockups/:mockup_id/versions/:version/pages/:page_id/html   a mockup page's HTML
 GET  /api/v1/downloads/mockup/:version_id            a mockup version's ZIP under a download grant
 GET  /api/v1/downloads/story-preview/:preview_id?theme=light|dark   a Story preview's HTML under its grant
+GET  /prototypes/:grant/<path>                       a mockup prototype's file; the grant in the path is the credential (§4.12)
 GET  /api/v1/meta                                    server and skill version, release, sign-in methods (public)
 GET  /api/v1/connect                                 what the Connect page shows
 GET|PATCH /api/v1/me; GET /api/v1/me/agents; DELETE /api/v1/me/agents/:family

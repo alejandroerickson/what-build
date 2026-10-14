@@ -44,6 +44,10 @@ started there loses its state at the public URL's callback.
 
 ## Constrains
 
-- A new route that machines call on any host belongs under one of the exempt prefixes.
+- A new route that machines call on any host belongs under one of the exempt prefixes. A
+  mockup's prototype (`/prototypes/`) is one: a frame moves between its documents with navigations,
+  answered where the prototype's address points; and a content site (`WHATBUILD_CONTENT_URL`) is
+  never redirected, since it serves prototypes and nothing else
+  ([decision](mockups-carry-prototypes-served-from-a-capability-path.md)).
 
 Specified in: [§2.3](../spec/02-architecture.md#23-the-shape-of-the-deployment).

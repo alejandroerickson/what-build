@@ -27,6 +27,11 @@ the names Mockups and Exploration on 2026-10-09.
   the fields and the pages it does not change.
 - Pages are untrusted, like Story pages, and shown only in the Story's sandbox
   ([decision](story-pages-are-sandboxed-agent-html.md)), without the app's theme.
+- **A version may carry a prototype**, a team's multi-file prototype as it is, and a page may be an
+  entry into it instead of a document of its own: a path to one of its HTML documents. Its files
+  are served from a capability path of their own, stateless and confined to that version
+  ([decision](mockups-carry-prototypes-served-from-a-capability-path.md)). "Prototype" names that
+  multi-file part only; it is still rejected as the name of a whole mockup (below).
 - **A mockup page has HTML rules of its own**, because a canvas holds working prototypes as well
   as screens: scripts of any number and length, and forms, whose submit handlers run and whose
   submissions go nowhere. Like a
@@ -98,15 +103,17 @@ the names Mockups and Exploration on 2026-10-09.
   `preventDefault()`. A page promoted to the Story is the mockup's page, so it keeps the mockup's
   rules and sandbox there.
 - Each version stores every page's HTML and every file in full, so a long run of versions costs
-  storage; 24 pages and 8,000,000 characters of HTML, 50 files and 2,000,000 characters of files a
-  version, and 50 mockups a product, bound it.
+  storage; 48 pages and 8,000,000 characters of HTML, 50 files and 2,000,000 characters of files a
+  version, and 50 mockups a product, bound it. A prototype's bytes are stored once per mockup by
+  hash, and bounded by its own limits.
 
 ## Constrains
 
 - Each surface's rules are one `PageRules` in `packages/core/src/html-rules.ts`; mockup HTML is
   checked by `inspectMockupHtml`, sent in a call or in an uploaded ZIP, and served only by the
   Story's sandboxed responses (`STORY_RESPONSE_HEADERS` in `packages/core/src/story-html.ts`,
-  `apps/server/src/rest.ts`); there is no looser path.
+  `apps/server/src/rest.ts`); there is no looser path for a page's own HTML. A prototype's files
+  are served by their own route, under the prototype's policy (`apps/server/src/prototype.ts`).
 - A mockup page's sandbox allows forms, so a submit handler runs; it is safe only because every
   response that serves a page says `form-action 'none'`, so no submission goes anywhere. The
   sandbox for each surface is one constant in `packages/core/src/page-sandbox.ts`, used by the

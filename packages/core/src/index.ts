@@ -35,6 +35,7 @@ export * from "./public-sandbox-baseline.ts";
 export { hashParts, inputFingerprint, isCurrent, partHash } from "./ops/lineage.ts";
 export * from "./schemas.ts";
 export * from "./story-html.ts";
+export * from "./prototype.ts";
 export * from "./story-print.ts";
 export * from "./util.ts";
 export { clientFamily, countCall, personOf, pruneUsage, usageReport, usageSettled, USAGE_PEOPLE_MONTHS, type UsageCall, type UsageOptions } from "./usage.ts";
@@ -46,11 +47,11 @@ export { createTenantWithTeam, uniqueTenantSlug } from "./ops/products.ts";
 export { isInstanceOwner, tenantAllowanceOf, type TenantAllowance } from "./tenant-allowance.ts";
 export { RESET_CONFIRMATION, sandboxNotice } from "./ops/public-sandbox.ts";
 export { PREVIEWS_KEPT, printDocument, shownHtml, STORY_PREVIEW_PURPOSE } from "./ops/story.ts";
-export { MOCKUP_UPLOAD_PURPOSE, mockupBundle, readCanvasZip } from "./ops/mockups.ts";
+export { MAX_MOCKUP_PAGES, MOCKUP_UPLOAD_PURPOSE, mockupBundle, readCanvasZip, stagedPrototypeKey, stagedPrototypeKeys } from "./ops/mockups.ts";
 export { SKILL_NAME, SKILL_VERSION, skillMarkdown } from "./ops/meta.ts";
 export { GUIDANCE_VERSION } from "./story-guidance.ts";
 export { HOUSE_STYLE_IDS, HOUSE_STYLES, houseSpecimen, houseStyle, pageDocument, specimenBody, styleSpecimen, type HouseStyle } from "./story-styles.ts";
-export { FRAME_SCRIPT, THEME_ATTRIBUTE, withStoryFrame, withStoryTheme } from "./story-theme.ts";
+export { FRAME_SCRIPT, frameScript, THEME_ATTRIBUTE, withPrototypeFrame, withStoryFrame, withStoryTheme } from "./story-theme.ts";
 export { STORY_FONTS, storyFontFaces, storyFontsNamed, withStoryFonts, type StoryFont } from "./story-fonts.ts";
 
 /** Every operation, defined once. REST routes, MCP tools and `describe` are generated from this list. */

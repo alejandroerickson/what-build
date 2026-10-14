@@ -193,6 +193,25 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   same-origin`, `X-Frame-Options: DENY`, `frame-ancestors 'none'` and `script-src 'self'`
   (`apps/server/src/public-routes.ts`).
   The print view is sandboxed and runs one nonce'd script (`packages/core/src/story-print.ts`).
+- A mockup's **prototype**, a team's multi-file prototype, is served by one route,
+  `/prototypes/<grant>/<path>` (`apps/server/src/prototype.ts`,
+  [decision](../decisions/mockups-carry-prototypes-served-from-a-capability-path.md)). The grant
+  in the path is its only authority: HMAC-signed for one tenant and one immutable version, naming no
+  account, for 8 hours. The route reads no cookie or Authorization header, sets none, never
+  redirects (a policy's path is not checked after a redirect), decodes a path part by part and looks
+  it up as a row of that version, and refuses a service worker's script. Every response carries
+  `prototypeResponseHeaders` (`packages/core/src/prototype.ts`): a CSP `sandbox` without
+  `allow-same-origin`, every source limited to the version's own address, `worker-src`,
+  `object-src` and `form-action` `'none'`, `nosniff` with a type fixed at publish from an
+  allowlist (anything else an attachment), `no-referrer`, `private, no-store`, CORP `cross-origin`
+  and `Access-Control-Allow-Origin: *` without credentials (its own loads come from an opaque
+  origin), and COEP `credentialless`. A prototype's loads carry no session: an opaque origin's
+  requests are cross-site, `credentialless` strips the credentials of the rest, and CORS ones send
+  none cross-origin. On the app's origin a prototype's document is never served at the top level
+  (`Sec-Fetch-Dest: document`), where it would stand under WhatBuild's own address, and it gets
+  no `allow-modals`; `WHATBUILD_CONTENT_URL` moves the route to a site of its own, which answers
+  nothing else. The app frames a prototype in the sandbox the server names and puts back a load
+  that is not one of its documents (each says so through the frame script).
 - Markdown becomes React elements from a lexer: no HTML from the text reaches the DOM, and only
   web, mail, fragment and same-origin links are live (`apps/web/src/lib/markdown.tsx`). A link into
   the product being read opens in place whatever origin it was written with, so a copy of a
@@ -213,9 +232,13 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   with `413`, and hashes the bytes as it streams them.
 - A mockup canvas uploaded as a ZIP comes through the relay only, under a grant of its own purpose
   (`mockup_upload`), and is refused to a visitor to the public sandbox, whose text is capped field
-  by field. Publish unpacks it with the parsers' `unzipParts`, which stops at 48 MB unpacked
-  however the archive claims its sizes, takes only the canvas's own entries, and checks every page
-  by a mockup page's rules as if it had been sent in the call (`packages/core/src/ops/mockups.ts`).
+  by field. Publish unpacks it with the parsers' `zipEntries`, which stops at 96 MB unpacked
+  however the archive claims its sizes and refuses more than 2,148 entries before inflating any;
+  publish takes only the canvas's own entries, refuses a name used twice and a symbolic link, and
+  checks every page by a mockup page's rules as if it had been sent in the call
+  (`packages/core/src/ops/mockups.ts`). A prototype's paths are normalised to NFC and refuse dot
+  parts, absolute paths, `\ : * ? " < > | #`, control characters and names that collide once case
+  is set aside (`prototypePath`); its bytes are stored under ids and their hash, never their path.
 - File paths refuse traversal, backslashes and control characters (`packages/core/src/media.ts`).
 - Parsing is a pure function of bytes, run by the worker in a worker thread of its own for each
   file, with an empty environment (`apps/server/src/parse-thread.ts`,
@@ -315,5 +338,14 @@ other's work until the reset. These trade-offs are deliberate; each names what w
 - The limit on concurrent URL fetches is counted per instance; a deployment runs one.
 - PDFs open inline on the app's origin, since browsers will not render a sandboxed PDF; serving
   page HTML and uploaded files from a separate origin is planned ([roadmap](../spec/10-roadmap.md)).
+- A prototype's address is a grant in a URL, unlike every other grant, because a frame sends no
+  header and relative addresses must carry it. It reads one immutable version, names nobody and
+  lasts 8 hours; a prototype can send its own address away (a popup may open any URL), and with it
+  only what it already holds, and the platform's request logs keep it as they keep invitation
+  links. A prototype's scripts may use `eval`, which reaches nothing their own code cannot.
+- Prototypes are served from the app's origin until a content site is set, as every Story and
+  mockup page is: a browser bug that escapes the sandbox would land on the app's origin
+  ([decision](../decisions/mockups-carry-prototypes-served-from-a-capability-path.md),
+  [roadmap](../spec/10-roadmap.md#planned--mockups-prototypes-next)).
 - Files are parsed one at a time, each for at most the parse time limit, so one person's uploads
   can delay another's parsing; a budget per sandbox visitor is planned ([roadmap](../spec/10-roadmap.md)).

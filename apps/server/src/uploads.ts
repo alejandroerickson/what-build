@@ -141,7 +141,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       const claims = env.ports.grants.verify(c.req.header(DOWNLOAD_GRANT_HEADER) ?? "");
       if (!claims || claims["purpose"] !== "mockup" || claims["xv"] !== c.req.param("version_id"))
         throw new AppError(401, "invalid_grant", "The download grant is missing, invalid or expired. Request a new one with mockups(action=\"get_download\").");
-      const bundle = await inTenant(env, String(claims["t"]), (trx) => mockupBundle(trx, c.req.param("version_id")));
+      const bundle = await inTenant(env, String(claims["t"]), (trx) => mockupBundle(trx, c.req.param("version_id"), env.ports.blobs));
       if (!bundle) throw notFound("That mockup version no longer exists.");
       return c.body(bundle.bytes as unknown as ArrayBuffer, 200, {
         "Content-Type": "application/zip",

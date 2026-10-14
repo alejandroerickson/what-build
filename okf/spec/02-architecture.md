@@ -117,6 +117,15 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
   redirected when the public URL is a loopback address. `WHATBUILD_REDIRECT_TO_PUBLIC_URL=0` turns
   it off, for a proxy that sends its own host name and no `X-Forwarded-Host`
   ([decision](../decisions/the-app-has-one-address-and-pages-on-other-hosts-move-to-it.md)).
+- **Prototypes from a capability path, on the app's origin or a content site.** A mockup's
+  prototype is served by one route, `/prototypes/<grant>/<path>`, whose grant names one mockup
+  version and no account, in an opaque origin confined to that address
+  ([§4.12](04-data-model.md#412-mockups),
+  [decision](../decisions/mockups-carry-prototypes-served-from-a-capability-path.md)). The route
+  is never redirected to the public URL. `WHATBUILD_CONTENT_URL` (an origin on another registrable
+  domain than the app's, such as `https://usercontent.example.net`) moves it to a host of its own,
+  which answers nothing else, and the app's `frame-src` names it; unset, prototypes are served from
+  the app's origin. `WHATBUILD_PROTOTYPE_GRANT_HOURS` (8) is how long an address lasts.
 - **One upload path for everyone.** An upload grant always points at the service's own relay
   (at most 25 MiB, under Cloud Run's 32 MiB request cap), because agents' sandboxes often cannot
   reach the object store. When the bucket can sign URLs (`WHATBUILD_GCS_SIGNED_URLS=1`), the grant

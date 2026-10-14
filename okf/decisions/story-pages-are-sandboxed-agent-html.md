@@ -23,6 +23,9 @@ Stakeholder pages benefit from rich layout that agents can write, but that HTML 
 - App pages send `Cross-Origin-Opener-Policy: same-origin`, so a page cannot keep a handle to an app tab it opened and later send it elsewhere.
 - Each publish is a new version; the page tree has its own etag; each page keeps notes for agents ([decision](story-notes-are-agent-memory.md)).
 - A preview of a publish is checked by the same code and served in the same sandbox, under a grant, before any version exists ([decision](a-story-preview-is-the-document-publish-would-store.md)).
+- A mockup's prototype, a team's multi-file prototype, is served by a route of its own under a
+  capability path, in the same opaque origin with no network beyond its own files, and the frame
+  script goes into each of its documents ([decision](mockups-carry-prototypes-served-from-a-capability-path.md)).
 - Mockup pages are untrusted in the same way and shown in the same sandbox, without the app's theme, under HTML rules of their own: scripts without a budget, and forms. Their sandbox alone adds `allow-forms`, so a prototype's submit handler runs ([decision](mockups-are-versioned-canvases-in-exploration.md)).
 - The rules at publish help authors; the sandbox is the boundary. A page's script budget bounds no capability (a few lines of script can do anything a long one can inside the sandbox), and every response that serves a page says `form-action 'none'`, so no form submission goes anywhere, from either surface, whether the sandbox allows forms or not.
 

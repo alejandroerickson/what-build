@@ -56,6 +56,7 @@ export function StoryFrame({
   home,
   onPage,
   size,
+  prototype,
 }: {
   title: string;
   scheme: "light" | "dark";
@@ -66,6 +67,12 @@ export function StoryFrame({
   onPage?: (pageId: string) => void;
   /** A mockup page's own size: the frame keeps it, scaled down to the room there is, never up, in a mockup page's sandbox. */
   size?: { width: number; height: number };
+  /**
+   * Set when the page is an entry into a mockup's prototype: src is the entry's own address, and
+   * the frame takes the sandbox the server names. The prototype's documents move inside the frame,
+   * each saying it has loaded; a load that does not say so within a moment is put back.
+   */
+  prototype?: { sandbox: string } | null;
 }) {
   const [loaded, setLoaded] = useState(false);
   const [room, setRoom] = useState(0);
@@ -83,19 +90,45 @@ export function StoryFrame({
   const [reloads, setReloads] = useState(0);
   const [replaced, setReplaced] = useState(false);
   const loads = useRef(0);
+  const ready = useRef(false);
+  const waiting = useRef<ReturnType<typeof setTimeout> | null>(null);
   const frame = useRef<HTMLIFrameElement>(null);
+  // The sandboxed page has an opaque origin, so the message cannot be addressed to one.
+  const hello = () => {
+    if (storyBase && onPage) frame.current?.contentWindow?.postMessage({ whatbuild: "story-base", base: storyBase }, "*");
+    if (home) frame.current?.contentWindow?.postMessage({ whatbuild: "app-home", home }, "*");
+  };
+  const helloRef = useRef(hello);
+  helloRef.current = hello;
+  const putBack = () => {
+    ready.current = false;
+    loads.current = 0;
+    setReplaced(true);
+    setReloads((n) => n + 1);
+  };
+  useEffect(() => () => {
+    if (waiting.current) clearTimeout(waiting.current);
+  }, []);
 
   useEffect(() => {
-    if (!onKey && !onPage) return;
+    if (!onKey && !onPage && !prototype) return;
     const handle = (e: MessageEvent) => {
       if (e.source !== frame.current?.contentWindow) return;
       const data = e.data as { whatbuild?: unknown; key?: unknown; page?: unknown } | null;
+      if (data?.whatbuild === "frame-ready" && prototype) {
+        if (waiting.current) {
+          clearTimeout(waiting.current);
+          waiting.current = null;
+          helloRef.current();
+        } else ready.current = true;
+        return;
+      }
       if (data?.whatbuild === "story-key" && FRAME_KEYS.includes(data.key)) onKey?.(data.key as StoryKey);
       if (data?.whatbuild === "story-page" && typeof data.page === "string" && PAGE_SLUG.test(data.page)) onPage?.(data.page);
     };
     window.addEventListener("message", handle);
     return () => window.removeEventListener("message", handle);
-  }, [onKey, onPage]);
+  }, [onKey, onPage, prototype]);
 
   const page = (
     <iframe
@@ -104,21 +137,28 @@ export function StoryFrame({
       title={title}
       className={size ? "story-frame-mockup" : "story-frame"}
       style={size ? { width: size.width, height: size.height, transform: `scale(${scale})` } : { colorScheme: scheme }}
-      sandbox={size ? MOCKUP_PAGE_SANDBOX : STORY_PAGE_SANDBOX}
+      sandbox={prototype?.sandbox ?? (size ? MOCKUP_PAGE_SANDBOX : STORY_PAGE_SANDBOX)}
       referrerPolicy="no-referrer"
-      src={`${src}${src.includes("?") ? "&" : "?"}frame=1`}
+      src={prototype ? src : `${src}${src.includes("?") ? "&" : "?"}frame=1`}
       onLoad={() => {
+        if (prototype) {
+          setLoaded(true);
+          if (ready.current) {
+            ready.current = false;
+            hello();
+          } else waiting.current = setTimeout(() => {
+            waiting.current = null;
+            putBack();
+          }, 1500);
+          return;
+        }
         loads.current += 1;
         if (loads.current > 1) {
-          loads.current = 0;
-          setReplaced(true);
-          setReloads((n) => n + 1);
+          putBack();
           return;
         }
         setLoaded(true);
-        // The sandboxed page has an opaque origin, so the message cannot be addressed to one.
-        if (storyBase && onPage) frame.current?.contentWindow?.postMessage({ whatbuild: "story-base", base: storyBase }, "*");
-        if (home) frame.current?.contentWindow?.postMessage({ whatbuild: "app-home", home }, "*");
+        hello();
       }}
     />
   );
@@ -337,8 +377,9 @@ export function StoryPage() {
               key={`${pageId}:${shown.version}:${scheme}`}
               title={shown.title}
               scheme={scheme}
-              src={`${base}/story/pages/${pageId}/versions/${shown.version}/html${shown.mockup ? "" : `?theme=${scheme}`}`}
+              src={shown.mockup?.prototype_url ?? `${base}/story/pages/${pageId}/versions/${shown.version}/html${shown.mockup ? "" : `?theme=${scheme}`}`}
               size={shown.mockup ? { width: shown.mockup.width, height: shown.mockup.height } : undefined}
+              prototype={shown.mockup?.prototype_url && shown.mockup.prototype_sandbox ? { sandbox: shown.mockup.prototype_sandbox } : null}
               onKey={onFrameKey}
               storyBase={`${window.location.origin}${app}/story/`}
               home={`${window.location.origin}${app}`}

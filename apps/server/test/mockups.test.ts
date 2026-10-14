@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { inspectMockupHtml, inspectStoryHtml, MOCKUP_PAGE_RULES, MOCKUP_PAGE_SANDBOX, MOCKUP_RESPONSE_HEADERS, STORY_PAGE_RULES, STORY_PAGE_SANDBOX, STORY_RESPONSE_HEADERS } from "@whatbuild/core";
+import { inspectMockupHtml, inspectStoryHtml, MOCKUP_PAGE_RULES, MOCKUP_PAGE_SANDBOX, MOCKUP_RESPONSE_HEADERS, prototypeSandbox, STORY_PAGE_RULES, STORY_PAGE_SANDBOX, STORY_RESPONSE_HEADERS } from "@whatbuild/core";
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -754,10 +754,13 @@ describe("a working prototype on a canvas", () => {
     expect(STORY_PAGE_SANDBOX).toBe("allow-scripts allow-popups allow-popups-to-escape-sandbox");
     expect(MOCKUP_PAGE_SANDBOX).toBe("allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox");
     expect(MOCKUP_RESPONSE_HEADERS["Content-Security-Policy"]).toBe(STORY_RESPONSE_HEADERS["Content-Security-Policy"]!.replace(STORY_PAGE_SANDBOX, MOCKUP_PAGE_SANDBOX));
-    // The app's frames take the same constants, never a sandbox written out.
+    // The app's frames take the same constants, never a sandbox written out; a frame that enters a
+    // prototype takes the sandbox the server names for it (prototypeSandbox), which its responses carry.
+    expect(prototypeSandbox(false)).toBe(MOCKUP_PAGE_SANDBOX);
+    expect(prototypeSandbox(true)).toBe(`${MOCKUP_PAGE_SANDBOX} allow-modals`);
     const frames: Record<string, string[]> = {
-      "mockups.tsx": ["sandbox={MOCKUP_PAGE_SANDBOX}"],
-      "story.tsx": ["sandbox={size ? MOCKUP_PAGE_SANDBOX : STORY_PAGE_SANDBOX}"],
+      "mockups.tsx": ["sandbox={prototype?.sandbox ?? MOCKUP_PAGE_SANDBOX}"],
+      "story.tsx": ["sandbox={prototype?.sandbox ?? (size ? MOCKUP_PAGE_SANDBOX : STORY_PAGE_SANDBOX)}"],
       "story-style.tsx": ["sandbox={STORY_PAGE_SANDBOX}"],
     };
     for (const [file, uses] of Object.entries(frames)) {

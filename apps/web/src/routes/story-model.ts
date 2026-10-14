@@ -151,6 +151,11 @@ export interface VersionView {
 export interface MockupShown {
   width: number;
   height: number;
+  /** For an entry into the mockup version's prototype: the entry, the frame's address and the sandbox it takes. */
+  entry?: string;
+  prototype_url?: string;
+  prototype_sandbox?: string;
+  prototype_expires_at?: string;
   mockup_id?: string;
   mockup_title?: string | null;
   version?: number;

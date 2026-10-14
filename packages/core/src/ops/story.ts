@@ -6,6 +6,8 @@ import { json, type Db, type MockupPageRef, type Refs, type StoryNode } from "..
 import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
 import { conflict, invalid, notFound } from "../errors.ts";
 import { readsOnlyTheStory } from "../policy.ts";
+import type { BlobStore } from "../ports.ts";
+import { entryAddress, prototypeAddress, prototypeNotice } from "../prototype.ts";
 import { refuseVisitorWrite } from "../public-sandbox.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag, id } from "../schemas.ts";
@@ -282,18 +284,37 @@ export async function resolveRefs(ctx: OpContext, refs: Refs): Promise<Record<ke
 
 /**
  * The HTML a version shows: its own, or the page of a mockup version it points at. Mockup versions
- * are immutable, so the Story holds the reference and never a copy.
+ * are immutable, so the Story holds the reference and never a copy. A mockup page that enters its
+ * version's prototype has no HTML of its own: the app frames the entry, and anywhere else that needs
+ * HTML gets a notice, with the page's poster when `blobs` is given to read it.
  */
-export async function shownHtml(db: Db, v: { html: string; mockup: MockupPageRef | null }): Promise<string> {
+export async function shownHtml(db: Db, v: { html: string; mockup: MockupPageRef | null }, blobs?: BlobStore): Promise<string> {
   if (!v.mockup) return v.html;
-  const p = await db.selectFrom("mockup_pages").select("html").where("version_id", "=", v.mockup.mockup_version_id).where("page_id", "=", v.mockup.page_id).executeTakeFirst();
+  const p = await db.selectFrom("mockup_pages").select(["html", "entry", "poster"]).where("version_id", "=", v.mockup.mockup_version_id).where("page_id", "=", v.mockup.page_id).executeTakeFirst();
+  if (p && p.html === null) {
+    const poster = blobs && p.poster
+      ? await db.selectFrom("mockup_prototype_files").select(["media_type", "blob_key"]).where("version_id", "=", v.mockup.mockup_version_id).where("path", "=", p.poster).executeTakeFirst()
+      : null;
+    return prototypeNotice(poster ? { media_type: poster.media_type, data: await blobs!.get(poster.blob_key) } : null);
+  }
   return p?.html ?? "";
 }
 
-/** What a reader needs to lay out a mockup page (its size); the team also sees which mockup and version it is. */
+/**
+ * What a reader needs to lay out a mockup page (its size) and, for an entry into a prototype, the
+ * address its frame opens: a reader reaches that version's whole prototype, which is what the
+ * prototype is, and nothing else of the mockup. The team also sees which mockup and version it is.
+ */
 async function mockupView(ctx: OpContext, ref: MockupPageRef) {
-  const page = await ctx.db.selectFrom("mockup_pages").select(["title", "width", "height"]).where("version_id", "=", ref.mockup_version_id).where("page_id", "=", ref.page_id).executeTakeFirst();
-  const size = { width: page?.width ?? 1280, height: page?.height ?? 800 };
+  const page = await ctx.db.selectFrom("mockup_pages").select(["title", "width", "height", "entry"]).where("version_id", "=", ref.mockup_version_id).where("page_id", "=", ref.page_id).executeTakeFirst();
+  const address = page?.entry ? prototypeAddress(ctx.ports, tenantId(ctx), ref.mockup_version_id, ctx.now) : null;
+  const size = {
+    width: page?.width ?? 1280,
+    height: page?.height ?? 800,
+    ...(address && page?.entry
+      ? { entry: page.entry, prototype_url: `${address.base_url}${entryAddress(page.entry)}`, prototype_sandbox: address.sandbox, prototype_expires_at: address.expires_at }
+      : {}),
+  };
   if (readsOnlyTheStory(ctx.scope.role)) return size;
   const m = await ctx.db.selectFrom("mockups").select(["title", "version_count", "archived_at"]).where("product_id", "=", productId(ctx)).where("mockup_id", "=", ref.mockup_id).executeTakeFirst();
   return {
@@ -1043,7 +1064,7 @@ async function printPages(ctx: OpContext, ids: string[]) {
   const pages = [];
   for (const slot of order) {
     const r = rows.find((x) => x.page_id === slot.page_id)!;
-    pages.push({ page_id: r.page_id, title: r.title, version: r.n, published_at: r.created_at, archived: Boolean(r.archived_at), depth: slot.depth, level: slot.level, html: await shownHtml(ctx.db, r) });
+    pages.push({ page_id: r.page_id, title: r.title, version: r.n, published_at: r.created_at, archived: Boolean(r.archived_at), depth: slot.depth, level: slot.level, html: await shownHtml(ctx.db, r, ctx.ports.blobs) });
   }
   return pages;
 }

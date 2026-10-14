@@ -194,10 +194,13 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
       add(`${dir}/version.json`, j({ ...meta, pages: pages.map(({ html, notes, ...p }) => (void html, void notes, p)) }));
       add(`${dir}/brief.md`, brief);
       for (const p of pages) {
-        add(`${dir}/pages/${p.page_id}.html`, p.html);
+        // A page that enters the prototype has no HTML of its own; version.json gives its entry.
+        if (p.html !== null) add(`${dir}/pages/${p.page_id}.html`, p.html);
         add(`${dir}/pages/${p.page_id}.notes.md`, p.notes);
       }
       for (const x of await db.selectFrom("mockup_files").select(["path", "content"]).where("version_id", "=", v.version_id).orderBy(sql`path collate "C"`).execute()) add(`${dir}/files/${x.path}`, x.content);
+      for (const r of await db.selectFrom("mockup_prototype_files").select(["path", "blob_key"]).where("version_id", "=", v.version_id).orderBy(sql`path collate "C"`).execute())
+        add(`${dir}/prototype/${r.path}`, await ports.blobs.get(r.blob_key));
     }
   }
   add("tombstones.json", j(await db.selectFrom("tombstones").selectAll().where("product_id", "=", pid).execute()));
@@ -208,6 +211,7 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
     `WhatBuild product bundle: ${product.name} (${tenant.name} / ${team.name}).\n\n` +
       "Everything is plain files: JSON for structured data, Markdown for parsed text and mockup briefs and notes,\n" +
       "HTML for Story versions and mockup pages (a Story version that shows a mockup page names it in its JSON),\n" +
+      "each mockup version's prototype under mockups/<id>/v<n>/prototype/ as it was uploaded,\n" +
       "and every stored version of every source file under records/<id>/files/. Offsets in segments.jsonl are Unicode\n" +
       "code points into the text.md beside it.\n",
   );

@@ -22,7 +22,7 @@ Observed in the code on this date.
 | 1 | Done | registry → REST and MCP (128 operations, 126 of them offered to agents; 16 tools); row-level security in the first migration; ETags; paging; `describe`; activity in the same transaction; the isolation test over every operation; the parity test | — |
 | 2 | Mostly done | upload grants (relay, optional direct signed URLs); parsers for plain text, Markdown, VTT, SRT, HTML, DOCX, legacy Word `.doc`, PDF, XLSX, CSV and TSV; derivation on the Postgres queue, each file parsed in a thread of its own held to a memory and a time limit; hostile-file tests; sources described by a title and tags, with `sources.facets` (the tags in use and who added sources); passages by segment and time; substring and ranked search with coverage, and plain search over everything in a product; archive and restore; guarded delete, for admins, of sources, comments, assumptions, outcomes, Story pages, mockups and whole products, with tombstones; a synthetic sample product in the seed | usage metering; golden-file tests per format; a blob-store conformance suite (no test exercises the Cloud Storage adapter), then `@google-cloud/storage` 8, which retires the uuid advisory accepted in `.github/osv-scanner.toml`; a fast-saved Word 6 or Word 95 `.doc`, and Word 6 tables beyond what cell marks show; the parse limits measured on the deployment's own Linux under its memory limit; a budget of parse time per sandbox visitor or organization |
 | 3 | Mostly done | tenants, teams, products, roles; email-link, Google, Microsoft work-account and development sign-in; invitations by email and link; the Story-only reader role; invite-only mode; who may create organizations (instance owners, and allowances they give); sign-in link rate limit; the [public sandbox](#the-public-sandbox) with its invitations, seats, visitor role and limits; deleting an organization (its owners, in the web app) | quotas and rate limits for every organization (they exist for visitors to the sandbox, and for Story pages and mockups); account deletion; archiving and deleting a team; an invitation that is still made, with its link to pass on, when its email cannot be sent (a failed send now fails the invitation) |
-| 4 | Mostly done | the design system (Studio, [DESIGN.md](../../DESIGN.md)) across every screen of the loop: Idea, search over the whole product (the ⌘K palette with recent searches, and the Search screen by area); Evidence (browse by tag and by who added; intake that asks for a title and tags; the source page with sections and inspector, passage reader, notes, files, search), Exploration (mockups on a full-width canvas that pans and zooms, with a page's notes, the brief, versions and download in the inspector, and a page promoted to the Story from there; assumptions with review, confidence and citation checks; old Synthesis, insight and decision links redirect), outcome revision history, Story (a read-only reader with the page tree, the published mockups to flip through with the arrow keys, crumbs, focus mode, the inspector with versions, citations and notes for agents, the Story style with house-style previews, the print view for PDF, the page following the app's theme), Activity as one log for people and agents, organization members, product people, Connect an agent, the person's settings, the cookie choice and `/cookies` | an accessibility audit; on a touch screen, pinching or dragging the mockup canvas from a page in interact mode (the page keeps the touch); a browser walk-through of the loop in CI (`scripts/e2e.mjs` is one, run by hand; the [end-to-end plans](../operations/end-to-end-tests.md) are run by an agent on request); the public sample at `/sample` |
+| 4 | Mostly done | the design system (Studio, [DESIGN.md](../../DESIGN.md)) across every screen of the loop: Idea, search over the whole product (the ⌘K palette with recent searches, and the Search screen by area); Evidence (browse by tag and by who added; intake that asks for a title and tags; the source page with sections and inspector, passage reader, notes, files, search), Exploration (mockups on a full-width canvas that pans and zooms, with a page's notes, the brief, versions and download in the inspector, pages that enter a team's multi-file prototype as it is, and a page promoted to the Story from there; assumptions with review, confidence and citation checks; old Synthesis, insight and decision links redirect), outcome revision history, Story (a read-only reader with the page tree, the published mockups to flip through with the arrow keys, crumbs, focus mode, the inspector with versions, citations and notes for agents, the Story style with house-style previews, the print view for PDF, the page following the app's theme), Activity as one log for people and agents, organization members, product people, Connect an agent, the person's settings, the cookie choice and `/cookies` | an accessibility audit; on a touch screen, pinching or dragging the mockup canvas from a page in interact mode (the page keeps the touch); a browser walk-through of the loop in CI (`scripts/e2e.mjs` is one, run by hand; the [end-to-end plans](../operations/end-to-end-tests.md) are run by an agent on request); the public sample at `/sample` |
 | 5 | Mostly done | OAuth 2.1 for MCP, MCP connectors scoped to one organization or one product that refuse anything outside them, a level on each agent connection (Read only, Edit or Admin) that caps what it may do and the actions it is offered, the versioned skill, `get_skill` and the version in the server instructions, the Connect an agent page, feedback, the product's Story style (the team's design system or a house style), Story guidance with taste, anti-patterns and design passes, a vocabulary and compositions for plans and front pages, publishing a page from its body, and previewing a publish to look at the exact page first | the stdio transport |
 | 6 | Started | the Cloud Run deployment ([cloud-run.md](../operations/cloud-run.md)) and the Cloud Build file, run by a trigger on release tags that waits for approval ([decision](../decisions/production-runs-releases-after-approval.md)); releases as tags that publish the image to the GitHub container registry ([decision](../decisions/releases-are-tags-with-a-published-image.md)); product export (`products.export`); a sandbox's baseline and reset; the public site with its interest form, served from Cloudflare's edge or by host; the service capped at one instance; running on a free-tier Postgres (the suite passes against 18) with a nightly logical backup to a bucket, set up by hand, and its runbook ([backups.md](../operations/backups.md)); a dev deployment holding a copy of production, where a release that migrates is rehearsed before production moves ([dev-deployment.md](../operations/dev-deployment.md)); copies of production that hold only the public sandbox or the organizations named, for the local copy, the golden master, the dev deployment or another deployment's new database ([copying-an-organization.md](../operations/copying-an-organization.md)); production's mail, sent through Cloudflare Email Sending ([mail.md](../operations/mail.md)); instructions for an agent to self-host on Azure ([below](#self-hosting-on-azure)) | a rehearsed restore; import; organization export; adding a copied organization to a database that already holds others, matching its people to accounts there by address; `setup.sh` creating the Cloud Build trigger (made by hand, so a deployment without one deploys nothing on a release); [undelete](#planned--undelete); the sub-processors page; abuse tests beyond hostile uploads and isolation; limits per client address, once the Worker passes the client's address in a header the service can trust (until then the limit on agent registrations is shared by the whole deployment); Postgres 18 in CI and the embedded test server; `setup.sh` creating the nightly backup; a cap on bytes served per member a day |
 
@@ -205,119 +205,21 @@ from the [security checks](../operations/security-checks.md).
 | Item | What it answers |
 |---|---|
 | Uploaded HTML previewed from a sandboxed route | The uploaded-HTML preview inherits the app's content security policy, so the app keeps `style-src 'unsafe-inline'` for it. Serving the preview from its own sandboxed route, as Story pages are, would let the app's policy drop it, and the ZAP rule for directives without a fallback (10055) become a failure. |
-| Story and mockup HTML, and uploaded files, from a separate origin | The sandbox gives each page an opaque origin and no network. Serving page HTML from its own origin through short-lived signed addresses would keep a page that escaped the sandbox away from the app's origin too, and would let PDFs, which browsers will not render sandboxed, open away from it as well. It needs a second host name and a domain mapping. A mockup's prototype bundle would move there by a setting ([below](#planned--prototype-bundles-in-mockups)). |
+| Story and mockup HTML, and uploaded files, from a separate origin | The sandbox gives each page an opaque origin and no network. Serving page HTML from its own origin through short-lived signed addresses would keep a page that escaped the sandbox away from the app's origin too, and would let PDFs, which browsers will not render sandboxed, open away from it as well. It needs a second host name and a domain mapping. A mockup's prototype is already served from a capability path, and moves to a content site by a setting ([below](#planned--mockups-prototypes-next)). |
 
-## Planned — Prototype bundles in mockups
+## Planned — Mockups' prototypes, next
 
-**Planned; not built.** A mockup version may carry a team's prototype as it is, and canvas pages
-enter it ([draft decision](../decisions/mockups-carry-prototype-bundles-served-from-a-capability-path.md)).
-What follows is the design the build starts from; [§4.12](04-data-model.md#412-mockups) and
-[§7.7](07-web-app.md#77-exploration) take it over once built.
+**Planned; not built.** A mockup version carries a team's multi-file prototype as it is, served
+from a capability path on the app's origin ([§4.12](04-data-model.md#412-mockups),
+[decision](../decisions/mockups-carry-prototypes-served-from-a-capability-path.md)). These follow.
 
-**Data.** One forward-only migration, after any the mockup HTML rules add:
-
-- `mockup_pages.entry` and `mockup_pages.poster` (text, null); `html` becomes nullable, and a check
-  holds that a page has exactly one of `html` and `entry`.
-- `mockup_bundle_files (version_id, tenant_id, product_id, path, size, sha256, media_type,
-  blob_key)`, keyed by `(version_id, path)`, with the row-level security policy and an index on
-  `(tenant_id, blob_key)`. A version's bundle is its rows; carrying it forward copies rows.
-- Blobs at `t/<tenant>/p/<product>/mockup-bundles/<upload_id>/<sha256>`, through the blob port
-  (Cloud Storage, or the filesystem adapter on a disk or the Azure file share). A file whose hash a
-  file of the base version has takes that file's key and stores nothing, so every blob belongs to
-  one mockup and goes with it. Keys hold ids and hashes only, never a bundle's paths.
-
-**Upload.** The canvas ZIP gains `bundle/<path>`; manifest format version 2, and version 1 still
-reads. A manifest page may give `entry` (a bundle HTML path, then `?query` and `#fragment` if
-wanted, at most 500 characters past the path) and `poster` (a bundle image). A `bundle` list in
-the manifest, `[{path, sha256?}]`, is the whole set, a listed path missing from `bundle/` keeping
-the base's bytes (and its hash, if given, must match); without a list, the files under `bundle/`
-are the whole set; with neither, the base's bundle carries forward; `"bundle": []` drops it. An
-entry must name an HTML file of the version's bundle. Paths are relative and `/`-separated,
-normalised to NFC (a macOS ZIP's names arrive decomposed), at most 400 characters and 16 folders
-deep, with no empty, `.` or `..` part and none of `\ : * ? " < > |` or a control character; two
-paths equal without case, or once normalised, are refused. The archive must name each entry once
-(today the last of two wins), hold no symbolic link and no encrypted entry, and use stored or
-deflated entries. It is read one entry at a time and each written to the store as it comes, within
-the unpacked budget, so memory holds the ZIP and one entry. Publish answers with `bundle_warnings`:
-root-relative and remote addresses in HTML and CSS, which will not load. The download has the same
-layout, its manifest listing each bundle file's size, hash and type, and uploading it again stores
-nothing new.
-
-**Limits**, first guesses against a 1 GiB instance: 2,000 files and 64 MB in a bundle, 25 MB a
-file, 96 MB unpacked for the whole ZIP (still 25 MB packed through the relay); 48 pages on a canvas
-(from 24, for prototypes with many routes); 500 MB of distinct bundle bytes in a product
-(`409 quota_exceeded`, quota `mockup_bundle_bytes`) until stored bytes are counted against the
-organization's 1 GB ([§9.2](09-data-lifecycle.md)).
-
-**Serving.** `GET` and `HEAD /bundles/<grant>/<path>`, answered by one route with the headers the
-decision lists. An empty path or one ending in `/` serves its `index.html`; a path is
-percent-decoded strictly, and an encoded `/`, `\`, NUL or dot segment is `404`; `Range` works for
-media; a request with `Sec-Fetch-Dest: document` on the app's origin and one with a
-`Service-Worker` header are `403`. Types by extension: HTML, CSS, JavaScript (`js`, `mjs`), JSON
-and source maps, SVG, PNG, JPEG, GIF, WebP, AVIF, ICO, WOFF, WOFF2, TTF, OTF, MP4, WebM, Ogg,
-MP3, WAV, M4A, WebVTT, PDF; `txt`, `csv`, `md`, `xml`, `xhtml` and `xsl` as `text/plain`;
-`charset=utf-8` only on text that is valid UTF-8; anything else `application/octet-stream` as an
-attachment. HTML gets the frame script on the way out, never in storage. The grant lasts
-`WHATBUILD_BUNDLE_GRANT_HOURS` (8), its expiry rounded up to the hour. The server's log line reads
-`/bundles/:grant/…`; the platform's request logs keep the address, as they keep invitation links.
-`WHATBUILD_CONTENT_URL`, when set, is the only host the route answers on; the app's `frame-src`
-names it, and the frames there may open a document at the top level and show dialogs. Locally,
-`http://127.0.0.1:<api port>` is a site apart from `http://localhost:<web port>`.
-
-**Web app.** A frame's address is the bundle's address and the page's entry, kept until the page
-is shown again, and fetched afresh when the tab returns within the grant's last hour. The frame
-adds `allow-forms` (and `allow-modals` on a content site), so a form's own script runs while
-`form-action 'none'` keeps it off the network. Each document that loads says so through the frame
-script, and the app sends it the canvas's messages again; a load that does not within a second is
-put back. A link within the bundle navigates in place, on the app's origin even one with a target,
-which would open a refused top-level document.
-Pan and interact work as now; keys pass from the bundle's top documents, not from its own iframes.
-The inspector gains **Bundle**: its files, size and types, and the selected page's entry. The
-Story's frame shows a promoted entry at its page's size; the print view shows its poster, or says it
-is a prototype to open in WhatBuild.
-
-**Lifecycle.** Deleting a mockup removes its bundle rows and queues its blob keys through
-`blobsSafeToDelete`, so a sandbox baseline keeps what it holds; `public-sandbox-baseline.ts` adds
-the table to the blobs live rows refer to; an upload never published takes its staged prefix with
-it when the worker discards it; delete impact counts bundle files and bytes. Copying an
-organization takes the rows and the `t/<tenant>/` blobs as it does now. The product export writes
-`mockups/<mockup_id>/v<n>/bundle/<path>`. Backups change nothing: blobs are create-only, under the
-bucket's versions or the file share's snapshots. The skill tells agents to build with a relative
-base, use no network, and keep state out of browser storage.
-
-**Out of scope.** Server code, rewrites (a deep path of an app that routes with history needs its
-entry document first), root-relative addresses, the network, service and web workers,
-WebAssembly, lasting browser storage, a bundle that frames another mockup, editing bundle files in
-the app, searching them, and visitors adding them.
-
-**Tests.** In `apps/server/test/`: each archive refusal (traversal, absolute and drive paths,
-backslashes, duplicates, case and NFC/NFD collisions, symbolic links, encryption, a ZIP bomb
-stopped at the budget, too many entries, a file too large); entry rules, carry-forward, the
-`bundle` list, the hash check and blobs reused by hash; limits, etags, roles and the visitor's
-refusal; a download whose every file has its upload's hash, uploaded again with no new blob;
-every response's headers, unknown types, the grant's purpose, expiry, tampering and version
-binding; encoded traversal; `Sec-Fetch-Dest: document`, `Service-Worker` and methods other than
-GET and HEAD refused; a request with another tenant's session cookie served exactly what the grant
-names, and one with a cookie and no grant refused; a deleted mockup's files gone at once; a reader
-given an address only for a live promoted page; sandbox reset, organization copy and export
-holding bundles; the log line masked. In the browser (`scripts/e2e.mjs`), on a synthetic bundle
-of three documents: a module and a classic script, CSS with a relative font and image, a JSON
-fixture fetched, a PDF fixture linked, an iframe of another of its documents, a form handled by
-script, and storage in use; every file loads, links move in place without a put-back, a link off
-the bundle is put back, keys pass from each document, nothing submits, a top-level open is
-refused, no load carries the session cookie, the nested frame loads, and a canvas of 25 entries is
-timed.
-
-**Open questions**, each with a default:
-
-| Question | Default |
+| Item | What it answers |
 |---|---|
-| A content site: register a domain apart from what-build.com now, or later? | Later; the route serves from the app's origin, and the setting is ready. |
-| A reader reaches the promoted version's whole bundle, not one page. | Yes: the prototype is the page. |
-| Stand-ins in the frame script for `localStorage`, `sessionStorage` and `document.cookie`, kept in the frame's `window.name` so state crosses the bundle's documents in one frame. | Built, in the frame only, gone when the frame reloads. |
-| One subdomain of a content site per view, with `allow-same-origin`, so storage, caching and root-relative addresses work. | Not until a content site exists. |
-| A canvas of many entries at a small zoom: posters in place of frames? | Frames load lazily, as now; decide on the 25-entry timing. |
-| "Bundle" also names a product's export ([§4.14](04-data-model.md#414-the-product-bundle)). | "A mockup's bundle" in prose, `bundle/` in the ZIP. |
+| A content site for production | `WHATBUILD_CONTENT_URL` serves prototypes from a host of their own, and the code is built and tested; production has none yet. It needs a domain apart from what-build.com (a subdomain would be the same site, and send its cookies), a domain mapping or the Cloudflare Worker in front, and a line in [cloud-run.md](../operations/cloud-run.md) and [azure.md](../operations/azure.md). There a prototype's document may open in a tab of its own and show `alert`, `confirm` and `prompt`, and a browser bug that escapes the sandbox lands on a host with nothing of the app's. The maintainer chose on 2026-10-14 to register it later. |
+| One subdomain of the content site per view, with `allow-same-origin` | A prototype runs in an opaque origin: no browser storage or cookies, root-relative addresses that point outside it, and nothing a browser caches between its frames. An origin of its own per view (`<id>.usercontent.example.net`) would give it all three while keeping it from the app and from other prototypes. It needs wildcard DNS and a wildcard certificate, which a Cloud Run domain mapping does not take (a load balancer or the Worker would), and a revisited stateless rule. |
+| Posters in place of frames at a small zoom | A canvas of many entries loads every one of them in a frame, each fetching every file it uses. Showing a page's poster until the person zooms in, or selects it, would load only what is looked at. |
+| The bytes of an unpublished upload, on a sandbox's reset and a product's delete | A publish that failed after storing a prototype's new bytes leaves them under the upload, which the worker removes with the upload a day after its grant expires. A reset or a product's delete drops the upload's row first, and those bytes then stay. |
+| A PDF a prototype links to | On the app's origin a PDF opens neither in the frame (browsers refuse a PDF in a sandbox) nor in a tab of its own; its scripts can fetch the bytes. On a content site it could open in a tab, served without the sandbox as a source's PDF is. |
 
 ## Planned — Undelete
 

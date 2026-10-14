@@ -6,12 +6,13 @@ import { bodyLimit } from "hono/body-limit";
 import { FsBlobStore, MemoryBlobStore } from "./adapters/blobs.ts";
 import { ConsoleMailer, HmacGrantSigner, MemoryMailer, SafeUrlFetcher, SmtpMailer } from "./adapters/misc.ts";
 import { carriesOurCookie, isOwnOrigin } from "./auth/identity.ts";
-import { canonicalHost } from "./canonical-host.ts";
+import { canonicalHost, requestedHost } from "./canonical-host.ts";
 import { oauthRoutes } from "./auth/oauth.ts";
 import { authRoutes } from "./auth/routes.ts";
 import type { ServerConfig } from "./config.ts";
 import { mcpRoutes } from "./mcp.ts";
 import { threadParser } from "./parse-thread.ts";
+import { prototypeRoutes } from "./prototype.ts";
 import { publicRoutes, staticRoutes } from "./public-routes.ts";
 import { restRoutes } from "./rest.ts";
 import { SandboxClock, sandboxRoutes } from "./public-sandbox.ts";
@@ -49,17 +50,19 @@ const SCOPED_PATH = /^(\/api\/v1\/p|\/api\/v1\/teams|\/api\/v1\/tenants|(?:\/\.w
  * The first words of the server's and the app's own paths. Any other path of three or more parts is
  * a product's path typed without /t/ (the app sends it on), so its first three are names.
  */
-const OWN_FIRST = new Set(["api", "mcp", "auth", "oauth", "t", ".well-known", "assets", "invite", "join", "signin", "cookies", "privacy", "settings", "connect", "instance", "welcome", "products", "health", "_system"]);
+const OWN_FIRST = new Set(["api", "mcp", "auth", "oauth", "t", ".well-known", "assets", "invite", "join", "signin", "cookies", "privacy", "settings", "connect", "instance", "welcome", "products", "health", "_system", "prototypes"]);
 const BY_KIND = ["", ":org", ":team", ":product"];
 /** The app's screens directly under an organization: /t/<org>/members and /t/<org>/sandbox. */
 const ORG_SCREENS = new Set(["members", "sandbox"]);
 
 /**
  * A request's path as its log line holds it: ids masked; organizations, teams and products named
- * only by kind; and the two links that are credentials themselves, an invitation's
- * (/invite/<token>) and a sandbox invitation's (/join/<code>).
+ * only by kind; and the links that are credentials themselves, an invitation's (/invite/<token>), a
+ * sandbox invitation's (/join/<code>) and a prototype's (/prototypes/<grant>/…, whose file names
+ * are a team's too).
  */
 export function loggedPath(path: string): string {
+  if (/^\/prototypes(\/|$)/.test(path)) return "/prototypes/:grant/…";
   return path
     .replace(/^\/invite\/[^/]+/, "/invite/:token")
     .replace(/^\/join\/[^/]+/, "/join/:code")
@@ -135,6 +138,8 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
       parseMemoryMb: config.parseMemoryMb,
       parseTimeoutSeconds: config.parseTimeoutSeconds,
       grantTtlSeconds: config.grantTtlSeconds,
+      contentBaseUrl: config.contentUrl,
+      prototypeGrantSeconds: config.prototypeGrantSeconds,
       urlFetchMaxBytes: config.urlFetchMaxBytes,
       signupAllowlist: config.signupAllowlist,
       instanceOwners: config.instanceOwners,
@@ -154,8 +159,9 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; cl
   app.use("*", async (c, next) => {
     const started = Date.now();
     await next();
-    // Operational telemetry only: never content, email addresses or tokens.
-    if (deps.config.env !== "test" && !c.req.path.startsWith("/assets/"))
+    // Operational telemetry only: never content, email addresses or tokens. A prototype's files,
+    // like the app's assets, are logged only when one fails.
+    if (deps.config.env !== "test" && !c.req.path.startsWith("/assets/") && !(c.req.path.startsWith("/prototypes/") && c.res.status < 400))
       console.log(JSON.stringify({ at: new Date().toISOString(), method: c.req.method, path: loggedPath(c.req.path), status: c.res.status, ms: Date.now() - started }));
   });
 
@@ -200,11 +206,20 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; cl
     return next();
   });
 
-  // A page opened on another name for this deployment moves to the public URL; the site's host keeps its own.
+  // A content site serves prototypes and nothing else: no page, API or sign-in of the app's.
+  const contentHost = deps.config.contentUrl ? new URL(deps.config.contentUrl).host.toLowerCase() : null;
+  if (contentHost)
+    app.use("*", async (c, next) => {
+      if (requestedHost((name) => c.req.header(name)) !== contentHost || c.req.path.startsWith("/prototypes/") || c.req.path === "/health") return next();
+      return c.text("This host serves mockups' prototypes only.", 404);
+    });
+
+  // A page opened on another name for this deployment moves to the public URL; the site's host and the content site keep their own.
   app.use("*", canonicalHost(deps.config));
 
   // First, so the public site's host never reaches the app's routes.
   app.route("/", siteRoutes({ db: deps.db, config: deps.config }));
+  app.route("/", prototypeRoutes(env));
   app.route("/", publicRoutes({ db: deps.db, config: deps.config, release: RELEASE }));
   app.route("/", sandboxRoutes({ db: deps.db, clock }));
   app.route("/", oauthRoutes({ db: deps.db, config: deps.config }));
@@ -214,7 +229,7 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; cl
   app.route("/", restRoutes(env));
 
   app.all("/api/*", (c) => c.json({ error: { code: "not_found", status: 404, message: `No route ${c.req.method} ${c.req.path}.` } }, 404));
-  if (deps.config.webDist) app.route("/", staticRoutes(deps.config.webDist, { analytics: Boolean(deps.config.analyticsId) }));
+  if (deps.config.webDist) app.route("/", staticRoutes(deps.config.webDist, { analytics: Boolean(deps.config.analyticsId), contentUrl: deps.config.contentUrl }));
 
   app.onError((err, c) => {
     if (err instanceof AppError) return c.json({ error: err.toJSON() }, err.status as 400);

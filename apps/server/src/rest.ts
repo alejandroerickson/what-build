@@ -1,5 +1,5 @@
 import {
-  AppError, admitRead, execute, MOCKUP_RESPONSE_HEADERS, OPERATIONS, printDocument, printResponseHeaders, readsOnlyTheStory, resolveScope, STORY_RESPONSE_HEADERS, toAppError, unauthenticated, withStoryFonts, withStoryFrame, withStoryTheme, houseSpecimen, houseStyle, HOUSE_STYLE_IDS, shownHtml, styleSpecimen,
+  AppError, admitRead, execute, MOCKUP_RESPONSE_HEADERS, OPERATIONS, prototypeNotice, printDocument, printResponseHeaders, readsOnlyTheStory, resolveScope, STORY_RESPONSE_HEADERS, toAppError, unauthenticated, withStoryFonts, withStoryFrame, withStoryTheme, houseSpecimen, houseStyle, HOUSE_STYLE_IDS, shownHtml, styleSpecimen,
   type Env, type OperationDef, type Principal, type ScopeRef,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
@@ -230,7 +230,8 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
           .executeTakeFirst(),
       );
       if (!p) throw new AppError(404, "not_found", "No such mockup page.");
-      return storyHtml(c, p.html, undefined, c.req.query("frame") === "1", true);
+      // A page that enters the prototype has no HTML of its own: its frame opens the entry (prototype_url).
+      return storyHtml(c, p.html ?? prototypeNotice(), undefined, c.req.query("frame") === "1", true);
     } catch (e) {
       return errorResponse(c, toAppError(e));
     }

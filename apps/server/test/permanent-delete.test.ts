@@ -152,8 +152,11 @@ describe("deleting what is in a product", () => {
     const del = await owner.api("DELETE", `${P}/mockups/${org.mockup.id}`, guards(impact.body.etag, "Wrong direction"));
     expect(del.status, JSON.stringify(del.body)).toBe(200);
     expect((await owner.api("GET", `${P}/mockups/${org.mockup.id}`)).status).toBe(410);
-    expect(await rowsIn(org.tenant.id, "mockup_pages", sql`product_id = ${org.product.id}`)).toBe(0);
+    // Only the other mockup's page is left: the one that enters its prototype, whose files stay with it.
+    expect(await rowsIn(org.tenant.id, "mockup_pages", sql`product_id = ${org.product.id}`)).toBe(1);
+    expect(await rowsIn(org.tenant.id, "mockup_pages", sql`product_id = ${org.product.id} and entry is not null`)).toBe(1);
     expect(await rowsIn(org.tenant.id, "mockup_files", sql`product_id = ${org.product.id}`)).toBe(0);
+    expect(await rowsIn(org.tenant.id, "mockup_prototype_files", sql`product_id = ${org.product.id}`)).toBe(2);
   });
 });
 

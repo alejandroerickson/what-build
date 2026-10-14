@@ -76,6 +76,10 @@ export interface CoreConfig {
   parseTimeoutSeconds: number;
   /** Lifetime of upload and download grants, in seconds. */
   grantTtlSeconds: number;
+  /** The origin a content site of its own serves prototypes from, without a trailing slash; null or absent serves them from publicBaseUrl. */
+  contentBaseUrl?: string | null;
+  /** Lifetime of a prototype's address, in seconds; 8 hours when absent. */
+  prototypeGrantSeconds?: number;
   urlFetchMaxBytes: number;
   /** When set, only these emails (or @domains) may create an account without an invitation. */
   signupAllowlist?: string[] | null;

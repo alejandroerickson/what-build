@@ -305,8 +305,8 @@ sandbox.
   answer, and what each page tries. Read the outcomes and assumptions it bears on first, list them
   in `refs` (outcomes, sources, assumptions), and cite the passages behind it in `citations` (up to
   20, as on a Story page).
-- **Each page is one self-contained HTML document**, shown in a sandbox with no network at the size
-  you give: `width` 1280 for a desktop screen or 390 for a phone, and a `height` (at most 4000).
+- **A page is one self-contained HTML document, or an entry into the version's prototype**
+  (below), shown in a sandbox with no network at the size you give: `width` 1280 for a desktop screen or 390 for a phone, and a `height` (at most 4000).
   A mockup page has rules of its own, looser than a Story page's, so a working prototype fits:
   inline CSS; inline scripts and event handlers of any number and length; forms and their
   controls, whose `submit` handlers run but whose submissions go nowhere, so handle `submit` and
@@ -321,6 +321,37 @@ sandbox.
   may carry parts of a mockup's design into the Story style.
   Keep shared styles, components and any design system in your working project, and inline what
   each page needs when you publish: WhatBuild never draws a page from shared parts.
+- **A team's prototype comes in as it is.** When the team already has a clickable prototype of
+  several files (HTML documents that link to one another, scripts, stylesheets, fonts, images,
+  media, fixtures such as JSON or PDFs, iframes of its own documents), never flatten it into pages:
+  upload it under `prototype/` in the canvas ZIP, and give each canvas page an `entry` in
+  `manifest.json` instead of HTML: the path of one of its HTML documents, with a `?query` and
+  `#fragment` if the page starts somewhere particular (`app/checkout.html?plan=pro#step-2`).
+  Several pages may enter one prototype, a page for each route people should see. Its files are
+  any bytes, kept byte for byte, and are not held to a page's rules; they load only one another.
+  What that means for how you build it:
+  - **Relative addresses only.** `./app.js`, `css/site.css`, `../img/logo.png` resolve inside it.
+    A root-relative address (`/assets/app.js`) points outside the prototype and does not load, so
+    build with a relative base (Vite `base: './'`, or the like). `fetch()` resolves against the
+    document, as it does at home.
+  - **No network.** Nothing loads from another site; a link elsewhere opens a new tab.
+  - **A prototype is stateless.** `localStorage`, `sessionStorage`, IndexedDB and `document.cookie`
+    are unavailable in WhatBuild's sandbox, and touching one throws. Each document load starts
+    fresh: keep state in script variables while a document is open, or in the address (its query
+    or hash) to carry it across documents. Guard storage calls with `try`/`catch` or remove them,
+    so the prototype behaves as it does in your local run.
+  - **Forms** run their `submit` handlers and submit nowhere. A link between its documents moves
+    within the page's frame; a document is never opened in a tab of its own, and a PDF it links
+    to does not open in the frame (browsers refuse a PDF in a sandbox), though its scripts can fetch
+    the bytes.
+  - **Read `prototype_warnings`** in publish's result: each names a file and what will not work
+    there (a root-relative or remote address, an address the prototype does not hold, a script
+    that uses browser storage or cookies). A warning never refuses; fix what it names and publish
+    again.
+  - `poster` (an image in the prototype, at most 2 MB) is what the Story's print view shows for an
+    entry page, which cannot print itself. Limits: 2,000 files and 64 MB a prototype, 25 MB a
+    file, 500 MB of distinct prototype bytes in a product. A version published without an upload
+    keeps its base's prototype, and its pages may enter it.
 - **A page taller than its `height` scrolls inside its frame.** On the canvas people see its first
   `height` pixels until they switch to interact mode and scroll it; a Story page that shows it
   scrolls the same way. A long document can be one page that scrolls, or several pages side by
@@ -340,7 +371,8 @@ sandbox.
   earlier version. Every version stays readable.
 - **Build the next version where you work.** `get_download` gives a version as a ZIP through a
   short-lived grant: `brief.md`, `manifest.json`, each page as `pages/<page_id>.html` with
-  `pages/<page_id>.notes.md`, and the version's files under `files/`. Unzip it in a project, change
+  `pages/<page_id>.notes.md`, the version's files under `files/`, and its prototype under
+  `prototype/`, every file byte for byte with its `sha256` in the manifest. Unzip it in a project, change
   the pages there, and publish the next version. Keep the grant header out of reports.
 - **Upload pages; never type them into a call.** A page's HTML is the bytes of a file, so send it
   the way you send a source: zip the canvas in the download's layout,
@@ -349,7 +381,11 @@ sandbox.
   `citations` if they change). `manifest.json` lists every page in order (`page_id`, and `title`,
   `width`, `height` for a new one or a change); a page whose HTML or notes the ZIP leaves out keeps
   them, so a ZIP of a later version need hold only the pages that changed. The files it lists, or
-  else the ones under `files/`, are the whole set. One publish reads an upload, and its result
+  else the ones under `files/`, are the whole set. So is the prototype: the paths `manifest.json`
+  lists under `prototype` (a listed path missing from `prototype/` keeps the base's bytes), or
+  else the files under `prototype/`; with neither, the base's prototype carries forward, and
+  `"prototype": []` drops it. Bytes the base already holds are not stored again, so a version that
+  changes one file of a prototype costs one file. One publish reads an upload, and its result
   gives the ZIP's `size` and `sha256` under `upload`. Compare each page's `html_sha256`, and each
   file's `sha256`, with your own files' hashes: they hash the text as UTF-8, so they match
   `shasum -a 256` of a UTF-8 file (one saved with a byte-order mark loses it). `html_chars` and a
@@ -358,7 +394,7 @@ sandbox.
   Build the whole canvas in your project and publish it once: never spread one canvas over
   several versions to get it through tool calls.
 - `check_citations` reports whether a version's passages still say what was quoted. A version
-  holds at most 24 pages and 8,000,000 characters of HTML; a product holds at most 50 mockups,
+  holds at most 48 pages and 8,000,000 characters of HTML; a product holds at most 50 mockups,
   archived ones included. `list` leaves archived mockups out and says how many in
   `archived_hidden`, and its `quota` gives `used` and `limit`: when a product nears the limit,
   publish new versions of the mockups it has, and ask the person before creating more.
@@ -371,7 +407,8 @@ copied, and it stays on that version: when the mockup moves on, promote again wi
 page's `page_id` and its etag to show the newer version as the page's next version. `mockups get`
 lists the Story pages that show its pages (`story_pages`). A promoted page joins the end of the
 Story's **Published mockups**, a section of its own after the page tree, where readers flip through
-them in order; it never goes in the tree. To reorder the section, pass every promoted page's id in
+them in order; it never goes in the tree. A promoted entry shows its prototype, and a reader can
+move through that version's whole prototype from it, but sees nothing else of the mockup. To reorder the section, pass every promoted page's id in
 the order you want as `set_hierarchy`'s `mockups`. People can promote a page from the mockup in
 the web app too.
 

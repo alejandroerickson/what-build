@@ -29,11 +29,24 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 - **Agents can preview a Story page before publishing it.** Nothing to set. `story(action="preview")`
   takes what `publish` takes, refuses what it would refuse, publishes nothing and returns a grant to
   open the exact page in a browser.
-- **The skill is 0.26.0.** It teaches previewing a Story page before publishing it, which writes
-  are safe to send again after a lost response, and the HTML rules a mockup page now has of its
-  own (forms whose submissions go nowhere, scripts without a budget, a page that scrolls past its
-  height, the mockup quota). Nothing to set: connected agents are asked to update it, and to start
-  a new session for the new action.
+- **The skill is 0.27.0.** It teaches previewing a Story page before publishing it, which writes
+  are safe to send again after a lost response, the HTML rules a mockup page now has of its own
+  (forms whose submissions go nowhere, scripts without a budget, a page that scrolls past its
+  height, the mockup quota), and uploading a team's prototype as it is (relative addresses, no
+  network, stateless, and the warnings publish gives). Nothing to set: connected agents are asked
+  to update it, and to start a new session for the new action.
+- **Migration `0025_mockup_prototypes`.** It adds one table, for a mockup version's prototype
+  files, and two nullable columns to `mockup_pages`, whose `html` becomes nullable with a check
+  that a page has HTML or an entry. Rehearse on the dev deployment first
+  ([dev-deployment](dev-deployment.md)); an earlier release reading a version that has an entry
+  page would fail on its null HTML, so going back after a prototype is published means restoring
+  the database ([recovering from a bad release](recovering-from-a-bad-release.md)).
+- **Mockups carry a team's prototype as it is.** Nothing to set: prototypes are served from the
+  app's own origin under `/prototypes/`, and a canvas holds up to 48 pages. A deployment that wants
+  them on a site of their own sets `WHATBUILD_CONTENT_URL` to an origin on another registrable
+  domain (never a subdomain of the app's), points that host at the service, and nothing else
+  changes; `WHATBUILD_PROTOTYPE_GRANT_HOURS` (8) sets how long a prototype's address lasts. A proxy
+  in front that routes by path must pass `/prototypes/` to the service.
 - **A page opened on another name for the deployment moves to `WHATBUILD_PUBLIC_URL`.** People who
   open the app on Cloud Run's `run.app` address, Container Apps' default host or an earlier domain
   still pointed at it land on the same page at the public URL, signed in; probes, agents, `/api`,

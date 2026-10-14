@@ -4,9 +4,10 @@ import type { ServerConfig } from "./config.ts";
 /**
  * Paths that answer machines on whatever host they are reached by: probes, the REST API with its
  * upload and download grants, the MCP endpoints, the OAuth endpoints and the metadata clients read
- * beside them. Never redirected, so no probe, agent or client is turned away by a host name.
+ * beside them. Never redirected, so no probe, agent or client is turned away by a host name. A
+ * prototype's documents (prototype.ts) are a frame's navigations, answered where the grant points.
  */
-const MACHINE_PATHS = /^\/(health|api|mcp|oauth|\.well-known)(\/|$)/;
+const MACHINE_PATHS = /^\/(health|api|mcp|oauth|\.well-known|prototypes)(\/|$)/;
 
 /** Hosts on this machine: a local server, a local copy of a deployment, the development server. */
 const LOOPBACK = /^(localhost|[^:]+\.localhost|127(\.\d{1,3}){3}|\[::1\])(:\d+)?$/;
@@ -31,11 +32,12 @@ export function requestedHost(header: (name: string) => string | undefined): str
 export function canonicalHost(config: ServerConfig): MiddlewareHandler {
   const target = new URL(config.publicBaseUrl);
   const site = config.siteUrl ? new URL(config.siteUrl).host.toLowerCase() : null;
+  const content = config.contentUrl ? new URL(config.contentUrl).host.toLowerCase() : null;
   const off = !config.redirectToPublicUrl || LOOPBACK.test(target.host);
   return async (c, next) => {
     if (off || (c.req.method !== "GET" && c.req.method !== "HEAD") || c.req.header("sec-fetch-mode") !== "navigate" || MACHINE_PATHS.test(c.req.path)) return next();
     const host = requestedHost((name) => c.req.header(name));
-    if (!host || host === target.host.toLowerCase() || LOOPBACK.test(host) || (site && (host === site || host === `www.${site}`))) return next();
+    if (!host || host === target.host.toLowerCase() || LOOPBACK.test(host) || (site && (host === site || host === `www.${site}`)) || host === content) return next();
     const url = new URL(c.req.url);
     return c.redirect(`${config.publicBaseUrl}${url.pathname}${url.search}`, 302);
   };

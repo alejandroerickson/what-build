@@ -3,7 +3,7 @@ type: System Concept
 title: Running WhatBuild locally, testing it, and checking the interface
 description: The one-command development setup, the test and build commands, and the browser scripts.
 tags: [development, testing, local]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -109,6 +109,12 @@ its tag and so starts the same workflow; [releasing](releasing.md) is how to mak
   a database you don't mind changing.
 - `node scripts/shots.mjs <outdir> [baseUrl]` captures every screen in light and dark, at desktop
   and phone width. `SHOTS=name,name` limits it to some screens.
+- `node scripts/prototype-check.mjs [baseUrl]` publishes a synthetic multi-file prototype to the
+  sample product (several documents, relative assets, a module and a classic script, a font, a
+  nested iframe, a form with a submit handler, a document that guards `localStorage`) and checks
+  it in a real Chrome on the canvas and the Story: everything loads inside the sandbox, no load
+  carries the session cookie, a top-level open is refused, and a canvas of 25 entries is timed. It
+  creates data, as `e2e.mjs` does.
 - `pnpm e2e browser <command>` drives a Chrome kept open between commands, for an agent running an
   [end-to-end test plan](end-to-end-tests.md); `pnpm e2e mcp <command>` calls the MCP server as a
   connected agent.

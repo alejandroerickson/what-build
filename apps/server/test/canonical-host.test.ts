@@ -57,6 +57,21 @@ describe("one address for the app", () => {
     for (const method of ["POST", "PUT", "PATCH", "DELETE", "OPTIONS"]) expect((await open(app, "/signin", { host, ...NAVIGATE }, method)).status, method).toBe(200);
   });
 
+  it("never moves a prototype frame's navigation between the prototype's documents, on whatever host it is served", async () => {
+    // A frame inside the app moves from one of a prototype's documents to the next with a navigation.
+    const frame = { "sec-fetch-mode": "navigate", "sec-fetch-dest": "iframe" };
+    for (const host of ["app.example.com", "whatbuild-abc123-uc.a.run.app"])
+      expect((await open(app, "/prototypes/eyJ2IjoxfQ.abc/checkout.html?plan=pro", { host, ...frame })).status, host).toBe(200);
+  });
+
+  it("leaves the content site alone: every navigation there is a prototype's, served where its address points", async () => {
+    const withContent = appWith({ siteUrl: "https://example.com", contentUrl: "https://usercontent.example.net" });
+    expect((await open(withContent, "/prototypes/eyJ2IjoxfQ.abc/index.html", { host: "usercontent.example.net", ...NAVIGATE })).status).toBe(200);
+    expect((await open(withContent, "/anything", { host: "usercontent.example.net", ...NAVIGATE })).status).toBe(200);
+    // Another name for the deployment still moves.
+    expect((await open(withContent, "/settings", { host: "old.example.net", ...NAVIGATE })).status).toBe(302);
+  });
+
   it("leaves this machine's hosts and the public site's host alone", async () => {
     for (const host of ["localhost:5347", "localhost", "127.0.0.1:8787", "[::1]:8787", "app.localhost:5273", "example.com", "www.example.com"])
       expect((await open(app, "/settings", { host, ...NAVIGATE })).status, host).toBe(200);

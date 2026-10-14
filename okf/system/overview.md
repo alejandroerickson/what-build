@@ -33,8 +33,9 @@ agents do most intake and synthesis over MCP; stakeholders read the Story, often
 **The loop**, which is also the navigation order: **Idea** (the product concept, and the outcomes its users should achieve) →
 **Evidence** (sources, each described by a title and tags and parsed into passages;
 [decision](../decisions/sources-are-described-by-tags.md)) → **Exploration** (mockups: versioned canvases of
-pages built from the evidence, each under a brief; and the assumption register, cited and
-reviewed) → **Story** (versioned pages for stakeholders). Insights and decisions were retired, and
+pages built from the evidence, each under a brief, whose pages may enter a team's multi-file
+prototype carried as it is ([decision](../decisions/mockups-carry-prototypes-served-from-a-capability-path.md));
+and the assumption register, cited and reviewed) → **Story** (versioned pages for stakeholders). Insights and decisions were retired, and
 what a product held of them became sources
 ([decision](../decisions/insights-and-decisions-are-retired-into-evidence.md)).
 
