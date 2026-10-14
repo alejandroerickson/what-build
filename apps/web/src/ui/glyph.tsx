@@ -1,7 +1,7 @@
 import {
   Activity, Archive, ArchiveRestore, ArrowLeft, ArrowRight, Blend, BookOpen, Bot, Box, Building, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp,
   CircleAlert, CircleCheck, CircleDashed, Clock, Cookie, Copy, CornerDownRight, Download, Ellipsis, ExternalLink, FileText, FileVolume, FolderInput,
-  FlaskConical, GitCommitHorizontal, GripVertical, Image, Info, Keyboard, LayoutGrid, Library, Lightbulb, Link, LoaderCircle, LogOut, Maximize2, Menu, Mic, Minimize2, Minus, Monitor, Moon, Palette, PanelLeftClose, PanelLeftOpen,
+  FlaskConical, GitCommitHorizontal, GripVertical, Image, Info, Keyboard, LayoutGrid, Library, Lightbulb, Link, LoaderCircle, LogOut, Maximize2, Menu, Mic, Minimize2, Minus, Monitor, Moon, MoveHorizontal, Palette, PanelLeftClose, PanelLeftOpen,
   PanelRightClose, PanelRightOpen, Pencil, Plus, Quote, RotateCcw, Scale, Search, Settings, Signpost, Sun, Tag, Target, Trash, Triangle, TriangleAlert, Upload, UserPlus, Users, X, ZoomIn, ZoomOut, Scan, Hand, MousePointer2,
   type LucideIcon,
 } from "lucide-react";
@@ -61,6 +61,7 @@ const GLYPHS = {
   minus: Minus,
   monitor: Monitor,
   moon: Moon,
+  "move-horizontal": MoveHorizontal,
   palette: Palette,
   "panel-left-close": PanelLeftClose,
   "panel-left-open": PanelLeftOpen,

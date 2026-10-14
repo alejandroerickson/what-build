@@ -1,5 +1,5 @@
 /* Story: the page tree in the panel's context slot, the sandboxed page on the canvas, details in the inspector.
-   Agents write and arrange the Story; everything here reads it. */
+   Agents write the Story; people read it, and arrange, archive and delete its pages by hand. */
 
 /* ---- Tree panel ------------------------------------------------------------------------------- */
 
@@ -9,12 +9,19 @@
   gap: var(--s-1);
   padding: var(--s-1) var(--s-0) var(--s-0);
 }
-.story-tree-none {
+.story-tree-problem {
+  margin: var(--s-2) var(--s-0) 0;
+}
+.story-tree-none,
+.story-tree-hint {
   margin: 0;
   padding: var(--s-2) var(--s-2) var(--s-2);
   color: var(--faint);
   font-size: var(--fs-xs);
   line-height: 1.45;
+}
+.story-tree-panel > .story-tree-hint {
+  margin-top: var(--s-2);
 }
 
 .story-tree {
@@ -30,7 +37,6 @@
   display: flex;
   align-items: center;
   height: var(--h-md);
-  padding-left: var(--s-1);
   border-radius: var(--r-sm);
   color: var(--text);
 }
@@ -44,6 +50,29 @@
 .story-row[data-current] {
   background: var(--select);
   color: var(--select-text);
+}
+.story-row[data-dragging] {
+  opacity: 0.45;
+}
+
+/* The handle a page is dragged by: shown on hover, focus and the current page, always on touch. */
+.story-grip,
+.story-grip-space {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 14px;
+  height: var(--h-md);
+  color: var(--faint);
+}
+.story-grip {
+  cursor: grab;
+  opacity: 0;
+  touch-action: none;
+  transition: opacity var(--dur-1) var(--ease);
+}
+.is-dragging .story-grip {
+  cursor: grabbing;
 }
 .story-indent {
   flex: none;
@@ -86,7 +115,8 @@
   color: var(--faint);
 }
 .story-row[data-current] .story-link .glyph,
-.story-row[data-current] .story-caret {
+.story-row[data-current] .story-caret,
+.story-row[data-current] .story-grip {
   color: var(--select-text);
 }
 .story-link:focus-visible {
@@ -102,6 +132,9 @@
   margin-right: var(--s-0);
   opacity: 0;
 }
+.story-row:hover .story-grip,
+.story-row:focus-within .story-grip,
+.story-row[data-current] .story-grip,
 .story-row:hover .story-row-more,
 .story-row:focus-within .story-row-more,
 .story-row[data-current] .story-row-more,
@@ -112,9 +145,60 @@
   color: var(--select-text);
 }
 @media (hover: none) {
+  .story-grip,
   .story-row-more {
     opacity: 1;
   }
+}
+.is-dragging .story-row:hover {
+  background: transparent;
+}
+.is-dragging .story-row-more {
+  visibility: hidden;
+}
+
+/* Drop feedback: a bar before or after the row, or a ring to nest inside it. */
+.story-row[data-drop="before"]::before,
+.story-row[data-drop="after"]::after {
+  position: absolute;
+  right: var(--s-1);
+  left: calc(14px + var(--level, 0) * 14px);
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  content: "";
+  pointer-events: none;
+}
+.story-row[data-drop="before"]::before {
+  top: -1px;
+}
+.story-row[data-drop="after"]::after {
+  bottom: -1px;
+}
+.story-row[data-drop="into"] {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.story-row[data-drop="refused"] {
+  cursor: not-allowed;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.story-drop-end {
+  display: flex;
+  align-items: center;
+  height: var(--h-md);
+  margin-top: var(--s-1);
+  padding: 0 var(--s-2);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-sm);
+  color: var(--faint);
+  font-size: var(--fs-xs);
+}
+.story-drop-end[data-drop="end"] {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.story-drop-end[data-drop="refused"] {
+  cursor: not-allowed;
 }
 /* Archived pages: a quiet disclosure under the tree. */
 .story-archived {
@@ -223,6 +307,14 @@
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
 }
+.story-page-view {
+  gap: var(--s-0);
+}
+.story-page-view [aria-checked="true"],
+.story-page-view [aria-checked="true"]:hover {
+  background: var(--select);
+  color: var(--select-text);
+}
 .story-flip-count {
   min-width: 6ch;
   color: var(--muted);
@@ -282,6 +374,12 @@
   display: flex;
   flex: 1 0 auto;
   flex-direction: column;
+}
+/* A mockup page fitted to the screen: the wrap takes the room left under the crumbs whatever the
+   page's size, so the page can be scaled to it, and the canvas does not scroll. */
+.story-frame-wrap[data-fit] {
+  min-height: 240px;
+  contain: size;
 }
 /* Skeleton lines over the frame until its document arrives, at the page's own inset and measure. */
 .story-frame-status {
@@ -344,6 +442,12 @@
 }
 .story-delete-button {
   margin-top: var(--s-1);
+}
+.story-about-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+  margin-top: var(--s-2h);
 }
 
 .story-refs {

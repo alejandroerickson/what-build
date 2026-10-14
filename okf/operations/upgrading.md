@@ -23,7 +23,11 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **People arrange, archive and delete Story pages in the app again.** Nothing to set. Editors
+  drag pages in the Story's tree (or use Alt and the arrow keys) and archive or restore them from
+  a page's menu; admins delete them there too. Mockups gain Fill (`3`) beside Fit (`2`), on the
+  canvas and on a published mockup in the Story. The skill is 0.26.0: connected agents are asked
+  to update it; its tools are unchanged.
 
 ## v0.10.0
 

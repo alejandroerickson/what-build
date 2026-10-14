@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, files, annotations, what uses a source, the assumption register and citations, views and lineage, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, citations, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -473,9 +473,9 @@ neither (a generated title page). A
 version is immutable: `version` (1, 2, 3…), `title`, `summary` (describes the page), `html`,
 `refs`, `citations`, `published_at`, `published_by`, and `html_sha256` (computed on read, so
 identical HTML can be recognised without reading it). Readers see the latest version; any version
-can be read by number. Limit: 50 pages per product (`409 quota_exceeded`). Agents write, arrange,
-archive and restore pages; the web app reads them
-([decision](../decisions/agents-maintain-the-story-people-read-it.md)).
+can be read by number. Limit: 50 pages per product (`409 quota_exceeded`). Agents write pages; agents
+and people arrange, archive and restore them, and admins delete them
+([decision](../decisions/agents-write-the-story-people-arrange-it.md)).
 ◆ Decision: a version has no change note. What changed is in the activity log, and an agent's
 working context is in the page's notes. The `story_versions.note` column stays for versions
 published before the note was removed, and is neither written nor returned; a product export

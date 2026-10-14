@@ -3,7 +3,7 @@ type: Decision
 title: An empty list says what belongs in it and what to ask an agent; adding by hand stays in the header
 description: Every first-use list in a product has the same shape, leading with a request to copy for an agent, and nothing prescribes an order of steps.
 tags: [decision, web, design, onboarding, agents]
-generated: {by: agent:claude, at: 2026-09-29T00:00:00Z}
+generated: {by: agent:claude, at: 2026-10-14}
 status: stable
 ---
 
@@ -35,7 +35,7 @@ at agents and lets people start anywhere.
 
 ## Constrains
 
-- New destination lists use `FirstUse` for their first-use state; the Story offers no manual path
-  ([decision](agents-maintain-the-story-people-read-it.md)).
+- New destination lists use `FirstUse` for their first-use state; the Story offers no manual path to
+  writing a page ([decision](agents-write-the-story-people-arrange-it.md)).
 
 Specified in: [§7 Web application](../spec/07-web-app.md).
