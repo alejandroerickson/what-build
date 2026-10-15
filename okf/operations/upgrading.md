@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:codex, at: 2026-10-15}
 status: stable
 ---
 
@@ -23,7 +23,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **ACS mail with managed identity.** Optional: an Azure-hosted deployment can use the ACS Email
+  API by selecting `WHATBUILD_MAILER=acs`, setting `WHATBUILD_ACS_EMAIL_ENDPOINT` and a verified
+  `WHATBUILD_MAIL_FROM`, and granting its managed identity access to the linked Communication
+  Services resource. For a user-assigned identity set `WHATBUILD_AZURE_CLIENT_ID`. No SMTP
+  identity or mail secret is needed. Existing mailer defaults are unchanged; see
+  [Azure](azure.md#mail-with-azure-communication-services).
 
 ## v0.12.0
 

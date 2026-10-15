@@ -34,7 +34,7 @@ async function main() {
     console.warn(`warning: ${msg}`);
   }
 
-  if (config.feedbackEmail && config.mailer === "none") console.warn("warning: WHATBUILD_FEEDBACK_EMAIL is set, but this deployment sends no mail, so feedback stays in the database. Set WHATBUILD_SMTP_URL to send the digest.");
+  if (config.feedbackEmail && config.mailer === "none") console.warn("warning: WHATBUILD_FEEDBACK_EMAIL is set, but this deployment sends no mail, so feedback stays in the database. Configure the smtp or acs mailer to send the digest.");
 
   const blobs = await createBlobStore(config);
   const mailer = createMailer(config);

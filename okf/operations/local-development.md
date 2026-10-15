@@ -3,7 +3,7 @@ type: System Concept
 title: Running WhatBuild locally, testing it, and checking the interface
 description: The one-command development setup, the test and build commands, and the browser scripts.
 tags: [development, testing, local]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:codex, at: 2026-10-15}
 status: stable
 ---
 
@@ -41,7 +41,7 @@ console mailer, and writes from any `http://localhost` port. `pnpm dev`, `pnpm d
 tools and the server package's `serve` script; the tests set `test`. Anything else, including no
 `NODE_ENV` at all, a misspelling or `staging`, is production ([`config.ts`](../../apps/server/src/config.ts)):
 `pnpm start` or `node main.js serve` on the built server needs `WHATBUILD_GRANT_KEY` (32
-characters or more), takes only the `smtp` or `none` mailer, offers no development sign-in, and
+characters or more), takes only the `smtp`, `acs` or `none` mailer, offers no development sign-in, and
 refuses to start as a database role that bypasses row-level security.
 
 Over plain HTTP the session cookie is `wb_session`; a deployment served over HTTPS uses

@@ -88,6 +88,15 @@ properties:
           #   value: "privacy@example.com"
           # - name: WHATBUILD_PROVIDERS
           #   value: "Microsoft Azure: hosting, the database, files and logs"
+          # ACS Email API with this app's managed identity (okf/operations/azure.md, "Mail with
+          # Azure Communication Services"). Select acs after granting access to the linked mail
+          # resource; these are public settings and need no mail secret. Use ACS or SMTP.
+          # - name: WHATBUILD_MAILER
+          #   value: acs
+          # - name: WHATBUILD_ACS_EMAIL_ENDPOINT
+          #   value: ${WB_ACS_EMAIL_ENDPOINT}
+          # - name: WHATBUILD_AZURE_CLIENT_ID
+          #   value: ${WB_AZURE_CLIENT_ID}
           # - name: WHATBUILD_SMTP_URL
           #   secretRef: smtp-url
           # - name: WHATBUILD_MAIL_FROM

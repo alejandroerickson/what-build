@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild self-hosts on Azure Container Apps with Azure Database for PostgreSQL and a mounted file share, set up by an agent with the Azure CLI.
 description: What a self-hosted deployment on Azure is made of, how each resource is configured, the commands that create it, sign-in with a Microsoft work account, the variations between organizations, deploying a new version, cost and removal.
 tags: [operations, deployment, azure, self-hosting, container-apps, entra]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:codex, at: 2026-10-15}
 status: draft
 ---
 
@@ -454,15 +454,76 @@ az containerapp update --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP
   WHATBUILD_MICROSOFT_CLIENT_SECRET=secretref:microsoft-client-secret "WHATBUILD_MICROSOFT_DOMAINS=$WB_MICROSOFT_DOMAINS"
 ```
 
-**Email links** work in every build, and are also what sends invitations. They need an SMTP
-server: the organization's own relay, or Azure Communication Services Email, whose SMTP endpoint
-is `smtp.azurecomm.net`, port 587, with an SMTP username resource linked to an Entra application
-and one of that application's client secrets as the password
-([Microsoft's guide](https://learn.microsoft.com/azure/communication-services/quickstarts/email/send-email-smtp/smtp-authentication)).
-Store `smtp://<username>:<password>@<host>:587`, with both parts percent-encoded, as
-`whatbuild-smtp-url`, and uncomment the `smtp-url` secret, `WHATBUILD_SMTP_URL` and
-`WHATBUILD_MAIL_FROM` in the definition. Without mail, invitations are links that whoever invites
-copies and sends. [Mail](mail.md) has what the server sends and what breaks it.
+**Email links and invitations** need a mail provider. On Azure, use the ACS Email API with the
+app's managed identity (below), or an SMTP relay. Without mail, invitations are links that whoever
+invites copies and sends. [Mail](mail.md) has what the server sends and what breaks it.
+
+### Mail with Azure Communication Services
+
+Use a Communication Services resource linked to a verified Email Communication Services domain.
+They can already exist; check before creating them. The app's managed identity and the
+Communication Services resource must belong to the same Entra tenant. This identity is separate
+from the identity directory chosen for people's Microsoft sign-in. The API supports managed
+identity directly, so this setup needs no app registration or mail secret
+([Microsoft's sample](https://learn.microsoft.com/en-us/samples/azure-samples/communication-services-dotnet-quickstarts/email-sample-send-email-with-managed-identity/)).
+
+1. Save the mail resource's names as `AZ_MAIL_SUBSCRIPTION`, `AZ_MAIL_RG` and `AZ_COMMUNICATION` in
+   `.env.azure`. Read its linked domain and permitted sender; choose one as `WB_MAIL_FROM`.
+2. Grant the app's existing managed identity the two permissions the ACS API requires. The
+   operator needs rights to create a custom role and assign it; give the role an assignable scope
+   of the mail resource group, then assign it only on the Communication Services resource. Reuse
+   the role if it already exists with these permissions:
+
+   ```bash
+   MAIL_ID=$(az resource show --subscription "$AZ_MAIL_SUBSCRIPTION" -g "$AZ_MAIL_RG" \
+     -n "$AZ_COMMUNICATION" --resource-type Microsoft.Communication/communicationServices \
+     --api-version 2023-03-31 --query id -o tsv)
+   ROLE_FILE=$(mktemp)
+   cat > "$ROLE_FILE" <<JSON
+   {
+     "Name": "WhatBuild ACS Email Sender",
+     "IsCustom": true,
+     "Description": "Send email through the ACS Email API using a managed identity.",
+     "Actions": ["Microsoft.Communication/CommunicationServices/Read", "Microsoft.Communication/CommunicationServices/Write"],
+     "NotActions": [],
+     "AssignableScopes": ["/subscriptions/$AZ_MAIL_SUBSCRIPTION/resourceGroups/$AZ_MAIL_RG"]
+   }
+   JSON
+   az role definition create --subscription "$AZ_MAIL_SUBSCRIPTION" --role-definition @"$ROLE_FILE" -o none
+   rm "$ROLE_FILE"
+   az role assignment create --subscription "$AZ_MAIL_SUBSCRIPTION" --assignee-object-id "$AZ_IDENTITY_PRINCIPAL" \
+     --assignee-principal-type ServicePrincipal --role "WhatBuild ACS Email Sender" --scope "$MAIL_ID" -o none
+   ```
+
+   These are resource permissions. They include changing Communication Services settings; ACS
+   authorizes sending with the documented read/write pair. No subscription-wide grant is needed.
+   A role assignment can take a few minutes to apply; a denied send immediately afterwards means
+   wait and retry, not grant broader access.
+3. Read the endpoint and the identity's client ID, then set the app's public configuration. Deploy
+   an image that supports `acs` before selecting it. If an existing deploy workflow updates only
+   the image/release, it preserves these settings:
+
+   ```bash
+   WB_ACS_EMAIL_ENDPOINT="https://$(az resource show --subscription "$AZ_MAIL_SUBSCRIPTION" \
+     --ids "$MAIL_ID" --api-version 2023-03-31 --query properties.hostName -o tsv)"
+   WB_AZURE_CLIENT_ID=$(az identity show --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" \
+     -n "$AZ_IDENTITY" --query clientId -o tsv)
+   az containerapp update --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP" -o none --set-env-vars \
+     WHATBUILD_MAILER=acs "WHATBUILD_ACS_EMAIL_ENDPOINT=$WB_ACS_EMAIL_ENDPOINT" \
+     "WHATBUILD_AZURE_CLIENT_ID=$WB_AZURE_CLIENT_ID" "WHATBUILD_MAIL_FROM=$WB_MAIL_FROM"
+   ```
+
+   The template has the same optional environment entries. A system-assigned identity uses no
+   `WHATBUILD_AZURE_CLIENT_ID`; this template uses a user-assigned one, so select it explicitly.
+4. Name Microsoft Azure for mail in `WHATBUILD_PROVIDERS`, preserving its other entries. Request
+   a sign-in link to the operator's own address and confirm it arrives outside spam. The API's
+   completed send means the provider accepted it; it is not proof of inbox delivery.
+
+**An SMTP relay instead.** Store `smtp://<username>:<password>@<host>:587`, with both parts
+percent-encoded, as `whatbuild-smtp-url`, then uncomment the `smtp-url` secret, `WHATBUILD_SMTP_URL`
+and `WHATBUILD_MAIL_FROM` in the definition. If `WHATBUILD_MAILER` is set, select `smtp` explicitly.
+ACS also supports SMTP at `smtp.azurecomm.net:587`, but that route requires an SMTP username,
+Entra application and client secret; use the API above to authenticate with managed identity.
 
 **Feedback by email.** People and their agents can always send feedback; it names nobody unless
 its sender shares an address. With mail working, uncomment `WHATBUILD_FEEDBACK_EMAIL` in the definition
