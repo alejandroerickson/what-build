@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:codex, at: 2026-10-15}
 status: stable
 ---
 
@@ -45,7 +45,7 @@ Observed in the `package.json` files, the [`Dockerfile`](../../Dockerfile) and
 | Queue | **Postgres** `jobs` table (`SELECT … FOR UPDATE SKIP LOCKED`) | No broker to run, pay for, or install to contribute. The worker ships in the same image. |
 | Blobs | `BlobStore` port with filesystem, in-memory and Google Cloud Storage adapters | Files and derived sidecars are immutable, create-only blobs everywhere. |
 | Identity | **Built in** ([`apps/server/src/auth`](../../apps/server/src/auth)): email links, Google and Microsoft OpenID Connect, sessions, and WhatBuild's own OAuth 2.1 authorization server for MCP | Fewer moving parts and fully under test; no auth library. See [§3.8](03-accounts-teams-and-identity.md). |
-| Mail | `nodemailer` over SMTP, or the console in development | Any SMTP provider; no provider SDK. Each deployment's: [Mail](../operations/mail.md). |
+| Mail | `nodemailer` over SMTP, or the ACS Email API with managed identity; the console in development | Any SMTP provider, or the Azure SDK for ACS. Each deployment's: [Mail](../operations/mail.md). |
 | Web UI | **React 19 + Vite**, SPA; **React Router 7** and **TanStack Query**; `lucide-react` icons | Static assets served by the same process; URL-held state through the router. |
 | Parsing | Own code for text/Markdown/VTT/SRT/CSV; `pdfjs-dist` for PDF; `fflate` + `saxes` for DOCX and XLSX; `parse5` for HTML; own code for legacy Word `.doc` (the OLE2 compound file and the Word binary format) | Pure functions of bytes → sidecars with no native dependencies: a small image, a fast cold start, and a contributor install that cannot fail on a toolchain. |
 | Markdown rendering | `marked`'s lexer, with tokens mapped to React elements ([`apps/web/src/lib/markdown.tsx`](../../apps/web/src/lib/markdown.tsx)) | Markdown that agents write (briefs, notes, assumption bodies) is untrusted input: no HTML string from it ever reaches the DOM; raw HTML shows as text and images never load. |
@@ -145,9 +145,17 @@ interfaces; adapters live in [`apps/server/src/adapters`](../../apps/server/src/
 |---|---|---|---|---|
 | `BlobStore` | Immutable, create-only blobs: `put`, `putStream` (size-capped), `get`, ranged `getStream`, `stat`, `delete`; optional signed upload and download URLs | Google Cloud Storage | filesystem (`.what-build/blobs`) | in-memory |
 | `GrantSigner` | Sign and verify upload and download grants | HMAC with `WHATBUILD_GRANT_KEY` | the same, with a fixed development key | the same |
-| `Mailer` | Sign-in links, invitations, allowance notices and the daily feedback digest | SMTP, or none (email links then off) | printed to the terminal | captured in memory |
+| `Mailer` | Sign-in links, invitations, allowance notices and the daily feedback digest | SMTP, ACS with managed identity, or none (email links then off) | printed to the terminal | captured in memory |
 | `UrlFetcher` | Size-capped, SSRF-safe HTTPS fetch for `files.fetch_url` | yes | yes | yes |
 | `FileParser` | Parse one file's bytes into its sidecars, away from the requests | a worker thread per file, with memory and time limits | the same | the same |
+
+◆ Decision: ACS mail uses the official Azure Email and Identity SDKs behind `Mailer`, with
+`ManagedIdentityCredential` and an optional user-assigned identity client ID. This lets Azure
+hosts authenticate without mail secrets while keeping token renewal and operation polling in
+the provider's SDK. The adapter waits for `Succeeded` and bounds submission plus polling to
+60 seconds; failures reject the send. `WHATBUILD_MAILER=acs` is explicit, with a verified sender,
+an HTTPS `WHATBUILD_ACS_EMAIL_ENDPOINT` origin and optional `WHATBUILD_AZURE_CLIENT_ID`.
+Other deployments retain their mailer defaults ([Mail](../operations/mail.md)).
 
 Postgres is not behind a port: the core takes a Kysely handle directly, and full-text search and
 the job queue are SQL in the core and the worker. Every environment, including tests, runs real
@@ -332,7 +340,7 @@ packages/
                     types, Story guidance and print view, the versioned product skill (src/skill/)
 apps/
   server/           Hono app: static assets, REST, MCP, OAuth and identity, upload relay, worker,
-                    adapters (fs, memory, GCS blobs; SMTP and console mail), SQL migrations, seed;
+                    adapters (fs, memory, GCS blobs; SMTP, ACS and console mail), SQL migrations, seed;
                     CLI commands serve, worker, migrate, seed
   web/              React SPA
 scripts/            gen-skill (embeds SKILL.md), e2e and screenshot scripts

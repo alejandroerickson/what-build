@@ -3,7 +3,7 @@ type: System Concept
 title: Mail - what WhatBuild sends, how each deployment sends it, and production's Cloudflare Email Sending
 description: The messages the server sends (three while a request waits, and the daily feedback digest), the settings that choose a mailer, which deployments send mail and which never do, production's setup on Cloudflare Email Sending over SMTP, checking it, rotating its token, changing provider, and what breaks it.
 tags: [operations, mail, smtp, cloudflare, invitations, sign-in, cloud-run, azure, runbook]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:codex, at: 2026-10-15}
 status: stable
 ---
 
@@ -39,7 +39,7 @@ cannot invite anyone new, while one with no mail at all can: the person inviting
 to pass on, and the sign-in page offers no email link.
 
 **A digest that cannot be sent waits.** Its reports are marked sent in the same transaction as the
-message, so a failed send leaves them unsent, the service logs `feedback digest:` with the SMTP
+message, so a failed send leaves them unsent, the service logs `feedback digest:` with the provider
 error, and the next look, ten minutes later, tries again.
 
 ## The settings
@@ -49,7 +49,9 @@ error, and the next look, ten minutes later, tries again.
 | `WHATBUILD_SMTP_URL` | `smtp://` or `smtps://user:password@host:port`, both parts percent-encoded. Always from a secret (`whatbuild-smtp-url`), never a plain value. |
 | `WHATBUILD_MAIL_FROM` | The sender, for example `WhatBuild <noreply@example.com>`. Its domain must be one the provider sends for. Unset, it is `WhatBuild <no-reply@localhost>`, which every real provider refuses. |
 | `WHATBUILD_FEEDBACK_EMAIL` | One address that gets the daily feedback digest. Optional; unset, or with no mailer, feedback stays in the database, and a deployment that sets it without mail logs a warning when it starts. People can send feedback either way. |
-| `WHATBUILD_MAILER` | `smtp`, `none`, `console` or `memory`. Unset, it is `smtp` when there is an SMTP URL, otherwise `none` in production and `console` in development. Production takes only `smtp` or `none`. |
+| `WHATBUILD_MAILER` | `smtp`, `acs`, `none`, `console` or `memory`. Unset, it is `smtp` when there is an SMTP URL, otherwise `none` in production and `console` in development. Production takes `smtp`, `acs` or `none`. ACS is an explicit choice. |
+| `WHATBUILD_ACS_EMAIL_ENDPOINT` | The HTTPS origin of the ACS Communication Services resource linked to a verified email domain, for example `https://example.communication.azure.com`. Required with `WHATBUILD_MAILER=acs`; this is public configuration. |
+| `WHATBUILD_AZURE_CLIENT_ID` | Optional client ID of a user-assigned managed identity attached to the app. With ACS and no value, use the system-assigned identity. No client secret or connection string is used. |
 
 With `none`, sign-in by email link is off (`/api/v1/meta` reports `auth.email_link: false`) and
 invitations are links. `console` prints each message in the terminal, and `memory` keeps it for
@@ -74,6 +76,27 @@ Two things can carry mail where it is not meant to go:
 - **A token reaches every deployment that holds it.** Production's Cloudflare token sends as
   `what-build.com` from anywhere. Never copy it into another deployment, a self-hosted one, or the
   repository; a deployment run by another organization uses its own domain and provider.
+
+## Azure Communication Services with managed identity
+
+An Azure-hosted deployment can use the ACS Email API with `WHATBUILD_MAILER=acs` and its own
+managed identity. It needs a Communication Services resource linked to a verified email domain,
+permission for that identity on that resource, its endpoint, and a permitted sender in
+`WHATBUILD_MAIL_FROM`. [Azure](azure.md#mail-with-azure-communication-services) gives the access grant
+and settings. No SMTP account, application registration, client secret or email API key is needed.
+
+The adapter (`apps/server/src/adapters/mail-acs.ts`) loads the Azure SDK only when sending. It uses
+`ManagedIdentityCredential`, selecting the user-assigned identity by `WHATBUILD_AZURE_CLIENT_ID`
+when set. It sends the same plain-text message as SMTP and waits for the send operation to reach
+`Succeeded`, with a 60-second bound across submission and polling. An accepted initial request
+is not success; failed operations and timeouts reject the send so its caller retains unsent
+feedback or fails the sign-in/invitation request. As with SMTP, provider success does not prove
+inbox delivery. Check the recipient's inbox and spam folder.
+
+`WHATBUILD_MAIL_FROM` accepts a bare address or a display name followed by one address in angle
+brackets. ACS receives the bare address; its sender resource controls the display name. Setting
+an ACS endpoint alone never turns mail on. Keep the dev deployment's `WHATBUILD_MAILER=none`.
+Name Microsoft Azure for email in `WHATBUILD_PROVIDERS`.
 
 ## Production
 
@@ -195,11 +218,12 @@ deployment sends no mail, so it sends no digest.
 
 | Sign | Cause | Fix |
 |---|---|---|
-| Inviting a new address fails with an internal error; sign-in links answer `500` | the send failed; the service logs the SMTP error | read it (below), then the rows that follow |
+| Inviting a new address fails with an internal error; sign-in links answer `500` | the send failed; the service logs the mail-provider error | read it (below), then the rows that follow |
 | `535 5.7.8` | the token is wrong, revoked or lacks Email Sending: Edit, or the user name is not `api_token` | rotate the token |
 | `550 5.7.1 … not enabled for domain` | the sender's domain is not onboarded under the token's account, or was onboarded a minute ago | onboard it, or wait a minute |
 | The sender is `no-reply@localhost` | `WHATBUILD_MAIL_FROM` is unset, most often after re-running `setup.sh` without `MAIL_FROM` | set it again (step 4) |
-| No email link on the sign-in page | the service has no SMTP URL | step 4 |
+| No email link on the sign-in page | the deployment has no mailer | configure SMTP (step 4) or ACS (above) |
+| ACS refuses a send | the selected managed identity lacks access to the linked Communication Services resource, or the sender is outside its verified domain | check the identity client ID, resource access and permitted sender in the Azure guide |
 | No feedback digest arrives | `WHATBUILD_FEEDBACK_EMAIL` unset, the deployment has no mail (it logs a warning when it starts), nothing new since the last digest, or one went out in the last 24 hours | set the address; read `feedback digest:` in the logs |
 | The message arrives as spam | DKIM or SPF not passing | check the records under Email Sending, and the message's `Authentication-Results` header |
 

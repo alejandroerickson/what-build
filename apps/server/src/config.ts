@@ -31,9 +31,12 @@ export interface ServerConfig {
   /** Hand out direct-to-bucket signed upload URLs (needs signBlob permission on the runtime identity). */
   gcsSignedUrls: boolean;
   grantKey: string;
-  /** "none" in production without SMTP: email links are then off, and nothing secret is ever logged. Production takes only smtp or none. */
-  mailer: "console" | "smtp" | "memory" | "none";
+  /** "none" in production without SMTP: email links are then off, and nothing secret is ever logged. Production takes smtp, acs or none. */
+  mailer: "console" | "smtp" | "acs" | "memory" | "none";
   smtpUrl: string | null;
+  acsEmailEndpoint: string | null;
+  /** Select a user-assigned managed identity for ACS; null uses the system-assigned identity. */
+  azureClientId: string | null;
   mailFrom: string;
   /** Where the daily feedback digest goes (WHATBUILD_FEEDBACK_EMAIL); null keeps feedback in the database only. */
   feedbackEmail: string | null;
@@ -123,7 +126,7 @@ function domainList(v: string | undefined): string[] {
   return domains;
 }
 
-const MAILERS: ServerConfig["mailer"][] = ["console", "smtp", "memory", "none"];
+const MAILERS: ServerConfig["mailer"][] = ["console", "smtp", "acs", "memory", "none"];
 
 function num(v: string | undefined, fallback: number): number {
   const n = v === undefined || v === "" ? NaN : Number(v);
@@ -170,8 +173,19 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const mailer = (env["WHATBUILD_MAILER"]?.trim() || (env["WHATBUILD_SMTP_URL"] ? "smtp" : mode === "production" ? "none" : "console")) as ServerConfig["mailer"];
   if (!MAILERS.includes(mailer)) throw new Error(`WHATBUILD_MAILER must be one of ${MAILERS.join(", ")}.`);
   // The console mailer prints every sign-in link to the log, and the memory one delivers nothing.
-  if (mode === "production" && mailer !== "smtp" && mailer !== "none")
-    throw new Error("WHATBUILD_MAILER must be smtp or none in production: set WHATBUILD_SMTP_URL to send mail, or leave email links off.");
+  if (mode === "production" && mailer !== "smtp" && mailer !== "acs" && mailer !== "none")
+    throw new Error("WHATBUILD_MAILER must be smtp, acs or none in production: configure a mail provider to send mail, or leave email links off.");
+  const acsEmailEndpoint = env["WHATBUILD_ACS_EMAIL_ENDPOINT"]?.trim() || null;
+  const azureClientId = env["WHATBUILD_AZURE_CLIENT_ID"]?.trim() || null;
+  if (mailer === "acs") {
+    let endpoint: URL;
+    try { endpoint = new URL(acsEmailEndpoint ?? ""); }
+    catch { throw new Error("WHATBUILD_ACS_EMAIL_ENDPOINT is required for the acs mailer and must be an HTTPS origin."); }
+    if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password || endpoint.search || endpoint.hash || endpoint.pathname !== "/")
+      throw new Error("WHATBUILD_ACS_EMAIL_ENDPOINT must be an HTTPS origin without credentials, a path, query or fragment.");
+    if (!env["WHATBUILD_MAIL_FROM"]?.trim()) throw new Error("WHATBUILD_MAIL_FROM is required for the acs mailer; use a sender from its verified domain.");
+    if (azureClientId && !GUID.test(azureClientId)) throw new Error("WHATBUILD_AZURE_CLIENT_ID must be a managed identity's client ID, a GUID.");
+  }
   return {
     env: mode,
     port,
@@ -189,6 +203,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     grantKey,
     mailer,
     smtpUrl: env["WHATBUILD_SMTP_URL"] ?? null,
+    acsEmailEndpoint,
+    azureClientId,
     mailFrom: env["WHATBUILD_MAIL_FROM"] ?? "WhatBuild <no-reply@localhost>",
     feedbackEmail,
     googleClientId: env["WHATBUILD_GOOGLE_CLIENT_ID"] ?? null,

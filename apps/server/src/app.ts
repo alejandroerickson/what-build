@@ -4,6 +4,7 @@ import { AppError, PERMISSIONS_POLICY, REST_BODY_MAX_BYTES, SKILL_VERSION, type 
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { FsBlobStore, MemoryBlobStore } from "./adapters/blobs.ts";
+import { AcsMailer } from "./adapters/mail-acs.ts";
 import { ConsoleMailer, HmacGrantSigner, MemoryMailer, SafeUrlFetcher, SmtpMailer } from "./adapters/misc.ts";
 import { carriesOurCookie, isOwnOrigin } from "./auth/identity.ts";
 import { canonicalHost, requestedHost } from "./canonical-host.ts";
@@ -114,6 +115,10 @@ export function createMailer(config: ServerConfig): Mailer {
         // No mail provider: invitations still work by link; sign-in links are disabled upstream.
       },
     };
+  if (config.mailer === "acs") {
+    if (!config.acsEmailEndpoint) throw new Error("WHATBUILD_ACS_EMAIL_ENDPOINT is required for the acs mailer.");
+    return new AcsMailer(config.acsEmailEndpoint, config.mailFrom, config.azureClientId);
+  }
   if (config.mailer === "smtp") {
     if (!config.smtpUrl) throw new Error("WHATBUILD_SMTP_URL is required for the smtp mailer.");
     return new SmtpMailer(config.smtpUrl, config.mailFrom);
