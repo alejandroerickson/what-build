@@ -25,6 +25,11 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 Nothing yet.
 
+## v0.14.1
+
+- **Nothing to change.** Dependencies move to Vite 8, marked 18 and `@google-cloud/storage` 8,
+  which needs Node 22 or later, as WhatBuild already does.
+
 ## v0.14.0
 
 - **Migration `0029_simplify_source_details`.** It drops `participants`, `source_system` and
