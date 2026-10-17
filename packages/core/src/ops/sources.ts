@@ -1,6 +1,6 @@
 import { sql, type Selectable } from "kysely";
 import { z } from "zod";
-import { checkEtag, keepRevision, normalizeDimensions, normalizeTags, productId, recordActivity, tenantId } from "../common.ts";
+import { checkEtag, keepRevision, normalizeTags, productId, recordActivity, tenantId } from "../common.ts";
 import { citedRanges, type CitedRange } from "../citations.ts";
 import { json, type CitationSnapshot, type RecordsTable } from "../db.ts";
 import { checkConfirmation, DELETE_CONFIRMATION, DELETE_GUIDANCE, deleteGuards, dropRevisions, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
@@ -8,7 +8,7 @@ import { conflict, gone, invalid, notFound } from "../errors.ts";
 import { SEARCH_RULE } from "../source-fields.ts";
 import { effectiveRole, membershipsFor, roleAtLeast } from "../policy.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
-import { dimensions, expectedEtag, id, isoDate, provenanceDepth, tags } from "../schemas.ts";
+import { expectedEtag, id, isoDate, provenanceDepth, tags } from "../schemas.ts";
 import { newEtag, newId, sameEtag, slugify, uniq } from "../util.ts";
 
 type RecordRow = Selectable<RecordsTable>;
@@ -113,7 +113,6 @@ export function recordSummary(r: RecordRow, s?: { derived_status: string; segmen
     title: r.title,
     date: r.date,
     tags: r.tags,
-    dimensions: r.dimensions,
     provenance_depth: r.provenance_depth,
     uploaded_by: r.uploaded_by,
     uploaded_at: r.uploaded_at,
@@ -204,9 +203,6 @@ export const listSources = defineOperation({
     date_from: isoDate.optional().describe("The source's own date, on or after."),
     date_to: isoDate.optional().describe("The source's own date, on or before."),
     query: z.string().max(500).optional(),
-    customer: z.string().max(120).optional(),
-    product_area: z.string().max(120).optional(),
-    lifecycle_stage: z.enum(["discovery", "sales", "research"]).optional(),
     provenance_depth: provenanceDepth.optional(),
     include_archived: z.boolean().default(false),
     sort: z.enum(["added", "date", "updated", "title"]).default("added"),
@@ -224,10 +220,6 @@ export const listSources = defineOperation({
     if (input.date_from) q = q.where("date", ">=", input.date_from);
     if (input.date_to) q = q.where("date", "<=", input.date_to);
     if (input.tags?.length) q = q.where(sql<boolean>`tags @> ${normalizeTags(input.tags)}::text[]`);
-    for (const k of ["customer", "product_area", "lifecycle_stage"] as const) {
-      const v = input[k];
-      if (v) q = q.where(sql<boolean>`dimensions->>${k} = ${normalizeDimensions({ [k]: v })[k]!}`);
-    }
     if (input.provenance_depth) q = q.where("provenance_depth", "=", input.provenance_depth);
     if (input.query) {
       const like = `%${input.query}%`;
@@ -415,7 +407,6 @@ export const recordMetadata = {
     .optional()
     .describe("What the material is (interview, workshop, deck, analysis), whom it concerns (an organization, a segment) and what it bears on. Reuse the product's tags from sources(action=\"facets\"). Up to 50, stored lower-case."),
   related_records: z.array(id("source")).max(50).optional(),
-  dimensions: dimensions.optional(),
   provenance_depth: provenanceDepth.optional(),
 };
 
@@ -440,7 +431,6 @@ export async function insertRecord(
     source_system?: string | null | undefined;
     tags?: string[] | undefined;
     related_records?: string[] | undefined;
-    dimensions?: Record<string, unknown> | undefined;
     provenance_depth?: string | undefined;
   },
   copiedFrom: { product_id: string; record_id: string } | null = null,
@@ -460,7 +450,6 @@ export async function insertRecord(
       source_system: input.source_system ?? null,
       tags: normalizeTags(input.tags),
       related_records: await checkRelated(ctx, input.related_records),
-      dimensions: json(normalizeDimensions(input.dimensions as never)),
       provenance_depth: input.provenance_depth ?? "unknown",
       slug: slugify(date ? `${date}-${input.title}` : input.title),
       copied_from: json(copiedFrom),
@@ -518,7 +507,6 @@ export const updateSource = defineOperation({
       source_system: input.source_system === undefined ? r.source_system : input.source_system,
       tags: input.tags ? normalizeTags(input.tags) : r.tags,
       related_records: input.related_records ? await checkRelated(ctx, input.related_records, r.record_id) : r.related_records,
-      dimensions: normalizeDimensions(input.dimensions, r.dimensions),
       provenance_depth: input.provenance_depth ?? r.provenance_depth,
     };
     const changed = (Object.keys(next) as (keyof typeof next)[]).filter((k) => JSON.stringify(next[k]) !== JSON.stringify(r[k]));
@@ -527,7 +515,6 @@ export const updateSource = defineOperation({
       .updateTable("records")
       .set({
         ...next,
-        dimensions: json(next.dimensions),
         slug: slugify(next.date ? `${next.date}-${next.title}` : next.title),
         etag: newEtag(),
         updated_at: ctx.now,
@@ -970,7 +957,7 @@ export const copySource = defineOperation({
     const targetCtx: OpContext = { ...ctx, scope: { ...ctx.scope, product: { product_id: target.product_id, slug: target.slug, name: target.name, archived_at: null } } };
     const copy = await insertRecord(
       targetCtx,
-      { ...r, dimensions: r.dimensions as Record<string, unknown>, related_records: [] },
+      { ...r, related_records: [] },
       { product_id: productId(ctx), record_id: r.record_id },
     );
     const files = await ctx.db.selectFrom("files").selectAll().where("record_id", "=", r.record_id).execute();

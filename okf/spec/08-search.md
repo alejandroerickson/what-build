@@ -1,16 +1,16 @@
 ---
 type: Specification
 title: Search is lexical, bounded, and says exactly what it examined.
-description: The search operation as built (substring, ranked and plain modes, scopes, filters, coverage), dimensions, and the planned retrieval work (dimension registry, attachment tiers, semantic search, approximate relocation, recursive lineage).
+description: The search operation as built (substring, ranked and plain modes, scopes, filters, coverage), and the planned retrieval work (attachment tiers, semantic search, approximate relocation, recursive lineage).
 tags: [spec, search, retrieval, coverage]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
 # 8. Search and retrieval
 
 Retrieval is a first-class feature: synthesis is only as good as what a person or an agent can
-find. Search today is lexical and says so. The improvements marked *planned* in §8.3–§8.6 are not
+find. Search today is lexical and says so. The improvements marked *planned* in §8.4–§8.6 are not
 built.
 
 ## 8.1 The search operation
@@ -24,7 +24,7 @@ search {
   mode?:     "substring" (default) | "ranked" | "plain"
   scope?:    "passages" (default) | "assumptions" | "all"
   record_id?, date_from?, date_to?, tags[]?,          // passage filters
-  customer?, product_area?, lifecycle_stage?, provenance_depth?,
+  provenance_depth?,
   include_archived? (false), limit? (50, at most 200), cursor?
   kind?, strict? (false)                              // plain mode only
 }
@@ -37,7 +37,8 @@ or `kind` or `strict` in another mode, is `422 invalid_filter`.
   cross-tenant one.
 - Date and tag filters apply to passages: `date_from` and `date_to` bound the source's own date,
   and a source must carry every tag given. Combining them with `scope: "assumptions"` is
-  `422 invalid_filter`. Sources have no kind, organization or folder to filter by
+  `422 invalid_filter`. Sources have no kind, organization or folder to filter by,
+  and sources and assumptions have no dimensions (`customer`, `product_area`, `lifecycle_stage`)
   ([§4.4](04-data-model.md)); naming one is `422 invalid_input`.
 - Passage hits: `{ record_id, seq, start_ms, end_ms, speaker, snippet, char_start, char_end,
   score? }`, with each source's `title`, `date`, `tags` and `archived_at` sent once in
@@ -102,20 +103,12 @@ or `kind` or `strict` in another mode, is `422 invalid_filter`.
 - **One engine.** Because there is only one database, development and production rank results
   identically, and tests can assert ordering, not merely result sets.
 
-## 8.3 Dimensions and the alias registry
+## 8.3 No dimensions
 
-Records carry three optional, domain-neutral dimensions: `customer`, `product_area`,
-`lifecycle_stage`.
-
-- **As built:** `customer` and `product_area` are free text; `lifecycle_stage` is one of
-  `discovery`, `sales`, `research`. Values are normalized on write (trimmed, whitespace collapsed,
-  case-folded) and filters match the normalized value. This does not catch misspellings.
-- **Planned — a per-product dimension registry:** each dimension has canonical values with
-  aliases (`{ value_id, label, aliases[] }`). Writes resolve through aliases; unknown values are
-  accepted and listed as *unregistered* for someone to merge. Merging two values is an alias
-  change, not a rewrite of records. Operations: `dimensions.list`, `register`, `add_alias`,
-  `merge`. The product ships no values: the registry is filled by each product, keeping the
-  platform domain-independent.
+Sources and assumptions have no dimensions. Whom material concerns, what it bears on and which
+stage of work it comes from are tags, filtered with `tags` (§8.1)
+([decision](../decisions/sources-are-described-by-tags.md)). Migration `0027_drop_dimensions.sql`
+dropped the customer, product area and lifecycle stage they held.
 
 ## 8.4 Honest coverage, and tiered search of attachments
 

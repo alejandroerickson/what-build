@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 128 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
@@ -332,6 +332,12 @@ Notes on recent actions:
   `sources.used_by` gives `tags` for related sources and views. A call to a `sources`, `files` or
   `search` operation naming `kind`, `organization` or `folder` is `422 invalid_input`, with a hint
   to use tags and `sources(action="facets")`.
+- Sources and assumptions have no dimensions; tags say whom material concerns and what it bears
+  on ([decision](../decisions/sources-are-described-by-tags.md)). `sources.list` and `search` lost `customer`, `product_area` and
+  `lifecycle_stage`; `sources.create`, `sources.update`, `files.create_upload`,
+  `assumptions.create` and `assumptions.update` take no `dimensions`, and reads of sources and
+  assumptions carry none. A call to a `sources`, `files`, `search` or `assumptions` operation
+  naming one is `422 invalid_input`, with a hint to use tags.
 - Insights and decisions are retired, with their operations and their MCP tools; what a product
   held of them became sources ([§4.7](04-data-model.md)). `sources.used_by` replaced
   `sources.insights_for`, and lists the sources that name a source in `related_records`.

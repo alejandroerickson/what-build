@@ -75,7 +75,7 @@ export function slugify(input: string, max = 60, fallback = "untitled"): string 
   return s || fallback;
 }
 
-/** Normalize a dimension value: NFKC, collapsed whitespace, trimmed, case-folded. */
+/** Normalize a tag: NFKC, collapsed whitespace, trimmed, case-folded. */
 export function normalizeKey(value: string): string {
   return value.normalize("NFKC").replace(/\s+/g, " ").trim().toLocaleLowerCase("en-US");
 }

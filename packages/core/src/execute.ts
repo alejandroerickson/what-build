@@ -33,11 +33,17 @@ const RETIRED_SOURCE_FIELDS = new Set(["kind", "organization", "folder"]);
 const RETIRED_SOURCE_HINT =
   " Sources have no kind, organization or folder any more: say what the material is and whom it concerns with tags, reusing the ones sources(action=\"facets\") lists.";
 
+/** Dimensions and their filters, which sources and assumptions no longer have. */
+const RETIRED_DIMENSION_FIELDS = new Set(["dimensions", "customer", "product_area", "lifecycle_stage"]);
+const RETIRED_DIMENSION_HINT =
+  " Sources and assumptions have no dimensions (customer, product area, lifecycle stage) any more: say whom the material concerns and what it bears on with tags, and filter by tags.";
+
 /** A hint for fields the call named that this operation does not take: ones sources no longer have, or a neighbouring operation's. */
 function retiredFieldHint(op: OperationDef, error: z.ZodError): string {
   const unknown = error.issues.filter((i) => i.code === "unrecognized_keys").flatMap((i) => (i as { keys: string[] }).keys);
   const retired = ["sources", "files", "search"].includes(op.mcp.tool) && unknown.some((k) => RETIRED_SOURCE_FIELDS.has(k));
-  return (retired ? RETIRED_SOURCE_HINT : "") + wrongFieldHint(op, unknown);
+  const dimensions = ["sources", "files", "search", "assumptions"].includes(op.mcp.tool) && unknown.some((k) => RETIRED_DIMENSION_FIELDS.has(k));
+  return (retired ? RETIRED_SOURCE_HINT : "") + (dimensions ? RETIRED_DIMENSION_HINT : "") + wrongFieldHint(op, unknown);
 }
 
 export function parseInput<I extends z.ZodType>(op: OperationDef<I>, raw: unknown): z.output<I> {
