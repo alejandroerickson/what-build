@@ -334,9 +334,8 @@ or "a source no longer in WhatBuild". Those entries took a new etag; their statu
 
 ## 4.9 Views
 
-A **view** is a derived document stored as a source tagged `view` (or `analysis`, `digest`), with
-`provenance_depth` `derived` or `analysis_of_analysis`: something produced *from* other material.
-It says in its own text what it was built from and when. WhatBuild keeps no record of a view's
+A **view** is a derived document stored as a source tagged `view` (or `analysis`, `digest`):
+something produced *from* other material. It says in its own text what it was built from and when. WhatBuild keeps no record of a view's
 inputs and does not report when they change; an agent builds a view again when the person wants it
 current ([decision](../decisions/evidence-is-searched-not-cited.md)). A view is never presented
 as direct evidence.
