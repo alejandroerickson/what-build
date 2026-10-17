@@ -182,10 +182,39 @@ lets a defect through, when it writes a Story of many pages over MCP.
 | `story.restyle` gives every live page the product's current stylesheet in one call, with each page's etag checked | After `set_style`, `publish { restyle }` is one call per page. |
 | Publishing warns, without refusing, about a class the page uses that neither the product's stylesheet nor the page's own styles define | A page written for one style and published under another renders unstyled blocks, and nothing says so. |
 | Publishing warns about a list item in `.steps` or `.lines` that does not have the shape the vocabulary gives | A house style once laid a step out as a grid, which broke any step holding a link or bold text. The styles no longer do, and a check would catch the next such fault. |
-| A source may carry a quoting rule in its metadata (for example "by role only"), and `story.guidance` lists the rules in force in the product | An agreement that limits naming an organisation is one source among many. An agent finds it only by reading it, and a Story is what is read outside the team. |
 | The print view turns a link to another Story page that is in the same export into a link within the document | A printed Story's links between its own pages lead back to the app. |
 | `story.guidance` names the width the app shows a page at, and the house styles are checked at it | A page is shown at up to 900 pixels. A style's grid that holds three figures at 1,100 pixels may hold two at 900. |
 | A page's body is stored apart from its stylesheet | A version would then hold what the author wrote, a style change would need no new versions, and an export would not repeat the stylesheet in every version. It changes what a version is, so it needs a decision first. |
+
+## Planned — The Story is the team's own communication, with no rules about quoting
+
+**Planned; not built.** The maintainer chose on 2026-10-17 that the Story is a persistent,
+consistent place for a team's human-facing communication: what to build, the pitch, the plan, or
+whatever else the team wants its stakeholders to read. It is not a quoted or cited record of how
+decisions were reached, and not a case made for building something. An agent writing it may draw
+on anything in the product, and quote it, paraphrase it, synthesize over it or link to it, in
+whatever way suits the page or the person asks for. Nothing in WhatBuild requires, restricts or
+defaults how a Story quotes, paraphrases or attributes. The guidance and the skill still steer
+agents towards exact quotations and attribution, which makes pages read like case files; these
+items take that out. Once they are built, the Story part of the decision
+[evidence is searched, not cited](../decisions/evidence-is-searched-not-cited.md) is revised to
+match; what it says about assumptions and mockups stands.
+
+| Item | What it answers |
+|---|---|
+| Story guidance says what the Story is for, and sets no rule about quoting | `packages/core/src/story-guidance.ts`: the `quote` and `evidence_wall` components ("Quote only words you have read", "exact words", "Exact quotations only; attribute by role", "No link"), the content rules ("Explain in your own words. Quote a source only where its exact words matter, and leave source links out"), the anti-pattern of a source reference or a link to the evidence after a claim, the claim types ("a short exact quote, said in words to come from them"), the fact guardrail on a source's quoting rules (attribution by role), and the checklist's "free of source references a reader does not need". Replace them with the Story's purpose and the freedom above, keep the design guidance, and bump the guidance version. |
+| The skill says the same | `packages/core/src/skill/SKILL.md`: "Follow the sources' own rules on naming… quote by role on every page" and "Explain; don't cite… quote a person only where their exact words matter, attributed in words… Leave source links out". Say what the Story is for and that how a page uses the product's material is the agent's and the person's choice; bump the skill version (`pnpm gen:skill`). |
+| The vocabulary describes blocks, not rules | `packages/core/src/story-styles.ts` describes `.quote` as "An exact quotation with who said it and when" and `.quotes` as "Several short exact quotations side by side", and its specimen says "Quotes are exact." Describe what each block shows; the house styles' rules keep no attribution requirement (isotype's "the source beside it"). |
+| Links into the product are allowed | `story.guidance` returns link templates for a source, an outcome and an assumption that no component uses. Keep them, and say what each opens and for whom: a reader of the Story opens only the Story. |
+| The specification and the tests follow | `okf/spec/04-data-model.md` §4.11 (the writing guidance's quoting rules), `e2e/plans/assumptions-and-the-story.md` (step 6 and its look-out for a link to the evidence), and an `okf/operations/upgrading.md` line for the new skill and guidance versions. |
+
+*Accept:*
+- `story.guidance` and the skill hold no requirement, restriction or default about quoting,
+  paraphrasing or attributing anything; they say what the Story is for.
+- A page that quotes a source, paraphrases it, links it or does none of these is equally within
+  the guidance.
+- The decision on citations says a Story page may use the product's material in whatever way
+  suits its readers.
 
 ## Planned — Exploration after mockups
 
