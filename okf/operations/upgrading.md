@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.13.0
+
 - **Migration `0027_drop_dimensions`.** It drops the `dimensions` columns of `records` and
   `register_entries`, and the field in saved sandbox baselines: every customer, product area and
   lifecycle stage a source or assumption held is deleted, not moved anywhere. Rehearse on the dev
