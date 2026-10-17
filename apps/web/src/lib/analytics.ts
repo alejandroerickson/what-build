@@ -66,8 +66,9 @@ export function screenPath(pathname: string): string {
 /**
  * What a change the app made was, as an event name: the operation the server says it ran
  * (`X-WhatBuild-Operation`), so `POST …/assumptions/01J…/review` is `assumptions_review` and
- * `files.fetch_url` is `files_fetch_url`, never a name, id or slug from the address. A change that
- * is not an operation is sent only if it is one of a few named here, under that name.
+ * `attachments.fetch_url` is `attachments_fetch_url`, never a name, id or slug from the address.
+ * A change that is not an operation is sent only if it is one of a few named here, under that
+ * name.
  */
 const OTHER_CHANGES: [RegExp, string][] = [
   // Google's own name for a sign-up on the landing page, so it can be a key event as it stands.

@@ -3,7 +3,7 @@ type: Index
 title: The WhatBuild specification is ten documents, read in order.
 description: What WhatBuild is in one paragraph, the ten spec files with what each settles, the conventions they share, and the decisions that shape the rest.
 tags: [spec, index, conventions]
-generated: {by: agent:claude, at: 2026-10-12}
+generated: {by: agent:claude, at: 2026-10-17}
 status: stable
 ---
 
@@ -33,10 +33,10 @@ That is how it is developed and how CI runs it.
 | 2 | [Architecture](02-architecture.md) | Technology stack, ports and adapters, production and development environments, repository layout |
 | 3 | [Accounts, tenants, teams, products, roles](03-accounts-teams-and-identity.md) | Sign-in, the tenant → team → product hierarchy, roles, isolation, who the caller is |
 | 4 | [Data model](04-data-model.md) | Every object, field, limit and invariant |
-| 5 | [Derived layer](05-derived-layer.md) | Parsers, sidecars, passage reads |
+| 5 | [Derived layer](05-derived-layer.md) | Reading attachments, the parsers, a source's derived text and its reads and writes |
 | 6 | [Operations and adapters](06-operations-and-adapters.md) | The operation registry, REST, MCP tools, skill delivery, upload flows |
 | 7 | [Web application](07-web-app.md) | The shell, screens and routes (behavior; the look is in [DESIGN.md](../../DESIGN.md)) |
-| 8 | [Search and retrieval](08-search.md) | Lexical search now, the retrieval improvements planned |
+| 8 | [Search and retrieval](08-search.md) | Lexical search over what sources say, its index and coverage, and the retrieval planned |
 | 9 | [Data lifecycle](09-data-lifecycle.md) | Quotas, backups, versioning, export, archive and delete, deleting a tenant, what we tell people |
 | 10 | [Roadmap](10-roadmap.md) | Build phases with acceptance criteria and status, and open questions |
 

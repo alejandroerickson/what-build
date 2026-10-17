@@ -117,7 +117,7 @@ describe("the URL fetcher", () => {
   });
 });
 
-describe("files.fetch_url", () => {
+describe("attachments.fetch_url", () => {
   let h: Harness;
   let alice: Browser;
   let bob: Browser;
@@ -139,7 +139,7 @@ describe("files.fetch_url", () => {
   };
   const release = () => waiting.splice(0).forEach((r) => r());
   let n = 0;
-  const fetchAs = (who: Browser) => who.api("POST", `${P}/sources/${recordId}/fetch`, { record_id: recordId, url: "https://docs.example.com/notes", path: `notes-${++n}.txt`, role: "supplement" });
+  const fetchAs = (who: Browser) => who.api("POST", `${P}/sources/${recordId}/fetch`, { record_id: recordId, url: "https://docs.example.com/notes", path: `notes-${++n}.txt` });
 
   beforeAll(async () => {
     h = await startHarness({}, { fetcher });

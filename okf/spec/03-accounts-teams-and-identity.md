@@ -3,7 +3,7 @@ type: Specification
 title: Accounts belong to tenants, tenants hold teams, teams run products, and one role check decides every call.
 description: The account → tenant → team → product hierarchy, sign-in, roles and what they grant, addressing and isolation, moving sources between products, caller identity, attribution, and who is who in the public sandbox.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, sandbox]
-generated: {by: agent:claude, at: 2026-10-16}
+generated: {by: agent:claude, at: 2026-10-17}
 status: stable
 ---
 
@@ -22,7 +22,7 @@ tenant               an organization: the isolation and (later) billing boundary
 └── team             a group of people and the products they run
     └── product      one discovery
         ├── outcomes
-        ├── sources      records → files → derivations → segments; notes
+        ├── sources      records → attachments → readings; derived text, summary, notes, comments
         ├── assumptions  (the register)
         ├── mockups      versions, pages, files
         ├── Story        pages, versions, hierarchy
@@ -265,8 +265,8 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   operations, and `products.get`, declare the access level `story` (`products.list` lists every
   product the caller holds a role on); every
   other product operation needs viewer and answers a reader `403` ("You are a reader on product
-  Crewboard; sources.list needs viewer"), and so do a source's file, an export's file, a Story
-  style specimen and a mockup's page. A reader's Story reads leave out `agent_notes`, and of a page
+  Crewboard; sources.list needs viewer"), and so do a source's attachment and text, an export's
+  file, a Story style specimen and a mockup's page. A reader's Story reads leave out `agent_notes`, and of a page
   promoted from a mockup keep only its size; their product reads leave out `concept` and count only `story_pages` (and `stage_counts.story`). A page's HTML is
   served to a reader exactly as published, and a promoted mockup page through the Story's own
   route, so a reader sees that page and nothing else of the mockup ([§4.11](04-data-model.md)).
@@ -275,8 +275,8 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   people: `members.list` answers `403`, and `products.list` marks that organization
   `story_only`. A reader writes nothing: the upload relay checks the role of whoever requested a grant again
   when the bytes arrive, so a grant given to an editor stores nothing once they are a reader.
-- **Viewer** reads everything in the product. **Editor** also writes: sources, files, comments,
-  outcomes, assumptions and reviews, mockups, the Story, and archives any of them. **Admin** also
+- **Viewer** reads everything in the product. **Editor** also writes: sources, their attachments
+  and text, comments, outcomes, assumptions and reviews, mockups, the Story, and archives any of them. **Admin** also
   deletes permanently, anything that can be archived and the product itself (guarded,
   [§9.5](09-data-lifecycle.md)), and manages the product (rename, archive) and its people.
   Creating a product needs admin of its team (tenant owners and admins are admins of every team);
@@ -372,8 +372,11 @@ every table with `tenant_id`, except the directory tables it lists with their re
 ## 3.7 Moving and copying between products
 
 - **Copy** (`sources.copy_to_product`): a new record id in another product of the same team, with
-  `copied_from`; files are shared (blobs are immutable) and parsed afresh in the target.
-- **Move** (`sources.move_to_product`): keeps the record id, files, derivations and notes. Nothing
+  `copied_from`; attachments are shared (blobs are immutable) and read afresh in the target, and
+  the copy takes the derived text, which goes on following its attachment's copy if it was still
+  that attachment's text; the summary, notes and comments stay with the original.
+- **Move** (`sources.move_to_product`): keeps the record id, attachments, readings, derived text,
+  summary, notes and comments. Nothing
   structural points at a source, so nothing refuses a move; a link to the source in the product it
   left stops opening. Both products log the move.
 - Both need editor on the source's product and on the target. Moving assumptions, outcomes,
@@ -419,7 +422,7 @@ client), or posted by another account, answers `400` on WhatBuild's own page, an
 the client.
 
 The consent page tells the person the agent will act as them, what it can reach (everything, one organization or one
-product, named), that the passages it reads go to whoever runs the agent, and that they can
+product, named), that what it reads goes to whoever runs the agent, and that they can
 disconnect it under Connect an agent, and asks what it may do there (below). Any
 MCP client registers itself, so no client is configured in advance, and any client may call
 itself anything: the consent page shows the name in quotation marks as the name the agent gave

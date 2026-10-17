@@ -1,11 +1,11 @@
 import { hostname } from "node:os";
 import {
-  blobsSafeToDelete, lockSandbox, markExportFailed, pruneFeedbackCounts, pruneUsage, runDerivation, runEvidenceMove, runExport, sendFeedbackDigest, stagedPrototypeKeys, type Env,
+  blobsSafeToDelete, indexSources, lockSandbox, markExportFailed, pruneFeedbackCounts, pruneUsage, runDerivation, runEvidenceMove, runExport, sendFeedbackDigest, stagedPrototypeKeys, type Env,
 } from "@whatbuild/core";
 import { sql } from "kysely";
 import { pruneOAuthClients } from "./auth/oauth.ts";
 
-/** A derivation's blobs; ones made before outlines were dropped also have an outline.md, released with the rest. */
+/** A reading's blobs. One made while sources had passages also has a segments.jsonl, and an older one an outline.md, released with the rest. */
 const SIDECARS = ["segments.jsonl", "text.md", "outline.md", "manifest.json"];
 /** A job is tried at most this many times, whether it failed or the process stopped while running it. */
 const MAX_ATTEMPTS = 5;
@@ -16,7 +16,7 @@ const DIGEST_CHECK_MS = 10 * 60_000;
  * instance of the version before it leaves a kind a new migration queued for the new version,
  * instead of failing it and spending its attempts. A job no running version knows waits.
  */
-export const JOB_KINDS = ["derive", "export", "move_to_evidence", "delete_blobs"] as const;
+export const JOB_KINDS = ["derive", "export", "move_to_evidence", "delete_blobs", "index_texts"] as const;
 
 interface Job {
   job_id: number;
@@ -201,7 +201,8 @@ export class Worker {
             record_id: String(job.payload["record_id"]),
             file_version_id: String(job.payload["file_version_id"]),
             force: Boolean(job.payload["force"]),
-            failed: `parsing this file stopped the server ${MAX_ATTEMPTS} times, so it was given up; the file is stored, and rederive tries again`,
+            quiet: Boolean(job.payload["quiet"]),
+            failed: `reading this file stopped the server ${MAX_ATTEMPTS} times, so it was given up; the file is stored, and rederive tries again`,
           });
         })
         .catch((e) => this.log(`job ${job.job_id}: recording that it was given up failed: ${(e as Error).message}`));
@@ -221,6 +222,7 @@ export class Worker {
             record_id: String(job.payload["record_id"]),
             file_version_id: String(job.payload["file_version_id"]),
             force: Boolean(job.payload["force"]),
+            quiet: Boolean(job.payload["quiet"]),
           });
           this.log(`job ${job.job_id} derive ${job.payload["record_id"]}: ${out ? out.status : "skipped"} in ${Date.now() - started} ms`);
         } else if (job.kind === "export") {
@@ -229,6 +231,9 @@ export class Worker {
         } else if (job.kind === "move_to_evidence") {
           const out = await runEvidenceMove(trx, this.env.ports, { tenant_id: job.tenant_id, product_id: String(job.payload["product_id"]) });
           this.log(`job ${job.job_id} move_to_evidence ${job.payload["product_id"]}: ${out ? `${out.insights} insights, ${out.decisions} decisions` : "skipped"} in ${Date.now() - started} ms`);
+        } else if (job.kind === "index_texts") {
+          const n = await indexSources(trx, { product_id: String(job.payload["product_id"]) });
+          this.log(`job ${job.job_id} index_texts ${job.payload["product_id"]}: ${n} sources in ${Date.now() - started} ms`);
         } else if (job.kind === "delete_blobs") {
           // A blob that a sandbox's baseline refers to stays: a reset would bring its source back.
           const safe = await blobsSafeToDelete(trx, job.tenant_id, (job.payload["keys"] as string[]) ?? [], (job.payload["prefixes"] as string[]) ?? []);

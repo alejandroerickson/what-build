@@ -3,7 +3,7 @@ type: System Concept
 title: A deployment's backups are its database's restore history, a restore point before each deploy, a nightly dump and a versioned files bucket; this guide says where each is, how to check it and how to restore one.
 description: For the operator and the agent working for them; what is kept, where and for how long on Cloud Run and Azure, setting up the nightly dump, checking that backups run, restoring a dump into an empty database, checking a restore, and the restore drill.
 tags: [operations, backups, restore, postgres, neon, cloud-run, azure, runbook]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-17}
 status: stable
 ---
 
@@ -176,7 +176,7 @@ diff from.txt to.txt && echo "every table matches"; rm from.txt to.txt
 
 A dump of a database that is still in use differs from it by whatever was written since; compare
 with the dump's source just after taking it, or expect small differences in `activity` and
-`sessions`. Then use it: sign in, open a product, a source and its passages, and search.
+`sessions`. Then use it: sign in, open a product, a source and its text, and search.
 
 ## The restore drill
 
@@ -195,4 +195,4 @@ the [dev deployment](dev-deployment.md):
 
 The nightly manifest of the bucket's keys and sizes, against which a restore is to be checked, is
 planned ([§9.3](../spec/09-data-lifecycle.md)). Until it exists, the check is the table comparison
-and the sources opening with their passages.
+and the sources opening with their text and their attachments.

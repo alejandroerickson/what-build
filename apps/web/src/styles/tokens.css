@@ -14,7 +14,7 @@
   --fs-sm: 11.5px; /* secondary meta, chips, group headings */
   --fs-base: 12px; /* the UI: body, rows, buttons, menus, forms */
   --fs-md: 12.5px; /* product name, inspector title */
-  --fs-body: 13px; /* passages and quotes: text people read */
+  --fs-body: 13px; /* a source's text and quotes: text people read */
   --fs-prose: 13.5px; /* long-form Markdown */
   --fs-title: 14px; /* sheet title; the h1 of a list screen */
   --fs-lead: 15px; /* a summary paragraph above prose */

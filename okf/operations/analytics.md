@@ -3,7 +3,7 @@ type: System Concept
 title: Analytics in production - the server's own counts, Google Analytics behind the cookie choice, Cloudflare Web Analytics on the site
 description: What each source measures and for whom, where every setting lives, how an agent reads them all (pnpm usage, products.usage), how a deployment connects its own analytics, the Google Analytics settings to keep, and how a person's counted days are found and removed.
 tags: [operations, analytics, usage, google-analytics, cloudflare, privacy]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-17}
 status: stable
 ---
 
@@ -60,8 +60,8 @@ seconds, or every 500 rows, and before the server stops; a crash loses at most t
 
 Not counted: seeding and the server's own work; `describe` lookups over MCP; REST requests refused
 before an operation runs (signed out, a body that is not JSON, a write from another origin); and the
-routes that serve bytes (files, exports, Story and mockup pages' HTML, uploads), whose operations
-(the download grant, reading the Story) are counted.
+routes that serve bytes (attachments, a source's text for the app, exports, Story and mockup
+pages' HTML, uploads), whose operations (the download grant, reading the Story) are counted.
 
 - `usage_calls` holds the counts per UTC day. It names nobody and is kept.
 - `usage_people` holds one row for each day a person used a part of WhatBuild (an MCP tool's name)
@@ -182,8 +182,9 @@ in reports; `…:runRealtimeReport` shows the last 30 minutes.
   `agent_disconnect`. Any other change that is not an operation is not sent. These are not in the
   server's counts, which count operations.
 - **Search,** never its words: `search_open` (`via`: `field` or `shortcut`), `search_result_open`
-  (`kind`: `source`, `passage`, `assumption`, `outcome`, `mockup`, `story` or `idea`; `rank`; `from`:
-  `palette` or `screen`), `search_all_results`, `search_recent_use`, and `search_close` when the
+  (`kind`: the result's kind, `source`, `assumption`, `outcome`, `mockup`, `story` or `idea`, or,
+  for a place in a source that was followed, the field it is in, `text`, `summary`, `notes` or
+  `comment`; `rank`; `from`: `palette` or `screen`), `search_all_results`, `search_recent_use`, and `search_close` when the
   search box closes without a result followed (`found`: `yes`, `no`, `waiting` for an answer, or
   `not_typed`).
 - **Never measured:** the instance's owners, and any address but the deployment's own (Cloud Run's

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { track } from "../lib/analytics.ts";
-import { byArea, FIND_AREAS, hitHref, hitMeta, kindOf, Marked, matchedCount, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse, type FindResult } from "../lib/find.tsx";
+import { byArea, FIND_AREAS, findWords, hitHref, hitMeta, kindOf, Marked, matchedCount, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse, type FindResult } from "../lib/find.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { REVIEW_STATUS } from "../lib/status.ts";
 import { understood } from "../shell/find-palette.tsx";
@@ -12,8 +12,8 @@ import "../styles/screens/search.css";
 
 /**
  * Search: everything in the product that holds the words, as you type, under the area it belongs to
- * (Idea, Evidence, Exploration, Story). A source shows once, with its best passages under it. The
- * panel narrows to one area.
+ * (Idea, Evidence, Exploration, Story). A source shows once, with the best places it says the words
+ * under it: its text, summary, notes or comments. The panel narrows to one area.
  */
 export function SearchPage() {
   const { api: base, app, product } = useProduct();
@@ -124,8 +124,8 @@ export function SearchPage() {
       ) : recordId && source ? (
         <div className="find-results" onClickCapture={followed}>
           <Sheet labelledBy="find-hits-h">
-            <SheetHeader id="find-hits-h" title="Passages" count={source.hit_count} />
-            <Hits r={source} app={app} all />
+            <SheetHeader id="find-hits-h" title="Where it says it" count={source.hit_count} />
+            <Hits r={source} app={app} find={findWords(d)} all />
           </Sheet>
         </div>
       ) : (
@@ -133,7 +133,7 @@ export function SearchPage() {
           {shown.map((a) => (
             <Sheet key={a.id} labelledBy={`find-${a.id}-h`}>
               <SheetHeader id={`find-${a.id}-h`} title={a.label} count={a.results.length} />
-              <ResultList results={a.results} app={app} q={q} />
+              <ResultList results={a.results} app={app} q={q} find={findWords(d)} />
             </Sheet>
           ))}
         </div>
@@ -189,7 +189,7 @@ function SearchFilters({ areas, total, show, link }: { areas: { id: string; labe
   );
 }
 
-function ResultList({ results, app, q }: { results: FindResult[]; app: string; q: string }) {
+function ResultList({ results, app, q, find }: { results: FindResult[]; app: string; q: string; find: string }) {
   return (
     <ol className="find-list">
       {results.map((r, i) => (
@@ -212,22 +212,22 @@ function ResultList({ results, app, q }: { results: FindResult[]; app: string; q
             </span>
             {r.kind === "assumption" && r.meta.status ? <StatusBadge tone={REVIEW_STATUS[r.meta.status]?.tone}>{REVIEW_STATUS[r.meta.status]?.label ?? r.meta.status}</StatusBadge> : null}
           </Link>
-          {r.hits?.length ? <Hits r={r} app={app} more={`?q=${encodeURIComponent(q)}&record_id=${r.id}`} /> : null}
+          {r.hits?.length ? <Hits r={r} app={app} find={find} more={`?q=${encodeURIComponent(q)}&record_id=${r.id}`} /> : null}
         </li>
       ))}
     </ol>
   );
 }
 
-/** A source's matching passages: the best three, or all of them on the screen for one source. */
-function Hits({ r, app, more, all }: { r: FindResult; app: string; more?: string; all?: boolean }) {
+/** Where a source says the words: the best three places, or all of them on the screen for one source. */
+function Hits({ r, app, find, more, all }: { r: FindResult; app: string; find: string; more?: string; all?: boolean }) {
   const hits = r.hits ?? [];
   const rest = (r.hit_count ?? 0) - hits.length;
   return (
     <ul className={`find-hits${all ? " find-hits-all" : ""}`}>
       {hits.map((h) => (
-        <li key={h.seq}>
-          <Link to={hitHref(app, r.id, h)} className="find-hit" data-kind="passage">
+        <li key={`${h.field}:${h.annotation_id ?? ""}:${h.char_start}`}>
+          <Link to={hitHref(app, r.id, h, find)} className="find-hit" data-kind={h.field}>
             <span className="find-hit-meta num">{hitMeta(h)}</span>
             <span className="find-hit-text">
               <Marked text={h.text} marks={h.marks} />
@@ -239,7 +239,7 @@ function Hits({ r, app, more, all }: { r: FindResult; app: string; more?: string
         <li>
           <Link to={more} className="find-more">
             <Glyph name="corner-down-right" size="sm" />
-            {rest} more {rest === 1 ? "passage" : "passages"} in this source
+            {rest} more {rest === 1 ? "place" : "places"} in this source
           </Link>
         </li>
       ) : null}

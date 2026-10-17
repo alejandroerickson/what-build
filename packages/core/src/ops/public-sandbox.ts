@@ -14,6 +14,7 @@ import {
 } from "../public-sandbox.ts";
 import { expectedEtag, id } from "../schemas.ts";
 import { decodeCursor, encodeCursor, newEtag, newId, randomToken, sha256Hex } from "../util.ts";
+import { MAX_ATTACHMENTS } from "./attachments.ts";
 import { MAX_BATCH } from "./sources.ts";
 import { MAX_MOCKUPS, MOCKUP_HTML_TOTAL, MOCKUP_PAGE_MAX } from "./mockups.ts";
 import { MAX_PAGES } from "./story.ts";
@@ -229,10 +230,10 @@ async function panel(ctx: OpContext, sb: SandboxState) {
     deployment_limits: [
       { label: "File size", value: cfg.fileMaxBytes, unit: "bytes", set_by: "WHATBUILD_FILE_MAX_BYTES" },
       { label: "File size through the upload relay", value: cfg.relayMaxBytes, unit: "bytes", set_by: "WHATBUILD_RELAY_MAX_BYTES" },
-      { label: "Parsed per primary file", value: cfg.parseCapBytes, unit: "bytes", set_by: "WHATBUILD_PARSE_CAP_BYTES" },
-      { label: "Memory for parsing one file", value: cfg.parseMemoryMb * 1024 * 1024, unit: "bytes", set_by: "WHATBUILD_PARSE_MEMORY_MB" },
-      { label: "Time for parsing one file", value: cfg.parseTimeoutSeconds, unit: "seconds", set_by: "WHATBUILD_PARSE_TIMEOUT_SECONDS" },
-      { label: "Passages from one file", value: MAX_SEGMENTS, unit: "passages", set_by: null },
+      { label: "Read per attachment", value: cfg.parseCapBytes, unit: "bytes", set_by: "WHATBUILD_PARSE_CAP_BYTES" },
+      { label: "Memory for reading one attachment", value: cfg.parseMemoryMb * 1024 * 1024, unit: "bytes", set_by: "WHATBUILD_PARSE_MEMORY_MB" },
+      { label: "Time for reading one attachment", value: cfg.parseTimeoutSeconds, unit: "seconds", set_by: "WHATBUILD_PARSE_TIMEOUT_SECONDS" },
+      { label: "Paragraphs read from one attachment", value: MAX_SEGMENTS, unit: "paragraphs", set_by: null },
       { label: "Pages of a parsed PDF", value: MAX_PDF_PAGES, unit: "pages", set_by: null },
       { label: "A file fetched from a URL", value: cfg.urlFetchMaxBytes, unit: "bytes", set_by: "WHATBUILD_URL_FETCH_MAX_BYTES" },
       { label: "A request body", value: REST_BODY_MAX_BYTES, unit: "bytes", set_by: null },
@@ -241,7 +242,7 @@ async function panel(ctx: OpContext, sb: SandboxState) {
       { label: "A mockup page", value: MOCKUP_PAGE_MAX, unit: "characters", set_by: null },
       { label: "A mockup version's HTML, all pages", value: MOCKUP_HTML_TOTAL, unit: "characters", set_by: null },
       { label: "Mockups in a product", value: MAX_MOCKUPS, unit: "mockups", set_by: null },
-      { label: "Files on a source", value: 50, unit: "files", set_by: null },
+      { label: "Attachments on a source", value: MAX_ATTACHMENTS, unit: "attachments", set_by: null },
       { label: "Sources in one archive or restore call", value: MAX_BATCH, unit: "sources", set_by: null },
       { label: "Sign-in links for one address", value: SIGN_IN_LINKS_PER_HOUR, unit: "an hour", set_by: null },
     ],
@@ -316,7 +317,7 @@ export const saveSandboxBaseline = defineOperation({
   exclusive: true,
   summary: "Save the organization's content as it is now as the baseline every reset puts back (tenant admins).",
   description:
-    `Holds every team, product, source, file, passage, note, outcome, assumption, review, Story page, mockup and activity event, with their ids, so links keep working after a reset. It holds what visitors have added too, so reset first (or set visitor_access to read) unless you mean to keep it. People and their access are not part of a baseline. The newest ${BASELINES_KEPT} are kept. Files are referred to, not copied.`,
+    `Holds every team, product, source, attachment, text, note, comment, outcome, assumption, review, Story page, mockup and activity event, with their ids, so links keep working after a reset. It holds what visitors have added too, so reset first (or set visitor_access to read) unless you mean to keep it. People and their access are not part of a baseline. The newest ${BASELINES_KEPT} are kept. Files are referred to, not copied.`,
   input: z.strictObject({ tenant, note: z.string().trim().max(500).default("").describe("What this baseline is, for whoever reads the list later.") }),
   rest: { method: "POST", path: "/sandbox/baselines" },
   mcp: { tool: "sandbox", action: "save_baseline" },

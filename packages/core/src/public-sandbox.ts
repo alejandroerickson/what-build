@@ -360,7 +360,7 @@ function quota(sandbox: SandboxState, name: SandboxSettingKey, used: number, uni
 /** Operations counted against a daily allowance beyond the count of writes. */
 const DAILY: Record<string, { counter: Counter; setting: SandboxSettingKey; unit: string; what: (n: number) => string }> = {
   "sources.create": { counter: "sources", setting: "sources_per_day", unit: "sources", what: (n) => `each visitor ${n} new sources a day` },
-  "files.create_upload": { counter: "sources", setting: "sources_per_day", unit: "sources", what: (n) => `each visitor ${n} new sources a day` },
+  "attachments.create_upload": { counter: "sources", setting: "sources_per_day", unit: "sources", what: (n) => `each visitor ${n} new sources a day` },
   "sources.copy_to_product": { counter: "sources", setting: "sources_per_day", unit: "sources", what: (n) => `each visitor ${n} new sources a day` },
   "products.export": { counter: "exports", setting: "exports_per_day", unit: "exports", what: (n) => `each visitor ${n} exports a day` },
 };
@@ -515,7 +515,7 @@ export async function countVisitorBytes(trx: Db, sandbox: SandboxContext, accoun
 }
 
 export function visitorMayFetchUrl(sandbox: SandboxContext): void {
-  if (!sandbox.settings.fetch_url) throw restricted("Fetching a file from a URL is off for visitors in this public sandbox. Download the file yourself and upload it with files(action=\"request_upload\").");
+  if (!sandbox.settings.fetch_url) throw restricted("Fetching a file from a URL is off for visitors in this public sandbox. Download the file yourself and upload it with attachments(action=\"request_upload\").");
 }
 
 // ---- Running alone ------------------------------------------------------------------------------

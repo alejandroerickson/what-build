@@ -268,7 +268,6 @@ export interface RecordsTable {
   tags: string[];
   slug: string;
   copied_from: JsonNull<{ product_id: string; record_id: string }>;
-  current_derivation_id: string | null;
   archived_at: TsNull;
   archived_by: JsonNull<ActorSnapshot>;
   etag: string;
@@ -278,20 +277,15 @@ export interface RecordsTable {
   updated_by: Json<ActorSnapshot>;
 }
 
+/** A source's attachments: files kept with it, never searched. */
 export interface FilesTable {
   file_id: string;
   tenant_id: string;
   record_id: string;
   path: string;
-  role: "primary" | "origin" | "supplement";
   current_version_id: string | null;
-  derived_from: string[];
-  derivation_note: string | null;
-  derived_by: string | null;
   added_at: Ts;
   added_by: Json<ActorSnapshot>;
-  role_changed_at: TsNull;
-  role_changed_by: JsonNull<ActorSnapshot>;
 }
 
 export interface FileVersionsTable {
@@ -313,12 +307,8 @@ export interface UploadGrantsTable {
   product_id: string;
   record_id: string;
   path: string;
-  role: "primary" | "origin" | "supplement";
   media_type: string | null;
   max_bytes: number;
-  derived_from: string[];
-  derivation_note: string | null;
-  derived_by: string | null;
   principal: Json<ActorSnapshot>;
   expires_at: Ts;
   uploaded_at: TsNull;
@@ -371,7 +361,6 @@ export interface DerivationsTable {
   status_detail: string | null;
   parser: string;
   parser_version: string;
-  segment_count: number;
   text_chars: number;
   duration_ms: number | null;
   facts: Json<Record<string, unknown>>;
@@ -379,20 +368,35 @@ export interface DerivationsTable {
   created_at: Ts;
 }
 
-export interface SegmentsTable {
+/** A source's derived text: the Markdown search reads, taken from an attachment or written by someone. */
+export interface SourceTextsTable {
+  record_id: string;
+  tenant_id: string;
+  content: string;
+  /** Its length in code points. */
+  chars: number;
+  /** The attachment version whose text it is, until someone edits it. */
+  from_file_version_id: string | null;
+  updated_at: Ts;
+  updated_by: Json<ActorSnapshot>;
+  etag: string;
+}
+
+/** What search reads of a source: its title, tags, summary, notes, derived text and comments. */
+export type TextField = "title" | "tags" | "summary" | "notes" | "text" | "comment";
+
+/** The search index: each searchable text of a source, cut into pieces that are matched one at a time. */
+export interface TextChunksTable {
   tenant_id: string;
   record_id: string;
-  derivation_id: string;
-  seq: number;
-  text: string;
-  speaker: string | null;
-  start_ms: number | null;
-  end_ms: number | null;
+  field: TextField;
+  /** A comment's annotation_id; empty for the other fields. */
+  ref: string;
+  n: number;
+  /** Code points into the field's text, half-open. */
   char_start: number;
   char_end: number;
-  heading_level: number | null;
-  page: number | null;
-  is_current: boolean;
+  text: string;
 }
 
 export interface AnnotationsTable {
@@ -786,7 +790,8 @@ export interface DB {
   upload_grants: UploadGrantsTable;
   mockup_uploads: MockupUploadsTable;
   derivations: DerivationsTable;
-  segments: SegmentsTable;
+  source_texts: SourceTextsTable;
+  text_chunks: TextChunksTable;
   annotations: AnnotationsTable;
   agent_notes: AgentNotesTable;
   outcomes: OutcomesTable;

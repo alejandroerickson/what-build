@@ -1,4 +1,4 @@
-/* Evidence: the list and its panel filters, a source's page, its passages, and adding a source. */
+/* Evidence: the list and its panel filters, a source's page and its text, and adding a source. */
 
 /* ---- Panel context: the filters --------------------------------------------------------------- */
 
@@ -205,24 +205,63 @@
   text-underline-offset: 2px;
 }
 
-/* Original */
-.source-original-line {
+/* Text: the source's words, as one document. */
+.text-find-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+.text-find-bar .find {
+  width: 220px;
+  max-width: 100%;
+}
+.text-find-count {
+  min-width: 76px;
+  color: var(--faint);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+.source-text-meta {
   /* Full-width rule underneath, text kept to a readable measure. */
+  margin: 0;
   padding: var(--s-2h) max(var(--sheet-px), calc(100% - var(--measure))) var(--s-2h) var(--sheet-px);
   border-bottom: 1px solid var(--line);
   color: var(--muted);
   font-size: var(--fs-sm);
   line-height: 1.5;
 }
-.source-original .sheet-filter .field {
-  display: block;
+.source-text-meta b {
+  color: var(--text);
+  font-weight: var(--fw-medium);
 }
-.source-original .sheet-filter .input {
-  height: var(--h-sm);
-  max-width: 280px;
+.source-text-body {
+  padding: var(--s-3h) var(--sheet-px) var(--s-4);
 }
-.source-original-body {
-  padding: var(--s-3h) var(--sheet-px);
+.source-text {
+  max-width: var(--measure);
+}
+.source-text > :first-child {
+  margin-top: 0;
+}
+mark.text-find {
+  background: var(--hit-bg);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+mark.text-find-current {
+  background: var(--highlight);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.source-text-more {
+  margin: var(--s-3) 0 0;
+}
+.source-text-editor {
+  min-height: 55vh;
+  font-family: var(--mono);
+  font-size: var(--fs-base);
+  line-height: 1.6;
+}
+.source-preview {
+  min-height: 120px;
 }
 .source-preview-frame {
   display: block;
@@ -438,229 +477,6 @@
 .source-comments > li:last-child {
   border-bottom: 0;
 }
-
-/* Files */
-.source-files {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.source-file {
-  display: grid;
-  grid-template-columns: var(--icon-md) minmax(0, 1fr) auto auto;
-  gap: var(--s-3);
-  align-items: center;
-  padding: var(--s-2h) var(--s-3) var(--s-2h) var(--sheet-px);
-  border-bottom: 1px solid var(--line);
-}
-.source-file:last-child {
-  border-bottom: 0;
-}
-.source-file > .glyph {
-  color: var(--faint);
-}
-.source-file-main {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-.source-file-main b,
-.source-file-name {
-  font-weight: var(--fw-medium);
-}
-.source-file-name {
-  color: inherit;
-  text-decoration: none;
-}
-.source-file-name:hover {
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.source-file-sub {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px var(--s-2);
-  color: var(--faint);
-  font-size: var(--fs-sm);
-}
-.source-file-actions {
-  display: flex;
-  align-items: center;
-}
-/* When some rows carry a menu, every row keeps room for one, so roles and downloads line up. */
-.source-files-with-menus .source-file-actions {
-  min-width: calc(2 * var(--h-md));
-}
-
-/* Dialogs */
-.source-impact p {
-  line-height: 1.5;
-}
-.source-role-choice {
-  display: grid;
-  gap: var(--s-1);
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-.source-role-choice legend {
-  margin-bottom: var(--s-1);
-}
-.source-file-input {
-  max-width: 100%;
-  font-size: var(--fs-sm);
-}
-.source-file-input::file-selector-button {
-  height: var(--h-md);
-  margin-right: var(--s-2);
-  padding: 0 var(--s-2h);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-sm);
-  background: var(--panel);
-  color: var(--text);
-  font: inherit;
-  font-weight: var(--fw-medium);
-}
-.source-uploads {
-  display: grid;
-  gap: var(--s-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.source-uploads li {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  font-size: var(--fs-sm);
-}
-
-/* ---- Passages --------------------------------------------------------------------------------- */
-
-.passages-find {
-  width: 200px;
-  max-width: 100%;
-}
-.passage-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.passage {
-  display: grid;
-  grid-template-columns: 52px minmax(0, 1fr);
-  gap: var(--s-3);
-  padding: var(--s-1h) var(--sheet-px) var(--s-1h) calc(var(--sheet-px) - var(--s-1));
-  border-bottom: 1px solid var(--line);
-  scroll-margin: 80px 0;
-}
-.passage:last-child {
-  border-bottom: 0;
-}
-.passage-addr {
-  align-self: start;
-  justify-self: start;
-  min-height: var(--h-sm);
-  margin-top: 2px;
-  padding: 3px var(--s-1);
-  border-radius: var(--r-xs);
-  color: var(--faint);
-  text-decoration: none;
-}
-.passage-addr:hover {
-  color: var(--text);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.passage-body {
-  min-width: 0;
-}
-.passage-select {
-  display: block;
-  width: 100%;
-  padding: var(--s-1) 0;
-  border: 0;
-  border-radius: var(--r-xs);
-  background: none;
-  color: var(--text);
-  text-align: left;
-  cursor: pointer;
-}
-.passage:has(.passage-select:hover) {
-  background: var(--hover);
-}
-.passage-selected,
-.passage-selected:has(.passage-select:hover) {
-  background: var(--select);
-}
-.passage-who {
-  display: block;
-  margin-bottom: 2px;
-  color: var(--faint);
-  font-size: var(--fs-sm);
-  font-variant-numeric: tabular-nums;
-}
-.passage-text {
-  display: block;
-  max-width: var(--measure);
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
-  white-space: pre-wrap;
-}
-.passage-heading .passage-text {
-  font-weight: var(--fw-semibold);
-}
-.passage-target:not(.passage-selected) {
-  background: var(--hit-bg);
-}
-.passage-target .passage-addr {
-  color: var(--select-text);
-  font-weight: var(--fw-semibold);
-}
-/* Consecutive table-row passages line up as a small table; each row stays its own passage. */
-.passage-row {
-  padding-top: 0;
-  padding-bottom: 0;
-}
-.passage-row .passage-select {
-  padding: var(--s-1) 0;
-}
-.passage-cells {
-  display: grid;
-  gap: var(--s-3);
-  max-width: var(--measure);
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
-  font-variant-numeric: tabular-nums;
-}
-.passage-cell {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.passage-row-head .passage-cell {
-  color: var(--muted);
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-semibold);
-}
-/* Reading aids under a passage: the sources it mentions. */
-.passage-aids {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-1) var(--s-3);
-  margin: 0 0 var(--s-1h);
-  font-size: var(--fs-sm);
-}
-.passage-mentions {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--s-1) var(--s-2);
-}
-.passage-mentions .evidence-link {
-  font-variant-numeric: tabular-nums;
-}
 .comment {
   display: grid;
   gap: var(--s-1);
@@ -694,44 +510,114 @@
   border-radius: var(--r-md);
   background: var(--panel);
 }
-.passages-pager {
+
+/* Attachments */
+.source-files-note {
+  margin: 0;
+  padding: var(--s-2) var(--sheet-px);
+  border-bottom: 1px solid var(--line);
+  color: var(--faint);
+  font-size: var(--fs-sm);
+}
+.source-files {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.source-file {
+  display: grid;
+  grid-template-columns: var(--icon-md) minmax(0, 1fr) auto;
+  gap: var(--s-3);
+  align-items: center;
+  padding: var(--s-2h) var(--s-3) var(--s-2h) var(--sheet-px);
+  border-bottom: 1px solid var(--line);
+}
+.source-file:last-child {
+  border-bottom: 0;
+}
+.source-file > .glyph {
+  color: var(--faint);
+}
+.source-file-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.source-file-main b,
+.source-file-name {
+  font-weight: var(--fw-medium);
+}
+.source-file-name {
+  justify-self: start;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: var(--fw-medium);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.source-file-name:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.source-file-sub {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--s-2);
-  padding: var(--s-2) var(--s-3) var(--s-2) var(--sheet-px);
-  border-top: 1px solid var(--line);
+  gap: 2px var(--s-2);
+  color: var(--faint);
+  font-size: var(--fs-sm);
 }
-.passages-goto {
+.source-file-text-source {
+  color: var(--select-text);
+  font-weight: var(--fw-medium);
+}
+.source-file-detail {
+  font-size: var(--fs-sm);
+}
+.source-file-actions {
   display: flex;
   align-items: center;
-  gap: var(--s-1h);
-  margin-left: auto;
+  /* Every row keeps room for a menu, so downloads line up. */
+  min-width: calc(2 * var(--h-md));
+  justify-content: flex-end;
 }
-.passages-goto .input {
-  width: 72px;
-  height: var(--h-sm);
+
+/* Dialogs */
+.source-impact p {
+  line-height: 1.5;
 }
-/* The selection bar docks inside the sheet, above the pager. `clip` rounds the corners like the
-   sheet's own `hidden` but, unlike it, lets the bar stick to the bottom of the window. */
-.passages-sheet {
-  overflow: clip;
+.source-file-input {
+  max-width: 100%;
+  font-size: var(--fs-sm);
 }
-.selection-bar {
-  position: sticky;
-  bottom: var(--s-3);
-  z-index: 2;
+.source-file-input::file-selector-button {
+  height: var(--h-md);
+  margin-right: var(--s-2);
+  padding: 0 var(--s-2h);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-weight: var(--fw-medium);
+}
+.source-uploads {
+  display: grid;
+  gap: var(--s-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.source-uploads li {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--s-2) var(--s-3);
-  margin: var(--s-2) var(--s-3);
-  padding: var(--s-2) var(--s-2) var(--s-2) var(--s-3h);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  background: var(--popover);
-  box-shadow: var(--shadow-2);
+  gap: var(--s-3);
+  font-size: var(--fs-sm);
 }
 
 /* ---- Adding a source -------------------------------------------------------------------------- */
@@ -903,27 +789,12 @@
     width: auto;
     text-align: left;
   }
-  .passage,
-  .hit-link {
-    grid-template-columns: 40px minmax(0, 1fr);
-    gap: var(--s-2);
-  }
-  .passages-find {
+  .text-find-bar,
+  .text-find-bar .find {
     width: 100%;
   }
-  .passages-goto {
-    margin-left: 0;
-  }
-  .source-file {
-    grid-template-columns: var(--icon-md) minmax(0, 1fr) auto;
-  }
-  .source-file-role {
-    grid-column: 2;
-    grid-row: 2;
-  }
   .source-file-actions {
-    grid-column: 3;
-    grid-row: 1;
+    min-width: 0;
   }
   .intake-drop {
     grid-template-columns: var(--icon-md) minmax(0, 1fr);
@@ -931,8 +802,5 @@
   .intake-drop .btn {
     grid-column: 2;
     justify-self: start;
-  }
-  .selection-bar {
-    bottom: var(--s-2);
   }
 }

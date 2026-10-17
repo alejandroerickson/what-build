@@ -1,5 +1,5 @@
 import { strFromU8 } from "fflate";
-import { DEFAULT_PARSE_CAP_BYTES, type Block, type FormatParser } from "./types.ts";
+import { DEFAULT_PARSE_CAP_BYTES, type Block, type FormatParser, type TableRef } from "./types.ts";
 import { descendants, elements, first, parseXml, textOf } from "./xml.ts";
 import { unzipParts } from "./zip.ts";
 
@@ -39,14 +39,18 @@ export const BLANK_CELL = "(blank)";
  * One block per row, shared by XLSX and CSV. The first all-text row with two or more cells in the
  * top 20 is the header; later rows render `label: value` pairs in column order, and a header column
  * the row leaves empty renders `label: (blank)`. `budget` caps the characters across every sheet of
- * one file.
+ * one file. The rows from the header on share one TableRef, so the readable text lays them out as
+ * one table, its first column the sheet's row number; rows above the header stay paragraphs.
  */
 export function sheetRowBlocks(table: SheetRow[], prefix: (n: number) => string, budget: { chars: number }): { blocks: Block[]; truncated: boolean } {
   const headerRow = table.slice(0, 20).find((r) => r.cells.length >= 2 && r.cells.every((c) => c.isText));
   const header = new Map<number, string>();
   if (headerRow) for (const c of headerRow.cells) header.set(c.col, c.value);
+  const start = headerRow ? table.indexOf(headerRow) : 0;
+  const cols = [...new Set(table.slice(start).flatMap((r) => r.cells.map((c) => c.col)))].sort((a, b) => a - b);
+  const ref: TableRef = { header: ["Row", ...cols.map((c) => header.get(c) ?? columnLetter(c))], rows: [] };
   const blocks: Block[] = [];
-  for (const r of table) {
+  for (const [i, r] of table.entries()) {
     let text: string;
     if (r === headerRow) text = r.cells.map((c) => c.value).join(" | ");
     else if (headerRow && r.n > headerRow.n && !(r.cells.length === 1 && !header.has(r.cells[0]!.col))) {
@@ -59,7 +63,15 @@ export function sheetRowBlocks(table: SheetRow[], prefix: (n: number) => string,
     const line = prefix(r.n) + text;
     budget.chars += line.length;
     if (budget.chars > MAX_CHARS) return { blocks, truncated: true };
-    blocks.push({ text: line });
+    if (i < start) {
+      blocks.push({ text: line });
+      continue;
+    }
+    if (r !== headerRow) {
+      const values = new Map(r.cells.map((c) => [c.col, c.value]));
+      ref.rows.push([String(r.n), ...cols.map((c) => values.get(c) ?? "")]);
+    }
+    blocks.push({ text: line, table: ref });
   }
   return { blocks, truncated: false };
 }
@@ -173,7 +185,7 @@ function cellDateFormats(stylesXml: Uint8Array | undefined): (DateFormat | undef
  */
 export const xlsxParser: FormatParser = {
   name: "xlsx",
-  version: "4",
+  version: "5",
   parse(bytes, _fileName, options = {}) {
     const files = unzipParts(
       bytes,

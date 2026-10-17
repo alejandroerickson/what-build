@@ -55,12 +55,13 @@ export async function startHarness(overrides: Partial<ServerConfig> | ((baseUrl:
   const { db, pool } = createDb(url, 5);
   await migrate(db, () => {});
 
-  let server: ServerType | null = null;
-  const port = await new Promise<number>((resolvePort) => {
-    const probe = serve({ fetch: () => new Response(""), port: 0 }, (info: AddressInfo) => {
-      probe.close();
-      resolvePort(info.port);
-    });
+  // The server listens before the app exists, on a port the system picks, so no other test file can
+  // take the port between its being chosen and listened on. The app is made once its address is known.
+  let app: ReturnType<typeof createApp> | null = null;
+  const { server, port } = await new Promise<{ server: ServerType; port: number }>((resolveServer) => {
+    const listening: ServerType = serve({ fetch: (req, env) => (app ? app.fetch(req, env) : new Response("Starting", { status: 503 })), port: 0 }, (info: AddressInfo) =>
+      resolveServer({ server: listening, port: info.port }),
+    );
   });
   const baseUrl = `http://localhost:${port}`;
   const config: ServerConfig = { ...loadConfig({ NODE_ENV: "test", WHATBUILD_PUBLIC_URL: baseUrl, DATABASE_URL: url }), mailer: "memory", blobStore: "memory", defaultTenantAllowance: 100, ...(typeof overrides === "function" ? overrides(baseUrl) : overrides) };
@@ -72,8 +73,7 @@ export async function startHarness(overrides: Partial<ServerConfig> | ((baseUrl:
   if (opts.fetcher) ports.fetcher = opts.fetcher;
   worker = new Worker({ db, ports }, 60_000, () => {});
   const clock = new SandboxClock({ db, ports }, () => {});
-  const app = createApp({ db, ports, config, clock });
-  server = serve({ fetch: app.fetch, port });
+  app = createApp({ db, ports, config, clock });
 
   const makeBrowser = (email: string, cookie: string): Browser => ({
     email,
@@ -156,7 +156,7 @@ export async function startHarness(overrides: Partial<ServerConfig> | ((baseUrl:
     },
     async close() {
       worker?.stop();
-      await new Promise<void>((r) => (server ? server.close(() => r()) : r()));
+      await new Promise<void>((r) => server.close(() => r()));
       await usageSettled();
       await pool.end();
     },

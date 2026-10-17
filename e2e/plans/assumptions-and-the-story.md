@@ -14,8 +14,9 @@ checked on the way.
 
 ## Steps
 
-1. **MCP, as Sam, in the standard organization.** In a product that has sources, find a passage
-   that supports a claim about its users (read a source, or search). Create an assumption whose
+1. **MCP, as Sam, in the standard organization.** In a product that has sources, find words in a
+   source's text that support a claim about its users (search, then read the text around a hit
+   with `derived(action="text")`). Create an assumption whose
    body says in a sentence or two why the team holds it. Then try the same call with a
    `citations` field.
    *Expect:* the first is created unconfirmed, with its statement and body as sent; the second is
@@ -23,14 +24,15 @@ checked on the way.
 2. **Web, as Riley.** Open Exploration, then assumptions. *Expect:* the new assumption is listed;
    opening it shows the statement, the body, and the agent as its author, and nothing about
    citations.
-3. **Web, as Riley.** Search for a few words of the passage Sam used. *Expect:* the search finds
-   the passage, and opening the hit shows it marked in its source.
+3. **Web, as Riley.** Search for a few of the words Sam used. *Expect:* the search finds the
+   source, saying where they are, and opening the hit shows the source's Text with the words
+   marked.
 4. **Web, as Riley.** Review the assumption: mark it confirmed (or whatever review the screen
    offers), with a short note. *Expect:* its status changes, and the review is attributed to Riley
    on the web.
 5. **MCP, as Sam.** Get the assumption. *Expect:* the review from step 4, with Riley as reviewer.
 6. **MCP, as Sam.** Read the Story guidance and the house style, then preview a new Story page that
-   explains the assumption in its own words, quoting the passage only if its exact words matter
+   explains the assumption in its own words, quoting the source only if its exact words matter
    and without a link to it, open the preview's url in the browser with
    its grant (`open <url> --header "<name>: <value>"`) at desktop and phone width (`viewport 390
    844`), light and dark (`theme dark`, or `?theme=dark` on the url), then publish the same call and place the
@@ -55,8 +57,8 @@ checked on the way.
 ## Look out for
 
 - Anything that still shows citations, references, "Cited in", "Cited by" or "Built from".
-- A Story page that puts a source reference or a passage link after its claims, which the Story
-  guidance tells agents not to do.
+- A Story page that puts a source reference or a link to the evidence after its claims, which the
+  Story guidance tells agents not to do.
 - Anything a reader can see that the decision on readers says they cannot
   (`okf/decisions/a-reader-reads-only-the-story.md`).
 - A Story page that looks different in the app's frame and in the print view.

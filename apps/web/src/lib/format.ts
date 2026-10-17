@@ -107,14 +107,6 @@ export function plural(n: number, one: string, many = `${one}s`): string {
 }
 
 /**
- * A passage's text as a person reads it. Parsers keep a heading's Markdown markers ("## Scope") in
- * the stored text, which search and agents read; the reader shows the heading without them.
- */
-export function passageText(text: string, headingLevel: number | null | undefined): string {
-  return headingLevel ? text.replace(/^#{1,6}[ \t]+/, "") : text;
-}
-
-/**
  * A quotation's text ready to sit inside the app's own quotation marks (a <q> element). Quotation
  * marks already in the text become the inner, single kind, so `Sam: "It's slow."` reads
  * “Sam: ‘It's slow.’”; when the whole text is one quotation, its own marks are dropped.

@@ -27,6 +27,11 @@ export interface ParseResult {
   segments: Segment[];
   /** The full derived text the segment offsets index into. Ends with one newline when non-empty. */
   text: string;
+  /**
+   * The text as people read it: Markdown, with each speaker and cue time written into it and each
+   * table laid out whole. What a derivation stores. Ends with one newline when non-empty.
+   */
+  markdown: string;
   /** Largest cue end for timed sources, the container's playing time for a recording, else null. */
   duration_ms: number | null;
   /** Human-readable reason when status is not `ready`. */
@@ -36,9 +41,9 @@ export interface ParseResult {
 }
 
 /**
- * A parse as a derivation stores it: what its row records, and the bytes of
- * `segments.jsonl` and `text.md`. Bytes rather than objects, so a parse made in a worker thread
- * reaches the server as two buffers handed over without a copy, however many passages it has.
+ * A parse as a derivation stores it: what its row records, and the bytes of `text.md`. Bytes
+ * rather than a string, so a parse made in a worker thread reaches the server as a buffer handed
+ * over without a copy, however long the text is.
  */
 export interface ParsedFile {
   status: DerivationStatus;
@@ -47,13 +52,16 @@ export interface ParsedFile {
   status_detail: string | null;
   duration_ms: number | null;
   facts: ParseResult["facts"];
-  segment_count: number;
   /** The length of `text.md` in code points. */
   char_count: number;
-  /** `segments.jsonl`: one segment per line, each line ending in a newline. */
-  segments_jsonl: Uint8Array;
-  /** `text.md`, UTF-8. */
+  /** `text.md`: the readable Markdown, UTF-8. */
   text_md: Uint8Array;
+}
+
+/** A table whose rows are blocks of their own. Its blocks share it, so the readable text lays it out whole. */
+export interface TableRef {
+  header: string[];
+  rows: string[][];
 }
 
 /** A block produced by a format parser before segmentation and offset assignment. */
@@ -64,11 +72,13 @@ export interface Block {
   end_ms?: number | null;
   heading_level?: number;
   page?: number;
+  /** The table this block is a row of. */
+  table?: TableRef;
 }
 
 /**
  * Thrown by a parser, or by assembly, when a file is too large to parse in some other way than its
- * size: a package that unpacks past the cap, a PDF with too many pages, too many passages. The file
+ * size: a package that unpacks past the cap, a PDF with too many pages, too many paragraphs. The file
  * is `too_large`, like a file over the cap.
  */
 export class TooLargeError extends Error {
@@ -86,10 +96,21 @@ export interface ParseOptions {
   maxBytes?: number;
 }
 
+/** What a format parser returns. */
+export interface FormatParse {
+  blocks: Block[];
+  facts?: ParseResult["facts"];
+  /** The readable text as it is, for a file that is already Markdown; otherwise it is laid out from the blocks. */
+  markdown?: string;
+}
+
 export interface FormatParser {
   name: string;
   version: string;
-  /** Returns blocks plus facts; throws on a malformed file, and `TooLargeError` past `options.maxBytes`. */
-  parse(bytes: Uint8Array, fileName: string, options?: ParseOptions): Promise<{ blocks: Block[]; facts?: ParseResult["facts"] }> | { blocks: Block[]; facts?: ParseResult["facts"] };
+  /**
+   * Returns blocks plus facts, and the readable Markdown when the file already is Markdown; throws
+   * on a malformed file, and `TooLargeError` past `options.maxBytes`.
+   */
+  parse(bytes: Uint8Array, fileName: string, options?: ParseOptions): Promise<FormatParse> | FormatParse;
   timed?: boolean;
 }

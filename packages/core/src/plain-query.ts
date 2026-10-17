@@ -12,7 +12,7 @@
  * - Case and accents are ignored.
  */
 
-export type FindKind = "idea" | "outcome" | "source" | "passage" | "assumption" | "mockup" | "story";
+export type FindKind = "idea" | "outcome" | "source" | "assumption" | "mockup" | "story";
 
 export interface FindTerm {
   /** The word or phrase as typed, lowercased. */
@@ -47,10 +47,11 @@ const KIND_WORDS: Record<string, FindKind> = {
   outcomes: "outcome",
   source: "source",
   sources: "source",
-  passage: "passage",
-  passages: "passage",
-  quote: "passage",
-  quotes: "passage",
+  // What a source says: its text, its summary, its notes and comments.
+  passage: "source",
+  passages: "source",
+  quote: "source",
+  quotes: "source",
   assumption: "assumption",
   assumptions: "assumption",
   mockup: "mockup",

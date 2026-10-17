@@ -64,7 +64,11 @@ describe("MCP", () => {
     expect(client.getServerVersion()?.version).toBe(SKILL_VERSION);
     expect(client.getInstructions()).toContain(`version ${SKILL_VERSION}`);
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(["sources", "files", "search", "read_passage", "get_skill", "story"]));
+    expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(["sources", "attachments", "derived", "search", "get_skill", "story"]));
+    // Files are attachments, and there are no passages to read.
+    expect(tools.map((t) => t.name)).not.toContain("files");
+    expect(tools.map((t) => t.name)).not.toContain("read_passage");
+    expect(tools).toHaveLength(14);
     // The client keeps the list it connected with, so the instructions say what a missing tool means.
     expect(client.getInstructions()).toMatch(/start a new session/);
     // Agents write links with the deployment's own address, never another name it answers on.
@@ -92,27 +96,33 @@ describe("MCP", () => {
     await client.close();
   });
 
-  it("runs the agent path: create with upload, PUT, complete, derive, search, read, cite", async () => {
+  it("runs the agent path: create with upload, PUT, complete, read, search, read the text around a hit, record", async () => {
     const client = await connect(agentToken);
     // Only one product is reachable, so `product` may be omitted.
     const created = text(await client.callTool({
-      name: "files",
-      arguments: { action: "create_upload", params: { tags: ["interview"], title: "Buyer interview — Example Co, Sep 2026", date: "2026-09-01", path: "notes.txt", role: "primary" } },
+      name: "attachments",
+      arguments: { action: "create_upload", params: { tags: ["interview"], title: "Buyer interview — Example Co, Sep 2026", date: "2026-09-01", path: "notes.txt" } },
     }));
     expect(created.scope?.product.path, JSON.stringify(created)).toBe(path);
     const put = await fetch(created.upload.url, { method: "PUT", headers: created.upload.headers, body: "Interviewer: What slows you down?\nBuyer: Approvals. Every purchase over a thousand dollars waits a week.\nInterviewer: Who approves?\nBuyer: Finance, once a week on Mondays.\n" });
     expect(put.status).toBe(201);
-    const done = text(await client.callTool({ name: "files", arguments: { action: "complete_upload", product: path, params: { record_id: created.record.record_id, path: "notes.txt" } } }));
-    expect(done.role).toBe("primary");
+    const done = text(await client.callTool({ name: "attachments", arguments: { action: "complete_upload", product: path, params: { record_id: created.record.record_id, path: "notes.txt" } } }));
+    expect(done).toMatchObject({ path: "notes.txt", text: { status: "pending" } });
+    expect(done).not.toHaveProperty("role");
+    expect(done.note).toMatch(/its text becomes the source's derived text/);
     await h.worker.drain();
     const hits = text(await client.callTool({ name: "search", arguments: { product: path, query: "approvals" } }));
-    expect(hits.hits[0].speaker).toBe("Buyer");
-    // A hit is read by the seq it carries.
-    const hit = text(await client.callTool({ name: "read_passage", arguments: { product: path, record_id: hits.hits[0].record_id, seq: hits.hits[0].seq } }));
-    expect(hit.segments.map((s: { seq: number; text: string }) => [s.seq, s.text])).toEqual([[hits.hits[0].seq, expect.stringContaining("Approvals")]]);
-    const passage = text(await client.callTool({ name: "read_passage", arguments: { product: path, record_id: created.record.record_id, start: 0, end: 3 } }));
-    expect(passage.unit).toBe("seq");
-    expect(passage.segments).toHaveLength(4);
+    expect(hits.hits[0]).toMatchObject({ record_id: created.record.record_id, field: "text" });
+    // A hit is read in the derived text by the offsets it carries.
+    const hit = hits.hits[0];
+    const around = text(await client.callTool({ name: "derived", arguments: { action: "text", product: path, params: { record_id: hit.record_id, offset: hit.char_start, limit: hit.char_end - hit.char_start } } }));
+    expect(around).toMatchObject({ of: "derived_text", text: "Approvals" });
+    const whole = text(await client.callTool({ name: "derived", arguments: { action: "text", product: path, params: { record_id: created.record.record_id } } }));
+    expect(whole.text).toContain("Finance, once a week on Mondays.");
+    expect(whole.taken_from).toMatchObject({ path: "notes.txt" });
+    // The old tool is gone; the refusal names the tools there are.
+    const old = await client.callTool({ name: "read_passage", arguments: { product: path, record_id: created.record.record_id, seq: 0 } });
+    expect(text(old).error).toMatchObject({ code: "unknown_tool", details: { tools: expect.arrayContaining(["attachments", "derived"]) } });
     const a = text(await client.callTool({
       name: "assumptions",
       arguments: { action: "create", product: path, params: { statement: "Approvals, not budgets, set the buying pace.", body: "The buyer says approvals come first." } },

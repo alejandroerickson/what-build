@@ -21,7 +21,7 @@ export type EntityType =
 
 /**
  * Append one activity event in the caller's transaction. Events name objects; they never quote
- * content, bodies, passages or email addresses.
+ * content, bodies, a source's text or email addresses.
  */
 export async function recordActivity(
   ctx: OpContext,

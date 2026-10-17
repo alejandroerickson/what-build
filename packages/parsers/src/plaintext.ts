@@ -1,5 +1,6 @@
 import { labelledSpeakers, looksLikeTranscript, speakerLabel, speakerTurn } from "./speakers.ts";
 import { tableBlocks } from "./tables.ts";
+import { markdownAsIs } from "./markdown.ts";
 import { decodeText } from "./text.ts";
 import type { Block, FormatParser } from "./types.ts";
 
@@ -345,7 +346,7 @@ function parseText(source: string, markdown: boolean): { blocks: Block[]; facts:
  */
 export const plaintextParser: FormatParser = {
   name: "plaintext",
-  version: "6",
+  version: "7",
   parse(bytes) {
     return parseText(decodeText(bytes), false);
   },
@@ -358,8 +359,10 @@ export const plaintextParser: FormatParser = {
  */
 export const markdownParser: FormatParser = {
   name: "markdown",
-  version: "3",
+  version: "4",
   parse(bytes) {
-    return parseText(decodeText(bytes), true);
+    const source = decodeText(bytes);
+    // A Markdown file already reads as it was written; its own text is the readable text.
+    return { ...parseText(source, true), markdown: markdownAsIs(source) };
   },
 };

@@ -89,7 +89,7 @@ export function PrivacyPage() {
                   the account.
                 </Kept>
                 <Kept lead="What you add.">
-                  Sources and their files, passages, notes and comments, assumptions and reviews, outcomes, mockups, the Story, and a log of who changed what. To run WhatBuild for
+                  Sources and their attachments, texts, summaries, notes and comments, assumptions and reviews, outcomes, mockups, the Story, and a log of who changed what. To run WhatBuild for
                   your organization, which decides who may see it. Kept until it is deleted; in a public sandbox, until its next daily reset.
                 </Kept>
                 <Kept lead="Signing in and agents.">

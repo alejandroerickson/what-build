@@ -2,7 +2,7 @@ import { strToU8, zipSync } from "fflate";
 import { constants, deflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { stripCueMarkup, voiceName } from "../src/cues.ts";
-import { DEFAULT_PARSE_CAP_BYTES, derive, MAX_HTML_DEPTH, MAX_PDF_PAGES, MAX_SEGMENTS, parseHtml, readSegments, toParsedFile, type ParseResult } from "../src/index.ts";
+import { DEFAULT_PARSE_CAP_BYTES, derive, MAX_HTML_DEPTH, MAX_PDF_PAGES, MAX_SEGMENTS, parseHtml, toParsedFile, type ParseResult } from "../src/index.ts";
 import { atxHeading, stripInlineMarkdown } from "../src/plaintext.ts";
 import { speakerLine } from "../src/speakers.ts";
 import { codePointLength, isSpaceUnit, nonSpaceCodePoints } from "../src/text.ts";
@@ -386,7 +386,7 @@ describe("files that would make too much", () => {
       const { r, ms } = await measured(makeBlankPdf(pages), "blank.pdf");
       expect(r.status, `${pages} pages`).toBe("too_large");
       expect(r.status_detail).toBe(`the PDF has ${pages} pages; PDFs over ${MAX_PDF_PAGES} pages are stored but not parsed`);
-      expect(r.parser_version).toBe("3");
+      expect(r.parser_version).toBe("4");
       expect(ms).toBeLessThan(3000);
     }
     expect((await derive(makeBlankPdf(3), "blank.pdf")).status_detail).toContain("no text layer");
@@ -403,7 +403,7 @@ describe("files that would make too much", () => {
     ] as const) {
       const { r, ms } = await measured(utf8(text), name);
       expect(r.status, name).toBe("too_large");
-      expect(r.status_detail).toBe(`the file makes more than ${MAX_SEGMENTS} passages; files that make more are stored but not parsed`);
+      expect(r.status_detail).toBe(`the file makes more than ${MAX_SEGMENTS} paragraphs; files that make more are stored but not read`);
       expect(ms, name).toBeLessThan(4000);
     }
   });
@@ -415,16 +415,12 @@ describe("files that would make too much", () => {
     expect(ms).toBeLessThan(3000);
   });
 
-  it("writes a parse as its sidecars and reads its passages back as they were", async () => {
+  it("writes a parse as its readable text, counted in code points", async () => {
     const r = await derive(utf8("# Notes 😀\n\nCrews text the office.\n\nA lone \ud83d half and 𝔘nicode.\n"), "notes.md");
     const stored = toParsedFile(r);
-    expect(stored).toMatchObject({ status: "ready", segment_count: r.segments.length, char_count: Array.from(r.text).length });
-    expect(new TextDecoder().decode(stored.text_md)).toBe(new TextDecoder().decode(new TextEncoder().encode(r.text)));
-    expect(new TextDecoder().decode(stored.segments_jsonl)).toBe(r.segments.map((x) => JSON.stringify(x) + "\n").join(""));
-    const batches = [...readSegments(stored.segments_jsonl, 2)];
-    expect(batches.map((b) => b.length)).toEqual([2, 1]);
-    expect(batches.flat()).toEqual(r.segments);
-    expect([...readSegments(toParsedFile({ ...r, segments: [], text: "" }).segments_jsonl, 500)]).toEqual([]);
+    expect(stored).toMatchObject({ status: "ready", char_count: Array.from(r.markdown).length });
+    expect(new TextDecoder().decode(stored.text_md)).toBe(new TextDecoder().decode(new TextEncoder().encode(r.markdown)));
+    expect(toParsedFile({ ...r, segments: [], text: "", markdown: "" })).toMatchObject({ char_count: 0, text_md: new Uint8Array(0) });
   });
 });
 

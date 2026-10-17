@@ -6,12 +6,21 @@ const VTT = `WEBVTT
 00:00:01.000 --> 00:00:05.000
 <v Dana>We export everything to a spreadsheet every Friday.
 
-00:00:05.000 --> 00:00:09.000
+00:00:05.000 --> 00:00:08.000
+<v Dana>Mostly by hand.
+
+00:00:08.000 --> 00:00:09.000
 <v Sam>Why Friday?
 
-00:00:09.000 --> 00:00:14.000
+00:01:09.000 --> 00:01:14.000
 <v Dana>Because that is when the numbers close and the pricing review happens.
 `;
+
+/** The call as its derived text reads: a turn to a paragraph, with who spoke and when the turn starts. */
+const TEXT =
+  "**Dana** (0:01): We export everything to a spreadsheet every Friday. Mostly by hand.\n\n" +
+  "**Sam** (0:08): Why Friday?\n\n" +
+  "**Dana** (1:09): Because that is when the numbers close and the pricing review happens.\n";
 
 let h: Harness;
 let alice: Browser;
@@ -27,7 +36,7 @@ beforeAll(async () => {
 afterAll(async () => h?.close());
 
 async function upload(tag: string, path: string, body: string) {
-  const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: [tag], title: `Sample ${path}`, path, role: "primary" });
+  const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: [tag], title: `Sample ${path}`, path });
   expect(created.status).toBe(201);
   const recordId: string = created.body.record.record_id;
   const put = await fetch(created.body.upload.url, { method: "PUT", headers: created.body.upload.headers, body });
@@ -43,14 +52,24 @@ describe("reading a timed transcript", () => {
     recordId = await upload("interview", "turns.vtt", VTT);
   });
 
-  it("asks whether segment numbers were meant when a small window with no unit reads no cues", async () => {
-    const seqLike = await alice.api("GET", `${P}/sources/${recordId}/passage?start=0&end=2`);
-    expect(seqLike.body.unit).toBe("ms");
-    expect(seqLike.body.segments).toEqual([]);
-    expect(seqLike.body.warning).toMatch(/did you mean unit: "seq" \(segments 0–2\)\?/);
-    const gap = await alice.api("GET", `${P}/sources/${recordId}/passage?start=100&end=200`);
-    expect(gap.body.warning).toBe("No cue overlaps this window: a gap between cues.");
-    const explicit = await alice.api("GET", `${P}/sources/${recordId}/passage?start=0&end=2&unit=ms`);
-    expect(explicit.body.warning).toBe("No cue overlaps this window: a gap between cues.");
+  it("lays out each turn with its speaker and start time, running a speaker's consecutive cues on as one paragraph", async () => {
+    const text = await alice.api("GET", `${P}/sources/${recordId}/derived/text`);
+    expect(text.status).toBe(200);
+    expect(text.body).toMatchObject({ of: "derived_text", text: TEXT, total_chars: TEXT.length, taken_from: { path: "turns.vtt" } });
+    const brief = await alice.api("GET", `${P}/sources/${recordId}`);
+    expect(brief.body).toMatchObject({ derived_status: "ready", duration_ms: 74_000, text_chars: TEXT.length });
+    const manifest = await alice.api("GET", `${P}/sources/${recordId}/derived/manifest`);
+    expect(manifest.body).toMatchObject({ path: "turns.vtt", status: "ready", parser: "webvtt", duration_ms: 74_000, text_chars: TEXT.length });
+    expect(manifest.body).not.toHaveProperty("segment_count");
+  });
+
+  it("reads by code-point offset, never by cue time or passage number", async () => {
+    const at = TEXT.indexOf("Why Friday?");
+    const window = await alice.api("GET", `${P}/sources/${recordId}/derived/text?offset=${at}&limit=11`);
+    expect(window.body).toMatchObject({ offset: at, text: "Why Friday?", truncated: true });
+    const byTime = await alice.api("GET", `${P}/sources/${recordId}/derived/text?start=0&end=2&unit=ms`);
+    expect(byTime.status).toBe(422);
+    expect(byTime.body.error.message).toMatch(/reads by code-point offset: send offset and limit/);
+    expect((await alice.api("GET", `${P}/sources/${recordId}/passage?start=0&end=2`)).status).toBe(404);
   });
 });

@@ -3,7 +3,7 @@ type: System Concept
 title: Running WhatBuild locally, testing it, and checking the interface
 description: The one-command development setup, the test and build commands, and the browser scripts.
 tags: [development, testing, local]
-generated: {by: agent:codex, at: 2026-10-15}
+generated: {by: agent:claude, at: 2026-10-17}
 status: stable
 ---
 
@@ -104,9 +104,10 @@ its tag and so starts the same workflow; [releasing](releasing.md) is how to mak
 
 ## In the browser
 
-- `node scripts/e2e.mjs [baseUrl]` drives a real Chrome through sign-in, intake, a comment on a
-  passage, search, activity and export against a running `pnpm dev`. It creates data, so run it on
-  a database you don't mind changing.
+- `node scripts/e2e.mjs [baseUrl]` drives a real Chrome through sign-in, intake with an
+  attachment until its text is read, an edit to the source's text, its summary and a comment,
+  search and a hit that opens the text with the words marked, activity and export against a
+  running `pnpm dev`. It creates data, so run it on a database you don't mind changing.
 - `node scripts/shots.mjs <outdir> [baseUrl]` captures every screen in light and dark, at desktop
   and phone width. `SHOTS=name,name` limits it to some screens.
 - `node scripts/prototype-check.mjs [baseUrl]` publishes a synthetic multi-file prototype to the

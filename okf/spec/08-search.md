@@ -1,9 +1,9 @@
 ---
 type: Specification
-title: Search is lexical, bounded, and says exactly what it examined.
-description: The search operation as built (substring, ranked and plain modes, scopes, filters, coverage), historical derivations, and the planned retrieval work (attachment tiers, semantic search).
-tags: [spec, search, retrieval, coverage]
-generated: {by: agent:claude, at: 2026-10-16}
+title: Search reads what a source says, its title, tags, summary, derived text, notes and comments, and never its attachments; it is lexical, bounded, and says exactly what it examined.
+description: The search operation as built (substring, ranked and plain modes, scopes, filters, hits with their field and offsets, coverage), the search index of a source's texts, earlier readings, and the planned semantic retrieval.
+tags: [spec, search, retrieval, coverage, index]
+generated: {by: agent:claude, at: 2026-10-17}
 status: stable
 ---
 
@@ -11,8 +11,10 @@ status: stable
 
 Retrieval is a first-class feature: synthesis is only as good as what a person or an agent can
 find, and searching is how an agent finds what bears on a piece of work, since nothing records it
-([decision](../decisions/evidence-is-searched-not-cited.md)). Search today is lexical and says so.
-The improvements marked *planned* in §8.4–§8.5 are not built.
+([decision](../decisions/evidence-is-searched-not-cited.md)). Search reads what each source says:
+its title, tags, summary, derived text, notes and comments, and never its attachments
+([decision](../decisions/a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)).
+It is lexical and says so. Semantic retrieval (§8.7) is planned, not built.
 
 ## 8.1 The search operation
 
@@ -23,33 +25,44 @@ The improvements marked *planned* in §8.4–§8.5 are not built.
 search {
   query:     string (1–500)                  // required
   mode?:     "substring" (default) | "ranked" | "plain"
-  scope?:    "passages" (default) | "assumptions" | "all"
-  record_id?, date_from?, date_to?, tags[]?,          // passage filters
+  scope?:    "sources" (default) | "assumptions" | "all"
+  record_id?, date_from?, date_to?, tags[]?,          // source filters
   include_archived? (false), limit? (50, at most 200), cursor?
   kind?, strict? (false)                              // plain mode only
 }
 ```
 
-Plain mode (§8.2) takes only `query`, `record_id`, `kind` and `strict`; any other filter with it,
-or `kind` or `strict` in another mode, is `422 invalid_filter`.
+Plain mode (§8.2) takes only `query`, `record_id`, `kind` and `strict`; any other filter with it
+(dates, tags, a cursor, `include_archived`, a `scope` other than `sources`), or `kind` or `strict`
+in another mode, is `422 invalid_filter`.
 
 - One product per call. There is no cross-product search, and there will never be a
   cross-tenant one.
-- Date and tag filters apply to passages: `date_from` and `date_to` bound the source's own date,
+- `scope` says what is searched: `sources`, what the product's sources say; `assumptions`, their
+  statements and bodies; `all`, both. The `passages` scope is gone (`422 invalid_input`).
+- Date and tag filters apply to sources: `date_from` and `date_to` bound the source's own date,
   and a source must carry every tag given. Combining them with `scope: "assumptions"` is
-  `422 invalid_filter`. `record_id` keeps the search to that source's passages, so with it no
+  `422 invalid_filter`. `record_id` keeps the search to that one source, so with it no
   assumption is searched. Sources have no kind, organization or folder to filter by, and sources
   and assumptions have no dimensions (`customer`, `product_area`, `lifecycle_stage`) or
   `provenance_depth` ([§4.4](04-data-model.md)); naming one is `422 invalid_input`.
-- Passage hits: `{ record_id, seq, start_ms, end_ms, speaker, snippet, char_start, char_end,
-  score? }`, with each source's `title`, `date`, `tags` and `archived_at` sent once in
-  `records`. A hit's `record_id` and `seq` are directly usable with `read_passage`
-  (`{ record_id, seq }`); the window around a hit is `start` and `end` in
-  segments with `unit: "seq"`, never `char_start` and `char_end`. Snippets are at most 160
-  characters.
-- Assumption hits come back as `assumptions` (id, statement, status).
-- Results are bounded and paged as everywhere ([§6.3](06-operations-and-adapters.md)).
-- The response carries a `coverage` object (§8.4).
+- **Source hits:** `{ record_id, field, annotation_id?, char_start, char_end, snippet, score? }`.
+  - `field` is where the words are: `title`, `tags`, `summary`, `text` (the derived text),
+    `notes`, or `comment`, which adds the comment's `annotation_id`.
+  - `char_start` and `char_end` are code-point offsets into that field's text, half-open: the
+    matched words in substring mode, the piece that matched (§8.3) in ranked mode. So
+    `derived.text { record_id, offset }` from a little before `char_start` reads the words around a
+    hit in `text` ([§5.4](05-derived-layer.md)).
+  - `snippet` is at most 160 characters: around the match in substring mode, the start of the
+    piece in ranked mode. `score` comes in ranked mode.
+  - Each source's `title`, `date`, `tags` and `archived_at` are sent once, in `records`.
+  - Substring hits come by source, then by field in the order title, tags, summary, text, notes,
+    comment, then by place; ranked hits by score.
+- Assumption hits come back as `assumptions` (id, statement, status, and score in ranked mode), at
+  most `limit` of them.
+- Results are bounded and paged as everywhere ([§6.3](06-operations-and-adapters.md)): the
+  substring cursor is a keyset, the ranked one an offset.
+- The response carries a `coverage` object (§8.5).
 - Search is a read, and reads are never blocked by a quota ([§9.2](09-data-lifecycle.md)).
 
 ## 8.2 Lexical search
@@ -60,17 +73,16 @@ or `kind` or `strict` in another mode, is `422 invalid_filter`.
   and parentheses, adjacent terms implying AND, at most 64 tokens — compiled to a Postgres
   `tsquery` over the language-neutral `simple` configuration (no stemming), matched against a
   stored, GIN-indexed `tsvector`, and ranked with `ts_rank_cd`. A score is not a confidence.
-- Each passage (segment) is matched on its own, in both modes: `AND`, `OR` and `NOT` combine terms
-  within one passage, so words a transcript splits across neighbouring cues never match together.
+- Each text is matched in pieces of about 1,500 characters (§8.3), in both modes: `AND`, `OR` and
+  `NOT` combine terms within one piece, and words a piece boundary separates never match together.
   The `search` description says so.
-- Queries match each source's parsed text, not its file as written: Markdown emphasis and code
-  markers, HTML tags and a transcript's speaker labels are not in it ([§5.3](05-derived-layer.md)),
-  so a query for the markup or the label finds nothing. The `search` description says so too.
-- Passages are searched over the segments of each source's *current* derivation, primary file
-  only. Assumptions are searched over statement and body.
-- Archived sources and assumptions are excluded unless `include_archived`.
-- Segments are marked current in the same transaction that makes a derivation current, so search
-  never returns a passage that `read_passage` cannot serve.
+- Queries match the text as stored. A derived text is Markdown: a transcript's
+  `**Dana** (12:05):` labels, `#` headings and the pipes of a table are in it
+  ([§5.3](05-derived-layer.md)), so a query searches for the words, not the markup. The `search`
+  description says so too.
+- Archived sources and assumptions are excluded unless `include_archived`. So is an archived
+  comment, which `include_archived` brings back with them.
+- Assumptions are searched over statement and body.
 - **`plain`:** everything in the product, the way a person types into a search box. It is the
   web app's search ([§7.2](07-web-app.md)) and needs no index of its own and no model: it runs on
   the stored `tsvector`s and `pg_trgm`. The words are read deterministically
@@ -81,70 +93,109 @@ or `kind` or `strict` in another mode, is `422 invalid_filter`.
   - `"quoted words"` match as a phrase; accents are folded; small words (the, of, how) are left out
     and listed in `ignored`, unless nothing else is left;
   - a kind word (`mockups`, `assumptions`, …) brings that kind first and is returned as
-    `kind_hint`;
+    `kind_hint`; "passage", "passages", "quote" and "quotes" hint `source`;
   - a word that matches nothing is replaced by the closest word the product holds (at most one
     edit, two for words of six letters or more, a transposition counting as one), taken from
-    titles and from passages alike by trigram; `corrections` lists each `{ from, to }`, and
-    `strict: true` turns this off.
+    titles and from what the product's live sources say alike, by trigram; `corrections` lists
+    each `{ from, to }`, and `strict: true` turns this off.
 
-  It searches sources (title, tags, and the passages of the current primary derivation),
-  assumptions, outcomes (not archived), mockups (each page's text at the current version), Story
-  pages and the product concept. A source holds every word when its passages hold them between
-  them, and is returned once, with its best three passages (all of them with `record_id`) and how
-  many matched. Results are scored by how many of the words they hold, in the title above the
-  body, with exact words, words side by side and a title equal to the query ranked higher. When
-  anything holds every word, only those are returned; otherwise the ones holding the most, with
-  `partial: true` and each result's `missing` words. At most 60 results, the best first; `counts`
-  counts every match, so a caller can say when more matched than came back. The response is
-  `{ mode, query, terms, ignored, kind_hint, corrections, partial, counts, passages_matched,
-  results }`; each result has `kind`, `id`, `title` and `snippet` with the matched stretches as
-  `[start, end]` marks, `missing`, `score` and `meta`, and a source its `hits` and `hit_count`.
+  It searches sources (their title and tags, and the pieces of their summary, derived text, notes
+  and comments, archived sources and comments left out), assumptions, outcomes (not archived),
+  mockups (each page's text at the current version), Story pages and the product concept. A source holds every word
+  when its title, tags and pieces hold them between them, and is returned once, with the best
+  three places it says the words in `hits` (all of them with `record_id`) and how many pieces
+  matched in `hit_count`. A hit is `{ field, annotation_id, char_start, text, marks }`: `field` is
+  `text`, `summary`, `notes` or `comment` (with the comment's `annotation_id`, null otherwise),
+  `char_start` is where the piece starts in its field, in code points, and `text` an excerpt of up
+  to 240 characters with the matched stretches as `[start, end]` `marks`; among equal hits the
+  derived text comes first. Results are scored by how many of the words they hold, in the title
+  above the body, with exact words, words side by side and a title equal to the query ranked
+  higher. When anything holds every word, only those are returned; otherwise the ones holding the
+  most, with `partial: true` and each result's `missing` words. At most 60 results, the best first;
+  `counts` counts every match, so a caller can say when more matched than came back. The response
+  is `{ mode, query, terms, ignored, kind_hint, corrections, partial, counts, hits_matched,
+  results }`, where `hits_matched` counts the pieces of those summaries, derived texts, notes and
+  comments that hold any of the words;
+  each result has `kind`, `id`, `title` and `snippet` with their marks, `missing`, `score` and
+  `meta`, and a source its `hits` and `hit_count`.
   ◆ Decision: plain mode returns no `coverage`; the other modes do.
   ([decision](../decisions/one-search-reads-plain-words-across-the-whole-product.md))
 - **One engine.** Because there is only one database, development and production rank results
   identically, and tests can assert ordering, not merely result sets.
 
-## 8.3 No dimensions
+## 8.3 The search index
+
+What search reads of each source is kept in `text_chunks`
+([`packages/core/src/text-index.ts`](../../packages/core/src/text-index.ts)): each of a source's
+texts cut into pieces, one row a piece, with `record_id`, `field` (`title`, `tags`, `summary`,
+`notes`, `text` or `comment`), `ref` (a comment's `annotation_id`, empty for the other fields),
+`n` (the piece's number), `char_start` and `char_end` (code points into the field's text,
+half-open), `text`, and a generated `tsvector` (`simple`). A GIN index on the `tsvector` and a
+trigram GIN index on the text serve the modes; the table has the tenant's row-level security, as
+every content table does.
+
+- **Pieces.** A piece holds at most about 1,500 characters. A text is cut at blank lines:
+  neighbouring paragraphs share a piece while they fit, and a longer paragraph is cut on its own,
+  after a sentence or a line break where it can, else at a space, else hard, never inside a
+  character. Each piece is exactly the text between its offsets, so a hit maps back to its place.
+  A source's tags are indexed as one text, joined with `, `.
+- **Written with the text.** Every write of one of these texts writes its pieces again in the same
+  transaction, so search never finds words a source no longer holds and finds new ones at once:
+  creating a source and correcting its title or tags, `derived.write_note`, `derived.write_text`, a
+  reading that becomes the derived text ([§5.4](05-derived-layer.md)), a comment's creation, edit
+  and delete, a copy to another product, and a source made from a retired insight or decision. A
+  source's pieces are deleted with it.
+- **Built whole** by the worker's `index_texts` job, one product at a time, which migration
+  `0030_one_derived_text_per_source.sql` queues for every product; and, for every source it put
+  back, by a public sandbox's reset, since a baseline does not hold the index
+  ([§9.7](09-data-lifecycle.md)).
+- An archived source's pieces, and an archived comment's, stay in the index; search leaves them
+  out unless asked.
+- **Attachments are never in it.** What was read from an attachment is kept with the attachment
+  ([§5](05-derived-layer.md)), and search reads it only once it is a source's derived text.
+
+## 8.4 No dimensions
 
 Sources and assumptions have no dimensions. Whom material concerns, what it bears on and which
 stage of work it comes from are tags, filtered with `tags` (§8.1)
 ([decision](../decisions/sources-are-described-by-tags.md)). Migration `0027_drop_dimensions.sql`
 dropped the customer, product area and lifecycle stage they held.
 
-## 8.4 Honest coverage, and tiered search of attachments
+## 8.5 Honest coverage
 
 Search must never claim to have examined what it did not.
 
-- Every passage search response in the substring and ranked modes includes
-  `coverage: { searched: ["primary"], records_considered, records_without_passages,
-  records_with_unsearched_files, statement }`, counted over the sources matching the filters.
-  `statement` says it in sentences, leaving out zero counts and counting sources without passages
-  by reason, since each needs a different next step ("Searched the primary text of 41 sources. 6
-  sources have origin or supplement files that are not searched. Not searched: 1 has no primary
-  file yet; 2 are not parsed yet; 1 is a recording with no transcript (add the transcript as its own source); 1 has a primary
-  that could not be parsed (unsupported, too large or failed)."), for an agent to pass on. The
-  web app's Search does not show it.
-- **Planned — tiers:** derive `supplement` and `origin` files as secondary derivations;
-  `tiers: ["primary", "attachments"]` opts in; results name the file they came from.
+- Every search of sources in the substring and ranked modes includes
+  `coverage: { searched: ["title", "tags", "summary", "text", "notes", "comments"],
+  records_considered, records_without_text, statement }`, counted over the sources the filters
+  keep. `statement` says it in sentences for an agent to pass on, counting the sources without a
+  derived text by reason, since each needs a different next step, leaving out zero counts, and
+  always ending "Attachments are never searched.": "Searched the title, tags, summary, notes and
+  comments of 3 sources, and the derived text of the 2 that have one. No derived text: 1 is a
+  recording with no transcript (add the transcript as an attachment). Attachments are never
+  searched." The reasons are: still being read; no attachment yet; an attachment whose text the
+  source does not use; a recording with no transcript; and only attachments that could not be
+  read (unsupported, too large or failed). The web app's Search does not show it.
 
-## 8.5 Semantic retrieval (planned)
+## 8.6 Earlier readings
+
+Readings are immutable and retained, and `derived.text` takes an attachment's `path` or a
+`derivation_id` ([§5.4](05-derived-layer.md)), so what an attachment was read as stays readable
+exactly as it was. A hit's offsets point into its field's text as it is now: an edit moves what
+follows it, so an agent searches again rather than reusing offsets from before.
+
+## 8.7 Semantic retrieval (planned)
 
 - Behind new `Embedder` and `SearchIndex` ports (neither exists yet in
   `packages/core/src/ports.ts`); `mode: "semantic"` and a hybrid mode that fuses lexical and
   vector ranks.
 - **The index question is answered:** `pgvector` is an extension of the database already in use,
   in both environments, with no new service and no new bill. Adopting it costs a migration.
-- **The quality question is not.** Build a small relevance set (queries with judged passages) from
-  the synthetic sample product and one real corpus; adopt hybrid retrieval only if it clearly
-  beats lexical on it. A measurable improvement, or it does not ship.
+- **The quality question is not.** Build a small relevance set (queries with judged places in
+  sources' texts) from the synthetic sample product and one real corpus; adopt hybrid retrieval
+  only if it clearly beats lexical on it. A measurable improvement, or it does not ship.
 - The embedder runs a small sentence-embedding model **in our own worker** (ONNX), not a hosted
   API. That keeps the "no API key anywhere, including on a contributor's laptop" property.
-- Embeddings are keyed by `derivation_id` and model id, and are disposable: they can always be
-  rebuilt from sidecars, so they are excluded from backups and from exports.
-
-## 8.6 Historical derivations
-
-Derivations are immutable and retained, and the derived reads accept `derivation_id`
-([§5.5](05-derived-layer.md)), so a passage read in an earlier parse stays readable as it was. A
-new parse renumbers what follows an edit; an agent searches again rather than reusing numbers from
-before.
+- Embeddings are keyed to the pieces of the texts search reads (§8.3) and the model id, and are
+  disposable: they can always be rebuilt from those texts, so they are excluded from backups and
+  from exports.

@@ -26,9 +26,9 @@ beforeAll(async () => {
 });
 afterAll(async () => h?.close());
 
-/** A source with an upload grant for its primary file. */
+/** A source with an upload grant for its first attachment. */
 async function grant(path: string) {
-  const created = await alice.api("POST", `${P}/sources/with-upload`, { title: `Upload of ${path}`, path, role: "primary" });
+  const created = await alice.api("POST", `${P}/sources/with-upload`, { title: `Upload of ${path}`, path });
   expect(created.status, JSON.stringify(created.body)).toBe(201);
   return { recordId: created.body.record.record_id as string, upload: created.body.upload as { url: string; headers: Record<string, string>; max_bytes: number } };
 }
@@ -166,7 +166,7 @@ describe("downloads", () => {
     const { recordId, upload } = await grant("notes.txt");
     const bytes = new Uint8Array(512 * 1024).map((_, i) => 97 + (i % 26));
     expect((await fetch(upload.url, { method: "PUT", headers: upload.headers, body: bytes })).status).toBe(201);
-    const fileUrl = `${h.baseUrl}${P}/sources/${recordId}/file?path=notes.txt`;
+    const fileUrl = `${h.baseUrl}${P}/sources/${recordId}/attachment?path=notes.txt`;
     const get = (headers: Record<string, string> = {}) => fetch(fileUrl, { headers: { cookie: alice.cookie, ...headers } });
 
     const whole = await get();
@@ -248,11 +248,11 @@ function withLimits(limits: Partial<ServerConfig>) {
     at.product = `/api/v1/p/${(await at.owner.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Intake" })).body.path}`;
   });
   afterAll(async () => at.h?.close());
-  /** Uploads each file as the primary of a new source; their ids, in order. */
+  /** Uploads each file as the first attachment of a new source; their ids, in order. */
   const upload = async (files: { path: string; body: Uint8Array | string }[]) => {
     const ids: string[] = [];
     for (const f of files) {
-      const created = await at.owner.api("POST", `${at.product}/sources/with-upload`, { title: `Upload of ${f.path}`, path: f.path, role: "primary" });
+      const created = await at.owner.api("POST", `${at.product}/sources/with-upload`, { title: `Upload of ${f.path}`, path: f.path });
       expect(created.status, JSON.stringify(created.body)).toBe(201);
       expect((await fetch(created.body.upload.url, { method: "PUT", headers: created.body.upload.headers, body: f.body })).status).toBe(201);
       ids.push(created.body.record.record_id);
@@ -288,7 +288,7 @@ describe("a parse that needs more memory than the server gives one file", () => 
     }
   });
 
-  it(`records a file of more than ${MAX_SEGMENTS} passages, or a PDF of more than ${MAX_PDF_PAGES} pages, as too large`, async () => {
+  it(`records a file of more than ${MAX_SEGMENTS} paragraphs, or a PDF of more than ${MAX_PDF_PAGES} pages, as too large`, async () => {
     const ids = await upload([
       { path: "letters.txt", body: "a\n\n".repeat(MAX_SEGMENTS + 50_000) },
       { path: "blank.pdf", body: pdfDrawing(20_000, "") },
@@ -296,8 +296,8 @@ describe("a parse that needs more memory than the server gives one file", () => 
     const run = await drainWhileAsking(at.h, at.owner);
     expect(run.ms).toBeLessThan(10_000);
     expect(run.slowest).toBeLessThan(1000);
-    expect(await derivation(ids[0]!, at.owner, at.product)).toMatchObject({ status: "too_large", status_detail: `the file makes more than ${MAX_SEGMENTS} passages; files that make more are stored but not parsed` });
-    expect(await derivation(ids[1]!, at.owner, at.product)).toMatchObject({ status: "too_large", parser: "pdf", parser_version: "3", status_detail: `the PDF has 20000 pages; PDFs over ${MAX_PDF_PAGES} pages are stored but not parsed` });
+    expect(await derivation(ids[0]!, at.owner, at.product)).toMatchObject({ status: "too_large", status_detail: `the file makes more than ${MAX_SEGMENTS} paragraphs; files that make more are stored but not read` });
+    expect(await derivation(ids[1]!, at.owner, at.product)).toMatchObject({ status: "too_large", parser: "pdf", parser_version: "4", status_detail: `the PDF has 20000 pages; PDFs over ${MAX_PDF_PAGES} pages are stored but not parsed` });
   });
 
   it("goes on parsing ordinary files in a new thread each time", async () => {
@@ -307,8 +307,8 @@ describe("a parse that needs more memory than the server gives one file", () => 
     ]);
     await at.h.worker.drain();
     for (const id of ids) expect((await derivation(id, at.owner, at.product)).status).toBe("ready");
-    const passage = await at.owner.api("GET", `${at.product}/sources/${ids[1]}/passage?start=0&end=3&unit=seq`);
-    expect(passage.body.segments.map((x: { text: string }) => x.text)).toEqual(["# Page 1", "Crews plan the week on Friday.", "# Page 2", "Crews plan the week on Friday."]);
+    const text = await at.owner.api("GET", `${at.product}/sources/${ids[1]}/derived/text`);
+    expect(text.body.text).toBe("# Page 1\n\nCrews plan the week on Friday.\n\n# Page 2\n\nCrews plan the week on Friday.\n");
   });
 });
 
@@ -330,12 +330,13 @@ describe("a parse that takes longer than the server gives one file", () => {
 });
 
 describe("a job that keeps stopping the worker", () => {
-  /** A source whose primary file is queued for parsing but not parsed yet, with its job made to look abandoned `attempts` times. */
+  /** A source whose attachment is queued to be read but not read yet, with its job made to look abandoned `attempts` times. */
   async function abandoned(attempts: number) {
     const src = await alice.api("POST", `${P}/sources`, { title: `Notes tried ${attempts} times` });
     expect(src.status, JSON.stringify(src.body)).toBe(201);
-    const note = await alice.api("POST", `${P}/sources/${src.body.record_id}/notes`, { record_id: src.body.record_id, path: "notes.md", text: "# Notes\n\nA plain note.\n", role: "primary" });
-    expect(note.status, JSON.stringify(note.body)).toBe(201);
+    const g = await alice.api("POST", `${P}/sources/${src.body.record_id}/uploads`, { record_id: src.body.record_id, path: "notes.md" });
+    expect(g.status, JSON.stringify(g.body)).toBe(201);
+    expect((await fetch(g.body.url, { method: "PUT", headers: g.body.headers, body: "# Notes\n\nA plain note.\n" })).status).toBe(201);
     // As if the process had stopped while running it, `attempts` times, the last over ten minutes ago.
     const r = await sql`
       update jobs set attempts = ${attempts}, locked_at = now() - interval '11 minutes', locked_by = 'a stopped process'
@@ -357,10 +358,12 @@ describe("a job that keeps stopping the worker", () => {
     expect(d.status).toBe("failed");
     expect(d.parser).toBe("none");
     expect(d.status_detail).toContain("stopped the server 5 times");
-    // Rederive asks for one more try.
+    expect((await alice.api("GET", `${P}/sources/${recordId}`)).body).toMatchObject({ derived_status: "failed", status_detail: d.status_detail });
+    // Rederive asks for one more try, and the text read becomes the source's.
     expect((await alice.api("POST", `${P}/sources/${recordId}/rederive`, {})).status).toBe(200);
     await h.worker.drain();
     expect((await derivation(recordId)).status).toBe("ready");
+    expect((await alice.api("GET", `${P}/sources/${recordId}`)).body).toMatchObject({ derived_status: "ready", text_from: "notes.md" });
   });
 
   it("still runs a job with an attempt left", async () => {

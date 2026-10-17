@@ -1,4 +1,4 @@
-/* Search: one field over everything in the product, results as you type, a source's passages under it. */
+/* Search: one field over everything in the product, results as you type, where a source says the words under it. */
 
 .find-bar {
   position: relative;
@@ -110,7 +110,7 @@
   line-height: var(--lh-body);
 }
 
-/* A source's passages hang under its title, on the same text column, along a hairline. */
+/* Where a source says the words hangs under its title, on the same text column, along a hairline. */
 .find-hits {
   margin: -2px 0 var(--s-2h) calc(var(--sheet-px) + var(--icon-md) + var(--s-3) - var(--s-2h));
   border-left: 1px solid var(--line);

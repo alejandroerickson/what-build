@@ -3,7 +3,7 @@ type: Index
 title: Decisions
 description: Architectural decision records, each with its context, the choice, and what it constrains.
 tags: [index, decisions, adr]
-generated: {by: agent:claude, at: 2026-10-16}
+generated: {by: agent:claude, at: 2026-10-17}
 status: stable
 ---
 
@@ -21,7 +21,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Each file is parsed in a worker thread of its own, held to a memory and a time limit, so a file can fail but never take the server down](each-file-is-parsed-in-a-thread-of-its-own-with-memory-and-time-limits.md)
 - [Self-hosting on Azure is done by an agent with the Azure CLI, from instructions in the repository, and shares nothing with the Cloud Run deployment](self-hosting-on-azure-is-agent-led-and-shares-nothing-with-cloud-run.md)
 - [Every capability is one registered operation, exposed through both REST and MCP](one-registry-two-front-doors.md)
-- [MCP exposes 15 tools, grouped by the kind of object, with an action parameter](mcp-tools-grouped-by-noun.md)
+- [MCP exposes 14 tools, grouped by the kind of object, with an action parameter](mcp-tools-grouped-by-noun.md)
 - [Tenants share one schema, partitioned by key and enforced three times](shared-schema-tenancy-with-row-level-security.md)
 - [Access is decided in the application, per product, by role](access-is-per-product-roles.md)
 - [A reader reads only the Story, never the evidence behind it](a-reader-reads-only-the-story.md)
@@ -36,7 +36,8 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Every write is attributed, and human or agent authorship is declared](attribution-and-declared-authorship.md)
 - [Sources are described by a title, a date and tags; there are no kinds, folders, organization field, dimensions, participants, source system or provenance](sources-are-described-by-tags.md)
 - [A source carries a summary written for people, freeform notes and comments on the whole source, and no outline](a-source-carries-a-summary-notes-and-whole-source-comments.md)
-- [Only a source's primary file is parsed and searched](only-the-primary-file-is-searched.md)
+- [A source's words are one derived text; its files are attachments, read and kept but never searched; search reads a source's title, tags, summary, derived text, notes and comments](a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)
+- [Only a source's primary file is parsed and searched](only-the-primary-file-is-searched.md) (superseded)
 - [Evidence is found by searching, not kept as citations](evidence-is-searched-not-cited.md)
 - [Citations freeze a snapshot and report drift; they are never repaired silently](citations-snapshot-and-report-drift.md) (superseded)
 - [Story pages are agent-authored HTML shown only in a sandbox](story-pages-are-sandboxed-agent-html.md)

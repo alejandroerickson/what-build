@@ -4,7 +4,7 @@ import type { Browser, Harness } from "./harness.ts";
 
 /**
  * An organization with something in every kind of row a product holds: outcomes and their
- * revisions, tagged sources with files, derivations, passages, annotations and agent notes, a view,
+ * revisions, tagged sources with attachments, readings, derived texts and their search index, annotations and agent notes, a view,
  * assumptions with links and reviews, a Story with a style, a hierarchy, notes, a preview and a promoted
  * mockup page, a mockup with files and a canvas upload, a mockup whose page enters a prototype, an export, an invitation and a second member. Every text it
  * writes carries `marker`, so a test can tell whether any of it reached someone else.
@@ -60,10 +60,13 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
   // What the material is and whom it concerns are tags; both carry the marker, so facets and filters that cross over show.
   const src = ok(await owner.api("POST", `${P}/sources`, { title: `${marker} interview notes`, date: "2026-09-01", tags: ["interview", `${marker} Customer Co`, `${marker}-tag`] }));
   const notePath = "notes.md";
-  ok(await owner.api("POST", `${P}/sources/${src.record_id}/notes`, { record_id: src.record_id, path: notePath, role: "primary", text: `# ${marker} visit\n\n${marker} crews text the office every Friday.\n\n${marker} nobody calls it a crisis.\n` }));
+  const grant = ok(await owner.api("POST", `${P}/sources/${src.record_id}/uploads`, { record_id: src.record_id, path: notePath }));
+  const put = await fetch(grant.url, { method: "PUT", headers: grant.headers, body: `# ${marker} visit\n\n${marker} crews text the office every Friday.\n\n${marker} nobody calls it a crisis.\n` });
+  expect(put.status).toBe(201);
   await h.worker.drain();
   const detail = ok(await owner.api("GET", `${P}/sources/${src.record_id}?detail=full`), 200);
-  const file = detail.files.find((f: { path: string }) => f.path === notePath);
+  const file = detail.attachments.find((f: { path: string }) => f.path === notePath);
+  expect(detail.text).toMatchObject({ taken_from: { path: notePath } });
   const derivations = ok(await owner.api("GET", `${P}/sources/${src.record_id}/derivations`), 200);
   expect(derivations.items[0].status).toBe("ready");
   ok(await owner.api("PUT", `${P}/sources/${src.record_id}/agent-notes/summary`, { content: `${marker} summary for agents.` }), 200);
@@ -134,7 +137,7 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
     product: { id: p.product_id, slug: p.path.split("/")[2], path: p.path, etag: product.etag },
     annex: { id: a.product_id, path: a.path },
     outcome: { id: o.outcome_id, etag: o2.etag },
-    source: { id: src.record_id, etag: source.etag, path: notePath, fileVersionId: file.current_version_id ?? file.file_version_id, derivationId: derivations.items[0].derivation_id, tag: `${marker.toLowerCase()}-tag` },
+    source: { id: src.record_id, etag: source.etag, path: notePath, fileVersionId: file.file_version_id, derivationId: derivations.items[0].derivation_id, tag: `${marker.toLowerCase()}-tag` },
     view: { id: view.record_id, etag: viewNow.etag },
     annotation: { id: ann.annotation_id, etag: ann.etag },
     assumption: { id: as.id, etag: link.etag },

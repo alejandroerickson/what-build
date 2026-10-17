@@ -3,6 +3,7 @@ import { json, type ActorSnapshot, type Db } from "./db.ts";
 import { conflict, notFound } from "./errors.ts";
 import { queueEvidenceMoves } from "./evidence-move.ts";
 import { lockSettings } from "./public-sandbox.ts";
+import { indexSources } from "./text-index.ts";
 import { newId } from "./util.ts";
 
 /**
@@ -21,7 +22,7 @@ import { newId } from "./util.ts";
  */
 export const BASELINE_TABLES = [
   "teams", "products",
-  "records", "files", "file_versions", "derivations", "segments", "annotations", "agent_notes",
+  "records", "files", "file_versions", "derivations", "source_texts", "annotations", "agent_notes",
   "outcomes", "insights", "revisions", "register_entries", "reviews",
   "story_pages", "story_versions", "story_hierarchies", "story_styles",
   "mockups", "mockup_versions", "mockup_pages", "mockup_files", "mockup_prototype_files",
@@ -43,6 +44,7 @@ export const NOT_IN_BASELINE: Record<string, string> = {
   story_previews: "A preview lasts as long as its grant, and not past a reset.",
   exports: "A visitor's export does not outlive a reset.",
   feedback: "Goes to the maintainers, and names no tenant.",
+  text_chunks: "The search index, built from the texts it covers: a reset builds it again.",
 };
 
 /**
@@ -178,7 +180,7 @@ export function baselineView(b: { baseline_id: string; note: string; counts: Rec
     holds: {
       products: c["products"] ?? 0,
       sources: c["records"] ?? 0,
-      passages: c["segments"] ?? 0,
+      texts: c["source_texts"] ?? 0,
       outcomes: c["outcomes"] ?? 0,
       assumptions: c["register_entries"] ?? 0,
       story_pages: c["story_pages"] ?? 0,
@@ -207,7 +209,7 @@ export async function resetToBaseline(
 
   const before = await liveBlobs(trx, tenantId);
 
-  await sql`delete from jobs where tenant_id = ${tenantId} and done_at is null and kind in ('derive', 'export', 'move_to_evidence')`.execute(trx);
+  await sql`delete from jobs where tenant_id = ${tenantId} and done_at is null and kind in ('derive', 'export', 'move_to_evidence', 'index_texts')`.execute(trx);
   for (const table of ["exports", "upload_grants", "mockup_uploads", "story_previews", ...[...BASELINE_TABLES].reverse()])
     await sql`delete from ${sql.table(table)} where tenant_id = ${tenantId}${contentOf(table)}`.execute(trx);
   await trx.deleteFrom("sandbox_usage").where("tenant_id", "=", tenantId).execute();
@@ -247,6 +249,13 @@ export async function resetToBaseline(
     visitors_removed = Number(idle.numAffectedRows ?? 0);
   }
 
+  // Search reads the restored texts at once; an attachment the baseline never read is read now.
+  await indexSources(trx, {});
+  const unread = await sql<{ record_id: string; file_version_id: string }>`
+    select f.record_id, f.current_version_id as file_version_id from files f
+    where f.tenant_id = ${tenantId} and f.current_version_id is not null
+      and not exists (select 1 from derivations d where d.file_version_id = f.current_version_id)`.execute(trx);
+  for (const u of unread.rows) await opts.enqueue("derive", { record_id: u.record_id, file_version_id: u.file_version_id, quiet: true });
   await queueEvidenceMoves(trx, opts.enqueue);
 
   const kept = await baselineBlobs(trx, tenantId);

@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-10-16}
+generated: {by: agent:claude, at: 2026-10-17}
 status: stable
 ---
 
@@ -41,13 +41,13 @@ Observed in the `package.json` files, the [`Dockerfile`](../../Dockerfile) and
 | Schemas | **Zod 4** | One strict schema per operation yields TypeScript types, runtime validation, and JSON Schema for MCP tools and `describe`. |
 | SQL | **Kysely** over `pg` | Typed SQL, one dialect. Migrations are plain SQL files in [`apps/server/src/migrations`](../../apps/server/src/migrations). |
 | Database | **Postgres 17** | The only database. Row-level security as defense in depth. Cloud SQL or any hosted Postgres in production; embedded Postgres in development and tests. |
-| Full-text | **Postgres** `tsvector` (`simple` configuration) + GIN; `pg_trgm` for substring | No second search engine, no external index. |
+| Full-text | **Postgres** `tsvector` (`simple` configuration) + GIN; `pg_trgm` for substring, over one table of the pieces of what sources say (`text_chunks`, [§8.3](08-search.md)) | No second search engine, no external index. |
 | Queue | **Postgres** `jobs` table (`SELECT … FOR UPDATE SKIP LOCKED`) | No broker to run, pay for, or install to contribute. The worker ships in the same image. |
-| Blobs | `BlobStore` port with filesystem, in-memory and Google Cloud Storage adapters | Files and derived sidecars are immutable, create-only blobs everywhere. |
+| Blobs | `BlobStore` port with filesystem, in-memory and Google Cloud Storage adapters | Attachments, what each was read as, and exports are immutable, create-only blobs everywhere. |
 | Identity | **Built in** ([`apps/server/src/auth`](../../apps/server/src/auth)): email links, Google and Microsoft OpenID Connect, sessions, and WhatBuild's own OAuth 2.1 authorization server for MCP | Fewer moving parts and fully under test; no auth library. See [§3.8](03-accounts-teams-and-identity.md). |
 | Mail | `nodemailer` over SMTP, or the ACS Email API with managed identity; the console in development | Any SMTP provider, or the Azure SDK for ACS. Each deployment's: [Mail](../operations/mail.md). |
 | Web UI | **React 19 + Vite**, SPA; **React Router 7** and **TanStack Query**; `lucide-react` icons | Static assets served by the same process; URL-held state through the router. |
-| Parsing | Own code for text/Markdown/VTT/SRT/CSV; `pdfjs-dist` for PDF; `fflate` + `saxes` for DOCX and XLSX; `parse5` for HTML; own code for legacy Word `.doc` (the OLE2 compound file and the Word binary format) | Pure functions of bytes → sidecars with no native dependencies: a small image, a fast cold start, and a contributor install that cannot fail on a toolchain. |
+| Parsing | Own code for text/Markdown/VTT/SRT/CSV; `pdfjs-dist` for PDF; `fflate` + `saxes` for DOCX and XLSX; `parse5` for HTML; own code for legacy Word `.doc` (the OLE2 compound file and the Word binary format) | Pure functions of bytes → readable Markdown with no native dependencies: a small image, a fast cold start, and a contributor install that cannot fail on a toolchain. |
 | Markdown rendering | `marked`'s lexer, with tokens mapped to React elements ([`apps/web/src/lib/markdown.tsx`](../../apps/web/src/lib/markdown.tsx)) | Markdown that agents write (briefs, notes, assumption bodies) is untrusted input: no HTML string from it ever reaches the DOM; raw HTML shows as text and images never load. |
 | Tooling | pnpm workspaces, `tsc` for type checks, Vitest, `tsx`, esbuild (server bundle), `playwright-core` for browser scripts | No linter or formatter is configured. |
 
@@ -64,12 +64,12 @@ be a new adapter and a redeploy, not a rewrite.
                       ┌──────────────── one application image ─────────────────┐
   browser  ──HTTPS──▶ │  Hono: static assets · REST /api/v1 · MCP /mcp         │
   MCP client ─HTTPS─▶ │  OAuth · upload relay · operation registry → handlers  │
-                      │  job worker (derivation, exports, blob deletion)       │
+                      │  job worker (reading, search index, exports, deletes)  │
                       └───────┬───────────────────────────────┬─────────────────┘
                               │                               │
                     ┌─────────┴──────────┐         ┌──────────┴──────────┐
                     │ Postgres           │         │ object storage      │
-                    │ rows · search · queue│       │ files · sidecars    │
+                    │ rows · search · queue│       │ attachments · text  │
                     └────────────────────┘         └─────────────────────┘
 ```
 
@@ -86,7 +86,7 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
   A worker claims only the kinds of job its version runs (`JOB_KINDS` in
   `apps/server/src/worker.ts`), so while a release rolls out, an instance of the version before it
   leaves a kind the new version's migration queued, without spending its attempts.
-- **A file is parsed in a thread of its own.** The worker starts a worker thread for each parse,
+- **An attachment is read in a thread of its own.** The worker starts a worker thread for each parse,
   with no environment, a heap of `WHATBUILD_PARSE_MEMORY_MB` (384 by default), half as much again
   for buffers and `WHATBUILD_PARSE_TIMEOUT_SECONDS` (120); a parse past them is stopped and fails,
   and the process keeps serving ([§5.1](05-derived-layer.md),
@@ -146,8 +146,8 @@ interfaces; adapters live in [`apps/server/src/adapters`](../../apps/server/src/
 | `BlobStore` | Immutable, create-only blobs: `put`, `putStream` (size-capped), `get`, ranged `getStream`, `stat`, `delete`; optional signed upload and download URLs | Google Cloud Storage | filesystem (`.what-build/blobs`) | in-memory |
 | `GrantSigner` | Sign and verify upload and download grants | HMAC with `WHATBUILD_GRANT_KEY` | the same, with a fixed development key | the same |
 | `Mailer` | Sign-in links, invitations, allowance notices and the daily feedback digest | SMTP, ACS with managed identity, or none (email links then off) | printed to the terminal | captured in memory |
-| `UrlFetcher` | Size-capped, SSRF-safe HTTPS fetch for `files.fetch_url` | yes | yes | yes |
-| `FileParser` | Parse one file's bytes into its sidecars, away from the requests | a worker thread per file, with memory and time limits | the same | the same |
+| `UrlFetcher` | Size-capped, SSRF-safe HTTPS fetch for `attachments.fetch_url` | yes | yes | yes |
+| `FileParser` | Parse one attachment's bytes into its readable Markdown, away from the requests | a worker thread per file, with memory and time limits | the same | the same |
 
 ◆ Decision: ACS mail uses the official Azure Email and Identity SDKs behind `Mailer`, with
 `ManagedIdentityCredential` and an optional user-assigned identity client ID. This lets Azure
@@ -254,8 +254,8 @@ Requirements this places on the design:
 - **Blobs go to `./.what-build/blobs`** through the filesystem adapter.
 - **The database role is not a superuser**, so row-level security is enforced exactly as in
   production ([`apps/server/src/testing/pg.ts`](../../apps/server/src/testing/pg.ts)).
-- **Derivation runs on the same queue** as production, in the worker. Development MUST NOT run
-  derivation inline in the request; that is an observable behavior difference.
+- **Reading attachments runs on the same queue** as production, in the worker. Development MUST
+  NOT read an attachment inline in the request; that is an observable behavior difference.
 - **CI uses this path.** The GitHub Actions workflow ([`.github/workflows/ci.yml`](../../.github/workflows/ci.yml))
   installs, checks that the embedded skill text matches `SKILL.md`, type-checks, runs `pnpm test`
   against embedded Postgres, and builds.
@@ -319,7 +319,7 @@ deployment is involved
 - **Observability:** one structured log line per request with method, path (ids masked,
   organizations, teams and products named only by kind, and the invitation and sandbox invitation
   links, `/invite/:token` and `/join/:code`), status and duration. **Never** log source content,
-  Markdown bodies, passage text, email addresses, or tokens. Request ids are planned. How the service
+  Markdown bodies, a source's text, email addresses, or tokens. Request ids are planned. How the service
   is used is counted per call in the database, not in the logs (`packages/core/src/usage.ts`).
   ◆ Decision: operational telemetry about the *service* in the logs; usage counted on the server
   for everyone, by operation and under pseudonyms, naming nobody
@@ -335,7 +335,7 @@ deployment is involved
 
 ```
 packages/
-  parsers/          text, md, vtt, srt, html, docx, doc, pdf, xlsx, csv → sidecars (pure: bytes in, sidecars out)
+  parsers/          text, md, vtt, srt, html, docx, doc, pdf, xlsx, csv → readable Markdown (pure: bytes in, text out)
   core/             operation registry and every operation, policy, ports, Kysely table
                     types, Story guidance and print view, the versioned product skill (src/skill/)
 apps/
@@ -351,5 +351,5 @@ okf/                this knowledge bundle, including this specification (okf/spe
 ```
 
 `core` and `parsers` MUST stay free of I/O of their own: they take ports and bytes, not file
-handles and sockets, which is what makes them testable and what lets derivation move to a separate
+handles and sockets, which is what makes them testable and what lets reading attachments move to a separate
 worker replica without a rewrite.

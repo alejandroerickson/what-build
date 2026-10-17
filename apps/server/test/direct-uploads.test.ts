@@ -27,9 +27,9 @@ beforeAll(async () => {
 });
 afterAll(async () => h?.close());
 
-/** A source with a direct grant for its primary, and the key the bucket would store it under. */
+/** A source with a direct grant for its first attachment, and the key the bucket would store it under. */
 async function directGrant(title: string) {
-  const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["report"], title, path: "report.txt", role: "primary" });
+  const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["report"], title, path: "report.txt" });
   expect(created.status).toBe(201);
   expect(created.body.upload.direct.max_bytes).toBe(1000);
   return { recordId: created.body.record.record_id as string, key: signed.at(-1)!.key };
@@ -58,7 +58,7 @@ describe("a direct upload", () => {
     expect(done.body.error).toMatchObject({ code: "too_large", details: { limit: 1000 } });
     expect(read).toBe(0);
     expect(h.blobs.blobs.has(key)).toBe(false);
-    expect((await alice.api("GET", `${P}/sources/${recordId}?detail=full`)).body.files).toEqual([]);
+    expect((await alice.api("GET", `${P}/sources/${recordId}?detail=full`)).body.attachments).toEqual([]);
   });
 
   it("is registered with the hash of the bytes that landed, never one stored beside them", async () => {

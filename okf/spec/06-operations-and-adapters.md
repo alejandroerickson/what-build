@@ -1,9 +1,9 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 120 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 118 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
-generated: {by: agent:claude, at: 2026-10-16}
+generated: {by: agent:claude, at: 2026-10-17}
 status: stable
 ---
 
@@ -36,7 +36,7 @@ defineOperation({
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 120. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 118. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
@@ -64,7 +64,7 @@ call came through:
    accepted alias to its canonical field (§6.5). A visitor's input is then checked for size
    (`413 too_large`).
 5. Refuse writes to an archived product (`409 product_archived`) unless the operation allows it.
-   An operation with slow work outside the database (`files.fetch_url`'s download) does it now,
+   An operation with slow work outside the database (`attachments.fetch_url`'s download) does it now,
    in its `prepare` step, holding no database connection; its checks read through a short
    read-only transaction of their own, and what it fetched is handed to the handler.
 6. **Run the handler in one transaction** scoped to the tenant (`app.tenant_id` set for row-level
@@ -96,10 +96,10 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
 | 401 | No or invalid identity or grant | `unauthenticated`, `invalid_grant` |
 | 403 | A role too low for the action; an agent connection's level too low for it; feedback turned off for an agent connection; something only a person does in the web app; a call outside a scoped MCP connector; a cross-origin cookie write; sign-up not allowed; something a visitor to the public sandbox may not do, or may not do for now | `forbidden`, `connection_level`, `feedback_off`, `web_only`, `outside_connector_scope`, `forbidden_origin`, `invite_only`, `invitation_wrong_address`, `sandbox_restricted`, `sandbox_read_only`, `sandbox_closed`, `tenant_allowance` |
 | 404 | Absent — including everything the caller has no role on | `not_found` |
-| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `frozen`, `primary_taken`, `mockup_on_story`, `already_uploaded`, `upload_used`, `sandbox_organization`, `export_in_progress`, `last_owner`, `quota_exceeded`, `sandbox_full`, `no_baseline` |
+| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `frozen`, `too_many_attachments`, `no_text`, `no_file`, `mockup_on_story`, `already_uploaded`, `upload_used`, `sandbox_organization`, `export_in_progress`, `last_owner`, `quota_exceeded`, `sandbox_full`, `no_baseline` |
 | 410 | Deliberately deleted, with a tombstone; an invitation no longer usable | `record_deleted`, `assumption_deleted`, `outcome_deleted`, `story_page_deleted`, `mockup_deleted`, `annotation_deleted`, `invitation_used`, `invitation_expired`, `invite_revoked`, `invite_expired`, `invite_used_up` |
 | 413 | Body or file beyond a limit | `too_large` |
-| 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `product_required`, `window_too_large`, `cross_product_reference`, `outcome_cites_a_record`, `invalid_query`, `invalid_cursor`, `invalid_html`, `invalid_patch`, `invalid_upload`, `confirmation_required`, `name_mismatch`, `confidence_requires_human` |
+| 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `product_required`, `too_long`, `cross_product_reference`, `outcome_cites_a_record`, `invalid_query`, `invalid_cursor`, `invalid_filter`, `invalid_html`, `invalid_patch`, `invalid_upload`, `fetch_failed`, `confirmation_required`, `name_mismatch`, `confidence_requires_human` |
 | 429 | Rate limited | `rate_limited` |
 
 - **`403` names the role.** A caller with a role on the product but too low for the action gets
@@ -113,7 +113,7 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
   allowances in the public sandbox, which add `resets_at` ([§9.7](09-data-lifecycle.md)). A sandbox
   allowance set to 0 is switched off and answers `403 sandbox_restricted` instead.
 - **`429`** is returned for sign-in links (five per address per hour), for a fourth URL fetch a
-  person starts while three of theirs are in progress (`files.fetch_url`, on each instance), and
+  person starts while three of theirs are in progress (`attachments.fetch_url`, on each instance), and
   for a visitor's calls and writes a minute in the public sandbox, with
   `{ limit, per, retry_after_seconds }` in `details` and a `Retry-After` header on REST. Rate
   limits for every organization are planned.
@@ -129,9 +129,12 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
   It ends "Nothing was changed; correct the call and send it again", so a refusal never reads as a
   call with nothing to do ([`schemas.ts`](../../packages/core/src/schemas.ts) `formatIssues`).
   A field that a neighbouring operation takes adds a hint: `derived.text` refusing `start`, `end`
-  or `unit` says it reads by code-point `offset` and `limit`, and that those three are
-  `read_passage`'s (`WRONG_FIELD_HINTS` in
-  [`field-aliases.ts`](../../packages/core/src/field-aliases.ts)). MCP returns the same object as a tool error (`isError: true`) whose text begins with
+  or `unit` says it reads by code-point `offset` and `limit`, such as a little before a search
+  hit's `char_start`, and that there are no passages to read by number (`WRONG_FIELD_HINTS` in
+  [`field-aliases.ts`](../../packages/core/src/field-aliases.ts)). So does a field the object no
+  longer has (a source's kind or dimensions, an attachment's role; Notes on recent actions,
+  below, and `retiredFieldHint` in [`execute.ts`](../../packages/core/src/execute.ts)). MCP
+  returns the same object as a tool error (`isError: true`) whose text begins with
   the status (`"422: …"`) followed by the JSON.
 
 ## 6.3 Bounds and paging
@@ -146,11 +149,11 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
   three dates and `asc` for title, and undated sources stay last either way. A cursor belongs to
   its sort, order and filters: pass it back with all of them unchanged.
   With `date`, `updated` or `title`, a cursor the sort did not issue is `422 invalid_cursor`. Each
-  summary in the list also names its primary file (`primary_file`, or `null`). Every source
-  summary carries `uploaded_at` and `updated_at` with their actors.
-- Text windows (`derived.text`): at most 20,000 characters per call by default,
-  with `truncated` and totals.
-- Passages: at most 200 segments and 10 minutes per read ([§5.4](05-derived-layer.md)).
+  summary in the list also names the attachment its derived text is still the text of
+  (`text_from`, a path, or `null`). Every source summary carries `uploaded_at` and `updated_at`
+  with their actors.
+- Text windows (`derived.text`): at most 20,000 code points per call, the default, with
+  `truncated` and `total_chars` ([§5.4](05-derived-layer.md)).
 - Lists return summaries — never bodies, HTML, or derived text.
 - Times are UTC, in ISO 8601 ([decision](../decisions/times-are-utc-in-data-and-local-where-shown.md)).
 - REST request bodies are limited to 5 MB (`413 too_large`), and so are MCP's (`413`, read only
@@ -182,7 +185,7 @@ must come from the app's own origin (`403 forbidden_origin`).
 
 ### The operation catalogue
 
-All 120 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 118 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-teams-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -250,21 +253,19 @@ being changed inside the handler.
 | `sources` | `copy_to_product` | `POST P/sources/:record_id/copy` | editor |
 | `sources` | `delete_impact` | `GET P/sources/:record_id/delete-impact` | viewer |
 | `sources` | `delete` | `DELETE P/sources/:record_id` | admin |
-| `files` | `request_upload` | `POST P/sources/:record_id/uploads` | editor |
-| `files` | `create_upload` | `POST P/sources/with-upload` | editor |
-| `files` | `create_uploads` | `POST P/sources/with-uploads` | editor |
-| `files` | `complete_upload` | `POST P/sources/:record_id/uploads/complete` | editor |
-| `files` | `add_note` | `POST P/sources/:record_id/notes` | editor |
-| `files` | `fetch_url` | `POST P/sources/:record_id/fetch` | editor |
-| `files` | `set_role` | `POST P/sources/:record_id/files/role` | editor |
-| `files` | `get_download` | `POST P/sources/:record_id/downloads` | viewer |
+| `attachments` | `request_upload` | `POST P/sources/:record_id/uploads` | editor |
+| `attachments` | `create_upload` | `POST P/sources/with-upload` | editor |
+| `attachments` | `create_uploads` | `POST P/sources/with-uploads` | editor |
+| `attachments` | `complete_upload` | `POST P/sources/:record_id/uploads/complete` | editor |
+| `attachments` | `fetch_url` | `POST P/sources/:record_id/fetch` | editor |
+| `attachments` | `get_download` | `POST P/sources/:record_id/downloads` | viewer |
 | `derived` | `manifest` | `GET P/sources/:record_id/derived/manifest` | viewer |
 | `derived` | `text` | `GET P/sources/:record_id/derived/text` | viewer |
+| `derived` | `write_text` | `PUT P/sources/:record_id/derived/text` | editor |
 | `derived` | `list` | `GET P/sources/:record_id/derivations` | viewer |
 | `derived` | `rederive` | `POST P/sources/:record_id/rederive` | editor |
 | `derived` | `write_note` | `PUT P/sources/:record_id/agent-notes/:note_kind` | editor |
 | `derived` | `read_note` | `GET P/sources/:record_id/agent-notes/:note_kind` | viewer |
-| `read_passage` | — | `GET P/sources/:record_id/passage` | viewer |
 | `search` | — | `GET P/search` | viewer |
 | `assumptions` | `list` | `GET P/assumptions` | viewer |
 | `assumptions` | `get` | `GET P/assumptions/:id` | viewer |
@@ -312,27 +313,45 @@ being changed inside the handler.
 
 Notes on recent actions:
 
+- A source's words are one derived text, and its files are attachments that are read and kept but
+  never searched
+  ([decision](../decisions/a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)).
+  The `files` tool is `attachments`, on the same REST paths, without `set_role` or `add_note`, and
+  `read_passage` is gone. `derived.write_text` writes the derived text, whole, by exact edits or
+  from an attachment; `derived.text` reads it, or with `path` the text read from one attachment;
+  `derived.manifest` and `derived.rederive` take `path`, and `derived.list` gives every reading
+  with its `path` and `is_current` ([§5](05-derived-layer.md)). Attachments take no `role` and
+  carry no provenance: a call to an `attachments` action that sends `role`, `derived_from`,
+  `derivation_note` or `derived_by` is `422 invalid_input`, with a hint that attachments have none
+  and that what one was made from goes in the source's notes. Source summaries carry
+  `text_chars`, `attachment_count` and, from `sources.list`, `text_from`, in place of
+  `segment_count`, `file_count` and `primary_file`; `sources.get` gives `attachments` and `text`
+  in place of `files`, `search_rule`, `manifest` and `pending_primary_path`
+  ([§4.3](04-data-model.md)). `search` takes `scope: "sources"` (`passages` is gone), and its hits
+  name the `field` they are in, with code-point offsets into it; plain mode's source results give
+  `hits` with their field and `hits_matched`, and no `passage` kind ([§8](08-search.md)). The upload
+  relay's `201` gives the `attachment` (it gave `file`).
 - Sources are described by tags; they have no kind, organization or folder
   ([decision](../decisions/sources-are-described-by-tags.md)). `sources.facets` replaced
   `sources.kinds`: it returns `{ sources, tags: [{ tag, count }], tags_truncated, added_by:
   [{ account_id, display_name, count }] }` for the product, counting live sources unless
   `include_archived` ([§4.4](04-data-model.md)). `sources.list` lost `folder`, `kind` and
   `organization` and gained `added_by` and `added_since`; `search` lost the same three filters.
-  `sources.create`, `sources.update` and `files.create_upload` take no `kind` or `organization`.
-  Source summaries, `search`'s `records` (now `{ title, date, tags, archived_at }`) and
-  `read_passage`'s `record` carry no kind. A call to a `sources`, `files` or
+  `sources.create`, `sources.update` and `attachments.create_upload` take no `kind` or
+  `organization`. Source summaries and `search`'s `records` (now `{ title, date, tags,
+  archived_at }`) carry no kind. A call to a `sources`, `attachments` or
   `search` operation naming `kind`, `organization` or `folder` is `422 invalid_input`, with a hint
   to use tags and `sources(action="facets")`.
 - Sources and assumptions have no dimensions; tags say whom material concerns and what it bears
   on ([decision](../decisions/sources-are-described-by-tags.md)). `sources.list` and `search` lost `customer`, `product_area` and
-  `lifecycle_stage`; `sources.create`, `sources.update`, `files.create_upload`,
+  `lifecycle_stage`; `sources.create`, `sources.update`, `attachments.create_upload`,
   `assumptions.create` and `assumptions.update` take no `dimensions`, and reads of sources and
-  assumptions carry none. A call to a `sources`, `files`, `search` or `assumptions` operation
+  assumptions carry none. A call to a `sources`, `attachments`, `search` or `assumptions` operation
   naming one is `422 invalid_input`, with a hint to use tags.
 - Sources have no `participants`, `source_system` or `provenance_depth`, and assumptions no
   `provenance_depth` ([decision](../decisions/sources-are-described-by-tags.md)). `sources.list`
   and `search` lost the `provenance_depth` filter, `sources.list`'s `query` reads the title, tags
-  and file names, and none of these operations takes or returns the fields; naming one is
+  and attachment names, and none of these operations takes or returns the fields; naming one is
   `422 invalid_input`, with a hint that a source is described by its title, date and tags.
 - A comment is on a whole source: `sources.annotate` takes no `seq_start` or `seq_end` (naming
   them is `422 invalid_input`, saying so), and comments carry no anchor. `derived.outline` is
@@ -349,7 +368,7 @@ Notes on recent actions:
   `related_records`; a call that sends one is `422 invalid_input`. `assumptions.list` has no
   `record_id` filter, and `search` with `record_id` searches no assumptions.
   `sources.move_to_product` is never refused for what mentions the source, and
-  `sources.delete_impact` reports its file versions, bytes, derivations and comments
+  `sources.delete_impact` reports its attachments' versions, bytes, readings and comments
   ([§4.3](04-data-model.md)).
 - `assumptions.update` takes `edits` (exact replacements that must match once) and returns
   `changed` and a short `diff` ([§4.1](04-data-model.md)). Without `status`, the assumption list
@@ -451,9 +470,10 @@ These carry bytes, identity or discovery, not operations:
 ```
 PUT  /api/v1/uploads/:grant_id                       upload relay (grant header is the credential)
 PUT  /api/v1/uploads/mockup/:upload_id               a mockup canvas's ZIP, under its upload grant
-GET  /api/v1/downloads/:file_version_id              file bytes under a download grant
+GET  /api/v1/downloads/:file_version_id              an attachment's bytes under a download grant
 GET  /api/v1/downloads/export/:export_id             an export ZIP under a download grant
-GET  P/sources/:record_id/file?path=&version=&download=1   file bytes for the web app (ranged)
+GET  P/sources/:record_id/attachment?path=&version=&download=1   an attachment's bytes for the web app (ranged)
+GET  P/sources/:record_id/text                       a source's whole derived text for the web app (text/markdown)
 GET  P/exports/:export_id/file                       an export ZIP for the web app
 GET  P/story/pages/:page_id/versions/:version/html?theme=light|dark   Story page HTML
 GET  P/story/print?page_ids=…                        the Story print view (HTML)
@@ -475,7 +495,13 @@ POST /api/v1/sandbox/reset-if-due                    runs a sandbox's reset if i
 `X-Content-Type-Options: nosniff`, a `Content-Disposition`, range support,
 `Cache-Control: private, no-store`, and a sandboxing `Content-Security-Policy` that lets only the
 app frame them. Uploaded HTML, XHTML and SVG are always sent as
-`application/octet-stream` attachments, never renderable from the application's origin.
+`application/octet-stream` downloads, never renderable from the application's origin.
+
+**A source's text for the web app.** `GET P/sources/:record_id/text` answers the whole derived
+text, so the app can show and edit it at once, as `text/markdown; charset=utf-8` with
+`nosniff`, `Cache-Control: private, no-store` and the text's etag as its `ETag`; `404` when the
+source has none. It needs viewer, as `derived.text` does; agents read the text in windows with
+`derived.text` ([§5.4](05-derived-layer.md)).
 
 **The two sandbox routes need no identity.** `GET /api/v1/sandbox/invite` answers the page behind
 an invitation link: the invitation's `status` (`open`, `used_up`, `expired`, `revoked`, `full` or
@@ -487,8 +513,8 @@ unless a reset is due, and a due reset would run at the next request anyway
 **Story page HTML** is served with a sandbox policy that allows the page's inline scripts but no
 network, no same-origin access and no framing outside the app. `?theme=light|dark` writes the
 app's resolved theme onto the page's `<html>` for that response only; the stored HTML is
-unchanged. It is a Story read, so a reader reaches it; a source's file, an export's file, the
-style specimens and a mockup page's HTML need viewer. A mockup page's HTML is served in the same
+unchanged. It is a Story read, so a reader reaches it; a source's attachment and text, an
+export's file, the style specimens and a mockup page's HTML need viewer. A mockup page's HTML is served in the same
 sandbox, with the same `?frame=1`, and without `?theme`: a mockup carries its own look. Its
 sandbox adds `allow-forms`, so a prototype's submit handler runs, here and on the Story's route
 when a version shows a mockup page; every page's policy says `form-action 'none'`, so a
@@ -567,8 +593,9 @@ the same of a newer version than the instructions named. `unknown_tool` and `unk
 the server's version and its tools or the tool's actions (also in `details`: `server_version`,
 `tools` or `actions`), and say the client may hold a list from another version.
 
-**Tools.** Fifteen tools over the 118 operations an agent may be offered (all 120 but deleting an
-organization and its preview): eleven grouped by noun, four standalone. A connection is listed
+**Tools.** Fourteen tools over the 116 operations an agent may be offered (all 118 but deleting an
+organization and its preview): eleven grouped by noun, three standalone
+([decision](../decisions/mcp-tools-grouped-by-noun.md)). A connection is listed
 only the actions its level allows (below).
 
 | Tool | Actions |
@@ -578,14 +605,13 @@ only the actions its level allows (below).
 | `sandbox` | `status`, `join`, `settings`, `update_settings`, `save_baseline`, `baselines`, `reset`, `invites`, `create_invite`, `revoke_invite`, `visitors`, `remove_visitor` |
 | `outcomes` | `list`, `get`, `create`, `update`, `archive`, `restore`, `delete_impact`, `delete`, `revisions`, `get_revision`, `restore_revision` |
 | `sources` | `facets`, `list`, `get`, `create`, `update`, `archive`, `restore`, `annotate`, `list_annotations`, `update_annotation`, `delete_annotation`, `move_to_product`, `copy_to_product`, `delete_impact`, `delete` |
-| `files` | `request_upload`, `create_upload`, `create_uploads`, `complete_upload`, `add_note`, `fetch_url`, `set_role`, `get_download` |
-| `derived` | `manifest`, `text`, `list`, `rederive`, `write_note`, `read_note` |
+| `attachments` | `request_upload`, `create_upload`, `create_uploads`, `complete_upload`, `fetch_url`, `get_download` |
+| `derived` | `manifest`, `text`, `write_text`, `list`, `rederive`, `write_note`, `read_note` |
 | `assumptions` | `list`, `get`, `create`, `update`, `review`, `supersede`, `link`, `unlink`, `archive`, `delete_impact`, `delete` |
 | `story` | `guidance`, `get_style`, `set_style`, `list_pages`, `get_page`, `list_versions`, `get_version`, `preview`, `publish`, `promote_mockup`, `write_notes`, `print_view`, `get_hierarchy`, `set_hierarchy`, `archive_page`, `restore_page`, `delete_page_impact`, `delete_page` |
 | `mockups` | `list`, `get`, `list_versions`, `get_version`, `request_upload`, `publish`, `archive`, `restore`, `get_download`, `delete_impact`, `delete` |
 | `activity` | `list` |
 | `search` | standalone |
-| `read_passage` | standalone |
 | `get_skill` | standalone |
 | `submit_feedback` | standalone |
 
@@ -665,45 +691,48 @@ Rules:
   (`web` or `mcp`, plus the client's name; activity from before tokens were removed may say
   `rest`). No input field can set or alter it.
 
-## 6.7 Getting files in
+## 6.7 Getting attachments in
 
-In order of preference for an agent (`packages/core/src/ops/files.ts`):
+A source's files are its attachments ([§4.5](04-data-model.md)), and they take no role. In order
+of preference for an agent (`packages/core/src/ops/attachments.ts`):
 
-1. **Upload grant** — `files.request_upload { record_id, path, role, media_type?, size? }`, or
-   `files.create_upload` to create the source and get its first grant in one call, or
-   `files.create_uploads { sources: [...] }` for up to 20 such sources at once (all are created or
-   none, and a refusal names the entry by index). The result is
-   `{ grant_id, url, method: "PUT", headers, max_bytes, expires_at, next, warnings }`
+1. **Upload grant** — `attachments.request_upload { record_id, path, media_type?, size? }`, or
+   `attachments.create_upload` to create the source and get its first grant in one call, or
+   `attachments.create_uploads { sources: [...] }` for up to 20 such sources at once (all are
+   created or none, and a refusal names the entry by index). The result is
+   `{ grant_id, record_id, path, url, method: "PUT", headers, max_bytes, expires_at, direct?, next,
+   warnings }`
    (`create_upload` returns `{ record, upload, warnings }`, `create_uploads` a list of them as `items`). `warnings` flags, without refusing, a
-   primary whose format no parser reads, since a primary cannot be replaced (upload a PDF export as
-   the primary and keep the original as `origin`), and for `create_upload` a live source with the
-   same title and date. The agent PUTs the
+   format no parser reads (the attachment will be kept, but its text cannot be read, so it cannot
+   become the source's derived text; a recording is not flagged, since its result says it), and for
+   `create_upload` a live source with the same title and date. The agent PUTs the
    local file's raw bytes to `url` (the service's own upload relay,
    `/api/v1/uploads/:grant_id`) with exactly those headers, using whatever shell or HTTP tool it
    has. The relay first checks that whoever requested the grant can still write to the product
    (`403 forbidden` otherwise, for someone made a reader or viewer, or removed, since), then
    stores the bytes, records size and SHA-256 **from what arrived**, not from the
-   agent's claims, attaches the file at once, and enqueues derivation if it is primary; its
-   `201` response carries the file entry, so nothing more need be called.
-   `files.complete_upload` attaches a file PUT to a `direct` URL; after the relay it only confirms,
-   idempotently, and can add provenance (`derived_from`, `derivation_note`, `derived_by`). Both
-   return the file entry (`searchable`, `search_status`) and a
-   `note` on what happens next that agrees with it: the primary is being parsed, is ready, is a
-   recording that needs a transcript as its own source, or is in a format no parser reads (with the
-   formats that are parsed). The last two are said at once, before the worker has run. It also
-   returns the source's new etag as `record_etag`, and `warnings` when the source still has no
-   primary after a non-primary file arrives. Grants are single-file, create-only, signed, and expire after
+   agent's claims, adds the attachment at once (or a version of it, at a path it already has),
+   changes the source's etag, and queues the attachment to be read
+   ([§5.1](05-derived-layer.md)); its `201` response, `{ uploaded, size, sha256, attachment, next }`,
+   carries the attachment, so nothing more need be called.
+   `attachments.complete_upload` adds an attachment PUT to a `direct` URL; after the relay it only
+   confirms, idempotently. Both give the attachment (§4.5) with `record_id`, the source's new etag
+   as `record_etag`, and a `note` on what becomes of its text that agrees with it: it is being read
+   and its text will become the source's derived text, or the source already has one and this text
+   will be kept beside it (take it with `derived.write_text`'s `from_attachment`); it has been
+   read; it is a recording, stored and playable but never transcribed (add its transcript as
+   another attachment); or no parser reads its format (with the formats that are read). Every note
+   says the attachment is kept and never searched, and a recording or an unread format is named at
+   once, before the worker has run. Grants are single-file, create-only, signed, and expire after
    30 minutes by default (`WHATBUILD_GRANT_TTL_SECONDS`). The relay takes at most 25 MB
    (`WHATBUILD_RELAY_MAX_BYTES`); when the deployment enables signed URLs
    (`WHATBUILD_GCS_SIGNED_URLS=1`), the grant also carries a `direct` block for a PUT straight to
    the bucket, up to the per-file limit of 100 MB (`WHATBUILD_FILE_MAX_BYTES`). The direct URL is
    signed with that limit as the allowed body size (`x-goog-content-length-range`, among the
-   headers to send), so the bucket refuses a larger body; `files.complete_upload` reads the
+   headers to send), so the bucket refuses a larger body; `attachments.complete_upload` reads the
    object's size first, discards an object over the grant's size with `413 too_large`, and hashes
    the bytes as it streams them, never trusting a hash stored beside them.
-2. **Inline note** — `files.add_note { record_id, path, text }`: plain text, at most 2,048 bytes and
-   20 lines, with a text extension. For short notes only.
-3. **URL fetch** — `files.fetch_url { record_id, url, path?, role }` for public HTTPS material:
+2. **URL fetch** — `attachments.fetch_url { record_id, url, path? }` for public HTTPS material:
    public addresses only, both an address written in the URL (in any notation the URL parser
    accepts) and every address a name resolves to, checked again on each redirect; size-capped
    (25 MB by default), 30 seconds at most between bytes and 60 seconds for the whole fetch,
@@ -712,6 +741,8 @@ In order of preference for an agent (`packages/core/src/ops/files.ts`):
    answers one plain `422 fetch_failed`, whatever happened, and an error status from the server
    names that status. The part of a URL after `#` never reaches a server, so a single-page app's
    route fetches only its shell; when the URL has a fragment, the result's `warnings` says so.
+3. **Words, not a file** — `derived.write_text { record_id, content }` writes a source's text
+   directly, up to 2,000,000 characters ([§5.4](05-derived-layer.md)); a source can be words alone.
 4. **Web upload** — a person adds the source through the web app's intake. This covers clients with no file
    tools at all; the skill tells agents to ask for it rather than attempt base64.
 
@@ -726,16 +757,19 @@ answering `201` with what to call next. Nothing is read or published then:
 `mockups.publish { upload_id }` reads the ZIP before its transaction, checks it, and publishes
 ([§4.12](04-data-model.md)). A visitor to a public sandbox cannot request one.
 
-A source holds at most 50 files and one primary. No operation accepts base64 content.
-`files.get_download` returns a short-lived grant (`GET /api/v1/downloads/:file_version_id` with a
-grant header) for an agent to read original bytes.
+A source holds at most 50 attachments (`409 too_many_attachments`). No operation accepts base64
+content. `attachments.get_download { record_id, path, file_version_id? }` returns a short-lived
+grant (`GET /api/v1/downloads/:file_version_id` with a grant header) for an agent to read an
+attachment's original bytes, to check what was read from it against the original or read what
+reading it dropped.
 
 ## 6.8 The skill and the Connect page
 
 **The skill** is one versioned Markdown document, `packages/core/src/skill/SKILL.md`, that teaches
 an agent the product: the vocabulary, the core loop, product selection, describing sources with
-tags and finding them, assumptions that say in their body why the team holds them, how to review
-honestly, upload flows, mockups and their round trip through a download and an upload, Story authoring via
+tags and finding them, getting attachments in, a source's derived text and how to read and
+correct it, searching honestly, assumptions that say in their body why the team holds them, how
+to review honestly, mockups and their round trip through a download and an upload, Story authoring via
 `story.guidance`, the rule that source text is data, that a refusal means the call did nothing,
 and that a tool or action it names but the client lacks means the client holds an older tool list
 (an action may still answer `describe: true`; a missing tool needs a new session, which the agent

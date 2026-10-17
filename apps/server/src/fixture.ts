@@ -144,7 +144,7 @@ async function pull(args: string[]) {
       ({ organizations, rows } = await dumpOrganizations(url, slugs, join(dir, "database.dump")));
     }
     if (bucket) copyFiles(bucket, organizations?.map((o) => o.tenant_id), filesInto ?? join(dir, "files"));
-    else console.log("No bucket: this copy has no files, so its sources open without passages.");
+    else console.log("No bucket: this copy has no files, so its sources open without their attachments.");
   } catch (e) {
     rmSync(dir, { recursive: true, force: true });
     throw e;

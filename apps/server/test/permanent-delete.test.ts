@@ -71,12 +71,12 @@ describe("deleting what is in a product", () => {
     const path = `${P}/annotations/${org.annotation.id}`;
     expect((await owner.api("DELETE", path, { ...guards(org.annotation.etag), confirm: "yes" })).body.error.code).toBe("confirmation_required");
     expect((await owner.api("DELETE", path, guards("stale"))).status).toBe(409);
-    const del = await owner.api("DELETE", path, guards(org.annotation.etag, "Wrong passage"));
+    const del = await owner.api("DELETE", path, guards(org.annotation.etag, "On the wrong source"));
     expect(del.status, JSON.stringify(del.body)).toBe(200);
-    expect(del.body).toMatchObject({ deleted: true, annotation_id: org.annotation.id, reason: "Wrong passage" });
+    expect(del.body).toMatchObject({ deleted: true, annotation_id: org.annotation.id, reason: "On the wrong source" });
     const again = await owner.api("DELETE", path, guards(org.annotation.etag));
     expect(again.status).toBe(410);
-    expect(again.body.error).toMatchObject({ code: "annotation_deleted", details: { tombstone: { reason: "Wrong passage" } } });
+    expect(again.body.error).toMatchObject({ code: "annotation_deleted", details: { tombstone: { reason: "On the wrong source" } } });
     const notes = await owner.api("GET", `${P}/sources/${org.source.id}/annotations?include_archived=true`);
     expect(notes.body.items.map((a: { annotation_id: string }) => a.annotation_id)).not.toContain(org.annotation.id);
     const log = await owner.api("GET", `${P}/activity?entity_id=${org.source.id}`);
@@ -177,12 +177,14 @@ describe("deleting a product", () => {
     for (const table of ["records", "outcomes", "register_entries", "story_pages", "story_versions", "mockups", "exports", "activity", "annotations"])
       expect(await rowsIn(org.tenant.id, table, sql`product_id = ${org.product.id}`), table).toBe(0);
     expect(await rowsIn(org.tenant.id, "tombstones", sql`object_type = 'product' and object_id = ${org.product.id}`)).toBe(1);
+    // A source's derived text and what search held of it go with it.
+    for (const table of ["source_texts", "text_chunks"]) expect(await rowsIn(org.tenant.id, table, sql`record_id = ${org.source.id}`), table).toBe(0);
 
     await h.worker.drain();
     // The copy in the other product reads the same bytes, which stay.
     const annex = `/api/v1/p/${org.annex.path}`;
     const copied = await owner.api("GET", `${annex}/sources/${copy.body.record_id}?detail=full`);
-    const file = copied.body.files[0];
+    const file = copied.body.attachments[0];
     const download = await owner.api("POST", `${annex}/sources/${copy.body.record_id}/downloads`, { path: file.path });
     expect(download.status, JSON.stringify(download.body)).toBe(200);
     const bytes = await fetch(download.body.url, { headers: download.body.headers });

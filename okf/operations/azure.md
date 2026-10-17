@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild self-hosts on Azure Container Apps with Azure Database for PostgreSQL and a mounted file share, set up by an agent with the Azure CLI.
 description: What a self-hosted deployment on Azure is made of, how each resource is configured, the commands that create it, sign-in with a Microsoft work account, the variations between organizations, deploying a new version, cost and removal.
 tags: [operations, deployment, azure, self-hosting, container-apps, entra]
-generated: {by: agent:codex, at: 2026-10-15}
+generated: {by: agent:claude, at: 2026-10-17}
 status: draft
 ---
 
@@ -36,7 +36,7 @@ agent   ──▶ │  the repository's image, pulled from the registry by manag
                    │                       │                           │
        Azure Database for          Azure Files share            Key Vault
        PostgreSQL flexible server  mounted at /data/blobs       database URL, grant key,
-       rows, search, job queue     files and sidecars           sign-in secrets
+       rows, search, job queue     attachments, their text      sign-in secrets
 ```
 
 Before a new image serves, the same image runs as the Container Apps job `whatbuild-migrate`
@@ -53,7 +53,7 @@ Everything except the app registration lives in one resource group in one subscr
 | Managed identity (user-assigned) | `id-whatbuild` | `AcrPull` on the registry, `Key Vault Secrets User` on the vault | the app's and the job's only identity; no stored credential |
 | Key Vault | `kv-whatbuild-<suffix>` | Azure role-based access | secrets, referenced by the app and the job |
 | PostgreSQL flexible server | `psql-whatbuild-<suffix>` | Postgres 17, Burstable `Standard_B1ms`, 32 GiB, 14 days of backups, `pg_trgm` allow-listed, database and role `whatbuild` | every row, the search index, the job queue |
-| Storage account and file share | `stwhatbuild<suffix>`, share `whatbuild-files` | StorageV2, locally redundant, SMB share, 30 days of share soft delete | files and parsed sidecars, through the filesystem adapter |
+| Storage account and file share | `stwhatbuild<suffix>`, share `whatbuild-files` | StorageV2, locally redundant, SMB share, 30 days of share soft delete | attachments and the text read from them, through the filesystem adapter |
 | Log Analytics workspace | `log-whatbuild` | | the app's and the job's logs |
 | Container Apps environment | `cae-whatbuild` | the file share registered as storage `whatbuild-files` | hosts the app and the job |
 | Container Apps job | `whatbuild-migrate` | manual trigger, same image, `node main.js migrate` | migrations |
@@ -72,7 +72,7 @@ account's key, never an identity, and every upload passes through the service.
 **Parsing has twice the room.** The worker parses each file in a thread of its own, held to a
 heap of `WHATBUILD_PARSE_MEMORY_MB`, half as much again for buffers, and
 `WHATBUILD_PARSE_TIMEOUT_SECONDS` (120 seconds); a file that needs more is recorded as failed while
-the service keeps answering ([§5.1](../spec/05-derived-layer.md#51-derivations)). The image's
+the service keeps answering ([§5.1](../spec/05-derived-layer.md#51-reading-an-attachment)). The image's
 default heap, 384 MB, suits 1 GiB; the definition gives this app's 2 GiB a heap of 768 MB. Keep it
 near a third of the container's memory if that changes.
 
@@ -373,7 +373,7 @@ curl -s "$WB_PUBLIC_URL/api/v1/meta"    # server_version is the image tag; auth 
 az containerapp logs show --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP" --tail 50
 ```
 
-Then, signed in: create an organization and a product, upload a document, and see its passages
+Then, signed in: create an organization and a product, upload a document, and see its text
 appear. That one walk proves the database role, the worker and the share; the uploaded file is
 then listed by `az storage file list --account-name "$AZ_STORAGE" --share-name "$AZ_SHARE"`. A
 start-up error naming `EACCES` under `/data/blobs` means the share is mounted for another user:

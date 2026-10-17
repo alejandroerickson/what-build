@@ -24,9 +24,10 @@ other plans will too.
 3. **Web, as Sam, in the sandbox organization.** Open the same product and repeat a short tour:
    Idea, Evidence, a source, Story. *Expect:* the same content as in step 2, and the sandbox's
    notice wherever the product says it is a public sandbox.
-4. **Web, as Sam.** On a source, open its passages and search for a word you can see in one of
-   them, from the panel's Search field. *Expect:* the search finds that passage as you type, and
-   opening the hit shows the passage selected in its source.
+4. **Web, as Sam.** On a source, open each of its sections, Text, Notes, Comments and Attachments,
+   then search for a word you can see in its text, from the panel's Search field. *Expect:* the
+   search finds the source as you type, saying the word is in its text, and opening the hit shows
+   its Text with the word marked.
 5. **Web, as Riley (owner).** Sign in. Open each organization's members page, Organization creators
    from the account menu (Riley owns the instance), and the sandbox organization's sandbox page.
    *Expect:* all load; Riley can manage members, and the members page lists the organization's
@@ -40,11 +41,13 @@ other plans will too.
    takes Jordan back to the Story (`okf/decisions/a-reader-reads-only-the-story.md`), without
    errors or a broken screen on the way.
 8. **MCP, as Sam.** `info`, then `tools`. *Expect:* the server names itself `whatbuild` with a
-   skill version; there are fifteen tools; the instructions say to start with
-   `products(action="list")`. Call `get_skill` and compare its version with the server's.
+   skill version; there are fourteen tools, `attachments` among them and no `files` or
+   `read_passage`; the instructions say to start with `products(action="list")`. Call `get_skill`
+   and compare its version with the server's.
 9. **MCP, as Sam.** List products, then list sources, assumptions, mockups and Story pages
-   (`story` `list_pages`) in the product from step 2, and read one passage with `read_passage`.
-   *Expect:* the same items the web showed in step 2, with the same titles and counts.
+   (`story` `list_pages`) in the product from step 2, and read the first window of one source's
+   text with `derived(action="text")`. *Expect:* the same items the web showed in step 2, with the
+   same titles and counts, and the same words the source's Text showed.
 10. **MCP, as Sam.** Read `sandbox(action="status")` for each organization. *Expect:* the sandbox
     organization answers with its notice; for the standard one the call is refused with an error
     that says it is not a public sandbox.

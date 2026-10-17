@@ -5,13 +5,15 @@ import { docxParser } from "./docx.ts";
 import { htmlParser } from "./html.ts";
 import { bytesReader, recordingDurationMs } from "./media.ts";
 import { pdfParser } from "./pdf.ts";
+import { renderMarkdown } from "./markdown.ts";
 import { markdownParser, plaintextParser } from "./plaintext.ts";
 import { assemble, decodeText, nonSpaceCodePoints } from "./text.ts";
 import { DEFAULT_PARSE_CAP_BYTES, TooLargeError, type FormatParser, type ParseResult, type Segment } from "./types.ts";
 import { xlsxParser } from "./xlsx.ts";
 
-export type { Block, DerivationStatus, ParsedFile, ParseResult, Segment } from "./types.ts";
-export { codePointLength, sliceCodePoints, MAX_SEGMENT_CHARS, MAX_SEGMENTS, readSegments, toParsedFile } from "./text.ts";
+export type { Block, DerivationStatus, FormatParse, ParsedFile, ParseResult, Segment, TableRef } from "./types.ts";
+export { codePointLength, sliceCodePoints, splitLong, MAX_SEGMENT_CHARS, MAX_SEGMENTS, toParsedFile } from "./text.ts";
+export { clock, markdownAsIs, renderMarkdown, tableMarkdown, TURN_CHARS } from "./markdown.ts";
 export { MAX_PDF_PAGES } from "./pdf.ts";
 export { recordingDurationMs, type ByteReader } from "./media.ts";
 export { DEFAULT_PARSE_CAP_BYTES, TooLargeError } from "./types.ts";
@@ -87,6 +89,7 @@ function nonReady(
     parser_version: version,
     segments: [],
     text: "",
+    markdown: "",
     duration_ms: null,
     status_detail: detail,
     facts: {},
@@ -94,10 +97,10 @@ function nonReady(
 }
 
 /**
- * Derive passage-addressable text from one file. A pure function of bytes: it never throws for a
- * bad file — every outcome is a status — so the worker can always record what happened. What it
- * may cost in memory and time is bounded where it runs: the server runs it in a worker thread of
- * its own (apps/server/src/parse-thread.ts).
+ * Derive the text of one file: its segments, and the readable Markdown a derivation stores. A pure
+ * function of bytes: it never throws for a bad file — every outcome is a status — so the worker can
+ * always record what happened. What it may cost in memory and time is bounded where it runs: the
+ * server runs it in a worker thread of its own (apps/server/src/parse-thread.ts).
  */
 export async function derive(
   bytes: Uint8Array,
@@ -110,7 +113,7 @@ export async function derive(
   }
   if (isRecording(fileName, options.mediaType)) {
     return {
-      ...nonReady("needs_transcript", "a recording is stored and playable but has no text; add a transcript as a new source"),
+      ...nonReady("needs_transcript", "a recording is stored and playable but has no text; add its transcript as another attachment"),
       duration_ms: await recordingDurationMs(bytesReader(bytes), bytes.byteLength),
     };
   }
@@ -127,7 +130,7 @@ export async function derive(
     ({ segments, text } = assemble(parsed.blocks));
   } catch (err) {
     const e = err as Error;
-    // A package that unpacks past the cap, a PDF of too many pages or a file of too many passages is too large, as a file over the cap is.
+    // A package that unpacks past the cap, a PDF of too many pages or a file of too many paragraphs is too large, as a file over the cap is.
     if (err instanceof TooLargeError) return nonReady("too_large", e.message, parser.name, parser.version);
     return nonReady("failed", `${e.name ?? "Error"}: ${e.message ?? String(err)}`.slice(0, 200), parser.name, parser.version);
   }
@@ -164,6 +167,7 @@ export async function derive(
     parser_version: parser.version,
     segments,
     text,
+    markdown: parsed.markdown ?? renderMarkdown(parsed.blocks),
     duration_ms: timed ? duration : null,
     status_detail: null,
     facts,

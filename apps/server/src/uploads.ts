@@ -51,11 +51,11 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
     try {
       const token = c.req.header(UPLOAD_GRANT_HEADER) ?? "";
       const claims = env.ports.grants.verify(token);
-      if (!claims || claims["purpose"] !== "upload" || claims["g"] !== c.req.param("grant_id")) throw new AppError(401, "invalid_grant", "The upload grant is missing, invalid or expired. Request a new one with files(action=\"request_upload\").");
+      if (!claims || claims["purpose"] !== "upload" || claims["g"] !== c.req.param("grant_id")) throw new AppError(401, "invalid_grant", "The upload grant is missing, invalid or expired. Request a new one with attachments(action=\"request_upload\").");
       const tenantId = String(claims["t"]);
       const grant = await inTenant(env, tenantId, (trx) => trx.selectFrom("upload_grants").selectAll().where("grant_id", "=", c.req.param("grant_id")).executeTakeFirst());
       if (!grant) throw notFound("No such upload grant.");
-      if (grant.uploaded_at) throw conflict("already_uploaded", `Bytes for ${grant.path} already arrived under this grant. Call files(action="complete_upload") to attach them.`);
+      if (grant.uploaded_at) throw conflict("already_uploaded", `Bytes for ${grant.path} already arrived under this grant. Call attachments(action="complete_upload") to add them.`);
       if (Date.parse(grant.expires_at) < Date.now()) throw new AppError(401, "invalid_grant", "The upload grant has expired. Request a new one.");
       // A grant given to a visitor before the public sandbox stopped their writes takes no bytes after.
       const sandbox = await sandboxForAccount(env.db, tenantId, grant.principal.account_id);
@@ -83,7 +83,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
         return completeGrant(ctx, grant.grant_id);
       });
       if (enqueued.value) env.ports.notifyJobs?.();
-      return c.json({ uploaded: true, size: stored.size, sha256: stored.sha256, file: entry, next: "Attached: file says whether it is searched, and what happens next. No complete_upload is needed; call it only to add provenance (derived_from, derivation_note, derived_by) you did not give with the grant." }, 201);
+      return c.json({ uploaded: true, size: stored.size, sha256: stored.sha256, attachment: entry, next: "Added: attachment.note says what becomes of its text. No complete_upload is needed." }, 201);
     } catch (e) {
       return fail(c, e);
     }

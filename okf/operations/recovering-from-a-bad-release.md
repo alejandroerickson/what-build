@@ -3,7 +3,7 @@ type: System Concept
 title: When a new version breaks a WhatBuild deployment, go back to the last good version, and restore the database first if the new one migrated it.
 description: For the operator of any WhatBuild deployment and the agent working for them; how to see what runs, tell whether the bad version changed the schema, go back on Cloud Run (Neon, Cloud SQL, another Postgres) or Azure, check it, and fix forward.
 tags: [operations, recovery, rollback, migrations, deployment, cloud-run, neon, azure, runbook]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:claude, at: 2026-10-17}
 status: stable
 ---
 
@@ -158,7 +158,7 @@ records the reverted migration in `schema_migrations`, so a later release runs i
 
 - `curl -s https://<app-host>/health` is `{"status":"ok"}`.
 - `/api/v1/meta` and the account menu name the good release.
-- Sign in, open a product, open a source and its passages, and search.
+- Sign in, open a product, open a source and its text, and search.
 - On Cloud Run: `gcloud run services logs read whatbuild --project $P --region $R --limit 50` shows
   requests with status 200, not 500.
 

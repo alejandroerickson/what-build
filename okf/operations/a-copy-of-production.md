@@ -3,7 +3,7 @@ type: System Concept
 title: A copy of production on your machine, for manual QA, agent-driven end-to-end tests and trying migrations on real data
 description: Pulling the public sandbox or other organizations of the deployment, with their files, loading them into the embedded Postgres, serving them with pending migrations applied, and keeping the copy private.
 tags: [development, testing, qa, production, fixture, migrations]
-generated: {by: agent:claude, at: 2026-10-16}
+generated: {by: agent:claude, at: 2026-10-17}
 status: stable
 ---
 
@@ -11,7 +11,7 @@ status: stable
 
 The synthetic sample product shows every feature, but it is small and tidy. A copy of the
 production deployment has real volume and history: products agents built up over weeks, Story
-pages, revisions, sources parsed more than once, and rows in the shape older releases left them. Use it
+pages, revisions, attachments read more than once, and rows in the shape older releases left them. Use it
 for manual QA, for agent-driven end-to-end tests, and to watch a release's migrations run on real
 data before production does ([decision](../decisions/qa-uses-a-private-copy-of-production.md)).
 A copy holds the public sandbox, or the organizations named, and nothing of the others
@@ -50,8 +50,8 @@ It reads the organizations' rows through the read-only backup role (the secret
 `whatbuild-backup-database-url`; [Cloud Run](cloud-run.md), under backups), which reads every
 organization's rows and can change nothing, and copies their folders of the files bucket,
 `gs://<project>-whatbuild-files`, with the type and hash the local file store keeps for each file.
-The files matter: a source's derived text is kept in files, so without them every source opens
-empty. Pulling reads production and changes nothing there. What a copy holds and leaves behind,
+The files matter: they are the sources' attachments and the text read from each, so without them
+a source keeps its derived text, but no attachment opens and none can be read again. Pulling reads production and changes nothing there. What a copy holds and leaves behind,
 and every option, are in [copying an organization](copying-an-organization.md).
 
 Each pull is a new folder named for its UTC time, such as `.what-build/fixtures/2026-10-10T0411Z/`,

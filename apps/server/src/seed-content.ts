@@ -1,6 +1,6 @@
 /**
  * The sample discovery. Entirely synthetic: the people, organizations and product are invented.
- * It exists so a new install shows the whole loop — sources and their passages, outcomes, an
+ * It exists so a new install shows the whole loop — sources and their texts, outcomes, an
  * assumption, a mockup and the Story — before anyone uploads anything.
  */
 
@@ -64,7 +64,7 @@ export const INTERVIEW_VTT = `WEBVTT
 <v Marisol>Maybe once a week. Somebody drives to the wrong side of town. It costs us an hour and sometimes the client notices.
 `;
 
-/** The meeting recorder's own export of the Greenline call: kept as the origin file, never searched. */
+/** The meeting recorder's own export of the Greenline call: a second attachment, read and kept, never searched. */
 export const INTERVIEW_RECORDER_EXPORT = `Meeting recorder export
 Call: Crew lead interview, Greenline Landscaping
 Recorded: 14 August 2026, 2 minutes 4 seconds

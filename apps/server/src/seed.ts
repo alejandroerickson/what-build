@@ -19,14 +19,14 @@ async function call(env: Env, who: Principal, name: string, input: Record<string
   return (await execute(env, who, op, input, ref)).result as Record<string, unknown>;
 }
 
-async function upload(env: Env, who: Principal, ref: ScopeRef, tenantId: string, recordId: string, path: string, text: string, role: "primary" | "origin" = "primary") {
-  const grant = (await call(env, who, "files.request_upload", { record_id: recordId, path, role }, ref)) as { grant_id: string };
+async function upload(env: Env, who: Principal, ref: ScopeRef, tenantId: string, recordId: string, path: string, text: string) {
+  const grant = (await call(env, who, "attachments.request_upload", { record_id: recordId, path }, ref)) as { grant_id: string };
   const g = await env.db.transaction().execute(async (trx) => {
     await sql`select set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
     return trx.selectFrom("upload_grants").select(["blob_key", "media_type"]).where("grant_id", "=", grant.grant_id).executeTakeFirstOrThrow();
   });
   await env.ports.blobs.put(g.blob_key!, new TextEncoder().encode(text), { contentType: g.media_type ?? "text/plain" });
-  await call(env, who, "files.complete_upload", { record_id: recordId, path }, ref);
+  await call(env, who, "attachments.complete_upload", { record_id: recordId, path }, ref);
 }
 
 /**
@@ -68,10 +68,10 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
   const notes = await mk(riley, { title: "Owner call notes — Fernside Cleaning, Aug 2026", date: "2026-08-21", tags: ["interview", "fernside cleaning", "planning", "cleaning"] }, "notes.md", OWNER_NOTES_MD);
   const survey = await mk(samAgent, { title: "Crew lead planning survey — spring round, 23 responses", date: "2026-05-30", tags: ["research", "survey", "planning"] }, "survey-summary.md", RESEARCH_EXPORT_MD);
 
-  // The Greenline call keeps the recorder's export as its origin file (kept, not searched).
-  await upload(env, samAgent, ref, created.tenant.tenant_id, vtt, "recorder-export.txt", INTERVIEW_RECORDER_EXPORT, "origin");
+  // The Greenline call keeps the recorder's export as a second attachment: read and kept, not searched.
+  await upload(env, samAgent, ref, created.tenant.tenant_id, vtt, "recorder-export.txt", INTERVIEW_RECORDER_EXPORT);
 
-  // The worker derives passages exactly as it would in production.
+  // The worker reads each attachment exactly as it would in production; the first one read is each source's derived text.
   await worker.drain();
 
   // The agent's summary and working notes for the Greenline call.

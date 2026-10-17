@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { FILE_ROLES } from "./source-fields.ts";
 import { ULID_PATTERN } from "./util.ts";
 
 export const id = (what: string) =>
@@ -22,7 +21,6 @@ export const expectedEtag = z
   .max(200)
   .describe("The etag from your latest read of this item. A stale one is refused with 409 stale_etag.");
 
-export const fileRole = z.enum(FILE_ROLES);
 export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "a date as yyyy-mm-dd");
 
 export const tags = z.array(z.string().min(1).max(50)).max(50).describe("Up to 50 tags, stored lower-case.");

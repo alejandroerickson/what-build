@@ -36,7 +36,7 @@ export function applyEdits<F extends string>(current: Record<F, string>, edits: 
       throw invalid("invalid_input", `edits[${i}] edits ${e.field}, which this call also replaces whole. Send one or the other. Nothing was changed.`);
     const text = out[e.field] ?? current[e.field];
     const at = text.indexOf(e.old_text);
-    if (at < 0) throw invalid("edit_not_found", `edits[${i}]: old_text does not occur in ${e.field}. Read the current text and copy the passage exactly. Nothing was changed.`, { edit: i, field: e.field });
+    if (at < 0) throw invalid("edit_not_found", `edits[${i}]: old_text does not occur in ${e.field}. Read the current text and copy the words exactly. Nothing was changed.`, { edit: i, field: e.field });
     const again = text.indexOf(e.old_text, at + 1);
     if (again >= 0) {
       let n = 2;

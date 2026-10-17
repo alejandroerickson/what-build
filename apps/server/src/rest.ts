@@ -132,12 +132,12 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
 
   // ---- Bytes: file downloads and Story HTML (the two non-JSON responses) ---------------------
 
-  // A Story page's HTML is a Story read, open to readers; files, exports and style specimens are not.
+  // A Story page's HTML is a Story read, open to readers; attachments, exports and style specimens are not.
   const scoped = async (c: Context, access: "story" | "read" = "read") => {
     const principal = await principalOf(c);
     const { tenant, team, product } = c.req.param() as Record<string, string>;
     const scope = await resolveScope(env.db, principal, "product", access, { tenant, team, product }, "read");
-    await admitRead(env, principal, scope, "files.read");
+    await admitRead(env, principal, scope, "attachments.read");
     return scope;
   };
 
@@ -147,7 +147,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       return fn(trx);
     });
 
-  app.get(`${SCOPE_PREFIX.product}/sources/:record_id/file`, async (c) => {
+  app.get(`${SCOPE_PREFIX.product}/sources/:record_id/attachment`, async (c) => {
     try {
       const scope = await scoped(c);
       const path = c.req.query("path") ?? "";
@@ -164,8 +164,34 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
         if (!f) return null;
         return trx.selectFrom("file_versions").selectAll().where("file_id", "=", f.file_id).where("file_version_id", "=", version ?? f.current_version_id ?? "").executeTakeFirst();
       });
-      if (!found) throw new AppError(404, "not_found", "No such file on this source.");
+      if (!found) throw new AppError(404, "not_found", "No such attachment on this source.");
       return streamFile(c, env, found, path, c.req.query("download") === "1");
+    } catch (e) {
+      return errorResponse(c, toAppError(e));
+    }
+  });
+
+  // A source's whole derived text, for the web app to show and edit at once; agents read it in
+  // windows with derived.text.
+  app.get(`${SCOPE_PREFIX.product}/sources/:record_id/text`, async (c) => {
+    try {
+      const scope = await scoped(c);
+      const text = await inTenant(scope.tenant!.tenant_id, (trx) =>
+        trx
+          .selectFrom("source_texts as t")
+          .innerJoin("records as r", "r.record_id", "t.record_id")
+          .select(["t.content", "t.etag"])
+          .where("r.product_id", "=", scope.product!.product_id)
+          .where("t.record_id", "=", c.req.param("record_id")!)
+          .executeTakeFirst(),
+      );
+      if (!text) throw new AppError(404, "not_found", "This source has no derived text.");
+      return c.body(text.content, 200, {
+        "Content-Type": "text/markdown; charset=utf-8",
+        "X-Content-Type-Options": "nosniff",
+        ETag: `"${text.etag}"`,
+        "Cache-Control": "private, no-store",
+      });
     } catch (e) {
       return errorResponse(c, toAppError(e));
     }

@@ -15,51 +15,47 @@ export interface RecordSummary {
   updated_at: string;
   updated_by: Actor;
   archived_at: string | null;
+  /** Where the source's derived text stands: ready, pending, awaiting_file, awaiting_text, or how its newest attachment was read. */
   derived_status: string;
-  segment_count: number;
-  file_count: number;
+  text_chars: number;
+  attachment_count: number;
   etag: string;
-  /** The primary file's path; sources.list includes it. */
-  primary_file?: string | null;
+  /** The attachment the derived text was taken from; sources.list includes it. */
+  text_from?: string | null;
 }
 
-export interface FileEntry {
+/** How an attachment's text was read: kept with the source, never searched. */
+export interface AttachmentText {
+  status: string;
+  status_detail: string | null;
+  chars: number;
+  duration_ms: number | null;
+  parser: string | null;
+  derivation_id: string | null;
+  read_at: string | null;
+}
+
+export interface Attachment {
   path: string;
-  role: "primary" | "origin" | "supplement";
   media_type: string | null;
   size: number | null;
   file_version_id: string | null;
   versions: { file_version_id: string; size: number; media_type: string; created_at: string; created_by: Actor }[];
-  derived_from: string[];
-  derivation_note: string | null;
-  derived_by: string | null;
   added_at: string;
   added_by: Actor;
-  searchable: boolean;
-  search_status: string;
+  text: AttachmentText;
+  /** Whether the source's derived text is this attachment's. */
+  is_text_source: boolean;
 }
 
 export interface RecordFull extends RecordSummary {
-  text_chars: number;
   duration_ms: number | null;
   status_detail: string | null;
   annotation_count: number;
-  pending_primary_path: string | null;
-  files: FileEntry[];
-  search_rule: string;
-  manifest: {
-    derivation_id: string;
-    status: string;
-    status_detail: string | null;
-    parser: string;
-    parser_version: string;
-    source_path: string;
-    segment_count: number;
-    text_chars: number;
-    duration_ms: number | null;
-    facts: Record<string, unknown>;
-    created_at: string;
-  } | null;
+  pending_upload_path: string | null;
+  attachments: Attachment[];
+  /** The derived text's state; its words come from derived/text. */
+  text: { chars: number; etag: string; updated_at: string; updated_by: Actor; taken_from: { path: string; file_version_id: string } | null } | null;
   annotations: Annotation[];
 }
 
@@ -73,16 +69,18 @@ export interface Annotation {
   created_by: Actor;
 }
 
-export interface Segment {
-  seq: number;
+/** A window of a source's derived text. */
+export interface DerivedText {
+  record_id: string;
+  of: "derived_text";
+  offset: number;
+  total_chars: number;
+  truncated: boolean;
   text: string;
-  speaker: string | null;
-  start_ms: number | null;
-  end_ms: number | null;
-  char_start: number;
-  char_end: number;
-  heading_level: number | null;
-  page: number | null;
+  etag: string;
+  updated_at: string;
+  updated_by: Actor;
+  taken_from: { path: string; file_version_id: string } | null;
 }
 
 /** sources.facets: what a product's sources can be filtered by. */

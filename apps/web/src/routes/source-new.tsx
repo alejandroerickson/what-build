@@ -4,7 +4,6 @@ import { useNavigate } from "react-router";
 import { api, putWithProgress } from "../lib/api.ts";
 import { formatBytes, formatDate, plural } from "../lib/format.ts";
 import { useProduct } from "../lib/session.tsx";
-import { ROLE_LABEL } from "../lib/status.ts";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
   Button, ButtonLink, Callout, EmptyState, ErrorCallout, FormGrid, Glyph, IconButton, KeyValue, PageHeader, Sheet, SheetBody, SheetHeader,
@@ -13,32 +12,30 @@ import {
 import { splitTags, TagSuggestions } from "./evidence.tsx";
 import "../styles/screens/evidence.css";
 
-type Role = "primary" | "origin" | "supplement";
-interface Item {
+/** A file on its way to a source as an attachment. */
+export interface UploadItem {
   file: File;
-  role: Role;
   state: "waiting" | "uploading" | "done" | "failed";
   loaded: number;
-  error?: string;
+  error?: string | undefined;
 }
+type Item = UploadItem;
 
-const MiB = 1024 * 1024;
 const RECORDING = /^(audio|video)\//;
 
 /**
- * Upload files to a source one after another, primary first, through grants — the same path agents use.
- * Resolves true when every file is in, so callers move on without reading state inside an updater.
+ * Upload files to a source as attachments, one after another in the order given, through grants —
+ * the same path agents use. Resolves true when every file is in, so callers move on without reading
+ * state inside an updater.
  */
 export async function uploadFiles(base: string, recordId: string, items: Item[], update: (i: number, patch: Partial<Item>) => void): Promise<boolean> {
   let allDone = true;
-  const order = items.map((it, i) => ({ it, i })).sort((a, b) => (a.it.role === "primary" ? -1 : 0) - (b.it.role === "primary" ? -1 : 0));
-  for (const { it, i } of order) {
+  for (const [i, it] of items.entries()) {
     if (it.state === "done") continue;
     update(i, { state: "uploading", loaded: 0, error: undefined });
     try {
       const grant = await api<{ url: string; headers: Record<string, string>; max_bytes: number }>("POST", `${base}/sources/${recordId}/uploads`, {
         path: it.file.name,
-        role: it.role,
         size: it.file.size,
         ...(it.file.type ? { media_type: it.file.type } : {}),
       });
@@ -90,9 +87,7 @@ function FileRow({ item, onRemove, status }: { item: Item; onRemove?: () => void
       <Glyph name={RECORDING.test(item.file.type) ? "file-audio" : "file-text"} />
       <span className="intake-file-main">
         <b className="ellipsis">{item.file.name}</b>
-        <span className="faint">
-          {ROLE_LABEL[item.role]} · {item.role === "primary" ? "searched" : "kept, not searched"} · {formatBytes(item.file.size)}
-        </span>
+        <span className="faint">{formatBytes(item.file.size)}</span>
         {item.error ? <span className="field-error">{item.error}</span> : null}
       </span>
       {status ? (
@@ -121,7 +116,6 @@ export function SourceNewPage() {
   const [recordId, setRecordId] = useState<string | null>(null);
   const errors = { title: !title.trim() ? "Give the source a title." : null };
   const describeOk = !errors.title;
-  const primary = items.find((i) => i.role === "primary");
   const update = (i: number, patch: Partial<Item>) => setItems((all) => all.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const run = useMutation({
     mutationFn: async () => {
@@ -210,33 +204,17 @@ export function SourceNewPage() {
         <Sheet as="section" labelledBy="intake-h" className="intake-sheet">
           <SheetHeader id="intake-h" title="Add attachments" end={<span className="faint small">Optional. You can add them later.</span>} />
           <div className="intake-files">
-            {primary ? (
+            <DropZone
+              label="Attachments"
+              hint="The first one whose text WhatBuild can read becomes the source’s text, which search reads. It reads text, Markdown, transcripts (VTT, SRT), Word, PDF, spreadsheets and HTML, and doesn’t transcribe recordings: add a recording’s transcript too."
+              multiple
+              onFiles={(f) => setItems([...items, ...f.filter((file) => !items.some((i) => i.file.name === file.name)).map((file) => ({ file, state: "waiting" as const, loaded: 0 }))])}
+            />
+            {items.length ? (
               <ul className="intake-file-list">
-                <FileRow item={primary} onRemove={() => setItems(items.filter((i) => i !== primary))} />
-              </ul>
-            ) : (
-              <DropZone
-                label="Primary file: searched"
-                hint="VTT, SRT, text, Markdown, DOC, DOCX, XLSX, CSV, TSV, PDF or HTML. Images, audio and video aren’t searched; to search a recording, add its transcript as its own source."
-                multiple={false}
-                onFiles={(f) => f[0] && setItems([...items, { file: f[0], role: "primary", state: "waiting", loaded: 0 }])}
-              />
-            )}
-            {primary && primary.file.size >= 10 * MiB && !RECORDING.test(primary.file.type) ? (
-              <Callout inset tone="attention" title="Consider a digest">
-                {primary.file.size > 25 * MiB ? "Files over 25 MB are kept but not searched. " : "Large documents search poorly. "}
-                Add a short digest as the primary file and attach this one as an origin.
-              </Callout>
-            ) : null}
-            <DropZone label="Origin files: kept, not searched" hint="The full originals behind a digest." multiple onFiles={(f) => setItems([...items, ...f.map((file) => ({ file, role: "origin" as const, state: "waiting" as const, loaded: 0 }))])} />
-            <DropZone label="Supplements: kept, not searched" hint="Slides for a call, an appendix, a screenshot." multiple onFiles={(f) => setItems([...items, ...f.map((file) => ({ file, role: "supplement" as const, state: "waiting" as const, loaded: 0 }))])} />
-            {items.some((i) => i.role !== "primary") ? (
-              <ul className="intake-file-list">
-                {items
-                  .filter((i) => i.role !== "primary")
-                  .map((i) => (
-                    <FileRow key={`${i.role}:${i.file.name}`} item={i} onRemove={() => setItems(items.filter((x) => x !== i))} />
-                  ))}
+                {items.map((i) => (
+                  <FileRow key={i.file.name} item={i} onRemove={() => setItems(items.filter((x) => x !== i))} />
+                ))}
               </ul>
             ) : null}
           </div>
@@ -265,7 +243,7 @@ export function SourceNewPage() {
           {items.length ? (
             <ul className="intake-file-list intake-file-list-sheet" aria-live="polite">
               {items.map((i) => (
-                <FileRow key={`${i.role}:${i.file.name}`} item={i} status />
+                <FileRow key={i.file.name} item={i} status />
               ))}
             </ul>
           ) : (

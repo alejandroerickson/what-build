@@ -85,13 +85,18 @@ describe("plain search over the sample product", () => {
     const r = await find("crew message");
     expect(titles(r)[0]).toBe("story: Crew message");
     expect(new Set(r.results.map((x: { kind: string }) => x.kind))).toEqual(new Set(["story", "source", "mockup"]));
-    // A source appears once, with its best passages, each read by its seq.
+    // A source appears once, with the best places it says the words: each names its field and where its piece starts.
     const greenline = r.results.find((x: { title: string }) => x.title.startsWith("Crew lead interview"));
     expect(greenline.hit_count).toBe(4);
     expect(greenline.hits).toHaveLength(3);
-    expect(greenline.hits[0]).toMatchObject({ seq: expect.any(Number), speaker: "Marisol" });
+    expect(greenline.hits[0]).toMatchObject({ field: "text", annotation_id: null, char_start: expect.any(Number) });
+    expect(greenline.hits[0]).not.toHaveProperty("seq");
     const h = greenline.hits[0];
     expect(h.marks.map(([a, b]: [number, number]) => h.text.slice(a, b).toLowerCase())).toEqual(expect.arrayContaining(["crew", "message"]));
+    // The piece is read in the derived text from where it starts.
+    const piece = await sam.api("GET", `${S}/sources/${greenline.id}/derived/text?offset=${h.char_start}&limit=2000`);
+    const [a, b] = h.marks[0] as [number, number];
+    expect(piece.body.text.replace(/\s+/g, " ")).toContain(h.text.slice(a, b));
   });
 
   it("forgives endings, and matches the word being typed as a prefix", async () => {
@@ -125,7 +130,7 @@ describe("plain search over the sample product", () => {
     expect(r.results[0].missing).toEqual(["zebra"]);
   });
 
-  it("narrows to one source's passages, every one of them", async () => {
+  it("narrows to one source's hits, every one of them", async () => {
     const all = await find("crew message");
     const id = all.results.find((x: { kind: string }) => x.kind === "source").id;
     const one = await find("crew", `&record_id=${id}`);
@@ -133,7 +138,7 @@ describe("plain search over the sample product", () => {
     expect(one.results[0].hits).toHaveLength(one.results[0].hit_count);
   });
 
-  it("takes no passage filters, and keeps its own options to itself", async () => {
+  it("takes no tag or date filters, and keeps its own options to itself", async () => {
     expect((await sam.api("GET", `${S}/search?mode=plain&query=crew&tags=interview`)).body).toMatchObject({ error: { code: "invalid_filter" } });
     expect((await sam.api("GET", `${S}/search?query=crew&strict=true`)).body).toMatchObject({ error: { code: "invalid_filter" } });
   });

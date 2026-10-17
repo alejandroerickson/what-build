@@ -1,8 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { formatCue, formatDate, formatDateTime, passageText, relativeTime } from "../src/lib/format.ts";
+import { formatCue, formatDate, formatDateTime, relativeTime } from "../src/lib/format.ts";
 import { inAppHref, Markdown, markdownText, mentionLabels } from "../src/lib/markdown.tsx";
 import { derivedStatusDetail } from "../src/lib/status.ts";
+import { findPattern } from "../src/routes/source-text.tsx";
 
 const html = (md: string) => renderToStaticMarkup(<Markdown source={md} />);
 
@@ -24,7 +25,7 @@ describe("safe Markdown", () => {
   it("opens a link into the product being read in place, whichever deployment wrote it", () => {
     const here = { origin: "https://dev.example.com", pathname: "/t/acme/core/planner/exploration/mockups/01ABC" };
     expect(inAppHref("https://dev.example.com/settings", here)).toBe("/settings");
-    expect(inAppHref("https://app.example.com/t/acme/core/planner/evidence/01DEF?view=passages&seq=28", here)).toBe("/t/acme/core/planner/evidence/01DEF?view=passages&seq=28");
+    expect(inAppHref("https://app.example.com/t/acme/core/planner/evidence/01DEF?view=text&find=pricing", here)).toBe("/t/acme/core/planner/evidence/01DEF?view=text&find=pricing");
     expect(inAppHref("https://app.example.com/t/acme/core/planner", here)).toBe("/t/acme/core/planner");
     // Another product, another part of the original, or a page outside any product: left as written.
     for (const href of ["https://app.example.com/t/acme/core/other/evidence/01DEF", "https://app.example.com/t/acme/core/planner-2", "https://app.example.com/settings"])
@@ -37,18 +38,29 @@ describe("safe Markdown", () => {
     expect(out).toContain("<table>");
     expect(out).toContain('type="checkbox"');
   });
-  it("renders evidence as a linked 'Source ¶N' token, resolving a source mentioned by id when titles are known", () => {
+  it("renders evidence as a linked token named by its source, resolving a source mentioned by id when titles are known", () => {
     const id = "01K5Z8T2Q4R6S8V0W2X4Y6Z8A0";
-    const linked = html(`It takes hours ([Crew lead interview ¶5](/t/a/b/c/evidence/${id}?seq=5)).`);
+    const linked = html(`It takes hours ([Crew lead interview](/t/a/b/c/evidence/${id})).`);
     expect(linked).toContain('class="evidence-link"');
-    expect(linked).toContain("Crew lead interview\u00a0¶5");
+    expect(linked).toContain(">Crew lead interview</a>");
+    // A mention written while sources had passages opens the source; its numbers point at nothing now.
     const bare = renderToStaticMarkup(
       <Markdown source={`As she said (source ${id}, segments 1–3; source 01K5Z8T2Q4R6S8V0W2X4Y6Z8A1).`} evidence={{ app: "/t/a/b/c", titles: { [id]: "Crew lead interview — Greenline, Aug 2026" } }} />,
     );
     expect(bare).not.toContain(id + ",");
-    expect(bare).toContain(`href="/t/a/b/c/evidence/${id}?seq=1&amp;to=3"`);
-    expect(bare).toContain("Crew lead interview\u00a0¶1–3");
+    expect(bare).not.toContain("segments");
+    expect(bare).toContain(`href="/t/a/b/c/evidence/${id}"`);
+    expect(bare).toContain(">Crew lead interview</a>");
     expect(bare).toContain(">Source</a>");
+  });
+  it("marks the words a find names, with their other endings, wherever they are in the text", () => {
+    const out = renderToStaticMarkup(<Markdown source={"# Pricing\n\n**Dana** (0:05): Prices are priced on Fridays; *repricing* is not.\n\n| Plan | Price |\n|---|---|\n| A | 4 |"} mark={findPattern("pricing")} />);
+    expect(out.match(/<mark class="text-find">/g)).toHaveLength(4);
+    expect(out).toContain('<mark class="text-find">Pricing</mark>');
+    expect(out).toContain('<mark class="text-find">Prices</mark> are <mark class="text-find">priced</mark>');
+    expect(out).toContain("<em>repricing</em>");
+    expect(renderToStaticMarkup(<Markdown source="Friday close and the close of Friday" mark={findPattern('"Friday close"')} />)).toContain('<mark class="text-find">Friday close</mark> and the close of Friday');
+    expect(findPattern("  ")).toBeUndefined();
   });
   it("extends a chip label until each mentioned source reads differently", () => {
     const [a, b, c, d, e] = ["A0", "A1", "A2", "A3", "A4"].map((x) => `01K5Z8T2Q4R6S8V0W2X4Y6Z8${x}`) as [string, string, string, string, string];
@@ -60,9 +72,9 @@ describe("safe Markdown", () => {
       [d]: "Digest (2)",
       [e]: "Kickoff notes",
     });
-    const out = renderToStaticMarkup(<Markdown source={`One (source ${a}, segment 29), another (source ${b}, ¶29).`} evidence={{ app: "/p", titles }} />);
-    expect(out).toContain(`Usability study (crew)${" "}¶29`);
-    expect(out).toContain(`Usability study (office)${" "}¶29`);
+    const out = renderToStaticMarkup(<Markdown source={`One (source ${a}, segment 29), another (source ${b}).`} evidence={{ app: "/p", titles }} />);
+    expect(out).toContain(">Usability study (crew)</a>");
+    expect(out).toContain(">Usability study (office)</a>");
   });
 });
 
@@ -77,13 +89,7 @@ describe("formatting", () => {
   });
 });
 
-describe("passages and statuses", () => {
-  it("shows a heading passage without its Markdown markers, and leaves other text as stored", () => {
-    expect(passageText("## Tickets by category", 2)).toBe("Tickets by category");
-    expect(passageText("# Planning interview — Example Co, Mar 2026", 1)).toBe("Planning interview — Example Co, Mar 2026");
-    expect(passageText("#hashtag stays", null)).toBe("#hashtag stays");
-    expect(passageText("# Not a heading here", null)).toBe("# Not a heading here");
-  });
+describe("statuses", () => {
   it("adds the server's status detail only where the explanation does not already say it", () => {
     expect(derivedStatusDetail("needs_transcript", "a recording is stored and playable but has no text")).toBeNull();
     expect(derivedStatusDetail("unsupported", "no parser reads .key files")).toBeNull();

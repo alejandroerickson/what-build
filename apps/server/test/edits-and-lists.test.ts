@@ -39,7 +39,7 @@ beforeAll(async () => {
   productPath = p.body.path;
   P = `/api/v1/p/${productPath}`;
   await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, product: "ledger", email: "vic@example.com", role: "viewer" });
-  const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Finance lead interview — Example Co, Sep 2026", date: "2026-09-03", path: "call.vtt", role: "primary" });
+  const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Finance lead interview — Example Co, Sep 2026", date: "2026-09-03", path: "call.vtt" });
   recordId = created.body.record.record_id;
   const up = created.body.upload;
   await fetch(up.url, { method: "PUT", headers: up.headers, body: VTT });
@@ -53,7 +53,7 @@ describe("text edits", () => {
   let id: string;
   let etag: string;
 
-  it("replaces an exact passage and returns what changed with a short diff", async () => {
+  it("replaces exact text and returns what changed with a short diff", async () => {
     const a = await alice.api("POST", `${P}/assumptions`, { statement: "Friday close", body: "## Friday\n\nNumbers close on Friday, and the pricing review follows on Friday afternoon." });
     expect(a.status).toBe(201);
     id = a.body.id;
@@ -102,7 +102,7 @@ describe("register edits", () => {
   let id: string;
   let etag: string;
 
-  it("replaces an exact passage before the first review, with changed and diff", async () => {
+  it("replaces exact text before the first review, with changed and diff", async () => {
     const a = await alice.api("POST", `${P}/assumptions`, { statement: "Finance closes the numbers on Friday.", body: "Dana said so (see D1)." });
     expect(a.status).toBe(201);
     id = a.body.id;
@@ -243,7 +243,7 @@ describe("archived outcomes", () => {
 
 describe("what an outcome holds", () => {
   it("refuses an id or a link to a record in its title or description, and says where the evidence goes", async () => {
-    const cited = await alice.api("POST", `${P}/outcomes`, { title: "Crews plan the week", description: `As source ${recordId}, segments 4–6 shows.` });
+    const cited = await alice.api("POST", `${P}/outcomes`, { title: "Crews plan the week", description: `As source ${recordId}, its second paragraph, shows.` });
     expect(cited.status).toBe(422);
     expect(cited.body.error.code).toBe("outcome_cites_a_record");
     expect(cited.body.error.message).toContain("outcome_ids");

@@ -270,7 +270,7 @@ export function EvidencePage() {
     getNextPageParam: (last) => last.next_cursor ?? undefined,
   });
   const records = q.data?.pages.flatMap((p) => p.records) ?? [];
-  // Titles shared by more than one listed source: those rows also name their primary file.
+  // Titles shared by more than one listed source: those rows also name the attachment their text was read from.
   const titleCount = new Map<string, number>();
   for (const r of records) titleCount.set(r.title.trim().toLowerCase(), (titleCount.get(r.title.trim().toLowerCase()) ?? 0) + 1);
   // The current order's link reverses it; another order starts from its usual direction.
@@ -322,7 +322,7 @@ export function EvidencePage() {
           active.length && (product.counts.sources ?? 0) > 0 ? (
             f.query && chips.length === 1 ? (
               <EmptyState size="inline" title={`No source titles match “${f.query}”`} action={<ButtonLink to={without(["query"])}>Clear the search</ButtonLink>}>
-                This looks in titles, tags and file names. Use Search to find what sources say.
+                This looks in titles, tags and attachment names. Use Search to find what sources say.
               </EmptyState>
             ) : (
               <EmptyState size="inline" title="No sources match these filters" action={<ButtonLink to={`${app}/evidence`}>Clear filters</ButtonLink>} />
@@ -338,7 +338,10 @@ export function EvidencePage() {
               {records.map((r) => {
                 const status = r.derived_status === "ready" ? null : derivedStatus(r.derived_status);
                 const twin = (titleCount.get(r.title.trim().toLowerCase()) ?? 0) > 1;
-                const meta = [r.date ? formatDate(r.date) : sort === "date" ? "No capture date" : null, twin ? (r.primary_file ? r.primary_file.split("/").pop() : "No file yet") : null].filter(Boolean);
+                const meta = [
+                  r.date ? formatDate(r.date) : sort === "date" ? "No capture date" : null,
+                  twin ? (r.text_from ? r.text_from.split("/").pop() : r.attachment_count ? plural(r.attachment_count, "attachment") : "No attachment yet") : null,
+                ].filter(Boolean);
                 const updated = sort === "updated";
                 return (
                   <ListRow
@@ -360,7 +363,7 @@ export function EvidencePage() {
                     end={
                       <>
                         <span className="source-row-count num">
-                          {r.archived_at ? <StatusBadge tone="neutral">Archived</StatusBadge> : status ? <StatusBadge tone={status.tone}>{status.label}</StatusBadge> : plural(r.segment_count, "passage")}
+                          {r.archived_at ? <StatusBadge tone="neutral">Archived</StatusBadge> : status ? <StatusBadge tone={status.tone}>{status.label}</StatusBadge> : r.attachment_count ? plural(r.attachment_count, "attachment") : null}
                         </span>
                         <span className="source-row-added">
                           {updated ? `Updated ${relativeTime(r.updated_at)} by ${actorName(r.updated_by)}` : `Added ${relativeTime(r.uploaded_at)} by ${actorName(r.uploaded_by)}`}

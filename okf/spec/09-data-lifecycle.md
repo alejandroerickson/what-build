@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, the public sandbox with its limits, baseline and reset, and how retired insights and decisions became sources.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, sandbox]
-generated: {by: agent:claude, at: 2026-10-16}
+generated: {by: agent:claude, at: 2026-10-17}
 status: stable
 ---
 
@@ -118,14 +118,15 @@ running on free tiers without a compliance program.
 
 | Limit | Value | Enforced today |
 |---|---|---|
-| Per file | 100 MB (`WHATBUILD_FILE_MAX_BYTES`) | Yes — `413 too_large` |
+| Per attachment | 100 MB (`WHATBUILD_FILE_MAX_BYTES`) | Yes — `413 too_large` |
 | Through the upload relay | 25 MB (`WHATBUILD_RELAY_MAX_BYTES`); larger files need direct upload URLs | Yes — `413 too_large` |
-| Parsed per primary file | 25 MB (`WHATBUILD_PARSE_CAP_BYTES`); larger files are stored, not parsed | Yes |
-| Memory for parsing one file | 384 MB of heap (`WHATBUILD_PARSE_MEMORY_MB`), and half as much again for buffers; a parse that needs more is stopped and fails | Yes |
-| Time for parsing one file | 120 seconds (`WHATBUILD_PARSE_TIMEOUT_SECONDS`); a parse that runs longer is stopped and fails | Yes |
-| Passages from one file | 200,000; a file that would make more is stored, not parsed (`too_large`) | Yes |
-| Pages of a parsed PDF | 2,000; a longer PDF is stored, not parsed (`too_large`) | Yes |
-| Files per source | 50 | Yes — `409 too_many_files` |
+| Read per attachment | 25 MB (`WHATBUILD_PARSE_CAP_BYTES`); a larger attachment is stored, not read | Yes |
+| Memory for reading one attachment | 384 MB of heap (`WHATBUILD_PARSE_MEMORY_MB`), and half as much again for buffers; a parse that needs more is stopped and fails | Yes |
+| Time for reading one attachment | 120 seconds (`WHATBUILD_PARSE_TIMEOUT_SECONDS`); a parse that runs longer is stopped and fails | Yes |
+| Paragraphs read from one attachment | 200,000; a file that would make more is stored, not read (`too_large`) | Yes |
+| Pages of a parsed PDF | 2,000; a longer PDF is stored, not read (`too_large`) | Yes |
+| Attachments per source | 50 | Yes — `409 too_many_attachments` |
+| A derived text written whole | 2,000,000 characters; a longer one is uploaded as an attachment and its text taken | Yes — `422 too_long` |
 | Story pages | 50 per product | Yes — `409 quota_exceeded`, quota `story_pages` |
 | Mockups | 50 per product, archived ones included; 48 pages and 8,000,000 characters of HTML, and 50 files and 2,000,000 characters of files, in a version | Yes — `409 quota_exceeded`, quota `mockups`; `422` for a version |
 | A mockup's prototype | 2,000 files and 64 MB in a version, 25 MB a file; 500 MB of distinct prototype bytes per product | Yes — `422 invalid_upload`; `409 quota_exceeded`, quota `prototype_bytes` |
@@ -139,7 +140,7 @@ running on free tiers without a compliance program.
 | Members | 5 per organization | Planned |
 | Active products | 3 per organization | Planned |
 | Sources | 300 per organization | Planned |
-| Stored bytes (files + sidecars) | 1 GB per organization | Planned |
+| Stored bytes (attachments and what was read from them) | 1 GB per organization | Planned |
 | Writes | 60 / minute / member | Planned — `429 rate_limited`. Built for visitors to the public sandbox (§9.7) |
 | Requests | 600 / minute / member | Planned — `429 rate_limited`. Built for visitors to the public sandbox (§9.7) |
 | Organization exports | 2 / day | Planned |
@@ -200,8 +201,8 @@ from backup on request. The product-level answer to "I broke it" is:
 
 | Kept, in the product | Where |
 |---|---|
-| File versions — every upload to the same path | [§4.5](04-data-model.md) |
-| Derivations — every parse, retained and readable by id | [§5.1](05-derived-layer.md) |
+| Attachment versions — every upload to the same path | [§4.5](04-data-model.md) |
+| Readings — what every version of every attachment was read as, retained and readable by id | [§5.1](05-derived-layer.md) |
 | Story page versions — immutable, numbered | [§4.11](04-data-model.md) |
 | Mockup versions — immutable, numbered, each the whole canvas | [§4.12](04-data-model.md) |
 | Outcome and assumption revisions — the previous text, on every content change | [§4.1](04-data-model.md) |
@@ -221,7 +222,9 @@ sandbox's reset removes them all ([§4.11](04-data-model.md)).
 
 Not versioned, deliberately: source metadata edits (the activity log names the operation and the
 actor, which is enough to understand and redo), and any future embeddings (rebuildable, so
-excluded from backups altogether).
+excluded from backups altogether). Not versioned yet: a source's derived text, summary and notes,
+whose earlier wording a write replaces; what an attachment was read as stays readable
+([§5.4](05-derived-layer.md)).
 
 ## 9.4 Taking it with you
 
@@ -230,7 +233,8 @@ excluded from backups altogether).
 download grant for each ready one. Any role may export, through **both adapters**, and export is
 **never blocked** — not by a quota, and not by archiving the product. A ready export is listed for
 seven days. The bundle holds a manifest with its format name and version, every source's metadata,
-every file version's original bytes, every derivation's sidecars, comments, summaries and notes,
+its derived text, every attachment version's original bytes, what each was read as, comments,
+summaries and notes,
 outcomes, assumptions with their reviews, revisions,
 the Story hierarchy and every page version (JSON and HTML; a version that shows a mockup page
 names it rather than repeating it), every mockup version (its brief, each page's HTML and
@@ -317,7 +321,8 @@ Everything that can be archived can also be deleted, and so can an organization:
   `products.delete_tenant` take `name`, which must be its name exactly; anything else is
   `422 name_mismatch`. The web app asks the person to type it.
 - **Preview first.** Each preview is read-only and returns exactly what would be destroyed and
-  what points at it. For a source: file versions and bytes, derivations and annotations. For an
+  what points at it. For a source: its attachments' versions and bytes, its readings and its
+  comments. For an
   assumption: its reviews and the other assumptions that link to it (`linked_from`). For an
   outcome: the assumptions that serve it. For a Story page:
   its versions and the sub-pages that would move up. For a mockup: its versions and the Story
@@ -327,9 +332,10 @@ Everything that can be archived can also be deleted, and so can an organization:
   a delete, and to delete only once the person approves that impact (a delete approved in advance
   still waits for the preview), never slipped into a run of other actions.
 - **What each removes:**
-  - A source: its files and file versions, derivations, segments (the searchable text),
-    comments, summary and notes; a background job then deletes the file bytes and sidecars. Bytes
-    still used by a copy in another product stay until nothing refers to them.
+  - A source: its attachments and their versions, its readings, its derived text and its pieces
+    in the search index, comments, summary and notes; a background job then deletes the
+    attachments' bytes and what was read from them. Bytes still used by a copy in another product
+    stay until nothing refers to them.
   - A comment: its text, tags and earlier text.
   - An assumption: its statement, body, reviews and earlier text.
     The links other assumptions hold to it are removed from them (their etags change).
@@ -501,16 +507,21 @@ Rules:
 
 `sandbox.save_baseline` saves the organization's content as it is: every row carrying its
 `tenant_id` in `teams`, `products`, `records`, `files`, `file_versions`, `derivations`,
-`segments`, `annotations`, `agent_notes`, `outcomes`, `insights`, `revisions`,
+`source_texts`, `annotations`, `agent_notes`, `outcomes`, `insights`, `revisions`,
 `register_entries`, `reviews`, `story_pages`, `story_versions`, `story_hierarchies`,
-`story_styles`, `mockups`, `mockup_versions`, `mockup_pages`, `mockup_files`, `tombstones`, and
-the activity events that belong to a product. Each row is held
-as JSON, without its generated columns, with its ids.
+`story_styles`, `mockups`, `mockup_versions`, `mockup_pages`, `mockup_files`,
+`mockup_prototype_files`, `tombstones`, and
+the activity events that belong to a product
+([`public-sandbox-baseline.ts`](../../packages/core/src/public-sandbox-baseline.ts)). Each row is held
+as JSON, without its generated columns, with its ids. `sandbox.baselines` says what each holds,
+counting its products, sources, derived texts (`texts`), outcomes, assumptions, Story pages and
+mockups.
 
 - **Not in a baseline:** memberships and invitations of either kind, because access is not
   content; the sandbox's own settings, counters and baselines; jobs, uploads in progress (a
-  source's file or a mockup canvas) and exports; and the organization's own activity events. A test requires every table with a
-  `tenant_id` to be on one list or the other.
+  source's attachment or a mockup canvas), Story previews and exports; the search index
+  (`text_chunks`), which a reset builds again; and the organization's own activity events. A test
+  requires every table with a `tenant_id` to be on one list or the other.
 - **Blobs are referred to, never copied.** They are immutable and keyed by file version.
 - **It holds what is there**, what visitors added included. Staff who want it clean reset first,
   or set `visitor_access` to `read` while they work.
@@ -527,6 +538,10 @@ as JSON, without its generated columns, with its ids.
   `0028_citations_refs_and_lineage_retired.sql` as the live rows were: an assumption's citations
   went to the end of its body ([§4.8](04-data-model.md)), the `citations`, `refs` and
   `related_records` it held left its rows, and its `lineage` rows went, with their count.
+- A baseline saved while sources had passages was rewritten by migration
+  `0030_one_derived_text_per_source.sql` as the live rows were: each source's current passages
+  became its saved derived text, its `segments` rows went, and its files lost their role and
+  provenance ([§5](05-derived-layer.md)), so a reset puts back sources with their text.
 
 ### The reset
 
@@ -540,10 +555,13 @@ the scheduled reset do the same thing, in one transaction that runs alone in the
 3. Remove a grant on a team or product the baseline does not hold, and the seat of a visitor idle
    past `visitor_idle_days`. Nothing else about people changes: a reset never gives back access
    that was taken away.
-4. Queue a move into Evidence for each product that the baseline gave back an insight or a decision
+4. Build the search index of every source it put back ([§8.3](08-search.md)), and queue a reading,
+   which records nothing in the activity log, of each attachment version the baseline holds no
+   reading of.
+5. Queue a move into Evidence for each product that the baseline gave back an insight or a decision
    (§9.8).
-5. Queue the deletion of every blob that no row and no kept baseline refers to.
-6. Record when, which baseline, who or the schedule, and the counts, as `last_reset`.
+6. Queue the deletion of every blob that no row and no kept baseline refers to.
+7. Record when, which baseline, who or the schedule, and the counts, as `last_reset`.
 
 Afterwards the organization's content equals the baseline row for row, links to what the baseline
 holds still work, and no other organization's rows or blobs have changed
@@ -581,10 +599,11 @@ The text goes to object storage, which only the worker reaches, so the move has 
 1. Migration `0015_insights_and_decisions_to_evidence.sql` queues one `move_to_evidence` job for
    each product that holds an insight or a decision. It changes no rows.
 2. The worker runs the job ([`evidence-move.ts`](../../packages/core/src/evidence-move.ts)), one
-   product per transaction: it writes each item's Markdown and earlier versions to storage, adds the
-   source with the same id and queues its parse, points activity events at it, drops assumptions'
-   links to decisions, and deletes the item and its revisions and reviews. A decision's body
-   already holds the passages it cited, put there by migration
+   product per transaction: it writes each item's Markdown and earlier versions to storage as one
+   attachment, adds the source with the same id, indexes its title and tags for search and queues
+   its attachment to be read, which gives the source its derived text, points activity events at
+   it, drops assumptions' links to decisions, and deletes the item and its revisions and reviews. A
+   decision's body already holds the quotes it cited, put there by migration
    `0028_citations_refs_and_lineage_retired.sql` ([§4.8](04-data-model.md)). Run again, it finds
    nothing left to move.
 
