@@ -3,7 +3,7 @@ type: Roadmap
 title: Phases 0 to 5 are mostly built, and a public sandbox; durability, data rights and public sign-up come next.
 description: What is built and what is not, phase by phase, with acceptance criteria; the open questions that remain, the ones already settled, and the risks.
 tags: [roadmap, status, phases, open-questions, risks]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
@@ -158,7 +158,7 @@ be deleted, by an admin, and an organization by its owner ([§9.5](09-data-lifec
 ## Phase 7 — Retrieval
 
 In the order evidence supports: relevance set and semantic/hybrid evaluation on `pgvector`;
-dimension registry; tiered attachment search; approximate relocation; recursive lineage
+tiered attachment search; approximate relocation; recursive lineage
 ([§8](08-search.md)).
 
 *Accept:* hybrid beats lexical on the measured relevance set — or it is not adopted.

@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, files, annotations, what uses a source, the assumption register and citations, views and lineage, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, citations, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
@@ -128,7 +128,6 @@ A source is one discovery event or document. It is stored as a **record**, so it
 | `source_system` | Optional, ≤ 100 chars: where the material came from (a meeting tool, a wiki). |
 | `tags` | ≤ 50, each 1–50 chars: what the material is, whom it concerns, what it bears on (§4.4). Stored NFKC-normalized, spacing collapsed, lower-case, without repeats. |
 | `related_records` | ≤ 50 source ids in the same product. |
-| `dimensions` | `{ customer?, product_area?, lifecycle_stage? }`; `customer` and `product_area` are strings ≤ 120 chars normalized for case and spacing; `lifecycle_stage` is `discovery`, `sales` or `research` ([§8.3](08-search.md)). |
 | `provenance_depth` | `primary`, `derived`, `analysis_of_analysis`, `unknown` (default). |
 | `copied_from` | `{ product_id, record_id }` when the source is a copy ([§3.7](03-accounts-teams-and-identity.md)). |
 | `uploaded_by`, `uploaded_at` | Actor snapshot and time of creation: the **date added**. |
@@ -271,7 +270,7 @@ or writes them. Each one a product still held becomes a source with the same id,
 | Was | Becomes |
 |---|---|
 | An insight | A source tagged `analysis` and `insight` (and `draft` for a draft), `provenance_depth: derived`, archived if it was. Its primary file is Markdown: the title, summary and body, then a note of its status, review mark, authors and what it referred to. Each earlier revision is an earlier file version; the summary is the source's summary note. |
-| A decision | A source tagged `decision` and with the entry's tags, dimensions and provenance. Its Markdown holds the statement, the body, the cited passages with their quotes, the status, the outcomes, the links in and out, and every review. Earlier revisions are earlier file versions. |
+| A decision | A source tagged `decision` and with the entry's tags and provenance. Its Markdown holds the statement, the body, the cited passages with their quotes, the status, the outcomes, the links in and out, and every review. Earlier revisions are earlier file versions. |
 
 Its `related_records` are the sources, insights and decisions it referred to or cited. Every
 `refs.insights` and `refs.decisions` id on a Story or mockup version moves to `refs.sources`, a
@@ -292,7 +291,7 @@ incomplete. An entry's id is `id` (the tool also accepts `assumption_id`,
 | `citations` | 0–20 (below). An entry may be recorded before any evidence cites it ([decision](../decisions/register-entries-may-start-uncited.md)). |
 | `outcome_ids` | ≤ 20 outcome ids. |
 | `links` | ≤ 50 of `{ id, type }` to other assumptions; `type` is `supports`, `contradicts`, or `supersedes`. Reads also return `linked_from` and `superseded_by` (the ids of entries that supersede this one, newest first). |
-| `tags`, `dimensions`, `provenance_depth` | As sources. |
+| `tags`, `provenance_depth` | As sources. |
 | `author`, `author_type` | Actor snapshot, and a declared `human` or `agent` ([§3.9](03-accounts-teams-and-identity.md)). |
 | `status` | `unconfirmed` (initial), `confirmed`, `refuted`, `superseded`: always the status of the latest review. |
 | `reviews` | Append-only, at most 500 per entry. |

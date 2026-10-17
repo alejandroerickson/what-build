@@ -73,9 +73,9 @@ beforeAll(async () => {
     await storeInsight(trx, insight, { title: "Texts carry the plan", status: "published", reviewed: true, refs: { outcomes: [outcome], sources: [source], insights: [draft], assumptions: [assumption], decisions: [decision] } });
     await storeInsight(trx, draft, { title: "Calls follow the text", status: "draft", refs: { outcomes: [], sources: [], insights: [], assumptions: [], decisions: [] } });
     const cited = (await sql<{ citations: unknown }>`select citations from register_entries where entry_id = ${assumption}`.execute(trx)).rows[0]!.citations;
-    await sql`insert into register_entries (entry_id, tenant_id, product_id, kind, statement, body, citations, links, outcome_ids, tags, dimensions, provenance_depth, author, author_type, status, review_count, etag, updated_by)
+    await sql`insert into register_entries (entry_id, tenant_id, product_id, kind, statement, body, citations, links, outcome_ids, tags, provenance_depth, author, author_type, status, review_count, etag, updated_by)
       values (${decision}, ${tenantId}, ${productId}, 'decision', 'Send each crew a generated message.', 'Typed messages are where mistakes enter.', ${JSON.stringify(cited)}::jsonb,
-        ${JSON.stringify([{ id: assumption, type: "supports" }])}::jsonb, ${[outcome]}, ${["hand-off"]}, '{}'::jsonb, 'primary', ${actor("Riley")}::jsonb, 'human', 'confirmed', 1, 'e2', ${actor("Riley")}::jsonb)`.execute(trx);
+        ${JSON.stringify([{ id: assumption, type: "supports" }])}::jsonb, ${[outcome]}, ${["hand-off"]}, 'primary', ${actor("Riley")}::jsonb, 'human', 'confirmed', 1, 'e2', ${actor("Riley")}::jsonb)`.execute(trx);
     await sql`insert into reviews (review_id, tenant_id, entry_id, status, note, reviewer, reviewer_type, confidence)
       values (${newId()}, ${tenantId}, ${decision}, 'confirmed', 'Agreed on Thursday.', ${actor("Riley")}::jsonb, 'human', 'medium')`.execute(trx);
     await sql`update register_entries set links = ${JSON.stringify([{ id: decision, type: "contradicts" }])}::jsonb where entry_id = ${assumption}`.execute(trx);

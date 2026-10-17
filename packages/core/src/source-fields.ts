@@ -4,7 +4,6 @@
  */
 
 export const PROVENANCE_DEPTHS = ["primary", "derived", "analysis_of_analysis", "unknown"] as const;
-export const LIFECYCLE_STAGES = ["discovery", "sales", "research"] as const;
 export const FILE_ROLES = ["primary", "origin", "supplement"] as const;
 
 /** The sentence repeated wherever files are added or listed. */

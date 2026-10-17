@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:codex, at: 2026-10-15}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
@@ -23,6 +23,15 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **Migration `0027_drop_dimensions`.** It drops the `dimensions` columns of `records` and
+  `register_entries`, and the field in saved sandbox baselines: every customer, product area and
+  lifecycle stage a source or assumption held is deleted, not moved anywhere. Rehearse on the dev
+  deployment first ([dev-deployment](dev-deployment.md)). An earlier release cannot add a source
+  or an assumption on the new schema, so going back past this one means restoring the database
+  ([recovering](recovering-from-a-bad-release.md)).
+- **Agents can no longer send dimensions.** Nothing to set. A call that sends `dimensions`, or
+  filters `sources(action="list")` or `search` by `customer`, `product_area` or
+  `lifecycle_stage`, is refused with `422` and a hint to use tags. The web app never showed them.
 - **ACS mail with managed identity.** Optional: an Azure-hosted deployment can use the ACS Email
   API by selecting `WHATBUILD_MAILER=acs`, setting `WHATBUILD_ACS_EMAIL_ENDPOINT` and a verified
   `WHATBUILD_MAIL_FROM`, and granting its managed identity access to the linked Communication
