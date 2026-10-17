@@ -29,6 +29,11 @@ So: **if the bad release ran no migration, put the previous code back and stop. 
 the database to just before it, then put the previous code back.** Never repair the schema by
 hand, delete rows from `schema_migrations`, or edit a migration file to undo it.
 
+Previous code from a release after v0.15.0, run on a database that still has the later
+migrations, takes no jobs: its worker waits, and its log says the database has migrations its
+version does not carry ([architecture](../spec/02-architecture.md)). Uploads then stay unread
+until the database is restored or the later version runs again.
+
 ## 1. Stop making it worse
 
 - Do not deploy again until you know what went wrong; a redeploy of the same commit does the same
