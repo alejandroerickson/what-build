@@ -3,11 +3,13 @@ type: Decision
 title: An assumption may be recorded before any evidence cites it
 description: Assumptions take 0 to 20 citations, so people and agents can start from an idea; citation integrity applies to every citation an assumption does carry.
 tags: [decision, registers, citations, product]
-generated: {by: agent:claude, at: 2026-10-09}
-status: stable
+generated: {by: agent:claude, at: 2026-10-16}
+status: deprecated
 ---
 
 # An assumption may be recorded before any evidence cites it
+
+Superseded on 2026-10-16 by [Evidence is found by searching, not kept as citations](evidence-is-searched-not-cited.md).
 
 ## Context
 

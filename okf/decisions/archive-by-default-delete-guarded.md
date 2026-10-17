@@ -3,7 +3,7 @@ type: Decision
 title: Archive is the reversible default; delete is permanent, guarded, and an admin's
 description: Everything archivable can also be deleted, by an admin, after a preview; an organization by its owner, in the web app only.
 tags: [decision, lifecycle, safety, roles]
-generated: {by: agent:claude, at: 2026-10-12}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
@@ -11,7 +11,7 @@ status: stable
 
 ## Context
 
-Evidence is cited long after it is added, so losing it silently breaks conclusions. People also
+Evidence is relied on long after it is added, so losing it silently breaks conclusions. People also
 upload the wrong thing and are entitled to have it gone, and sooner or later want to clear out
 whole products and organizations. Delete first shipped for sources alone, to editors. The
 maintainer chose on 2026-10-12 to give it to admins, for everything that can be archived, and to
@@ -33,8 +33,8 @@ let an organization's owner delete the organization.
 
 ## Consequences
 
-- Citations to archived sources report `source archived`; to deleted ones `record_deleted`, with
-  their quotes kept.
+- An archived source stays readable by id, so a link to it still opens; a deleted one answers `410`
+  with its tombstone.
 - An agent deletes only for an admin who connected it at Admin
   ([decision](an-agent-connection-has-a-level-the-person-chooses.md)).
 - Nothing deleted can be put back from the product until undelete is built.

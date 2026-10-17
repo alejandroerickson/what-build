@@ -26,7 +26,7 @@ export interface FindResult {
   snippet_marks: Marks;
   missing: string[];
   score: number;
-  meta: { date?: string | null; tags?: string[]; status?: string; citation_count?: number; page_id?: string | null; page_title?: string | null; pages?: number };
+  meta: { date?: string | null; tags?: string[]; status?: string; page_id?: string | null; page_title?: string | null; pages?: number };
   hits?: FindHit[];
   hit_count?: number;
 }

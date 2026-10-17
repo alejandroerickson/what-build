@@ -155,18 +155,15 @@ describe("the discovery loop through REST", () => {
     expect(bad.status).toBe(422);
   });
 
-  it("records a cited assumption with a frozen snapshot, reviews it, and checks citations", async () => {
+  it("records an assumption with why the team holds it, reviews it, and supersedes it", async () => {
     const a = await alice.api("POST", `${P}/assumptions`, {
       statement: "Teams close their numbers on Fridays.",
-      citations: [{ record_id: recordId, seq_start: 2, seq_end: 2, quote: "numbers close" }],
+      body: "Dana says the numbers close on Friday, before the pricing review.",
     });
     expect(a.status).toBe(201);
     expect(a.body.status).toBe("unconfirmed");
     expect(a.body.author_type).toBe("human");
-    expect(a.body.citations[0].quote).toBe("numbers close");
-    const badQuote = await alice.api("POST", `${P}/assumptions`, { statement: "x", citations: [{ record_id: recordId, seq_start: 0, seq_end: 0, quote: "not there" }] });
-    expect(badQuote.status).toBe(422);
-    expect(badQuote.body.error.code).toBe("quote_not_found");
+    expect(a.body).not.toHaveProperty("citations");
     const agentConfidence = await alice.api("POST", `${P}/assumptions/${a.body.id}/review`, { expected_etag: a.body.etag, status: "confirmed", note: "x", reviewer_type: "agent", confidence: "high" });
     expect(agentConfidence.status).toBe(422);
     const rv = await alice.api("POST", `${P}/assumptions/${a.body.id}/review`, { expected_etag: a.body.etag, status: "confirmed", note: "Heard in two calls.", confidence: "medium" });
@@ -176,10 +173,8 @@ describe("the discovery loop through REST", () => {
     const frozen = await alice.api("PATCH", `${P}/assumptions/${a.body.id}`, { expected_etag: rv.body.etag, statement: "changed" });
     expect(frozen.status).toBe(409);
     expect(frozen.body.error.code).toBe("frozen");
-    const check = await alice.api("POST", `${P}/assumptions/${a.body.id}/check-citations`, {});
-    expect(check.body.valid).toBe(true);
     const sup = await alice.api("POST", `${P}/assumptions/${a.body.id}/supersede`, {
-      expected_etag: rv.body.etag, note: "Narrower wording.", statement: "The numbers close on Fridays.", citations: [{ record_id: recordId, seq_start: 2, seq_end: 2 }],
+      expected_etag: rv.body.etag, note: "Narrower wording.", statement: "The numbers close on Fridays.",
     });
     expect(sup.status).toBe(200);
     expect(sup.body.entry.links).toEqual([expect.objectContaining({ id: a.body.id, type: "supersedes" })]);
@@ -192,32 +187,28 @@ describe("the discovery loop through REST", () => {
     expect(byId(sup.body.entry.id).superseded_by).toEqual([]);
   });
 
-  it("records assumptions before there is evidence, and cites it later", async () => {
+  it("records assumptions before there is evidence, and takes no citations", async () => {
     const a = await alice.api("POST", `${P}/assumptions`, { statement: "Crew leads plan on Sunday evenings." });
     expect(a.status).toBe(201);
-    expect(a.body.citations).toEqual([]);
     expect(a.body.status).toBe("unconfirmed");
-    const check = await alice.api("POST", `${P}/assumptions/${a.body.id}/check-citations`, {});
-    expect(check.body.valid).toBe(true);
     const log = await alice.api("GET", `${P}/activity?entity_id=${a.body.id}`);
-    expect(log.body.items[0].summary).toBe("Recorded an unconfirmed assumption with no citations yet");
+    expect(log.body.items[0].summary).toBe("Recorded an unconfirmed assumption");
     const cited = await alice.api("PATCH", `${P}/assumptions/${a.body.id}`, { expected_etag: a.body.etag, citations: [{ record_id: recordId, seq_start: 2, seq_end: 2 }] });
-    expect(cited.status).toBe(200);
-    expect(cited.body.changed).toEqual(["citations"]);
-    expect(cited.body.citations).toHaveLength(1);
-    const tooMany = await alice.api("POST", `${P}/assumptions`, { statement: "x", citations: Array.from({ length: 21 }, () => ({ record_id: recordId, seq_start: 2, seq_end: 2 })) });
-    expect(tooMany.status).toBe(422);
+    expect(cited.status).toBe(422);
+    expect(cited.body.error.code).toBe("invalid_input");
+    const said = await alice.api("PATCH", `${P}/assumptions/${a.body.id}`, { expected_etag: a.body.etag, body: "Two crew leads said so; nobody has checked it yet." });
+    expect(said.status).toBe(200);
+    expect(said.body.changed).toEqual(["body"]);
   });
 
   it("counts only current assumptions, as the default lists show them", async () => {
     const o = await alice.api("POST", `${P}/outcomes`, { title: "Know when numbers close" });
-    const cite = [{ record_id: recordId, seq_start: 2, seq_end: 2 }];
-    const a = await alice.api("POST", `${P}/assumptions`, { statement: "Numbers close weekly.", citations: cite, outcome_ids: [o.body.outcome_id] });
+    const a = await alice.api("POST", `${P}/assumptions`, { statement: "Numbers close weekly.", outcome_ids: [o.body.outcome_id] });
     const sup = await alice.api("POST", `${P}/assumptions/${a.body.id}/supersede`, {
-      expected_etag: a.body.etag, note: "Sharper.", statement: "Numbers close every Friday.", citations: cite, outcome_ids: [o.body.outcome_id],
+      expected_etag: a.body.etag, note: "Sharper.", statement: "Numbers close every Friday.", outcome_ids: [o.body.outcome_id],
     });
     expect(sup.status).toBe(200);
-    const d = await alice.api("POST", `${P}/assumptions`, { statement: "Plans move to Monday.", citations: cite, outcome_ids: [o.body.outcome_id] });
+    const d = await alice.api("POST", `${P}/assumptions`, { statement: "Plans move to Monday.", outcome_ids: [o.body.outcome_id] });
     await alice.api("POST", `${P}/assumptions/${d.body.id}/review`, { expected_etag: d.body.etag, status: "refuted", note: "Friday stayed." });
     // The outcome itself counts nothing; the assumptions list filtered by it shows what serves it.
     const objs = await alice.api("GET", `${P}/outcomes`);
@@ -227,11 +218,6 @@ describe("the discovery loop through REST", () => {
     const product = await alice.api("GET", P);
     const current = await alice.api("GET", `${P}/assumptions?status=unconfirmed,confirmed&limit=100`);
     expect(product.body.counts.assumptions).toBe(current.body.items.length);
-  });
-
-  it("lists what uses a source", async () => {
-    const forRecord = await alice.api("GET", `${P}/sources/${recordId}/used-by`);
-    expect(forRecord.body.assumptions.length).toBeGreaterThan(0);
   });
 
   it("publishes Story versions, validates HTML, and serves pages sandboxed", async () => {
@@ -308,7 +294,7 @@ describe("the discovery loop through REST", () => {
     expect((await alice.api("GET", `${P}/search?query=numbers%20close`)).body.hits).toHaveLength(1);
 
     const impact = await alice.api("GET", `${P}/sources/${recordId}/delete-impact`);
-    expect(impact.body.citations.length).toBeGreaterThan(0);
+    expect(impact.body).toMatchObject({ record_id: recordId, file_versions: 1, annotations: 0 });
     const noConfirm = await alice.api("DELETE", `${P}/sources/${recordId}`, { expected_etag: impact.body.etag, reason: "wrong file", confirm: "yes" });
     expect(noConfirm.status).toBe(422);
     expect(noConfirm.body.error.code).toBe("confirmation_required");
@@ -317,13 +303,10 @@ describe("the discovery loop through REST", () => {
     const gone = await alice.api("GET", `${P}/sources/${recordId}`);
     expect(gone.status).toBe(410);
     expect(gone.body.error.details.tombstone.reason).toBe("wrong file");
+    // What the team wrote about the source stays as they wrote it.
     const entries = await alice.api("GET", `${P}/assumptions?status=superseded,confirmed,unconfirmed`);
-    const e = entries.body.items[0];
-    const check = await alice.api("POST", `${P}/assumptions/${e.id}/check-citations`, {});
-    expect(check.body.citations[0].status).toBe("record_deleted");
-    // The quotation the team wrote down survives the source.
-    const read = await alice.api("GET", `${P}/assumptions/${e.id}`);
-    expect(read.body.citations[0].quote.length).toBeGreaterThan(0);
+    const read = await alice.api("GET", `${P}/assumptions/${entries.body.items.at(-1).id}`);
+    expect(read.body.body).toContain("numbers close on Friday");
     await h.worker.drain();
     expect([...h.blobs.blobs.keys()].some((k) => k.includes(recordId))).toBe(false);
   });

@@ -47,7 +47,6 @@ export interface RecordFull extends RecordSummary {
   annotation_count: number;
   participants: string[];
   source_system: string | null;
-  related_records: string[];
   pending_primary_path: string | null;
   files: FileEntry[];
   search_rule: string;
@@ -66,7 +65,6 @@ export interface RecordFull extends RecordSummary {
   } | null;
   outline: string | null;
   annotations: Annotation[];
-  has_lineage: boolean;
 }
 
 export interface Annotation {
@@ -101,18 +99,6 @@ export interface SourceFacets {
   added_by: { account_id: string; display_name: string; count: number }[];
 }
 
-export interface CitationView {
-  index: number;
-  record_id: string;
-  seq_start: number;
-  seq_end: number;
-  quote: string;
-  speakers: string[];
-  start_ms: number | null;
-  source_title: string | null;
-  captured_at: string;
-}
-
 export interface Review {
   status: string;
   note: string;
@@ -129,7 +115,6 @@ export interface RegisterEntry {
   body: string;
   status: "unconfirmed" | "confirmed" | "refuted" | "superseded";
   frozen: boolean;
-  citations: CitationView[];
   links: { id: string; type: string; kind?: string; statement?: string; status?: string }[];
   linked_from: { id: string; type: string; kind: string; statement: string; status: string }[];
   outcome_ids: string[];
@@ -153,8 +138,6 @@ export interface RegisterSummary {
   status: RegisterEntry["status"];
   author: Actor;
   author_type: "human" | "agent";
-  citation_count: number;
-  record_ids: string[];
   outcome_ids: string[];
   review_count: number;
   human_review: RegisterEntry["human_review"];
@@ -165,8 +148,3 @@ export interface RegisterSummary {
   updated_at: string;
 }
 
-export interface Refs {
-  outcomes: string[];
-  sources: string[];
-  assumptions: string[];
-}

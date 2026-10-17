@@ -7,35 +7,41 @@ surfaces: [web, mcp]
 
 # Assumptions and the Story
 
-The loop the product exists for: an agent turns evidence into a cited assumption and a Story page,
-a person reviews the assumption, and a stakeholder who may read only the Story reads the result.
-Citations, roles and what a reader can and cannot reach are all checked on the way.
+The loop the product exists for: an agent turns evidence into an assumption and a Story page, a
+person reviews the assumption, and a stakeholder who may read only the Story reads the result.
+Roles, finding the evidence again by searching, and what a reader can and cannot reach are all
+checked on the way.
 
 ## Steps
 
 1. **MCP, as Sam, in the standard organization.** In a product that has sources, find a passage
-   that supports a claim about its users (read a source, or search). Create an assumption that
-   cites that passage.
-   *Expect:* it is created unconfirmed, with the citation's quoted text matching the passage.
+   that supports a claim about its users (read a source, or search). Create an assumption whose
+   body says in a sentence or two why the team holds it. Then try the same call with a
+   `citations` field.
+   *Expect:* the first is created unconfirmed, with its statement and body as sent; the second is
+   refused (`422`), naming the field, and creates nothing.
 2. **Web, as Riley.** Open Exploration, then assumptions. *Expect:* the new assumption is listed;
-   opening it shows the statement, the citation, and the agent as its author.
-3. **Web, as Riley.** Follow the citation. *Expect:* it opens the cited passage in its source.
+   opening it shows the statement, the body, and the agent as its author, and nothing about
+   citations.
+3. **Web, as Riley.** Search for a few words of the passage Sam used. *Expect:* the search finds
+   the passage, and opening the hit shows it marked in its source.
 4. **Web, as Riley.** Review the assumption: mark it confirmed (or whatever review the screen
    offers), with a short note. *Expect:* its status changes, and the review is attributed to Riley
    on the web.
 5. **MCP, as Sam.** Get the assumption. *Expect:* the review from step 4, with Riley as reviewer.
 6. **MCP, as Sam.** Read the Story guidance and the house style, then preview a new Story page that
-   summarizes the assumption and cites the same passage, open the preview's url in the browser with
+   explains the assumption in its own words, quoting the passage only if its exact words matter
+   and without a link to it, open the preview's url in the browser with
    its grant (`open <url> --header "<name>: <value>"`) at desktop and phone width (`viewport 390
    844`), light and dark (`theme dark`, or `?theme=dark` on the url), then publish the same call and place the
    page under the overview page in the hierarchy. *Expect:* the preview creates no page (the Story
    does not list it) and opens in the house style; the page is published as version 1 with the
    preview's `html_sha256`, and the hierarchy shows it where it was placed.
 7. **Web, as Jordan (reader).** Open the Story. *Expect:* the new page is in the tree where step 6
-   put it; it renders in the house style, with its HTML as published; the page's details offer no
-   citations or references, which a reader is not given (the decision on readers); a link in the
-   page that points into Evidence takes Jordan back to the Story with a toast saying they can read
-   only the Story.
+   put it; it renders in the house style, with its HTML as published; the page's details show its
+   About alone, without the notes for agents, which a reader is not given (the decision on
+   readers); a link in a page that points into Evidence, where one exists, takes Jordan back to
+   the Story with a toast saying they can read only the Story.
 8. **Web, as Jordan.** Try to open the assumption from step 1 by its address. *Expect:* refused,
    with a clear message.
 9. **MCP, as Jordan.** Try to create an assumption, and to preview and publish a Story page.
@@ -48,7 +54,9 @@ Citations, roles and what a reader can and cannot reach are all checked on the w
 
 ## Look out for
 
-- A citation whose quoted text differs from the passage, or that opens the wrong place.
+- Anything that still shows citations, references, "Cited in", "Cited by" or "Built from".
+- A Story page that puts a source reference or a passage link after its claims, which the Story
+  guidance tells agents not to do.
 - Anything a reader can see that the decision on readers says they cannot
   (`okf/decisions/a-reader-reads-only-the-story.md`).
 - A Story page that looks different in the app's frame and in the print view.

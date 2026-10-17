@@ -34,15 +34,16 @@ Google Cloud Run. Recorded in `okf/spec/02-architecture.md`.
 
 Turn a pile of discovery material — interviews, sales calls, research exports, documents, decks —
 into something a team can act on: outcomes, mockups, reviewed assumptions and a stakeholder Story,
-with every claim pointing at the exact passage it came from.
-Success is that anyone can answer "where did we hear that?" precisely, and that an agent's work is
-visible, attributed and reviewable rather than lost in a chat.
+with the evidence behind them kept whole and searchable.
+Success is that a team keeps its discovery and its ideas in one place, where people and their
+agents find what they heard by searching, and that an agent's work is visible, attributed and
+reviewable rather than lost in a chat.
 
 ## Positioning
 
 WhatBuild contains no AI. It parses, stores, searches and checks deterministically, and the
 intelligence comes from whatever agent the team connects. That split is the product: exact,
-addressable passages that citations can point at forever; honest attribution of what an agent did
+addressable passages that people and agents read and search; honest attribution of what an agent did
 versus what a person agreed to; and an agent surface (MCP) that is the most complete control panel.
 
 ## Operating Context
@@ -63,7 +64,8 @@ permissions and one activity log.
   reusing the tags the team already has; there are no kinds to choose and no folders.
 - Only a source's primary file is parsed and searched; originals and supplements are kept, never
   searched, and the UI says so.
-- Citations snapshot the exact text; drift is reported, never repaired silently.
+- Nothing keeps citations: agents find what bears on a piece of work by searching, and the Story
+  explains in words, quoting a person only where their words matter.
 - Archive is the reversible default everywhere; delete is permanent, explicit, guarded and an admin's.
 - Story pages are agent-authored, self-contained HTML shown in a sandbox. Agents write the Story;
   people read it, export it to PDF, and arrange, archive and delete its pages by hand. Pages follow the product's Story style: the
@@ -86,8 +88,8 @@ permissions and one activity log.
 
 1. **Describe the source, never the path.** The interface asks what something is and takes
    responsibility for where it lands.
-2. **A citation outlives the file.** Passage addresses, snapshots and attribution are the durable
-   output; the UI shows enough of them that a person can cite with confidence.
+2. **Collaborate, don't build a case.** WhatBuild keeps a team's evidence and ideas in one place;
+   what bears on a piece of work is found by searching, never stapled to it as citations.
 3. **People read the synthesis.** Lead with readable reasoning and a few consequential agreements;
    keep exhaustive evidence one step away.
 4. **Honest about the machine.** Show who did what and through which surface; never let an agent's

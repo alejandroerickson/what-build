@@ -34,8 +34,6 @@ async function etagOf(o: Organization, path: string): Promise<string> {
   return (await o.owner.api("GET", `/api/v1/p/${o.product.path}/${path}`)).body.etag;
 }
 
-const page = (title: string) => `<!doctype html><html lang="en"><head><title>${title}</title></head><body><p>${title}</p></body></html>`;
-
 /** Every product, team and tenant operation, with an attack on real ids. */
 const SCOPED: Record<string, Probe> = {
   "products.create_team": { input: () => ({ name: "Planted team" }) },
@@ -93,24 +91,14 @@ const SCOPED: Record<string, Probe> = {
     inside: (a) => [{ include_archived: true }, { tags: [a.source.tag] }, { added_by: a.ownerAccountId, include_archived: true }, { query: a.marker }],
   },
   "sources.get": { input: (a) => ({ record_id: a.source.id, detail: "full" }) },
-  "sources.create": {
-    input: () => ({ title: "Planted source", tags: ["planted"] }),
-    inside: (a) => [{ title: "Planted view", tags: ["view"], related_records: [a.source.id] }],
-  },
-  "sources.update": {
-    input: (a) => ({ record_id: a.source.id, expected_etag: a.source.etag, title: "Changed by an outsider" }),
-    inside: async (a, b) => [
-      { record_id: a.source.id, expected_etag: a.source.etag, title: "Changed by an outsider" },
-      { record_id: b.view.id, expected_etag: await etagOf(b, `sources/${b.view.id}`), related_records: [a.source.id] },
-    ],
-  },
+  "sources.create": { input: () => ({ title: "Planted source", tags: ["planted"] }) },
+  "sources.update": { input: (a) => ({ record_id: a.source.id, expected_etag: a.source.etag, title: "Changed by an outsider" }) },
   "sources.archive": { input: (a) => ({ record_ids: [a.source.id] }) },
   "sources.restore": { input: (a) => ({ record_ids: [a.source.id] }) },
   "sources.annotate": { input: (a) => ({ record_id: a.source.id, note: "Planted annotation", seq_start: 0, seq_end: 1 }) },
   "sources.list_annotations": { input: (a) => ({ record_id: a.source.id, include_archived: true }) },
   "sources.update_annotation": { input: (a) => ({ annotation_id: a.annotation.id, expected_etag: a.annotation.etag, note: "Changed by an outsider" }) },
   "sources.delete_annotation": { input: (a) => ({ annotation_id: a.annotation.id, expected_etag: a.annotation.etag, reason: "Removed by an outsider", confirm: "delete permanently" }) },
-  "sources.used_by": { input: (a) => ({ record_id: a.source.id }) },
   "sources.move_to_product": {
     input: (a) => ({ record_id: a.source.id, to_product: a.annex.id, expected_etag: a.source.etag }),
     // Their own source, moved into the victim's product.
@@ -126,14 +114,8 @@ const SCOPED: Record<string, Probe> = {
   "sources.delete_impact": { input: (a) => ({ record_id: a.source.id }) },
   "sources.delete": { input: (a) => ({ record_id: a.source.id, expected_etag: a.source.etag, reason: "Removed by an outsider", confirm: "delete permanently" }) },
   "files.request_upload": { input: (a) => ({ record_id: a.source.id, path: "planted.md", role: "supplement" }) },
-  "files.create_upload": {
-    input: () => ({ title: "Planted upload", path: "planted.md", role: "primary" }),
-    inside: (a) => [{ title: "Planted upload", tags: ["view"], path: "planted.md", role: "primary", related_records: [a.source.id] }],
-  },
-  "files.create_uploads": {
-    input: () => ({ sources: [{ title: "Planted upload", path: "planted.md", role: "primary" }] }),
-    inside: (a) => [{ sources: [{ title: "Planted upload", tags: ["view"], path: "planted.md", role: "primary", related_records: [a.source.id] }] }],
-  },
+  "files.create_upload": { input: () => ({ title: "Planted upload", path: "planted.md", role: "primary" }) },
+  "files.create_uploads": { input: () => ({ sources: [{ title: "Planted upload", path: "planted.md", role: "primary" }] }) },
   "files.complete_upload": { input: (a) => ({ record_id: a.source.id, path: a.source.path }) },
   "files.add_note": { input: (a) => ({ record_id: a.source.id, path: "planted.md", text: "Planted note.", role: "supplement" }) },
   // A public address only; the call must be refused long before anything is fetched.
@@ -174,12 +156,11 @@ const SCOPED: Record<string, Probe> = {
     input: () => ({ query: "crews", scope: "all" }),
     inside: (a) => [{ query: "crews", scope: "all" }, { query: "crews", record_id: a.source.id }],
   },
-  "assumptions.list": { input: (a) => ({ record_id: a.source.id, include_archived: true }) },
+  "assumptions.list": { input: (a) => ({ outcome_id: a.outcome.id, include_archived: true }) },
   "assumptions.get": { input: (a) => ({ id: a.assumption.id }) },
   "assumptions.create": {
     input: () => ({ statement: "Planted assumption." }),
     inside: (a) => [
-      { statement: "Planted assumption.", citations: [{ record_id: a.source.id, seq_start: 1, seq_end: 1 }] },
       { statement: "Planted assumption.", outcome_ids: [a.outcome.id] },
       { statement: "Planted assumption.", links: [{ id: a.assumption.id, type: "supports" }] },
     ],
@@ -188,7 +169,6 @@ const SCOPED: Record<string, Probe> = {
     input: (a) => ({ id: a.assumption.id, expected_etag: a.assumption.etag, statement: "Changed by an outsider." }),
     inside: async (a, b) => [
       { id: a.assumption.id, expected_etag: a.assumption.etag, statement: "Changed by an outsider." },
-      { id: b.assumption.id, expected_etag: await etagOf(b, `assumptions/${b.assumption.id}`), citations: [{ record_id: a.source.id, seq_start: 1, seq_end: 1 }] },
       { id: b.assumption.id, expected_etag: await etagOf(b, `assumptions/${b.assumption.id}`), outcome_ids: [a.outcome.id] },
       { id: b.assumption.id, expected_etag: await etagOf(b, `assumptions/${b.assumption.id}`), links: [{ id: a.assumption.id, type: "supports" }] },
     ],
@@ -202,7 +182,6 @@ const SCOPED: Record<string, Probe> = {
   },
   "assumptions.unlink": { input: (a) => ({ id: a.assumption.id, expected_etag: a.assumption.etag, target_id: a.linked.id, type: "supports" }) },
   "assumptions.archive": { input: (a) => ({ id: a.assumption.id, expected_etag: a.assumption.etag, archived: true }) },
-  "assumptions.check_citations": { input: (a) => ({ id: a.assumption.id }) },
   "assumptions.delete_impact": { input: (a) => ({ id: a.assumption.id }) },
   "assumptions.delete": { input: (a) => ({ id: a.assumption.id, expected_etag: a.assumption.etag, reason: "Removed by an outsider", confirm: "delete permanently" }) },
   "story.guidance": { input: () => ({}) },
@@ -212,23 +191,10 @@ const SCOPED: Record<string, Probe> = {
   "story.get_page": { input: (a) => ({ page_id: a.page.id }) },
   "story.list_versions": { input: (a) => ({ page_id: a.page.id }) },
   "story.get_version": { input: (a) => ({ page_id: a.page.id, version: 1 }) },
-  "story.publish": {
-    input: (a) => ({ page_id: a.page.id, expected_etag: a.page.etag, title: "Changed by an outsider", body: "<p>Planted.</p>" }),
-    inside: (a) => [
-      { page_id: "planted", title: "Planted", body: "<p>Planted.</p>", refs: { outcomes: [a.outcome.id], sources: [a.source.id], assumptions: [a.assumption.id] } },
-      { page_id: "planted-cites", title: "Planted", body: "<p>Planted.</p>", citations: [{ record_id: a.source.id, seq_start: 1, seq_end: 1 }] },
-    ],
-  },
-  "story.preview": {
-    input: (a) => ({ page_id: a.page.id, expected_etag: a.page.etag, title: "Previewed by an outsider", body: "<p>Planted.</p>" }),
-    inside: (a) => [
-      { page_id: "planted-preview", title: "Planted", body: "<p>Planted.</p>", refs: { outcomes: [a.outcome.id], sources: [a.source.id], assumptions: [a.assumption.id] } },
-      { page_id: "planted-preview-cites", title: "Planted", body: "<p>Planted.</p>", citations: [{ record_id: a.source.id, seq_start: 1, seq_end: 1 }] },
-    ],
-  },
+  "story.publish": { input: (a) => ({ page_id: a.page.id, expected_etag: a.page.etag, title: "Changed by an outsider", body: "<p>Planted.</p>" }) },
+  "story.preview": { input: (a) => ({ page_id: a.page.id, expected_etag: a.page.etag, title: "Previewed by an outsider", body: "<p>Planted.</p>" }) },
   "story.promote_mockup": { input: (a) => ({ mockup_id: a.mockup.id, mockup_page_id: a.mockup.pageId, title: "Promoted by an outsider" }) },
   "story.write_notes": { input: (a) => ({ page_id: a.page.id, notes: "Planted notes.", expected_etag: a.page.notesEtag }) },
-  "story.check_citations": { input: (a) => ({ page_id: a.page.id }) },
   "story.print_view": { input: (a) => ({ page_ids: [a.page.id, a.promotedPage.id] }) },
   "story.get_hierarchy": { input: () => ({}) },
   "story.set_hierarchy": {
@@ -247,28 +213,13 @@ const SCOPED: Record<string, Probe> = {
   "mockups.get": { input: (a) => ({ mockup_id: a.mockup.id, include_html: true, include_files: true }) },
   "mockups.list_versions": { input: (a) => ({ mockup_id: a.mockup.id }) },
   "mockups.get_version": { input: (a) => ({ mockup_id: a.mockup.id, version: 1, include_html: true, include_files: true }) },
-  "mockups.publish": {
-    input: (a) => ({ mockup_id: a.mockup.id, expected_etag: a.mockup.etag, title: "Changed by an outsider" }),
-    inside: (a) => [
-      { mockup_id: a.mockup.id, expected_etag: a.mockup.etag, title: "Changed by an outsider" },
-      { title: "Planted mockup", brief: "Planted.", pages: [{ page_id: "p", title: "P", html: page("P") }], refs: { sources: [a.source.id], assumptions: [a.assumption.id] } },
-      { title: "Planted mockup", brief: "Planted.", pages: [{ page_id: "p", title: "P", html: page("P") }], citations: [{ record_id: a.source.id, seq_start: 1, seq_end: 1 }] },
-    ],
-  },
+  "mockups.publish": { input: (a) => ({ mockup_id: a.mockup.id, expected_etag: a.mockup.etag, title: "Changed by an outsider" }) },
   "mockups.request_upload": { input: () => ({}) },
   "mockups.archive": { input: (a) => ({ mockup_id: a.mockup.id, expected_etag: a.mockup.etag }) },
   "mockups.restore": { input: (a) => ({ mockup_id: a.mockup.id, expected_etag: a.mockup.etag }) },
   "mockups.get_download": { input: (a) => ({ mockup_id: a.mockup.id }) },
-  "mockups.check_citations": { input: (a) => ({ mockup_id: a.mockup.id }) },
   "mockups.delete_impact": { input: (a) => ({ mockup_id: a.mockup.id }) },
   "mockups.delete": { input: (a) => ({ mockup_id: a.mockup.id, expected_etag: a.mockup.etag, reason: "Removed by an outsider", confirm: "delete permanently" }) },
-  "lineage.capture": { input: (a) => ({ inputs: [{ kind: "record", id: a.source.id }, { kind: "assumption", id: a.assumption.id }] }) },
-  "lineage.write": {
-    input: (a) => ({ record_id: a.view.id, inputs: [{ kind: "record", id: a.source.id, fingerprint: "0".repeat(64) }], query_spec: { description: "Planted." } }),
-    // Their own source, claiming to be built from the victim's (their view already has lineage).
-    inside: (a, b) => [{ record_id: b.source.id, inputs: [{ kind: "record", id: a.source.id, fingerprint: "0".repeat(64) }], query_spec: { description: "Planted." } }],
-  },
-  "lineage.check": { input: (a) => ({ record_id: a.view.id }) },
   "activity.list": { input: (a) => ({ entity_id: a.source.id }) },
 };
 

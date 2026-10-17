@@ -1,5 +1,5 @@
 import { sql } from "kysely";
-import { json, type ActorSnapshot, type CitationSnapshot, type Db, type Tx } from "./db.ts";
+import { json, type ActorSnapshot, type Db, type Tx } from "./db.ts";
 import { blobKeyFor } from "./ops/files.ts";
 import type { Ports } from "./ports.ts";
 import { collapse, newEtag, newId, slugify, uniq } from "./util.ts";
@@ -8,9 +8,8 @@ import { collapse, newEtag, newId, slugify, uniq } from "./util.ts";
  * Insights and decisions are retired. Each one still held in a product becomes a Markdown source in
  * Evidence with the same id, so every link and reference to it keeps working, tagged with what it
  * was: an insight as an analysis and an insight, a decision as a decision. Its earlier
- * revisions become earlier versions of the file. What pointed at it (a Story page's or a mockup's
- * refs, a view's lineage) now points at the source, and an assumption's link to a decision becomes
- * a line in the decision's document. Its history in the activity log becomes the source's history.
+ * revisions become earlier versions of the file, and an assumption's link to a decision becomes a
+ * line in the decision's document. Its history in the activity log becomes the source's history.
  * Then the original is deleted.
  *
  * The text goes to object storage, which only the worker reaches, so a migration or a sandbox reset
@@ -51,18 +50,10 @@ function insightMarkdown(v: { title: string; summary: string; body: string }): s
   return `# ${v.title}\n\n${v.summary ? `${v.summary}\n\n` : ""}${v.body.trim()}\n`;
 }
 
-function evidenceLines(citations: CitationSnapshot[], names: Lookup): string[] {
-  return citations.map((c) => {
-    const range = c.seq_start === c.seq_end ? `passage ${c.seq_start}` : `passages ${c.seq_start}–${c.seq_end}`;
-    return `- ${names.title(c.record_id) ?? "A source"} (\`${c.record_id}\`), ${range}: “${oneLine(c.quote)}”`;
-  });
-}
-
-/** A decision as a document: the choice, its reasoning and the passages it cites. */
-function decisionMarkdown(v: { statement: string; body: string; citations: CitationSnapshot[] }, names: Lookup): string {
+/** A decision as a document: the choice and its reasoning, which holds the passages it cited. */
+function decisionMarkdown(v: { statement: string; body: string }): string {
   const parts = [`# ${oneLine(v.statement)}`];
   if (v.body.trim()) parts.push(v.body.trim());
-  if (v.citations.length) parts.push(`## Evidence\n\n${evidenceLines(v.citations, names).join("\n")}`);
   return parts.join("\n\n") + "\n";
 }
 
@@ -105,22 +96,20 @@ export async function runEvidenceMove(db: Tx, ports: Ports, job: { tenant_id: st
     ...entries.map((e) => [e.entry_id, oneLine(e.statement)] as const),
   ]);
   const names: Lookup = { title: (id) => titles.get(id) ?? null };
-  const known = (id: string) => moving.has(id) || records.some((r) => r.record_id === id);
   const revisions = moving.size
     ? await db.selectFrom("revisions").selectAll().where("object_type", "in", ["insight", "decision"]).where("object_id", "in", [...moving]).orderBy("n").execute()
     : [];
   const today = day(new Date().toISOString());
 
   const insertRecord = async (v: {
-    record_id: string; title: string; tags: string[]; related: string[]; provenance_depth: string;
+    record_id: string; title: string; tags: string[]; provenance_depth: string;
     archived: { at: string; by: ActorSnapshot } | null; uploaded: { at: string; by: ActorSnapshot }; updated: { at: string; by: ActorSnapshot };
   }) => {
     await db
       .insertInto("records")
       .values({
         record_id: v.record_id, tenant_id: job.tenant_id, team_id: product.team_id, product_id: pid, title: v.title, date: null,
-        participants: [], source_system: "WhatBuild", tags: v.tags, related_records: uniq(v.related).filter((r) => r !== v.record_id && known(r)),
-        provenance_depth: v.provenance_depth, slug: slugify(v.title), copied_from: json(null),
+        participants: [], source_system: "WhatBuild", tags: v.tags, provenance_depth: v.provenance_depth, slug: slugify(v.title), copied_from: json(null),
         current_derivation_id: null, archived_at: v.archived?.at ?? null, archived_by: v.archived ? json(v.archived.by) : json(null), etag: newEtag(),
         uploaded_at: v.uploaded.at, uploaded_by: json(v.uploaded.by), updated_at: v.updated.at, updated_by: json(v.updated.by),
       })
@@ -156,7 +145,7 @@ export async function runEvidenceMove(db: Tx, ports: Ports, job: { tenant_id: st
     ];
     await insertRecord({
       record_id: i.insight_id, title: i.title, tags: i.status === "draft" ? ["analysis", "insight", "draft"] : ["analysis", "insight"],
-      related: [...(refs.sources ?? []), ...(refs.insights ?? []), ...(refs.decisions ?? [])], provenance_depth: "derived",
+      provenance_depth: "derived",
       archived: i.status === "archived" ? { at: i.updated_at, by: i.updated_by } : null, uploaded: { at: i.created_at, by: i.created_by }, updated: { at: i.updated_at, by: i.updated_by },
     });
     await writeFile(db, ports, job.tenant_id, i.insight_id, `${slugify(i.title)}.md`, versions);
@@ -187,31 +176,17 @@ export async function runEvidenceMove(db: Tx, ports: Ports, job: { tenant_id: st
       `---\n\n*Moved into Evidence from Exploration on ${today}, where it was a decision.* Recorded by ${who(d.author)} (${d.author_type === "human" ? "a person" : "an agent"}) on ${day(d.created_at)}.`,
     ].join("\n\n");
     const versions: Version[] = [
-      ...kept.map((r) => ({ markdown: decisionMarkdown({ statement: String(r.content["statement"] ?? d.statement), body: String(r.content["body"] ?? ""), citations: (r.content["citations"] as CitationSnapshot[] | undefined) ?? [] }, names), at: r.written_at, by: r.written_by })),
-      { markdown: `${decisionMarkdown(d, names)}\n${footer}\n`, at: d.updated_at, by: d.updated_by },
+      ...kept.map((r) => ({ markdown: decisionMarkdown({ statement: String(r.content["statement"] ?? d.statement), body: String(r.content["body"] ?? "") }), at: r.written_at, by: r.written_by })),
+      { markdown: `${decisionMarkdown(d)}\n${footer}\n`, at: d.updated_at, by: d.updated_by },
     ];
     await insertRecord({
       record_id: d.entry_id, title: collapse(d.statement, 300), tags: uniq(["decision", ...d.tags]),
-      related: [...d.citations.map((c) => c.record_id), ...d.links.map((l) => l.id)], provenance_depth: d.provenance_depth,
+      provenance_depth: d.provenance_depth,
       archived: d.archived_at ? { at: d.archived_at, by: d.updated_by } : null, uploaded: { at: d.created_at, by: d.author }, updated: { at: d.updated_at, by: d.updated_by },
     });
     await writeFile(db, ports, job.tenant_id, d.entry_id, `${slugify(d.statement)}.md`, versions);
   }
 
-  // What pointed at an insight or a decision now points at the source it became, here and in every earlier version.
-  const folded = sql`jsonb_build_object(
-      'outcomes', coalesce(refs->'outcomes', '[]'::jsonb),
-      'sources', (select coalesce(jsonb_agg(distinct x), '[]'::jsonb) from jsonb_array_elements_text(
-        coalesce(refs->'sources', '[]'::jsonb) || coalesce(refs->'insights', '[]'::jsonb) || coalesce(refs->'decisions', '[]'::jsonb)) as x),
-      'assumptions', coalesce(refs->'assumptions', '[]'::jsonb))`;
-  for (const table of ["story_versions", "mockup_versions"] as const)
-    await sql`update ${sql.table(table)} set refs = ${folded} where product_id = ${pid} and (refs ? 'insights' or refs ? 'decisions')`.execute(db);
-  // A view built on a decision is now built on the source; its fingerprint was the decision's, so check reports it changed.
-  await sql`
-    update lineage set inputs = (
-      select jsonb_agg(case when i->>'kind' = 'decision' then (i - 'parts') || '{"kind": "record"}'::jsonb else i end order by n)
-      from jsonb_array_elements(inputs) with ordinality as t(i, n))
-    where product_id = ${pid} and inputs @> '[{"kind": "decision"}]'::jsonb`.execute(db);
   if (decisions.length) {
     const gone = decisions.map((d) => d.entry_id);
     for (const e of entries.filter((x) => x.kind === "assumption" && x.links.some((l) => gone.includes(l.id))))

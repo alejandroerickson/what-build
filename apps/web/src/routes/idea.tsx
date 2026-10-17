@@ -10,7 +10,7 @@ import {
   Button, ButtonLink, Callout, EmptyState, ErrorCallout, FormGrid, Glyph, IconButton, Loading, Menu, MenuItem, MenuSeparator, Sheet,
   SheetBody, SheetHeader, StatusBadge, TextArea, TextField, useToast,
 } from "../ui/index.tsx";
-import { DeleteDialog, Referring, type VersionReferring } from "./delete-dialog.tsx";
+import { DeleteDialog } from "./delete-dialog.tsx";
 import { FirstUse } from "./first-use.tsx";
 import { HistoryDialog } from "./exploration-common.tsx";
 import "../styles/screens/idea.css";
@@ -177,8 +177,6 @@ function IdeaPanel({ includeArchived }: { includeArchived: boolean }) {
 interface OutcomeImpact {
   etag: string;
   assumptions: { id: string; statement: string }[];
-  story_versions_referring: (VersionReferring & { page_id: string })[];
-  mockup_versions_referring: (VersionReferring & { mockup_id: string })[];
 }
 
 export function IdeaPage() {
@@ -351,7 +349,6 @@ export function IdeaPage() {
             <>
               <p>This deletes “{deleting.title}”.</p>
               {i.assumptions.length ? <p>{plural(i.assumptions.length, "assumption")} serve it, and will no longer be linked to it.</p> : null}
-              <Referring story={i.story_versions_referring} mockups={i.mockup_versions_referring} />
             </>
           )}
           onDeleted={() => {

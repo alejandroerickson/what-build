@@ -1,4 +1,4 @@
-import { BASELINE_TABLES, hashParts, inputFingerprint, isCurrent, json, newId, partHash, type Db, type LineageInput } from "@whatbuild/core";
+import { BASELINE_TABLES, newId } from "@whatbuild/core";
 import type pg from "pg";
 import { checkReferences, storedColumns } from "./organization-copy.ts";
 
@@ -96,34 +96,4 @@ export async function copyTenant(c: pg.Client, fromTenantId: string, slug: strin
   }
   await checkReferences(c, "The golden master");
   return ids;
-}
-
-/**
- * A view's lineage fingerprints its inputs, and a fingerprint covers ids (a source's file version and
- * derivation, an assumption's citations), so the copy's ids would make every view's inputs look
- * changed. Where an input was current in the original, its fingerprint and parts are taken again
- * from the copy; where it had changed, it stays changed in the same parts.
- */
-export async function refreshCopiedLineage(db: Db, ids: Map<string, string>) {
-  const original = new Map([...ids].map(([from, to]) => [to, from]));
-  const rows = await db.selectFrom("lineage").select(["record_id", "product_id", "inputs"]).execute();
-  for (const row of rows.filter((r) => original.has(r.product_id))) {
-    const inputs: LineageInput[] = [];
-    for (const input of row.inputs) {
-      const was = await inputFingerprint(db, original.get(row.product_id)!, { kind: input.kind, id: original.get(input.id) ?? input.id });
-      const now = await inputFingerprint(db, row.product_id, input);
-      if (now.fingerprint && now.parts && isCurrent(input, was)) {
-        // Current in the original, by the same rule check uses: current in the copy, fingerprinted as it is there.
-        inputs.push({ kind: input.kind, id: input.id, fingerprint: now.fingerprint, parts: hashParts(now.parts) });
-        continue;
-      }
-      // Changed in the original: each part that still matched there is taken again from the copy, so
-      // the copy reports the same parts changed.
-      const parts = input.parts && was.parts && now.parts
-        ? Object.fromEntries(Object.entries(input.parts).map(([k, h]) => [k, k in was.parts!.values && h === partHash(was.parts!.values[k]) ? partHash(now.parts!.values[k]) : h]))
-        : input.parts;
-      inputs.push({ ...input, ...(parts ? { parts } : {}) });
-    }
-    await db.updateTable("lineage").set({ inputs: json(inputs) }).where("record_id", "=", row.record_id).execute();
-  }
 }

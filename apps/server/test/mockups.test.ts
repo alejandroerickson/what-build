@@ -14,7 +14,6 @@ let P: string;
 let tenantSlug: string;
 let tenantId: string;
 let teamSlug: string;
-let assumptionId: string;
 
 const page = (heading: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${heading}</title><style>body{font:16px system-ui}</style></head><body><h1>${heading}</h1></body></html>`;
 
@@ -29,8 +28,6 @@ beforeAll(async () => {
   tenantSlug = t.body.tenant.slug;
   tenantId = t.body.tenant.tenant_id ?? t.body.tenant.id;
   teamSlug = t.body.team.slug;
-  const a = await alice.api("POST", `${P}/assumptions`, { statement: "Finance leads want the close on one screen." });
-  assumptionId = a.body.id;
   for (const [email, role] of [["vic@example.com", "viewer"], ["rita@example.com", "reader"]])
     expect((await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, product: "planner", email, role })).status).toBe(201);
 });
@@ -54,7 +51,6 @@ describe("mockups", () => {
         { page_id: "grid", title: "Grid", notes: "Dense, for experts.", html: page("Grid") },
         { page_id: "timeline", title: "Timeline", html: page("Timeline"), width: 390, height: 844 },
       ],
-      refs: { assumptions: [assumptionId] },
     });
     expect(r.status).toBe(201);
     id = r.body.mockup_id;
@@ -63,7 +59,6 @@ describe("mockups", () => {
     expect(r.body.current.pages.map((p: { page_id: string }) => p.page_id)).toEqual(["grid", "timeline"]);
     expect(r.body.current.pages[0]).toMatchObject({ width: 1280, height: 800, notes: "Dense, for experts." });
     expect(r.body.current.pages[1]).toMatchObject({ width: 390, height: 844 });
-    expect(r.body.current.resolved_refs.assumptions[0]).toMatchObject({ id: assumptionId, missing: false });
     const list = await alice.api("GET", `${P}/mockups`);
     expect(list.body.items).toHaveLength(1);
     expect(list.body.items[0]).toMatchObject({ mockup_id: id, page_count: 2 });
@@ -171,7 +166,7 @@ const VTT = `WEBVTT
 <v Dana>Chasing approvals across four spreadsheets.
 `;
 
-describe("what a mockup draws on", () => {
+describe("a mockup beside the product's sources", () => {
   let recordId: string;
   let mockupId: string;
 
@@ -186,38 +181,20 @@ describe("what a mockup draws on", () => {
       title: "Approvals",
       brief: "Where do approvals stall?",
       pages: [{ page_id: "queue", title: "Queue", html: page("Queue") }],
-      citations: [{ record_id: recordId, seq_start: 2, seq_end: 2 }],
     });
     expect(m.status, JSON.stringify(m.body)).toBe(201);
     mockupId = m.body.mockup_id;
-    const v2 = await alice.api("POST", `${P}/mockups`, { mockup_id: mockupId, expected_etag: m.body.etag, refs: { sources: [recordId] }, citations: [] });
+    const v2 = await alice.api("POST", `${P}/mockups`, { mockup_id: mockupId, expected_etag: m.body.etag, summary: "Where approvals stall, on one screen." });
     expect(v2.status).toBe(201);
   });
 
-  it("is listed among what a source is used in, and in its delete impact, earlier versions included", async () => {
-    const using = await alice.api("GET", `${P}/sources/${recordId}/used-by`);
-    expect(using.body.mockups).toEqual([{ mockup_id: mockupId, title: "Approvals", version: 2, referenced: true, citations: [] }]);
-    const impact = await alice.api("GET", `${P}/sources/${recordId}/delete-impact`);
-    expect(impact.body.mockup_versions_citing).toEqual([{ mockup_id: mockupId, title: "Approvals", version: 1, count: 1, is_current: false }]);
-    expect(impact.body.after_delete).toMatch(/1 mockup version/);
-  });
-
-  it("checks a version's citations against the source as it is now", async () => {
-    const v1 = await alice.api("GET", `${P}/mockups/${mockupId}/check-citations?version=1`);
-    expect(v1.status).toBe(200);
-    expect(v1.body).toMatchObject({ mockup_id: mockupId, version: 1 });
-    expect(v1.body.citations).toEqual([expect.objectContaining({ index: 0, status: "ok" })]);
-    const current = await alice.api("GET", `${P}/mockups/${mockupId}/check-citations`);
-    expect(current.body).toMatchObject({ version: 2, citations: [] });
-  });
-
-  it("keeps the source from moving to another product while the mockup uses it", async () => {
+  it("lets a source move to another product whatever a mockup was built from", async () => {
     await alice.api("POST", `/api/v1/teams/${tenantSlug}/${teamSlug}/products`, { name: "Elsewhere" });
     const etag = (await alice.api("GET", `${P}/sources/${recordId}`)).body.etag;
     const moved = await alice.api("POST", `${P}/sources/${recordId}/move`, { record_id: recordId, to_product: "elsewhere", expected_etag: etag });
-    expect(moved.status).toBe(409);
-    expect(moved.body.error.code).toBe("source_in_use");
-    expect(moved.body.error.details.mockups).toEqual([{ mockup_id: mockupId, title: "Approvals" }]);
+    expect(moved.status, JSON.stringify(moved.body)).toBe(200);
+    expect(moved.body).toMatchObject({ record_id: recordId, product: "Elsewhere" });
+    expect((await alice.api("GET", `${P}/mockups/${mockupId}`)).body.current_version).toBe(2);
   });
 
   it("goes into the product export: every version, with its brief, pages and notes", async () => {
@@ -232,7 +209,8 @@ describe("what a mockup draws on", () => {
     expect(names).toContain(`mockups/${mockupId}/v2/pages/queue.html`);
     expect(names).toContain(`mockups/${mockupId}/v2/pages/queue.notes.md`);
     const v2 = JSON.parse(strFromU8(files[`mockups/${mockupId}/v2/version.json`]!));
-    expect(v2).toMatchObject({ n: 2, refs: { sources: [recordId] } });
+    expect(v2).toMatchObject({ n: 2, summary: "Where approvals stall, on one screen." });
+    expect(v2).not.toHaveProperty("refs");
     expect(v2.pages).toEqual([expect.objectContaining({ page_id: "queue", title: "Queue" })]);
     expect(v2.pages[0].html).toBeUndefined();
   });
@@ -276,7 +254,6 @@ describe("promoting a mockup page to the Story", () => {
         { page_id: "board", title: "Board", html: page("Board v1") },
         { page_id: "phone", title: "Phone view", width: 390, height: 760, html: page("Phone v1") },
       ],
-      refs: { assumptions: [assumptionId] },
     });
     mockupId = m.body.mockup_id;
     mockupEtag = m.body.etag;
@@ -288,7 +265,6 @@ describe("promoting a mockup page to the Story", () => {
     pageEtag = r.body.etag;
     expect(r.body).toMatchObject({ page_id: "phone", title: "Phone view", current_version: 1, placed: true });
     expect(r.body.current.mockup).toMatchObject({ mockup_id: mockupId, version: 1, page_id: "phone", page_title: "Phone view", width: 390, height: 760, current_version: 1 });
-    expect(r.body.current.refs.assumptions).toEqual([assumptionId]);
     const got = await alice.api("GET", `${P}/story/pages/phone`);
     expect(got.body.current.html).toContain("Phone v1");
     const html = await raw(alice, `${P}/story/pages/phone/versions/1/html?theme=dark&frame=1`);
@@ -542,7 +518,7 @@ describe("publishing a canvas uploaded as a ZIP", () => {
       "canvas/pages/phone.html": page("Phone"),
       "canvas/files/DESIGN.md": "# Board",
     });
-    const r = await alice.api("POST", `${P}/mockups`, { upload_id: uploadId, refs: { assumptions: [assumptionId] } });
+    const r = await alice.api("POST", `${P}/mockups`, { upload_id: uploadId });
     expect(r.status).toBe(201);
     mockupId = r.body.mockup_id;
     etag = r.body.etag;
@@ -553,7 +529,6 @@ describe("publishing a canvas uploaded as a ZIP", () => {
       expect.objectContaining({ page_id: "phone", title: "Phone", notes: "", width: 390, height: 844 }),
     ]);
     expect(r.body.current.files).toEqual([expect.objectContaining({ path: "DESIGN.md" })]);
-    expect(r.body.current.resolved_refs.assumptions[0]).toMatchObject({ id: assumptionId });
     // Read once: the bytes go, and the upload can't make a second version.
     await h.worker.drain();
     const row = await h.db.transaction().execute(async (trx) => {

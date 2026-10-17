@@ -83,14 +83,10 @@ describe("deleting what is in a product", () => {
     expect(log.body.items.map((i: { action: string }) => i.action)).toContain("note_deleted");
   });
 
-  it("deletes an assumption: its links from others go, and Story and mockup versions that name it are reported", async () => {
+  it("deletes an assumption: its links from others go", async () => {
     const impact = await owner.api("GET", `${P}/assumptions/${org.linked.id}/delete-impact`);
     expect(impact.status).toBe(200);
     expect(impact.body.linked_from).toEqual([expect.objectContaining({ id: org.assumption.id, type: "supports" })]);
-    const named = await owner.api("GET", `${P}/assumptions/${org.assumption.id}/delete-impact`);
-    // The page the mockup was promoted to takes the mockup's refs, so it names the assumption too.
-    expect(named.body.story_versions_referring.map((v: { page_id: string }) => v.page_id).sort()).toEqual([org.page.id, org.promotedPage.id].sort());
-    expect(named.body.mockup_versions_referring).toEqual([expect.objectContaining({ mockup_id: org.mockup.id, version: 1 })]);
 
     const before = await owner.api("GET", `${P}/assumptions/${org.assumption.id}`);
     // A reviewed, frozen assumption is deleted like any other.
@@ -108,7 +104,6 @@ describe("deleting what is in a product", () => {
   it("deletes an outcome: the assumptions that served it stop naming it", async () => {
     const impact = await owner.api("GET", `${P}/outcomes/${org.outcome.id}/delete-impact`);
     expect(impact.body.assumptions.map((a: { id: string }) => a.id)).toEqual([org.assumption.id]);
-    expect(impact.body.story_versions_referring).toHaveLength(1);
     const del = await owner.api("DELETE", `${P}/outcomes/${org.outcome.id}`, guards(impact.body.etag));
     expect(del.status, JSON.stringify(del.body)).toBe(200);
     expect((await owner.api("GET", `${P}/assumptions/${org.assumption.id}`)).body.outcome_ids).toEqual([]);

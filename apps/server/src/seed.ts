@@ -88,10 +88,6 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
     {
       statement: "Crew leads think about the week in jobs, not in time slots.",
       body: "Marisol and the survey comments say jobs first; Dev and Priya plan day by day. If the split follows the trade, the first version may need both views.",
-      citations: [
-        { record_id: vtt, seq_start: 7, seq_end: 7 },
-        { record_id: txt, seq_start: 8, seq_end: 9, quote: "By the day, if I'm honest." },
-      ],
       outcome_ids: [outcomeIds[2]!],
       tags: ["planning-model"],
       author_type: "agent",
@@ -112,18 +108,11 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
       summary: "Planning costs an afternoon a week; the hand-off is where mistakes happen.",
       html: STORY_HTML(
         {
-          passage: `${base}/t/${path}/evidence/${vtt}?seq=8`,
           assumption: `${base}/t/${path}/exploration/assumptions/${assumption["id"]}`,
           handOff: `${base}/t/${path}/story/hand-off-test`,
         },
         sampleStylesheet,
       ),
-      refs: { outcomes: [outcomeIds[1]!], sources: [vtt, txt, survey], assumptions: [String(assumption["id"])] },
-      citations: [
-        { record_id: vtt, seq_start: 8, seq_end: 8, quote: "The texts are the worst part honestly. Every crew lead gets a message with their jobs and addresses, and I type those by hand." },
-        { record_id: vtt, seq_start: 3, seq_end: 3, quote: "Two hours if nothing's weird." },
-        { record_id: txt, seq_start: 9, seq_end: 9, quote: "By the day, if I'm honest." },
-      ],
     },
     ref,
   );
@@ -135,9 +124,7 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
       page_id: "hand-off-test",
       title: "The hand-off test",
       summary: "Two crews get their week as a generated message instead of a typed one.",
-      html: HANDOFF_HTML({ passage: `${base}/t/${path}/evidence/${vtt}?seq=9` }, sampleStylesheet),
-      refs: { outcomes: [outcomeIds[1]!], sources: [vtt] },
-      citations: [{ record_id: vtt, seq_start: 9, seq_end: 10 }],
+      html: HANDOFF_HTML(sampleStylesheet),
     },
     ref,
   );
@@ -162,8 +149,6 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
         { path: "DESIGN.md", content: MOCKUP.files.design },
         { path: "components/job-card.html", content: MOCKUP.files.card },
       ],
-      refs: { outcomes: [outcomeIds[0]!, outcomeIds[2]!], sources: [vtt, survey], assumptions: [String(assumption["id"])] },
-      citations: [{ record_id: txt, seq_start: 8, seq_end: 9, quote: "By the day, if I'm honest." }],
     },
     ref,
   );

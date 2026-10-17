@@ -3,7 +3,7 @@ type: Specification
 title: Accounts belong to tenants, tenants hold teams, teams run products, and one role check decides every call.
 description: The account → tenant → team → product hierarchy, sign-in, roles and what they grant, addressing and isolation, moving sources between products, caller identity, attribution, and who is who in the public sandbox.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, sandbox]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
@@ -26,14 +26,14 @@ tenant               an organization: the isolation and (later) billing boundary
         ├── assumptions  (the register)
         ├── mockups      versions, pages, files
         ├── Story        pages, versions, hierarchy
-        ├── lineage
         └── activity     append-only event log
 ```
 
 - Every object belongs to exactly one product (`product_id`), every product to one team, every team
   to one tenant. Every content row also carries `tenant_id`, which is what isolation keys on.
-- **References never cross products.** A citation, link or reference to another product's object is
-  refused with `422 cross_product_reference`, which keeps a product exportable as a closed bundle.
+- **References never cross products.** A link from an assumption to another product's assumption
+  is refused with `422 cross_product_reference`, and an outcome of another product is unknown
+  (`422 unknown_reference`), which keeps a product exportable as a closed bundle.
 - **Moving and copying** a source between products is allowed **within one team**
   ([§3.7](#37-moving-and-copying-between-products)).
 - In the UI the tenant is called the **organization**. The API and MCP say `tenant`.
@@ -266,9 +266,8 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   product the caller holds a role on); every
   other product operation needs viewer and answers a reader `403` ("You are a reader on product
   Crewboard; sources.list needs viewer"), and so do a source's file, an export's file, a Story
-  style specimen and a mockup's page. A reader's Story reads leave out `refs`, `resolved_refs`,
-  `citations`, `citation_count` and `agent_notes`, and of a page promoted from a mockup keep only
-  its size; their product reads leave out `concept` and count only `story_pages` (and `stage_counts.story`). A page's HTML is
+  style specimen and a mockup's page. A reader's Story reads leave out `agent_notes`, and of a page
+  promoted from a mockup keep only its size; their product reads leave out `concept` and count only `story_pages` (and `stage_counts.story`). A page's HTML is
   served to a reader exactly as published, and a promoted mockup page through the Story's own
   route, so a reader sees that page and nothing else of the mockup ([§4.11](04-data-model.md)).
   Someone who reads only the Story everywhere in an organization (a reader on its teams or
@@ -374,10 +373,9 @@ every table with `tenant_id`, except the directory tables it lists with their re
 
 - **Copy** (`sources.copy_to_product`): a new record id in another product of the same team, with
   `copied_from`; files are shared (blobs are immutable) and parsed afresh in the target.
-- **Move** (`sources.move_to_product`): keeps the record id, files, derivations and notes. Refused
-  with `409 source_in_use` while anything in the current product cites or references the source
-  (assumptions, views' lineage, related sources, the current version of a Story page or a
-  mockup), listing what does, because references never cross products. Both products log the move.
+- **Move** (`sources.move_to_product`): keeps the record id, files, derivations and notes. Nothing
+  structural points at a source, so nothing refuses a move; a link to the source in the product it
+  left stops opening. Both products log the move.
 - Both need editor on the source's product and on the target. Moving assumptions, outcomes,
   mockups and Story pages is planned, with the same closure rule.
 

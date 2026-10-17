@@ -2,7 +2,7 @@ import { sql, type Selectable } from "kysely";
 import { z } from "zod";
 import { checkEtag, keepRevision, productId, recordActivity, tenantId } from "../common.ts";
 import { json, type OutcomesTable } from "../db.ts";
-import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, dropRevisions, leaveTombstone, mockupVersionsReferring, refuseIfDeleted, storyVersionsReferring } from "../deletion.ts";
+import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, dropRevisions, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
 import { invalid, notFound } from "../errors.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag, id } from "../schemas.ts";
@@ -64,7 +64,7 @@ export const listOutcomes = defineOperation({
   summary: "List the product's outcomes in order: the compass every other part of the product is read against.",
   description:
     "Outcomes are what the product's users should be able to achieve with it, under the product concept. Read them at the start of any work in a product, and check what you write against them. " +
-    "Assumptions point at them through outcome_ids, and mockups and Story pages through refs.outcomes; an outcome points at nothing. To see the assumptions that serve one, list assumptions with its outcome_id. " +
+    "Assumptions point at them through outcome_ids; an outcome points at nothing. To see the assumptions that serve one, list assumptions with its outcome_id. " +
     "Archived outcomes are left out unless include_archived; archived_hidden says how many were left out. An archived outcome can still be linked, and assumptions flag such links in archived_outcome_ids.",
   input: z.strictObject({
     include_archived: z.boolean().default(false),
@@ -257,10 +257,7 @@ async function deletion(ctx: OpContext, row: Row) {
     etag: row.etag,
     archived: Boolean(row.archived_at),
     assumptions: assumptions.map((a) => ({ id: a.entry_id, statement: a.statement })),
-    story_versions_referring: await storyVersionsReferring(ctx, "outcomes", row.outcome_id),
-    mockup_versions_referring: await mockupVersionsReferring(ctx, "outcomes", row.outcome_id),
-    after_delete:
-      "Its title, description and earlier text go. It is removed from the outcome_ids of the assumptions that serve it. Story page and mockup versions that list it in refs keep their text, and that ref stops resolving.",
+    after_delete: "Its title, description and earlier text go. It is removed from the outcome_ids of the assumptions that serve it.",
     reversible_alternative: 'outcomes(action="archive") takes it out of the list and keeps it linkable.',
   };
 }
@@ -272,7 +269,7 @@ export const outcomeDeleteImpact = defineOperation({
   mutates: false,
   summary: "Preview exactly what deleting an outcome would destroy, and what points at it.",
   description:
-    "Read-only. Show the person this result before proposing a delete. assumptions lists the assumptions it would be removed from; story_versions_referring and mockup_versions_referring list every version, current or earlier, that names it in its refs. Pass this result's etag as the delete's expected_etag.",
+    "Read-only. Show the person this result before proposing a delete. assumptions lists the assumptions it would be removed from. Pass this result's etag as the delete's expected_etag.",
   input: z.strictObject({ outcome_id: outcomeId }),
   rest: { method: "GET", path: "/outcomes/:outcome_id/delete-impact" },
   mcp: { tool: "outcomes", action: "delete_impact" },

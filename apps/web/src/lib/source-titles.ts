@@ -2,7 +2,7 @@ import { useQueries } from "@tanstack/react-query";
 import { api } from "./api.ts";
 
 /**
- * Titles for the sources a page cites, by id: one brief read per source, cached across pages. A
+ * Titles for the sources a page mentions, by id: one brief read per source, cached across pages. A
  * source that no longer resolves is left out, and its chip reads "Source".
  */
 export function useSourceTitles(base: string, ids: string[]): Record<string, string | undefined> {

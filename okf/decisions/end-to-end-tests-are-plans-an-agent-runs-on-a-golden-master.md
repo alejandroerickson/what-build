@@ -3,7 +3,7 @@ type: Decision
 title: End-to-end tests are written plans that an agent runs through the web app and MCP, on a local instance reset to a golden master made from production's public sandbox
 description: Plans in the product's vocabulary, run by any agent with a shell through tools in the repository, against an instance that starts each time from the public sandbox's organization and a non-sandbox copy of it, taken from a private pull of production; no separate test service.
 tags: [decision, development, testing, qa, e2e, agents, sandbox]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
@@ -50,7 +50,7 @@ small synthetic sample does.
 ## Constrains
 
 - The standard organization holds the same content as the sandbox organization: whatever the copy
-  rewrites (ids, and the lineage fingerprints that cover them), it rewrites consistently.
+  rewrites (every id, in any column or JSON), it rewrites consistently.
 - `apps/server/src/e2e.ts`, `e2e-golden.ts`, `e2e-browser.ts`, `e2e-mcp.ts` and the `--e2e` mode of
   `dev.ts`: the instance keeps its own Postgres, files and ports, prints mail, and never changes the
   golden master.

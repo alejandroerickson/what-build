@@ -1,9 +1,8 @@
 import { sql, type Selectable } from "kysely";
 import { z } from "zod";
 import { checkEtag, keepRevision, normalizeTags, productId, recordActivity, tenantId } from "../common.ts";
-import { checkCitationList, CITATION_MAX_COUNT, citationInput, citationViews, snapshotAll } from "../citations.ts";
 import { json, type RegisterEntriesTable, type RegisterLink } from "../db.ts";
-import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, dropRevisions, leaveTombstone, mockupVersionsReferring, refuseIfDeleted, storyVersionsReferring } from "../deletion.ts";
+import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, dropRevisions, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
 import { conflict, invalid, notFound } from "../errors.ts";
 import { defineOperation, type OpContext, type OperationDef } from "../registry.ts";
 import { authorType, expectedEtag, id, provenanceDepth, tags } from "../schemas.ts";
@@ -93,7 +92,6 @@ async function detail(ctx: OpContext, row: Row) {
     body: row.body,
     status: row.status,
     frozen: row.review_count > 0,
-    citations: await citationViews(ctx, row.citations),
     links: row.links.map((l) => ({ ...l, ...(() => { const e = linked.find((x) => x.entry_id === l.id); return e ? { kind: e.kind, statement: e.statement, status: e.status } : {}; })() })),
     linked_from: incoming.flatMap((e) => e.links.filter((l) => l.id === row.entry_id).map((l) => ({ id: e.entry_id, kind: e.kind, statement: e.statement, status: e.status, type: l.type }))),
     superseded_by: incoming.filter((e) => e.links.some((l) => l.id === row.entry_id && l.type === "supersedes")).map((e) => e.entry_id),
@@ -156,8 +154,6 @@ function registerOps(): OperationDef[] {
       .where("entry_id", "!=", row.entry_id)
       .where(sql<boolean>`links @> ${JSON.stringify([{ id: row.entry_id }])}::jsonb`)
       .execute();
-    const story = await storyVersionsReferring(ctx, "assumptions", row.entry_id);
-    const mockups = await mockupVersionsReferring(ctx, "assumptions", row.entry_id);
     return {
       id: row.entry_id,
       statement: row.statement,
@@ -165,14 +161,11 @@ function registerOps(): OperationDef[] {
       status: row.status,
       archived: Boolean(row.archived_at),
       review_count: row.review_count,
-      citation_count: row.citations.length,
       links: row.links.length,
       linked_from: linkedFrom.flatMap((e) => e.links.filter((l) => l.id === row.entry_id).map((l) => ({ id: e.entry_id, statement: e.statement, type: l.type }))),
-      story_versions_referring: story,
-      mockup_versions_referring: mockups,
       after_delete:
-        `Its statement, body, ${row.citations.length} citation${row.citations.length === 1 ? "" : "s"} with their quoted snapshots, ${row.review_count} review${row.review_count === 1 ? "" : "s"} and earlier text go. ` +
-        `Links to it from other assumptions are removed. Story page and mockup versions that list it in refs keep their text, and that ref stops resolving.`,
+        `Its statement, body, ${row.review_count} review${row.review_count === 1 ? "" : "s"} and earlier text go. ` +
+        `Links to it from other assumptions are removed.`,
       reversible_alternative: `${tool}(action="archive") takes it out of lists and search and erases nothing; to correct the claim itself, review or supersede it.`,
     };
   }
@@ -180,11 +173,6 @@ function registerOps(): OperationDef[] {
   const createFields = {
     statement: z.string().trim().min(1).max(1000).describe("The premise in one sentence. Frozen after the first review."),
     body: z.string().max(10_000).default("").describe("Markdown: reasoning, stakes, alternatives considered."),
-    citations: z
-      .array(citationInput)
-      .max(CITATION_MAX_COUNT)
-      .default([])
-      .describe("Up to 20 exact passages the entry rests on: {record_id, seq_start, seq_end, quote?}. Optional: an entry may start with none and gain them before its first review. Read each passage first."),
     outcome_ids: z.array(id("outcome")).max(20).optional(),
     links: z.array(linkInput).max(50).optional(),
     tags: tags.optional(),
@@ -202,7 +190,6 @@ function registerOps(): OperationDef[] {
 
   async function insertEntry(ctx: OpContext, input: z.output<z.ZodObject<typeof createFields>>) {
     const entry_id = newId();
-    const citations = await snapshotAll(ctx, input.citations);
     const links = input.links ?? [];
     await checkLinks(ctx, entry_id, links);
     await checkOutcomes(ctx, input.outcome_ids);
@@ -210,13 +197,12 @@ function registerOps(): OperationDef[] {
       .insertInto("register_entries")
       .values({
         entry_id, tenant_id: tenantId(ctx), product_id: productId(ctx), kind, statement: input.statement, body: input.body,
-        citations: json(citations), links: json(links), outcome_ids: uniq(input.outcome_ids ?? []), tags: normalizeTags(input.tags),
-        provenance_depth: input.provenance_depth ?? "unknown",
+        links: json(links), outcome_ids: uniq(input.outcome_ids ?? []), tags: normalizeTags(input.tags), provenance_depth: input.provenance_depth ?? "unknown",
         author: json(ctx.actor), author_type: input.author_type ?? defaultReviewerType(ctx), status: "unconfirmed",
         etag: newEtag(), updated_by: json(ctx.actor),
       })
       .execute();
-    await recordActivity(ctx, { action: "created", entity_type: kind, entity_id: entry_id, entity_title: input.statement, summary: citations.length ? `Recorded an unconfirmed ${kind} citing ${citations.length} passage${citations.length === 1 ? "" : "s"}` : `Recorded an unconfirmed ${kind} with no citations yet` });
+    await recordActivity(ctx, { action: "created", entity_type: kind, entity_id: entry_id, entity_title: input.statement, summary: `Recorded an unconfirmed ${kind}` });
     return entry_id;
   }
 
@@ -226,10 +212,9 @@ function registerOps(): OperationDef[] {
     access: "read",
     mutates: false,
     summary: `List ${kind}s, newest first, without quotes or review notes.`,
-    description: `${meaning} Without status it lists the current entries (unconfirmed and confirmed), the ones products(action="list") and outcomes count; not_current_hidden says how many refuted or superseded entries matching the other filters it left out. Pass status (one or more of unconfirmed, confirmed, refuted, superseded) to list those too. Filter also by a cited source, an outcome, a tag or human confidence. Archived entries are left out unless include_archived. Each item says whether it is frozen (reviewed, so its statement, body and citations can no longer be edited), which entries supersede it (superseded_by, newest first), and how many links it has out (link_count) and in (linked_from_count); get returns the links themselves.`,
+    description: `${meaning} Without status it lists the current entries (unconfirmed and confirmed), the ones products(action="list") and outcomes count; not_current_hidden says how many refuted or superseded entries matching the other filters it left out. Pass status (one or more of unconfirmed, confirmed, refuted, superseded) to list those too. Filter also by an outcome, a tag or human confidence. Archived entries are left out unless include_archived. Each item says whether it is frozen (reviewed, so its statement and body can no longer be edited), which entries supersede it (superseded_by, newest first), and how many links it has out (link_count) and in (linked_from_count); get returns the links themselves.`,
     input: z.strictObject({
       status: z.array(STATUS).max(4).optional().describe("Only these statuses. Omit for the current ones: unconfirmed and confirmed."),
-      record_id: id("source").optional(),
       outcome_id: id("outcome").optional(),
       tag: z.string().max(50).optional(),
       human_confidence: z.enum(["unreviewed", "low", "medium", "high"]).optional(),
@@ -244,7 +229,6 @@ function registerOps(): OperationDef[] {
     async handler(ctx, input) {
       let q = ctx.db.selectFrom("register_entries").selectAll().where("product_id", "=", productId(ctx)).where("kind", "=", kind);
       if (!input.include_archived) q = q.where("archived_at", "is", null);
-      if (input.record_id) q = q.where(sql<boolean>`citations @> ${JSON.stringify([{ record_id: input.record_id }])}::jsonb`);
       if (input.outcome_id) q = q.where(sql<boolean>`${input.outcome_id} = any(outcome_ids)`);
       if (input.tag) q = q.where(sql<boolean>`${normalizeTags([input.tag])[0]!} = any(tags)`);
       if (input.provenance_depth) q = q.where("provenance_depth", "=", input.provenance_depth);
@@ -267,7 +251,6 @@ function registerOps(): OperationDef[] {
           id: r.entry_id, kind: r.kind, statement: r.statement, status: r.status, author: r.author, author_type: r.author_type,
           created_at: r.created_at, updated_at: r.updated_at, provenance_depth: r.provenance_depth, tags: r.tags,
           outcome_ids: r.outcome_ids, archived_outcome_ids: r.outcome_ids.filter((o) => archivedOutcomes.has(o)),
-          citation_count: r.citations.length, record_ids: uniq(r.citations.map((c) => c.record_id)),
           frozen: r.review_count > 0, superseded_by: incoming.get(r.entry_id)!.superseded_by,
           link_count: r.links.length, linked_from_count: incoming.get(r.entry_id)!.linked_from,
           review_count: r.review_count, human_review: await humanReview(ctx, r.entry_id), archived_at: r.archived_at, etag: r.etag,
@@ -293,8 +276,8 @@ function registerOps(): OperationDef[] {
     scope: "product",
     access: "read",
     mutates: false,
-    summary: `Read a ${kind}: statement, body, citations with their snapshot text, links, and the latest 20 reviews.`,
-    description: "Citation quotes are snapshots taken when the entry was written; check_citations reports whether the source still says so.",
+    summary: `Read a ${kind}: statement, body, links, and the latest 20 reviews.`,
+    description: "links are this entry's own typed links to other assumptions; linked_from lists the entries that link to it.",
     input: z.strictObject({ id: idField }),
     rest: { method: "GET", path: `/${tool}/:id` },
     mcp: { tool, action: "get" },
@@ -308,8 +291,8 @@ function registerOps(): OperationDef[] {
     scope: "product",
     access: "write",
     mutates: true,
-    summary: `Record a ${kind}, optionally cited to exact passages. Starts unconfirmed.`,
-    description: `${meaning} Create one only when the team needs to track this specific premise, and keep the register small. Citations are optional: an entry can be recorded before any evidence exists and cited later, until its first review. Each citation is resolved against the source's current passages and frozen as a snapshot. Label author_type honestly: ordinary conversational agreement is not a person's authorship.`,
+    summary: `Record a ${kind}. Starts unconfirmed.`,
+    description: `${meaning} Create one only when the team needs to track this specific premise, and keep the register small. Say in the body why the team holds it. Label author_type honestly: ordinary conversational agreement is not a person's authorship.`,
     input: z.strictObject(createFields),
     rest: { method: "POST", path: `/${tool}` },
     mcp: { tool, action: "create" },
@@ -324,16 +307,15 @@ function registerOps(): OperationDef[] {
     scope: "product",
     access: "write",
     mutates: true,
-    summary: `Edit a ${kind}. Statement, body and citations only until its first review; tags, outcomes and links always.`,
+    summary: `Edit a ${kind}. Statement and body only until its first review; tags, outcomes and links always.`,
     description:
-      "After the first review the statement, body and citations are frozen, because a confirmation must refer to the exact words reviewed; correct a reviewed entry with supersede. For a small correction before then, pass edits (exact replacements in the statement or body that must each match once) instead of re-sending the whole text. Earlier text is kept as a revision. The result lists changed fields and a short diff of each changed text; check it.",
+      "After the first review the statement and body are frozen, because a confirmation must refer to the exact words reviewed; correct a reviewed entry with supersede. For a small correction before then, pass edits (exact replacements in the statement or body that must each match once) instead of re-sending the whole text. Earlier text is kept as a revision. The result lists changed fields and a short diff of each changed text; check it.",
     input: z.strictObject({
       id: idField,
       expected_etag: expectedEtag,
       statement: createFields.statement.optional(),
       body: z.string().max(10_000).optional(),
       edits: editsInput(["body", "statement"] as const, "body").optional(),
-      citations: z.array(citationInput).max(CITATION_MAX_COUNT).optional().describe("The full list of citations, replacing the current one; [] removes them all."),
       outcome_ids: createFields.outcome_ids,
       links: createFields.links,
       tags: createFields.tags,
@@ -344,9 +326,9 @@ function registerOps(): OperationDef[] {
     async handler(ctx, input) {
       const row = await load(ctx, input.id, true);
       checkEtag(input.expected_etag, row.etag, kind);
-      const textChange = input.statement !== undefined || input.body !== undefined || input.citations !== undefined || input.edits !== undefined;
+      const textChange = input.statement !== undefined || input.body !== undefined || input.edits !== undefined;
       if (textChange && row.review_count > 0)
-        throw conflict("frozen", `This ${kind} has been reviewed, so its statement, body and citations are frozen. Supersede it with a corrected entry instead.`);
+        throw conflict("frozen", `This ${kind} has been reviewed, so its statement and body are frozen. Supersede it with a corrected entry instead.`);
       const next = { statement: input.statement ?? row.statement, body: input.body ?? row.body };
       if (input.edits) {
         Object.assign(next, applyEdits(next, input.edits, input));
@@ -354,17 +336,15 @@ function registerOps(): OperationDef[] {
         if (!next.statement || next.statement.length > 1000) throw invalid("invalid_input", "After the edits the statement would be empty or longer than 1,000 characters. Nothing was changed.");
         if (next.body.length > 10_000) throw invalid("invalid_input", "After the edits the body would be longer than 10,000 characters. Nothing was changed.");
       }
-      const citations = input.citations ? await snapshotAll(ctx, input.citations) : row.citations;
       const links = input.links ?? row.links;
       if (input.links) await checkLinks(ctx, row.entry_id, links);
       await checkOutcomes(ctx, input.outcome_ids);
-      if (textChange) await keepRevision(ctx, kind, row.entry_id, { statement: row.statement, body: row.body, citations: row.citations }, row.updated_at, row.updated_by);
+      if (textChange) await keepRevision(ctx, kind, row.entry_id, { statement: row.statement, body: row.body }, row.updated_at, row.updated_by);
       await ctx.db
         .updateTable("register_entries")
         .set({
           statement: next.statement,
           body: next.body,
-          citations: json(citations),
           links: json(links),
           outcome_ids: input.outcome_ids ? uniq(input.outcome_ids) : row.outcome_ids,
           tags: input.tags ? normalizeTags(input.tags) : row.tags,
@@ -379,7 +359,6 @@ function registerOps(): OperationDef[] {
       const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
       const changed = [
         ...(["statement", "body"] as const).filter((k) => next[k] !== row[k]),
-        ...(input.citations && !same(after.citations.map((c) => [c.record_id, c.seq_start, c.seq_end, c.quote]), row.citations.map((c) => [c.record_id, c.seq_start, c.seq_end, c.quote])) ? ["citations"] : []),
         ...(["links", "outcome_ids", "tags", "provenance_depth"] as const).filter((k) => !same(after[k], row[k])),
       ];
       const diff = (["statement", "body"] as const).filter((k) => next[k] !== row[k]).map((k) => textDiff(k, row[k], next[k])!);
@@ -403,9 +382,9 @@ function registerOps(): OperationDef[] {
     scope: "product",
     access: "write",
     mutates: true,
-    summary: `Record an attributed review of a ${kind}: a status and a required note, optionally a human's confidence. Any review freezes the statement, body and citations.`,
+    summary: `Record an attributed review of a ${kind}: a status and a required note, optionally a human's confidence. Any review freezes the statement and body.`,
     description:
-      "Status is unconfirmed, confirmed, refuted or superseded; any review may move it anywhere. reviewer_type defaults to human in the web app and agent elsewhere; an agent may declare human only when relaying a judgment the person made in the conversation. confidence (low, medium, high) measures a human's view of suitability for current work, not truth, and is accepted only with reviewer_type human. Review with the current status to record confidence alone. Any review, by a person or an agent and whatever the status (even one that keeps it unconfirmed), freezes the entry's statement, body and citations for good: make every edit first, and after that correct it only with supersede. Reviews are never edited; a changed mind is a new review.",
+      "Status is unconfirmed, confirmed, refuted or superseded; any review may move it anywhere. reviewer_type defaults to human in the web app and agent elsewhere; an agent may declare human only when relaying a judgment the person made in the conversation. confidence (low, medium, high) measures a human's view of suitability for current work, not truth, and is accepted only with reviewer_type human. Review with the current status to record confidence alone. Any review, by a person or an agent and whatever the status (even one that keeps it unconfirmed), freezes the entry's statement and body for good: make every edit first, and after that correct it only with supersede. Reviews are never edited; a changed mind is a new review.",
     input: z.strictObject({
       id: idField,
       expected_etag: expectedEtag,
@@ -513,30 +492,13 @@ function registerOps(): OperationDef[] {
     },
   });
 
-  const checkCitations = defineOperation({
-    name: `${tool}.check_citations`,
-    scope: "product",
-    access: "read",
-    mutates: false,
-    summary: `Re-resolve every citation of a ${kind} against the sources as they are now. Reports drift; never rewrites.`,
-    description:
-      "Per citation: ok, relocated (text intact at another range, which it gives), text_changed, record_archived, record_deleted or record_missing, plus version_drift when the source's primary file has a newer version than the snapshot's. A matching quote establishes textual integrity only, not truth. Check after a re-parse before relying on a conclusion. valid is true when every citation is ok against the passages of each source's current file; rederived says a source was parsed again since a snapshot, so read those passages before relying on an ok.",
-    input: z.strictObject({ id: idField }),
-    rest: { method: "POST", path: `/${tool}/:id/check-citations` },
-    mcp: { tool, action: "check_citations" },
-    async handler(ctx, input) {
-      const row = await load(ctx, input.id);
-      return { id: row.entry_id, checked_at: ctx.now, ...(await checkCitationList(ctx, row.citations)) };
-    },
-  });
-
   const deleteImpact = defineOperation({
     name: `${tool}.delete_impact`,
     scope: "product",
     access: "read",
     mutates: false,
     summary: `Preview exactly what deleting a ${kind} would destroy, and what points at it.`,
-    description: `Read-only. Show the person this result before proposing a delete. linked_from lists the other assumptions whose links to it would be removed; story_versions_referring and mockup_versions_referring list every version, current or earlier, that names it in its refs. Pass this result's etag as the delete's expected_etag.`,
+    description: `Read-only. Show the person this result before proposing a delete. linked_from lists the other assumptions whose links to it would be removed. Pass this result's etag as the delete's expected_etag.`,
     input: z.strictObject({ id: idField }),
     rest: { method: "GET", path: `/${tool}/:id/delete-impact` },
     mcp: { tool, action: "delete_impact" },
@@ -550,9 +512,9 @@ function registerOps(): OperationDef[] {
     scope: "product",
     access: "admin",
     mutates: true,
-    summary: `DELETE PERMANENTLY — cannot be undone. Destroys a ${kind} with its citations, reviews and history; archive is the reversible alternative.`,
+    summary: `DELETE PERMANENTLY — cannot be undone. Destroys a ${kind} with its reviews and history; archive is the reversible alternative.`,
     description:
-      `Archive (${tool}(action="archive")) is the reversible alternative, and review or supersede corrects the claim itself; one of those is almost always what is wanted. Deleting is also how a citation's quoted snapshot is removed for good. ` +
+      `Archive (${tool}(action="archive")) is the reversible alternative, and review or supersede corrects the claim itself; one of those is almost always what is wanted. ` +
       DELETE_GUIDANCE +
       " Leaves a tombstone: reads return 410 with who, when and why.",
     input: z.strictObject({ id: idField, ...deleteGuards }),
@@ -583,7 +545,7 @@ function registerOps(): OperationDef[] {
     },
   });
 
-  return [list, get, create, update, review, supersede, link, unlink, archive, checkCitations, deleteImpact, deleteEntry] as OperationDef[];
+  return [list, get, create, update, review, supersede, link, unlink, archive, deleteImpact, deleteEntry] as OperationDef[];
 }
 
 export const registerOpsList = registerOps();

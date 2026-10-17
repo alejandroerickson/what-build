@@ -70,7 +70,7 @@ beforeAll(async () => {
   await olive.api("POST", `${P}/outcomes`, { title: "Plan the week in ten minutes" });
   seededSource = await upload(olive, P, "visit.md", "# Visit\n\n- Crews text the office.\n- Nobody called it a crisis.\n", "Sample visit notes");
   await h.worker.drain();
-  await olive.api("POST", `${P}/assumptions`, { statement: "Crews read texts before calls.", citations: [{ record_id: seededSource, seq_start: 1, seq_end: 1 }], author_type: "human" });
+  await olive.api("POST", `${P}/assumptions`, { statement: "Crews read texts before calls.", body: "The visit notes say crews text the office.", author_type: "human" });
 
   other = await h.signIn("pat@staff.example", "Pat Elsewhere");
   const o = await other.api("POST", "/api/v1/tenants", { name: "Elsewhere" });
@@ -239,7 +239,7 @@ describe("the public sandbox", () => {
     expect(made.body.created_by.display_name).toMatch(VISITOR);
     const record = await upload(vera, P, "mine.md", "# Mine\n\nA visitor's own notes.\n", "Sample notes a visitor added");
     await h.worker.drain();
-    const assumption = await vera.api("POST", `${P}/assumptions`, { statement: "Visitors read the notes first.", citations: [{ record_id: record, seq_start: 1, seq_end: 1 }] });
+    const assumption = await vera.api("POST", `${P}/assumptions`, { statement: "Visitors read the notes first.", body: "A visitor's own notes say so." });
     expect(assumption.status).toBe(201);
     const everything = JSON.stringify([
       (await viktor.api("GET", `${P}/activity`)).body,

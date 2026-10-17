@@ -1,5 +1,5 @@
-import { json, type ActorSnapshot, type Refs } from "./db.ts";
-import { invalid, staleEtag } from "./errors.ts";
+import { json, type ActorSnapshot } from "./db.ts";
+import { staleEtag } from "./errors.ts";
 import type { OpContext } from "./registry.ts";
 import { collapse, newId, normalizeKey, sameEtag, uniq } from "./util.ts";
 
@@ -95,54 +95,6 @@ export function tenantId(ctx: OpContext): string {
 
 export function normalizeTags(tags: string[] | undefined): string[] {
   return uniq((tags ?? []).map((t) => normalizeKey(t)).filter(Boolean));
-}
-
-export const EMPTY_REFS: Refs = { outcomes: [], sources: [], assumptions: [] };
-
-/**
- * Check that every referenced id exists in this product and is of the named kind. References never
- * cross products: that keeps a product exportable as a closed bundle.
- */
-export async function validateRefs(ctx: OpContext, refs: Partial<Refs>): Promise<Refs> {
-  const pid = productId(ctx);
-  const out: Refs = {
-    outcomes: uniq(refs.outcomes ?? []),
-    sources: uniq(refs.sources ?? []),
-    assumptions: uniq(refs.assumptions ?? []),
-  };
-  const missing: string[] = [];
-  const check = async (ids: string[], found: Promise<{ id: string; product_id: string }[]>, label: string) => {
-    if (!ids.length) return;
-    const rows = await found;
-    const byId = new Map(rows.map((r) => [r.id, r.product_id]));
-    for (const i of ids) {
-      const p = byId.get(i);
-      if (!p) missing.push(`${label} ${i}`);
-      else if (p !== pid) throw invalid("cross_product_reference", `${label} ${i} belongs to another product; references stay inside one product.`);
-    }
-  };
-  await check(
-    out.outcomes,
-    ctx.db.selectFrom("outcomes").select(["outcome_id as id", "product_id"]).where("outcome_id", "in", out.outcomes.length ? out.outcomes : [""]).execute(),
-    "outcome",
-  );
-  await check(
-    out.sources,
-    ctx.db.selectFrom("records").select(["record_id as id", "product_id"]).where("record_id", "in", out.sources.length ? out.sources : [""]).execute(),
-    "source",
-  );
-  await check(
-    out.assumptions,
-    ctx.db
-      .selectFrom("register_entries")
-      .select(["entry_id as id", "product_id"])
-      .where("kind", "=", "assumption")
-      .where("entry_id", "in", out.assumptions.length ? out.assumptions : [""])
-      .execute(),
-    "assumption",
-  );
-  if (missing.length) throw invalid("unknown_reference", `These references do not exist in this product: ${missing.join(", ")}.`);
-  return out;
 }
 
 /** Page through rows ordered by a descending ULID column. */

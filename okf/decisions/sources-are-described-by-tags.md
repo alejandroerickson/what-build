@@ -62,10 +62,6 @@ could set them or filter by them, and each said what a tag says. The maintainer 
   and offering the tags in use are the guard; nothing merges or renames a tag across sources yet
   ([roadmap](../spec/10-roadmap.md)).
 - The folder browse facet is gone; tags are the only grouping.
-- A source's lineage fingerprint no longer covers kind or organization. `lineage.check` compares
-  stored parts one by one and ignores parts no longer covered. An input from before parts were
-  stored is checked whole, so the migration keeps the kind and organization it was fingerprinted
-  with, and the check uses them. Either way, a view turns stale only when an input really changed.
 - Going back past the release that carries `0017`, or the one that carries `0027`, means
   restoring the database, because each migration drops columns
   ([recovering](../operations/recovering-from-a-bad-release.md)).

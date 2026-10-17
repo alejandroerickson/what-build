@@ -2,18 +2,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
-import { attribution, citationCheckWords, citedAt, formatCue, nestQuotes, plural, relativeTime } from "../lib/format.ts";
+import { attribution, plural, relativeTime } from "../lib/format.ts";
 import { findByTitle } from "../lib/fuzzy.ts";
-import { Markdown, passageHref } from "../lib/markdown.tsx";
+import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
-import { PROVENANCE_LABEL, REVIEW_STATUS, toneFor } from "../lib/status.ts";
-import type { CitationView, RegisterEntry, RegisterSummary } from "../lib/types.ts";
+import { PROVENANCE_LABEL, REVIEW_STATUS } from "../lib/status.ts";
+import type { RegisterEntry, RegisterSummary } from "../lib/types.ts";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
   Button, ButtonLink, Callout, ChoiceRow, EmptyState, ErrorCallout, FiltersInUse, FormGrid, Glyph, ListRow, Loading, Menu, MenuItem, MenuNote, MenuSeparator, PageHeader, SelectField, Sheet,
   SheetBody, SheetHeader, StatusBadge, Tag, TextArea, useToast,
 } from "../ui/index.tsx";
-import { DeleteDialog, listed, Referring, type VersionReferring } from "./delete-dialog.tsx";
+import { DeleteDialog } from "./delete-dialog.tsx";
 import { Byline, searchWith, useCopyLink } from "./exploration-common.tsx";
 import { FirstUse } from "./first-use.tsx";
 import { entryViews, Marked, TitleFind, useEntryList } from "./exploration-panel.tsx";
@@ -123,7 +123,7 @@ export function RegisterListPage({ kind }: { kind: Kind }) {
         ) : !list.data.items.length ? (
           <FirstUse
             title={`No ${kind} yet`}
-            ask={`List the assumptions ${product.name} depends on and record the riskiest in WhatBuild, citing the passages that bear on them.`}
+            ask={`List the assumptions ${product.name} depends on and record the riskiest in WhatBuild, with what each one rests on.`}
           >
             {MEANING[kind]}
           </FirstUse>
@@ -140,7 +140,6 @@ export function RegisterListPage({ kind }: { kind: Kind }) {
         <div>
           {rows.map(({ e, nested }) => {
             const s = statusOf(e.status);
-            const sources = new Set(e.record_ids).size;
             const replaced = e.status === "superseded";
             return (
               <ListRow
@@ -167,15 +166,7 @@ export function RegisterListPage({ kind }: { kind: Kind }) {
                   ) : null}
                 </span>
                 <span className="list-sub">
-                  {e.citation_count ? (
-                    <>
-                      <span className="num">{plural(e.citation_count, "cited passage")}</span> from <span className="num">{plural(sources, "source")}</span>
-                    </>
-                  ) : (
-                    "No passages cited yet"
-                  )}
-                  {" · "}
-                  {e.human_review.confidence === "unreviewed" ? "no human confidence yet" : `${e.human_review.confidence} confidence`}
+                  {e.human_review.confidence === "unreviewed" ? "No human confidence yet" : `${e.human_review.confidence[0]!.toUpperCase()}${e.human_review.confidence.slice(1)} confidence`}
                 </span>
               </ListRow>
             );
@@ -188,79 +179,6 @@ export function RegisterListPage({ kind }: { kind: Kind }) {
 }
 
 // ---- One entry ----------------------------------------------------------------------------------
-
-interface CitationCheck {
-  index: number;
-  record_id: string;
-  status: "ok" | "relocated" | "text_changed" | "record_archived" | "record_deleted" | "record_missing";
-  relocated?: { seq_start: number; seq_end: number };
-  version_drift: boolean;
-  derivation_changed?: boolean;
-  quote_match?: "normalized";
-}
-interface CheckResult {
-  valid: boolean;
-  checked_at: string;
-  citations: CitationCheck[];
-}
-
-function span(a: number, b: number) {
-  return a === b ? `¶${a}` : `¶${a}–${b}`;
-}
-
-/** Drift in words; the icon and colour only repeat what the words say. */
-function driftWords(c: CitationCheck): string {
-  const base =
-    c.status === "ok"
-      ? "Matches the source"
-      : c.status === "relocated"
-        ? c.relocated
-          ? `Moved to ${span(c.relocated.seq_start, c.relocated.seq_end)}`
-          : "Moved in the source"
-        : c.status === "text_changed"
-          ? "Source text changed"
-          : c.status === "record_archived"
-            ? "Source archived"
-            : c.status === "record_deleted"
-              ? "Source deleted"
-              : "Source not found";
-  return citationCheckWords(base, c);
-}
-
-function CitationRow({ c, check, checking }: { c: CitationView; check?: CitationCheck; checking: boolean }) {
-  const { app } = useProduct();
-  const tone = check ? toneFor("citation", check.status) : "neutral";
-  const good = check?.status === "ok" && !check.version_drift;
-  const at = citedAt(c, check);
-  return (
-    <li className="entry-cite-row">
-      <Link className="entry-cite-address num" to={passageHref(app, c.record_id, at?.seq_start, at?.seq_end)} aria-label={`${span(c.seq_start, c.seq_end)} in ${c.source_title ?? "the source"}`}>
-        {span(c.seq_start, c.seq_end)}
-      </Link>
-      <div className="entry-cite-main">
-        <q className="entry-cite-quote">{nestQuotes(c.quote)}</q>
-        <span className="entry-cite-sub">
-          {check ? (
-            <span className={`entry-cite-state ${good ? "text-ok" : tone === "negative" ? "text-bad" : tone === "attention" ? "text-warn" : ""}`}>
-              <Glyph name={good ? "circle-check" : "triangle-alert"} size="sm" />
-              {driftWords(check)}
-            </span>
-          ) : checking ? (
-            <span className="entry-cite-state">
-              <Glyph name="loader" size="sm" className="spin" />
-              Checking…
-            </span>
-          ) : null}
-          <span>
-            {c.source_title ?? "A source"}
-            {c.speakers.length ? ` · ${c.speakers.join(", ")}` : ""}
-            {c.start_ms !== null ? ` · ${formatCue(c.start_ms)}` : ""}
-          </span>
-        </span>
-      </div>
-    </li>
-  );
-}
 
 const LINK_WORD: Record<string, [string, string]> = {
   supports: ["Supports", "Supported by"],
@@ -341,7 +259,7 @@ function ReviewForm({ entry, kind, onSaved }: { entry: RegisterEntry; kind: Kind
       ) : review.isError ? (
         <ErrorCallout title="Your review couldn’t be saved" error={review.error} inset />
       ) : null}
-      <p className="small muted register-freeze-note">{entry.frozen ? "Reviews can’t be edited." : "Saving freezes the wording and citations. Reviews can’t be edited."}</p>
+      <p className="small muted register-freeze-note">{entry.frozen ? "Reviews can’t be edited." : "Saving freezes the wording. Reviews can’t be edited."}</p>
       <div className="register-form-actions">
         <Button type="submit" variant="primary" disabled={!note.trim()} busy={review.isPending} busyLabel="Saving…">
           Save review
@@ -355,10 +273,7 @@ function ReviewForm({ entry, kind, onSaved }: { entry: RegisterEntry; kind: Kind
 interface EntryImpact {
   etag: string;
   review_count: number;
-  citation_count: number;
   linked_from: { id: string; statement: string; type: string }[];
-  story_versions_referring: (VersionReferring & { page_id: string })[];
-  mockup_versions_referring: (VersionReferring & { mockup_id: string })[];
 }
 
 export function RegisterEntryPage({ kind }: { kind: Kind }) {
@@ -369,12 +284,6 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
   const qc = useQueryClient();
   const copyLink = useCopyLink();
   const q = useQuery({ queryKey: ["entry", base, kind, id], queryFn: () => api<RegisterEntry>("GET", `${base}/${kind}/${id}`) });
-  // check_citations is a read (POST only because it takes a body); run it with the entry.
-  const check = useQuery({
-    queryKey: ["entry-check", base, kind, id, q.data?.etag],
-    enabled: Boolean(q.data?.citations.length),
-    queryFn: () => api<CheckResult>("POST", `${base}/${kind}/${id}/check-citations`, {}),
-  });
   const toast = useToast();
   const setArchived = useMutation({
     mutationFn: ({ archived, etag }: { archived: boolean; etag: string; undo?: boolean }) =>
@@ -402,7 +311,6 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
   const s = statusOf(e.status);
   const archived = Boolean(e.archived_at);
   const canReview = canWrite && !archived && e.status !== "superseded";
-  const drift = check.data && !check.data.valid;
   const outLinks = e.links.map((l) => ({ key: `out:${l.id}:${l.type}`, word: LINK_WORD[l.type]?.[0] ?? l.type, kind: l.kind ?? kind.slice(0, -1), id: l.id, statement: l.statement ?? "An entry", status: l.status }));
   const inLinks = e.linked_from.map((l) => ({ key: `in:${l.id}:${l.type}`, word: LINK_WORD[l.type]?.[1] ?? l.type, kind: l.kind, id: l.id, statement: l.statement, status: l.status }));
   const links = [...outLinks, ...inLinks];
@@ -478,13 +386,9 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
             <>
               <p>
                 This deletes the {ONE[kind].toLowerCase()}
-                {i.citation_count || i.review_count
-                  ? ` with its ${listed([i.citation_count > 0 && plural(i.citation_count, "citation"), i.review_count > 0 && plural(i.review_count, "review")])}`
-                  : ""}
-                .
+                {i.review_count ? ` with its ${plural(i.review_count, "review")}` : ""}.
               </p>
               {i.linked_from.length ? <p>{plural(i.linked_from.length, "other assumption")} link to it, and those links will be removed.</p> : null}
-              <Referring story={i.story_versions_referring} mockups={i.mockup_versions_referring} />
             </>
           )}
           onDeleted={() => {
@@ -529,44 +433,6 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
           </div>
         </Sheet>
       ) : null}
-
-      <Sheet labelledBy="cites-h">
-        <SheetHeader
-          id="cites-h"
-          title="Cited passages"
-          count={e.citations.length}
-          end={
-            e.citations.length ? (
-              <Button size="sm" icon="circle-check" onClick={() => void check.refetch()} busy={check.isFetching} busyLabel="Checking…">
-                Check again
-              </Button>
-            ) : null
-          }
-        />
-        {drift ? (
-          <SheetBody>
-            <Callout tone="attention" inset>
-              Some cited passages have changed since this was written. The quotes below are what was cited.
-            </Callout>
-          </SheetBody>
-        ) : null}
-        {check.isError ? (
-          <SheetBody>
-            <ErrorCallout error={check.error} inset title="The citations couldn’t be checked" onRetry={() => void check.refetch()} />
-          </SheetBody>
-        ) : null}
-        {e.citations.length ? (
-          <ol className="entry-cite-list">
-            {e.citations.map((c) => (
-              <CitationRow key={c.index} c={c} check={check.data?.citations.find((x) => x.index === c.index)} checking={check.isFetching} />
-            ))}
-          </ol>
-        ) : (
-          <EmptyState size="inline">
-            {e.frozen ? "No passages cited." : "No passages cited yet. Your agent can cite them."}
-          </EmptyState>
-        )}
-      </Sheet>
 
       {links.length ? (
         <Sheet labelledBy="links-h">
@@ -642,8 +508,7 @@ const WHY_HINT: Record<Kind, string> = {
 
 /**
  * A new entry, or an edit to one nobody has reviewed yet. A person writes the statement, why, and
- * the outcomes it bears on; citations are optional and an agent adds them, until the first review
- * freezes the wording.
+ * the outcomes it bears on, until the first review freezes the wording.
  */
 export function EntryEditPage({ kind }: { kind: Kind }) {
   const { id } = useParams();
@@ -776,14 +641,6 @@ function EntryForm({ kind, crumbs, heading, initial, outcomes, preselect, onSave
                   No outcomes yet. <Link to={`${app}/idea`}>Add them on Idea</Link>.
                 </p>
               )}
-            </div>
-          </div>
-          <div className="field">
-            <span className="field-label">Cited passages</span>
-            <div className="field-control">
-              <p className="field-hint entry-form-cites">
-                {initial?.citations.length ? `${plural(initial.citations.length, "passage")} cited. Your agent can change them.` : "None yet. Your agent can cite them."}
-              </p>
             </div>
           </div>
         </FormGrid>

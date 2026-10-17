@@ -8,13 +8,14 @@ import { Link, useInRouterContext } from "react-router";
  * only web, mail, fragment and same-origin links are live.
  *
  * Evidence reads as "Source title ¶5": a link to a source or one of its passages gets the quiet
- * evidence style, and, when the caller knows the source titles, a bare citation written the way the
- * agent guidance asks — "source 01K…, segments 4–6" — becomes that same linked token.
+ * evidence style, and, when the caller knows the source titles, a source mentioned by its id —
+ * "source 01K…, segments 4–6", as a digest or an agent's notes may write it — becomes that same
+ * linked token.
  */
 
 /**
- * What a caller knows for resolving bare citations: the product's app path, titles by id, and
- * optionally chip labels already worked out across a larger page (see `citationLabels`).
+ * What a caller knows for resolving source mentions: the product's app path, titles by id, and
+ * optionally chip labels already worked out across a larger page (see `mentionLabels`).
  */
 export interface EvidenceContext {
   app: string;
@@ -23,7 +24,7 @@ export interface EvidenceContext {
 }
 
 const ULID = "[0-9A-HJKMNP-TV-Z]{26}";
-const BARE_CITATION = new RegExp(`\\bsource (${ULID})(?:(?:,\\s*(?:segments?\\s+|¶\\s?)|\\s+¶\\s?)(\\d+)(?:\\s*[–-]\\s*(\\d+))?)?`, "g");
+const SOURCE_MENTION = new RegExp(`\\bsource (${ULID})(?:(?:,\\s*(?:segments?\\s+|¶\\s?)|\\s+¶\\s?)(\\d+)(?:\\s*[–-]\\s*(\\d+))?)?`, "g");
 const EVIDENCE_PATH = new RegExp(`/evidence/${ULID}(?:[?#]|$)`);
 
 const SAFE_HREF = /^(https?:\/\/|mailto:|#|\/(?![/\\]))/i;
@@ -63,29 +64,29 @@ function evidenceText(title: string, start?: string, end?: string): string {
   return `${title}\u00a0¶${start}${end && end !== start ? `–${end}` : ""}`;
 }
 
-/** Each bare citation in a text ("source 01K…, segments 4–6"), in order. */
-export function bareCitations(text: string): { id: string; start?: string; end?: string }[] {
+/** Each source a text mentions by its id ("source 01K…, segments 4–6"), in order. */
+export function sourceMentions(text: string): { id: string; start?: string; end?: string }[] {
   if (!text.includes("source ")) return [];
-  return [...text.matchAll(BARE_CITATION)].map((m) => ({ id: m[1]!, start: m[2], end: m[3] }));
+  return [...text.matchAll(SOURCE_MENTION)].map((m) => ({ id: m[1]!, start: m[2], end: m[3] }));
 }
 
-/** The sources a text cites the bare way, in order of first mention. */
-export function citedSourceIds(text: string): string[] {
-  return [...new Set(bareCitations(text).map((c) => c.id))];
+/** The sources a text mentions by id, in order of first mention. */
+export function mentionedSourceIds(text: string): string[] {
+  return [...new Set(sourceMentions(text).map((c) => c.id))];
 }
 
-/** A citation's chip text: "Label ¶4–6". */
-export function citationText(label: string, start?: string, end?: string): string {
+/** A mention's chip text: "Label ¶4–6". */
+export function mentionText(label: string, start?: string, end?: string): string {
   return evidenceText(label, start, end);
 }
 
 /**
  * Chip labels that tell sources apart on one page. A label starts as the title's part before an
- * em-dash qualifier ("Usability study"). Where cited sources would share a label, each adds its
+ * em-dash qualifier ("Usability study"). Where mentioned sources would share a label, each adds its
  * next qualifier in brackets ("Usability study (crew)") until they differ; sources whose whole
  * titles match are numbered in order of mention.
  */
-export function citationLabels(ids: string[], titles: Record<string, string | undefined>): Record<string, string> {
+export function mentionLabels(ids: string[], titles: Record<string, string | undefined>): Record<string, string> {
   const parts = new Map(ids.map((id) => [id, (titles[id] ?? "Source").split(" — ").map((p) => p.trim()).filter(Boolean)]));
   const depth = new Map(ids.map((id) => [id, 1]));
   const label = (id: string) => {
@@ -139,17 +140,18 @@ function AppLink({ href, className, title, children }: { href: string; className
 }
 
 /**
- * Turn bare "source <id>, segment N" citations in a run of text into evidence links; or, where the
- * text already sits inside a link (a search hit), into the same token without a link of its own.
+ * Turn "source <id>, segment N" mentions in a run of text into evidence links; or, where the text
+ * already sits inside a link or a button (a search hit, a passage), into the same token without a
+ * link of its own.
  */
-export function citations(text: string, key: string, ev: EvidenceContext | undefined, asLink = true): ReactNode {
+export function evidenceLinks(text: string, key: string, ev: EvidenceContext | undefined, asLink = true): ReactNode {
   if (!ev || !text.includes("source ")) return text;
   const out: ReactNode[] = [];
   let last = 0;
-  for (const m of text.matchAll(BARE_CITATION)) {
+  for (const m of text.matchAll(SOURCE_MENTION)) {
     const [whole, id, start, end] = m;
     const known = ev.titles[id!];
-    const label = evidenceText(ev.labels?.[id!] ?? citationLabels([id!], ev.titles)[id!]!, start, end);
+    const label = evidenceText(ev.labels?.[id!] ?? mentionLabels([id!], ev.titles)[id!]!, start, end);
     out.push(text.slice(last, m.index));
     out.push(
       asLink ? (
@@ -184,7 +186,7 @@ function inline(tokens: Token[] | undefined, key = "i", ev?: EvidenceContext): R
     const k = `${key}.${i}`;
     switch (t.type) {
       case "text":
-        return (t as Tokens.Text).tokens ? <Fragment key={k}>{inline((t as Tokens.Text).tokens, k, ev)}</Fragment> : <Fragment key={k}>{citations(decode(t.text), k, ev)}</Fragment>;
+        return (t as Tokens.Text).tokens ? <Fragment key={k}>{inline((t as Tokens.Text).tokens, k, ev)}</Fragment> : <Fragment key={k}>{evidenceLinks(decode(t.text), k, ev)}</Fragment>;
       case "escape":
         return <Fragment key={k}>{decode(t.text)}</Fragment>;
       case "strong":
@@ -323,7 +325,7 @@ function inlineOrBlock(tokens: Token[], key: string, ev?: EvidenceContext): Reac
 export function Markdown({ source, className = "prose", headingShift = 1, evidence }: { source: string; className?: string; headingShift?: number; evidence?: EvidenceContext }) {
   const tokens = new Lexer({ gfm: true }).lex(source ?? "");
   // Chip labels are worked out across the whole text, so two sources never read alike on one page.
-  const ev = evidence && !evidence.labels ? { ...evidence, labels: citationLabels(citedSourceIds(source ?? ""), evidence.titles) } : evidence;
+  const ev = evidence && !evidence.labels ? { ...evidence, labels: mentionLabels(mentionedSourceIds(source ?? ""), evidence.titles) } : evidence;
   return <div className={className}>{block(tokens, "md", headingShift, ev)}</div>;
 }
 

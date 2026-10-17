@@ -2,8 +2,7 @@ import { TooLargeError, TooManyEntriesError, zipEntries } from "@whatbuild/parse
 import { sql } from "kysely";
 import { strToU8, zipSync } from "fflate";
 import { z } from "zod";
-import { checkEtag, EMPTY_REFS, productId, recordActivity, tenantId, validateRefs } from "../common.ts";
-import { checkCitationList, CITATION_MAX_COUNT, citationInput, citationViews, snapshotAll } from "../citations.ts";
+import { checkEtag, productId, recordActivity, tenantId } from "../common.ts";
 import { json, type Tx } from "../db.ts";
 import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
 import { AppError, conflict, forbidden, invalid, notFound, tooLarge } from "../errors.ts";
@@ -17,7 +16,7 @@ import {
   PROTOTYPE_PATH_MAX, PROTOTYPE_POSTER_MAX_BYTES, PROTOTYPE_PRODUCT_MAX_BYTES, prototypeAddress, prototypeMediaType, prototypePath, prototypeWarnings, splitEntry,
 } from "../prototype.ts";
 import { newEtag, newId, sha256Hex } from "../util.ts";
-import { resolveRefs, storyPagesShowing } from "./story.ts";
+import { storyPagesShowing } from "./story.ts";
 
 /**
  * Mockups are where Exploration makes things: a canvas of HTML pages an agent built (screens,
@@ -110,14 +109,6 @@ const fileInput = z.strictObject({
   content: z.string().max(MOCKUP_FILES_TOTAL).optional().describe("The file's text. Required for a new path; omit it to keep the base version's."),
 });
 
-const refsInput = z
-  .strictObject({
-    outcomes: z.array(id("outcome")).max(50).optional(),
-    sources: z.array(id("source")).max(100).optional(),
-    assumptions: z.array(id("assumption")).max(100).optional(),
-  })
-  .optional();
-
 async function loadMockup(ctx: OpContext, mockupId: string, lock = false) {
   let q = ctx.db.selectFrom("mockups").selectAll().where("product_id", "=", productId(ctx)).where("mockup_id", "=", mockupId);
   if (lock) q = q.forUpdate();
@@ -166,13 +157,12 @@ async function prototypeView(ctx: OpContext, versionId: string, withFiles: boole
   };
 }
 
-/** A version of the canvas: the brief, the pages in order, the files and prototype it carries, and what it draws on. */
+/** A version of the canvas: the brief, the pages in order, and the files and prototype it carries. */
 async function versionView(ctx: OpContext, versionId: string, withHtml: boolean, withFiles = false) {
   const v = await ctx.db.selectFrom("mockup_versions").selectAll().where("version_id", "=", versionId).where("product_id", "=", productId(ctx)).executeTakeFirstOrThrow();
   const pages = await ctx.db.selectFrom("mockup_pages").selectAll().where("version_id", "=", versionId).orderBy("position").execute();
   const files = await ctx.db.selectFrom("mockup_files").select(["path", "content"]).where("version_id", "=", versionId).orderBy(sql`path collate "C"`).execute();
   const prototype = await prototypeView(ctx, versionId, withFiles);
-  const resolved = await resolveRefs(ctx, v.refs);
   return {
     version_id: v.version_id,
     version: v.n,
@@ -189,9 +179,6 @@ async function versionView(ctx: OpContext, versionId: string, withHtml: boolean,
     }),
     files: files.map((x) => ({ path: x.path, chars: x.content.length, sha256: sha256Hex(x.content), ...(withFiles ? { content: x.content } : {}) })),
     prototype,
-    refs: { outcomes: v.refs.outcomes, sources: v.refs.sources, assumptions: v.refs.assumptions },
-    resolved_refs: { outcomes: resolved.outcomes, sources: resolved.sources, assumptions: resolved.assumptions },
-    citations: await citationViews(ctx, v.citations),
     published_at: v.created_at,
     published_by: v.created_by,
   };
@@ -244,7 +231,7 @@ export const getMockup = defineOperation({
   scope: "product",
   access: "read",
   mutates: false,
-  summary: "Read a mockup's current version: its brief, its pages with their notes, what it draws on, the Story pages that show its pages, and the etag to publish again.",
+  summary: "Read a mockup's current version: its brief, its pages with their notes, the Story pages that show its pages, and the etag to publish again.",
   description:
     `Read this before publishing a new version, and read the brief first: it says what the canvas explores. Pages come without HTML unless include_html; each has html_path (a GET in the web app's session), html_sha256 and, without include_html, html_chars, except a page that enters the version's prototype, which has entry, poster and prototype_url (its frame's address) instead. files lists what the version carries for collaborators (path, chars, sha256), with each file's content when include_files. prototype, when the version carries one, gives file_count, bytes, base_url (the prototype's address, a capability that expires at expires_at), the sandbox its frames use, and with include_files each file's path, size, sha256 and media_type. ${HASHES_TEXT} To work on the canvas outside WhatBuild, get_download gives the whole version as a ZIP. story_pages lists the Story pages whose current version shows one of its pages (story promote_mockup), with the mockup version each shows.`,
   input: z.strictObject({ mockup_id: id("mockup"), include_html: z.boolean().default(false), include_files: z.boolean().default(false).describe("Include each file's content, and the prototype's files.") }),
@@ -306,7 +293,7 @@ export const requestMockupUpload = defineOperation({
   mutates: true,
   summary: "Get a short-lived grant to PUT a canvas as a ZIP, for publish to read by upload_id. Use it instead of sending page HTML through a tool call.",
   description:
-    `PUT one ZIP to url with exactly the headers given (curl -T canvas.zip -H …), then call publish with upload_id and whatever else changes (mockup_id and expected_etag for a later version, refs, citations). The ZIP has get_download's layout, so a download round-trips: manifest.json lists the canvas's pages in order, [{page_id, title?, width?, height?, entry?, poster?}], and may give title, summary, columns, files ([{path}]) and prototype ([{path, sha256?}]); brief.md is the brief; pages/<page_id>.html and pages/<page_id>.notes.md hold a page's HTML and notes; files/<path> holds a file the version carries; prototype/<path> holds a file of the version's prototype, any bytes. A page whose HTML or notes the ZIP leaves out keeps the base version's, so a ZIP can carry only the pages that changed, with every page still listed. The files listed in manifest.json are the whole set, a listed path missing from files/ keeping the base's content; without a files list, the files under files/ are the whole set, and with none either the version keeps the base's files. The prototype follows the same rule: listed paths are the whole set, one missing from prototype/ keeping the base's bytes (and its sha256, if given, must match); without a list, the files under prototype/ are the whole set; with neither, the base's prototype carries forward; "prototype": [] drops it. Prototype paths are relative, at most ${PROTOTYPE_PATH_MAX} characters and 16 folders deep, without \\ : * ? " < > | # or a control character; two that differ only in case are refused. ${PROTOTYPE_TEXT} refs and citations in manifest.json are not read: pass them in the call. Everything else in the ZIP is refused, and so are a name used twice and a symbolic link; one top-level folder around it all is allowed. Each page in it is checked as one sent in the call is. ${PAGE_RULES_TEXT} Files are UTF-8 text. At most ${MOCKUP_UPLOAD_MAX_BYTES / MIB} MB packed, ${MOCKUP_UPLOAD_UNPACKED_MAX / MIB} MB unpacked and ${MOCKUP_UPLOAD_MAX_ENTRIES} entries. ${SAFE_CHECK_TEXT} An upload's bytes cannot be replaced: to change a page, PUT a new ZIP under a new upload. The grant expires, a successful publish reads an upload once and answers with its size and sha256, and an upload nobody publishes is discarded a day after its grant expires. Keep the grant header out of reports and logs.`,
+    `PUT one ZIP to url with exactly the headers given (curl -T canvas.zip -H …), then call publish with upload_id and whatever else changes (mockup_id and expected_etag for a later version). The ZIP has get_download's layout, so a download round-trips: manifest.json lists the canvas's pages in order, [{page_id, title?, width?, height?, entry?, poster?}], and may give title, summary, columns, files ([{path}]) and prototype ([{path, sha256?}]); brief.md is the brief; pages/<page_id>.html and pages/<page_id>.notes.md hold a page's HTML and notes; files/<path> holds a file the version carries; prototype/<path> holds a file of the version's prototype, any bytes. A page whose HTML or notes the ZIP leaves out keeps the base version's, so a ZIP can carry only the pages that changed, with every page still listed. The files listed in manifest.json are the whole set, a listed path missing from files/ keeping the base's content; without a files list, the files under files/ are the whole set, and with none either the version keeps the base's files. The prototype follows the same rule: listed paths are the whole set, one missing from prototype/ keeping the base's bytes (and its sha256, if given, must match); without a list, the files under prototype/ are the whole set; with neither, the base's prototype carries forward; "prototype": [] drops it. Prototype paths are relative, at most ${PROTOTYPE_PATH_MAX} characters and 16 folders deep, without \\ : * ? " < > | # or a control character; two that differ only in case are refused. ${PROTOTYPE_TEXT} Other fields in manifest.json are not read. Everything else in the ZIP is refused, and so are a name used twice and a symbolic link; one top-level folder around it all is allowed. Each page in it is checked as one sent in the call is. ${PAGE_RULES_TEXT} Files are UTF-8 text. At most ${MOCKUP_UPLOAD_MAX_BYTES / MIB} MB packed, ${MOCKUP_UPLOAD_UNPACKED_MAX / MIB} MB unpacked and ${MOCKUP_UPLOAD_MAX_ENTRIES} entries. ${SAFE_CHECK_TEXT} An upload's bytes cannot be replaced: to change a page, PUT a new ZIP under a new upload. The grant expires, a successful publish reads an upload once and answers with its size and sha256, and an upload nobody publishes is discarded a day after its grant expires. Keep the grant header out of reports and logs.`,
   input: z.strictObject({ size: z.number().int().min(0).optional().describe("The ZIP's size in bytes, when known, so an oversized one is refused before it transfers.") }),
   rest: { method: "POST", path: "/mockups/uploads" },
   mcp: { tool: "mockups", action: "request_upload" },
@@ -621,7 +608,7 @@ export const publishMockup = defineOperation({
   mutates: true,
   summary: "Publish the next version of a mockup's canvas, or create a mockup with its first version. A later version keeps whatever you omit.",
   description:
-    `Without mockup_id, creates a mockup: give a title, a brief and at least one page with a title and html. With mockup_id, publishes the next version: pass the mockup's etag, and send only what changes. pages, when given, is the whole canvas in order: a page you leave out is dropped from this version, and a page whose page_id was on the base version keeps its title, notes, size and html unless you send them, so a version that changes one page sends that page's html alone. The brief is Markdown: what the canvas explores, for whom, the questions it is meant to answer, and what each page tries; write it for the next agent as much as for people. Each page is one self-contained HTML document shown in a sandboxed frame of width × height CSS pixels (default ${DEFAULT_WIDTH} × ${DEFAULT_HEIGHT}; 390 wide for a phone; height at most 4000), with no network. ${PAGE_RULES_TEXT} ${SAFE_CHECK_TEXT} ${TALL_PAGES_TEXT} columns sets how many pages sit side by side before the canvas wraps; null keeps one row. files carries text files for collaborators to pull into their own projects (DESIGN.md, components, tokens), at most ${MAX_MOCKUP_FILES} and ${(MOCKUP_FILES_TOTAL / 1_000_000).toFixed(0)} million characters a version; WhatBuild never uses them to draw a page, so inline what a page needs. Like pages, files when given is the whole set: a path that was on the base keeps its content unless you send it, a path you leave out is dropped, a new path needs content, and [] drops them all; omit files to keep them. ${PROTOTYPE_TEXT} A version published without an upload keeps its base's prototype, and its pages may enter it. refs links the outcomes, sources and assumptions the canvas explores, and citations up to ${CITATION_MAX_COUNT} exact passages, {record_id, seq_start, seq_end, quote?}, frozen as snapshots. from_version: N starts from that earlier version instead of the current one. To keep page HTML out of the call, upload the canvas as a ZIP (request_upload) and pass upload_id: the ZIP gives pages, files and the brief, and the call gives the rest, and the result names from_upload with upload {upload_id, size, sha256}, the ZIP's own bytes as its PUT answered. At most ${MAX_MOCKUP_PAGES} pages, ${(MOCKUP_HTML_TOTAL / 1_000_000).toFixed(0)} million characters of HTML in all, and ${MAX_MOCKUPS} mockups in a product, archived ones included (list gives quota, used and limit).`,
+    `Without mockup_id, creates a mockup: give a title, a brief and at least one page with a title and html. With mockup_id, publishes the next version: pass the mockup's etag, and send only what changes. pages, when given, is the whole canvas in order: a page you leave out is dropped from this version, and a page whose page_id was on the base version keeps its title, notes, size and html unless you send them, so a version that changes one page sends that page's html alone. The brief is Markdown: what the canvas explores, for whom, the questions it is meant to answer, and what each page tries; write it for the next agent as much as for people. Each page is one self-contained HTML document shown in a sandboxed frame of width × height CSS pixels (default ${DEFAULT_WIDTH} × ${DEFAULT_HEIGHT}; 390 wide for a phone; height at most 4000), with no network. ${PAGE_RULES_TEXT} ${SAFE_CHECK_TEXT} ${TALL_PAGES_TEXT} columns sets how many pages sit side by side before the canvas wraps; null keeps one row. files carries text files for collaborators to pull into their own projects (DESIGN.md, components, tokens), at most ${MAX_MOCKUP_FILES} and ${(MOCKUP_FILES_TOTAL / 1_000_000).toFixed(0)} million characters a version; WhatBuild never uses them to draw a page, so inline what a page needs. Like pages, files when given is the whole set: a path that was on the base keeps its content unless you send it, a path you leave out is dropped, a new path needs content, and [] drops them all; omit files to keep them. ${PROTOTYPE_TEXT} A version published without an upload keeps its base's prototype, and its pages may enter it. from_version: N starts from that earlier version instead of the current one. To keep page HTML out of the call, upload the canvas as a ZIP (request_upload) and pass upload_id: the ZIP gives pages, files and the brief, and the call gives the rest, and the result names from_upload with upload {upload_id, size, sha256}, the ZIP's own bytes as its PUT answered. At most ${MAX_MOCKUP_PAGES} pages, ${(MOCKUP_HTML_TOTAL / 1_000_000).toFixed(0)} million characters of HTML in all, and ${MAX_MOCKUPS} mockups in a product, archived ones included (list gives quota, used and limit).`,
   input: z.strictObject({
     mockup_id: id("mockup").optional().describe("Omit to create a mockup."),
     title: z.string().trim().min(1).max(200).optional(),
@@ -630,8 +617,6 @@ export const publishMockup = defineOperation({
     columns: z.number().int().min(1).max(12).nullable().optional(),
     pages: z.array(pageInput).min(1).max(MAX_MOCKUP_PAGES).optional(),
     files: z.array(fileInput).max(MAX_MOCKUP_FILES).optional().describe("The files the version carries, in full: a path on the base keeps its content unless sent; a path left out is dropped. Omit to keep them."),
-    refs: refsInput.describe("The outcomes, sources and assumptions this canvas explores, in full. Omit on a later version to keep them."),
-    citations: z.array(citationInput).max(CITATION_MAX_COUNT).optional(),
     from_version: z.number().int().min(1).optional(),
     upload_id: id("mockup upload").optional().describe('A canvas uploaded as a ZIP (mockups(action="request_upload")): its pages, files, brief, title, summary and columns, in place of sending them here.'),
     expected_etag: expectedEtag.optional(),
@@ -661,7 +646,7 @@ export const publishMockup = defineOperation({
         }
       : call;
     const existing = input.mockup_id ? await loadMockup(ctx, input.mockup_id, true) : null;
-    let base: { n: number; version_id: string; title: string; summary: string; brief: string; columns: number | null; refs: typeof EMPTY_REFS; citations: unknown[]; pages: PageRow[]; files: FileRow[]; prototype: ProtoRow[] } | null = null;
+    let base: { n: number; version_id: string; title: string; summary: string; brief: string; columns: number | null; pages: PageRow[]; files: FileRow[]; prototype: ProtoRow[] } | null = null;
     if (existing) {
       if (existing.archived_at) throw conflict("mockup_archived", "This mockup is archived; restore it before publishing.");
       if (!input.expected_etag) throw conflict("stale_etag", "This mockup exists; read it with get and pass its etag.", { current_etag: existing.etag });
@@ -791,8 +776,6 @@ export const publishMockup = defineOperation({
     const summary = input.summary ?? base?.summary ?? "";
     const brief = input.brief ?? base?.brief ?? "";
     const columns = input.columns !== undefined ? input.columns : (base?.columns ?? null);
-    const refs = input.refs ? await validateRefs(ctx, { ...input.refs }) : (base?.refs ?? EMPTY_REFS);
-    const citations = input.citations ? await snapshotAll(ctx, input.citations, "mockup version") : ((base?.citations ?? []) as Awaited<ReturnType<typeof snapshotAll>>);
 
     const mockup_id = existing?.mockup_id ?? newId();
     const version_id = newId();
@@ -805,7 +788,7 @@ export const publishMockup = defineOperation({
     }
     await ctx.db
       .insertInto("mockup_versions")
-      .values({ version_id, tenant_id: tenantId(ctx), product_id: pid, mockup_id, n, title, summary, brief, columns, refs: json(refs), citations: json(citations), previous_version_id: existing?.current_version_id ?? null, created_by: json(ctx.actor) })
+      .values({ version_id, tenant_id: tenantId(ctx), product_id: pid, mockup_id, n, title, summary, brief, columns, previous_version_id: existing?.current_version_id ?? null, created_by: json(ctx.actor) })
       .execute();
     await ctx.db
       .insertInto("mockup_pages")
@@ -900,7 +883,7 @@ export const getMockupDownload = defineOperation({
   mutates: false,
   summary: "Get a short-lived grant to download one version of a mockup as a ZIP: the brief, each page's HTML and notes, its files, its prototype, and a manifest.",
   description:
-    "Use it to carry a canvas into the project where you build the next version: GET url with the headers, unzip, change the pages, and publish the next version with the pages that changed. The ZIP holds brief.md, manifest.json (format version 2: the version, the pages in order with their titles, sizes and notes and each page's html file or entry and poster, the files, the prototype's files with their size, sha256 and type, the refs and citations), pages/<page_id>.html with pages/<page_id>.notes.md, each file the version carries under files/ at its path, ready to copy into your project, and each prototype file under prototype/, byte for byte. The ZIP uploads again as it is (request_upload), and a prototype file whose bytes are unchanged is not stored again. version defaults to the current one. Keep the grant header out of reports and logs.",
+    "Use it to carry a canvas into the project where you build the next version: GET url with the headers, unzip, change the pages, and publish the next version with the pages that changed. The ZIP holds brief.md, manifest.json (format version 2: the version, the pages in order with their titles, sizes and notes and each page's html file or entry and poster, the files, the prototype's files with their size, sha256 and type), pages/<page_id>.html with pages/<page_id>.notes.md, each file the version carries under files/ at its path, ready to copy into your project, and each prototype file under prototype/, byte for byte. The ZIP uploads again as it is (request_upload), and a prototype file whose bytes are unchanged is not stored again. version defaults to the current one. Keep the grant header out of reports and logs.",
   input: z.strictObject({ mockup_id: id("mockup"), version: z.number().int().min(1).optional() }),
   rest: { method: "POST", path: "/mockups/:mockup_id/downloads" },
   mcp: { tool: "mockups", action: "get_download" },
@@ -919,25 +902,6 @@ export const getMockupDownload = defineOperation({
       expires_at: expiresAt.toISOString(),
       media_type: "application/zip",
     };
-  },
-});
-
-export const checkMockupCitations = defineOperation({
-  name: "mockups.check_citations",
-  scope: "product",
-  access: "read",
-  mutates: false,
-  summary: "Re-resolve a mockup version's citations against the sources as they are now. Reports drift; never rewrites.",
-  description:
-    "Checks the current version unless version is given, with the statuses story(action=\"check_citations\") reports: ok, relocated (with the new range), text_changed, record_archived, record_deleted or record_missing, plus version_drift when the source's primary file has a newer version than the snapshot's. valid is true when every citation is ok against the passages of each source's current file; rederived says a source was parsed again since a snapshot, so read those passages before relying on an ok.",
-  input: z.strictObject({ mockup_id: id("mockup"), version: z.number().int().min(1).optional() }),
-  rest: { method: "GET", path: "/mockups/:mockup_id/check-citations" },
-  mcp: { tool: "mockups", action: "check_citations" },
-  async handler(ctx, input) {
-    const m = await loadMockup(ctx, input.mockup_id);
-    const vid = input.version ? await versionIdOf(ctx, m.mockup_id, input.version) : m.current_version_id;
-    const v = await ctx.db.selectFrom("mockup_versions").select(["n", "citations"]).where("version_id", "=", vid).executeTakeFirstOrThrow();
-    return { mockup_id: m.mockup_id, version: v.n, checked_at: ctx.now, ...(await checkCitationList(ctx, v.citations)) };
   },
 });
 
@@ -1057,7 +1021,7 @@ async function prototypeBlobsOf(db: Tx, mockupId: string) {
     .execute();
 }
 
-export const mockupOps = [listMockups, getMockup, listMockupVersions, getMockupVersion, requestMockupUpload, publishMockup, archiveMockup, restoreMockup, getMockupDownload, checkMockupCitations, mockupDeleteImpact, deleteMockup];
+export const mockupOps = [listMockups, getMockup, listMockupVersions, getMockupVersion, requestMockupUpload, publishMockup, archiveMockup, restoreMockup, getMockupDownload, mockupDeleteImpact, deleteMockup];
 
 /**
  * One version of a mockup as a ZIP, for the download grant's route: brief.md, manifest.json,
@@ -1088,8 +1052,6 @@ export async function mockupBundle(db: Tx, versionId: string, blobs: BlobStore) 
     ),
     files: carried.map((x) => ({ path: x.path, file: `files/${x.path}`, chars: x.content.length, sha256: sha256Hex(x.content) })),
     ...(prototype.length ? { prototype: prototype.map((r) => ({ path: r.path, file: `prototype/${r.path}`, size: r.size, sha256: r.sha256, media_type: r.media_type })) } : {}),
-    refs: { outcomes: v.refs.outcomes, sources: v.refs.sources, assumptions: v.refs.assumptions },
-    citations: v.citations,
   };
   const files: Record<string, Uint8Array> = {
     "brief.md": strToU8(v.brief),

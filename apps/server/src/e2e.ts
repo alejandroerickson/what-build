@@ -6,7 +6,7 @@ import pg from "pg";
 import { createBlobStore, createMailer, createPorts } from "./app.ts";
 import { loadConfig } from "./config.ts";
 import { createDb, migrate } from "./database.ts";
-import { copyTenant, keepOnlyTenant, refreshCopiedLineage } from "./e2e-golden.ts";
+import { copyTenant, keepOnlyTenant } from "./e2e-golden.ts";
 import { restorePull } from "./fixture.ts";
 import { APP_ROLE, connectOrStartLocalPg, type LocalPg } from "./testing/pg.ts";
 import { Worker } from "./worker.ts";
@@ -99,7 +99,7 @@ async function buildGolden(args: string[]) {
       const keep = sandbox[0]!;
       await keepOnlyTenant(c, keep.tenant_id);
       // Brought to this code's schema, with the jobs its migrations queue done, before the copy is
-      // made: the copy covers every table there is now, and its lineage is fingerprinted as now.
+      // made: the copy covers every table there is now.
       const config = loadConfig({ ...process.env, NODE_ENV: "development", DATABASE_URL: local.appUrl(E2E.golden), WHATBUILD_PUBLIC_URL: e2eBaseUrl(), WHATBUILD_BLOB_STORE: "fs", WHATBUILD_BLOB_DIR: E2E.goldenBlobs, WHATBUILD_MAILER: "console" });
       const app = createDb(local.appUrl(E2E.golden), 3);
       try {
@@ -110,13 +110,7 @@ async function buildGolden(args: string[]) {
         await app.pool.end();
       }
       const standard = { slug: `${keep.slug}-standard`, name: `${keep.name} (standard)` };
-      const ids = await copyTenant(c, keep.tenant_id, standard.slug, standard.name);
-      const superuser = createDb(local.adminUrl.replace(/\/postgres$/, `/${E2E.golden}`), 1);
-      try {
-        await refreshCopiedLineage(superuser.db, ids);
-      } finally {
-        await superuser.pool.end();
-      }
+      await copyTenant(c, keep.tenant_id, standard.slug, standard.name);
       const migration = (await c.query<{ name: string }>("select max(name) as name from schema_migrations")).rows[0]!.name;
       const products = (
         await c.query<{ path: string }>("select t.slug || '/' || m.slug || '/' || p.slug as path from products p join teams m using (team_id) join tenants t on t.tenant_id = p.tenant_id order by 1")

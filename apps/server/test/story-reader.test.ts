@@ -47,8 +47,6 @@ beforeAll(async () => {
     title: "Overview",
     summary: "Where the discovery stands.",
     html: html("Overview", `<h1>Overview</h1><p>Numbers close on Fridays (source ${recordId}, segment 1).</p>`),
-    refs: { sources: [recordId] },
-    citations: [{ record_id: recordId, seq_start: 1, seq_end: 1, quote: "numbers close" }],
   });
   const page = await alice.api("GET", `${P}/story/pages/overview?include_html=false`);
   await alice.api("PUT", `${P}/story/pages/overview/notes`, { notes: "Fold in the pricing interviews next.", expected_etag: page.body.agent_notes.etag });
@@ -81,7 +79,7 @@ describe("a Story reader", () => {
     expect(product.body).not.toHaveProperty("concept");
   });
 
-  it("reads every live Story page and version, without what it draws on or the notes for agents", async () => {
+  it("reads every live Story page and version, without the notes for agents", async () => {
     const tree = await rita.api("GET", `${P}/story/hierarchy`);
     expect(tree.status).toBe(200);
     expect(tree.body.items).toEqual([]);
@@ -94,25 +92,21 @@ describe("a Story reader", () => {
     expect(page.body).toMatchObject({ page_id: "overview", title: "Overview", current_version: 2 });
     expect(page.body).not.toHaveProperty("agent_notes");
     expect(page.body.current.html).toContain("Second version.");
-    for (const field of ["refs", "resolved_refs", "citations"]) expect(page.body.current).not.toHaveProperty(field);
 
     const versions = await rita.api("GET", `${P}/story/pages/overview/versions`);
     expect(versions.body.items.map((v: { version: number }) => v.version)).toEqual([2, 1]);
     expect(versions.body.items[1]).toMatchObject({ title: "Overview", published_by: { display_name: "Alice Admin" } });
-    expect(versions.body.items[1]).not.toHaveProperty("citation_count");
 
     const v1 = await rita.api("GET", `${P}/story/pages/overview/versions/1`);
     expect(v1.status).toBe(200);
     expect(v1.body).toMatchObject({ version: 1, summary: "Where the discovery stands.", is_current: false });
-    for (const field of ["refs", "resolved_refs", "citations"]) expect(v1.body).not.toHaveProperty(field);
     // The page itself is not changed: what its author wrote about the evidence is the reader's to read.
     expect(v1.body.html).toContain(`source ${recordId}`);
     expect(JSON.stringify(v1.body)).not.toContain("Finance lead interview");
 
-    // Someone who may browse the evidence still gets all of it.
-    const full = await alice.api("GET", `${P}/story/pages/overview/versions/1`);
-    expect(full.body.citations).toHaveLength(1);
-    expect(full.body.resolved_refs.sources[0].title).toBe("Finance lead interview — Example Co, Sep 2026");
+    // The team reads the notes for agents too.
+    const full = await alice.api("GET", `${P}/story/pages/overview`);
+    expect(full.body.agent_notes.content).toBe("Fold in the pricing interviews next.");
   });
 
   it("opens a page's HTML and exports the Story to print", async () => {
@@ -151,7 +145,7 @@ describe("a Story reader", () => {
       expect(r.body.error.details.role, op.name).toBe("reader");
       refused.push(op.name);
     }
-    for (const name of ["sources.list", "read_passage", "search", "assumptions.list", "outcomes.list", "activity.list", "products.export", "story.check_citations", "story.get_style"])
+    for (const name of ["sources.list", "read_passage", "search", "assumptions.list", "outcomes.list", "activity.list", "products.export", "story.get_style"])
       expect(refused).toContain(name);
     const sources = await rita.api("GET", `${P}/sources`);
     expect(sources.body.error.message).toMatch(/reader.*needs viewer/);
@@ -171,7 +165,7 @@ describe("a Story reader", () => {
     const page = (await client.callTool({ name: "story", arguments: { action: "get_page", product: productPath, params: { page_id: "overview", include_html: false } } })) as { isError?: boolean; content: { text: string }[] };
     expect(page.isError).toBeFalsy();
     expect(page.content[0]!.text).toContain("Overview");
-    expect(page.content[0]!.text).not.toContain("citations");
+    expect(page.content[0]!.text).not.toContain("agent_notes");
     const sources = (await client.callTool({ name: "sources", arguments: { action: "list", product: productPath } })) as { isError?: boolean; content: { text: string }[] };
     expect(sources.isError).toBe(true);
     expect(sources.content[0]!.text).toMatch(/reader.*needs viewer/);
@@ -208,8 +202,8 @@ describe("a Story reader", () => {
     expect((await rita.api("GET", "/api/v1/me/products")).body.tenants.find((t: { slug: string }) => t.slug === tenantSlug).story_only).toBeUndefined();
     const product = await rita.api("GET", P);
     expect(product.body).toMatchObject({ your_role: "viewer", concept: "A planner for finance teams.", counts: { sources: 1, outcomes: 1, story_pages: 1 } });
-    const page = await rita.api("GET", `${P}/story/pages/overview/versions/1`);
-    expect(page.body.citations).toHaveLength(1);
+    const page = await rita.api("GET", `${P}/story/pages/overview`);
+    expect(page.body.agent_notes.content).toBe("Fold in the pricing interviews next.");
     expect((await rita.api("GET", `${P}/sources`)).status).toBe(200);
   });
 

@@ -1,7 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { api } from "../lib/api.ts";
-import { plural } from "../lib/format.ts";
 import { Button, Dialog, ErrorCallout, Loading, TextArea, TextField } from "../ui/index.tsx";
 
 /** What `confirm` says on every permanent delete; the server refuses anything else. */
@@ -101,27 +100,6 @@ export function DeleteDialog<I extends object>({ title, impactPath, etag, delete
       ) : null}
       {del.isError ? <ErrorCallout inset error={del.error} /> : null}
     </Dialog>
-  );
-}
-
-/** A Story page or mockup version that names what is being deleted. */
-export interface VersionReferring {
-  title: string;
-  version: number;
-  is_current: boolean;
-}
-
-/** The Story pages and mockups that draw on what is being deleted, whose links to it stop opening. */
-export function Referring({ story, mockups }: { story: (VersionReferring & { page_id: string })[]; mockups: (VersionReferring & { mockup_id: string })[] }) {
-  const pages = new Set(story.map((v) => v.page_id)).size;
-  const canvases = new Set(mockups.map((v) => v.mockup_id)).size;
-  if (!pages && !canvases) return null;
-  const who = [pages ? plural(pages, "Story page") : "", canvases ? plural(canvases, "mockup") : ""].filter(Boolean).join(" and ");
-  const earlier = [...story, ...mockups].some((v) => !v.is_current);
-  return (
-    <p>
-      <strong>{who}</strong> draw on it{earlier ? ", earlier versions included" : ""}, and those links will stop opening.
-    </p>
   );
 }
 

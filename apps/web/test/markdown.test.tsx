@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { formatCue, formatDate, formatDateTime, passageText, relativeTime } from "../src/lib/format.ts";
-import { citationLabels, inAppHref, Markdown, markdownText } from "../src/lib/markdown.tsx";
+import { inAppHref, Markdown, markdownText, mentionLabels } from "../src/lib/markdown.tsx";
 import { derivedStatusDetail } from "../src/lib/status.ts";
 
 const html = (md: string) => renderToStaticMarkup(<Markdown source={md} />);
@@ -37,7 +37,7 @@ describe("safe Markdown", () => {
     expect(out).toContain("<table>");
     expect(out).toContain('type="checkbox"');
   });
-  it("renders evidence as a linked 'Source ¶N' token, resolving bare citations when titles are known", () => {
+  it("renders evidence as a linked 'Source ¶N' token, resolving a source mentioned by id when titles are known", () => {
     const id = "01K5Z8T2Q4R6S8V0W2X4Y6Z8A0";
     const linked = html(`It takes hours ([Crew lead interview ¶5](/t/a/b/c/evidence/${id}?seq=5)).`);
     expect(linked).toContain('class="evidence-link"');
@@ -50,10 +50,10 @@ describe("safe Markdown", () => {
     expect(bare).toContain("Crew lead interview\u00a0¶1–3");
     expect(bare).toContain(">Source</a>");
   });
-  it("extends a chip label until each cited source reads differently", () => {
+  it("extends a chip label until each mentioned source reads differently", () => {
     const [a, b, c, d, e] = ["A0", "A1", "A2", "A3", "A4"].map((x) => `01K5Z8T2Q4R6S8V0W2X4Y6Z8${x}`) as [string, string, string, string, string];
     const titles = { [a]: "Usability study — crew", [b]: "Usability study — office", [c]: "Digest", [d]: "Digest", [e]: "Kickoff notes — March" };
-    expect(citationLabels([a, b, c, d, e], titles)).toEqual({
+    expect(mentionLabels([a, b, c, d, e], titles)).toEqual({
       [a]: "Usability study (crew)",
       [b]: "Usability study (office)",
       [c]: "Digest (1)",

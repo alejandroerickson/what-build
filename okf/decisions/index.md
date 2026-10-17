@@ -3,7 +3,7 @@ type: Index
 title: Decisions
 description: Architectural decision records, each with its context, the choice, and what it constrains.
 tags: [index, decisions, adr]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
@@ -21,7 +21,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Each file is parsed in a worker thread of its own, held to a memory and a time limit, so a file can fail but never take the server down](each-file-is-parsed-in-a-thread-of-its-own-with-memory-and-time-limits.md)
 - [Self-hosting on Azure is done by an agent with the Azure CLI, from instructions in the repository, and shares nothing with the Cloud Run deployment](self-hosting-on-azure-is-agent-led-and-shares-nothing-with-cloud-run.md)
 - [Every capability is one registered operation, exposed through both REST and MCP](one-registry-two-front-doors.md)
-- [MCP exposes 16 tools, grouped by the kind of object, with an action parameter](mcp-tools-grouped-by-noun.md)
+- [MCP exposes 15 tools, grouped by the kind of object, with an action parameter](mcp-tools-grouped-by-noun.md)
 - [Tenants share one schema, partitioned by key and enforced three times](shared-schema-tenancy-with-row-level-security.md)
 - [Access is decided in the application, per product, by role](access-is-per-product-roles.md)
 - [A reader reads only the Story, never the evidence behind it](a-reader-reads-only-the-story.md)
@@ -36,7 +36,8 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Every write is attributed, and human or agent authorship is declared](attribution-and-declared-authorship.md)
 - [Sources are described by a title and tags; there are no kinds, folders, organization field or dimensions](sources-are-described-by-tags.md)
 - [Only a source's primary file is parsed and searched](only-the-primary-file-is-searched.md)
-- [Citations freeze a snapshot and report drift; they are never repaired silently](citations-snapshot-and-report-drift.md)
+- [Evidence is found by searching, not kept as citations](evidence-is-searched-not-cited.md)
+- [Citations freeze a snapshot and report drift; they are never repaired silently](citations-snapshot-and-report-drift.md) (superseded)
 - [Story pages are agent-authored HTML shown only in a sandbox](story-pages-are-sandboxed-agent-html.md)
 - [Each Story page keeps notes for agents, separate from its versions](story-notes-are-agent-memory.md)
 - [Agents write the Story; people read it, and may arrange, archive and delete its pages by hand](agents-write-the-story-people-arrange-it.md)
@@ -65,7 +66,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [The app has one address, and a page opened on another of the deployment's names moves to it](the-app-has-one-address-and-pages-on-other-hosts-move-to-it.md)
 - [Lists filter from the panel; a table's header only sorts or searches](lists-filter-from-the-panel.md)
 - [An empty list says what belongs in it and what to ask an agent; adding by hand stays in the header](empty-lists-lead-with-the-agent.md)
-- [An assumption may be recorded before any evidence cites it](register-entries-may-start-uncited.md)
+- [An assumption may be recorded before any evidence cites it](register-entries-may-start-uncited.md) (superseded)
 - [The repository is public; okf/ is the single source of documentation](public-repository-reference-docs.md)
 - [Checks that keep private material out and find known vulnerabilities live in the repository, with pinned tools, and no separate service](privacy-and-security-checks-live-in-the-repository.md)
 - [Agent guidance is tool-neutral: AGENTS.md and .agents/skills](agent-guidance-is-tool-neutral.md)

@@ -300,7 +300,7 @@ export function fileNote(role: string, derivedStatus: string, statusDetail: stri
     case "awaiting_file":
       return "This file is the primary: it is being parsed, and becomes searchable when the source's derived_status is ready. Check sources(action=\"get\").";
     case "needs_transcript":
-      return "This file is the primary and a recording: it is stored and playable, but WhatBuild never transcribes, so it will not be parsed or searched. Add its transcript as a separate source, and link the two with related_records on each.";
+      return "This file is the primary and a recording: it is stored and playable, but WhatBuild never transcribes, so it will not be parsed or searched. Add its transcript as a separate source, with a title that names the recording.";
     case "unsupported":
       return `This file is the primary, but no parser reads its format, so it is stored and downloadable and will not be parsed or searched${detail}. Parsed formats: ${SUPPORTED_EXTENSIONS.join(", ")}. To make it searchable, create a new source whose primary is an export in one of those formats, and keep this file as its origin.`;
     default:

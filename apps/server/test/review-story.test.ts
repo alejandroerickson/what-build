@@ -56,72 +56,22 @@ beforeAll(async () => {
 });
 afterAll(async () => h?.close());
 
-describe("Story citations", () => {
-  let pageEtag: string;
-
-  it("publishes a version with cited passages, snapshotted, with source titles and resolved refs", async () => {
+describe("a Story page version", () => {
+  it("holds the page and how it was published, and takes no refs or citations", async () => {
     const v1 = await alice.api("POST", `${P}/story/pages/overview/versions`, {
       title: "Overview",
-      html: html("Overview", "<h1>Overview</h1><p>Numbers close on Fridays.</p>"),
-      refs: { sources: [recordId] },
-      citations: [
-        { record_id: recordId, seq_start: 2, seq_end: 2, quote: "numbers close" },
-        { record_id: recordId, seq_start: 0, seq_end: 1 },
-      ],
+      html: html("Overview", "<h1>Overview</h1><p>Numbers close on Fridays.</p><figure class=\"quote\"><blockquote><p>That is when the numbers close.</p></blockquote><figcaption>Finance lead · interview</figcaption></figure>"),
     });
     expect(v1.status).toBe(201);
-    pageEtag = v1.body.etag;
-    expect(v1.body.current.citations).toHaveLength(2);
-    expect(v1.body.current.citations[0]).toMatchObject({ index: 0, record_id: recordId, seq_start: 2, seq_end: 2, quote: "numbers close", source_title: "Finance lead interview — Example Co, Sep 2026", speakers: ["Dana"] });
-    expect(v1.body.current.citations[1].quote).toContain("Why Friday?");
-    expect(v1.body.current.resolved_refs.sources).toEqual([{ id: recordId, title: "Finance lead interview — Example Co, Sep 2026", status: null, archived: false, missing: false }]);
-    const page = await alice.api("GET", `${P}/story/pages/overview`);
-    expect(page.body.current.citations).toHaveLength(2);
-    const version = await alice.api("GET", `${P}/story/pages/overview/versions/1`);
-    expect(version.body.citations[0].source_title).toContain("Finance lead");
-    const versions = await alice.api("GET", `${P}/story/pages/overview/versions`);
-    expect(versions.body.items[0].citation_count).toBe(2);
-  });
-
-  it("refuses a quote that is not in the passage, and more than 20 citations", async () => {
-    const bad = await alice.api("POST", `${P}/story/pages/overview/versions`, { title: "Overview", expected_etag: pageEtag, citations: [{ record_id: recordId, seq_start: 0, seq_end: 0, quote: "not there" }] });
-    expect(bad.status).toBe(422);
-    expect(bad.body.error.code).toBe("quote_not_found");
-    const many = Array.from({ length: 21 }, () => ({ record_id: recordId, seq_start: 0, seq_end: 0 }));
-    const tooMany = await alice.api("POST", `${P}/story/pages/overview/versions`, { title: "Overview", expected_etag: pageEtag, citations: many });
-    expect(tooMany.status).toBe(422);
-  });
-
-  it("checks a version's citations against the sources as they are now, for any reader", async () => {
-    const check = await vic.api("GET", `${P}/story/pages/overview/check-citations`);
-    expect(check.status).toBe(200);
-    expect(check.body).toMatchObject({ page_id: "overview", version: 1, valid: true });
-    expect(check.body.citations.map((c: { status: string }) => c.status)).toEqual(["ok", "ok"]);
-    const missing = await alice.api("GET", `${P}/story/pages/overview/check-citations?version=9`);
-    expect(missing.status).toBe(404);
-    // Empty lists clear a later version's citations and refs.
-    const v2 = await alice.api("POST", `${P}/story/pages/overview/versions`, { title: "Overview", html: html("Overview", "<p>Short.</p>"), refs: {}, citations: [], expected_etag: pageEtag });
-    pageEtag = v2.body.etag;
-    expect(v2.body.current.citations).toEqual([]);
-    expect(v2.body.current.refs.sources).toEqual([]);
-    const old = await alice.api("GET", `${P}/story/pages/overview/check-citations?version=1`);
-    expect(old.body.citations).toHaveLength(2);
-    await alice.api("POST", `${P}/story/pages/overview/versions`, {
-      title: "Overview", html: html("Overview", "<h1>Overview</h1><p>Again.</p>"), expected_etag: pageEtag, citations: [{ record_id: recordId, seq_start: 2, seq_end: 2 }],
-    }).then((r) => (pageEtag = r.body.etag));
-  });
-
-  it("lists Story pages among what a source is cited in, and in its delete impact", async () => {
-    const using = await alice.api("GET", `${P}/sources/${recordId}/used-by`);
-    expect(using.body.story_pages).toEqual([{ page_id: "overview", title: "Overview", version: 3, referenced: false, citations: [{ seq_start: 2, seq_end: 2 }] }]);
-    const impact = await alice.api("GET", `${P}/sources/${recordId}/delete-impact`);
-    expect(impact.body.story_pages_citing).toEqual([{ page_id: "overview", title: "Overview", version: 3, count: 1 }]);
-    expect(impact.body.story_versions_citing).toEqual([
-      { page_id: "overview", title: "Overview", version: 3, count: 1, is_current: true },
-      { page_id: "overview", title: "Overview", version: 1, count: 2, is_current: false },
-    ]);
-    expect(impact.body.after_delete).toMatch(/keep their quoted text .* report record_deleted/);
-    expect(impact.body.after_delete).toMatch(/2 Story page versions/);
+    for (const field of ["refs", "resolved_refs", "citations"]) expect(v1.body.current).not.toHaveProperty(field);
+    const cited = await alice.api("POST", `${P}/story/pages/overview/versions`, { expected_etag: v1.body.etag, citations: [{ record_id: recordId, seq_start: 2, seq_end: 2 }] });
+    expect(cited.status).toBe(422);
+    expect(cited.body.error.code).toBe("invalid_input");
+    const referred = await alice.api("POST", `${P}/story/pages/overview/versions`, { expected_etag: v1.body.etag, refs: { sources: [recordId] } });
+    expect(referred.status).toBe(422);
+    const versions = await vic.api("GET", `${P}/story/pages/overview/versions`);
+    expect(versions.body.items).toHaveLength(1);
+    expect(versions.body.items[0]).not.toHaveProperty("citation_count");
   });
 });
 
@@ -182,23 +132,18 @@ describe("publishing a later version", () => {
       title: "Plan",
       summary: "What we learn next.",
       html: html("Plan", "<h1>Plan</h1><p>First.</p>"),
-      refs: { sources: [recordId] },
-      citations: [{ record_id: recordId, seq_start: 2, seq_end: 2, quote: "numbers close" }],
     });
     expect(v1.status).toBe(201);
     expect(v1.body).toMatchObject({ based_on_version: null, carried_forward: [] });
     expect(v1.body.current.html_sha256).toMatch(/^[0-9a-f]{64}$/);
     const v2 = await alice.api("POST", V, { html: html("Plan", "<h1>Plan</h1><p>Second.</p>"), expected_etag: v1.body.etag });
     expect(v2.status).toBe(201);
-    expect(v2.body).toMatchObject({ title: "Plan", summary: "What we learn next.", based_on_version: 1, carried_forward: ["title", "summary", "refs", "citations"] });
-    expect(v2.body.current.refs.sources).toEqual([recordId]);
-    expect(v2.body.current.citations).toEqual(v1.body.current.citations);
+    expect(v2.body).toMatchObject({ title: "Plan", summary: "What we learn next.", based_on_version: 1, carried_forward: ["title", "summary"] });
     expect(v2.body.current.html_sha256).not.toBe(v1.body.current.html_sha256);
     const v3 = await alice.api("POST", V, { from_version: 1, expected_etag: v2.body.etag });
     expect(v3.status).toBe(201);
-    expect(v3.body).toMatchObject({ based_on_version: 1, carried_forward: ["title", "summary", "html", "refs", "citations"] });
+    expect(v3.body).toMatchObject({ based_on_version: 1, carried_forward: ["title", "summary", "html"] });
     expect(v3.body.current).toMatchObject({ version: 3, html_sha256: v1.body.current.html_sha256 });
-    expect(v3.body.current.citations).toEqual(v1.body.current.citations);
     const list = await alice.api("GET", V);
     expect(list.body.items.map((i: { html_sha256: string }) => i.html_sha256)).toEqual([v1.body.current.html_sha256, v2.body.current.html_sha256, v1.body.current.html_sha256]);
     const act = await alice.api("GET", `${P}/activity?entity_id=plan`);
@@ -220,7 +165,7 @@ describe("publishing a later version", () => {
     const cur = await alice.api("GET", `${P}/story/pages/plan`);
     const patched = await alice.api("POST", V, { patch_html: [{ find: "<p>First.</p>", replace: "<p>First, corrected.</p>" }], expected_etag: cur.body.etag });
     expect(patched.status).toBe(201);
-    expect(patched.body.carried_forward).toEqual(["title", "summary", "refs", "citations"]);
+    expect(patched.body.carried_forward).toEqual(["title", "summary"]);
     const after = await alice.api("GET", `${P}/story/pages/plan`);
     expect(after.body.current.html).toBe(cur.body.current.html.replace("<p>First.</p>", "<p>First, corrected.</p>"));
     const missing = await alice.api("POST", V, { patch_html: [{ find: "<p>Nowhere.</p>", replace: "" }, { find: "Plan", replace: "Plan" }], expected_etag: after.body.etag });
@@ -364,7 +309,7 @@ describe("Story print view", () => {
     const plan = await vic.api("GET", `${P}/story/print-view?page_ids=aside,detail,overview`);
     expect(plan.status).toBe(200);
     expect(plan.body.pages.map((p: { page_id: string; level: number; depth: number }) => `${p.page_id}:${p.level}:${p.depth}`)).toEqual(["overview:1:1", "detail:2:2", "aside:1:1"]);
-    expect(plan.body.pages[0]).toMatchObject({ title: "Overview", version: 4, archived: false });
+    expect(plan.body.pages[0]).toMatchObject({ title: "Overview", version: 2, archived: false });
     expect(plan.body.path).toBe(`${P}/story/print?page_ids=overview,detail,aside`);
     expect(plan.body.url).toBe(`${h.baseUrl}${P}/story/print?page_ids=overview,detail,aside`);
     const child = await alice.api("GET", `${P}/story/print-view?page_ids=detail`);
@@ -441,7 +386,7 @@ describe("people on one product", () => {
 });
 
 describe("the sample product", () => {
-  it("seeds sources, an assumption, a mockup and Story pages with citations and notes", async () => {
+  it("seeds sources, an assumption, a mockup and Story pages with notes", async () => {
     const ports = createPorts(h.config, h.blobs, h.mailer);
     await seed({ db: h.db, ports }, h.worker, () => {});
     const sam = await h.signIn("sam@example.com", "Sam Okafor");
@@ -452,12 +397,12 @@ describe("the sample product", () => {
     expect((await sam.api("GET", `${S}/mockups`)).body.items).toHaveLength(1);
     const tree = await sam.api("GET", `${S}/story/hierarchy`);
     expect(tree.body.mockups.map((m: { page_id: string }) => m.page_id)).toEqual(["jobs-board", "day-planner", "crew-message"]);
-    const overview = await sam.api("GET", `${S}/story/pages/overview?include_html=false`);
-    expect(overview.body.current.citations.length).toBeGreaterThan(0);
-    expect(overview.body.current.citations.every((c: { source_title: string | null }) => c.source_title)).toBe(true);
+    const overview = await sam.api("GET", `${S}/story/pages/overview`);
     expect(overview.body.agent_notes.content).toContain("## Purpose");
-    const check = await sam.api("GET", `${S}/story/pages/overview/check-citations`);
-    expect(check.body.valid).toBe(true);
+    // The sample Story quotes its sources in words and links to no passage.
+    expect(overview.body.current.html).toContain("I type those by hand");
+    expect(overview.body.current.html).not.toContain("view=passages");
+    expect(overview.body.current.html).not.toContain("/evidence/");
     const child = await sam.api("GET", `${S}/story/pages/hand-off-test?include_html=false`);
     expect(child.body.agent_notes.content).toContain("## Purpose");
     const plan = await sam.api("GET", `${S}/story/print-view?page_ids=hand-off-test,overview`);

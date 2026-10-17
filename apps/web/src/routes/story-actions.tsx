@@ -120,7 +120,7 @@ export function DeletePage({ page, onArchive, onDeleted, onClose }: { page: Page
       renderImpact={(i) => (
         <>
           <p>
-            This deletes “{page.title}” with {i.version_count === 1 ? "its only version" : `all ${i.version_count} of its versions`}, their notes and citations.
+            This deletes “{page.title}” with {i.version_count === 1 ? "its only version" : `all ${i.version_count} of its versions`} and its notes.
           </p>
           {i.sub_pages_promoted.length ? <p>Its {i.sub_pages_promoted.length === 1 ? "sub-page moves" : `${i.sub_pages_promoted.length} sub-pages move`} up into its place.</p> : null}
         </>

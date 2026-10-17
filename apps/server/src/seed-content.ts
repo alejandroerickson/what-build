@@ -151,7 +151,7 @@ Spreadsheets were the main tool for 14 respondents, paper for 5, and scheduling 
 "Sending everybody their day is what takes forever."
 `;
 
-export const STORY_HTML = (links: { passage: string; assumption: string; handOff: string }, css: string) => `<!doctype html>
+export const STORY_HTML = (links: { assumption: string; handOff: string }, css: string) => `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -172,7 +172,7 @@ ${css}</style>
 <h2 id="heard">What we heard</h2>
 <aside class="note">Four sources: two interviews, owner-call notes and a survey export of 23 responses. Every person and company here is invented.</aside>
 <p>Planning is a weekly ritual of two to three hours, in a spreadsheet or on paper. The errors crews feel, a wrong address or a double booking, enter when the plan is copied into messages by hand.</p>
-<figure class="quote"><blockquote><p>The texts are the worst part honestly. Every crew lead gets a message with their jobs and addresses, and I type those by hand.</p></blockquote><figcaption>Crew lead, landscaping · interview · <a href="${links.passage}" target="_blank" rel="noopener noreferrer">Read the passage</a></figcaption></figure>
+<figure class="quote"><blockquote><p>The texts are the worst part honestly. Every crew lead gets a message with their jobs and addresses, and I type those by hand.</p></blockquote><figcaption>Crew lead, landscaping · interview</figcaption></figure>
 </section>
 <section aria-labelledby="next">
 <h2 id="next">What we are doing next</h2>
@@ -206,11 +206,11 @@ Explains the hand-off test for the two crews taking part. A sub-page of the over
 
 ## Next revision
 
-- Add the two crews' results when the test ends; cite the call notes, not a summary.
+- Add the two crews' results when the test ends, in their own words where they say it best.
 - Do not state a success threshold until Riley sets one.
 `;
 
-export const HANDOFF_HTML = (links: { passage: string }, css: string) => `<!doctype html>
+export const HANDOFF_HTML = (css: string) => `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -230,7 +230,7 @@ ${css}</style>
 <section aria-labelledby="why">
 <h2 id="why">Why this first</h2>
 <p>Typed messages are where wrong addresses and gate codes enter, and a wrong address reaches a crew about once a week. A generated message is small to build and useful whichever planning model wins.</p>
-<figure class="quote"><blockquote><p>Maybe once a week. Somebody drives to the wrong side of town.</p></blockquote><figcaption>Crew lead, landscaping · <a href="${links.passage}" target="_blank" rel="noopener noreferrer">interview</a></figcaption></figure>
+<figure class="quote"><blockquote><p>Maybe once a week. Somebody drives to the wrong side of town.</p></blockquote><figcaption>Crew lead, landscaping · interview</figcaption></figure>
 </section>
 <section aria-labelledby="look">
 <h2 id="look">What we will look at</h2>

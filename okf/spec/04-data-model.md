@@ -1,8 +1,8 @@
 ---
 type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
-description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, files, annotations, what uses a source, the assumption register and citations, views and lineage, activity, Story, mockups, feedback, the product bundle, and the storage layout.
-tags: [spec, data-model, schema, citations, revisions, story, mockups, export]
+description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, files, annotations, evidence links, the assumption register, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
+tags: [spec, data-model, schema, revisions, story, mockups, export]
 generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
@@ -53,7 +53,7 @@ appended to an immutable revision list with who wrote it and who replaced it
 | Outcome | `title`, `description` |
 | Source | — (metadata only; the activity log names the operation and the actor) |
 | Annotation | `note` |
-| Assumption | `statement`, `body`, `citations` (while still editable, §4.8) |
+| Assumption | `statement`, `body` (while still editable, §4.8) |
 | Story page | — (it has explicit, numbered, reader-visible versions instead, §4.11) |
 
 Outcomes have operations to read and restore revisions: `revisions` (list, bounded,
@@ -92,7 +92,7 @@ the evidence, assumptions, mockups and Story are read against
 | `archived_at` | Null while the outcome is current. An outcome is current or archived; it has no other state. |
 | `position` | Ordering key within the product. `create` takes one to place a new outcome (a value between two others' positions puts it between them); omitted, it goes last. Reorder is an update. |
 
-Assumptions, and Story and mockup versions, point *to* outcomes; an outcome cites nothing. Its
+Assumptions point *to* outcomes (`outcome_ids`); an outcome points at nothing. Its
 title and description may not hold a record id: `create` and `update` refuse one with `422
 outcome_cites_a_record`, naming the field and the id. Reads carry no count of what points at an
 outcome; `assumptions.list` with `outcome_id` lists the assumptions that serve one.
@@ -127,7 +127,6 @@ A source is one discovery event or document. It is stored as a **record**, so it
 | `participants` | Optional, ≤ 50 names of 1–100 chars. |
 | `source_system` | Optional, ≤ 100 chars: where the material came from (a meeting tool, a wiki). |
 | `tags` | ≤ 50, each 1–50 chars: what the material is, whom it concerns, what it bears on (§4.4). Stored NFKC-normalized, spacing collapsed, lower-case, without repeats. |
-| `related_records` | ≤ 50 source ids in the same product. |
 | `provenance_depth` | `primary`, `derived`, `analysis_of_analysis`, `unknown` (default). |
 | `copied_from` | `{ product_id, record_id }` when the source is a copy ([§3.7](03-accounts-teams-and-identity.md)). |
 | `uploaded_by`, `uploaded_at` | Actor snapshot and time of creation: the **date added**. |
@@ -136,19 +135,17 @@ A source is one discovery event or document. It is stored as a **record**, so it
 | `derived_status` and counts | The current derivation's status, or `pending` before one exists ([§5](05-derived-layer.md)). |
 
 - **Correcting is a metadata change.** `sources.update` changes the title, date, tags and other
-  fields in place (`tags` replaces the whole list). The `record_id`, file versions, derivations,
-  and every citation are untouched.
-- **Archive** takes the source out of browse, out of search (including the search space an agent
-  can reach), and out of new citations. It erases nothing; existing citations still resolve by id
-  and report `record_archived`; `restore` puts it back. This is the default and the first action
-  the UI offers.
+  fields in place (`tags` replaces the whole list). The `record_id`, file versions, derivations
+  and comments are untouched.
+- **Archive** takes the source out of browse and out of search (including the search space an
+  agent can reach). It erases nothing, and the source stays readable by id; `restore` puts it
+  back. This is the default and the first action the UI offers.
 - **Delete** ([§9.5](09-data-lifecycle.md)) destroys the source and every byte under it,
   permanently. Admins may do it, through either adapter (an agent on an Admin connection). It
   requires the current etag, a reason,
-  and `confirm` set to exactly `delete permanently`, and it leaves a tombstone, so citations report
-  `record_deleted` and reads return `410 record_deleted` rather than a bare `404`.
-  `sources.delete_impact` previews what it will destroy and which citations it will orphan,
-  including every Story page version that cites the source.
+  and `confirm` set to exactly `delete permanently`, and it leaves a tombstone, so reads return
+  `410 record_deleted` rather than a bare `404`. `sources.delete_impact` previews what it will
+  destroy: its file versions and their bytes, its derivations and its comments.
 - **Read modes** (`detail`): `brief` (identity, title, date, tags, derived status, counts) and
   `full` (adds files, the derivation manifest, the outline, and notes). Neither includes file bytes
   or derived text. Both carry `warnings`, which says when the source has files but no primary yet,
@@ -242,22 +239,16 @@ Editable (note only, keeping revisions), archivable.
 read with `derived.read_note`. They are an agent's interpretation, not the source's words, and are
 labelled so.
 
-## 4.7 What uses a source
+## 4.7 Evidence links
 
-`sources.used_by` lists everything in the product built on a source: assumptions with a citation
-into it, live Story pages and mockups whose current version cites it or lists it in `refs`, live
-sources whose `related_records` name it (`related`), and live views whose lineage lists it as a
-direct input. Each citation names the segment range its quote is in now: the stored range until
-the source is parsed again, and after that the range the quote is found in (`citedRanges` in
-`packages/core/src/citations.ts`, the same matcher as `check_citations`). A quote found outside its
-stored range gives the new one, with the stored range as `moved_from`; one no longer found keeps the
-stored range with `quote_not_found`. Nothing stored changes. The web app shows the list as a
-source's **Cited in**, and marks the passages it names, leaving out a quote no longer found.
-
-Evidence is cited in prose as a source id and segment range ("source 01K…, segments 4–6"); the
-web app renders such citations in Markdown, and links to sources and passages, as evidence links
-([`apps/web/src/lib/markdown.tsx`](../../apps/web/src/lib/markdown.tsx)).
-◆ Decision: references are structural (`refs`, citations); inline links are presentation only.
+Writing may mention a source and a passage in prose, as a source id and a segment range ("source
+01K…, segments 4–6"). The web app renders such a mention in Markdown as an evidence link that
+reads "Title ¶4–6" and opens the passage
+([`apps/web/src/lib/markdown.tsx`](../../apps/web/src/lib/markdown.tsx)). A link is presentation
+only. Nothing structural points from an assumption, a Story page, a mockup or another source to a
+source, and nothing records what mentions what: what bears on a piece of work is found by
+searching the product ([§8](08-search.md),
+[decision](../decisions/evidence-is-searched-not-cited.md)).
 
 ### Retired: insights and decisions
 
@@ -270,12 +261,10 @@ or writes them. Each one a product still held becomes a source with the same id,
 | Was | Becomes |
 |---|---|
 | An insight | A source tagged `analysis` and `insight` (and `draft` for a draft), `provenance_depth: derived`, archived if it was. Its primary file is Markdown: the title, summary and body, then a note of its status, review mark, authors and what it referred to. Each earlier revision is an earlier file version; the summary is the source's summary note. |
-| A decision | A source tagged `decision` and with the entry's tags and provenance. Its Markdown holds the statement, the body, the cited passages with their quotes, the status, the outcomes, the links in and out, and every review. Earlier revisions are earlier file versions. |
+| A decision | A source tagged `decision` and with the entry's tags and provenance. Its Markdown holds the statement, the body (which holds the passages it cited, §4.8), the status, the outcomes, the links in and out, and every review. Earlier revisions are earlier file versions. |
 
-Its `related_records` are the sources, insights and decisions it referred to or cited. Every
-`refs.insights` and `refs.decisions` id on a Story or mockup version moves to `refs.sources`, a
-view's decision input becomes a source input, an assumption's link to a decision is dropped (the
-decision's document names it), and the item's history in the activity log becomes the source's.
+An assumption's link to a decision is dropped (the decision's document names it), and the item's
+history in the activity log becomes the source's.
 
 ## 4.8 Assumptions
 
@@ -287,8 +276,7 @@ incomplete. An entry's id is `id` (the tool also accepts `assumption_id`,
 |---|---|
 | `id` | |
 | `statement` | 1–1,000 chars. The premise in one sentence. |
-| `body` | Markdown, 0–10,000 chars: what it rests on, and what would change if it turned out false. |
-| `citations` | 0–20 (below). An entry may be recorded before any evidence cites it ([decision](../decisions/register-entries-may-start-uncited.md)). |
+| `body` | Markdown, 0–10,000 chars: why the team holds it, what it rests on, and what would change if it turned out false. An entry may be recorded before any evidence exists. |
 | `outcome_ids` | ≤ 20 outcome ids. |
 | `links` | ≤ 50 of `{ id, type }` to other assumptions; `type` is `supports`, `contradicts`, or `supersedes`. Reads also return `linked_from` and `superseded_by` (the ids of entries that supersede this one, newest first). |
 | `tags`, `provenance_depth` | As sources. |
@@ -304,74 +292,14 @@ one it returns the current entries (unconfirmed and confirmed), so it agrees wit
 products and outcomes and with the register's default view, and says in `not_current_hidden` how
 many refuted or superseded entries it left out.
 
-### Citations
-
-Input: `{ record_id, seq_start, seq_end, quote? }`: an inclusive segment range of ≤ 100 segments
-in a live (unarchived) source of the same product with a `ready` derivation. If `quote` is given it
-MUST occur exactly in the range's text, else `422 quote_not_found`. When the quote differs from the
-range's text only in emphasis or code markers, spacing or a speaker label, the refusal gives the
-range's own words in `details.exact_quote`; the quote is still refused. The quotes of one entry total
-at most 40,000 characters. ([`packages/core/src/citations.ts`](../../packages/core/src/citations.ts))
-
-Story page versions cite passages the same way, with the same input, limits and snapshot
-(§4.11).
-
-At creation the service stores an immutable **snapshot**:
-
-```json
-{
-  "record_id": "01J…", "seq_start": 41, "seq_end": 43,
-  "char_start": 10432, "char_end": 10987,
-  "start_ms": 1815000, "end_ms": 1862000, "speakers": ["Dana"],
-  "source_file": "call.vtt", "file_version_id": "01J…", "derivation_id": "01J…",
-  "quote": "…the quote, or the exact text of the range…",
-  "quote_hash": "…", "anchors_hash": "…",
-  "captured_at": "2026-09-19T17:02:11Z"
-}
-```
-
-`check_citations` re-resolves every citation of an entry and reports, per citation, one status, a
-`version_drift` flag and a `derivation_changed` flag:
-
-| Status | Meaning |
-|---|---|
-| `ok` | Same derivation, or a newer one in which the quote is found in the same range. |
-| `relocated` | Quote intact but at a different segment range; the report gives the new range. |
-| `text_changed` | The quote is no longer present in the current derivation. |
-| `record_archived` | The source is archived: still readable, out of the default views. |
-| `record_deleted` | The source was deliberately deleted; the tombstone gives who, when and why. |
-| `record_missing` | The source cannot be resolved at all. |
-
-`version_drift` is true when the primary file has a newer version than the snapshot's.
-`derivation_changed` is true when the source has been parsed again since the snapshot (a new file
-version or a re-derive), and then `current_derivation_id` names the derivation checked against. An
-`ok` with `derivation_changed` says only that the quote is still in the range; the range's edges may
-cover different text, so read the passage before relying on it.
-
-The result's top-level `valid` is true when every citation is `ok` against the passages of its
-source's current file. A newer file version is not by itself a reason for `false`: once the new file
-is parsed and every quote holds in it, the citations are valid, with `version_drift` still reported
-on each. `valid` is false while a cited source has a newer file whose passages have not been read
-(its parse is pending or failed: `version_drift` without `derivation_changed`), because the quote was
-then checked against the earlier file; the result then carries `unverified_note`, which says to check
-again once the source's `derived_status` is `ready`. `rederived` is true when any citation has
-`derivation_changed`.
-
-Against a newer derivation the quote is looked for exactly first. If that fails it is matched again
-with emphasis and code markers (`*`, `_` at a word edge, backticks), runs of whitespace, and a
-`Name:` label at the start of a line set aside on both sides, the label only when the name is a
-speaker of the source or of the snapshot. A match of that kind counts only where the source gives
-the passage the labelled speaker, or none, and is reported with `quote_match: "normalized"` and a
-`note`; it is `ok` in the same range and `relocated` elsewhere. Words, their order and punctuation
-must still agree. The order of preference is exact in the range, normalised in the range, exact
-elsewhere, normalised elsewhere.
-
-It reports. It never rewrites a citation or a snapshot. Readers follow the quote instead: the web
-app's link from a citation to its passage opens where the check found it (`relocated`), and opens
-the source without a range when the quote is gone (`text_changed`). The original passage stays readable
-through its retained derivation ([§5.5](05-derived-layer.md)) unless the source was deleted, and
-even then the **snapshot text survives**, because a citation snapshot is a quotation the team wrote
-down, not a copy of the source ([§9.5](09-data-lifecycle.md)).
+An assumption names no passage structurally: its body says, in words, what it rests on, and an
+agent finds the evidence by searching
+([decision](../decisions/evidence-is-searched-not-cited.md)).
+Migration `0028_citations_refs_and_lineage_retired.sql` put the passages an entry had cited at the
+end of its body, under **Passages cited**: one line each, `- “quote” (source title)`, the quote on
+one line and cut to 500 characters, the title the source's, or its tombstone's once it was deleted,
+or "a source no longer in WhatBuild". Those entries took a new etag; their status, reviews and
+`updated_at` stayed as they were, and their kept revisions lost the citations they held.
 
 ### Reviews
 
@@ -387,7 +315,7 @@ down, not a copy of the source ([§9.5](09-data-lifecycle.md)).
 
 ### Corrections and links
 
-- ◆ Decision: `statement`, `body`, and `citations` are editable only while the entry has no
+- ◆ Decision: `statement` and `body` are editable only while the entry has no
   review. After the first review — any review, by a person or an agent, with any status, including
   one that leaves it `unconfirmed` — they are frozen (`409 frozen`); the `review` guidance says
   so: a correction is a **new entry**
@@ -397,37 +325,14 @@ down, not a copy of the source ([§9.5](09-data-lifecycle.md)).
 - Links are type-checked **before** any mutation: the target must exist in the same product, a
   self-link is rejected, a duplicate `{id, type}` is rejected, and `supersedes` must be acyclic.
 
-## 4.9 Views and lineage
+## 4.9 Views
 
-A **view** is a derived document stored as a source tagged `view` (or `analysis`, `digest`):
-something produced *from* other material. It can carry a **lineage baseline**, in three
-steps ([`lineage.ts`](../../packages/core/src/ops/lineage.ts)):
-
-- `capture` fingerprints 1–50 inputs (sources and assumptions) at that moment. An archived input
-  is refused. A source's fingerprint covers its title, date, primary file version, current
-  derivation and archived state; an assumption's covers its statement, body,
-  citations, status, review count and archived state.
-- `write` attaches the untouched fingerprints, `captured_at` as capture returned it (optional;
-  refused if in the future), and a description of how the inputs were chosen to the view,
-  refusing with `409 input_changed` if any input changed since capture. It also stores a short hash
-  of each part the fingerprint covers; the fingerprint itself is unchanged.
-- `check` reports each input as `current`, `changed`, `archived`, `deleted`, or `missing`, and
-  whether the view is `stale`. Where the parts were stored, it compares them one by one, ignoring
-  a part stored then and no longer covered (a source's `kind` and `organization`, before they
-  became tags) and a part covered now that was not stored then; otherwise it compares the whole
-  fingerprint. A source input checked whole keeps, as `was`, the kind and organization migration
-  `0017` found on the source, and the check puts them back into the fingerprint, so an input
-  that has not changed stays `current`. A `changed` input lists `changed_parts` (the parts above whose hash
-  differs) and `last_changed_at` (the latest recorded time among them: the source's or entry's
-  `updated_at`, the file version's or derivation's `created_at`). Lineage written before parts were
-  stored reports `changed_parts: null` with a note that the parts were not recorded, as does an
-  input that was a decision before decisions became sources (§4.7): its fingerprint was the
-  decision's, so it reports `changed`.
-- A view's full `sources.get` includes its lineage: the direct inputs, the query spec,
-  `captured_at`, and when and by whom it was registered. Staleness comes only from `check`.
-- It reports drift. It does not regenerate anything. It checks direct inputs only: a view built on
-  an assumption is not told when a source that assumption cites changes (recursive lineage:
-  [§8.6](08-search.md)).
+A **view** is a derived document stored as a source tagged `view` (or `analysis`, `digest`), with
+`provenance_depth` `derived` or `analysis_of_analysis`: something produced *from* other material.
+It says in its own text what it was built from and when. WhatBuild keeps no record of a view's
+inputs and does not report when they change; an agent builds a view again when the person wants it
+current ([decision](../decisions/evidence-is-searched-not-cited.md)). A view is never presented
+as direct evidence.
 
 ## 4.10 Activity
 
@@ -470,8 +375,8 @@ page itself is given in one of three ways: `body` (only the markup inside `<body
 server wraps in a document carrying the product's Story style), `html` (a whole document), or
 neither (a generated title page). A
 version is immutable: `version` (1, 2, 3…), `title`, `summary` (describes the page), `html`,
-`refs`, `citations`, `published_at`, `published_by`, and `html_sha256` (computed on read, so
-identical HTML can be recognised without reading it). Readers see the latest version; any version
+`published_at`, `published_by`, and `html_sha256` (computed on read, so identical HTML can be
+recognised without reading it). Readers see the latest version; any version
 can be read by number. Limit: 50 pages per product (`409 quota_exceeded`). Agents write pages; agents
 and people arrange, archive and restore them, and admins delete them
 ([decision](../decisions/agents-write-the-story-people-arrange-it.md)).
@@ -482,9 +387,8 @@ still includes it.
 
 **Later versions.** Publishing a new version of an existing page requires the page's current etag.
 It starts from a **base version**, the current one unless `from_version: N` names another, and
-takes every field it omits (`title`, `summary`, `html`, `refs`, `citations`) from the base;
-the result lists them in `carried_forward`, with `based_on_version`. Carried citations keep their
-snapshots. `patch_html: [{find, replace}]` edits the base HTML instead of replacing it: each `find`
+takes every field it omits (`title`, `summary`, `html`) from the base; the result lists them in
+`carried_forward`, with `based_on_version`. `patch_html: [{find, replace}]` edits the base HTML instead of replacing it: each `find`
 must occur exactly once when its turn comes, or nothing is published (`422 invalid_patch` listing
 every failed edit). `body` replaces the page's content and takes the product's current stylesheet.
 `restyle: true` keeps the page and replaces its first `<style>` block with the product's current
@@ -495,8 +399,7 @@ stylesheet, for use on each page after the Story style changes; it is refused on
 restores the base as a new version, and the activity log records "Published version N from
 version M". An unknown `from_version` is `404`.
 ◆ Decision: a later version carries forward what it omits, so changing a sentence or reverting a
-page never means re-sending the whole page. A list that is passed replaces the previous list in
-full; an empty list clears it.
+page never means re-sending the whole page.
 ◆ Decision: an agent publishes a page's body and the server adds the stylesheet. A stylesheet sent
 with every page costs an agent its length each time and lets pages drift apart; one the server
 adds is the same on every page and changes in one place. `html` stays for a document that is not
@@ -510,7 +413,7 @@ page has it yet, and otherwise the mockup page's slug, with `-2`, `-3`… when t
 titled with the mockup page's title unless `title` is given. `version` is the mockup version, the current one by
 default. The version stores `mockup` (`mockup_id`, `mockup_version_id`, `version`, `page_id`) and
 no HTML: mockup versions are immutable, so the page is read from the mockup when it is shown and is
-never copied. It takes the mockup version's refs and citations. It stays on that mockup version until
+never copied. It stays on that mockup version until
 it is promoted again; reading it returns `mockup` with the page's `width` and `height` and, for
 every role but a reader, the mockup's title, the version shown and the mockup's current version.
 The page appears among the Story's Published mockups (Hierarchy, below).
@@ -584,14 +487,6 @@ grant (30 minutes by default) and a product keeps its 20 newest; it is refused w
 be (a viewer, an archived product, a public sandbox not taking visitors' writes) and is never a
 write in a sandbox's allowances ([§9.7](09-data-lifecycle.md),
 [decision](../decisions/a-story-preview-is-the-document-publish-would-store.md)).
-
-**Citations.** A version may carry up to 20 `citations`, `{ record_id, seq_start, seq_end,
-quote? }`, snapshotted exactly as an assumption's citations are (§4.8), with the same quote budget of
-40,000 characters per version. Like `refs`, they belong to the version: a publish that passes them
-passes the full list, and one that omits them keeps the base version's. Reading a version returns each citation with its source's
-current title, and each `refs` id resolved to its current title and state (`resolved_refs`).
-`story.check_citations { page_id, version? }` re-resolves a version's citations (the current one by
-default) with the statuses in §4.8. It reports; it never rewrites.
 
 **Notes for agents.** Each page has one Markdown note, `agent_notes` (≤ 20,000 chars), that agents
 keep while writing and maintaining the page: what the page is for and who reads it, sources still
@@ -686,11 +581,13 @@ layout, adapt, polish), a push to use a design skill such as Impeccable when the
 to mention it once when it does not, the sandbox rules, recipes, writing rules and a checklist.
 It carries no stylesheet of its own and nothing of the app's look; `house_style` returns that
 style in full with a starter page, and `product_style` says whether the product has a style yet.
-The writing guidance asks for source-level quoting rules honoured (attribution by role where a
-source limits naming people, looked for before the first page), derived views labelled as
-analysis rather than evidence, a plan's dates presented as the team's plan with their origin kept
-in the page's notes, and pages
-placed in the hierarchy unless the author's instructions say otherwise. A first version that
+The writing guidance asks for pages that explain in their own words and quote a person only where
+their exact words matter, attributed in words, with no source reference or passage link after each
+claim ([decision](../decisions/evidence-is-searched-not-cited.md)); source-level quoting rules
+honoured (attribution by role where a source limits naming people, looked for before the first
+page), derived views labelled as analysis rather than evidence, a plan's dates presented as the
+team's plan with their origin kept in the page's notes, and pages placed in the hierarchy unless
+the author's instructions say otherwise. A first version that
 omits both `body` and `html` gets a generated title page in the product's Story style, or a plain
 page when there is none.
 
@@ -704,8 +601,8 @@ side by side), each with design notes, and a brief that says what the canvas exp
 the whole canvas: `version` (1, 2, 3…), `title`, `summary`, `brief` (Markdown, ≤ 50,000: what the
 canvas explores, for whom, the questions it should answer, what each page tries), `columns` (1–12
 pages side by side before the canvas wraps, or null for one row), the `pages` in order, the
-`files` it carries, its `prototype` if it carries one, `refs`
-(outcomes, sources and assumptions), `citations`, `published_at` and `published_by`. A page:
+`files` it carries, its `prototype` if it carries one, `published_at` and `published_by`. A
+page:
 `page_id` (a slug, `[a-z0-9][a-z0-9-]*`, ≤ 80 chars), `title` (1–200), `notes` (Markdown,
 ≤ 10,000, the page's design notes), `width` (240–2,560 CSS pixels, default 1,280; 390 for a
 phone) and `height` (240–4,000, default 800), and either its HTML, returned only with
@@ -737,8 +634,8 @@ case are refused, since they would overwrite each other when unzipped.
 a prototype). With `mockup_id` it publishes the next
 version and needs the mockup's etag (`409 stale_etag`); an archived mockup refuses it
 (`409 mockup_archived`). A version starts from a base, the current one unless `from_version: N`
-names another, and takes every field it omits (`title`, `summary`, `brief`, `columns`, `refs`,
-`citations`) from the base. `pages`, when passed, is the whole canvas in order: a page left out is
+names another, and takes every field it omits (`title`, `summary`, `brief`, `columns`) from the
+base. `pages`, when passed, is the whole canvas in order: a page left out is
 dropped from the version, and a page whose `page_id` was on the base keeps its title, notes, size
 and HTML unless they are sent, so a version that changes one page sends only that page's HTML.
 `files`, when passed, is the whole set in the same way: a path on the base keeps its content
@@ -781,8 +678,7 @@ then reads the ZIP, in `get_download`'s layout, so a downloaded version round-tr
 
 - `manifest.json` lists the canvas's pages in order, `[{ page_id, title?, width?, height?,
   entry?, poster? }]`, and may give `title`, `summary`, `columns`, `files` (`[{ path }]`) and
-  `prototype` (`[{ path, sha256? }]`). Its other fields, `refs` and `citations` among them, are
-  not read: those are passed in the call.
+  `prototype` (`[{ path, sha256? }]`). Its other fields are not read.
 - `brief.md` is the brief; `pages/<page_id>.html` and `pages/<page_id>.notes.md` hold a page's
   HTML and notes; `files/<path>` holds a file; `prototype/<path>` holds a file of the prototype,
   any bytes, never decoded.
@@ -798,7 +694,7 @@ the whole set and a listed path missing from `files/` keeps the base's content; 
 the files under `files/` are the whole set; with neither, the version keeps the base's files. The
 call may not also send `pages` or `files` (`422 invalid_input`), nor a `brief` when the ZIP has
 `brief.md`; a `title`, `summary` or `columns` in the call wins over the manifest's. Everything
-else (`mockup_id`, `expected_etag`, `refs`, `citations`, `from_version`) is passed as usual, and the
+else (`mockup_id`, `expected_etag`, `from_version`) is passed as usual, and the
 pages' HTML is checked as if it had been sent.
 
 The ZIP is read before the transaction, so a large one holds no database connection. An upload is
@@ -878,20 +774,12 @@ scrolls inside the frame, on the canvas in interact mode and on the Story ([§7.
 [§7.8](07-web-app.md)). A long document can be one page that scrolls or several pages side by
 side; the choice is how people will read it.
 
-**Citations and refs** work as on a Story version (§4.11): up to 20 citations, snapshotted as an
-assumption's citations are (§4.8), each returned with its source's current title, and every `refs` id
-resolved to its current title and state (`resolved_refs`). `mockups.check_citations { mockup_id,
-version? }` re-resolves a version's citations with the statuses in §4.8. A source that a mockup's
-current version cites or lists is reported by `sources.used_by`, keeps
-`sources.move_to_product` from moving it (`409 source_in_use`), and `sources.delete_impact` lists
-every mockup version that cites it (`mockup_versions_citing`).
-
 **Download.** `mockups.get_download { mockup_id, version? }` returns a short-lived grant for
 `GET /api/v1/downloads/mockup/{version_id}` with the `X-WhatBuild-Download-Grant` header. The ZIP
 holds `brief.md`, `manifest.json` (format `whatbuild-mockup`, format version 2: the mockup, the
 version, `columns`, who published it and when, the pages in order with their titles, sizes and
-`html_sha256` and file names or `entry` and `poster`, the files, the prototype's files with their
-size, SHA-256 and type, the refs and the citations), `pages/<page_id>.html` (for a page with HTML
+`html_sha256` and file names or `entry` and `poster`, the files, and the prototype's files with
+their size, SHA-256 and type), `pages/<page_id>.html` (for a page with HTML
 of its own) with `pages/<page_id>.notes.md`, each file under `files/` at its path, and each
 prototype file under `prototype/`, byte for byte, so an agent can build the next version in a
 project of its own and publish what changed; the ZIP uploads again as it is.
@@ -959,7 +847,7 @@ outcomes.json
 records/<record_id>/record.json                  the source with its files and versions
 records/<record_id>/files/<file_version_id>/<path>
 records/<record_id>/derived/<derivation_id>/{segments.jsonl,text.md,outline.md,manifest.json}
-records/<record_id>/annotations.json · agent-notes/<kind>.md · lineage.json
+records/<record_id>/annotations.json · agent-notes/<kind>.md
 assumptions.json            with their reviews
 revisions.json
 story/hierarchy.json  ·  story/pages/<page_id>/page.json  ·  story/pages/<page_id>/v<n>.{json,html}
@@ -974,15 +862,16 @@ activity.jsonl
 - `record.json` is the portable, self-describing form of a source: a bundle is readable by a
   person with a ZIP tool and nothing else.
 - Feedback is not part of an export.
-- Planned ([§9.4](09-data-lifecycle.md)): **import**, which preserves every id, version, snapshot,
-  review, revision and actor snapshot, creates a product and never merges into one (`409` if the
+- Planned ([§9.4](09-data-lifecycle.md)): **import**, which preserves every id, version, review,
+  revision and actor snapshot, creates a product and never merges into one (`409` if the
   `product_id` exists, unless the caller asks for a copy, which re-mints the product id only); and
   a **tenant export** of every product's bundle plus members and outstanding invitations.
 
 ## 4.15 Storage layout
 
 - **Metadata** lives in Postgres: one table per object type with ordinary columns, JSONB for nested
-  values (actor snapshots, citations, refs, links), and indexes for the filters in this spec.
+  values (actor snapshots, links, a Story version's mockup page), and indexes for the filters in
+  this spec.
   Append-only data (reviews, Story versions, mockup versions and their pages, derivations,
   revisions, activity events, tombstones)
   lives in its own tables and is never updated. Every content table has a row-level security
@@ -1014,7 +903,7 @@ activity.jsonl
 - **Tombstones** ([§9.5](09-data-lifecycle.md),
   [`0021_tombstones_per_product.sql`](../../apps/server/src/migrations/0021_tombstones_per_product.sql))
   are keyed by product, object type and object id, since a Story page's id is unique only within
-  its product, with an index on the object id for citation checks. A product's own tombstone
+  its product, with an index on the object id. A product's own tombstone
   carries its id as both product and object.
 - **Agent connection levels** ([§3.8](03-accounts-teams-and-identity.md),
   [`0020_connection_levels.sql`](../../apps/server/src/migrations/0020_connection_levels.sql)):

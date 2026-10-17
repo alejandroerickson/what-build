@@ -38,7 +38,7 @@ export function roleAtLeast(role: ProductRole | null, needed: ProductRole): bool
   return role !== null && RANK[role] >= RANK[needed];
 }
 
-/** A reader sees the Story without what it draws on: no references, cited passages or notes for agents. */
+/** A reader sees the Story without the notes agents keep about its pages, and nothing of the evidence behind it. */
 export function readsOnlyTheStory(role: ProductRole | null): boolean {
   return role === "reader";
 }

@@ -21,7 +21,7 @@ import { newId } from "./util.ts";
  */
 export const BASELINE_TABLES = [
   "teams", "products",
-  "records", "files", "file_versions", "derivations", "segments", "annotations", "agent_notes", "lineage",
+  "records", "files", "file_versions", "derivations", "segments", "annotations", "agent_notes",
   "outcomes", "insights", "revisions", "register_entries", "reviews",
   "story_pages", "story_versions", "story_hierarchies", "story_styles",
   "mockups", "mockup_versions", "mockup_pages", "mockup_files", "mockup_prototype_files",

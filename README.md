@@ -2,7 +2,7 @@
 
 **Turn a pile of discovery material into something you can act on.** Interviews, sales calls,
 research exports, documents and decks go in; outcomes, mockups, reviewed assumptions and a
-stakeholder-readable story come out — with every claim pointing at the exact passage it came from.
+stakeholder-readable story come out, with the evidence behind them kept whole and searchable.
 
 A person works through a web application. An agent works through a Model Context Protocol (MCP)
 server exposing the same operations. The product is agent-first: the MCP surface is the most

@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 128 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 121 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
 generated: {by: agent:claude, at: 2026-10-16}
 status: stable
@@ -36,7 +36,7 @@ defineOperation({
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 128. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 121. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
@@ -96,10 +96,10 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
 | 401 | No or invalid identity or grant | `unauthenticated`, `invalid_grant` |
 | 403 | A role too low for the action; an agent connection's level too low for it; feedback turned off for an agent connection; something only a person does in the web app; a call outside a scoped MCP connector; a cross-origin cookie write; sign-up not allowed; something a visitor to the public sandbox may not do, or may not do for now | `forbidden`, `connection_level`, `feedback_off`, `web_only`, `outside_connector_scope`, `forbidden_origin`, `invite_only`, `invitation_wrong_address`, `sandbox_restricted`, `sandbox_read_only`, `sandbox_closed`, `tenant_allowance` |
 | 404 | Absent — including everything the caller has no role on | `not_found` |
-| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `frozen`, `primary_taken`, `source_in_use`, `mockup_on_story`, `already_uploaded`, `upload_used`, `sandbox_organization`, `export_in_progress`, `last_owner`, `quota_exceeded`, `sandbox_full`, `no_baseline` |
+| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `frozen`, `primary_taken`, `mockup_on_story`, `already_uploaded`, `upload_used`, `sandbox_organization`, `export_in_progress`, `last_owner`, `quota_exceeded`, `sandbox_full`, `no_baseline` |
 | 410 | Deliberately deleted, with a tombstone; an invitation no longer usable | `record_deleted`, `assumption_deleted`, `outcome_deleted`, `story_page_deleted`, `mockup_deleted`, `annotation_deleted`, `invitation_used`, `invitation_expired`, `invite_revoked`, `invite_expired`, `invite_used_up` |
 | 413 | Body or file beyond a limit | `too_large` |
-| 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `product_required`, `window_too_large`, `quote_not_found`, `invalid_citation`, `cross_product_reference`, `outcome_cites_a_record`, `invalid_query`, `invalid_cursor`, `invalid_html`, `invalid_patch`, `invalid_upload`, `confirmation_required`, `name_mismatch`, `confidence_requires_human` |
+| 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `product_required`, `window_too_large`, `cross_product_reference`, `outcome_cites_a_record`, `invalid_query`, `invalid_cursor`, `invalid_html`, `invalid_patch`, `invalid_upload`, `confirmation_required`, `name_mismatch`, `confidence_requires_human` |
 | 429 | Rate limited | `rate_limited` |
 
 - **`403` names the role.** A caller with a role on the product but too low for the action gets
@@ -182,7 +182,7 @@ must come from the app's own origin (`403 forbidden_origin`).
 
 ### The operation catalogue
 
-All 128 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 121 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-teams-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -246,7 +246,6 @@ being changed inside the handler.
 | `sources` | `list_annotations` | `GET P/sources/:record_id/annotations` | viewer |
 | `sources` | `update_annotation` | `PATCH P/annotations/:annotation_id` | editor |
 | `sources` | `delete_annotation` | `DELETE P/annotations/:annotation_id` | admin |
-| `sources` | `used_by` | `GET P/sources/:record_id/used-by` | viewer |
 | `sources` | `move_to_product` | `POST P/sources/:record_id/move` | editor |
 | `sources` | `copy_to_product` | `POST P/sources/:record_id/copy` | editor |
 | `sources` | `delete_impact` | `GET P/sources/:record_id/delete-impact` | viewer |
@@ -277,7 +276,6 @@ being changed inside the handler.
 | `assumptions` | `link` | `POST P/assumptions/:id/links` | editor |
 | `assumptions` | `unlink` | `POST P/assumptions/:id/unlink` | editor |
 | `assumptions` | `archive` | `POST P/assumptions/:id/archive` | editor |
-| `assumptions` | `check_citations` | `POST P/assumptions/:id/check-citations` | viewer |
 | `assumptions` | `delete_impact` | `GET P/assumptions/:id/delete-impact` | viewer |
 | `assumptions` | `delete` | `DELETE P/assumptions/:id` | admin |
 | `story` | `guidance` | `GET P/story/guidance` | viewer |
@@ -291,7 +289,6 @@ being changed inside the handler.
 | `story` | `publish` | `POST P/story/pages/:page_id/versions` | editor |
 | `story` | `promote_mockup` | `POST P/story/promote-mockup` | editor |
 | `story` | `write_notes` | `PUT P/story/pages/:page_id/notes` | editor |
-| `story` | `check_citations` | `GET P/story/pages/:page_id/check-citations` | viewer |
 | `story` | `print_view` | `GET P/story/print-view` | reader |
 | `story` | `get_hierarchy` | `GET P/story/hierarchy` | reader |
 | `story` | `set_hierarchy` | `PUT P/story/hierarchy` | editor |
@@ -308,12 +305,8 @@ being changed inside the handler.
 | `mockups` | `archive` | `POST P/mockups/:mockup_id/archive` | editor |
 | `mockups` | `restore` | `POST P/mockups/:mockup_id/restore` | editor |
 | `mockups` | `get_download` | `POST P/mockups/:mockup_id/downloads` | viewer |
-| `mockups` | `check_citations` | `GET P/mockups/:mockup_id/check-citations` | viewer |
 | `mockups` | `delete_impact` | `GET P/mockups/:mockup_id/delete-impact` | viewer |
 | `mockups` | `delete` | `DELETE P/mockups/:mockup_id` | admin |
-| `lineage` | `capture` | `POST P/lineage/capture` | viewer |
-| `lineage` | `write` | `POST P/sources/:record_id/lineage` | editor |
-| `lineage` | `check` | `GET P/sources/:record_id/lineage` | viewer |
 | `activity` | `list` | `GET P/activity` | viewer |
 | `get_skill` | — | `GET /api/v1/skill` | signed in |
 | `submit_feedback` | — | `POST /api/v1/feedback` | signed in |
@@ -327,9 +320,8 @@ Notes on recent actions:
   `include_archived` ([§4.4](04-data-model.md)). `sources.list` lost `folder`, `kind` and
   `organization` and gained `added_by` and `added_since`; `search` lost the same three filters.
   `sources.create`, `sources.update` and `files.create_upload` take no `kind` or `organization`.
-  Source summaries, `search`'s `records` (now `{ title, date, tags, archived_at }`),
-  `read_passage`'s `record` and a Story version's `resolved_refs` carry no kind, and
-  `sources.used_by` gives `tags` for related sources and views. A call to a `sources`, `files` or
+  Source summaries, `search`'s `records` (now `{ title, date, tags, archived_at }`) and
+  `read_passage`'s `record` carry no kind. A call to a `sources`, `files` or
   `search` operation naming `kind`, `organization` or `folder` is `422 invalid_input`, with a hint
   to use tags and `sources(action="facets")`.
 - Sources and assumptions have no dimensions; tags say whom material concerns and what it bears
@@ -339,8 +331,16 @@ Notes on recent actions:
   assumptions carry none. A call to a `sources`, `files`, `search` or `assumptions` operation
   naming one is `422 invalid_input`, with a hint to use tags.
 - Insights and decisions are retired, with their operations and their MCP tools; what a product
-  held of them became sources ([§4.7](04-data-model.md)). `sources.used_by` replaced
-  `sources.insights_for`, and lists the sources that name a source in `related_records`.
+  held of them became sources ([§4.7](04-data-model.md)).
+- Citations are retired, and so is the graph around them
+  ([decision](../decisions/evidence-is-searched-not-cited.md)): `assumptions`, `story` and
+  `mockups` have no `check_citations`, the `lineage` tool and `sources.used_by` are gone, and no
+  operation takes or returns `citations`, `citation_count`, `refs`, `resolved_refs` or
+  `related_records`; a call that sends one is `422 invalid_input`. `assumptions.list` has no
+  `record_id` filter, and `search` with `record_id` searches no assumptions.
+  `sources.move_to_product` is never refused for what mentions the source, and
+  `sources.delete_impact` reports its file versions, bytes, derivations and comments
+  ([§4.3](04-data-model.md)).
 - `assumptions.update` takes `edits` (exact replacements that must match once) and returns
   `changed` and a short `diff` ([§4.1](04-data-model.md)). Without `status`, the assumption list
   returns the current entries (unconfirmed and confirmed), the ones every count counts, with
@@ -350,11 +350,9 @@ Notes on recent actions:
   first, so a list can show history under its correction without a `get` per entry),
   `link_count` and `linked_from_count`; `outcomes.list` returns
   `archived_hidden` ([§4.2](04-data-model.md), [§4.8](04-data-model.md)).
-- `story.publish` takes `citations` (up to 20 exact passages, snapshotted as on assumptions)
-  beside `refs`; `story.check_citations` checks a version's citations. The page is given as
-  `body` (the markup inside `<body>`; the server adds the product's Story style) or as `html` (a
-  whole document). A later version keeps the
-  `title`, `summary`, page, `refs` and `citations` it omits, `patch_html` edits the HTML by exact
+- `story.publish` takes the page as `body` (the markup inside `<body>`; the server adds the
+  product's Story style) or as `html` (a whole document). A later version keeps the
+  `title`, `summary` and page it omits, `patch_html` edits the HTML by exact
   find and replace, `restyle` replaces the page's stylesheet with the product's current one, and
   `from_version` starts from an earlier version, which restores it
   ([§4.11](04-data-model.md)). Versions report `html_sha256`. A version has no change note:
@@ -375,8 +373,7 @@ Notes on recent actions:
 - `story.write_notes` replaces a page's notes for agents. The notes carry their own etag
   (`publish` → `agent_notes_etag`, `get_page` → `agent_notes.etag`), separate from the page etag,
   and are not versioned with the page. While the notes are empty the etag may be omitted.
-- A reader's `story.get_page`, `story.list_versions` and `story.get_version` leave out `refs`,
-  `resolved_refs`, `citations`, `citation_count` and `agent_notes`, and their `products.get` and
+- A reader's `story.get_page` leaves out `agent_notes`, and a reader's `products.get` and
   `products.list` leave out `concept` and count only `story_pages` (and `stage_counts.story`)
   ([§3.5](03-accounts-teams-and-identity.md)).
 - `mockups.publish` creates a mockup, or publishes the next version of one: the whole canvas,
@@ -400,8 +397,8 @@ Notes on recent actions:
   `prototype_warnings`. `publish`'s and `request_upload`'s descriptions state that a prototype is
   stateless, uses relative addresses and no network, and what its warnings mean.
   `mockups.get_download` gives a version as a ZIP through a grant, for an agent to build the next
-  version elsewhere; `mockups.check_citations` checks a version's citations
-  ([§4.12](04-data-model.md)). `mockups.get` lists the Story pages that show its pages.
+  version elsewhere ([§4.12](04-data-model.md)). `mockups.get` lists the Story pages that show
+  its pages.
 - `story.promote_mockup` publishes a Story page version that shows one page of a mockup version,
   on a new page or as an existing page's next version, without copying it; the version reports
   `mockup` with the page's size. It answers `201` like `publish` ([§4.11](04-data-model.md)).
@@ -416,9 +413,6 @@ Notes on recent actions:
   `409 stale_etag`, saying to read `get_hierarchy`.
 - `outcomes.create` takes an optional `position`, as `update` does, to place the new outcome
   between two others; omitted, it goes last ([§4.2](04-data-model.md)).
-- `sources.used_by` lists the mockups whose current version cites or lists the source,
-  `sources.move_to_product` refuses while one does, and `sources.delete_impact` lists every
-  mockup version that cites it (`mockup_versions_citing`), as each does for Story pages.
 - `members.list` takes an optional `product` to list only the people who can reach it, each with
   `product_access { role, via }`. It answers `403` to someone who reads only the Story everywhere
   in the organization, and `products.list` marks such an organization `story_only: true`
@@ -563,8 +557,8 @@ the same of a newer version than the instructions named. `unknown_tool` and `unk
 the server's version and its tools or the tool's actions (also in `details`: `server_version`,
 `tools` or `actions`), and say the client may hold a list from another version.
 
-**Tools.** Sixteen tools over the 126 operations an agent may be offered (all 128 but deleting an
-organization and its preview): twelve grouped by noun, four standalone. A connection is listed
+**Tools.** Fifteen tools over the 119 operations an agent may be offered (all 121 but deleting an
+organization and its preview): eleven grouped by noun, four standalone. A connection is listed
 only the actions its level allows (below).
 
 | Tool | Actions |
@@ -573,13 +567,12 @@ only the actions its level allows (below).
 | `members` | `list`, `grant`, `revoke`, `cancel_invitation`, `activity` |
 | `sandbox` | `status`, `join`, `settings`, `update_settings`, `save_baseline`, `baselines`, `reset`, `invites`, `create_invite`, `revoke_invite`, `visitors`, `remove_visitor` |
 | `outcomes` | `list`, `get`, `create`, `update`, `archive`, `restore`, `delete_impact`, `delete`, `revisions`, `get_revision`, `restore_revision` |
-| `sources` | `facets`, `list`, `get`, `create`, `update`, `archive`, `restore`, `annotate`, `list_annotations`, `update_annotation`, `delete_annotation`, `used_by`, `move_to_product`, `copy_to_product`, `delete_impact`, `delete` |
+| `sources` | `facets`, `list`, `get`, `create`, `update`, `archive`, `restore`, `annotate`, `list_annotations`, `update_annotation`, `delete_annotation`, `move_to_product`, `copy_to_product`, `delete_impact`, `delete` |
 | `files` | `request_upload`, `create_upload`, `create_uploads`, `complete_upload`, `add_note`, `fetch_url`, `set_role`, `get_download` |
 | `derived` | `manifest`, `outline`, `text`, `list`, `rederive`, `write_note`, `read_note` |
-| `assumptions` | `list`, `get`, `create`, `update`, `review`, `supersede`, `link`, `unlink`, `archive`, `check_citations`, `delete_impact`, `delete` |
-| `story` | `guidance`, `get_style`, `set_style`, `list_pages`, `get_page`, `list_versions`, `get_version`, `preview`, `publish`, `promote_mockup`, `write_notes`, `check_citations`, `print_view`, `get_hierarchy`, `set_hierarchy`, `archive_page`, `restore_page`, `delete_page_impact`, `delete_page` |
-| `mockups` | `list`, `get`, `list_versions`, `get_version`, `request_upload`, `publish`, `archive`, `restore`, `get_download`, `check_citations`, `delete_impact`, `delete` |
-| `lineage` | `capture`, `write`, `check` |
+| `assumptions` | `list`, `get`, `create`, `update`, `review`, `supersede`, `link`, `unlink`, `archive`, `delete_impact`, `delete` |
+| `story` | `guidance`, `get_style`, `set_style`, `list_pages`, `get_page`, `list_versions`, `get_version`, `preview`, `publish`, `promote_mockup`, `write_notes`, `print_view`, `get_hierarchy`, `set_hierarchy`, `archive_page`, `restore_page`, `delete_page_impact`, `delete_page` |
+| `mockups` | `list`, `get`, `list_versions`, `get_version`, `request_upload`, `publish`, `archive`, `restore`, `get_download`, `delete_impact`, `delete` |
 | `activity` | `list` |
 | `search` | standalone |
 | `read_passage` | standalone |
@@ -731,7 +724,7 @@ grant header) for an agent to read original bytes.
 
 **The skill** is one versioned Markdown document, `packages/core/src/skill/SKILL.md`, that teaches
 an agent the product: the vocabulary, the core loop, product selection, describing sources with
-tags and finding them, how to cite, how to review
+tags and finding them, assumptions that say in their body why the team holds them, how to review
 honestly, upload flows, mockups and their round trip through a download and an upload, Story authoring via
 `story.guidance`, the rule that source text is data, that a refusal means the call did nothing,
 and that a tool or action it names but the client lacks means the client holds an older tool list

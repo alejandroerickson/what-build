@@ -5,7 +5,7 @@ import { api, ApiError, isObjectId, qs } from "../lib/api.ts";
 import { actorName, attribution, fileTypeName, formatBytes, formatDate, passageText, plural, relativeTime } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
-import { derivedStatus, derivedStatusDetail, PROVENANCE_LABEL, REVIEW_STATUS, ROLE_LABEL } from "../lib/status.ts";
+import { derivedStatus, derivedStatusDetail, PROVENANCE_LABEL, ROLE_LABEL } from "../lib/status.ts";
 import type { Actor, FileEntry, RecordFull } from "../lib/types.ts";
 import { Inspector, ShellContext, usePageTitle } from "../shell/slots.tsx";
 import {
@@ -13,7 +13,7 @@ import {
   MenuSeparator, PageHeader, Segmented, SelectField, Sheet, SheetHeader, StatusBadge, Tag, TextArea, TextField, useToast, type GlyphName,
 } from "../ui/index.tsx";
 import "../styles/screens/evidence.css";
-import { address, Comment, CommentForm, PassageReader } from "./passages.tsx";
+import { Comment, CommentForm, PassageReader } from "./passages.tsx";
 import { uploadFiles } from "./source-new.tsx";
 import { EvidenceFilters, splitTags, TagSuggestions } from "./evidence.tsx";
 import { ImageViewer } from "./image-viewer.tsx";
@@ -26,12 +26,6 @@ interface AgentNote {
   content: string;
   updated_at: string;
   updated_by: Actor;
-}
-interface CitedIn {
-  assumptions: { id: string; statement: string; status: string; citations: { seq_start: number; seq_end: number }[] }[];
-  related: { record_id: string; title: string; tags: string[] }[];
-  story_pages?: { page_id: string; title: string; version: number; referenced: boolean; citations: { seq_start: number; seq_end: number }[] }[];
-  mockups?: { mockup_id: string; title: string; version: number; referenced: boolean; citations: { seq_start: number; seq_end: number }[] }[];
 }
 
 /** Old `?tab=` links keep working: each maps to a section, and "connected" opens the inspector. */
@@ -90,7 +84,7 @@ export function SourceDetailPage() {
     setParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
-  // "connected" (the old tab of what cites it) opens the inspector, where Cited in now lives. The shell closes
+  // "connected" (an old tab) opens the inspector, where the source's details live. The shell closes
   // overlays when a route mounts, so open it on the next tick, once the source has loaded.
   const loaded = q.isSuccess;
   useEffect(() => {
@@ -118,7 +112,7 @@ export function SourceDetailPage() {
           <EvidenceFilters />
           <PageHeader crumbs={[{ label: "Evidence", to: `${app}/evidence` }, { label: "Deleted source" }]} title="This source was deleted" />
           <EmptyState action={<ButtonLink to={`${app}/evidence`}>Back to Evidence</ButtonLink>}>
-            {`${t.title ?? "It"} was deleted by ${t.deleted_by?.display_name ?? "someone"} on ${formatDate(t.deleted_at)}. Reason: ${t.reason ?? "not given"}. Quotes cited from it are kept.`}
+            {`${t.title ?? "It"} was deleted by ${t.deleted_by?.display_name ?? "someone"} on ${formatDate(t.deleted_at)}. Reason: ${t.reason ?? "not given"}.`}
           </EmptyState>
         </>
       );
@@ -146,7 +140,6 @@ export function SourceDetailPage() {
       <EvidenceFilters />
       <PageHeader crumbs={[{ label: "Evidence", to: `${app}/evidence` }, { label: r.title }]} title={r.title} actions={<SourceActions record={r} onDialog={setDialog} />} />
       <SourceDescription note={summary?.data ?? null} loading={Boolean(summary?.isPending && noteKinds.includes("summary"))} />
-      {r.has_lineage ? <StaleViewNotice recordId={r.record_id} /> : null}
       {r.archived_at || r.derived_status !== "ready" ? (
         <div className="source-notices">
       {r.archived_at ? (
@@ -218,158 +211,6 @@ function SourceDescription({ note, loading }: { note: AgentNote | null; loading:
           Summary by {attribution(note.updated_by)}, {relativeTime(note.updated_at)}
         </span>
       </div>
-    </div>
-  );
-}
-
-type LineageStatus = "current" | "changed" | "archived" | "deleted" | "missing";
-interface LineageInputCheck {
-  kind: "record" | "assumption";
-  id: string;
-  status: LineageStatus;
-  changed_parts?: string[] | null;
-  last_changed_at?: string | null;
-}
-interface LineageCheck {
-  registered_at: string;
-  registered_by: Actor;
-  query_spec: { description?: string } | null;
-  stale: boolean;
-  input_checks: LineageInputCheck[];
-}
-
-function useLineage(recordId: string) {
-  const { api: base } = useProduct();
-  return useQuery({
-    queryKey: ["lineage", base, recordId],
-    queryFn: () => api<LineageCheck>("GET", `${base}/sources/${recordId}/lineage`),
-    retry: false,
-  });
-}
-
-const INPUT_NOUN = { record: ["source", "sources"], assumption: ["assumption", "assumptions"] } as const;
-
-/** "12 sources and 5 assumptions": what a view was built from, by kind. */
-function describeInputs(checks: LineageInputCheck[]) {
-  const parts = (["record", "assumption"] as const)
-    .map((k) => [k, checks.filter((c) => c.kind === k).length] as const)
-    .filter(([, n]) => n > 0)
-    .map(([k, n]) => plural(n, INPUT_NOUN[k][0], INPUT_NOUN[k][1]));
-  return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : (parts[0] ?? "no inputs");
-}
-
-/**
- * A view whose inputs changed since it was built says so above its sections, since reading it as
- * current would mislead. Which inputs changed, and how, is in the inspector's Built from group.
- */
-function StaleViewNotice({ recordId }: { recordId: string }) {
-  const q = useLineage(recordId);
-  const slots = useContext(ShellContext);
-  if (!q.data?.stale) return null;
-  const l = q.data;
-  const moved = l.input_checks.filter((c) => c.status !== "current").length;
-  const seeWhat = () => {
-    slots?.setInspectorOpen(true);
-    requestAnimationFrame(() => document.getElementById("built-from")?.scrollIntoView({ block: "start", behavior: "smooth" }));
-  };
-  return (
-    <div className="source-notices">
-      <Callout
-        tone="attention"
-        title="This view may be out of date"
-        action={
-          <Button size="sm" onClick={seeWhat}>
-            See what changed
-          </Button>
-        }
-      >
-        Built on {formatDate(l.registered_at)} from {describeInputs(l.input_checks)}; {moved === 1 ? "1 has" : `${moved} have`} changed since. Ask your agent to rebuild it.
-      </Callout>
-    </div>
-  );
-}
-
-const PART_WORDS: Record<string, string> = {
-  title: "title",
-  date: "date",
-  primary_version: "primary file",
-  derivation: "passages",
-  archived: "archived",
-  statement: "statement",
-  body: "body",
-  citations: "citations",
-  status: "status",
-  review_count: "reviews",
-};
-
-/** What happened to one input since the view was built, in words. */
-function inputChange(c: LineageInputCheck) {
-  if (c.status === "archived") return "Archived";
-  if (c.status === "deleted") return "Deleted";
-  if (c.status === "missing") return "No longer found";
-  const parts = (c.changed_parts ?? []).filter((p) => p !== "archived").map((p) => PART_WORDS[p] ?? p);
-  const what = parts.length ? `Changed: ${parts.join(", ")}` : "Changed";
-  return c.last_changed_at ? `${what}, ${formatDate(c.last_changed_at)}` : what;
-}
-
-/** The inspector's account of a view's lineage: what it was built from, when, and what has moved since. */
-function BuiltFrom({ recordId }: { recordId: string }) {
-  const { api: base, app } = useProduct();
-  const q = useLineage(recordId);
-  const moved = (q.data?.input_checks ?? []).filter((c) => c.status !== "current");
-  const names = useQueries({
-    queries: moved.map((c) => ({
-      queryKey: ["lineage-input", base, c.kind, c.id],
-      queryFn: async () => {
-        if (c.kind === "record") return (await api<{ title: string }>("GET", `${base}/sources/${c.id}`)).title;
-        return (await api<{ statement: string }>("GET", `${base}/${c.kind}s/${c.id}`)).statement;
-      },
-      enabled: c.status !== "deleted" && c.status !== "missing",
-      retry: false,
-      staleTime: 60_000,
-    })),
-  });
-  if (!q.data) return null;
-  const l = q.data;
-  const link = (c: LineageInputCheck) => (c.kind === "record" ? `${app}/evidence/${c.id}` : `${app}/exploration/${c.kind}s/${c.id}`);
-  return (
-    <div id="built-from">
-      <Group title="Built from" count={l.input_checks.length}>
-        <p className="source-built">
-          <StatusBadge tone={l.stale ? "attention" : "positive"}>{l.stale ? `${moved.length} changed since` : "Up to date"}</StatusBadge>
-        </p>
-        <p className="source-inspector-note">
-          Built by {attribution(l.registered_by)} on {formatDate(l.registered_at)} from {describeInputs(l.input_checks)}.
-        </p>
-        {l.query_spec?.description ? <p className="source-inspector-note source-built-how">{l.query_spec.description}</p> : null}
-        {moved.length ? (
-          <ul className="source-cited">
-            {moved.map((c, i) => {
-              const name = names[i]?.data;
-              const gone = c.status === "deleted" || c.status === "missing";
-              const glyph: GlyphName = c.kind === "record" ? "file-text" : "scale";
-              const label = name ?? `${INPUT_NOUN[c.kind][0][0]!.toUpperCase()}${INPUT_NOUN[c.kind][0].slice(1)} ${c.id}`;
-              return (
-                <li key={`${c.kind}:${c.id}`}>
-                  <Glyph name={glyph} size="sm" />
-                  <span className="source-cited-main">
-                    {gone ? (
-                      <span className="ellipsis" title={label}>
-                        {label}
-                      </span>
-                    ) : (
-                      <Link to={link(c)} className="ellipsis" title={label}>
-                        {label}
-                      </Link>
-                    )}
-                    <span className="faint">{inputChange(c)}</span>
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        ) : null}
-      </Group>
     </div>
   );
 }
@@ -491,15 +332,9 @@ function When({ at, by, byTo }: { at: string; by: Actor | null | undefined; byTo
 }
 
 function SourceInspector({ record: r }: { record: SourceRecord }) {
-  const { api: base, app, canWrite } = useProduct();
+  const { app, canWrite } = useProduct();
   const archive = useArchive(r);
-  const cited = useQuery({
-    queryKey: ["used-by", base, r.record_id],
-    queryFn: () => api<CitedIn>("GET", `${base}/sources/${r.record_id}/used-by`),
-  });
   const versions = r.files.reduce((n, f) => n + Math.max(1, f.versions.length), 0);
-  const c = cited.data;
-  const citedCount = c ? c.assumptions.length + c.related.length + (c.story_pages?.length ?? 0) + (c.mockups?.length ?? 0) : undefined;
   return (
     <Inspector title="Details">
       <div className="source-inspector">
@@ -529,7 +364,6 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
             ]}
           />
         </Group>
-        {r.has_lineage ? <BuiltFrom recordId={r.record_id} /> : null}
         <Group title="Files" count={r.files.length} action={<Link to="?view=files" className="quiet-link">All files</Link>}>
           {r.files.length ? (
             <ul className="source-file-summary">
@@ -552,94 +386,6 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
             <EmptyState size="inline">No files yet.</EmptyState>
           )}
           {versions > r.files.length ? <p className="source-inspector-note">{plural(versions, "stored version")} in all.</p> : null}
-        </Group>
-        <Group title="Cited in" count={citedCount}>
-          {cited.isPending ? (
-            <Loading variant="lines" lines={2} label="Loading where it’s cited…" />
-          ) : cited.isError ? (
-            <ErrorCallout inset error={cited.error} onRetry={() => cited.refetch()} />
-          ) : !citedCount ? (
-            <EmptyState size="inline">Not cited yet.</EmptyState>
-          ) : (
-            <ul className="source-cited">
-              {c!.assumptions.map((e) => (
-                <li key={e.id}>
-                  <Glyph name="scale" size="sm" />
-                  <span className="source-cited-main">
-                    <Link to={`${app}/exploration/assumptions/${e.id}`} className="ellipsis" title={e.statement}>
-                      {e.statement}
-                    </Link>
-                    <span className="faint">
-                      Assumption, {REVIEW_STATUS[e.status]?.label.toLowerCase() ?? e.status}
-                      {e.citations.map((x, i) => (
-                        <span key={i}>
-                          {" · "}
-                          <Link to={`?view=passages&seq=${x.seq_start}${x.seq_end !== x.seq_start ? `&to=${x.seq_end}` : ""}`} className="quiet-link num">
-                            {address(x.seq_start, x.seq_end)}
-                          </Link>
-                        </span>
-                      ))}
-                    </span>
-                  </span>
-                </li>
-              ))}
-              {(c!.mockups ?? []).map((m) => (
-                <li key={m.mockup_id}>
-                  <Glyph name="monitor" size="sm" />
-                  <span className="source-cited-main">
-                    <Link to={`${app}/exploration/mockups/${m.mockup_id}`} className="ellipsis" title={m.title}>
-                      {m.title}
-                    </Link>
-                    <span className="faint">
-                      <span title={`Version ${m.version}, the mockup’s current version`}>Mockup, current version</span>
-                      {m.citations.length ? "" : " · lists it"}
-                      {m.citations.map((x, i) => (
-                        <span key={i}>
-                          {" · "}
-                          <Link to={`?view=passages&seq=${x.seq_start}${x.seq_end !== x.seq_start ? `&to=${x.seq_end}` : ""}`} className="quiet-link num">
-                            {address(x.seq_start, x.seq_end)}
-                          </Link>
-                        </span>
-                      ))}
-                    </span>
-                  </span>
-                </li>
-              ))}
-              {c!.related.map((x) => (
-                <li key={x.record_id}>
-                  <Glyph name="file-text" size="sm" />
-                  <span className="source-cited-main">
-                    <Link to={`${app}/evidence/${x.record_id}`} className="ellipsis" title={x.title}>
-                      {x.title}
-                    </Link>
-                    <span className="faint">{x.tags.length ? `${x.tags.slice(0, 2).join(", ")} · ` : ""}Lists it as related</span>
-                  </span>
-                </li>
-              ))}
-              {(c!.story_pages ?? []).map((p) => (
-                <li key={p.page_id}>
-                  <Glyph name="book-open" size="sm" />
-                  <span className="source-cited-main">
-                    <Link to={`${app}/story/${p.page_id}`} className="ellipsis" title={p.title}>
-                      {p.title}
-                    </Link>
-                    <span className="faint">
-                      <span title={`Version ${p.version}, the page’s current version`}>Story page, current version</span>
-                      {p.citations.length ? "" : " · lists it"}
-                      {p.citations.map((x, i) => (
-                        <span key={i}>
-                          {" · "}
-                          <Link to={`?view=passages&seq=${x.seq_start}${x.seq_end !== x.seq_start ? `&to=${x.seq_end}` : ""}`} className="quiet-link num">
-                            {address(x.seq_start, x.seq_end)}
-                          </Link>
-                        </span>
-                      ))}
-                    </span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
         </Group>
         <Group title="Activity">
           <Link to={`${app}/activity?entity_type=source&entity_id=${r.record_id}`} className="source-inspector-link">
@@ -1111,33 +857,6 @@ function EditDetails({ record, onClose, onReload }: { record: SourceRecord; onCl
   );
 }
 
-interface StoryVersionCiting {
-  page_id: string;
-  title: string;
-  version: number;
-  count: number;
-  is_current: boolean;
-}
-
-/** Story versions that cite a source, grouped by page in the order the server lists them. */
-function byStoryPage(versions: StoryVersionCiting[]): { page_id: string; title: string; versions: StoryVersionCiting[] }[] {
-  const pages = new Map<string, { page_id: string; title: string; versions: StoryVersionCiting[] }>();
-  for (const v of versions) {
-    const p = pages.get(v.page_id) ?? { page_id: v.page_id, title: v.title, versions: [] };
-    p.versions.push(v);
-    pages.set(v.page_id, p);
-  }
-  return [...pages.values()];
-}
-
-/** "Current version and 2 earlier", "Current version" or "2 earlier versions, not the current one". */
-function storyVersionWords(versions: StoryVersionCiting[]): string {
-  const current = versions.some((v) => v.is_current);
-  const earlier = versions.filter((v) => !v.is_current).length;
-  if (current) return earlier ? `Current version and ${earlier} earlier` : "Current version";
-  return `${plural(earlier, "earlier version")}, not the current one`;
-}
-
 function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () => void }) {
   const { api: base, app } = useProduct();
   const navigate = useNavigate();
@@ -1155,11 +874,6 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
         bytes: number;
         derivations: number;
         annotations: number;
-        citations: { id: string; statement: string; count: number }[];
-        related_sources: { record_id: string; title: string }[];
-        story_pages_citing?: { page_id: string; title: string; version: number; count: number }[];
-        story_versions_citing?: StoryVersionCiting[];
-        mockup_versions_citing?: { mockup_id: string; title: string; version: number; count: number; is_current: boolean }[];
       }>("GET", `${base}/sources/${record.record_id}/delete-impact`),
   });
   const del = useMutation({
@@ -1172,11 +886,6 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
     },
   });
   const i = impact.data;
-  const pages = i?.story_pages_citing ?? [];
-  const versions = i?.story_versions_citing ?? [];
-  const storyPages = byStoryPage(versions);
-  const mockupVersions = i?.mockup_versions_citing ?? [];
-  const mockups = new Set(mockupVersions.map((v) => v.mockup_id)).size;
   return (
     <Dialog
       open
@@ -1210,44 +919,7 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
           <p>
             This deletes {plural(i.file_versions, "stored file")} ({formatBytes(i.bytes)}) and {plural(i.annotations, "comment")}.
           </p>
-          {i.citations.length ? (
-            <p>
-              <strong>
-                {plural(i.citations.reduce((n, c) => n + c.count, 0), "citation")} in {plural(i.citations.length, "assumption")}
-              </strong>{" "}
-              will point at a record of the deletion. Their quotes are kept.
-            </p>
-          ) : null}
-          {storyPages.length ? (
-            <>
-              <p>
-                <strong>
-                  {plural(versions.length, "Story version")} on {plural(storyPages.length, "page")} cite it
-                </strong>
-                {versions.some((v) => !v.is_current) ? ", earlier versions included" : ""}. Their quotes are kept, and each will say the source
-                was deleted.
-              </p>
-              <ul className="source-impact-list">
-                {storyPages.map((p) => (
-                  <li key={p.page_id}>
-                    {p.title} <span className="faint">· {storyVersionWords(p.versions)}</span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : pages.length ? (
-            <p>{plural(pages.length, "Story page")} cite it; their quotes are kept.</p>
-          ) : null}
-          {mockups ? (
-            <p>
-              <strong>
-                {plural(mockupVersions.length, "mockup version")} of {plural(mockups, "mockup")} cite it
-              </strong>
-              {mockupVersions.some((v) => !v.is_current) ? ", earlier versions included" : ""}. Their quotes are kept, and each will say the source was
-              deleted.
-            </p>
-          ) : null}
-          {i.related_sources.length ? <p>{plural(i.related_sources.length, "other source")} list it as related, and those links will stop opening.</p> : null}
+          <p>Links to it from Story pages, mockups and notes will open a record of the deletion instead.</p>
         </div>
       ) : null}
       <TextArea label="Why is it being deleted?" required maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} hint="Recorded with the deletion." />

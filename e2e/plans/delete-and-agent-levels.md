@@ -38,7 +38,7 @@ raise its own level. It deletes only what it made itself in the run.
    `deleted: true`; reading the source answers `410 record_deleted` with the reason; Activity on
    the web shows the delete, attributed to Riley through the agent.
 8. **Web, as Riley.** Add the third text as a source, add a comment on one of its passages, and
-   create an assumption citing it and an outcome. Delete each from its own screen: the comment
+   create an assumption and an outcome. Delete each from its own screen: the comment
    from the comment, the assumption and the outcome from their menus, the source from its menu.
    *Expect:* every dialog says it can't be undone, shows what goes, needs a reason, offers Archive
    instead where the thing can be archived, and only the source asks for its title typed. After
