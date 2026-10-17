@@ -11,7 +11,7 @@
 import { STORY_FONTS } from "./story-fonts.ts";
 import { HOUSE_STYLES, VOCABULARY, pageDocument, type HouseStyle } from "./story-styles.ts";
 
-export const GUIDANCE_VERSION = "4.0.0";
+export const GUIDANCE_VERSION = "4.0.1";
 
 /** The typefaces the server embeds in a page that names them; no font file is ever sent for these. */
 export const CARRIED_TYPEFACES = {
@@ -75,7 +75,7 @@ export const ANTI_PATTERNS = [
   "Topic-label headings ('Overview', 'Background', 'Key findings') where a statement would say what the section shows.",
   "Four or more competing accent colours, or status colours used as decoration.",
   "Invented charts: a chart needs real data from the sources, labelled axes and a stated denominator.",
-  "A source reference or a passage link after every claim. The Story explains; the evidence stays in Evidence, where the team and its agents find it by searching. Most readers of a Story cannot open the evidence at all.",
+  "A source reference or a link to the evidence after every claim. The Story explains; the evidence stays in Evidence, where the team and its agents find it by searching. Most readers of a Story cannot open the evidence at all.",
   "Repeating the page title, a breadcrumb or site navigation inside the page: the app provides them.",
   "A kicker that only says where the page sits in the Story. The app shows that; use a kicker when it adds a theme the headline lacks, and leave it out otherwise.",
   "Numbered sections where the order means nothing. Give the section a label that says something (data-label) or let the heading stand.",
@@ -180,7 +180,7 @@ export const WRITING = {
     { pass: "Distill", checks: ["Remove repeated introductions and decorative panels.", "Remove empty forward-looking statements.", "Keep caveats, decision criteria and uncertainty."] },
     { pass: "Polish", checks: ["Replace inflated or vague phrasing without adding facts.", "Check every quotation, count, date, owner and decision against the sources you read."] },
   ],
-  voice: ["Plain, direct sentences.", "The product's vocabulary: outcome, source, passage, assumption, mockup, Story.", "Calm: no sales language and no generic optimistic closing.", "Sentence-case headings, written as statements where a section makes a point.", "Link text that makes sense out of context."],
+  voice: ["Plain, direct sentences.", "The product's vocabulary: outcome, source, assumption, mockup, Story.", "Calm: no sales language and no generic optimistic closing.", "Sentence-case headings, written as statements where a section makes a point.", "Link text that makes sense out of context."],
   fact_guardrails: [
     "Never add a person, owner, date, source, quote, count, measurement, customer claim, commitment or decision the sources you read do not establish. Read before you write: search the product for what bears on the page.",
     "Never turn a working interpretation into agreement, or an unconfirmed assumption into a settled one.",
@@ -220,7 +220,7 @@ export const CONTENT_RULES = [
   "Explain the outcomes, current understanding, choices and next steps.",
   "Write for a busy stakeholder.",
   "Name the few assumptions that shape the account, and say whether each is confirmed.",
-  "Explain in your own words. Quote a source only where its exact words matter, and leave source and passage links out: the evidence stays in Evidence.",
+  "Explain in your own words. Quote a source only where its exact words matter, and leave source links out: the evidence stays in Evidence.",
   "Separate observed evidence, interpretation and agreement.",
   "Never invent agreement, owners, dates, commitments or measurements.",
   "Leave breadcrumbs and navigation to the reader: the app provides them.",

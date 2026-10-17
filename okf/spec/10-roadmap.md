@@ -3,7 +3,7 @@ type: Roadmap
 title: Phases 0 to 5 are mostly built, and a public sandbox; durability, data rights and public sign-up come next.
 description: What is built and what is not, phase by phase, with acceptance criteria; the open questions that remain, the ones already settled, and the risks.
 tags: [roadmap, status, phases, open-questions, risks]
-generated: {by: agent:claude, at: 2026-10-16}
+generated: {by: agent:claude, at: 2026-10-17}
 status: stable
 ---
 
@@ -12,17 +12,17 @@ status: stable
 The ethos: the smallest implementation that proves the full path wins. Each phase ends in
 something demonstrable, and each acceptance list is a test plan.
 
-## Status on 2026-10-16
+## Status on 2026-10-17
 
 Observed in the code on this date.
 
 | Phase | State | Built | Not built yet |
 |---|---|---|---|
 | 0 | Mostly done | pnpm workspace, strict TypeScript, `pnpm dev` with **no Docker** (embedded Postgres), forward-only migrations, seed, `pnpm test` (parsers, server against real Postgres, web), GitHub Actions CI (documentation bundle check, install, skill drift check, typecheck, test, build); the [security checks](../operations/security-checks.md): git hooks and a CI job that refuse private material, `pnpm security` (osv-scanner, zizmor) on every pull request and weekly, a weekly OWASP ZAP scan, Dependabot, CodeQL once public, and a security policy; `pnpm attention` at the start of an agent session; [agent-driven end-to-end tests](../operations/end-to-end-tests.md) that follow written plans through the web app and the MCP server on an instance reset to a golden master built from production's public sandbox | contribution guide, code of conduct; lint and format config |
-| 1 | Done | registry → REST and MCP (120 operations, 118 of them offered to agents; 15 tools); row-level security in the first migration; ETags; paging; `describe`; activity in the same transaction; the isolation test over every operation; the parity test | — |
-| 2 | Mostly done | upload grants (relay, optional direct signed URLs); parsers for plain text, Markdown, VTT, SRT, HTML, DOCX, legacy Word `.doc`, PDF, XLSX, CSV and TSV; derivation on the Postgres queue, each file parsed in a thread of its own held to a memory and a time limit; hostile-file tests; sources described by a title, a date and tags, with `sources.facets` (the tags in use and who added sources), a summary for people, notes and whole-source comments; passages by segment and time; substring and ranked search with coverage, and plain search over everything in a product; archive and restore; guarded delete, for admins, of sources, comments, assumptions, outcomes, Story pages, mockups and whole products, with tombstones; a synthetic sample product in the seed | usage metering; golden-file tests per format; a blob-store conformance suite (no test exercises the Cloud Storage adapter), then `@google-cloud/storage` 8, which retires the uuid advisory accepted in `.github/osv-scanner.toml`; a fast-saved Word 6 or Word 95 `.doc`, and Word 6 tables beyond what cell marks show; the parse limits measured on the deployment's own Linux under its memory limit; a budget of parse time per sandbox visitor or organization |
+| 1 | Done | registry → REST and MCP (118 operations, 116 of them offered to agents; 14 tools); row-level security in the first migration; ETags; paging; `describe`; activity in the same transaction; the isolation test over every operation; the parity test | — |
+| 2 | Mostly done | upload grants (relay, optional direct signed URLs); parsers for plain text, Markdown, VTT, SRT, HTML, DOCX, legacy Word `.doc`, PDF, XLSX, CSV and TSV, laying each file out as readable Markdown; every attachment read on the Postgres queue and kept, each in a thread of its own held to a memory and a time limit; hostile-file tests; sources described by a title, a date and tags, with `sources.facets` (the tags in use and who added sources), a summary for people, notes and whole-source comments; one derived text per source, taken from an attachment until someone writes it, read by offset and written whole, by edits or from an attachment; substring and ranked search over each source's title, tags, summary, derived text, notes and comments, through an index of their pieces, with coverage, and plain search over everything in a product; archive and restore; guarded delete, for admins, of sources, comments, assumptions, outcomes, Story pages, mockups and whole products, with tombstones; a synthetic sample product in the seed | usage metering; golden-file tests per format; revisions of a source's derived text, summary and notes; a blob-store conformance suite (no test exercises the Cloud Storage adapter), then `@google-cloud/storage` 8, which retires the uuid advisory accepted in `.github/osv-scanner.toml`; a fast-saved Word 6 or Word 95 `.doc`, and Word 6 tables beyond what cell marks show; the parse limits measured on the deployment's own Linux under its memory limit; a budget of parse time per sandbox visitor or organization |
 | 3 | Mostly done | tenants, teams, products, roles; email-link, Google, Microsoft work-account and development sign-in; invitations by email and link; the Story-only reader role; invite-only mode; who may create organizations (instance owners, and allowances they give); sign-in link rate limit; the [public sandbox](#the-public-sandbox) with its invitations, seats, visitor role and limits; deleting an organization (its owners, in the web app) | quotas and rate limits for every organization (they exist for visitors to the sandbox, and for Story pages and mockups); account deletion; archiving and deleting a team; an invitation that is still made, with its link to pass on, when its email cannot be sent (a failed send now fails the invitation) |
-| 4 | Mostly done | the design system (Studio, [DESIGN.md](../../DESIGN.md)) across every screen of the loop: Idea, search over the whole product (the ⌘K palette with recent searches, and the Search screen by area); Evidence (browse by tag and by who added; intake that asks for a title and tags; the source page with sections and inspector, passage reader, notes, files, search), Exploration (mockups on a full-width canvas that pans and zooms, fits or fills a page and keeps that view from page to page, with a page's notes, the brief, versions and download in the inspector, pages that enter a team's multi-file prototype as it is, and a page promoted to the Story from there; assumptions with review and confidence; old Synthesis, insight and decision links redirect), outcome revision history, Story (a reader with the page tree, arranged by dragging or Alt and the arrow keys, pages archived, restored and deleted by hand, the published mockups to flip through with the arrow keys and to fit or fill, crumbs, focus mode, the inspector with versions and notes for agents, the Story style with house-style previews, the print view for PDF, the page following the app's theme), Activity as one log for people and agents, organization members, product people, Connect an agent, the person's settings, the cookie choice and `/cookies` | an accessibility audit; on a touch screen, pinching or dragging the mockup canvas from a page in interact mode (the page keeps the touch); a browser walk-through of the loop in CI (`scripts/e2e.mjs` is one, run by hand; the [end-to-end plans](../operations/end-to-end-tests.md) are run by an agent on request); the public sample at `/sample` |
+| 4 | Mostly done | the design system (Studio, [DESIGN.md](../../DESIGN.md)) across every screen of the loop: Idea, search over the whole product (the ⌘K palette with recent searches, and the Search screen by area); Evidence (browse by tag and by who added; intake that asks for a title and tags, with one drop zone for attachments; the source page with its Text, Notes, Comments and Attachments and the inspector, finding words in its text; search), Exploration (mockups on a full-width canvas that pans and zooms, fits or fills a page and keeps that view from page to page, with a page's notes, the brief, versions and download in the inspector, pages that enter a team's multi-file prototype as it is, and a page promoted to the Story from there; assumptions with review and confidence; old Synthesis, insight and decision links redirect), outcome revision history, Story (a reader with the page tree, arranged by dragging or Alt and the arrow keys, pages archived, restored and deleted by hand, the published mockups to flip through with the arrow keys and to fit or fill, crumbs, focus mode, the inspector with versions and notes for agents, the Story style with house-style previews, the print view for PDF, the page following the app's theme), Activity as one log for people and agents, organization members, product people, Connect an agent, the person's settings, the cookie choice and `/cookies` | an accessibility audit; on a touch screen, pinching or dragging the mockup canvas from a page in interact mode (the page keeps the touch); a browser walk-through of the loop in CI (`scripts/e2e.mjs` is one, run by hand; the [end-to-end plans](../operations/end-to-end-tests.md) are run by an agent on request); the public sample at `/sample` |
 | 5 | Mostly done | OAuth 2.1 for MCP, MCP connectors scoped to one organization or one product that refuse anything outside them, a level on each agent connection (Read only, Edit or Admin) that caps what it may do and the actions it is offered, the versioned skill, `get_skill` and the version in the server instructions, the Connect an agent page, feedback from people and agents that names nobody, with a daily limit, a switch on each agent connection and a daily email digest, the product's Story style (the team's design system or a house style), Story guidance with taste, anti-patterns and design passes, a vocabulary and compositions for plans and front pages, publishing a page from its body, and previewing a publish to look at the exact page first | the stdio transport |
 | 6 | Started | the Cloud Run deployment ([cloud-run.md](../operations/cloud-run.md)) and the Cloud Build file, run by a trigger on release tags that waits for approval ([decision](../decisions/production-runs-releases-after-approval.md)); releases as tags that publish the image to the GitHub container registry ([decision](../decisions/releases-are-tags-with-a-published-image.md)); product export (`products.export`); a sandbox's baseline and reset; the public site with its interest form, served from Cloudflare's edge or by host; the service capped at one instance; running on a free-tier Postgres (the suite passes against 18) with a nightly logical backup to a bucket, set up by hand, and its runbook ([backups.md](../operations/backups.md)); a dev deployment holding a copy of production, where a release that migrates is rehearsed before production moves ([dev-deployment.md](../operations/dev-deployment.md)); copies of production that hold only the public sandbox or the organizations named, for the local copy, the golden master, the dev deployment or another deployment's new database ([copying-an-organization.md](../operations/copying-an-organization.md)); production's mail, sent through Cloudflare Email Sending ([mail.md](../operations/mail.md)); instructions for an agent to self-host on Azure ([below](#self-hosting-on-azure)) | a rehearsed restore; import; organization export; adding a copied organization to a database that already holds others, matching its people to accounts there by address; `setup.sh` creating the Cloud Build trigger (made by hand, so a deployment without one deploys nothing on a release); [undelete](#planned--undelete); the sub-processors page; abuse tests beyond hostile uploads and isolation; limits per client address, once the Worker passes the client's address in a header the service can trust (until then the limit on agent registrations is shared by the whole deployment); Postgres 18 in CI and the embedded test server; `setup.sh` creating the nightly backup; a cap on bytes served per member a day |
 
@@ -62,16 +62,19 @@ activity log.
 
 ## Phase 2 — Sources and the derived layer
 
-Upload grants; parsers and sidecars; derivations on the queue; `read_passage` by seq and by ms;
-Postgres full-text and substring search; archive, restore, `delete_impact` and `delete` with
-tombstones; usage metering; the blob conformance suite; the synthetic sample product.
+Upload grants; parsers and the readable text they lay out; every attachment read on the queue;
+one derived text per source, read by offset and written whole, by edits or from an attachment;
+Postgres full-text and substring search over what a source says; archive, restore,
+`delete_impact` and `delete` with tombstones; usage metering; the blob conformance suite; the
+synthetic sample product.
 
 *Accept:*
-- A representative VTT transcript yields exact cue times, speakers, and code-point offsets,
-  verified against `text.md` — including a non-BMP character.
+- A representative VTT transcript yields its speakers and cue times in its derived text, and
+  `derived.text` windows cut it at exact code-point offsets — including a non-BMP character.
 - Golden files for each format; each manifest status reachable by a test fixture.
-- Out-of-range and over-size passage windows behave per [§5.4](05-derived-layer.md).
-- Upload → derive → search → passage read works end to end through REST and through MCP.
+- An over-size text window is refused, never clipped, per [§5.4](05-derived-layer.md).
+- Upload → read → search → reading the derived text around a hit works end to end through REST
+  and through MCP.
 - An archived source leaves search — including through MCP — and returns unchanged on restore.
 - A deleted source frees its bytes and returns `410` with its tombstone. `delete` without
   `confirm`, with a stale `expected_etag`, or without a reason is refused.
@@ -94,7 +97,7 @@ sign-in.
 ## Phase 4 — The web application
 
 Organization screens (the overview, members, Connect an agent, settings); the four product screens; Idea;
-Evidence (upload, browse, source page with its summary, notes, comments and attachments, passage reader, search); Exploration (mockups
+Evidence (upload, browse, source page with its summary, text, notes, comments and attachments, search); Exploration (mockups
 and assumptions); outcome revision history; Story reading and export; the Activity page; conflict handling. The
 design system is Studio ([DESIGN.md](../../DESIGN.md)).
 
@@ -110,7 +113,7 @@ feedback capture.
 
 *Accept:* someone who has never seen the product connects Claude Desktop and Claude Code from the
 Connect an agent page alone; an agent with only the skill and `describe` completes: create source → upload
-via grant → read passages → register an assumption → draft and publish a Story page; a token
+via grant → read its text → register an assumption → draft and publish a Story page; a token
 cannot reach a tenant its person is not in through any tool; a revoked token stops working
 immediately; permanent delete over MCP happens only with every guard of
 [§9.5](09-data-lifecycle.md).
@@ -156,8 +159,8 @@ be deleted, by an admin, and an organization by its owner ([§9.5](09-data-lifec
 
 ## Phase 7 — Retrieval
 
-In the order evidence supports: relevance set and semantic/hybrid evaluation on `pgvector`;
-tiered attachment search ([§8](08-search.md)).
+Relevance set and semantic/hybrid evaluation on `pgvector` ([§8.7](08-search.md)). Attachments
+stay out of search ([decision](../decisions/a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)).
 
 *Accept:* hybrid beats lexical on the measured relevance set — or it is not adopted.
 
@@ -183,18 +186,6 @@ lets a defect through, when it writes a Story of many pages over MCP.
 | The print view turns a link to another Story page that is in the same export into a link within the document | A printed Story's links between its own pages lead back to the app. |
 | `story.guidance` names the width the app shows a page at, and the house styles are checked at it | A page is shown at up to 900 pixels. A style's grid that holds three figures at 1,100 pixels may hold two at 900. |
 | A page's body is stored apart from its stylesheet | A version would then hold what the author wrote, a style change would need no new versions, and an export would not repeat the stylesheet in every version. It changes what a version is, so it needs a decision first. |
-
-## Planned — A source's words as one derived text
-
-**Planned; not built.** A source already carries a summary for people, notes and whole-source
-comments ([decision](../decisions/a-source-carries-a-summary-notes-and-whole-source-comments.md)).
-What remains of the source page's simplification follows.
-
-| Item | What it answers |
-|---|---|
-| Derived text in place of Passages and Original | A source's words read as one Markdown document instead of numbered passages and a preview of a file. It comes from an attachment's text, can be swapped for another attachment's, and can be written or edited by an agent or in the app. |
-| Attachments, never searched | A source's files are called attachments in the API, the MCP tools and the docs as well as the app, with no primary, origin or supplement role. Each attachment's text is kept with it and never searched. |
-| Search over what a source says | Search covers a source's title, tags, summary, derived text, notes and comments, and nothing else; `read_passage` and passage hits give way to the derived text. |
 
 ## Planned — Exploration after mockups
 
@@ -306,13 +297,13 @@ Not built yet:
 
 | Gap | Where it is specified | What it touches |
 |---|---|---|
-| A deployment proved end to end | the guide's last step: a person signs in with a work account, uploads a document that parses, and an agent connects over MCP | the guide and the skill, corrected by whoever finds them wrong |
+| A deployment proved end to end | the guide's last step: a person signs in with a work account, uploads a document whose text is read, and an agent connects over MCP | the guide and the skill, corrected by whoever finds them wrong |
 | An Azure Blob Storage adapter | [§2.4](02-architecture.md) | a new adapter file, `config.ts`, `createBlobStore` in `app.ts`, the server's dependencies; then the guide moves from the share to a container, the storage account's key leaves the deployment, and large uploads can go direct |
 | A reset on the hour for a public sandbox on Azure | not specified | the guide; a scheduled Container Apps job calling `POST /api/v1/sandbox/reset-if-due`, as Cloud Scheduler does on Cloud Run |
 
 *Accept:*
 - An agent given only the repository and a signed-in Azure CLI brings up a deployment in which a
-  person signs in with a work account, uploads a document and reads its passages, and an agent
+  person signs in with a work account, uploads a document and reads its text, and an agent
   connects over MCP.
 - The same with the app registration in a different directory from the resources.
 - A deployment of the Cloud Run service before and after is unchanged.
@@ -330,7 +321,7 @@ Each has a default so work is not blocked.
 | 3 | **Undelete** — how long deleted content is held before it is erased, who may put it back, and what the privacy page then says ([below](#planned--undelete)). | Not built. An owner's act, over a window counted in days, after which the content is erased as today. |
 | 4 | **Restore-drill cadence** ([§9.3](09-data-lifecycle.md)). | A rehearsed restore before public sign-up and quarterly after, as a phase acceptance criterion. |
 | 5 | **Activity log retention** ([§4.10](04-data-model.md)). | For the life of the product; events are small and carry no content. Nothing prunes them today. |
-| 6 | **Revision scope** ([§4.1](04-data-model.md)) — which objects expose their revisions. | Outcomes today; the product concept, annotations and assumptions while still editable are next. Retained for the life of the object. |
+| 6 | **Revision scope** ([§4.1](04-data-model.md)) — which objects expose their revisions, and which keep any. | Outcomes today; the product concept, annotations and assumptions while still editable are next. Retained for the life of the object. A source's derived text, summary and notes keep none yet: a write replaces them, though what each attachment was read as stays readable. |
 | 7 | **The public sample** — a synthetic discovery readable at `/sample` with no account. | Built from the seed's synthetic content; read-only, with one "copy into my organization" action. The [public sandbox](#the-public-sandbox) serves the same purpose for anyone holding an invitation; the sample would serve people who have none. |
 | 8 | **The tenant's name in the UI.** The API and MCP say `tenant` and the UI says "organization". Sources no longer have an `organization` field to collide with ([decision](../decisions/sources-are-described-by-tags.md)), so the wire could say `organization` too, at the cost of renaming a field every caller sends. | As built, until the maintainer wants one word. |
 | 9 | **Teams** can be neither archived nor deleted. | Archive a team first (its products with it), then delete it, by an organization admin, with its name typed, as a product. |
@@ -374,6 +365,10 @@ Each has a default so work is not blocked.
   ([decision](../decisions/evidence-is-searched-not-cited.md)).
 - Sources are described by a title and tags, with no kinds, folders or organization field
   ([decision](../decisions/sources-are-described-by-tags.md)).
+- A source's words are one derived text, taken from an attachment until someone writes it;
+  attachments are read and kept, never searched, and search reads a source's title, tags,
+  summary, derived text, notes and comments
+  ([decision](../decisions/a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)).
 - A human review relayed by an agent is allowed and recorded as declared
   ([§3.9](03-accounts-teams-and-identity.md)).
 - Telemetry is operational only ([§9.1](09-data-lifecycle.md)).

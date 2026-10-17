@@ -3,7 +3,7 @@ type: Process
 title: How to change this repository
 description: The rules every change follows, for people and agents, including what may never be committed.
 tags: [process, agents, contributing, public]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:claude, at: 2026-10-17}
 status: stable
 ---
 
@@ -54,9 +54,10 @@ Everything committed, including history, commit messages and pull requests' text
    `apps/web/src/ui/`, state in the URL, every state designed (loading, empty, error, archived, no
    permission), keyboard and screen-reader support, WCAG 2.2 AA, phone width, light and dark. Story pages
    never follow the app's tokens ([decision](../decisions/story-pages-follow-the-teams-design-system.md)).
-6. **Vocabulary** is fixed ([product spec](../spec/01-product.md)): source, passage, segment,
-   outcome, mockup, prototype (the multi-file part a mockup version may carry), assumption, Story,
-   archive. Archive is never called deleting.
+6. **Vocabulary** is fixed ([product spec](../spec/01-product.md)): source, derived text,
+   attachment, outcome, mockup, prototype (the multi-file part a mockup version may carry),
+   assumption, Story, archive. Archive is never called deleting, and an attachment is never
+   called a file.
 
 ## Before you finish
 

@@ -37,7 +37,7 @@ beforeAll(async () => {
   productPath = p.body.path;
   P = `/api/v1/p/${productPath}`;
   await alice.api("POST", `${P}/outcomes`, { title: "Close the books faster" });
-  const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Finance lead interview — Example Co, Sep 2026", date: "2026-09-03", path: "call.vtt", role: "primary" });
+  const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Finance lead interview — Example Co, Sep 2026", date: "2026-09-03", path: "call.vtt" });
   recordId = created.body.record.record_id;
   const up = created.body.upload;
   await fetch(up.url, { method: "PUT", headers: up.headers, body: VTT });
@@ -46,7 +46,7 @@ beforeAll(async () => {
   const v1 = await alice.api("POST", `${P}/story/pages/overview/versions`, {
     title: "Overview",
     summary: "Where the discovery stands.",
-    html: html("Overview", `<h1>Overview</h1><p>Numbers close on Fridays (source ${recordId}, segment 1).</p>`),
+    html: html("Overview", `<h1>Overview</h1><p>Numbers close on Fridays (source ${recordId}).</p>`),
   });
   const page = await alice.api("GET", `${P}/story/pages/overview?include_html=false`);
   await alice.api("PUT", `${P}/story/pages/overview/notes`, { notes: "Fold in the pricing interviews next.", expected_etag: page.body.agent_notes.etag });
@@ -145,14 +145,14 @@ describe("a Story reader", () => {
       expect(r.body.error.details.role, op.name).toBe("reader");
       refused.push(op.name);
     }
-    for (const name of ["sources.list", "read_passage", "search", "assumptions.list", "outcomes.list", "activity.list", "products.export", "story.get_style"])
+    for (const name of ["sources.list", "derived.text", "derived.write_text", "search", "assumptions.list", "outcomes.list", "activity.list", "products.export", "story.get_style"])
       expect(refused).toContain(name);
     const sources = await rita.api("GET", `${P}/sources`);
     expect(sources.body.error.message).toMatch(/reader.*needs viewer/);
   });
 
-  it("cannot download a source's file, an export or a style specimen", async () => {
-    for (const path of [`${P}/sources/${recordId}/file?path=call.vtt`, `${P}/exports/01ARZ3NDEKTSV4RRFFQ69G5FAV/file`, `${P}/story/house-styles/clear/specimen`]) {
+  it("cannot download a source's attachment or derived text, an export or a style specimen", async () => {
+    for (const path of [`${P}/sources/${recordId}/attachment?path=call.vtt`, `${P}/sources/${recordId}/text`, `${P}/exports/01ARZ3NDEKTSV4RRFFQ69G5FAV/file`, `${P}/story/house-styles/clear/specimen`]) {
       const r = await rita.api("GET", path);
       expect(r.status, path).toBe(403);
     }
@@ -211,7 +211,7 @@ describe("a Story reader", () => {
     const before = await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "planner", email: "eddie@example.com", role: "editor" });
     expect(before.status).toBe(201);
     const eddie = await h.signIn("eddie@example.com", "Eddie Editor");
-    const created = await eddie.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Second interview", date: "2026-09-04", path: "call.vtt", role: "primary" });
+    const created = await eddie.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Second interview", date: "2026-09-04", path: "call.vtt" });
     expect(created.status).toBe(201);
     const up = created.body.upload;
     await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "planner", email: "eddie@example.com", role: "reader" });
@@ -219,7 +219,7 @@ describe("a Story reader", () => {
     expect(put.status).toBe(403);
     expect(((await put.json()) as { error: { details: { role: string } } }).error.details.role).toBe("reader");
     const source = await alice.api("GET", `${P}/sources/${created.body.record.record_id}?detail=full`);
-    expect(source.body.files).toEqual([]);
+    expect(source.body.attachments).toEqual([]);
   });
 });
 

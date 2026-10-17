@@ -3,7 +3,7 @@ type: Decision
 title: Sources are described by a title, a date and tags; there are no kinds, folders, organization field, dimensions, participants, source system or provenance
 description: What a source is, whom it concerns and what it bears on are tags, which people and agents reuse through sources.facets, because a closed list of kinds slowed intake and changed nothing about storage or search, and the other fields said what a tag or the source's notes say.
 tags: [decision, sources, evidence, tags, mcp, web, product]
-generated: {by: agent:claude, at: 2026-10-16}
+generated: {by: agent:claude, at: 2026-10-17}
 status: stable
 ---
 
@@ -40,7 +40,7 @@ chose on 2026-10-16 to remove them, keeping a source's tags and its three dates.
   Agents read it before tagging and reuse the team's tags; the app offers the most used tags
   wherever tags are written.
 - Sources are found by tags, by who added them (an agent's additions count as its person's), by
-  when they were added, by their own date, and by words in the title, tags and file names.
+  when they were added, by their own date, and by words in the title, tags and attachment names.
 - Migration `0017_sources_are_tagged.sql` turns each kind and organization into tags in front of a
   source's own (`other` adds none), in sandbox baselines too, then drops the three columns.
 - Sources and assumptions have no `dimensions`, and `sources.list` and `search` no `customer`,
@@ -59,7 +59,8 @@ chose on 2026-10-16 to remove them, keeping a source's tags and its three dates.
 - Rejected: a shorter list of kinds. It is still a choice at intake that changes nothing about
   storage or search.
 - Rejected on 2026-10-13: a structured field for where a file came from outside WhatBuild (a
-  repository, a commit range). A file's `derivation_note` says so in words.
+  repository, a commit range). The source's notes say so in words; attachments carry no
+  provenance ([decision](a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)).
 - Rejected on 2026-10-13: importing agents' session transcripts as sources. A whole session holds
   far more than a team should share; an agent uploads a digest of what its session found instead.
 - Rejected: keeping organization as a field. It is one more thing to fill in, and a tag filters
@@ -87,7 +88,8 @@ chose on 2026-10-16 to remove them, keeping a source's tags and its three dates.
 - No closed classification of sources (a kind, type or category field), and no structured field
   for whom material concerns, what it bears on, who took part, where it came from or how derived
   it is, without a new decision. Describe material with tags, and write the rest in its notes.
-- `packages/core/src/source-fields.ts` holds the closed vocabulary a source keeps (file role). `sources.facets` is in `packages/core/src/ops/sources.ts`;
-  the hint for retired fields is in `packages/core/src/execute.ts`.
+- A source keeps no closed vocabulary of its own: attachments have no role either.
+  `sources.facets` is in `packages/core/src/ops/sources.ts`; the hint for retired fields is in
+  `packages/core/src/execute.ts`.
 
 Specified in: [04-data-model §4.3, §4.4 and §4.8](../spec/04-data-model.md), [06-operations-and-adapters](../spec/06-operations-and-adapters.md), [07-web-app §7.6](../spec/07-web-app.md), [08-search §8.1 and §8.3](../spec/08-search.md).

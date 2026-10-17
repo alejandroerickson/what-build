@@ -6,7 +6,7 @@ import { checkEtag, productId, recordActivity, tenantId } from "../common.ts";
 import { json, type Tx } from "../db.ts";
 import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
 import { AppError, conflict, forbidden, invalid, notFound, tooLarge } from "../errors.ts";
-import { DOWNLOAD_GRANT_HEADER, UPLOAD_GRANT_HEADER } from "./files.ts";
+import { DOWNLOAD_GRANT_HEADER, UPLOAD_GRANT_HEADER } from "./attachments.ts";
 import { defineOperation, type OpContext, type PrepareContext } from "../registry.ts";
 import { expectedEtag, formatIssues, id } from "../schemas.ts";
 import { inspectMockupHtml, MOCKUP_PAGE_RULES } from "../html-rules.ts";

@@ -3,15 +3,15 @@ type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
 description: What the production deployment is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, cost, names, and useful commands; backups and the dev deployment have guides of their own.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:claude, at: 2026-10-17}
 status: stable
 ---
 
 # WhatBuild on Google Cloud Run
 
 One container image serves everything — the web app, the REST API, the MCP endpoint, OAuth for
-agents, and the upload relay — and runs the job worker that parses uploads. Postgres holds every
-row; a Cloud Storage bucket holds every file and parsed sidecar. Nothing else runs.
+agents, and the upload relay — and runs the job worker that reads uploads. Postgres holds every
+row; a Cloud Storage bucket holds every attachment and the text read from it. Nothing else runs.
 
 ```
             ┌──────────────────── Cloud Run service "whatbuild" ─────────────────────┐
@@ -20,7 +20,7 @@ agent   ──▶ │  (one image, stateless; any instance serves any request)  
             └──────────┬───────────────────────────────┬─────────────────────────────┘
                        │                               │
               Postgres (Cloud SQL, or any)     Cloud Storage bucket
-              rows, search, job queue          files and sidecars, create-only
+              rows, search, job queue          attachments and their text, create-only
 ```
 
 Before each new revision serves traffic, the same image runs as the Cloud Run Job
@@ -79,7 +79,7 @@ right to sign as itself.
 
 **Parsing.** The worker parses each file in a thread of its own, held to 384 MB of heap, half as
 much again for buffers, and 120 seconds; a file that needs more is recorded as failed, and the
-service keeps answering meanwhile ([§5.1](../spec/05-derived-layer.md#51-derivations)). The
+service keeps answering meanwhile ([§5.1](../spec/05-derived-layer.md#51-reading-an-attachment)). The
 defaults suit the service's 1 GiB, leaving the rest to the server. Give the service more memory
 before raising them (`WHATBUILD_PARSE_MEMORY_MB`, about a third of the instance's memory;
 `WHATBUILD_PARSE_TIMEOUT_SECONDS`):

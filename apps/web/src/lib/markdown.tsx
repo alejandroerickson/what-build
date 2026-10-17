@@ -7,10 +7,10 @@ import { Link, useInRouterContext } from "react-router";
  * source ever reaches the DOM; raw HTML is shown as text, images become links and never load, and
  * only web, mail, fragment and same-origin links are live.
  *
- * Evidence reads as "Source title ¶5": a link to a source or one of its passages gets the quiet
- * evidence style, and, when the caller knows the source titles, a source mentioned by its id —
- * "source 01K…, segments 4–6", as a digest or an agent's notes may write it — becomes that same
- * linked token.
+ * Evidence reads as the source's title: a link to a source gets the quiet evidence style, and,
+ * when the caller knows the source titles, a source mentioned by its id — "source 01K…", as a
+ * digest or an agent's notes may write it — becomes that same linked token. With `mark`, the words
+ * it matches are highlighted wherever they appear in the text.
  */
 
 /**
@@ -58,26 +58,18 @@ function inApp(href: string): string {
 }
 
 
-/** "Title ¶5" with the ¶ kept on the title's line. */
-function evidenceText(title: string, start?: string, end?: string): string {
-  if (!start) return title;
-  return `${title}\u00a0¶${start}${end && end !== start ? `–${end}` : ""}`;
-}
-
-/** Each source a text mentions by its id ("source 01K…, segments 4–6"), in order. */
-export function sourceMentions(text: string): { id: string; start?: string; end?: string }[] {
+/**
+ * Each source a text mentions by its id ("source 01K…"), in order. A mention written while sources
+ * had passages ("source 01K…, segments 4–6") is the source's too: the numbers point at nothing now.
+ */
+export function sourceMentions(text: string): { id: string }[] {
   if (!text.includes("source ")) return [];
-  return [...text.matchAll(SOURCE_MENTION)].map((m) => ({ id: m[1]!, start: m[2], end: m[3] }));
+  return [...text.matchAll(SOURCE_MENTION)].map((m) => ({ id: m[1]! }));
 }
 
 /** The sources a text mentions by id, in order of first mention. */
 export function mentionedSourceIds(text: string): string[] {
   return [...new Set(sourceMentions(text).map((c) => c.id))];
-}
-
-/** A mention's chip text: "Label ¶4–6". */
-export function mentionText(label: string, start?: string, end?: string): string {
-  return evidenceText(label, start, end);
 }
 
 /**
@@ -116,11 +108,43 @@ export function mentionLabels(ids: string[], titles: Record<string, string | und
   return out;
 }
 
-/** An in-app link to a passage, or to a range of passages as `?seq=45&to=50`. */
-export function passageHref(app: string, recordId: string, start?: number | string | null, end?: number | string | null): string {
-  if (start === undefined || start === null || start === "") return `${app}/evidence/${recordId}`;
-  const range = end !== undefined && end !== null && end !== "" && String(end) !== String(start);
-  return `${app}/evidence/${recordId}?seq=${start}${range ? `&to=${end}` : ""}`;
+/** An in-app link to a source. */
+export function sourceHref(app: string, recordId: string): string {
+  return `${app}/evidence/${recordId}`;
+}
+
+/** What a renderer threads through the text: who mentions resolve to, and which words to mark. */
+interface Cx {
+  ev?: EvidenceContext | undefined;
+  mark?: RegExp | undefined;
+}
+
+/** The words `mark` matches in a run of text, highlighted. */
+function marked(text: string, key: string, mark: RegExp | undefined): ReactNode {
+  if (!mark || !text) return text;
+  const out: ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(mark)) {
+    if (!m[0]) continue;
+    out.push(text.slice(last, m.index));
+    out.push(
+      <mark key={`${key}.m${m.index}`} className="text-find">
+        {m[0]}
+      </mark>,
+    );
+    last = m.index! + m[0].length;
+  }
+  if (!out.length) return text;
+  out.push(text.slice(last));
+  return out;
+}
+
+/** The highlighting of `marked` over the strings among nodes, leaving elements as they are. */
+function markedNodes(nodes: ReactNode, key: string, mark: RegExp | undefined): ReactNode {
+  if (!mark) return nodes;
+  if (typeof nodes === "string") return marked(nodes, key, mark);
+  if (Array.isArray(nodes)) return nodes.map((n, i) => (typeof n === "string" ? <Fragment key={`${key}.s${i}`}>{marked(n, `${key}.s${i}`, mark)}</Fragment> : n));
+  return nodes;
 }
 
 function AppLink({ href, className, title, children }: { href: string; className?: string; title?: string; children: ReactNode }) {
@@ -140,22 +164,21 @@ function AppLink({ href, className, title, children }: { href: string; className
 }
 
 /**
- * Turn "source <id>, segment N" mentions in a run of text into evidence links; or, where the text
- * already sits inside a link or a button (a search hit, a passage), into the same token without a
- * link of its own.
+ * Turn "source <id>" mentions in a run of text into evidence links; or, where the text already sits
+ * inside a link or a button (a search hit), into the same token without a link of its own.
  */
 export function evidenceLinks(text: string, key: string, ev: EvidenceContext | undefined, asLink = true): ReactNode {
   if (!ev || !text.includes("source ")) return text;
   const out: ReactNode[] = [];
   let last = 0;
   for (const m of text.matchAll(SOURCE_MENTION)) {
-    const [whole, id, start, end] = m;
+    const [whole, id] = m;
     const known = ev.titles[id!];
-    const label = evidenceText(ev.labels?.[id!] ?? mentionLabels([id!], ev.titles)[id!]!, start, end);
+    const label = ev.labels?.[id!] ?? mentionLabels([id!], ev.titles)[id!]!;
     out.push(text.slice(last, m.index));
     out.push(
       asLink ? (
-        <AppLink key={`${key}.c${m.index}`} href={passageHref(ev.app, id!, start, end)} className="evidence-link" title={known ?? undefined}>
+        <AppLink key={`${key}.c${m.index}`} href={sourceHref(ev.app, id!)} className="evidence-link" title={known ?? undefined}>
           {label}
         </AppLink>
       ) : (
@@ -180,37 +203,41 @@ function decode(s: string): string {
     .replace(/&#39;/g, "'");
 }
 
-function inline(tokens: Token[] | undefined, key = "i", ev?: EvidenceContext): ReactNode {
+function inline(tokens: Token[] | undefined, key = "i", cx: Cx = {}): ReactNode {
   if (!tokens) return null;
   return tokens.map((t, i) => {
     const k = `${key}.${i}`;
     switch (t.type) {
       case "text":
-        return (t as Tokens.Text).tokens ? <Fragment key={k}>{inline((t as Tokens.Text).tokens, k, ev)}</Fragment> : <Fragment key={k}>{evidenceLinks(decode(t.text), k, ev)}</Fragment>;
+        return (t as Tokens.Text).tokens ? (
+          <Fragment key={k}>{inline((t as Tokens.Text).tokens, k, cx)}</Fragment>
+        ) : (
+          <Fragment key={k}>{markedNodes(evidenceLinks(decode(t.text), k, cx.ev), k, cx.mark)}</Fragment>
+        );
       case "escape":
-        return <Fragment key={k}>{decode(t.text)}</Fragment>;
+        return <Fragment key={k}>{marked(decode(t.text), k, cx.mark)}</Fragment>;
       case "strong":
-        return <strong key={k}>{inline((t as Tokens.Strong).tokens, k, ev)}</strong>;
+        return <strong key={k}>{inline((t as Tokens.Strong).tokens, k, cx)}</strong>;
       case "em":
-        return <em key={k}>{inline((t as Tokens.Em).tokens, k, ev)}</em>;
+        return <em key={k}>{inline((t as Tokens.Em).tokens, k, cx)}</em>;
       case "del":
-        return <del key={k}>{inline((t as Tokens.Del).tokens, k, ev)}</del>;
+        return <del key={k}>{inline((t as Tokens.Del).tokens, k, cx)}</del>;
       case "codespan":
-        return <code key={k}>{decode((t as Tokens.Codespan).text)}</code>;
+        return <code key={k}>{marked(decode((t as Tokens.Codespan).text), k, cx.mark)}</code>;
       case "br":
         return <br key={k} />;
       case "link": {
         const safe = safeHref((t as Tokens.Link).href);
-        const children = inline((t as Tokens.Link).tokens, k);
+        const children = inline((t as Tokens.Link).tokens, k, { mark: cx.mark });
         if (!safe) return <Fragment key={k}>{children}</Fragment>;
         const href = inApp(safe);
         const lt = (t as Tokens.Link).tokens ?? [];
-        // A link to a source or a passage is evidence: quiet accent token, ¶ kept with its title.
+        // A link to a source is evidence: the quiet accent token.
         if (href.startsWith("/") && EVIDENCE_PATH.test(href)) {
           const plain = lt.every((c) => c.type === "text" && !(c as Tokens.Text).tokens);
           return (
             <AppLink key={k} href={href} className="evidence-link">
-              {plain ? decode(lt.map((c) => c.raw).join("")).replace(/ ¶/g, "\u00a0¶") : children}
+              {plain ? marked(decode(lt.map((c) => c.raw).join("")), k, cx.mark) : children}
             </AppLink>
           );
         }
@@ -232,30 +259,30 @@ function inline(tokens: Token[] | undefined, key = "i", ev?: EvidenceContext): R
         );
       }
       case "html":
-        return <Fragment key={k}>{t.raw.replace(/<br\s*\/?>/gi, "\n").replace(/<\/?[a-z][^>]*>/gi, "")}</Fragment>;
+        return <Fragment key={k}>{marked(t.raw.replace(/<br\s*\/?>/gi, "\n").replace(/<\/?[a-z][^>]*>/gi, ""), k, cx.mark)}</Fragment>;
       default:
-        return <Fragment key={k}>{"raw" in t ? decode(String(t.raw)) : ""}</Fragment>;
+        return <Fragment key={k}>{"raw" in t ? marked(decode(String(t.raw)), k, cx.mark) : ""}</Fragment>;
     }
   });
 }
 
-function block(tokens: Token[], key = "b", headingShift = 0, ev?: EvidenceContext): ReactNode {
+function block(tokens: Token[], key = "b", headingShift = 0, cx: Cx = {}): ReactNode {
   return tokens.map((t, i) => {
     const k = `${key}.${i}`;
     switch (t.type) {
       case "heading": {
         const level = Math.min(4, (t as Tokens.Heading).depth + headingShift);
         const H = `h${level}` as "h2";
-        return <H key={k}>{inline((t as Tokens.Heading).tokens, k, ev)}</H>;
+        return <H key={k}>{inline((t as Tokens.Heading).tokens, k, cx)}</H>;
       }
       case "paragraph":
-        return <p key={k}>{inline((t as Tokens.Paragraph).tokens, k, ev)}</p>;
+        return <p key={k}>{inline((t as Tokens.Paragraph).tokens, k, cx)}</p>;
       case "list": {
         const l = t as Tokens.List;
         const items = l.items.map((it, j) => (
           <li key={`${k}.${j}`}>
             {it.task ? <input type="checkbox" checked={Boolean(it.checked)} readOnly disabled aria-label={it.checked ? "done" : "not done"} /> : null}{" "}
-            {l.loose ? block(it.tokens, `${k}.${j}`, headingShift, ev) : inlineOrBlock(it.tokens, `${k}.${j}`, ev)}
+            {l.loose ? block(it.tokens, `${k}.${j}`, headingShift, cx) : inlineOrBlock(it.tokens, `${k}.${j}`, cx)}
           </li>
         ));
         return l.ordered ? (
@@ -267,11 +294,11 @@ function block(tokens: Token[], key = "b", headingShift = 0, ev?: EvidenceContex
         );
       }
       case "blockquote":
-        return <blockquote key={k}>{block((t as Tokens.Blockquote).tokens, k, headingShift, ev)}</blockquote>;
+        return <blockquote key={k}>{block((t as Tokens.Blockquote).tokens, k, headingShift, cx)}</blockquote>;
       case "code":
         return (
           <pre key={k}>
-            <code>{(t as Tokens.Code).text}</code>
+            <code>{marked((t as Tokens.Code).text, k, cx.mark)}</code>
           </pre>
         );
       case "hr":
@@ -285,7 +312,7 @@ function block(tokens: Token[], key = "b", headingShift = 0, ev?: EvidenceContex
                 <tr>
                   {tb.header.map((c, j) => (
                     <th key={j} style={{ textAlign: tb.align[j] ?? undefined }}>
-                      {inline(c.tokens, `${k}.h${j}`, ev)}
+                      {inline(c.tokens, `${k}.h${j}`, cx)}
                     </th>
                   ))}
                 </tr>
@@ -295,7 +322,7 @@ function block(tokens: Token[], key = "b", headingShift = 0, ev?: EvidenceContex
                   <tr key={ri}>
                     {r.map((c, j) => (
                       <td key={j} style={{ textAlign: tb.align[j] ?? undefined }}>
-                        {inline(c.tokens, `${k}.${ri}.${j}`, ev)}
+                        {inline(c.tokens, `${k}.${ri}.${j}`, cx)}
                       </td>
                     ))}
                   </tr>
@@ -306,27 +333,40 @@ function block(tokens: Token[], key = "b", headingShift = 0, ev?: EvidenceContex
         );
       }
       case "html":
-        return <p key={k}>{t.raw.replace(/<(script|style|iframe|object|svg|template)[\s\S]*?<\/\1>/gi, "").replace(/<\/?[a-z][^>]*>/gi, "")}</p>;
+        return <p key={k}>{marked(t.raw.replace(/<(script|style|iframe|object|svg|template)[\s\S]*?<\/\1>/gi, "").replace(/<\/?[a-z][^>]*>/gi, ""), k, cx.mark)}</p>;
       case "space":
         return null;
       case "text":
-        return <p key={k}>{inline((t as Tokens.Text).tokens ?? [t], k, ev)}</p>;
+        return <p key={k}>{inline((t as Tokens.Text).tokens ?? [t], k, cx)}</p>;
       default:
         return null;
     }
   });
 }
 
-function inlineOrBlock(tokens: Token[], key: string, ev?: EvidenceContext): ReactNode {
-  if (tokens.length === 1 && tokens[0]!.type === "text") return inline((tokens[0] as Tokens.Text).tokens ?? [tokens[0]!], key, ev);
-  return block(tokens, key, 0, ev);
+function inlineOrBlock(tokens: Token[], key: string, cx: Cx): ReactNode {
+  if (tokens.length === 1 && tokens[0]!.type === "text") return inline((tokens[0] as Tokens.Text).tokens ?? [tokens[0]!], key, cx);
+  return block(tokens, key, 0, cx);
 }
 
-export function Markdown({ source, className = "prose", headingShift = 1, evidence }: { source: string; className?: string; headingShift?: number; evidence?: EvidenceContext }) {
+export function Markdown({
+  source,
+  className = "prose",
+  headingShift = 1,
+  evidence,
+  mark,
+}: {
+  source: string;
+  className?: string;
+  headingShift?: number;
+  evidence?: EvidenceContext;
+  /** Highlight what this global pattern matches, as a find does. */
+  mark?: RegExp;
+}) {
   const tokens = new Lexer({ gfm: true }).lex(source ?? "");
   // Chip labels are worked out across the whole text, so two sources never read alike on one page.
   const ev = evidence && !evidence.labels ? { ...evidence, labels: mentionLabels(mentionedSourceIds(source ?? ""), evidence.titles) } : evidence;
-  return <div className={className}>{block(tokens, "md", headingShift, ev)}</div>;
+  return <div className={className}>{block(tokens, "md", headingShift, { ev, mark })}</div>;
 }
 
 /**

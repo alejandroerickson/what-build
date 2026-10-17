@@ -35,7 +35,7 @@ function onHost(host: string, path: string) {
 }
 
 async function upload(path: string, body: string) {
-  const created = await alice.api("POST", `${P}/sources/with-upload`, { title: `Upload of ${path}`, path, role: "primary" });
+  const created = await alice.api("POST", `${P}/sources/with-upload`, { title: `Upload of ${path}`, path });
   expect(created.status, JSON.stringify(created.body)).toBe(201);
   expect((await fetch(created.body.upload.url, { method: "PUT", headers: created.body.upload.headers, body })).status).toBe(201);
   return created.body.record.record_id as string;
@@ -79,6 +79,7 @@ beforeAll(async () => {
   mockupId = m.body.mockup_id;
   pdfSource = await upload("plan.pdf", "%PDF-1.4\n%%EOF\n");
   textSource = await upload("notes.txt", "Crews text the office.\n");
+  await h.worker.drain();
   agentToken = await h.connectAgent(alice);
 });
 afterAll(async () => h?.close());
@@ -114,11 +115,14 @@ describe("responses that carry people's material, identity or credentials", () =
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
     });
     expect(mcp.status).toBe(200);
+    const derived = await alice.api("GET", `${P}/sources/${textSource}/text`);
+    expect(derived.status).toBe(200);
     const responses: [string, Headers][] = [
       ["who is signed in", (await alice.api("GET", "/api/v1/me")).headers],
       ["a list of sources", (await alice.api("GET", `${P}/sources`)).headers],
-      ["a PDF", (await alice.api("GET", `${P}/sources/${pdfSource}/file?path=plan.pdf`)).headers],
-      ["a text file", (await alice.api("GET", `${P}/sources/${textSource}/file?path=notes.txt`)).headers],
+      ["a PDF", (await alice.api("GET", `${P}/sources/${pdfSource}/attachment?path=plan.pdf`)).headers],
+      ["a text file", (await alice.api("GET", `${P}/sources/${textSource}/attachment?path=notes.txt`)).headers],
+      ["a derived text", derived.headers],
       ["a Story page", (await alice.api("GET", `${P}/story/pages/overview/versions/1/html`)).headers],
       ["the print view", (await alice.api("GET", `${P}/story/print?page_ids=overview`)).headers],
       ["an MCP answer", mcp.headers],
@@ -161,10 +165,10 @@ describe("every HTML response", () => {
   });
 });
 
-describe("files served back", () => {
+describe("attachments served back", () => {
   it("may be framed only by the app, which shows PDFs in a frame", async () => {
     for (const [source, path] of [[pdfSource, "plan.pdf"], [textSource, "notes.txt"]] as const) {
-      const csp = (await alice.api("GET", `${P}/sources/${source}/file?path=${path}`)).headers.get("content-security-policy") ?? "";
+      const csp = (await alice.api("GET", `${P}/sources/${source}/attachment?path=${path}`)).headers.get("content-security-policy") ?? "";
       expect(csp, path).toContain("frame-ancestors 'self'");
       expect(csp, path).toContain("form-action 'none'");
       expect(csp, path).toContain("base-uri 'none'");

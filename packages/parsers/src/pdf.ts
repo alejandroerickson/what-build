@@ -14,7 +14,7 @@ export const MAX_PDF_PAGES = 2000;
  */
 export const pdfParser: FormatParser = {
   name: "pdf",
-  version: "3",
+  version: "4",
   async parse(bytes) {
     const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
     // pdf.js has no limit on what a compressed stream decodes to. It is given the limits it has,

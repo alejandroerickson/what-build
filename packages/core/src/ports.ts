@@ -37,7 +37,7 @@ export interface GrantSigner {
   verify(token: string): Record<string, unknown> | null;
 }
 
-/** Size-capped, SSRF-safe HTTPS fetch for `files.fetch_url`. */
+/** Size-capped, SSRF-safe HTTPS fetch for `attachments.fetch_url`. */
 export interface UrlFetcher {
   fetch(url: string, maxBytes: number): Promise<{ bytes: Uint8Array; fileName: string; mediaType: string | null }>;
 }

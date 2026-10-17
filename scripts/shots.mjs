@@ -111,7 +111,7 @@ for (const device of ["desktop", "phone"]) {
     await shoot("idea", "/idea");
     await shoot("evidence", "/evidence");
     await shoot("source-new", "/evidence/new");
-    for (const view of ["passages", "original", "notes", "comments", "attachments"]) await shoot(`source-${view}`, `/evidence/${s.source}?view=${view}`);
+    for (const view of ["text", "notes", "comments", "attachments"]) await shoot(`source-${view}`, `/evidence/${s.source}?view=${view}`);
     await shoot("search", "/search?q=spreadsheet");
     if (s.mockup) await shoot("mockup", `/exploration/mockups/${s.mockup}`, { full: false });
     await shoot("assumptions", "/exploration/assumptions");
@@ -152,7 +152,7 @@ for (const device of ["desktop", "phone"]) {
     await shoot("not-found", "/no-such-screen", { full: false });
 
     if (device === "desktop" && wanted("panel-hidden")) {
-      await page.goto(`${s.app}/evidence/${s.source}?view=passages`);
+      await page.goto(`${s.app}/evidence/${s.source}?view=text`);
       await settle(page);
       await page.getByRole("button", { name: "Hide panel" }).click();
       await page.waitForTimeout(400);

@@ -9,7 +9,7 @@ import { defineOperation } from "../registry.ts";
 import { newId } from "../util.ts";
 
 export const EXPORT_FORMAT = "whatbuild-product-bundle";
-export const EXPORT_FORMAT_VERSION = 1;
+export const EXPORT_FORMAT_VERSION = 2;
 const EXPORT_DAYS = 7;
 
 export const exportProduct = defineOperation({
@@ -121,7 +121,7 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
       tenant,
       team,
       product: { product_id: product.product_id, slug: product.slug, name: product.name, concept: product.concept, created_at: product.created_at, archived_at: product.archived_at },
-      layout: "records/<record_id>/record.json · files/<file_version_id>/<path> · derived/<derivation_id>/* · assumptions.json · story/* · mockups/*",
+      layout: "records/<record_id>/record.json · text.md · attachments/<file_version_id>/<path> · derived/<derivation_id>/* · assumptions.json · story/* · mockups/*",
     }),
   );
   add("outcomes.json", j(await db.selectFrom("outcomes").selectAll().where("product_id", "=", pid).orderBy("position").execute()));
@@ -131,17 +131,27 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
     const base = `records/${r.record_id}`;
     const fileRows = await db.selectFrom("files").selectAll().where("record_id", "=", r.record_id).execute();
     const versions = await db.selectFrom("file_versions").selectAll().where("record_id", "=", r.record_id).execute();
-    add(`${base}/record.json`, j({ ...r, files: fileRows.map((f) => ({ ...f, versions: versions.filter((v) => v.file_id === f.file_id).map(({ blob_key: _k, ...v }) => v) })) }));
+    const text = await db.selectFrom("source_texts").selectAll().where("record_id", "=", r.record_id).executeTakeFirst();
+    add(
+      `${base}/record.json`,
+      j({
+        ...r,
+        text: text ? { chars: text.chars, from_file_version_id: text.from_file_version_id, updated_at: text.updated_at, updated_by: text.updated_by } : null,
+        attachments: fileRows.map((f) => ({ ...f, versions: versions.filter((v) => v.file_id === f.file_id).map(({ blob_key: _k, ...v }) => v) })),
+      }),
+    );
+    if (text) add(`${base}/text.md`, text.content);
     for (const v of versions) {
       const f = fileRows.find((x) => x.file_id === v.file_id);
       try {
-        add(`${base}/files/${v.file_version_id}/${f?.path ?? "file"}`, await ports.blobs.get(v.blob_key));
+        add(`${base}/attachments/${v.file_version_id}/${f?.path ?? "file"}`, await ports.blobs.get(v.blob_key));
       } catch {
-        add(`${base}/files/${v.file_version_id}/MISSING.txt`, "The stored bytes for this version could not be read at export time.\n");
+        add(`${base}/attachments/${v.file_version_id}/MISSING.txt`, "The stored bytes for this version could not be read at export time.\n");
       }
     }
     for (const d of await db.selectFrom("derivations").selectAll().where("record_id", "=", r.record_id).execute()) {
-      for (const s of ["segments.jsonl", "text.md", "manifest.json"]) {
+      // segments.jsonl is in readings made while sources had passages.
+      for (const s of ["text.md", "manifest.json", "segments.jsonl"]) {
         try {
           add(`${base}/derived/${d.derivation_id}/${s}`, await ports.blobs.get(`${d.blob_prefix}/${s}`));
         } catch {
@@ -207,11 +217,11 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
   add(
     "README.txt",
     `WhatBuild product bundle: ${product.name} (${tenant.name} / ${team.name}).\n\n` +
-      "Everything is plain files: JSON for structured data, Markdown for parsed text and mockup briefs and notes,\n" +
-      "HTML for Story versions and mockup pages (a Story version that shows a mockup page names it in its JSON),\n" +
+      "Everything is plain files: JSON for structured data, Markdown for each source's derived text\n" +
+      "(records/<id>/text.md), the text read from its attachments (records/<id>/derived/<id>/text.md) and mockup briefs\n" +
+      "and notes, HTML for Story versions and mockup pages (a Story version that shows a mockup page names it in its JSON),\n" +
       "each mockup version's prototype under mockups/<id>/v<n>/prototype/ as it was uploaded,\n" +
-      "and every stored version of every source file under records/<id>/files/. Offsets in segments.jsonl are Unicode\n" +
-      "code points into the text.md beside it.\n",
+      "and every stored version of every attachment under records/<id>/attachments/.\n",
   );
   zip.end();
   const stored = await upload;

@@ -68,7 +68,7 @@ async function productDeletion(ctx: OpContext) {
     archived: Boolean(p.archived_at),
     contents,
     after_delete:
-      "Everything in the product goes, archived or not: its concept, outcomes, sources with their files and passages, comments, assumptions with their reviews, mockups, the Story, exports and activity. " +
+      "Everything in the product goes, archived or not: its concept, outcomes, sources with their attachments, derived texts, summaries, notes and comments, assumptions with their reviews, mockups, the Story, exports and activity. " +
       "Roles given on this product go with it; roles on its team and organization stay. A connector scoped to this product reaches nothing.",
     reversible_alternative: 'products(action="archive") hides it and makes it read-only, and erases nothing; export it first to keep a copy.',
   };
@@ -139,7 +139,7 @@ export const deleteProduct = defineOperation({
     await db.deleteFrom("revisions").where("object_id", "in", authored).execute();
     for (const table of ["mockup_uploads", "story_previews", "mockup_prototype_files", "mockup_files", "mockup_pages", "mockup_versions", "mockups", "story_versions", "story_pages", "story_hierarchies", "story_styles", "register_entries", "outcomes", "insights", "exports", "activity", "tombstones"] as const)
       await db.deleteFrom(table).where("product_id", "=", pid).execute();
-    // A source takes its files, versions, uploads, passages and notes with it.
+    // A source takes its attachments, versions, uploads, readings, derived text, search index and notes with it.
     await db.deleteFrom("records").where("product_id", "=", pid).execute();
     await db.deleteFrom("invitations").where("scope_type", "=", "product").where("scope_id", "=", pid).execute();
     await db.deleteFrom("memberships").where("scope_type", "=", "product").where("scope_id", "=", pid).execute();

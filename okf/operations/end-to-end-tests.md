@@ -3,7 +3,7 @@ type: System Concept
 title: Agent-driven end-to-end tests on a golden master
 description: An agent follows a written test plan through the real web app and the real MCP server, on a local instance reset each time to a golden master made from production's public sandbox, and reports failures and anomalies.
 tags: [development, testing, qa, e2e, agents, mcp, browser]
-generated: {by: agent:claude, at: 2026-10-16}
+generated: {by: agent:claude, at: 2026-10-17}
 status: draft
 ---
 
@@ -86,7 +86,10 @@ sandbox, and serves. It also marks the sandbox as reset just now, so that its da
 put the baseline back over the golden master's content when the instance starts; a run that lasts
 past the reset hour in the sandbox's settings would see it happen. Stopping it and starting it again
 is how a test goes back to the golden master; it also ends every session and MCP token, which the
-tools notice and renew. It refuses to start when another process holds its API or web port, since that server would
+tools notice and renew. Jobs a newer migration queues run in the instance's worker once it serves:
+after `0030_one_derived_text_per_source`, which reads every attachment again and builds the
+search index from nothing, search finds little until the log shows each product's `index_texts`
+job done. Building the golden master again does that work once. It refuses to start when another process holds its API or web port, since that server would
 answer the tests instead. The ports can be moved with `WHATBUILD_E2E_WEB_PORT`,
 `WHATBUILD_E2E_API_PORT` and `WHATBUILD_E2E_PG_PORT`; `WHATBUILD_E2E_URL` points the browser and
 MCP tools elsewhere. `GET /mcp 405` lines in its log are expected: MCP clients probe for a
@@ -105,9 +108,10 @@ corepack pnpm e2e mcp call products '{"action":"list"}'
 The plans:
 
 - `smoke`: every screen opens for each role in both organizations, and an agent connects and reads.
-- `evidence-through-both-doors`: a source added over MCP is parsed, searched and annotated on the
-  web, and the reverse; activity attribution; a stale etag; then the same in the sandbox, its limits,
-  and the two organizations kept apart.
+- `evidence-through-both-doors`: a source added over MCP is read, searched, corrected and
+  commented on in the web app, and the reverse; a second attachment kept but not searched;
+  activity attribution; a stale etag; then the same in the sandbox, its limits, and the two
+  organizations kept apart.
 - `assumptions-and-the-story`: an agent's assumption is reviewed by a person; a Story page
   is published and read by a reader, who is refused everything else.
 - `search`: the palette and the Search screen find every kind of thing by plain words, read as the

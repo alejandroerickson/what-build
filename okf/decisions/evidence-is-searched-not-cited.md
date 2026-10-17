@@ -3,7 +3,7 @@ type: Decision
 title: Evidence is found by searching, not kept as citations
 description: Nothing structural points from an assumption, a Story page or a mockup to a source; agents search the evidence when they need it, and the Story explains in words.
 tags: [decision, evidence, citations, assumptions, story, mockups, agents]
-generated: {by: agent:claude, at: 2026-10-16}
+generated: {by: agent:claude, at: 2026-10-17}
 status: stable
 ---
 
@@ -29,9 +29,11 @@ and [assumptions that start uncited](register-entries-may-start-uncited.md).
 - An assumption's body says in words why the team holds it, and it may be recorded before any
   evidence exists. People add and edit entries in the web app until the first review.
 - A Story page explains in its own words. It quotes a person only where their words matter,
-  attributed in words and without a passage link; which sources it rests on goes in its notes.
-- Prose may still mention a passage ("source 01K…, segments 4–6"); the app shows it as a link,
-  and nothing records it.
+  attributed in words and without a link to the evidence; which sources it rests on goes in its
+  notes.
+- Prose may still mention a source by its id ("source 01K…"); the app shows it as a link to the
+  source, and nothing records it. A source has no passages to point at
+  ([decision](a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)).
 - The citations assumptions held became quotes at the end of their bodies; those of Story and
   mockup versions were dropped, since a page's HTML holds what it quotes.
 - Rejected: citations on Story pages alone. A reader cannot follow one, and the quote on the page

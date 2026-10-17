@@ -113,15 +113,13 @@ const SCOPED: Record<string, Probe> = {
   },
   "sources.delete_impact": { input: (a) => ({ record_id: a.source.id }) },
   "sources.delete": { input: (a) => ({ record_id: a.source.id, expected_etag: a.source.etag, reason: "Removed by an outsider", confirm: "delete permanently" }) },
-  "files.request_upload": { input: (a) => ({ record_id: a.source.id, path: "planted.md", role: "supplement" }) },
-  "files.create_upload": { input: () => ({ title: "Planted upload", path: "planted.md", role: "primary" }) },
-  "files.create_uploads": { input: () => ({ sources: [{ title: "Planted upload", path: "planted.md", role: "primary" }] }) },
-  "files.complete_upload": { input: (a) => ({ record_id: a.source.id, path: a.source.path }) },
-  "files.add_note": { input: (a) => ({ record_id: a.source.id, path: "planted.md", text: "Planted note.", role: "supplement" }) },
+  "attachments.request_upload": { input: (a) => ({ record_id: a.source.id, path: "planted.md" }) },
+  "attachments.create_upload": { input: () => ({ title: "Planted upload", path: "planted.md" }) },
+  "attachments.create_uploads": { input: () => ({ sources: [{ title: "Planted upload", path: "planted.md" }] }) },
+  "attachments.complete_upload": { input: (a) => ({ record_id: a.source.id, path: a.source.path }) },
   // A public address only; the call must be refused long before anything is fetched.
-  "files.fetch_url": { input: (a) => ({ record_id: a.source.id, url: "https://example.com/planted.html", role: "supplement" }) },
-  "files.set_role": { input: (a) => ({ record_id: a.source.id, path: a.source.path, role: "origin" }) },
-  "files.get_download": {
+  "attachments.fetch_url": { input: (a) => ({ record_id: a.source.id, url: "https://example.com/planted.html" }) },
+  "attachments.get_download": {
     input: (a) => ({ record_id: a.source.id, path: a.source.path, file_version_id: a.source.fileVersionId }),
     inside: (a, b) => [
       { record_id: a.source.id, path: a.source.path, file_version_id: a.source.fileVersionId },
@@ -135,19 +133,20 @@ const SCOPED: Record<string, Probe> = {
   },
   "derived.text": {
     input: (a) => ({ record_id: a.source.id }),
-    inside: (a, b) => [{ record_id: a.source.id }, { record_id: b.source.id, derivation_id: a.source.derivationId }],
+    inside: (a, b) => [{ record_id: a.source.id }, { record_id: b.source.id, derivation_id: a.source.derivationId }, { record_id: a.source.id, path: a.source.path }],
+  },
+  "derived.write_text": {
+    input: (a) => ({ record_id: a.source.id, content: "Planted text." }),
+    inside: (a) => [
+      { record_id: a.source.id, content: "Planted text." },
+      { record_id: a.source.id, edits: [{ old_text: a.marker, new_text: "Planted" }] },
+      { record_id: a.source.id, from_attachment: a.source.path },
+    ],
   },
   "derived.list": { input: (a) => ({ record_id: a.source.id }) },
   "derived.rederive": { input: (a) => ({ record_id: a.source.id }) },
   "derived.write_note": { input: (a) => ({ record_id: a.source.id, note_kind: "summary", content: "Planted summary." }) },
   "derived.read_note": { input: (a) => ({ record_id: a.source.id, note_kind: "summary" }) },
-  read_passage: {
-    input: (a) => ({ record_id: a.source.id, start: 0, end: 2, unit: "seq" }),
-    inside: (a, b) => [
-      { record_id: a.source.id, start: 0, end: 2, unit: "seq" },
-      { record_id: b.source.id, start: 0, end: 2, unit: "seq", derivation_id: a.source.derivationId },
-    ],
-  },
   search: {
     input: () => ({ query: "crews", scope: "all" }),
     inside: (a) => [{ query: "crews", scope: "all" }, { query: "crews", record_id: a.source.id }],

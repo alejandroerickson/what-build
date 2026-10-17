@@ -18,7 +18,7 @@ import {
 } from "../story-guidance.ts";
 import { HOUSE_STYLE_IDS, houseStyle, pageDocument, PLAIN_STYLESHEET } from "../story-styles.ts";
 import { newEtag, newId, randomToken, sha256Hex, uniq } from "../util.ts";
-import { DOWNLOAD_GRANT_HEADER } from "./files.ts";
+import { DOWNLOAD_GRANT_HEADER } from "./attachments.ts";
 
 export const MAX_PAGES = 50;
 export const MAX_DEPTH = 6;

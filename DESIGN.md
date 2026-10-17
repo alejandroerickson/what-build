@@ -279,7 +279,7 @@ components:
 
 One floating panel carries the product's whole story, Idea, Evidence, Exploration and Story in that order, and the content takes the rest of the canvas. Studio is a tool-maker's workspace: a light grey canvas (near-black in dark), white panels with 12px corners floating 10px in from the window edge, hairline rules, and a soft two-layer shadow. There is no top bar, no persistent rail beside the panel, and no app-level tab strip. One screen shows at a time, links are real links, and the browser owns tabs.
 
-The system is dense and quiet. The UI runs at 12px in Inter; text people actually read (passages, quotes, Markdown) steps up to 13 to 13.5px. Hierarchy comes from weight (600) and grey steps rather than size, and nothing in the app is larger than 20px except the overview's intro. Indigo is the only chromatic voice in the chrome, reserved for selection, focus, primary commits and pointing at evidence. Status always pairs a small shaped mark with a word.
+The system is dense and quiet. The UI runs at 12px in Inter; text people actually read (a source's text, quotes, Markdown) steps up to 13 to 13.5px. Hierarchy comes from weight (600) and grey steps rather than size, and nothing in the app is larger than 20px except the overview's intro. Indigo is the only chromatic voice in the chrome, reserved for selection, focus, primary commits and pointing at evidence. Status always pairs a small shaped mark with a word.
 
 The panel can hide (a button or Ctrl/Cmd+\). The canvas widens in a single 200ms motion and a small floating pill with the mark takes its place. Item screens (a Story page, a mockup, a source) add a 272px inspector floating on the right, which hides and returns the same way: a button in its head or Shift+Ctrl/Cmd+\, and a square at the top-right inset in its place. A Story page is not part of Studio: it follows the product's own Story style (the company's design system or a house style) inside a sandboxed frame. Neither is a mockup's page, which carries its own look in the same kind of frame. On the Story and on a mockup (on a phone too), focus mode (F) hides both panels so the app falls away around the work; a Story page keeps its measure rather than widening, and Esc or F brings the panels back.
 
@@ -337,7 +337,7 @@ A neutral grey studio with a single indigo accent and three status hues; every v
 - **Title** (600, 14px, 1.25): the sheet title, which is the h1 of a list screen, followed by its count in faint 400.
 - **Subtitle** (600, 12.5px): product name, inspector title, h3, panel section headings (in ink, so they stand above the filters and lists under them).
 - **Prose** (400, 13.5px, 1.62, max 68ch): long-form Markdown.
-- **Reading** (400, 13px, 1.55): passages, quotes and empty-state text people read.
+- **Reading** (400, 13px, 1.55): search excerpts, quotes and empty-state text people read.
 - **Body** (400 or 500, 12px, 1.4): the UI itself, including rows, buttons, menus and forms. Row titles and buttons take 500.
 - **Meta** (400, 11.5px): secondary lines, chips, hints, errors, group headings.
 - **Label** (500, 11px): counts, captions, keyboard hints.
@@ -345,7 +345,7 @@ A neutral grey studio with a single indigo accent and three status hues; every v
 ### Named Rules
 **The Twenty Pixel Ceiling Rule.** Nothing in the app exceeds 20px. When something needs more emphasis, raise its weight or darken its grey. The one exception is the overview's intro (Brand and Display above, tokens `--fs-brand`, `--fs-display` and their `-sm` narrow sizes, `--tracking-brand`, `--tracking-display`), the page people share as a screenshot of WhatBuild; no other screen earns it ([decision](okf/decisions/the-overview-is-the-front-door.md)).
 
-**The Read Up Rule.** Chrome stays at 12px. Anything a person reads as content (passages, quotes, prose) steps up to 13 to 13.5px with a looser line height and a 68ch measure.
+**The Read Up Rule.** Chrome stays at 12px. Anything a person reads as content (a source's text, quotes, prose) steps up to 13 to 13.5px with a looser line height and a 68ch measure.
 
 ## Layout
 
@@ -372,7 +372,7 @@ Depth is tonal layering plus two shadows. White surfaces lift off the grey canva
 - **Resting** (`--shadow`: `0 2px 5px rgb(0 0 0 / 0.08), 0 0 0 0.5px rgb(0 0 0 / 0.12)`): panels, sheets, the pill, callouts, and the current segmented item.
 - **Lifted** (`--shadow-2`: `0 10px 28px rgb(0 0 0 / 0.16), 0 0 0 0.5px rgb(0 0 0 / 0.14)`): menus, dialogs, toasts, the skip link, and the panel or inspector once it becomes a phone drawer.
 - **Flash** (`--shadow-flash`: `0 0 0 1px rgb(255 255 255 / 0.9), 0 0 0 7px rgb(255 255 255 / 0.45), 0 0 90px 28px rgb(255 255 255 / 0.6)`): the search palette alone, for a moment, when it has been left untouched for three seconds; it fades back to Lifted.
-- **Paper** (`--shadow-paper`: `0 0 0 1px rgb(0 0 0 / 0.06), 0 1px 3px rgb(0 0 0 / 0.06)`): the preview frame for an uploaded original, which draws as light paper in both themes.
+- **Paper** (`--shadow-paper`: `0 0 0 1px rgb(0 0 0 / 0.06), 0 1px 3px rgb(0 0 0 / 0.06)`): the preview frame for an attachment, which draws as light paper in both themes.
 
 ### Named Rules
 **The Two Heights Rule.** A surface either rests in the layout or lifts above it. Use no other shadow values, and use no offset or coloured shadows. The one exception is the search palette's passing flash.
@@ -395,7 +395,7 @@ Compact and calm. Default buttons read as white tiles with a hairline, not as fi
 ### Chips and Tags
 - **Chip:** 24px, 4px corners, Hover fill, 11.5px text with a faint leading glyph. Link chips darken to Hover Strong on hover.
 - **Tag:** 18px outlined label (Line 2 hairline, muted 11px text) for a quiet attribute.
-- **Evidence link:** an inline accent-tinted token (7% accent, 13% on hover) in selection ink with tabular numerals, such as a passage address in prose.
+- **Evidence link:** an inline accent-tinted token (7% accent, 13% on hover) in selection ink with tabular numerals, such as a source named in prose.
 
 ### Cards / Containers
 - **Sheet:** panel fill, 12px corners, resting shadow, content clipped. A hairline separates the head from the rows.

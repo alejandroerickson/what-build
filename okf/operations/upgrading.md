@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-10-16}
+generated: {by: agent:claude, at: 2026-10-17}
 status: stable
 ---
 
@@ -40,6 +40,39 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   and `write_note` and `read_note` take `summary` or `notes`. **The skill is 0.30.0**: it tells
   agents the summary is written for people and what belongs in notes. Connected agents are asked
   to update it, and need a new session for the shorter list of `derived` actions.
+- **Migration `0030_one_derived_text_per_source`.** It gives each source one derived text: the
+  passages of its primary file's current parse become one Markdown document, recorded as that
+  file's text, and the passages saved in sandbox baselines become saved texts the same way. It then
+  drops `segments`, `records.current_derivation_id`, `derivations.segment_count`, and a file's role
+  and provenance (`role`, `derived_from`, `derivation_note`, `derived_by`, and when its role
+  changed) from `files` and `upload_grants`, in saved baselines too. It queues the worker to read
+  every attachment again, recording nothing in the activity log, so a text still taken from its
+  attachment is soon laid out as the parsers now lay it out (speakers and times in the text, tables
+  whole), and a source that had no passages takes the text of the first of its attachments that
+  can be read, a former origin or supplement file among them; and to build the search index of
+  every product (`index_texts`). The index starts empty, so search finds little until those jobs
+  are done. Rehearse on the dev deployment first and watch the jobs finish
+  ([dev-deployment](dev-deployment.md)). It drops a table and columns, so going back past it means
+  restoring the database ([recovering](recovering-from-a-bad-release.md)).
+- **A source's words are one text, and its files are attachments.** Nothing to set. People see a
+  source's words as one document under **Text**, where Passages and Original were, which editors
+  can edit or take from another attachment; **Attachments** lists every file with how its text was
+  read, with no primary, origin or supplement and no "Searched" label; adding a source has one
+  drop zone for attachments; and search finds words in a source's title, tags, summary, text,
+  notes and comments, says where, and never in an attachment. An old link to a passage opens the
+  source's text. A product export is format version 2: each source's text as `text.md`, its
+  attachments under `attachments/`. In Google Analytics, `search_result_open` gives a source hit's
+  field (`text`, `summary`, `notes` or `comment`) where it gave `passage`.
+- **Agents read and write a source's derived text.** The `files` tool is `attachments`, without
+  `set_role` or `add_note`; `read_passage` is gone (118 operations, 14 MCP tools);
+  `derived(action="write_text")` writes a source's text, whole, by edits or from an attachment;
+  `search` takes `scope: "sources"`, and its hits give the `field` they are in and code-point
+  offsets to read around with `derived(action="text")`. A call that sends an attachment a role or
+  provenance is refused (`422`) with a hint. **The skill is 0.31.0, and the Story guidance
+  4.0.1.** Connected agents are asked to update the skill, and need a new session: a client
+  connected before the upgrade keeps `files` and `read_passage` in its tool list, and they answer
+  `unknown_tool`. Usage counts name the new operations from the upgrade on; earlier days keep
+  `files.*` and `read_passage`.
 
 ## v0.13.0
 

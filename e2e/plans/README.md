@@ -19,8 +19,8 @@ same products:
 both: Riley owns each organization, Sam edits every team, and Jordan reads every product's Story.
 
 The content is real people's data. A plan never names or quotes it: it says "a product with
-sources", "a passage you can see", "the archived product", and the agent finds one in the run. Text
-a plan uploads is synthetic and written by the agent into the run's folder.
+sources", "a word you can see in a source's text", "the archived product", and the agent finds one
+in the run. Text a plan uploads is synthetic and written by the agent into the run's folder.
 
 ## Writing a plan
 

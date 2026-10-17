@@ -26,54 +26,65 @@ afterAll(async () => h?.close());
 async function put(upload: { url: string; headers: Record<string, string> }, body: string | Uint8Array) {
   const res = await fetch(upload.url, { method: "PUT", headers: upload.headers, body });
   expect(res.status).toBe(201);
+  return (await res.json()) as { attachment: Record<string, any> };
+}
+
+/** Add an attachment to a source through a grant and the upload relay; the relay's reply. */
+async function attach(recordId: string, path: string, body: string | Uint8Array) {
+  const grant = await alice.api("POST", `${P}/sources/${recordId}/uploads`, { record_id: recordId, path });
+  expect(grant.status).toBe(201);
+  return put(grant.body, body);
 }
 
 describe("intake warnings", () => {
-  it("warns, without refusing, when a primary's format has no parser", async () => {
-    const deck = await alice.api("POST", `${P}/sources/with-upload`, { title: "Quarterly readout deck — Example Co, Sep 2026", path: "readout.pptx", role: "primary" });
+  it("warns, without refusing, when an attachment's format has no parser", async () => {
+    const deck = await alice.api("POST", `${P}/sources/with-upload`, { title: "Quarterly readout deck — Example Co, Sep 2026", path: "readout.pptx" });
     expect(deck.status).toBe(201);
     expect(deck.body.upload.url).toBeTruthy();
     expect(deck.body.warnings).toHaveLength(1);
     expect(deck.body.warnings[0]).toMatch(/No parser reads \.pptx files/);
-    expect(deck.body.warnings[0]).toMatch(/PDF export/);
-    expect(deck.body.warnings[0]).toMatch(/add readout\.pptx to the same source with role origin/);
+    expect(deck.body.warnings[0]).toMatch(/cannot become the source's derived text/);
+    expect(deck.body.warnings[0]).toMatch(/add an export in a format WhatBuild reads \(.*\.pdf.*\) as well/);
 
-    const pdf = await alice.api("POST", `${P}/sources/with-upload`, { title: "Quarterly readout — Example Co, Sep 2026", path: "readout.pdf", role: "primary" });
+    const pdf = await alice.api("POST", `${P}/sources/with-upload`, { title: "Quarterly readout — Example Co, Sep 2026", path: "readout.pdf" });
     expect(pdf.body.warnings).toEqual([]);
-    const origin = await alice.api("POST", `${P}/sources/${pdf.body.record.record_id}/uploads`, { record_id: pdf.body.record.record_id, path: "readout.pptx", role: "origin" });
-    expect(origin.status).toBe(201);
-    expect(origin.body.warnings).toEqual([]);
+    // A second attachment no parser reads is kept beside it, and says so too.
+    const deckBeside = await alice.api("POST", `${P}/sources/${pdf.body.record.record_id}/uploads`, { record_id: pdf.body.record.record_id, path: "readout.pptx" });
+    expect(deckBeside.status).toBe(201);
+    expect(deckBeside.body.warnings[0]).toMatch(/No parser reads \.pptx files/);
 
     const empty = await alice.api("POST", `${P}/sources`, { title: "Slide notes — Example Co, Sep 2026" });
-    const grant = await alice.api("POST", `${P}/sources/${empty.body.record_id}/uploads`, { record_id: empty.body.record_id, path: "notes.key", role: "primary" });
+    const grant = await alice.api("POST", `${P}/sources/${empty.body.record_id}/uploads`, { record_id: empty.body.record_id, path: "notes.key" });
     expect(grant.status).toBe(201);
     expect(grant.body.warnings[0]).toMatch(/No parser reads \.key files/);
 
-    const call = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Crew lead call — Example Co, Sep 2026", path: "call.m4a", role: "primary" });
+    // A recording is kept and playable; what it says comes from a transcript, so it is not warned about here.
+    const call = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Crew lead call — Example Co, Sep 2026", path: "call.m4a" });
     expect(call.body.warnings).toEqual([]);
   });
 
-  it("says a primary is still expected when a source has only an origin file", async () => {
-    const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["manual"], title: "Field manual — Example Co, 2026", path: "manual.pptx", role: "origin" });
-    expect(created.body.warnings).toEqual([]);
+  it("says what becomes of an attachment no parser reads, and takes the text of the next one that can be read", async () => {
+    const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["manual"], title: "Field manual — Example Co, 2026", path: "manual.pptx" });
+    expect(created.body.warnings[0]).toMatch(/No parser reads \.pptx files/);
     const recordId: string = created.body.record.record_id;
     await put(created.body.upload, new Uint8Array([80, 75, 3, 4]));
     const done = await alice.api("POST", `${P}/sources/${recordId}/uploads/complete`, { record_id: recordId, path: "manual.pptx" });
     expect(done.status).toBe(200);
-    expect(done.body.warnings).toHaveLength(1);
-    expect(done.body.warnings[0]).toMatch(/no primary file yet/);
+    expect(done.body.warnings).toEqual([]);
+    expect(done.body.note).toMatch(/^No parser reads \.pptx files, so manual\.pptx is stored and downloadable but has no text\./);
+    expect(done.body.note).toMatch(/never searched/);
+    await h.worker.drain();
     const got = await alice.api("GET", `${P}/sources/${recordId}`);
-    expect(got.body.derived_status).toBe("awaiting_file");
-    expect(got.body.warnings[0]).toMatch(/A primary is still expected/);
+    expect(got.body).toMatchObject({ derived_status: "unsupported", text_chars: 0, text_from: null, attachment_count: 1, warnings: [] });
 
-    const primary = await alice.api("POST", `${P}/sources/${recordId}/notes`, { record_id: recordId, path: "manual.md", text: "# Manual\n\nCrews plan by the week.\n" });
-    expect(primary.status).toBe(201);
-    expect(primary.body.warnings).toEqual([]);
+    const readable = await attach(recordId, "manual.md", "# Manual\n\nCrews plan by the week.\n");
+    expect(readable.attachment.note).toMatch(/^manual\.md is being read\. Once it is read, its text becomes the source's derived text/);
+    await h.worker.drain();
     const after = await alice.api("GET", `${P}/sources/${recordId}`);
-    expect(after.body.warnings).toEqual([]);
+    expect(after.body).toMatchObject({ derived_status: "ready", text_from: "manual.md", attachment_count: 2, warnings: [] });
 
-    const bare = await alice.api("POST", `${P}/sources`, { title: "Placeholder with no files" });
-    expect((await alice.api("GET", `${P}/sources/${bare.body.record_id}`)).body.warnings).toEqual([]);
+    const bare = await alice.api("POST", `${P}/sources`, { title: "Placeholder with no attachments" });
+    expect((await alice.api("GET", `${P}/sources/${bare.body.record_id}`)).body).toMatchObject({ derived_status: "awaiting_file", warnings: [] });
   });
 
   it("warns about a live source with the same title and date, and creates the new one anyway", async () => {
@@ -84,7 +95,7 @@ describe("intake warnings", () => {
     expect(second.status).toBe(201);
     expect(second.body.warnings).toHaveLength(1);
     expect(second.body.warnings[0]).toContain(first.body.record_id);
-    const viaUpload = await alice.api("POST", `${P}/sources/with-upload`, { ...meta, path: "visit.md", role: "primary" });
+    const viaUpload = await alice.api("POST", `${P}/sources/with-upload`, { ...meta, path: "visit.md" });
     expect(viaUpload.status).toBe(201);
     expect(viaUpload.body.warnings[0]).toMatch(/same title and date/);
     const otherDate = await alice.api("POST", `${P}/sources`, { ...meta, date: "2026-09-11" });
@@ -98,17 +109,17 @@ describe("intake warnings", () => {
     expect(again.body.warnings).toEqual([]);
   });
 
-  it("changes a source's etag when a file is added", async () => {
+  it("changes a source's etag when an attachment is added", async () => {
     const created = await alice.api("POST", `${P}/sources`, { title: "Planning board photo notes" });
     const recordId: string = created.body.record_id;
-    const note = await alice.api("POST", `${P}/sources/${recordId}/notes`, { record_id: recordId, path: "board.txt", text: "Monday column is full.\n" });
-    expect(note.body.record_etag).toBeTruthy();
-    expect(note.body.record_etag).not.toBe(created.body.etag);
+    const { attachment } = await attach(recordId, "board.txt", "Monday column is full.\n");
+    expect(attachment.record_etag).toBeTruthy();
+    expect(attachment.record_etag).not.toBe(created.body.etag);
     const stale = await alice.api("PATCH", `${P}/sources/${recordId}`, { expected_etag: created.body.etag, title: "Planning board notes" });
     expect(stale.status).toBe(409);
     expect(stale.body.error.code).toBe("stale_etag");
-    expect(stale.body.error.details.current_etag).toBe(note.body.record_etag);
-    const ok = await alice.api("PATCH", `${P}/sources/${recordId}`, { expected_etag: note.body.record_etag, title: "Planning board notes" });
+    expect(stale.body.error.details.current_etag).toBe(attachment.record_etag);
+    const ok = await alice.api("PATCH", `${P}/sources/${recordId}`, { expected_etag: attachment.record_etag, title: "Planning board notes" });
     expect(ok.status).toBe(200);
   });
 
@@ -120,7 +131,7 @@ describe("intake warnings", () => {
     expect(fetched.at(-1)).toBe("https://docs.example.com/app/#/manual");
     expect(res.body.warnings).toHaveLength(1);
     expect(res.body.warnings[0]).toMatch(/fragment \(#\/manual\) never reaches the server/);
-    const plain = await alice.api("POST", `${P}/sources/${recordId}/fetch`, { record_id: recordId, url: "https://docs.example.com/app/faq", path: "faq.html", role: "supplement" });
+    const plain = await alice.api("POST", `${P}/sources/${recordId}/fetch`, { record_id: recordId, url: "https://docs.example.com/app/faq", path: "faq.html" });
     expect(plain.body.warnings).toEqual([]);
   });
 });

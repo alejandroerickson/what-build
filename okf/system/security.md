@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild keeps each organization's material to its own people, and treats agent-written HTML, uploads and source text as hostile
 description: The threat model: what is protected, who the attackers are, the trust boundaries, and each control with where it lives in code and the decision that governs it.
 tags: [security, threat-model, tenancy, identity, oauth, sandbox, uploads]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:claude, at: 2026-10-17}
 status: draft
 ---
 
@@ -15,7 +15,7 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 
 ## What is protected
 
-- **Discovery material and what is built from it**: sources, files, passages, outcomes,
+- **Discovery material and what is built from it**: sources, their attachments and text, outcomes,
   assumptions, mockups and the Story. Transcripts carry customers' words and personal data.
 - **The boundaries** between organizations, between products in one, and between roles.
 - **Who people are** (in the public sandbox, which visitor is which), and **credentials**:
@@ -232,9 +232,9 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   production refuses a key under 32 characters (`apps/server/src/adapters/misc.ts`). The relay
   ignores cookies and enforces the grant's size as bytes arrive (`apps/server/src/uploads.ts`),
   and checks again then that whoever requested the grant can still write; the stored object's own
-  size and hash decide the file entry. A direct-to-bucket URL is signed for at most the grant's
+  size and hash decide the attachment's entry. A direct-to-bucket URL is signed for at most the grant's
   size (`x-goog-content-length-range`, `directUploadSigning` in `blobs-gcs.ts`), and
-  `files.complete_upload` reads the object's size before its bytes, discards one over the grant
+  `attachments.complete_upload` reads the object's size before its bytes, discards one over the grant
   with `413`, and hashes the bytes as it streams them.
 - A mockup canvas uploaded as a ZIP comes through the relay only, under a grant of its own purpose
   (`mockup_upload`), and is refused to a visitor to the public sandbox, whose text is capped field
@@ -257,7 +257,7 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 - Parsers bound what a file can make them do (`packages/parsers/src/`). A file over the parse cap
   (25 MiB) is stored but not read; DOCX, XLSX and DOC packages count the bytes they unpack against
   the cap and stop past it, whatever sizes they declare; a PDF of more than 2,000 pages, and a file
-  that would make more than 200,000 passages, are too large; pdf.js decodes no images; HTML nests
+  that would make more than 200,000 paragraphs, are too large; pdf.js decodes no images; HTML nests
   at most 512 deep and makes elements in proportion to its length; patterns that could backtrack
   are single passes, so text is read in time linear in its length. XML is read with saxes, which
   expands no DTD entities, internal or external. A parser's error becomes a status.
@@ -289,7 +289,7 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   at `'none'`. The Cloudflare Worker sends the site's page with the same headers
   (`deploy/cloudflare/worker.js`).
 
-**Outbound fetches.** `files.fetch_url` (`SafeUrlFetcher`, `apps/server/src/adapters/misc.ts`)
+**Outbound fetches.** `attachments.fetch_url` (`SafeUrlFetcher`, `apps/server/src/adapters/misc.ts`)
 fetches `https` only, without credentials. An address written in the URL, in any notation, is
 checked before connecting; a name is resolved through a lookup that refuses any non-public
 address; both again on every redirect. Public means outside every special-purpose IPv4 range and,

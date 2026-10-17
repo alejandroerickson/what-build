@@ -17,82 +17,90 @@ beforeAll(async () => {
 });
 afterAll(async () => h?.close());
 
-/** Create a source, PUT its primary through the relay, and complete the upload. */
+/** Create a source, PUT its first attachment through the relay, and complete the upload. */
 async function upload(tag: string, path: string, body: string | Uint8Array) {
-  const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: [tag], title: `Sample ${path}`, path, role: "primary" });
+  const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: [tag], title: `Sample ${path}`, path });
   expect(created.status).toBe(201);
   const recordId: string = created.body.record.record_id;
   const put = await fetch(created.body.upload.url, { method: "PUT", headers: created.body.upload.headers, body });
   expect(put.status).toBe(201);
-  const putBody = (await put.json()) as { next: string; file: Record<string, unknown> };
+  const putBody = (await put.json()) as { next: string; attachment: Record<string, unknown> };
   const completed = await alice.api("POST", `${P}/sources/${recordId}/uploads/complete`, { record_id: recordId, path });
   expect(completed.status).toBe(200);
-  return { recordId, putNext: putBody.next, putFile: putBody.file, completed: completed.body };
+  return { recordId, putNext: putBody.next, putAttachment: putBody.attachment, completed: completed.body };
 }
 
 describe("what upload, read and search say about a source", () => {
-  it("tells the truth about a primary before and after parsing", async () => {
-    const { putNext, putFile, completed } = await upload("notes", "visit.md", "# Visit\n\n- Crews text the office.\n- Nobody called it a crisis.\n");
-    // The PUT attaches the file and says what will happen to it; complete_upload only confirms.
-    expect(putNext).toMatch(/^Attached: .*No complete_upload is needed/);
-    expect(putFile).toMatchObject({ search_status: "pending", searchable: false, note: expect.stringMatching(/being parsed/) });
-    expect(completed).toMatchObject({ search_status: "pending", searchable: false });
-    expect(completed.note).toMatch(/being parsed/);
+  it("tells the truth about an attachment before and after it is read", async () => {
+    const { putNext, putAttachment, completed } = await upload("notes", "visit.md", "# Visit\n\n- Crews text the office.\n- Nobody called it a crisis.\n");
+    // The PUT adds the attachment and says what will become of its text; complete_upload only confirms.
+    expect(putNext).toMatch(/^Added: attachment\.note says what becomes of its text\. No complete_upload is needed\./);
+    expect(putAttachment).toMatchObject({ path: "visit.md", text: { status: "pending" }, is_text_source: false, note: expect.stringMatching(/being read\. Once it is read, its text becomes the source's derived text/) });
+    expect(putAttachment).not.toHaveProperty("role");
+    expect(putAttachment).not.toHaveProperty("search_status");
+    expect(completed).toMatchObject({ text: { status: "pending" }, is_text_source: false });
+    expect(completed.note).toMatch(/never searched/);
     await h.worker.drain();
     const again = await alice.api("POST", `${P}/sources/${completed.record_id}/uploads/complete`, { record_id: completed.record_id, path: "visit.md" });
-    expect(again.body).toMatchObject({ search_status: "ready", searchable: true });
-    expect(again.body.note).toMatch(/ready to search/);
+    expect(again.body).toMatchObject({ text: { status: "ready", parser: "markdown" }, is_text_source: true });
+    expect(again.body.note).toBe("visit.md has been read. It is kept with the source and never searched.");
   });
 
-  it("says a recording and an unreadable format will never be parsed, even before the worker runs", async () => {
+  it("says a recording and an unreadable format have no text, even before the worker runs", async () => {
     const rec = await upload("recording", "call.m4a", new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]));
     expect(rec.completed.note).toMatch(/recording/);
     expect(rec.completed.note).toMatch(/never transcribes/);
-    expect(rec.completed.note).not.toMatch(/once derived_status is ready/);
+    expect(rec.completed.note).toMatch(/Add its transcript as another attachment\./);
+    expect(rec.completed.note).not.toMatch(/becomes the source's derived text/);
     const deck = await upload("document", "readout.pptx", new Uint8Array([80, 75, 3, 4]));
-    expect(deck.completed.note).toMatch(/no parser reads \.pptx files/);
+    expect(deck.completed.note).toMatch(/No parser reads \.pptx files/);
     expect(deck.completed.note).toMatch(/\.docx/);
     await h.worker.drain();
     const done = await alice.api("POST", `${P}/sources/${deck.recordId}/uploads/complete`, { record_id: deck.recordId, path: "readout.pptx" });
-    expect(done.body.search_status).toBe("unsupported");
-    expect(done.body.note).toMatch(/will not be parsed or searched/);
+    expect(done.body.text.status).toBe("unsupported");
+    expect(done.body.note).toMatch(/^No parser reads this format, so readout\.pptx is stored and downloadable but has no text/);
+    const recorded = await alice.api("GET", `${P}/sources/${rec.recordId}`);
+    expect(recorded.body).toMatchObject({ derived_status: "needs_transcript", text_chars: 0, status_detail: "a recording is stored and playable but has no text; add its transcript as another attachment" });
   });
 
-  it("counts sources without passages by reason, with correct plurals", async () => {
+  it("counts sources without a derived text by reason, with correct plurals", async () => {
     const s = await alice.api("GET", `${P}/search?query=crisis`);
     expect(s.status).toBe(200);
     expect(s.body.hits).toHaveLength(1);
+    expect(s.body.coverage).toMatchObject({ records_considered: 3, records_without_text: 2 });
     expect(s.body.coverage.statement).toBe(
-      "Searched the primary text of 1 source. Not searched: 1 is a recording with no transcript (add the transcript as its own source); 1 has a primary that could not be parsed (unsupported, too large or failed).",
+      "Searched the title, tags, summary, notes and comments of 3 sources, and the derived text of the 1 that has one. No derived text: 1 is a recording with no transcript (add the transcript as an attachment); 1 has only attachments that could not be read (unsupported, too large or failed). Attachments are never searched.",
     );
-    const empty = await alice.api("POST", `${P}/sources`, { tags: ["document"], title: "Sample source with no file yet" });
+    const empty = await alice.api("POST", `${P}/sources`, { tags: ["document"], title: "Sample source with no attachment yet" });
     expect(empty.status).toBe(201);
     const withEmpty = await alice.api("GET", `${P}/search?query=crisis&tags=document`);
     expect(withEmpty.body.coverage.statement).toBe(
-      "Searched the primary text of 0 sources. Not searched: 1 has no primary file yet; 1 has a primary that could not be parsed (unsupported, too large or failed).",
+      "Searched the title, tags, summary, notes and comments of 2 sources, and the derived text of the 0 that have one. No derived text: 1 has no attachment yet; 1 has only attachments that could not be read (unsupported, too large or failed). Attachments are never searched.",
     );
     const recordings = await alice.api("GET", `${P}/search?query=crisis&tags=recording`);
-    expect(recordings.body.coverage.statement).toBe("Searched the primary text of 0 sources. Not searched: 1 is a recording with no transcript (add the transcript as its own source).");
+    expect(recordings.body.coverage.statement).toBe(
+      "Searched the title, tags, summary, notes and comments of 1 source, and the derived text of the 0 that have one. No derived text: 1 is a recording with no transcript (add the transcript as an attachment). Attachments are never searched.",
+    );
   });
 
-  it("warns when a speaker filter meets a source with no speakers, or a name nobody uses", async () => {
+  it("names each speaker in the derived text, so what someone said is found and read where they said it", async () => {
     const notes = await upload("notes", "notes.txt", "We met the ops lead.\n\nShe plans by the week.\n");
     const call = await upload("interview", "call.txt", "Interviewer: How do you plan?\nDana: By the week.\nInterviewer: Who decides?\nDana: The ops lead.\n");
     await h.worker.drain();
-    const none = await alice.api("GET", `${P}/sources/${notes.recordId}/passage?start=0&end=1&unit=seq&speaker=Dana`);
-    expect(none.status).toBe(200);
-    expect(none.body.segments).toHaveLength(0);
-    expect(none.body.warning).toMatch(/no speaker data/);
-    const stranger = await alice.api("GET", `${P}/sources/${call.recordId}/passage?start=0&end=3&unit=seq&speaker=Sam`);
-    expect(stranger.body.warning).toBe('No passage in this source is by "Sam". Its speakers are: Dana, Interviewer.');
-    const dana = await alice.api("GET", `${P}/sources/${call.recordId}/passage?start=0&end=3&unit=seq&speaker=dana`);
-    expect(dana.body.segments.map((s: { text: string }) => s.text)).toEqual(["By the week.", "The ops lead."]);
-    expect(dana.body.warning).toBeNull();
-    const gap = await alice.api("GET", `${P}/sources/${call.recordId}/passage?start=0&end=0&unit=seq&speaker=Dana`);
-    expect(gap.body.warning).toBe("No segments in this range.");
+    const plain = await alice.api("GET", `${P}/sources/${notes.recordId}/derived/text`);
+    expect(plain.body.text).toBe("We met the ops lead.\n\nShe plans by the week.\n");
+    const turns = await alice.api("GET", `${P}/sources/${call.recordId}/derived/text`);
+    expect(turns.body.text).toBe("**Interviewer:** How do you plan?\n\n**Dana:** By the week.\n\n**Interviewer:** Who decides?\n\n**Dana:** The ops lead.\n");
+    // A speaker's name is part of the text, so it is searched with their words.
+    const dana = await alice.api("GET", `${P}/search?query=${encodeURIComponent("dana AND week")}&mode=ranked`);
+    expect(dana.body.hits.map((x: { record_id: string; field: string }) => [x.record_id, x.field])).toEqual([[call.recordId, "text"]]);
+    const said = await alice.api("GET", `${P}/search?query=${encodeURIComponent("Dana:** The ops lead")}`);
+    expect(said.body.hits).toHaveLength(1);
+    const at = await alice.api("GET", `${P}/sources/${call.recordId}/derived/text?offset=${said.body.hits[0].char_start}&limit=${said.body.hits[0].char_end - said.body.hits[0].char_start}`);
+    expect(at.body.text).toBe("Dana:** The ops lead");
   });
 
-  it("takes a comment on the whole source, refuses a passage range, and logs comments as comments", async () => {
+  it("takes a comment on the whole source, refuses a range, and logs comments as comments", async () => {
     const { recordId } = await upload("notes", "three.txt", "One.\n\nTwo.\n\nThree.\n");
     await h.worker.drain();
     const a = await alice.api("POST", `${P}/sources/${recordId}/annotations`, { record_id: recordId, note: "The whole source." });
@@ -118,7 +126,7 @@ describe("what upload, read and search say about a source", () => {
 });
 
 describe("listing sources in order", () => {
-  it("sorts by date (undated last), last update or title, either way round, pages without skipping, and names each primary file", async () => {
+  it("sorts by date (undated last), last update or title, either way round, pages without skipping, and names the attachment each text is from", async () => {
     const make = async (title: string, date: string | null) => {
       const r = await alice.api("POST", `${P}/sources`, { title, ...(date ? { date } : {}) });
       expect(r.status).toBe(201);
@@ -157,11 +165,18 @@ describe("listing sources in order", () => {
     const first = await alice.api("GET", `${P}/sources?query=Sortable&sort=updated&limit=1`);
     expect(first.body.records[0].updated_at).toBe(edited.body.updated_at);
 
+    // query matches attachment names; text_from names the attachment the derived text is from.
     const { recordId } = await upload("document", "sortable-deck.pptx", new Uint8Array([80, 75, 3, 4]));
+    const notes = await upload("notes", "sortable-notes.md", "# Notes\n\nCrews plan by the week.\n");
+    await alice.api("PATCH", `${P}/sources/${notes.recordId}`, { expected_etag: notes.completed.record_etag, title: "Planning notes" });
+    await h.worker.drain();
     const listed = await alice.api("GET", `${P}/sources?query=sortable-deck`);
-    expect(listed.body.records).toEqual([expect.objectContaining({ record_id: recordId, primary_file: "sortable-deck.pptx" })]);
+    expect(listed.body.records).toEqual([expect.objectContaining({ record_id: recordId, text_from: null, derived_status: "unsupported", attachment_count: 1 })]);
+    expect(listed.body.records[0]).not.toHaveProperty("primary_file");
+    const read = await alice.api("GET", `${P}/sources?query=sortable-notes`);
+    expect(read.body.records).toEqual([expect.objectContaining({ record_id: notes.recordId, title: "Planning notes", text_from: "sortable-notes.md", derived_status: "ready" })]);
     const none = await alice.api("GET", `${P}/sources?query=Sortable%20delta`);
-    expect(none.body.records[0].primary_file).toBeNull();
+    expect(none.body.records[0]).toMatchObject({ text_from: null, derived_status: "awaiting_file", attachment_count: 0 });
 
     const bad = await alice.api("GET", `${P}/sources?sort=date&cursor=${june}`);
     expect(bad.status).toBe(422);
@@ -225,7 +240,7 @@ function m4a(timescale: number, duration: number, mdatBytes: number): Uint8Array
   return new Uint8Array([...ftyp, ...mdat, ...moov]);
 }
 
-describe("what derivation records beyond passages", () => {
+describe("what a reading records beyond the text", () => {
   let h2: Harness;
   let bob: Browser;
   let Q: string;
@@ -240,7 +255,7 @@ describe("what derivation records beyond passages", () => {
   afterAll(async () => h2?.close());
 
   async function stored(tag: string, path: string, body: string | Uint8Array) {
-    const created = await bob.api("POST", `${Q}/sources/with-upload`, { tags: [tag], title: `Sample ${path}`, path, role: "primary" });
+    const created = await bob.api("POST", `${Q}/sources/with-upload`, { tags: [tag], title: `Sample ${path}`, path });
     expect(created.status).toBe(201);
     const recordId: string = created.body.record.record_id;
     expect((await fetch(created.body.upload.url, { method: "PUT", headers: created.body.upload.headers, body })).status).toBe(201);
@@ -253,17 +268,19 @@ describe("what derivation records beyond passages", () => {
     const large = await stored("recording", "site-visit.m4a", m4a(48_000, 48_000 * 3600, 6000));
     await h2.worker.drain();
     const a = await bob.api("GET", `${Q}/sources/${small}`);
-    expect(a.body).toMatchObject({ derived_status: "needs_transcript", segment_count: 0, duration_ms: 147_250 });
+    expect(a.body).toMatchObject({ derived_status: "needs_transcript", text_chars: 0, duration_ms: 147_250 });
     const b = await bob.api("GET", `${Q}/sources/${large}?detail=full`);
-    expect(b.body).toMatchObject({ derived_status: "too_large", duration_ms: 3_600_000 });
-    expect(b.body.manifest.duration_ms).toBe(3_600_000);
+    expect(b.body).toMatchObject({ derived_status: "too_large", duration_ms: 3_600_000, text: null });
+    expect(b.body.attachments[0].text).toMatchObject({ status: "too_large", duration_ms: 3_600_000 });
+    const manifest = await bob.api("GET", `${Q}/sources/${large}/derived/manifest`);
+    expect(manifest.body).toMatchObject({ path: "site-visit.m4a", status: "too_large", duration_ms: 3_600_000 });
   });
 
   it("fails an HTML page that has no readable text instead of calling it ready", async () => {
     const shell = await stored("document", "manual.html", '<html><head><script src="/app.js"></script></head><body><div id="root"></div></body></html>');
     await h2.worker.drain();
     const s = await bob.api("GET", `${Q}/sources/${shell}`);
-    expect(s.body).toMatchObject({ derived_status: "failed", segment_count: 0 });
+    expect(s.body).toMatchObject({ derived_status: "failed", text_chars: 0 });
     expect(s.body.status_detail).toMatch(/no readable text/);
   });
 
@@ -280,7 +297,7 @@ describe("Word .doc uploads", () => {
   });
 
   async function upload(tag: string, path: string, body: string | Uint8Array) {
-    const created = await alice.api("POST", `${R}/sources/with-upload`, { tags: [tag], title: `Sample ${path}`, path, role: "primary" });
+    const created = await alice.api("POST", `${R}/sources/with-upload`, { tags: [tag], title: `Sample ${path}`, path });
     expect(created.status).toBe(201);
     const recordId: string = created.body.record.record_id;
     expect((await fetch(created.body.upload.url, { method: "PUT", headers: created.body.upload.headers, body })).status).toBe(201);
@@ -304,9 +321,10 @@ describe("Word .doc uploads", () => {
     ].join("\r\n");
     const page = await upload("document", "roster-export.doc", mhtml);
     await h.worker.drain();
-    for (const id of [binary, page]) {
+    for (const [id, text] of [[binary, "Crew notes\n\nDispatchers replan routes by radio.\n"], [page, "Supervisors print the roster every morning.\n"]] as const) {
       const s = await alice.api("GET", `${R}/sources/${id}`);
-      expect(s.body).toMatchObject({ derived_status: "ready", segment_count: id === binary ? 2 : 1 });
+      expect(s.body).toMatchObject({ derived_status: "ready", text_chars: text.length });
+      expect((await alice.api("GET", `${R}/sources/${id}/derived/text`)).body.text).toBe(text);
     }
     const radio = await alice.api("GET", `${R}/search?query=replan routes`);
     expect(radio.body.hits.map((hit: { record_id: string }) => hit.record_id)).toEqual([binary]);

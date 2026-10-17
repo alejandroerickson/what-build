@@ -1,28 +1,39 @@
 import type { StatusTone } from "../ui/index.tsx";
 
 /**
- * What a source's derived status means to a person, and what to do next. `detail` marks the
- * statuses whose server detail (a size or an error) adds to `explain`; for the rest, `explain`
- * already says what the detail would.
+ * What a source's text status means to a person, and what to do next. `detail` marks the statuses
+ * whose server detail (a size or an error) adds to `explain`; for the rest, `explain` already says
+ * what the detail would.
  */
 export const DERIVED_STATUS: Record<string, { label: string; tone: StatusTone; explain: string; next?: string; detail?: true }> = {
-  ready: { label: "Ready", tone: "positive", explain: "Parsed into passages; its primary file is searched." },
-  pending: { label: "Processing", tone: "progress", explain: "Passages appear when parsing finishes." },
-  awaiting_file: { label: "No file yet", tone: "neutral", explain: "This source has no primary file yet.", next: "Add a file." },
+  ready: { label: "Ready", tone: "positive", explain: "Its text is ready to read and search." },
+  pending: { label: "Reading", tone: "progress", explain: "Its text appears once its attachment has been read." },
+  awaiting_file: { label: "No text yet", tone: "neutral", explain: "This source has no attachment and no text yet.", next: "Add an attachment, or write its text." },
+  awaiting_text: { label: "No text", tone: "attention", explain: "This source has an attachment with text, but no text of its own.", next: "Use an attachment’s text, or write it." },
   needs_transcript: {
     label: "Needs transcript",
     tone: "attention",
     explain: "WhatBuild doesn’t transcribe recordings.",
-    next: "Add the transcript as its own source.",
+    next: "Add the transcript as another attachment.",
   },
   unsupported: {
-    label: "Not parsed",
+    label: "Format not read",
     tone: "neutral",
-    explain: "WhatBuild can’t read this format. The file is kept for download.",
-    next: "Add a text, Markdown, VTT, SRT, DOC, DOCX, XLSX, CSV, TSV, PDF or HTML version as a new source.",
+    explain: "WhatBuild can’t read this format. The attachment is kept for download.",
+    next: "Add a text, Markdown, VTT, SRT, DOC, DOCX, XLSX, CSV, TSV, PDF or HTML version as another attachment, or write the text.",
   },
-  too_large: { label: "Too large to parse", tone: "attention", explain: "The file is kept, but it’s over the size limit for parsing.", next: "Add a shorter digest as a new source and keep this file as its origin.", detail: true },
-  failed: { label: "Parsing failed", tone: "negative", explain: "The file is kept, but its text couldn’t be read.", next: "Check that it opens elsewhere, then add a clean copy as a new source.", detail: true },
+  too_large: { label: "Too large to read", tone: "attention", explain: "The attachment is kept, but it’s over the size limit for reading its text.", next: "Add a shorter version as another attachment, or write the text.", detail: true },
+  failed: { label: "Couldn’t be read", tone: "negative", explain: "The attachment is kept, but its text couldn’t be read.", next: "Check that it opens elsewhere, then add a clean copy, or write the text.", detail: true },
+};
+
+/** How one attachment's text was read, in a word or two. */
+export const ATTACHMENT_TEXT: Record<string, { label: string; tone: StatusTone }> = {
+  ready: { label: "Text read", tone: "positive" },
+  pending: { label: "Reading", tone: "progress" },
+  needs_transcript: { label: "Recording, no text", tone: "neutral" },
+  unsupported: { label: "Format not read", tone: "neutral" },
+  too_large: { label: "Too large to read", tone: "attention" },
+  failed: { label: "Couldn’t be read", tone: "negative" },
 };
 
 export function derivedStatus(status: string) {
@@ -42,8 +53,6 @@ export const REVIEW_STATUS: Record<string, { label: string; tone: StatusTone }> 
   refuted: { label: "Refuted", tone: "negative" },
   superseded: { label: "Superseded", tone: "neutral" },
 };
-
-export const ROLE_LABEL: Record<string, string> = { primary: "Primary", origin: "Origin", supplement: "Supplement" };
 
 /**
  * The written map from every other domain status to a StatusBadge tone. positive: done and good;

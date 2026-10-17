@@ -3,7 +3,7 @@ type: System Concept
 title: The dev deployment is a second Cloud Run deployment, laid out like production and holding a copy of its public sandbox or other organizations named, where a release is rehearsed before production moves.
 description: For the maintainer and the agent working for them; what the dev deployment is and how it differs from production, where its values are, rehearsing a release on it, putting it back, refreshing its copy of production's organizations, setting one up from nothing, and keeping its data private.
 tags: [operations, deployment, dev, rehearsal, migrations, cloud-run, neon, production]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-17}
 status: stable
 ---
 
@@ -121,11 +121,11 @@ H=$(mktemp -d); node scripts/hostile-files.mjs "$H"
 
 The script prints what each file is and what WhatBuild should record for it at the default
 limits: too large, failed for memory, or ready. Signed in to dev, upload each through the app as
-the primary file of a source of its own, in a product of your own made for the rehearsal; the
+the one attachment of a source of its own, in a product of your own made for the rehearsal; the
 public sandbox refuses files over 5 MB. Then check:
 
-- Each source ends in the status the script printed (the source's page says it), within a couple
-  of minutes, and no job is left waiting.
+- Each source ends in the status the script printed (its Text and Attachments say it), within a
+  couple of minutes, and no job is left waiting.
 - The service kept answering while they parsed: pages opened, and the log has no 500s and no
   instance that ran out of memory:
 

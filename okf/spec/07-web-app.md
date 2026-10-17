@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-10-16}
+generated: {by: agent:claude, at: 2026-10-17}
 status: stable
 ---
 
@@ -20,7 +20,7 @@ design system: tokens, type, components and the rules for using them — is docu
   needs something, it becomes an operation, and agents get it too. The exceptions are the
   person's own session, connected agents and invitations (`/api/v1/me…`), which are not content.
 - **State that matters lives in the URL**: product, screen, filters, search query, selected
-  page, passage position. Reload and share always work.
+  page, a source's section and the words found in its text. Reload and share always work.
 - Every write path handles `409 stale_etag` explicitly: show what changed, keep the person's
   unsaved text, offer reload-and-reapply. Never discard input; never overwrite silently: a
   teammate or their agent may be editing the same object.
@@ -38,8 +38,9 @@ design system: tokens, type, components and the rules for using them — is docu
 - Works on narrow screens. Meets WCAG 2.2 AA. Fully keyboard-operable.
 - **Interface text says one thing once.** A heading states the fact, the body adds only what the
   heading did not, and a rule is explained where it applies, not ahead of time. Words are plain and
-  the same everywhere: an email address is an "email", a URL given to a person is a "link" (a
-  passage keeps its "address"), people "start" an organization and "can" do things, and something
+  the same everywhere: an email address is an "email", a URL given to a person is a "link", a
+  source's files are its "attachments" and its words its "text", people "start" an organization
+  and "can" do things, and something
   happens "right away". Contractions and typographic apostrophes are used throughout. A role's
   place is written as a person would say it: "editor on the Core team", "editor on Crewboard"
   (`scopeWords` in `apps/web/src/lib/format.ts`).
@@ -78,21 +79,24 @@ the browser's back button and "open in new tab" both work.
   when it is empty: searches followed through in that product (a result opened, or every result),
   newest first, kept in the browser and cleared at sign-out (§9.1); picking one fills the field, and
   Clear empties the list. Results come as you type, best match first, at most eight: each with its
-  kind's glyph, its title with the words marked, what it is (Source with its date and matching
-  passages, Assumption with its status, Mockup with the page), and a source's best passage or
-  another result's matching text. Arrows (or Ctrl+N and Ctrl+P) move; Enter opens the selected
-  result (a source matched only in its passages opens at that passage). The **All N results**
+  kind's glyph, its title with the words marked, what it is (Source with its date and its number
+  of matches, Assumption with its status, Mockup with the page), and a source's best place,
+  saying where it is ("In its text", "In its summary", "In its notes", "In a comment"), or another
+  result's matching text. Arrows (or Ctrl+N and Ctrl+P) move; Enter opens the selected result (a
+  source matched only in what it says opens at that section: its Text, which the summary heads,
+  with the words marked when they are in the text; its Notes; or its Comments). The **All N results**
   button at the field's end (⌘Enter / Ctrl+Enter) opens the Search screen with the words, and
   empties the palette. Closing it (Escape or a click outside) keeps the words for next time; another
   product starts empty. A line under the field says how the words were read: a corrected word
   ("Showing results for quote."), a kind brought first, or that nothing holds every word.
   The **Search screen** (`/search?q`) has the same field, searching as you type, and lists the
   results under the product's four areas, each a sheet in the panel's order: **Idea** (the product
-  concept, then outcomes), **Evidence** (sources, each with its best three passages and "N more
-  passages in this source"), **Exploration** (mockups, then assumptions, with their status) and
+  concept, then outcomes), **Evidence** (sources, each with the best three places it says the
+  words, each saying where and opening there as the palette's do, and "N more places in this
+  source"), **Exploration** (mockups, then assumptions, with their status) and
   **Story**. A kind named in the query brings its area first. The panel shows Everything and each
   area with its count (`?show=idea|evidence|exploration|story`). With `record_id` it lists every
-  matching passage of one source, with a link back to searching everything. A corrected word
+  place one source says the words, with a link back to searching everything. A corrected word
   offers "Search for <word> instead" (`?strict=1`). When more match than the 60 listed, it says
   "Showing the best 60 of N. Add a word to narrow them.", and the palette's All N results counts
   every match. Nothing holding the words says "Nothing matches" and suggests another word or fewer
@@ -211,8 +215,8 @@ person's organization role is in the account menu, and who has which role is on 
   /idea               ?status&outcome         the product concept, outcomes with counts (outcome: one a search opened, marked)
   /evidence           ?tags&added_by&date_from&date_to&query&include_archived&sort&order
                       (date_from, date_to: the date captured; query: a title search; both from a link)
-  /evidence/new                               intake: describe it, add files, create
-  /evidence/:record   ?view=passages|original|notes|files &seq=N &file=<path>
+  /evidence/new                               intake: describe it, add attachments, create
+  /evidence/:record   ?view=text|notes|comments|attachments &find=<words>
   /search             ?q&show&record_id&strict
   /exploration                                → …/exploration/mockups
   /exploration/mockups                        → the mockup last opened here, or the most recent; first use with none
@@ -240,8 +244,10 @@ uses Google Analytics, whoever serves the page writes the measurement ID into it
 in its footer to change it; a request to hear from us is counted as `generate_lead`
 ([§9.1](09-data-lifecycle.md)).
 
-Source links with `?tab=` resolve too: `passages`, `preview`, `files` and `notes` become
-`?view=passages|original|files|notes`, and `connected` opens the inspector. A product path without the `/t/` prefix (`/<tenant>/<team>/<product>[/…]`, as people type
+Older source links resolve too: `?view=passages` opens Text, and `?view=original` and
+`?view=files` open Attachments, where an attachment is shown; `?tab=passages` opens Text,
+`?tab=preview` and `?tab=files` Attachments, `?tab=notes` Notes, and `?tab=connected` the
+inspector. A product path without the `/t/` prefix (`/<tenant>/<team>/<product>[/…]`, as people type
 or paste it) redirects to the same path under `/t/`.
 
 The document title is "<screen> · <section> · <product> · WhatBuild", with a screen named after
@@ -271,7 +277,7 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    ([§6.8](06-operations-and-adapters.md)).
 
 **Planned:** a public, read-only sample product at `/sample`, readable with no account — a
-synthetic discovery, fully derived, with real passages, assumptions, a mockup and a
+synthetic discovery, fully derived, with sources and their text, assumptions, a mockup and a
 published Story, every write control absent except one "copy this into my own organization" call
 to action. Today the synthetic sample is created by `pnpm db:seed` and is visible only to its
 seeded accounts.
@@ -308,11 +314,13 @@ The sources, and everything for reading them.
 - **Intake.** **Add source**, a plain button in the sheet's header, opens it. Three steps:
   **Describe it** asks for the title, the **date captured** (optional, with help text
   distinguishing it from today) and tags, offering the product's most used tags to add with one
-  click ([§4.4](04-data-model.md)), and nothing else. **Add attachments** takes files and assigns
-  roles with sensible defaults (a transcript beside a recording becomes primary). **Create** makes the source. Nothing asks what kind of
-  material it is or where to file it. Multi-file drag-and-drop is supported;
-  progress and derivation status are shown until `ready` or a terminal status with a
-  plain-language explanation and next step (`needs_transcript` → "add a transcript").
+  click ([§4.4](04-data-model.md)), and nothing else. **Add attachments** is one drop zone, optional,
+  that takes any number of files, with no role to choose; it says that the first attachment whose
+  text WhatBuild can read becomes the source's text, which search reads, which formats it reads,
+  and that a recording needs its transcript too. **Create** makes the source and uploads each
+  attachment with its progress, then opens the source, whose Text says how its attachment is being
+  read ([decision](../decisions/a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)).
+  Nothing asks what kind of material it is or where to file it.
 - **Browse.** The panel's context slot, "Filter sources", holds single-select filters, each a
   link that sets a URL param: **Tags** (All tags and
   the eight most used, each with its count, and "All N" for the rest; `?tags`), **Added by**
@@ -336,7 +344,8 @@ The sources, and everything for reading them.
   sources are included). While more pages wait to load, the count is still exact when
   `sources.facets` knows it: with no filter, one tag or one person; only otherwise is it the rows
   loaded so far with a plus ("50+"). Archived rows are muted and marked Archived. Rows whose titles match
-  another listed row also name their primary file, so the twins can be told apart.
+  another listed row also name the attachment their text was read from (or how many attachments
+  they have, or none yet), so the twins can be told apart.
 - **Source page.** A source is the busiest object in the app, so the page is dense on purpose.
   - **Header:** the title and the actions menu, nothing else; every property is in the inspector.
     Below it the **summary** ([§4.6](04-data-model.md)): rendered Markdown clamped to four lines
@@ -345,50 +354,53 @@ The sources, and everything for reading them.
     Markdown; saving it empty removes the summary. Editing the details (title, date and tags,
     offering the product's tags), adding attachments, archive, restore and delete (§7.10) are in
     the page's actions menu.
-  - **Sections**, a segmented control held in the URL as `?view=` (links, not tabs):
-    **Passages** (the default once the source is parsed), **Original** (a preview of the origin
-    file, or of the primary when there is no origin, with a line saying whether it is searched and
-    naming its type in words, such as "Word document", not its media type; the file shown is held
-    in the URL as `&file=`, and an image opens in a viewer with zoom (buttons, `+` `-`, `0` to fit,
-    `1` for actual size, double-click, a pinch or Ctrl/Cmd and the wheel), drag to pan, full screen
-    (`F`), and, when the source has several images, previous and next (the arrow keys) and a strip
-    of thumbnails),
-    **Notes** (the source's notes, rendered Markdown attributed to whoever wrote them last, with
+  - **Sections**, a segmented control held in the URL as `?view=` (links, not tabs): **Text**
+    (`text`, the default), **Notes**, **Comments** and **Attachments**, the last two with their
+    counts. There is no outline, and no passage reader.
+  - **Text** is the source's derived text ([§5.4](05-derived-layer.md)), rendered as Markdown,
+    under a line saying where it came from and how long it is: "Read from interview.vtt" while it
+    is still an attachment's text, "Written by Riley, 2 days ago" once someone wrote or edited it.
+    Its header holds **Find in the text**, which marks the words, says "1 of 4" and steps through
+    the matches (the arrows, or Enter and Shift+Enter), the words held in the URL as `?find=`, so
+    a search hit opens here with them marked. A very long text shows its first 300,000 characters
+    and "Show all N characters", unless a find is on. Editors get **Edit**, a dialog holding the
+    Markdown (saving it empty removes the text; if someone changed it meanwhile, the dialog says so
+    and keeps their changes to copy), and, when another attachment has text, a menu **Use an
+    attachment's text** listing them, each confirmed in a dialog that says what it replaces.
+    A source with no text says why here, not in a status callout over the page: "Reading its attachment"
+    while it is read, or what its status means and what to do (a recording needs its transcript
+    as another attachment, a format not read, too large, could not be read, no attachment yet, or
+    an attachment whose text it does not use), with the server's `status_detail` only where it
+    says more (a size or an error); editors get "Use the text of <attachment>", "Add attachments"
+    and "Write the text".
+  - **Notes** (the source's notes, rendered Markdown attributed to whoever wrote them last, with
     "Edit notes" for an editor; with none, an empty state that says what notes are for, and
-    "Write notes" for an editor), **Comments** (every comment on the source, newest first, and
+    "Write notes" for an editor) and **Comments** (every comment on the source, newest first, and
     "Comment" for an editor, which opens a form for a comment on the whole source with optional
-    tags) and **Attachments** (`?view=attachments`; `?view=files` still opens it: every file with
-    its role, "Searched" or "Kept, not searched", versions, download, and add attachments, each
-    previewable file's name opening it in Original). There is no outline. A non-primary file's
-    role changes from its row menu, confirmed in a dialog that says what the change does. Original
-    states a recording's length beside the player when the parse read one.
+    tags).
+  - **Attachments** lists every attachment under a line saying that each one's text is read and
+    kept, that the source's text is taken from one of them, and that attachments are never
+    searched. Each row gives its name, how its text was read ("Text read · 12,345 characters",
+    "Recording, 12:03 · no text", "Format not read", "Too large to read", "Couldn't be read", or
+    "Reading"), "The source's text" on the one it came from, its type in words (such as "Word
+    document", not its media type), size, versions, and who added it when, with Download, and a
+    menu with **Show it** (a PDF, an image, a recording, Markdown, HTML in a sandbox, or plain
+    text, in a dialog; a recording with its length), **Use its text…** and **Read it again** for
+    editors. An image opens in a viewer with zoom (buttons, `+` `-`, `0` to fit, `1` for actual
+    size, double-click, a pinch or Ctrl/Cmd and the wheel), drag to pan, full screen (`F`), and,
+    when the source has several images, previous and next (the arrow keys) and a strip of
+    thumbnails. **Add attachments** adds more, with no roles.
   - **Inspector,** titled Details: **About** (the three dates together — Date captured
     (or "No date"), Date added and Date updated, the last two each with "by <who>", adding "via
     <surface>" when it was not the web, the person who added it linking to the list filtered to
     what they added, and Date updated saying "Not since it was added" when nothing changed; Tags,
     each a link to the list filtered to it; nothing else), "Activity on this source", and
     Archive.
-  - **Status:** a source that is not `ready` shows a callout with the status's explanation and next
-    step. The server's `status_detail` is added only where it says more (a size or an error).
-- **Passage reader.** Paged segments with address (¶n), speaker and cue time; heading passages
-  are shown without their Markdown markers (the stored text keeps them); go
-  to a passage number; the URL tracks position (`?seq=N`, and `&to=M` for a range: the whole range
-  is marked, on a page that starts at the range when it would otherwise cross a page boundary);
-  "Search this source" at the top. Selecting a passage (Shift for a range) offers **Copy
-  reference**, which copies `{record_id, seq_start, seq_end}` to paste to an agent; the selection
-  bar docks above the pager and never covers it. Comments are not shown here: they are on the
-  whole source, in Comments. Reading aids:
-  - a passage that mentions other sources the bare way (a view or digest: "source <id>,
-    segments 4–6") shows each mention as a "Title ¶4–6" token, and a "Mentions" line of links to
-    them;
-  - a table stored as a header passage and one passage per row ("A: x | B: y") is laid out in
-    columns (up to six), each row still its own passage to select.
-- **Evidence links** in Markdown, views and search read "Title ¶N" ([§4.7](04-data-model.md)). A
-  title is cut at its em-dash qualifier; where two sources mentioned on the page would read alike,
-  each adds its qualifiers in brackets ("Usability study (crew) ¶29"), and identical titles are
-  numbered. A link to a range opens the whole range.
-- **Search this source** (the passage reader) opens the Search screen on that source: every
-  passage holding the words, each linking into the reader at that position (§7.2).
+- **Evidence links** in Markdown read as the source's title and open the source
+  ([§4.7](04-data-model.md)). A title is cut at its em-dash qualifier; where two sources mentioned
+  on the page would read alike, each adds its qualifiers in brackets ("Usability study (crew)"),
+  and identical titles are numbered. A source mentioned the bare way ("source <id>", as a view, a
+  digest or an agent's notes may write it) shows as the same link.
 
 ## 7.7 Exploration
 
@@ -649,10 +661,10 @@ A quiet **Activity page** (`…/activity`), not a drawer and not a destination: 
 source. It is one log for people and agents together, newest first ([§4.10](04-data-model.md)).
 Each entry reads as a sentence with the actor, the surface, and a link to the object: "Sam, via
 claude-desktop, confirmed an assumption — 14:02". The surface is "in the app", "through the API" or
-"via <client>"; what WhatBuild does by itself, such as parsing a file, has no surface and reads "on
-the server", however the file was uploaded, and says what came of it in a person's words:
-"Parsed call.vtt into 412 passages", never the parser's internal label (events recorded with one
-are read without it, over MCP as in the app). The kind of object changed (`?entity_type=`) or
+"via <client>"; what WhatBuild does by itself, such as reading an attachment, has no surface and
+reads "on the server", however the attachment was uploaded, and says what came of it in a
+person's words: "Read the text of call.vtt; it is the source’s derived text", never the parser's
+internal label (events recorded with one are read without it, over MCP as in the app). The kind of object changed (`?entity_type=`) or
 one object (`&entity_id=`) narrows it, held in the URL.
 
 This is how a person answers "what did my colleague's agent just do to my product" without reading
@@ -683,7 +695,8 @@ a product that isn't archived (`canDelete`). One dialog serves every delete
    pre-selected and never the primary button of any dialog.
 3. Choosing it opens a dialog titled as a question ("Delete this assumption permanently?"), that
    says it can't be undone and shows the object's preview as plain sentences before any control:
-   *This deletes 4 stored files (218 MB) and 1 comment.* For an assumption it says how many other
+   *This deletes its attachments (4 stored versions, 218 MB), its text, summary and notes, and 1
+   comment.* For an assumption it says how many other
    assumptions link to it, and that those links go with it; for an outcome, the assumptions it is
    taken from. A mockup a Story page shows lists those pages, and its delete stays disabled.
 4. The dialog asks for a reason, which the button needs. A source also needs its title typed, and

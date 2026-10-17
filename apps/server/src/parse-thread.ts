@@ -27,15 +27,15 @@ const ENTRY = new URL(import.meta.url.endsWith(".ts") ? "./parse-worker.ts" : ".
  * up. The heap limit does not count buffers (the file's bytes, a PDF's decoded streams), so the
  * thread's are read every 50 ms and held to half of `memoryMb`. A parse that needs more memory, or
  * runs past `timeoutSeconds`, has its thread stopped and ends as `failed` with the reason. The
- * bytes are copied to the thread, and nothing of the server's environment is; the sidecars come
- * back as two buffers handed over without a copy.
+ * bytes are copied to the thread, and nothing of the server's environment is; the text comes
+ * back as a buffer handed over without a copy.
  */
 export function threadParser(limits: ParseLimits): FileParser {
   return {
     parse(bytes, fileName, options) {
       const failed = (detail: string): ParsedFile => {
         const parser = parserFor(fileName, options.mediaType);
-        return toParsedFile({ status: "failed", parser: parser?.name ?? "none", parser_version: parser?.version ?? "0", segments: [], text: "", duration_ms: null, status_detail: detail, facts: {} });
+        return toParsedFile({ status: "failed", parser: parser?.name ?? "none", parser_version: parser?.version ?? "0", segments: [], text: "", markdown: "", duration_ms: null, status_detail: detail, facts: {} });
       };
       const tooMuchMemory = () => failed(`parsing it needed more than the ${limits.memoryMb} MB of memory this server gives one file, so it was stopped; the file is stored but not parsed`);
       const seconds = `${limits.timeoutSeconds} second${limits.timeoutSeconds === 1 ? "" : "s"}`;

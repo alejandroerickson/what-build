@@ -15,6 +15,10 @@ const VTT = `WEBVTT
 <v Dana>Because that is when the numbers close and the pricing review happens.
 `;
 
+/** The call as its derived text reads: who spoke and when, a turn to a paragraph. */
+const TEXT =
+  "**Dana** (0:01): We export everything to a spreadsheet every Friday 📊.\n\n**Sam** (0:05): Why Friday?\n\n**Dana** (0:09): Because that is when the numbers close and the pricing review happens.\n";
+
 let h: Harness;
 let alice: Browser;
 let P: string; // product path prefix
@@ -78,10 +82,10 @@ describe("the discovery loop through REST", () => {
     expect(wrong.body.error.message).not.toMatch(/Invalid input/);
   });
 
-  it("uploads through a grant, derives on the queue, and serves exact passages", async () => {
+  it("uploads through a grant, reads it on the queue, and serves its derived text", async () => {
     const created = await alice.api("POST", `${P}/sources/with-upload`, {
       title: "Ops lead interview — Example Co, Sep 2026", date: "2026-09-03",
-      path: "call.vtt", role: "primary", tags: ["Interview", " Example   Co ", "Pricing", "interview"],
+      path: "call.vtt", tags: ["Interview", " Example   Co ", "Pricing", "interview"],
     });
     expect(created.status).toBe(201);
     recordId = created.body.record.record_id;
@@ -96,61 +100,68 @@ describe("the discovery loop through REST", () => {
     expect(replay.status).toBe(409);
     const badGrant = await fetch(up.url, { method: "PUT", headers: { ...up.headers, "X-WhatBuild-Upload-Grant": "x.y" }, body: VTT });
     expect(badGrant.status).toBe(401);
-    const completed = await alice.api("POST", `${P}/sources/${recordId}/uploads/complete`, { record_id: recordId, path: "call.vtt", derived_by: "human" });
+    const completed = await alice.api("POST", `${P}/sources/${recordId}/uploads/complete`, { record_id: recordId, path: "call.vtt" });
     expect(completed.status).toBe(200);
-    expect(completed.body.search_status).toBe("pending");
+    expect(completed.body.text.status).toBe("pending");
+    // An attachment has no role and no provenance.
+    const retired = await alice.api("POST", `${P}/sources/${recordId}/uploads/complete`, { record_id: recordId, path: "call.vtt", derived_by: "human" });
+    expect(retired.status).toBe(422);
+    expect(retired.body.error.message).toContain("Attachments have no role or provenance");
 
     let brief = await alice.api("GET", `${P}/sources/${recordId}`);
     expect(brief.body.derived_status).toBe("pending");
-    // Derivation never runs inside the request: it waits for the worker.
+    // Reading never runs inside the request: it waits for the worker.
     await h.worker.drain();
     brief = await alice.api("GET", `${P}/sources/${recordId}`);
-    expect(brief.body.derived_status).toBe("ready");
-    expect(brief.body.segment_count).toBe(3);
-    expect(brief.body.duration_ms).toBe(14000);
+    expect(brief.body).toMatchObject({ derived_status: "ready", text_chars: Array.from(TEXT).length, duration_ms: 14000, text_from: "call.vtt", attachment_count: 1 });
 
     const full = await alice.api("GET", `${P}/sources/${recordId}?detail=full`);
-    expect(full.body.files[0]).toMatchObject({ path: "call.vtt", role: "primary", searchable: true, derived_by: "human" });
-    expect(full.body.manifest.parser).toBe("webvtt");
+    expect(full.body.attachments[0]).toMatchObject({ path: "call.vtt", is_text_source: true, text: { status: "ready", parser: "webvtt" } });
+    expect(full.body.text).toMatchObject({ chars: Array.from(TEXT).length, taken_from: { path: "call.vtt" } });
+    expect(full.body).not.toHaveProperty("files");
     expect(full.body).not.toHaveProperty("outline");
 
-    const byTime = await alice.api("GET", `${P}/sources/${recordId}/passage?start=4000&end=6000`);
-    expect(byTime.body.unit).toBe("ms");
-    expect(byTime.body.segments.map((s: { seq: number }) => s.seq)).toEqual([0, 1]);
-    const bySeq = await alice.api("GET", `${P}/sources/${recordId}/passage?start=2&end=9&unit=seq`);
-    expect(bySeq.body.out_of_range).toBe(true);
-    expect(bySeq.body.segments[0].text).toContain("numbers close");
-    // Code-point offsets: the emoji counts once.
-    const seg0 = byTime.body.segments[0];
-    expect(seg0.char_end - seg0.char_start).toBe(Array.from(seg0.text as string).length);
-    const tooWide = await alice.api("GET", `${P}/sources/${recordId}/passage?start=0&end=500&unit=seq`);
-    expect(tooWide.status).toBe(422);
-    expect(tooWide.body.error.code).toBe("window_too_large");
-    expect(tooWide.body.error.message).toContain("segment numbers");
-    // One segment by its seq, as a hit names it: segments, though the source is timed.
-    const one = await alice.api("GET", `${P}/sources/${recordId}/passage?seq=1`);
-    expect(one.body).toMatchObject({ unit: "seq", requested: { start: 1, end: 1 }, returned: { seq_start: 1, seq_end: 1 } });
-    for (const q of ["seq=1&start=0&end=2", "seq=1&unit=ms", "start=0"]) {
-      const refused = await alice.api("GET", `${P}/sources/${recordId}/passage?${q}`);
-      expect(refused.status, q).toBe(422);
-      expect(refused.body.error.code, q).toBe("invalid_input");
-    }
+    // The derived text says who spoke and when, a turn to a paragraph.
+    const text = await alice.api("GET", `${P}/sources/${recordId}/derived/text`);
+    expect(text.body).toMatchObject({ of: "derived_text", total_chars: Array.from(TEXT).length, truncated: false, text: TEXT, taken_from: { path: "call.vtt" } });
+    // Offsets count code points: the emoji counts once.
+    const offset = Array.from(TEXT.slice(0, TEXT.indexOf("Because"))).length;
+    const window = await alice.api("GET", `${P}/sources/${recordId}/derived/text?offset=${offset}&limit=7`);
+    expect(window.body).toMatchObject({ text: "Because", truncated: true });
+    // There are no passages to read.
+    const passage = await alice.api("GET", `${P}/sources/${recordId}/passage?seq=1`);
+    expect(passage.status).toBe(404);
 
-    const bytes = await alice.api("GET", `${P}/sources/${recordId}/file?path=call.vtt`);
+    const bytes = await alice.api("GET", `${P}/sources/${recordId}/attachment?path=call.vtt`);
     expect(bytes.status).toBe(200);
     expect(bytes.body).toContain("WEBVTT");
     expect(bytes.headers.get("x-content-type-options")).toBe("nosniff");
+    // The web app reads the whole derived text at once, as Markdown, with the etag write_text takes.
+    const whole = await alice.api("GET", `${P}/sources/${recordId}/text`);
+    expect(whole.status).toBe(200);
+    expect(whole.body).toBe(TEXT);
+    expect(whole.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
+    expect(whole.headers.get("etag")).toBe(`"${text.body.etag}"`);
+    expect(whole.headers.get("x-content-type-options")).toBe("nosniff");
   });
 
-  it("searches exact text and ranked queries, and says what it covered", async () => {
+  it("searches what sources say, and says what it covered", async () => {
     const s = await alice.api("GET", `${P}/search?query=numbers%20close`);
     expect(s.body.hits).toHaveLength(1);
-    expect(s.body.hits[0]).toMatchObject({ record_id: recordId, seq: 2, speaker: "Dana" });
+    expect(s.body.hits[0]).toMatchObject({ record_id: recordId, field: "text" });
+    // A hit's offsets read back as the words it found.
+    const hit = s.body.hits[0];
+    const at = await alice.api("GET", `${P}/sources/${recordId}/derived/text?offset=${hit.char_start}&limit=${hit.char_end - hit.char_start}`);
+    expect(at.body.text).toBe("numbers close");
     expect(s.body.records[recordId].title).toContain("Ops lead");
-    expect(s.body.coverage.records_considered).toBe(1);
-    const r = await alice.api("GET", `${P}/search?query=${encodeURIComponent('(friday OR pricing) NOT why')}&mode=ranked`);
+    expect(s.body.coverage).toMatchObject({ records_considered: 1, records_without_text: 0 });
+    expect(s.body.coverage.statement).toContain("Attachments are never searched.");
+    // The title and the tags are searched with the rest.
+    const named = await alice.api("GET", `${P}/search?query=example%20co`);
+    expect(named.body.hits.map((x: { field: string }) => x.field).sort()).toEqual(["tags", "title"]);
+    const r = await alice.api("GET", `${P}/search?query=${encodeURIComponent("(friday OR pricing) NOT invoices")}&mode=ranked`);
     expect(r.status).toBe(200);
-    expect(r.body.hits.map((x: { seq: number }) => x.seq).sort()).toEqual([0, 2]);
+    expect(r.body.hits.map((x: { field: string }) => x.field)).toEqual(expect.arrayContaining(["text", "tags"]));
     const bad = await alice.api("GET", `${P}/search?query=${encodeURIComponent('"unclosed')}&mode=ranked`);
     expect(bad.status).toBe(422);
   });
@@ -260,8 +271,9 @@ describe("the discovery loop through REST", () => {
     const files = unzipSync(new Uint8Array(await res.arrayBuffer()));
     const names = Object.keys(files);
     expect(names).toContain("bundle.json");
-    expect(names.some((n) => n.startsWith(`records/${recordId}/files/`) && n.endsWith("/call.vtt"))).toBe(true);
-    expect(names.some((n) => n.startsWith(`records/${recordId}/derived/`) && n.endsWith("/segments.jsonl"))).toBe(true);
+    expect(names.some((n) => n.startsWith(`records/${recordId}/attachments/`) && n.endsWith("/call.vtt"))).toBe(true);
+    expect(names.some((n) => n.startsWith(`records/${recordId}/derived/`) && n.endsWith("/text.md"))).toBe(true);
+    expect(new TextDecoder().decode(files[`records/${recordId}/text.md`]!)).toBe(TEXT);
     expect(names).toContain("assumptions.json");
     expect(names).toContain("story/pages/overview/v2.html");
     expect(names).toContain("activity.jsonl");
@@ -277,9 +289,9 @@ describe("the discovery loop through REST", () => {
     expect(actions).toContain("source:derived");
     expect(actions).toContain("assumption:reviewed");
     expect(actions).toContain("story_page:published");
-    // A parse line says what a person understands: the file and its passages, never the parser's own label.
+    // A reading's line says what a person understands: the attachment and what became of its text, never the parser's label.
     const parsed = a.body.items.find((i: { action: string }) => i.action === "derived");
-    expect(parsed.summary).toMatch(/^Parsed \S+ into \d+ passages?$/);
+    expect(parsed.summary).toBe("Read the text of call.vtt; it is the source’s derived text");
     expect(withoutParserLabel("Parsed notes.md into 5 passages (markdown 2)")).toBe("Parsed notes.md into 5 passages");
     for (const i of a.body.items) expect(JSON.stringify(i)).not.toContain("alice@example.com");
     const one = await alice.api("GET", `${P}/activity?entity_id=${recordId}`);
@@ -328,16 +340,16 @@ describe("the discovery loop through REST", () => {
 
   it("creates several sources with a grant each, attached by their PUTs alone", async () => {
     const titles = ["Support call — Example Co, Sep 2026", "Finance notes — Example Co, Sep 2026"];
-    const batch = await alice.api("POST", `${P}/sources/with-uploads`, { sources: titles.map((title, i) => ({ title, path: `notes-${i}.txt`, role: "primary" })) });
+    const batch = await alice.api("POST", `${P}/sources/with-uploads`, { sources: titles.map((title, i) => ({ title, path: `notes-${i}.txt` })) });
     expect(batch.status).toBe(201);
     expect(batch.body.items.map((x: { record: { title: string } }) => x.record.title)).toEqual(titles);
     for (const [i, item] of batch.body.items.entries()) {
       const put = await fetch(item.upload.url, { method: "PUT", headers: item.upload.headers, body: `Notes number ${i}.\n` });
       expect(put.status).toBe(201);
-      // The PUT attaches the file; no complete_upload follows.
-      expect(((await put.json()) as { file: { path: string } }).file.path).toBe(`notes-${i}.txt`);
+      // The PUT adds the attachment; no complete_upload follows.
+      expect(((await put.json()) as { attachment: { path: string } }).attachment.path).toBe(`notes-${i}.txt`);
       const got = await alice.api("GET", `${P}/sources/${item.record.record_id}?detail=full`);
-      expect(got.body.files.map((f: { path: string }) => f.path)).toEqual([`notes-${i}.txt`]);
+      expect(got.body.attachments.map((f: { path: string }) => f.path)).toEqual([`notes-${i}.txt`]);
     }
     // One entry refused refuses the batch, names the entry, and creates nothing.
     const refused = await alice.api("POST", `${P}/sources/with-uploads`, { sources: [{ title: "Kept back — one", path: "one.txt" }, { title: "Kept back — two", path: "../two.txt" }] });

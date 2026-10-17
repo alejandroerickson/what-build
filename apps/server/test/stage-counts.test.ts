@@ -28,7 +28,7 @@ describe("stage counts", () => {
     const retired = await alice.api("POST", `${P}/outcomes`, { title: "Retired aim" });
     expect((await alice.api("POST", `${P}/outcomes/${retired.body.outcome_id}/archive`, { expected_etag: retired.body.etag })).status).toBe(200);
     // Evidence: sources.
-    for (const n of [1, 2]) expect((await alice.api("POST", `${P}/sources/with-upload`, { tags: ["note"], title: `Note ${n}`, path: `note-${n}.md`, role: "primary" })).status).toBe(201);
+    for (const n of [1, 2]) expect((await alice.api("POST", `${P}/sources/with-upload`, { tags: ["note"], title: `Note ${n}`, path: `note-${n}.md` })).status).toBe(201);
     // Exploration: mockups and current assumptions; a superseded one is not counted.
     const m = await alice.api("POST", `${P}/mockups`, { title: "Board", pages: [{ page_id: "phone", title: "Phone", html: page("Phone") }] });
     expect(m.status).toBe(201);

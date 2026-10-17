@@ -34,7 +34,7 @@ async function inTenant<T>(fn: (trx: Transaction<any>) => Promise<T>): Promise<T
   });
 }
 
-async function primaryText(recordId: string) {
+async function derivedText(recordId: string) {
   return (await olive.api("GET", `${P}/sources/${recordId}/derived/text`)).body.text as string;
 }
 
@@ -56,7 +56,7 @@ beforeAll(async () => {
   const p = await olive.api("POST", `/api/v1/teams/${org}/${t.body.team.slug}/products`, { name: "Planner" });
   P = `/api/v1/p/${p.body.path}`;
   productId = p.body.product_id;
-  const created = await olive.api("POST", `${P}/sources/with-upload`, { tags: ["notes"], title: "Visit notes — Example Co, Sep 2026", path: "visit.md", role: "primary" });
+  const created = await olive.api("POST", `${P}/sources/with-upload`, { tags: ["notes"], title: "Visit notes — Example Co, Sep 2026", path: "visit.md" });
   source = created.body.record.record_id;
   await fetch(created.body.upload.url, { method: "PUT", headers: created.body.upload.headers, body: "# Visit\n\n- Crews text the office.\n- Nobody called it a crisis.\n" });
   await h.worker.drain();
@@ -90,16 +90,18 @@ describe("moving insights and decisions into Evidence", () => {
     expect(r).toMatchObject({ title: "Texts carry the plan", tags: ["analysis", "insight"], derived_status: "ready", archived_at: null });
     expect(r.uploaded_by.display_name).toBe("Sam");
     expect(r.agent_notes.map((n: { kind: string }) => n.kind)).toEqual(["summary"]);
-    expect(r.files).toHaveLength(1);
-    expect(r.files[0]).toMatchObject({ path: "texts-carry-the-plan.md", role: "primary" });
+    expect(r.attachments).toHaveLength(1);
+    expect(r.attachments[0]).toMatchObject({ path: "texts-carry-the-plan.md", is_text_source: true });
+    expect(r.attachments[0].versions).toHaveLength(2);
     const versions = await inTenant((trx) => trx.selectFrom("file_versions").select(["created_at"]).where("record_id", "=", insight).orderBy("created_at").execute());
     expect(versions).toHaveLength(2);
-    const text = await primaryText(insight);
+    const text = await derivedText(insight);
     expect(text).toContain("Crews read the plan in a text, then call the office.");
     expect(text).toContain("where it was a published insight");
     expect(text).toContain("Riley marked revision 1 reviewed on 2026-09-02, and it was changed after that");
     expect(text).toContain(`Outcome: Send the week in minutes`);
-    expect(text).toContain(`Decision, now a source: Send each crew a generated message. (${decision})`);
+    // The text is the moved document as it was written, Markdown and all.
+    expect(text).toContain(`Decision, now a source: Send each crew a generated message. (\`${decision}\`)`);
     const draftSource = (await olive.api("GET", `${P}/sources/${draft}`)).body;
     expect(draftSource.tags).toEqual(["analysis", "insight", "draft"]);
     const found = await olive.api("GET", `${P}/search?query=${encodeURIComponent("then call the office")}`);
@@ -109,11 +111,11 @@ describe("moving insights and decisions into Evidence", () => {
   it("stores a decision as a source with its evidence, links and reviews in the text", async () => {
     const r = (await olive.api("GET", `${P}/sources/${decision}?detail=full`)).body;
     expect(r).toMatchObject({ title: "Send each crew a generated message.", tags: ["decision", "hand-off"], derived_status: "ready" });
-    const text = await primaryText(decision);
+    const text = await derivedText(decision);
     expect(text).toContain("Typed messages are where mistakes enter.");
     expect(text).toContain("“Crews text the office.” (Visit notes — Example Co, Sep 2026)");
-    expect(text).toContain(`Supports the assumption “Crews read texts before calls.” (${assumption})`);
-    expect(text).toContain(`Contradicted by the assumption “Crews read texts before calls.” (${assumption})`);
+    expect(text).toContain(`Supports the assumption “Crews read texts before calls.” (\`${assumption}\`)`);
+    expect(text).toContain(`Contradicted by the assumption “Crews read texts before calls.” (\`${assumption}\`)`);
     expect(text).toContain("Riley, a person: confirmed, with medium confidence. Agreed on Thursday.");
     expect(text).toContain("Confirmed, after 1 review.");
   });

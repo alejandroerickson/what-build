@@ -1,9 +1,9 @@
 ---
 type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
-description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, files, comments, summaries and notes, evidence links, the assumption register, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
+description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the assumption register, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-10-16}
+generated: {by: agent:claude, at: 2026-10-17}
 status: stable
 ---
 
@@ -31,11 +31,14 @@ Every editable object carries:
 publish after a page's first version requires the current etag (`expected_etag` in the input, or
 `If-Match` in REST). Missing → `422`. Stale → `409 stale_etag`, with the current etag in
 `details.current_etag` so a caller can re-read and retry deliberately. Creates take no etag;
-neither do the batch `sources.archive` / `sources.restore` or `files.set_role`. A source's etag
-also changes when a file is added or a file's role changes (`complete_upload` returns the new one as
-`record_etag`). Parsing, which no caller does, does not change it, so an etag never goes stale while
-the worker runs. Check-and-write is atomic: the row is locked (`SELECT … FOR UPDATE`) in the same
-transaction.
+neither do the batch `sources.archive` / `sources.restore`. A source's etag also changes when an
+attachment is added (`complete_upload` returns the new one as `record_etag`). Reading an
+attachment, which no caller does, does not change it, so an etag never goes stale while the worker
+runs; nor do the source's summary, notes, comments and derived text, which are written apart from
+it. The derived text has an etag of its own, which `derived.write_text` takes as an optional
+`expected_etag` and which a reading that replaces the text changes
+([§5.4](05-derived-layer.md)). Check-and-write is atomic: the row is locked (`SELECT … FOR UPDATE`)
+in the same transaction.
 
 **Unknown fields are rejected** (`422 invalid_input`), in every input, at every depth: every input
 schema is a strict Zod object.
@@ -52,6 +55,7 @@ appended to an immutable revision list with who wrote it and who replaced it
 | Product | `concept` |
 | Outcome | `title`, `description` |
 | Source | — (metadata only; the activity log names the operation and the actor) |
+| A source's derived text, summary and notes | — (none yet; the activity log names each write, and what each attachment was read as stays readable, [§5.4](05-derived-layer.md)) |
 | Annotation | `note` |
 | Assumption | `statement`, `body` (while still editable, §4.8) |
 | Story page | — (it has explicit, numbered, reader-visible versions instead, §4.11) |
@@ -65,14 +69,14 @@ exported; operations to read them are planned.
 is explaining a retention rule to someone who just lost a paragraph to a well-meaning agent. They
 are excluded from search and included in exports.
 
-**Small edits and diffs.** `assumptions.update` takes `edits`: up to 20
+**Small edits and diffs.** `assumptions.update` and `derived.write_text` take `edits`: up to 20
 exact replacements `{ field?, old_text, new_text }`, applied in order, so a one-phrase correction
 does not mean re-sending a long body ([`text-edits.ts`](../../packages/core/src/text-edits.ts)).
-`field` is `body` by default, or `statement`.
+`field` is `body` by default, or `statement`, for an assumption, and `text` for a derived text.
 Each `old_text` must occur exactly once in its field at that point: no match is
 `422 edit_not_found`, more than one is `422 edit_ambiguous` (with the count), and editing a field
 the same call replaces whole is `422 invalid_input`. Any refusal changes nothing. The update
-returns `changed` (the fields that changed) and `diff`: per changed text field, one hunk
+returns `changed` (the fields that changed; `write_text` leaves it out) and `diff`: per changed text field, one hunk
 `{ field, at, before, removed, added, after }` from the first to the last difference, with 40
 characters of unchanged context each side and the changed parts clipped at 300 characters, so a
 slip in a re-sent text shows up in the result.
@@ -127,13 +131,14 @@ A source is one discovery event or document. It is stored as a **record**, so it
 | `tags` | ≤ 50, each 1–50 chars: what the material is, whom it concerns, what it bears on (§4.4). Stored NFKC-normalized, spacing collapsed, lower-case, without repeats. |
 | `copied_from` | `{ product_id, record_id }` when the source is a copy ([§3.7](03-accounts-teams-and-identity.md)). |
 | `uploaded_by`, `uploaded_at` | Actor snapshot and time of creation: the **date added**. |
-| `updated_by`, `updated_at` | Actor snapshot and time of the last change to the source's details, archive or restore: the **date updated**. Adding a file changes the etag but not this. |
-| files | §4.5. |
-| `derived_status` and counts | The current derivation's status, or `pending` before one exists ([§5](05-derived-layer.md)). |
+| `updated_by`, `updated_at` | Actor snapshot and time of the last change to the source's details, archive or restore: the **date updated**. Adding an attachment changes the etag but not this. |
+| attachments | §4.5. `attachment_count` counts them. |
+| derived text | The source's words, one Markdown document with an etag of its own, at most one per source ([§5.4](05-derived-layer.md)). `text_chars` is its length in code points, 0 without one. |
+| `derived_status` | Where the derived text stands: `ready` (the source has one), `pending` (an attachment is arriving or being read), `awaiting_file` (no attachment), `awaiting_text` (an attachment has text the source does not use), or how its newest attachment was read: `needs_transcript`, `unsupported`, `too_large` or `failed` ([§5.5](05-derived-layer.md)). |
 
-- **Correcting is a metadata change.** `sources.update` changes the title, date, tags and other
-  fields in place (`tags` replaces the whole list). The `record_id`, file versions, derivations
-  and comments are untouched.
+- **Correcting is a metadata change.** `sources.update` changes the title, date and tags in place
+  (`tags` replaces the whole list). The `record_id`, the attachments and their versions, the
+  readings, the derived text and the comments are untouched.
 - **Archive** takes the source out of browse and out of search (including the search space an
   agent can reach). It erases nothing, and the source stays readable by id; `restore` puts it
   back. This is the default and the first action the UI offers.
@@ -142,15 +147,22 @@ A source is one discovery event or document. It is stored as a **record**, so it
   requires the current etag, a reason,
   and `confirm` set to exactly `delete permanently`, and it leaves a tombstone, so reads return
   `410 record_deleted` rather than a bare `404`. `sources.delete_impact` previews what it will
-  destroy: its file versions and their bytes, its derivations and its comments.
-- **Read modes** (`detail`): `brief` (identity, title, date, tags, derived status, counts) and
-  `full` (adds files, the derivation manifest, its comments, and which of its summary and notes
-  exist). Neither includes file bytes
-  or derived text. Both carry `warnings`, which says when the source has files but no primary yet,
-  so nothing on it is searched.
-- **Duplicates are warned about, not refused.** `sources.create` and `files.create_upload` return a
-  warning naming any live source in the product with the same title (ignoring case and surrounding
-  space) and date.
+  destroy: its attachments' versions and their bytes, its readings and its comments; its derived
+  text, summary and notes go with it.
+- **List entries** (what `sources.list`, `create` and `update` return of a source): `record_id`, `title`, `date`,
+  `tags`, `uploaded_by`, `uploaded_at`, `updated_at`, `updated_by`, `archived_at`,
+  `derived_status`, `text_chars`, `attachment_count` and `etag`. `sources.list` adds `text_from`,
+  the path of the attachment the derived text is still the text of, or `null`.
+- **Read modes** (`detail`): `brief` (the list entry, with `text_from`, `duration_ms` (the longest
+  recording or timed transcript among the attachments), `status_detail`, `annotation_count` and
+  `warnings`) and `full` (adds `copied_from`, `pending_upload_path`, the `attachments` (§4.5), the
+  derived text's `text: { chars, etag, updated_at, updated_by, taken_from }` or `null`, the
+  comments, and which of its summary and notes exist). Neither includes file bytes or the text
+  itself. `warnings` says when an attachment has text the source does not use, so search finds the
+  source only by its title, tags, summary, notes and comments.
+- **Duplicates are warned about, not refused.** `sources.create` and `attachments.create_upload`
+  return a warning naming any live source in the product with the same title (ignoring case and
+  surrounding space) and date.
 
 ## 4.4 Tags
 
@@ -171,8 +183,9 @@ folder and no organization field
 - `sources.list` filters by `tags` (a source must carry all of them), `added_by` (an `account_id`;
   what an agent added counts as its person's, since the actor snapshot names the person),
   `added_since` (a date, read as UTC midnight, or a time), `date_from` and `date_to` (the source's
-  own date), and `query`, a substring of the title, tags or file names. `search` filters passages by tags and dates ([§8.1](08-search.md)).
-- A call to a `sources`, `files` or `search` operation that names `kind`, `organization` or
+  own date), and `query`, a substring of the title, tags or attachment names. `search` filters
+  sources by tags and dates ([§8.1](08-search.md)).
+- A call to a `sources`, `attachments` or `search` operation that names `kind`, `organization` or
   `folder` is refused with `422 invalid_input`; the message adds that sources are described by
   tags, and to reuse those `sources.facets` lists.
 
@@ -185,35 +198,37 @@ without repeats, keeping at most 50: its kind (`interview_transcript`, `intervie
 as every tag is. It rewrote saved sandbox baselines the same way
 ([§9.7](09-data-lifecycle.md)), then dropped the `kind`, `organization` and `folder` columns.
 
-## 4.5 Files
+## 4.5 Attachments
 
-Each file of a source:
+A source's files are its **attachments**
+([decision](../decisions/a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)).
+The database keeps the tables' names, `files` and `file_versions`; everything people and agents see
+says attachments. `sources.get` with `detail: "full"`, `complete_upload` and the upload relay give
+each attachment as:
 
 | Field | Rule |
 |---|---|
 | `path` | Source-relative file name, unique within the source, ≤ 200 chars, no `/` traversal. |
-| `role` | `primary`, `origin`, or `supplement`. |
-| `media_type`, `size`, `sha256` | Taken from the stored object, never from caller claims. |
-| `file_version_id` | Identifier of a stored version. Uploading to an existing `path` adds a version; earlier versions stay retrievable. |
-| `derived_from`, `derivation_note`, `derived_by` | Optional provenance when this file was produced from others on the same source (a digest's originals): up to 20 paths, a note ≤ 2,000 chars. |
+| `media_type`, `size`, `sha256` | Of its current version, taken from the stored object, never from caller claims. |
+| `file_version_id`, `versions` | Its current version, and every version, newest first, each `{ file_version_id, size, media_type, created_at, created_by }`. Uploading to an existing `path` adds a version; earlier versions stay retrievable. |
 | `added_at`, `added_by` | |
+| `text` | How its current version was read: `{ status, status_detail, chars, duration_ms, parser, derivation_id, read_at }`. `status` is `pending` until it has been read, then the reading's: `ready`, `needs_transcript`, `unsupported`, `too_large` or `failed` ([§5.5](05-derived-layer.md)). |
+| `is_text_source` | True while the source's derived text is still this attachment's text. |
 
-Roles:
+- **Every version of every attachment is read** when it arrives, and what was read is kept with it
+  and stays readable, but is **never searched** ([§5](05-derived-layer.md)). A source's derived
+  text is taken from one of them and follows it until someone writes it (§4.3).
+- **No role and no provenance.** Nothing makes one attachment primary, marks another as the
+  material it was made from, or records what it was derived from; what an attachment was made from
+  goes in the source's notes. A call to an `attachments` action that sends `role`,
+  `derived_from`, `derivation_note` or `derived_by` is refused with `422 invalid_input` and a hint
+  that attachments have none.
+- A recording is stored and playable, never transcribed: its transcript is another attachment.
 
-- **Exactly one `primary`** per source once it has any file (a unique index enforces it). The
-  primary feeds the derived layer.
-- **`origin`**: the material a digest or transcript was produced from. Retained and downloadable;
-  outside derived search. Named `origin` rather than `source` so it does not collide with the
-  product's own vocabulary.
-- **`supplement`**: supporting material. Downloadable; not searchable, and search MUST NOT imply
-  it was examined ([§8.4](08-search.md)).
-
-Changing which file is primary, or uploading a new version of the primary, triggers a new
-derivation.
-
-Default limits: **100 MB per file** (`WHATBUILD_FILE_MAX_BYTES`), 25 MiB through the service's own
-relay, 50 files per source. Inline notes (`files.add_note`): ≤ 2,048 bytes and ≤ 20 lines of plain
-text. A per-tenant stored-bytes quota is planned ([§9.2](09-data-lifecycle.md)).
+Default limits: **100 MB per attachment** (`WHATBUILD_FILE_MAX_BYTES`), 25 MiB through the
+service's own relay, **50 attachments per source** (`409 too_many_attachments`), and 25 MiB read
+of each (`WHATBUILD_PARSE_CAP_BYTES`; a larger one is stored, not read). A per-tenant stored-bytes
+quota is planned ([§9.2](09-data-lifecycle.md)).
 **No operation accepts base64 file content.** Upload flows: [§6.7](06-operations-and-adapters.md).
 
 ## 4.6 Comments, the summary and notes
@@ -230,28 +245,33 @@ anchored to any part of the source's text
 | `archive_reason` | Optional, ≤ 500 chars: why the comment was archived. Given only with `archived: true`; restoring clears it. |
 
 Editable (text only, keeping revisions), archivable. `sources.annotate` refuses a segment range
-with `422 invalid_input`, saying a comment is on the whole source.
+(`seq_start`, `seq_end`) with `422 invalid_input`, saying a comment is on the whole source.
+Comments are searched with the rest of the source; an archived one is not
+([§8](08-search.md)).
 
 A source also has at most one **summary** and one set of **notes**, each Markdown up to 100,000
 chars, written with `derived.write_note` (`note_kind` `summary` or `notes`; empty content removes
 it) and read with `derived.read_note`. People write and edit both in the web app, and agents
-through the same operations; each records who wrote it last and when.
+through the same operations; each records who wrote it last and when. Both are searched.
 
 - The **summary** heads the source's page and is written for people: a few short sentences saying
-  what the source is and what it tells the team, without ids, segment numbers or codes.
+  what the source is and what it tells the team, without ids or codes.
 - The **notes** are freeform: whatever is worth keeping about the source that is not its words,
-  structured as the writer likes. Agents keep their working knowledge of a source there.
+  structured as the writer likes. Agents keep their working knowledge of a source there, and
+  what an attachment was made from.
 
-Both are someone's reading of the source, not its words. There is no outline: migration
+Both are someone's reading of the source; its words are its derived text
+([§5.4](05-derived-layer.md)). There is no outline: migration
 `0029_simplify_source_details.sql` deleted the agent outlines a product held, and dropped the
 comments' segment ranges and anchors, keeping their text.
 
 ## 4.7 Evidence links
 
-Writing may mention a source and a passage in prose, as a source id and a segment range ("source
-01K…, segments 4–6"). The web app renders such a mention in Markdown as an evidence link that
-reads "Title ¶4–6" and opens the passage
-([`apps/web/src/lib/markdown.tsx`](../../apps/web/src/lib/markdown.tsx)). A link is presentation
+Writing may mention a source in prose by its id ("source 01K…"). The web app renders such a
+mention in Markdown as an evidence link that reads as the source's title and opens the source
+([`apps/web/src/lib/markdown.tsx`](../../apps/web/src/lib/markdown.tsx)). A source has no
+passages to point at: a mention written while it had ("source 01K…, segments 4–6") opens the
+source too, and its numbers are left out. A link is presentation
 only. Nothing structural points from an assumption, a Story page, a mockup or another source to a
 source, and nothing records what mentions what: what bears on a piece of work is found by
 searching the product ([§8](08-search.md),
@@ -267,8 +287,8 @@ or writes them. Each one a product still held becomes a source with the same id,
 
 | Was | Becomes |
 |---|---|
-| An insight | A source tagged `analysis` and `insight` (and `draft` for a draft), archived if it was. Its primary file is Markdown: the title, summary and body, then a note of its status, review mark, authors and what it referred to. Each earlier revision is an earlier file version; the summary is the source's summary note. |
-| A decision | A source tagged `decision` and with the entry's tags. Its Markdown holds the statement, the body (which holds the passages it cited, §4.8), the status, the outcomes, the links in and out, and every review. Earlier revisions are earlier file versions. |
+| An insight | A source tagged `analysis` and `insight` (and `draft` for a draft), archived if it was. Its one attachment is Markdown, whose text becomes the source's derived text: the title, summary and body, then a note of its status, review mark, authors and what it referred to. Each earlier revision is an earlier version of the attachment; the summary is the source's summary note. |
+| A decision | A source tagged `decision` and with the entry's tags. Its Markdown attachment holds the statement, the body (which holds the quotes it cited, §4.8), the status, the outcomes, the links in and out, and every review. Earlier revisions are earlier versions of the attachment. |
 
 An assumption's link to a decision is dropped (the decision's document names it), and the item's
 history in the activity log becomes the source's.
@@ -299,7 +319,7 @@ one it returns the current entries (unconfirmed and confirmed), so it agrees wit
 products and outcomes and with the register's default view, and says in `not_current_hidden` how
 many refuted or superseded entries it left out.
 
-An assumption names no passage structurally: its body says, in words, what it rests on, and an
+An assumption names no source structurally: its body says, in words, what it rests on, and an
 agent finds the evidence by searching
 ([decision](../decisions/evidence-is-searched-not-cited.md)).
 Migration `0028_citations_refs_and_lineage_retired.sql` put the passages an entry had cited at the
@@ -334,8 +354,8 @@ or "a source no longer in WhatBuild". Those entries took a new etag; their statu
 
 ## 4.9 Views
 
-A **view** is a derived document stored as a source tagged `view` (or `analysis`, `digest`):
-something produced *from* other material. It says in its own text what it was built from and when. WhatBuild keeps no record of a view's
+A **view** is a document built from other material and stored as a source tagged `view` (or
+`analysis`, `digest`): something produced *from* other sources. It says in its own text what it was built from and when. WhatBuild keeps no record of a view's
 inputs and does not report when they change; an agent builds a view again when the person wants it
 current ([decision](../decisions/evidence-is-searched-not-cited.md)). A view is never presented
 as direct evidence.
@@ -352,9 +372,9 @@ An append-only event log, written in the same transaction as the mutation that c
 | `action` | What happened, e.g. `created`, `reviewed`, `archived`, `derived`. |
 | `entity_type`, `entity_id`, `entity_title` | What was touched. |
 | `actor`, `channel` | Actor snapshot; the surface (`web`, `rest`, `mcp`), or none for the system. |
-| `summary` | ≤ 280 chars, generated: "Marked confirmed with high confidence", "Parsed call.vtt into 412 passages" (never the parser's name or version, which the derivation's manifest holds), "Added a note on ¶4–6" (¶4 for one passage). |
+| `summary` | ≤ 280 chars, generated: "Marked confirmed with high confidence", "Read the text of call.vtt; it is the source’s derived text" (never the parser's name or version, which the reading's manifest holds), "Edited the derived text", "Added a comment". |
 
-- **It never contains content.** No bodies, no passage text, no HTML, no email addresses. The
+- **It never contains content.** No bodies, no source text, no HTML, no email addresses. The
   summary names objects; it does not quote them.
 - `activity.list` filters by `entity_type`, `entity_id`, `actor`, `channel`, `by` (`people` for
   the app and the REST API, `agents` for MCP) and `since`, with the usual bounds. Every role on the
@@ -588,8 +608,8 @@ to mention it once when it does not, the sandbox rules, recipes, writing rules a
 It carries no stylesheet of its own and nothing of the app's look; `house_style` returns that
 style in full with a starter page, and `product_style` says whether the product has a style yet.
 The writing guidance asks for pages that explain in their own words and quote a person only where
-their exact words matter, attributed in words, with no source reference or passage link after each
-claim ([decision](../decisions/evidence-is-searched-not-cited.md)); source-level quoting rules
+their exact words matter, attributed in words, with no source reference or link to the evidence
+after each claim ([decision](../decisions/evidence-is-searched-not-cited.md)); source-level quoting rules
 honoured (attribution by role where a source limits naming people, looked for before the first
 page), derived views labelled as analysis rather than evidence, a plan's dates presented as the
 team's plan with their origin kept in the page's notes, and pages placed in the hierarchy unless
@@ -847,12 +867,14 @@ A product exports to a single ZIP (`products.export`, open to every role on the 
 job builds it; it can be downloaded for seven days ([`export.ts`](../../packages/core/src/ops/export.ts)).
 
 ```
-bundle.json                 format and format version, exported_at/by, server version, tenant, team, product
+bundle.json                 format (whatbuild-product-bundle) and format version (2), exported_at/by,
+                            server version, tenant, team, product, layout
 README.txt
 outcomes.json
-records/<record_id>/record.json                  the source with its files and versions
-records/<record_id>/files/<file_version_id>/<path>
-records/<record_id>/derived/<derivation_id>/{segments.jsonl,text.md,manifest.json}
+records/<record_id>/record.json                  the source, its derived text's details and its attachments with their versions
+records/<record_id>/text.md                      the source's derived text, when it has one
+records/<record_id>/attachments/<file_version_id>/<path>   every version of every attachment
+records/<record_id>/derived/<derivation_id>/{text.md,manifest.json}   every reading (and segments.jsonl, in one made while sources had passages)
 records/<record_id>/annotations.json · agent-notes/{summary,notes}.md
 assumptions.json            with their reviews
 revisions.json
@@ -866,7 +888,11 @@ activity.jsonl
 ```
 
 - `record.json` is the portable, self-describing form of a source: a bundle is readable by a
-  person with a ZIP tool and nothing else.
+  person with a ZIP tool and nothing else. Its `text` gives the derived text's `chars`,
+  `from_file_version_id`, `updated_at` and `updated_by` (or `null`), and its `attachments` each
+  attachment with its versions.
+- Format version 2 holds each source's derived text as `text.md` and its attachments under
+  `attachments/`; version 1 had `files/`, and each parse's passages in `segments.jsonl`.
 - Feedback is not part of an export.
 - Planned ([§9.4](09-data-lifecycle.md)): **import**, which preserves every id, version, review,
   revision and actor snapshot, creates a product and never merges into one (`409` if the
@@ -923,14 +949,21 @@ activity.jsonl
   error's code). `usage_people` keeps a row for each day a person used a part of WhatBuild (an MCP
   tool's name) through a door and client, the person named by `personOf`, an HMAC of the account id
   under a key derived from the grant key. The worker deletes its rows after 14 months.
+- **A source's text and the search index**
+  ([`0030_one_derived_text_per_source.sql`](../../apps/server/src/migrations/0030_one_derived_text_per_source.sql)):
+  `source_texts`, one row for each source that has a derived text (`record_id`, `content`,
+  `chars`, `from_file_version_id`, `updated_at`, `updated_by`, `etag`, [§5.4](05-derived-layer.md)),
+  and `text_chunks`, the pieces of a source's title, tags, summary, notes, derived text and comments
+  that search reads ([§8.3](08-search.md)); both have the policy and go with their source. An index
+  on `derivations (file_version_id, derivation_id desc)` finds an attachment's latest reading. The
+  tables that hold attachments keep their names, `files` and `file_versions`.
 - **Blobs** are immutable and keyed opaquely: `t/<tenant_id>/r/<record_id>/f/<file_version_id>`
-  for files, `t/<tenant_id>/r/<record_id>/d/<derivation_id>/<sidecar>` for derived sidecars, and
+  for attachments' versions, `t/<tenant_id>/r/<record_id>/d/<derivation_id>/{text.md,manifest.json}`
+  for what each reading read, and
   `t/<tenant_id>/exports/<export_id>.zip` for exports. Keys never encode titles, tags or any other
   metadata, so no metadata change ever moves bytes, and a key names its tenant. A copied source shares its
-  original's file blobs; delete frees a blob only when no file version still refers to it.
+  original's attachment blobs; delete frees a blob only when no file version still refers to it.
 - **Story previews** ([`0024_story_previews.sql`](../../apps/server/src/migrations/0024_story_previews.sql)):
   `story_previews` holds each document `story.preview` made (`preview_id`, the product, `page_id`,
   `html`, `shows_mockup`, `created_by`, `expires_at`), with the row-level security policy. Nothing
   refers to a row; the grant names it, and it goes when the grant expires (§4.11).
-- **Segments** of every derivation are also loaded into Postgres for passage reads, with the
-  current derivation's segments flagged `is_current`; only those are indexed for search.

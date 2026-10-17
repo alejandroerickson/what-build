@@ -4,7 +4,7 @@ import { TooLargeError, type Block, type ParsedFile, type ParseResult, type Segm
 export const MAX_SEGMENT_CHARS = 2000;
 
 /**
- * The most passages one file may make. Far more than a long document or a full workbook makes, and
+ * The most paragraphs (segments) one file may make. Far more than a long document or a full workbook makes, and
  * a bound on what a derivation writes: a file of millions of one-character paragraphs is too large
  * to parse, as a file over the parse cap is.
  */
@@ -24,10 +24,21 @@ export function codePointLength(s: string): number {
   return n;
 }
 
-/** Slice a string by code-point offsets, half-open. */
+/** The UTF-16 index of code point `cp` of `s`, counting on from `unit`, which is code point `at`. */
+function unitOf(s: string, cp: number, unit = 0, at = 0): number {
+  let i = unit;
+  for (let n = at; n < cp && i < s.length; n++) {
+    const c = s.charCodeAt(i);
+    i += c >= 0xd800 && c <= 0xdbff && i + 1 < s.length && s.charCodeAt(i + 1) >= 0xdc00 && s.charCodeAt(i + 1) <= 0xdfff ? 2 : 1;
+  }
+  return i;
+}
+
+/** Slice a string by code-point offsets, half-open, in one pass and without splitting it into characters. */
 export function sliceCodePoints(s: string, start: number, end: number): string {
-  const cps = Array.from(s);
-  return cps.slice(start, end).join("");
+  if (end <= start) return "";
+  const from = unitOf(s, start);
+  return s.slice(from, unitOf(s, end, from, start));
 }
 
 const isHighSurrogate = (c: number) => c >= 0xd800 && c <= 0xdbff;
@@ -117,7 +128,7 @@ export function assemble(blocks: Block[]): { segments: Segment[]; text: string }
     const clean = block.heading_level ? block.text.replace(/\s+/g, " ").trim() : block.text.trim();
     if (!clean) continue;
     for (const piece of splitLong(clean)) {
-      if (segments.length >= MAX_SEGMENTS) throw new TooLargeError(`the file makes more than ${MAX_SEGMENTS} passages; files that make more are stored but not parsed`);
+      if (segments.length >= MAX_SEGMENTS) throw new TooLargeError(`the file makes more than ${MAX_SEGMENTS} paragraphs; files that make more are stored but not read`);
       if (segments.length > 0) {
         parts.push("\n\n");
         offset += 2;
@@ -143,27 +154,8 @@ export function assemble(blocks: Block[]): { segments: Segment[]; text: string }
   return { segments, text };
 }
 
-/** Segments are written this many at a time, so no single string holds them all. */
-const JSONL_BATCH = 1000;
-
-/** A parse as a derivation stores it: its sidecars' bytes, and the counts its row records. */
+/** A parse as a derivation stores it: the readable text's bytes, and what its row records. */
 export function toParsedFile(r: ParseResult): ParsedFile {
-  const enc = new TextEncoder();
-  const parts: Uint8Array[] = [];
-  let size = 0;
-  for (let i = 0; i < r.segments.length; i += JSONL_BATCH) {
-    let lines = "";
-    for (const s of r.segments.slice(i, i + JSONL_BATCH)) lines += JSON.stringify(s) + "\n";
-    const part = enc.encode(lines);
-    parts.push(part);
-    size += part.byteLength;
-  }
-  const segments_jsonl = new Uint8Array(size);
-  let at = 0;
-  for (const part of parts) {
-    segments_jsonl.set(part, at);
-    at += part.byteLength;
-  }
   return {
     status: r.status,
     parser: r.parser,
@@ -171,26 +163,7 @@ export function toParsedFile(r: ParseResult): ParsedFile {
     status_detail: r.status_detail,
     duration_ms: r.duration_ms,
     facts: r.facts,
-    segment_count: r.segments.length,
-    char_count: codePointLength(r.text),
-    segments_jsonl,
-    text_md: enc.encode(r.text),
+    char_count: codePointLength(r.markdown),
+    text_md: new TextEncoder().encode(r.markdown),
   };
-}
-
-/** The segments of a `segments.jsonl`, `size` at a time, read line by line from its bytes. */
-export function* readSegments(jsonl: Uint8Array, size: number): Generator<Segment[]> {
-  const dec = new TextDecoder();
-  let batch: Segment[] = [];
-  for (let start = 0; start < jsonl.length; ) {
-    let end = jsonl.indexOf(0x0a, start);
-    if (end === -1) end = jsonl.length;
-    if (end > start) batch.push(JSON.parse(dec.decode(jsonl.subarray(start, end))) as Segment);
-    start = end + 1;
-    if (batch.length === size) {
-      yield batch;
-      batch = [];
-    }
-  }
-  if (batch.length) yield batch;
 }

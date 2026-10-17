@@ -23,7 +23,7 @@ const MAX_SEGMENTS = 200_000;
 const PARSE_CAP_BYTES = 25 * MiB;
 const MEMORY_MB = 384;
 
-const TOO_MANY_PASSAGES = `too large: "the file makes more than ${MAX_SEGMENTS} passages; files that make more are stored but not parsed"`;
+const TOO_MANY_PARAGRAPHS = `too large: "the file makes more than ${MAX_SEGMENTS} paragraphs; files that make more are stored but not read"`;
 const NEEDED_MEMORY = `failed: "parsing it needed more than the ${MEMORY_MB} MB of memory this server gives one file, so it was stopped; the file is stored but not parsed"`;
 
 /** `unit` repeated to `bytes` bytes, whole units only. */
@@ -107,13 +107,13 @@ export const HOSTILE_FILES = [
   },
   {
     name: "dense-5mb.txt",
-    what: "5 MB of one-letter paragraphs, at the public sandbox's file limit: 1.7 million would-be passages",
-    expect: TOO_MANY_PASSAGES,
+    what: "5 MB of one-letter paragraphs, at the public sandbox's file limit: 1.7 million would-be paragraphs",
+    expect: TOO_MANY_PARAGRAPHS,
     make: () => fill("a\n\n", 5 * MiB),
   },
   {
     name: "dense-24mb.txt",
-    what: "24 MB of one-letter paragraphs, under the 25 MB relay and parse limits: 8.4 million would-be passages",
+    what: "24 MB of one-letter paragraphs, under the 25 MB relay and parse limits: 8.4 million would-be paragraphs",
     // Splitting it into paragraphs needs more memory than counting the first 200,000 of them.
     expect: NEEDED_MEMORY,
     make: () => fill("a\n\n", 24 * MiB),
@@ -127,13 +127,13 @@ export const HOSTILE_FILES = [
   {
     name: "emphasis.md",
     what: "a Markdown line of 5 MB of unclosed emphasis markers (*a *a *a …)",
-    expect: "ready, in a second or two: 2,625 passages, read in time linear in its length",
+    expect: "ready, in a second or two: 2,625 paragraphs, read in time linear in its length",
     make: () => Buffer.concat([fill("*a ", 5 * MiB), Buffer.from("\n")]),
   },
   {
     name: "voices.vtt",
     what: "a WebVTT transcript of one 5 MB cue of unclosed voice tags (<v <v <v …)",
-    expect: "ready, in a second or two: 2,625 passages, read in time linear in its length",
+    expect: "ready, in a second or two: 2,625 paragraphs, read in time linear in its length",
     make: () => Buffer.concat([Buffer.from("WEBVTT\n\n00:00.000 --> 00:01.000\n"), fill("<v ", 5 * MiB), Buffer.from("\n")]),
   },
 ];
@@ -153,7 +153,7 @@ function main() {
     writeFileSync(join(out, f.name), bytes);
     console.log(`${f.name} (${size(bytes.length)})\n  ${f.what}\n  → ${f.expect}\n`);
   }
-  console.log("Upload each as the primary file of its own source. While they parse, the service should go on answering; afterwards, read the revision's memory (okf/operations/dev-deployment.md).");
+  console.log("Upload each as the only attachment of a source of its own. While they parse, the service should go on answering; afterwards, read the revision's memory (okf/operations/dev-deployment.md).");
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) main();

@@ -32,13 +32,15 @@ const VERBS: Record<string, string> = {
   "source:updated": "edited",
   "source:reorganized": "refiled",
   "source:file_added": "added an attachment to",
+  // Recorded while attachments had roles.
   "source:file_role_changed": "changed an attachment’s role on",
   "source:note_added": "commented on",
   "source:note_updated": "edited a comment on",
   "source:note_archived": "archived a comment on",
   "source:note_restored": "restored a comment on",
-  "source:derived": "finished parsing",
-  "source:rederive_requested": "asked to re-parse",
+  "source:derived": "read an attachment of",
+  "source:rederive_requested": "asked to read again an attachment of",
+  "source:text_written": "wrote the text of",
   "source:archived": "archived",
   "source:restored": "restored",
   "source:deleted": "deleted",
@@ -141,7 +143,7 @@ function dayLabel(iso: string) {
 
 /**
  * "via claude-code" for an agent, "in the app" or "through the API" for a person, and "on the
- * server" for what WhatBuild does by itself (parsing a file, a scheduled job), which has no surface
+ * server" for what WhatBuild does by itself (reading an attachment, a scheduled job), which has no surface
  * whoever uploaded the file and however they did it.
  */
 export function surfaceWords(i: Pick<ActivityItem, "through_agent" | "channel" | "actor">) {

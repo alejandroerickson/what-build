@@ -12,7 +12,7 @@ There is no AI inside WhatBuild and it needs no model API key. Intelligence arri
 whatever agent you connect.
 
 > **Status: early build.** The whole loop works end to end — sign-in,
-> organizations and roles, intake with tags, parsing, passages, search, mockups, reviewed
+> organizations and roles, intake with tags, reading attachments into each source's text, search, mockups, reviewed
 > assumptions, the Story, activity, and agents over MCP with OAuth. See the
 > [roadmap](okf/spec/10-roadmap.md) for exactly what is and is not done.
 
@@ -84,7 +84,7 @@ the database.
 ## Layout
 
 ```
-packages/parsers   bytes → passages with exact offsets (text, Markdown, VTT, SRT, HTML, DOC, DOCX, PDF, XLSX)
+packages/parsers   bytes → readable Markdown (text, Markdown, VTT, SRT, HTML, DOC, DOCX, PDF, XLSX, CSV)
 packages/core      every operation, defined once: schemas, access policy, handlers, the skill
 apps/server        Hono: REST and MCP generated from the operations, OAuth, uploads, worker, CLI
 apps/web           React: the web app, on the Studio design system (see DESIGN.md)

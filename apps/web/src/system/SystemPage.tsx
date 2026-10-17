@@ -99,8 +99,8 @@ function SpecimenInspector() {
       </Group>
       <Group title="Attachments" count={3}>
         <ul className="system-files">
-          <li><Glyph name="file-text" /><span><b>Transcript</b><StatusBadge tone="positive">Searched</StatusBadge></span></li>
-          <li><Glyph name="file-audio" /><span><b>Audio recording</b><span className="faint">Kept, not searched</span></span></li>
+          <li><Glyph name="file-text" /><span><b>Transcript</b><StatusBadge tone="positive">Text read</StatusBadge></span></li>
+          <li><Glyph name="file-audio" /><span><b>Audio recording</b><span className="faint">Recording · no text</span></span></li>
         </ul>
       </Group>
       <Group title="Tags" count={2}>
@@ -132,7 +132,7 @@ const TYPE: [string, string][] = [
   ["fs-lead", "Summary above prose, 15"],
   ["fs-title", "Sheet title, 14/600"],
   ["fs-prose", "Long-form Markdown, 13.5"],
-  ["fs-body", "Passage text, 13"],
+  ["fs-body", "Body text, 13"],
   ["fs-md", "Product name, 12.5/600"],
   ["fs-base", "The UI, 12"],
   ["fs-sm", "Secondary meta, 11.5"],
@@ -295,7 +295,7 @@ function Specimen() {
           <Row label="Segmented">
             <div className="stack-sm">
               <Segmented label="Review" value={seg} onChange={setSeg} items={[{ id: "all", label: "All", count: 3 }, { id: "unreviewed", label: "Unreviewed", count: 2 }, { id: "reviewed", label: "Reviewed" }]} />
-              <Segmented label="Source view" value="passages" items={[{ id: "passages", label: "Passages", to: "/_system" }, { id: "original", label: "Original", to: "/_system?view=original" }, { id: "notes", label: "Notes", to: "/_system?view=notes" }, { id: "comments", label: "Comments", to: "/_system?view=comments" }, { id: "attachments", label: "Attachments", to: "/_system?view=attachments" }]} />
+              <Segmented label="Source view" value="text" items={[{ id: "text", label: "Text", to: "/_system" }, { id: "notes", label: "Notes", to: "/_system?view=notes" }, { id: "comments", label: "Comments", to: "/_system?view=comments" }, { id: "attachments", label: "Attachments", to: "/_system?view=attachments" }]} />
               <div className="system-equal">
                 <Segmented equal label="Who" value="people" items={[{ id: "all", label: "All" }, { id: "people", label: "People" }, { id: "agents", label: "Agents" }]} onChange={() => {}} />
               </div>
@@ -340,7 +340,7 @@ function Specimen() {
             <div className="row">
               <StatusBadge tone="positive">Reviewed</StatusBadge>
               <StatusBadge tone="attention">Unreviewed</StatusBadge>
-              <StatusBadge tone="negative">Parsing failed</StatusBadge>
+              <StatusBadge tone="negative">Couldn’t be read</StatusBadge>
               <StatusBadge tone="progress">Processing</StatusBadge>
               <StatusBadge tone="neutral">Archived</StatusBadge>
             </div>
@@ -369,8 +369,8 @@ function Specimen() {
       <Sheet>
         <SheetHeader title="Evidence" level={2} count={4} filter={<Segmented label="Kind" value="all" onChange={() => {}} items={[{ id: "all", label: "All" }, { id: "interviews", label: "Interviews" }]} />} end={<Button variant="primary" icon="plus">Add source</Button>} />
         <ListRow to="/_system" lead="S-01" title="Crew lead interview, Greenline Landscaping" sub="Interview · Landscaping · added Sep 8 by Claude Code for Sam" end={<StatusBadge tone="positive">Ready</StatusBadge>} />
-        <ListRow to="/_system" lead="S-02" title="Owner call notes, Fernside Cleaning, a title long enough to wrap onto a second line on narrow screens" sub="Call notes · Cleaning" end={<StatusBadge tone="progress">Processing</StatusBadge>} />
-        <ListRow lead="S-03" title="Planning survey, spring round" sub="Survey export · static row" end="14 passages" />
+        <ListRow to="/_system" lead="S-02" title="Owner call notes, Fernside Cleaning, a title long enough to wrap onto a second line on narrow screens" sub="Call notes · Cleaning" end={<StatusBadge tone="progress">Reading</StatusBadge>} />
+        <ListRow lead="S-03" title="Planning survey, spring round" sub="Survey export · static row" end="2 attachments" />
       </Sheet>
 
       <div className="system-chrome">
@@ -378,9 +378,9 @@ function Specimen() {
       </div>
 
       <div className="stack">
-        <Callout title="Only the primary file is searched">The audio recording is kept for download.</Callout>
+        <Callout title="Attachments are never searched">The audio recording is kept for download.</Callout>
         <Callout tone="attention" title="This product is archived">It’s read-only. An admin can restore it in Settings.</Callout>
-        <Callout tone="positive" title="Uploaded">Parsing starts in a moment.</Callout>
+        <Callout tone="positive" title="Uploaded">Its text is read in a moment.</Callout>
         <ErrorCallout error={new ApiError(0, "network", "WhatBuild couldn’t be reached. Check your connection and try again.")} onRetry={() => {}} />
         <ErrorCallout error={new ApiError(409, "stale_etag", "That changed since you loaded it.")} onRetry={() => {}} />
         <ErrorCallout error={new ApiError(409, "quota_exceeded", "This team has used its 5 GB of file storage.")} />
@@ -392,7 +392,7 @@ function Specimen() {
       <Sheet>
         <SheetHeader title="Loading, empty, in a sheet" />
         <Loading lines={2} />
-        <EmptyState size="inline" title="No passages match “weekly”" action={<Button size="sm">Clear the search</Button>} />
+        <EmptyState size="inline" title="Nothing in the text matches “weekly”" action={<Button size="sm">Clear the search</Button>} />
         <SheetBody>
           <Callout inset tone="info">An inset callout sits inside a sheet or the inspector.</Callout>
         </SheetBody>

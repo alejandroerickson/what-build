@@ -27,7 +27,7 @@ const FIELD_ALIASES: Record<string, Alias[]> = {
 const WRONG_FIELD_HINTS: Record<string, { fields: string[]; hint: string }> = {
   "derived.text": {
     fields: ["start", "end", "unit"],
-    hint: " derived(action=\"text\") reads by code-point offset: send offset and limit. start and end, in segments, are read_passage's.",
+    hint: " derived(action=\"text\") reads by code-point offset: send offset and limit, such as a little before a search hit's char_start. There are no passages to read by number.",
   },
 };
 

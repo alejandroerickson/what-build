@@ -20,7 +20,7 @@ describe("actionName", () => {
     const P = "/api/v1/p/acme/core/planner";
     expect(actionName(`${P}/assumptions`, "assumptions.create")).toBe("assumptions_create");
     expect(actionName(`${P}/assumptions/01JABCDEF/review`, "assumptions.review")).toBe("assumptions_review");
-    expect(actionName(`${P}/sources/01J/files`, "files.fetch_url")).toBe("files_fetch_url");
+    expect(actionName(`${P}/sources/01J/fetch`, "attachments.fetch_url")).toBe("attachments_fetch_url");
     expect(actionName("/api/v1/tenant-allowances/remove", "products.remove_tenant_allowance")).toBe("products_remove_tenant_allowance");
   });
 

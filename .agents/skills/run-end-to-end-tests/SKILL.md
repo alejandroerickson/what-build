@@ -55,7 +55,7 @@ what the plan expects, and report. The system, with every command, is described 
    - MCP: `pnpm e2e mcp call <tool> '<json>' --as sam` (`pnpm e2e mcp help`). A grouped tool's
      fields go in `params`. Learn the tools the way any agent does: `tools`, `describe: true`, and `get_skill`. Use `curl` to PUT upload
      bytes to a grant's URL with its headers.
-   - Where a plan says "a product with sources" or "a passage you can see", pick one in the run and
+   - Where a plan says "a product with sources" or "words you can see in a source's text", pick one in the run and
      say in the report which (by its path), so the run can be repeated.
    - Check each expectation exactly. Find your way through the interface yourself: the plan names
      things in the product's words, not as selectors. Trouble finding the way is a finding.

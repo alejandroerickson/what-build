@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { track } from "../lib/analytics.ts";
-import { hitMeta, kindOf, Marked, matchedCount, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse } from "../lib/find.tsx";
+import { findWords, hitHref, hitMeta, kindOf, Marked, matchedCount, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse } from "../lib/find.tsx";
 import type { Product } from "../lib/session.tsx";
 import { Glyph, type GlyphName } from "../ui/index.tsx";
 import { isTypingTarget, shortcutLabel } from "../ui/media.ts";
@@ -23,7 +23,7 @@ export function useOpenFind() {
 /** A row in the list: a result, which opens, or a recent search, which fills the field. */
 interface Option {
   key: string;
-  /** What a result is, for counting what people follow: its kind, or `passage` when it opens at one. */
+  /** What a result is, for counting what people follow: its kind, or where in a source it opens. */
   kind?: string;
   href?: string;
   fill?: string;
@@ -38,11 +38,12 @@ const SHOWN = 8;
 function options(app: string, d: FindResponse | undefined): Option[] {
   return (d?.results ?? []).slice(0, SHOWN).map((r) => {
     const hit = r.hits?.[0];
-    const atPassage = Boolean(hit && !r.title_marks.length);
+    // A source found by what it says, not its title, opens where it says it.
+    const atHit = Boolean(hit && !r.title_marks.length);
     return {
       key: `${r.kind}:${r.id}`,
-      kind: atPassage ? "passage" : r.kind,
-      href: atPassage ? `${app}/evidence/${r.id}?view=passages&seq=${hit!.seq}` : resultHref(app, r),
+      kind: atHit ? hit!.field : r.kind,
+      href: atHit ? hitHref(app, r.id, hit!, d ? findWords(d) : "") : resultHref(app, r),
       glyph: kindOf(r.kind).glyph,
       title: <Marked text={r.title} marks={r.title_marks} />,
       meta: resultMeta(r),

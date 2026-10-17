@@ -34,7 +34,7 @@ async function set(patch: Record<string, unknown>) {
 }
 
 async function upload(who: Browser, base: string, path: string, body: string, title = `Sample ${path}`) {
-  const created = await who.api("POST", `${base}/sources/with-upload`, { tags: ["notes"], title, path, role: "primary" });
+  const created = await who.api("POST", `${base}/sources/with-upload`, { tags: ["notes"], title, path });
   expect(created.status, JSON.stringify(created.body)).toBe(201);
   const put = await fetch(created.body.upload.url, { method: "PUT", headers: created.body.upload.headers, body });
   expect(put.status).toBe(201);
@@ -454,7 +454,7 @@ describe("limits on what a visitor does", () => {
     expect(write.status).toBe(403);
     expect(write.body.error.message).toMatch(/Writing is off for visitors/);
     await set({ writes_per_day: 100000, bytes_per_day: 0 });
-    const file = await viktor.api("POST", `${P}/sources/${seededSource}/uploads`, { path: "more.md", role: "supplement", size: 10 });
+    const file = await viktor.api("POST", `${P}/sources/${seededSource}/uploads`, { path: "more.md", size: 10 });
     expect(file.status).toBe(403);
     expect(file.body.error.details).toMatchObject({ setting: "bytes_per_day" });
     // Reads go on, and staff are not visitors.
@@ -492,17 +492,17 @@ describe("limits on what a visitor does", () => {
   });
 
   it("limits what a visitor uploads: the kind of file, its size, and the day's bytes", async () => {
-    const recording = await viktor.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Sample recording", path: "call.m4a", role: "primary" });
+    const recording = await viktor.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Sample recording", path: "call.m4a" });
     expect(recording.status).toBe(403);
     expect(recording.body.error.code).toBe("sandbox_restricted");
-    const fetched = await viktor.api("POST", `${P}/sources/${seededSource}/fetch`, { url: "https://example.com/notes.txt", role: "supplement" });
+    const fetched = await viktor.api("POST", `${P}/sources/${seededSource}/fetch`, { url: "https://example.com/notes.txt" });
     expect(fetched.status).toBe(403);
     expect(fetched.body.error.message).toMatch(/Fetching a file from a URL is off/);
 
     await set({ file_max_bytes: 100 });
-    const declared = await viktor.api("POST", `${P}/sources/${seededSource}/uploads`, { path: "big.md", role: "supplement", size: 101 });
+    const declared = await viktor.api("POST", `${P}/sources/${seededSource}/uploads`, { path: "big.md", size: 101 });
     expect(declared.status).toBe(413);
-    const grant = await viktor.api("POST", `${P}/sources/${seededSource}/uploads`, { path: "big.md", role: "supplement" });
+    const grant = await viktor.api("POST", `${P}/sources/${seededSource}/uploads`, { path: "big.md" });
     expect(grant.status).toBe(201);
     expect(grant.body.max_bytes).toBe(100);
     expect(grant.body.direct).toBeUndefined();
@@ -515,10 +515,10 @@ describe("limits on what a visitor does", () => {
     expect(used).toBe(100);
 
     await set({ file_max_bytes: 1000, bytes_per_day: 150 });
-    const rest = await viktor.api("POST", `${P}/sources/${seededSource}/uploads`, { path: "more.md", role: "supplement" });
+    const rest = await viktor.api("POST", `${P}/sources/${seededSource}/uploads`, { path: "more.md" });
     expect(rest.body.max_bytes).toBe(50);
     await set({ bytes_per_day: 100 });
-    const none = await viktor.api("POST", `${P}/sources/${seededSource}/uploads`, { path: "none.md", role: "supplement" });
+    const none = await viktor.api("POST", `${P}/sources/${seededSource}/uploads`, { path: "none.md" });
     expect(none.status).toBe(409);
     expect(none.body.error.details).toMatchObject({ quota: "bytes_per_day", limit: 100, used: 100, unit: "bytes" });
     await set({ file_max_bytes: SANDBOX_DEFAULTS.file_max_bytes, bytes_per_day: SANDBOX_DEFAULTS.bytes_per_day });
@@ -550,8 +550,8 @@ describe("limits on what a visitor does", () => {
   });
 
   it("can leave visitors reading, or close to them, without taking a seat", async () => {
-    const file = () => fetch(`${h.baseUrl}${P}/sources/${seededSource}/file?path=visit.md`, { headers: { cookie: vera.cookie } });
-    const early = await vera.api("POST", `${P}/sources/${seededSource}/uploads`, { path: "early.md", role: "supplement" });
+    const file = () => fetch(`${h.baseUrl}${P}/sources/${seededSource}/attachment?path=visit.md`, { headers: { cookie: vera.cookie } });
+    const early = await vera.api("POST", `${P}/sources/${seededSource}/uploads`, { path: "early.md" });
     expect(early.status).toBe(201);
     await set({ visitor_access: "read" });
     const write = await vera.api("POST", `${P}/outcomes`, { title: "Not now" });
@@ -603,9 +603,10 @@ describe("the baseline and the reset", () => {
     expect(saved.status, JSON.stringify(saved.body)).toBe(200);
     expect(saved.body).toMatchObject({ in_use: true, note: "Sample content for visitors", holds: { products: 1 } });
     expect(saved.body.holds.sources).toBeGreaterThanOrEqual(2);
-    expect(saved.body.holds.passages).toBeGreaterThan(0);
+    expect(saved.body.holds.texts).toBeGreaterThan(0);
+    expect(saved.body.holds).not.toHaveProperty("passages");
     baseline = await contentOf(tenantId);
-    // Every file and parse the baseline refers to. A visitor's export is not among them: it does not outlive a reset.
+    // Every attachment and reading the baseline refers to. A visitor's export is not among them: it does not outlive a reset.
     baselineBlobs = [...h.blobs.blobs.keys()].filter((k) => k.startsWith(`t/${tenantId}/r/`));
     expect(baselineBlobs.length).toBeGreaterThan(0);
     expect([...h.blobs.blobs.keys()].some((k) => k.startsWith(`t/${tenantId}/exports/`))).toBe(true);
@@ -646,11 +647,11 @@ describe("the baseline and the reset", () => {
     expect((await vera.api("GET", `${P}/search?query=crisis`)).body.hits).toHaveLength(1);
     expect((await olive.api("GET", `/api/v1/p/${product.body.path}`)).status).toBe(404);
 
-    // The bytes visitors added go; the baseline's stay, and its files still download.
+    // The bytes visitors added go; the baseline's stay, and its attachments still download.
     await h.worker.drain();
     const left = [...h.blobs.blobs.keys()].filter((k) => k.startsWith(`t/${tenantId}/`));
     expect(left.sort()).toEqual([...baselineBlobs].sort());
-    const file = await fetch(`${h.baseUrl}${P}/sources/${seededSource}/file?path=visit.md`, { headers: { cookie: vera.cookie } });
+    const file = await fetch(`${h.baseUrl}${P}/sources/${seededSource}/attachment?path=visit.md`, { headers: { cookie: vera.cookie } });
     expect(file.status).toBe(200);
     expect(await file.text()).toContain("Nobody called it a crisis");
 
@@ -699,7 +700,10 @@ describe("the baseline and the reset", () => {
     expect([...h.blobs.blobs.keys()].filter((k) => k.startsWith(`t/${tenantId}/`)).sort()).toEqual([...baselineBlobs].sort());
     await olive.api("POST", `${T}/sandbox/reset`, { confirm: "reset the sandbox" });
     expect(await contentOf(tenantId)).toEqual(baseline);
-    expect((await vera.api("GET", `${P}/sources/${seededSource}/passage?start=0&end=1&unit=seq`)).status).toBe(200);
+    const text = await vera.api("GET", `${P}/sources/${seededSource}/derived/text`);
+    expect(text.status).toBe(200);
+    expect(text.body.text).toContain("Nobody called it a crisis.");
+    expect((await vera.api("GET", `${P}/search?query=crisis`)).body.hits.map((x: { record_id: string }) => x.record_id)).toEqual([seededSource]);
   });
 
   it("keeps the newest baselines, goes back to an earlier one, and drops bytes only the oldest held", async () => {
@@ -716,7 +720,7 @@ describe("the baseline and the reset", () => {
     expect((await olive.api("GET", `${P}/sources/${second}`)).status).toBe(404);
     await olive.api("POST", `${T}/sandbox/reset`, { confirm: "reset the sandbox", baseline_id: b2.baseline_id });
     expect(await contentOf(tenantId)).toEqual(withSecond);
-    expect((await olive.api("GET", `${P}/sources/${second}/passage?start=0&end=1&unit=seq`)).status).toBe(200);
+    expect((await olive.api("GET", `${P}/sources/${second}/derived/text`)).body.text).toBe("# Second\n\nIn the second baseline only.\n");
     expect((await olive.api("POST", `${T}/sandbox/reset`, { confirm: "reset the sandbox", baseline_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV" })).status).toBe(404);
 
     // Three are kept. Archiving is content too, so each of these differs from the last.

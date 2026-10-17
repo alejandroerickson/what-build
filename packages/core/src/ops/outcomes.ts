@@ -20,10 +20,10 @@ const outcomeId = id("outcome").describe("The outcome id. id is accepted as anot
 const WHAT_AN_OUTCOME_IS =
   "An outcome is what the product's users should be able to achieve with it: the compass the evidence, assumptions, mockups and Story are read against, so write it to last. " +
   "Title: what the user achieves, from their side (\"The crew lead plans next week in minutes\"). Description: what success looks like for them, in a few sentences. " +
-  "Neither cites or retells evidence: no sources, passages, calls, emails, dates, named customers or people who asked, journeys, assumptions or mockups. " +
+  "Neither cites or retells evidence: no sources, quotes, calls, emails, dates, named customers or people who asked, journeys, assumptions or mockups. " +
   "Evidence belongs in sources, and what it suggests in assumptions, which point at the outcome through outcome_ids. An id or a link to a record is refused. Keep the set small.";
 
-/** Any id names a record (a source, a passage's source, an assumption, a mockup, a Story page), and an outcome names none. */
+/** Any id names a record (a source, an assumption, a mockup, a Story page), and an outcome names none. */
 const RECORD_ID = /\b[0-9A-HJKMNP-TV-Z]{26}\b/;
 
 function refuseReferences(text: { title?: string; description?: string }) {

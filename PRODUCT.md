@@ -19,12 +19,12 @@ Google Cloud Run. Recorded in `okf/spec/02-architecture.md`.
 ## Users
 
 - **The product trio** — product managers, designers and an engineering lead exploring a product
-  idea — about 5 to 15 people per organization. They browse evidence, read passages, review
-  mockups and assumptions, and direct their agents. They work at a desk on a laptop or larger
+  idea — about 5 to 15 people per organization. They browse evidence, read and correct sources'
+  text, review mockups and assumptions, and direct their agents. They work at a desk on a laptop or larger
   screen; a phone is an occasional reading context. They do not use git and never learn a storage
   path.
 - **Their AI agents**, connected over MCP, which do most of the intake and synthesis: upload and
-  clean sources, read passages, draft assumptions, build mockups, publish the Story.
+  clean sources, read and correct their text, draft assumptions, build mockups, publish the Story.
 - **Stakeholders** who read the Story and rarely anything else _(inferred: whether they get their
   own role or share links is an open question)_.
 - **People evaluating the approach**, who should see a real, fully derived discovery (the sample
@@ -42,14 +42,15 @@ reviewable rather than lost in a chat.
 ## Positioning
 
 WhatBuild contains no AI. It parses, stores, searches and checks deterministically, and the
-intelligence comes from whatever agent the team connects. That split is the product: exact,
-addressable passages that people and agents read and search; honest attribution of what an agent did
-versus what a person agreed to; and an agent surface (MCP) that is the most complete control panel.
+intelligence comes from whatever agent the team connects. That split is the product: each
+source's words as one exact text that people and agents read, correct and search; honest
+attribution of what an agent did versus what a person agreed to; and an agent surface (MCP) that
+is the most complete control panel.
 
 ## Operating Context
 
 Discovery arrives in bursts around interview rounds, research readouts and sales calls. People
-read far more than they write: browsing sources, reading passages, reading synthesis, reviewing a
+read far more than they write: browsing sources, reading their text, reading synthesis, reviewing a
 small set of agreements. Agents do the heavy lifting in the user's own chat or coding client, and
 people check the results in the web app. The web app and the agent share one account, one set of
 permissions and one activity log.
@@ -62,8 +63,9 @@ permissions and one activity log.
   without a role on a product cannot see it at all.
 - A source is described by a title and tags (what it is, whom it concerns, what it bears on),
   reusing the tags the team already has; there are no kinds to choose and no folders.
-- Only a source's primary file is parsed and searched; originals and supplements are kept, never
-  searched, and the UI says so.
+- A source's words are one derived text, taken from one of its attachments until someone edits it;
+  every attachment is read and kept but never searched, and the UI says so. Search reads a
+  source's title, tags, summary, text, notes and comments.
 - Nothing keeps citations: agents find what bears on a piece of work by searching, and the Story
   explains in words, quoting a person only where their words matter.
 - Archive is the reversible default everywhere; delete is permanent, explicit, guarded and an admin's.
@@ -71,7 +73,7 @@ permissions and one activity log.
   people read it, export it to PDF, and arrange, archive and delete its pages by hand. Pages follow the product's Story style: the
   company's own design system, or a house style an agent adopted for the product. Never
   WhatBuild's own look, since a Story is often read outside the team.
-- Vocabulary is fixed: source, passage, segment, outcome, mockup, assumption, Story, archive. Never "findings", "claims", "document store" or a storage path in the UI.
+- Vocabulary is fixed: source, derived text, attachment, outcome, mockup, assumption, Story, archive. Never "findings", "claims", "document store", "file" for an attachment, or a storage path in the UI.
 - WCAG 2.2 AA, fully keyboard-operable, usable at phone width.
 
 ## Evidence on Hand

@@ -1,6 +1,7 @@
 import { sql } from "kysely";
 import { json, type ActorSnapshot, type Db, type Tx } from "./db.ts";
-import { blobKeyFor } from "./ops/files.ts";
+import { blobKeyFor } from "./ops/attachments.ts";
+import { indexSource } from "./text-index.ts";
 import type { Ports } from "./ports.ts";
 import { collapse, newEtag, newId, slugify, uniq } from "./util.ts";
 
@@ -59,13 +60,13 @@ function decisionMarkdown(v: { statement: string; body: string }): string {
 
 const section = (title: string, lines: string[]) => (lines.length ? [`## ${title}\n\n${lines.join("\n")}`] : []);
 
-/** Write a document's versions, oldest first, as one primary Markdown file, and queue the newest for parsing. */
+/** Write a document's versions, oldest first, as one Markdown attachment, and queue the newest to be read: its text becomes the source's. */
 async function writeFile(db: Tx, ports: Ports, tenantId: string, recordId: string, path: string, versions: Version[]) {
   const file_id = newId();
   const ids = versions.map(() => newId());
   await db
     .insertInto("files")
-    .values({ file_id, tenant_id: tenantId, record_id: recordId, path, role: "primary", current_version_id: ids[ids.length - 1]!, derived_from: [], derivation_note: null, derived_by: null, added_at: versions[0]!.at, added_by: json(versions[0]!.by) })
+    .values({ file_id, tenant_id: tenantId, record_id: recordId, path, current_version_id: ids[ids.length - 1]!, added_at: versions[0]!.at, added_by: json(versions[0]!.by) })
     .execute();
   for (const [i, v] of versions.entries()) {
     const blob_key = blobKeyFor(tenantId, recordId, ids[i]!);
@@ -110,7 +111,7 @@ export async function runEvidenceMove(db: Tx, ports: Ports, job: { tenant_id: st
       .values({
         record_id: v.record_id, tenant_id: job.tenant_id, team_id: product.team_id, product_id: pid, title: v.title, date: null,
         tags: v.tags, slug: slugify(v.title), copied_from: json(null),
-        current_derivation_id: null, archived_at: v.archived?.at ?? null, archived_by: v.archived ? json(v.archived.by) : json(null), etag: newEtag(),
+        archived_at: v.archived?.at ?? null, archived_by: v.archived ? json(v.archived.by) : json(null), etag: newEtag(),
         uploaded_at: v.uploaded.at, uploaded_by: json(v.uploaded.by), updated_at: v.updated.at, updated_by: json(v.updated.by),
       })
       .execute();
@@ -196,5 +197,7 @@ export async function runEvidenceMove(db: Tx, ports: Ports, job: { tenant_id: st
     await db.deleteFrom("insights").where("product_id", "=", pid).where("insight_id", "in", [...moving]).execute();
     await db.deleteFrom("register_entries").where("product_id", "=", pid).where("kind", "=", "decision").where("entry_id", "in", [...moving]).execute();
   }
+  // Search reads the new sources' titles, tags and summaries now; their text once it is read.
+  for (const id of moving) await indexSource(db, id);
   return { insights: insights.length, decisions: decisions.length };
 }

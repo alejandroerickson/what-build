@@ -1,6 +1,6 @@
 import { strToU8, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
-import { derive, recordingDurationMs, sliceCodePoints, type ParseResult } from "../src/index.ts";
+import { clock, derive, recordingDurationMs, sliceCodePoints, type ParseResult } from "../src/index.ts";
 import { bytesReader } from "../src/media.ts";
 import { splitLong } from "../src/text.ts";
 import { stripInlineMarkdown } from "../src/plaintext.ts";
@@ -643,7 +643,7 @@ describe("CSV", () => {
       "[row 4] Sample: NR | Cu_pct: (blank) | S_pct: (blank)",
       "[row 5] Checked twice",
     ]);
-    expect(r.parser_version).toBe("2");
+    expect(r.parser_version).toBe("3");
   });
 });
 
@@ -666,7 +666,7 @@ describe("XLSX", () => {
       "[Register, row 3] Sample: KL-02 | Cu_pct: 0.9 | S_pct: (blank)",
       "[Register, row 4] Sample: NR | Cu_pct: (blank) | S_pct: (blank)",
     ]);
-    expect(r.parser_version).toBe("4");
+    expect(r.parser_version).toBe("5");
   });
 
   it("renders numbers in date and time formats as ISO dates and times, and other numbers as numbers", async () => {
@@ -775,5 +775,41 @@ describe("statuses", () => {
   it("marks oversized files too large without parsing", async () => {
     const r = await derive(new Uint8Array(11), "a.txt", { parseCapBytes: 10 });
     expect(r.status).toBe("too_large");
+  });
+});
+
+describe("the readable text", () => {
+  it("runs a speaker's cues on as one turn, with who spoke and when", async () => {
+    const vtt = "WEBVTT\n\n00:00:01.000 --> 00:00:03.000\n<v Dana>We export everything\n\n00:00:03.000 --> 00:00:05.000\n<v Dana>to a spreadsheet every Friday.\n\n00:00:05.000 --> 00:00:07.000\n<v Sam>Why Friday?\n\n01:02:03.000 --> 01:02:05.000\nNobody named.\n";
+    const r = await derive(utf8(vtt), "call.vtt");
+    expect(r.markdown).toBe("**Dana** (0:01): We export everything to a spreadsheet every Friday.\n\n**Sam** (0:05): Why Friday?\n\n(1:02:03) Nobody named.\n");
+  });
+
+  it("names a transcript's speaker once per turn, not on every paragraph of it", async () => {
+    const txt = "Dana: We plan on Fridays.\nSam: Why?\nDana: The numbers close then.\nSam: Who decides?\nDana: The ops lead.\n";
+    const r = await derive(utf8(txt), "interview.txt");
+    expect(r.markdown).toBe("**Dana:** We plan on Fridays.\n\n**Sam:** Why?\n\n**Dana:** The numbers close then.\n\n**Sam:** Who decides?\n\n**Dana:** The ops lead.\n");
+    expect(r.markdown.split("\n\n").length).toBe(r.segments.length);
+  });
+
+  it("keeps headings and lays a table out whole", async () => {
+    const html = "<h1>Plan</h1><p>Two plans were tried.</p><table><tr><th>Plan</th><th>Reached | saved</th></tr><tr><td>A</td><td>4 of 5</td></tr><tr><td>B</td><td>0 of 5</td></tr></table>";
+    const r = await derive(utf8(html), "plans.html");
+    expect(r.markdown).toBe("# Plan\n\nTwo plans were tried.\n\n| Plan | Reached \\| saved |\n| --- | --- |\n| A | 4 of 5 |\n| B | 0 of 5 |\n");
+  });
+
+  it("lays a spreadsheet out as a table numbered by its rows", async () => {
+    const r = await derive(utf8("Quarterly crews\nName,Crew\nDana,North\nSam,\n"), "crews.csv");
+    expect(r.markdown).toBe("[row 1] Quarterly crews\n\n| Row | Name | Crew |\n| --- | --- | --- |\n| 3 | Dana | North |\n| 4 | Sam |  |\n");
+  });
+
+  it("keeps a Markdown file as it was written", async () => {
+    const md = "# Plan\r\n\r\n**Dana:** We *always* plan on Fridays.\r\n\r\n| A | B |\r\n|---|---|\r\n| 1 | 2 |\r\n\r\n";
+    const r = await derive(utf8(md), "plan.md");
+    expect(r.markdown).toBe("# Plan\n\n**Dana:** We *always* plan on Fridays.\n\n| A | B |\n|---|---|\n| 1 | 2 |\n");
+  });
+
+  it("says a time the way people write it", () => {
+    expect([0, 5_000, 65_000, 3_599_000, 3_723_000].map(clock)).toEqual(["0:00", "0:05", "1:05", "59:59", "1:02:03"]);
   });
 });

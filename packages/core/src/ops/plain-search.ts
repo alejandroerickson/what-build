@@ -5,11 +5,12 @@ import type { OpContext } from "../registry.ts";
 
 /**
  * Plain search (`search` with `mode: "plain"`): one search over everything in a product, read the way a person means it (see
- * plain-query.ts), ranked, and grouped so a source shows up once with its best passages. Lexical
- * and deterministic: no model, no embeddings, no index beyond the ones `search` already uses.
+ * plain-query.ts), ranked, and grouped so a source shows up once with the best places it says
+ * the words: its derived text, summary, notes or comments. Lexical and deterministic: no model, no
+ * embeddings, no index beyond the ones `search` already uses.
  */
 
-export const FIND_KINDS = ["idea", "outcome", "source", "passage", "assumption", "mockup", "story"] as const satisfies readonly FindKind[];
+export const FIND_KINDS = ["idea", "outcome", "source", "assumption", "mockup", "story"] as const satisfies readonly FindKind[];
 
 /** What plain search takes: the words, and optionally one kind, one source, or no correcting. */
 export interface PlainInput {
@@ -23,17 +24,20 @@ type Input = PlainInput;
 
 type Marks = [number, number][];
 
+/** Where a source says the words: a piece of its derived text, summary, notes or one comment. */
 interface Hit {
-  seq: number;
-  speaker: string | null;
-  start_ms: number | null;
+  field: "summary" | "notes" | "text" | "comment";
+  /** The comment's id, for a hit in a comment. */
+  annotation_id: string | null;
+  /** Where the piece starts in its field, in code points. */
+  char_start: number;
   text: string;
   marks: Marks;
   found: number;
 }
 
 export interface FindResult {
-  kind: Exclude<FindKind, "passage">;
+  kind: FindKind;
   id: string;
   title: string;
   title_marks: Marks;
@@ -45,7 +49,7 @@ export interface FindResult {
   score: number;
   /** Kind-specific: a source's date and tags, an assumption's status, a mockup page. */
   meta: Record<string, unknown>;
-  /** A source's matching passages, best first, and how many there are. */
+  /** Where a source says the words, best first, and how many places there are. */
   hits?: Omit<Hit, "found">[];
   hit_count?: number;
 }
@@ -55,6 +59,17 @@ function htmlText(col: RawBuilder<unknown>): RawBuilder<string> {
   const text = sql`regexp_replace(regexp_replace(regexp_replace(${col}, '<(script|style)[^>]*?>.*?</\\1>', ' ', 'gi'), '<[^>]+>', ' ', 'g'), '&[a-zA-Z0-9#]+;', ' ', 'g')`;
   // A tag between a word and its punctuation leaves a space before the comma; close it.
   return sql<string>`regexp_replace(${text}, '\\s+([,.;:!?)])', '\\1', 'g')`;
+}
+
+/**
+ * A piece of Markdown as a reader sees its words, for an excerpt: emphasis markers, heading marks
+ * and a table's rule row dropped. Single passes over a piece of at most a few thousand characters.
+ */
+export function shownWords(md: string): string {
+  return md
+    .replace(/^[ \t|:]*-{3,}[-:| \t]*$/gm, "")
+    .replace(/^#{1,6}[ \t]+/gm, "")
+    .replace(/\*\*|__/g, "");
 }
 
 /** The terms, in the order typed and next to each other: a strong sign the text is about them. */
@@ -101,26 +116,29 @@ function missingWords(p: ParsedFind, found: boolean[]): string[] {
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
-async function sourcesAndPassages(ctx: OpContext, p: ParsedFind, i: Input, q: string): Promise<{ results: FindResult[]; passages: number; found: boolean[] }> {
+async function sources(ctx: OpContext, p: ParsedFind, i: Input, q: string): Promise<{ results: FindResult[]; hits: number; found: boolean[] }> {
   const pid = productId(ctx);
   const one = i.record_id ? sql`and r.record_id = ${i.record_id}` : sql``;
-  const perTerm = p.terms.map((t) => sql`(s.tsv @@ to_tsquery('simple', ${termTsquery(t)}))::int`);
+  const perTerm = p.terms.map((t) => sql`(c.tsv @@ to_tsquery('simple', ${termTsquery(t)}))::int`);
   const cov = sql.join(perTerm, sql` + `);
   const limit = i.record_id ? 200 : 400;
+  // The pieces search reads beyond a source's title and tags; an archived comment is not among them.
+  const live = sql`r.product_id = ${pid} and r.archived_at is null ${one} and c.field not in ('title', 'tags') and (c.field <> 'comment' or a.archived_at is null)`;
   const [hits, counts, titled] = await Promise.all([
-    sql<{ record_id: string; seq: number; text: string; speaker: string | null; start_ms: string | null; cov: number; rank: number }>`
-      select s.record_id, s.seq, s.text, s.speaker, s.start_ms, ${cov} as cov, ts_rank_cd(s.tsv, q.q, 32)::float as rank
-      from segments s join records r on r.record_id = s.record_id, (select to_tsquery('simple', ${q}) as q) q
-      where s.is_current and r.product_id = ${pid} and r.archived_at is null ${one} and s.tsv @@ q.q
-      order by cov desc, rank desc, s.record_id desc, s.seq
+    sql<{ record_id: string; field: Hit["field"]; ref: string; char_start: number; text: string; cov: number; rank: number }>`
+      select c.record_id, c.field, c.ref, c.char_start, c.text, ${cov} as cov, ts_rank_cd(c.tsv, q.q, 32)::float as rank
+      from text_chunks c join records r on r.record_id = c.record_id
+        left join annotations a on c.field = 'comment' and a.annotation_id = c.ref,
+        (select to_tsquery('simple', ${q}) as q) q
+      where ${live} and c.tsv @@ q.q
+      order by cov desc, rank desc, c.record_id desc, c.field, c.ref, c.n
       limit ${limit}`.execute(ctx.db),
     sql<{ n: number; found: boolean[] }>`
-      select count(*)::int as n, array[${sql.join(p.terms.map((t) => sql`coalesce(bool_or(s.tsv @@ to_tsquery('simple', ${termTsquery(t)})), false)`))}] as found
-      from segments s join records r on r.record_id = s.record_id
-      where s.is_current and r.product_id = ${pid} and r.archived_at is null ${one} and s.tsv @@ to_tsquery('simple', ${q})`.execute(ctx.db),
-    i.kind === "passage"
-      ? Promise.resolve({ rows: [] as { record_id: string; title: string; date: string | null; tags: string[] }[] })
-      : sql<{ record_id: string; title: string; date: string | null; tags: string[] }>`
+      select count(*)::int as n, array[${sql.join(p.terms.map((t) => sql`coalesce(bool_or(c.tsv @@ to_tsquery('simple', ${termTsquery(t)})), false)`))}] as found
+      from text_chunks c join records r on r.record_id = c.record_id
+        left join annotations a on c.field = 'comment' and a.annotation_id = c.ref
+      where ${live} and c.tsv @@ to_tsquery('simple', ${q})`.execute(ctx.db),
+    sql<{ record_id: string; title: string; date: string | null; tags: string[] }>`
       select r.record_id, r.title, r.date, r.tags from records r
       where r.product_id = ${pid} and r.archived_at is null ${one}
         and to_tsvector('simple', r.title || ' ' || array_to_string(r.tags, ' ')) @@ to_tsquery('simple', ${q})`.execute(ctx.db),
@@ -131,22 +149,24 @@ async function sourcesAndPassages(ctx: OpContext, p: ParsedFind, i: Input, q: st
     : [];
   const byRecord = new Map<string, { hit: Hit; m: TextMatch }[]>();
   for (const h of hits.rows) {
-    const m = matchText(h.text, p.terms);
-    const ex = excerpt(h.text, m.ranges, 240);
-    const hit = { seq: h.seq, speaker: h.speaker, start_ms: h.start_ms === null ? null : Number(h.start_ms), text: ex.text, marks: ex.marks, found: m.found.filter(Boolean).length };
+    const shown = shownWords(h.text);
+    const m = matchText(shown, p.terms);
+    const ex = excerpt(shown, m.ranges, 240);
+    const hit: Hit = { field: h.field, annotation_id: h.field === "comment" ? h.ref : null, char_start: h.char_start, text: ex.text, marks: ex.marks, found: m.found.filter(Boolean).length };
     byRecord.set(h.record_id, [...(byRecord.get(h.record_id) ?? []), { hit, m }]);
   }
   const n = p.terms.length;
+  // The derived text first among equals: it is the source's own words.
+  const order: Record<Hit["field"], number> = { text: 0, summary: 1, notes: 2, comment: 3 };
   const results: FindResult[] = meta.map((r) => {
     const own = byRecord.get(r.record_id) ?? [];
     const s = scoreDoc({ title: r.title, body: [r.tags.join(" ")] }, p, "source");
-    // A source holds a word if its title, its tags or any of its passages does.
+    // A source holds a word if its title, its tags or anything it says does.
     const found = p.terms.map((_, k) => s.found[k] || own.some((o) => o.m.found[k]));
     const best = own.reduce((a, o) => Math.max(a, o.hit.found), 0);
     let score = (100 * found.filter(Boolean).length) / n + s.bonus + Math.min(own.length, 20) * 1.2 + (best === n && n > 1 ? 12 : 0);
     if (own.some((o) => adjacent(o.hit.text, p.terms))) score += 10;
-    if (p.kind === "passage" && own.length) score += 60;
-    const ranked = own.map((o) => o.hit).sort((a, b) => b.found - a.found || a.seq - b.seq);
+    const ranked = own.map((o) => o.hit).sort((a, b) => b.found - a.found || order[a.field] - order[b.field] || a.char_start - b.char_start);
     return {
       kind: "source",
       id: r.record_id,
@@ -161,7 +181,7 @@ async function sourcesAndPassages(ctx: OpContext, p: ParsedFind, i: Input, q: st
       hit_count: own.length,
     };
   });
-  return { results, passages: counts.rows[0]?.n ?? 0, found: (counts.rows[0]?.found ?? []).map((f, k) => f || titled.rows.some((r) => matchText(`${r.title} ${r.tags.join(" ")}`, p.terms).found[k])) };
+  return { results, hits: counts.rows[0]?.n ?? 0, found: (counts.rows[0]?.found ?? []).map((f, k) => f || titled.rows.some((r) => matchText(`${r.title} ${r.tags.join(" ")}`, p.terms).found[k])) };
 }
 
 async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): Promise<FindResult[]> {
@@ -251,8 +271,8 @@ async function corrections(ctx: OpContext, p: ParsedFind, found: boolean[], typi
   await sql`select set_config('pg_trgm.word_similarity_threshold', '0.4', true)`.execute(ctx.db);
   for (const { t, k } of lost) {
     const near = await sql<{ text: string }>`
-      select s.text from segments s join records r on r.record_id = s.record_id
-      where s.is_current and r.product_id = ${pid} and r.archived_at is null and ${t.text} <% s.text
+      select c.text from text_chunks c join records r on r.record_id = c.record_id
+      where r.product_id = ${pid} and r.archived_at is null and ${t.text} <% c.text
       limit 40`.execute(ctx.db);
     const last = typing && k === p.terms.length - 1;
     const to = closestWord(t.text, [...near.rows.map((r) => r.text), ...titles.rows.map((r) => r.t)], last);
@@ -264,16 +284,16 @@ async function corrections(ctx: OpContext, p: ParsedFind, found: boolean[], typi
 async function run(ctx: OpContext, p: ParsedFind, i: Input) {
   const q = p.terms.map(termTsquery).map((x) => `(${x})`).join(" | ");
   const [sp, small] = await Promise.all([
-    !i.kind || i.kind === "source" || i.kind === "passage" ? sourcesAndPassages(ctx, p, i, q) : Promise.resolve({ results: [], passages: 0, found: p.terms.map(() => false) }),
+    !i.kind || i.kind === "source" ? sources(ctx, p, i, q) : Promise.resolve({ results: [], hits: 0, found: p.terms.map(() => false) }),
     smallKinds(ctx, p, i, q),
   ]);
   const all = [...sp.results, ...small];
   const found = p.terms.map((_, k) => sp.found[k] || all.some((r) => !r.missing.includes(p.terms[k]!.text)));
-  return { all, passages: sp.passages, found };
+  return { all, hits: sp.hits, found };
 }
 
 export const PLAIN_DESCRIPTION =
-  "mode \"plain\" searches everything in the product the way a person types into a search box, ranked: sources with their best passages, assumptions, outcomes, mockups, Story pages and the product concept. Words match in any order, each at the start of a word; endings are forgiven (\"pricing\" finds price and priced); the last word matches as a prefix; \"quoted words\" match as a phrase; small words (the, of, how) are skipped; a word that matches nothing is replaced by the closest word the product holds, and `corrections` says so (`strict: true` turns that off). When nothing holds every word, results hold most of them and list the `missing` ones. At most 60 results come back, best first; `counts` says how many of each kind matched in all, so say so when more matched than came back. It takes `kind` and `record_id`, not the date or tag filters.";
+  "mode \"plain\" searches everything in the product the way a person types into a search box, ranked: sources, each with the best places it says the words (its derived text, summary, notes or comments; hits give the field and where the piece starts), assumptions, outcomes, mockups, Story pages and the product concept. Words match in any order, each at the start of a word; endings are forgiven (\"pricing\" finds price and priced); the last word matches as a prefix; \"quoted words\" match as a phrase; small words (the, of, how) are skipped; a word that matches nothing is replaced by the closest word the product holds, and `corrections` says so (`strict: true` turns that off). When nothing holds every word, results hold most of them and list the `missing` ones. At most 60 results come back, best first; `counts` says how many of each kind matched in all, so say so when more matched than came back. It takes `kind` and `record_id`, not the date or tag filters.";
 
 export async function plainSearch(ctx: OpContext, i: PlainInput) {
   let p = parseFind(i.query);
@@ -301,7 +321,6 @@ export async function plainSearch(ctx: OpContext, i: PlainInput) {
   const shown = (partial ? r.all : complete).sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
   const counts: Partial<Record<FindKind, number>> = {};
   for (const x of shown) counts[x.kind] = (counts[x.kind] ?? 0) + 1;
-  counts.passage = shown.reduce((n, x) => n + (x.hit_count ?? 0), 0);
   return {
     query: i.query,
     terms: p.terms.map((t) => ({ text: t.text, phrase: t.phrase })),
@@ -310,7 +329,7 @@ export async function plainSearch(ctx: OpContext, i: PlainInput) {
     corrections: fixed,
     partial,
     counts,
-    passages_matched: r.passages,
+    hits_matched: r.hits,
     results: shown.slice(0, i.record_id ? 1 : 60),
   };
 }

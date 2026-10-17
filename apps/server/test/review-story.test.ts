@@ -47,7 +47,7 @@ beforeAll(async () => {
   productPath = p.body.path;
   P = `/api/v1/p/${productPath}`;
   await alice.api("POST", `/api/v1/tenants/${tenantSlug}/members`, { team: teamSlug, product: "planner", email: "vic@example.com", role: "viewer" });
-  const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Finance lead interview — Example Co, Sep 2026", date: "2026-09-03", path: "call.vtt", role: "primary" });
+  const created = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Finance lead interview — Example Co, Sep 2026", date: "2026-09-03", path: "call.vtt" });
   recordId = created.body.record.record_id;
   const up = created.body.upload;
   await fetch(up.url, { method: "PUT", headers: up.headers, body: VTT });
@@ -399,7 +399,7 @@ describe("the sample product", () => {
     expect(tree.body.mockups.map((m: { page_id: string }) => m.page_id)).toEqual(["jobs-board", "day-planner", "crew-message"]);
     const overview = await sam.api("GET", `${S}/story/pages/overview`);
     expect(overview.body.agent_notes.content).toContain("## Purpose");
-    // The sample Story quotes its sources in words and links to no passage.
+    // The sample Story quotes its sources in words and links to no place in them.
     expect(overview.body.current.html).toContain("I type those by hand");
     expect(overview.body.current.html).not.toContain("view=passages");
     expect(overview.body.current.html).not.toContain("/evidence/");
@@ -410,12 +410,13 @@ describe("the sample product", () => {
     const doc = await sam.api("GET", `${S}/story/print?page_ids=hand-off-test,overview`);
     expect(doc.status).toBe(200);
     expect(doc.body).not.toContain("<h1>The hand-off test</h1>");
-    // One source carries a summary and notes, and an origin file kept unsearched.
+    // One source carries a summary and notes, and a second attachment whose text is kept beside its derived text.
     const sources = await sam.api("GET", `${S}/sources`);
     const call = sources.body.records.find((r: { title: string }) => r.title.startsWith("Crew lead interview"));
+    expect(call).toMatchObject({ derived_status: "ready", text_from: "interview.vtt", attachment_count: 2 });
     const source = await sam.api("GET", `${S}/sources/${call.record_id}?detail=full`);
     expect(source.body.agent_notes.map((n: { kind: string }) => n.kind).sort()).toEqual(["notes", "summary"]);
-    const roles = source.body.files.map((f: { role: string; path: string }) => `${f.role}:${f.path}`).sort();
-    expect(roles).toEqual(["origin:recorder-export.txt", "primary:interview.vtt"]);
+    const attachments = source.body.attachments.map((f: { path: string; is_text_source: boolean; text: { status: string } }) => `${f.path}:${f.text.status}:${f.is_text_source}`).sort();
+    expect(attachments).toEqual(["interview.vtt:ready:true", "recorder-export.txt:ready:false"]);
   });
 });

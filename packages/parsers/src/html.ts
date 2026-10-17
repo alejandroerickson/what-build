@@ -108,7 +108,7 @@ function tableRows(table: Node): string[][] {
  */
 export const htmlParser: FormatParser = {
   name: "html",
-  version: "5",
+  version: "6",
   parse(bytes) {
     const doc = parseHtml(decodeText(bytes)) as unknown as Node;
     const blocks: Block[] = [];

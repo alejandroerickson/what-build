@@ -39,7 +39,7 @@ message and every pull request's text is published, and history keeps it.
 
 WhatBuild turns a product team's discovery material into outcomes, mockups, reviewed assumptions
 and a Story for stakeholders. People use a React web app; agents use an MCP server exposing the
-same 120 operations (all but deleting an organization, which only its owner does, in the web app). There is no AI inside. One stateless image on Cloud Run,
+same 118 operations (all but deleting an organization, which only its owner does, in the web app). There is no AI inside. One stateless image on Cloud Run,
 Postgres, and object storage.
 
 The domain is **what-build.com**, with a hyphen: the public site at `what-build.com`, the app at
@@ -49,7 +49,7 @@ The domain is **what-build.com**, with a hyphen: the public site at `what-build.
 |---|---|
 | `okf/` | **All documentation.** Start at `okf/index.md`, then `okf/system/overview.md`. |
 | `packages/core` | Operations (defined once, served over REST and MCP), policy, domain rules, the agent skill. |
-| `packages/parsers` | Pure bytes-to-passages parsers. |
+| `packages/parsers` | Pure parsers from a file's bytes to readable Markdown. |
 | `apps/server` | Hono server: REST, MCP, identity and OAuth, uploads, worker, migrations, seed. |
 | `apps/web` | React app on the Studio design system. |
 | `e2e/plans` | End-to-end test plans an agent runs through the web app and MCP (`okf/operations/end-to-end-tests.md`). |

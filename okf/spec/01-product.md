@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild turns a team's discovery material into insight and a story, with agents as first-class contributors.
 description: Who the product is for, the core loop, the four screens, the vocabulary, the non-negotiable behaviors, and what the product is not.
 tags: [spec, product, vocabulary, principles]
-generated: {by: agent:claude, at: 2026-10-16}
+generated: {by: agent:claude, at: 2026-10-17}
 status: stable
 ---
 
@@ -15,7 +15,7 @@ status: stable
   add up to something: explicit direction, evidence-backed insight, and a story stakeholders can
   read.
 - **The agents working with them.** Most of the reading, searching and drafting is work an agent
-  does well when it can reach every passage of every source precisely. The product is designed so
+  does well when it can reach every source's words precisely. The product is designed so
   that an agent connected over MCP is a first-class contributor, not an integration.
 - **People evaluating the approach.** This is demonstration software. Someone should be able to
   read a real, fully derived discovery, the **sample product**, and be working in their own
@@ -35,8 +35,10 @@ status: stable
    it concerns, what it bears on
    ([decision](../decisions/sources-are-described-by-tags.md)). A contributor never chooses or
    learns a storage path.
-3. **Derive.** Every source's primary file is parsed into passage-addressable text: segments with
-   speakers, cue timestamps where they exist, and exact character offsets.
+3. **Derive.** Every attachment is read into readable Markdown, and each source has one
+   **derived text**, its words with speakers and cue times where they exist, which people and
+   agents read, correct and search by exact character offsets
+   ([decision](../decisions/a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)).
 4. **Explore.** Mock up directions as versioned canvases of HTML pages under a brief, and register
    the consequential assumptions, each saying why the team holds it.
 5. **Tell the story.** Publish an outward-facing, stakeholder-readable set of versioned HTML pages
@@ -55,7 +57,7 @@ of one of them.
 | Screen | Purpose |
 |---|---|
 | **Idea** | The product concept, then the outcomes. The landing screen of a product: where a product idea becomes explicit direction. |
-| **Evidence** | The sources: upload with a title and tags, browse by tag, by who added and when, source pages, the passage reader, notes, search. |
+| **Evidence** | The sources: upload with a title and tags, browse by tag, by who added and when, source pages with each source's text, notes, comments and attachments, search. |
 | **Exploration** | Mockups (canvases of agent-made HTML pages, each with design notes, under a brief) and the assumption register. Formerly called Synthesis. |
 | **Story** | The outward-facing report: an ordered hierarchy of versioned, sandboxed HTML pages. |
 
@@ -80,13 +82,12 @@ Idea screen's terms are a decision: [A product starts with its idea](../decision
 | **team** | A group inside a tenant and the products it runs. Roles granted on a team apply to its products. Never "workspace". |
 | **product** | One discovery. Owns all of the objects below. |
 | **role** | reader, viewer, editor or admin on a team or product; owner, admin or member of a tenant. A reader reads only the Story. |
-| **source** | One discovery event or document, with metadata and one or more files. Stored as a record: `record_id` in the API. The destination that holds them is **Evidence**; never "library", "document store", "bucket" or a storage path. |
-| **file** | A stored file belonging to a source, with a role: `primary`, `origin`, or `supplement`. The role is **origin**, not "source", so it cannot be confused with the destination. |
-| **attachment** | What the web app calls a source's files. |
+| **source** | One discovery event or document, with metadata, its derived text and its attachments. Stored as a record: `record_id` in the API. The destination that holds them is **Evidence**; never "library", "document store", "bucket" or a storage path. |
+| **attachment** | A file kept with a source, in the app, the API, the MCP tools and the documentation alike, with no role. Every attachment is read and what was read kept, never searched. Never "file" for the concept ("file" is for bytes and formats); the database's tables keep the names `files` and `file_versions`. |
+| **derived text** | A source's words as one Markdown document, taken from an attachment's text until someone writes or edits it; in prose, "a source's text". What search reads, with the title, tags, summary, notes and comments. |
+| **reading** | One read of one version of an attachment (an attachment is "read"); a `derivation` in the API. |
 | **comment** | A remark on a whole source (an `annotation` on the wire). |
 | **summary**, **notes** | A source's short summary, written for people, and its freeform notes, kept by people and agents ([§4.6](04-data-model.md)). |
-| **segment** | The atomic unit of derived text: a paragraph or a cue, with offsets. |
-| **passage** | A contiguous range of segments in one source. What search hits and reads address. |
 | **product concept** | Who the product is for, the problem they have, and how the product solves it. A product's `concept` field; it heads the **Idea** screen. |
 | **outcome** | What the product's users should be able to achieve with it, written from their side ("The crew lead plans next week in minutes"), not a feature, a task or a finding. Not the discovery's own goals. The outcomes are the compass everything else in a product is read against; an outcome cites no evidence. The destination that holds the product concept and the outcomes is **Idea**. |
 | **mockup** | A canvas of HTML pages an agent built from the evidence (screens, flows, alternatives side by side), each page with design notes, under a Markdown **brief** that says what the canvas explores. A version is the whole canvas. Never "exploration", "board" or "prototype". The destination that holds the mockups and the assumptions is **Exploration**. |
@@ -126,8 +127,9 @@ of them is now sources.
 4. **Authored text is never lost to an overwrite.** Every object with a body a person or an agent
    writes (the product concept, outcomes, comments, and assumptions while still editable) keeps immutable **revisions** ([§4.1](04-data-model.md)). A well-meaning agent
    rewriting a paragraph must never be the way a team loses it.
-5. **Evidence stays as it was read.** File versions and their derivations are immutable and
-   retained, so a passage stays readable exactly as it was after its source is parsed again. What
+5. **Evidence stays as it was read.** Attachment versions and their readings are immutable and
+   retained, so what an attachment was read as stays readable exactly as it was after it is read
+   again or the source's text is edited. What
    bears on a piece of work is found by searching the evidence, not kept as citations
    ([decision](../decisions/evidence-is-searched-not-cited.md)).
 6. **Attribution on every write.** Every mutation records who made it and through which surface,
@@ -150,12 +152,13 @@ of them is now sources.
     ([§2.6](02-architecture.md)).
 
 And the ethos that orders the work: **the smallest implementation that proves the full path wins.**
-Prove upload → derive → search → passage read end to end through both adapters, then grow.
+Prove upload → read → search → reading a source's text end to end through both adapters, then grow.
 
 ## 1.6 What this product is not
 
 - Not a general document manager: a source is discovery evidence, described by a title and tags
-  rather than filed in folders, and only its primary file is searched.
+  rather than filed in folders; what it says is searched, and its attachments are kept, never
+  searched.
 - Not a chat product: it has no built-in LLM and needs no model API key. Intelligence arrives
   through whatever agent the user connects over MCP.
 - Not a permissions system: see non-negotiable 1.

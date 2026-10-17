@@ -40,7 +40,7 @@ command. This file says how to conduct the work.
 3. **Check** that `pnpm fixture list`, or the pull's `pulled.json`, names exactly the
    organizations asked for. After a restore elsewhere, compare its rows with `pulled.json`'s, as
    the dev deployment's guide does in "Refreshing the copy", step 3. Then sign in and open a
-   product, a source and its passages.
+   product, a source and its text.
 4. **Report** to the person which organizations went from where to where, the rows and files
    copied, what was replaced or deleted, and what you could not check.
 

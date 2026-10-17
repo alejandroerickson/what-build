@@ -158,7 +158,7 @@
   text-underline-offset: 2px;
 }
 
-/* Evidence in prose: "Crew lead interview ¶5", a quiet accent-tinted token like a passage address. */
+/* Evidence in prose: "Crew lead interview", a quiet accent-tinted token like an address. */
 .evidence-link {
   padding: 0 1px;
   border-radius: var(--r-xs);

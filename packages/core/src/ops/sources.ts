@@ -1,13 +1,13 @@
 import { sql, type Selectable } from "kysely";
 import { z } from "zod";
 import { checkEtag, keepRevision, normalizeTags, productId, recordActivity, tenantId } from "../common.ts";
-import { json, type RecordsTable } from "../db.ts";
+import { json, type RecordsTable, type Tx } from "../db.ts";
 import { checkConfirmation, DELETE_CONFIRMATION, DELETE_GUIDANCE, deleteGuards, dropRevisions, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
 import { conflict, gone, invalid, notFound } from "../errors.ts";
-import { SEARCH_RULE } from "../source-fields.ts";
 import { effectiveRole, membershipsFor, roleAtLeast } from "../policy.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag, id, isoDate, tags } from "../schemas.ts";
+import { indexSource, indexText } from "../text-index.ts";
 import { newEtag, newId, sameEtag, slugify, uniq } from "../util.ts";
 
 type RecordRow = Selectable<RecordsTable>;
@@ -27,60 +27,137 @@ export async function loadRecord(ctx: OpContext, recordId: string, opts: { lock?
   return row;
 }
 
-/** The derived status a caller sees: the current derivation's status, or where the record stands before one exists. */
-export async function derivedStatuses(ctx: OpContext, recordIds: string[]) {
-  const out = new Map<string, { derived_status: string; segment_count: number; text_chars: number; duration_ms: number | null; file_count: number; pending_primary_path: string | null; status_detail: string | null; derivation_id: string | null }>();
-  if (!recordIds.length) return out;
-  const rows = await sql<{
+/** Each of the sources' attachments with its latest reading, of its current version. */
+export async function attachmentReadings(db: Tx, recordIds: string[]) {
+  if (!recordIds.length) return [];
+  const r = await sql<{
     record_id: string;
+    file_id: string;
+    path: string;
+    added_at: string;
+    added_by: unknown;
+    current_version_id: string | null;
+    derivation_id: string | null;
     status: string | null;
     status_detail: string | null;
-    segment_count: number | null;
+    parser: string | null;
+    parser_version: string | null;
     text_chars: number | null;
     duration_ms: string | null;
-    derivation_id: string | null;
-    derivation_version: string | null;
-    primary_version: string | null;
-    file_count: number;
-    pending_primary: string | null;
-    job_pending: boolean;
+    blob_prefix: string | null;
+    read_at: string | null;
   }>`
-    select r.record_id, d.status, d.status_detail, d.segment_count, d.text_chars, d.duration_ms, d.derivation_id,
-      d.file_version_id as derivation_version,
-      (select f.current_version_id from files f where f.record_id = r.record_id and f.role = 'primary') as primary_version,
-      (select count(*)::int from files f where f.record_id = r.record_id) as file_count,
-      (select g.path from upload_grants g where g.record_id = r.record_id and g.role = 'primary'
-         and g.completed_at is null and g.expires_at > now() order by g.created_at desc limit 1) as pending_primary,
-      exists (select 1 from jobs j where j.kind = 'derive' and j.done_at is null and j.payload->>'record_id' = r.record_id) as job_pending
-    from records r left join derivations d on d.derivation_id = r.current_derivation_id
-    where r.record_id = any(${recordIds})`.execute(ctx.db);
-  for (const r of rows.rows) {
+    select f.record_id, f.file_id, f.path, f.added_at, f.added_by, f.current_version_id,
+      d.derivation_id, d.status, d.status_detail, d.parser, d.parser_version, d.text_chars, d.duration_ms, d.blob_prefix, d.created_at as read_at
+    from files f
+    left join lateral (
+      select * from derivations d where d.file_version_id = f.current_version_id order by d.derivation_id desc limit 1) d on true
+    where f.record_id = any(${recordIds})
+    order by f.record_id, f.added_at, f.path`.execute(db);
+  return r.rows.map((x) => ({ ...x, duration_ms: x.duration_ms === null ? null : Number(x.duration_ms) }));
+}
+
+/** The attachment a source's derived text was taken from, while it is still that attachment's text. */
+export async function textFileId(db: Tx, recordId: string): Promise<string | null> {
+  const t = await db
+    .selectFrom("source_texts as t")
+    .innerJoin("file_versions as v", "v.file_version_id", "t.from_file_version_id")
+    .select("v.file_id")
+    .where("t.record_id", "=", recordId)
+    .executeTakeFirst();
+  return t?.file_id ?? null;
+}
+
+/** The attachment a derived text is still the text of: its path and version. */
+export async function takenFrom(db: Tx, fileVersionId: string | null): Promise<{ path: string; file_version_id: string } | null> {
+  if (!fileVersionId) return null;
+  const f = await db
+    .selectFrom("file_versions as v")
+    .innerJoin("files as f", "f.file_id", "v.file_id")
+    .select(["f.path", "v.file_version_id"])
+    .where("v.file_version_id", "=", fileVersionId)
+    .executeTakeFirst();
+  return f ?? null;
+}
+
+export interface TextStatus {
+  derived_status: string;
+  status_detail: string | null;
+  text_chars: number;
+  /** The longest recording or timed transcript among its attachments. */
+  duration_ms: number | null;
+  attachment_count: number;
+  /** The path of the attachment the derived text is still the text of. */
+  text_from: string | null;
+  /** An attachment whose upload is under way. */
+  pending_path: string | null;
+}
+
+/**
+ * Where each source's derived text stands: `ready` when it has one; otherwise `pending` while an
+ * attachment is arriving or being read, `awaiting_file` with no attachment, `awaiting_text` when
+ * an attachment has text the source does not use, and else how its newest attachment was read
+ * (`needs_transcript`, `unsupported`, `too_large` or `failed`).
+ */
+export async function derivedStatuses(ctx: OpContext, recordIds: string[]) {
+  const out = new Map<string, TextStatus>();
+  if (!recordIds.length) return out;
+  const readings = await attachmentReadings(ctx.db, recordIds);
+  const texts = await ctx.db
+    .selectFrom("source_texts as t")
+    .leftJoin("file_versions as v", "v.file_version_id", "t.from_file_version_id")
+    .leftJoin("files as f", "f.file_id", "v.file_id")
+    .select(["t.record_id", "t.chars", "f.path"])
+    .where("t.record_id", "in", recordIds)
+    .execute();
+  const jobs = await sql<{ record_id: string }>`
+    select distinct payload->>'record_id' as record_id from jobs
+    where kind = 'derive' and done_at is null and payload->>'record_id' = any(${recordIds})`.execute(ctx.db);
+  const reading = new Set(jobs.rows.map((j) => j.record_id));
+  const grants = await ctx.db
+    .selectFrom("upload_grants")
+    .select(["record_id", "path"])
+    .where("record_id", "in", recordIds)
+    .where("completed_at", "is", null)
+    .where("expires_at", ">", ctx.now)
+    .orderBy("created_at", "desc")
+    .execute();
+  for (const id of recordIds) {
+    const mine = readings.filter((x) => x.record_id === id);
+    const text = texts.find((x) => x.record_id === id);
+    const pending_path = grants.find((g) => g.record_id === id)?.path ?? null;
     let status: string;
-    if (!r.primary_version) status = r.pending_primary ? "pending" : "awaiting_file";
-    else if (r.job_pending || !r.status || r.derivation_version !== r.primary_version) status = "pending";
-    else status = r.status;
-    out.set(r.record_id, {
+    let detail: string | null = null;
+    if (text) status = "ready";
+    else if (reading.has(id) || pending_path || mine.some((x) => !x.derivation_id)) status = "pending";
+    else if (!mine.length) status = "awaiting_file";
+    else if (mine.some((x) => x.status === "ready")) status = "awaiting_text";
+    else {
+      const newest = mine.reduce((a, b) => (b.added_at > a.added_at ? b : a));
+      status = newest.status ?? "pending";
+      detail = newest.status_detail;
+    }
+    const durations = mine.map((x) => x.duration_ms).filter((d): d is number => d !== null);
+    out.set(id, {
       derived_status: status,
-      status_detail: status === r.status ? r.status_detail : null,
-      segment_count: status === "ready" ? Number(r.segment_count ?? 0) : 0,
-      text_chars: status === "ready" ? Number(r.text_chars ?? 0) : 0,
-      // A transcript's last cue time, or a recording's playing time read from its container.
-      duration_ms: status === r.status && r.duration_ms !== null ? Number(r.duration_ms) : null,
-      file_count: r.file_count,
-      pending_primary_path: r.primary_version ? null : r.pending_primary,
-      derivation_id: r.derivation_id,
+      status_detail: detail,
+      text_chars: text ? Number(text.chars) : 0,
+      duration_ms: durations.length ? Math.max(...durations) : null,
+      attachment_count: mine.length,
+      text_from: text?.path ?? null,
+      pending_path,
     });
   }
   return out;
 }
 
-/** Said wherever a source with files but no primary shows up: a primary is still expected. */
-export const NO_PRIMARY_WARNING =
-  "This source has no primary file yet, so nothing on it is parsed or searched. A primary is still expected: upload one with files(action=\"request_upload\", role=\"primary\"), or make an existing file the primary with files(action=\"set_role\").";
+/** Said wherever a source whose attachments have text, but which has no derived text, shows up. */
+export const NO_TEXT_WARNING =
+  "This source has an attachment with text but no derived text of its own, so search finds it only by its title, tags, summary, notes and comments. Take an attachment's text with derived(action=\"write_text\", from_attachment=…), or write the text.";
 
 /** What a read of a source should warn about, beyond its derived_status. */
-function sourceWarnings(s: { derived_status: string; file_count: number }): string[] {
-  return s.derived_status === "awaiting_file" && s.file_count > 0 ? [NO_PRIMARY_WARNING] : [];
+function sourceWarnings(s: { derived_status: string }): string[] {
+  return s.derived_status === "awaiting_text" ? [NO_TEXT_WARNING] : [];
 }
 
 /**
@@ -102,11 +179,11 @@ export async function duplicateWarnings(ctx: OpContext, meta: { title: string; d
   if (!same.length) return [];
   const ids = same.map((r) => r.record_id).join(", ");
   return [
-    `A source with the same title and date already exists (${ids}). If this is the same material, add files to that source and archive this one; if it is different, give this one a title that tells them apart.`,
+    `A source with the same title and date already exists (${ids}). If this is the same material, add attachments to that source and archive this one; if it is different, give this one a title that tells them apart.`,
   ];
 }
 
-export function recordSummary(r: RecordRow, s?: { derived_status: string; segment_count: number; file_count: number }) {
+export function recordSummary(r: RecordRow, s?: { derived_status: string; text_chars: number; attachment_count: number }) {
   return {
     record_id: r.record_id,
     title: r.title,
@@ -117,9 +194,9 @@ export function recordSummary(r: RecordRow, s?: { derived_status: string; segmen
     updated_at: r.updated_at,
     updated_by: r.updated_by,
     archived_at: r.archived_at,
-    derived_status: s?.derived_status ?? "pending",
-    segment_count: s?.segment_count ?? 0,
-    file_count: s?.file_count ?? 0,
+    derived_status: s?.derived_status ?? "awaiting_file",
+    text_chars: s?.text_chars ?? 0,
+    attachment_count: s?.attachment_count ?? 0,
     etag: r.etag,
   };
 }
@@ -186,9 +263,9 @@ export const listSources = defineOperation({
   scope: "product",
   access: "read",
   mutates: false,
-  summary: "List sources by metadata: newest added first, or by date, last update or title, either way round. For passage content use search.",
+  summary: "List sources by metadata: newest added first, or by date, last update or title, either way round. For what sources say, use search.",
   description:
-    "Filters combine. `tags` must all be on a source; sources(action=\"facets\") lists the tags in use and who added sources. `added_by` is an account_id; `added_since` keeps sources added at or after a date or time; `date_from` and `date_to` bound the source's own date. `query` is a case-insensitive substring over metadata only — title, tags and file names — never passage text; use `search` for content. `sort`: added (newest added first, the default), date (the source's own date, newest first, undated last), updated (details most recently changed first) or title (A to Z). `order` reverses it: asc or desc, defaulting to desc for the three dates and asc for title; undated sources stay last either way. Returns summaries with derived_status, the primary file's path (primary_file) and next_cursor; pass the cursor back with the same filters, sort and order.",
+    "Filters combine. `tags` must all be on a source; sources(action=\"facets\") lists the tags in use and who added sources. `added_by` is an account_id; `added_since` keeps sources added at or after a date or time; `date_from` and `date_to` bound the source's own date. `query` is a case-insensitive substring over metadata only — title, tags and attachment names — never what a source says; use `search` for that. `sort`: added (newest added first, the default), date (the source's own date, newest first, undated last), updated (details most recently changed first) or title (A to Z). `order` reverses it: asc or desc, defaulting to desc for the three dates and asc for title; undated sources stay last either way. Returns summaries with derived_status, the attachment the derived text was taken from (text_from) and next_cursor; pass the cursor back with the same filters, sort and order.",
   input: z.strictObject({
     tags: z.array(z.string()).max(20).optional().describe("All must match."),
     added_by: z.string().min(1).max(100).optional().describe("An account_id from sources(action=\"facets\"): only the sources that person added, in the app or through an agent."),
@@ -249,10 +326,6 @@ export const listSources = defineOperation({
     const rows = await sorted.limit(input.limit + 1).execute();
     const page = rows.slice(0, input.limit);
     const statuses = await derivedStatuses(ctx, page.map((r) => r.record_id));
-    const primaries = page.length
-      ? await ctx.db.selectFrom("files").select(["record_id", "path"]).where("role", "=", "primary").where("record_id", "in", page.map((r) => r.record_id)).execute()
-      : [];
-    const primaryOf = new Map(primaries.map((f) => [f.record_id, f.path]));
     const last = page[page.length - 1];
     let next: string | null = null;
     if (rows.length > input.limit && last)
@@ -261,41 +334,39 @@ export const listSources = defineOperation({
           ? last.record_id
           : Buffer.from(JSON.stringify({ v: input.sort === "date" ? last.date : input.sort === "updated" ? last.sort_updated : last.sort_title, id: last.record_id })).toString("base64url");
     return {
-      records: page.map((r) => ({ ...recordSummary(r, statuses.get(r.record_id)), primary_file: primaryOf.get(r.record_id) ?? null })),
+      records: page.map((r) => ({ ...recordSummary(r, statuses.get(r.record_id)), text_from: statuses.get(r.record_id)?.text_from ?? null })),
       next_cursor: next,
     };
   },
 });
 
-export async function fileEntries(ctx: OpContext, recordId: string, derivedStatus: string) {
-  const files = await ctx.db.selectFrom("files").selectAll().where("record_id", "=", recordId).orderBy("added_at").execute();
-  const versions = await ctx.db
+/** A source's attachments as a read shows them: each with its versions and how its text was read. */
+export async function attachmentEntries(db: Tx, recordId: string) {
+  const readings = await attachmentReadings(db, [recordId]);
+  const versions = await db
     .selectFrom("file_versions")
     .select(["file_version_id", "file_id", "size", "sha256", "media_type", "created_at", "created_by"])
     .where("record_id", "=", recordId)
     .orderBy("file_version_id", "desc")
     .execute();
-  return files.map((f) => {
-    const vs = versions.filter((v) => v.file_id === f.file_id);
-    const cur = vs.find((v) => v.file_version_id === f.current_version_id) ?? vs[0];
-    const searchable = f.role === "primary" && derivedStatus === "ready";
+  const textFile = await textFileId(db, recordId);
+  return readings.map((a) => {
+    const vs = versions.filter((v) => v.file_id === a.file_id);
+    const cur = vs.find((v) => v.file_version_id === a.current_version_id) ?? vs[0];
     return {
-      path: f.path,
-      role: f.role,
+      path: a.path,
       media_type: cur?.media_type ?? null,
       size: cur ? Number(cur.size) : null,
       sha256: cur?.sha256 ?? null,
-      file_version_id: f.current_version_id,
+      file_version_id: a.current_version_id,
       versions: vs.map((v) => ({ file_version_id: v.file_version_id, size: Number(v.size), media_type: v.media_type, created_at: v.created_at, created_by: v.created_by })),
-      derived_from: f.derived_from,
-      derivation_note: f.derivation_note,
-      derived_by: f.derived_by,
-      added_at: f.added_at,
-      added_by: f.added_by,
-      role_changed_at: f.role_changed_at,
-      role_changed_by: f.role_changed_by,
-      searchable,
-      search_status: f.role === "primary" ? derivedStatus : "not_searched",
+      added_at: a.added_at,
+      added_by: a.added_by,
+      // Read when it arrives; kept, never searched.
+      text: a.derivation_id
+        ? { status: a.status!, status_detail: a.status_detail, chars: Number(a.text_chars ?? 0), duration_ms: a.duration_ms, parser: a.parser, derivation_id: a.derivation_id, read_at: a.read_at }
+        : { status: "pending", status_detail: null, chars: 0, duration_ms: null, parser: null, derivation_id: null, read_at: null },
+      is_text_source: a.file_id === textFile,
     };
   });
 }
@@ -305,9 +376,9 @@ export const getSource = defineOperation({
   scope: "product",
   access: "read",
   mutates: false,
-  summary: "Read a source cheaply (brief), or everything about it (full): files, manifest, comments.",
+  summary: "Read a source cheaply (brief), or everything about it (full): attachments, derived text, comments.",
   description:
-    "Start with detail=\"brief\" to check derived_status and segment_count, then plan read_passage windows. warnings says when the source has files but still no primary. etag is the one sources.update and sources.delete expect. `full` adds files (each with searchable and search_status), the derivation manifest, comments and which agent notes exist. Neither returns file bytes or derived text. An archived source is still readable by id.",
+    "Start with detail=\"brief\": derived_status says whether the source has a derived text (ready) and text_chars how long it is, to plan derived(action=\"text\") windows; warnings says when an attachment has text the source does not use. etag is the one sources.update and sources.delete expect. `full` adds the attachments (each with how its text was read, and which one the derived text was taken from), the derived text's etag and who wrote it last, comments and which of the summary and notes exist. Neither returns file bytes or the text itself. An archived source is still readable by id.",
   input: z.strictObject({ record_id: id("source"), detail: z.enum(["brief", "full"]).default("brief") }),
   rest: { method: "GET", path: "/sources/:record_id" },
   mcp: { tool: "sources", action: "get" },
@@ -316,7 +387,7 @@ export const getSource = defineOperation({
     const s = (await derivedStatuses(ctx, [r.record_id])).get(r.record_id)!;
     const brief = {
       ...recordSummary(r, s),
-      text_chars: s.text_chars,
+      text_from: s.text_from,
       duration_ms: s.duration_ms,
       status_detail: s.status_detail,
       warnings: sourceWarnings(s),
@@ -325,9 +396,7 @@ export const getSource = defineOperation({
       ),
     };
     if (input.detail === "brief") return brief;
-    const derivation = s.derivation_id
-      ? await ctx.db.selectFrom("derivations").selectAll().where("derivation_id", "=", s.derivation_id).executeTakeFirst()
-      : undefined;
+    const text = await ctx.db.selectFrom("source_texts").select(["chars", "etag", "updated_at", "updated_by", "from_file_version_id"]).where("record_id", "=", r.record_id).executeTakeFirst();
     const annotations = await ctx.db.selectFrom("annotations").selectAll().where("record_id", "=", r.record_id).where("archived_at", "is", null).orderBy("annotation_id", "desc").limit(100).execute();
     const agentNotes = await ctx.db.selectFrom("agent_notes").select(["kind", "updated_at", "updated_by"]).where("record_id", "=", r.record_id).execute();
     return {
@@ -335,25 +404,10 @@ export const getSource = defineOperation({
       copied_from: r.copied_from,
       updated_at: r.updated_at,
       updated_by: r.updated_by,
-      pending_primary_path: s.pending_primary_path,
-      files: await fileEntries(ctx, r.record_id, s.derived_status),
-      search_rule: SEARCH_RULE,
-      manifest: derivation
-        ? {
-            derivation_id: derivation.derivation_id,
-            status: derivation.status,
-            status_detail: derivation.status_detail,
-            parser: derivation.parser,
-            parser_version: derivation.parser_version,
-            source_path: derivation.source_path,
-            file_version_id: derivation.file_version_id,
-            segment_count: derivation.segment_count,
-            text_chars: derivation.text_chars,
-            duration_ms: derivation.duration_ms === null ? null : Number(derivation.duration_ms),
-            facts: derivation.facts,
-            created_at: derivation.created_at,
-            inference: "none: passages come from a deterministic parser; no model produced or altered this text",
-          }
+      pending_upload_path: s.pending_path,
+      attachments: await attachmentEntries(ctx.db, r.record_id),
+      text: text
+        ? { chars: Number(text.chars), etag: text.etag, updated_at: text.updated_at, updated_by: text.updated_by, taken_from: await takenFrom(ctx.db, text.from_file_version_id) }
         : null,
       annotations,
       agent_notes: agentNotes,
@@ -399,6 +453,8 @@ export async function insertRecord(
       updated_by: json(ctx.actor),
     })
     .execute();
+  await indexText(ctx.db, tenantId(ctx), record_id, "title", input.title);
+  await indexText(ctx.db, tenantId(ctx), record_id, "tags", normalizeTags(input.tags).join(", "));
   await recordActivity(ctx, {
     action: copiedFrom ? "copied" : "created",
     entity_type: "source",
@@ -414,16 +470,16 @@ export const createSource = defineOperation({
   scope: "product",
   access: "write",
   mutates: true,
-  summary: "Create a source (a record) from metadata; then add files with files.request_upload, files.add_note or files.fetch_url.",
+  summary: "Create a source (a record) from metadata; then add attachments with attachments.request_upload or attachments.fetch_url, or write its text with derived.write_text.",
   description:
-    "Describe the material with a title and tags; there are no kinds or folders. To create a source and get an upload grant in one call, use files(action=\"create_upload\"). Before creating, check sources(action=\"list\", query=…) for an equivalent source — duplicates dilute search. warnings names any live source with the same title and date; nothing is refused.",
+    "Describe the material with a title and tags; there are no kinds or folders. To create a source and get an upload grant in one call, use attachments(action=\"create_upload\"). Before creating, check sources(action=\"list\", query=…) for an equivalent source — duplicates dilute search. warnings names any live source with the same title and date; nothing is refused.",
   input: z.strictObject(recordMetadata),
   rest: { method: "POST", path: "/sources" },
   mcp: { tool: "sources", action: "create" },
   async handler(ctx, input) {
     const warnings = await duplicateWarnings(ctx, input);
     const r = await insertRecord(ctx, input);
-    return { ...recordSummary(r, { derived_status: "awaiting_file", segment_count: 0, file_count: 0 }), warnings };
+    return { ...recordSummary(r, { derived_status: "awaiting_file", text_chars: 0, attachment_count: 0 }), warnings };
   },
 });
 
@@ -432,9 +488,9 @@ export const updateSource = defineOperation({
   scope: "product",
   access: "write",
   mutates: true,
-  summary: "Correct a source's metadata in place: title, date, tags or related sources. Pass only what changes.",
+  summary: "Correct a source's metadata in place: title, date or tags. Pass only what changes.",
   description:
-    "Fix mistakes here; never archive and recreate, because links and comments point at the record id. The id, files, passages and comments are untouched. tags replaces the whole list. Requires expected_etag: the source's current etag, from sources(action=\"get\") or the result of your last write to it. Adding a file also changes it. A stale one gets 409 stale_etag with details.current_etag; read the source again before retrying.",
+    "Fix mistakes here; never archive and recreate, because links and comments point at the record id. The id, attachments, derived text and comments are untouched. tags replaces the whole list. Requires expected_etag: the source's current etag, from sources(action=\"get\") or the result of your last write to it. Adding an attachment also changes it. A stale one gets 409 stale_etag with details.current_etag; read the source again before retrying.",
   input: z.strictObject({ record_id: id("source"), expected_etag: expectedEtag, ...recordMetadata, title: recordMetadata.title.optional() }),
   rest: { method: "PATCH", path: "/sources/:record_id" },
   mcp: { tool: "sources", action: "update" },
@@ -459,6 +515,8 @@ export const updateSource = defineOperation({
       })
       .where("record_id", "=", r.record_id)
       .execute();
+    if (changed.includes("title")) await indexText(ctx.db, tenantId(ctx), r.record_id, "title", next.title);
+    if (changed.includes("tags")) await indexText(ctx.db, tenantId(ctx), r.record_id, "tags", next.tags.join(", "));
     await recordActivity(ctx, {
       action: "updated",
       entity_type: "source",
@@ -546,7 +604,7 @@ export const annotate = defineOperation({
   mutates: true,
   summary: "Comment on a source as a whole.",
   description:
-    "A comment is an observation about the whole source, shown with the source's other comments and attributed to you. It is not anchored to any part of the text.",
+    "A comment is an observation about the whole source, shown with the source's other comments and attributed to you. It is not anchored to any part of the text. Comments are searched with the rest of the source.",
   input: z.strictObject({
     record_id: id("source"),
     note: z.string().trim().min(1).max(2000).describe("The comment, Markdown, up to 2,000 characters."),
@@ -564,6 +622,7 @@ export const annotate = defineOperation({
         note: input.note, tags: normalizeTags(input.tags), etag: newEtag(), created_by: json(ctx.actor), updated_by: json(ctx.actor),
       })
       .execute();
+    await indexText(ctx.db, tenantId(ctx), r.record_id, "comment", input.note, annotation_id);
     await recordActivity(ctx, { action: "note_added", entity_type: "source", entity_id: r.record_id, entity_title: r.title, summary: "Added a comment" });
     return ctx.db.selectFrom("annotations").selectAll().where("annotation_id", "=", annotation_id).executeTakeFirstOrThrow();
   },
@@ -642,6 +701,7 @@ export const updateAnnotation = defineOperation({
       })
       .where("annotation_id", "=", a.annotation_id)
       .execute();
+    if (input.note !== undefined && input.note !== a.note) await indexText(ctx.db, tenantId(ctx), a.record_id, "comment", input.note, a.annotation_id);
     const r = await ctx.db.selectFrom("records").select("title").where("record_id", "=", a.record_id).executeTakeFirst();
     await recordActivity(ctx, {
       action: input.archived === true ? "note_archived" : input.archived === false ? "note_restored" : "note_updated",
@@ -678,6 +738,7 @@ export const deleteAnnotation = defineOperation({
     await leaveTombstone(ctx, { object_type: "annotation", object_id: a.annotation_id, title: truncateQuote(a.note, 200), reason: input.reason });
     await dropRevisions(ctx, "annotation", [a.annotation_id]);
     await ctx.db.deleteFrom("annotations").where("annotation_id", "=", a.annotation_id).execute();
+    await indexText(ctx.db, tenantId(ctx), a.record_id, "comment", null, a.annotation_id);
     await recordActivity(ctx, { action: "note_deleted", entity_type: "source", entity_id: a.record_id, entity_title: r?.title ?? null, summary: "Deleted a comment permanently" });
     return { deleted: true, annotation_id: a.annotation_id, record_id: a.record_id, reason: input.reason };
   },
@@ -708,9 +769,9 @@ export const moveSource = defineOperation({
   scope: "product",
   access: "write",
   mutates: true,
-  summary: "Move a source, with its files, passages, notes and comments, to another product in the same team.",
+  summary: "Move a source, with its attachments, derived text, summary, notes and comments, to another product in the same team.",
   description:
-    "The record keeps its id, so its passages, file versions, notes and comments move intact. Copy instead to keep it in both.",
+    "The record keeps its id, so its attachments and their versions, its derived text, summary, notes and comments move intact. Copy instead to keep it in both.",
   input: z.strictObject({ record_id: id("source"), to_product: z.string().min(1).describe("Target product id or slug, in the same team."), expected_etag: expectedEtag }),
   rest: { method: "POST", path: "/sources/:record_id/move" },
   mcp: { tool: "sources", action: "move_to_product" },
@@ -737,7 +798,7 @@ export const copySource = defineOperation({
   mutates: true,
   summary: "Copy a source into another product in the same team, with a new id and a copied_from link.",
   description:
-    "The copy shares the original's stored files (blobs are immutable) and is derived afresh in the target. Notes and comments stay with the original. Returns the new record id.",
+    "The copy shares the original's stored attachments (blobs are immutable), which are read afresh in the target, and takes its derived text. The summary, notes and comments stay with the original. Returns the new record id.",
   input: z.strictObject({ record_id: id("source"), to_product: z.string().min(1) }),
   rest: { method: "POST", path: "/sources/:record_id/copy" },
   mcp: { tool: "sources", action: "copy_to_product" },
@@ -747,14 +808,28 @@ export const copySource = defineOperation({
     const targetCtx: OpContext = { ...ctx, scope: { ...ctx.scope, product: { product_id: target.product_id, slug: target.slug, name: target.name, archived_at: null } } };
     const copy = await insertRecord(targetCtx, r, { product_id: productId(ctx), record_id: r.record_id });
     const files = await ctx.db.selectFrom("files").selectAll().where("record_id", "=", r.record_id).execute();
+    const text = await ctx.db.selectFrom("source_texts").selectAll().where("record_id", "=", r.record_id).executeTakeFirst();
+    // The copy's derived text is still the text of the attachment it was taken from: its copy.
+    let textFrom: string | null = null;
     for (const f of files) {
       if (!f.current_version_id) continue;
       const v = await ctx.db.selectFrom("file_versions").selectAll().where("file_version_id", "=", f.current_version_id).executeTakeFirstOrThrow();
       const file_id = newId();
       const file_version_id = newId();
-      await ctx.db.insertInto("files").values({ file_id, tenant_id: tenantId(ctx), record_id: copy.record_id, path: f.path, role: f.role, current_version_id: file_version_id, derived_from: f.derived_from, derivation_note: f.derivation_note, derived_by: f.derived_by, added_by: json(ctx.actor) }).execute();
+      await ctx.db.insertInto("files").values({ file_id, tenant_id: tenantId(ctx), record_id: copy.record_id, path: f.path, current_version_id: file_version_id, added_by: json(ctx.actor) }).execute();
       await ctx.db.insertInto("file_versions").values({ file_version_id, tenant_id: tenantId(ctx), record_id: copy.record_id, file_id, blob_key: v.blob_key, size: v.size, sha256: v.sha256, media_type: v.media_type, created_by: json(ctx.actor) }).execute();
-      if (f.role === "primary") await ctx.enqueue("derive", { record_id: copy.record_id, file_version_id });
+      if (text?.from_file_version_id) {
+        const was = await ctx.db.selectFrom("file_versions").select("file_id").where("file_version_id", "=", text.from_file_version_id).executeTakeFirst();
+        if (was?.file_id === f.file_id) textFrom = file_version_id;
+      }
+      await ctx.enqueue("derive", { record_id: copy.record_id, file_version_id });
+    }
+    if (text) {
+      await ctx.db
+        .insertInto("source_texts")
+        .values({ record_id: copy.record_id, tenant_id: tenantId(ctx), content: text.content, chars: text.chars, from_file_version_id: textFrom, updated_at: text.updated_at, updated_by: json(text.updated_by), etag: newEtag() })
+        .execute();
+      await indexSource(ctx.db, copy.record_id);
     }
     await recordActivity(ctx, { action: "copied_out", entity_type: "source", entity_id: r.record_id, entity_title: r.title, summary: `Copied to product ${target.name}` });
     return { record_id: copy.record_id, product_id: target.product_id, copied_from: { product_id: productId(ctx), record_id: r.record_id } };
@@ -775,7 +850,7 @@ async function impact(ctx: OpContext, r: RecordRow) {
     bytes: files.reduce((n, f) => n + Number(f.size), 0),
     derivations: derivations.length,
     annotations: annotations.length,
-    after_delete: "Its files, every stored version of them, its passages and its comments go. Links to it from Story pages, mockups and notes open a record of the deletion instead.",
+    after_delete: "Its attachments, every stored version of them and what was read from them, its derived text, summary, notes and comments go. Links to it from Story pages, mockups and notes open a record of the deletion instead.",
     _blobs: files.map((f) => f.blob_key),
     _prefixes: derivations.map((d) => d.blob_prefix),
   };
@@ -806,7 +881,7 @@ export const deleteSource = defineOperation({
   scope: "product",
   access: "admin",
   mutates: true,
-  summary: "DELETE PERMANENTLY — cannot be undone. Destroys a source's files, passages, notes and comments; archive is the reversible alternative.",
+  summary: "DELETE PERMANENTLY — cannot be undone. Destroys a source's attachments, derived text, notes and comments; archive is the reversible alternative.",
   description:
     "Archive (sources.archive) is the reversible alternative and almost always what is wanted. " +
     DELETE_GUIDANCE +

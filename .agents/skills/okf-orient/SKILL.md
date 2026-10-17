@@ -30,13 +30,13 @@ Run `corepack pnpm attention` once per session and tell the person what it print
 | You need | Read |
 |---|---|
 | What the product is for, and what it deliberately is not | `okf/project/charter.md`, then `PRODUCT.md` |
-| The product's vocabulary (source, passage, mockup, Story…) | `okf/spec/01-product.md` |
+| The product's vocabulary (source, attachment, derived text, mockup, Story…) | `okf/spec/01-product.md` |
 | Where a file or feature lives | `okf/system/repository-map.md` |
 | Why something is built the way it is | `okf/decisions/index.md`, then the record |
 | Components, stack, adapters, configuration | `okf/spec/02-architecture.md` |
 | Tenancy, roles, sign-in, tokens, OAuth | `okf/spec/03-accounts-teams-and-identity.md` |
 | Objects, fields, limits, invariants, assumptions, Story | `okf/spec/04-data-model.md` |
-| Parsing, passages, derived files, the job queue | `okf/spec/05-derived-layer.md` |
+| Reading attachments, the derived text, derived files, the job queue | `okf/spec/05-derived-layer.md` |
 | Every operation, REST and MCP shapes, errors | `okf/spec/06-operations-and-adapters.md` |
 | Screens, URLs, interface behavior | `okf/spec/07-web-app.md`, then `DESIGN.md` for visuals |
 | Search modes and ranking | `okf/spec/08-search.md` |
