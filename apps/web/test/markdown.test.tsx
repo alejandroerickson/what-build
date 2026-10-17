@@ -37,6 +37,9 @@ describe("safe Markdown", () => {
     expect(out).toContain("<h2>Title</h2>");
     expect(out).toContain("<table>");
     expect(out).toContain('type="checkbox"');
+    // A tight task item holds its words inline, once, with no paragraph around them.
+    expect(out).toMatch(/<li><input[^>]*> done<\/li>/);
+    expect(out).not.toContain("[ ]");
   });
   it("renders evidence as a linked token named by its source, resolving a source mentioned by id when titles are known", () => {
     const id = "01K5Z8T2Q4R6S8V0W2X4Y6Z8A0";
