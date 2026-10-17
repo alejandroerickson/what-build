@@ -1,6 +1,6 @@
 import { sql, type RawBuilder } from "kysely";
 import { z } from "zod";
-import { normalizeDimensions, normalizeTags, productId } from "../common.ts";
+import { normalizeTags, productId } from "../common.ts";
 import { invalid } from "../errors.ts";
 import { FIND_KINDS, PLAIN_DESCRIPTION, plainSearch } from "./plain-search.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
@@ -166,9 +166,6 @@ const input = z.strictObject({
   date_from: isoDate.optional().describe("The source's own date, on or after."),
   date_to: isoDate.optional().describe("The source's own date, on or before."),
   tags: z.array(z.string()).max(20).optional().describe("Only sources carrying all of these tags."),
-  customer: z.string().max(120).optional(),
-  product_area: z.string().max(120).optional(),
-  lifecycle_stage: z.enum(["discovery", "sales", "research"]).optional(),
   provenance_depth: provenanceDepth.optional(),
   kind: z.enum(FIND_KINDS).optional().describe("Plain mode only: one kind of thing. `passage` returns sources by their matching passages."),
   strict: z.boolean().default(false).describe("Plain mode only: search the words as typed, without correcting a word that matches nothing."),
@@ -186,10 +183,6 @@ function recordFilters(i: Input) {
   if (i.date_from) parts.push(sql`r.date >= ${i.date_from}`);
   if (i.date_to) parts.push(sql`r.date <= ${i.date_to}`);
   if (i.tags?.length) parts.push(sql`r.tags @> ${normalizeTags(i.tags)}::text[]`);
-  for (const k of ["customer", "product_area", "lifecycle_stage"] as const) {
-    const v = i[k];
-    if (v) parts.push(sql`r.dimensions->>${k} = ${normalizeDimensions({ [k]: v })[k]!}`);
-  }
   if (i.provenance_depth) parts.push(sql`r.provenance_depth = ${i.provenance_depth}`);
   return parts.length ? sql.join(parts, sql` and `) : sql`true`;
 }
@@ -297,10 +290,6 @@ async function searchAssumptions(ctx: OpContext, i: Input) {
   const filters: RawBuilder<unknown>[] = [sql`e.product_id = ${pid}`, sql`e.kind = 'assumption'`];
   if (!i.include_archived) filters.push(sql`e.archived_at is null`);
   if (i.provenance_depth) filters.push(sql`e.provenance_depth = ${i.provenance_depth}`);
-  for (const k of ["customer", "product_area", "lifecycle_stage"] as const) {
-    const v = i[k];
-    if (v) filters.push(sql`e.dimensions->>${k} = ${normalizeDimensions({ [k]: v })[k]!}`);
-  }
   const match =
     i.mode === "substring"
       ? sql`(e.statement ilike ${"%" + i.query + "%"} or e.body ilike ${"%" + i.query + "%"})`
@@ -326,7 +315,7 @@ export const search = defineOperation({
   mcp: { tool: "search" },
   async handler(ctx, i) {
     if (i.mode === "plain") {
-      const other = (["scope", "date_from", "date_to", "tags", "customer", "product_area", "lifecycle_stage", "provenance_depth", "cursor"] as const).filter((k) => k === "scope" ? i.scope !== "passages" : i[k] !== undefined && !(Array.isArray(i[k]) && !(i[k] as unknown[]).length));
+      const other = (["scope", "date_from", "date_to", "tags", "provenance_depth", "cursor"] as const).filter((k) => k === "scope" ? i.scope !== "passages" : i[k] !== undefined && !(Array.isArray(i[k]) && !(i[k] as unknown[]).length));
       if (other.length || i.include_archived) throw invalid("invalid_filter", `Plain search takes query, kind, record_id and strict; not ${[...other, ...(i.include_archived ? ["include_archived"] : [])].join(", ")}.`);
       return { mode: "plain", ...(await plainSearch(ctx, { query: i.query, kind: i.kind, record_id: i.record_id, strict: i.strict })) };
     }

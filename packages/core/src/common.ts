@@ -1,4 +1,4 @@
-import { json, type ActorSnapshot, type Dimensions } from "./db.ts";
+import { json, type ActorSnapshot } from "./db.ts";
 import { staleEtag } from "./errors.ts";
 import type { OpContext } from "./registry.ts";
 import { collapse, newId, normalizeKey, sameEtag, uniq } from "./util.ts";
@@ -91,16 +91,6 @@ export function productId(ctx: OpContext): string {
 
 export function tenantId(ctx: OpContext): string {
   return ctx.scope.tenant!.tenant_id;
-}
-
-export function normalizeDimensions(d: Dimensions | undefined, base: Dimensions = {}): Dimensions {
-  const out: Dimensions = { ...base };
-  if (!d) return out;
-  for (const k of ["customer", "product_area", "lifecycle_stage"] as const) {
-    if (d[k] === undefined) continue;
-    out[k] = d[k] === null ? null : normalizeKey(d[k]!);
-  }
-  return out;
 }
 
 export function normalizeTags(tags: string[] | undefined): string[] {

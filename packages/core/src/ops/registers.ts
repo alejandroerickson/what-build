@@ -1,11 +1,11 @@
 import { sql, type Selectable } from "kysely";
 import { z } from "zod";
-import { checkEtag, keepRevision, normalizeDimensions, normalizeTags, productId, recordActivity, tenantId } from "../common.ts";
+import { checkEtag, keepRevision, normalizeTags, productId, recordActivity, tenantId } from "../common.ts";
 import { json, type RegisterEntriesTable, type RegisterLink } from "../db.ts";
 import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, dropRevisions, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
 import { conflict, invalid, notFound } from "../errors.ts";
 import { defineOperation, type OpContext, type OperationDef } from "../registry.ts";
-import { authorType, dimensions, expectedEtag, id, provenanceDepth, tags } from "../schemas.ts";
+import { authorType, expectedEtag, id, provenanceDepth, tags } from "../schemas.ts";
 import { applyEdits, editsInput, textDiff } from "../text-edits.ts";
 import { newEtag, newId, uniq } from "../util.ts";
 import { archivedOutcomeIds } from "./outcomes.ts";
@@ -98,7 +98,6 @@ async function detail(ctx: OpContext, row: Row) {
     outcome_ids: row.outcome_ids,
     archived_outcome_ids: row.outcome_ids.filter((o) => archivedOutcomes.has(o)),
     tags: row.tags,
-    dimensions: row.dimensions,
     provenance_depth: row.provenance_depth,
     author: row.author,
     author_type: row.author_type,
@@ -177,7 +176,6 @@ function registerOps(): OperationDef[] {
     outcome_ids: z.array(id("outcome")).max(20).optional(),
     links: z.array(linkInput).max(50).optional(),
     tags: tags.optional(),
-    dimensions: dimensions.optional(),
     provenance_depth: provenanceDepth.optional(),
     author_type: authorType.optional(),
   };
@@ -199,8 +197,7 @@ function registerOps(): OperationDef[] {
       .insertInto("register_entries")
       .values({
         entry_id, tenant_id: tenantId(ctx), product_id: productId(ctx), kind, statement: input.statement, body: input.body,
-        links: json(links), outcome_ids: uniq(input.outcome_ids ?? []), tags: normalizeTags(input.tags),
-        dimensions: json(normalizeDimensions(input.dimensions)), provenance_depth: input.provenance_depth ?? "unknown",
+        links: json(links), outcome_ids: uniq(input.outcome_ids ?? []), tags: normalizeTags(input.tags), provenance_depth: input.provenance_depth ?? "unknown",
         author: json(ctx.actor), author_type: input.author_type ?? defaultReviewerType(ctx), status: "unconfirmed",
         etag: newEtag(), updated_by: json(ctx.actor),
       })
@@ -215,7 +212,7 @@ function registerOps(): OperationDef[] {
     access: "read",
     mutates: false,
     summary: `List ${kind}s, newest first, without quotes or review notes.`,
-    description: `${meaning} Without status it lists the current entries (unconfirmed and confirmed), the ones products(action="list") and outcomes count; not_current_hidden says how many refuted or superseded entries matching the other filters it left out. Pass status (one or more of unconfirmed, confirmed, refuted, superseded) to list those too. Filter also by an outcome, a tag, human confidence or dimensions. Archived entries are left out unless include_archived. Each item says whether it is frozen (reviewed, so its statement and body can no longer be edited), which entries supersede it (superseded_by, newest first), and how many links it has out (link_count) and in (linked_from_count); get returns the links themselves.`,
+    description: `${meaning} Without status it lists the current entries (unconfirmed and confirmed), the ones products(action="list") and outcomes count; not_current_hidden says how many refuted or superseded entries matching the other filters it left out. Pass status (one or more of unconfirmed, confirmed, refuted, superseded) to list those too. Filter also by an outcome, a tag or human confidence. Archived entries are left out unless include_archived. Each item says whether it is frozen (reviewed, so its statement and body can no longer be edited), which entries supersede it (superseded_by, newest first), and how many links it has out (link_count) and in (linked_from_count); get returns the links themselves.`,
     input: z.strictObject({
       status: z.array(STATUS).max(4).optional().describe("Only these statuses. Omit for the current ones: unconfirmed and confirmed."),
       outcome_id: id("outcome").optional(),
@@ -252,7 +249,7 @@ function registerOps(): OperationDef[] {
       for (const r of page)
         items.push({
           id: r.entry_id, kind: r.kind, statement: r.statement, status: r.status, author: r.author, author_type: r.author_type,
-          created_at: r.created_at, updated_at: r.updated_at, dimensions: r.dimensions, provenance_depth: r.provenance_depth, tags: r.tags,
+          created_at: r.created_at, updated_at: r.updated_at, provenance_depth: r.provenance_depth, tags: r.tags,
           outcome_ids: r.outcome_ids, archived_outcome_ids: r.outcome_ids.filter((o) => archivedOutcomes.has(o)),
           frozen: r.review_count > 0, superseded_by: incoming.get(r.entry_id)!.superseded_by,
           link_count: r.links.length, linked_from_count: incoming.get(r.entry_id)!.linked_from,
@@ -310,7 +307,7 @@ function registerOps(): OperationDef[] {
     scope: "product",
     access: "write",
     mutates: true,
-    summary: `Edit a ${kind}. Statement and body only until its first review; tags, outcomes, links and dimensions always.`,
+    summary: `Edit a ${kind}. Statement and body only until its first review; tags, outcomes and links always.`,
     description:
       "After the first review the statement and body are frozen, because a confirmation must refer to the exact words reviewed; correct a reviewed entry with supersede. For a small correction before then, pass edits (exact replacements in the statement or body that must each match once) instead of re-sending the whole text. Earlier text is kept as a revision. The result lists changed fields and a short diff of each changed text; check it.",
     input: z.strictObject({
@@ -322,7 +319,6 @@ function registerOps(): OperationDef[] {
       outcome_ids: createFields.outcome_ids,
       links: createFields.links,
       tags: createFields.tags,
-      dimensions: createFields.dimensions,
       provenance_depth: createFields.provenance_depth,
     }),
     rest: { method: "PATCH", path: `/${tool}/:id` },
@@ -352,7 +348,6 @@ function registerOps(): OperationDef[] {
           links: json(links),
           outcome_ids: input.outcome_ids ? uniq(input.outcome_ids) : row.outcome_ids,
           tags: input.tags ? normalizeTags(input.tags) : row.tags,
-          dimensions: json(normalizeDimensions(input.dimensions, row.dimensions)),
           provenance_depth: input.provenance_depth ?? row.provenance_depth,
           etag: newEtag(),
           updated_at: ctx.now,
@@ -364,7 +359,7 @@ function registerOps(): OperationDef[] {
       const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
       const changed = [
         ...(["statement", "body"] as const).filter((k) => next[k] !== row[k]),
-        ...(["links", "outcome_ids", "tags", "dimensions", "provenance_depth"] as const).filter((k) => !same(after[k], row[k])),
+        ...(["links", "outcome_ids", "tags", "provenance_depth"] as const).filter((k) => !same(after[k], row[k])),
       ];
       const diff = (["statement", "body"] as const).filter((k) => next[k] !== row[k]).map((k) => textDiff(k, row[k], next[k])!);
       await recordActivity(ctx, { action: "updated", entity_type: kind, entity_id: row.entry_id, entity_title: next.statement, summary: changed.length ? `Changed ${changed.join(", ")}` : "Edited the entry" });

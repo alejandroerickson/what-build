@@ -18,12 +18,6 @@ export interface ActorSnapshot {
   client: string | null;
 }
 
-export interface Dimensions {
-  customer?: string | null;
-  product_area?: string | null;
-  lifecycle_stage?: string | null;
-}
-
 /** What an insight referred to, as stored before insights and decisions moved into Evidence. */
 export interface LegacyRefs {
   outcomes?: string[];
@@ -274,7 +268,6 @@ export interface RecordsTable {
   participants: string[];
   source_system: string | null;
   tags: string[];
-  dimensions: Json<Dimensions>;
   provenance_depth: string;
   slug: string;
   copied_from: JsonNull<{ product_id: string; record_id: string }>;
@@ -497,7 +490,6 @@ export interface RegisterEntriesTable {
   links: Json<RegisterLink[]>;
   outcome_ids: string[];
   tags: string[];
-  dimensions: Json<Dimensions>;
   provenance_depth: string;
   author: Json<ActorSnapshot>;
   author_type: "human" | "agent";

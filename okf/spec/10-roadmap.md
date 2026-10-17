@@ -157,7 +157,7 @@ be deleted, by an admin, and an organization by its owner ([§9.5](09-data-lifec
 ## Phase 7 — Retrieval
 
 In the order evidence supports: relevance set and semantic/hybrid evaluation on `pgvector`;
-dimension registry; tiered attachment search ([§8](08-search.md)).
+tiered attachment search ([§8](08-search.md)).
 
 *Accept:* hybrid beats lexical on the measured relevance set — or it is not adopted.
 

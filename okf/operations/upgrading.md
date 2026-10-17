@@ -23,6 +23,15 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **Migration `0027_drop_dimensions`.** It drops the `dimensions` columns of `records` and
+  `register_entries`, and the field in saved sandbox baselines: every customer, product area and
+  lifecycle stage a source or assumption held is deleted, not moved anywhere. Rehearse on the dev
+  deployment first ([dev-deployment](dev-deployment.md)). An earlier release cannot add a source
+  or an assumption on the new schema, so going back past this one means restoring the database
+  ([recovering](recovering-from-a-bad-release.md)).
+- **Agents can no longer send dimensions.** Nothing to set. A call that sends `dimensions`, or
+  filters `sources(action="list")` or `search` by `customer`, `product_area` or
+  `lifecycle_stage`, is refused with `422` and a hint to use tags. The web app never showed them.
 - **ACS mail with managed identity.** Optional: an Azure-hosted deployment can use the ACS Email
   API by selecting `WHATBUILD_MAILER=acs`, setting `WHATBUILD_ACS_EMAIL_ENDPOINT` and a verified
   `WHATBUILD_MAIL_FROM`, and granting its managed identity access to the linked Communication

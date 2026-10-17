@@ -324,6 +324,12 @@ Notes on recent actions:
   `read_passage`'s `record` carry no kind. A call to a `sources`, `files` or
   `search` operation naming `kind`, `organization` or `folder` is `422 invalid_input`, with a hint
   to use tags and `sources(action="facets")`.
+- Sources and assumptions have no dimensions; tags say whom material concerns and what it bears
+  on ([decision](../decisions/sources-are-described-by-tags.md)). `sources.list` and `search` lost `customer`, `product_area` and
+  `lifecycle_stage`; `sources.create`, `sources.update`, `files.create_upload`,
+  `assumptions.create` and `assumptions.update` take no `dimensions`, and reads of sources and
+  assumptions carry none. A call to a `sources`, `files`, `search` or `assumptions` operation
+  naming one is `422 invalid_input`, with a hint to use tags.
 - Insights and decisions are retired, with their operations and their MCP tools; what a product
   held of them became sources ([§4.7](04-data-model.md)).
 - Citations are retired, and so is the graph around them

@@ -10,7 +10,6 @@ export interface RecordSummary {
   title: string;
   date: string | null;
   tags: string[];
-  dimensions: { customer?: string | null; product_area?: string | null; lifecycle_stage?: string | null };
   provenance_depth: string;
   uploaded_by: Actor;
   uploaded_at: string;
@@ -120,7 +119,6 @@ export interface RegisterEntry {
   linked_from: { id: string; type: string; kind: string; statement: string; status: string }[];
   outcome_ids: string[];
   tags: string[];
-  dimensions: Record<string, string | null>;
   provenance_depth: string;
   author: Actor;
   author_type: "human" | "agent";
