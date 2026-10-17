@@ -44,8 +44,8 @@ export const VOCABULARY = [
   { element: `<main class="page">`, role: "The page container." },
   { element: `<header class="opening">`, role: "Opening: .kicker, h1 (the conclusion), .lead (why it matters), .meta (date, status)." },
   { element: "<section> with an h2", role: "One job per section. h3 for subheads." },
-  { element: `<figure class="quote"><blockquote>…</blockquote><figcaption>…</figcaption></figure>`, role: "An exact quotation with who, when and a link to the passage." },
-  { element: `<aside class="note">`, role: "A side note: sources, limits, a definition." },
+  { element: `<figure class="quote"><blockquote>…</blockquote><figcaption>…</figcaption></figure>`, role: "An exact quotation with who said it and when." },
+  { element: `<aside class="note">`, role: "A side note: a limit, a definition, or what the page rests on." },
   { element: `<aside class="callout" data-tone="caution">`, role: "Something that changes how the page should be read. Say its status in words." },
   { element: `<span class="status" data-state="evidence|caution|open">`, role: "A state label; the text always names the state." },
   { element: `<div class="figures"><p class="figure"><strong>23</strong> what was counted</p></div>`, role: "Real numbers with what they count." },
@@ -191,7 +191,7 @@ export function specimenBody(): string {
 <section aria-labelledby="heard">
 <h2 id="heard" data-label="Evidence">Crew leads call the hand-off, not the planning, the painful part</h2>
 <div class="quotes">
-<figure class="quote"><blockquote><p>The texts are the worst part honestly. Every crew lead gets a message with their jobs and addresses, and <mark>I type those by hand</mark>.</p></blockquote><figcaption>Crew lead, landscaping · interview · <a href="#heard">segment 8</a></figcaption></figure>
+<figure class="quote"><blockquote><p>The texts are the worst part honestly. Every crew lead gets a message with their jobs and addresses, and <mark>I type those by hand</mark>.</p></blockquote><figcaption>Crew lead, landscaping · interview</figcaption></figure>
 <figure class="quote"><blockquote><p><mark>Sending everybody their day</mark> is what takes forever.</p></blockquote><figcaption>Open comment · planning survey, spring round</figcaption></figure>
 <figure class="quote"><blockquote><p>I added a column that says CONFIRMED but <mark>half the time nobody fills it in</mark>.</p></blockquote><figcaption>Crew lead, landscaping · second interview</figcaption></figure>
 </div>
@@ -221,7 +221,7 @@ export function specimenBody(): string {
 <li><strong>Prototype the message</strong> from a real week’s plan, and read it through with both pilot crews.</li>
 <li><strong>Interview two more owners</strong> of cleaning crews about whether they plan by the job or by the day.</li>
 </ol>
-<details><summary>How we know this</summary><p>Quotes are exact and link to their passages. Counts come from the survey export; the once-a-week mistake rate is one crew lead’s estimate, not a measurement.</p></details>
+<details><summary>How we know this</summary><p>Quotes are exact. Counts come from the survey export; the once-a-week mistake rate is one crew lead’s estimate, not a measurement.</p></details>
 </section>
 </main>`;
 }

@@ -180,55 +180,33 @@
   color: var(--faint);
   font-size: var(--fs-xs);
 }
-.source-built {
-  margin: 0 0 var(--s-1);
-}
-.source-built-how {
-  color: var(--muted);
-}
-.source-file-summary,
-.source-cited {
+.source-file-summary {
   display: grid;
   gap: var(--s-2);
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.source-file-summary li,
-.source-cited li {
+.source-file-summary li {
   display: grid;
   grid-template-columns: var(--icon-md) minmax(0, 1fr);
   gap: var(--s-2);
   align-items: baseline;
 }
-.source-file-summary .glyph,
-.source-cited .glyph {
+.source-file-summary .glyph {
   position: relative;
   top: 2px;
   color: var(--faint);
 }
-.source-file-summary li > span,
-.source-cited-main {
+.source-file-summary li > span {
   display: grid;
   min-width: 0;
 }
 .source-file-summary b {
   font-weight: var(--fw-medium);
 }
-.source-file-summary li > span > span,
-.source-cited-main > span {
+.source-file-summary li > span > span {
   font-size: var(--fs-xs);
-}
-.source-cited a {
-  color: var(--text);
-  text-decoration: none;
-}
-.source-cited a:hover {
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.source-cited .quiet-link {
-  color: var(--faint);
 }
 .source-inspector-note {
   margin: var(--s-2) 0;
@@ -578,13 +556,6 @@
 .source-impact p {
   line-height: 1.5;
 }
-.source-impact-list {
-  display: grid;
-  gap: var(--s-1);
-  margin-bottom: 0;
-  padding-left: var(--s-4);
-  line-height: 1.5;
-}
 .source-role-choice {
   display: grid;
   gap: var(--s-1);
@@ -735,7 +706,7 @@
   font-size: var(--fs-sm);
   font-weight: var(--fw-semibold);
 }
-/* Reading aids under a passage: what it cites, and what cites it. */
+/* Reading aids under a passage: the sources it mentions. */
 .passage-aids {
   display: flex;
   flex-wrap: wrap;
@@ -744,32 +715,14 @@
   margin: 0 0 var(--s-1h);
   font-size: var(--fs-sm);
 }
-.passage-cites {
+.passage-mentions {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: var(--s-1) var(--s-2);
 }
-.passage-cites .evidence-link {
+.passage-mentions .evidence-link {
   font-variant-numeric: tabular-nums;
-}
-.passage-cited {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-1);
-  min-height: var(--h-sm);
-  padding: 0 var(--s-1h);
-  border: 0;
-  border-radius: var(--r-xs);
-  background: color-mix(in srgb, var(--accent) 7%, transparent);
-  color: var(--select-text);
-  font: inherit;
-  font-size: var(--fs-sm);
-  cursor: pointer;
-}
-.passage-cited:hover,
-.passage-cited[aria-expanded="true"] {
-  background: color-mix(in srgb, var(--accent) 13%, transparent);
 }
 .passage-comments {
   display: grid;

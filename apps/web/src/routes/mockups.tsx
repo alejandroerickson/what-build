@@ -3,19 +3,17 @@ import { MOCKUP_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
-import { attribution, citedAt, formatBytes, formatDate, formatDateTime, nestQuotes, plural } from "../lib/format.ts";
-import { Markdown, passageHref } from "../lib/markdown.tsx";
+import { attribution, formatBytes, formatDate, formatDateTime, plural } from "../lib/format.ts";
+import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
-import { REVIEW_STATUS, toneFor } from "../lib/status.ts";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
-import { Button, ButtonLink, Callout, Crumbs, Dialog, EmptyState, ErrorCallout, Glyph, Group, KeyValue, Loading, Menu, MenuItem, MenuNote, MenuRadio, MenuSeparator, StatusBadge, TextField, useToast } from "../ui/index.tsx";
+import { Button, ButtonLink, Callout, Crumbs, Dialog, EmptyState, ErrorCallout, Glyph, Group, KeyValue, Loading, Menu, MenuItem, MenuNote, MenuRadio, MenuSeparator, TextField, useToast } from "../ui/index.tsx";
 import { COARSE_POINTER_QUERY, isTypingTarget, useMediaQuery } from "../ui/media.ts";
 import { DeleteDialog } from "./delete-dialog.tsx";
 import { FirstUse } from "./first-use.tsx";
 import { usePageView, type PageView } from "./story-flip.tsx";
 import { FocusToggle, useStoryFocus } from "./story-focus.tsx";
-import { driftWords } from "./story-inspector.tsx";
-import type { Actor, CitationCheck, CitationView, ResolvedRef } from "./story-model.ts";
+import type { Actor } from "./story-model.ts";
 import "../styles/screens/story.css";
 import "../styles/screens/mockups.css";
 
@@ -62,8 +60,6 @@ interface PrototypeInfo {
   sandbox: string;
 }
 
-type RefKind = "outcomes" | "sources" | "assumptions";
-
 interface MockupVersion {
   version: number;
   title: string;
@@ -74,8 +70,6 @@ interface MockupVersion {
   /** Text files the version carries for collaborators: never used to draw a page. */
   files: MockupFile[];
   prototype?: PrototypeInfo | null;
-  resolved_refs: Record<RefKind, ResolvedRef[]>;
-  citations: CitationView[];
   published_at: string;
   published_by: Actor;
 }
@@ -910,16 +904,6 @@ function Canvas({ version, pageSrc, selected, onSelect, onKey, canFocus, pageVie
 
 // ---- The inspector ------------------------------------------------------------------------------
 
-const REF_KINDS: { kind: RefKind; label: string }[] = [
-  { kind: "outcomes", label: "Outcomes" },
-  { kind: "assumptions", label: "Assumptions" },
-  { kind: "sources", label: "Sources" },
-];
-
-function refLink(app: string, kind: RefKind, id: string) {
-  return kind === "outcomes" ? `${app}/idea` : kind === "sources" ? `${app}/evidence/${id}` : `${app}/exploration/assumptions/${id}`;
-}
-
 function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, pageView, onShow }: {
   e: MockupView;
   shown: MockupVersion;
@@ -931,21 +915,14 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, pa
   /** Shows the selected page fitted or filling the width, as 2 and 3 do. */
   onShow: (how: PageView) => void;
 }) {
-  const { app, api: base, canDelete } = useProduct();
+  const { api: base, canDelete } = useProduct();
   const toast = useToast();
   const [downloading, setDownloading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const isCurrent = shown.version === e.current_version;
   const numbered = isCurrent ? `${shown.version}, current` : `${shown.version} of ${e.current_version}`;
-  const refs = shown.resolved_refs;
-  const refCount = REF_KINDS.reduce((n, k) => n + (refs[k.kind]?.length ?? 0), 0);
   const index = shown.pages.findIndex((p) => p.page_id === selected);
   const page = index >= 0 ? shown.pages[index]! : null;
-  const checks = useQuery({
-    queryKey: ["mockup-citations", base, e.mockup_id, shown.version],
-    enabled: shown.citations.length > 0,
-    queryFn: () => api<{ citations: CitationCheck[] }>("GET", `${base}/mockups/${e.mockup_id}/check-citations?version=${shown.version}`),
-  });
 
   const download = async () => {
     setDownloading(true);
@@ -1074,61 +1051,6 @@ function MockupInspector({ e, shown, versions, onVersion, selected, onSelect, pa
       </Group>
 
       <Files mockupId={e.mockup_id} shown={shown} />
-
-      <Group title="Explores" count={refCount}>
-        {refCount ? (
-          <div className="story-refs">
-            {REF_KINDS.filter((k) => refs[k.kind]?.length).map((k) => (
-              <div key={k.kind} className="story-ref-kind">
-                <h4 className="story-ref-label">{k.label}</h4>
-                <ul>
-                  {refs[k.kind].map((r) => (
-                    <li key={r.id}>
-                      {r.missing ? <span className="faint">{r.id}</span> : <Link className="story-ref-link" to={refLink(app, k.kind, r.id)}>{r.title ?? r.id}</Link>}
-                      {r.missing ? <span className="story-ref-status"> · No longer in this product</span> : r.archived ? <span className="story-ref-status"> · Archived</span> : k.kind === "assumptions" && r.status ? <span className="story-ref-status"> · {REVIEW_STATUS[r.status]?.label ?? r.status}</span> : null}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <EmptyState size="inline">This version links no outcomes, assumptions or sources.</EmptyState>
-        )}
-      </Group>
-
-      {shown.citations.length ? (
-        <Group title="Cited passages" count={shown.citations.length}>
-          <ol className="story-cites">
-            {shown.citations.map((c) => {
-              const check = checks.data?.citations.find((x) => x.index === c.index);
-              const at = citedAt(c, check);
-              return (
-                <li key={c.index} className="story-cite">
-                  <div className="story-cite-head">
-                    <Link className="story-cite-source story-ref-link" to={`${app}/evidence/${c.record_id}`}>
-                      {c.source_title ?? "Source"}
-                    </Link>
-                    <Link className="story-cite-address num" to={passageHref(app, c.record_id, at?.seq_start, at?.seq_end)}>
-                      {c.seq_start === c.seq_end ? `¶${c.seq_start}` : `¶${c.seq_start}–${c.seq_end}`}
-                    </Link>
-                  </div>
-                  <q className="story-cite-quote">{nestQuotes(c.quote)}</q>
-                  <div className="story-cite-status">
-                    {check ? (
-                      <StatusBadge tone={check.version_drift && check.status === "ok" ? "attention" : toneFor("citation", check.status)}>{driftWords(check)}</StatusBadge>
-                    ) : checks.isError ? (
-                      <span className="faint">Couldn’t check against the source</span>
-                    ) : (
-                      <span className="faint">Checking against the source…</span>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        </Group>
-      ) : null}
     </div>
   );
 }

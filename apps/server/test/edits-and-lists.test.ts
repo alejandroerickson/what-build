@@ -23,7 +23,6 @@ let productPath: string;
 let recordId: string;
 let agentToken: string;
 
-const cite = () => [{ record_id: recordId, seq_start: 0, seq_end: 0 }];
 
 function text(r: unknown): any {
   const content = (r as { content: { text: string }[] }).content;
@@ -104,7 +103,7 @@ describe("register edits", () => {
   let etag: string;
 
   it("replaces an exact passage before the first review, with changed and diff", async () => {
-    const a = await alice.api("POST", `${P}/assumptions`, { statement: "Finance closes the numbers on Friday.", body: "Dana said so (see D1).", citations: cite() });
+    const a = await alice.api("POST", `${P}/assumptions`, { statement: "Finance closes the numbers on Friday.", body: "Dana said so (see D1)." });
     expect(a.status).toBe(201);
     id = a.body.id;
     const r = await alice.api("PATCH", `${P}/assumptions/${id}`, { expected_etag: a.body.etag, edits: [{ old_text: "(see D1)", new_text: "(see the export decision)" }], tags: ["finance"] });
@@ -141,16 +140,16 @@ describe("register edits", () => {
     const client = new Client({ name: "test-agent", version: "1.0.0" });
     await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${agentToken}` } } }));
     const d = text(await client.callTool({ name: "assumptions", arguments: { action: "review", describe: true } }));
-    expect(d.description).toContain("freezes the entry's statement, body and citations");
+    expect(d.description).toContain("freezes the entry's statement and body");
     await client.close();
   });
 });
 
 describe("register lists", () => {
   it("show frozen, superseded_by and link counts, and filter by status", async () => {
-    const old = await alice.api("POST", `${P}/assumptions`, { statement: "Exports run weekly.", citations: cite() });
-    const other = await alice.api("POST", `${P}/assumptions`, { statement: "Exports stay in the spreadsheet.", citations: cite(), links: [{ id: old.body.id, type: "supports" }] });
-    const s = await alice.api("POST", `${P}/assumptions/${old.body.id}/supersede`, { expected_etag: old.body.etag, note: "Wrong cadence.", statement: "Exports run every Friday.", citations: cite() });
+    const old = await alice.api("POST", `${P}/assumptions`, { statement: "Exports run weekly." });
+    const other = await alice.api("POST", `${P}/assumptions`, { statement: "Exports stay in the spreadsheet.", links: [{ id: old.body.id, type: "supports" }] });
+    const s = await alice.api("POST", `${P}/assumptions/${old.body.id}/supersede`, { expected_etag: old.body.etag, note: "Wrong cadence.", statement: "Exports run every Friday." });
     expect(s.status).toBe(200);
     const list = await alice.api("GET", `${P}/assumptions?query=Exports&status=unconfirmed,confirmed,refuted,superseded`);
     const byId = new Map(list.body.items.map((i: any) => [i.id, i]));
@@ -223,7 +222,7 @@ describe("archived outcomes", () => {
     expect(all.body).toMatchObject({ archived_hidden: 0 });
     expect(all.body.note).toBeUndefined();
 
-    const a = await alice.api("POST", `${P}/assumptions`, { statement: "Linked too.", citations: cite(), outcome_ids: [gone.body.outcome_id] });
+    const a = await alice.api("POST", `${P}/assumptions`, { statement: "Linked too.", outcome_ids: [gone.body.outcome_id] });
     expect(a.body.archived_outcome_ids).toEqual([gone.body.outcome_id]);
     const al = await alice.api("GET", `${P}/assumptions?query=Linked`);
     expect(al.body.items[0].archived_outcome_ids).toEqual([gone.body.outcome_id]);
@@ -267,7 +266,7 @@ describe("id aliases", () => {
     const call = (name: string, action: string, params: Record<string, unknown>) => client.callTool({ name, arguments: { action, params, product: productPath } });
     const obj = await alice.api("POST", `${P}/outcomes`, { title: "Alias aim" });
     const other = await alice.api("POST", `${P}/outcomes`, { title: "Another aim" });
-    const as = await alice.api("POST", `${P}/assumptions`, { statement: "Alias premise.", citations: cite() });
+    const as = await alice.api("POST", `${P}/assumptions`, { statement: "Alias premise." });
 
     expect(text(await call("outcomes", "get", { id: obj.body.outcome_id })).title).toBe("Alias aim");
     expect(text(await call("outcomes", "revisions", { id: obj.body.outcome_id })).items).toBeDefined();

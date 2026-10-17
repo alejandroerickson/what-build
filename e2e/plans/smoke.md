@@ -40,7 +40,7 @@ other plans will too.
    takes Jordan back to the Story (`okf/decisions/a-reader-reads-only-the-story.md`), without
    errors or a broken screen on the way.
 8. **MCP, as Sam.** `info`, then `tools`. *Expect:* the server names itself `whatbuild` with a
-   skill version; there are sixteen tools; the instructions say to start with
+   skill version; there are fifteen tools; the instructions say to start with
    `products(action="list")`. Call `get_skill` and compare its version with the server's.
 9. **MCP, as Sam.** List products, then list sources, assumptions, mockups and Story pages
    (`story` `list_pages`) in the product from step 2, and read one passage with `read_passage`.

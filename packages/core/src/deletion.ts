@@ -1,4 +1,3 @@
-import { sql } from "kysely";
 import { z } from "zod";
 import { productId, tenantId } from "./common.ts";
 import { json } from "./db.ts";
@@ -68,32 +67,4 @@ export async function refuseIfDeleted(ctx: OpContext, objectType: TombstoneType,
 export async function dropRevisions(ctx: OpContext, objectType: string, objectIds: string[]): Promise<void> {
   if (!objectIds.length) return;
   await ctx.db.deleteFrom("revisions").where("object_type", "=", objectType).where("object_id", "in", objectIds).execute();
-}
-
-/** Every Story page version, current or earlier, whose refs name an object of this kind. */
-export async function storyVersionsReferring(ctx: OpContext, kind: "outcomes" | "assumptions", objectId: string) {
-  const rows = await ctx.db
-    .selectFrom("story_versions as v")
-    .innerJoin("story_pages as p", (j) => j.onRef("p.product_id", "=", "v.product_id").onRef("p.page_id", "=", "v.page_id"))
-    .select(["v.page_id", "p.title", "v.n", "v.version_id", "p.current_version_id"])
-    .where("v.product_id", "=", productId(ctx))
-    .where(sql<boolean>`v.refs -> ${kind} ? ${objectId}`)
-    .orderBy("p.title")
-    .orderBy("v.n", "desc")
-    .execute();
-  return rows.map((v) => ({ page_id: v.page_id, title: v.title, version: v.n, is_current: v.version_id === v.current_version_id }));
-}
-
-/** Every mockup version, current or earlier, whose refs name an object of this kind. */
-export async function mockupVersionsReferring(ctx: OpContext, kind: "outcomes" | "assumptions", objectId: string) {
-  const rows = await ctx.db
-    .selectFrom("mockup_versions as v")
-    .innerJoin("mockups as m", "m.mockup_id", "v.mockup_id")
-    .select(["v.mockup_id", "m.title", "v.n", "v.version_id", "m.current_version_id"])
-    .where("v.product_id", "=", productId(ctx))
-    .where(sql<boolean>`v.refs -> ${kind} ? ${objectId}`)
-    .orderBy("m.title")
-    .orderBy("v.n", "desc")
-    .execute();
-  return rows.map((v) => ({ mockup_id: v.mockup_id, title: v.title, version: v.n, is_current: v.version_id === v.current_version_id }));
 }

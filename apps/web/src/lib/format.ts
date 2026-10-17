@@ -108,7 +108,7 @@ export function plural(n: number, one: string, many = `${one}s`): string {
 
 /**
  * A passage's text as a person reads it. Parsers keep a heading's Markdown markers ("## Scope") in
- * the stored text, which citations quote; the reader shows the heading without them.
+ * the stored text, which search and agents read; the reader shows the heading without them.
  */
 export function passageText(text: string, headingLevel: number | null | undefined): string {
   return headingLevel ? text.replace(/^#{1,6}[ \t]+/, "") : text;
@@ -169,24 +169,4 @@ export function fileTypeName(mediaType: string | null | undefined, path?: string
   const ext = path?.match(/\.([a-z0-9]{1,8})$/i)?.[1];
   if (ext) return `${ext.toUpperCase()} file`;
   return t || "Unknown type";
-}
-
-type Range = { seq_start: number; seq_end: number };
-
-/** Where a citation's link opens: where the check found the quote now, the stored range, or the source's start once its quote is gone. */
-export function citedAt(c: Range, check?: { status: string; relocated?: Range | null }): Range | null {
-  if (check?.status === "relocated" && check.relocated) return check.relocated;
-  return check?.status === "text_changed" ? null : c;
-}
-
-/**
- * What a citation check says beyond its status, in words: a quote found only once formatting was
- * set aside, a newer primary file, or a re-parse of the same file since the citation was made.
- */
-export function citationCheckWords(base: string, c: { version_drift: boolean; derivation_changed?: boolean; quote_match?: string }): string {
-  const notes: string[] = [];
-  if (c.quote_match === "normalized") notes.push("matched ignoring formatting");
-  if (c.version_drift) notes.push("newer file version");
-  else if (c.derivation_changed) notes.push("source re-parsed");
-  return [base, ...notes].join(" · ");
 }

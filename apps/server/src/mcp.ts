@@ -18,10 +18,9 @@ const GROUP_SENTENCES: Record<string, string> = {
   files: "Move files into sources through short-lived grants (never pass bytes through a tool), set file roles, and get download grants. Only the primary file is searched.",
   derived: "Read a source's parse: manifest, outline, text windows and older derivations; re-parse; and keep agent-written summaries or notes.",
   outcomes: "Read and maintain the product's outcomes: what its users should be able to achieve with it, the compass the rest of the product is read against. Read them first. An outcome cites nothing and is current or archived. Updates change only the fields you pass and keep old text as revisions.",
-  assumptions: "The assumption register: premises the team treats as true, optionally cited to exact passages, with attributed reviews.",
-  story: "Read and publish the Story: versioned, sandboxed HTML pages for stakeholders, citing exact passages, each with notes for agents, arranged in a hierarchy with its own etag. Pages follow the product's Story style (get_style, set_style): the team's own design system or an adopted house style, never WhatBuild's look. Read guidance first, then the style, and a page's notes before revising it; preview a page, and look at it, before publishing it.",
+  assumptions: "The assumption register: premises the team treats as true while evidence is incomplete, with attributed reviews.",
+  story: "Read and publish the Story: versioned, sandboxed HTML pages that explain the product to stakeholders, each with notes for agents, arranged in a hierarchy with its own etag. Pages follow the product's Story style (get_style, set_style): the team's own design system or an adopted house style, never WhatBuild's look. Read guidance first, then the style, and a page's notes before revising it; preview a page, and look at it, before publishing it.",
   mockups: "Read and publish mockups: canvases of agent-made HTML pages (screens, flows, alternatives) in Exploration, each with design notes per page and a Markdown brief that says what the canvas explores. A version is the whole canvas. Download a version as a ZIP to build the next one elsewhere, then publish the pages that changed.",
-  lineage: "Record and check the direct inputs a derived view was built from, so staleness can be reported.",
   activity: "What changed in the product, who changed it, and whether an agent did it.",
 };
 

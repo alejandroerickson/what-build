@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:codex, at: 2026-10-15}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
@@ -29,6 +29,25 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   Services resource. For a user-assigned identity set `WHATBUILD_AZURE_CLIENT_ID`. No SMTP
   identity or mail secret is needed. Existing mailer defaults are unchanged; see
   [Azure](azure.md#mail-with-azure-communication-services).
+- **Migration `0028_citations_refs_and_lineage_retired`.** It removes citations and the graph
+  around them. Each assumption's citations, and those of a decision still waiting to move into
+  Evidence, go to the end of its body under **Passages cited**, one line per quote with its
+  source's title, and those entries get a new etag; Story page and mockup versions lose their
+  citations and references, sources their related sources, and views their lineage; kept
+  revisions and saved sandbox baselines are rewritten the same way. It drops columns and a table,
+  so an earlier release does not run on the new schema, and going back past it means restoring
+  the database ([recovering from a bad release](recovering-from-a-bad-release.md)). Rehearse on
+  the dev deployment first ([dev-deployment](dev-deployment.md)).
+- **Citations, references, lineage and related sources are gone.** Nothing to set. Assumptions,
+  Story pages and mockups no longer cite passages or list what they draw on; a source's page no
+  longer shows Cited in or Built from, and a passage no longer shows Cited by. `check_citations`,
+  `sources.used_by` and the `lineage` tool are gone (121 operations, 15 MCP tools); a call that
+  sends `citations`, `refs` or `related_records` is refused (`422`), and a source moves to another
+  product whatever mentions it.
+- **The skill is 0.29.0, and the Story guidance 4.0.0.** Agents explain in their own words and
+  quote a person only where their words matter, without passage links. Connected agents are asked
+  to update the skill. A client connected before the upgrade keeps the old tool list, with
+  `lineage` and `check_citations`, until its person starts a new session.
 
 ## v0.12.0
 

@@ -85,7 +85,7 @@ describe("plain search over the sample product", () => {
     const r = await find("crew message");
     expect(titles(r)[0]).toBe("story: Crew message");
     expect(new Set(r.results.map((x: { kind: string }) => x.kind))).toEqual(new Set(["story", "source", "mockup"]));
-    // A source appears once, with its best passages, each usable as a citation.
+    // A source appears once, with its best passages, each read by its seq.
     const greenline = r.results.find((x: { title: string }) => x.title.startsWith("Crew lead interview"));
     expect(greenline.hit_count).toBe(4);
     expect(greenline.hits).toHaveLength(3);

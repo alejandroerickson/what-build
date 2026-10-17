@@ -93,7 +93,7 @@ that what one door writes the other finds at once, and that a reader has no sear
     `tags`, and `kind` with `mode: "substring"`. *Expect:* each refused with `invalid_filter` and a
     message that says why.
 11. **MCP, then web, as Sam.** Over MCP, create an assumption whose statement holds a made-up word
-    (synthetic, such as "zorbleflux"), citing a passage as the skill describes. On the web, search
+    (synthetic, such as "zorbleflux"), with a body saying why, as the skill describes. On the web, search
     the made-up word straight away. *Expect:* the assumption is found, under Exploration on the
     Search screen. Archive it on the web, then search the word over MCP. *Expect:* nothing is found.
 12. **Web and MCP, as Sam, in the sandbox organization.** In the same product, repeat the palette

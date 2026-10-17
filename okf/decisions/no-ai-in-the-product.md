@@ -3,7 +3,7 @@ type: Decision
 title: WhatBuild contains no AI; agents bring the intelligence over MCP
 description: The product parses, stores, searches and checks deterministically; synthesis comes from the team's own agents.
 tags: [decision, architecture, mcp, agents]
-generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
@@ -22,7 +22,7 @@ Discovery synthesis needs a capable model, but a model inside the product means 
 ## Consequences
 
 - MCP is the most complete control panel: every operation is reachable there ([decision](one-registry-two-front-doors.md)).
-- The product's value is exact storage, addressing, citation checking and attribution, which a model cannot fake.
+- The product's value is exact storage, addressing, search and attribution, which a model cannot fake.
 - Local development and CI need no keys at all ([decision](development-substitutes-adapters-never-behavior.md)).
 
 ## Constrains

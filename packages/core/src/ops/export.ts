@@ -153,8 +153,6 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
     if (notes.length) add(`${base}/annotations.json`, j(notes));
     const agent = await db.selectFrom("agent_notes").selectAll().where("record_id", "=", r.record_id).execute();
     for (const a of agent) add(`${base}/agent-notes/${a.kind}.md`, a.content);
-    const lineage = await db.selectFrom("lineage").selectAll().where("record_id", "=", r.record_id).executeTakeFirst();
-    if (lineage) add(`${base}/lineage.json`, j(lineage));
   }
 
   const entries = await db.selectFrom("register_entries").selectAll().where("product_id", "=", pid).where("kind", "=", "assumption").orderBy("entry_id").execute();

@@ -1,8 +1,7 @@
 import { sql, type Selectable } from "kysely";
 import { z } from "zod";
 import { checkEtag, keepRevision, normalizeDimensions, normalizeTags, productId, recordActivity, tenantId } from "../common.ts";
-import { citedRanges, type CitedRange } from "../citations.ts";
-import { json, type CitationSnapshot, type RecordsTable } from "../db.ts";
+import { json, type RecordsTable } from "../db.ts";
 import { checkConfirmation, DELETE_CONFIRMATION, DELETE_GUIDANCE, deleteGuards, dropRevisions, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
 import { conflict, gone, invalid, notFound } from "../errors.ts";
 import { SEARCH_RULE } from "../source-fields.ts";
@@ -86,7 +85,7 @@ function sourceWarnings(s: { derived_status: string; file_count: number }): stri
 
 /**
  * A soft warning, never a refusal, when a live source in this product already has the same title
- * (ignoring case and surrounding space) and date: duplicates split citations and dilute search.
+ * (ignoring case and surrounding space) and date: duplicates dilute search.
  */
 export async function duplicateWarnings(ctx: OpContext, meta: { title: string; date?: string | null | undefined }): Promise<string[]> {
   const date = meta.date ?? null;
@@ -325,7 +324,7 @@ export const getSource = defineOperation({
   mutates: false,
   summary: "Read a source cheaply (brief), or everything about it (full): files, manifest, outline, notes.",
   description:
-    "Start with detail=\"brief\" to check derived_status and segment_count, then plan read_passage windows. warnings says when the source has files but still no primary. etag is the one sources.update and sources.delete expect. `full` adds files (each with searchable and search_status), the derivation manifest, the outline, notes, and for a view its lineage (direct inputs, how they were chosen, when captured and registered; staleness comes from lineage check). Neither returns file bytes or derived text. An archived source is still readable by id.",
+    "Start with detail=\"brief\" to check derived_status and segment_count, then plan read_passage windows. warnings says when the source has files but still no primary. etag is the one sources.update and sources.delete expect. `full` adds files (each with searchable and search_status), the derivation manifest, the outline and notes. Neither returns file bytes or derived text. An archived source is still readable by id.",
   input: z.strictObject({ record_id: id("source"), detail: z.enum(["brief", "full"]).default("brief") }),
   rest: { method: "GET", path: "/sources/:record_id" },
   mcp: { tool: "sources", action: "get" },
@@ -355,13 +354,11 @@ export const getSource = defineOperation({
       }
     }
     const annotations = await ctx.db.selectFrom("annotations").selectAll().where("record_id", "=", r.record_id).where("archived_at", "is", null).orderBy("annotation_id", "desc").limit(100).execute();
-    const lineage = await ctx.db.selectFrom("lineage").select(["inputs", "query_spec", "captured_at", "generated_at", "generated_by"]).where("record_id", "=", r.record_id).executeTakeFirst();
     const agentNotes = await ctx.db.selectFrom("agent_notes").select(["kind", "updated_at", "updated_by"]).where("record_id", "=", r.record_id).execute();
     return {
       ...brief,
       participants: r.participants,
       source_system: r.source_system,
-      related_records: r.related_records,
       copied_from: r.copied_from,
       updated_at: r.updated_at,
       updated_by: r.updated_by,
@@ -387,18 +384,6 @@ export const getSource = defineOperation({
         : null,
       outline,
       annotations,
-      has_lineage: Boolean(lineage),
-      lineage: lineage
-        ? {
-            scope: "direct_inputs",
-            inputs: lineage.inputs.map((i) => ({ kind: i.kind, id: i.id })),
-            query_spec: lineage.query_spec,
-            captured_at: lineage.captured_at,
-            registered_at: lineage.generated_at,
-            registered_by: lineage.generated_by,
-            staleness: 'Not checked here: call lineage(action="check").',
-          }
-        : null,
       agent_notes: agentNotes,
     };
   },
@@ -414,22 +399,9 @@ export const recordMetadata = {
   tags: tags
     .optional()
     .describe("What the material is (interview, workshop, deck, analysis), whom it concerns (an organization, a segment) and what it bears on. Reuse the product's tags from sources(action=\"facets\"). Up to 50, stored lower-case."),
-  related_records: z.array(id("source")).max(50).optional(),
   dimensions: dimensions.optional(),
   provenance_depth: provenanceDepth.optional(),
 };
-
-async function checkRelated(ctx: OpContext, ids: string[] | undefined, self?: string) {
-  const list = uniq(ids ?? []).filter((i) => i !== self);
-  if (!list.length) return list;
-  const found = await ctx.db.selectFrom("records").select(["record_id", "product_id"]).where("record_id", "in", list).execute();
-  for (const i of list) {
-    const f = found.find((x) => x.record_id === i);
-    if (!f) throw invalid("unknown_reference", `Related source ${i} doesn’t exist.`);
-    if (f.product_id !== productId(ctx)) throw invalid("cross_product_reference", `Related source ${i} is in another product.`);
-  }
-  return list;
-}
 
 export async function insertRecord(
   ctx: OpContext,
@@ -439,7 +411,6 @@ export async function insertRecord(
     participants?: string[] | undefined;
     source_system?: string | null | undefined;
     tags?: string[] | undefined;
-    related_records?: string[] | undefined;
     dimensions?: Record<string, unknown> | undefined;
     provenance_depth?: string | undefined;
   },
@@ -459,7 +430,6 @@ export async function insertRecord(
       participants: input.participants ?? [],
       source_system: input.source_system ?? null,
       tags: normalizeTags(input.tags),
-      related_records: await checkRelated(ctx, input.related_records),
       dimensions: json(normalizeDimensions(input.dimensions as never)),
       provenance_depth: input.provenance_depth ?? "unknown",
       slug: slugify(date ? `${date}-${input.title}` : input.title),
@@ -486,7 +456,7 @@ export const createSource = defineOperation({
   mutates: true,
   summary: "Create a source (a record) from metadata; then add files with files.request_upload, files.add_note or files.fetch_url.",
   description:
-    "Describe the material with a title and tags; there are no kinds or folders. To create a source and get an upload grant in one call, use files(action=\"create_upload\"). Before creating, check sources(action=\"list\", query=…) for an equivalent source — duplicates dilute search and split citations. warnings names any live source with the same title and date; nothing is refused.",
+    "Describe the material with a title and tags; there are no kinds or folders. To create a source and get an upload grant in one call, use files(action=\"create_upload\"). Before creating, check sources(action=\"list\", query=…) for an equivalent source — duplicates dilute search. warnings names any live source with the same title and date; nothing is refused.",
   input: z.strictObject(recordMetadata),
   rest: { method: "POST", path: "/sources" },
   mcp: { tool: "sources", action: "create" },
@@ -504,7 +474,7 @@ export const updateSource = defineOperation({
   mutates: true,
   summary: "Correct a source's metadata in place — title, date, tags and more. Pass only what changes.",
   description:
-    "Fix mistakes here; never archive and recreate, because citations point at the record id. The id, files, passages and every citation are untouched. tags replaces the whole list. Requires expected_etag: the source's current etag, from sources(action=\"get\") or the result of your last write to it. Adding a file also changes it. A stale one gets 409 stale_etag with details.current_etag; read the source again before retrying.",
+    "Fix mistakes here; never archive and recreate, because links and comments point at the record id. The id, files, passages and comments are untouched. tags replaces the whole list. Requires expected_etag: the source's current etag, from sources(action=\"get\") or the result of your last write to it. Adding a file also changes it. A stale one gets 409 stale_etag with details.current_etag; read the source again before retrying.",
   input: z.strictObject({ record_id: id("source"), expected_etag: expectedEtag, ...recordMetadata, title: recordMetadata.title.optional() }),
   rest: { method: "PATCH", path: "/sources/:record_id" },
   mcp: { tool: "sources", action: "update" },
@@ -517,7 +487,6 @@ export const updateSource = defineOperation({
       participants: input.participants ?? r.participants,
       source_system: input.source_system === undefined ? r.source_system : input.source_system,
       tags: input.tags ? normalizeTags(input.tags) : r.tags,
-      related_records: input.related_records ? await checkRelated(ctx, input.related_records, r.record_id) : r.related_records,
       dimensions: normalizeDimensions(input.dimensions, r.dimensions),
       provenance_depth: input.provenance_depth ?? r.provenance_depth,
     };
@@ -559,7 +528,7 @@ export const archiveSources = defineOperation({
   mutates: true,
   summary: "Archive sources: out of lists and out of search (including yours), erasing nothing. Reversible.",
   description:
-    "Archive is how a team says \"stop showing me this, and stop letting the agent find it\" without losing it. Citations to an archived source still resolve and report record_archived. Archiving an archived source is a no-op success. Returns {archived, failed}.",
+    "Archive is how a team says \"stop showing me this, and stop letting the agent find it\" without losing it. Archiving an archived source is a no-op success. Returns {archived, failed}.",
   input: z.strictObject({ record_ids: batchIds }),
   rest: { method: "POST", path: "/sources/archive" },
   mcp: { tool: "sources", action: "archive" },
@@ -767,7 +736,7 @@ export const deleteAnnotation = defineOperation({
   mutates: true,
   summary: "DELETE PERMANENTLY — cannot be undone. Delete one note on a source; archiving it is the reversible alternative.",
   description:
-    "Destroys the note, its tags, its anchor and its earlier text, and leaves a tombstone: reads of it return 410 with who, when and why. Nothing cites a note, so there is no delete_impact: show the person the note itself (from list_annotations) and delete only once they approve. " +
+    "Destroys the note, its tags, its anchor and its earlier text, and leaves a tombstone: reads of it return 410 with who, when and why. Nothing points at a note, so there is no delete_impact: show the person the note itself (from list_annotations) and delete only once they approve. " +
     `This is permanent and cannot be undone. Needs admin, and a connection at Admin. Never slip a delete into a run of other actions. Pass the note's etag as expected_etag, the person's reason, and confirm set to exactly "${DELETE_CONFIRMATION}".`,
   input: z.strictObject({ annotation_id: id("annotation"), ...deleteGuards }),
   rest: { method: "DELETE", path: "/annotations/:annotation_id" },
@@ -786,108 +755,6 @@ export const deleteAnnotation = defineOperation({
     await ctx.db.deleteFrom("annotations").where("annotation_id", "=", a.annotation_id).execute();
     await recordActivity(ctx, { action: "note_deleted", entity_type: "source", entity_id: a.record_id, entity_title: r?.title ?? null, summary: "Deleted a note permanently" });
     return { deleted: true, annotation_id: a.annotation_id, record_id: a.record_id, reason: input.reason };
-  },
-});
-
-// ---- Connections --------------------------------------------------------------------------------
-
-/** Story pages whose current version cites a source or lists it in refs. */
-async function storyPagesUsing(ctx: OpContext, recordId: string, opts: { includeArchived: boolean }, rangeOf = (c: CitationSnapshot): CitedRange | Promise<CitedRange> => ({ seq_start: c.seq_start, seq_end: c.seq_end })) {
-  let q = ctx.db
-    .selectFrom("story_pages as p")
-    .innerJoin("story_versions as v", "v.version_id", "p.current_version_id")
-    .select(["p.page_id", "p.title", "p.archived_at", "v.n", "v.citations", "v.refs"])
-    .where("p.product_id", "=", productId(ctx))
-    .where(sql<boolean>`(v.citations @> ${JSON.stringify([{ record_id: recordId }])}::jsonb or v.refs->'sources' ? ${recordId})`);
-  if (!opts.includeArchived) q = q.where("p.archived_at", "is", null);
-  const rows = await q.orderBy("p.title").execute();
-  return Promise.all(rows.map(async (r) => ({
-    page_id: r.page_id,
-    title: r.title,
-    version: r.n,
-    archived_at: r.archived_at,
-    referenced: r.refs.sources.includes(recordId),
-    citations: await Promise.all(r.citations.filter((c) => c.record_id === recordId).map(rangeOf)),
-  })));
-}
-
-/** Mockups whose current version cites a source or lists it in refs. */
-async function mockupsUsing(ctx: OpContext, recordId: string, opts: { includeArchived: boolean }, rangeOf = (c: CitationSnapshot): CitedRange | Promise<CitedRange> => ({ seq_start: c.seq_start, seq_end: c.seq_end })) {
-  let q = ctx.db
-    .selectFrom("mockups as m")
-    .innerJoin("mockup_versions as v", "v.version_id", "m.current_version_id")
-    .select(["m.mockup_id", "m.title", "m.archived_at", "v.n", "v.citations", "v.refs"])
-    .where("m.product_id", "=", productId(ctx))
-    .where(sql<boolean>`(v.citations @> ${JSON.stringify([{ record_id: recordId }])}::jsonb or v.refs->'sources' ? ${recordId})`);
-  if (!opts.includeArchived) q = q.where("m.archived_at", "is", null);
-  const rows = await q.orderBy("m.title").execute();
-  return Promise.all(rows.map(async (r) => ({
-    mockup_id: r.mockup_id,
-    title: r.title,
-    version: r.n,
-    archived_at: r.archived_at,
-    referenced: r.refs.sources.includes(recordId),
-    citations: await Promise.all(r.citations.filter((c) => c.record_id === recordId).map(rangeOf)),
-  })));
-}
-
-export const usedBy = defineOperation({
-  name: "sources.used_by",
-  scope: "product",
-  access: "read",
-  mutates: false,
-  summary: "Everything built on a source: assumptions that cite it, Story pages and mockups that cite or reference it, other sources that list it as related, and views whose lineage lists it as an input.",
-  description:
-    "Each citation names the segment range its quote is in now, so you can read the passage that supports it: after the source is parsed again, a quote found elsewhere gives its new range with the stored one as moved_from, and one no longer found keeps the stored range with quote_not_found. Story pages and mockups are judged by their current version; archived pages, mockups, sources and views are left out. related lists the sources whose related_records name this one. Views are those that list this source as a direct input; call lineage(action=\"check\") on one to see whether it is stale.",
-  input: z.strictObject({ record_id: id("source") }),
-  rest: { method: "GET", path: "/sources/:record_id/used-by" },
-  mcp: { tool: "sources", action: "used_by" },
-  async handler(ctx, input) {
-    await loadRecord(ctx, input.record_id);
-    const rangeOf = await citedRanges(ctx, input.record_id);
-    const entries = await ctx.db
-      .selectFrom("register_entries")
-      .select(["entry_id", "statement", "status", "citations", "updated_at"])
-      .where("product_id", "=", productId(ctx))
-      .where("kind", "=", "assumption")
-      .where("archived_at", "is", null)
-      .where(sql<boolean>`citations @> ${JSON.stringify([{ record_id: input.record_id }])}::jsonb`)
-      .orderBy("entry_id", "desc")
-      .limit(100)
-      .execute();
-    const related = await ctx.db
-      .selectFrom("records")
-      .select(["record_id", "title", "tags", "updated_at"])
-      .where("product_id", "=", productId(ctx))
-      .where("archived_at", "is", null)
-      .where(sql<boolean>`${input.record_id} = any(related_records)`)
-      .orderBy("record_id", "desc")
-      .limit(100)
-      .execute();
-    return {
-      assumptions: await Promise.all(
-        entries.map(async (e) => ({
-          id: e.entry_id,
-          statement: e.statement,
-          status: e.status,
-          updated_at: e.updated_at,
-          citations: await Promise.all(e.citations.filter((c) => c.record_id === input.record_id).map(rangeOf)),
-        })),
-      ),
-      related,
-      story_pages: (await storyPagesUsing(ctx, input.record_id, { includeArchived: false }, rangeOf)).map(({ archived_at, ...p }) => (void archived_at, p)),
-      mockups: (await mockupsUsing(ctx, input.record_id, { includeArchived: false }, rangeOf)).map(({ archived_at, ...m }) => (void archived_at, m)),
-      views: await ctx.db
-        .selectFrom("lineage as l")
-        .innerJoin("records as r", "r.record_id", "l.record_id")
-        .select(["r.record_id", "r.title", "r.tags", "l.generated_at as registered_at"])
-        .where("l.product_id", "=", productId(ctx))
-        .where("r.archived_at", "is", null)
-        .where(sql<boolean>`l.inputs @> ${JSON.stringify([{ kind: "record", id: input.record_id }])}::jsonb`)
-        .orderBy("l.generated_at", "desc")
-        .limit(100)
-        .execute(),
-    };
   },
 });
 
@@ -918,7 +785,7 @@ export const moveSource = defineOperation({
   mutates: true,
   summary: "Move a source, with its files, passages and notes, to another product in the same team.",
   description:
-    "The record keeps its id, so its passages, file versions and notes move intact. Refused with 409 source_in_use while anything in this product cites or references it — assumptions, other sources' related_records, lineage, the current version of a Story page or a mockup — because references never cross products; the error lists them. Copy instead to keep it in both.",
+    "The record keeps its id, so its passages, file versions and notes move intact. Copy instead to keep it in both.",
   input: z.strictObject({ record_id: id("source"), to_product: z.string().min(1).describe("Target product id or slug, in the same team."), expected_etag: expectedEtag }),
   rest: { method: "POST", path: "/sources/:record_id/move" },
   mcp: { tool: "sources", action: "move_to_product" },
@@ -926,24 +793,9 @@ export const moveSource = defineOperation({
     const r = await loadRecord(ctx, input.record_id, { lock: true });
     checkEtag(input.expected_etag, r.etag, "source");
     const target = await targetProduct(ctx, input.to_product);
-    const pid = productId(ctx);
-    const entries = await ctx.db.selectFrom("register_entries").select(["entry_id", "statement"]).where("product_id", "=", pid).where(sql<boolean>`citations @> ${JSON.stringify([{ record_id: r.record_id }])}::jsonb`).execute();
-    const lineage = await ctx.db.selectFrom("lineage").select("record_id").where("product_id", "=", pid).where(sql<boolean>`inputs @> ${JSON.stringify([{ id: r.record_id }])}::jsonb`).execute();
-    const related = await ctx.db.selectFrom("records").select("record_id").where("product_id", "=", pid).where(sql<boolean>`${r.record_id} = any(related_records)`).execute();
-    const pages = await storyPagesUsing(ctx, r.record_id, { includeArchived: true });
-    const mockups = await mockupsUsing(ctx, r.record_id, { includeArchived: true });
-    if (entries.length || lineage.length || related.length || pages.length || mockups.length)
-      throw conflict("source_in_use", "This source is referenced in its product, so it can’t move. Remove the references, or copy it instead.", {
-        assumptions: entries.map((e) => ({ id: e.entry_id, statement: e.statement })),
-        views: lineage.map((l) => l.record_id),
-        related_sources: related.map((x) => x.record_id),
-        story_pages: pages.map((p) => ({ page_id: p.page_id, title: p.title })),
-        mockups: mockups.map((m) => ({ mockup_id: m.mockup_id, title: m.title })),
-      });
-    await ctx.db.updateTable("records").set({ product_id: target.product_id, related_records: [], etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("record_id", "=", r.record_id).execute();
+    await ctx.db.updateTable("records").set({ product_id: target.product_id, etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("record_id", "=", r.record_id).execute();
     await ctx.db.updateTable("annotations").set({ product_id: target.product_id }).where("record_id", "=", r.record_id).execute();
     await ctx.db.updateTable("upload_grants").set({ product_id: target.product_id }).where("record_id", "=", r.record_id).execute();
-    await ctx.db.updateTable("lineage").set({ product_id: target.product_id }).where("record_id", "=", r.record_id).execute();
     await recordActivity(ctx, { action: "moved_out", entity_type: "source", entity_id: r.record_id, entity_title: r.title, summary: `Moved to product ${target.name}` });
     await recordActivity(
       { ...ctx, scope: { ...ctx.scope, product: { product_id: target.product_id, slug: target.slug, name: target.name, archived_at: null } } },
@@ -960,7 +812,7 @@ export const copySource = defineOperation({
   mutates: true,
   summary: "Copy a source into another product in the same team, with a new id and a copied_from link.",
   description:
-    "The copy shares the original's stored files (blobs are immutable) and is derived afresh in the target. Notes and citations stay with the original. Returns the new record id.",
+    "The copy shares the original's stored files (blobs are immutable) and is derived afresh in the target. Notes stay with the original. Returns the new record id.",
   input: z.strictObject({ record_id: id("source"), to_product: z.string().min(1) }),
   rest: { method: "POST", path: "/sources/:record_id/copy" },
   mcp: { tool: "sources", action: "copy_to_product" },
@@ -970,7 +822,7 @@ export const copySource = defineOperation({
     const targetCtx: OpContext = { ...ctx, scope: { ...ctx.scope, product: { product_id: target.product_id, slug: target.slug, name: target.name, archived_at: null } } };
     const copy = await insertRecord(
       targetCtx,
-      { ...r, dimensions: r.dimensions as Record<string, unknown>, related_records: [] },
+      { ...r, dimensions: r.dimensions as Record<string, unknown> },
       { product_id: productId(ctx), record_id: r.record_id },
     );
     const files = await ctx.db.selectFrom("files").selectAll().where("record_id", "=", r.record_id).execute();
@@ -990,55 +842,10 @@ export const copySource = defineOperation({
 
 // ---- Delete: permanent, guarded, and said plainly ----------------------------------------------
 
-/** Every Story page version, current or earlier, whose citations include a source. */
-async function storyVersionsCiting(ctx: OpContext, recordId: string) {
-  const rows = await ctx.db
-    .selectFrom("story_versions as v")
-    .innerJoin("story_pages as p", (j) => j.onRef("p.product_id", "=", "v.product_id").onRef("p.page_id", "=", "v.page_id"))
-    .select(["v.page_id", "p.title", "v.n", "v.version_id", "p.current_version_id", "v.citations"])
-    .where("v.product_id", "=", productId(ctx))
-    .where(sql<boolean>`v.citations @> ${JSON.stringify([{ record_id: recordId }])}::jsonb`)
-    .orderBy("p.title")
-    .orderBy("v.n", "desc")
-    .execute();
-  return rows.map((v) => ({
-    page_id: v.page_id,
-    title: v.title,
-    version: v.n,
-    count: v.citations.filter((c) => c.record_id === recordId).length,
-    is_current: v.version_id === v.current_version_id,
-  }));
-}
-
-/** Every mockup version, current or earlier, whose citations include a source. */
-async function mockupVersionsCiting(ctx: OpContext, recordId: string) {
-  const rows = await ctx.db
-    .selectFrom("mockup_versions as v")
-    .innerJoin("mockups as m", "m.mockup_id", "v.mockup_id")
-    .select(["v.mockup_id", "m.title", "v.n", "v.version_id", "m.current_version_id", "v.citations"])
-    .where("v.product_id", "=", productId(ctx))
-    .where(sql<boolean>`v.citations @> ${JSON.stringify([{ record_id: recordId }])}::jsonb`)
-    .orderBy("m.title")
-    .orderBy("v.n", "desc")
-    .execute();
-  return rows.map((v) => ({
-    mockup_id: v.mockup_id,
-    title: v.title,
-    version: v.n,
-    count: v.citations.filter((c) => c.record_id === recordId).length,
-    is_current: v.version_id === v.current_version_id,
-  }));
-}
-
 async function impact(ctx: OpContext, r: RecordRow) {
-  const pid = productId(ctx);
   const files = await ctx.db.selectFrom("file_versions").select(["file_version_id", "size", "blob_key"]).where("record_id", "=", r.record_id).execute();
   const derivations = await ctx.db.selectFrom("derivations").select(["derivation_id", "blob_prefix"]).where("record_id", "=", r.record_id).execute();
   const annotations = await ctx.db.selectFrom("annotations").select("annotation_id").where("record_id", "=", r.record_id).execute();
-  const entries = await ctx.db.selectFrom("register_entries").select(["entry_id", "statement", "citations"]).where("product_id", "=", pid).where(sql<boolean>`citations @> ${JSON.stringify([{ record_id: r.record_id }])}::jsonb`).execute();
-  const related = await ctx.db.selectFrom("records").select(["record_id", "title"]).where("product_id", "=", pid).where(sql<boolean>`${r.record_id} = any(related_records)`).execute();
-  const versions = await storyVersionsCiting(ctx, r.record_id);
-  const mockupVersions = await mockupVersionsCiting(ctx, r.record_id);
   return {
     record_id: r.record_id,
     title: r.title,
@@ -1047,16 +854,7 @@ async function impact(ctx: OpContext, r: RecordRow) {
     bytes: files.reduce((n, f) => n + Number(f.size), 0),
     derivations: derivations.length,
     annotations: annotations.length,
-    citations: entries.map((e) => ({ id: e.entry_id, statement: e.statement, count: e.citations.filter((c) => c.record_id === r.record_id).length })),
-    related_sources: related.map((x) => ({ record_id: x.record_id, title: x.title })),
-    story_pages_citing: (await storyPagesUsing(ctx, r.record_id, { includeArchived: true }))
-      .filter((p) => p.citations.length)
-      .map((p) => ({ page_id: p.page_id, title: p.title, version: p.version, count: p.citations.length })),
-    story_versions_citing: versions,
-    mockup_versions_citing: mockupVersions,
-    after_delete:
-      "Citations keep their quoted text (quote_kept: true) and then report record_deleted, with the tombstone: " +
-      `${entries.length} ${entries.length === 1 ? "assumption" : "assumptions"}, ${versions.length} Story page ${versions.length === 1 ? "version" : "versions"} and ${mockupVersions.length} mockup ${mockupVersions.length === 1 ? "version" : "versions"} (story_versions_citing and mockup_versions_citing list every version, current or earlier).`,
+    after_delete: "Its files, every stored version of them, its passages and its comments go. Links to it from Story pages, mockups and notes open a record of the deletion instead.",
     _blobs: files.map((f) => f.blob_key),
     _prefixes: derivations.map((d) => d.blob_prefix),
   };
@@ -1067,9 +865,9 @@ export const deleteImpact = defineOperation({
   scope: "product",
   access: "read",
   mutates: false,
-  summary: "Preview exactly what deleting a source would destroy, including the citations it would orphan.",
+  summary: "Preview exactly what deleting a source would destroy.",
   description:
-    "Read-only. Show the person this result before proposing a delete. Citations elsewhere keep their quoted snapshot text after a delete and report record_deleted; story_versions_citing and mockup_versions_citing list every Story page and mockup version that cites the source, earlier versions included. Pass this result's etag as the delete's expected_etag.",
+    "Read-only. Show the person this result before proposing a delete. Pass this result's etag as the delete's expected_etag.",
   input: z.strictObject({ record_id: id("source") }),
   rest: { method: "GET", path: "/sources/:record_id/delete-impact" },
   mcp: { tool: "sources", action: "delete_impact" },
@@ -1091,7 +889,7 @@ export const deleteSource = defineOperation({
   description:
     "Archive (sources.archive) is the reversible alternative and almost always what is wanted. " +
     DELETE_GUIDANCE +
-    " Leaves a tombstone: reads return 410 with who, when and why, and citations keep their quoted text.",
+    " Leaves a tombstone: reads return 410 with who, when and why.",
   input: z.strictObject({ record_id: id("source"), ...deleteGuards }),
   rest: { method: "DELETE", path: "/sources/:record_id" },
   mcp: { tool: "sources", action: "delete" },
@@ -1119,5 +917,5 @@ export const deleteSource = defineOperation({
 
 export const sourceOps = [
   sourceFacets, listSources, getSource, createSource, updateSource, archiveSources, restoreSources,
-  annotate, listAnnotations, updateAnnotation, deleteAnnotation, usedBy, moveSource, copySource, deleteImpact, deleteSource,
+  annotate, listAnnotations, updateAnnotation, deleteAnnotation, moveSource, copySource, deleteImpact, deleteSource,
 ];

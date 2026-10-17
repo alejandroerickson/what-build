@@ -3,7 +3,7 @@ type: System Concept
 title: Agent-driven end-to-end tests on a golden master
 description: An agent follows a written test plan through the real web app and the real MCP server, on a local instance reset each time to a golden master made from production's public sandbox, and reports failures and anomalies.
 tags: [development, testing, qa, e2e, agents, mcp, browser]
-generated: {by: agent:claude, at: 2026-10-12}
+generated: {by: agent:claude, at: 2026-10-16}
 status: draft
 ---
 
@@ -68,9 +68,7 @@ and plans, reports that leave the machine, commits and issues never name or quot
 
 The build migrates what it keeps to the schema of the code it runs from, and the worker does
 the jobs those migrations queue, before the standard copy is made, so the copy covers every table
-there is. A view's lineage fingerprints ids, so after the copy, every input that was current in
-the original is fingerprinted again in the copy, and the two organizations report the same
-changed inputs. Once built, the golden master does not change: migrations added to the code later
+there is. Once built, the golden master does not change: migrations added to the code later
 run on each fresh copy when it is served. Build it again from a newer pull to move it forward, and
 stop the instance first. In a git worktree without pulls of its own, pulls are read
 from the main checkout's `.what-build/fixtures`.
@@ -110,7 +108,7 @@ The plans:
 - `evidence-through-both-doors`: a source added over MCP is parsed, searched and annotated on the
   web, and the reverse; activity attribution; a stale etag; then the same in the sandbox, its limits,
   and the two organizations kept apart.
-- `assumptions-and-the-story`: an agent's cited assumption is reviewed by a person; a Story page
+- `assumptions-and-the-story`: an agent's assumption is reviewed by a person; a Story page
   is published and read by a reader, who is refused everything else.
 - `search`: the palette and the Search screen find every kind of thing by plain words, read as the
   specification says; the web and MCP's plain mode agree; what one door writes the other finds; a

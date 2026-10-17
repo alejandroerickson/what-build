@@ -3,7 +3,7 @@ type: Decision
 title: Only a source's primary file is parsed and searched
 description: A source keeps originals and supplements, but exactly one primary file is parsed into passages and indexed.
 tags: [decision, sources, search, derived]
-generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
@@ -11,7 +11,7 @@ status: stable
 
 ## Context
 
-A recording, its raw transcript and a cleaned transcript are one piece of evidence. Searching all of them multiplies hits and makes citations ambiguous.
+A recording, its raw transcript and a cleaned transcript are one piece of evidence. Searching all of them multiplies hits and makes a passage's address ambiguous.
 
 ## Decision
 
@@ -22,7 +22,7 @@ A recording, its raw transcript and a cleaned transcript are one piece of eviden
 ## Consequences
 
 - A passage address (source + ¶n) is unambiguous.
-- Changing the primary or re-parsing makes a new derivation; citations detect drift.
+- Changing the primary or re-parsing makes a new derivation; earlier ones stay readable.
 
 ## Constrains
 

@@ -3,11 +3,13 @@ type: Decision
 title: Citations freeze a snapshot and report drift; they are never repaired silently
 description: A citation stores the exact passage text when written; a check re-resolves it and reports the result in words.
 tags: [decision, citations, trust, assumptions, story]
-generated: {by: agent:claude, at: 2026-10-13}
-status: stable
+generated: {by: agent:claude, at: 2026-10-16}
+status: deprecated
 ---
 
 # Citations freeze a snapshot and report drift; they are never repaired silently
+
+Superseded on 2026-10-16 by [Evidence is found by searching, not kept as citations](evidence-is-searched-not-cited.md).
 
 ## Context
 

@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:codex, at: 2026-10-15}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
@@ -336,7 +336,7 @@ deployment is involved
 ```
 packages/
   parsers/          text, md, vtt, srt, html, docx, doc, pdf, xlsx, csv → sidecars (pure: bytes in, sidecars out)
-  core/             operation registry and every operation, policy, citations, ports, Kysely table
+  core/             operation registry and every operation, policy, ports, Kysely table
                     types, Story guidance and print view, the versioned product skill (src/skill/)
 apps/
   server/           Hono app: static assets, REST, MCP, OAuth and identity, upload relay, worker,

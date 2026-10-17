@@ -103,14 +103,14 @@ function SpecimenInspector() {
           <li><Glyph name="file-audio" /><span><b>Audio recording</b><span className="faint">Kept, not searched</span></span></li>
         </ul>
       </Group>
-      <Group title="Cited in" count={2}>
+      <Group title="Tags" count={2}>
         <div className="chips">
-          <Chip to="/_system" icon="blend">I-1 Planning is a weekly ritual</Chip>
-          <Chip icon="scale">A-2</Chip>
+          <Chip to="/_system" icon="tag">interview</Chip>
+          <Chip icon="tag">planning</Chip>
         </div>
       </Group>
       <Group title="Empty group">
-        <EmptyState size="inline">Not cited anywhere yet.</EmptyState>
+        <EmptyState size="inline">No comments yet.</EmptyState>
       </Group>
     </Inspector>
   );

@@ -11,7 +11,7 @@
 import { STORY_FONTS } from "./story-fonts.ts";
 import { HOUSE_STYLES, VOCABULARY, pageDocument, type HouseStyle } from "./story-styles.ts";
 
-export const GUIDANCE_VERSION = "3.2.0";
+export const GUIDANCE_VERSION = "4.0.0";
 
 /** The typefaces the server embeds in a page that names them; no font file is ever sent for these. */
 export const CARRIED_TYPEFACES = {
@@ -23,7 +23,6 @@ export function linkTemplates(base: string, path: string) {
   const p = `${base}/t/${path}`;
   return {
     source: `${p}/evidence/{record_id}`,
-    passage: `${p}/evidence/{record_id}?view=passages&seq={seq}`,
     outcome: `${p}/idea`,
     assumption: `${p}/exploration/assumptions/{id}`,
     mockup: `${p}/exploration/mockups/{mockup_id}`,
@@ -75,7 +74,8 @@ export const ANTI_PATTERNS = [
   "A generic hero band with a tagline instead of the conclusion.",
   "Topic-label headings ('Overview', 'Background', 'Key findings') where a statement would say what the section shows.",
   "Four or more competing accent colours, or status colours used as decoration.",
-  "Invented charts: a chart needs real data from a cited source, labelled axes and a stated denominator.",
+  "Invented charts: a chart needs real data from the sources, labelled axes and a stated denominator.",
+  "A source reference or a passage link after every claim. The Story explains; the evidence stays in Evidence, where the team and its agents find it by searching. Most readers of a Story cannot open the evidence at all.",
   "Repeating the page title, a breadcrumb or site navigation inside the page: the app provides them.",
   "A kicker that only says where the page sits in the Story. The app shows that; use a kicker when it adds a theme the headline lacks, and leave it out otherwise.",
   "Numbered sections where the order means nothing. Give the section a label that says something (data-label) or let the heading stand.",
@@ -92,7 +92,7 @@ export const DESIGN_PASSES = [
   { pass: "typeset", when: "Before polishing any page.", checks: ["Running text at 60 to 75 characters.", "Headings balanced (text-wrap: balance) and set as statements.", "Real quotation marks, apostrophes and dashes.", "Lining, tabular numbers in tables and figures."] },
   { pass: "layout", when: "The page is a single column of equal blocks.", checks: ["Is there a reason for every column break?", "Do notes sit beside what they explain?", "Does spacing group related things and separate unrelated ones?", "Does reading order match source order?"] },
   { pass: "adapt", when: "Before publishing, on the page's preview.", checks: ["Check at about 390px wide: no horizontal page scroll, tables scroll inside .table-wrap, grids stack in reading order.", "Check in dark as well as light if the style has a dark scheme (?theme=dark on the preview).", "Check the print view: slides and bands become ordinary blocks, and on paper the page is about 680px wide, so its narrow layout applies."] },
-  { pass: "polish", when: "Last.", checks: ["Read it in rendered order.", "Check every quotation, count, date and link against the linked material.", "Headings, link text and table labels make sense out of context.", "Focus is visible; no meaning carried by colour alone."] },
+  { pass: "polish", when: "Last.", checks: ["Read it in rendered order.", "Check every quotation, count and date against the sources you read, and every link.", "Headings, link text and table labels make sense out of context.", "Focus is visible; no meaning carried by colour alone."] },
 ];
 
 /**
@@ -123,29 +123,27 @@ const link = (href: string, text: string) => `<a href="${href}" target="_blank" 
 
 /** Recipes in the shared vocabulary, with the product's own links. Styles give them their look. */
 export function components(links: ReturnType<typeof linkTemplates>) {
-  const src = links.source.replace("{record_id}", "REPLACE_RECORD_ID");
-  const passage = links.passage.replace("{record_id}", "REPLACE_RECORD_ID").replace("{seq}", "REPLACE_SEQ");
   return [
     { id: "opening", use_when: "Every page. The conclusion, why it matters, a metadata line.", html: `<header class="opening"><p class="kicker">REPLACE: the section or theme</p><h1>REPLACE: the conclusion in one line</h1><p class="lead">REPLACE: why it matters to this reader, in two sentences.</p><p class="meta">Updated REPLACE_DATE · Working interpretation</p></header>`, adaptation: "State the status in words; a working interpretation must not look like agreement. The kicker is optional: leave it out when it would only repeat where the page sits." },
-    { id: "quote", use_when: "The source's exact words add evidence. Quote only after reading the passage.", html: `<figure class="quote"><blockquote><p>REPLACE: exact words from the passage.</p></blockquote><figcaption>REPLACE_SPEAKER · REPLACE_SOURCE_DATE · ${link(passage, "segment REPLACE_SEQ")}</figcaption></figure>`, adaptation: "Exact quotations only; attribute by role where the source limits naming people." },
-    { id: "note", use_when: "Sources, limits or a definition beside the text they qualify.", html: `<aside class="note">REPLACE: the limit or source. ${link(src, "Read the source")}</aside>`, adaptation: "Place it just before the paragraph it annotates." },
+    { id: "quote", use_when: "A person's own words say it better than a summary would. Quote only words you have read, and only a few on a page.", html: `<figure class="quote"><blockquote><p>REPLACE: their exact words.</p></blockquote><figcaption>REPLACE_SPEAKER · REPLACE: the kind of source and its date</figcaption></figure>`, adaptation: "Exact quotations only; attribute by role where the source limits naming people. No link: the quote is the evidence the reader needs." },
+    { id: "note", use_when: "A limit or a definition beside the text it qualifies.", html: `<aside class="note">REPLACE: the limit or definition.</aside>`, adaptation: "Place it just before the paragraph it annotates." },
     { id: "callout", use_when: "An assumption, limitation or implication that changes how the page should be read.", html: `<aside class="callout" data-tone="caution"><p><strong>Assumption, unconfirmed.</strong> REPLACE: the premise and what would change it.</p></aside>`, adaptation: "Say the status in words." },
-    { id: "status", use_when: "Label evidence or review state.", html: `<span class="status" data-state="open">Unconfirmed</span>`, adaptation: "evidence (supported by cited passages), caution (contested or thin), open (not yet reviewed)." },
-    { id: "figures", use_when: "Two to four real numbers with what they count, their denominator or period, and a source. Omit when no measured value exists.", html: `<div class="figures"><p class="figure"><strong>REPLACE_VALUE</strong> REPLACE: what was counted, out of what · ${link(src, "source")}</p></div>`, adaptation: "Never invent or estimate a number." },
+    { id: "status", use_when: "Label evidence or review state.", html: `<span class="status" data-state="open">Unconfirmed</span>`, adaptation: "evidence (what the sources show), caution (contested or thin), open (not yet reviewed)." },
+    { id: "figures", use_when: "Two to four real numbers with what they count and their denominator or period. Omit when no measured value exists.", html: `<div class="figures"><p class="figure"><strong>REPLACE_VALUE</strong> REPLACE: what was counted, out of what</p></div>`, adaptation: "Never invent or estimate a number. Say in words where it comes from when the reader needs to know (\"in the spring survey\")." },
     { id: "columns", use_when: "Comparable alternatives side by side.", html: `<div class="columns"><article><h3>REPLACE: option</h3><p>REPLACE</p></article><article><h3>REPLACE: option</h3><p>REPLACE</p></article></div>`, adaptation: "Give options equal weight; label a recommendation as a proposal." },
     { id: "table", use_when: "The same criteria recur across rows.", html: `<div class="table-wrap" role="region" aria-label="REPLACE: table name" tabindex="0"><table><caption>REPLACE: what is compared</caption><thead><tr><th scope="col">Option</th><th scope="col">REPLACE_CRITERION</th></tr></thead><tbody><tr><th scope="row">REPLACE_OPTION</th><td>REPLACE</td></tr></tbody></table></div>`, adaptation: "Three columns fit a phone; a fourth scrolls. Short cells; explanation in prose." },
-    { id: "steps", use_when: "Next steps with a real order.", html: `<ol class="steps"><li>REPLACE: the step and what it would tell us.</li></ol>`, adaptation: "An owner or date only if the linked material establishes it." },
+    { id: "steps", use_when: "Next steps with a real order.", html: `<ol class="steps"><li>REPLACE: the step and what it would tell us.</li></ol>`, adaptation: "An owner or date only if the sources or the person establish it." },
     { id: "disclosure", use_when: "Optional method detail.", html: `<details><summary>How we know this</summary><p>REPLACE</p></details>`, adaptation: "Never hide something that changes the conclusion." },
     { id: "section_label", use_when: "A section's heading is a statement, and a short label would help a reader scan: a date, a release, a stage, 'Scope', 'Evidence'.", html: `<section aria-labelledby="REPLACE_ID"><h2 id="REPLACE_ID" data-label="REPLACE: two or three words">REPLACE: what this section shows, as a statement</h2><p>REPLACE</p></section>`, adaptation: "The label goes where the style puts it: above the heading, or in place of a section number. Label every section of a page or none." },
     { id: "wide_section", use_when: "A block needs the page's full width: a timeline, a line per item, a matrix, links to pages.", html: `<section class="wide" aria-labelledby="REPLACE_ID"><h2 id="REPLACE_ID">REPLACE</h2><p>REPLACE: one or two sentences.</p><ul class="lines"><li><strong>REPLACE</strong><span>REPLACE</span></li></ul></section>`, adaptation: "Prose in a wide section keeps its measure; only the blocks run wide." },
     { id: "timeline", use_when: "Two to four dated milestones in order: releases, the stages of a study, a roadmap.", html: `<ol class="timeline"><li data-state="done"><time datetime="REPLACE_YYYY-MM">REPLACE: month and year</time><strong>REPLACE: what was reached</strong><p>REPLACE</p></li><li aria-current="step"><time datetime="REPLACE_YYYY-MM">REPLACE</time><strong>REPLACE: what is true once it is reached</strong><p>REPLACE: one sentence on what it holds.</p></li></ol>`, adaptation: "A date only when a person or a source gave it. Say once on the page whether the dates are a plan, a proposal or a commitment. data-state=\"done\" marks a milestone reached and aria-current=\"step\" the one being worked towards; styles draw the rest as still planned." },
     { id: "lines", use_when: "A list of like things the reader compares down the page: features, risks, requirements, assumptions.", html: `<ul class="lines"><li><strong>REPLACE: its name</strong><span>REPLACE: what it means for the reader, in one line.</span><span class="tag">REPLACE: its group</span></li></ul>`, adaptation: "One line each: if an item needs a paragraph it belongs in prose or on its own page. The last element is optional, and may be a .status instead of a .tag. Write a feature as what a user can do once it ships." },
     { id: "facts", use_when: "Labelled facts about one thing: what is in scope and out of it, what it serves, how it will be measured.", html: `<dl class="facts"><dt>In scope</dt><dd>REPLACE</dd><dt>Out of scope</dt><dd>REPLACE</dd><dt>Measured by</dt><dd>REPLACE: the measure, with its source.</dd></dl>`, adaptation: "Three to five rows. Short labels; the value may hold a link." },
-    { id: "evidence_wall", use_when: "Several short exact quotations on one theme, side by side.", html: `<div class="quotes"><figure class="quote"><blockquote><p>REPLACE: exact words, with <mark>the few that matter</mark> marked.</p></blockquote><figcaption>REPLACE_SPEAKER · ${link(passage, "segment REPLACE_SEQ")}</figcaption></figure><figure class="quote"><blockquote><p>REPLACE</p></blockquote><figcaption>REPLACE</figcaption></figure></div>`, adaptation: "Two to four quotations. Mark a few words in each, never a whole sentence." },
-    { id: "tally", use_when: "A count of people or things out of a whole, where seeing the share matters: 14 of 23 respondents.", html: `<p><span class="tally" style="--n: REPLACE_N; --of: REPLACE_TOTAL" role="img" aria-label="REPLACE_N of REPLACE_TOTAL"></span> <strong>REPLACE_N of REPLACE_TOTAL</strong> REPLACE: who or what was counted · ${link(src, "source")}</p>`, adaptation: "Write the number out beside the marks. Up to about 40 in the whole; above that, use figures." },
+    { id: "evidence_wall", use_when: "Several short exact quotations on one theme, side by side.", html: `<div class="quotes"><figure class="quote"><blockquote><p>REPLACE: exact words, with <mark>the few that matter</mark> marked.</p></blockquote><figcaption>REPLACE_SPEAKER</figcaption></figure><figure class="quote"><blockquote><p>REPLACE</p></blockquote><figcaption>REPLACE</figcaption></figure></div>`, adaptation: "Two to four quotations. Mark a few words in each, never a whole sentence." },
+    { id: "tally", use_when: "A count of people or things out of a whole, where seeing the share matters: 14 of 23 respondents.", html: `<p><span class="tally" style="--n: REPLACE_N; --of: REPLACE_TOTAL" role="img" aria-label="REPLACE_N of REPLACE_TOTAL"></span> <strong>REPLACE_N of REPLACE_TOTAL</strong> REPLACE: who or what was counted</p>`, adaptation: "Write the number out beside the marks. Up to about 40 in the whole; above that, use figures." },
     { id: "flow", use_when: "A process or a journey in order: how a week reaches a crew, what happens after sign-up.", html: `<ol class="flow"><li><strong>REPLACE: step</strong><span>REPLACE: what happens in it.</span></li><li><strong>REPLACE</strong><span>REPLACE</span><span class="tag">REPLACE: when it arrives</span></li></ol>`, adaptation: "Three to six steps with short names. A branch or a loop needs a diagram instead." },
     { id: "diagram", use_when: "A flowchart with branches or loops, or a structure: what connects to what.", html: `<figure class="diagram"><svg viewBox="-6 -6 520 132" role="img" aria-labelledby="REPLACE_ID"><title id="REPLACE_ID">REPLACE: what the diagram shows, in a sentence.</title><defs><marker id="REPLACE_ID-head" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path class="head" d="M0 0L10 5L0 10z"/></marker></defs><rect class="node" x="0" y="32" width="150" height="56" rx="6"/><text class="label" x="75" y="65" text-anchor="middle">REPLACE</text><path class="edge" d="M150 60H208" marker-end="url(#REPLACE_ID-head)"/><rect class="node key" x="210" y="32" width="150" height="56" rx="6"/><text class="label on-key" x="285" y="65" text-anchor="middle">REPLACE</text></svg><figcaption>REPLACE: what to notice, and whether it is a proposal.</figcaption></figure>`, adaptation: "Shapes are class node (node key for the one that matters), lines class edge, text class label (label small for annotations, label on-key on a key node). Leave room in boxes: styles set labels in their own type. Give each marker a unique id." },
-    { id: "mockup_snippet", use_when: "Showing a screen, or part of one, and pointing at what matters in it.", html: `<figure class="shot" data-device="phone"><div class="screen"><img src="data:image/png;base64,REPLACE" alt="REPLACE: what the screen shows"><span class="pin" style="--x: 50%; --y: 20%">1</span></div><figcaption><p>Mockup: REPLACE_TITLE, version REPLACE_N · ${link(links.mockup.replace("{mockup_id}", "REPLACE_MOCKUP_ID"), "Open the mockup")}</p><ol class="pins"><li><strong>REPLACE.</strong> REPLACE: why it matters, with its evidence.</li></ol></figcaption></figure>`, adaptation: "data-device is phone or desktop. Place pins by percentage of the screen; explain them in the same order in ol.pins. An inline SVG may stand in for the image. The screen keeps the mockup's own look." },
+    { id: "mockup_snippet", use_when: "Showing a screen, or part of one, and pointing at what matters in it.", html: `<figure class="shot" data-device="phone"><div class="screen"><img src="data:image/png;base64,REPLACE" alt="REPLACE: what the screen shows"><span class="pin" style="--x: 50%; --y: 20%">1</span></div><figcaption><p>Mockup: REPLACE_TITLE, version REPLACE_N · ${link(links.mockup.replace("{mockup_id}", "REPLACE_MOCKUP_ID"), "Open the mockup")}</p><ol class="pins"><li><strong>REPLACE.</strong> REPLACE: why it matters.</li></ol></figcaption></figure>`, adaptation: "data-device is phone or desktop. Place pins by percentage of the screen; explain them in the same order in ol.pins. An inline SVG may stand in for the image. The screen keeps the mockup's own look." },
     { id: "pages", use_when: "A page that leads to others: the Story's front page, a page with pages beneath it.", html: `<nav class="pages" aria-label="REPLACE: what these pages are"><ul><li>${link(links.story_page.replace("{page_id}", "REPLACE_PAGE_ID"), "<strong>REPLACE: a short name for the page</strong><span>REPLACE: what the page holds, in one line.</span>")}</li></ul></nav>`, adaptation: "Link the pages beneath this one, or the one or two that continue its argument, not the whole Story." },
   ];
 }
@@ -153,7 +151,7 @@ export function components(links: ReturnType<typeof linkTemplates>) {
 /** Ways to compose a page. Pick by content, and vary them across a Story. */
 export const COMPOSITIONS = [
   { id: "narrative", use_when: "Where things stand, told in order: observed, interpreted, what follows.", shape: "Opening; two or three sections whose headings are statements; one pull quote; notes beside the claims they qualify." },
-  { id: "brief_with_margin", use_when: "A dense account whose sources and limits must stay visible.", shape: "Running text in a narrow measure with notes in a wide margin: a two-column grid." },
+  { id: "brief_with_margin", use_when: "A dense account whose limits and definitions must stay visible.", shape: "Running text in a narrow measure with notes in a wide margin: a two-column grid." },
   { id: "decision", use_when: "Options and criteria for a choice.", shape: "Opening states the choice; columns for the options; a table of criteria; a caution callout for what is not known; the recommendation labelled as a proposal." },
   { id: "numbers_first", use_when: "The point is a measured change or a count.", shape: "Opening; a band of figures directly under it; one section explaining each figure's source and limit." },
   { id: "briefing", use_when: "A short readout for a meeting.", shape: "Title slide, then one slide per statement, each proving its heading with one piece of evidence." },
@@ -172,24 +170,24 @@ export const WRITING = {
     { audience: "Mixed or external readers", need: "Enough context to follow.", shape: "Minimal context; define terms on first use." },
   ],
   separate_claim_types: [
-    { type: "Observed evidence", instruction: "What a source says, with a link to the passage." },
+    { type: "Observed evidence", instruction: "What the sources show, in your words or a short exact quote, said in words to come from them (\"in three of four interviews\")." },
     { type: "Interpretation", instruction: "What the team makes of it, labelled as interpretation." },
-    { type: "Decision or proposal", instruction: "Call it a decision only when the linked material records it as one; otherwise it is a proposal." },
+    { type: "Decision or proposal", instruction: "Call it a decision only when the sources or the person record it as one; otherwise it is a proposal." },
     { type: "Assumption or unknown", instruction: "Name it as an assumption and say whether it is confirmed." },
   ],
   passes: [
-    { pass: "Clarify", checks: ["Choose the audience and the one fact it needs first.", "Give each section one job.", "Use the same terms as the linked sources and assumptions.", "Make every link say what it contains.", "Keep each citation next to its claim."] },
+    { pass: "Clarify", checks: ["Choose the audience and the one fact it needs first.", "Give each section one job.", "Use the same terms as the sources and assumptions.", "Make every link say what it contains."] },
     { pass: "Distill", checks: ["Remove repeated introductions and decorative panels.", "Remove empty forward-looking statements.", "Keep caveats, decision criteria and uncertainty."] },
-    { pass: "Polish", checks: ["Replace inflated or vague phrasing without adding facts.", "Check every quotation, count, date, owner and decision against the linked material."] },
+    { pass: "Polish", checks: ["Replace inflated or vague phrasing without adding facts.", "Check every quotation, count, date, owner and decision against the sources you read."] },
   ],
   voice: ["Plain, direct sentences.", "The product's vocabulary: outcome, source, passage, assumption, mockup, Story.", "Calm: no sales language and no generic optimistic closing.", "Sentence-case headings, written as statements where a section makes a point.", "Link text that makes sense out of context."],
   fact_guardrails: [
-    "Never add a person, owner, date, source, quote, count, measurement, customer claim, commitment or decision the linked material does not establish.",
+    "Never add a person, owner, date, source, quote, count, measurement, customer claim, commitment or decision the sources you read do not establish. Read before you write: search the product for what bears on the page.",
     "Never turn a working interpretation into agreement, or an unconfirmed assumption into a settled one.",
     "When a detail is not established, name the limit or leave it out.",
     "Honour a source's own quoting rules: when an agreement, consent note or the source's metadata limits naming people, attribute by role (\"an operations lead at one customer\") and never name them.",
-    "A derived view, digest or analysis is not direct evidence. When a page cites one, say so beside the claim (\"analysis, not evidence\") and cite the underlying passages where you can.",
-    "A plan is the team's, not the sources'. When a person gives you dates or an order of delivery, use them, say on the page that they are a plan or a proposal, and record in the page's notes who set them and when. A feature in a plan still links to the source or the passage it comes from.",
+    "A derived view, digest or analysis is not direct evidence. When a page rests on one, say so beside the claim (\"analysis, not evidence\").",
+    "A plan is the team's, not the sources'. When a person gives you dates or an order of delivery, use them, say on the page that they are a plan or a proposal, and record in the page's notes who set them and when.",
     "A Story is often read outside the team. Before the first page, look for an agreement or consent note among the sources that limits naming an organisation, its people or its figures, and follow it on every page.",
   ],
 };
@@ -197,23 +195,22 @@ export const WRITING = {
 export const CHECKLIST = [
   { check: "Style", question: "Does the page follow the product's Story style (published with body, or with the stylesheet pasted in), and not WhatBuild's app look?" },
   { check: "Audience and purpose", question: "Does the opening give this reader the one thing they need first?" },
-  { check: "Evidence and interpretation", question: "Is every observation linked to a passage, and every interpretation labelled?" },
+  { check: "Evidence and interpretation", question: "Is every observation true to the sources, every interpretation labelled, and the page free of source references a reader does not need?" },
   { check: "Design passes", question: "Did you run critique, typeset, layout, adapt and polish (with a design skill if you have one), and look at the page's preview at desktop and phone width, in light and dark?" },
   { check: "Anti-patterns", question: "Is the page free of every item in anti_patterns?" },
   { check: "Structure and access", question: "One h1, logical headings, labelled tables, links that say where they go, AA contrast, no colour-only meaning, readable at 390px?" },
-  { check: "Publishing", question: "Did you read the current version, pass its etag, send refs and citations in full when they change, and place the page in the hierarchy (unless your instructions say not to)?" },
+  { check: "Publishing", question: "Did you read the current version, pass its etag, and place the page in the hierarchy (unless your instructions say not to)?" },
 ];
 
 export const WORKFLOW = [
   "Read the outcomes, the relevant sources, assumptions and mockups first.",
   "Settle the Story style (style_workflow) before the first page, and read it before every page.",
   "Read the current version of the page and its notes for agents (get_page → agent_notes) before revising it, keep what is useful, and pass its etag.",
-  "Cite the exact passages the page rests on in citations (up to 20), and list the objects it draws on in refs. When you pass either list, pass it in full: it replaces the previous one.",
-  "On a later version send only what changes: html, refs and citations you omit carry forward from the current version. patch_html fixes a sentence by exact find and replace; from_version restores an earlier version as a new one. Compare html_sha256 to confirm identical HTML.",
+  "On a later version send only what changes: the title, summary and html you omit carry forward from the current version. patch_html fixes a sentence by exact find and replace; from_version restores an earlier version as a new one. Compare html_sha256 to confirm identical HTML.",
   "Publish with body: only the markup inside <body>. WhatBuild wraps it in a document with the product's Story style, so you never send the stylesheet and every page carries the same one. Send html only for a whole document of your own.",
   'Preview before you publish: send the same call to story(action="preview"). It refuses what publish would refuse, publishes nothing, and returns a grant to GET the exact page publish would store. Look at it at desktop and phone width, in light and dark, then send the same params to publish.',
   "Use the hierarchy to find related pages; give each page a short lower-case page_id; link related pages inline, and link the pages beneath a page from it (nav.pages).",
-  "summary describes the page itself and shows in navigation. Keep mechanics — citation ranges, merges to stay within the citation limit, ids — in the notes for agents; the activity log already records each version.",
+  "summary describes the page itself and shows in navigation. Keep mechanics — which sources a page rests on, ids, what is still to fold in — in the notes for agents; the activity log already records each version.",
   "Publishing does not place a page: set_hierarchy does, with its own etag. Place each new page unless your instructions say otherwise; then leave it unplaced and say so.",
   "After publishing, update the page's notes for agents with write_notes: its purpose, what is still to fold in, and choices about its structure. publish returns agent_notes_etag; while the notes are empty you may omit the etag.",
   "Archiving a page takes it out of navigation and promotes its sub-pages; restoring returns it unplaced.",
@@ -222,7 +219,8 @@ export const WORKFLOW = [
 export const CONTENT_RULES = [
   "Explain the outcomes, current understanding, choices and next steps.",
   "Write for a busy stakeholder.",
-  "Link the sources, mockups and the few assumptions that shape the account.",
+  "Name the few assumptions that shape the account, and say whether each is confirmed.",
+  "Explain in your own words. Quote a source only where its exact words matter, and leave source and passage links out: the evidence stays in Evidence.",
   "Separate observed evidence, interpretation and agreement.",
   "Never invent agreement, owners, dates, commitments or measurements.",
   "Leave breadcrumbs and navigation to the reader: the app provides them.",

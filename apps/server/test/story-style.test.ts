@@ -398,7 +398,7 @@ describe("publishing a page from its body", () => {
     const pub = await alice.api("POST", `${P}/story/pages/plan/versions`, { restyle: true, expected_etag: etag });
     expect(pub.status).toBeLessThan(300);
     expect(pub.body.current_version).toBe(2);
-    expect(pub.body.carried_forward).toEqual(["title", "summary", "refs", "citations"]);
+    expect(pub.body.carried_forward).toEqual(["title", "summary"]);
     const html = (await vic.api("GET", `${P}/story/pages/plan/versions/2/html`)).body as string;
     expect(html).toContain(`<style>\n${HOUSE_STYLES.find((s) => s.id === "wide")!.stylesheet}</style>`);
     expect(html).not.toContain(current.stylesheet);

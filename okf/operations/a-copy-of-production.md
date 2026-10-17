@@ -3,7 +3,7 @@ type: System Concept
 title: A copy of production on your machine, for manual QA, agent-driven end-to-end tests and trying migrations on real data
 description: Pulling the public sandbox or other organizations of the deployment, with their files, loading them into the embedded Postgres, serving them with pending migrations applied, and keeping the copy private.
 tags: [development, testing, qa, production, fixture, migrations]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
@@ -11,7 +11,7 @@ status: stable
 
 The synthetic sample product shows every feature, but it is small and tidy. A copy of the
 production deployment has real volume and history: products agents built up over weeks, Story
-pages, revisions, citations that drifted, and rows in the shape older releases left them. Use it
+pages, revisions, sources parsed more than once, and rows in the shape older releases left them. Use it
 for manual QA, for agent-driven end-to-end tests, and to watch a release's migrations run on real
 data before production does ([decision](../decisions/qa-uses-a-private-copy-of-production.md)).
 A copy holds the public sandbox, or the organizations named, and nothing of the others

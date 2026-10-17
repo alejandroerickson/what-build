@@ -2,12 +2,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { api, qs } from "../lib/api.ts";
-import { attribution, formatCue, passageText, plural, relativeTime } from "../lib/format.ts";
-import { bareCitations, citationLabels, citations, citationText, citedSourceIds, Markdown, passageHref } from "../lib/markdown.tsx";
+import { attribution, formatCue, passageText, relativeTime } from "../lib/format.ts";
+import { evidenceLinks, Markdown, mentionedSourceIds, mentionLabels, mentionText, passageHref, sourceMentions } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { useSourceTitles } from "../lib/source-titles.ts";
 import type { Annotation, RecordFull, Segment } from "../lib/types.ts";
-import { Button, ErrorCallout, FindField, Glyph, IconButton, Loading, Menu, MenuGroup, MenuItem, Sheet, SheetHeader, Tag, TextArea, TextField, useToast } from "../ui/index.tsx";
+import { Button, ErrorCallout, FindField, IconButton, Loading, Sheet, SheetHeader, Tag, TextArea, TextField, useToast } from "../ui/index.tsx";
 import { DeleteDialog } from "./delete-dialog.tsx";
 import "../styles/screens/evidence.css";
 
@@ -46,7 +46,7 @@ interface RowCells {
 /**
  * Parsers store a table as one passage per row: the header as "A | B", each row as
  * "A: cell | B: cell" (a matrix row leads with its unlabelled name). A header followed by rows that
- * use its names is shown as a small table; each row stays its own passage, to select and cite.
+ * use its names is shown as a small table; each row stays its own passage, to select and comment on.
  * Anything that does not fit the pattern, or has more than six columns, reads as stored.
  */
 function tableRows(segments: Segment[]): Map<number, RowCells> {
@@ -80,24 +80,11 @@ function tableRows(segments: Segment[]): Map<number, RowCells> {
   return out;
 }
 
-interface CitingEntry {
-  key: string;
-  kind: "Assumption" | "Mockup" | "Story page";
-  title: string;
-  to: string;
-  seq_start: number;
-  seq_end: number;
-  quote_not_found?: boolean;
-}
-
-/** A citation of this source as used-by gives it: where its quote is in the current passages. */
-type CitedRange = { seq_start: number; seq_end: number; quote_not_found?: boolean };
-
 /**
  * The passage reader: a window of passages by number, never the whole source. The URL holds the
- * position (?seq=N, and ?to=M for a range), so a search hit, a citation or a comment opens exactly
+ * position (?seq=N, and ?to=M for a range), so a search hit, a link or a comment opens exactly
  * where it points, with the whole range marked. Pick a passage (Shift for a range) to comment on it
- * or copy a citation for an agent.
+ * or copy a reference to it for an agent.
  */
 export function PassageReader({ record }: { record: RecordFull }) {
   const { api: base, app, canWrite } = useProduct();
@@ -122,25 +109,6 @@ export function PassageReader({ record }: { record: RecordFull }) {
     setSel({ a: target, b: targetEnd });
   }, [target, targetEnd]);
   const end = Math.min(total - 1, start + PAGE - 1);
-  // Where this source is cited: the same read the inspector's "Cited in" makes.
-  const cited = useQuery({
-    queryKey: ["used-by", base, record.record_id],
-    queryFn: () =>
-      api<{
-        assumptions: { id: string; statement: string; citations: CitedRange[] }[];
-        story_pages?: { page_id: string; title: string; citations: CitedRange[] }[];
-        mockups?: { mockup_id: string; title: string; citations: CitedRange[] }[];
-      }>("GET", `${base}/sources/${record.record_id}/used-by`),
-  });
-  // A quote the source no longer holds marks no passage: the citation's own page says so.
-  const citing: CitingEntry[] = (cited.data
-    ? [
-        ...cited.data.assumptions.flatMap((e) => e.citations.map((c, i) => ({ key: `a${e.id}.${i}`, kind: "Assumption" as const, title: e.statement, to: `${app}/exploration/assumptions/${e.id}`, ...c }))),
-        ...(cited.data.mockups ?? []).flatMap((m) => m.citations.map((c, i) => ({ key: `m${m.mockup_id}.${i}`, kind: "Mockup" as const, title: m.title, to: `${app}/exploration/mockups/${m.mockup_id}`, ...c }))),
-        ...(cited.data.story_pages ?? []).flatMap((p) => p.citations.map((c, i) => ({ key: `s${p.page_id}.${i}`, kind: "Story page" as const, title: p.title, to: `${app}/story/${p.page_id}`, ...c }))),
-      ]
-    : []
-  ).filter((c) => !c.quote_not_found);
   const q = useQuery({
     queryKey: ["passage", base, record.record_id, start, end],
     queryFn: () => api<Passage>("GET", `${base}/sources/${record.record_id}/passage${qs({ start, end, unit: "seq" })}`),
@@ -181,10 +149,10 @@ export function PassageReader({ record }: { record: RecordFull }) {
   }
   const segments = q.data?.segments ?? [];
   const table = tableRows(segments);
-  // Passages that cite other sources (a view or a digest) read "Title ¶N" instead of a raw id.
-  const citedIds = [...new Set(segments.flatMap((s) => citedSourceIds(s.text)))];
-  const titles = useSourceTitles(base, citedIds);
-  const evidence = { app, titles, labels: citationLabels(citedIds, titles) };
+  // Passages that mention other sources by id (a view or a digest) read "Title ¶N" instead of a raw id.
+  const mentionedIds = [...new Set(segments.flatMap((s) => mentionedSourceIds(s.text)))];
+  const titles = useSourceTitles(base, mentionedIds);
+  const evidence = { app, titles, labels: mentionLabels(mentionedIds, titles) };
   const searchThis = (e: FormEvent) => {
     e.preventDefault();
     if (find.trim()) navigate(`${app}/search?q=${encodeURIComponent(find.trim())}&record_id=${record.record_id}`);
@@ -210,11 +178,11 @@ export function PassageReader({ record }: { record: RecordFull }) {
               const ref = JSON.stringify({ record_id: record.record_id, seq_start: lo, seq_end: hi });
               navigator.clipboard
                 .writeText(ref)
-                .then(() => toast("Citation copied. Paste it to your agent."))
-                .catch(() => toast("Couldn’t copy the citation.", { tone: "negative" }));
+                .then(() => toast("Reference copied. Paste it to your agent."))
+                .catch(() => toast("Couldn’t copy the reference.", { tone: "negative" }));
             }}
           >
-            Copy citation
+            Copy reference
           </Button>
           <Button
             size="sm"
@@ -256,8 +224,7 @@ export function PassageReader({ record }: { record: RecordFull }) {
               const comments = byRow.get(s.seq) ?? [];
               const line = who(s);
               const row = table.get(s.seq);
-              const refs = bareCitations(s.text);
-              const citedBy = [...new Map(citing.filter((c) => s.seq >= c.seq_start && s.seq <= c.seq_end).map((c) => [c.to, c])).values()];
+              const mentions = sourceMentions(s.text);
               return (
                 <li
                   key={s.seq}
@@ -282,43 +249,19 @@ export function PassageReader({ record }: { record: RecordFull }) {
                           </span>
                         </>
                       ) : (
-                        <span className="passage-text">{refs.length ? citations(s.text, `p${s.seq}`, evidence, false) : passageText(s.text, s.heading_level)}</span>
+                        <span className="passage-text">{mentions.length ? evidenceLinks(s.text, `p${s.seq}`, evidence, false) : passageText(s.text, s.heading_level)}</span>
                       )}
                     </button>
-                    {refs.length || citedBy.length ? (
+                    {mentions.length ? (
                       <div className="passage-aids">
-                        {refs.length ? (
-                          <span className="passage-cites">
-                            <span className="faint">Cites</span>
-                            {[...new Map(refs.map((r) => [`${r.id}:${r.start}:${r.end}`, r])).values()].map((r) => (
-                              <Link key={`${r.id}:${r.start}:${r.end}`} to={passageHref(app, r.id, r.start, r.end)} className="evidence-link" title={titles[r.id]}>
-                                {citationText(evidence.labels[r.id] ?? "Source", r.start, r.end)}
-                              </Link>
-                            ))}
-                          </span>
-                        ) : null}
-                        {citedBy.length ? (
-                          <Menu
-                            trigger={
-                              <>
-                                <Glyph name="quote" size="sm" />
-                                Cited by {citedBy.length}
-                              </>
-                            }
-                            label={`Cited by ${plural(citedBy.length, "entry", "entries")}`}
-                            triggerClassName="passage-cited"
-                            align="start"
-                            minWidth={280}
-                          >
-                            <MenuGroup label={`Citing ${address(s.seq)}`}>
-                              {citedBy.map((c) => (
-                                <MenuItem key={c.key} to={c.to} meta={c.kind}>
-                                  {c.title}
-                                </MenuItem>
-                              ))}
-                            </MenuGroup>
-                          </Menu>
-                        ) : null}
+                        <span className="passage-mentions">
+                          <span className="faint">Mentions</span>
+                          {[...new Map(mentions.map((r) => [`${r.id}:${r.start}:${r.end}`, r])).values()].map((r) => (
+                            <Link key={`${r.id}:${r.start}:${r.end}`} to={passageHref(app, r.id, r.start, r.end)} className="evidence-link" title={titles[r.id]}>
+                              {mentionText(evidence.labels[r.id] ?? "Source", r.start, r.end)}
+                            </Link>
+                          ))}
+                        </span>
                       </div>
                     ) : null}
                     {comments.length ? (

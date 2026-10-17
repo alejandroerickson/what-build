@@ -3,7 +3,7 @@ type: Roadmap
 title: Phases 0 to 5 are mostly built, and a public sandbox; durability, data rights and public sign-up come next.
 description: What is built and what is not, phase by phase, with acceptance criteria; the open questions that remain, the ones already settled, and the risks.
 tags: [roadmap, status, phases, open-questions, risks]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
@@ -12,17 +12,17 @@ status: stable
 The ethos: the smallest implementation that proves the full path wins. Each phase ends in
 something demonstrable, and each acceptance list is a test plan.
 
-## Status on 2026-10-14
+## Status on 2026-10-16
 
 Observed in the code on this date.
 
 | Phase | State | Built | Not built yet |
 |---|---|---|---|
 | 0 | Mostly done | pnpm workspace, strict TypeScript, `pnpm dev` with **no Docker** (embedded Postgres), forward-only migrations, seed, `pnpm test` (parsers, server against real Postgres, web), GitHub Actions CI (documentation bundle check, install, skill drift check, typecheck, test, build); the [security checks](../operations/security-checks.md): git hooks and a CI job that refuse private material, `pnpm security` (osv-scanner, zizmor) on every pull request and weekly, a weekly OWASP ZAP scan, Dependabot, CodeQL once public, and a security policy; `pnpm attention` at the start of an agent session; [agent-driven end-to-end tests](../operations/end-to-end-tests.md) that follow written plans through the web app and the MCP server on an instance reset to a golden master built from production's public sandbox | contribution guide, code of conduct; lint and format config |
-| 1 | Done | registry → REST and MCP (128 operations, 126 of them offered to agents; 16 tools); row-level security in the first migration; ETags; paging; `describe`; activity in the same transaction; the isolation test over every operation; the parity test | — |
+| 1 | Done | registry → REST and MCP (121 operations, 119 of them offered to agents; 15 tools); row-level security in the first migration; ETags; paging; `describe`; activity in the same transaction; the isolation test over every operation; the parity test | — |
 | 2 | Mostly done | upload grants (relay, optional direct signed URLs); parsers for plain text, Markdown, VTT, SRT, HTML, DOCX, legacy Word `.doc`, PDF, XLSX, CSV and TSV; derivation on the Postgres queue, each file parsed in a thread of its own held to a memory and a time limit; hostile-file tests; sources described by a title and tags, with `sources.facets` (the tags in use and who added sources); passages by segment and time; substring and ranked search with coverage, and plain search over everything in a product; archive and restore; guarded delete, for admins, of sources, comments, assumptions, outcomes, Story pages, mockups and whole products, with tombstones; a synthetic sample product in the seed | usage metering; golden-file tests per format; a blob-store conformance suite (no test exercises the Cloud Storage adapter), then `@google-cloud/storage` 8, which retires the uuid advisory accepted in `.github/osv-scanner.toml`; a fast-saved Word 6 or Word 95 `.doc`, and Word 6 tables beyond what cell marks show; the parse limits measured on the deployment's own Linux under its memory limit; a budget of parse time per sandbox visitor or organization |
 | 3 | Mostly done | tenants, teams, products, roles; email-link, Google, Microsoft work-account and development sign-in; invitations by email and link; the Story-only reader role; invite-only mode; who may create organizations (instance owners, and allowances they give); sign-in link rate limit; the [public sandbox](#the-public-sandbox) with its invitations, seats, visitor role and limits; deleting an organization (its owners, in the web app) | quotas and rate limits for every organization (they exist for visitors to the sandbox, and for Story pages and mockups); account deletion; archiving and deleting a team; an invitation that is still made, with its link to pass on, when its email cannot be sent (a failed send now fails the invitation) |
-| 4 | Mostly done | the design system (Studio, [DESIGN.md](../../DESIGN.md)) across every screen of the loop: Idea, search over the whole product (the ⌘K palette with recent searches, and the Search screen by area); Evidence (browse by tag and by who added; intake that asks for a title and tags; the source page with sections and inspector, passage reader, notes, files, search), Exploration (mockups on a full-width canvas that pans and zooms, fits or fills a page and keeps that view from page to page, with a page's notes, the brief, versions and download in the inspector, pages that enter a team's multi-file prototype as it is, and a page promoted to the Story from there; assumptions with review, confidence and citation checks; old Synthesis, insight and decision links redirect), outcome revision history, Story (a reader with the page tree, arranged by dragging or Alt and the arrow keys, pages archived, restored and deleted by hand, the published mockups to flip through with the arrow keys and to fit or fill, crumbs, focus mode, the inspector with versions, citations and notes for agents, the Story style with house-style previews, the print view for PDF, the page following the app's theme), Activity as one log for people and agents, organization members, product people, Connect an agent, the person's settings, the cookie choice and `/cookies` | an accessibility audit; on a touch screen, pinching or dragging the mockup canvas from a page in interact mode (the page keeps the touch); a browser walk-through of the loop in CI (`scripts/e2e.mjs` is one, run by hand; the [end-to-end plans](../operations/end-to-end-tests.md) are run by an agent on request); the public sample at `/sample` |
+| 4 | Mostly done | the design system (Studio, [DESIGN.md](../../DESIGN.md)) across every screen of the loop: Idea, search over the whole product (the ⌘K palette with recent searches, and the Search screen by area); Evidence (browse by tag and by who added; intake that asks for a title and tags; the source page with sections and inspector, passage reader, notes, files, search), Exploration (mockups on a full-width canvas that pans and zooms, fits or fills a page and keeps that view from page to page, with a page's notes, the brief, versions and download in the inspector, pages that enter a team's multi-file prototype as it is, and a page promoted to the Story from there; assumptions with review and confidence; old Synthesis, insight and decision links redirect), outcome revision history, Story (a reader with the page tree, arranged by dragging or Alt and the arrow keys, pages archived, restored and deleted by hand, the published mockups to flip through with the arrow keys and to fit or fill, crumbs, focus mode, the inspector with versions and notes for agents, the Story style with house-style previews, the print view for PDF, the page following the app's theme), Activity as one log for people and agents, organization members, product people, Connect an agent, the person's settings, the cookie choice and `/cookies` | an accessibility audit; on a touch screen, pinching or dragging the mockup canvas from a page in interact mode (the page keeps the touch); a browser walk-through of the loop in CI (`scripts/e2e.mjs` is one, run by hand; the [end-to-end plans](../operations/end-to-end-tests.md) are run by an agent on request); the public sample at `/sample` |
 | 5 | Mostly done | OAuth 2.1 for MCP, MCP connectors scoped to one organization or one product that refuse anything outside them, a level on each agent connection (Read only, Edit or Admin) that caps what it may do and the actions it is offered, the versioned skill, `get_skill` and the version in the server instructions, the Connect an agent page, feedback from people and agents that names nobody, with a daily limit, a switch on each agent connection and a daily email digest, the product's Story style (the team's design system or a house style), Story guidance with taste, anti-patterns and design passes, a vocabulary and compositions for plans and front pages, publishing a page from its body, and previewing a publish to look at the exact page first | the stdio transport |
 | 6 | Started | the Cloud Run deployment ([cloud-run.md](../operations/cloud-run.md)) and the Cloud Build file, run by a trigger on release tags that waits for approval ([decision](../decisions/production-runs-releases-after-approval.md)); releases as tags that publish the image to the GitHub container registry ([decision](../decisions/releases-are-tags-with-a-published-image.md)); product export (`products.export`); a sandbox's baseline and reset; the public site with its interest form, served from Cloudflare's edge or by host; the service capped at one instance; running on a free-tier Postgres (the suite passes against 18) with a nightly logical backup to a bucket, set up by hand, and its runbook ([backups.md](../operations/backups.md)); a dev deployment holding a copy of production, where a release that migrates is rehearsed before production moves ([dev-deployment.md](../operations/dev-deployment.md)); copies of production that hold only the public sandbox or the organizations named, for the local copy, the golden master, the dev deployment or another deployment's new database ([copying-an-organization.md](../operations/copying-an-organization.md)); production's mail, sent through Cloudflare Email Sending ([mail.md](../operations/mail.md)); instructions for an agent to self-host on Azure ([below](#self-hosting-on-azure)) | a rehearsed restore; import; organization export; adding a copied organization to a database that already holds others, matching its people to accounts there by address; `setup.sh` creating the Cloud Build trigger (made by hand, so a deployment without one deploys nothing on a release); [undelete](#planned--undelete); the sub-processors page; abuse tests beyond hostile uploads and isolation; limits per client address, once the Worker passes the client's address in a header the service can trust (until then the limit on agent registrations is shared by the whole deployment); Postgres 18 in CI and the embedded test server; `setup.sh` creating the nightly backup; a cap on bytes served per member a day |
 
@@ -73,9 +73,8 @@ tombstones; usage metering; the blob conformance suite; the synthetic sample pro
 - Out-of-range and over-size passage windows behave per [§5.4](05-derived-layer.md).
 - Upload → derive → search → passage read works end to end through REST and through MCP.
 - An archived source leaves search — including through MCP — and returns unchanged on restore.
-- A deleted source frees its bytes, returns `410` with its tombstone, and leaves citations
-  reporting `record_deleted` with their snapshot text intact. `delete` without `confirm`, with a
-  stale `expected_etag`, or without a reason is refused.
+- A deleted source frees its bytes and returns `410` with its tombstone. `delete` without
+  `confirm`, with a stale `expected_etag`, or without a reason is refused.
 - Blob conformance passes on in-memory, filesystem and Cloud Storage configurations.
 - Usage counters match a reconciliation job's independent count.
 
@@ -111,7 +110,7 @@ feedback capture.
 
 *Accept:* someone who has never seen the product connects Claude Desktop and Claude Code from the
 Connect an agent page alone; an agent with only the skill and `describe` completes: create source → upload
-via grant → read passages → register a cited assumption → draft and publish a Story page; a token
+via grant → read passages → register an assumption → draft and publish a Story page; a token
 cannot reach a tenant its person is not in through any tool; a revoked token stops working
 immediately; permanent delete over MCP happens only with every guard of
 [§9.5](09-data-lifecycle.md).
@@ -141,8 +140,8 @@ be deleted, by an admin, and an organization by its owner ([§9.5](09-data-lifec
 *Accept:*
 - A restore from backup into a scratch environment is **performed**, verified against the nightly
   blob manifest, and written up with its elapsed time.
-- An export round-trips into a fresh instance with identical ids, citations, revisions and
-  `check_citations` results.
+- An export round-trips into a fresh instance with identical ids, versions, revisions and
+  reviews.
 - Deleting an organization removes its access and content from the product at once and its files
   from the store after (built), and backups age out within their stated window.
 - Sign-up survives an abuse test: scripted sign-ups, oversized uploads, and a write flood are all
@@ -158,8 +157,7 @@ be deleted, by an admin, and an organization by its owner ([§9.5](09-data-lifec
 ## Phase 7 — Retrieval
 
 In the order evidence supports: relevance set and semantic/hybrid evaluation on `pgvector`;
-dimension registry; tiered attachment search; approximate relocation; recursive lineage
-([§8](08-search.md)).
+dimension registry; tiered attachment search ([§8](08-search.md)).
 
 *Accept:* hybrid beats lexical on the measured relevance set — or it is not adopted.
 
@@ -178,7 +176,6 @@ lets a defect through, when it writes a Story of many pages over MCP.
 
 | Proposal | What it answers |
 |---|---|
-| `story.publish` answers with counts (`refs`, `citations`) and no resolved titles or snapshots unless `verbose` is passed | The result of publishing a page with 17 references and 10 citations is several times longer than the page's body. An agent that publishes ten pages reads all of it. |
 | `story.restyle` gives every live page the product's current stylesheet in one call, with each page's etag checked | After `set_style`, `publish { restyle }` is one call per page. |
 | Publishing warns, without refusing, about a class the page uses that neither the product's stylesheet nor the page's own styles define | A page written for one style and published under another renders unstyled blocks, and nothing says so. |
 | Publishing warns about a list item in `.steps` or `.lines` that does not have the shape the vocabulary gives | A house style once laid a step out as a grid, which broke any step holding a link or bold text. The styles no longer do, and a check would catch the next such fault. |
@@ -233,8 +230,8 @@ What it takes:
   it removes into a holding table as JSON, ids and all, the way a sandbox's baseline holds an
   organization's content (`public-sandbox-baseline.ts`), and keep their bytes; only after the
   window would the rows and the bytes be erased. Nothing that reads content would see the held rows.
-- **Put back with the same ids,** so every citation, link and reference that pointed at the object
-  resolves again, and the tombstone goes. What changed in the meantime decides what can come back:
+- **Put back with the same ids,** so every link that pointed at the object opens again, and the
+  tombstone goes. What changed in the meantime decides what can come back:
   a page id used again, or links the delete removed from other assumptions.
 - **Say so.** "Permanent. Immediately." would no longer be true inside the window, so the delete
   dialogs, the skill and the privacy page change with it, and a person who needs something gone at
@@ -244,7 +241,7 @@ What it takes:
   undo it; that is the 7-day window an earlier plan for closing an organization had.
 
 *Accept:* an owner restores a deleted source, assumption, Story page, mockup and product within the
-window, and each comes back with its id, its citations resolving and its history; after the window
+window, and each comes back with its id, the links to it opening and its history; after the window
 nothing of it remains but its tombstone.
 
 ## The public sandbox
@@ -337,8 +334,8 @@ Each has a default so work is not blocked.
   ([cloud-run.md](../operations/cloud-run.md)).
 - Archive is the reversible default; delete is permanent, an admin's through both adapters (and
   an organization's, its owner's in the web app), guarded by `expected_etag` + `reason` +
-  `confirm` + a preview, and citation snapshots survive a source's delete
-  ([§9.5](09-data-lifecycle.md), [decision](../decisions/archive-by-default-delete-guarded.md)).
+  `confirm` + a preview ([§9.5](09-data-lifecycle.md),
+  [decision](../decisions/archive-by-default-delete-guarded.md)).
 - An agent's connection has a level its person chooses, Read only, Edit (the default) or Admin,
   which caps their role and the actions it is offered; only the person changes it
   ([decision](../decisions/an-agent-connection-has-a-level-the-person-chooses.md)).
@@ -355,11 +352,14 @@ Each has a default so work is not blocked.
   delete, no separate reviewer or delete role, every role but reader reads the activity log; `403` names the role
   ([§3.5](03-accounts-teams-and-identity.md)).
 - Stakeholders who read only the Story get the reader role, not share links: they sign in, and
-  the server gives them the Story's live pages, versions and export without what the pages draw
-  on, and no archived page ([decision](../decisions/a-reader-reads-only-the-story.md)).
+  the server gives them the Story's live pages, versions and export without the notes agents keep
+  on them, and no archived page ([decision](../decisions/a-reader-reads-only-the-story.md)).
 - Sources are not shared across products; they are copied or moved
   ([§3.7](03-accounts-teams-and-identity.md)).
 - Assumptions freeze at first review; corrections supersede ([§4.8](04-data-model.md)).
+- Evidence is found by searching, not kept as citations: nothing structural points from an
+  assumption, a Story page or a mockup to a source, and a Story explains in words
+  ([decision](../decisions/evidence-is-searched-not-cited.md)).
 - Sources are described by a title and tags, with no kinds, folders or organization field
   ([decision](../decisions/sources-are-described-by-tags.md)).
 - A human review relayed by an agent is allowed and recorded as declared

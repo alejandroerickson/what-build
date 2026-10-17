@@ -4,9 +4,9 @@ import type { Browser, Harness } from "./harness.ts";
 
 /**
  * An organization with something in every kind of row a product holds: outcomes and their
- * revisions, tagged sources with files, derivations, passages, annotations and agent notes, assumptions
- * with citations, links and reviews, a Story with a style, a hierarchy, notes, a preview and a promoted
- * mockup page, a mockup with files and a canvas upload, a mockup whose page enters a prototype, lineage, an export, an invitation and a second member. Every text it
+ * revisions, tagged sources with files, derivations, passages, annotations and agent notes, a view,
+ * assumptions with links and reviews, a Story with a style, a hierarchy, notes, a preview and a promoted
+ * mockup page, a mockup with files and a canvas upload, a mockup whose page enters a prototype, an export, an invitation and a second member. Every text it
  * writes carries `marker`, so a test can tell whether any of it reached someone else.
  */
 export interface Organization {
@@ -69,7 +69,7 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
   ok(await owner.api("PUT", `${P}/sources/${src.record_id}/agent-notes/summary`, { content: `${marker} summary for agents.` }), 200);
   const ann = ok(await owner.api("POST", `${P}/sources/${src.record_id}/annotations`, { record_id: src.record_id, note: `${marker} annotation.`, seq_start: 0, seq_end: 1 }));
 
-  const as = ok(await owner.api("POST", `${P}/assumptions`, { statement: `${marker} assumption: crews read texts first.`, citations: [{ record_id: src.record_id, seq_start: 1, seq_end: 1 }], outcome_ids: [o.outcome_id], author_type: "human" }));
+  const as = ok(await owner.api("POST", `${P}/assumptions`, { statement: `${marker} assumption: crews read texts first.`, body: `${marker} the interview notes say so.`, outcome_ids: [o.outcome_id], author_type: "human" }));
   const linked = ok(await owner.api("POST", `${P}/assumptions`, { statement: `${marker} linked assumption.` }));
   const link = ok(await owner.api("POST", `${P}/assumptions/${as.id}/links`, { expected_etag: as.etag, target_id: linked.id, type: "supports" }), 200);
   ok(await owner.api("POST", `${P}/assumptions/${linked.id}/review`, { expected_etag: linked.etag, status: "confirmed", note: `${marker} review note.`, reviewer_type: "human" }), 200);
@@ -77,16 +77,12 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
   const gone = ok(await owner.api("POST", `${P}/sources`, { title: `${marker} mistaken upload` }));
   ok(await owner.api("DELETE", `${P}/sources/${gone.record_id}`, { expected_etag: gone.etag, reason: `${marker} uploaded by mistake`, confirm: "delete permanently" }), 200);
 
-  const view = ok(await owner.api("POST", `${P}/sources`, { title: `${marker} view of the visits`, tags: ["view"], related_records: [src.record_id] }));
-  const cap = ok(await owner.api("POST", `${P}/lineage/capture`, { inputs: [{ kind: "record", id: src.record_id }, { kind: "assumption", id: as.id }] }), 200);
-  ok(await owner.api("POST", `${P}/sources/${view.record_id}/lineage`, { record_id: view.record_id, inputs: cap.inputs, captured_at: cap.captured_at, query_spec: { description: `${marker} lineage query.` } }), 200);
+  const view = ok(await owner.api("POST", `${P}/sources`, { title: `${marker} view of the visits`, tags: ["view"], provenance_depth: "derived" }));
 
   const style = ok(await owner.api("PUT", `${P}/story/style`, { house_style: "report" }), 200);
   const page = ok(await owner.api("POST", `${P}/story/pages/${marker.toLowerCase()}-overview/versions`, {
     title: `${marker} where we stand`,
     body: `<h1>${marker} where we stand</h1><p>${marker} the Story says crews plan on Fridays.</p>`,
-    refs: { outcomes: [o.outcome_id], sources: [src.record_id], assumptions: [as.id] },
-    citations: [{ record_id: src.record_id, seq_start: 1, seq_end: 1 }],
   }));
   const notes = ok(await owner.api("PUT", `${P}/story/pages/${page.page_id}/notes`, { notes: `${marker} notes for agents.` }), 200);
   const tree = ok(await owner.api("PUT", `${P}/story/hierarchy`, { items: [{ page_id: page.page_id, children: [] }], expected_etag: null }), 200);
@@ -99,7 +95,6 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
     brief: `${marker} brief: which screen tells crews the plan.`,
     pages: [{ page_id: `${marker.toLowerCase()}-plan`, title: `${marker} plan screen`, html: html(`${marker} plan screen`) }],
     files: [{ path: "DESIGN.md", content: `${marker} design notes.` }],
-    refs: { assumptions: [as.id] },
   }));
   // A mockup whose page enters a prototype, uploaded as a ZIP.
   const g = ok(await owner.api("POST", `${P}/mockups/uploads`, {}));

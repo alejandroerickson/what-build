@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild at three altitudes
 description: The whole system from the top down, the major parts, and the mechanics underneath, with links to the detail.
 tags: [overview, architecture, tenancy, access, mcp]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
@@ -16,12 +16,13 @@ Read from the top and stop when you have what you need.
 **What it is.** A product team's discovery material (interview transcripts, call notes, survey
 exports, documents) goes in. WhatBuild stores it, parses each source into numbered passages, and
 gives people and their agents one place to turn it into outcomes, mockups, reviewed assumptions
-and a Story for stakeholders. Every claim points at the exact passage it came from.
+and a Story for stakeholders. Agents search the passages for what bears on each piece of work.
 
 **Three traits define it.**
 
-- Every claim cites a passage, a citation freezes the exact words, and drift is reported, never
-  repaired ([decision](../decisions/citations-snapshot-and-report-drift.md)).
+- Every source is parsed into passages that people and agents read and search exactly; what bears
+  on a piece of work is found by searching, not kept as citations
+  ([decision](../decisions/evidence-is-searched-not-cited.md)).
 - There is no AI inside; agents bring the intelligence over MCP
   ([decision](../decisions/no-ai-in-the-product.md)).
 - Agents work in the open: every write is attributed, and agent work is never passed off as a
@@ -35,7 +36,7 @@ agents do most intake and synthesis over MCP; stakeholders read the Story, often
 [decision](../decisions/sources-are-described-by-tags.md)) → **Exploration** (mockups: versioned canvases of
 pages built from the evidence, each under a brief, whose pages may enter a team's multi-file
 prototype carried as it is ([decision](../decisions/mockups-carry-prototypes-served-from-a-capability-path.md));
-and the assumption register, cited and reviewed) → **Story** (versioned pages for stakeholders). Insights and decisions were retired, and
+and the assumption register, reviewed by people) → **Story** (versioned pages for stakeholders). Insights and decisions were retired, and
 what a product held of them became sources
 ([decision](../decisions/insights-and-decisions-are-retired-into-evidence.md)).
 
@@ -57,7 +58,7 @@ Google Cloud Storage behind a storage port; the official MCP SDK (stateless Stre
 React 19, React Router 7, TanStack Query 5, Vite 7; Vitest. Details in
 [architecture](../spec/02-architecture.md).
 
-**Operations.** 128 operations, each defined once and exposed through both REST and MCP, but for
+**Operations.** 121 operations, each defined once and exposed through both REST and MCP, but for
 deleting an organization, which only its owner does, in the web app
 ([decision](../decisions/one-registry-two-front-doors.md)).
 
@@ -88,7 +89,7 @@ baseline, and a reset every day puts the baseline back
 **MCP.** `/mcp` for every product the account can reach, `/mcp/t/<tenant>` for one organization,
 or `/mcp/t/<tenant>/<team>/<product>` for one product. A scoped endpoint is a fence: it refuses
 every call outside its scope, and its token works nowhere wider
-([decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). 16 tools: 12 grouped by noun with `action`, `params`, `describe` and `product`, plus
+([decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). 15 tools: 11 grouped by noun with `action`, `params`, `describe` and `product`, plus
 `search`, `read_passage`, `get_skill` and `submit_feedback`
 ([decision](../decisions/mcp-tools-grouped-by-noun.md)). The server's instructions tell agents to
 check the skill version, start with `products list`, confirm the product before writing, and
@@ -120,16 +121,16 @@ transaction that makes them current ([derived layer](../spec/05-derived-layer.md
 [decision](../decisions/each-file-is-parsed-in-a-thread-of-its-own-with-memory-and-time-limits.md)).
 
 **An agent's session.** Check the skill → `products list`, confirm the product → read
-`sources facets` and upload through `files`, reusing the product's tags → `search`, then `read_passage` → `assumptions create` with citations →
+`sources facets` and upload through `files`, reusing the product's tags → `search`, then `read_passage` → `assumptions create`, saying why in its body →
 `mockups publish` a canvas with its brief, or `get_download` a version, build the next one in a
 project and publish the pages that changed
 ([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)) → read
 `story guidance` and the page's notes, `story preview` the call and look at the page it would
-store, `story publish` the same call with citations, update the notes, `set_hierarchy`
+store, `story publish` the same call, update the notes, `set_hierarchy`
 ([decision](../decisions/story-notes-are-agent-memory.md),
 [decision](../decisions/a-story-preview-is-the-document-publish-would-store.md)).
 
 **Data.** Identity, tenancy, evidence (records, files, derivations, segments, annotations, agent
 notes), synthesis (outcomes, revisions, assumptions, reviews), mockups (versions,
-their pages and their files), Story (pages, versions, hierarchy) and operations (activity, jobs, exports, lineage, tombstones). Every table and
+their pages and their files), Story (pages, versions, hierarchy) and operations (activity, jobs, exports, tombstones). Every table and
 field: [data model](../spec/04-data-model.md).

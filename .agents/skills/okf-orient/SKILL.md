@@ -35,7 +35,7 @@ Run `corepack pnpm attention` once per session and tell the person what it print
 | Why something is built the way it is | `okf/decisions/index.md`, then the record |
 | Components, stack, adapters, configuration | `okf/spec/02-architecture.md` |
 | Tenancy, roles, sign-in, tokens, OAuth | `okf/spec/03-accounts-teams-and-identity.md` |
-| Objects, fields, limits, invariants, citations, Story | `okf/spec/04-data-model.md` |
+| Objects, fields, limits, invariants, assumptions, Story | `okf/spec/04-data-model.md` |
 | Parsing, passages, derived files, the job queue | `okf/spec/05-derived-layer.md` |
 | Every operation, REST and MCP shapes, errors | `okf/spec/06-operations-and-adapters.md` |
 | Screens, URLs, interface behavior | `okf/spec/07-web-app.md`, then `DESIGN.md` for visuals |
@@ -52,7 +52,7 @@ Run `corepack pnpm attention` once per session and tell the person what it print
 Finding things quickly:
 
 ```sh
-grep -rln "tags:.*citations" okf          # concepts by tag
+grep -rln "tags:.*story" okf              # concepts by tag
 grep -rn "◆ Decision" okf/spec            # smaller decisions made inside the spec
 grep -rn "^## " okf/spec/04-data-model.md # a spec file's headings
 ```

@@ -1,9 +1,9 @@
 ---
 type: Decision
 title: A reader reads only the Story, never the evidence behind it
-description: A team or product role below viewer for stakeholders, enforced by the server: Story pages, their versions and their export, without what the pages draw on.
+description: A team or product role below viewer for stakeholders, enforced by the server: Story pages, their versions and their export, without the notes agents keep on them.
 tags: [decision, access, roles, story, stakeholders]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
@@ -35,9 +35,9 @@ product as anyone else does. It revises one consequence of
   Story, is left out of a reader's page list and print view and answers them `404` by its address,
   with its versions and HTML; the team still reads it. The maintainer chose this on 2026-10-10:
   what the team archived is not part of the Story a stakeholder reads.
-- A reader's Story reads leave out what a page draws on: `refs`, `resolved_refs`, `citations`,
-  `citation_count` and the page's notes for agents. Their product reads leave out the product
-  concept and count Story pages only.
+- A reader's Story reads leave out the page's notes for agents, and of a page that shows a mockup
+  page everything but its size. Their product reads leave out the product concept and count Story
+  pages only.
 - A Story page that shows an entry into a mockup's prototype gives a reader that prototype's
   address, which reaches every file of that one mockup version's prototype, since a prototype is
   what its entry opens; nothing else of the mockup (its brief, notes, files, other pages or

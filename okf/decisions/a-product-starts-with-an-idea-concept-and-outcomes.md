@@ -3,7 +3,7 @@ type: Decision
 title: A product starts with its idea, a product concept and the outcomes its users should achieve
 description: The first screen is Idea, holding the product concept and outcomes; an outcome is what the product's users achieve with it, the compass the rest of the product is read against, and it cites nothing.
 tags: [decision, product, vocabulary, outcomes]
-generated: {by: agent:claude, at: 2026-10-13T00:00:00Z}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
@@ -37,15 +37,14 @@ how it ends: outcomes are the compass, they cite nothing, and they are current o
 - **An outcome cites nothing.** Its title says what the users achieve; its description, what
   success looks like for them. Neither retells evidence or names sources, calls, dates, people
   who asked, assumptions or mockups, and the server refuses an outcome whose text holds a record
-  id. References run one way: assumptions (`outcome_ids`), mockups and Story pages
-  (`refs.outcomes`) point at outcomes. The Idea screen shows no links or counts from an outcome to
+  id. References run one way: assumptions point at outcomes (`outcome_ids`). The Idea screen shows no links or counts from an outcome to
   what serves it; the assumptions list filters by outcome.
 - **An outcome is current or archived**, archived as a source, an assumption or a mockup is
   (`archived_at`, `include_archived`, `archive` and `restore`). Rejected: active, achieved and
   archived statuses. "Achieved" made an outcome a task to tick off, and three states asked people
   to keep a status nobody read.
 - "Outcome" is the one word for the object everywhere: UI, REST (`/outcomes`), MCP (`outcomes`),
-  the schema (`outcomes`, `outcome_id`, `refs.outcomes`, `outcome_ids`) and the skill.
+  the schema (`outcomes`, `outcome_id`, `outcome_ids`) and the skill.
 - Rejected: "capability" (it describes what the product does, and pulls toward a feature list);
   "job" (a job to be done exists without the product, and the word already means background work).
 

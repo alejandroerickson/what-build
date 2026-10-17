@@ -3,7 +3,7 @@ type: Decision
 title: Sources are described by a title and tags; there are no kinds, folders or organization field
 description: What a source is, whom it concerns and what it bears on are tags, which people and agents reuse through sources.facets, because a closed list of kinds slowed intake and changed nothing about storage or search.
 tags: [decision, sources, evidence, tags, mcp, web, product]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
@@ -49,10 +49,6 @@ added them, when, words in the title, and what the material concerns. The mainta
   and offering the tags in use are the guard; nothing merges or renames a tag across sources yet
   ([roadmap](../spec/10-roadmap.md)).
 - The folder browse facet is gone; tags are the only grouping.
-- A source's lineage fingerprint no longer covers kind or organization. `lineage.check` compares
-  stored parts one by one and ignores parts no longer covered. An input from before parts were
-  stored is checked whole, so the migration keeps the kind and organization it was fingerprinted
-  with, and the check uses them. Either way, a view turns stale only when an input really changed.
 - Going back past the release that carries `0017` means restoring the database, because the
   migration drops columns ([recovering](../operations/recovering-from-a-bad-release.md)).
 

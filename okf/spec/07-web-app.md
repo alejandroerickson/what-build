@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
@@ -241,8 +241,7 @@ in its footer to change it; a request to hear from us is counted as `generate_le
 ([§9.1](09-data-lifecycle.md)).
 
 Source links with `?tab=` resolve too: `passages`, `preview`, `files` and `notes` become
-`?view=passages|original|files|notes`, and `connected` opens the inspector, where "Cited in"
-lives. A product path without the `/t/` prefix (`/<tenant>/<team>/<product>[/…]`, as people type
+`?view=passages|original|files|notes`, and `connected` opens the inspector. A product path without the `/t/` prefix (`/<tenant>/<team>/<product>[/…]`, as people type
 or paste it) redirects to the same path under `/t/`.
 
 The document title is "<screen> · <section> · <product> · WhatBuild", with a screen named after
@@ -272,7 +271,7 @@ new tab ([§7.8](#78-story), [§6](06-operations-and-adapters.md)).
    ([§6.8](06-operations-and-adapters.md)).
 
 **Planned:** a public, read-only sample product at `/sample`, readable with no account — a
-synthetic discovery, fully derived, with real passages, citations, assumptions, a mockup and a
+synthetic discovery, fully derived, with real passages, assumptions, a mockup and a
 published Story, every write control absent except one "copy this into my own organization" call
 to action. Today the synthetic sample is created by `pnpm db:seed` and is visible only to its
 seeded accounts.
@@ -367,39 +366,27 @@ The sources, and everything for reading them.
     <surface>" when it was not the web, the person who added it linking to the list filtered to
     what they added, and Date updated saying "Not since it was added" when nothing changed; Tags,
     each a link to the list filtered to it; Participants; Provenance; Came from, the source
-    system), **Built from** for a view with lineage
-    (below), a **Files** summary (each file's role and whether it is searched, adding the number
-    of stored versions only when there are more versions than files), **Cited in** (assumptions,
-    mockups and Story pages, each citation linking to its exact passage or range, and the sources
-    that list it as related; a Story page or mockup is judged by its current version, and says so), "Activity on this source", and
-    Archive.
-  - **Lineage:** a view's **Built from** group says what it was built from, by kind ("12 sources
-    and 3 assumptions"), when and by whom, how the inputs were chosen, and whether it is Up to date
-    or how many inputs changed since. Each changed input is listed by name, linked, with what
-    changed ("Changed: title, 28 Sept 2026", "Archived", "Deleted"). When `lineage.check` finds any
-    input changed, archived, deleted or missing, the page also shows an attention callout, "This
-    view may be out of date", saying when it was built, from what, how many inputs changed since,
-    to ask an agent to rebuild it, and "See what changed", which opens the inspector
-    at Built from.
+    system), a **Files** summary (each file's role and whether it is searched, adding the number
+    of stored versions only when there are more versions than files), "Activity on this source",
+    and Archive.
   - **Status:** a source that is not `ready` shows a callout with the status's explanation and next
     step. The server's `status_detail` is added only where it says more (a size or an error).
 - **Passage reader.** Paged segments with address (¶n), speaker and cue time; heading passages
-  are shown without their Markdown markers (the stored text, which citations quote, keeps them); go
+  are shown without their Markdown markers (the stored text keeps them); go
   to a passage number; the URL tracks position (`?seq=N`, and `&to=M` for a range: the whole range
   is marked, on a page that starts at the range when it would otherwise cross a page boundary);
   "Search this source" at the top. Selecting a passage (Shift for a range) offers: comment, or
-  copy a citation reference for an agent; the selection bar docks above the pager and never
-  covers it. Reading aids:
-  - a passage cited by assumptions, mockups or Story pages carries "Cited by N", a menu of
-    them, placed where each quote is now after the source is parsed again (`sources.used_by`);
-  - a passage that cites other sources the bare way (a view or digest: "source <id>, segments
-    4–6") shows each citation as a "Title ¶4–6" token, and a "Cites" line of links to them;
+  **Copy reference**, which copies `{record_id, seq_start, seq_end}` to paste to an agent; the
+  selection bar docks above the pager and never covers it. Reading aids:
+  - a passage that mentions other sources the bare way (a view or digest: "source <id>,
+    segments 4–6") shows each mention as a "Title ¶4–6" token, and a "Mentions" line of links to
+    them;
   - a table stored as a header passage and one passage per row ("A: x | B: y") is laid out in
-    columns (up to six), each row still its own passage to select and cite.
-- **Citation tokens** in Markdown, views and search read "Title ¶N". A title is cut at its em-dash
-  qualifier; where two cited sources on the page would read alike, each adds its qualifiers in
-  brackets ("Usability study (crew) ¶29"), and identical titles are numbered. A range token links
-  to the whole range.
+    columns (up to six), each row still its own passage to select and comment on.
+- **Evidence links** in Markdown, views and search read "Title ¶N" ([§4.7](04-data-model.md)). A
+  title is cut at its em-dash qualifier; where two sources mentioned on the page would read alike,
+  each adds its qualifiers in brackets ("Usability study (crew) ¶29"), and identical titles are
+  numbered. A link to a range opens the whole range.
 - **Comments** (annotations) are shown inline under the passage they belong to, and listed in the
   Notes section. A comment on a range also tints every passage it covers.
 - **Search this source** (the passage reader) opens the Search screen on that source: every
@@ -496,11 +483,8 @@ them. Its one write is promoting a page to the Story.
   **Page** (a menu of the pages with Fit and Fill buttons, as `2` and `3`, then where the selected
   page enters the prototype, if it does, and its notes as Markdown, or a line asking the person to
   select a page; and where the page stands in the Story, below); **Brief** (the
-  version's brief as Markdown); **Files** (the files the version carries, each with its length;
-  one opens in a dialog as rendered Markdown or as source text, never as HTML, with Copy);
-  **Explores** (the outcomes, assumptions and sources it links, with
-  their state in words, as the Story's Draws on); and **Cited passages**, each with its
-  `mockups.check_citations` status in words, as on a Story page.
+  version's brief as Markdown); and **Files** (the files the version carries, each with its
+  length; one opens in a dialog as rendered Markdown or as source text, never as HTML, with Copy).
 - A callout above the canvas appears only for a state the person must know: the mockup is
   archived, an earlier version is shown (with **Show the current version**), or the version asked
   for does not exist.
@@ -526,19 +510,16 @@ them. Its one write is promoting a page to the Story.
   entry that replaced it, it sits there, muted, marked "Replaced by the entry above"; while a
   search is typed, rows are in match order instead. Each row says who drafted or recorded it and
   when it was created, the same date its page shows, and adds "updated …" when it changed since. An
-  entry page shows the statement, body, citations with their **snapshot text** and live
-  `check_citations` status in words (which also says when a quote matched only ignoring
-  formatting, when the primary file has a newer version, and when the source was parsed again
-  since the citation), links grouped by type, and the full review history. Actions: review
+  entry page shows the statement, the body (which says why the team holds it), the outcomes it
+  serves, links grouped by type, and the full review history. Actions: review
   (status + required note, optional confidence; before the first review the form says that saving
-  freezes the wording and citations, and always that reviews can't be edited), link, supersede (opens a prefilled new entry).
+  freezes the wording, and always that reviews can't be edited), link, supersede (opens a prefilled new entry).
   Frozen fields ([§4.8](04-data-model.md)) are shown as such, with "supersede" as the path to
   change them.
-- **New and edit entries** ([decision](../decisions/register-entries-may-start-uncited.md)):
+- **New and edit entries** ([decision](../decisions/evidence-is-searched-not-cited.md)):
   New assumption (`…/assumptions/new`, with `?outcome_id=` preselecting an outcome) take a statement, an optional why (Markdown) and the outcomes it bears
-  on, and need no citation. An entry nobody has reviewed has Edit in its actions menu
-  (`…/:id/edit`); a reviewed one is frozen. Citations come from agents; an entry without any says
-  "No passages cited yet" on its page and its row. When every entry in the default view is refuted
+  on. An entry nobody has reviewed has Edit in its actions menu
+  (`…/:id/edit`); a reviewed one is frozen. When every entry in the default view is refuted
   or replaced, the list says so and links to that view.
 
 ## 7.8 Story
@@ -633,15 +614,11 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
   - **Shows:** for a page from a mockup, the mockup page, linked to it on the canvas, the mockup and
     the version shown; when the mockup has a newer version, a line says so and to promote it from
     the mockup.
-  - **Draws on:** the version's references — outcomes, sources, assumptions — each linked.
-  - **Cited passages:** each citation as the source title, its address (¶8–9, linking to the
-    passage, or to where the check found the quote once it moved) and a snapshot quote, with its `story.check_citations` status in words, worded as
-    on an assumption.
   - **Notes for agents:** the page's Markdown notes, which agents read before revising the page and
     update after publishing (what it is for, sources still to fold in, choices about its structure).
     Read-only here, and not versioned with the page.
-  - A reader gets About alone: Shows, Draws on, Cited passages and Notes for agents are left out, since
-    the server sends a reader none of them ([§3.5](03-accounts-teams-and-identity.md)). The Story
+  - A reader gets About alone: Shows and Notes for agents are left out, since the server sends a
+    reader neither ([§3.5](03-accounts-teams-and-identity.md)). The Story
     style row under the tree is left out too, and so are **Archived pages** in the tree and the
     export, since the server gives a reader no archived page; a Story with no pages says that they
     appear once the product's team publishes them. A reader or viewer arranges, archives and
@@ -653,8 +630,7 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
   ("3 of 24 pages selected, and 1 archived"). One line says that each page's current version opens
   in a new tab, to save as PDF from the browser's print dialog. The PDF holds a contents list, then
   each selected page at its current version under its title, with its version number and publish
-  date; it leaves out what a page draws on, its cited passages and notes, earlier versions, and
-  anything a page draws with scripts. **Open print view**
+  date; it leaves out a page's notes, earlier versions, and anything a page draws with scripts. **Open print view**
   opens the print view in a new tab ([§7.3](#73-routes)), which opens the browser's print dialog to
   save it as PDF. In the print view each page's own headings sit one level under its title in the
   outline (`aria-level`; the tags, and so the page's styling, stay as they are).
@@ -710,12 +686,9 @@ a product that isn't archived (`canDelete`). One dialog serves every delete
    pre-selected and never the primary button of any dialog.
 3. Choosing it opens a dialog titled as a question ("Delete this assumption permanently?"), that
    says it can't be undone and shows the object's preview as plain sentences before any control:
-   *This deletes 4 stored files (218 MB) and 1 comment. **2 citations in 2 assumptions** will point
-   at a record of the deletion. Their quotes are kept.* When Story versions cite a source, it
-   counts them, earlier versions included, and lists each page with which of its versions do
-   ("Current version and 2 earlier"); for an assumption or outcome it counts the Story page and
-   mockup versions that name it. A mockup a Story page shows lists those pages, and its delete
-   stays disabled.
+   *This deletes 4 stored files (218 MB) and 1 comment.* For an assumption it says how many other
+   assumptions link to it, and that those links go with it; for an outcome, the assumptions it is
+   taken from. A mockup a Story page shows lists those pages, and its delete stays disabled.
 4. The dialog asks for a reason, which the button needs. A source also needs its title typed, and
    a whole product or organization its name. Archive is offered again, in the dialog, as the
    secondary action, wherever the object can be archived; elsewhere the secondary action is

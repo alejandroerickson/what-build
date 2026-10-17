@@ -3,7 +3,7 @@ type: Decision
 title: Mockups are versioned canvases of agent-made HTML, in a stage called Exploration
 description: Agents build directions as sandboxed HTML pages on a canvas under a brief, versioned as a whole and downloadable to build the next one; the third stage is named Exploration.
 tags: [decision, mockups, exploration, story, security, web, agents]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
@@ -21,8 +21,8 @@ the names Mockups and Exploration on 2026-10-09.
 ## Decision
 
 - A **mockup** is a canvas of HTML pages, each with Markdown design notes (one free-form field,
-  no categories), under a Markdown **brief** that says what the canvas explores. It may list the
-  outcomes, sources and assumptions it explores and cite passages.
+  no categories), under a Markdown **brief** that says what the canvas explores, and which
+  outcomes and assumptions it tests.
 - **A version is the whole canvas.** Every publish makes the next version; a later version keeps
   the fields and the pages it does not change.
 - Pages are untrusted, like Story pages, and shown only in the Story's sandbox
@@ -119,8 +119,6 @@ the names Mockups and Exploration on 2026-10-09.
   sandbox for each surface is one constant in `packages/core/src/page-sandbox.ts`, used by the
   responses (`pageResponseHeaders`) and by the app's frames alike; a Story page's has no
   `allow-forms` (held by `apps/server/test/mockups.test.ts`).
-- A source that a mockup cites or lists is reported, guarded on move and counted in a delete's
-  impact exactly as for Story pages (`packages/core/src/ops/sources.ts`).
 - Whether a page is a published mockup follows its current version (`story_versions.mockup`), and
   `story.set_hierarchy` refuses one in the tree and any other page in `mockups`
   (`packages/core/src/ops/story.ts`).

@@ -4,7 +4,6 @@ import { derivedOps } from "./ops/derived.ts";
 import { mockupOps } from "./ops/mockups.ts";
 import { exportOps } from "./ops/export.ts";
 import { fileOps } from "./ops/files.ts";
-import { lineageOps } from "./ops/lineage.ts";
 import { metaOps } from "./ops/meta.ts";
 import { outcomeOps } from "./ops/outcomes.ts";
 import { productOps } from "./ops/products.ts";
@@ -33,7 +32,6 @@ export * from "./registry.ts";
 export { safeNext } from "./safe-next.ts";
 export * from "./public-sandbox.ts";
 export * from "./public-sandbox-baseline.ts";
-export { hashParts, inputFingerprint, isCurrent, partHash } from "./ops/lineage.ts";
 export * from "./schemas.ts";
 export * from "./story-html.ts";
 export * from "./prototype.ts";
@@ -72,7 +70,6 @@ export const OPERATIONS: OperationDef[] = [
   ...revisionOpsList,
   ...storyOps,
   ...mockupOps,
-  ...lineageOps,
   ...activityOps,
   ...metaOps,
 ] as unknown as OperationDef[];

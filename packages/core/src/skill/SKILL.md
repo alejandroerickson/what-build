@@ -1,6 +1,6 @@
 ---
 name: whatbuild
-description: Work in WhatBuild, an agent-first product-discovery workspace. Upload and cite discovery sources, read exact passages, record and review assumptions, mock up directions, steer by the product's outcomes, and publish the versioned Story.
+description: Work in WhatBuild, an agent-first product-discovery workspace. Upload and search discovery sources, read exact passages, record and review assumptions, mock up directions, steer by the product's outcomes, and publish the versioned Story.
 metadata:
   version: "__SKILL_VERSION__"
 ---
@@ -22,7 +22,7 @@ organization). A product has four parts, named as the person sees them in the we
   source's primary file is parsed into **passages** you can address exactly.
 - **Exploration** — **mockups** (canvases of HTML pages you build from the evidence, each page
   with design notes, under a brief), and one small reviewed **register**: the assumptions the team
-  relies on, cited to exact passages where evidence exists.
+  relies on, each saying why.
 - **Story** — versioned HTML pages that show people where the discovery stands: stakeholders, the
   team, and the person you work for.
 
@@ -45,9 +45,9 @@ organization). A product has four parts, named as the person sees them in the we
    inside its scope and refuses everything else with `403 outside_connector_scope`. That refusal is
    the person's choice, not a fault: tell them the work belongs elsewhere and ask them to use a
    connector scoped there (or the unscoped one). Never look for a way around it.
-3. **Know your role.** Each product lists `your_role`: reader (the Story only, without what its
-   pages draw on), viewer (read only), editor (read, write and archive), admin (also permanent
-   delete, membership and product settings). A 403 names the role you have and the one needed;
+3. **Know your role.** Each product lists `your_role`: reader (the Story only, without the notes
+   agents keep on its pages), viewer (read only), editor (read, write and archive), admin (also
+   permanent delete, membership and product settings). A 403 names the role you have and the one needed;
    do not retry a forbidden write — tell the person who can grant access.
    Your connection has a **level** the person chose when they connected you: Read only, Edit (the
    usual one) or Admin. `products(action="list")` gives it as `connection_level`, and `your_role`
@@ -61,7 +61,7 @@ organization). A product has four parts, named as the person sees them in the we
 ## How the tools work
 
 Most tools are grouped: `sources`, `files`, `derived`, `outcomes`, `assumptions`, `mockups`,
-`story`, `lineage`, `activity`, `products`, `members`, `sandbox`. Call them with `action` and
+`story`, `activity`, `products`, `members`, `sandbox`. Call them with `action` and
 `params`. To see an action's exact schema and guidance without running it, call it with
 `describe: true` and no params:
 
@@ -180,7 +180,8 @@ primary, and a fetched URL's `#fragment`, which never reaches the server.
 ## How a file becomes passages
 
 The primary is parsed into passages (segments), numbered `seq` from 0, which search returns and
-citations point at. Knowing how lets you write a file that cites well, and change one safely.
+`read_passage` reads. Knowing how lets you write a file that searches and reads well, and change one
+safely.
 
 - **Text and Markdown:** a paragraph (lines up to a blank line), an ATX or setext heading, a list
   item and a table row are each a segment; a fenced code block is one. A paragraph over 2,000
@@ -195,9 +196,7 @@ citations point at. Knowing how lets you write a file that cites well, and chang
   label or a heading. It takes at least four labels, most by names that speak more than once.
 - **A new version renumbers.** Uploading a new version of a primary parses it again, and segment
   numbers follow the new text: an edit early in a file moves every later number. Adding text at
-  the end leaves earlier numbers as they were. Afterwards run `check_citations` on what cites the
-  source: a quote found at another range is `relocated`, with the new range. The citation keeps its
-  stored range, and the web app and `sources(action="used_by")` follow the quote to where it is now.
+  the end leaves earlier numbers as they were. Search again rather than reusing numbers from before.
 
 ## The idea: product concept and outcomes
 
@@ -218,8 +217,7 @@ of reaching them, and the Story reports how far the team has come.
   journeys, assumptions or mockups. An id or a link to a record is refused
   (`outcome_cites_a_record`). What the evidence says belongs in sources; what it suggests, in
   assumptions that point at the outcome through `outcome_ids`; ways to reach it, in mockups and
-  Story pages that list it in `refs.outcomes`. To see what serves an outcome, list assumptions with
-  its `outcome_id`.
+  Story pages. To see what serves an outcome, list assumptions with its `outcome_id`.
 - **Outcomes change rarely, and only with the person.** New evidence does not go into an outcome.
   When evidence challenges one (it looks wrong, too narrow, or no longer what users need), tell the
   person and propose new wording; change it once they agree.
@@ -237,13 +235,12 @@ evidence, and belongs in a source and an assumption.
 
 - An **assumption** is what the team treats as true while evidence is incomplete. Creating one
   does not mean the team agreed.
-- Citations are optional, up to 20 passages: `{record_id, seq_start, seq_end, quote?}`. People
-  record assumptions before any evidence exists; cite the passages an entry rests on
-  when there are some, and add them with `update` before the first review. Read every passage
-  before citing it. A quote must occur exactly within the range. WhatBuild freezes a snapshot of the
-  text. Never cite a passage only to make an entry look supported.
+- Say in the `body` why the team holds it: what it rests on, in a sentence or two of your own,
+  and what would change it. People record assumptions before any evidence exists, so an entry may
+  rest on nothing yet; say so rather than make it look better supported than it is. Search the
+  product when you need what bears on an entry.
 - New entries start `unconfirmed`. **Any review** — yours or a person's, whatever the status, even
-  one that keeps it `unconfirmed` — freezes the statement, body and citations. Make every edit
+  one that keeps it `unconfirmed` — freezes the statement and body. Make every edit
   (`edits` works here too) before reviewing; after that, correct an entry only with `supersede`.
 - **Label honestly.** `author_type` and `reviewer_type` say who exercised judgment. Your writes are
   `agent` unless you are relaying the person's own words. Ordinary agreement in conversation is not a
@@ -252,13 +249,8 @@ evidence, and belongs in a source and an assumption.
 - `assumptions(action="list")` returns the current entries (unconfirmed and confirmed), the ones
   the product's counts count; `not_current_hidden` says how many refuted or superseded ones it left
   out. Pass `status` to list those, for example before recording a premise the team already refuted.
-- `check_citations` reports whether cited passages still say what was quoted. A matching quote shows
-  textual integrity, not truth. `valid` is true when every citation is `ok` against each source's
-  current file; `rederived` says a source was parsed again since a snapshot.
 - `derived(action="rederive")` parses a source again. It is done when `derived(action="manifest")`
-  shows a `derivation_id` other than the `previous_derivation_id` it returned. Afterwards,
-  `check_citations` marks each citation whose source was parsed again with `derivation_changed`;
-  read those passages before relying on an `ok`.
+  shows a `derivation_id` other than the `previous_derivation_id` it returned.
 
 ## Finding sources
 
@@ -280,19 +272,16 @@ passage search, with its filters, to gather evidence. No mode does semantic matc
 search does not prove the evidence is absent**. `coverage` (exact and ranked) says what was examined.
 Hits give `record_id` and `seq`: `read_passage` with both reads the hit, and `start` and `end` with
 `unit: "seq"` read the window around it. They count segments, not the characters of `char_start`
-and `char_end`. Both serve as citations. Each passage (segment) is matched on its own: AND, OR and
+and `char_end`. Each passage (segment) is matched on its own: AND, OR and
 NOT combine terms within one passage, so words a transcript splits across neighbouring cues never
 match together. Search the terms separately and read the window around the hits.
 
 ## Derived views
 
-For an analysis built across sources: `lineage(action="capture")` the inputs, generate the view,
-upload it as a source tagged `view` (or `analysis`, `digest`), then `lineage(action="write")` with
-the untouched fingerprints and `captured_at`. Later, `lineage(action="check")` says whether any
-input changed and which parts (title, date, derivation, statement…). It checks direct inputs only:
-capture a source an assumption cites as its own input if its changes matter.
-`sources(action="used_by")` lists the views built on a source, and everything else that uses it.
-Never present analysis of analysis as direct evidence; unknown provenance stays `unknown`.
+An analysis built across sources is a source too: upload it tagged `view` (or `analysis`,
+`digest`), with `provenance_depth: "derived"`, and say in it what it was built from and when.
+Build it again when the person wants it current. Never present analysis of analysis as direct
+evidence; unknown provenance stays `unknown`.
 
 ## Mockups
 
@@ -302,9 +291,8 @@ and zoom around it in Exploration, read a page's notes beside it, and click thro
 sandbox.
 
 - **Write the brief first.** Markdown: what the canvas explores, for whom, the questions it should
-  answer, and what each page tries. Read the outcomes and assumptions it bears on first, list them
-  in `refs` (outcomes, sources, assumptions), and cite the passages behind it in `citations` (up to
-  20, as on a Story page).
+  answer, and what each page tries. Read the outcomes and assumptions it bears on first, and say in
+  the brief which ones it tests.
 - **A page is one self-contained HTML document, or an entry into the version's prototype**
   (below), shown in a sandbox with no network at the size you give: `width` 1280 for a desktop screen or 390 for a phone, and a `height` (at most 4000).
   A mockup page has rules of its own, looser than a Story page's, so a working prototype fits:
@@ -377,10 +365,10 @@ sandbox.
 - **Upload pages; never type them into a call.** A page's HTML is the bytes of a file, so send it
   the way you send a source: zip the canvas in the download's layout,
   `mockups(action="request_upload")`, PUT the ZIP to its `url` with its `headers`, then
-  `publish { upload_id }` (with `mockup_id` and the etag for a later version, and `refs` or
-  `citations` if they change). `manifest.json` lists every page in order (`page_id`, and `title`,
-  `width`, `height` for a new one or a change); a page whose HTML or notes the ZIP leaves out keeps
-  them, so a ZIP of a later version need hold only the pages that changed. The files it lists, or
+  `publish { upload_id }` (with `mockup_id` and the etag for a later version). `manifest.json`
+  lists every page in order (`page_id`, and `title`, `width`, `height` for a new one or a change);
+  a page whose HTML or notes the ZIP leaves out keeps them, so a ZIP of a later version need hold
+  only the pages that changed. The files it lists, or
   else the ones under `files/`, are the whole set. So is the prototype: the paths `manifest.json`
   lists under `prototype` (a listed path missing from `prototype/` keeps the base's bytes), or
   else the files under `prototype/`; with neither, the base's prototype carries forward, and
@@ -393,9 +381,8 @@ sandbox.
   Send a page's HTML inline only for a small page.
   Build the whole canvas in your project and publish it once: never spread one canvas over
   several versions to get it through tool calls.
-- `check_citations` reports whether a version's passages still say what was quoted. A version
-  holds at most 48 pages and 8,000,000 characters of HTML; a product holds at most 50 mockups,
-  archived ones included. `list` leaves archived mockups out and says how many in
+- A version holds at most 48 pages and 8,000,000 characters of HTML; a product holds at most 50
+  mockups, archived ones included. `list` leaves archived mockups out and says how many in
   `archived_hidden`, and its `quota` gives `used` and `limit`: when a product nears the limit,
   publish new versions of the mockups it has, and ask the person before creating more.
 
@@ -466,7 +453,7 @@ WhatBuild's own look — it is the team's document, often read outside the team.
   header out of reports.
 
 Read a page with `get_page` before revising and pass its etag; omit the etag only for a new
-page (`include_html: false` reads a page's notes, refs and citations without its HTML). Publishing
+page (`include_html: false` reads a page and its notes without its HTML). Publishing
 never places a page: read `get_hierarchy`, add the page to its `items` where it belongs (a new
 page is listed in `unplaced`, never in `items`), and send the tree back with `set_hierarchy` and
 the hierarchy's own etag; nodes may keep the title and description `get_hierarchy` gave them.
@@ -475,8 +462,8 @@ owners, dates, measurements, commitments or agreement, and never present an unco
 assumption as settled. A plan's dates are the team's: use the ones a person gives you, say on the
 page that they are a plan or a proposal, and note in the page's notes who set them.
 
-**You write the Story; people read it and tidy it.** The web app shows pages, their versions, what
-they draw on and their notes, and exports them to PDF. People can also drag pages into place in the
+**You write the Story; people read it and tidy it.** The web app shows pages, their versions and
+their notes, and exports them to PDF. People can also drag pages into place in the
 tree, reorder the Published mockups, and archive, restore and delete pages there, but they cannot
 write, rename or publish a page, or edit its notes; besides tidying, their one way in is promoting
 a mockup page from the mockup. When a person wants a page written or changed, you do it for them.
@@ -489,17 +476,18 @@ the mockup page with a page of your own.
 waits on their review, questions to ask, choices still open), publish it as a Story page and keep
 it current. The Story is where you present anything to people; there is no separate to-do list.
 
-- **Cite what the page rests on.** `publish` takes `citations` — up to 20 exact passages,
-  `{record_id, seq_start, seq_end, quote?}`, snapshotted like an assumption's citations — beside `refs`.
-  Read each passage before citing it. Both belong to the version: when you pass either list, pass
-  it in full, because it replaces the previous one. `check_citations` reports whether a version's
-  passages still say what was quoted.
-- **Change only what changes.** On a later version, the title, summary, page, `refs` and
-  `citations` you omit carry forward from the current version (`carried_forward` names them).
+- **Explain; don't cite.** A Story page explains where things stand to people who will not read
+  the evidence; it is not a case file. Write what the team understands in your own words, and quote
+  a person only where their exact words matter, attributed in words (a role, the kind of source).
+  Leave source and passage links out: most readers of a Story cannot open the evidence, and the
+  team's agents find it by searching. Read before you write, and never state what the sources do
+  not establish.
+- **Change only what changes.** On a later version, the title, summary and page you omit carry
+  forward from the current version (`carried_forward` names them).
   `patch_html` fixes a sentence by exact find and replace; `from_version: N` restores an earlier
   version as a new one. `html_sha256` on every version confirms identical HTML without reading it.
-- **`summary` describes the page itself**, and shows in navigation. Put mechanics (citation
-  ranges, merges, ids) in the page's notes.
+- **`summary` describes the page itself**, and shows in navigation. Put mechanics (which sources
+  it rests on, ids) in the page's notes.
 - **Keep the page's notes.** Each page has notes for agents (`get_page` → `agent_notes`): Markdown
   memory about what the page is for and who reads it, sources still to fold in, and choices about
   its structure. Readers do not see them. Read them before revising a page, and after publishing
@@ -528,8 +516,8 @@ says "delete", "remove" or "get rid of", archive unless they say they want it go
 not offered it at all. Only when the person asks: call the matching impact first
 (`sources`, `assumptions`, `outcomes` or `mockups` with `action="delete_impact"`,
 `story(action="delete_page_impact")`, `products(action="delete_impact")` for a whole product),
-show them exactly what would be destroyed (citations, links, the Story and mockup versions that
-name it), and only then delete with their reason, the impact's `etag` as `expected_etag`, and
+show them exactly what would be destroyed (files, versions, comments, reviews, links), and only
+then delete with their reason, the impact's `etag` as `expected_etag`, and
 `confirm: "delete permanently"`. A comment has no impact: show the person the comment itself,
 then `sources(action="delete_annotation")` with its etag. A whole product also needs `name`, typed
 exactly as the person confirmed it; offer an export first. A mockup can't be deleted while a Story
@@ -545,8 +533,8 @@ when and why. Deleting an organization is its owner's act in the web app; you ar
 ## Moving between products
 
 `sources(action="copy_to_product")` copies a source into another product in the same team with a new
-id and a `copied_from` link. `move_to_product` keeps the id, and is refused while anything in the
-current product cites or references the source, because references never cross products.
+id and a `copied_from` link. `move_to_product` keeps the id, and its files, passages and comments
+go with it; a link to it from the product it left stops opening.
 
 ## Taking everything out
 

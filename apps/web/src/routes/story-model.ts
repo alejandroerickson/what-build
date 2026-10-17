@@ -233,45 +233,11 @@ export interface Actor {
   client: string | null;
 }
 
-export type RefKind = "outcomes" | "sources" | "assumptions";
-export type Refs = Partial<Record<RefKind, string[]>>;
-
-export interface ResolvedRef {
-  id: string;
-  title: string | null;
-  status: string | null;
-  archived: boolean;
-  missing: boolean;
-}
-
-export interface CitationView {
-  index: number;
-  record_id: string;
-  source_title: string | null;
-  seq_start: number;
-  seq_end: number;
-  quote: string;
-}
-
-export interface CitationCheck {
-  index: number;
-  record_id: string;
-  status: "ok" | "relocated" | "text_changed" | "record_archived" | "record_deleted" | "record_missing";
-  relocated?: { seq_start: number; seq_end: number };
-  version_drift: boolean;
-  derivation_changed?: boolean;
-  quote_match?: "normalized";
-}
-
 export interface VersionView {
   version: number;
   page_id: string;
   title: string;
   summary: string;
-  /** What the version draws on: absent for a reader, who reads the page without it. */
-  refs?: Refs;
-  resolved_refs?: Record<RefKind, ResolvedRef[]>;
-  citations?: CitationView[];
   /** Set when the version shows one page of a mockup: its size, and for the team which mockup and version. */
   mockup?: MockupShown;
   published_at: string;
@@ -326,8 +292,6 @@ export interface PageSummary {
 export interface VersionItem {
   version: number;
   title: string;
-  /** Absent for a reader. */
-  citation_count?: number;
   published_at: string;
   published_by: Actor;
 }

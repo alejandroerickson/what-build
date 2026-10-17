@@ -139,7 +139,7 @@ export const deleteProduct = defineOperation({
     await db.deleteFrom("revisions").where("object_id", "in", authored).execute();
     for (const table of ["mockup_uploads", "story_previews", "mockup_prototype_files", "mockup_files", "mockup_pages", "mockup_versions", "mockups", "story_versions", "story_pages", "story_hierarchies", "story_styles", "register_entries", "outcomes", "insights", "exports", "activity", "tombstones"] as const)
       await db.deleteFrom(table).where("product_id", "=", pid).execute();
-    // A source takes its files, versions, uploads, passages, notes and lineage with it.
+    // A source takes its files, versions, uploads, passages and notes with it.
     await db.deleteFrom("records").where("product_id", "=", pid).execute();
     await db.deleteFrom("invitations").where("scope_type", "=", "product").where("scope_id", "=", pid).execute();
     await db.deleteFrom("memberships").where("scope_type", "=", "product").where("scope_id", "=", pid).execute();

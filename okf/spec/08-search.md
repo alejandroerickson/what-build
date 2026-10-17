@@ -1,17 +1,18 @@
 ---
 type: Specification
 title: Search is lexical, bounded, and says exactly what it examined.
-description: The search operation as built (substring, ranked and plain modes, scopes, filters, coverage), dimensions, and the planned retrieval work (dimension registry, attachment tiers, semantic search, approximate relocation, recursive lineage).
+description: The search operation as built (substring, ranked and plain modes, scopes, filters, coverage), dimensions, historical derivations, and the planned retrieval work (dimension registry, attachment tiers, semantic search).
 tags: [spec, search, retrieval, coverage]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
 # 8. Search and retrieval
 
 Retrieval is a first-class feature: synthesis is only as good as what a person or an agent can
-find. Search today is lexical and says so. The improvements marked *planned* in §8.3–§8.6 are not
-built.
+find, and searching is how an agent finds what bears on a piece of work, since nothing records it
+([decision](../decisions/evidence-is-searched-not-cited.md)). Search today is lexical and says so.
+The improvements marked *planned* in §8.3–§8.5 are not built.
 
 ## 8.1 The search operation
 
@@ -37,15 +38,16 @@ or `kind` or `strict` in another mode, is `422 invalid_filter`.
   cross-tenant one.
 - Date and tag filters apply to passages: `date_from` and `date_to` bound the source's own date,
   and a source must carry every tag given. Combining them with `scope: "assumptions"` is
-  `422 invalid_filter`. Sources have no kind, organization or folder to filter by
+  `422 invalid_filter`. `record_id` keeps the search to that source's passages, so with it no
+  assumption is searched. Sources have no kind, organization or folder to filter by
   ([§4.4](04-data-model.md)); naming one is `422 invalid_input`.
 - Passage hits: `{ record_id, seq, start_ms, end_ms, speaker, snippet, char_start, char_end,
   score? }`, with each source's `title`, `date`, `tags` and `archived_at` sent once in
   `records`. A hit's `record_id` and `seq` are directly usable with `read_passage`
-  (`{ record_id, seq }`) and as citations; the window around a hit is `start` and `end` in
+  (`{ record_id, seq }`); the window around a hit is `start` and `end` in
   segments with `unit: "seq"`, never `char_start` and `char_end`. Snippets are at most 160
   characters.
-- Assumption hits come back as `assumptions` (id, statement, status, citation count).
+- Assumption hits come back as `assumptions` (id, statement, status).
 - Results are bounded and paged as everywhere ([§6.3](06-operations-and-adapters.md)).
 - The response carries a `coverage` object (§8.4).
 - Search is a read, and reads are never blocked by a quota ([§9.2](09-data-lifecycle.md)).
@@ -131,8 +133,7 @@ Search must never claim to have examined what it did not.
   that could not be parsed (unsupported, too large or failed)."), for an agent to pass on. The
   web app's Search does not show it.
 - **Planned — tiers:** derive `supplement` and `origin` files as secondary derivations;
-  `tiers: ["primary", "attachments"]` opts in; results name the file they came from. Citations
-  continue to address primary derivations only until the citation model is deliberately extended.
+  `tiers: ["primary", "attachments"]` opts in; results name the file they came from.
 
 ## 8.5 Semantic retrieval (planned)
 
@@ -149,17 +150,9 @@ Search must never claim to have examined what it did not.
 - Embeddings are keyed by `derivation_id` and model id, and are disposable: they can always be
   rebuilt from sidecars, so they are excluded from backups and from exports.
 
-## 8.6 Historical derivations and recursive lineage
+## 8.6 Historical derivations
 
-- **Historical reads exist:** derivations are immutable and retained, and the derived reads accept
-  `derivation_id` ([§5.5](05-derived-layer.md)).
-- **Planned — anchors that survive re-parsing:** `check_citations` already relocates intact text,
-  forgiving differences in markup, spacing and speaker labels, and flags `derivation_changed`
-  ([§4.8](04-data-model.md)). Still to come: comparing a range's edges as well as its quote, a text
-  hash on each derivation so a re-parse with identical text says so, and a safe refresh of a
-  snapshot whose quote still matches. The extension is fuzzy relocation (a quote with small edits) reported
-  as `relocated_approximate` with a similarity score — still report-only.
-- **Planned — recursive lineage:** `lineage.check { recursive: true }` walks inputs that are
-  themselves views, reports the full ancestor tree with per-node status, detects cycles, and is
-  bounded (depth ≤ 10, ≤ 500 nodes). Regeneration stays an agent task: the product reports exactly
-  what is stale and why, and the skill describes the regenerate-and-recapture routine.
+Derivations are immutable and retained, and the derived reads accept `derivation_id`
+([§5.5](05-derived-layer.md)), so a passage read in an earlier parse stays readable as it was. A
+new parse renumbers what follows an edit; an agent searches again rather than reusing numbers from
+before.

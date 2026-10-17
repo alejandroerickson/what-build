@@ -44,7 +44,7 @@ describe("adapter parity", () => {
     expect(OPERATIONS.filter((o) => o.webOnly).map((o) => o.name).sort()).toEqual(["products.delete_tenant", "products.delete_tenant_impact"]);
     const restKeys = OPERATIONS.map((o) => `${o.rest.method} ${o.scope} ${o.rest.path}`);
     expect(new Set(restKeys).size).toBe(restKeys.length);
-    expect(tools.length).toBeLessThanOrEqual(16);
+    expect(tools.length).toBeLessThanOrEqual(15);
   });
 });
 
@@ -115,7 +115,7 @@ describe("MCP", () => {
     expect(passage.segments).toHaveLength(4);
     const a = text(await client.callTool({
       name: "assumptions",
-      arguments: { action: "create", product: path, params: { statement: "Approvals, not budgets, set the buying pace.", citations: [{ record_id: created.record.record_id, seq_start: 1, seq_end: 1 }] } },
+      arguments: { action: "create", product: path, params: { statement: "Approvals, not budgets, set the buying pace.", body: "The buyer says approvals come first." } },
     }));
     expect(a.author_type).toBe("agent");
     expect(a.author.surface).toBe("mcp");

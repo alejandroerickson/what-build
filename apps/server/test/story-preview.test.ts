@@ -102,7 +102,7 @@ describe("previewing a later version", () => {
     const edit = { patch_html: [{ find: "<p>Text.</p>", replace: "<p>Crews text the office before nine.</p>" }], expected_etag: page.etag };
     const r = await alice.api("POST", `${P}/story/pages/friday/preview`, edit);
     expect(r.status, JSON.stringify(r.body)).toBe(200);
-    expect(r.body).toMatchObject({ new_page: false, based_on_version: 1, carried_forward: ["title", "summary", "refs", "citations"] });
+    expect(r.body).toMatchObject({ new_page: false, based_on_version: 1, carried_forward: ["title", "summary"] });
     expect((await open(r.body.preview)).text).toContain("Crews text the office before nine.");
     const after = (await alice.api("GET", `${P}/story/pages/friday`)).body;
     expect(after.etag).toBe(page.etag);

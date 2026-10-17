@@ -3,7 +3,7 @@ type: Specification
 title: Every source's primary file is parsed into immutable, passage-addressable text that any client can read by segment or time.
 description: Derivations and when they run, the four sidecars, derivation statuses, the parsers by format, the read_passage contract, and the other derived reads.
 tags: [spec, derived-layer, parsers, passages, sidecars]
-generated: {by: agent:claude, at: 2026-10-13}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
@@ -201,7 +201,7 @@ labels' speakers, so a line like `Decision: ship it` inside a turn stays that sp
 
 `read_passage { record_id, seq | start, end, unit?, speaker?, derivation_id? }` reads **one** window:
 
-- `seq`: the one segment a search hit or a citation names, by its number; never with `start`,
+- `seq`: the one segment a search hit names, by its number; never with `start`,
   `end` or `unit: "ms"`.
 - `unit: "seq"`: segments `start`..`end` inclusive; always available.
 - `unit: "ms"`: every segment overlapping `[start, end]`; timed sources only
@@ -246,7 +246,7 @@ warning asks whether `unit: "seq"` was meant. It is never a silent empty success
 - `derived.text`: a window of `text.md` by code-point `offset` and `limit` (≤ 20,000), with
   `truncated` and `total_chars`.
 - `derived.list`: a source's derivations, newest first.
-- All accept `derivation_id`, and every derivation's segments stay in Postgres, so a passage cited
-  against an old derivation stays readable exactly as it was cited, unless the source was deleted,
+- All accept `derivation_id`, and every derivation's segments stay in Postgres, so a passage read
+  in an old derivation stays readable exactly as it was, unless the source was deleted,
   in which case the read returns `410 record_deleted` with the tombstone
   ([§9.5](09-data-lifecycle.md)).

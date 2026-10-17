@@ -170,8 +170,8 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
   const tsq = sql`to_tsquery('simple', ${q})`;
   const [assumptions, outcomes, mockups, story, idea] = await Promise.all([
     want("assumption")
-      ? sql<{ entry_id: string; statement: string; body: string; status: string; citation_count: number }>`
-        select entry_id, statement, body, status, jsonb_array_length(citations)::int as citation_count from register_entries
+      ? sql<{ entry_id: string; statement: string; body: string; status: string }>`
+        select entry_id, statement, body, status from register_entries
         where product_id = ${pid} and kind = 'assumption' and archived_at is null and tsv @@ ${tsq}`.execute(ctx.db)
       : null,
     want("outcome")
@@ -205,7 +205,7 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
     if (!s.found.some(Boolean)) return;
     out.push({ kind, id: idv, title: doc.title, title_marks: s.title.ranges, snippet: s.snippet, snippet_marks: s.snippet_marks, missing: missingWords(p, s.found), score: round(s.score), meta });
   };
-  for (const a of assumptions?.rows ?? []) push("assumption", a.entry_id, { title: a.statement, body: [a.body] }, { status: a.status, citation_count: a.citation_count });
+  for (const a of assumptions?.rows ?? []) push("assumption", a.entry_id, { title: a.statement, body: [a.body] }, { status: a.status });
   for (const o of outcomes?.rows ?? []) push("outcome", o.outcome_id, { title: o.title, body: [o.description] }, {});
   // A mockup is one result; the page that matches best is the one it opens on.
   const byMockup = new Map<string, NonNullable<typeof mockups>["rows"]>();

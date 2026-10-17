@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, the public sandbox with its limits, baseline and reset, and how retired insights and decisions became sources.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, sandbox]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:claude, at: 2026-10-16}
 status: stable
 ---
 
@@ -231,7 +231,7 @@ download grant for each ready one. Any role may export, through **both adapters*
 **never blocked** — not by a quota, and not by archiving the product. A ready export is listed for
 seven days. The bundle holds a manifest with its format name and version, every source's metadata,
 every file version's original bytes, every derivation's sidecars, annotations and agent notes,
-lineage, outcomes, assumptions with their reviews, revisions,
+outcomes, assumptions with their reviews, revisions,
 the Story hierarchy and every page version (JSON and HTML; a version that shows a mockup page
 names it rather than repeating it), every mockup version (its brief, each page's HTML and
 notes, and its files), tombstones, and the activity log
@@ -276,7 +276,6 @@ been here".
 - It takes the object **out of listings, out of the UI's main views, and out of the search space an
   agent can reach** ([§8.2](08-search.md)). That last part is the point: archiving is how a team
   says "stop showing me this, and stop letting the agent find it", without losing it.
-- Citations to an archived source report `record_archived` and still resolve.
 - Archiving does **not** free storage. Deleting does, and the UI says so.
 - **Archive is what every destructive-looking control offers first.** Delete is available from the
   same place, one step further in, and never pre-selected; its dialog offers Archive instead.
@@ -318,14 +317,9 @@ Everything that can be archived can also be deleted, and so can an organization:
   `products.delete_tenant` take `name`, which must be its name exactly; anything else is
   `422 name_mismatch`. The web app asks the person to type it.
 - **Preview first.** Each preview is read-only and returns exactly what would be destroyed and
-  what points at it. For a source: file versions and bytes, derivations, annotations, the
-  assumptions whose citations point at the source, the other sources that list it as related, the
-  Story pages whose current version cites it, and `story_versions_citing`: every page version,
-  current or earlier, that cites it (`page_id`, `version`, `count`, `is_current`), and the same
-  for mockups (`mockup_versions_citing`, by `mockup_id`). For an assumption: its reviews and
-  citations, the other assumptions that link to it (`linked_from`), and the Story page and mockup
-  versions whose refs name it (`story_versions_referring`, `mockup_versions_referring`). For an
-  outcome: the assumptions that serve it and the versions whose refs name it. For a Story page:
+  what points at it. For a source: file versions and bytes, derivations and annotations. For an
+  assumption: its reviews and the other assumptions that link to it (`linked_from`). For an
+  outcome: the assumptions that serve it. For a Story page:
   its versions and the sub-pages that would move up. For a mockup: its versions and the Story
   pages that show it. For a product or organization: everything it holds, counted. Each says in
   `after_delete` what becomes of what points at it. The web UI shows this inside the confirmation
@@ -337,11 +331,11 @@ Everything that can be archived can also be deleted, and so can an organization:
     annotations and agent notes; a background job then deletes the file bytes and sidecars. Bytes
     still used by a copy in another product stay until nothing refers to them.
   - A comment: its text, anchor, tags and earlier text.
-  - An assumption: its statement, body, citations with their snapshots, reviews and earlier text.
+  - An assumption: its statement, body, reviews and earlier text.
     The links other assumptions hold to it are removed from them (their etags change).
   - An outcome: its title, description and earlier text. Assumptions stop naming it in
     `outcome_ids` (their etags change).
-  - A Story page: every version, with its HTML, notes, refs and citations; its sub-pages move up
+  - A Story page: every version, with its HTML and notes; its sub-pages move up
     into its place, as when it is archived.
   - A mockup: every version, with its pages, notes, files and brief. Refused with
     `409 mockup_on_story` while a Story page's current version shows it (archived pages included):
@@ -356,20 +350,16 @@ Everything that can be archived can also be deleted, and so can an organization:
     invitation in it, its jobs, its uploads in progress, and its bytes. Its people keep their accounts and their roles
     elsewhere; feedback sent to the maintainers is kept. A public sandbox can't be deleted
     (`409 sandbox_organization`): its staff close it to visitors instead.
-- Story page and mockup versions that name a deleted assumption or outcome in their refs keep
-  their text, as every version does; the ref stops resolving, and its link in the app stops opening.
+- A Story page, a mockup or an assumption that mentions a deleted object keeps its text, as every
+  version does; a link to the object stops opening.
 - **Leaves a tombstone:** `{ object_type, object_id, product_id, title, reason, deleted_at,
   deleted_by }`, keyed by product, type and id, since a Story page's id is unique only within its
   product (a page deleted again under the same id keeps the latest). Reads return `410` with the
   tombstone: `record_deleted` for a source, `<type>_deleted` (`assumption_deleted`,
   `outcome_deleted`, `story_page_deleted`, `mockup_deleted`, `annotation_deleted`) for the rest,
-  except that a reader is answered `404` for a deleted Story page, as for an archived one.
-  `check_citations` reports `record_deleted` ([§4.8](04-data-model.md)); lineage reports
-  `deleted`; the activity log records it. A deleted product leaves its tombstone and a `deleted`
+  except that a reader is answered `404` for a deleted Story page, as for an archived one. The
+  activity log records it. A deleted product leaves its tombstone and a `deleted`
   event on its team; an addressed call to it answers `404`. A deleted organization leaves nothing.
-- **Citation snapshots survive a source's delete.** A snapshot is a quotation the team wrote down,
-  not a copy of the source, and a reviewed assumption does not silently lose its evidence because
-  someone tidied the sources. ◆ Decision: if the snapshot itself must go, delete the assumption too.
 - **Backups.** Deleted content is gone from the product at once. In the Cloud Run deployment,
   deleted bytes linger as noncurrent bucket versions for 30 days, and deleted rows age out of
   database backups as they roll. We say that rather than claim instant erasure, because instant
@@ -397,7 +387,7 @@ person in the web app (`403 web_only`), and MCP lists neither it nor its preview
 
 Removes the person from every organization and deletes their sign-in, sessions and tokens. It does
 **not** delete organization content, and actor snapshots survive
-([§3.9](03-accounts-teams-and-identity.md)) — attribution on a colleague's cited assumption is part
+([§3.9](03-accounts-teams-and-identity.md)) — attribution on a colleague's assumption is part
 of that organization's record, not personal data we can silently rewrite. A sole owner must
 transfer ownership or close the organization first, and the UI says which.
 
@@ -511,7 +501,7 @@ Rules:
 
 `sandbox.save_baseline` saves the organization's content as it is: every row carrying its
 `tenant_id` in `teams`, `products`, `records`, `files`, `file_versions`, `derivations`,
-`segments`, `annotations`, `agent_notes`, `lineage`, `outcomes`, `insights`, `revisions`,
+`segments`, `annotations`, `agent_notes`, `outcomes`, `insights`, `revisions`,
 `register_entries`, `reviews`, `story_pages`, `story_versions`, `story_hierarchies`,
 `story_styles`, `mockups`, `mockup_versions`, `mockup_pages`, `mockup_files`, `tombstones`, and
 the activity events that belong to a product. Each row is held
@@ -533,6 +523,10 @@ as JSON, without its generated columns, with its ids.
 - A baseline saved while sources had kinds was rewritten by migration `0017_sources_are_tagged.sql`
   as the sources were: each kind and organization became tags, and the dropped columns left its
   rows ([§4.4](04-data-model.md)), so a reset puts back tagged sources.
+- A baseline saved while there were citations was rewritten by migration
+  `0028_citations_refs_and_lineage_retired.sql` as the live rows were: an assumption's citations
+  went to the end of its body ([§4.8](04-data-model.md)), the `citations`, `refs` and
+  `related_records` it held left its rows, and its `lineage` rows went, with their count.
 
 ### The reset
 
@@ -588,10 +582,12 @@ The text goes to object storage, which only the worker reaches, so the move has 
    each product that holds an insight or a decision. It changes no rows.
 2. The worker runs the job ([`evidence-move.ts`](../../packages/core/src/evidence-move.ts)), one
    product per transaction: it writes each item's Markdown and earlier versions to storage, adds the
-   source with the same id and queues its parse, points Story and mockup `refs`, view lineage and
-   activity events at it, drops assumptions' links to decisions, and deletes the item and its
-   revisions and reviews. Run again, it finds nothing left to move.
+   source with the same id and queues its parse, points activity events at it, drops assumptions'
+   links to decisions, and deletes the item and its revisions and reviews. A decision's body
+   already holds the passages it cited, put there by migration
+   `0028_citations_refs_and_lineage_retired.sql` ([§4.8](04-data-model.md)). Run again, it finds
+   nothing left to move.
 
-Until the job has run, a reference to an item reads as missing. The `insights` table and the
+Until the job has run, a link to an item opens nothing. The `insights` table and the
 register's `kind` column stay, empty, until a later migration drops them
 ([roadmap](10-roadmap.md)).

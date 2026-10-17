@@ -1,8 +1,7 @@
 import { sql } from "kysely";
 import { z } from "zod";
-import { checkEtag, EMPTY_REFS, productId, recordActivity, tenantId, validateRefs } from "../common.ts";
-import { checkCitationList, CITATION_MAX_COUNT, citationInput, citationViews, snapshotAll } from "../citations.ts";
-import { json, type Db, type MockupPageRef, type Refs, type StoryNode } from "../db.ts";
+import { checkEtag, productId, recordActivity, tenantId } from "../common.ts";
+import { json, type Db, type MockupPageRef, type StoryNode } from "../db.ts";
 import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
 import { conflict, invalid, notFound } from "../errors.ts";
 import { readsOnlyTheStory } from "../policy.ts";
@@ -28,14 +27,6 @@ const pageId = z
   .string()
   .regex(/^[a-z0-9][a-z0-9-]{0,79}$/, "a lower-case slug: letters, digits and hyphens, up to 80 characters")
   .describe("The page's stable slug, chosen by the author, e.g. overview.");
-
-const refsInput = z
-  .strictObject({
-    outcomes: z.array(id("outcome")).max(50).optional(),
-    sources: z.array(id("source")).max(100).optional(),
-    assumptions: z.array(id("assumption")).max(100).optional(),
-  })
-  .optional();
 
 function productPath(ctx: OpContext) {
   return `${ctx.scope.tenant!.slug}/${ctx.scope.team!.slug}/${ctx.scope.product!.slug}`;
@@ -249,39 +240,6 @@ function notesView(p: { agent_notes: string; agent_notes_etag: string; agent_not
   return { content: p.agent_notes, etag: p.agent_notes_etag, updated_at: p.agent_notes_updated_at, updated_by: p.agent_notes_updated_by };
 }
 
-type ResolvedRef = { id: string; title: string | null; status: string | null; archived: boolean; missing: boolean };
-
-/** A version's references with their current titles, so a reader can list them without a request per id. */
-export async function resolveRefs(ctx: OpContext, refs: Refs): Promise<Record<keyof Refs, ResolvedRef[]>> {
-  const pid = productId(ctx);
-  const some = (ids: string[] | undefined) => (ids?.length ? ids : [""]);
-  const [outcomes, sources, entries] = await Promise.all([
-    ctx.db.selectFrom("outcomes").select(["outcome_id as id", "title", "archived_at"]).where("product_id", "=", pid).where("outcome_id", "in", some(refs.outcomes)).execute(),
-    ctx.db.selectFrom("records").select(["record_id as id", "title", "archived_at"]).where("product_id", "=", pid).where("record_id", "in", some(refs.sources)).execute(),
-    ctx.db
-      .selectFrom("register_entries")
-      .select(["entry_id as id", "statement", "status", "archived_at"])
-      .where("product_id", "=", pid)
-      .where("entry_id", "in", some(refs.assumptions))
-      .execute(),
-  ]);
-  const missing = (id: string): ResolvedRef => ({ id, title: null, status: null, archived: false, missing: true });
-  return {
-    outcomes: (refs.outcomes ?? []).map((i) => {
-      const o = outcomes.find((x) => x.id === i);
-      return o ? { id: i, title: o.title, status: null, archived: Boolean(o.archived_at), missing: false } : missing(i);
-    }),
-    sources: (refs.sources ?? []).map((i) => {
-      const r = sources.find((x) => x.id === i);
-      return r ? { id: i, title: r.title, status: null, archived: Boolean(r.archived_at), missing: false } : missing(i);
-    }),
-    assumptions: (refs.assumptions ?? []).map((i) => {
-      const r = entries.find((x) => x.id === i);
-      return r ? { id: i, title: r.statement, status: r.status, archived: Boolean(r.archived_at), missing: false } : missing(i);
-    }),
-  };
-}
-
 /**
  * The HTML a version shows: its own, or the page of a mockup version it points at. Mockup versions
  * are immutable, so the Story holds the reference and never a copy. A mockup page that enters its
@@ -329,22 +287,15 @@ async function mockupView(ctx: OpContext, ref: MockupPageRef) {
   };
 }
 
-/**
- * A version as its reader may see it. A Story reader gets the page itself and how it was published;
- * what it draws on (refs, cited passages) belongs to the evidence, which a reader does not browse.
- */
+/** A version as its reader may see it: the page itself, the mockup page it shows, and how it was published. */
 async function versionView(ctx: OpContext, versionId: string, withHtml: boolean) {
   const v = await ctx.db.selectFrom("story_versions").selectAll().where("version_id", "=", versionId).where("product_id", "=", productId(ctx)).executeTakeFirstOrThrow();
-  const drawsOn = readsOnlyTheStory(ctx.scope.role)
-    ? {}
-    : { refs: v.refs, resolved_refs: await resolveRefs(ctx, v.refs), citations: await citationViews(ctx, v.citations) };
   return {
     version_id: v.version_id,
     version: v.n,
     page_id: v.page_id,
     title: v.title,
     summary: v.summary,
-    ...drawsOn,
     ...(v.mockup ? { mockup: await mockupView(ctx, v.mockup) } : {}),
     published_at: v.created_at,
     published_by: v.created_by,
@@ -362,9 +313,9 @@ export const getPage = defineOperation({
   scope: "product",
   access: "story",
   mutates: false,
-  summary: "Read a Story page's current version, with its HTML, citations, notes for agents, and the page etag you need to publish again.",
+  summary: "Read a Story page's current version, with its HTML, notes for agents, and the page etag you need to publish again.",
   description:
-    "404 means the page has never been published. An archived page stays readable here, except to a reader (the Story-only role), who gets 404 for it. Read this before revising a page, and keep what is useful. agent_notes holds what agents keep about the page — its purpose, sources still to fold in, choices about its structure — with its own etag for write_notes; read it before revising. include_html false leaves out the HTML (html_chars and html_sha256 stay). A reader (the Story-only role) gets the page without agent_notes, refs, resolved_refs or citations.",
+    "404 means the page has never been published. An archived page stays readable here, except to a reader (the Story-only role), who gets 404 for it. Read this before revising a page, and keep what is useful. agent_notes holds what agents keep about the page — its purpose, sources still to fold in, choices about its structure — with its own etag for write_notes; read it before revising. include_html false leaves out the HTML (html_chars and html_sha256 stay). A reader (the Story-only role) gets the page without agent_notes.",
   input: z.strictObject({ page_id: pageId, include_html: z.boolean().default(true) }),
   rest: { method: "GET", path: "/story/pages/:page_id" },
   mcp: { tool: "story", action: "get_page" },
@@ -390,7 +341,7 @@ export const listVersions = defineOperation({
     await loadReadablePage(ctx, input.page_id);
     let q = ctx.db
       .selectFrom("story_versions")
-      .select(["version_id", "n", "title", "summary", "created_at", "created_by", "citations"])
+      .select(["version_id", "n", "title", "summary", "created_at", "created_by"])
       .select(
         sql<string>`encode(sha256(convert_to(coalesce((select mp.html from mockup_pages mp where mp.version_id = story_versions.mockup->>'mockup_version_id' and mp.page_id = story_versions.mockup->>'page_id'), html), 'UTF8')), 'hex')`.as("html_sha256"),
       )
@@ -398,8 +349,7 @@ export const listVersions = defineOperation({
       .where("page_id", "=", input.page_id);
     if (input.before) q = q.where("n", "<", input.before);
     const rows = await q.orderBy("n", "desc").limit(input.limit + 1).execute();
-    const reader = readsOnlyTheStory(ctx.scope.role);
-    const items = rows.slice(0, input.limit).map((v) => ({ version_id: v.version_id, version: v.n, title: v.title, summary: v.summary, ...(reader ? {} : { citation_count: v.citations.length }), html_sha256: v.html_sha256, published_at: v.created_at, published_by: v.created_by }));
+    const items = rows.slice(0, input.limit).map((v) => ({ version_id: v.version_id, version: v.n, title: v.title, summary: v.summary, html_sha256: v.html_sha256, published_at: v.created_at, published_by: v.created_by }));
     return { items, next_before: rows.length > input.limit ? items[items.length - 1]!.version : null };
   },
 });
@@ -410,7 +360,7 @@ export const getVersion = defineOperation({
   access: "story",
   mutates: false,
   summary: "Read one published version of a page, by number.",
-  description: "Includes the page's current archived_at, so someone browsing history still sees an archive notice. A reader (the Story-only role) gets it without refs, resolved_refs or citations, and gets 404 for an archived page.",
+  description: "Includes the page's current archived_at, so someone browsing history still sees an archive notice. A reader (the Story-only role) gets 404 for an archived page.",
   input: z.strictObject({ page_id: pageId, version: z.number().int().min(1), include_html: z.boolean().default(true) }),
   rest: { method: "GET", path: "/story/pages/:page_id/versions/:version" },
   mcp: { tool: "story", action: "get_version" },
@@ -478,7 +428,7 @@ function patchHtml(html: string, edits: { find: string; replace: string }[], ref
 }
 
 /** The fields a later version takes from its base version when the call omits them. */
-const CARRIED = ["title", "summary", "html", "refs", "citations"] as const;
+const CARRIED = ["title", "summary", "html"] as const;
 
 const publishInput = z.strictObject({
   page_id: pageId.default("overview"),
@@ -498,12 +448,6 @@ const publishInput = z.strictObject({
     .max(50)
     .optional()
     .describe("A later version only, instead of html: exact find/replace edits applied in order to the base version's HTML. Each find must occur exactly once, or nothing is published."),
-  refs: refsInput.describe("The objects the page draws on, in full. Omit it on a later version to keep the refs."),
-  citations: z
-    .array(citationInput)
-    .max(CITATION_MAX_COUNT)
-    .optional()
-    .describe(`Up to ${CITATION_MAX_COUNT} exact passages the page draws on, in full: {record_id, seq_start, seq_end, quote?}. Read each passage first. Omit it on a later version to keep the citations.`),
   from_version: z.number().int().min(1).optional().describe("Start from this earlier version instead of the current one: omitted fields are taken from it. Alone, it restores that version as a new one."),
   expected_etag: expectedEtag.optional(),
 });
@@ -532,16 +476,14 @@ async function draftVersion(ctx: OpContext, input: PublishInput, opts: { lock: b
     const html = input.html ?? (input.body !== undefined ? bodyDocument(input.title, await titleStylesheet(ctx), input.body) : titlePageHtml(input.title, summary, await titleStylesheet(ctx)));
     const problems = inspectStoryHtml(html);
     if (problems.length) throw invalid("invalid_html", `${opts.refused}: ${problems.join(" ")}`, { problems });
-    const refs = await validateRefs(ctx, input.refs ?? EMPTY_REFS);
-    const citations = await snapshotAll(ctx, input.citations ?? [], "page version");
     const count = await ctx.db.selectFrom("story_pages").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst();
     if (Number(count?.n ?? 0) >= MAX_PAGES) throw conflict("quota_exceeded", `A product’s Story holds at most ${MAX_PAGES} pages.`, { quota: "story_pages", limit: MAX_PAGES, used: Number(count?.n ?? 0), unit: "pages" });
-    return { existing: null, n: 1, title: input.title, summary, html, refs, citations, mockup: null, carried: [] as (typeof CARRIED)[number][], based_on_version: null };
+    return { existing: null, n: 1, title: input.title, summary, html, mockup: null, carried: [] as (typeof CARRIED)[number][], based_on_version: null };
   }
   if (existing.archived_at) throw conflict("page_archived", `Page "${input.page_id}" is archived; restore it before publishing.`);
   if (!input.expected_etag) throw conflict("stale_etag", `Page "${input.page_id}" exists; read it with get_page and pass its etag.`, { current_etag: existing.etag });
   checkEtag(input.expected_etag, existing.etag, "story page");
-  let base = ctx.db.selectFrom("story_versions").select(["n", "title", "summary", "html", "refs", "citations", "mockup"]).where("product_id", "=", pid).where("page_id", "=", input.page_id);
+  let base = ctx.db.selectFrom("story_versions").select(["n", "title", "summary", "html", "mockup"]).where("product_id", "=", pid).where("page_id", "=", input.page_id);
   base = input.from_version ? base.where("n", "=", input.from_version) : base.where("version_id", "=", existing.current_version_id);
   const from = await base.executeTakeFirst();
   if (!from) throw notFound(`Page "${input.page_id}" has no version ${input.from_version}; its versions run from 1 to ${existing.version_count}.`, { version_count: existing.version_count });
@@ -568,9 +510,7 @@ async function draftVersion(ctx: OpContext, input: PublishInput, opts: { lock: b
             : from.html);
   const problems = keepsMockup ? [] : inspectStoryHtml(html);
   if (problems.length) throw invalid("invalid_html", `${opts.refused}: ${problems.join(" ")}`, { problems });
-  const refs = input.refs ? await validateRefs(ctx, input.refs) : from.refs;
-  const citations = input.citations ? await snapshotAll(ctx, input.citations, "page version") : from.citations;
-  return { existing, n: existing.version_count + 1, title, summary, html, refs, citations, mockup: keepsMockup, carried, based_on_version: input.from_version ?? existing.version_count };
+  return { existing, n: existing.version_count + 1, title, summary, html, mockup: keepsMockup, carried, based_on_version: input.from_version ?? existing.version_count };
 }
 
 export const publish = defineOperation({
@@ -580,7 +520,7 @@ export const publish = defineOperation({
   mutates: true,
   summary: "Publish a new version of a Story page (creating the page on its first version). A later version keeps whatever you omit.",
   description:
-    `Call guidance first, and get_page before revising (read its agent_notes too). Send the same call to preview first: it checks everything publish checks and gives you the exact page to look at, publishing nothing. A page's first version: omit expected_etag, give a title, and give body (or html for a whole document of your own, or neither for a generated title page). Prefer body: it is only the markup inside <body>, and WhatBuild puts the product's Story style around it, so the stylesheet is never sent and every page carries the same one. A later version: pass the page etag and send only what changes — the title, summary, html, refs and citations you omit are taken from the current version, and carried_forward in the result names them. To change a sentence, patch_html applies exact find/replace edits instead of re-sending the page. After set_style, restyle: true gives a page the new stylesheet and keeps its content. from_version: N starts from that earlier version instead, so from_version alone restores it as a new version; compare html_sha256 to confirm the HTML is identical. Pass an empty list to clear refs or citations. The HTML is validated and every problem is listed at once (422). citations lists up to ${CITATION_MAX_COUNT} exact passages the page draws on, {record_id, seq_start, seq_end, quote?}, each frozen as a snapshot, as an assumption's citations are; carried citations keep their snapshots. summary describes the page itself. Publishing never places the page in the navigation: call set_hierarchy afterwards, and update the page's notes with write_notes (agent_notes_etag is in the result). If a response is lost, sending the same call again is safe: once the version has landed it fails with stale_etag, and get_page shows it. Never invent facts, owners or dates, and never present an unconfirmed assumption as settled.`,
+    `Call guidance first, and get_page before revising (read its agent_notes too). Send the same call to preview first: it checks everything publish checks and gives you the exact page to look at, publishing nothing. A page's first version: omit expected_etag, give a title, and give body (or html for a whole document of your own, or neither for a generated title page). Prefer body: it is only the markup inside <body>, and WhatBuild puts the product's Story style around it, so the stylesheet is never sent and every page carries the same one. A later version: pass the page etag and send only what changes — the title, summary and html you omit are taken from the current version, and carried_forward in the result names them. To change a sentence, patch_html applies exact find/replace edits instead of re-sending the page. After set_style, restyle: true gives a page the new stylesheet and keeps its content. from_version: N starts from that earlier version instead, so from_version alone restores it as a new version; compare html_sha256 to confirm the HTML is identical. The HTML is validated and every problem is listed at once (422). summary describes the page itself. Publishing never places the page in the navigation: call set_hierarchy afterwards, and update the page's notes with write_notes (agent_notes_etag is in the result). If a response is lost, sending the same call again is safe: once the version has landed it fails with stale_etag, and get_page shows it. Never invent facts, owners or dates, and never present an unconfirmed assumption as settled.`,
   input: publishInput,
   rest: { method: "POST", path: "/story/pages/:page_id/versions" },
   mcp: { tool: "story", action: "publish" },
@@ -588,7 +528,7 @@ export const publish = defineOperation({
     const pid = productId(ctx);
     const d = await draftVersion(ctx, input, { lock: true, refused: "The page was not published" });
     const version_id = newId();
-    const values = { version_id, tenant_id: tenantId(ctx), product_id: pid, page_id: input.page_id, n: d.n, title: d.title, summary: d.summary, html: d.html, refs: json(d.refs), citations: json(d.citations), created_by: json(ctx.actor) };
+    const values = { version_id, tenant_id: tenantId(ctx), product_id: pid, page_id: input.page_id, n: d.n, title: d.title, summary: d.summary, html: d.html, created_by: json(ctx.actor) };
     if (!d.existing) {
       await ctx.db.insertInto("story_versions").values({ ...values, previous_version_id: null }).execute();
       await ctx.db
@@ -898,27 +838,6 @@ export const writeNotes = defineOperation({
   },
 });
 
-export const checkStoryCitations = defineOperation({
-  name: "story.check_citations",
-  scope: "product",
-  access: "read",
-  mutates: false,
-  summary: "Re-resolve a Story page version's citations against the sources as they are now. Reports drift; never rewrites.",
-  description:
-    "Checks the current version unless version is given. Per citation: ok, relocated (text intact at another range, which it gives), text_changed, record_archived, record_deleted or record_missing, plus version_drift when the source's primary file has a newer version than the snapshot's. A matching quote establishes textual integrity only, not truth. valid is true when every citation is ok against the passages of each source's current file; rederived says a source was parsed again since a snapshot, so read those passages before relying on an ok.",
-  input: z.strictObject({ page_id: pageId, version: z.number().int().min(1).optional() }),
-  rest: { method: "GET", path: "/story/pages/:page_id/check-citations" },
-  mcp: { tool: "story", action: "check_citations" },
-  async handler(ctx, input) {
-    const p = await loadPage(ctx, input.page_id);
-    let q = ctx.db.selectFrom("story_versions").select(["n", "citations"]).where("product_id", "=", productId(ctx)).where("page_id", "=", p.page_id);
-    q = input.version ? q.where("n", "=", input.version) : q.where("version_id", "=", p.current_version_id);
-    const v = await q.executeTakeFirst();
-    if (!v) throw notFound(`Page "${p.page_id}" has no version ${input.version}.`);
-    return { page_id: p.page_id, version: v.n, checked_at: ctx.now, ...(await checkCitationList(ctx, v.citations)) };
-  },
-});
-
 const mockupPageId = z
   .string()
   .regex(/^[a-z0-9][a-z0-9-]{0,79}$/, "a page_id on the mockup's canvas")
@@ -941,7 +860,7 @@ export const promoteMockup = defineOperation({
   mutates: true,
   summary: "Show one page of a mockup in the Story: a Story page version that points at that page as it is in one mockup version, never a copy.",
   description:
-    "page_id chooses the Story page. A page_id no page has yet creates the page under that id. The page_id of an existing page, with its etag, publishes that page's next version showing the mockup page, which is how a Story page moves to a newer mockup version: it never follows the mockup by itself. Without page_id, the new page's id is the mockup page's own slug, with -2, -3… if that is taken. A new page is titled with the mockup page's title unless you give one. Name the page_id when you can: if a response is lost, the same call sent again then fails with stale_etag instead of making a second page. version is the mockup version, the current one when omitted. The version takes the mockup version's refs and citations. The Story page shows the mockup page at its own size, scaled to fit, in the same sandbox; a Story reader sees it there and nothing else of the mockup. Publishing html or body on the page later replaces it with HTML of its own. The page joins the end of the Story's Published mockups, a section of its own after the navigation tree, where every page showing a mockup page appears and none of them is ever in the tree; reorder the section with set_hierarchy's mockups. Once html or body replaces the mockup page, the page leaves the section and is unplaced.",
+    "page_id chooses the Story page. A page_id no page has yet creates the page under that id. The page_id of an existing page, with its etag, publishes that page's next version showing the mockup page, which is how a Story page moves to a newer mockup version: it never follows the mockup by itself. Without page_id, the new page's id is the mockup page's own slug, with -2, -3… if that is taken. A new page is titled with the mockup page's title unless you give one. Name the page_id when you can: if a response is lost, the same call sent again then fails with stale_etag instead of making a second page. version is the mockup version, the current one when omitted. The Story page shows the mockup page at its own size, scaled to fit, in the same sandbox; a Story reader sees it there and nothing else of the mockup. Publishing html or body on the page later replaces it with HTML of its own. The page joins the end of the Story's Published mockups, a section of its own after the navigation tree, where every page showing a mockup page appears and none of them is ever in the tree; reorder the section with set_hierarchy's mockups. Once html or body replaces the mockup page, the page leaves the section and is unplaced.",
   input: z.strictObject({
     mockup_id: id("mockup"),
     mockup_page_id: mockupPageId,
@@ -959,7 +878,7 @@ export const promoteMockup = defineOperation({
     const pid = productId(ctx);
     const m = await ctx.db.selectFrom("mockups").select(["mockup_id", "title", "version_count", "current_version_id"]).where("product_id", "=", pid).where("mockup_id", "=", input.mockup_id).executeTakeFirst();
     if (!m) throw notFound(`There is no mockup ${input.mockup_id} in this product.`);
-    let vq = ctx.db.selectFrom("mockup_versions").select(["version_id", "n", "refs", "citations"]).where("mockup_id", "=", m.mockup_id);
+    let vq = ctx.db.selectFrom("mockup_versions").select(["version_id", "n"]).where("mockup_id", "=", m.mockup_id);
     vq = input.version ? vq.where("n", "=", input.version) : vq.where("version_id", "=", m.current_version_id);
     const mv = await vq.executeTakeFirst();
     if (!mv) throw notFound(`Mockup ${m.mockup_id} has no version ${input.version}; its versions run from 1 to ${m.version_count}.`);
@@ -968,7 +887,6 @@ export const promoteMockup = defineOperation({
     if (!mp) throw notFound(`Version ${mv.n} of the mockup has no page "${input.mockup_page_id}". Its pages: ${pages.map((p) => p.page_id).join(", ")}.`, { pages: pages.map((p) => p.page_id) });
 
     const ref: MockupPageRef = { mockup_id: m.mockup_id, mockup_version_id: mv.version_id, version: mv.n, page_id: mp.page_id };
-    const refs = { outcomes: mv.refs.outcomes ?? [], sources: mv.refs.sources ?? [], assumptions: mv.refs.assumptions ?? [] };
     const what = `"${mp.title}" from the mockup "${m.title}", version ${mv.n}`;
     const existing = input.page_id
       ? await ctx.db.selectFrom("story_pages").selectAll().where("product_id", "=", pid).where("page_id", "=", input.page_id).forUpdate().executeTakeFirst()
@@ -984,7 +902,7 @@ export const promoteMockup = defineOperation({
       const summary = input.summary ?? `From the mockup "${m.title}", version ${mv.n}.`;
       await ctx.db
         .insertInto("story_versions")
-        .values({ version_id, tenant_id: tenantId(ctx), product_id: pid, page_id: pageIdOut, n: 1, title, summary, html: "", refs: json(refs), citations: json(mv.citations), mockup: json(ref), previous_version_id: null, created_by: json(ctx.actor) })
+        .values({ version_id, tenant_id: tenantId(ctx), product_id: pid, page_id: pageIdOut, n: 1, title, summary, html: "", mockup: json(ref), previous_version_id: null, created_by: json(ctx.actor) })
         .execute();
       await ctx.db
         .insertInto("story_pages")
@@ -1001,7 +919,7 @@ export const promoteMockup = defineOperation({
       const n = existing.version_count + 1;
       await ctx.db
         .insertInto("story_versions")
-        .values({ version_id, tenant_id: tenantId(ctx), product_id: pid, page_id: pageIdOut, n, title, summary, html: "", refs: json(refs), citations: json(mv.citations), mockup: json(ref), previous_version_id: existing.current_version_id, created_by: json(ctx.actor) })
+        .values({ version_id, tenant_id: tenantId(ctx), product_id: pid, page_id: pageIdOut, n, title, summary, html: "", mockup: json(ref), previous_version_id: existing.current_version_id, created_by: json(ctx.actor) })
         .execute();
       await ctx.db
         .updateTable("story_pages")
@@ -1132,7 +1050,7 @@ async function pageDeletion(ctx: OpContext, p: Awaited<ReturnType<typeof loadPag
     sub_pages_promoted: promoted,
     shows_mockup: current?.mockup ? { mockup_id: current.mockup.mockup_id, version: current.mockup.version, page_id: current.mockup.page_id } : null,
     after_delete:
-      `Every version of the page (${p.version_count}) goes, with its HTML, notes, refs and citations. ` +
+      `Every version of the page (${p.version_count}) goes, with its HTML and notes. ` +
       (promoted.length ? `Its ${promoted.length} sub-page${promoted.length === 1 ? "" : "s"} move up into its place in the navigation. ` : "") +
       "Links to it from other pages stop opening. A mockup it shows is not touched.",
     reversible_alternative: 'story(action="archive_page") takes it out of the navigation and erases nothing.',
@@ -1195,5 +1113,5 @@ export const deletePage = defineOperation({
   },
 });
 
-export const storyOps = [guidance, getStyle, setStyle, listPages, getPage, listVersions, getVersion, preview, publish, promoteMockup, writeNotes, checkStoryCitations, printView, getHierarchy, setHierarchy, archivePage, restorePage, pageDeleteImpact, deletePage];
+export const storyOps = [guidance, getStyle, setStyle, listPages, getPage, listVersions, getVersion, preview, publish, promoteMockup, writeNotes, printView, getHierarchy, setHierarchy, archivePage, restorePage, pageDeleteImpact, deletePage];
 

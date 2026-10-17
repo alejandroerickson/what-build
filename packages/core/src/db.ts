@@ -24,34 +24,13 @@ export interface Dimensions {
   lifecycle_stage?: string | null;
 }
 
-export interface Refs {
-  outcomes: string[];
-  sources: string[];
-  assumptions: string[];
-}
-
-/** References as they were stored before insights and decisions moved into Evidence. */
-export interface LegacyRefs extends Refs {
+/** What an insight referred to, as stored before insights and decisions moved into Evidence. */
+export interface LegacyRefs {
+  outcomes?: string[];
+  sources?: string[];
+  assumptions?: string[];
   insights?: string[];
   decisions?: string[];
-}
-
-export interface CitationSnapshot {
-  record_id: string;
-  seq_start: number;
-  seq_end: number;
-  char_start: number;
-  char_end: number;
-  start_ms: number | null;
-  end_ms: number | null;
-  speakers: string[];
-  source_file: string;
-  file_version_id: string;
-  derivation_id: string;
-  quote: string;
-  quote_hash: string;
-  anchors_hash: string;
-  captured_at: string;
 }
 
 export interface RegisterLink {
@@ -62,22 +41,6 @@ export interface RegisterLink {
 export interface StoryNode {
   page_id: string;
   children: StoryNode[];
-}
-
-export interface LineageInput {
-  kind: "record" | "assumption";
-  id: string;
-  fingerprint: string;
-  /**
-   * A short hash of each part the fingerprint covers, stored at write so check can say which parts
-   * changed. Absent on lineage written before parts were stored.
-   */
-  parts?: Record<string, string>;
-  /**
-   * The kind and organization a source input had when lineage written before parts were stored
-   * fingerprinted it. Sources lost both to tags; the check fingerprints the input with them again.
-   */
-  was?: { kind: string; organization: string | null };
 }
 
 // ---- Directory tables (no row-level security; reached only through the auth layer) --------------
@@ -311,7 +274,6 @@ export interface RecordsTable {
   participants: string[];
   source_system: string | null;
   tags: string[];
-  related_records: string[];
   dimensions: Json<Dimensions>;
   provenance_depth: string;
   slug: string;
@@ -532,7 +494,6 @@ export interface RegisterEntriesTable {
   kind: "assumption" | "decision";
   statement: string;
   body: string;
-  citations: Json<CitationSnapshot[]>;
   links: Json<RegisterLink[]>;
   outcome_ids: string[];
   tags: string[];
@@ -593,8 +554,6 @@ export interface StoryVersionsTable {
   html: string;
   /** No longer written or read; kept so older versions keep their row as it was. */
   note: Def<string>;
-  refs: Json<Refs>;
-  citations: ColumnType<CitationSnapshot[], string | undefined, string>;
   /** Set when the version shows one page of a mockup version instead of HTML of its own (html is then empty). */
   mockup: JsonNull<MockupPageRef>;
   previous_version_id: string | null;
@@ -638,8 +597,6 @@ export interface MockupVersionsTable {
   brief: string;
   /** How many pages sit side by side before the canvas wraps; null keeps them in one row. */
   columns: number | null;
-  refs: Json<Refs>;
-  citations: ColumnType<CitationSnapshot[], string | undefined, string>;
   previous_version_id: string | null;
   created_at: Ts;
   created_by: Json<ActorSnapshot>;
@@ -713,18 +670,6 @@ export interface StoryStylesTable {
   etag: string;
   updated_at: Ts;
   updated_by: Json<ActorSnapshot>;
-}
-
-export interface LineageTable {
-  record_id: string;
-  tenant_id: string;
-  product_id: string;
-  inputs: Json<LineageInput[]>;
-  query_spec: Json<Record<string, unknown>>;
-  /** When capture fingerprinted the inputs, as the agent passed it to write; null when not passed. */
-  captured_at: TsNull;
-  generated_at: Ts;
-  generated_by: Json<ActorSnapshot>;
 }
 
 export interface ActivityTable {
@@ -874,7 +819,6 @@ export interface DB {
   mockup_pages: MockupPagesTable;
   mockup_files: MockupFilesTable;
   mockup_prototype_files: MockupPrototypeFilesTable;
-  lineage: LineageTable;
   activity: ActivityTable;
   tombstones: TombstonesTable;
   exports: ExportsTable;
