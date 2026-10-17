@@ -82,6 +82,9 @@ Idea screen's terms are a decision: [A product starts with its idea](../decision
 | **role** | reader, viewer, editor or admin on a team or product; owner, admin or member of a tenant. A reader reads only the Story. |
 | **source** | One discovery event or document, with metadata and one or more files. Stored as a record: `record_id` in the API. The destination that holds them is **Evidence**; never "library", "document store", "bucket" or a storage path. |
 | **file** | A stored file belonging to a source, with a role: `primary`, `origin`, or `supplement`. The role is **origin**, not "source", so it cannot be confused with the destination. |
+| **attachment** | What the web app calls a source's files. |
+| **comment** | A remark on a whole source (an `annotation` on the wire). |
+| **summary**, **notes** | A source's short summary, written for people, and its freeform notes, kept by people and agents ([§4.6](04-data-model.md)). |
 | **segment** | The atomic unit of derived text: a paragraph or a cue, with offsets. |
 | **passage** | A contiguous range of segments in one source. What search hits and reads address. |
 | **product concept** | Who the product is for, the problem they have, and how the product solves it. A product's `concept` field; it heads the **Idea** screen. |
@@ -121,7 +124,7 @@ of them is now sources.
    it happens, and always leaves a tombstone so nothing that pointed at the object is left guessing
    ([§9.5](09-data-lifecycle.md)).
 4. **Authored text is never lost to an overwrite.** Every object with a body a person or an agent
-   writes (the product concept, outcomes, annotations, and assumptions while still editable) keeps immutable **revisions** ([§4.1](04-data-model.md)). A well-meaning agent
+   writes (the product concept, outcomes, comments, and assumptions while still editable) keeps immutable **revisions** ([§4.1](04-data-model.md)). A well-meaning agent
    rewriting a paragraph must never be the way a team loses it.
 5. **Evidence stays as it was read.** File versions and their derivations are immutable and
    retained, so a passage stays readable exactly as it was after its source is parsed again. What

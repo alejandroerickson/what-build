@@ -410,11 +410,11 @@ describe("the sample product", () => {
     const doc = await sam.api("GET", `${S}/story/print?page_ids=hand-off-test,overview`);
     expect(doc.status).toBe(200);
     expect(doc.body).not.toContain("<h1>The hand-off test</h1>");
-    // One source carries an agent description, outline and notes, and an origin file kept unsearched.
+    // One source carries a summary and notes, and an origin file kept unsearched.
     const sources = await sam.api("GET", `${S}/sources`);
     const call = sources.body.records.find((r: { title: string }) => r.title.startsWith("Crew lead interview"));
     const source = await sam.api("GET", `${S}/sources/${call.record_id}?detail=full`);
-    expect(source.body.agent_notes.map((n: { kind: string }) => n.kind).sort()).toEqual(["notes", "outline", "summary"]);
+    expect(source.body.agent_notes.map((n: { kind: string }) => n.kind).sort()).toEqual(["notes", "summary"]);
     const roles = source.body.files.map((f: { role: string; path: string }) => `${f.role}:${f.path}`).sort();
     expect(roles).toEqual(["origin:recorder-export.txt", "primary:interview.vtt"]);
   });

@@ -45,13 +45,6 @@ export const REVIEW_STATUS: Record<string, { label: string; tone: StatusTone }> 
 
 export const ROLE_LABEL: Record<string, string> = { primary: "Primary", origin: "Origin", supplement: "Supplement" };
 
-export const PROVENANCE_LABEL: Record<string, string> = {
-  primary: "Primary source",
-  derived: "Derived material",
-  analysis_of_analysis: "Analysis of analysis",
-  unknown: "Not specified",
-};
-
 /**
  * The written map from every other domain status to a StatusBadge tone. positive: done and good;
  * attention: needs a person; negative: failed or refuted; progress: running; neutral: a plain state.

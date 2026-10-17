@@ -92,30 +92,28 @@ describe("what upload, read and search say about a source", () => {
     expect(gap.body.warning).toBe("No segments in this range.");
   });
 
-  it("cuts a long note anchor on a word boundary, with an ellipsis", async () => {
-    const words = Array.from({ length: 12 }, (_, i) => `Paragraph ${i} says the crews plan their week on Friday afternoons, by hand.`);
-    const { recordId } = await upload("notes", "long.txt", words.join("\n\n") + "\n");
-    await h.worker.drain();
-    const a = await alice.api("POST", `${P}/sources/${recordId}/annotations`, { record_id: recordId, note: "Planning happens by hand.", seq_start: 0, seq_end: 11 });
-    expect(a.status).toBe(201);
-    const quote: string = a.body.anchor.quote;
-    expect(Array.from(quote).length).toBeLessThanOrEqual(500);
-    expect(quote.endsWith("…")).toBe(true);
-    const full = words.join("\n\n");
-    expect(full.startsWith(quote.slice(0, -1))).toBe(true);
-    // The cut falls between words.
-    expect(full[quote.length - 1]).toMatch(/\s/);
-  });
-
-  it("names a note's passages in activity as the app does: ¶N for one, ¶N–M for a range", async () => {
+  it("takes a comment on the whole source, refuses a passage range, and logs comments as comments", async () => {
     const { recordId } = await upload("notes", "three.txt", "One.\n\nTwo.\n\nThree.\n");
     await h.worker.drain();
-    expect((await alice.api("POST", `${P}/sources/${recordId}/annotations`, { record_id: recordId, note: "One passage.", seq_start: 1, seq_end: 1 })).status).toBe(201);
-    expect((await alice.api("POST", `${P}/sources/${recordId}/annotations`, { record_id: recordId, note: "A range.", seq_start: 0, seq_end: 2 })).status).toBe(201);
-    expect((await alice.api("POST", `${P}/sources/${recordId}/annotations`, { record_id: recordId, note: "The whole source." })).status).toBe(201);
+    const a = await alice.api("POST", `${P}/sources/${recordId}/annotations`, { record_id: recordId, note: "The whole source." });
+    expect(a.status).toBe(201);
+    expect(a.body).not.toHaveProperty("seq_start");
+    expect(a.body).not.toHaveProperty("anchor");
+    const ranged = await alice.api("POST", `${P}/sources/${recordId}/annotations`, { record_id: recordId, note: "A range.", seq_start: 0, seq_end: 2 });
+    expect(ranged.status).toBe(422);
+    expect(ranged.body.error.message).toContain("A comment is on the whole source: it takes no segment range.");
+    // A long archive reason is cut on a word boundary, with an ellipsis, in the activity log.
+    const reason = "The crews plan by hand on Fridays. ".repeat(10).trim();
+    const archived = await alice.api("PATCH", `${P}/annotations/${a.body.annotation_id}`, { expected_etag: a.body.etag, archived: true, archive_reason: reason });
+    expect(archived.status).toBe(200);
     const log = await alice.api("GET", `${P}/activity?entity_id=${recordId}`);
-    const notes = log.body.items.filter((i: { action: string }) => i.action === "note_added").map((i: { summary: string }) => i.summary);
-    expect(notes).toEqual(["Added a note", "Added a note on ¶0–2", "Added a note on ¶1"]);
+    const comments = log.body.items.filter((i: { action: string }) => i.action.startsWith("note_")).map((i: { summary: string }) => i.summary);
+    expect(comments[1]).toBe("Added a comment");
+    const cut = (comments[0] as string).replace(/^Archived a comment: /, "");
+    expect(Array.from(cut).length).toBeLessThanOrEqual(200);
+    expect(cut.endsWith("…")).toBe(true);
+    expect(reason.startsWith(cut.slice(0, -1))).toBe(true);
+    expect(reason[cut.length - 1]).toMatch(/\s/);
   });
 });
 

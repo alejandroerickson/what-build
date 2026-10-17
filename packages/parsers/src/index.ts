@@ -6,7 +6,7 @@ import { htmlParser } from "./html.ts";
 import { bytesReader, recordingDurationMs } from "./media.ts";
 import { pdfParser } from "./pdf.ts";
 import { markdownParser, plaintextParser } from "./plaintext.ts";
-import { assemble, decodeText, headingOutline, nonSpaceCodePoints, speakerOutline } from "./text.ts";
+import { assemble, decodeText, nonSpaceCodePoints } from "./text.ts";
 import { DEFAULT_PARSE_CAP_BYTES, TooLargeError, type FormatParser, type ParseResult, type Segment } from "./types.ts";
 import { xlsxParser } from "./xlsx.ts";
 
@@ -87,7 +87,6 @@ function nonReady(
     parser_version: version,
     segments: [],
     text: "",
-    outline: `- (${detail})\n`,
     duration_ms: null,
     status_detail: detail,
     facts: {},
@@ -123,11 +122,9 @@ export async function derive(
   let parsed: Awaited<ReturnType<FormatParser["parse"]>>;
   let segments: Segment[];
   let text: string;
-  let outline: string | undefined;
   try {
     parsed = await parser.parse(bytes, fileName, { maxBytes: cap });
     ({ segments, text } = assemble(parsed.blocks));
-    outline = parsed.outline ?? (parser.timed ? speakerOutline(segments) : headingOutline(segments));
   } catch (err) {
     const e = err as Error;
     // A package that unpacks past the cap, a PDF of too many pages or a file of too many passages is too large, as a file over the cap is.
@@ -167,7 +164,6 @@ export async function derive(
     parser_version: parser.version,
     segments,
     text,
-    outline,
     duration_ms: timed ? duration : null,
     status_detail: null,
     facts,

@@ -63,10 +63,10 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
     await upload(env, who, ref, created.tenant.tenant_id, String(r["record_id"]), path, text);
     return String(r["record_id"]);
   };
-  const vtt = await mk(samAgent, { title: "Crew lead interview — Greenline Landscaping, Aug 2026", date: "2026-08-14", participants: ["Marisol (crew lead)", "Interviewer"], source_system: "meeting recorder", tags: ["interview", "greenline landscaping", "planning", "hand-off"], provenance_depth: "primary" }, "interview.vtt", INTERVIEW_VTT);
-  const txt = await mk(samAgent, { title: "Owner interview — Oak & Ash Grounds, Aug 2026", date: "2026-08-19", participants: ["Dev (owner)", "Interviewer"], source_system: "manual", tags: ["interview", "oak & ash grounds", "planning", "scheduling-errors"], provenance_depth: "primary" }, "transcript.txt", INTERVIEW_TXT);
-  const notes = await mk(riley, { title: "Owner call notes — Fernside Cleaning, Aug 2026", date: "2026-08-21", participants: ["Priya (owner)"], tags: ["interview", "fernside cleaning", "planning", "cleaning"], provenance_depth: "primary" }, "notes.md", OWNER_NOTES_MD);
-  const survey = await mk(samAgent, { title: "Crew lead planning survey — spring round, 23 responses", date: "2026-05-30", source_system: "survey tool", tags: ["research", "survey", "planning"], provenance_depth: "derived" }, "survey-summary.md", RESEARCH_EXPORT_MD);
+  const vtt = await mk(samAgent, { title: "Crew lead interview — Greenline Landscaping, Aug 2026", date: "2026-08-14", tags: ["interview", "greenline landscaping", "planning", "hand-off"] }, "interview.vtt", INTERVIEW_VTT);
+  const txt = await mk(samAgent, { title: "Owner interview — Oak & Ash Grounds, Aug 2026", date: "2026-08-19", tags: ["interview", "oak & ash grounds", "planning", "scheduling-errors"] }, "transcript.txt", INTERVIEW_TXT);
+  const notes = await mk(riley, { title: "Owner call notes — Fernside Cleaning, Aug 2026", date: "2026-08-21", tags: ["interview", "fernside cleaning", "planning", "cleaning"] }, "notes.md", OWNER_NOTES_MD);
+  const survey = await mk(samAgent, { title: "Crew lead planning survey — spring round, 23 responses", date: "2026-05-30", tags: ["research", "survey", "planning"] }, "survey-summary.md", RESEARCH_EXPORT_MD);
 
   // The Greenline call keeps the recorder's export as its origin file (kept, not searched).
   await upload(env, samAgent, ref, created.tenant.tenant_id, vtt, "recorder-export.txt", INTERVIEW_RECORDER_EXPORT, "origin");
@@ -74,8 +74,8 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
   // The worker derives passages exactly as it would in production.
   await worker.drain();
 
-  // The agent's description, outline and working notes for the Greenline call.
-  for (const note_kind of ["summary", "outline", "notes"] as const) {
+  // The agent's summary and working notes for the Greenline call.
+  for (const note_kind of ["summary", "notes"] as const) {
     await call(env, samAgent, "derived.write_note", { record_id: vtt, note_kind, content: INTERVIEW_AGENT_NOTES[note_kind] }, ref);
   }
 
@@ -91,7 +91,6 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
       outcome_ids: [outcomeIds[2]!],
       tags: ["planning-model"],
       author_type: "agent",
-      provenance_depth: "primary",
     },
     ref,
   );
@@ -169,7 +168,7 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
   );
   // Each page of the mockup on the Story, under Published mockups, for stakeholders to flip through.
   for (const page of ["jobs-board", "day-planner", "crew-message"]) await call(env, samAgent, "story.promote_mockup", { mockup_id: mockup["mockup_id"], mockup_page_id: page }, ref);
-  await call(env, riley, "sources.annotate", { record_id: vtt, note: "This is the moment to design for: the typed message, not the spreadsheet.", seq_start: 8, seq_end: 8, tags: ["hand-off"] }, ref);
+  await call(env, riley, "sources.annotate", { record_id: vtt, note: "The moment to design for is the typed hand-off message, not the spreadsheet.", tags: ["hand-off"] }, ref);
   // Sam may start one organization of their own; Riley, the instance's owner in development, gave it.
   const sam = SEED_ACCOUNTS[1].email;
   await env.db

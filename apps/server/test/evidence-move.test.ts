@@ -67,9 +67,9 @@ beforeAll(async () => {
     await storeInsight(trx, insight, { title: "Texts carry the plan", status: "published", reviewed: true, refs: { outcomes: [outcome], sources: [source], insights: [draft], assumptions: [assumption], decisions: [decision] } });
     await storeInsight(trx, draft, { title: "Calls follow the text", status: "draft", refs: { outcomes: [], sources: [], insights: [], assumptions: [], decisions: [] } });
     // A decision's cited passages are in its body, where the migration that retired citations put them.
-    await sql`insert into register_entries (entry_id, tenant_id, product_id, kind, statement, body, links, outcome_ids, tags, provenance_depth, author, author_type, status, review_count, etag, updated_by)
+    await sql`insert into register_entries (entry_id, tenant_id, product_id, kind, statement, body, links, outcome_ids, tags, author, author_type, status, review_count, etag, updated_by)
       values (${decision}, ${tenantId}, ${productId}, 'decision', 'Send each crew a generated message.', ${"Typed messages are where mistakes enter.\n\n**Passages cited**\n\n- “Crews text the office.” (Visit notes — Example Co, Sep 2026)"},
-        ${JSON.stringify([{ id: assumption, type: "supports" }])}::jsonb, ${[outcome]}, ${["hand-off"]}, 'primary', ${actor("Riley")}::jsonb, 'human', 'confirmed', 1, 'e2', ${actor("Riley")}::jsonb)`.execute(trx);
+        ${JSON.stringify([{ id: assumption, type: "supports" }])}::jsonb, ${[outcome]}, ${["hand-off"]}, ${actor("Riley")}::jsonb, 'human', 'confirmed', 1, 'e2', ${actor("Riley")}::jsonb)`.execute(trx);
     await sql`insert into reviews (review_id, tenant_id, entry_id, status, note, reviewer, reviewer_type, confidence)
       values (${newId()}, ${tenantId}, ${decision}, 'confirmed', 'Agreed on Thursday.', ${actor("Riley")}::jsonb, 'human', 'medium')`.execute(trx);
     await sql`update register_entries set links = ${JSON.stringify([{ id: decision, type: "contradicts" }])}::jsonb where entry_id = ${assumption}`.execute(trx);
@@ -87,7 +87,7 @@ describe("moving insights and decisions into Evidence", () => {
 
   it("stores an insight as an analysis with the same id, its revisions as earlier versions, and what it was", async () => {
     const r = (await olive.api("GET", `${P}/sources/${insight}?detail=full`)).body;
-    expect(r).toMatchObject({ title: "Texts carry the plan", tags: ["analysis", "insight"], provenance_depth: "derived", derived_status: "ready", archived_at: null });
+    expect(r).toMatchObject({ title: "Texts carry the plan", tags: ["analysis", "insight"], derived_status: "ready", archived_at: null });
     expect(r.uploaded_by.display_name).toBe("Sam");
     expect(r.agent_notes.map((n: { kind: string }) => n.kind)).toEqual(["summary"]);
     expect(r.files).toHaveLength(1);
@@ -108,7 +108,7 @@ describe("moving insights and decisions into Evidence", () => {
 
   it("stores a decision as a source with its evidence, links and reviews in the text", async () => {
     const r = (await olive.api("GET", `${P}/sources/${decision}?detail=full`)).body;
-    expect(r).toMatchObject({ title: "Send each crew a generated message.", tags: ["decision", "hand-off"], provenance_depth: "primary", derived_status: "ready" });
+    expect(r).toMatchObject({ title: "Send each crew a generated message.", tags: ["decision", "hand-off"], derived_status: "ready" });
     const text = await primaryText(decision);
     expect(text).toContain("Typed messages are where mistakes enter.");
     expect(text).toContain("“Crews text the office.” (Visit notes — Example Co, Sep 2026)");

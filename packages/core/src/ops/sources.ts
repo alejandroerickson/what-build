@@ -7,7 +7,7 @@ import { conflict, gone, invalid, notFound } from "../errors.ts";
 import { SEARCH_RULE } from "../source-fields.ts";
 import { effectiveRole, membershipsFor, roleAtLeast } from "../policy.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
-import { expectedEtag, id, isoDate, provenanceDepth, tags } from "../schemas.ts";
+import { expectedEtag, id, isoDate, tags } from "../schemas.ts";
 import { newEtag, newId, sameEtag, slugify, uniq } from "../util.ts";
 
 type RecordRow = Selectable<RecordsTable>;
@@ -112,7 +112,6 @@ export function recordSummary(r: RecordRow, s?: { derived_status: string; segmen
     title: r.title,
     date: r.date,
     tags: r.tags,
-    provenance_depth: r.provenance_depth,
     uploaded_by: r.uploaded_by,
     uploaded_at: r.uploaded_at,
     updated_at: r.updated_at,
@@ -138,11 +137,6 @@ function readSortCursor(cursor: string): { v: string | null; id: string } {
 
 function badCursor() {
   return invalid("invalid_cursor", "This cursor doesn’t belong to this sort. Pass next_cursor back with the same filters and sort.");
-}
-
-/** Passages as the app writes them: ¶4 for one, ¶4–6 for a range. */
-export function passageWords(start: number, end: number): string {
-  return start === end ? `¶${start}` : `¶${start}–${end}`;
 }
 
 // ---- Facets -------------------------------------------------------------------------------------
@@ -194,7 +188,7 @@ export const listSources = defineOperation({
   mutates: false,
   summary: "List sources by metadata: newest added first, or by date, last update or title, either way round. For passage content use search.",
   description:
-    "Filters combine. `tags` must all be on a source; sources(action=\"facets\") lists the tags in use and who added sources. `added_by` is an account_id; `added_since` keeps sources added at or after a date or time; `date_from` and `date_to` bound the source's own date. `query` is a case-insensitive substring over metadata only — title, tags, participants, source system and file names — never passage text; use `search` for content. `sort`: added (newest added first, the default), date (the source's own date, newest first, undated last), updated (details most recently changed first) or title (A to Z). `order` reverses it: asc or desc, defaulting to desc for the three dates and asc for title; undated sources stay last either way. Returns summaries with derived_status, the primary file's path (primary_file) and next_cursor; pass the cursor back with the same filters, sort and order.",
+    "Filters combine. `tags` must all be on a source; sources(action=\"facets\") lists the tags in use and who added sources. `added_by` is an account_id; `added_since` keeps sources added at or after a date or time; `date_from` and `date_to` bound the source's own date. `query` is a case-insensitive substring over metadata only — title, tags and file names — never passage text; use `search` for content. `sort`: added (newest added first, the default), date (the source's own date, newest first, undated last), updated (details most recently changed first) or title (A to Z). `order` reverses it: asc or desc, defaulting to desc for the three dates and asc for title; undated sources stay last either way. Returns summaries with derived_status, the primary file's path (primary_file) and next_cursor; pass the cursor back with the same filters, sort and order.",
   input: z.strictObject({
     tags: z.array(z.string()).max(20).optional().describe("All must match."),
     added_by: z.string().min(1).max(100).optional().describe("An account_id from sources(action=\"facets\"): only the sources that person added, in the app or through an agent."),
@@ -202,7 +196,6 @@ export const listSources = defineOperation({
     date_from: isoDate.optional().describe("The source's own date, on or after."),
     date_to: isoDate.optional().describe("The source's own date, on or before."),
     query: z.string().max(500).optional(),
-    provenance_depth: provenanceDepth.optional(),
     include_archived: z.boolean().default(false),
     sort: z.enum(["added", "date", "updated", "title"]).default("added"),
     order: z.enum(["asc", "desc"]).optional().describe("Defaults to desc for added, date and updated, and asc for title."),
@@ -219,12 +212,10 @@ export const listSources = defineOperation({
     if (input.date_from) q = q.where("date", ">=", input.date_from);
     if (input.date_to) q = q.where("date", "<=", input.date_to);
     if (input.tags?.length) q = q.where(sql<boolean>`tags @> ${normalizeTags(input.tags)}::text[]`);
-    if (input.provenance_depth) q = q.where("provenance_depth", "=", input.provenance_depth);
     if (input.query) {
       const like = `%${input.query}%`;
       q = q.where(
-        sql<boolean>`(title ilike ${like} or coalesce(source_system,'') ilike ${like}
-          or array_to_string(participants, ' ') ilike ${like} or array_to_string(tags, ' ') ilike ${like}
+        sql<boolean>`(title ilike ${like} or array_to_string(tags, ' ') ilike ${like}
           or exists (select 1 from files f where f.record_id = records.record_id and f.path ilike ${like}))`,
       );
     }
@@ -314,9 +305,9 @@ export const getSource = defineOperation({
   scope: "product",
   access: "read",
   mutates: false,
-  summary: "Read a source cheaply (brief), or everything about it (full): files, manifest, outline, notes.",
+  summary: "Read a source cheaply (brief), or everything about it (full): files, manifest, comments.",
   description:
-    "Start with detail=\"brief\" to check derived_status and segment_count, then plan read_passage windows. warnings says when the source has files but still no primary. etag is the one sources.update and sources.delete expect. `full` adds files (each with searchable and search_status), the derivation manifest, the outline and notes. Neither returns file bytes or derived text. An archived source is still readable by id.",
+    "Start with detail=\"brief\" to check derived_status and segment_count, then plan read_passage windows. warnings says when the source has files but still no primary. etag is the one sources.update and sources.delete expect. `full` adds files (each with searchable and search_status), the derivation manifest, comments and which agent notes exist. Neither returns file bytes or derived text. An archived source is still readable by id.",
   input: z.strictObject({ record_id: id("source"), detail: z.enum(["brief", "full"]).default("brief") }),
   rest: { method: "GET", path: "/sources/:record_id" },
   mcp: { tool: "sources", action: "get" },
@@ -337,20 +328,10 @@ export const getSource = defineOperation({
     const derivation = s.derivation_id
       ? await ctx.db.selectFrom("derivations").selectAll().where("derivation_id", "=", s.derivation_id).executeTakeFirst()
       : undefined;
-    let outline: string | null = null;
-    if (derivation) {
-      try {
-        outline = new TextDecoder().decode(await ctx.ports.blobs.get(`${derivation.blob_prefix}/outline.md`));
-      } catch {
-        outline = null;
-      }
-    }
     const annotations = await ctx.db.selectFrom("annotations").selectAll().where("record_id", "=", r.record_id).where("archived_at", "is", null).orderBy("annotation_id", "desc").limit(100).execute();
     const agentNotes = await ctx.db.selectFrom("agent_notes").select(["kind", "updated_at", "updated_by"]).where("record_id", "=", r.record_id).execute();
     return {
       ...brief,
-      participants: r.participants,
-      source_system: r.source_system,
       copied_from: r.copied_from,
       updated_at: r.updated_at,
       updated_by: r.updated_by,
@@ -374,7 +355,6 @@ export const getSource = defineOperation({
             inference: "none: passages come from a deterministic parser; no model produced or altered this text",
           }
         : null,
-      outline,
       annotations,
       agent_notes: agentNotes,
     };
@@ -386,12 +366,9 @@ export const getSource = defineOperation({
 export const recordMetadata = {
   title: z.string().trim().min(1).max(300).describe('Say what it is: who, what, when — e.g. "Operations lead interview — Example Co, Sep 2026". Never a file name.'),
   date: isoDate.nullable().optional().describe("The date of the event or document, never the upload date. Null when unknown."),
-  participants: z.array(z.string().trim().min(1).max(100)).max(50).optional(),
-  source_system: z.string().trim().max(100).nullable().optional().describe("Where it came from: a meeting tool, a wiki, a research tool, or manual."),
   tags: tags
     .optional()
     .describe("What the material is (interview, workshop, deck, analysis), whom it concerns (an organization, a segment) and what it bears on. Reuse the product's tags from sources(action=\"facets\"). Up to 50, stored lower-case."),
-  provenance_depth: provenanceDepth.optional(),
 };
 
 export async function insertRecord(
@@ -399,10 +376,7 @@ export async function insertRecord(
   input: {
     title: string;
     date?: string | null | undefined;
-    participants?: string[] | undefined;
-    source_system?: string | null | undefined;
     tags?: string[] | undefined;
-    provenance_depth?: string | undefined;
   },
   copiedFrom: { product_id: string; record_id: string } | null = null,
 ): Promise<RecordRow> {
@@ -417,10 +391,7 @@ export async function insertRecord(
       product_id: productId(ctx),
       title: input.title,
       date,
-      participants: input.participants ?? [],
-      source_system: input.source_system ?? null,
       tags: normalizeTags(input.tags),
-      provenance_depth: input.provenance_depth ?? "unknown",
       slug: slugify(date ? `${date}-${input.title}` : input.title),
       copied_from: json(copiedFrom),
       etag: newEtag(),
@@ -461,7 +432,7 @@ export const updateSource = defineOperation({
   scope: "product",
   access: "write",
   mutates: true,
-  summary: "Correct a source's metadata in place — title, date, tags and more. Pass only what changes.",
+  summary: "Correct a source's metadata in place: title, date, tags or related sources. Pass only what changes.",
   description:
     "Fix mistakes here; never archive and recreate, because links and comments point at the record id. The id, files, passages and comments are untouched. tags replaces the whole list. Requires expected_etag: the source's current etag, from sources(action=\"get\") or the result of your last write to it. Adding a file also changes it. A stale one gets 409 stale_etag with details.current_etag; read the source again before retrying.",
   input: z.strictObject({ record_id: id("source"), expected_etag: expectedEtag, ...recordMetadata, title: recordMetadata.title.optional() }),
@@ -473,10 +444,7 @@ export const updateSource = defineOperation({
     const next = {
       title: input.title ?? r.title,
       date: input.date === undefined ? r.date : input.date,
-      participants: input.participants ?? r.participants,
-      source_system: input.source_system === undefined ? r.source_system : input.source_system,
       tags: input.tags ? normalizeTags(input.tags) : r.tags,
-      provenance_depth: input.provenance_depth ?? r.provenance_depth,
     };
     const changed = (Object.keys(next) as (keyof typeof next)[]).filter((k) => JSON.stringify(next[k]) !== JSON.stringify(r[k]));
     if (!changed.length) return { ...recordSummary(r), changed: [] };
@@ -576,57 +544,27 @@ export const annotate = defineOperation({
   scope: "product",
   access: "write",
   mutates: true,
-  summary: "Attach a note to a source, optionally to an exact segment range.",
+  summary: "Comment on a source as a whole.",
   description:
-    "Use notes for an observation about this source. A segment range is inclusive, at most 50 segments, within the source's current derivation; the note keeps an anchor (the range, its offsets and derivation, and its text with the speaker's name at each change of turn) so it can be re-located after a re-parse.",
+    "A comment is an observation about the whole source, shown with the source's other comments and attributed to you. It is not anchored to any part of the text.",
   input: z.strictObject({
     record_id: id("source"),
-    note: z.string().trim().min(1).max(2000).describe("Markdown, up to 2,000 characters."),
-    seq_start: z.number().int().min(0).optional(),
-    seq_end: z.number().int().min(0).optional(),
+    note: z.string().trim().min(1).max(2000).describe("The comment, Markdown, up to 2,000 characters."),
     tags: tags.optional(),
   }),
   rest: { method: "POST", path: "/sources/:record_id/annotations" },
   mcp: { tool: "sources", action: "annotate" },
   async handler(ctx, input) {
     const r = await loadRecord(ctx, input.record_id, { live: true });
-    if ((input.seq_start === undefined) !== (input.seq_end === undefined)) throw invalid("invalid_input", "Give both seq_start and seq_end, or neither.");
-    let anchor: Record<string, unknown> | null = null;
-    if (input.seq_start !== undefined && input.seq_end !== undefined) {
-      if (input.seq_end < input.seq_start) throw invalid("invalid_input", "seq_end must not be before seq_start.");
-      if (input.seq_end - input.seq_start + 1 > 50) throw invalid("window_too_large", "A note covers at most 50 segments.");
-      const segs = await ctx.db
-        .selectFrom("segments")
-        .select(["seq", "text", "speaker", "char_start", "char_end", "derivation_id"])
-        .where("record_id", "=", r.record_id)
-        .where("is_current", "=", true)
-        .where("seq", ">=", input.seq_start)
-        .where("seq", "<=", input.seq_end)
-        .orderBy("seq")
-        .execute();
-      if (segs.length !== input.seq_end - input.seq_start + 1)
-        throw invalid("out_of_range", "That segment range doesn’t exist in full in the source’s current passages.");
-      // Each change of speaker opens with the speaker's name, so a note across turns keeps who said what.
-      const text = segs.map((s, i) => (s.speaker && s.speaker !== segs[i - 1]?.speaker ? `${s.speaker}: ${s.text}` : s.text)).join("\n\n");
-      anchor = {
-        seq_start: input.seq_start,
-        seq_end: input.seq_end,
-        char_start: segs[0]!.char_start,
-        char_end: segs[segs.length - 1]!.char_end,
-        derivation_id: segs[0]!.derivation_id,
-        quote: truncateQuote(text, 500),
-      };
-    }
     const annotation_id = newId();
     await ctx.db
       .insertInto("annotations")
       .values({
         annotation_id, tenant_id: tenantId(ctx), product_id: productId(ctx), record_id: r.record_id,
-        seq_start: input.seq_start ?? null, seq_end: input.seq_end ?? null, note: input.note, tags: normalizeTags(input.tags),
-        anchor: json(anchor), etag: newEtag(), created_by: json(ctx.actor), updated_by: json(ctx.actor),
+        note: input.note, tags: normalizeTags(input.tags), etag: newEtag(), created_by: json(ctx.actor), updated_by: json(ctx.actor),
       })
       .execute();
-    await recordActivity(ctx, { action: "note_added", entity_type: "source", entity_id: r.record_id, entity_title: r.title, summary: input.seq_start !== undefined && input.seq_end !== undefined ? `Added a note on ${passageWords(input.seq_start, input.seq_end)}` : "Added a note" });
+    await recordActivity(ctx, { action: "note_added", entity_type: "source", entity_id: r.record_id, entity_title: r.title, summary: "Added a comment" });
     return ctx.db.selectFrom("annotations").selectAll().where("annotation_id", "=", annotation_id).executeTakeFirstOrThrow();
   },
 });
@@ -650,8 +588,8 @@ export const listAnnotations = defineOperation({
   scope: "product",
   access: "read",
   mutates: false,
-  summary: "List a source's notes, newest first.",
-  description: "Archived notes are left out unless include_archived is true.",
+  summary: "List a source's comments, newest first.",
+  description: "Archived comments are left out unless include_archived is true.",
   input: z.strictObject({ record_id: id("source"), include_archived: z.boolean().default(false), limit: z.number().int().min(1).max(200).default(50), cursor: z.string().optional() }),
   rest: { method: "GET", path: "/sources/:record_id/annotations" },
   mcp: { tool: "sources", action: "list_annotations" },
@@ -671,22 +609,22 @@ export const updateAnnotation = defineOperation({
   scope: "product",
   access: "write",
   mutates: true,
-  summary: "Edit a note's text or tags, or archive or restore it.",
-  description: "Requires expected_etag. The previous note text is kept as a revision. When archiving, say why in archive_reason rather than rewriting the note.",
+  summary: "Edit a comment's text or tags, or archive or restore it.",
+  description: "Requires expected_etag. The previous text is kept as a revision. When archiving, say why in archive_reason rather than rewriting the comment.",
   input: z.strictObject({
     annotation_id: id("annotation"),
     expected_etag: expectedEtag,
     note: z.string().trim().min(1).max(2000).optional(),
     tags: tags.optional(),
     archived: z.boolean().optional(),
-    archive_reason: z.string().trim().min(1).max(500).optional().describe("Why the note is archived. Only with archived: true; restoring clears it."),
+    archive_reason: z.string().trim().min(1).max(500).optional().describe("Why the comment is archived. Only with archived: true; restoring clears it."),
   }),
   rest: { method: "PATCH", path: "/annotations/:annotation_id" },
   mcp: { tool: "sources", action: "update_annotation" },
   async handler(ctx, input) {
     const a = await ctx.db.selectFrom("annotations").selectAll().where("annotation_id", "=", input.annotation_id).where("product_id", "=", productId(ctx)).forUpdate().executeTakeFirst();
-    if (!a) throw notFound(`Note ${input.annotation_id} doesn’t exist in this product.`);
-    checkEtag(input.expected_etag, a.etag, "note");
+    if (!a) throw notFound(`Comment ${input.annotation_id} doesn’t exist in this product.`);
+    checkEtag(input.expected_etag, a.etag, "comment");
     if (input.archive_reason !== undefined && input.archived !== true) throw invalid("invalid_input", "archive_reason goes with archived: true.");
     if (input.note !== undefined && input.note !== a.note) {
       await keepRevision(ctx, "annotation", a.annotation_id, { note: a.note }, a.updated_at, a.updated_by);
@@ -710,7 +648,7 @@ export const updateAnnotation = defineOperation({
       entity_type: "source",
       entity_id: a.record_id,
       entity_title: r?.title ?? null,
-      summary: input.archived === true ? (input.archive_reason ? `Archived a note: ${truncateQuote(input.archive_reason, 200)}` : "Archived a note") : input.archived === false ? "Restored a note" : "Edited a note",
+      summary: input.archived === true ? (input.archive_reason ? `Archived a comment: ${truncateQuote(input.archive_reason, 200)}` : "Archived a comment") : input.archived === false ? "Restored a comment" : "Edited a comment",
     });
     return ctx.db.selectFrom("annotations").selectAll().where("annotation_id", "=", a.annotation_id).executeTakeFirstOrThrow();
   },
@@ -721,10 +659,10 @@ export const deleteAnnotation = defineOperation({
   scope: "product",
   access: "admin",
   mutates: true,
-  summary: "DELETE PERMANENTLY — cannot be undone. Delete one note on a source; archiving it is the reversible alternative.",
+  summary: "DELETE PERMANENTLY — cannot be undone. Delete one comment on a source; archiving it is the reversible alternative.",
   description:
-    "Destroys the note, its tags, its anchor and its earlier text, and leaves a tombstone: reads of it return 410 with who, when and why. Nothing points at a note, so there is no delete_impact: show the person the note itself (from list_annotations) and delete only once they approve. " +
-    `This is permanent and cannot be undone. Needs admin, and a connection at Admin. Never slip a delete into a run of other actions. Pass the note's etag as expected_etag, the person's reason, and confirm set to exactly "${DELETE_CONFIRMATION}".`,
+    "Destroys the comment, its tags and its earlier text, and leaves a tombstone: reads of it return 410 with who, when and why. Nothing points at a comment, so there is no delete_impact: show the person the comment itself (from list_annotations) and delete only once they approve. " +
+    `This is permanent and cannot be undone. Needs admin, and a connection at Admin. Never slip a delete into a run of other actions. Pass the comment's etag as expected_etag, the person's reason, and confirm set to exactly "${DELETE_CONFIRMATION}".`,
   input: z.strictObject({ annotation_id: id("annotation"), ...deleteGuards }),
   rest: { method: "DELETE", path: "/annotations/:annotation_id" },
   mcp: { tool: "sources", action: "delete_annotation" },
@@ -732,15 +670,15 @@ export const deleteAnnotation = defineOperation({
     checkConfirmation(input.confirm, "archive it with sources(action=\"update_annotation\", archived: true)");
     const a = await ctx.db.selectFrom("annotations").selectAll().where("annotation_id", "=", input.annotation_id).where("product_id", "=", productId(ctx)).forUpdate().executeTakeFirst();
     if (!a) {
-      await refuseIfDeleted(ctx, "annotation", input.annotation_id, `Note ${input.annotation_id}`);
-      throw notFound(`Note ${input.annotation_id} doesn’t exist in this product.`);
+      await refuseIfDeleted(ctx, "annotation", input.annotation_id, `Comment ${input.annotation_id}`);
+      throw notFound(`Comment ${input.annotation_id} doesn’t exist in this product.`);
     }
-    checkEtag(input.expected_etag, a.etag, "note");
+    checkEtag(input.expected_etag, a.etag, "comment");
     const r = await ctx.db.selectFrom("records").select("title").where("record_id", "=", a.record_id).executeTakeFirst();
     await leaveTombstone(ctx, { object_type: "annotation", object_id: a.annotation_id, title: truncateQuote(a.note, 200), reason: input.reason });
     await dropRevisions(ctx, "annotation", [a.annotation_id]);
     await ctx.db.deleteFrom("annotations").where("annotation_id", "=", a.annotation_id).execute();
-    await recordActivity(ctx, { action: "note_deleted", entity_type: "source", entity_id: a.record_id, entity_title: r?.title ?? null, summary: "Deleted a note permanently" });
+    await recordActivity(ctx, { action: "note_deleted", entity_type: "source", entity_id: a.record_id, entity_title: r?.title ?? null, summary: "Deleted a comment permanently" });
     return { deleted: true, annotation_id: a.annotation_id, record_id: a.record_id, reason: input.reason };
   },
 });
@@ -770,9 +708,9 @@ export const moveSource = defineOperation({
   scope: "product",
   access: "write",
   mutates: true,
-  summary: "Move a source, with its files, passages and notes, to another product in the same team.",
+  summary: "Move a source, with its files, passages, notes and comments, to another product in the same team.",
   description:
-    "The record keeps its id, so its passages, file versions and notes move intact. Copy instead to keep it in both.",
+    "The record keeps its id, so its passages, file versions, notes and comments move intact. Copy instead to keep it in both.",
   input: z.strictObject({ record_id: id("source"), to_product: z.string().min(1).describe("Target product id or slug, in the same team."), expected_etag: expectedEtag }),
   rest: { method: "POST", path: "/sources/:record_id/move" },
   mcp: { tool: "sources", action: "move_to_product" },
@@ -799,7 +737,7 @@ export const copySource = defineOperation({
   mutates: true,
   summary: "Copy a source into another product in the same team, with a new id and a copied_from link.",
   description:
-    "The copy shares the original's stored files (blobs are immutable) and is derived afresh in the target. Notes stay with the original. Returns the new record id.",
+    "The copy shares the original's stored files (blobs are immutable) and is derived afresh in the target. Notes and comments stay with the original. Returns the new record id.",
   input: z.strictObject({ record_id: id("source"), to_product: z.string().min(1) }),
   rest: { method: "POST", path: "/sources/:record_id/copy" },
   mcp: { tool: "sources", action: "copy_to_product" },
@@ -868,7 +806,7 @@ export const deleteSource = defineOperation({
   scope: "product",
   access: "admin",
   mutates: true,
-  summary: "DELETE PERMANENTLY — cannot be undone. Destroys a source's files, passages and notes; archive is the reversible alternative.",
+  summary: "DELETE PERMANENTLY — cannot be undone. Destroys a source's files, passages, notes and comments; archive is the reversible alternative.",
   description:
     "Archive (sources.archive) is the reversible alternative and almost always what is wanted. " +
     DELETE_GUIDANCE +

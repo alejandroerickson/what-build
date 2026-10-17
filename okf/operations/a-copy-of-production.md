@@ -50,7 +50,7 @@ It reads the organizations' rows through the read-only backup role (the secret
 `whatbuild-backup-database-url`; [Cloud Run](cloud-run.md), under backups), which reads every
 organization's rows and can change nothing, and copies their folders of the files bucket,
 `gs://<project>-whatbuild-files`, with the type and hash the local file store keeps for each file.
-The files matter: a source's passages and outline are files, so without them every source opens
+The files matter: a source's derived text is kept in files, so without them every source opens
 empty. Pulling reads production and changes nothing there. What a copy holds and leaves behind,
 and every option, are in [copying an organization](copying-an-organization.md).
 

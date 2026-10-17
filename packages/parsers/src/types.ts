@@ -27,7 +27,6 @@ export interface ParseResult {
   segments: Segment[];
   /** The full derived text the segment offsets index into. Ends with one newline when non-empty. */
   text: string;
-  outline: string;
   /** Largest cue end for timed sources, the container's playing time for a recording, else null. */
   duration_ms: number | null;
   /** Human-readable reason when status is not `ready`. */
@@ -37,7 +36,7 @@ export interface ParseResult {
 }
 
 /**
- * A parse as a derivation stores it: what its row records, the outline, and the bytes of
+ * A parse as a derivation stores it: what its row records, and the bytes of
  * `segments.jsonl` and `text.md`. Bytes rather than objects, so a parse made in a worker thread
  * reaches the server as two buffers handed over without a copy, however many passages it has.
  */
@@ -51,7 +50,6 @@ export interface ParsedFile {
   segment_count: number;
   /** The length of `text.md` in code points. */
   char_count: number;
-  outline: string;
   /** `segments.jsonl`: one segment per line, each line ending in a newline. */
   segments_jsonl: Uint8Array;
   /** `text.md`, UTF-8. */
@@ -92,6 +90,6 @@ export interface FormatParser {
   name: string;
   version: string;
   /** Returns blocks plus facts; throws on a malformed file, and `TooLargeError` past `options.maxBytes`. */
-  parse(bytes: Uint8Array, fileName: string, options?: ParseOptions): Promise<{ blocks: Block[]; facts?: ParseResult["facts"]; outline?: string }> | { blocks: Block[]; facts?: ParseResult["facts"]; outline?: string };
+  parse(bytes: Uint8Array, fileName: string, options?: ParseOptions): Promise<{ blocks: Block[]; facts?: ParseResult["facts"] }> | { blocks: Block[]; facts?: ParseResult["facts"] };
   timed?: boolean;
 }

@@ -55,7 +55,7 @@ Priya: Because that's when the numbers close.
     expect(r.segments[1]!.char_start).toBe(first.char_end + 2);
     expect(r.facts["inverted_cues"]).toBe(1);
     expect(r.duration_ms).toBe(3603250);
-    expect(r.outline).toContain("Dana");
+    expect(r.segments.some((s) => s.speaker === "Dana")).toBe(true);
     expectOffsetsExact(r);
   });
 
@@ -78,7 +78,7 @@ describe("SubRip", () => {
 });
 
 describe("plain text and Markdown", () => {
-  it("segments paragraphs and headings, and outlines the headings", async () => {
+  it("segments paragraphs and headings, with each heading's level", async () => {
     const md = "# Research plan\n\nFirst paragraph\ncontinues here.\n\n## Method\n\nSecond paragraph.\n";
     const r = await derive(utf8(md), "plan.md");
     expect(r.segments.map((s) => s.text)).toEqual([
@@ -88,7 +88,6 @@ describe("plain text and Markdown", () => {
       "Second paragraph.",
     ]);
     expect(r.segments[2]!.heading_level).toBe(2);
-    expect(r.outline).toContain("  - ## Method (segment 2)");
     expectOffsetsExact(r);
   });
 
@@ -368,7 +367,6 @@ describe("DOCX", () => {
       ["### Item", 3],
       ["Body.", null],
     ]);
-    expect(withTitle.outline).toBe("- # Planning notes (segment 0)\n  - ## Agenda (segment 1)\n    - ### Item (segment 2)\n");
     const noTitle = await derive(makeDocxParagraphs([{ text: "Agenda", style: "Heading1" }, { text: "Body." }]), "notes.docx");
     expect(noTitle.segments[0]).toMatchObject({ text: "# Agenda", heading_level: 1 });
   });
@@ -459,7 +457,6 @@ describe("DOC", () => {
     ]);
     expect(r.segments.map((s) => s.heading_level ?? null)).toEqual([1, 2, null, null, null, null]);
     expect(r.facts).toEqual({ doc_format: "word97", table_count: 1 });
-    expect(r.outline).toContain("Why crews call the office");
     expectOffsetsExact(r);
   });
 

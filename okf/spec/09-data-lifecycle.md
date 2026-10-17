@@ -230,7 +230,7 @@ excluded from backups altogether).
 download grant for each ready one. Any role may export, through **both adapters**, and export is
 **never blocked** — not by a quota, and not by archiving the product. A ready export is listed for
 seven days. The bundle holds a manifest with its format name and version, every source's metadata,
-every file version's original bytes, every derivation's sidecars, annotations and agent notes,
+every file version's original bytes, every derivation's sidecars, comments, summaries and notes,
 outcomes, assumptions with their reviews, revisions,
 the Story hierarchy and every page version (JSON and HTML; a version that shows a mockup page
 names it rather than repeating it), every mockup version (its brief, each page's HTML and
@@ -328,9 +328,9 @@ Everything that can be archived can also be deleted, and so can an organization:
   still waits for the preview), never slipped into a run of other actions.
 - **What each removes:**
   - A source: its files and file versions, derivations, segments (the searchable text),
-    annotations and agent notes; a background job then deletes the file bytes and sidecars. Bytes
+    comments, summary and notes; a background job then deletes the file bytes and sidecars. Bytes
     still used by a copy in another product stay until nothing refers to them.
-  - A comment: its text, anchor, tags and earlier text.
+  - A comment: its text, tags and earlier text.
   - An assumption: its statement, body, reviews and earlier text.
     The links other assumptions hold to it are removed from them (their etags change).
   - An outcome: its title, description and earlier text. Assumptions stop naming it in

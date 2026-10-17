@@ -10,7 +10,6 @@ export interface RecordSummary {
   title: string;
   date: string | null;
   tags: string[];
-  provenance_depth: string;
   uploaded_by: Actor;
   uploaded_at: string;
   updated_at: string;
@@ -45,8 +44,6 @@ export interface RecordFull extends RecordSummary {
   duration_ms: number | null;
   status_detail: string | null;
   annotation_count: number;
-  participants: string[];
-  source_system: string | null;
   pending_primary_path: string | null;
   files: FileEntry[];
   search_rule: string;
@@ -63,15 +60,12 @@ export interface RecordFull extends RecordSummary {
     facts: Record<string, unknown>;
     created_at: string;
   } | null;
-  outline: string | null;
   annotations: Annotation[];
 }
 
 export interface Annotation {
   annotation_id: string;
   record_id: string;
-  seq_start: number | null;
-  seq_end: number | null;
   note: string;
   tags: string[];
   etag: string;
@@ -119,7 +113,6 @@ export interface RegisterEntry {
   linked_from: { id: string; type: string; kind: string; statement: string; status: string }[];
   outcome_ids: string[];
   tags: string[];
-  provenance_depth: string;
   author: Actor;
   author_type: "human" | "agent";
   reviews: Review[];

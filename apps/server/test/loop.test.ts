@@ -112,7 +112,7 @@ describe("the discovery loop through REST", () => {
     const full = await alice.api("GET", `${P}/sources/${recordId}?detail=full`);
     expect(full.body.files[0]).toMatchObject({ path: "call.vtt", role: "primary", searchable: true, derived_by: "human" });
     expect(full.body.manifest.parser).toBe("webvtt");
-    expect(full.body.outline).toContain("Dana");
+    expect(full.body).not.toHaveProperty("outline");
 
     const byTime = await alice.api("GET", `${P}/sources/${recordId}/passage?start=4000&end=6000`);
     expect(byTime.body.unit).toBe("ms");

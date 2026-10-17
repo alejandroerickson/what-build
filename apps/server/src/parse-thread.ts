@@ -35,7 +35,7 @@ export function threadParser(limits: ParseLimits): FileParser {
     parse(bytes, fileName, options) {
       const failed = (detail: string): ParsedFile => {
         const parser = parserFor(fileName, options.mediaType);
-        return toParsedFile({ status: "failed", parser: parser?.name ?? "none", parser_version: parser?.version ?? "0", segments: [], text: "", outline: `- (${detail})\n`, duration_ms: null, status_detail: detail, facts: {} });
+        return toParsedFile({ status: "failed", parser: parser?.name ?? "none", parser_version: parser?.version ?? "0", segments: [], text: "", duration_ms: null, status_detail: detail, facts: {} });
       };
       const tooMuchMemory = () => failed(`parsing it needed more than the ${limits.memoryMb} MB of memory this server gives one file, so it was stopped; the file is stored but not parsed`);
       const seconds = `${limits.timeoutSeconds} second${limits.timeoutSeconds === 1 ? "" : "s"}`;

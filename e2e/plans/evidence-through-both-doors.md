@@ -27,18 +27,20 @@ the sandbox, where the sandbox's limits apply.
    (the page updates by itself).
 4. **Web, as Sam.** Search for "van checklist". *Expect:* the passage from step 1 is found, and only
    it.
-5. **Web, as Sam.** Select that passage and comment on it. *Expect:* the comment is saved and shown
-   on the passage.
-6. **MCP, as Sam.** List the source's annotations, and read the passage with `read_passage`.
-   *Expect:* the comment from step 5, attributed to Sam on the web; the passage text is exactly
-   what the file said.
+5. **Web, as Sam.** Open the source's Comments and comment on it, then add a summary under its
+   title. *Expect:* the comment is saved and listed in Comments, on the whole source; the summary
+   shows under the title, attributed to Sam.
+6. **MCP, as Sam.** List the source's annotations, read its summary (`derived` `read_note`), and
+   read the passage with `read_passage`. *Expect:* the comment from step 5, attributed to Sam on
+   the web, with no passage range; the summary as Sam wrote it; the passage text is exactly what
+   the file said.
 7. **Web, as Sam.** Create a second source through the upload flow on the web, with a title and tags, with
    another short synthetic file. *Expect:* it is created, parsed and listed.
 8. **MCP, as Sam.** Search for a phrase from the second file. *Expect:* found, in the right source.
 9. **Web, as Sam.** Open Activity. *Expect:* entries for both sources and the comment, each saying
    who did it and whether it came from the web or from an agent; parsing each file is WhatBuild's,
    "on the server", never "in the app", and says how many passages it made without a parser's
-   label such as "(plaintext 5)"; the comment names its passage as ¶N.
+   label such as "(plaintext 5)"; the comment reads "Added a comment", naming no passage.
 10. **MCP, as Sam.** Update the first source's title with an `expected_etag` from before the last
     change (read the source, change it once, then change it again with the old etag). *Expect:* the
     second write is refused with `409 stale_etag`, and nothing changed.

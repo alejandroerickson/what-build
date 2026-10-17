@@ -67,7 +67,7 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
   const derivations = ok(await owner.api("GET", `${P}/sources/${src.record_id}/derivations`), 200);
   expect(derivations.items[0].status).toBe("ready");
   ok(await owner.api("PUT", `${P}/sources/${src.record_id}/agent-notes/summary`, { content: `${marker} summary for agents.` }), 200);
-  const ann = ok(await owner.api("POST", `${P}/sources/${src.record_id}/annotations`, { record_id: src.record_id, note: `${marker} annotation.`, seq_start: 0, seq_end: 1 }));
+  const ann = ok(await owner.api("POST", `${P}/sources/${src.record_id}/annotations`, { record_id: src.record_id, note: `${marker} annotation.` }));
 
   const as = ok(await owner.api("POST", `${P}/assumptions`, { statement: `${marker} assumption: crews read texts first.`, body: `${marker} the interview notes say so.`, outcome_ids: [o.outcome_id], author_type: "human" }));
   const linked = ok(await owner.api("POST", `${P}/assumptions`, { statement: `${marker} linked assumption.` }));
@@ -77,7 +77,7 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
   const gone = ok(await owner.api("POST", `${P}/sources`, { title: `${marker} mistaken upload` }));
   ok(await owner.api("DELETE", `${P}/sources/${gone.record_id}`, { expected_etag: gone.etag, reason: `${marker} uploaded by mistake`, confirm: "delete permanently" }), 200);
 
-  const view = ok(await owner.api("POST", `${P}/sources`, { title: `${marker} view of the visits`, tags: ["view"], provenance_depth: "derived" }));
+  const view = ok(await owner.api("POST", `${P}/sources`, { title: `${marker} view of the visits`, tags: ["view"] }));
 
   const style = ok(await owner.api("PUT", `${P}/story/style`, { house_style: "report" }), 200);
   const page = ok(await owner.api("POST", `${P}/story/pages/${marker.toLowerCase()}-overview/versions`, {

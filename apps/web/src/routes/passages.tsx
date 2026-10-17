@@ -1,14 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { api, qs } from "../lib/api.ts";
-import { attribution, formatCue, passageText, relativeTime } from "../lib/format.ts";
-import { evidenceLinks, Markdown, mentionedSourceIds, mentionLabels, mentionText, passageHref, sourceMentions } from "../lib/markdown.tsx";
+import { formatCue, passageText } from "../lib/format.ts";
+import { evidenceLinks, mentionedSourceIds, mentionLabels, mentionText, passageHref, sourceMentions } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { useSourceTitles } from "../lib/source-titles.ts";
-import type { Annotation, RecordFull, Segment } from "../lib/types.ts";
-import { Button, ErrorCallout, FindField, IconButton, Loading, Sheet, SheetHeader, Tag, TextArea, TextField, useToast } from "../ui/index.tsx";
-import { DeleteDialog } from "./delete-dialog.tsx";
+import type { RecordFull, Segment } from "../lib/types.ts";
+import { Button, ErrorCallout, FindField, Loading, Sheet, SheetHeader, useToast } from "../ui/index.tsx";
 import "../styles/screens/evidence.css";
 
 interface Passage {
@@ -82,12 +81,12 @@ function tableRows(segments: Segment[]): Map<number, RowCells> {
 
 /**
  * The passage reader: a window of passages by number, never the whole source. The URL holds the
- * position (?seq=N, and ?to=M for a range), so a search hit, a link or a comment opens exactly
- * where it points, with the whole range marked. Pick a passage (Shift for a range) to comment on it
- * or copy a reference to it for an agent.
+ * position (?seq=N, and ?to=M for a range), so a search hit or a link opens exactly where it
+ * points, with the whole range marked. Pick a passage (Shift for a range) to copy a reference to it
+ * for an agent.
  */
 export function PassageReader({ record }: { record: RecordFull }) {
-  const { api: base, app, canWrite } = useProduct();
+  const { api: base, app } = useProduct();
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const total = record.segment_count;
@@ -98,7 +97,6 @@ export function PassageReader({ record }: { record: RecordFull }) {
   const targetEnd = target !== null && rawTo !== null && rawTo !== "" && !Number.isNaN(Number(rawTo)) ? Math.max(target, clamp(Number(rawTo))) : target;
   const [start, setStart] = useState(() => (target !== null ? pageFor(target, targetEnd!) : 0));
   const [sel, setSel] = useState<{ a: number; b: number } | null>(target !== null ? { a: target, b: targetEnd! } : null);
-  const [composing, setComposing] = useState(false);
   const [goto, setGoto] = useState("");
   const [find, setFind] = useState("");
   const listRef = useRef<HTMLOListElement>(null);
@@ -121,7 +119,6 @@ export function PassageReader({ record }: { record: RecordFull }) {
   }, [q.data, target]);
   const lo = sel ? Math.min(sel.a, sel.b) : null;
   const hi = sel ? Math.max(sel.a, sel.b) : null;
-  const writable = canWrite && !record.archived_at;
   const jump = (seq: number) => {
     const next = new URLSearchParams(params);
     next.set("view", "passages");
@@ -130,23 +127,12 @@ export function PassageReader({ record }: { record: RecordFull }) {
     setParams(next, { replace: true });
   };
   const pick = (seq: number, extend: boolean) => {
-    setComposing(false);
     if (extend && sel) return setSel({ a: sel.a, b: seq });
     if (sel && lo === hi && lo === seq) return setSel(null);
     if (sel && lo === hi && seq !== sel.a && Math.abs(seq - sel.a) <= 50) return setSel({ a: sel.a, b: seq });
     if (sel && lo !== null && hi !== null && seq >= lo && seq <= hi) return setSel(null);
     setSel({ a: seq, b: seq });
   };
-  // Each comment sits under the last passage of its range that is on this page; a comment on a
-  // range also tints every passage it covers.
-  const byRow = new Map<number, Annotation[]>();
-  const inRange = new Set<number>();
-  for (const a of record.annotations) {
-    if (a.seq_start === null || a.seq_end === null || a.seq_end < start || a.seq_start > end) continue;
-    const at = Math.min(a.seq_end, end);
-    byRow.set(at, [...(byRow.get(at) ?? []), a]);
-    if (a.seq_end > a.seq_start) for (let n = Math.max(a.seq_start, start); n <= at; n++) inRange.add(n);
-  }
   const segments = q.data?.segments ?? [];
   const table = tableRows(segments);
   // Passages that mention other sources by id (a view or a digest) read "Title ¶N" instead of a raw id.
@@ -158,19 +144,13 @@ export function PassageReader({ record }: { record: RecordFull }) {
     if (find.trim()) navigate(`${app}/search?q=${encodeURIComponent(find.trim())}&record_id=${record.record_id}`);
   };
   if (!total) return null;
-  const composeAt = composing && hi !== null ? Math.min(Math.max(hi, start), end) : null;
   const selectionBar =
-    lo !== null && hi !== null && !composing ? (
+    lo !== null && hi !== null ? (
       <div className="selection-bar" role="region" aria-label="Selected passages">
         <span className="small">
-          <strong className="num">{address(lo, hi)}</strong> selected{hi - lo >= 50 ? ". A comment covers at most 50 passages." : "."}
+          <strong className="num">{address(lo, hi)}</strong> selected.
         </span>
         <div className="row">
-          {writable ? (
-            <Button size="sm" variant="primary" icon="pencil" onClick={() => setComposing(true)} disabled={hi - lo >= 50}>
-              Comment
-            </Button>
-          ) : null}
           <Button
             size="sm"
             icon="copy"
@@ -184,14 +164,7 @@ export function PassageReader({ record }: { record: RecordFull }) {
           >
             Copy reference
           </Button>
-          <Button
-            size="sm"
-            variant="quiet"
-            onClick={() => {
-              setSel(null);
-              setComposing(false);
-            }}
-          >
+          <Button size="sm" variant="quiet" onClick={() => setSel(null)}>
             Clear
           </Button>
         </div>
@@ -221,7 +194,6 @@ export function PassageReader({ record }: { record: RecordFull }) {
             {q.data.segments.map((s) => {
               const selected = lo !== null && hi !== null && s.seq >= lo && s.seq <= hi;
               const targeted = target !== null && targetEnd !== null && s.seq >= target && s.seq <= targetEnd;
-              const comments = byRow.get(s.seq) ?? [];
               const line = who(s);
               const row = table.get(s.seq);
               const mentions = sourceMentions(s.text);
@@ -229,7 +201,7 @@ export function PassageReader({ record }: { record: RecordFull }) {
                 <li
                   key={s.seq}
                   data-seq={s.seq}
-                  className={`passage${selected ? " passage-selected" : ""}${targeted ? " passage-target" : ""}${s.heading_level ? " passage-heading" : ""}${inRange.has(s.seq) ? " passage-commented" : ""}${row ? ` passage-row${row.head ? " passage-row-head" : ""}` : ""}`}
+                  className={`passage${selected ? " passage-selected" : ""}${targeted ? " passage-target" : ""}${s.heading_level ? " passage-heading" : ""}${row ? ` passage-row${row.head ? " passage-row-head" : ""}` : ""}`}
                 >
                   <Link className="passage-addr num" to={`?view=passages&seq=${s.seq}`} replace aria-label={`Link to passage ${s.seq}`}>
                     ¶{s.seq}
@@ -263,18 +235,6 @@ export function PassageReader({ record }: { record: RecordFull }) {
                           ))}
                         </span>
                       </div>
-                    ) : null}
-                    {comments.length ? (
-                      <ul className="passage-comments" aria-label={`Comments on passage ${s.seq}`}>
-                        {comments.map((a) => (
-                          <li key={a.annotation_id}>
-                            <Comment annotation={a} showAddress={a.seq_start !== a.seq_end || a.seq_start !== s.seq} />
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
-                    {composeAt === s.seq && lo !== null && hi !== null ? (
-                      <CommentForm recordId={record.record_id} seqStart={lo} seqEnd={hi} onDone={() => setComposing(false)} />
                     ) : null}
                   </div>
                 </li>
@@ -311,101 +271,5 @@ export function PassageReader({ record }: { record: RecordFull }) {
         ) : null}
       </Sheet>
     </div>
-  );
-}
-
-/** One person's comment on a source, optionally on a passage range. */
-export function Comment({ annotation: a, showAddress, linkAddress }: { annotation: Annotation; showAddress?: boolean; linkAddress?: boolean }) {
-  const { api: base, canDelete } = useProduct();
-  const qc = useQueryClient();
-  const toast = useToast();
-  const [deleting, setDeleting] = useState(false);
-  const addr = a.seq_start !== null && a.seq_end !== null ? address(a.seq_start, a.seq_end) : null;
-  return (
-    <article className="comment">
-      <div className="comment-meta">
-        <strong className="comment-author">{attribution(a.created_by)}</strong>
-        <time dateTime={a.created_at}>{relativeTime(a.created_at)}</time>
-        {showAddress && addr ? (
-          linkAddress ? (
-            <Link to={`?view=passages&seq=${a.seq_start}${a.seq_end !== a.seq_start ? `&to=${a.seq_end}` : ""}`} className="quiet-link num">
-              {addr}
-            </Link>
-          ) : (
-            <span className="num">{addr}</span>
-          )
-        ) : null}
-        {!addr && showAddress ? <span>On the whole source</span> : null}
-        {a.tags.map((t) => (
-          <Tag key={t}>{t}</Tag>
-        ))}
-        {canDelete ? <IconButton size="sm" icon="trash" label="Delete this comment permanently" className="comment-delete" onClick={() => setDeleting(true)} /> : null}
-      </div>
-      <Markdown source={a.note} className="prose comment-text" headingShift={3} />
-      {deleting ? (
-        <DeleteDialog
-          title="Delete this comment permanently?"
-          etag={a.etag}
-          deletePath={`${base}/annotations/${a.annotation_id}`}
-          renderImpact={() => <p>This deletes the comment by {attribution(a.created_by)}, with its earlier text.</p>}
-          onDeleted={() => {
-            void qc.invalidateQueries({ queryKey: ["source", base, a.record_id] });
-            toast("Comment deleted. The activity log records who, when and why.");
-            setDeleting(false);
-          }}
-          onClose={() => setDeleting(false)}
-        />
-      ) : null}
-    </article>
-  );
-}
-
-export function CommentForm({ recordId, seqStart, seqEnd, onDone }: { recordId: string; seqStart?: number; seqEnd?: number; onDone: () => void }) {
-  const { api: base } = useProduct();
-  const qc = useQueryClient();
-  const toast = useToast();
-  const [note, setNote] = useState("");
-  const [tags, setTags] = useState("");
-  const save = useMutation({
-    mutationFn: () =>
-      api("POST", `${base}/sources/${recordId}/annotations`, {
-        note,
-        ...(seqStart !== undefined ? { seq_start: seqStart, seq_end: seqEnd } : {}),
-        tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
-      }),
-    onSuccess: async () => {
-      toast("Comment added.");
-      await qc.invalidateQueries({ queryKey: ["source", base, recordId] });
-      onDone();
-    },
-  });
-  return (
-    <form
-      className="comment-form"
-      onSubmit={(e) => {
-        e.preventDefault();
-        save.mutate();
-      }}
-    >
-      <TextArea
-        label={seqStart !== undefined ? `Comment on ${address(seqStart, seqEnd)}` : "Comment on the whole source"}
-        required
-        maxLength={2000}
-        rows={3}
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        autoFocus
-      />
-      <TextField label="Tags" optional hint="Comma-separated." value={tags} onChange={(e) => setTags(e.target.value)} />
-      {save.isError ? <ErrorCallout inset error={save.error} /> : null}
-      <div className="row">
-        <Button type="submit" size="sm" variant="primary" busy={save.isPending} busyLabel="Saving…" disabled={!note.trim()}>
-          Save comment
-        </Button>
-        <Button size="sm" onClick={onDone} disabled={save.isPending}>
-          Cancel
-        </Button>
-      </div>
-    </form>
   );
 }

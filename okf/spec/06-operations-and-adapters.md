@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 121 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 120 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
 generated: {by: agent:claude, at: 2026-10-16}
 status: stable
@@ -36,7 +36,7 @@ defineOperation({
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 121. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 120. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
@@ -182,7 +182,7 @@ must come from the app's own origin (`403 forbidden_origin`).
 
 ### The operation catalogue
 
-All 121 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 120 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-teams-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -259,7 +259,6 @@ being changed inside the handler.
 | `files` | `set_role` | `POST P/sources/:record_id/files/role` | editor |
 | `files` | `get_download` | `POST P/sources/:record_id/downloads` | viewer |
 | `derived` | `manifest` | `GET P/sources/:record_id/derived/manifest` | viewer |
-| `derived` | `outline` | `GET P/sources/:record_id/derived/outline` | viewer |
 | `derived` | `text` | `GET P/sources/:record_id/derived/text` | viewer |
 | `derived` | `list` | `GET P/sources/:record_id/derivations` | viewer |
 | `derived` | `rederive` | `POST P/sources/:record_id/rederive` | editor |
@@ -330,6 +329,17 @@ Notes on recent actions:
   `assumptions.create` and `assumptions.update` take no `dimensions`, and reads of sources and
   assumptions carry none. A call to a `sources`, `files`, `search` or `assumptions` operation
   naming one is `422 invalid_input`, with a hint to use tags.
+- Sources have no `participants`, `source_system` or `provenance_depth`, and assumptions no
+  `provenance_depth` ([decision](../decisions/sources-are-described-by-tags.md)). `sources.list`
+  and `search` lost the `provenance_depth` filter, `sources.list`'s `query` reads the title, tags
+  and file names, and none of these operations takes or returns the fields; naming one is
+  `422 invalid_input`, with a hint that a source is described by its title, date and tags.
+- A comment is on a whole source: `sources.annotate` takes no `seq_start` or `seq_end` (naming
+  them is `422 invalid_input`, saying so), and comments carry no anchor. `derived.outline` is
+  gone, and `derived.write_note` and `derived.read_note` take `note_kind` `summary` or `notes`;
+  `write_note` with empty content removes the note
+  ([decision](../decisions/a-source-carries-a-summary-notes-and-whole-source-comments.md)).
+  `sources.get` with `detail: "full"` has no `outline`.
 - Insights and decisions are retired, with their operations and their MCP tools; what a product
   held of them became sources ([§4.7](04-data-model.md)).
 - Citations are retired, and so is the graph around them
@@ -557,7 +567,7 @@ the same of a newer version than the instructions named. `unknown_tool` and `unk
 the server's version and its tools or the tool's actions (also in `details`: `server_version`,
 `tools` or `actions`), and say the client may hold a list from another version.
 
-**Tools.** Fifteen tools over the 119 operations an agent may be offered (all 121 but deleting an
+**Tools.** Fifteen tools over the 118 operations an agent may be offered (all 120 but deleting an
 organization and its preview): eleven grouped by noun, four standalone. A connection is listed
 only the actions its level allows (below).
 
@@ -569,7 +579,7 @@ only the actions its level allows (below).
 | `outcomes` | `list`, `get`, `create`, `update`, `archive`, `restore`, `delete_impact`, `delete`, `revisions`, `get_revision`, `restore_revision` |
 | `sources` | `facets`, `list`, `get`, `create`, `update`, `archive`, `restore`, `annotate`, `list_annotations`, `update_annotation`, `delete_annotation`, `move_to_product`, `copy_to_product`, `delete_impact`, `delete` |
 | `files` | `request_upload`, `create_upload`, `create_uploads`, `complete_upload`, `add_note`, `fetch_url`, `set_role`, `get_download` |
-| `derived` | `manifest`, `outline`, `text`, `list`, `rederive`, `write_note`, `read_note` |
+| `derived` | `manifest`, `text`, `list`, `rederive`, `write_note`, `read_note` |
 | `assumptions` | `list`, `get`, `create`, `update`, `review`, `supersede`, `link`, `unlink`, `archive`, `delete_impact`, `delete` |
 | `story` | `guidance`, `get_style`, `set_style`, `list_pages`, `get_page`, `list_versions`, `get_version`, `preview`, `publish`, `promote_mockup`, `write_notes`, `print_view`, `get_hierarchy`, `set_hierarchy`, `archive_page`, `restore_page`, `delete_page_impact`, `delete_page` |
 | `mockups` | `list`, `get`, `list_versions`, `get_version`, `request_upload`, `publish`, `archive`, `restore`, `get_download`, `delete_impact`, `delete` |

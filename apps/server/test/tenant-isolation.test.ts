@@ -95,7 +95,7 @@ const SCOPED: Record<string, Probe> = {
   "sources.update": { input: (a) => ({ record_id: a.source.id, expected_etag: a.source.etag, title: "Changed by an outsider" }) },
   "sources.archive": { input: (a) => ({ record_ids: [a.source.id] }) },
   "sources.restore": { input: (a) => ({ record_ids: [a.source.id] }) },
-  "sources.annotate": { input: (a) => ({ record_id: a.source.id, note: "Planted annotation", seq_start: 0, seq_end: 1 }) },
+  "sources.annotate": { input: (a) => ({ record_id: a.source.id, note: "Planted annotation" }) },
   "sources.list_annotations": { input: (a) => ({ record_id: a.source.id, include_archived: true }) },
   "sources.update_annotation": { input: (a) => ({ annotation_id: a.annotation.id, expected_etag: a.annotation.etag, note: "Changed by an outsider" }) },
   "sources.delete_annotation": { input: (a) => ({ annotation_id: a.annotation.id, expected_etag: a.annotation.etag, reason: "Removed by an outsider", confirm: "delete permanently" }) },
@@ -131,10 +131,6 @@ const SCOPED: Record<string, Probe> = {
   },
   "derived.manifest": {
     input: (a) => ({ record_id: a.source.id, derivation_id: a.source.derivationId }),
-    inside: (a, b) => [{ record_id: a.source.id }, { record_id: b.source.id, derivation_id: a.source.derivationId }],
-  },
-  "derived.outline": {
-    input: (a) => ({ record_id: a.source.id }),
     inside: (a, b) => [{ record_id: a.source.id }, { record_id: b.source.id, derivation_id: a.source.derivationId }],
   },
   "derived.text": {

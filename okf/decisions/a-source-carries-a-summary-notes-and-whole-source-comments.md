@@ -1,0 +1,49 @@
+---
+type: Decision
+title: A source carries a summary written for people, freeform notes and comments on the whole source, and no outline
+description: Beside its words, a source has a short summary people read, notes agents and people keep, and comments on the source as a whole, because outlines, passage-anchored comments and agent-only notes added granularity nobody used.
+tags: [decision, sources, evidence, comments, notes, web, mcp, product]
+generated: {by: agent:claude, at: 2026-10-16}
+status: stable
+---
+
+# A source carries a summary written for people, freeform notes and comments on the whole source, and no outline
+
+## Context
+
+Beside its words, a source held agent notes (a summary, an outline and working notes, written
+only by agents), the parser's own outline of a document's headings or a transcript's turns, and
+comments anchored to passage ranges. The source page showed the outline and notes together, and
+comments inline under passages and in the Notes section. The outline did nothing a reader needed,
+comments tied to passage numbers broke the page into fragments, and the summary heading the page
+was often written for agents (segment numbers, internal codes). The maintainer chose on
+2026-10-16 to simplify what accompanies a source.
+
+## Decision
+
+- The **summary** heads a source's page and is written for people: a few short sentences in plain
+  words saying what the source is and what it tells the team, with no ids, segment numbers or
+  codes. People write and edit it in the app; agents write it with `derived.write_note`.
+- The **notes** are one freeform Markdown document: whatever is worth keeping about the source
+  that is not its words, structured as the writer likes. Agents and people both write them.
+- A **comment** is on the source as a whole, never on a passage range; the page lists comments in
+  a Comments section of their own.
+- There is **no outline**: no agent outline note, no `outline.md` sidecar, no `derived.outline`.
+- Rejected: keeping comments on passages beside whole-source ones. Two kinds of comment, one of
+  them tied to numbering a re-parse can move, is the granularity this removes.
+
+## Consequences
+
+- Migration `0029_simplify_source_details.sql` deletes agent outlines and drops comments'
+  segment ranges and anchors, keeping their text.
+- A summary or notes may be written by a person or an agent; the latest writer is shown.
+- An agent finds its way through a long source by search and by reading windows of it, not by an
+  outline.
+
+## Constrains
+
+- `derived.write_note` and `derived.read_note` take `note_kind` `summary` or `notes` only
+  (`packages/core/src/ops/derived.ts`); `sources.annotate` takes no range
+  (`packages/core/src/ops/sources.ts`). The agent skill tells agents who the summary is for.
+
+Specified in: [04-data-model §4.6](../spec/04-data-model.md), [06-operations-and-adapters](../spec/06-operations-and-adapters.md), [07-web-app §7.6](../spec/07-web-app.md).

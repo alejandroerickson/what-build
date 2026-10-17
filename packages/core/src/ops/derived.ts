@@ -62,22 +62,6 @@ export const manifest = defineOperation({
   },
 });
 
-export const outline = defineOperation({
-  name: "derived.outline",
-  scope: "product",
-  access: "read",
-  mutates: false,
-  summary: "A source's outline: headings with segment numbers, or speaker turns with times.",
-  description: "Small enough to read whole. Use it to decide which passage window to read.",
-  input: z.strictObject({ record_id: id("source"), derivation_id: derivationIdField }),
-  rest: { method: "GET", path: "/sources/:record_id/derived/outline" },
-  mcp: { tool: "derived", action: "outline" },
-  async handler(ctx, input) {
-    const { derivation: d } = await derivationFor(ctx, input.record_id, input.derivation_id);
-    return { record_id: input.record_id, derivation_id: d.derivation_id, outline: await readBlobText(ctx, `${d.blob_prefix}/outline.md`) };
-  },
-});
-
 export const text = defineOperation({
   name: "derived.text",
   scope: "product",
@@ -154,25 +138,35 @@ export const rederive = defineOperation({
   },
 });
 
+const NOTE_KIND = z
+  .enum(["summary", "notes"])
+  .describe("summary: what the source is and what it says, for the people who read its page. notes: freeform working notes on the source, for agents and people.");
+
 export const writeNote = defineOperation({
   name: "derived.write_note",
   scope: "product",
   access: "write",
   mutates: true,
-  summary: "Save your summary, outline or notes for a source, so the next agent need not re-derive them.",
+  summary: "Write a source's summary or its notes. Empty content clears it.",
   description:
-    `Agent-authored Markdown (up to ${AGENT_NOTE_MAX} characters), separate from the extracted passages. Overwrites the previous note of that kind. The cheapest way to stop the next agent re-deriving what this one already worked out.`,
-  input: z.strictObject({ record_id: id("source"), note_kind: z.enum(["summary", "outline", "notes"]), content: z.string().min(1).max(AGENT_NOTE_MAX) }),
+    `Markdown, up to ${AGENT_NOTE_MAX} characters; it replaces what was there, and people can edit both in the app too. The summary heads the source's page and is read by people, not agents: a few short sentences or bullets in plain words saying what the source is and what it tells the team, with no ids, segment numbers or codes. Notes are freeform: whatever is worth keeping about the source that is not its words, structured as you like, so the next agent need not work it out again.`,
+  input: z.strictObject({ record_id: id("source"), note_kind: NOTE_KIND, content: z.string().max(AGENT_NOTE_MAX) }),
   rest: { method: "PUT", path: "/sources/:record_id/agent-notes/:note_kind" },
   mcp: { tool: "derived", action: "write_note" },
   async handler(ctx, input) {
     const r = await loadRecord(ctx, input.record_id, { live: true });
+    const what = input.note_kind === "summary" ? "the summary" : "the notes";
+    if (!input.content.trim()) {
+      const gone = await ctx.db.deleteFrom("agent_notes").where("record_id", "=", r.record_id).where("kind", "=", input.note_kind).executeTakeFirst();
+      if (Number(gone.numDeletedRows)) await recordActivity(ctx, { action: "agent_note_written", entity_type: "source", entity_id: r.record_id, entity_title: r.title, summary: `Cleared ${what}` });
+      return { record_id: r.record_id, note_kind: input.note_kind, chars: 0, updated_at: ctx.now };
+    }
     await ctx.db
       .insertInto("agent_notes")
       .values({ record_id: r.record_id, kind: input.note_kind, tenant_id: tenantId(ctx), content: input.content, updated_by: json(ctx.actor) })
       .onConflict((oc) => oc.columns(["record_id", "kind"]).doUpdateSet({ content: input.content, updated_at: ctx.now, updated_by: json(ctx.actor) }))
       .execute();
-    await recordActivity(ctx, { action: "agent_note_written", entity_type: "source", entity_id: r.record_id, entity_title: r.title, summary: `Wrote the agent ${input.note_kind}` });
+    await recordActivity(ctx, { action: "agent_note_written", entity_type: "source", entity_id: r.record_id, entity_title: r.title, summary: `Wrote ${what}` });
     return { record_id: r.record_id, note_kind: input.note_kind, chars: input.content.length, updated_at: ctx.now };
   },
 });
@@ -182,15 +176,15 @@ export const readNote = defineOperation({
   scope: "product",
   access: "read",
   mutates: false,
-  summary: "Read an agent-written summary, outline or notes for a source.",
-  description: "404 when none was written. These are an agent's interpretation, not the source's words.",
-  input: z.strictObject({ record_id: id("source"), note_kind: z.enum(["summary", "outline", "notes"]) }),
+  summary: "Read a source's summary or its notes.",
+  description: "404 when none was written. Both are someone's reading of the source, not its words.",
+  input: z.strictObject({ record_id: id("source"), note_kind: NOTE_KIND }),
   rest: { method: "GET", path: "/sources/:record_id/agent-notes/:note_kind" },
   mcp: { tool: "derived", action: "read_note" },
   async handler(ctx, input) {
     await loadRecord(ctx, input.record_id);
     const n = await ctx.db.selectFrom("agent_notes").selectAll().where("record_id", "=", input.record_id).where("kind", "=", input.note_kind).executeTakeFirst();
-    if (!n) throw notFound(`No agent ${input.note_kind} has been written for this source.`);
+    if (!n) throw notFound(input.note_kind === "summary" ? "No summary has been written for this source." : "No notes have been written for this source.");
     return { record_id: n.record_id, note_kind: n.kind, content: n.content, updated_at: n.updated_at, updated_by: n.updated_by };
   },
 });
@@ -311,7 +305,7 @@ export const readPassage = defineOperation({
   },
 });
 
-export const derivedOps = [manifest, outline, text, listDerivations, rederive, writeNote, readNote, readPassage];
+export const derivedOps = [manifest, text, listDerivations, rederive, writeNote, readNote, readPassage];
 
 // ---- The derivation job -------------------------------------------------------------------------
 
@@ -361,7 +355,7 @@ export async function runDerivation(
   const stat = job.failed ? null : await ports.blobs.stat(version.blob_key);
   let result: ParsedFile;
   if (job.failed) {
-    result = toParsedFile({ status: "failed", parser: "none", parser_version: "0", segments: [], text: "", outline: `- (${job.failed})\n`, duration_ms: null, status_detail: job.failed, facts: {} });
+    result = toParsedFile({ status: "failed", parser: "none", parser_version: "0", segments: [], text: "", duration_ms: null, status_detail: job.failed, facts: {} });
   } else if (stat && stat.size > ports.config.parseCapBytes) {
     // Too large to read at all: record the status without downloading the file.
     const r = await derive(new Uint8Array(0), file.path, { parseCapBytes: -1 });
@@ -395,7 +389,6 @@ export async function runDerivation(
   };
   await ports.blobs.put(`${prefix}/segments.jsonl`, result.segments_jsonl, { contentType: "application/jsonl" });
   await ports.blobs.put(`${prefix}/text.md`, result.text_md, { contentType: "text/markdown; charset=utf-8" });
-  await ports.blobs.put(`${prefix}/outline.md`, enc.encode(result.outline), { contentType: "text/markdown; charset=utf-8" });
   await ports.blobs.put(`${prefix}/manifest.json`, enc.encode(JSON.stringify(manifestDoc, null, 2)), { contentType: "application/json" });
   await db
     .insertInto("derivations")

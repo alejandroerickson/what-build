@@ -37,7 +37,7 @@ async function upload(tag: string, path: string, body: string) {
   return recordId;
 }
 
-describe("reading a timed transcript and anchoring notes", () => {
+describe("reading a timed transcript", () => {
   let recordId: string;
   beforeAll(async () => {
     recordId = await upload("interview", "turns.vtt", VTT);
@@ -52,13 +52,5 @@ describe("reading a timed transcript and anchoring notes", () => {
     expect(gap.body.warning).toBe("No cue overlaps this window: a gap between cues.");
     const explicit = await alice.api("GET", `${P}/sources/${recordId}/passage?start=0&end=2&unit=ms`);
     expect(explicit.body.warning).toBe("No cue overlaps this window: a gap between cues.");
-  });
-
-  it("keeps each speaker's name in a note anchored across turns", async () => {
-    const a = await alice.api("POST", `${P}/sources/${recordId}/annotations`, { record_id: recordId, note: "Friday is set by the close.", seq_start: 0, seq_end: 2 });
-    expect(a.status).toBe(201);
-    expect(a.body.anchor.quote).toBe(
-      "Dana: We export everything to a spreadsheet every Friday.\n\nSam: Why Friday?\n\nDana: Because that is when the numbers close and the pricing review happens.",
-    );
   });
 });

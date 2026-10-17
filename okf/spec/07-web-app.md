@@ -308,10 +308,8 @@ The sources, and everything for reading them.
 - **Intake.** **Add source**, a plain button in the sheet's header, opens it. Three steps:
   **Describe it** asks for the title, the **date captured** (optional, with help text
   distinguishing it from today) and tags, offering the product's most used tags to add with one
-  click ([§4.4](04-data-model.md)); participants, where it came from (the source system) and its
-  relationship to the evidence (`provenance_depth`) wait behind "Participants, origin and
-  relationship". **Add files** takes files and assigns roles with sensible defaults (a transcript
-  beside a recording becomes primary). **Create** makes the source. Nothing asks what kind of
+  click ([§4.4](04-data-model.md)), and nothing else. **Add attachments** takes files and assigns
+  roles with sensible defaults (a transcript beside a recording becomes primary). **Create** makes the source. Nothing asks what kind of
   material it is or where to file it. Multi-file drag-and-drop is supported;
   progress and derivation status are shown until `ready` or a terminal status with a
   plain-language explanation and next step (`needs_transcript` → "add a transcript").
@@ -341,10 +339,12 @@ The sources, and everything for reading them.
   another listed row also name their primary file, so the twins can be told apart.
 - **Source page.** A source is the busiest object in the app, so the page is dense on purpose.
   - **Header:** the title and the actions menu, nothing else; every property is in the inspector.
-    Below it the **description**: the agent's summary note, rendered Markdown clamped to four
-    lines with "Show all" and attributed, and nothing at all when there is none. Editing the
-    details (title, date, tags, offering the product's tags, and the rest), adding files,
-    archive, restore and delete (§7.10) are in the page's actions menu.
+    Below it the **summary** ([§4.6](04-data-model.md)): rendered Markdown clamped to four lines
+    with "Show all", attributed to whoever wrote it last, with Edit for an editor. With no summary,
+    an editor sees "Add a summary" and everyone else nothing. Both open a dialog holding the
+    Markdown; saving it empty removes the summary. Editing the details (title, date and tags,
+    offering the product's tags), adding attachments, archive, restore and delete (§7.10) are in
+    the page's actions menu.
   - **Sections**, a segmented control held in the URL as `?view=` (links, not tabs):
     **Passages** (the default once the source is parsed), **Original** (a preview of the origin
     file, or of the primary when there is no origin, with a line saying whether it is searched and
@@ -353,42 +353,40 @@ The sources, and everything for reading them.
     `1` for actual size, double-click, a pinch or Ctrl/Cmd and the wheel), drag to pan, full screen
     (`F`), and, when the source has several images, previous and next (the arrow keys) and a strip
     of thumbnails),
-    **Notes** (an "Outline and notes" sheet with the agent's outline and notes — with no agent
-    outline, a document's own headings, each linking to its passage; a timed transcript's
-    speaker-turn outline is left out, since the passages already show speaker and time; the sheet
-    is left out when there is nothing to show — then every comment on the source, each linking to
-    its passage) and **Files** (every file with its role, "Searched" or "Kept, not searched",
-    versions, download, and add files, each previewable file's name opening it in Original). A non-primary file's role changes from its row menu,
-    confirmed in a dialog that says what the change does. Original states a recording's length
-    beside the player when the parse read one.
+    **Notes** (the source's notes, rendered Markdown attributed to whoever wrote them last, with
+    "Edit notes" for an editor; with none, an empty state that says what notes are for, and
+    "Write notes" for an editor), **Comments** (every comment on the source, newest first, and
+    "Comment" for an editor, which opens a form for a comment on the whole source with optional
+    tags) and **Attachments** (`?view=attachments`; `?view=files` still opens it: every file with
+    its role, "Searched" or "Kept, not searched", versions, download, and add attachments, each
+    previewable file's name opening it in Original). There is no outline. A non-primary file's
+    role changes from its row menu, confirmed in a dialog that says what the change does. Original
+    states a recording's length beside the player when the parse read one.
   - **Inspector,** titled Details: **About** (the three dates together — Date captured
     (or "No date"), Date added and Date updated, the last two each with "by <who>", adding "via
     <surface>" when it was not the web, the person who added it linking to the list filtered to
     what they added, and Date updated saying "Not since it was added" when nothing changed; Tags,
-    each a link to the list filtered to it; Participants; Provenance; Came from, the source
-    system), a **Files** summary (each file's role and whether it is searched, adding the number
-    of stored versions only when there are more versions than files), "Activity on this source",
-    and Archive.
+    each a link to the list filtered to it; nothing else), "Activity on this source", and
+    Archive.
   - **Status:** a source that is not `ready` shows a callout with the status's explanation and next
     step. The server's `status_detail` is added only where it says more (a size or an error).
 - **Passage reader.** Paged segments with address (¶n), speaker and cue time; heading passages
   are shown without their Markdown markers (the stored text keeps them); go
   to a passage number; the URL tracks position (`?seq=N`, and `&to=M` for a range: the whole range
   is marked, on a page that starts at the range when it would otherwise cross a page boundary);
-  "Search this source" at the top. Selecting a passage (Shift for a range) offers: comment, or
-  **Copy reference**, which copies `{record_id, seq_start, seq_end}` to paste to an agent; the
-  selection bar docks above the pager and never covers it. Reading aids:
+  "Search this source" at the top. Selecting a passage (Shift for a range) offers **Copy
+  reference**, which copies `{record_id, seq_start, seq_end}` to paste to an agent; the selection
+  bar docks above the pager and never covers it. Comments are not shown here: they are on the
+  whole source, in Comments. Reading aids:
   - a passage that mentions other sources the bare way (a view or digest: "source <id>,
     segments 4–6") shows each mention as a "Title ¶4–6" token, and a "Mentions" line of links to
     them;
   - a table stored as a header passage and one passage per row ("A: x | B: y") is laid out in
-    columns (up to six), each row still its own passage to select and comment on.
+    columns (up to six), each row still its own passage to select.
 - **Evidence links** in Markdown, views and search read "Title ¶N" ([§4.7](04-data-model.md)). A
   title is cut at its em-dash qualifier; where two sources mentioned on the page would read alike,
   each adds its qualifiers in brackets ("Usability study (crew) ¶29"), and identical titles are
   numbered. A link to a range opens the whole range.
-- **Comments** (annotations) are shown inline under the passage they belong to, and listed in the
-  Notes section. A comment on a range also tints every passage it covers.
 - **Search this source** (the passage reader) opens the Search screen on that source: every
   passage holding the words, each linking into the reader at that position (§7.2).
 
@@ -654,8 +652,7 @@ claude-desktop, confirmed an assumption — 14:02". The surface is "in the app",
 "via <client>"; what WhatBuild does by itself, such as parsing a file, has no surface and reads "on
 the server", however the file was uploaded, and says what came of it in a person's words:
 "Parsed call.vtt into 412 passages", never the parser's internal label (events recorded with one
-are read without it, over MCP as in the app). A note's passages read as the app writes them, ¶4 or
-¶4–6. The kind of object changed (`?entity_type=`) or
+are read without it, over MCP as in the app). The kind of object changed (`?entity_type=`) or
 one object (`&entity_id=`) narrows it, held in the URL.
 
 This is how a person answers "what did my colleague's agent just do to my product" without reading

@@ -97,7 +97,7 @@ function SpecimenInspector() {
           ]}
         />
       </Group>
-      <Group title="Files" count={3}>
+      <Group title="Attachments" count={3}>
         <ul className="system-files">
           <li><Glyph name="file-text" /><span><b>Transcript</b><StatusBadge tone="positive">Searched</StatusBadge></span></li>
           <li><Glyph name="file-audio" /><span><b>Audio recording</b><span className="faint">Kept, not searched</span></span></li>
@@ -295,7 +295,7 @@ function Specimen() {
           <Row label="Segmented">
             <div className="stack-sm">
               <Segmented label="Review" value={seg} onChange={setSeg} items={[{ id: "all", label: "All", count: 3 }, { id: "unreviewed", label: "Unreviewed", count: 2 }, { id: "reviewed", label: "Reviewed" }]} />
-              <Segmented label="Source view" value="passages" items={[{ id: "passages", label: "Passages", to: "/_system" }, { id: "original", label: "Original", to: "/_system?view=original" }, { id: "notes", label: "Notes", to: "/_system?view=notes" }, { id: "files", label: "Files", to: "/_system?view=files" }]} />
+              <Segmented label="Source view" value="passages" items={[{ id: "passages", label: "Passages", to: "/_system" }, { id: "original", label: "Original", to: "/_system?view=original" }, { id: "notes", label: "Notes", to: "/_system?view=notes" }, { id: "comments", label: "Comments", to: "/_system?view=comments" }, { id: "attachments", label: "Attachments", to: "/_system?view=attachments" }]} />
               <div className="system-equal">
                 <Segmented equal label="Who" value="people" items={[{ id: "all", label: "All" }, { id: "people", label: "People" }, { id: "agents", label: "Agents" }]} onChange={() => {}} />
               </div>

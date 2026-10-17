@@ -143,54 +143,6 @@ export function assemble(blocks: Block[]): { segments: Segment[]; text: string }
   return { segments, text };
 }
 
-export function formatClock(ms: number): string {
-  const total = Math.max(0, Math.floor(ms));
-  const h = Math.floor(total / 3_600_000);
-  const m = Math.floor((total % 3_600_000) / 60_000);
-  const s = Math.floor((total % 60_000) / 1000);
-  const frac = total % 1000;
-  const pad = (n: number, w = 2) => String(n).padStart(w, "0");
-  return `${pad(h)}:${pad(m)}:${pad(s)}.${pad(frac, 3)}`;
-}
-
-/** An outline of headings as indented bullets, with the segment each starts at. */
-export function headingOutline(segments: Segment[]): string {
-  const heads = segments.filter((s) => s.heading_level);
-  if (!heads.length) return "- (no headings)\n";
-  // A loop, not Math.min(...): a spread of a million headings overflows the stack.
-  let min = Infinity;
-  for (const h of heads) min = Math.min(min, h.heading_level ?? 1);
-  return (
-    heads
-      .map((h) => `${"  ".repeat((h.heading_level ?? min) - min)}- ${h.text} (segment ${h.seq})`)
-      .join("\n") + "\n"
-  );
-}
-
-/** An outline of speaker turns with time ranges; consecutive cues by one speaker merge. */
-export function speakerOutline(segments: Segment[]): string {
-  const lines: string[] = [];
-  let cur: { speaker: string; start: number; end: number; seqStart: number; seqEnd: number } | null = null;
-  const flush = () => {
-    if (cur)
-      lines.push(
-        `- ${formatClock(cur.start)} to ${formatClock(cur.end)}: ${cur.speaker} (${cur.seqStart === cur.seqEnd ? `segment ${cur.seqStart}` : `segments ${cur.seqStart}–${cur.seqEnd}`})`,
-      );
-  };
-  for (const s of segments) {
-    const speaker = s.speaker ?? "Unattributed";
-    if (cur && cur.speaker === speaker) {
-      cur.end = Math.max(cur.end, s.end_ms ?? cur.end);
-      cur.seqEnd = s.seq;
-    } else {
-      flush();
-      cur = { speaker, start: s.start_ms ?? 0, end: s.end_ms ?? 0, seqStart: s.seq, seqEnd: s.seq };
-    }
-  }
-  flush();
-  return lines.length ? lines.join("\n") + "\n" : "- (no cues)\n";
-}
-
 /** Segments are written this many at a time, so no single string holds them all. */
 const JSONL_BATCH = 1000;
 
@@ -221,7 +173,6 @@ export function toParsedFile(r: ParseResult): ParsedFile {
     facts: r.facts,
     segment_count: r.segments.length,
     char_count: codePointLength(r.text),
-    outline: r.outline,
     segments_jsonl,
     text_md: enc.encode(r.text),
   };
