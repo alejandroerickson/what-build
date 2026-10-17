@@ -23,11 +23,12 @@ attachment, the derived text and their operations are in
 A **reading** (a `derivation` on the wire, identified by a `derivation_id`) is one immutable read of
 one version of one attachment. Every version of every attachment is read: when the attachment is
 added, when a new version arrives at its path, when a source is copied to another product (its
-attachments are read afresh there), and when `derived.rederive` asks for it (for example after a
-parser upgrade). Earlier readings are retained and readable by id. `rederive` returns
-`previous_derivation_id`; the attachment's latest reading stays in place until the new one
-finishes, so a caller knows it is done when `derived.manifest` for that attachment reports a
-different `derivation_id`.
+attachments are read afresh there), when `derived.rederive` asks for it (for example after a
+parser upgrade), and when a public sandbox's reset puts back a reading made by an older parser than
+this version's ([§9](09-data-lifecycle.md)). Earlier readings are retained and readable by id.
+`rederive` returns `previous_derivation_id`; the attachment's latest reading stays in place until
+the new one finishes, so a caller knows it is done when `derived.manifest` for that attachment
+reports a different `derivation_id`.
 
 **Where it runs.** Always on the Postgres job queue, in the worker
 ([`apps/server/src/worker.ts`](../../apps/server/src/worker.ts)), in every environment. The

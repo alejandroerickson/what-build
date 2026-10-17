@@ -4,6 +4,7 @@ import {
 } from "@whatbuild/core";
 import { sql } from "kysely";
 import { pruneOAuthClients } from "./auth/oauth.ts";
+import { migrationNames } from "./database.ts";
 
 /** A reading's blobs. One made while sources had passages also has a segments.jsonl, and an older one an outline.md, released with the rest. */
 const SIDECARS = ["segments.jsonl", "text.md", "outline.md", "manifest.json"];
@@ -38,6 +39,10 @@ export class Worker {
   private running = false;
   private again = false;
   private stopped = false;
+  /** Whether the last look found a later version's migrations; the log says so once, when they appear. */
+  private superseded = false;
+  /** The migrations this version carries; a database that has any other was migrated by a later version. */
+  private readonly migrations = migrationNames();
   readonly id = `${hostname()}:${process.pid}:${Math.random().toString(36).slice(2, 8)}`;
 
   constructor(private readonly env: Env, private readonly pollMs = 2000, private readonly log: (m: string) => void = (m) => console.log(m)) {}
@@ -74,6 +79,7 @@ export class Worker {
     try {
       do {
         this.again = false;
+        if (await this.supersededByAMigration()) break;
         for (;;) {
           await this.prune().catch((e) => this.log(`prune: ${(e as Error).message}`));
           await this.feedbackDigest().catch((e) => this.log(`feedback digest: ${(e as Error).message}`));
@@ -90,6 +96,22 @@ export class Worker {
       this.running = false;
     }
     return done;
+  }
+
+  /**
+   * Whether the database has a migration this version does not carry. During a release the
+   * migration job runs before the new version serves, while this one still does. From then on it
+   * takes no job and does no housekeeping, so work a new migration queued, under a kind this version
+   * also runs, waits for the version it was queued for instead of being run, skipped or given up by
+   * code written for the schema before it. The claim itself checks the same, in the statement that
+   * takes the job, so nothing slips through between this look and a claim.
+   */
+  private async supersededByAMigration(): Promise<boolean> {
+    const later = await sql<{ name: string }>`select name from schema_migrations where name <> all(${this.migrations}::text[]) order by name`.execute(this.env.db);
+    const names = later.rows.map((r) => r.name);
+    if (names.length && !this.superseded) this.log(`worker: the database has migrations this version does not carry (${names.join(", ")}); it takes no jobs until a version that carries them replaces it`);
+    this.superseded = names.length > 0;
+    return this.superseded;
   }
 
   private lastPrune = 0;
@@ -166,6 +188,7 @@ export class Worker {
         select job_id from jobs
         where done_at is null and attempts < ${MAX_ATTEMPTS} and run_after <= now() and (locked_at is null or locked_at < now() - interval '10 minutes')
           and kind = any(${[...JOB_KINDS]}::text[])
+          and not exists (select 1 from schema_migrations where name <> all(${this.migrations}::text[]))
         order by job_id for update skip locked limit 1)
       returning job_id, tenant_id, kind, payload, attempts`.execute(this.env.db);
     return r.rows[0] ?? null;
@@ -186,6 +209,7 @@ export class Worker {
         select job_id from jobs
         where done_at is null and attempts >= ${MAX_ATTEMPTS} and (locked_at is null or locked_at < now() - interval '10 minutes')
           and kind = any(${[...JOB_KINDS]}::text[])
+          and not exists (select 1 from schema_migrations where name <> all(${this.migrations}::text[]))
         order by job_id for update skip locked limit 20)
       returning job_id, tenant_id, kind, payload, attempts`.execute(this.env.db);
     for (const job of abandoned.rows) {

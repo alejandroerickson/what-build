@@ -28,19 +28,25 @@ export function createDb(databaseUrl: string, max = 10): { db: Kysely<DB>; pool:
   return { db, pool };
 }
 
+const MIGRATIONS = fileURLToPath(new URL("./migrations/", import.meta.url));
+
+/** The migrations this version carries, by file name, in the order they run. */
+export function migrationNames(): string[] {
+  return readdirSync(MIGRATIONS).filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort();
+}
+
 /**
  * Forward-only migrations: numbered SQL files next to this module (and next to the bundle in
- * production), each applied once in its own transaction and recorded.
+ * production), each applied once in its own transaction and recorded in the same one.
  */
 export async function migrate(db: Kysely<DB>, log: (msg: string) => void = console.log): Promise<string[]> {
-  const dir = fileURLToPath(new URL("./migrations/", import.meta.url));
-  const files = readdirSync(dir).filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort();
+  const files = migrationNames();
   await sql`create table if not exists schema_migrations (name text primary key, applied_at timestamptz not null default now())`.execute(db);
   const applied = new Set((await sql<{ name: string }>`select name from schema_migrations`.execute(db)).rows.map((r) => r.name));
   const ran: string[] = [];
   for (const f of files) {
     if (applied.has(f)) continue;
-    const text = readFileSync(`${dir}${f}`, "utf8");
+    const text = readFileSync(`${MIGRATIONS}${f}`, "utf8");
     await db.transaction().execute(async (trx) => {
       await sql.raw(text).execute(trx);
       await sql`insert into schema_migrations (name) values (${f})`.execute(trx);

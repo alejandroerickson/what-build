@@ -23,7 +23,19 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **A version being replaced takes no jobs once a later version's migrations have run.** Nothing to
+  set. A release's migrations run while the version before it still serves; from then on that
+  version's worker waits, and its log says the database has migrations it does not carry, so the
+  work a migration queues is done by the version it was queued for. It protects the upgrades that
+  start from this release or a later one: the version being replaced must already do it.
+- **A public sandbox's reset reads again what its baseline read with an older parser.** Nothing to
+  set. At each reset, an attachment whose saved reading was made by another parser or an earlier
+  version of the one that reads it now, or found unsupported where a parser reads it now, is read
+  again by this version's parsers, recording nothing in the activity log, and a text still taken
+  from it follows. A baseline saved before v0.14.0 holds such readings for most of its
+  attachments, so each reset reads them again, a minute or two of work, until the baseline is saved
+  again: reset, let the readings finish, then save it. A sandbox source whose only readable
+  attachment was unsupported when the baseline was saved, such as a `.csv` one, gets its text.
 
 ## v0.14.0
 
@@ -58,6 +70,14 @@ Nothing yet.
   are done. Rehearse on the dev deployment first and watch the jobs finish
   ([dev-deployment](dev-deployment.md)). It drops a table and columns, so going back past it means
   restoring the database ([recovering](recovering-from-a-bad-release.md)).
+- **If v0.13.0 was still running when `0030` ran,** its worker may have taken some of the readings
+  the migration queued and skipped them: it looked for a file's role, which the migration had
+  dropped. Its log has a `job … derive <source id>: skipped` line for each. Those attachments keep
+  their earlier reading, a text taken from their passages keeps the migration's layout, and a
+  source that had no passages has no text. Read them again from the source's Attachments (**Read it
+  again**) or with `derived(action="rederive")`. From the release after this one, a public
+  sandbox's reset reads them again by itself, and a version being replaced takes no jobs once a
+  later version's migrations have run.
 - **A source's words are one text, and its files are attachments.** Nothing to set. People see a
   source's words as one document under **Text**, where Passages and Original were, which editors
   can edit or take from another attachment; **Attachments** lists every file with how its text was
