@@ -13,8 +13,8 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const dist = join(here, "dist");
-// pdfjs loads its worker by relative path; the GCS client and nodemailer are large and load lazily.
-const EXTERNAL = ["pdfjs-dist", "@google-cloud/storage", "nodemailer", "pg-native"];
+// pdfjs loads its worker by relative path; the cloud clients and nodemailer are large and load lazily.
+const EXTERNAL = ["pdfjs-dist", "@google-cloud/storage", "nodemailer", "@azure/communication-email", "@azure/identity", "pg-native"];
 
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
@@ -58,6 +58,8 @@ const deps = {
   "pdfjs-dist": versionOf("pdfjs-dist", req),
   "@google-cloud/storage": versionOf("@google-cloud/storage", reqServer),
   nodemailer: versionOf("nodemailer", reqServer),
+  "@azure/communication-email": versionOf("@azure/communication-email", reqServer),
+  "@azure/identity": versionOf("@azure/identity", reqServer),
 };
 writeFileSync(join(dist, "package.json"), JSON.stringify({ name: "whatbuild-server", private: true, type: "module", dependencies: deps }, null, 2) + "\n");
 console.log("dist/ ready:", Object.entries(deps).map(([k, v]) => `${k}@${v}`).join(", "));

@@ -32,6 +32,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 - **Agents can no longer send dimensions.** Nothing to set. A call that sends `dimensions`, or
   filters `sources(action="list")` or `search` by `customer`, `product_area` or
   `lifecycle_stage`, is refused with `422` and a hint to use tags. The web app never showed them.
+- **ACS mail with managed identity.** Optional: an Azure-hosted deployment can use the ACS Email
+  API by selecting `WHATBUILD_MAILER=acs`, setting `WHATBUILD_ACS_EMAIL_ENDPOINT` and a verified
+  `WHATBUILD_MAIL_FROM`, and granting its managed identity access to the linked Communication
+  Services resource. For a user-assigned identity set `WHATBUILD_AZURE_CLIENT_ID`. No SMTP
+  identity or mail secret is needed. Existing mailer defaults are unchanged; see
+  [Azure](azure.md#mail-with-azure-communication-services).
 
 ## v0.12.0
 

@@ -1,6 +1,6 @@
 ---
 name: set-up-mail
-description: Set up, check, repair or change the mail a WhatBuild deployment sends (sign-in links, invitations, allowance notices), on production's Cloudflare Email Sending or any SMTP provider. Use when asked to set up email, SMTP or a sender address, when invitations or sign-in links are not arriving, land in spam or fail with an internal error, when email sign-in is missing from the sign-in page, when rotating or replacing the mail token, when changing mail provider, or when giving a new deployment mail.
+description: Set up, check, repair or change the mail a WhatBuild deployment sends (sign-in links, invitations, allowance notices), on production's Cloudflare Email Sending, any SMTP provider, or the ACS Email API with managed identity. Use when asked to set up email, SMTP or a sender address, when invitations or sign-in links are not arriving, land in spam or fail with an internal error, when email sign-in is missing from the sign-in page, when rotating or replacing the mail token, when changing mail provider, or when giving a new deployment mail.
 ---
 
 # Set up mail
@@ -13,9 +13,9 @@ deployments send mail, production's setup on Cloudflare and every command are in
 
 - **The dev deployment never sends mail.** It holds a copy of production, so its addresses are
   real people's. Refuse to give it mail settings, and never copy production's to it.
-- **One deployment, one token.** Production's Cloudflare token sends as `what-build.com` from
-  anywhere. Never copy it to another deployment, a self-hosted one, the repository, a commit or a
-  message. Another organization's deployment uses its own domain and provider.
+- **Each deployment uses its own mail credentials or managed identity.** Production's Cloudflare
+  token sends as `what-build.com` from anywhere. Never copy it to another deployment, a self-hosted
+  one, the repository, a commit or a message. Another organization's deployment uses its own domain and provider.
 - **Tokens never pass through a command line or the conversation.** The person writes a new token
   to an ignored `.env`; you pipe it into Secret Manager (`--data-file=-`) and print nothing of it.
   Never ask for a token that can create tokens.
@@ -30,11 +30,14 @@ deployments send mail, production's setup on Cloudflare and every command are in
    clone (`GCP_PROJECT`, `GCP_REGION`, `CLOUDFLARE_ACCOUNT_ID`, and `CF_EMAIL_API_KEY` when a
    new token is on hand). For another deployment, its own `.env` or vault.
 2. **Check before changing.** Run the commands under Checking it: what `/api/v1/meta` reports, which
-   mail settings the service has, and, when something fails, the SMTP errors in the service's log.
+   mail settings the service has, and, when something fails, the mail-provider errors in the
+   service's log.
    Match a failure to the table under When mail fails.
 3. **Do the one thing the task needs**, with the guide's commands: set up from nothing, rotate the
-   token, set the sender again, or change provider. The person does what needs their account:
-   billing, and creating a token in the provider's dashboard.
+   token, set the sender again, or change provider. For ACS, follow the Azure guide to grant its existing
+   managed identity access and set the public endpoint and sender; no SMTP credential is needed.
+   The person does what needs their account: billing, and creating a token in the provider's
+   dashboard.
 4. **Test it.** Send one message to the person's own address, through the deployment itself (ask
    for a sign-in link). `{"sent": true}` means the provider accepted it; ask the person to confirm
    it arrived and was not marked as spam.
