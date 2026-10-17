@@ -279,12 +279,16 @@ function block(tokens: Token[], key = "b", headingShift = 0, cx: Cx = {}): React
         return <p key={k}>{inline((t as Tokens.Paragraph).tokens, k, cx)}</p>;
       case "list": {
         const l = t as Tokens.List;
-        const items = l.items.map((it, j) => (
-          <li key={`${k}.${j}`}>
-            {it.task ? <input type="checkbox" checked={Boolean(it.checked)} readOnly disabled aria-label={it.checked ? "done" : "not done"} /> : null}{" "}
-            {l.loose ? block(it.tokens, `${k}.${j}`, headingShift, cx) : inlineOrBlock(it.tokens, `${k}.${j}`, cx)}
-          </li>
-        ));
+        const items = l.items.map((it, j) => {
+          // The box is drawn from `task`; marked also lists it as the item's first token.
+          const tokens = it.tokens.filter((c) => c.type !== "checkbox");
+          return (
+            <li key={`${k}.${j}`}>
+              {it.task ? <input type="checkbox" checked={Boolean(it.checked)} readOnly disabled aria-label={it.checked ? "done" : "not done"} /> : null}{" "}
+              {l.loose ? block(tokens, `${k}.${j}`, headingShift, cx) : inlineOrBlock(tokens, `${k}.${j}`, cx)}
+            </li>
+          );
+        });
         return l.ordered ? (
           <ol key={k} start={typeof l.start === "number" && l.start !== 1 ? l.start : undefined}>
             {items}

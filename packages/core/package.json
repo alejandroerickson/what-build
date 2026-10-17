@@ -14,7 +14,7 @@
   "dependencies": {
     "@whatbuild/parsers": "workspace:*",
     "kysely": "^0.29.6",
-    "marked": "^16.4.0",
+    "marked": "^18.1.0",
     "parse5": "^8.0.0",
     "ulid": "^3.0.1",
     "zod": "^4.1.12",
