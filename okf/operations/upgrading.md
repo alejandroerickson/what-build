@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.14.0
+
 - **Migration `0029_simplify_source_details`.** It drops `participants`, `source_system` and
   `provenance_depth` from `records`, `provenance_depth` from `register_entries`, and `seq_start`,
   `seq_end` and `anchor` from `annotations`, deletes every agent outline (`agent_notes` of kind
