@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
-description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, files, annotations, evidence links, the assumption register, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
+description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, files, comments, summaries and notes, evidence links, the assumption register, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
 generated: {by: agent:claude, at: 2026-10-16}
 status: stable
@@ -124,10 +124,7 @@ A source is one discovery event or document. It is stored as a **record**, so it
 | `title` | 1–300 chars. Says what it is (who, what, when), never a file name. |
 | `date` | `YYYY-MM-DD`: the date of the **event or document** the discovery question turns on, never the upload date. `null` when genuinely unknown. The web app calls it the **date captured**. |
 | `slug` | Derived from the title. |
-| `participants` | Optional, ≤ 50 names of 1–100 chars. |
-| `source_system` | Optional, ≤ 100 chars: where the material came from (a meeting tool, a wiki). |
 | `tags` | ≤ 50, each 1–50 chars: what the material is, whom it concerns, what it bears on (§4.4). Stored NFKC-normalized, spacing collapsed, lower-case, without repeats. |
-| `provenance_depth` | `primary`, `derived`, `analysis_of_analysis`, `unknown` (default). |
 | `copied_from` | `{ product_id, record_id }` when the source is a copy ([§3.7](03-accounts-teams-and-identity.md)). |
 | `uploaded_by`, `uploaded_at` | Actor snapshot and time of creation: the **date added**. |
 | `updated_by`, `updated_at` | Actor snapshot and time of the last change to the source's details, archive or restore: the **date updated**. Adding a file changes the etag but not this. |
@@ -147,7 +144,8 @@ A source is one discovery event or document. It is stored as a **record**, so it
   `410 record_deleted` rather than a bare `404`. `sources.delete_impact` previews what it will
   destroy: its file versions and their bytes, its derivations and its comments.
 - **Read modes** (`detail`): `brief` (identity, title, date, tags, derived status, counts) and
-  `full` (adds files, the derivation manifest, the outline, and notes). Neither includes file bytes
+  `full` (adds files, the derivation manifest, its comments, and which of its summary and notes
+  exist). Neither includes file bytes
   or derived text. Both carry `warnings`, which says when the source has files but no primary yet,
   so nothing on it is searched.
 - **Duplicates are warned about, not refused.** `sources.create` and `files.create_upload` return a
@@ -163,7 +161,7 @@ folder and no organization field
 - A tag says what the material is (`interview`, `workshop`, `deck`, `analysis`), whom it concerns
   (an organization, a segment) or what it bears on. Tags are free text and describe discovery
   work, never a built-in classification. Derived material is tagged `view`, `analysis` or `digest`
-  (§4.9), and `provenance_depth` says how far it sits from the evidence.
+  (§4.9).
 - `sources.facets` lists what sources can be filtered by: `tags`, the tags in use with the number
   of sources carrying each, most used first and then A to Z (at most 500; `tags_truncated` says the
   list stopped), and `added_by`, each person who added sources (`account_id`, `display_name` as
@@ -173,8 +171,7 @@ folder and no organization field
 - `sources.list` filters by `tags` (a source must carry all of them), `added_by` (an `account_id`;
   what an agent added counts as its person's, since the actor snapshot names the person),
   `added_since` (a date, read as UTC midnight, or a time), `date_from` and `date_to` (the source's
-  own date), and `query`, a substring of the title, tags, participants, source system or file
-  names. `search` filters passages by tags and dates ([§8.1](08-search.md)).
+  own date), and `query`, a substring of the title, tags or file names. `search` filters passages by tags and dates ([§8.1](08-search.md)).
 - A call to a `sources`, `files` or `search` operation that names `kind`, `organization` or
   `folder` is refused with `422 invalid_input`; the message adds that sources are described by
   tags, and to reuse those `sources.facets` lists.
@@ -219,25 +216,35 @@ relay, 50 files per source. Inline notes (`files.add_note`): ≤ 2,048 bytes and
 text. A per-tenant stored-bytes quota is planned ([§9.2](09-data-lifecycle.md)).
 **No operation accepts base64 file content.** Upload flows: [§6.7](06-operations-and-adapters.md).
 
-## 4.6 Annotations and agent notes
+## 4.6 Comments, the summary and notes
 
-An **annotation** is a note on a source, optionally anchored to a passage.
+A **comment** (an `annotation` on the wire) is someone's remark on a source as a whole. It is not
+anchored to any part of the source's text
+([decision](../decisions/a-source-carries-a-summary-notes-and-whole-source-comments.md)).
 
 | Field | Rule |
 |---|---|
 | `annotation_id`, `record_id` | |
-| `seq_start`, `seq_end` | Optional, given together: an inclusive segment range of the current derivation, ≤ 50 segments. |
 | `note` | Markdown, 1–2,000 chars. |
 | `tags` | As sources. |
-| `archive_reason` | Optional, ≤ 500 chars: why the note was archived. Given only with `archived: true`; restoring clears it. |
-| `anchor` | When a range is given, a snapshot taken at creation (range, offsets, derivation id, and up to 500 characters of the text, with the speaker's `Name: ` at each change of speaker, a longer text cut at a word boundary and ending in an ellipsis), so the note can be re-located after a re-derivation. |
+| `archive_reason` | Optional, ≤ 500 chars: why the comment was archived. Given only with `archived: true`; restoring clears it. |
 
-Editable (note only, keeping revisions), archivable.
+Editable (text only, keeping revisions), archivable. `sources.annotate` refuses a segment range
+with `422 invalid_input`, saying a comment is on the whole source.
 
-**Agent notes** are an agent's own reading aids for a source: one `summary`, one `outline` and one
-`notes` document per source, Markdown up to 100,000 chars, written with `derived.write_note` and
-read with `derived.read_note`. They are an agent's interpretation, not the source's words, and are
-labelled so.
+A source also has at most one **summary** and one set of **notes**, each Markdown up to 100,000
+chars, written with `derived.write_note` (`note_kind` `summary` or `notes`; empty content removes
+it) and read with `derived.read_note`. People write and edit both in the web app, and agents
+through the same operations; each records who wrote it last and when.
+
+- The **summary** heads the source's page and is written for people: a few short sentences saying
+  what the source is and what it tells the team, without ids, segment numbers or codes.
+- The **notes** are freeform: whatever is worth keeping about the source that is not its words,
+  structured as the writer likes. Agents keep their working knowledge of a source there.
+
+Both are someone's reading of the source, not its words. There is no outline: migration
+`0029_simplify_source_details.sql` deleted the agent outlines a product held, and dropped the
+comments' segment ranges and anchors, keeping their text.
 
 ## 4.7 Evidence links
 
@@ -260,8 +267,8 @@ or writes them. Each one a product still held becomes a source with the same id,
 
 | Was | Becomes |
 |---|---|
-| An insight | A source tagged `analysis` and `insight` (and `draft` for a draft), `provenance_depth: derived`, archived if it was. Its primary file is Markdown: the title, summary and body, then a note of its status, review mark, authors and what it referred to. Each earlier revision is an earlier file version; the summary is the source's summary note. |
-| A decision | A source tagged `decision` and with the entry's tags and provenance. Its Markdown holds the statement, the body (which holds the passages it cited, §4.8), the status, the outcomes, the links in and out, and every review. Earlier revisions are earlier file versions. |
+| An insight | A source tagged `analysis` and `insight` (and `draft` for a draft), archived if it was. Its primary file is Markdown: the title, summary and body, then a note of its status, review mark, authors and what it referred to. Each earlier revision is an earlier file version; the summary is the source's summary note. |
+| A decision | A source tagged `decision` and with the entry's tags. Its Markdown holds the statement, the body (which holds the passages it cited, §4.8), the status, the outcomes, the links in and out, and every review. Earlier revisions are earlier file versions. |
 
 An assumption's link to a decision is dropped (the decision's document names it), and the item's
 history in the activity log becomes the source's.
@@ -279,7 +286,7 @@ incomplete. An entry's id is `id` (the tool also accepts `assumption_id`,
 | `body` | Markdown, 0–10,000 chars: why the team holds it, what it rests on, and what would change if it turned out false. An entry may be recorded before any evidence exists. |
 | `outcome_ids` | ≤ 20 outcome ids. |
 | `links` | ≤ 50 of `{ id, type }` to other assumptions; `type` is `supports`, `contradicts`, or `supersedes`. Reads also return `linked_from` and `superseded_by` (the ids of entries that supersede this one, newest first). |
-| `tags`, `provenance_depth` | As sources. |
+| `tags` | As sources. |
 | `author`, `author_type` | Actor snapshot, and a declared `human` or `agent` ([§3.9](03-accounts-teams-and-identity.md)). |
 | `status` | `unconfirmed` (initial), `confirmed`, `refuted`, `superseded`: always the status of the latest review. |
 | `reviews` | Append-only, at most 500 per entry. |
@@ -846,8 +853,8 @@ README.txt
 outcomes.json
 records/<record_id>/record.json                  the source with its files and versions
 records/<record_id>/files/<file_version_id>/<path>
-records/<record_id>/derived/<derivation_id>/{segments.jsonl,text.md,outline.md,manifest.json}
-records/<record_id>/annotations.json · agent-notes/<kind>.md
+records/<record_id>/derived/<derivation_id>/{segments.jsonl,text.md,manifest.json}
+records/<record_id>/annotations.json · agent-notes/{summary,notes}.md
 assumptions.json            with their reviews
 revisions.json
 story/hierarchy.json  ·  story/pages/<page_id>/page.json  ·  story/pages/<page_id>/v<n>.{json,html}

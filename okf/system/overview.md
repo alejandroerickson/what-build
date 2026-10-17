@@ -58,7 +58,7 @@ Google Cloud Storage behind a storage port; the official MCP SDK (stateless Stre
 React 19, React Router 7, TanStack Query 5, Vite 7; Vitest. Details in
 [architecture](../spec/02-architecture.md).
 
-**Operations.** 121 operations, each defined once and exposed through both REST and MCP, but for
+**Operations.** 120 operations, each defined once and exposed through both REST and MCP, but for
 deleting an organization, which only its owner does, in the web app
 ([decision](../decisions/one-registry-two-front-doors.md)).
 
@@ -115,7 +115,7 @@ text with the scope echoed.
 the upload relay registers the file as they arrive (`complete_upload` does, after a PUT straight to
 the bucket) → a parse job is queued → the worker parses the primary file,
 in a thread of its own held to a memory and a time limit, into an immutable derivation
-(`segments.jsonl`, `text.md`, `outline.md`, `manifest.json`) → passages are indexed in the same
+(`segments.jsonl`, `text.md`, `manifest.json`) → passages are indexed in the same
 transaction that makes them current ([derived layer](../spec/05-derived-layer.md),
 [decision](../decisions/only-the-primary-file-is-searched.md),
 [decision](../decisions/each-file-is-parsed-in-a-thread-of-its-own-with-memory-and-time-limits.md)).
@@ -130,7 +130,7 @@ store, `story publish` the same call, update the notes, `set_hierarchy`
 ([decision](../decisions/story-notes-are-agent-memory.md),
 [decision](../decisions/a-story-preview-is-the-document-publish-would-store.md)).
 
-**Data.** Identity, tenancy, evidence (records, files, derivations, segments, annotations, agent
-notes), synthesis (outcomes, revisions, assumptions, reviews), mockups (versions,
+**Data.** Identity, tenancy, evidence (records, files, derivations, segments, comments, summaries
+and notes), synthesis (outcomes, revisions, assumptions, reviews), mockups (versions,
 their pages and their files), Story (pages, versions, hierarchy) and operations (activity, jobs, exports, tombstones). Every table and
 field: [data model](../spec/04-data-model.md).

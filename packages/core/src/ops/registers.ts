@@ -5,7 +5,7 @@ import { json, type RegisterEntriesTable, type RegisterLink } from "../db.ts";
 import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, dropRevisions, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
 import { conflict, invalid, notFound } from "../errors.ts";
 import { defineOperation, type OpContext, type OperationDef } from "../registry.ts";
-import { authorType, expectedEtag, id, provenanceDepth, tags } from "../schemas.ts";
+import { authorType, expectedEtag, id, tags } from "../schemas.ts";
 import { applyEdits, editsInput, textDiff } from "../text-edits.ts";
 import { newEtag, newId, uniq } from "../util.ts";
 import { archivedOutcomeIds } from "./outcomes.ts";
@@ -98,7 +98,6 @@ async function detail(ctx: OpContext, row: Row) {
     outcome_ids: row.outcome_ids,
     archived_outcome_ids: row.outcome_ids.filter((o) => archivedOutcomes.has(o)),
     tags: row.tags,
-    provenance_depth: row.provenance_depth,
     author: row.author,
     author_type: row.author_type,
     reviews: reviews.map((r) => ({ status: r.status, note: r.note, reviewer: r.reviewer, reviewer_type: r.reviewer_type, confidence: r.confidence, created_at: r.created_at })),
@@ -176,7 +175,6 @@ function registerOps(): OperationDef[] {
     outcome_ids: z.array(id("outcome")).max(20).optional(),
     links: z.array(linkInput).max(50).optional(),
     tags: tags.optional(),
-    provenance_depth: provenanceDepth.optional(),
     author_type: authorType.optional(),
   };
 
@@ -197,7 +195,7 @@ function registerOps(): OperationDef[] {
       .insertInto("register_entries")
       .values({
         entry_id, tenant_id: tenantId(ctx), product_id: productId(ctx), kind, statement: input.statement, body: input.body,
-        links: json(links), outcome_ids: uniq(input.outcome_ids ?? []), tags: normalizeTags(input.tags), provenance_depth: input.provenance_depth ?? "unknown",
+        links: json(links), outcome_ids: uniq(input.outcome_ids ?? []), tags: normalizeTags(input.tags),
         author: json(ctx.actor), author_type: input.author_type ?? defaultReviewerType(ctx), status: "unconfirmed",
         etag: newEtag(), updated_by: json(ctx.actor),
       })
@@ -218,7 +216,6 @@ function registerOps(): OperationDef[] {
       outcome_id: id("outcome").optional(),
       tag: z.string().max(50).optional(),
       human_confidence: z.enum(["unreviewed", "low", "medium", "high"]).optional(),
-      provenance_depth: provenanceDepth.optional(),
       query: z.string().max(500).optional(),
       include_archived: z.boolean().default(false),
       limit: z.number().int().min(1).max(100).default(25),
@@ -231,7 +228,6 @@ function registerOps(): OperationDef[] {
       if (!input.include_archived) q = q.where("archived_at", "is", null);
       if (input.outcome_id) q = q.where(sql<boolean>`${input.outcome_id} = any(outcome_ids)`);
       if (input.tag) q = q.where(sql<boolean>`${normalizeTags([input.tag])[0]!} = any(tags)`);
-      if (input.provenance_depth) q = q.where("provenance_depth", "=", input.provenance_depth);
       if (input.query) q = q.where(sql<boolean>`(statement ilike ${"%" + input.query + "%"} or body ilike ${"%" + input.query + "%"})`);
       if (input.human_confidence) {
         const latest = sql`(select r.confidence from reviews r where r.entry_id = register_entries.entry_id and r.reviewer_type = 'human' and r.confidence is not null order by r.review_id desc limit 1)`;
@@ -249,7 +245,7 @@ function registerOps(): OperationDef[] {
       for (const r of page)
         items.push({
           id: r.entry_id, kind: r.kind, statement: r.statement, status: r.status, author: r.author, author_type: r.author_type,
-          created_at: r.created_at, updated_at: r.updated_at, provenance_depth: r.provenance_depth, tags: r.tags,
+          created_at: r.created_at, updated_at: r.updated_at, tags: r.tags,
           outcome_ids: r.outcome_ids, archived_outcome_ids: r.outcome_ids.filter((o) => archivedOutcomes.has(o)),
           frozen: r.review_count > 0, superseded_by: incoming.get(r.entry_id)!.superseded_by,
           link_count: r.links.length, linked_from_count: incoming.get(r.entry_id)!.linked_from,
@@ -319,7 +315,6 @@ function registerOps(): OperationDef[] {
       outcome_ids: createFields.outcome_ids,
       links: createFields.links,
       tags: createFields.tags,
-      provenance_depth: createFields.provenance_depth,
     }),
     rest: { method: "PATCH", path: `/${tool}/:id` },
     mcp: { tool, action: "update" },
@@ -348,7 +343,6 @@ function registerOps(): OperationDef[] {
           links: json(links),
           outcome_ids: input.outcome_ids ? uniq(input.outcome_ids) : row.outcome_ids,
           tags: input.tags ? normalizeTags(input.tags) : row.tags,
-          provenance_depth: input.provenance_depth ?? row.provenance_depth,
           etag: newEtag(),
           updated_at: ctx.now,
           updated_by: json(ctx.actor),
@@ -359,7 +353,7 @@ function registerOps(): OperationDef[] {
       const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
       const changed = [
         ...(["statement", "body"] as const).filter((k) => next[k] !== row[k]),
-        ...(["links", "outcome_ids", "tags", "provenance_depth"] as const).filter((k) => !same(after[k], row[k])),
+        ...(["links", "outcome_ids", "tags"] as const).filter((k) => !same(after[k], row[k])),
       ];
       const diff = (["statement", "body"] as const).filter((k) => next[k] !== row[k]).map((k) => textDiff(k, row[k], next[k])!);
       await recordActivity(ctx, { action: "updated", entity_type: kind, entity_id: row.entry_id, entity_title: next.statement, summary: changed.length ? `Changed ${changed.join(", ")}` : "Edited the entry" });

@@ -7,7 +7,7 @@ import { useProduct } from "../lib/session.tsx";
 import { ROLE_LABEL } from "../lib/status.ts";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
-  Button, ButtonLink, Callout, EmptyState, ErrorCallout, FormGrid, Glyph, IconButton, KeyValue, PageHeader, SelectField, Sheet, SheetBody, SheetHeader,
+  Button, ButtonLink, Callout, EmptyState, ErrorCallout, FormGrid, Glyph, IconButton, KeyValue, PageHeader, Sheet, SheetBody, SheetHeader,
   StatusBadge, TextField,
 } from "../ui/index.tsx";
 import { splitTags, TagSuggestions } from "./evidence.tsx";
@@ -105,7 +105,7 @@ function FileRow({ item, onRemove, status }: { item: Item; onRemove?: () => void
   );
 }
 
-const STEPS = ["Describe it", "Add files", "Create"];
+const STEPS = ["Describe it", "Add attachments", "Create"];
 
 export function SourceNewPage() {
   const { api: base, app, canWrite } = useProduct();
@@ -116,9 +116,6 @@ export function SourceNewPage() {
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [tags, setTags] = useState("");
-  const [participants, setParticipants] = useState("");
-  const [sourceSystem, setSourceSystem] = useState("");
-  const [provenance, setProvenance] = useState("unknown");
   const [touched, setTouched] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
   const [recordId, setRecordId] = useState<string | null>(null);
@@ -134,9 +131,6 @@ export function SourceNewPage() {
           title: title.trim(),
           date: date || null,
           tags: splitTags(tags),
-          participants: splitTags(participants),
-          source_system: sourceSystem.trim() || null,
-          provenance_depth: provenance,
         });
         rid = r.record_id;
         setRecordId(rid);
@@ -189,8 +183,8 @@ export function SourceNewPage() {
           <DescribeForm
             touched={touched}
             errors={errors}
-            fields={{ title, date, tags, participants, sourceSystem, provenance }}
-            set={{ title: setTitle, date: setDate, tags: setTags, participants: setParticipants, sourceSystem: setSourceSystem, provenance: setProvenance }}
+            fields={{ title, date, tags }}
+            set={{ title: setTitle, date: setDate, tags: setTags }}
           />
           <div className="intake-foot">
             <span className="intake-foot-note" />
@@ -214,7 +208,7 @@ export function SourceNewPage() {
 
       {step === 1 ? (
         <Sheet as="section" labelledBy="intake-h" className="intake-sheet">
-          <SheetHeader id="intake-h" title="Add files" end={<span className="faint small">Optional. You can add them later.</span>} />
+          <SheetHeader id="intake-h" title="Add attachments" end={<span className="faint small">Optional. You can add them later.</span>} />
           <div className="intake-files">
             {primary ? (
               <ul className="intake-file-list">
@@ -247,10 +241,10 @@ export function SourceNewPage() {
             ) : null}
           </div>
           <div className="intake-foot">
-            <span className="intake-foot-note">{items.length ? plural(items.length, "file") + ", " + formatBytes(total) : "No files yet."}</span>
+            <span className="intake-foot-note">{items.length ? plural(items.length, "attachment") + ", " + formatBytes(total) : "No attachments yet."}</span>
             <Button onClick={() => setStep(0)}>Back</Button>
             <Button variant="primary" onClick={() => setStep(2)}>
-              {items.length ? "Continue" : "Continue without a file"}
+              {items.length ? "Continue" : "Continue without attachments"}
             </Button>
           </div>
         </Sheet>
@@ -276,7 +270,7 @@ export function SourceNewPage() {
             </ul>
           ) : (
             <SheetBody>
-              <p className="muted">No files yet.</p>
+              <p className="muted">No attachments yet.</p>
             </SheetBody>
           )}
           {run.isPending && total ? (
@@ -320,7 +314,7 @@ export function SourceNewPage() {
   );
 }
 
-type Fields = { title: string; date: string; tags: string; participants: string; sourceSystem: string; provenance: string };
+type Fields = { title: string; date: string; tags: string };
 
 function DescribeForm({ touched, errors, fields: v, set }: {
   touched: boolean;
@@ -328,7 +322,6 @@ function DescribeForm({ touched, errors, fields: v, set }: {
   fields: Fields;
   set: { [K in keyof Fields]: (value: string) => void };
 }) {
-  const [more, setMore] = useState(Boolean(v.participants || v.sourceSystem || v.provenance !== "unknown"));
   return (
     <div className="intake-describe">
       <FormGrid>
@@ -336,26 +329,7 @@ function DescribeForm({ touched, errors, fields: v, set }: {
         <TextField label="Date captured" type="date" hint="When the meeting happened or the document is dated, not today." optional value={v.date} onChange={(e) => set.date(e.target.value)} />
         <TextField label="Tags" optional hint="Comma-separated: what it is, whom it concerns, what it bears on." value={v.tags} onChange={(e) => set.tags(e.target.value)} />
         <TagSuggestions value={v.tags} onChange={set.tags} />
-        {more ? (
-          <>
-            <TextField label="Participants" optional hint="Comma-separated names or roles." value={v.participants} onChange={(e) => set.participants(e.target.value)} />
-            <TextField label="Where it came from" optional hint="For example, a meeting tool or a wiki." value={v.sourceSystem} onChange={(e) => set.sourceSystem(e.target.value)} />
-            <SelectField label="Relationship to the evidence" value={v.provenance} onChange={(e) => set.provenance(e.target.value)}>
-              <option value="unknown">Not specified</option>
-              <option value="primary">Primary source</option>
-              <option value="derived">Derived material</option>
-              <option value="analysis_of_analysis">Analysis of analysis</option>
-            </SelectField>
-          </>
-        ) : null}
       </FormGrid>
-      {!more ? (
-        <div className="intake-more">
-          <Button size="sm" variant="quiet" icon="plus" onClick={() => setMore(true)}>
-            Participants, origin and relationship
-          </Button>
-        </div>
-      ) : null}
     </div>
   );
 }

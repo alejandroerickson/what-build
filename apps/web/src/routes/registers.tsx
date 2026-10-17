@@ -6,7 +6,7 @@ import { attribution, plural, relativeTime } from "../lib/format.ts";
 import { findByTitle } from "../lib/fuzzy.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
-import { PROVENANCE_LABEL, REVIEW_STATUS } from "../lib/status.ts";
+import { REVIEW_STATUS } from "../lib/status.ts";
 import type { RegisterEntry, RegisterSummary } from "../lib/types.ts";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
@@ -329,8 +329,6 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
               {e.author_type === "agent" ? "Drafted by" : "Recorded by"} <Byline actor={e.author} agent={e.author_type === "agent"} />
               <time dateTime={e.created_at}>· {relativeTime(e.created_at)}</time>
             </span>
-            <span className="sep-dot" aria-hidden="true" />
-            <span>{PROVENANCE_LABEL[e.provenance_depth] ?? e.provenance_depth}</span>
             {e.frozen ? (
               <>
                 <span className="sep-dot" aria-hidden="true" />

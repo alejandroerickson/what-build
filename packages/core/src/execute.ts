@@ -38,12 +38,22 @@ const RETIRED_DIMENSION_FIELDS = new Set(["dimensions", "customer", "product_are
 const RETIRED_DIMENSION_HINT =
   " Sources and assumptions have no dimensions (customer, product area, lifecycle stage) any more: say whom the material concerns and what it bears on with tags, and filter by tags.";
 
+/** Participants, where a source came from, and provenance, which sources and assumptions no longer have. */
+const RETIRED_DETAIL_FIELDS = new Set(["participants", "source_system", "provenance_depth"]);
+const RETIRED_DETAIL_HINT =
+  " Sources have no participants, source system or provenance, and assumptions no provenance, any more: a source is described by its title, date and tags, and anything else worth keeping goes in its notes.";
+
 /** A hint for fields the call named that this operation does not take: ones sources no longer have, or a neighbouring operation's. */
 function retiredFieldHint(op: OperationDef, error: z.ZodError): string {
   const unknown = error.issues.filter((i) => i.code === "unrecognized_keys").flatMap((i) => (i as { keys: string[] }).keys);
   const retired = ["sources", "files", "search"].includes(op.mcp.tool) && unknown.some((k) => RETIRED_SOURCE_FIELDS.has(k));
   const dimensions = ["sources", "files", "search", "assumptions"].includes(op.mcp.tool) && unknown.some((k) => RETIRED_DIMENSION_FIELDS.has(k));
-  return (retired ? RETIRED_SOURCE_HINT : "") + (dimensions ? RETIRED_DIMENSION_HINT : "") + wrongFieldHint(op, unknown);
+  const details = ["sources", "files", "search", "assumptions"].includes(op.mcp.tool) && unknown.some((k) => RETIRED_DETAIL_FIELDS.has(k));
+  const anchored = op.name === "sources.annotate" && unknown.some((k) => k === "seq_start" || k === "seq_end");
+  return (
+    (retired ? RETIRED_SOURCE_HINT : "") + (dimensions ? RETIRED_DIMENSION_HINT : "") + (details ? RETIRED_DETAIL_HINT : "") +
+    (anchored ? " A comment is on the whole source: it takes no segment range." : "") + wrongFieldHint(op, unknown)
+  );
 }
 
 export function parseInput<I extends z.ZodType>(op: OperationDef<I>, raw: unknown): z.output<I> {

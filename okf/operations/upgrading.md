@@ -23,7 +23,23 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Migration `0029_simplify_source_details`.** It drops `participants`, `source_system` and
+  `provenance_depth` from `records`, `provenance_depth` from `register_entries`, and `seq_start`,
+  `seq_end` and `anchor` from `annotations`, deletes every agent outline (`agent_notes` of kind
+  `outline`), and does the same to saved sandbox baselines. The values are deleted, not moved
+  anywhere; comments keep their text. Rehearse on the dev deployment first
+  ([dev-deployment](dev-deployment.md)). An earlier release cannot add a source, an assumption or
+  a comment on the new schema, so going back past this one means restoring the database
+  ([recovering](recovering-from-a-bad-release.md)).
+- **A source's page is simpler.** Nothing to set. People see a source's tags and its three dates,
+  and no participants, origin or provenance; a summary under the title that editors can write and
+  edit; Notes, Comments and Attachments sections, where Files was; comments on the whole source,
+  not on passages; and no outline.
+- **Agents can no longer send participants, a source system, provenance or a comment range.** A
+  call that does is refused with `422` and a hint. `derived(action="outline")` is gone (120 operations),
+  and `write_note` and `read_note` take `summary` or `notes`. **The skill is 0.30.0**: it tells
+  agents the summary is written for people and what belongs in notes. Connected agents are asked
+  to update it, and need a new session for the shorter list of `derived` actions.
 
 ## v0.13.0
 

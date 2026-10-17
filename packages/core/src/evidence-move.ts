@@ -102,14 +102,14 @@ export async function runEvidenceMove(db: Tx, ports: Ports, job: { tenant_id: st
   const today = day(new Date().toISOString());
 
   const insertRecord = async (v: {
-    record_id: string; title: string; tags: string[]; provenance_depth: string;
+    record_id: string; title: string; tags: string[];
     archived: { at: string; by: ActorSnapshot } | null; uploaded: { at: string; by: ActorSnapshot }; updated: { at: string; by: ActorSnapshot };
   }) => {
     await db
       .insertInto("records")
       .values({
         record_id: v.record_id, tenant_id: job.tenant_id, team_id: product.team_id, product_id: pid, title: v.title, date: null,
-        participants: [], source_system: "WhatBuild", tags: v.tags, provenance_depth: v.provenance_depth, slug: slugify(v.title), copied_from: json(null),
+        tags: v.tags, slug: slugify(v.title), copied_from: json(null),
         current_derivation_id: null, archived_at: v.archived?.at ?? null, archived_by: v.archived ? json(v.archived.by) : json(null), etag: newEtag(),
         uploaded_at: v.uploaded.at, uploaded_by: json(v.uploaded.by), updated_at: v.updated.at, updated_by: json(v.updated.by),
       })
@@ -145,7 +145,6 @@ export async function runEvidenceMove(db: Tx, ports: Ports, job: { tenant_id: st
     ];
     await insertRecord({
       record_id: i.insight_id, title: i.title, tags: i.status === "draft" ? ["analysis", "insight", "draft"] : ["analysis", "insight"],
-      provenance_depth: "derived",
       archived: i.status === "archived" ? { at: i.updated_at, by: i.updated_by } : null, uploaded: { at: i.created_at, by: i.created_by }, updated: { at: i.updated_at, by: i.updated_by },
     });
     await writeFile(db, ports, job.tenant_id, i.insight_id, `${slugify(i.title)}.md`, versions);
@@ -181,7 +180,6 @@ export async function runEvidenceMove(db: Tx, ports: Ports, job: { tenant_id: st
     ];
     await insertRecord({
       record_id: d.entry_id, title: collapse(d.statement, 300), tags: uniq(["decision", ...d.tags]),
-      provenance_depth: d.provenance_depth,
       archived: d.archived_at ? { at: d.archived_at, by: d.updated_by } : null, uploaded: { at: d.created_at, by: d.author }, updated: { at: d.updated_at, by: d.updated_by },
     });
     await writeFile(db, ports, job.tenant_id, d.entry_id, `${slugify(d.statement)}.md`, versions);

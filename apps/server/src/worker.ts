@@ -5,6 +5,7 @@ import {
 import { sql } from "kysely";
 import { pruneOAuthClients } from "./auth/oauth.ts";
 
+/** A derivation's blobs; ones made before outlines were dropped also have an outline.md, released with the rest. */
 const SIDECARS = ["segments.jsonl", "text.md", "outline.md", "manifest.json"];
 /** A job is tried at most this many times, whether it failed or the process stopped while running it. */
 const MAX_ATTEMPTS = 5;

@@ -74,17 +74,12 @@ Captions: machine generated, checked by the interviewer
 The transcript attached to this source (interview.vtt) was produced from this recording.
 `;
 
-/** What an agent wrote about the Greenline call: the source's description, outline and working notes. */
+/** What an agent wrote about the Greenline call: the source's summary and working notes. */
 export const INTERVIEW_AGENT_NOTES = {
   summary:
     "A two-minute call with Marisol, who leads crews at Greenline Landscaping. She plans next week every Friday afternoon from a spreadsheet, " +
     "starting from the jobs rather than the calendar. The costly step is the hand-off: she types each crew lead's jobs and addresses into a text by hand, " +
     "and a wrong address reaches a crew about once a week. Who can lead a crew lives only in her head, so planning stops when she is away.",
-  outline: `- ¶1–3: how next week gets planned, and how long it takes (two to three hours)
-- ¶4–5: what makes a week "weird": people, and knowledge only she holds
-- ¶6–7: jobs first, calendar last
-- ¶8–10: the hand-off texts, where the mistakes happen, and what they cost
-`,
   notes: `## Worth following up
 
 - Ask for one of the typed hand-off messages, redacted, to see its exact shape.

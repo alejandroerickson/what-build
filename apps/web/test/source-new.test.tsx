@@ -69,7 +69,7 @@ describe("adding a source in the app", () => {
     });
     await act(async () => type(host.querySelector("input")!, "Workshop notes"));
     await act(async () => button(host, "Continue").click());
-    await act(async () => button(host, "Continue without a file").click());
+    await act(async () => button(host, "Continue without attachments").click());
     await act(async () => button(host, "Create source").click());
     expect(calls).toContainEqual({ method: "POST", path: "/api/v1/products/p/sources" });
     expect(host.querySelector("output")?.textContent).toBe("/t/acme/core/app/evidence/rec_1");

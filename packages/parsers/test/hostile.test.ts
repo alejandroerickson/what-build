@@ -408,17 +408,17 @@ describe("files that would make too much", () => {
     }
   });
 
-  it("outlines a file of very many headings without overflowing the stack", async () => {
+  it("parses a file of very many headings quickly", async () => {
     const { r, ms } = await measured(utf8("# a\n".repeat(150_000)), "headings.md");
     expect(r.status).toBe("ready");
-    expect(r.outline.split("\n").filter(Boolean)).toHaveLength(150_000);
+    expect(r.segments.filter((s) => s.heading_level)).toHaveLength(150_000);
     expect(ms).toBeLessThan(3000);
   });
 
   it("writes a parse as its sidecars and reads its passages back as they were", async () => {
     const r = await derive(utf8("# Notes 😀\n\nCrews text the office.\n\nA lone \ud83d half and 𝔘nicode.\n"), "notes.md");
     const stored = toParsedFile(r);
-    expect(stored).toMatchObject({ status: "ready", segment_count: r.segments.length, char_count: Array.from(r.text).length, outline: r.outline });
+    expect(stored).toMatchObject({ status: "ready", segment_count: r.segments.length, char_count: Array.from(r.text).length });
     expect(new TextDecoder().decode(stored.text_md)).toBe(new TextDecoder().decode(new TextEncoder().encode(r.text)));
     expect(new TextDecoder().decode(stored.segments_jsonl)).toBe(r.segments.map((x) => JSON.stringify(x) + "\n").join(""));
     const batches = [...readSegments(stored.segments_jsonl, 2)];

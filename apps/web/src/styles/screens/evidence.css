@@ -148,12 +148,17 @@
   color: var(--faint);
   font-size: var(--fs-sm);
 }
-.source-summary-toggle {
+.source-summary-toggle,
+.source-summary-edit {
   min-height: var(--h-sm);
   padding: 0;
   border: 0;
   background: none;
   font-size: var(--fs-sm);
+}
+/* With no summary yet, an editor sees only the button that writes one. */
+.source-description-empty {
+  margin-left: calc(var(--crumb-inset) - var(--s-2));
 }
 .source-sections {
   margin: 0 0 var(--s-3);
@@ -178,34 +183,6 @@
 }
 .source-when small {
   color: var(--faint);
-  font-size: var(--fs-xs);
-}
-.source-file-summary {
-  display: grid;
-  gap: var(--s-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.source-file-summary li {
-  display: grid;
-  grid-template-columns: var(--icon-md) minmax(0, 1fr);
-  gap: var(--s-2);
-  align-items: baseline;
-}
-.source-file-summary .glyph {
-  position: relative;
-  top: 2px;
-  color: var(--faint);
-}
-.source-file-summary li > span {
-  display: grid;
-  min-width: 0;
-}
-.source-file-summary b {
-  font-weight: var(--fw-medium);
-}
-.source-file-summary li > span > span {
   font-size: var(--fs-xs);
 }
 .source-inspector-note {
@@ -435,55 +412,19 @@
 }
 
 /* Notes */
-.source-agent-note {
+.source-notes {
   padding: var(--s-3h) var(--sheet-px);
-  border-bottom: 1px solid var(--line);
 }
-.source-agent-note:last-child {
-  border-bottom: 0;
+.source-notes .prose {
+  max-width: var(--measure);
 }
-.source-agent-note h3 {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--s-1) var(--s-2);
-  margin: 0 0 var(--s-2);
-  font-size: var(--fs-md);
-  font-weight: var(--fw-semibold);
+.source-notes .prose > :first-child {
+  margin-top: 0;
 }
-.source-agent-note h3 .faint {
+.source-notes-by {
+  margin: var(--s-3) 0 0;
+  color: var(--faint);
   font-size: var(--fs-sm);
-  font-weight: var(--fw-regular);
-}
-.source-agent-note .prose {
-  max-width: var(--measure);
-}
-.source-outline {
-  max-height: 384px;
-  overflow-y: auto;
-}
-.source-outline-list {
-  max-width: var(--measure);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.source-outline-link {
-  display: flex;
-  align-items: baseline;
-  gap: var(--s-2);
-  padding: 3px var(--s-1h);
-  border-radius: var(--r-xs);
-  color: var(--text);
-  font-size: var(--fs-body);
-  line-height: var(--lh-body);
-  text-decoration: none;
-}
-.source-outline-link:hover {
-  background: var(--hover);
-}
-.source-outline-link:focus-visible {
-  outline-offset: -2px;
 }
 .source-comments {
   margin: 0;
@@ -677,10 +618,6 @@
   color: var(--select-text);
   font-weight: var(--fw-semibold);
 }
-/* A comment on a range tints every passage it covers, in the comment cards' own fill. */
-.passage-commented:not(.passage-selected, .passage-target) {
-  background: color-mix(in srgb, var(--hover) 65%, var(--panel));
-}
 /* Consecutive table-row passages line up as a small table; each row stays its own passage. */
 .passage-row {
   padding-top: 0;
@@ -724,22 +661,9 @@
 .passage-mentions .evidence-link {
   font-variant-numeric: tabular-nums;
 }
-.passage-comments {
-  display: grid;
-  gap: var(--s-1h);
-  margin: var(--s-1) 0 var(--s-1h);
-  padding: 0;
-  list-style: none;
-}
 .comment {
   display: grid;
   gap: var(--s-1);
-}
-.passage-comments .comment {
-  max-width: var(--measure);
-  padding: var(--s-2) var(--s-2h);
-  border-radius: var(--r-sm);
-  background: var(--hover);
 }
 .comment-meta {
   display: flex;
@@ -874,9 +798,6 @@
 .intake-describe {
   padding: var(--s-3h) var(--sheet-px);
 }
-.intake-more {
-  margin: var(--s-2) 0 0 calc(var(--col-label) + var(--s-4) - var(--s-2));
-}
 .intake-files {
   display: grid;
   gap: var(--s-2);
@@ -1010,9 +931,6 @@
   .intake-drop .btn {
     grid-column: 2;
     justify-self: start;
-  }
-  .intake-more {
-    margin-left: 0;
   }
   .selection-bar {
     bottom: var(--s-2);

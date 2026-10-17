@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every source's primary file is parsed into immutable, passage-addressable text that any client can read by segment or time.
-description: Derivations and when they run, the four sidecars, derivation statuses, the parsers by format, the read_passage contract, and the other derived reads.
+description: Derivations and when they run, the three sidecars, derivation statuses, the parsers by format, the read_passage contract, and the other derived reads.
 tags: [spec, derived-layer, parsers, passages, sidecars]
 generated: {by: agent:claude, at: 2026-10-16}
 status: stable
@@ -53,7 +53,7 @@ returns a passage `read_passage` cannot serve.
 
 ## 5.2 Sidecars
 
-Each derivation consists of four sidecars, stored as immutable blobs under
+Each derivation consists of three sidecars, stored as immutable blobs under
 `t/<tenant_id>/r/<record_id>/d/<derivation_id>/` ([§4.15](04-data-model.md)).
 
 ### `segments.jsonl`
@@ -101,12 +101,6 @@ with one newline.
   empty header cell anywhere after the first, has no usable header, and its rows' cells are joined
   with ` | `.
 
-### `outline.md`
-
-Document headings with the segment each starts at, or, for timed sources, speaker turns with time
-ranges and segment ranges. Small enough to read whole; it is how a person or an agent decides
-where to look.
-
 ### `manifest.json`
 
 ```json
@@ -152,7 +146,7 @@ extension ([`packages/parsers/src/index.ts`](../../packages/parsers/src/index.ts
 
 | Format | Notes |
 |---|---|
-| Plain text (`.txt`, `.text`) | Paragraphs split on blank lines; ATX headings become heading segments and feed the outline; each list item (`-`, `*`, `+`, `1.`) and each pipe-table row is its own segment. A transcript is read one turn per segment with its speaker (below). |
+| Plain text (`.txt`, `.text`) | Paragraphs split on blank lines; ATX headings become heading segments; each list item (`-`, `*`, `+`, `1.`) and each pipe-table row is its own segment. A transcript is read one turn per segment with its speaker (below). |
 | Markdown (`.md`, `.markdown`) | Everything plain text does, plus setext headings; blockquote markers and thematic breaks dropped; inline emphasis and code markers (`**`, `__`, `*`, `_`, backticks) stripped where they are clearly markup, never inside words or code spans. `**Name:** words` is a speaker turn, and `**Name** (14:02 UTC):` on a line of its own a timed label (below). |
 | WebVTT, SRT | Cue timing; speakers from `<v Name>` voice tags and from `Name:` prefixes; caption markup stripped. |
 | DOCX | Headings (a Title above Heading 1), paragraphs, tables, the accepted view of tracked changes, comments. A paragraph in a decimal Word list (numbered directly or by its style) starts with its number as Word counts it (`2.`, `1.1.`); bullets and other number formats (letters, roman numerals) get no marker. `Name: words` paragraphs, including a bold `Name:` run, are speaker turns in a transcript (below). |
@@ -242,7 +236,7 @@ warning asks whether `unit: "seq"` was meant. It is never a silent empty success
 
 ## 5.5 Other derived reads
 
-- `derived.manifest`, `derived.outline`: whole.
+- `derived.manifest`: whole.
 - `derived.text`: a window of `text.md` by code-point `offset` and `limit` (≤ 20,000), with
   `truncated` and `total_chars`.
 - `derived.list`: a source's derivations, newest first.

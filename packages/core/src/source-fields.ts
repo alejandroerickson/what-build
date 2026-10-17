@@ -3,7 +3,6 @@
  * tags: there is no list of kinds.
  */
 
-export const PROVENANCE_DEPTHS = ["primary", "derived", "analysis_of_analysis", "unknown"] as const;
 export const FILE_ROLES = ["primary", "origin", "supplement"] as const;
 
 /** The sentence repeated wherever files are added or listed. */

@@ -25,7 +25,6 @@ search {
   mode?:     "substring" (default) | "ranked" | "plain"
   scope?:    "passages" (default) | "assumptions" | "all"
   record_id?, date_from?, date_to?, tags[]?,          // passage filters
-  provenance_depth?,
   include_archived? (false), limit? (50, at most 200), cursor?
   kind?, strict? (false)                              // plain mode only
 }
@@ -40,8 +39,8 @@ or `kind` or `strict` in another mode, is `422 invalid_filter`.
   and a source must carry every tag given. Combining them with `scope: "assumptions"` is
   `422 invalid_filter`. `record_id` keeps the search to that source's passages, so with it no
   assumption is searched. Sources have no kind, organization or folder to filter by, and sources
-  and assumptions have no dimensions (`customer`, `product_area`, `lifecycle_stage`)
-  ([§4.4](04-data-model.md)); naming one is `422 invalid_input`.
+  and assumptions have no dimensions (`customer`, `product_area`, `lifecycle_stage`) or
+  `provenance_depth` ([§4.4](04-data-model.md)); naming one is `422 invalid_input`.
 - Passage hits: `{ record_id, seq, start_ms, end_ms, speaker, snippet, char_start, char_end,
   score? }`, with each source's `title`, `date`, `tags` and `archived_at` sent once in
   `records`. A hit's `record_id` and `seq` are directly usable with `read_passage`

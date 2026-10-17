@@ -265,10 +265,7 @@ export interface RecordsTable {
   product_id: string;
   title: string;
   date: string | null;
-  participants: string[];
-  source_system: string | null;
   tags: string[];
-  provenance_depth: string;
   slug: string;
   copied_from: JsonNull<{ product_id: string; record_id: string }>;
   current_derivation_id: string | null;
@@ -403,11 +400,8 @@ export interface AnnotationsTable {
   tenant_id: string;
   product_id: string;
   record_id: string;
-  seq_start: number | null;
-  seq_end: number | null;
   note: string;
   tags: string[];
-  anchor: JsonNull<Record<string, unknown>>;
   archived_at: TsNull;
   archive_reason: ColumnType<string | null, string | null | undefined, string | null>;
   etag: string;
@@ -419,7 +413,7 @@ export interface AnnotationsTable {
 
 export interface AgentNotesTable {
   record_id: string;
-  kind: "summary" | "outline" | "notes";
+  kind: "summary" | "notes";
   tenant_id: string;
   content: string;
   updated_at: Ts;
@@ -490,7 +484,6 @@ export interface RegisterEntriesTable {
   links: Json<RegisterLink[]>;
   outcome_ids: string[];
   tags: string[];
-  provenance_depth: string;
   author: Json<ActorSnapshot>;
   author_type: "human" | "agent";
   status: Def<"unconfirmed" | "confirmed" | "refuted" | "superseded">;

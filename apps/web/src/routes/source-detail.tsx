@@ -2,10 +2,10 @@ import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/rea
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError, isObjectId, qs } from "../lib/api.ts";
-import { actorName, attribution, fileTypeName, formatBytes, formatDate, passageText, plural, relativeTime } from "../lib/format.ts";
+import { actorName, attribution, fileTypeName, formatBytes, formatDate, plural, relativeTime } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
-import { derivedStatus, derivedStatusDetail, PROVENANCE_LABEL, ROLE_LABEL } from "../lib/status.ts";
+import { derivedStatus, derivedStatusDetail, ROLE_LABEL } from "../lib/status.ts";
 import type { Actor, FileEntry, RecordFull } from "../lib/types.ts";
 import { Inspector, ShellContext, usePageTitle } from "../shell/slots.tsx";
 import {
@@ -13,13 +13,15 @@ import {
   MenuSeparator, PageHeader, Segmented, SelectField, Sheet, SheetHeader, StatusBadge, Tag, TextArea, TextField, useToast, type GlyphName,
 } from "../ui/index.tsx";
 import "../styles/screens/evidence.css";
-import { Comment, CommentForm, PassageReader } from "./passages.tsx";
+import { PassageReader } from "./passages.tsx";
+import { CommentsView } from "./source-comments.tsx";
 import { uploadFiles } from "./source-new.tsx";
 import { EvidenceFilters, splitTags, TagSuggestions } from "./evidence.tsx";
 import { ImageViewer } from "./image-viewer.tsx";
 
-type View = "passages" | "original" | "notes" | "files";
-type AgentNoteKind = "summary" | "outline" | "notes";
+type View = "passages" | "original" | "notes" | "comments" | "attachments";
+const VIEWS: View[] = ["passages", "original", "notes", "comments", "attachments"];
+type AgentNoteKind = "summary" | "notes";
 type SourceRecord = RecordFull & { agent_notes?: { kind: AgentNoteKind; updated_at: string; updated_by: Actor }[] };
 interface AgentNote {
   note_kind: AgentNoteKind;
@@ -29,7 +31,7 @@ interface AgentNote {
 }
 
 /** Old `?tab=` links keep working: each maps to a section, and "connected" opens the inspector. */
-const TAB_TO_VIEW: Record<string, View | null> = { passages: "passages", preview: "original", files: "files", notes: "notes", connected: null };
+const TAB_TO_VIEW: Record<string, View | null> = { passages: "passages", preview: "original", files: "attachments", notes: "notes", connected: null };
 
 function SourceNotFound({ app }: { app: string }) {
   return (
@@ -64,14 +66,14 @@ export function SourceDetailPage() {
   });
   const noteKinds = (q.data?.agent_notes ?? []).map((n) => n.kind);
   const notes = useQueries({
-    queries: (["summary", "outline", "notes"] as const).map((kind) => ({
+    queries: (["summary", "notes"] as const).map((kind) => ({
       queryKey: ["source-agent-note", base, recordId, kind, q.data?.agent_notes?.find((n) => n.kind === kind)?.updated_at ?? ""],
       queryFn: () => api<AgentNote>("GET", `${base}/sources/${recordId}/agent-notes/${kind}`),
       enabled: noteKinds.includes(kind),
       staleTime: 60_000,
     })),
   });
-  const [summary, outline, agentNotes] = notes;
+  const [summary, agentNotes] = notes;
   const tab = params.get("tab");
   const openInspector = useRef(false);
   useEffect(() => {
@@ -93,7 +95,7 @@ export function SourceDetailPage() {
     const t = setTimeout(() => slots.setInspectorOpen(true), 0);
     return () => clearTimeout(t);
   }, [loaded, slots]);
-  const [dialog, setDialog] = useState<"edit" | "delete" | "files" | null>(null);
+  const [dialog, setDialog] = useState<"edit" | "delete" | "attachments" | null>(null);
   usePageTitle(q.data?.title ?? (wellFormed ? "Source" : "Source not found"));
   if (!wellFormed) return <SourceNotFound app={app} />;
   if (q.isPending)
@@ -130,16 +132,16 @@ export function SourceDetailPage() {
   const status = derivedStatus(r.derived_status);
   const statusDetail = derivedStatusDetail(r.derived_status, r.status_detail);
   const parsed = r.segment_count > 0;
-  const requested = params.get("view") as View | null;
-  const fallback: View = parsed ? "passages" : r.files.length ? "original" : "files";
-  const view: View = requested && ["passages", "original", "notes", "files"].includes(requested) && (requested !== "passages" || parsed) ? requested : fallback;
+  // `?view=files` was the attachments' address before they were called attachments.
+  const requested = (params.get("view") === "files" ? "attachments" : params.get("view")) as View | null;
+  const fallback: View = parsed ? "passages" : r.files.length ? "original" : "attachments";
+  const view: View = requested && VIEWS.includes(requested) && (requested !== "passages" || parsed) ? requested : fallback;
   const writable = canWrite && !r.archived_at;
-  const agentNoteCount = (outline?.data ? 1 : 0) + (agentNotes?.data ? 1 : 0);
   return (
     <>
       <EvidenceFilters />
       <PageHeader crumbs={[{ label: "Evidence", to: `${app}/evidence` }, { label: r.title }]} title={r.title} actions={<SourceActions record={r} onDialog={setDialog} />} />
-      <SourceDescription note={summary?.data ?? null} loading={Boolean(summary?.isPending && noteKinds.includes("summary"))} />
+      <SourceDescription record={r} note={summary?.data ?? null} loading={Boolean(summary?.isPending && noteKinds.includes("summary"))} />
       {r.archived_at || r.derived_status !== "ready" ? (
         <div className="source-notices">
       {r.archived_at ? (
@@ -161,19 +163,21 @@ export function SourceDetailPage() {
           items={[
             ...(parsed ? [{ id: "passages", label: "Passages", count: r.segment_count, to: "?view=passages" }] : []),
             { id: "original", label: "Original", to: "?view=original" },
-            { id: "notes", label: "Notes", count: r.annotation_count + agentNoteCount || undefined, to: "?view=notes" },
-            { id: "files", label: "Files", count: r.files.length, to: "?view=files" },
+            { id: "notes", label: "Notes", to: "?view=notes" },
+            { id: "comments", label: "Comments", count: r.annotation_count || undefined, to: "?view=comments" },
+            { id: "attachments", label: "Attachments", count: r.files.length, to: "?view=attachments" },
           ]}
         />
       </div>
       {view === "passages" ? <PassageReader record={r} /> : null}
       {view === "original" ? <OriginalView record={r} /> : null}
-      {view === "notes" ? <NotesView record={r} outline={outline?.data ?? null} notes={agentNotes?.data ?? null} fileOutline={r.outline} /> : null}
-      {view === "files" ? <FilesView record={r} onAdd={writable ? () => setDialog("files") : undefined} /> : null}
+      {view === "notes" ? <NotesView record={r} note={agentNotes?.data ?? null} loading={Boolean(agentNotes?.isPending && noteKinds.includes("notes"))} /> : null}
+      {view === "comments" ? <CommentsView record={r} /> : null}
+      {view === "attachments" ? <AttachmentsView record={r} onAdd={writable ? () => setDialog("attachments") : undefined} /> : null}
       <SourceInspector record={r} />
       {dialog === "edit" ? <EditDetails record={r} onReload={() => void q.refetch()} onClose={() => setDialog(null)} /> : null}
       {dialog === "delete" ? <DeleteSource record={r} onClose={() => setDialog(null)} /> : null}
-      {dialog === "files" ? <AddFiles record={r} onClose={() => setDialog(null)} /> : null}
+      {dialog === "attachments" ? <AddAttachments record={r} onClose={() => setDialog(null)} /> : null}
     </>
   );
 }
@@ -184,18 +188,33 @@ function surfaceLabel(actor: Actor) {
   return "the web";
 }
 
-/** The description: the agent's summary of the source, clamped to four lines. Nothing when there is none. */
-function SourceDescription({ note, loading }: { note: AgentNote | null; loading: boolean }) {
+/**
+ * The summary under the title: what the source is and says, for people, clamped to four lines.
+ * Editors can write or change it here; without one, others see nothing.
+ */
+function SourceDescription({ record, note, loading }: { record: SourceRecord; note: AgentNote | null; loading: boolean }) {
+  const { canWrite } = useProduct();
   const [open, setOpen] = useState(false);
   const [overflows, setOverflows] = useState(false);
+  const [editing, setEditing] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const writable = canWrite && !record.archived_at;
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el || open) return;
     setOverflows(el.scrollHeight > el.clientHeight + 1);
   }, [note, open]);
-  if (loading) return <Loading variant="lines" lines={2} label="Loading the description…" />;
-  if (!note) return null;
+  if (loading) return <Loading variant="lines" lines={2} label="Loading the summary…" />;
+  const editor = editing ? <NoteDialog record={record} kind="summary" current={note?.content ?? ""} onClose={() => setEditing(false)} /> : null;
+  if (!note)
+    return writable ? (
+      <div className="source-description source-description-empty">
+        <Button size="sm" variant="quiet" icon="plus" onClick={() => setEditing(true)}>
+          Add a summary
+        </Button>
+        {editor}
+      </div>
+    ) : null;
   return (
     <div className="source-description">
       <div ref={ref} id="source-summary" className={`source-summary${open ? "" : " source-summary-clamped"}`}>
@@ -210,8 +229,71 @@ function SourceDescription({ note, loading }: { note: AgentNote | null; loading:
         <span>
           Summary by {attribution(note.updated_by)}, {relativeTime(note.updated_at)}
         </span>
+        {writable ? (
+          <button type="button" className="quiet-link source-summary-edit" onClick={() => setEditing(true)}>
+            Edit
+          </button>
+        ) : null}
       </div>
+      {editor}
     </div>
+  );
+}
+
+const NOTE_WORDS: Record<AgentNoteKind, { title: string; label: string; hint: string; saved: string; cleared: string }> = {
+  summary: {
+    title: "Summary",
+    label: "Summary",
+    hint: "A few short sentences for the people who read this source: what it is, and what it tells the team. Markdown.",
+    saved: "Summary saved.",
+    cleared: "Summary removed.",
+  },
+  notes: {
+    title: "Notes",
+    label: "Notes",
+    hint: "Anything worth keeping about this source that isn’t in its words. Your agents read and write these too. Markdown.",
+    saved: "Notes saved.",
+    cleared: "Notes removed.",
+  },
+};
+
+/** Write a source's summary or notes. Saving it empty removes it. */
+function NoteDialog({ record, kind, current, onClose }: { record: SourceRecord; kind: AgentNoteKind; current: string; onClose: () => void }) {
+  const { base, key } = useSourceKey();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const words = NOTE_WORDS[kind];
+  const [content, setContent] = useState(current);
+  const save = useMutation({
+    mutationFn: () => api("PUT", `${base}/sources/${record.record_id}/agent-notes/${kind}`, { content }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: key });
+      void qc.invalidateQueries({ queryKey: ["source-agent-note", base, record.record_id, kind] });
+      toast(content.trim() ? words.saved : words.cleared);
+      onClose();
+    },
+  });
+  return (
+    <Dialog
+      open
+      wide
+      onClose={onClose}
+      title={current ? `Edit the ${words.title.toLowerCase()}` : `Write the ${words.title.toLowerCase()}`}
+      dismissable={!save.isPending}
+      footer={
+        <>
+          <Button onClick={onClose} disabled={save.isPending}>
+            Cancel
+          </Button>
+          <Button variant="primary" busy={save.isPending} busyLabel="Saving…" disabled={content === current} onClick={() => save.mutate()}>
+            Save
+          </Button>
+        </>
+      }
+    >
+      <TextArea label={words.label} hint={words.hint} rows={kind === "summary" ? 6 : 14} maxLength={100_000} value={content} onChange={(e) => setContent(e.target.value)} autoFocus />
+      {save.isError ? <ErrorCallout inset error={save.error} /> : null}
+    </Dialog>
   );
 }
 
@@ -244,7 +326,7 @@ function RestoreButton({ record }: { record: SourceRecord }) {
   );
 }
 
-function SourceActions({ record: r, onDialog }: { record: SourceRecord; onDialog: (d: "edit" | "delete" | "files") => void }) {
+function SourceActions({ record: r, onDialog }: { record: SourceRecord; onDialog: (d: "edit" | "delete" | "attachments") => void }) {
   const { canWrite, canDelete } = useProduct();
   const toast = useToast();
   const archive = useArchive(r);
@@ -255,8 +337,8 @@ function SourceActions({ record: r, onDialog }: { record: SourceRecord; onDialog
           <MenuItem icon="pencil" onSelect={() => onDialog("edit")}>
             Edit details
           </MenuItem>
-          <MenuItem icon="upload" onSelect={() => onDialog("files")}>
-            Add files
+          <MenuItem icon="upload" onSelect={() => onDialog("attachments")}>
+            Add attachments
           </MenuItem>
         </>
       ) : null}
@@ -334,7 +416,6 @@ function When({ at, by, byTo }: { at: string; by: Actor | null | undefined; byTo
 function SourceInspector({ record: r }: { record: SourceRecord }) {
   const { app, canWrite } = useProduct();
   const archive = useArchive(r);
-  const versions = r.files.reduce((n, f) => n + Math.max(1, f.versions.length), 0);
   return (
     <Inspector title="Details">
       <div className="source-inspector">
@@ -358,34 +439,8 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
               { label: "Date captured", value: r.date ? <span className="num" title="When the meeting happened, or the document is dated">{formatDate(r.date)}</span> : "No date" },
               { label: "Date added", value: <When at={r.uploaded_at} by={r.uploaded_by} byTo={`${app}/evidence?added_by=${encodeURIComponent(r.uploaded_by.account_id)}`} /> },
               { label: "Date updated", value: r.updated_at !== r.uploaded_at ? <When at={r.updated_at} by={r.updated_by} /> : <span className="faint">Not since it was added</span> },
-              { label: "Participants", value: r.participants.length ? r.participants.join(", ") : null },
-              { label: "Provenance", value: r.provenance_depth !== "unknown" ? PROVENANCE_LABEL[r.provenance_depth] : null },
-              { label: "Came from", value: r.source_system },
             ]}
           />
-        </Group>
-        <Group title="Files" count={r.files.length} action={<Link to="?view=files" className="quiet-link">All files</Link>}>
-          {r.files.length ? (
-            <ul className="source-file-summary">
-              {r.files.map((f) => (
-                <li key={f.path}>
-                  <Glyph name={fileGlyph(f)} />
-                  <span>
-                    <b className="ellipsis" title={f.path}>
-                      {f.path}
-                    </b>
-                    <span className={f.searchable ? "text-ok" : "faint"}>
-                      {ROLE_LABEL[f.role]} · {searchWords(f)}
-                      {f.role === "primary" && f.searchable ? ` · ${plural(r.segment_count, "passage")}` : ""}
-                    </span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <EmptyState size="inline">No files yet.</EmptyState>
-          )}
-          {versions > r.files.length ? <p className="source-inspector-note">{plural(versions, "stored version")} in all.</p> : null}
         </Group>
         <Group title="Activity">
           <Link to={`${app}/activity?entity_type=source&entity_id=${r.record_id}`} className="source-inspector-link">
@@ -550,102 +605,44 @@ function OriginalView({ record }: { record: SourceRecord }) {
   );
 }
 
-function NotesView({ record, outline, notes, fileOutline }: { record: SourceRecord; outline: AgentNote | null; notes: AgentNote | null; fileOutline: string | null }) {
+/** The source's notes: one freeform Markdown document that agents and people both keep. */
+function NotesView({ record, note, loading }: { record: SourceRecord; note: AgentNote | null; loading: boolean }) {
   const { canWrite } = useProduct();
-  const [writing, setWriting] = useState(false);
+  const [editing, setEditing] = useState(false);
   const writable = canWrite && !record.archived_at;
-  // A timed transcript's outline lists every speaker turn, which the passage list already shows with
-  // its speaker and time; agents still read it, but it is left out here.
-  const timed = /^- \d{2}:\d{2}:\d{2}\.\d{3} to |^- \(no cues\)/m.test(fileOutline ?? "");
-  const showFileOutline = Boolean(fileOutline && !outline && !timed && !/\(no headings\)/.test(fileOutline));
   return (
-    <>
-      {outline || notes || showFileOutline ? (
-        <Sheet labelledBy="agent-notes-h">
-          <SheetHeader id="agent-notes-h" title={outline || showFileOutline ? (notes ? "Outline and notes" : "Outline") : "Notes"} />
-          {outline ? <AgentNoteBlock title="Outline" note={outline} /> : null}
-          {showFileOutline ? (
-            <section className="source-agent-note">
-              <h3>From the file&rsquo;s headings</h3>
-              <FileOutline outline={fileOutline!} />
-            </section>
-          ) : null}
-          {notes ? <AgentNoteBlock title="Notes" note={notes} /> : null}
-        </Sheet>
-      ) : null}
-      <Sheet labelledBy="comments-h">
-        <SheetHeader
-          id="comments-h"
-          title="Comments"
-          count={record.annotations.length}
-          end={
-            writable && !writing ? (
-              <Button size="sm" icon="pencil" onClick={() => setWriting(true)}>
-                Comment on the source
-              </Button>
-            ) : undefined
-          }
-        />
-        {writing ? (
-          <div className="sheet-body">
-            <CommentForm recordId={record.record_id} onDone={() => setWriting(false)} />
-          </div>
-        ) : null}
-        {!record.annotations.length ? (
-          <EmptyState size="inline" title="No comments yet">
-            {writable ? "Select passages in Passages and choose Comment." : null}
-          </EmptyState>
-        ) : (
-          <ul className="source-comments">
-            {record.annotations.map((a) => (
-              <li key={a.annotation_id}>
-                <Comment annotation={a} showAddress linkAddress />
-              </li>
-            ))}
-          </ul>
-        )}
-      </Sheet>
-    </>
+    <Sheet labelledBy="notes-h">
+      <SheetHeader
+        id="notes-h"
+        title="Notes"
+        end={
+          writable && note ? (
+            <Button size="sm" icon="pencil" onClick={() => setEditing(true)}>
+              Edit notes
+            </Button>
+          ) : undefined
+        }
+      />
+      {loading ? (
+        <Loading variant="lines" lines={4} label="Loading the notes…" />
+      ) : note ? (
+        <section className="source-notes">
+          <Markdown source={note.content} className="prose" headingShift={2} />
+          <p className="source-notes-by">
+            Written by {attribution(note.updated_by)}, {relativeTime(note.updated_at)}
+          </p>
+        </section>
+      ) : (
+        <EmptyState size="inline" title="No notes yet" action={writable ? <Button size="sm" onClick={() => setEditing(true)}>Write notes</Button> : undefined}>
+          Notes keep what&rsquo;s worth knowing about this source that isn&rsquo;t in its words. Your agents keep them too.
+        </EmptyState>
+      )}
+      {editing ? <NoteDialog record={record} kind="notes" current={note?.content ?? ""} onClose={() => setEditing(false)} /> : null}
+    </Sheet>
   );
 }
 
-/**
- * The parser's outline of a document's headings ("  - Scope (segment 12)" per line), each heading
- * linked to its passage. An outline in any other shape is shown as written.
- */
-function FileOutline({ outline }: { outline: string }) {
-  const lines = outline.split("\n").filter((l) => l.trim());
-  const entries = lines.map((l) => /^( *)- (.*) \(segment (\d+)\)$/.exec(l)).filter((m): m is RegExpExecArray => m !== null);
-  if (!entries.length || entries.length !== lines.length) return <Markdown source={outline} className="prose source-outline" headingShift={3} />;
-  return (
-    <ol className="source-outline source-outline-list">
-      {entries.map(([, indent, text, seq]) => (
-        <li key={seq} style={{ paddingLeft: `calc(${Math.floor(indent!.length / 2)} * var(--s-4))` }}>
-          <Link to={`?view=passages&seq=${seq}`} className="source-outline-link">
-            <span className="ellipsis">{passageText(text!, 1)}</span>
-            <span className="num faint">¶{seq}</span>
-          </Link>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-function AgentNoteBlock({ title, note }: { title: string; note: AgentNote }) {
-  return (
-    <section className="source-agent-note">
-      <h3>
-        {title}
-        <span className="faint">
-          {attribution(note.updated_by)}, {relativeTime(note.updated_at)}
-        </span>
-      </h3>
-      <Markdown source={note.content} className="prose" headingShift={3} />
-    </section>
-  );
-}
-
-function FilesView({ record, onAdd }: { record: SourceRecord; onAdd?: () => void }) {
+function AttachmentsView({ record, onAdd }: { record: SourceRecord; onAdd?: () => void }) {
   const { base, key } = useSourceKey();
   const { canWrite } = useProduct();
   const qc = useQueryClient();
@@ -663,21 +660,21 @@ function FilesView({ record, onAdd }: { record: SourceRecord; onAdd?: () => void
   const hasPrimary = record.files.some((x) => x.role === "primary");
   const writable = canWrite && !record.archived_at;
   return (
-    <Sheet labelledBy="files-h">
+    <Sheet labelledBy="attachments-h">
       <SheetHeader
-        id="files-h"
-        title="Files"
+        id="attachments-h"
+        title="Attachments"
         count={record.files.length}
         end={
           onAdd ? (
             <Button size="sm" icon="upload" onClick={onAdd}>
-              Add files
+              Add attachments
             </Button>
           ) : undefined
         }
       />
       {!record.files.length ? (
-        <EmptyState size="inline" title="No files yet" action={onAdd ? <Button size="sm" onClick={onAdd}>Add files</Button> : undefined}>
+        <EmptyState size="inline" title="No attachments yet" action={onAdd ? <Button size="sm" onClick={onAdd}>Add attachments</Button> : undefined}>
           {record.pending_primary_path ? `An upload of ${record.pending_primary_path} is in progress.` : null}
         </EmptyState>
       ) : (
@@ -785,11 +782,7 @@ function EditDetails({ record, onClose, onReload }: { record: SourceRecord; onCl
     title: record.title,
     date: record.date ?? "",
     tags: record.tags.join(", "),
-    participants: record.participants.join(", "),
-    source_system: record.source_system ?? "",
-    provenance_depth: record.provenance_depth,
   });
-  const list = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
   const save = useMutation({
     mutationFn: () =>
       api<{ changed: string[] }>("PATCH", `${base}/sources/${record.record_id}`, {
@@ -797,9 +790,6 @@ function EditDetails({ record, onClose, onReload }: { record: SourceRecord; onCl
         title: f.title,
         date: f.date || null,
         tags: splitTags(f.tags),
-        participants: list(f.participants),
-        source_system: f.source_system || null,
-        provenance_depth: f.provenance_depth,
       }),
     onSuccess: (res) => {
       void qc.invalidateQueries({ queryKey: key });
@@ -830,15 +820,6 @@ function EditDetails({ record, onClose, onReload }: { record: SourceRecord; onCl
       <TextField label="Date captured" type="date" hint="When the meeting happened, or the document is dated." value={f.date} onChange={set("date")} optional />
       <TextField label="Tags" value={f.tags} onChange={set("tags")} optional hint="Comma-separated." />
       <TagSuggestions value={f.tags} onChange={(tags) => setF({ ...f, tags })} />
-      <TextField label="Participants" value={f.participants} onChange={set("participants")} optional hint="Comma-separated." />
-      <TextField label="Where it came from" value={f.source_system} onChange={set("source_system")} optional />
-      <SelectField label="Relationship to the evidence" value={f.provenance_depth} onChange={set("provenance_depth")}>
-        {Object.entries(PROVENANCE_LABEL).map(([v, l]) => (
-          <option key={v} value={v}>
-            {l}
-          </option>
-        ))}
-      </SelectField>
       {save.isError ? (
         <ErrorCallout
           inset
@@ -931,7 +912,7 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
 
 type Role = "primary" | "origin" | "supplement";
 
-function AddFiles({ record, onClose }: { record: SourceRecord; onClose: () => void }) {
+function AddAttachments({ record, onClose }: { record: SourceRecord; onClose: () => void }) {
   const { base, key } = useSourceKey();
   const qc = useQueryClient();
   const toast = useToast();
@@ -946,7 +927,7 @@ function AddFiles({ record, onClose }: { record: SourceRecord; onClose: () => vo
     setRunning(false);
     await qc.invalidateQueries({ queryKey: key });
     if (allDone) {
-      toast(items.length === 1 ? "File added." : "Files added.");
+      toast(items.length === 1 ? "Attachment added." : "Attachments added.");
       onClose();
     }
   };
@@ -956,7 +937,7 @@ function AddFiles({ record, onClose }: { record: SourceRecord; onClose: () => vo
       open
       onClose={onClose}
       dismissable={!running}
-      title="Add files"
+      title="Add attachments"
       footer={
         <>
           <Button onClick={onClose} disabled={running}>
@@ -981,7 +962,7 @@ function AddFiles({ record, onClose }: { record: SourceRecord; onClose: () => vo
           An upload of {record.pending_primary_path} as the primary file is in progress. Choose a file with the same name to finish it.
         </Callout>
       ) : null}
-      <input type="file" className="source-file-input" multiple={role !== "primary"} aria-label="Files to add" onChange={(e) => setItems([...(e.target.files ?? [])].map((file) => ({ file, role, state: "waiting" as const, loaded: 0 })))} />
+      <input type="file" className="source-file-input" multiple={role !== "primary"} aria-label="Attachments to add" onChange={(e) => setItems([...(e.target.files ?? [])].map((file) => ({ file, role, state: "waiting" as const, loaded: 0 })))} />
       {items.length ? (
         <ul className="source-uploads" aria-live="polite">
           {items.map((i) => (

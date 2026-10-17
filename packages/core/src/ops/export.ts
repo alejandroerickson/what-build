@@ -141,7 +141,7 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
       }
     }
     for (const d of await db.selectFrom("derivations").selectAll().where("record_id", "=", r.record_id).execute()) {
-      for (const s of ["segments.jsonl", "text.md", "outline.md", "manifest.json"]) {
+      for (const s of ["segments.jsonl", "text.md", "manifest.json"]) {
         try {
           add(`${base}/derived/${d.derivation_id}/${s}`, await ports.blobs.get(`${d.blob_prefix}/${s}`));
         } catch {
