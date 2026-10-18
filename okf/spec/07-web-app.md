@@ -430,9 +430,10 @@ The sources, and everything for reading them.
     "Write notes" for an editor; both open the summary's dialog, with its etag and its handling of
     a change made meanwhile) and **Comments** (every comment on the source, newest first, and
     "Comment" for an editor, which opens a form for a comment on the whole source with optional
-    tags). Each comment's menu offers an editor **Archive…**, a dialog asking why, optionally
-    (the reason stays with the comment; the activity log records only that it was archived), and
-    an admin **Delete permanently…** (§7.10). Archived comments are left out until "Show N
+    tags). Each comment's menu is named by who wrote the comment, when, and its first words, so
+    that two by one person at the same time are told apart, and offers an editor **Archive…**, a
+    dialog asking why, optionally (the reason stays with the comment; the activity log records
+    only that it was archived), and an admin **Delete permanently…** (§7.10). Archived comments are left out until "Show N
     archived comments", at the section's foot, lists them under the others (`?include_archived=1`):
     muted, marked Archived with when and why, and with Restore in their menu for an editor. On an
     archived source, which is read-only until it is restored ([§4.6](04-data-model.md)), comments

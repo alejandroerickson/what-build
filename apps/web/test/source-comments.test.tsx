@@ -72,6 +72,7 @@ vi.mock("../src/lib/session.tsx", async (original) => ({
 }));
 
 const { SourceDetailPage } = await import("../src/routes/source-detail.tsx");
+const { commentOpening } = await import("../src/routes/source-comments.tsx");
 
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) {
@@ -251,5 +252,26 @@ describe("archiving a comment in the web app", () => {
     expect(await menuOf("Crews plan by the day.")).toEqual([]);
     expect(await menuOf("Gate codes again.")).toEqual([]);
     expect([...host.querySelectorAll("button")].map((b) => b.textContent?.trim())).not.toContain("Comment");
+  });
+});
+
+describe("a comment's menu", () => {
+  it("is named by who wrote the comment, when, and its first words, so two by the same person at the same time are told apart", async () => {
+    server.comments = [comment("c2", "**Gate codes** again."), comment("c1", "Crews plan by the day, and the office plans the week ahead.")];
+    const host = await open();
+    const names = [...host.querySelectorAll('article.comment button[aria-haspopup="menu"]')].map((b) => b.getAttribute("aria-label") ?? "");
+    expect(names).toHaveLength(2);
+    expect(names[0]).toMatch(/^Actions for Riley Chen’s comment from .+, “Gate codes again\.”$/);
+    expect(names[1]).toMatch(/^Actions for Riley Chen’s comment from .+, “Crews plan by the day, and…”$/);
+    // The open menu is named as its button is.
+    await act(async () => host.querySelector<HTMLButtonElement>('article.comment button[aria-haspopup="menu"]')!.click());
+    expect(document.querySelector('[role="menu"]')?.getAttribute("aria-label")).toBe(names[0]);
+  });
+
+  it("quotes a comment's first words as plain words, its own quotation marks nested, and a long one cut short", () => {
+    expect(commentOpening("See [the notes](https://example.com) on `gate codes`.")).toBe("See the notes on gate codes.");
+    expect(commentOpening('"The link is slow," said the crew lead, twice.')).toBe("‘The link is slow,’ said the…");
+    expect(commentOpening("One, two, three, four, five, six, seven.")).toBe("One, two, three, four, five, six…");
+    expect(commentOpening("")).toBe("");
   });
 });

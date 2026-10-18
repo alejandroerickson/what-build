@@ -2,8 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { api, qs } from "../lib/api.ts";
-import { actorName, attribution, plural, relativeTime } from "../lib/format.ts";
-import { Markdown } from "../lib/markdown.tsx";
+import { actorName, attribution, nestQuotes, plural, relativeTime } from "../lib/format.ts";
+import { Markdown, markdownText } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import type { Annotation, RecordFull } from "../lib/types.ts";
 import {
@@ -140,6 +140,20 @@ function useCommentArchive(a: Annotation, { inDialog = false } = {}) {
   return m;
 }
 
+/** How many of a comment's words the name of its menu quotes. */
+const OPENING_WORDS = 6;
+
+/**
+ * A comment's first words, plain, as the name of its menu quotes them, so that two comments by the
+ * same person at the same time are told apart: "Gate codes again.", or "Crews plan by the day,
+ * and…" for a longer one.
+ */
+export function commentOpening(note: string): string {
+  const words = markdownText(note).split(" ").filter(Boolean);
+  const kept = words.length > OPENING_WORDS ? `${words.slice(0, OPENING_WORDS).join(" ").replace(/[\s,;:.!?…—–-]+$/, "")}…` : words.join(" ");
+  return nestQuotes(kept);
+}
+
 /** One person's comment on a source, with what an editor and an admin can do to it. */
 function Comment({ annotation: a, writable, deletable }: { annotation: Annotation; writable: boolean; deletable: boolean }) {
   const { api: base } = useProduct();
@@ -148,7 +162,8 @@ function Comment({ annotation: a, writable, deletable }: { annotation: Annotatio
   const [dialog, setDialog] = useState<"archive" | "delete" | null>(null);
   const archive = useCommentArchive(a);
   const archived = Boolean(a.archived_at);
-  const whose = `${actorName(a.created_by)}’s comment from ${relativeTime(a.created_at)}`;
+  const opening = commentOpening(a.note);
+  const whose = `${actorName(a.created_by)}’s comment from ${relativeTime(a.created_at)}${opening ? `, “${opening}”` : ""}`;
   return (
     <article className={`comment${archived ? " is-archived" : ""}`}>
       <div className="comment-meta">
