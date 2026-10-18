@@ -60,7 +60,10 @@ describe("the job worker", () => {
       await worker.drain();
       await worker.drain();
       expect(await kept()).toBe(true);
-      expect(logs.filter((m) => m.includes("9999_from_a_later_release.sql"))).toHaveLength(1);
+      // Once, with both ways the wait ends: the later version taking over, or the database restored.
+      expect(logs.filter((m) => m.includes("9999_from_a_later_release.sql"))).toEqual([
+        "worker: the database has migrations this version does not carry (9999_from_a_later_release.sql); it takes no jobs and does no housekeeping until a version that carries them replaces it, or the database is restored to before them",
+      ]);
     } finally {
       await sql`delete from schema_migrations where name = '9999_from_a_later_release.sql'`.execute(h.db);
     }

@@ -109,7 +109,11 @@ export class Worker {
   private async supersededByAMigration(): Promise<boolean> {
     const later = await sql<{ name: string }>`select name from schema_migrations where name <> all(${this.migrations}::text[]) order by name`.execute(this.env.db);
     const names = later.rows.map((r) => r.name);
-    if (names.length && !this.superseded) this.log(`worker: the database has migrations this version does not carry (${names.join(", ")}); it takes no jobs until a version that carries them replaces it`);
+    // Said for both ways it ends: the release rolling out takes over, or, after going back, the database is restored.
+    if (names.length && !this.superseded)
+      this.log(
+        `worker: the database has migrations this version does not carry (${names.join(", ")}); it takes no jobs and does no housekeeping until a version that carries them replaces it, or the database is restored to before them`,
+      );
     this.superseded = names.length > 0;
     return this.superseded;
   }
