@@ -151,7 +151,7 @@ export const createUpload = defineOperation({
   mutates: true,
   summary: "Create a source and get an upload grant for its first attachment, in one call.",
   description:
-    "Takes sources.create's metadata plus the file's path. Returns {record, upload, warnings}; PUT the bytes to upload.url with upload.headers, and a 201 means the attachment is added; its text becomes the source's derived text once it is read. For several sources at once, use create_uploads. Read warnings first: they flag a format no parser reads, and an existing source with the same title and date.",
+    "Takes sources.create's metadata plus the file's path. Returns {record, upload, warnings}; PUT the bytes to upload.url with upload.headers, and a 201 means the attachment is added; its text becomes the source's derived text once it is read. For several sources at once, use create_uploads. Read warnings first: they flag a format no parser reads, an image (whose words you give the source yourself, if you can see it), and an existing source with the same title and date.",
   input: createUploadInput,
   rest: { method: "POST", path: "/sources/with-upload" },
   mcp: { tool: "attachments", action: "create_upload" },

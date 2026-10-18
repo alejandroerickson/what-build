@@ -61,6 +61,15 @@ describe("intake warnings", () => {
     // A recording is kept and playable; what it says comes from a transcript, so it is not warned about here.
     const call = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["interview"], title: "Crew lead call — Example Co, Sep 2026", path: "call.m4a" });
     expect(call.body.warnings).toEqual([]);
+
+    // An image is warned about as a picture: its words come from whoever can see it.
+    const photo = await alice.api("POST", `${P}/sources/with-upload`, { tags: ["photo"], title: "Whiteboard photo — Example Co, Sep 2026", path: "board.png" });
+    expect(photo.body.warnings).toEqual([
+      "board.png is an image: it will be kept and shown, but WhatBuild reads no words from an image (it performs no OCR), so it cannot become the source's derived text. " +
+        'If you can see it, describe it in the source\'s summary, and write any words it shows as the source\'s text with derived(action="write_text") if search should find them.',
+    ]);
+    const untyped = await alice.api("POST", `${P}/sources/${pdf.body.record.record_id}/uploads`, { record_id: pdf.body.record.record_id, path: "scan-page", media_type: "image/jpeg" });
+    expect(untyped.body.warnings[0]).toMatch(/^scan-page is an image/);
   });
 
   it("says what becomes of an attachment no parser reads, and takes the text of the next one that can be read", async () => {
