@@ -69,11 +69,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   a text still taken from it follows. A baseline saved before this release holds such readings for
   its plain-text, workbook and PDF attachments (plain-text parser 8, XLSX 6, PDF 5), and one saved
   before v0.14.0 for most of its attachments, so each reset reads them again, a minute or two of
-  work, until the baseline is saved again: reset, let the readings finish, then save it. A sandbox
-  source whose only readable attachment was unsupported when the baseline was saved, such as a
-  `.csv` one, gets its text. A reading that failed, found the file too large, or found a recording
-  or only pictures (an image, or a PDF whose pages are pictures, even one an earlier release
-  recorded as failed) is never read again.
+  work, until the baseline is saved again. To save it without what visitors add meanwhile, set
+  `visitor_access` to `read`, reset, let the readings finish (the log has a `job … derive …` line
+  for each), save the baseline, then set `visitor_access` back as it was. A sandbox source whose
+  only readable attachment was unsupported when the baseline was saved, such as a `.csv` one, gets
+  its text. A reading that failed, found the file too large, or found a recording or only pictures
+  (an image, or a PDF whose pages are pictures, even one an earlier release recorded as failed) is
+  never read again.
 - **Nothing to change; people will notice attachments say what they are at once.** Recordings,
   images and formats no parser reads show their status the moment they arrive instead of
   "Reading". An image, or a PDF whose pages are pictures (PDF parser 5), is "Not read as text"

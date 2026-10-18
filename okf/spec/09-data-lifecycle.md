@@ -574,7 +574,8 @@ the scheduled reset do the same thing, in one transaction that runs alone in the
    ([§5.5](05-derived-layer.md#55-statuses)): read again, each would most likely end the same way,
    and `derived.rederive` reads one whenever someone asks. So a baseline saved before an upgrade has
    its attachments read by the new parsers after every reset; saving the baseline again once a
-   reset's readings are done keeps them, and the resets after it read nothing again.
+   reset's readings are done, with `visitor_access` at `read` from before that reset so that it
+   holds nothing a visitor added, keeps them, and the resets after it read nothing again.
 5. Queue a move into Evidence for each product that the baseline gave back an insight or a decision
    (§9.8).
 6. Queue the deletion of every blob that no row and no kept baseline refers to.
