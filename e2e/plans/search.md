@@ -32,9 +32,10 @@ that what one door writes the other finds at once, and that a reader has no sear
    *Expect:* results arrive as you type, without Enter, at most eight, best match first, each with
    its kind's glyph, the title with the words marked, what it is (a source with its date and its
    number of matches) and a line of matching text saying where it is ("In its text"); the field's
-   button reads "All N results". Move down with the arrow keys and press Enter on a source that
-   matched only in its text. *Expect:* the source opens on its Text with the word marked, the find
-   field holding it and counting the matches, and the palette is closed.
+   button reads "All N results". Move down with the arrow keys to a source that matched only in its
+   text, note its number of matches ("N matches"), and press Enter. *Expect:* the source opens on
+   its Text with the word marked, the find field holding it and counting the same number of
+   matches ("1 of N", N as the palette said), and the palette is closed.
 4. **Web, as Sam.** On the source, press `/`. *Expect:* the palette opens again with the words
    from step 3, selected, so typing replaces them. Delete them. *Expect:* the search is under
    "Recent searches". Pick it. *Expect:* it fills the field. Press Escape, then go through the
