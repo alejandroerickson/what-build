@@ -23,7 +23,77 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Migration `0031_summaries_and_notes_have_etags`.** It gives every source's summary and notes
+  (`agent_notes`) an etag of its own, live and in saved sandbox baselines. Nothing is dropped and
+  no text changes, and an earlier release runs on the new schema (the column has a default), so
+  going back needs no restore. Rehearse on the dev deployment first, as for every release that
+  migrates ([dev-deployment](dev-deployment.md)).
+- **Agents and integrations must send an etag they could leave out before.** Once a source has a
+  summary, notes or a derived text, `derived(action="write_note")` and
+  `derived(action="write_text")` refuse a write or a clearing without its current etag
+  (`409 stale_etag`, with `current_etag`); a first write still takes none. `read_note`,
+  `write_note` and `sources(action="get", detail="full")` (in `agent_notes`) give the etags of the
+  summary and the notes, and `derived(action="text")` and `text.etag` the text's. An integration
+  that rewrote these without reading first is refused until it reads, then passes the etag.
+  People will notice that saving a summary, notes or text someone else changed meanwhile shows
+  their version, and saves over it only when asked.
+- **Nothing runs by itself; existing plain-text and workbook attachments read better once read
+  again.** A `.txt` now keeps its lines and list markers, joining only hard-wrapped prose, and
+  ends a quoted message before the reply under it; an `.xlsx` reads values as the sheet shows
+  them (`+14.0%`, not `0.14`), reads and marks hidden sheets, columns and rows, and says when a
+  formula was saved without its value (plain-text parser 8, XLSX 6). A reading made earlier keeps
+  its layout until its attachment is read again, with `derived(action="rederive")` or Read it again
+  in the web app; a source whose text still follows that attachment then takes the new text, and a
+  text someone wrote or edited is left alone. Left unread, those sources read and are found as
+  before. Nothing else needs reading again: a scan recorded as failed reads `unsupported`, a
+  recording that asked for "a transcript as a new source" asks for another attachment, and an
+  image says how an agent gives it its words, in sandbox baselines too.
+- **Nothing to change; people will notice attachments say what they are at once.** Recordings,
+  images and formats no parser reads show their status the moment they arrive instead of
+  "Reading". An image, or a PDF whose pages are pictures (PDF parser 5), is "Not read as text"
+  rather than a failure, with no "Read it again". `sources(action="get")` warns of attachment text
+  the source's derived text does not use, and search's `coverage` counts sources of pictures
+  apart from those that could not be read.
+- **Nothing to change; agents and people will notice search answering more exactly.** Exact
+  (substring) search returns a hit for every place the words occur, each with its own offsets and
+  snippet, so `limit` counts places and `next_cursor` may carry on inside a piece of text; a
+  cursor from an earlier release still works. A query is no longer trimmed: its spaces count in an
+  exact search, a space at the end of a plain search says its last word is finished, and a query
+  of only spaces is refused (`422`). `%`, `_` and `\` in a search, or in the `query` of the
+  source, assumption, outcome and sandbox-visitor lists, match themselves instead of any text.
+  Plain search, the web app's too, reads an id or a number such as `CB26-20734` as one word,
+  finds the number after a hyphen, and never corrects it into a neighbouring one; over MCP it
+  takes `limit` (60 results unless asked). Search answers `search_scope`, the only place its own
+  scope shows over MCP.
+- **Nothing to change; agents will write the Story differently. The Story guidance is 5.0.0.**
+  The Story is the team's own communication (what to build, the pitch, the plan), and neither the
+  guidance nor the skill sets a rule about how a page quotes, paraphrases, attributes or links;
+  the checks that a page is true to its sources stay. `story(action="guidance")` adds
+  `links_note`, `list_pages` reports `archived_hidden`, `set_hierarchy` says to publish or restore
+  a page it refuses, and a style based on a retired house style carries a `note` in `get_style`
+  and the guidance.
+- **A tally in a house style now shows every mark at any width.** A product keeps the stylesheet
+  it adopted, so its pages get the fix only once an agent adopts the house style again
+  (`story(action="set_style")` with `house_style`) and publishes each page with `restyle: true`;
+  until then a tally in a narrow column or on a phone may not show every mark. A team that adapted
+  its stylesheet can copy the new `.tally` rule.
+- **Nothing to change; agents and scripts will notice some answers.** `mockups(action="publish")`
+  answers with the mockup's ids, version, etag, `page_ids`, `url` and warnings instead of the
+  whole canvas: read the canvas with `mockups(action="get")`. `activity(action="list",
+  by="people")` leaves out what WhatBuild does by itself, such as reading an attachment, and
+  `entity_type` refuses `team`, `tenant` and `feedback` (`422`). In a public sandbox,
+  `attachments(action="create_uploads")` takes each of its sources from a visitor's
+  `sources_per_day`. `assumptions(action="supersede")` takes `reviewer_type`. The activity log no
+  longer quotes a comment's archive reason, and reads older entries without it. A product
+  export's `README.txt` lists every kind of file the bundle holds, and `assumptions.json` no
+  longer carries the database's search vector.
+- **The skill is 0.33.0.** Connected agents are asked to update their installed skill. It tells
+  them which etag a source's summary, notes and text take, how search matches and pages, how a
+  source's text is chosen and laid out, what an image or a scan needs, how to restore what was
+  archived, and, with the server's instructions, which installed copy to follow when there are
+  several. Nothing needs a new session: the new fields go through actions every client already
+  lists. An agent that keeps the older skill is refused when it writes a summary, notes or text
+  without its etag, and the refusal says where to read it.
 
 ## v0.15.0
 
