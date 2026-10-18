@@ -101,7 +101,8 @@ export function ActivityPage() {
 // ---- Settings -----------------------------------------------------------------------------------
 
 export function ProductSettingsPage() {
-  const { isAdmin } = useProduct();
+  const { isAdmin, product } = useProduct();
+  const archive = useArchiveProduct();
   const loc = useLocation();
   usePageTitle("Settings");
   useEffect(() => {
@@ -115,8 +116,9 @@ export function ProductSettingsPage() {
       <PeopleSheet />
       <ExportSheet />
       <OrganizationSheet />
-      {isAdmin ? <ArchiveSheet /> : null}
-      {isAdmin ? <DeleteProductSheet /> : null}
+      {isAdmin ? <ArchiveSheet archive={archive} /> : null}
+      {/* A live product's delete dialog offers archiving it instead; one already archived has nothing to offer. */}
+      {isAdmin ? <DeleteProductSheet onArchive={product.archived_at ? undefined : () => archive.change.mutate(false)} /> : null}
       <p className="settings-foot">
         Your display name is in <Link to="/settings">your own settings</Link>.
       </p>
@@ -654,8 +656,8 @@ interface ProductImpact {
   contents: { sources: number; stored_files: number; bytes: number; comments: number; outcomes: number; assumptions: number; story_pages: number; mockups: number; exports: number; people: number };
 }
 
-/** Delete the whole product, with its name typed, one step past archiving it. */
-function DeleteProductSheet() {
+/** Delete the whole product, with its name typed, one step past archiving it, which `onArchive` offers instead. */
+function DeleteProductSheet({ onArchive }: { onArchive?: () => void }) {
   const { product, api: base } = useProduct();
   const qc = useQueryClient();
   const toast = useToast();
@@ -678,6 +680,7 @@ function DeleteProductSheet() {
           impactPath={`${base}/delete-impact`}
           deletePath={base}
           typeToConfirm={{ what: "product", name: product.name }}
+          alternative={onArchive ? { label: "Archive instead", onSelect: onArchive } : undefined}
           renderImpact={({ contents: c }) => {
             const held = [
               c.sources > 0 &&
@@ -718,11 +721,14 @@ function DeleteProductSheet() {
   );
 }
 
-function ArchiveSheet() {
+/**
+ * Archiving or restoring the product, one for the page: its Archive sheet's button and Archive
+ * instead in its delete dialog share it, so the sheet shows either one's progress and failure.
+ */
+function useArchiveProduct() {
   const { product, api: base } = useProduct();
   const qc = useQueryClient();
   const toast = useToast();
-  const archived = Boolean(product.archived_at);
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ["product"] });
     void qc.invalidateQueries({ queryKey: ["products"] });
@@ -734,6 +740,12 @@ function ArchiveSheet() {
       toast(restore ? `${product.name} is restored.` : `${product.name} is archived and read-only.`);
     },
   });
+  return { change, refresh };
+}
+
+function ArchiveSheet({ archive: { change, refresh } }: { archive: ReturnType<typeof useArchiveProduct> }) {
+  const { product } = useProduct();
+  const archived = Boolean(product.archived_at);
   return (
     <Sheet labelledBy="archive-title">
       <SheetHeader id="archive-title" title={archived ? "Restore this product" : "Archive this product"} />

@@ -565,6 +565,13 @@ input[type="file"]::file-selector-button {
   margin: var(--s-1h) calc(-1 * var(--s-1h));
   background: var(--line);
 }
+/* A separator only ever divides: one with nothing but separators before it or after it, or right
+   after another, is not drawn, so no menu begins or ends with one or shows two together. */
+.menu > .menu-sep:not(:not(.menu-sep) ~ .menu-sep),
+.menu > .menu-sep:not(:has(~ :not(.menu-sep))),
+.menu > .menu-sep + .menu-sep {
+  display: none;
+}
 .menu-label {
   padding: var(--s-1h) var(--s-2) var(--s-0);
   color: var(--faint);

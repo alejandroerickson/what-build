@@ -173,10 +173,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 - **Nothing to change; people will notice they can archive a comment in the web app.** An editor
   archives a comment from its menu, saying why if they like, and restores it from the archived
   comments a source's Comments list on request; a comment's delete dialog offers Archive
-  instead, and every delete dialog has Cancel. A search hit opens a source's text at its own
-  match, from the palette too when the source's title holds the words; a day in Activity whose
-  older changes are not loaded yet counts "37+ changes"; search marks stand out in the dark
-  theme; and a source's date updated is called Details updated, which its text, summary and
+  instead, as a live product's does too, and every delete dialog has Cancel. A screen reader names
+  each comment's menu by the comment's first words too, and by which of them it is where two start
+  alike, so two by one person at the same time are told apart. A search hit opens
+  a source's text at its own match, from the palette too when the source's title holds the words;
+  a day in Activity whose older changes are not loaded yet counts "37+ changes"; search marks
+  stand out in the dark theme; an attachment an agent added says which agent, as the source's
+  Details do; and a source's date updated is called Details updated, which its text, summary and
   notes never changed.
 - **The skill is 0.33.0.** Connected agents are asked to update their installed skill. It tells
   them which etag a source's summary, notes and text take, and to send none before a first write,

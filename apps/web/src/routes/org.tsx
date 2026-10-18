@@ -2,7 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
-import { aRole, formatBytes, formatDate, ROLE_WORD, scopeWords } from "../lib/format.ts";
+import { aRole, formatBytes, formatDate, plural, ROLE_WORD, scopeWords } from "../lib/format.ts";
 import { useMe, useProducts } from "../lib/session.tsx";
 import { ActivityLog, type ActivityItem } from "../shell/ActivityFeed.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
@@ -11,7 +11,7 @@ import {
   SelectField, Sheet, SheetBody, SheetHeader, StatusBadge, TextArea, TextField, useToast,
 } from "../ui/index.tsx";
 import { EntryPage } from "./auth.tsx";
-import { DeleteDialog } from "./delete-dialog.tsx";
+import { DeleteDialog, listed } from "./delete-dialog.tsx";
 import "../styles/screens/account.css";
 import "../styles/screens/activity.css";
 import "../styles/screens/org.css";
@@ -419,6 +419,25 @@ interface OrganizationImpact {
 }
 
 /**
+ * What deleting an organization takes, as its dialog says it, leaving out a count of none: what
+ * goes (its teams and products, with their sources and stored files), and who loses what (the
+ * people with roles here, and the invitations still open), or null when nobody does.
+ */
+export function organizationImpactWords(name: string, c: OrganizationImpact["contents"]): { goes: string; people: string | null } {
+  const held = listed([
+    c.teams > 0 && (c.teams === 1 ? "its team" : `its ${c.teams} teams`),
+    c.products.length > 0 && (c.products.length === 1 ? "its product" : `all ${c.products.length} of its products`),
+  ]);
+  const within = listed([c.sources > 0 && plural(c.sources, "source"), c.stored_files > 0 && `${plural(c.stored_files, "stored file")} (${formatBytes(c.bytes)})`]);
+  const lose = c.people > 0 && `${c.people === 1 ? "1 person loses" : `${c.people} people lose`} their roles here`;
+  const stop = c.pending_invitations > 0 && (c.pending_invitations === 1 ? "1 invitation stops working" : `${c.pending_invitations} invitations stop working`);
+  return {
+    goes: `Everything in ${name} goes at once${held ? `: ${held}${within ? `, with ${within}` : ""}` : ""}.`,
+    people: lose ? `${lose}${stop ? `, and ${stop}` : ""}. Their accounts, and their roles in other organizations, stay.` : stop ? `${stop}.` : null,
+  };
+}
+
+/**
  * Delete the whole organization: an owner's act in the web app alone, never an agent's, with the
  * organization's name typed to confirm.
  */
@@ -444,29 +463,25 @@ function DeleteOrganizationSheet({ tenant, orgName }: { tenant: string; orgName:
           impactPath={`/api/v1/tenants/${tenant}/delete-impact`}
           deletePath={`/api/v1/tenants/${tenant}`}
           typeToConfirm={{ what: "organization", name: orgName }}
-          renderImpact={({ contents: c }) => (
-            <>
-              <p>
-                Everything in {orgName} goes at once: {c.teams === 1 ? "its team" : `its ${c.teams} teams`} and {c.products.length === 1 ? "its product" : `all ${c.products.length} of its products`}, with{" "}
-                {c.sources === 1 ? "1 source" : `${c.sources} sources`} and {c.stored_files === 1 ? "1 stored file" : `${c.stored_files} stored files`} ({formatBytes(c.bytes)}).
-              </p>
-              {c.products.length ? (
-                <ul className="delete-impact-list">
-                  {c.products.map((p) => (
-                    <li key={p.product_id}>
-                      {p.name}
-                      {p.archived ? <span className="faint"> · archived</span> : null}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              <p>
-                {c.people === 1 ? "1 person loses" : `${c.people} people lose`} their roles here
-                {c.pending_invitations ? `, and ${c.pending_invitations === 1 ? "1 invitation stops" : `${c.pending_invitations} invitations stop`} working` : ""}. Their accounts, and their roles in
-                other organizations, stay.
-              </p>
-            </>
-          )}
+          renderImpact={({ contents: c }) => {
+            const words = organizationImpactWords(orgName, c);
+            return (
+              <>
+                <p>{words.goes}</p>
+                {c.products.length ? (
+                  <ul className="delete-impact-list">
+                    {c.products.map((p) => (
+                      <li key={p.product_id}>
+                        {p.name}
+                        {p.archived ? <span className="faint"> · archived</span> : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {words.people ? <p>{words.people}</p> : null}
+              </>
+            );
+          }}
           onDeleted={() => {
             void qc.invalidateQueries({ queryKey: ["products"] });
             try {

@@ -430,9 +430,11 @@ The sources, and everything for reading them.
     "Write notes" for an editor; both open the summary's dialog, with its etag and its handling of
     a change made meanwhile) and **Comments** (every comment on the source, newest first, and
     "Comment" for an editor, which opens a form for a comment on the whole source with optional
-    tags). Each comment's menu offers an editor **Archive…**, a dialog asking why, optionally
-    (the reason stays with the comment; the activity log records only that it was archived), and
-    an admin **Delete permanently…** (§7.10). Archived comments are left out until "Show N
+    tags). Each comment's menu is named by who wrote the comment, when, and its first words, so
+    that two by one person at the same time are told apart (where they start alike too, by which
+    of them each is: "(1 of 2)"), and offers an editor **Archive…**, a
+    dialog asking why, optionally (the reason stays with the comment; the activity log records
+    only that it was archived), and an admin **Delete permanently…** (§7.10). Archived comments are left out until "Show N
     archived comments", at the section's foot, lists them under the others (`?include_archived=1`):
     muted, marked Archived with when and why, and with Restore in their menu for an editor. On an
     archived source, which is read-only until it is restored ([§4.6](04-data-model.md)), comments
@@ -445,8 +447,9 @@ The sources, and everything for reading them.
     pictures, "Format not read", "Too large to read", "Couldn't be read", or "Reading"), with the
     server's `status_detail` under it except for pictures, "The source's text" on the one it came
     from, its type in words (such as "Word document", not its media type), size, versions, and who
-    added it when, with Download, and a menu with **Show it** (a PDF, an image, a recording,
-    Markdown, HTML in a sandbox, or plain text, in a dialog; a recording with its length), **Use
+    added it when, adding "via <surface>" when it was not the web, as About does, with Download,
+    and a menu with **Show it** (a PDF, an image, a recording, Markdown, HTML in a sandbox, or
+    plain text, in a dialog; a recording with its length), **Use
     its text…** and **Read it again** for editors, the last not for pictures, which no reading
     finds words in. An image opens in a viewer with zoom (buttons, `+` `-`, `0` to fit, `1` for actual
     size, double-click, a pinch or Ctrl/Cmd and the wheel), drag to pan, full screen (`F`), and,
@@ -750,7 +753,7 @@ a product that isn't archived (`canDelete`). One dialog serves every delete
 | Outcome | its row's menu on Idea | its row's menu |
 | Story page | its row's menu in the tree, and the inspector's About | its row's menu, and the inspector's About |
 | Mockup | in its delete dialog, as the alternative | the inspector's Version, under Download |
-| Product | Settings, Archive this product | Settings, Delete this product |
+| Product | Settings, Archive this product, and in its delete dialog | Settings, Delete this product |
 | Organization | — | Members, Delete this organization, for owners, never in a public sandbox |
 
 1. The visible control is **Archive**. It is a plain, ordinary action with no confirmation beyond
@@ -760,18 +763,19 @@ a product that isn't archived (`canDelete`). One dialog serves every delete
    ◆ Decision: the reason is asked in a dialog rather than offered after archiving, since
    `update_annotation` takes it only with the archive; Archive instead, in a comment's delete
    dialog, archives at once without one.
-2. **Delete** sits inside the same menu, below a separator, styled as destructive, never
-   pre-selected and never the primary button of any dialog.
+2. **Delete** sits inside the same menu, below a separator when anything is above it, styled as
+   destructive, never pre-selected and never the primary button of any dialog. No menu begins or
+   ends with a separator, or shows two together (`apps/web/src/styles/ui.css`).
 3. Choosing it opens a dialog titled as a question ("Delete this assumption permanently?"), that
    says it can't be undone and shows the object's preview as plain sentences before any control:
    *This deletes its attachments (4 stored versions, 218 MB), its text, summary and notes, and 1
-   comment.* For an assumption it says how many other
+   comment.* A count of none is left out. For an assumption it says how many other
    assumptions link to it, and that those links go with it; for an outcome, the assumptions it is
    taken from. A mockup a Story page shows lists those pages, and its delete stays disabled.
 4. The dialog asks for a reason, which the button needs. A source also needs its title typed, and
    a whole product or organization its name. Every delete dialog has Cancel, and wherever the
    object can be archived, Archive instead beside it, offering it again; for what is already
-   archived it is left out.
+   archived it is left out, and the dialog says nothing of archiving.
 5. Afterwards, a toast states what was deleted and that the activity log records who, when and
    why. Nothing is silently gone.
 
@@ -826,7 +830,8 @@ never described as deleting. A list row showing an archived object says *Archive
   and nowhere else.
 - **Product settings** (`…/settings`, in the product's shell): name, slug and product concept; **People**;
   export; the organization; and, for admins, archive or restore and **Delete this product**,
-  whose dialog counts everything in it and needs a reason and the product's name typed (§7.10). **People** lists everyone who can reach this
+  whose dialog counts everything in it, needs a reason and the product's name typed, and offers
+  Archive instead while the product is live (§7.10). **People** lists everyone who can reach this
   product and how, in words: a product role, or a role inherited from the team or the
   organization (`members.list` with `product`). Product admins get a role picker (admin, editor,
   viewer, reader) for product roles, **Add people** (pick someone already in the organization whom

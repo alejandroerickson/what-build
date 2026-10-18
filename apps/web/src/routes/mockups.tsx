@@ -1391,6 +1391,13 @@ interface MockupImpact {
   earlier_story_versions_showing: { page_id: string; title: string; version: number }[];
 }
 
+/** What deleting a mockup deletes, as its dialog says it: every version, each with its own pages, notes, files and brief. */
+export function mockupImpactWords(title: string, versions: number): string {
+  return versions === 1
+    ? `This deletes “${title}” with its only version: its pages, notes, files and brief.`
+    : `This deletes “${title}” with all ${versions} of its versions: their pages, notes, files and briefs.`;
+}
+
 /** Delete a mockup for good. A Story page that shows it holds it: that page goes, or gets HTML of its own, first. */
 function DeleteMockup({ mockup, onClose }: { mockup: MockupView; onClose: () => void }) {
   const { app, api: base } = useProduct();
@@ -1431,9 +1438,7 @@ function DeleteMockup({ mockup, onClose }: { mockup: MockupView; onClose: () => 
           </>
         ) : (
           <>
-            <p>
-              This deletes “{mockup.title}” with {i.version_count === 1 ? "its only version" : `all ${i.version_count} of its versions`}: their pages, notes, files and brief.
-            </p>
+            <p>{mockupImpactWords(mockup.title, i.version_count)}</p>
             {i.earlier_story_versions_showing.length ? (
               <p>
                 {i.earlier_story_versions_showing.length === 1 ? "An earlier version of a Story page shows it, and will" : `${i.earlier_story_versions_showing.length} earlier versions of Story pages show it, and will`}{" "}

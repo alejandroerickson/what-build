@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fileTypeName, nestQuotes, quotedAtEnd, untilTime } from "../src/lib/format.ts";
+import { fileTypeName, nestQuotes, quotedAtEnd, untilTime, viaSurface } from "../src/lib/format.ts";
 
 describe("untilTime", () => {
   const now = Date.parse("2026-09-29T10:00:00Z");
@@ -52,5 +52,16 @@ describe("fileTypeName", () => {
     expect(fileTypeName("application/octet-stream", "notes.key")).toBe("KEY file");
     expect(fileTypeName("application/x-thing")).toBe("application/x-thing");
     expect(fileTypeName(null)).toBe("Unknown type");
+  });
+});
+
+describe("viaSurface", () => {
+  it("says through what someone did something, after their name, when it was not the web", () => {
+    expect(viaSurface({ surface: "mcp", client: "claude-code" })).toBe(" via claude-code");
+    expect(viaSurface({ surface: "mcp", client: null })).toBe(" via an agent");
+    expect(viaSurface({ surface: "rest", client: null })).toBe(" via the API");
+    expect(viaSurface({ surface: "web", client: null })).toBe("");
+    expect(viaSurface({ surface: null, client: null })).toBe("");
+    expect(viaSurface(null)).toBe("");
   });
 });

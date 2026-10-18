@@ -338,7 +338,7 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
             <StatusBadge tone={s.tone}>{s.label}</StatusBadge>
             <span className="sep-dot" aria-hidden="true" />
             <span className="entry-written">
-              {e.author_type === "agent" ? "Drafted by" : "Recorded by"} <Byline actor={e.author} agent={e.author_type === "agent"} />
+              {e.author_type === "agent" ? "Drafted by" : "Recorded by"} <Byline actor={e.author} agent={e.author_type === "agent"} />{" "}
               <time dateTime={e.created_at}>· {relativeTime(e.created_at)}</time>
             </span>
             {e.frozen ? (
@@ -374,7 +374,8 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
                 ) : null}
                 {canDelete ? (
                   <>
-                    <MenuSeparator />
+                    {/* Only what an editor can do sits above it: an archived one's menu holds Delete alone. */}
+                    {canWrite && !archived ? <MenuSeparator /> : null}
                     <MenuItem icon="trash" tone="danger" onSelect={() => setDeleting(true)}>
                       Delete permanently…
                     </MenuItem>

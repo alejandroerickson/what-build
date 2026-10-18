@@ -13,14 +13,14 @@ const ID = "01K8A2B3C4D5E6F7G8H9J0K1M2";
 const BASE = "/api/v1/p/acme/core/crew";
 const APP = "/t/acme/core/crew";
 const by = { account_id: "a1", display_name: "Riley Chen", surface: "web", client: null };
-const record = { updated_at: "2026-10-01T09:00:00.000Z" };
+const record = { updated_at: "2026-10-01T09:00:00.000Z", uploaded_by: by as Record<string, unknown> };
 
 vi.mock("../src/lib/api.ts", async (original) => ({
   ...(await original<typeof import("../src/lib/api.ts")>()),
   api: vi.fn(async (_method: string, path: string) => {
     if (path === `${BASE}/sources/${ID}?detail=full`)
       return {
-        record_id: ID, title: "Crew lead interview — Example Co", date: null, tags: [], uploaded_by: by, uploaded_at: "2026-10-01T09:00:00.000Z",
+        record_id: ID, title: "Crew lead interview — Example Co", date: null, tags: [], uploaded_by: record.uploaded_by, uploaded_at: "2026-10-01T09:00:00.000Z",
         updated_at: record.updated_at, updated_by: by, archived_at: null, derived_status: "ready", text_chars: 20, attachment_count: 0, etag: "e1",
         duration_ms: null, status_detail: null, warnings: [], annotation_count: 0, pending_upload_path: null, attachments: [], annotations: [], agent_notes: [],
         // Written since it was added: the text has a date of its own.
@@ -49,6 +49,7 @@ afterEach(() => {
   unmount?.();
   unmount = null;
   document.body.innerHTML = "";
+  record.uploaded_by = by;
 });
 
 async function details() {
@@ -84,6 +85,13 @@ describe("a source's details", () => {
     const d = await details();
     expect(d.labels).toEqual(["Tags", "Date captured", "Date added", "Details updated"]);
     expect(d.value("Details updated")).toBe("Not changed since it was added");
+  });
+
+  it("say through which agent the source was added, after who added it", async () => {
+    record.updated_at = "2026-10-01T09:00:00.000Z";
+    record.uploaded_by = { ...by, surface: "mcp", client: "claude-code" };
+    const d = await details();
+    expect(d.value("Date added")).toMatch(/by Riley Chen via claude-code$/);
   });
 
   it("say when and by whom the details last changed", async () => {

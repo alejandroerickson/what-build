@@ -2,7 +2,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/rea
 import { useContext, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError, isObjectId, qs } from "../lib/api.ts";
-import { actorName, attribution, formatBytes, formatDate, plural, quotedAtEnd, relativeTime } from "../lib/format.ts";
+import { actorName, attribution, formatBytes, formatDate, plural, quotedAtEnd, relativeTime, viaSurface } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import type { Actor, RecordFull } from "../lib/types.ts";
@@ -170,12 +170,6 @@ export function SourceDetailPage() {
       {dialog === "attachments" ? <AddAttachments record={r} onClose={() => setDialog(null)} /> : null}
     </>
   );
-}
-
-function surfaceLabel(actor: Actor) {
-  if (actor.surface === "mcp") return actor.client || "an agent";
-  if (actor.surface === "rest") return "the API";
-  return "the web";
 }
 
 /**
@@ -409,7 +403,7 @@ function When({ at, by, byTo }: { at: string; by: Actor | null | undefined; byTo
         ) : (
           actorName(by)
         )}
-        {by?.surface && by.surface !== "web" ? ` via ${surfaceLabel(by)}` : ""}
+        {viaSurface(by)}
       </small>
     </span>
   );
@@ -583,6 +577,19 @@ function EditDetails({ record, onClose, onReload }: { record: SourceRecord; onCl
   );
 }
 
+/** What archiving would do instead, said in a live source's delete dialog; an archived one is already out of lists and search. */
+const ARCHIVING_INSTEAD = "Archiving takes it out of lists and search and erases nothing.";
+
+/**
+ * What deleting a source deletes, as its dialog says it: its attachments' stored versions, its
+ * text, summary and notes, and its comments, leaving out a count of none.
+ */
+export function sourceImpactWords(i: { file_versions: number; bytes: number; annotations: number }): string {
+  const attachments = i.file_versions > 0 ? `its attachments (${plural(i.file_versions, "stored version")}, ${formatBytes(i.bytes)}), ` : "";
+  const comments = i.annotations > 0 ? `, and ${plural(i.annotations, "comment")}` : "";
+  return `This deletes ${attachments}its text, summary and notes${comments}.`;
+}
+
 function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () => void }) {
   const { api: base, app } = useProduct();
   const navigate = useNavigate();
@@ -617,7 +624,7 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
       open
       onClose={onClose}
       title="Delete this source permanently?"
-      description="This can’t be undone. Archiving takes it out of lists and search and erases nothing."
+      description={record.archived_at ? "This can’t be undone." : `This can’t be undone. ${ARCHIVING_INSTEAD}`}
       dismissable={!del.isPending}
       footer={
         <>
@@ -648,9 +655,7 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
         <ErrorCallout inset error={impact.error} onRetry={() => impact.refetch()} />
       ) : i ? (
         <div className="stack-sm source-impact">
-          <p>
-            This deletes its attachments ({plural(i.file_versions, "stored version")}, {formatBytes(i.bytes)}), its text, summary and notes, and {plural(i.annotations, "comment")}.
-          </p>
+          <p>{sourceImpactWords(i)}</p>
           <p>Links to it from Story pages, mockups and notes will open a record of the deletion instead.</p>
         </div>
       ) : null}

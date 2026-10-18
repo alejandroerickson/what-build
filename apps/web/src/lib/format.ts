@@ -78,6 +78,17 @@ export function actorName(actor: { display_name?: string; surface?: string | nul
   return actor.display_name || "Someone";
 }
 
+/**
+ * Through what someone did something, said after their name when it was not the web: " via
+ * claude-code" for an agent (" via an agent" when it gave no name), " via the API"; nothing for the
+ * web. A source's Details and its attachment rows say it so: "by Sam via claude-code".
+ */
+export function viaSurface(actor: { surface?: string | null; client?: string | null } | null | undefined): string {
+  if (actor?.surface === "mcp") return ` via ${actor.client || "an agent"}`;
+  if (actor?.surface === "rest") return " via the API";
+  return "";
+}
+
 /** "Sam · via claude-code" when an agent did it. */
 export function attribution(actor: { display_name?: string; surface?: string | null; client?: string | null } | null | undefined): string {
   const name = actorName(actor);
