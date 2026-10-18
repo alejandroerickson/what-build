@@ -633,7 +633,7 @@ function headingGoesOn(a: Line, b: Line): boolean {
 }
 
 /** A heading a page's lines make: its words, how many lines it takes, and the size it is set in. */
-export interface PageHeading {
+interface PageHeading {
   text: string;
   lines: number;
   size: number;
@@ -646,7 +646,7 @@ export interface PageHeading {
  * `MAX_HEADING_CHARS` long, hold a letter, are no list item, and do not end as prose does; any
  * other run of them is read as it always was, as paragraphs.
  */
-export function pageHeadings(lines: Line[]): Map<number, PageHeading> {
+function pageHeadings(lines: Line[]): Map<number, PageHeading> {
   const out = new Map<number, PageHeading>();
   const body = bodySize(lines);
   if (body === null) return out;
