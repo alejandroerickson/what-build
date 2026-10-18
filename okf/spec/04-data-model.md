@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the assumption register, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -270,11 +270,11 @@ comments' segment ranges and anchors, keeping their text.
 
 ## 4.7 Evidence links
 
-Writing may mention a source in prose by its id ("source 01K…"). The web app renders such a
-mention in Markdown as an evidence link that reads as the source's title and opens the source
-([`apps/web/src/lib/markdown.tsx`](../../apps/web/src/lib/markdown.tsx)). A source has no
-passages to point at: a mention written while it had ("source 01K…, segments 4–6") opens the
-source too, and its numbers are left out. A link is presentation
+Markdown may link to a source, at its address (`…/evidence/<record_id>`); the web app sets such a
+link as an evidence link, a quiet token that opens the source
+([`apps/web/src/lib/markdown.tsx`](../../apps/web/src/lib/markdown.tsx)). A source mentioned in
+prose by its id alone ("source 01K…") stays as written, and so does one written while sources had
+passages ("source 01K…, segments 4–6"). A link is presentation
 only. Nothing structural points from an assumption, a Story page, a mockup or another source to a
 source, and nothing records what mentions what: what bears on a piece of work is found by
 searching the product ([§8](08-search.md),
@@ -408,7 +408,9 @@ version is immutable: `version` (1, 2, 3…), `title`, `summary` (describes the 
 recognised without reading it). Readers see the latest version; any version
 can be read by number. Limit: 50 pages per product (`409 quota_exceeded`). Agents write pages; agents
 and people arrange, archive and restore them, and admins delete them
-([decision](../decisions/agents-write-the-story-people-arrange-it.md)).
+([decision](../decisions/agents-write-the-story-people-arrange-it.md)). `story.list_pages` leaves
+archived pages out unless `include_archived`, and says how many it left out (`archived_hidden`, with
+a `note` when there are any); a reader is given neither the archived pages nor their count.
 ◆ Decision: a version has no change note. What changed is in the activity log, and an agent's
 working context is in the page's notes. The `story_versions.note` column stays for versions
 published before the note was removed, and is neither written nor returned; a product export
@@ -548,7 +550,10 @@ one HTML document for a browser to print to PDF ([§6.4](06-operations-and-adapt
 
 `set_hierarchy` takes the hierarchy's etag as `expected_etag`. Before the first save there is none
 (`get_hierarchy` gives `etag: null`), and `expected_etag` is null or left out; once saved, leaving
-it out is `409 stale_etag`, saying to read `get_hierarchy` and pass its etag.
+it out is `409 stale_etag`, saying to read `get_hierarchy` and pass its etag. A page that was never
+published, or is archived, is refused too (`422 invalid_hierarchy`, with `details.unpublished` or
+`details.archived`), and the refusal says what to do: publish it, or restore it, first, or leave
+it out.
 
 Every published page appears exactly once, in the tree or among the Published mockups
 ([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)).
@@ -589,9 +594,14 @@ with `.tag`, `dl.facts` and `nav.pages`; and for evidence and what changes `div.
 `figure.shot` with `.screen`, `.pin` and `ol.pins`), so content moves between styles unchanged;
 `BASE` in `house-styles/kit.ts` gives every style the vocabulary's structure, and each adds
 signature moves of its own. They also set what a browser draws for itself: the selection, the
-scrollbar, the focus ring, and where a printed page may break. A product that adopted a house
-style since removed keeps its copy: it reads as a house style with its `based_on` id and no
-`based_on_name`, and an agent can still change or replace it.
+scrollbar, the focus ring, and where a printed page may break. A tally is never wider than the
+block it sits in: its marks, its fill and its height are shares of the width it gets, so on a
+phone or in a column every mark shows and exactly `--n` of them are filled. A product that adopted
+a house style since removed keeps its copy: it reads as a house style with its `based_on` id and
+no `based_on_name`, and an agent can still change or replace it. Its stylesheet predates the
+current vocabulary, so `story.get_style` (and `story.guidance`, where it reports the product's
+style) gives it a `note` saying that blocks added since may render unstyled, and that adopting a
+current house style and publishing each page with `restyle` moves it to a current base.
 
 **Carried typefaces** ([`story-fonts.ts`](../../packages/core/src/story-fonts.ts),
 [decision](../decisions/story-pages-name-typefaces-the-server-carries.md)): Archivo (with its
@@ -610,13 +620,17 @@ layout, adapt, polish), a push to use a design skill such as Impeccable when the
 to mention it once when it does not, the sandbox rules, recipes, writing rules and a checklist.
 It carries no stylesheet of its own and nothing of the app's look; `house_style` returns that
 style in full with a starter page, and `product_style` says whether the product has a style yet.
-The writing guidance asks for pages that explain in their own words and quote a person only where
-their exact words matter, attributed in words, with no source reference or link to the evidence
-after each claim ([decision](../decisions/evidence-is-searched-not-cited.md)); source-level quoting rules
-honoured (attribution by role where a source limits naming people, looked for before the first
-page), derived views labelled as analysis rather than evidence, a plan's dates presented as the
-team's plan with their origin kept in the page's notes, and pages placed in the hierarchy unless
-the author's instructions say otherwise. A first version that
+The writing guidance says what the Story is for: the team's own communication with the people it
+works with (what to build and why, the pitch, the plan, where things stand, or whatever else the
+team wants its stakeholders to read), not a quoted or cited record of how decisions were reached.
+It sets no rule about how a page quotes, paraphrases, attributes or links what is in the product
+([decision](../decisions/evidence-is-searched-not-cited.md)): `links` gives a template for a link
+to a source, the outcomes, an assumption, a mockup and a Story page, and `links_note` says who can
+follow each (everyone on the team; a reader only Story pages and links outside WhatBuild). It keeps
+what a page must not misstate: no person, date, quotation, count, measurement or decision the
+sources do not establish, interpretation labelled as such, a plan's dates presented as the team's
+plan with their origin kept in the page's notes; and it asks for pages placed in the hierarchy
+unless the author's instructions say otherwise. A first version that
 omits both `body` and `html` gets a generated title page in the product's Story style, or a plain
 page when there is none.
 

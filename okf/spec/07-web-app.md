@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -419,11 +419,9 @@ The sources, and everything for reading them.
     what they added, and Date updated saying "Not since it was added" when nothing changed; Tags,
     each a link to the list filtered to it; nothing else), "Activity on this source", and
     Archive.
-- **Evidence links** in Markdown read as the source's title and open the source
-  ([§4.7](04-data-model.md)). A title is cut at its em-dash qualifier; where two sources mentioned
-  on the page would read alike, each adds its qualifiers in brackets ("Usability study (crew)"),
-  and identical titles are numbered. A source mentioned the bare way ("source <id>", as a view, a
-  digest or an agent's notes may write it) shows as the same link.
+- **Evidence links.** A Markdown link to a source is set as a quiet evidence token and opens the
+  source ([§4.7](04-data-model.md)). A source mentioned by its id alone ("source <id>") is shown as
+  written, not as a link.
 
 ## 7.7 Exploration
 

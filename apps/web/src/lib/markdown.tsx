@@ -7,24 +7,12 @@ import { Link, useInRouterContext } from "react-router";
  * source ever reaches the DOM; raw HTML is shown as text, images become links and never load, and
  * only web, mail, fragment and same-origin links are live.
  *
- * Evidence reads as the source's title: a link to a source gets the quiet evidence style, and,
- * when the caller knows the source titles, a source mentioned by its id — "source 01K…", as a
- * digest or an agent's notes may write it — becomes that same linked token. With `mark`, the words
- * it matches are highlighted wherever they appear in the text.
+ * A link to a source gets the quiet evidence style. A source mentioned by its id alone ("source
+ * 01K…") stays as written: nothing turns it into a link. With `mark`, the words it matches are
+ * highlighted wherever they appear in the text.
  */
-
-/**
- * What a caller knows for resolving source mentions: the product's app path, titles by id, and
- * optionally chip labels already worked out across a larger page (see `mentionLabels`).
- */
-export interface EvidenceContext {
-  app: string;
-  titles: Record<string, string | undefined>;
-  labels?: Record<string, string>;
-}
 
 const ULID = "[0-9A-HJKMNP-TV-Z]{26}";
-const SOURCE_MENTION = new RegExp(`\\bsource (${ULID})(?:(?:,\\s*(?:segments?\\s+|¶\\s?)|\\s+¶\\s?)(\\d+)(?:\\s*[–-]\\s*(\\d+))?)?`, "g");
 const EVIDENCE_PATH = new RegExp(`/evidence/${ULID}(?:[?#]|$)`);
 
 const SAFE_HREF = /^(https?:\/\/|mailto:|#|\/(?![/\\]))/i;
@@ -57,65 +45,8 @@ function inApp(href: string): string {
   return typeof window === "undefined" ? href : inAppHref(href, window.location);
 }
 
-
-/**
- * Each source a text mentions by its id ("source 01K…"), in order. A mention written while sources
- * had passages ("source 01K…, segments 4–6") is the source's too: the numbers point at nothing now.
- */
-export function sourceMentions(text: string): { id: string }[] {
-  if (!text.includes("source ")) return [];
-  return [...text.matchAll(SOURCE_MENTION)].map((m) => ({ id: m[1]! }));
-}
-
-/** The sources a text mentions by id, in order of first mention. */
-export function mentionedSourceIds(text: string): string[] {
-  return [...new Set(sourceMentions(text).map((c) => c.id))];
-}
-
-/**
- * Chip labels that tell sources apart on one page. A label starts as the title's part before an
- * em-dash qualifier ("Usability study"). Where mentioned sources would share a label, each adds its
- * next qualifier in brackets ("Usability study (crew)") until they differ; sources whose whole
- * titles match are numbered in order of mention.
- */
-export function mentionLabels(ids: string[], titles: Record<string, string | undefined>): Record<string, string> {
-  const parts = new Map(ids.map((id) => [id, (titles[id] ?? "Source").split(" — ").map((p) => p.trim()).filter(Boolean)]));
-  const depth = new Map(ids.map((id) => [id, 1]));
-  const label = (id: string) => {
-    const p = parts.get(id)!;
-    const n = depth.get(id)!;
-    if (!p.length) return "Source";
-    return n <= 1 ? p[0]! : `${p[0]} (${p.slice(1, n).join(", ")})`;
-  };
-  const groups = () => {
-    const by = new Map<string, string[]>();
-    for (const id of ids) by.set(label(id), [...(by.get(label(id)) ?? []), id]);
-    return by;
-  };
-  for (let grew = true; grew; ) {
-    grew = false;
-    for (const group of groups().values()) {
-      if (group.length < 2) continue;
-      for (const id of group) {
-        if (depth.get(id)! >= parts.get(id)!.length) continue;
-        depth.set(id, depth.get(id)! + 1);
-        grew = true;
-      }
-    }
-  }
-  const out: Record<string, string> = {};
-  for (const [l, group] of groups()) group.forEach((id, i) => (out[id] = group.length > 1 ? `${l} (${i + 1})` : l));
-  return out;
-}
-
-/** An in-app link to a source. */
-export function sourceHref(app: string, recordId: string): string {
-  return `${app}/evidence/${recordId}`;
-}
-
-/** What a renderer threads through the text: who mentions resolve to, and which words to mark. */
+/** What a renderer threads through the text: which words to mark. */
 interface Cx {
-  ev?: EvidenceContext | undefined;
   mark?: RegExp | undefined;
 }
 
@@ -139,14 +70,6 @@ function marked(text: string, key: string, mark: RegExp | undefined): ReactNode 
   return out;
 }
 
-/** The highlighting of `marked` over the strings among nodes, leaving elements as they are. */
-function markedNodes(nodes: ReactNode, key: string, mark: RegExp | undefined): ReactNode {
-  if (!mark) return nodes;
-  if (typeof nodes === "string") return marked(nodes, key, mark);
-  if (Array.isArray(nodes)) return nodes.map((n, i) => (typeof n === "string" ? <Fragment key={`${key}.s${i}`}>{marked(n, `${key}.s${i}`, mark)}</Fragment> : n));
-  return nodes;
-}
-
 function AppLink({ href, className, title, children }: { href: string; className?: string; title?: string; children: ReactNode }) {
   const routed = useInRouterContext();
   if (routed && href.startsWith("/")) {
@@ -161,37 +84,6 @@ function AppLink({ href, className, title, children }: { href: string; className
       {children}
     </a>
   );
-}
-
-/**
- * Turn "source <id>" mentions in a run of text into evidence links; or, where the text already sits
- * inside a link or a button (a search hit), into the same token without a link of its own.
- */
-export function evidenceLinks(text: string, key: string, ev: EvidenceContext | undefined, asLink = true): ReactNode {
-  if (!ev || !text.includes("source ")) return text;
-  const out: ReactNode[] = [];
-  let last = 0;
-  for (const m of text.matchAll(SOURCE_MENTION)) {
-    const [whole, id] = m;
-    const known = ev.titles[id!];
-    const label = ev.labels?.[id!] ?? mentionLabels([id!], ev.titles)[id!]!;
-    out.push(text.slice(last, m.index));
-    out.push(
-      asLink ? (
-        <AppLink key={`${key}.c${m.index}`} href={sourceHref(ev.app, id!)} className="evidence-link" title={known ?? undefined}>
-          {label}
-        </AppLink>
-      ) : (
-        <span key={`${key}.c${m.index}`} className="evidence-link" title={known ?? undefined}>
-          {label}
-        </span>
-      ),
-    );
-    last = m.index! + whole.length;
-  }
-  if (!out.length) return text;
-  out.push(text.slice(last));
-  return out;
 }
 
 function decode(s: string): string {
@@ -212,7 +104,7 @@ function inline(tokens: Token[] | undefined, key = "i", cx: Cx = {}): ReactNode 
         return (t as Tokens.Text).tokens ? (
           <Fragment key={k}>{inline((t as Tokens.Text).tokens, k, cx)}</Fragment>
         ) : (
-          <Fragment key={k}>{markedNodes(evidenceLinks(decode(t.text), k, cx.ev), k, cx.mark)}</Fragment>
+          <Fragment key={k}>{marked(decode(t.text), k, cx.mark)}</Fragment>
         );
       case "escape":
         return <Fragment key={k}>{marked(decode(t.text), k, cx.mark)}</Fragment>;
@@ -228,7 +120,7 @@ function inline(tokens: Token[] | undefined, key = "i", cx: Cx = {}): ReactNode 
         return <br key={k} />;
       case "link": {
         const safe = safeHref((t as Tokens.Link).href);
-        const children = inline((t as Tokens.Link).tokens, k, { mark: cx.mark });
+        const children = inline((t as Tokens.Link).tokens, k, cx);
         if (!safe) return <Fragment key={k}>{children}</Fragment>;
         const href = inApp(safe);
         const lt = (t as Tokens.Link).tokens ?? [];
@@ -357,20 +249,16 @@ export function Markdown({
   source,
   className = "prose",
   headingShift = 1,
-  evidence,
   mark,
 }: {
   source: string;
   className?: string;
   headingShift?: number;
-  evidence?: EvidenceContext;
   /** Highlight what this global pattern matches, as a find does. */
   mark?: RegExp;
 }) {
   const tokens = new Lexer({ gfm: true }).lex(source ?? "");
-  // Chip labels are worked out across the whole text, so two sources never read alike on one page.
-  const ev = evidence && !evidence.labels ? { ...evidence, labels: mentionLabels(mentionedSourceIds(source ?? ""), evidence.titles) } : evidence;
-  return <div className={className}>{block(tokens, "md", headingShift, { ev, mark })}</div>;
+  return <div className={className}>{block(tokens, "md", headingShift, { mark })}</div>;
 }
 
 /**

@@ -29,7 +29,7 @@ const CSS = `${schemes(
 })}${BASE}
 body { margin: 0; background: var(--paper); color: var(--ink); font: 400 1.375rem/1.55 var(--text); font-kerning: normal; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 4px; }
-.page { container-type: inline-size; max-width: 70rem; margin: 0 auto; padding: clamp(3rem, 9vw, 8rem) clamp(1.25rem, 6vw, 5rem) clamp(5rem, 10vw, 9rem); }
+.page { max-width: 70rem; margin: 0 auto; padding: clamp(3rem, 9vw, 8rem) clamp(1.25rem, 6vw, 5rem) clamp(5rem, 10vw, 9rem); }
 .opening { margin-bottom: clamp(5rem, 11vw, 8.5rem); }
 .opening > * { margin: 0; }
 .kicker { margin-bottom: 1.75rem; font: 500 1.125rem/1.3 var(--text); color: var(--muted); }
@@ -154,8 +154,8 @@ details > :not(summary) { margin-bottom: 1.5rem; }
 .pins > li { min-height: 2.25rem; padding-left: 3.5rem; font-size: 1.25rem; line-height: 1.45; }
 .pins > li + li { margin-top: 1.5rem; }
 .pins > li::before { top: -0.05rem; }
-.tally { --dot: min(1.1em, calc(min(100cqi, 40rem) / var(--of, 10))); --tally: var(--ink); --tally-off: color-mix(in srgb, var(--ink) 16%, transparent); margin-right: 0.35em; vertical-align: -0.1em; -webkit-mask-position: calc(var(--dot) * -0.08) 0; mask-position: calc(var(--dot) * -0.08) 0; }
-p > .tally:first-child { --dot: min(1.3em, calc(min(100cqi, 40rem) / var(--of, 10))); display: block; margin: 0.4rem 0 1rem; }
+.tally { --dot: 1.1em; --tally: var(--ink); --tally-off: color-mix(in srgb, var(--ink) 16%, transparent); margin-right: 0.35em; vertical-align: -0.1em; }
+p > .tally:first-child { --dot: 1.3em; display: block; margin: 0.4rem 0 1rem; }
 @media (max-width: 48rem) {
   body { font-size: 1.1875rem; }
   .page { padding: 2.75rem 1.25rem 5rem; }
@@ -245,7 +245,7 @@ export const LARGE: HouseStyle = {
     "Colour means state and nothing else: green is evidence or done, red is caution, grey is open. Every .status names its state in words beside its mark.",
     "Put the numbers that matter in .figures, one per row, written short (\"19 of 23\", \"2.5 h\") so each stays on one line at full size.",
     "In ol.timeline, mark what is reached with data-state=\"done\" and the release in progress with aria-current=\"step\"; the current row carries the thick bar, so mark only one.",
-    "Use <mark> once or twice a page, on a few words of a quote or passage: it reverses the text out of black and is the strongest emphasis the page has. Keep the framed .callout for the one thing that changes how the page reads.",
+    "Use <mark> once or twice a page, on a few words of a quote or a sentence: it reverses the text out of black and is the strongest emphasis the page has. Keep the framed .callout for the one thing that changes how the page reads.",
   ])}\n`,
   stylesheet: CSS,
 };
