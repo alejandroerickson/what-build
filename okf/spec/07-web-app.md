@@ -739,9 +739,8 @@ a product that isn't archived (`canDelete`). One dialog serves every delete
    assumptions link to it, and that those links go with it; for an outcome, the assumptions it is
    taken from. A mockup a Story page shows lists those pages, and its delete stays disabled.
 4. The dialog asks for a reason, which the button needs. A source also needs its title typed, and
-   a whole product or organization its name. Archive is offered again, in the dialog, as the
-   secondary action, wherever the object can be archived; elsewhere the secondary action is
-   Cancel.
+   a whole product or organization its name. Every delete dialog has Cancel, and wherever the
+   object can be archived, Archive instead beside it, offering it again.
 5. Afterwards, a toast states what was deleted and that the activity log records who, when and
    why. Nothing is silently gone.
 

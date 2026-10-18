@@ -610,11 +610,14 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
     <Dialog
       open
       onClose={onClose}
-      title="Delete permanently"
+      title="Delete this source permanently?"
       description="This can’t be undone. Archiving takes it out of lists and search and erases nothing."
       dismissable={!del.isPending}
       footer={
         <>
+          <Button onClick={onClose} disabled={del.isPending}>
+            Cancel
+          </Button>
           <Button
             onClick={() => {
               archive.mutate(false);
