@@ -680,9 +680,10 @@ refresh it. ◆ Decision: say so rather than build sessions for it. The instruct
 that a tool the skill describes but its list lacks, or a skill newer than the version they name,
 means an older list, and to ask the person to start a new session; `get_skill`'s description says
 the same of a newer version than the instructions named. `unknown_tool` and `unknown_action` name
-the server's version and its tools or the tool's actions the connection is offered (also in
-`details`: `server_version`, `tools` or `actions`), and say the client may hold a list from
-another version.
+the server's version and the tools, or the tool's actions, the connection is offered, as its
+`tools/list` names them (also in `details`: `server_version`, `tools` or `actions`), so never
+`submit_feedback` where its person turned it off, and say the client may hold a list from another
+version.
 
 **Tools.** Fourteen tools over the 116 operations an agent may be offered (all 118 but deleting an
 organization and its preview): eleven grouped by noun, three standalone

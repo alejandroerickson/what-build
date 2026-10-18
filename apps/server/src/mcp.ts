@@ -92,7 +92,6 @@ export function toolDefinitions(level?: ConnectionLevel) {
 }
 
 const DEFINITIONS = toolDefinitions();
-const TOOL_NAMES = DEFINITIONS.tools.map((t) => t.name);
 /** What each connection level is offered: an Edit connection is never shown a permanent delete. */
 const OFFERED: Record<ConnectionLevel, ReturnType<typeof toolDefinitions>> = {
   viewer: toolDefinitions("viewer"),
@@ -292,7 +291,11 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
         productArg = args["product"];
       } else {
         op = DEFINITIONS.standalone.get(name);
-        if (!op) throw invalid("unknown_tool", `Unknown tool ${name}. This server, version ${SKILL_VERSION}, has these tools: ${TOOL_NAMES.join(", ")}.${STALE_LIST}`, { server_version: SKILL_VERSION, tools: TOOL_NAMES });
+        if (!op) {
+          // The tools a refusal names are the ones this connection is offered, as its tool list names them.
+          const tools = listedFor(principal).map((t) => t.name);
+          throw invalid("unknown_tool", `Unknown tool ${name}. This server, version ${SKILL_VERSION}, offers this connection these tools: ${tools.join(", ")}.${STALE_LIST}`, { server_version: SKILL_VERSION, tools });
+        }
         const { product, ...rest } = args;
         rawInput = rest;
         productArg = product;
