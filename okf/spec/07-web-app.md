@@ -420,8 +420,9 @@ The sources, and everything for reading them.
     archived comments", at the section's foot, lists them under the others (`?include_archived=1`):
     muted, marked Archived with when and why, and with Restore in their menu for an editor.
   - **Attachments** lists every attachment under a line saying that each one's text is read and
-    kept, that the source's text is taken from one of them, and that attachments are never
-    searched. Each row gives its name, how its text was read ("Text read · 12,345 characters",
+    kept, that the source's text is taken from one of them (once someone wrote or edited it, that
+    it was written here and follows no attachment; without a text, neither), and that attachments
+    are never searched. Each row gives its name, how its text was read ("Text read · 12,345 characters",
     "Recording, 12:03 · no text", "Image · no text", "Scan · no text" for a PDF whose pages are
     pictures, "Format not read", "Too large to read", "Couldn't be read", or "Reading"), with the
     server's `status_detail` under it except for pictures, "The source's text" on the one it came
