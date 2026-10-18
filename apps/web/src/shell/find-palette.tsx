@@ -148,6 +148,8 @@ function Palette({ app, base, product, text, setText, via, onClose }: { app: str
           ref={input}
           type="text"
           role="combobox"
+          // Its own name, apart from the dialog's ("Search <product>"), which its placeholder repeats.
+          aria-label="Words to search for"
           aria-expanded={opts.length > 0}
           aria-controls={opts.length ? listId : undefined}
           aria-autocomplete="list"

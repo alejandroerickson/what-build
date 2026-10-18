@@ -101,3 +101,20 @@ describe("the words a search found nothing for", () => {
     expect(document.querySelector(".find-pal-empty")?.textContent).toBe("Nothing in Crewboard matches “van checklist”. Try another word.");
   });
 });
+
+describe("the palette", () => {
+  it("names its dialog and its field apart", async () => {
+    await render(
+      <FindProvider app={APP} base={BASE} product={product as never}>
+        <FindLauncher product={product as never} />
+      </FindProvider>,
+      `${APP}/evidence`,
+    );
+    await act(async () => document.querySelector<HTMLButtonElement>(".find-launch")!.click());
+    const dialog = document.querySelector<HTMLDialogElement>("dialog.find-pal")!;
+    const field = dialog.querySelector<HTMLInputElement>('input[role="combobox"]')!;
+    expect(dialog.getAttribute("aria-label")).toBe("Search Crewboard");
+    expect(field.getAttribute("aria-label")).toBe("Words to search for");
+    expect(field.placeholder).toBe("Search Crewboard");
+  });
+});
