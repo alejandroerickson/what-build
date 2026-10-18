@@ -449,6 +449,57 @@ describe("every place, as typed", () => {
   });
 });
 
+describe("pages of a search of everything, and numbers in ranked mode", () => {
+  let Y: string;
+  let yard: string;
+  let ticket: string;
+  let idle: string;
+
+  beforeAll(async () => {
+    const t = await alice.api("POST", "/api/v1/tenants", { name: "Yard Co" });
+    const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Yard" });
+    Y = `/api/v1/p/${p.body.path}`;
+    yard = await source(Y, alice, "Yard log — Example Co");
+    expect((await alice.api("PUT", `${Y}/sources/${yard}/derived/text`, { content: "The gate opens at six. The gate closes at ten. The gate stays shut on Sunday.\n" })).status).toBe(200);
+    ticket = await source(Y, alice, "Crane ticket — Example Co");
+    expect((await alice.api("PUT", `${Y}/sources/${ticket}/derived/text`, { content: "Ticket CB26-20734 is open for the crane, logged 2026-05-01.\n" })).status).toBe(200);
+    idle = (await alice.api("POST", `${Y}/assumptions`, { statement: "Crews wait at the gate before six.", body: "Ticket CB26-20734 shows the wait." })).body.id;
+    expect((await alice.api("POST", `${Y}/assumptions`, { statement: "The gate code changes weekly." })).status).toBe(201);
+  });
+
+  it("with scope all, gives the assumptions on the first page only, and refuses a cursor for assumptions alone", async () => {
+    const first = (await alice.api("GET", `${Y}/search?scope=all&query=gate&limit=1`)).body;
+    expect(first.hits).toHaveLength(1);
+    // At most limit of them, as of the hits.
+    expect(first.assumptions).toHaveLength(1);
+    expect((await alice.api("GET", `${Y}/search?scope=all&query=gate&limit=5`)).body.assumptions).toHaveLength(2);
+    expect(first.next_cursor).toBeTruthy();
+    const seen = [...first.hits];
+    let cursor: string | null = first.next_cursor;
+    while (cursor) {
+      const page = (await alice.api("GET", `${Y}/search?scope=all&query=gate&limit=1&cursor=${cursor}`)).body;
+      expect(page.hits).toHaveLength(1);
+      // The pages after the first carry source hits alone, never the first page's assumptions again.
+      expect(page).not.toHaveProperty("assumptions");
+      seen.push(...page.hits);
+      cursor = page.next_cursor;
+    }
+    expect(seen.map((x: Hit) => [x.field, x.char_start])).toEqual([["text", 4], ["text", 27], ["text", 51]]);
+    const alone = await alice.api("GET", `${Y}/search?scope=assumptions&query=gate&cursor=${first.next_cursor}`);
+    expect(alone.status).toBe(422);
+    expect(alone.body.error).toMatchObject({ code: "invalid_cursor", message: expect.stringContaining("answers in one page") });
+  });
+
+  it("in ranked mode, finds a bare number where a hyphen joins it to the rest of an id, as plain mode does", async () => {
+    const ranked = async (q: string, extra = "") => (await alice.api("GET", `${Y}/search?mode=ranked&query=${encodeURIComponent(q)}${extra}`)).body;
+    for (const q of ["20734", "2073*", "CB26-20734", "20734 AND crane", "05"]) expect((await ranked(q)).hits.map((x: Hit) => x.record_id), q).toEqual([ticket]);
+    expect((await ranked("20734", "&scope=assumptions")).assumptions.map((x: { id: string }) => x.id)).toEqual([idle]);
+    // A number is still matched as a number: one the text does not hold is not found.
+    expect((await ranked("20735")).hits).toEqual([]);
+    expect((await ranked("NOT 20734 AND open")).hits).toEqual([]);
+  });
+});
+
 describe("a public sandbox reset", () => {
   let olive: Browser;
   let T: string;

@@ -69,7 +69,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   finds the number after a hyphen, and never corrects it into a neighbouring one; one with a letter
   in it is found as its words side by side too (`q3-planning` in "Q3 planning"). Over MCP it takes
   `limit` (60 results unless asked). Search answers `search_scope`, the only place its own
-  scope shows over MCP.
+  scope shows over MCP. With `scope: "all"`, assumptions come on the first page only, so the
+  pages after it no longer repeat them, and a search of assumptions alone refuses a cursor
+  (`422 invalid_cursor`). Ranked search finds a bare number where a hyphen joins it to the rest of
+  an id (`20734` in `CB26-20734`).
 - **Nothing to change; agents will write the Story differently. The Story guidance is 5.0.0.**
   The Story is the team's own communication (what to build, the pitch, the plan), and neither the
   guidance nor the skill sets a rule about how a page quotes, paraphrases, attributes or links;

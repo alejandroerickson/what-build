@@ -341,7 +341,7 @@ Search reads what sources say: each source's title, tags, summary, derived text,
 never its attachments; and assumptions' statements and bodies. It is lexical, in three modes. Exact
 text is the default: it matches the query as you send it, ignoring only case, so its spaces, `%`
 and `_` count; send no stray spaces. `ranked` takes `"phrases"`, `prefix*`, AND, OR, NOT and
-parentheses. `plain` searches everything in the product the way a person types into the app's
+parentheses, and a number in it finds the id it ends (`20734` finds `CB26-20734`). `plain` searches everything in the product the way a person types into the app's
 search box: sources with the best places they say the words, assumptions, outcomes, mockups, Story
 pages and the product concept, forgiving endings and word order, correcting a word that matches
 nothing (`corrections` says so; `strict: true` turns it off), and naming `missing` words when
@@ -359,7 +359,8 @@ the call ran).
 A hit names its source (`record_id`), the `field` it is in (`title`, `tags`, `summary`, `text`,
 `notes`, or `comment` with the comment's `annotation_id`) and where: `char_start` and `char_end`
 are code-point offsets into that field. In exact search every place the words occur is a hit of
-its own, and `limit` counts hits: pass `next_cursor` back as `cursor` for the rest. Read around a
+its own, and `limit` counts hits: pass `next_cursor` back as `cursor` for the rest. With
+`scope: "all"`, assumptions come on the first page only; the pages after it hold source hits. Read around a
 hit in the text with `derived(action="text", offset=…)`, starting a little before `char_start`.
 Each text is matched in pieces of about 1,500 characters, so AND, OR and NOT combine terms within
 one piece: search terms that may sit far apart separately.

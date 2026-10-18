@@ -70,7 +70,9 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
   - Substring hits come by source, then by field in the order title, tags, summary, text, notes,
     comment, then by place; ranked hits by score.
 - Assumption hits come back as `assumptions` (id, statement, status, and score in ranked mode), at
-  most `limit` of them.
+  most `limit` of them, on the first page only: assumptions are not paged, so with `scope: "all"`
+  the pages `next_cursor` gives carry source hits alone, and a search of assumptions alone answers
+  in one page and refuses a cursor (`422 invalid_cursor`).
 - Results are bounded and paged as everywhere ([§6.3](06-operations-and-adapters.md)): `limit`
   counts hits. The substring cursor is a keyset of the last hit, its piece and its place there, so
   a page may end inside a piece and the next one carry on in it; the ranked cursor is an offset. A
@@ -89,7 +91,10 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
 - **`ranked`:** a small boolean grammar — terms, `"quoted phrases"`, `prefix*`, `AND`, `OR`, `NOT`
   and parentheses, adjacent terms implying AND, at most 64 tokens — compiled to a Postgres
   `tsquery` over the language-neutral `simple` configuration (no stemming), matched against a
-  stored, GIN-indexed `tsvector`, and ranked with `ts_rank_cd`. A score is not a confidence.
+  stored, GIN-indexed `tsvector`, and ranked with `ts_rank_cd`. A score is not a confidence. A
+  term that starts with a digit, a prefix included, also matches the form the database stores
+  after a hyphen, as plain mode's do (below): `20734` finds `CB26-20734`, stored as `cb26` and
+  `-20734`, and `05` the month of `2026-05-01`.
 - Each text is matched in pieces of about 1,500 characters (§8.3), in both modes: `AND`, `OR` and
   `NOT` combine terms within one piece, and words a piece boundary separates never match together.
   The `search` description says so.
