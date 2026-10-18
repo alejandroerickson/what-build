@@ -51,7 +51,9 @@ raise its own level. It deletes only what it made itself in the run.
    disabled. Cancel.
 10. **Web, as Riley.** Open the product's Settings and the organization's Members page.
     *Expect:* Delete this product and Delete this organization are there, each asking for the
-    name to be typed; open each dialog, check the counts look right, and cancel. Do not delete.
+    name to be typed; open each dialog, check the counts look right, and cancel. The product's
+    dialog, the product being live, has Archive instead beside Cancel; the organization's, which
+    can't be archived, has Cancel alone. Do not delete or archive.
 11. **The sandbox organization, as Riley.** Open its Members page. *Expect:* no Delete this
     organization. As Sam there, nothing offers a permanent delete.
 12. **Web, as Riley, then MCP on the same connection.** On Connect an agent, untick Can submit
