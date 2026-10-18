@@ -10,7 +10,8 @@ export async function setup(project: TestProject) {
     project.provide("appUrlTemplate", process.env["TEST_DATABASE_APP_URL_TEMPLATE"] ?? process.env["TEST_DATABASE_ADMIN_URL"]);
     return;
   }
-  pgServer = await startLocalPg(".what-build/test-pg", Number(process.env["WHATBUILD_TEST_PG_PORT"] ?? 54331));
+  // The tests' cluster holds nothing to keep: one made before local clusters were UTF-8 is made again.
+  pgServer = await startLocalPg(".what-build/test-pg", Number(process.env["WHATBUILD_TEST_PG_PORT"] ?? 54331), { disposable: true });
   project.provide("adminUrl", pgServer.adminUrl);
   project.provide("appUrlTemplate", pgServer.appUrl("{db}"));
 }

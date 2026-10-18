@@ -3,7 +3,7 @@ type: System Concept
 title: Running WhatBuild locally, testing it, and checking the interface
 description: The one-command development setup, the test and build commands, and the browser scripts.
 tags: [development, testing, local]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -31,6 +31,28 @@ Environment overrides: `DATABASE_URL` (your own Postgres instead of the embedded
 beside the first (another checkout, for example), change `PORT`, `WHATBUILD_WEB_PORT` and
 `WHATBUILD_PG_PORT`; in the same checkout, also point `DATABASE_URL` at a fresh database. The web
 app proxies to its own instance's API (`WHATBUILD_API` overrides it).
+
+## The local Postgres
+
+Each embedded cluster (`.what-build/pg` for `pnpm dev` and a copy of production,
+`.what-build/test-pg` for the tests, `.what-build/e2e/pg` for the end-to-end instance) is made in
+UTF-8 with the C.UTF-8 locale, as Neon's databases are by default: text functions count
+characters, text sorts by code point, and full-text search and trigrams read letters beyond ASCII
+as production does ([`testing/pg.ts`](../../apps/server/src/testing/pg.ts),
+[decision](../decisions/development-substitutes-adapters-never-behavior.md)). macOS and CI's Linux
+have a C.UTF-8 locale; a system without one gets PostgreSQL's own (`builtin`) C.UTF-8, which sorts
+and changes case the same way but whose search and trigrams take only ASCII letters for letters.
+
+A cluster made before local clusters were UTF-8 is SQL_ASCII, where `left()` and `length()` count
+bytes:
+
+- The tests' cluster holds nothing to keep, and is made again when the tests start.
+- The end-to-end instance's is made again when its golden master is built
+  ([end-to-end tests](end-to-end-tests.md#the-golden-master)).
+- The development cluster holds your work, so it is kept as it is, and `pnpm dev` says at start
+  that it is SQL_ASCII. For a UTF-8 one, stop `pnpm dev`, move the old cluster aside
+  (`mv .what-build/pg .what-build/pg-sql_ascii`), and start `pnpm dev` again: it makes a new
+  cluster and seeds it, and `pnpm fixture load` puts a copy of production into it again.
 
 ## Development and production
 
@@ -82,7 +104,7 @@ plans in `e2e/plans/` there through the browser and MCP and reports what it find
 | Command | What it does |
 |---|---|
 | `pnpm typecheck` | `tsc` over parsers, core, server and web. |
-| `pnpm test` | Vitest: parsers, server (against an embedded Postgres 17) and web projects. `pnpm vitest run --project web` runs one. To run the server tests on another Postgres, such as the version a host offers, set `TEST_DATABASE_ADMIN_URL` (a superuser, which creates a database per test file) and `TEST_DATABASE_APP_URL_TEMPLATE` (the same server as a role named `whatbuild` without `SUPERUSER` or `BYPASSRLS`, with `{db}` for the database). The embedded server listens on `:54331`; `WHATBUILD_TEST_PG_PORT` moves it, so two checkouts can run the suite at once. |
+| `pnpm test` | Vitest: parsers, server (against an embedded Postgres 17) and web projects. `pnpm vitest run --project web` runs one. To run the server tests on another Postgres, such as the version a host offers, set `TEST_DATABASE_ADMIN_URL` (a superuser, which creates a database per test file, on a server in UTF-8, as the suite checks) and `TEST_DATABASE_APP_URL_TEMPLATE` (the same server as a role named `whatbuild` without `SUPERUSER` or `BYPASSRLS`, with `{db}` for the database). The embedded server listens on `:54331`; `WHATBUILD_TEST_PG_PORT` moves it, so two checkouts can run the suite at once. |
 | `pnpm build` | The web bundle and the server bundle. |
 | `pnpm gen:skill` | Re-embeds `packages/core/src/skill/SKILL.md`; CI fails if it is stale. |
 | `pnpm db:migrate`, `pnpm db:seed` | Run migrations or the seed against `DATABASE_URL`, as a development server. |

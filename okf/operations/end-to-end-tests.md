@@ -3,7 +3,7 @@ type: System Concept
 title: Agent-driven end-to-end tests on a golden master
 description: An agent follows a written test plan through the real web app and the real MCP server, on a local instance reset each time to a golden master made from production's public sandbox, and reports failures and anomalies.
 tags: [development, testing, qa, e2e, agents, mcp, browser]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: draft
 ---
 
@@ -65,6 +65,13 @@ the development sign-in's people are given their roles in both: Riley owns each 
 
 The golden master is real people's data, with every rule of that guide: it stays in `.what-build/`,
 and plans, reports that leave the machine, commits and issues never name or quote it.
+
+The golden master is built in the instance's cluster in UTF-8, as every local cluster is
+([local development](local-development.md#the-local-postgres)). **A golden master built before
+local clusters were UTF-8 must be built again:** its cluster is SQL_ASCII, where text functions
+count bytes rather than characters, and `pnpm dev:e2e` says so when it starts. `pnpm e2e golden`
+makes the instance's cluster again in UTF-8 when it finds it SQL_ASCII, since it holds only the
+golden master and copies of it, and refuses while the instance runs; stop it with `pnpm e2e stop`.
 
 The build migrates what it keeps to the schema of the code it runs from, and the worker does
 the jobs those migrations queue, before the standard copy is made, so the copy covers every table

@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -23,7 +23,8 @@ status: stable
 5. **One behavior.** The same operation gives the same result on a laptop and in production.
 
 Requirements 3 and 5 together settle the database question: **Postgres is the only one**, and
-development runs the same major version (17) from the `embedded-postgres` npm package. A second
+development runs the same major version (17) from the `embedded-postgres` npm package, in UTF-8
+with the C.UTF-8 locale, as Neon's databases are ([local development](../operations/local-development.md#the-local-postgres)). A second
 SQL engine would mean two dialects, two full-text implementations and two sets of migrations to
 keep in step forever, for no behavior a caller can see.
 

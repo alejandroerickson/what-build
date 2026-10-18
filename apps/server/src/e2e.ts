@@ -79,7 +79,11 @@ async function inUse(local: LocalPg, database: string) {
 async function buildGolden(args: string[]) {
   const org = option(args, "--org");
   const pull = args.filter((a, i) => !a.startsWith("--") && args[i - 1] !== "--org")[0];
-  const local = await connectOrStartLocalPg(E2E.pgDir, E2E.pgPort);
+  // The instance's cluster holds only what this build makes and the copies made from it, so one
+  // made before local clusters were UTF-8 is made again: the golden master is then UTF-8, as production is.
+  const local = await connectOrStartLocalPg(E2E.pgDir, E2E.pgPort, { disposable: true }).catch((e: unknown) => {
+    throw e instanceof Error && e.message.includes("cannot be made again") ? new Error(`${e.message} The end-to-end instance stops with pnpm e2e stop.`) : e;
+  });
   try {
     if ((await inUse(local, E2E.golden)) || (await inUse(local, E2E.database))) throw new Error("The end-to-end instance is being served: stop it with pnpm e2e stop, then build again.");
     await admin(local, (c) => c.query(`drop database if exists ${E2E.golden}`));
