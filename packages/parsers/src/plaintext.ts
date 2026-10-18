@@ -309,9 +309,26 @@ interface LaidLine {
    * Markdown would read the line into the list's last item or the quote.
    */
   closes?: boolean;
+  /**
+   * An item that opens a list under a line ending in a colon, set apart from that line by a blank
+   * line: Markdown lets only a list numbered 1 interrupt a paragraph, so a list from 3 would
+   * otherwise read on as the line's paragraph.
+   */
+  opensList?: boolean;
 }
 
 const isQuote = (line: string) => line.startsWith(">");
+
+const COLONS = new Set([":", "："]);
+
+/**
+ * Whether the numbered line `at` goes on to the next, numbered one more with the same mark (`3.`
+ * then `4.`): a list, which Markdown numbers as written, not a line that starts with a year.
+ */
+function numbersOn(lines: { trimmed: string }[], at: number, numbered: RegExpExecArray): boolean {
+  const next = ORDERED.exec(lines[at + 1]?.trimmed ?? "");
+  return next !== null && Number(next[1]) === Number(numbered[1]) + 1 && next[2] === numbered[2];
+}
 
 /**
  * Whether a break between two lines may join them: never when either is quoted (`> …`), so the reply
@@ -365,11 +382,14 @@ export function layoutLines(raw: string[], first?: string): { text: string; open
       const text = i === 0 && first !== undefined ? first : trimmed;
       const prev = out[out.length - 1];
       const closes = (line: string) => open.length > 0 || (prev?.kind === "line" && isQuote(prev.text) && !isQuote(line));
+      // Under a line that ends in a colon (`Dispatcher:`, `Next steps:`), a list opens apart from it.
+      const introduced = open.length === 0 && prev?.kind === "line" && endsSentence(prev.text, COLONS);
       // A turn's words are never an item; a numbered line is one where Markdown would read it as
-      // one: first in its paragraph, numbered 1, or in a list already.
+      // one: first in its paragraph, numbered 1, or in a list already; or where it opens a list
+      // under a line that ends in a colon, numbered on by the line after it.
       const bullet = i === 0 && first !== undefined ? null : BULLET.exec(trimmed);
       const numbered = i === 0 && first !== undefined ? null : ORDERED.exec(trimmed);
-      if (bullet || (numbered && (i === 0 || numbered[1] === "1" || open.length > 0))) {
+      if (bullet || (numbered && (i === 0 || numbered[1] === "1" || open.length > 0 || (introduced && numbersOn(lines, i, numbered))))) {
         const marker = bullet ? (bullet[1] ?? bullet[2]!) : numbered![1]! + numbered![2]!;
         const body = trimmed.slice((bullet ?? numbered)![0].length);
         if (bullet && !/^[-*+]$/.test(marker)) {
@@ -382,7 +402,7 @@ export function layoutLines(raw: string[], first?: string): { text: string; open
         const parent = open[open.length - 1];
         const at = parent ? parent.at + parent.width : 0;
         open.push({ from: indent, at, width: marker.length + 1 });
-        out.push({ kind: "item", text: `${marker} ${body}`, indent: at });
+        out.push({ kind: "item", text: `${marker} ${body}`, indent: at, ...(introduced ? { opensList: true } : {}) });
         continue;
       }
       if (prev) {
@@ -410,7 +430,7 @@ export function layoutLines(raw: string[], first?: string): { text: string; open
   for (const [k, l] of laid.out.entries()) {
     const line = " ".repeat(l.indent) + l.text;
     if (k === 0) text = line;
-    else if (l.kind === "item") text += "\n" + line;
+    else if (l.kind === "item") text += (l.opensList ? "\n\n" : "\n") + line;
     else if (l.closes) text += "\n\n" + line;
     else text += "  \n" + line;
   }

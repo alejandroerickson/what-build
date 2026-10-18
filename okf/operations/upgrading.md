@@ -41,8 +41,9 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   People will notice that saving a summary, notes or text someone else changed meanwhile shows
   their version, and saves over it only when asked.
 - **Nothing runs by itself; existing plain-text and workbook attachments read better once read
-  again.** A `.txt` now keeps its lines and list markers, joining only hard-wrapped prose, and ends
-  a quoted message before the reply under it; an `.xlsx` reads values as the sheet shows them
+  again.** A `.txt` now keeps its lines and list markers, joining only hard-wrapped prose, sets a
+  list under a line that ends in a colon apart from it, so the list reads as a list whatever number
+  it starts at, and ends a quoted message before the reply under it; an `.xlsx` reads values as the sheet shows them
   (`+14.0%`, not `0.14`), reads and marks hidden sheets, columns and rows and a value other than
   zero that its format shows as nothing (a zero shown as nothing stays a blank), and says when a
   formula was saved without its value (plain-text parser 8, XLSX 6). A reading made earlier keeps

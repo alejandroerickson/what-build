@@ -142,7 +142,7 @@ describe("plain text and Markdown", () => {
 
   it("keeps a plain-text list a list, under the line that introduces it", async () => {
     const r = await derive(utf8("Follow-ups:\n- call Dana\n- send the price sheet\n"), "note.txt");
-    expect(r.markdown).toBe("Follow-ups:\n- call Dana\n- send the price sheet\n");
+    expect(r.markdown).toBe("Follow-ups:\n\n- call Dana\n- send the price sheet\n");
     expectOffsetsExact(r);
   });
 
@@ -1018,6 +1018,33 @@ describe("the readable text", () => {
     // A numbered line inside a paragraph is not a list Markdown would start there, and stays a line.
     expect((await derive(utf8("The year was\n2019. It stayed a line.\n"), "a.txt")).markdown).toBe("The year was  \n2019. It stayed a line.\n");
     expectOffsetsExact(r);
+  });
+
+  it("opens a list under a line that ends in a colon, whatever number it starts at", async () => {
+    const laid = async (txt: string) => (await derive(utf8(txt), "notes.txt")).markdown;
+    // Markdown lets only a list numbered 1 interrupt a paragraph: the list is set apart by a blank line.
+    expect(await laid("Dispatcher:\n3. Call the depot\n4. Book the van\n5. Text the crews\n")).toBe("Dispatcher:\n\n3. Call the depot\n4. Book the van\n5. Text the crews\n");
+    expect(await laid("Visit notes\nDispatcher:\n3. Call the depot\n4. Book the van\nThanks, Sam\n")).toBe(
+      "Visit notes  \nDispatcher:\n\n3. Call the depot\n4. Book the van\n\nThanks, Sam\n",
+    );
+    expect(await laid("Next steps:\n1. Call the depot\n2. Book the van\n")).toBe("Next steps:\n\n1. Call the depot\n2. Book the van\n");
+    expect(await laid("Dispatcher:\n- Call the depot\n- Book the van\n")).toBe("Dispatcher:\n\n- Call the depot\n- Book the van\n");
+    // A bullet Markdown does not read stays a line, as written.
+    expect(await laid("Dispatcher:\n• Call the depot\n• Book the van\n")).toBe("Dispatcher:  \n• Call the depot  \n• Book the van\n");
+    // A speaker's words that end in a colon open the list in the turn.
+    const turns = await derive(utf8("Dana: Here is the plan:\n3. Call the depot\n4. Book the van\nSam: Fine.\nDana: Good.\nSam: Done.\n"), "call.txt");
+    expect(turns.markdown).toBe("**Dana:** Here is the plan:\n\n3. Call the depot\n4. Book the van\n\n**Sam:** Fine.\n\n**Dana:** Good.\n\n**Sam:** Done.\n");
+  });
+
+  it("keeps a numbered line under a sentence that ends in a colon a line, unless the next line numbers on", async () => {
+    const laid = async (txt: string) => (await derive(utf8(txt), "notes.txt")).markdown;
+    expect(await laid("The count on the day was:\n2019. That was the year the vans came.\n")).toBe("The count on the day was:  \n2019. That was the year the vans came.\n");
+    // Numbers that do not run on are not a list, which Markdown would number 2019, 2020.
+    expect(await laid("We met twice:\n2019. The first visit.\n2021. The second visit.\n")).toBe("We met twice:  \n2019. The first visit.  \n2021. The second visit.\n");
+    // Notes whose lines end in colons keep their lines.
+    expect(await laid("Visit notes:\ncall dana\nsend price sheet\nNext:\nbook the van\nTotal:\n12 vans\n")).toBe(
+      "Visit notes:  \ncall dana  \nsend price sheet  \nNext:  \nbook the van  \nTotal:  \n12 vans\n",
+    );
   });
 
   it("reflows hard-wrapped prose, and joins a line that wraps a sentence onto the next", async () => {
