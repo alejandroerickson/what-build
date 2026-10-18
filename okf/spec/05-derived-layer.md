@@ -23,12 +23,12 @@ attachment, the derived text and their operations are in
 A **reading** (a `derivation` on the wire, identified by a `derivation_id`) is one immutable read of
 one version of one attachment. Every version of every attachment is read: when the attachment is
 added, when a new version arrives at its path, when a source is copied to another product (its
-attachments are read afresh there), when `derived.rederive` asks for it (for example after a
-parser upgrade), and when a public sandbox's reset puts back a reading made by an older parser than
-this version's ([§9](09-data-lifecycle.md)). Earlier readings are retained and readable by id.
-`rederive` returns `previous_derivation_id`; the attachment's latest reading stays in place until
-the new one finishes, so a caller knows it is done when `derived.manifest` for that attachment
-reports a different `derivation_id`.
+attachments are read afresh there), when `derived.rederive` asks for it (for example after a parser
+upgrade), and when a public sandbox's reset puts back a reading that this version's parsers would
+make afresh, such as one an older parser made ([§9.7](09-data-lifecycle.md#the-reset)). Earlier
+readings are retained and readable by id. `rederive` returns `previous_derivation_id`; the
+attachment's latest reading stays in place until the new one finishes, so a caller knows it is done
+when `derived.manifest` for that attachment reports a different `derivation_id`.
 
 **Where it runs.** Always on the Postgres job queue, in the worker
 ([`apps/server/src/worker.ts`](../../apps/server/src/worker.ts)), in every environment. The
@@ -318,9 +318,12 @@ A reading is never rewritten, but one an earlier version made is said as this ve
 wherever it is read (`currentReading` in [`statuses.ts`](../../packages/parsers/src/statuses.ts)),
 so a backup or a public sandbox's baseline brings no retired words back: a recording that asked for
 "a transcript as a new source" asks for one as another attachment, a PDF of pictures once recorded
-as `failed` reads `unsupported`, and an image once said to be "a format no parser reads" says how
-an agent gives it its words. A recording's detail beside the source's derived text says where that
-text comes from instead of asking for a transcript.
+as `failed` reads `unsupported`, and an image once said to be "a format no parser reads" says how an
+agent gives it its words. None of them needs reading again, and a public sandbox's reset leaves them
+as they are: it reads again only what this version's parsers would read differently (§5.1), never a
+reading that failed or found a recording, nor one in which this version's parser found only
+pictures. A recording's detail beside the source's derived text says where that text comes from
+instead of asking for a transcript.
 
 A source's `derived_status` says where its derived text stands (`derivedStatuses` in
 [`ops/sources.ts`](../../packages/core/src/ops/sources.ts)):

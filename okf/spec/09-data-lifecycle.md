@@ -564,12 +564,16 @@ the scheduled reset do the same thing, in one transaction that runs alone in the
    that was taken away.
 4. Build the search index of every source it put back ([§8.3](08-search.md)), and queue a reading,
    which records nothing in the activity log, of each attachment version the baseline holds no
-   reading of, and of each one whose latest reading this version's parsers would make afresh: read
-   by another parser or an earlier version of the one that reads it now, or found unsupported where
-   a parser reads it now ([§5.1](05-derived-layer.md)). A reading that failed, found the file too
-   large or found a recording stays as it is. So a baseline saved before an upgrade has its
-   attachments read by the new parsers after every reset; saving the baseline again once a reset's
-   readings are done keeps them, and the resets after it read nothing again.
+   reading of, and of each one whose latest reading this version's parsers would make afresh: made
+   by another parser or an earlier version of the one that reads it now, or found unsupported
+   because no parser read its format, where one does now ([§5.1](05-derived-layer.md)). A reading
+   that failed, found the file too large or found a recording stays as it is, as do one in which
+   this version's parser found only pictures (a PDF with no text layer) and a PDF of pictures an
+   earlier version recorded as failed, which is said as `unsupported`
+   ([§5.5](05-derived-layer.md#55-statuses)): read again, each would most likely end the same way,
+   and `derived.rederive` reads one whenever someone asks. So a baseline saved before an upgrade has
+   its attachments read by the new parsers after every reset; saving the baseline again once a
+   reset's readings are done keeps them, and the resets after it read nothing again.
 5. Queue a move into Evidence for each product that the baseline gave back an insight or a decision
    (§9.8).
 6. Queue the deletion of every blob that no row and no kept baseline refers to.

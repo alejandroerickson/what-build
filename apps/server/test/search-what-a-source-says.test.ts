@@ -1,9 +1,11 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { RESET_CONFIRMATION } from "@whatbuild/core";
+import { SCAN_DETAIL } from "@whatbuild/parsers";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { syncSandboxTenant } from "../src/public-sandbox.ts";
+import { makeBlankPdf } from "../../../packages/parsers/test/fixtures.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 // Search reads a source's title, tags, summary, derived text, notes and comments, through a search
@@ -579,5 +581,31 @@ describe("a public sandbox reset", () => {
     expect((await olive.api("GET", `${S}/sources/${visit}/derived/text`)).body).toMatchObject({ text: "# Visit\n\nCrews text the office every Friday.\n", taken_from: { path: "visit.md" } });
     // Read for the reset, not by anyone: the activity log has no line more than the baseline gave back.
     expect({ visit: await logOf(visit), rota: await logOf(rota) }).toEqual(logs);
+  });
+
+  it("reads nothing again from a baseline saved once its readings were done, a PDF of pictures among them", async () => {
+    // A PDF whose pages are pictures, which this version's parser reads as unsupported, and one an
+    // earlier version recorded as failed, which is said as unsupported now: reading either again
+    // finds no words.
+    const scan = await source(S, olive, "Site photos — Example Co");
+    await attach(S, olive, scan, "site-photos.pdf", makeBlankPdf(1));
+    const older = await source(S, olive, "Older scan — Example Co");
+    await attach(S, olive, older, "older-scan.pdf", makeBlankPdf(1));
+    await h.worker.drain();
+    expect((await olive.api("GET", `${S}/sources/${scan}?detail=full`)).body.attachments[0].text).toMatchObject({ status: "unsupported", status_detail: SCAN_DETAIL });
+    // Saved once the last reset's readings were done, so every reading in it is this version's.
+    const saved = await olive.api("POST", `${T}/sandbox/baselines`, { note: "Six sources" });
+    expect(saved.status, JSON.stringify(saved.body)).toBe(200);
+    await h.db.transaction().execute(async (trx) => {
+      await sql`select set_config('app.tenant_id', ${tenant}, true)`.execute(trx);
+      const failed = { status: "failed", status_detail: "the PDF has no text layer (a scan?); no OCR is performed", parser_version: "4" };
+      await sql`update sandbox_baseline_rows set row = row || ${JSON.stringify(failed)}::jsonb
+          where baseline_id = ${saved.body.baseline_id} and table_name = 'derivations' and row->>'record_id' = ${older}`.execute(trx);
+    });
+
+    expect((await olive.api("POST", `${T}/sandbox/reset`, { confirm: RESET_CONFIRMATION })).status).toBe(200);
+    const queued = await sql<{ payload: Record<string, unknown> }>`select payload from jobs where kind = 'derive' and done_at is null and tenant_id = ${tenant}`.execute(h.db);
+    expect(queued.rows.map((j) => j.payload)).toEqual([]);
+    expect((await olive.api("GET", `${S}/sources/${older}?detail=full`)).body.attachments[0].text).toMatchObject({ status: "unsupported", status_detail: SCAN_DETAIL });
   });
 });
