@@ -145,10 +145,13 @@ export function findWords(d: Pick<FindResponse, "terms">): string {
   return d.terms.map((t) => (t.phrase ? `"${t.text}"` : t.text)).join(" ");
 }
 
-/** Where a hit opens: its source, at the section it is in, with the words found marked in the text. */
+/**
+ * Where a hit opens: its source, at the section it is in, with the words found marked in the text
+ * and, with `at` (where the hit's piece of the text starts), the find starting at its own match.
+ */
 export function hitHref(app: string, recordId: string, h: FindHit, find: string): string {
   const view = HIT_VIEW[h.field];
-  return `${app}/evidence/${recordId}?view=${view}${view === "text" && h.field === "text" && find ? `&find=${encodeURIComponent(find)}` : ""}`;
+  return `${app}/evidence/${recordId}?view=${view}${view === "text" && h.field === "text" && find ? `&find=${encodeURIComponent(find)}&at=${h.char_start}` : ""}`;
 }
 
 /** The quiet line under a result's title: what it is, and what tells it apart. */

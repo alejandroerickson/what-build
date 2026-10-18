@@ -145,7 +145,7 @@ function Where() {
 }
 
 describe("following a source in the palette", () => {
-  it("opens it where the words are in its text, marked, even when its title holds them too", async () => {
+  it("opens it where the words are in its text, marked from the match its line shows, even when its title holds them too", async () => {
     await render(
       <FindProvider app={APP} base={BASE} product={product as never}>
         <FindLauncher product={product as never} />
@@ -165,5 +165,7 @@ describe("following a source in the palette", () => {
     expect(where.pathname).toBe(`${APP}/evidence/${SOURCE}`);
     expect(where.searchParams.get("view")).toBe("text");
     expect(where.searchParams.get("find")).toBe("gate codes");
+    // At the match the line shows.
+    expect(where.searchParams.get("at")).toBe("412");
   });
 });

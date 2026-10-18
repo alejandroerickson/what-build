@@ -106,7 +106,8 @@ the browser's back button and "open in new tab" both work.
   source"), **Exploration** (mockups, then assumptions, with their status) and
   **Story**. A kind named in the query brings its area first. The panel shows Everything and each
   area with its count (`?show=idea|evidence|exploration|story`). With `record_id` it lists every
-  place one source says the words, with a link back to searching everything. A corrected word
+  place one source says the words, each opening at its own match, with a link back to searching
+  everything. A corrected word
   offers "Search for <word> instead" (`?strict=1`). When more match than the 60 listed, it says
   "Showing the best 60 of N. Add a word to narrow them.", and the palette's All N results counts
   every match. Nothing holding the words says "Nothing matches" and suggests another word or fewer
@@ -226,7 +227,8 @@ person's organization role is in the account menu, and who has which role is on 
   /evidence           ?tags&added_by&date_from&date_to&query&include_archived&sort&order
                       (date_from, date_to: the date captured; query: a title search; both from a link)
   /evidence/new                               intake: describe it, add attachments, create
-  /evidence/:record   ?view=text|notes|comments|attachments &find=<words>
+  /evidence/:record   ?view=text|notes|comments|attachments &find=<words>&at
+                      (at: where a search hit's piece of the text starts, so the find starts there)
   /search             ?q&show&record_id&strict
   /exploration                                → …/exploration/mockups
   /exploration/mockups                        → the mockup last opened here, or the most recent; first use with none
@@ -392,8 +394,10 @@ The sources, and everything for reading them.
     It opens **folded** to its first nine lines, the last two fading into the sheet, when it
     runs longer; a click on the fade, or on "Show the whole text" under it, unfolds it for the
     rest of the visit. Its header holds **Find in the text**, which unfolds it, marks the words,
-    says "1 of 4" and steps through the matches (the arrows, or Enter and Shift+Enter), the words
-    held in the URL as `?find=`, so a search hit opens here with them marked. A very long text,
+    says "1 of 4" and steps through the matches (the Previous and Next match buttons, or Enter and
+    Shift+Enter), the words held in the URL as `?find=`, so a search hit opens here with them
+    marked, from its own match: `&at=` says where the hit's piece of the text starts, and the find
+    starts at the first match there (without it, at the first). A very long text,
     unfolded, shows its first 300,000 characters and "Show all N characters", unless a find is on. Editors get **Edit**, once the text has
     loaded, a dialog holding the Markdown (saving it empty removes the text; it names the etag of
     the text it opened, and when someone changed or removed the text meanwhile it does what the
