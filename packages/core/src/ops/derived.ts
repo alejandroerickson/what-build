@@ -169,7 +169,8 @@ export const text = defineOperation({
         path: d.source_path,
         derivation_id: d.derivation_id,
         file_version_id: d.file_version_id,
-        status: d.status,
+        // A reading an earlier version made is said as this one would say it, as every other read says it.
+        ...currentReading(d.status, d.status_detail),
         offset: input.offset,
         total_chars: total,
         truncated: input.offset + input.limit < total,

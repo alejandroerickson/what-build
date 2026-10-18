@@ -276,9 +276,10 @@ one window by code-point offset:
   ([§8.1](08-search.md)).
 - With `path` (that attachment's latest reading of its current version) or `derivation_id` (any
   reading, exactly as it was): what was read from the attachment,
-  `{ record_id, of: "attachment", path, derivation_id, file_version_id, status, offset,
-  total_chars, truncated, text }`, its text empty when the reading is not `ready`. An attachment
-  not read yet answers `404`. An attachment's text is kept, never searched.
+  `{ record_id, of: "attachment", path, derivation_id, file_version_id, status, status_detail,
+  offset, total_chars, truncated, text }`, its text empty when the reading is not `ready`, and its
+  status said as this version says it, as every read of a reading does (§5.5). An attachment not
+  read yet answers `404`. An attachment's text is kept, never searched.
 
 Offsets and lengths are Unicode code points, not UTF-16 units and not bytes, and a window never
 splits a character; implementations MUST test this with astral-plane characters. `truncated` says

@@ -144,6 +144,8 @@ describe("what upload, read and search say about a source", () => {
     expect(s.body).toMatchObject({ derived_status: "unsupported", status_detail: SCAN_DETAIL });
     expect(s.body.attachments[0].text).toMatchObject({ status: "unsupported", status_detail: SCAN_DETAIL });
     expect((await alice.api("GET", `${P}/sources/${scan.recordId}/derivations`)).body.items[0]).toMatchObject({ status: "unsupported", status_detail: SCAN_DETAIL });
+    // Reading the attachment's text says it the same way.
+    expect((await alice.api("GET", `${P}/sources/${scan.recordId}/derived/text?path=older-scan.pdf`)).body).toMatchObject({ of: "attachment", status: "unsupported", status_detail: SCAN_DETAIL, text: "" });
   });
 
   it("says a recording beside the attachment its source's text comes from needs nothing more", async () => {
