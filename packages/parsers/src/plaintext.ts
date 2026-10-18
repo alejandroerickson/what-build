@@ -344,8 +344,8 @@ interface OpenItem {
  * marker (`-`, `*` and `+` bullets and `1.` or `1)` numbers as Markdown lists, nested by their
  * indentation; other bullets as written), and in prose (isProse) a line that only wraps a sentence
  * onto the next joins it. A paragraph of prose in which most breaks are such wraps is hard-wrapped,
- * and reads as one flowing paragraph. `first` stands for the first line's text when it is a speaker's turn, whose
- * name is said apart; the line as written still sets the paragraph's width.
+ * and reads as one flowing paragraph. `first` stands for the first line's text when it is a
+ * speaker's turn, whose name is said apart; the line as written still sets the paragraph's width.
  */
 export function layoutLines(raw: string[], first?: string): { text: string; opensWithList: boolean } {
   const lines = raw.map((r) => ({ trimmed: r.trim(), indent: indentWidth(r) }));

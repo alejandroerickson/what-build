@@ -57,10 +57,10 @@ const PART: Record<Part, { of: string; missing: string; none: string; own: strin
  * A write to a part of a source takes no etag while the part does not exist, and its current etag
  * once it does. A missing etag, a stale one, one sent when there is nothing to match, or another of
  * the source's etags sent in its place is 409 stale_etag with current_etag, saying what to pass.
- * Another part's etag is named only while it is that part's current one: an older one, of the source
- * after an attachment moved it on, say, is told apart from nothing, so the refusal says only that it
- * is not the current etag, never that the part changed. The caller holds the source's lock, so the
- * check and the write it guards are one step.
+ * Another part's etag is named only while it is that part's current one: an older one (the source's
+ * from before an attachment moved it on, say) is like any etag that is not current, so the refusal
+ * says only that, never that the part changed. The caller holds the source's lock, so the check and
+ * the write it guards are one step.
  */
 async function checkPartEtag(ctx: OpContext, source: { record_id: string; etag: string }, part: Part, current: string | null, expected: string | undefined) {
   const words = PART[part];
