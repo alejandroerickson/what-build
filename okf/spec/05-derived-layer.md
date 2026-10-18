@@ -91,7 +91,9 @@ WAV, FLAC and MP3 (a Xing, Info or VBRI frame count, else the constant bitrate).
 other files and for a container that cannot be read. A recording over the parse cap is not
 downloaded; only the byte ranges holding those headers are read.
 
-`facts` holds format-specific counts (pages and text-layer characters for PDF; tables, tracked
+`facts` holds format-specific counts (for PDF, pages, the characters of text read
+(`text_layer_chars`), tables, and each line repeated across its pages that was read once or left
+out (`headers_and_footers`) with the count of lines left out (`headers_and_footers_left_out`); tables, tracked
 changes and comments for DOCX; `doc_format` and tables for DOC; for XLSX, sheets, hidden sheets
 (`hidden_sheets`), the hidden rows and columns read (`hidden_rows`, `hidden_columns`), the values
 other than zero a format shows as nothing (`hidden_values`) and the formulas saved without a value
@@ -122,7 +124,7 @@ into paragraphs, headings, turns and table rows, and those are laid out as one M
   cues (end before start) are skipped and counted in `facts`.
 - **An untimed transcript** (plain text, DOCX, DOC; below) labels a turn `**Dana:** words`; the
   later paragraphs of the same turn are not labelled again.
-- **A table** of two or more rows (DOCX, DOC, HTML, a pipe table in plain text) is one GitHub pipe
+- **A table** of two or more rows (DOCX, DOC, HTML, PDF, a pipe table in plain text) is one GitHub pipe
   table under its first row, as wide as its widest row, each cell's spacing collapsed and its `|`
   escaped. A table of one row is a paragraph of its cells joined with ` | `.
 - **A workbook** (XLSX, and CSV and TSV, read as a one-sheet workbook) is one table per sheet from
@@ -145,7 +147,7 @@ into paragraphs, headings, turns and table rows, and those are laid out as one M
 | DOC (`.doc`, `application/msword`) | The format is read from the file's first bytes, never from its name, and the `doc_format` fact records it. A **Word binary document** (an OLE2 compound file) from Word 97-2003 (`word97`), or from Word 6.0 or Word 95 (`word6`), gives its main text through the piece table, with 8-bit Windows-1252 and UTF-16 pieces: one paragraph per paragraph, built-in heading styles (Title, Subtitle, Heading 1-9) as headings at DOCX's levels, tables as tables, field results kept and field codes dropped, page and section breaks as paragraph breaks, and `Name: words` paragraphs as speaker turns in a transcript. Word 97 tables come from the paragraphs' table flags; Word 6 tables are inferred from cell marks, the first row setting the width. Headers, footnotes, comments and list numbers are not read. Encrypted documents, fast-saved Word 6 and Word 95 documents and Word 2 and older documents fail with the reason. A **DOCX package** under a `.doc` name is read by the DOCX parser (`docx`); a **MIME HTML** file (Word's "Web Page" save, wiki Word exports) has its first `text/html` part, quoted-printable or base64, read by the HTML parser (`mhtml`); **plain HTML** is read by the HTML parser in the character set its `<meta>` declares (`html`). Rich Text Format and anything else fail with the reason, as does HTML with no readable text. |
 | XLSX | Sheets and rows, laid out as above, each value as the sheet shows it, through its cell's number format ([`numfmt.ts`](../../packages/parsers/src/numfmt.ts)): percentages, decimals, thousands separators and scaling (`#,##0,`), currency, explicit signs (`+0.0%`), negatives in brackets, fractions, scientific notation, conditions (`[>=1000]0.0,"K"`), a text section (`@" (est.)"`), and dates and times (`5 Mar 2026`, `1:30 PM`, elapsed `30:00:00`) in the workbook's 1900 or 1904 date system: a date alone is the day its value falls in, and a time is rounded to the finest part it shows, into the next day if need be. A negative in a section that shows it only by a colour (`#,##0;[Red]#,##0`) gets the minus the colour stood for. The locale's own formats, which a file does not record, read in ISO 8601: the short date (14) and the date and time (22) as `2026-04-10` and `2026-04-10 12:00`, the system long date and time (`[$-F800]`, `[$-F400]`) as a date and `13:30:00`; the currency formats that show the locale's symbol (5 to 8, 42, 44) read without one. A negative date, a date alone on a day before the 1900 system's first, and a number in a text format read as General shows them; a time under one day in a format that shows a date and a time shows as the time alone (`0.5` under `m/d/yyyy h:mm` is `12:00`). A hidden sheet, column or row is read, so search finds it, and marked: `# Sheet: Workings (hidden)`, a column `Rate (hidden)`, a row `3 (hidden)`; so is a value its format shows as nothing (`;;;`, or `0;;0` for a negative), read as General: `42 (hidden)`. A zero its format shows as nothing (`0;-0;;@`, `#,##0;(#,##0);`, `;;;`) is the blank the sheet shows, an empty cell, as hiding zeros hides no information. A formula the file holds without its value, as libraries that never calculate write it, reads `=SUM(B2:B3) (no stored value)` rather than 0 or nothing. |
 | CSV, TSV (`.csv`, `.tsv`) | Read like a one-sheet workbook, with the same header rule. Quoted fields may hold delimiters and line breaks; the delimiter (comma, semicolon or tab) is taken from the first line. |
-| PDF | Text layer only, page by page, for a PDF of at most 2,000 pages; a page's lines are joined into paragraphs that end at sentence punctuation. No OCR; images are never decoded. A PDF with no text layer, its pages pictures as a scan's are, is `unsupported`, as an image is (§5.5). |
+| PDF | Text layer only, page by page, for a PDF of at most 2,000 pages, each page laid out as a person reads it (below): paragraphs, a table as a table, a label beside its value, and a running header or footer once, its page numbers left out. No OCR; images are never decoded. A PDF with no text layer, its pages pictures as a scan's are, is `unsupported`, as an image is (§5.5). |
 | HTML | Main-content text with headings; scripts, styles, navigation, forms and frames dropped; tables as tables; adjacent elements (labels, breadcrumbs) kept apart by a space. A page that nests elements more than 512 deep, or would make far more elements than it has tags, fails with the reason. |
 
 **Line breaks in plain text** ([`plaintext.ts`](../../packages/parsers/src/plaintext.ts)). Only
@@ -173,6 +175,60 @@ read, so their content is found, and marked, so a reader knows the sheet hides t
 rather than reflowed into paragraphs: a list, a file of one item per line or a block of notes means
 its lines. Only prose that is plainly hard-wrapped is joined, so a phrase across a wrap is still
 found by a substring search.
+
+**A PDF's page** ([`pdf-layout.ts`](../../packages/parsers/src/pdf-layout.ts)). A content stream
+draws a page's text in runs, in an order of its own: usually its prose's, a column at a time, but a
+table's or a form's in any order, a label long before its value. So the runs are read in the stream's
+order and laid out by where they stand on the page:
+
+- **Lines.** Runs drawn one after another whose heights overlap by half are a line, read across the
+  page (from the right, where most of its text runs right to left). Lines drawn apart on one
+  baseline are one line, as a form's labels drawn before their values are, unless either stands in
+  a column of prose (lines that wrap onto the next, or long lines of one cell), so each column of a
+  page of two is read in turn. A run drawn twice beside itself, as a heavier weight is faked, is
+  read once.
+- **Cells.** A gap at least 0.8 of the font's height wide parts a line's cells. A label and its value
+  stay together, `Samples: 79`; other cells of a line that is no table's row are kept apart by
+  ` · ` (`Quarterly report · March 2026`), and it is a paragraph of its own. A list marker or a
+  heading's number set apart by a hanging indent stays with its words, and a line of justified
+  prose stretched to its column's width, a word to a cell between lines of prose as wide, reads as
+  prose.
+- **Tables.** Lines of two cells or more (parted there at 0.4 of the font's height, as a table set
+  tight is), one under the next, are a table when their cells stand in the same columns, two rows
+  at least, and every column after the first is aligned: each cell under the first row on its left
+  edge, its middle or, numbers, its right edge, the first row (a heading) as it may be. A table ends
+  where the space to the next line is more than 1.35 times its rows' widest, or 2.5 of the font's
+  height, or where its columns stop being aligned. A cell's words wrapped onto a second line join
+  its row; in a row, one cell may reach across one gutter, as two cells set close are read as one
+  run when nothing in the file parts them, and stays in the first of its columns, in a third of the
+  rows at most. A table is a pipe table under its first row (`table_count` counts them), except a
+  form, half of whose rows hold a label (`Client:` beside `Example Co.`), read a line per row, and
+  columns of prose drawn a line across them at a time, read a column at a time.
+- **Paragraphs.** Lines of one cell are joined into a paragraph that ends at a line ending in `.`,
+  `!`, `?`, `:` or `;`, as they always were: a heading runs into the paragraph under it, and list
+  items that end no sentence run on. Lines next to one another that each start with a short label
+  (`Sample ID: S-0001`) stand apart.
+- **Running headers and footers.** One of the three lines at a page's top or bottom, in the outer
+  eighth of the page and set apart from the text inward by white space at least 1.5 of the smaller
+  font's height, or a line at another angle than the page's text (a stamp up the margin), is
+  repeated when its words, its page number aside (`Page 3 of 12`, `3 / 12`, a page's number or
+  roman numeral alone), stand within a fiftieth of the page's height of one place on two pages at
+  least and on half the pages. Any other number keeps lines apart, so `Week 13` and `Week 14` are not
+  repeats. A repeated line is read once, where it first appears (a header at the top of its page, a
+  footer or a stamp at the end), without its page number, and left out of later pages; a page number
+  alone is left out on every page. `headers_and_footers` lists each repeated line as it first
+  reads, and `headers_and_footers_left_out` counts the lines left out.
+- **Angles.** A page reads in the frame most of its text stands upright in, so a landscape page
+  drawn a quarter turn reads as it would upright; lines at other angles follow the page's text.
+
+◆ Decision: a running header or footer is read once rather than left out, because it may name the
+document or hold its number, which search should find; a page number is left out, as the
+`# Page N` heading says it. A line is taken for one only where the page sets it apart and most pages
+repeat it, so a page's own first line stays.
+
+◆ Decision: a PDF's table reads as a pipe table only when its columns are found, aligned; rows whose
+columns cannot be found read a line each, their cells kept apart, which reads as the page does
+without claiming a structure the file does not show.
 
 **Untimed transcripts.** Plain text, Markdown, DOCX and DOC share one rule
 ([`speakers.ts`](../../packages/parsers/src/speakers.ts)), so a transcript reads the same whatever

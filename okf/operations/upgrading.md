@@ -40,19 +40,22 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   that rewrote these without reading first is refused until it reads, then passes the etag.
   People will notice that saving a summary, notes or text someone else changed meanwhile shows
   their version, and saves over it only when asked.
-- **Nothing runs by itself; existing plain-text and workbook attachments read better once read
+- **Nothing runs by itself; existing plain-text, workbook and PDF attachments read better once read
   again.** A `.txt` now keeps its lines and list markers, joining only hard-wrapped prose, sets a
   list under a line that ends in a colon apart from it, so the list reads as a list whatever number
-  it starts at, and ends a quoted message before the reply under it; an `.xlsx` reads values as the sheet shows them
-  (`+14.0%`, not `0.14`), reads and marks hidden sheets, columns and rows and a value other than
-  zero that its format shows as nothing (a zero shown as nothing stays a blank), and says when a
-  formula was saved without its value (plain-text parser 8, XLSX 6). A reading made earlier keeps
-  its layout until its attachment is read again, with `derived(action="rederive")` or Read it again
-  in the web app; a source whose text still follows that attachment then takes the new text, and a
-  text someone wrote or edited is left alone. Left unread, those sources read and are found as
-  before. Nothing else needs reading again: a scan recorded as failed reads `unsupported`, a
-  recording that asked for "a transcript as a new source" asks for another attachment, and an image
-  says how an agent gives it its words, in sandbox baselines too.
+  it starts at, and ends a quoted message before the reply under it; an `.xlsx` reads values as the
+  sheet shows them (`+14.0%`, not `0.14`), reads and marks hidden sheets, columns and rows and a
+  value other than zero that its format shows as nothing (a zero shown as nothing stays a blank),
+  and says when a formula was saved without its value; a `.pdf` reads a table as a table, a label
+  beside its value (`Samples: 79`) and a running header or footer once, where it first appears,
+  leaving its page numbers out, which `facts.headers_and_footers` in `derived(action="manifest")`
+  lists (plain-text parser 8, XLSX 6, PDF 5). A reading made earlier keeps its layout until its
+  attachment is read again, with `derived(action="rederive")` or Read it again in the web app; a
+  source whose text still follows that attachment then takes the new text, and a text someone wrote
+  or edited is left alone. Left unread, those sources read and are found as before. Nothing else
+  needs reading again: a scan recorded as failed reads `unsupported`, a recording that asked for "a
+  transcript as a new source" asks for another attachment, and an image says how an agent gives it
+  its words, in sandbox baselines too.
 - **Nothing to change; a text file that holds a null character is read.** A text, Markdown, CSV,
   TSV, WebVTT or SubRip attachment with a null character (U+0000) in it, which a Postgres text
   value cannot hold, could not have its reading saved when the source was to take its text, and
