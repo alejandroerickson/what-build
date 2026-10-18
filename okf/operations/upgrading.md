@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.16.0
+
 - **Migration `0031_summaries_and_notes_have_etags`.** It gives every source's summary and notes
   (`agent_notes`) an etag of its own, live and in saved sandbox baselines. Nothing is dropped and
   no text changes, and an earlier release runs on the new schema (the column has a default), so
