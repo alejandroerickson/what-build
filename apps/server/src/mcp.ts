@@ -11,7 +11,7 @@ import { mcpPrincipal } from "./auth/identity.ts";
 import type { ServerConfig } from "./config.ts";
 
 const GROUP_SENTENCES: Record<string, string> = {
-  products: "Find the products (discoveries) you can reach, and create or manage products, tenants and teams. Start with list; confirm the product with the person before writing.",
+  products: "Find the products (discoveries) you can reach; create and manage products, tenants and teams; export a whole product as a ZIP; and, for whoever runs this WhatBuild, the allowances to start organizations and how it is used. Start with list; confirm the product with the person before writing.",
   members: "See who belongs to a tenant and grant or revoke roles on the tenant, a team or a product; invites people by email.",
   sandbox: "A public sandbox: an organization that invited visitors work in, which is put back to a saved baseline every day. status says what it is for you, with the notice to tell the person and what is left of each allowance; join enters one with an invitation code. The rest is its control panel, for its owners and admins: settings and limits, baselines, reset, invitations and visitors.",
   sources: "Find, read, create and correct sources — the discovery evidence — and comment on them. Metadata only: use search for what sources say, and derived for their text.",

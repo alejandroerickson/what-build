@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the assumption register, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -242,7 +242,7 @@ anchored to any part of the source's text
 | `annotation_id`, `record_id` | |
 | `note` | Markdown, 1–2,000 chars. |
 | `tags` | As sources. |
-| `archive_reason` | Optional, ≤ 500 chars: why the comment was archived. Given only with `archived: true`; restoring clears it. |
+| `archive_reason` | Optional, ≤ 500 chars: why the comment was archived. Given only with `archived: true`; restoring clears it. It stays with the comment: the activity log records that a comment was archived, never why (§4.10). |
 
 Editable (text only, keeping revisions), archivable. `sources.annotate` refuses a segment range
 (`seq_start`, `seq_end`) with `422 invalid_input`, saying a comment is on the whole source.
@@ -319,7 +319,7 @@ List items carry the entry's state without a `get` per entry: `status`, `frozen`
 `superseded_by`, `link_count` (links out), `linked_from_count` (links in), `review_count`,
 `human_review` and `archived_outcome_ids`. The list filters by one or more statuses; without
 one it returns the current entries (unconfirmed and confirmed), so it agrees with the counts on
-products and outcomes and with the register's default view, and says in `not_current_hidden` how
+products and with the register's default view, and says in `not_current_hidden` how
 many refuted or superseded entries it left out.
 
 An assumption names no source structurally: its body says, in words, what it rests on, and an
@@ -342,6 +342,8 @@ or "a source no longer in WhatBuild". Those entries took a new etag; their statu
 - `confidence` (`low`, `medium`, `high`) is accepted only when `reviewer_type = human`; otherwise
   `422 confidence_requires_human`. Lists filter by the latest human confidence.
 - Reviews are never edited or removed. A changed mind is a new review.
+- The review `supersede` records on the old entry (below) takes `reviewer_type` the same way, with
+  the same default, so a correction an agent relays from the person is recorded as the person's.
 
 ### Corrections and links
 
@@ -380,8 +382,10 @@ An append-only event log, written in the same transaction as the mutation that c
 - **It never contains content.** No bodies, no source text, no HTML, no email addresses. The
   summary names objects; it does not quote them.
 - `activity.list` filters by `entity_type`, `entity_id`, `actor`, `channel`, `by` (`people` for
-  the app and the REST API, `agents` for MCP) and `since`, with the usual bounds. Every role on the
-  product can read it.
+  the app and the REST API, `agents` for MCP; what WhatBuild does by itself, which has no
+  channel, is in neither) and `since`, with the usual bounds. `entity_type` offers exactly the
+  kinds of object a product's log has entries about ([§6.4](06-operations-and-adapters.md)). Every
+  role on the product but a reader, who reads only the Story, can read it.
 - Events are immutable and are retained for the life of the tenant, with one exception: when an
   insight or a decision became a source (§4.7), its events were relabelled as the source's. They
   are included in a product export.
@@ -845,8 +849,9 @@ client registered) or the `screen`, and `reply_to` only when the person shared t
 `submitted_by` holds who sent a report made before this, and is null since. One person, with their
 agents, sends at most 10 a UTC day (`feedback_counts`, a count per account and day that never says
 which reports, deleted once the day is over), and a deployment takes at most 200 a day; past
-either, `429 rate_limited`. An agent connection whose person turned feedback off is refused with
-`403 feedback_off` ([§3.8](03-accounts-teams-and-identity.md#38-identity-of-the-caller)).
+either, `429 rate_limited`, whose message gives the moment the next UTC day begins (midnight UTC),
+when the allowance starts again; its `details` hold only the `limit`. An agent connection whose
+person turned feedback off is refused with `403 feedback_off` ([§3.8](03-accounts-teams-and-identity.md#38-identity-of-the-caller)).
 
 **The digest.** With `WHATBUILD_FEEDBACK_EMAIL` set and mail configured, the worker mails what is
 unsent (`sent_at` null) to that address in one plain-text message, at most 100 reports, at most once
@@ -866,8 +871,13 @@ write-only like feedback
 
 ## 4.14 The product bundle
 
-A product exports to a single ZIP (`products.export`, open to every role on the product). A worker
-job builds it; it can be downloaded for seven days ([`export.ts`](../../packages/core/src/ops/export.ts)).
+A product exports to a single ZIP (`products.export`, open to every role on the product but a
+reader, who reads only the Story; a public sandbox limits what its visitors export,
+[§9.7](09-data-lifecycle.md)).
+A worker job builds it; it can be downloaded for seven days ([`export.ts`](../../packages/core/src/ops/export.ts)).
+Its README.txt names every kind of file below and what each holds, and `bundle.json`'s `layout`
+lists their paths; both are made from one list (`BUNDLE_LAYOUT`), which a test holds to what an
+export writes.
 
 ```
 bundle.json                 format (whatbuild-product-bundle) and format version (2), exported_at/by,
@@ -879,9 +889,10 @@ records/<record_id>/text.md                      the source's derived text, when
 records/<record_id>/attachments/<file_version_id>/<path>   every version of every attachment
 records/<record_id>/derived/<derivation_id>/{text.md,manifest.json}   every reading (and segments.jsonl, in one made while sources had passages)
 records/<record_id>/annotations.json · agent-notes/{summary,notes}.md
-assumptions.json            with their reviews
+assumptions.json            with their reviews (every column but the search vector)
 revisions.json
-story/hierarchy.json  ·  story/pages/<page_id>/page.json  ·  story/pages/<page_id>/v<n>.{json,html}
+story/hierarchy.json  ·  story/style.{json,css} (when the product has a Story style)
+story/pages/<page_id>/page.json  ·  story/pages/<page_id>/v<n>.{json,html}
                             (a version that shows a mockup page has no .html; its JSON names the page)
 mockups/<mockup_id>/mockup.json
 mockups/<mockup_id>/v<n>/{version.json,brief.md}  ·  mockups/<mockup_id>/v<n>/pages/<page_id>.{html,notes.md}

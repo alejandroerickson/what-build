@@ -169,7 +169,7 @@ async function run(
     return (mode === "read" ? tx.setAccessMode("read only") : tx).execute(async (trx) => {
       if (scope.tenant) await sql`select set_config('app.tenant_id', ${scope.tenant.tenant_id}, true)`.execute(trx);
       if (sandbox && scope.tenant) await lockSandbox(trx, sandbox.tenant_id, op.exclusive ? "exclusive" : "shared");
-      if (visitor && mode === "call") await countVisitorWrite(trx, visitor, principal, op);
+      if (visitor && mode === "call") await countVisitorWrite(trx, visitor, principal, op, input);
       return fn({
         principal: masked?.principal ?? principal,
         actor: masked?.actor ?? actorOf(principal),

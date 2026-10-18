@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, the public sandbox with its limits, baseline and reset, and how retired insights and decisions became sources.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, sandbox]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -230,15 +230,19 @@ whose earlier wording a write replaces; what an attachment was read as stays rea
 
 **Product bundle — built.** `products.export` builds one ZIP of a whole product in the background
 (`packages/core/src/ops/export.ts`); `products.exports` lists recent exports with a short-lived
-download grant for each ready one. Any role may export, through **both adapters**, and export is
-**never blocked** — not by a quota, and not by archiving the product. A ready export is listed for
-seven days. The bundle holds a manifest with its format name and version, every source's metadata,
-its derived text, every attachment version's original bytes, what each was read as, comments,
-summaries and notes,
+download grant for each ready one. A viewer, editor or admin may export, through **both
+adapters**, and export is **never blocked** for them — not by a quota, and not by archiving the
+product. A reader, who reads only the Story, may not (`403`); the Story's own export is its print
+view ([§6.4](06-operations-and-adapters.md)). A visitor to a public sandbox exports only as far as
+its `exports_per_day` allows, which is 0, off, unless its staff raise it (§9.7). A ready export is
+listed for seven days. The bundle holds a manifest with its format name and version, every
+source's metadata, its derived text, every attachment version's original bytes, what each was
+read as, comments, summaries and notes,
 outcomes, assumptions with their reviews, revisions,
-the Story hierarchy and every page version (JSON and HTML; a version that shows a mockup page
-names it rather than repeating it), every mockup version (its brief, each page's HTML and
-notes, and its files), tombstones, and the activity log
+the Story hierarchy, its style and every page version (JSON and HTML; a version that shows a
+mockup page names it rather than repeating it), every mockup version (its brief, each page's HTML
+and notes, its files and its prototype), tombstones, and the activity log, with a README that
+names each kind of file and what it holds
 ([§4.14](04-data-model.md)). It is readable with a ZIP tool and nothing else; no proprietary
 format, no API required to make sense of it.
 
@@ -456,7 +460,7 @@ returns them to a visitor with what is used today.
 | Calls, reads included | `requests_per_minute` | 120 | each visitor, each minute | `429 rate_limited` |
 | Writes | `writes_per_minute` | 30 | each visitor, each minute | `429 rate_limited` |
 | Writes | `writes_per_day` | 300 | each visitor, each day | `409 quota_exceeded` |
-| Sources created or copied in | `sources_per_day` | 10 | each visitor, each day | `409 quota_exceeded` |
+| Sources created or copied in, each source of a batch (`attachments.create_uploads`) counted | `sources_per_day` | 10 | each visitor, each day | `409 quota_exceeded` |
 | Exports | `exports_per_day` | 0 (off) | each visitor, each day | `409 quota_exceeded` |
 | Writes | `org_writes_per_day` | 20,000 | all visitors together, each day | `409 quota_exceeded` |
 | File size | `file_max_bytes` | 5 MB | each file | `413 too_large` |
@@ -474,7 +478,10 @@ Rules:
    resets are turned on, and a reset by hand starts the day's counts again.
 3. **A refused call counts as a call, and takes nothing from a day's allowance.** The minute's
    counters are written before the input is read. The day's are written inside the operation's
-   transaction, so they go back if the call fails.
+   transaction, so they go back if the call fails. A batch (`attachments.create_uploads`) is one
+   write, and takes one from `sources_per_day` for each source in it; one that would pass the
+   allowance is refused whole, with the day's count before the call as `used` and a message
+   saying how many it would add and how many are left.
 4. **A day's allowance never stops a read or a search** (§9.2 rule 1). Export is counted by
    `exports_per_day` alone: neither the day's writes nor `visitor_access: "read"` stops it. Its
    default is 0, so visitors export nothing: the sandbox's content is a demonstration that belongs

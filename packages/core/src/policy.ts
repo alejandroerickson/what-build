@@ -2,6 +2,7 @@ import { sql } from "kysely";
 import type { Db } from "./db.ts";
 import { AppError, forbidden, invalid, notFound } from "./errors.ts";
 import type { OpAccess, OpScope, Principal, ProductRole, Scope, TenantRole } from "./registry.ts";
+import { withArticle } from "./schemas.ts";
 import { ULID_PATTERN } from "./util.ts";
 
 /**
@@ -232,7 +233,7 @@ export async function resolveScope(
       if (!roleAtLeast(role, needed)) {
         const what = opScope === "product" ? `product ${product!.name}` : `team ${team!.name}`;
         throw forbidden(
-          `You are a ${role} on ${what}; ${opName} needs ${needed}. Ask an admin of the ${opScope} for ${needed} access.`,
+          `You are ${withArticle(role)} on ${what}; ${opName} needs ${needed}. Ask an admin of the ${opScope} for ${needed} access.`,
           { role, needed },
         );
       }

@@ -37,6 +37,13 @@ async function raw(b: Browser, path: string, headers: Record<string, string> = {
   return fetch(`${h.baseUrl}${path}`, { headers: { cookie: b.cookie, ...headers } });
 }
 
+/** A mockup's current version as get reads it; publish answers with what comes next, never the canvas. */
+async function canvasOf(base: string, mockupId: string, query = "") {
+  const r = await alice.api("GET", `${base}/mockups/${mockupId}${query}`);
+  expect(r.status).toBe(200);
+  return r.body.current;
+}
+
 describe("mockups", () => {
   let id: string;
   let etag: string;
@@ -55,10 +62,25 @@ describe("mockups", () => {
     expect(r.status).toBe(201);
     id = r.body.mockup_id;
     etag = r.body.etag;
-    expect(r.body).toMatchObject({ title: "Close dashboard", current_version: 1, based_on_version: null });
-    expect(r.body.current.pages.map((p: { page_id: string }) => p.page_id)).toEqual(["grid", "timeline"]);
-    expect(r.body.current.pages[0]).toMatchObject({ width: 1280, height: 800, notes: "Dense, for experts." });
-    expect(r.body.current.pages[1]).toMatchObject({ width: 390, height: 844 });
+    // The answer is what a caller needs next (ids, the version, the etag, the canvas's address), not
+    // the canvas it just sent.
+    expect(r.body).toEqual({
+      mockup_id: id,
+      title: "Close dashboard",
+      current_version: 1,
+      current_version_id: expect.any(String),
+      etag: expect.any(String),
+      based_on_version: null,
+      page_ids: ["grid", "timeline"],
+      url: `${h.baseUrl}/t/${P.replace("/api/v1/p/", "")}/exploration/mockups/${id}`,
+      next: expect.stringContaining('mockups(action="get")'),
+    });
+    expect(r.headers.get("etag")).toBe(`"${etag}"`);
+    const v = await canvasOf(P, id);
+    expect(v.version_id).toBe(r.body.current_version_id);
+    expect(v.pages.map((p: { page_id: string }) => p.page_id)).toEqual(["grid", "timeline"]);
+    expect(v.pages[0]).toMatchObject({ width: 1280, height: 800, notes: "Dense, for experts." });
+    expect(v.pages[1]).toMatchObject({ width: 390, height: 844 });
     const list = await alice.api("GET", `${P}/mockups`);
     expect(list.body.items).toHaveLength(1);
     expect(list.body.items[0]).toMatchObject({ mockup_id: id, page_count: 2 });
@@ -72,8 +94,9 @@ describe("mockups", () => {
     });
     expect(r.status).toBe(201);
     etag = r.body.etag;
-    expect(r.body).toMatchObject({ current_version: 2, based_on_version: 1 });
-    const v = r.body.current;
+    expect(r.body).toMatchObject({ current_version: 2, based_on_version: 1, page_ids: ["timeline", "cards", "grid"] });
+    expect(r.body).not.toHaveProperty("current");
+    const v = await canvasOf(P, id);
     expect(v.brief).toContain("at a glance");
     expect(v.columns).toBe(3);
     expect(v.pages.map((p: { page_id: string }) => p.page_id)).toEqual(["timeline", "cards", "grid"]);
@@ -431,11 +454,12 @@ describe("files a mockup version carries", () => {
     expect(m.status, JSON.stringify(m.body)).toBe(201);
     mockupId = m.body.mockup_id;
     etag = m.body.etag;
-    expect(m.body.current.files).toEqual([
+    const created = await canvasOf(P, mockupId);
+    expect(created.files).toEqual([
       expect.objectContaining({ path: "DESIGN.md", chars: 35 }),
       expect.objectContaining({ path: "components/row.html" }),
     ]);
-    expect(m.body.current.files[0].content).toBeUndefined();
+    expect(created.files[0].content).toBeUndefined();
     const full = await alice.api("GET", `${P}/mockups/${mockupId}?include_files=true`);
     expect(full.body.current.files[0].content).toBe("# Ledger\n\nDense tables, one accent.");
     const activity = await alice.api("GET", `${P}/activity?entity_type=mockup&entity_id=${mockupId}`);
@@ -445,7 +469,7 @@ describe("files a mockup version carries", () => {
   it("carries files forward, changes one by path, drops one left out, and adds a new one", async () => {
     const kept = await alice.api("POST", `${P}/mockups`, { mockup_id: mockupId, expected_etag: etag, brief: "Now with a brief." });
     etag = kept.body.etag;
-    expect(kept.body.current.files.map((x: { path: string }) => x.path)).toEqual(["DESIGN.md", "components/row.html"]);
+    expect((await canvasOf(P, mockupId)).files.map((x: { path: string }) => x.path)).toEqual(["DESIGN.md", "components/row.html"]);
     const changed = await alice.api("POST", `${P}/mockups`, {
       mockup_id: mockupId,
       expected_etag: etag,
@@ -522,13 +546,15 @@ describe("publishing a canvas uploaded as a ZIP", () => {
     expect(r.status).toBe(201);
     mockupId = r.body.mockup_id;
     etag = r.body.etag;
-    expect(r.body).toMatchObject({ title: "Upload board", summary: "Uploaded.", current_version: 1, from_upload: uploadId });
-    expect(r.body.current).toMatchObject({ brief: "# Upload board\n\nDoes a board read at a glance?", columns: 2 });
-    expect(r.body.current.pages).toEqual([
+    expect(r.body).toMatchObject({ title: "Upload board", current_version: 1, from_upload: uploadId, page_ids: ["board", "phone"] });
+    const got = await alice.api("GET", `${P}/mockups/${mockupId}`);
+    expect(got.body.summary).toBe("Uploaded.");
+    expect(got.body.current).toMatchObject({ brief: "# Upload board\n\nDoes a board read at a glance?", columns: 2 });
+    expect(got.body.current.pages).toEqual([
       expect.objectContaining({ page_id: "board", title: "Board", notes: "Wide.", width: 1280 }),
       expect.objectContaining({ page_id: "phone", title: "Phone", notes: "", width: 390, height: 844 }),
     ]);
-    expect(r.body.current.files).toEqual([expect.objectContaining({ path: "DESIGN.md" })]);
+    expect(got.body.current.files).toEqual([expect.objectContaining({ path: "DESIGN.md" })]);
     // Read once: the bytes go, and the upload can't make a second version.
     await h.worker.drain();
     const row = await h.db.transaction().execute(async (trx) => {
@@ -555,11 +581,13 @@ describe("publishing a canvas uploaded as a ZIP", () => {
     const r = await alice.api("POST", `${P}/mockups`, { mockup_id: mockupId, expected_etag: etag, upload_id: uploadId, summary: "From the call." });
     expect(r.status).toBe(201);
     etag = r.body.etag;
-    expect(r.body).toMatchObject({ current_version: 2, based_on_version: 1, summary: "From the call." });
-    expect(r.body.current.brief).toBe("# Upload board\n\nDoes a board read at a glance?");
-    expect(r.body.current.pages.map((p: { page_id: string }) => p.page_id)).toEqual(["board", "phone", "list"]);
-    expect(r.body.current.pages[0]).toMatchObject({ notes: "Wide." });
-    expect(r.body.current.files).toEqual([expect.objectContaining({ path: "DESIGN.md" })]);
+    expect(r.body).toMatchObject({ current_version: 2, based_on_version: 1, page_ids: ["board", "phone", "list"] });
+    const got = await alice.api("GET", `${P}/mockups/${mockupId}`);
+    expect(got.body.summary).toBe("From the call.");
+    expect(got.body.current.brief).toBe("# Upload board\n\nDoes a board read at a glance?");
+    expect(got.body.current.pages.map((p: { page_id: string }) => p.page_id)).toEqual(["board", "phone", "list"]);
+    expect(got.body.current.pages[0]).toMatchObject({ notes: "Wide." });
+    expect(got.body.current.files).toEqual([expect.objectContaining({ path: "DESIGN.md" })]);
     const v = await alice.api("GET", `${P}/mockups/${mockupId}/versions/2?include_html=true`);
     expect(v.body.pages[0].html).toContain("Board, denser");
     expect(v.body.pages[1].html).toContain("Phone");
@@ -628,7 +656,7 @@ describe("a page's rules, by the surface that shows it", () => {
     expect(problems).toHaveLength(3);
     expect(problems[0]).toBe("<form> is not allowed in a Story page: a Story page is for reading, so it holds no forms.");
     expect(problems[1]).toBe("The Story page has 15 inline scripts; a Story page holds at most 10.");
-    expect(problems[2]).toMatch(/^Inline scripts and event handlers total \d+ characters; a Story page allows at most 32000, since the Story is for reading; an interactive prototype belongs on a mockup's canvas/);
+    expect(problems[2]).toMatch(/^Inline scripts and event handlers total [\d,]+ characters; a Story page allows at most 32,000, since the Story is for reading; an interactive prototype belongs on a mockup's canvas/);
   });
 
   it("refuses in a mockup page what loads from elsewhere, frames, or redirects, naming the surface, the rule and the element", () => {
@@ -664,7 +692,7 @@ describe("a page's rules, by the surface that shows it", () => {
       "<frameset> is not allowed in a mockup page: a page frames and embeds no other document.",
       "<frame> is not allowed in a mockup page: a page frames and embeds no other document.",
     ]);
-    expect(inspectMockupHtml(`<!doctype html><p>${"x".repeat(1_000_000)}</p>`)[0]).toBe("The mockup page is 1000022 characters; a mockup page holds at most 1000000.");
+    expect(inspectMockupHtml(`<!doctype html><p>${"x".repeat(1_000_000)}</p>`)[0]).toBe("The mockup page is 1,000,022 characters; a mockup page holds at most 1,000,000.");
     expect(inspectMockupHtml(`${"<div>".repeat(600)}x`)).toEqual(["The mockup page's HTML nests elements more than 512 deep."]);
   });
 });
@@ -682,7 +710,7 @@ describe("a working prototype on a canvas", () => {
     const r = await alice.api("POST", `${Q}/mockups`, { title: "Booking", pages: [{ page_id: "book", title: "Book a crew", html: prototype }] });
     expect(r.status, JSON.stringify(r.body).slice(0, 500)).toBe(201);
     mockupId = r.body.mockup_id;
-    expect(r.body.current.pages[0].html_chars).toBe(prototype.length);
+    expect((await canvasOf(Q, mockupId)).pages[0].html_chars).toBe(prototype.length);
   });
 
   it("serves the page, and the Story's view of it, in a sandbox where a submit handler runs and a submission goes nowhere", async () => {
@@ -761,7 +789,7 @@ describe("a working prototype on a canvas", () => {
     expect(bad.body.error.message).not.toMatch(/Story/);
     const big = await alice.api("POST", `${Q}/mockups`, { mockup_id: mockupId, expected_etag: m.body.etag, pages: [{ page_id: "book", html: "x".repeat(1_000_001) }] });
     expect(big.status).toBe(422);
-    expect(big.body.error.message).toMatch(/a mockup page holds at most 1000000 characters/);
+    expect(big.body.error.message).toMatch(/a mockup page holds at most 1,000,000 characters/);
     expect((await alice.api("GET", `${Q}/mockups/${mockupId}`)).body.current_version).toBe(1);
   });
 });
@@ -804,12 +832,13 @@ describe("what publishing an upload tells and keeps", () => {
     expect(r.status, JSON.stringify(r.body)).toBe(201);
     expect(r.body.from_upload).toBe(uploadId);
     expect(r.body.upload).toEqual({ upload_id: uploadId, size: zip.length, sha256: sha(zip) });
-    const pageView = r.body.current.pages[0];
+    const v = await canvasOf(Q, r.body.mockup_id);
+    const pageView = v.pages[0];
     expect(pageView.html_chars).toBe(html.length);
     expect(Buffer.byteLength(html, "utf8")).toBeGreaterThan(html.length);
     expect(pageView.html_sha256).toBe(sha(strToU8(html)));
     expect(pageView.html_sha256).not.toBe(sha(withBom(html)));
-    expect(r.body.current.files).toEqual([{ path: "notes.md", chars: notes.length, sha256: sha(strToU8(notes)) }]);
+    expect(v.files).toEqual([{ path: "notes.md", chars: notes.length, sha256: sha(strToU8(notes)) }]);
     // A publish without an upload says nothing of one.
     const next = await alice.api("POST", `${Q}/mockups`, { mockup_id: r.body.mockup_id, expected_etag: r.body.etag, title: "Hashes again" });
     expect(next.status).toBe(201);
@@ -846,7 +875,7 @@ describe("what publishing an upload tells and keeps", () => {
     const one = await alice.api("POST", `${Q}/mockups`, { upload_id: over.uploadId });
     expect(one.status).toBe(422);
     expect(one.body.error.code).toBe("invalid_upload");
-    expect(one.body.error.message).toMatch(/pages\/big\.html holds \d+ characters; a mockup page holds at most 1000000\./);
+    expect(one.body.error.message).toMatch(/pages\/big\.html holds [\d,]+ characters; a mockup page holds at most 1,000,000\./);
     const pages = Array.from({ length: 9 }, (_, i) => `p${i}`);
     const many = await put({
       "manifest.json": JSON.stringify({ title: "Many", pages: pages.map((p) => ({ page_id: p, title: p })) }),
@@ -855,6 +884,6 @@ describe("what publishing an upload tells and keeps", () => {
     const total = await alice.api("POST", `${Q}/mockups`, { upload_id: many.uploadId });
     expect(total.status).toBe(422);
     expect(total.body.error.code).toBe("invalid_html");
-    expect(total.body.error.details.problems).toEqual([expect.stringMatching(/^The pages total \d+ characters of HTML; a version holds at most 8000000\.$/)]);
+    expect(total.body.error.details.problems).toEqual([expect.stringMatching(/^The pages total [\d,]+ characters of HTML; a version holds at most 8,000,000\.$/)]);
   });
 });

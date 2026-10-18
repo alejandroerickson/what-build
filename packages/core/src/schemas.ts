@@ -1,8 +1,11 @@
 import { z } from "zod";
 import { ULID_PATTERN } from "./util.ts";
 
+/** A word with "a" or "an" before it, by its first letter: "an outcome", "a source", "an editor". */
+export const withArticle = (word: string) => `${/^[aeiou]/i.test(word) ? "an" : "a"} ${word}`;
+
 export const id = (what: string) =>
-  z.string().regex(ULID_PATTERN, `must be a ${what} id: 26 characters of Crockford base32`).describe(`The ${what} id.`);
+  z.string().regex(ULID_PATTERN, `must be ${withArticle(what)} id: 26 characters of Crockford base32`).describe(`The ${what} id.`);
 
 export const slug = z
   .string()
@@ -24,6 +27,9 @@ export const expectedEtag = z
 export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "a date as yyyy-mm-dd");
 
 export const tags = z.array(z.string().min(1).max(50)).max(50).describe("Up to 50 tags, stored lower-case.");
+
+/** Tags sent to an update: the whole list, never an addition to it. */
+export const replacingTags = tags.describe("The whole list of tags, which replaces the current one: send every tag to keep, or [] for none. Up to 50, stored lower-case.");
 
 export const authorType = z
   .enum(["human", "agent"])
