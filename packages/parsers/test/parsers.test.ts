@@ -972,7 +972,7 @@ describe("PDF layout", () => {
     expect(r.facts).toMatchObject({ table_count: 2, headers_and_footers: ["Page 1 of 2"], headers_and_footers_left_out: 2 });
   });
 
-  it("reads paragraphs, two columns of prose, headings and lists as it did", async () => {
+  it("reads paragraphs, two columns of prose and lists as it did, and a heading on its own", async () => {
     const prose = await read([
       pdfLines([
         "We visited six crews in the north region over two weeks and",
@@ -994,7 +994,7 @@ describe("PDF layout", () => {
     const across = await read([left.flatMap((l, i) => [{ text: l, x: 72, y: 700 - i * 14 }, { text: right[i]!, x: 320, y: 700 - i * 14 }])]);
     expect(across.markdown).toBe(COLUMNS);
     expect(across.facts).toMatchObject({ table_count: 0 });
-    // A heading runs into the text under it, and list items run on, as they did; a bullet set apart by a hanging indent stays with its words.
+    // A heading set larger than the text stands on its own; list items run on, as they did, and a bullet set apart by a hanging indent stays with its words.
     const list = await read([
       [
         { text: "Findings", x: 72, y: 720, size: 14, bold: true },
@@ -1002,7 +1002,72 @@ describe("PDF layout", () => {
         ...["They plan on Fridays", "They use paper boards", "They text photos"].flatMap((t, i) => [{ text: "•", x: 72, y: 684 - i * 14 }, { text: t, x: 90, y: 684 - i * 14 }]),
       ],
     ]);
-    expect(list.markdown).toBe("# Page 1\n\nFindings The crews said three things.\n\n• They plan on Fridays • They use paper boards • They text photos\n");
+    expect(list.markdown).toBe("# Page 1\n\n## Findings\n\nThe crews said three things.\n\n• They plan on Fridays • They use paper boards • They text photos\n");
+    expect(list.segments.find((g) => g.text === "## Findings")).toMatchObject({ heading_level: 2, page: 1 });
+  });
+
+  it("reads a line set clearly larger than its page's text as a heading of its own, its level following its size", async () => {
+    const r = await read([
+      [
+        { text: "Field report", x: 72, y: 740, size: 20 },
+        { text: "Findings", x: 72, y: 700, size: 14 },
+        ...pdfLines(["The crews plan the week on Friday afternoon, in the yard, with a", "paper board that the lead fills in by hand before anyone leaves."], { top: 680 }),
+        { text: "What does the office see?", x: 72, y: 640, size: 13 },
+        ...pdfLines(["Nobody in the office sees the board until Monday."], { top: 622 }),
+        // A heading's lines in its size join, and a number set apart by a hanging indent stays with its words.
+        { text: "2", x: 72, y: 590, size: 14 }, { text: "A heading that runs on over two", x: 90, y: 590, size: 14 }, { text: "lines in the same size", x: 90, y: 574, size: 14 },
+        ...pdfLines(["Then the text goes on, as it did before."], { top: 556 }),
+      ],
+      // The same size is the same level on every page.
+      [{ text: "Next steps:", x: 72, y: 720, size: 14 }, ...pdfLines(["The office will read the board on Fridays.", "The crews will send a photo of it."], { top: 700 })],
+    ]);
+    expect(r.markdown).toBe(
+      "# Page 1\n\n## Field report\n\n### Findings\n\nThe crews plan the week on Friday afternoon, in the yard, with a paper board that the lead fills in by hand before anyone leaves.\n\n" +
+        "#### What does the office see?\n\nNobody in the office sees the board until Monday.\n\n### 2 A heading that runs on over two lines in the same size\n\nThen the text goes on, as it did before.\n\n" +
+        "# Page 2\n\n### Next steps:\n\nThe office will read the board on Fridays.\n\nThe crews will send a photo of it.\n",
+    );
+    expect(r.segments.filter((g) => g.heading_level! > 1).map((g) => [g.heading_level, g.page])).toEqual([[2, 1], [3, 1], [4, 1], [3, 1], [3, 2]]);
+    // A heading's words are text the layer holds.
+    expect(r.facts["text_layer_chars"]).toBeGreaterThan(r.markdown.replace(/^#+ Page \d+$|^#+ |\s/gm, "").length - 20);
+  });
+
+  it("reads as it did what is set large but no heading: a line barely larger, prose set large, a list item, a number, a table's row", async () => {
+    const r = await read([
+      [
+        // Not clearly larger than the text: it runs on, as it did.
+        { text: "A line a little larger", x: 72, y: 740, size: 12 },
+        ...pdfLines(["than the text, which goes on under it."], { top: 724 }),
+        // Prose set large, as a pull quote is, ends as prose does.
+        { text: "Crews trust the paper board.", x: 72, y: 690, size: 18 },
+        // A list item set large stays an item, and a number alone is no heading.
+        { text: "• Boards by the gate", x: 72, y: 660, size: 16 },
+        { text: "87%", x: 72, y: 630, size: 30 },
+        ...pdfLines(["of the crews said so."], { top: 610 }),
+        // A large word on a line of the text is not a line set large.
+        { text: "Crews", x: 72, y: 580, size: 16 }, { text: "plan the week on Friday.", x: 125, y: 580 },
+        ...pdfLines(["The office plans it on Monday."], { top: 562 }),
+      ],
+      // More lines set large than a heading takes read as the paragraph they make.
+      [
+        ...pdfLines(["The crews plan the week", "on Friday afternoon", "in the yard with a", "paper board"], { top: 720, size: 16, leading: 20 }),
+        ...pdfLines(["Nobody in the office sees the board until Monday morning, when the", "lead texts a photo of it to the office, which copies it out by hand."], { top: 620 }),
+      ],
+      // A table's first row set larger is the table's, and a page all in one size has no heading.
+      [
+        { text: "Sample", x: 72, y: 700, size: 14 }, { text: "Result", x: 200, y: 700, size: 14 },
+        { text: "Lead", x: 72, y: 680 }, { text: "0.002 mg/L", x: 200, y: 680 },
+        { text: "Copper", x: 72, y: 664 }, { text: "0.4 mg/L", x: 200, y: 664 },
+        ...pdfLines(["The results are within the limits."], { top: 630 }),
+      ],
+      pdfLines(["Large print notes", "The crews plan on Friday."], { size: 18, leading: 24 }),
+    ]);
+    expect(r.markdown).toBe(
+      "# Page 1\n\nA line a little larger than the text, which goes on under it.\n\nCrews trust the paper board.\n\n• Boards by the gate 87% of the crews said so.\n\nCrews plan the week on Friday.\n\nThe office plans it on Monday.\n\n" +
+        "# Page 2\n\nThe crews plan the week on Friday afternoon in the yard with a paper board Nobody in the office sees the board until Monday morning, when the lead texts a photo of it to the office, which copies it out by hand.\n\n" +
+        "# Page 3\n\n| Sample | Result |\n| --- | --- |\n| Lead | 0.002 mg/L |\n| Copper | 0.4 mg/L |\n\nThe results are within the limits.\n\n" +
+        "# Page 4\n\nLarge print notes The crews plan on Friday.\n",
+    );
+    expect(r.segments.filter((g) => g.heading_level! > 1)).toEqual([]);
   });
 
   it("sets a line's cells apart when it is no table's row, and reads a line of justified prose stretched wide as prose", async () => {

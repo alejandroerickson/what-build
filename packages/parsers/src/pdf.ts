@@ -71,9 +71,10 @@ function runsOf(items: TextItem[], view: number[]): { upright: TextRun[]; others
 
 /**
  * PDF: the text layer only, per page — a `# Page N` heading, then that page's text laid out as a
- * person reads it (pdf-layout.ts): paragraphs, a table's rows as a table, a label beside its
- * value, and a running header or footer read once, its page numbers left out. No OCR: a PDF with
- * no text layer, a scan's pages being pictures, reports `unsupported`, as an image does (index.ts).
+ * person reads it (pdf-layout.ts): headings, paragraphs, a table's rows as a table, a label beside
+ * its value, and a running header or footer read once, its page numbers left out. No OCR: a PDF
+ * with no text layer, a scan's pages being pictures, reports `unsupported`, as an image does
+ * (index.ts).
  */
 export const pdfParser: FormatParser = {
   name: "pdf",
@@ -113,15 +114,27 @@ export const pdfParser: FormatParser = {
     // Headers and footers are known only once every page is read.
     const repeated = repeatedLines(pages);
     const blocks: Block[] = [];
+    const headings: { block: Block; size: number }[] = [];
     let textChars = 0;
     let tables = 0;
     pages.forEach((p, i) => {
       blocks.push({ text: `# Page ${i + 1}`, heading_level: 1, page: i + 1 });
       const out = pageBlocks(p, i + 1, repeated.lines);
       for (const b of out.blocks) blocks.push(b);
+      for (const h of out.headings) headings.push(h);
       textChars += out.chars;
       tables += out.tables;
     });
+    // So are the sizes headings are set in. A heading's level follows its size, the same size the
+    // same level throughout the file: the largest is level 2, under each page's `# Page N`, the next
+    // level 3, and so on to 6.
+    const sizeOf = (size: number) => Math.round(size * 2) / 2;
+    const sizes = [...new Set(headings.map((h) => sizeOf(h.size)))].sort((a, b) => b - a);
+    for (const h of headings) {
+      const level = Math.min(6, 2 + sizes.indexOf(sizeOf(h.size)));
+      h.block.heading_level = level;
+      h.block.text = `${"#".repeat(level)} ${h.block.text}`;
+    }
     return {
       blocks,
       facts: {
