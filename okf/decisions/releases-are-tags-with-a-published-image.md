@@ -3,7 +3,7 @@ type: Decision
 title: A release is a tag on main with its image published; deploying it is the deployment's own pipeline
 description: A tag v* publishes the image to the GitHub container registry and a GitHub release, so any deployment can pull a released version; the repository ships no deployment pipeline for a platform it does not run on.
 tags: [decision, deployment, releases, operations, self-hosting]
-generated: {by: agent:claude, at: 2026-10-02}
+generated: {by: agent:claude, at: 2026-10-17}
 status: stable
 ---
 
@@ -46,7 +46,8 @@ hash. The maintainer chose this shape on 2026-10-02.
 ## Constrains
 
 - The image is built from the one Dockerfile; a release has no build flags of its own (every build
-  passes the commit, `WHATBUILD_COMMIT`, which the image records and reports)
+  passes the commit, `WHATBUILD_COMMIT`, which the image records and reports, and which the web
+  app compares with the server's to load a new release)
   ([one stateless image](one-stateless-image.md), [§2.7](../spec/02-architecture.md)).
 - The guides describe commands and the contract, never a particular operator's pipeline
   ([self-hosting on Azure](self-hosting-on-azure-is-agent-led-and-shares-nothing-with-cloud-run.md)).

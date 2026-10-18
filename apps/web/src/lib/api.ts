@@ -1,3 +1,5 @@
+import { noteServerCommit } from "./new-release.ts";
+
 /** The one HTTP client. The web app uses only operations the agents also have. */
 
 export class ApiError extends Error {
@@ -51,6 +53,7 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
   } catch {
     throw new ApiError(0, "network", DEFAULT_MESSAGES[0]!);
   }
+  noteServerCommit(res.headers.get("X-WhatBuild-Commit"));
   const text = await res.text();
   let data: unknown = null;
   try {

@@ -24,6 +24,15 @@ design system: tokens, type, components and the rules for using them — is docu
 - Every write path handles `409 stale_etag` explicitly: show what changed, keep the person's
   unsaved text, offer reload-and-reapply. Never discard input; never overwrite silently: a
   teammate or their agent may be editing the same object.
+- **A page left open across a release loads the release.** A tab keeps the app it loaded, while
+  the server may by then answer in shapes that app does not know. The app knows the commit it was
+  built from (`WHATBUILD_COMMIT` at build time) and every response names the server's
+  ([§2](02-architecture.md)); once they differ, the next screen is a full page load (a query string
+  changing is not a next screen), and an error loads the release at once, saying "WhatBuild was
+  updated while this page was open" with Reload (`apps/web/src/lib/new-release.ts`). A tab loads
+  each release once, so a page that is still old once loaded (a cache kept it) is not loaded
+  again at every screen. ◆ Decision: never sooner than the next screen or an error, so nobody
+  loses what they are typing.
 - `409 quota_exceeded` is shown as a fact with a number and a next step, never as a failure of the
   person. (Enforced today: Story pages and mockups per product, [§9.2](09-data-lifecycle.md), and a
   public sandbox's daily allowances, [§9.7](09-data-lifecycle.md).)

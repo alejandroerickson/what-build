@@ -23,7 +23,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Nothing to change.** A page left open while the deployment takes a release now loads that
+  release at its next screen, or as soon as it fails, instead of failing on answers it cannot
+  read ("Cannot destructure property … as it is undefined"). It works from pages opened on this
+  release; one opened earlier needs reloading by hand once. Images built without
+  `WHATBUILD_COMMIT` (which Cloud Build, the Release workflow and the Azure guide all pass) never
+  reload.
 
 ## v0.14.1
 

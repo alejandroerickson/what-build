@@ -8,6 +8,7 @@ import { StrictMode, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, useNavigate, useParams, useRouteError } from "react-router";
 import { ApiError, setUnauthenticatedHandler } from "./lib/api.ts";
+import { loadNewRelease, releasedSinceLoad } from "./lib/new-release.ts";
 import { productHome, ProductProvider, RequireSession, useProduct } from "./lib/session.tsx";
 import { ConnectPage } from "./routes/connect.tsx";
 import { CookiesPage } from "./routes/cookies.tsx";
@@ -30,7 +31,7 @@ import { ExplorationSection } from "./routes/exploration-panel.tsx";
 import { MockupPage, MockupsIndex } from "./routes/mockups.tsx";
 import { CookieNotice } from "./shell/CookieNotice.tsx";
 import { PlainShell, ProductShell } from "./shell/Shell.tsx";
-import { ButtonLink, EmptyState, Sheet, SheetHeader, ToastProvider, useToast } from "./ui/index.tsx";
+import { Button, ButtonLink, EmptyState, Sheet, SheetHeader, ToastProvider, useToast } from "./ui/index.tsx";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -45,6 +46,21 @@ setUnauthenticatedHandler(() => {
 
 function RouteError() {
   const e = useRouteError() as Error;
+  // Most likely this page's app reading what a newer release answered: load that release.
+  const outdated = releasedSinceLoad();
+  useEffect(() => {
+    if (outdated) loadNewRelease();
+  }, [outdated]);
+  if (outdated)
+    return (
+      <div className="center-page stack">
+        <h1>WhatBuild was updated while this page was open</h1>
+        <p className="muted">Reload the page to use the new version.</p>
+        <Button variant="primary" onClick={() => location.reload()}>
+          Reload
+        </Button>
+      </div>
+    );
   return (
     <div className="center-page stack">
       <h1>Something went wrong</h1>
@@ -223,6 +239,14 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
     ],
   },
 ] }]);
+
+// A release that came while this page was open is loaded at the next screen, so this page's app does
+// not go on reading a newer release's answers. A screen's query string changing is not a next screen.
+let shownPath = router.state.location.pathname;
+router.subscribe(({ location: { pathname } }) => {
+  if (pathname !== shownPath) loadNewRelease();
+  shownPath = pathname;
+});
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

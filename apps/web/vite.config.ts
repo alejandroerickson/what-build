@@ -4,9 +4,13 @@ import { defineConfig } from "vite";
 
 const api = process.env["WHATBUILD_API"] ?? "http://localhost:8787";
 const proxied = ["/api", "/auth", "/oauth", "/mcp", "/.well-known", "/whatbuild-skill.md", "/whatbuild-skill.zip", "/health", "/invite-accept", "/prototypes"];
+// The commit the image is built from, which the server records too (apps/server/build.mjs): the app
+// compares it with the server's to know that a release replaced it. Empty in development.
+const commit = /^[0-9a-f]{40}$/.test(process.env["WHATBUILD_COMMIT"] ?? "") ? process.env["WHATBUILD_COMMIT"]! : "";
 
 export default defineConfig({
   plugins: [react()],
+  define: { __WHATBUILD_COMMIT__: JSON.stringify(commit) },
   server: {
     port: Number(process.env["WHATBUILD_WEB_PORT"] ?? 5273),
     strictPort: true,
