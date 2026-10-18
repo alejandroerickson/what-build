@@ -149,7 +149,7 @@ A source is one discovery event or document. It is stored as a **record**, so it
 | `tags` | ≤ 50, each 1–50 chars: what the material is, whom it concerns, what it bears on (§4.4). Stored NFKC-normalized, spacing collapsed, lower-case, without repeats. |
 | `copied_from` | `{ product_id, record_id }` when the source is a copy ([§3.7](03-accounts-teams-and-identity.md)). |
 | `uploaded_by`, `uploaded_at` | Actor snapshot and time of creation: the **date added**. |
-| `updated_by`, `updated_at` | Actor snapshot and time of the last change to the source's details, archive or restore: the **date updated**. Adding an attachment changes the etag but not this. |
+| `updated_by`, `updated_at` | Actor snapshot and time of the last change to the source's details, archive or restore: the **date updated**, which the web app calls **details updated** for what it covers. Adding an attachment changes the etag but not this, nor do its text, summary, notes and comments, which keep their own. |
 | attachments | §4.5. `attachment_count` counts them. |
 | derived text | The source's words, one Markdown document with an etag of its own, at most one per source ([§5.4](05-derived-layer.md)). `text_chars` is its length in code points, 0 without one. |
 | `derived_status` | Where the derived text stands: `ready` (the source has one), `pending` (an attachment is arriving or being read), `awaiting_file` (no attachment), `awaiting_text` (an attachment has text the source does not use), or how its newest attachment was read: `needs_transcript`, `unsupported`, `too_large` or `failed` ([§5.5](05-derived-layer.md)). |

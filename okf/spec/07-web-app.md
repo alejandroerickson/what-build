@@ -350,19 +350,19 @@ The sources, and everything for reading them.
   Paged. The sheet is titled **Sources** (the section stays Evidence). The filters in use,
   among them the words a link searched for (`?query`, matched in titles, tags and attachment
   names: "“…” in titles, tags or attachment names"), show as removable chips above the rows.
-  Three dates are named as
-  dates everywhere: **date captured** (the source's own date: when the interview or call
-  happened, or the date the document carries), **date added** (when it came into WhatBuild) and
-  **date updated** (when its details last changed, or it was archived or restored, as
-  [§4.3](04-data-model.md) has it; its text, summary, notes, comments and attachments each say
-  when they were written, and leave it alone). "Sort by" and a segmented control in the
-  header order the list by date captured (the default, undated last), date added, date updated or
-  title (`?sort=date|added|updated|title`). A small triangle beside the current order shows its
+  Three dates are named the same everywhere: **date captured** (the source's own date: when the
+  interview or call happened, or the date the document carries), **date added** (when it came
+  into WhatBuild) and **details updated** (when its details, its title, date captured or tags,
+  last changed, or it was archived or restored: the date updated of [§4.3](04-data-model.md),
+  named for what it covers; its text, summary, notes, comments and attachments each say when
+  they were written, and leave it alone). "Sort by" and a segmented control in the header order
+  the list by date captured (the default, undated last), date added, details updated or title
+  (`?sort=date|added|updated|title`). A small triangle beside the current order shows its
   direction; choosing it again reverses it (`?order=asc|desc`; dates start newest first, title A
   to Z). When the sheet is narrower than 680px the same choices sit in a menu. Each row shows its
   tags under the title, and at its end a paperclip with its number of attachments and one date:
   the one the list is ordered by. That is the date captured ("No date" when it has none), or
-  "2 h ago" when ordered by date added or updated, with who did it and the full time in its
+  "2 h ago" when ordered by date added or details updated, with who did it and the full time in its
   tooltip; ordered by title, it is the date added. A row whose source has a summary leads with a chevron that unfolds the
   summary's first three lines, as plain words, under the tags
   ([decision](../decisions/a-source-carries-a-summary-notes-and-whole-source-comments.md)); the
@@ -449,10 +449,10 @@ The sources, and everything for reading them.
     when the source has several images, previous and next (the arrow keys) and a strip of
     thumbnails. **Add attachments** adds more, with no roles.
   - **Inspector,** titled Details: **About** (the three dates together — Date captured
-    (or "No date"), Date added and Date updated, the last two each with "by <who>", adding "via
+    (or "No date"), Date added and Details updated, the last two each with "by <who>", adding "via
     <surface>" when it was not the web, the person who added it linking to the list filtered to
-    what they added, and Date updated saying "Not since it was added" while neither its details nor
-    its archiving changed; Tags,
+    what they added, and Details updated saying "Not changed since it was added" while neither
+    its details nor its archiving changed; Tags,
     each a link to the list filtered to it; nothing else), "Activity on this source", and
     Archive.
 - **Evidence links.** A Markdown link to a source is set as a quiet evidence token and opens the

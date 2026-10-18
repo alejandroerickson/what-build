@@ -86,6 +86,17 @@ describe("sources narrowed by a link's words", () => {
   });
 });
 
+describe("the Sources list's orders", () => {
+  it("name the third date for what it covers, as a source's details do", async () => {
+    const host = await open("?query=van&sort=updated");
+    const sort = host.querySelector(".sources-sort")!.textContent!;
+    expect(sort).toContain("Details updated");
+    expect(sort).not.toContain("Date updated");
+    // Ordered by it, a row's date says so.
+    expect(host.querySelector(".source-row-date")?.getAttribute("title")).toMatch(/^Details updated .+ by Riley Chen$/);
+  });
+});
+
 describe("the Evidence panel", () => {
   it("titles each group of filters with a heading that names the group", async () => {
     await open("");

@@ -163,15 +163,15 @@ export function EvidenceFilters() {
 }
 
 /**
- * List orders. Three are dates, each named as one: captured (the source's own date, when the
- * evidence happened, and the default), added to WhatBuild, and updated (its details last changed, or
- * it was archived or restored).
+ * List orders. Three are dates: captured (the source's own date, when the evidence happened, and
+ * the default), added to WhatBuild, and details updated (its title, date or tags last changed, or
+ * it was archived or restored; not its text, summary, notes, comments or attachments).
  * Choosing the current order again reverses it.
  */
 const SORTS = [
   { id: "date", label: "Date captured", first: "desc", desc: "newest first", asc: "oldest first" },
   { id: "added", label: "Date added", first: "desc", desc: "newest first", asc: "oldest first" },
-  { id: "updated", label: "Date updated", first: "desc", desc: "newest first", asc: "oldest first" },
+  { id: "updated", label: "Details updated", first: "desc", desc: "newest first", asc: "oldest first" },
   { id: "title", label: "Title", first: "asc", desc: "Z to A", asc: "A to Z" },
 ] as const;
 type Sort = (typeof SORTS)[number]["id"];
@@ -277,12 +277,12 @@ function useShowSummaries(): [boolean, (on: boolean) => void] {
 
 /**
  * A row's one date: the one the list is ordered by. The date captured by default, and "2 h ago"
- * when the list is ordered by date added or updated (or by title, which shows when it was added),
- * with who did it in its tooltip.
+ * when the list is ordered by date added or details updated (or by title, which shows when it was
+ * added), with who did it in its tooltip.
  */
 function rowDate(r: RecordSummary, sort: Sort): { text: string; said: string; title: string; none?: boolean } {
   if (sort === "added" || sort === "title") return { text: relativeTime(r.uploaded_at), said: "Added", title: `Added ${formatDateTime(r.uploaded_at)} by ${attribution(r.uploaded_by)}` };
-  if (sort === "updated") return { text: relativeTime(r.updated_at), said: "Updated", title: `Updated ${formatDateTime(r.updated_at)} by ${attribution(r.updated_by)}` };
+  if (sort === "updated") return { text: relativeTime(r.updated_at), said: "Details updated", title: `Details updated ${formatDateTime(r.updated_at)} by ${attribution(r.updated_by)}` };
   if (r.date) return { text: formatDate(r.date), said: "Captured", title: "Date captured" };
   return { text: "No date", said: "", title: "No date captured", none: true };
 }
