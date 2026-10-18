@@ -434,7 +434,9 @@ The sources, and everything for reading them.
     (the reason stays with the comment; the activity log records only that it was archived), and
     an admin **Delete permanently…** (§7.10). Archived comments are left out until "Show N
     archived comments", at the section's foot, lists them under the others (`?include_archived=1`):
-    muted, marked Archived with when and why, and with Restore in their menu for an editor.
+    muted, marked Archived with when and why, and with Restore in their menu for an editor. On an
+    archived source, which is read-only until it is restored ([§4.6](04-data-model.md)), comments
+    have no menu, an admin's Delete permanently… included.
   - **Attachments** lists every attachment under a line saying that each one's text is read and
     kept, that the source's text is taken from one of them (once someone wrote or edited it, that
     it was written here and follows no attachment; without a text, neither), and that attachments

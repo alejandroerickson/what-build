@@ -32,10 +32,12 @@ async function everyComment(base: string, recordId: string): Promise<Annotation[
  * Archived ones stay out of the way until asked for (`?include_archived=1`), muted, under the others.
  */
 export function CommentsView({ record }: { record: RecordFull }) {
-  const { api: base, canWrite } = useProduct();
+  const { api: base, canWrite, canDelete } = useProduct();
   const [params, setParams] = useSearchParams();
   const [writing, setWriting] = useState(false);
+  // An archived source is read-only: its comments are neither changed nor deleted until it is restored.
   const writable = canWrite && !record.archived_at;
+  const deletable = canDelete && !record.archived_at;
   const showArchived = params.get("include_archived") === "1";
   const every = useQuery({ queryKey: ["source-comments", base, record.record_id], queryFn: () => everyComment(base, record.record_id) });
   const archived = (every.data ?? []).filter((a) => a.archived_at);
@@ -82,7 +84,7 @@ export function CommentsView({ record }: { record: RecordFull }) {
         <ul className="source-comments">
           {record.annotations.map((a) => (
             <li key={a.annotation_id}>
-              <Comment annotation={a} writable={writable} />
+              <Comment annotation={a} writable={writable} deletable={deletable} />
             </li>
           ))}
         </ul>
@@ -91,7 +93,7 @@ export function CommentsView({ record }: { record: RecordFull }) {
         <ul className="source-comments source-comments-archived" aria-label="Archived comments">
           {archived.map((a) => (
             <li key={a.annotation_id}>
-              <Comment annotation={a} writable={writable} />
+              <Comment annotation={a} writable={writable} deletable={deletable} />
             </li>
           ))}
         </ul>
@@ -139,8 +141,8 @@ function useCommentArchive(a: Annotation, { inDialog = false } = {}) {
 }
 
 /** One person's comment on a source, with what an editor and an admin can do to it. */
-function Comment({ annotation: a, writable }: { annotation: Annotation; writable: boolean }) {
-  const { api: base, canDelete } = useProduct();
+function Comment({ annotation: a, writable, deletable }: { annotation: Annotation; writable: boolean; deletable: boolean }) {
+  const { api: base } = useProduct();
   const qc = useQueryClient();
   const toast = useToast();
   const [dialog, setDialog] = useState<"archive" | "delete" | null>(null);
@@ -156,7 +158,7 @@ function Comment({ annotation: a, writable }: { annotation: Annotation; writable
           <Tag key={t}>{t}</Tag>
         ))}
         {archived ? <StatusBadge tone="neutral">Archived</StatusBadge> : null}
-        {writable || canDelete ? (
+        {writable || deletable ? (
           <Menu label={`Actions for ${whose}`} trigger={<Glyph name="ellipsis" />} triggerClassName="icon-btn icon-btn-sm comment-actions" align="end">
             {writable && archived ? (
               <MenuItem icon="archive-restore" onSelect={() => archive.mutate({ archived: false, etag: a.etag })}>
@@ -168,7 +170,7 @@ function Comment({ annotation: a, writable }: { annotation: Annotation; writable
                 Archive…
               </MenuItem>
             ) : null}
-            {canDelete ? (
+            {deletable ? (
               <>
                 {writable ? <MenuSeparator /> : null}
                 <MenuItem icon="trash" tone="danger" onSelect={() => setDialog("delete")}>

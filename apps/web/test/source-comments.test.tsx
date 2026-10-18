@@ -6,7 +6,8 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 // An editor archives a comment, saying why if they like, and restores it; archived comments are left
 // out until asked for, then shown muted under the others with when and why. A comment's delete
-// dialog offers Archive instead, as every other delete dialog does.
+// dialog offers Archive instead, as every other delete dialog does. On an archived source, which is
+// read-only until restored, a comment offers nothing to change.
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -31,8 +32,8 @@ const comment = (id: string, note: string, archived: { at: string; reason: strin
   archived_at: archived?.at ?? null, archive_reason: archived?.reason ?? null,
 });
 
-/** What the server holds, newest comment first, and what was asked of it. */
-const server: { comments: Comment[]; patches: { path: string; body: Record<string, unknown> }[] } = { comments: [], patches: [] };
+/** What the server holds, newest comment first, whether the source is archived, and what was asked of it. */
+const server: { comments: Comment[]; archivedAt: string | null; patches: { path: string; body: Record<string, unknown> }[] } = { comments: [], archivedAt: null, patches: [] };
 const who = { canWrite: true, canDelete: false };
 
 vi.mock("../src/lib/api.ts", async (original) => {
@@ -44,7 +45,7 @@ vi.mock("../src/lib/api.ts", async (original) => {
       if (path === `${BASE}/sources/${ID}?detail=full`)
         return {
           record_id: ID, title: "Crew lead interview — Example Co", date: null, tags: [], uploaded_by: riley, uploaded_at: "2026-10-01T09:00:00.000Z",
-          updated_at: "2026-10-01T09:00:00.000Z", updated_by: riley, archived_at: null, derived_status: "awaiting_file", text_chars: 0, attachment_count: 0,
+          updated_at: "2026-10-01T09:00:00.000Z", updated_by: riley, archived_at: server.archivedAt, derived_status: "awaiting_file", text_chars: 0, attachment_count: 0,
           etag: "source-etag", duration_ms: null, status_detail: null, warnings: [], annotation_count: live.length, pending_upload_path: null, attachments: [],
           annotations: live, text: null, agent_notes: [],
         };
@@ -88,6 +89,7 @@ afterEach(() => {
   unmount = null;
   document.body.innerHTML = "";
   server.comments = [];
+  server.archivedAt = null;
   server.patches = [];
   Object.assign(who, { canWrite: true, canDelete: false });
 });
@@ -238,5 +240,16 @@ describe("archiving a comment in the web app", () => {
     await settle();
     expect(comments(host)).toEqual([{ text: "Crews plan by the day.", archived: false }, { text: "Gate codes again.", archived: true }]);
     expect(await menuOf("Gate codes again.")).toEqual([]);
+  });
+
+  it("offers nothing to change on an archived source's comments, an admin's delete included, which the server refuses until it is restored", async () => {
+    Object.assign(who, { canWrite: true, canDelete: true });
+    server.archivedAt = "2026-10-03T09:00:00.000Z";
+    server.comments = [comment("c2", "Gate codes again.", { at: "2026-10-02T09:00:00.000Z", reason: null }), comment("c1", "Crews plan by the day.")];
+    const host = await open("?view=comments&include_archived=1");
+    expect(comments(host)).toEqual([{ text: "Crews plan by the day.", archived: false }, { text: "Gate codes again.", archived: true }]);
+    expect(await menuOf("Crews plan by the day.")).toEqual([]);
+    expect(await menuOf("Gate codes again.")).toEqual([]);
+    expect([...host.querySelectorAll("button")].map((b) => b.textContent?.trim())).not.toContain("Comment");
   });
 });
