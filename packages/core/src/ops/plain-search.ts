@@ -73,19 +73,47 @@ function htmlText(col: RawBuilder<unknown>): RawBuilder<string> {
   return sql<string>`regexp_replace(${text}, '\\s+([,.;:!?)])', '\\1', 'g')`;
 }
 
+/** A code span: a run of backticks, what it holds, and a run as long (CommonMark), never one escaped. */
+const CODE_SPAN = /(?<![\\`])(`+)(?!`)([^\n]*?[^`\n])\1(?!`)/g;
+/** A line that opens or closes a fenced code block, its language with it. */
+const FENCE = /^[ \t]*(?:`{3,}|~{3,})[^`\n]*$/gm;
+/** A link or an image, `[text](address "title")`: its text stays, as a reader sees it, and the rest goes. */
+const LINK = /(?<!\\)!?\[([^[\]\n]*)\]\((?:<[^<>\n]*>|(?:[^()\s]|\([^()\s]*\))*)(?:\s+(?:"[^"\n]*"|'[^'\n]*'|\([^()\n]*\)))?\)/g;
 /**
- * A piece of Markdown as a reader sees its words, for an excerpt: emphasis markers, heading marks,
- * the marks before a list item or a quoted line, and a table's rule row dropped. Every Markdown
- * text plain search shows an excerpt of goes through it: a source's, an assumption's body, an
- * outcome's description, a mockup's brief and notes, the product concept. Single passes over a
- * piece of at most a few thousand characters.
+ * Italics, `*words*` and `_words_`: a marker that opens before a word and one that closes after
+ * one, on one line, and neither inside a word, so `snake_case` and `2*3*4` stay as written.
+ */
+const STAR_EM = /(?<![\\*\p{L}\p{N}])\*(?![\s*])([^*\n]*?[^\s*\\])\*(?![*\p{L}\p{N}])/gu;
+const UNDERSCORE_EM = /(?<![\\_\p{L}\p{N}])_(?![\s_])([^_\n]*?[^\s_\\])_(?![_\p{L}\p{N}])/gu;
+/** Where a code span stood while the rest is read; a stored text never holds a null character. */
+const HELD = "\u0000";
+
+/**
+ * A piece of Markdown as a reader sees its words, for an excerpt: heading marks, the marks before
+ * a list item or a quoted line, a table's rule row and a code fence's lines dropped, bold, italics
+ * and a code span's backticks dropped (what a code span holds shows as written), and a link or an
+ * image shown as its text. Every Markdown text plain search shows an excerpt of goes through it: a
+ * source's, an assumption's body, an outcome's description, a mockup's brief and notes, the
+ * product concept. An excerpt and its marks are made from what it returns, so the marks fall on
+ * the words shown. Single passes over a piece of at most a few thousand characters.
  */
 export function shownWords(md: string): string {
-  return md
+  const code: string[] = [];
+  const shown = md
+    .replace(/\u0000/g, "")
     .replace(/^[ \t|:]*-{3,}[-:| \t]*$/gm, "")
+    .replace(FENCE, "")
     .replace(/^#{1,6}[ \t]+/gm, "")
     .replace(/^[ \t]*(?:>[ \t]?|[-*+][ \t]+)+/gm, "")
-    .replace(/\*\*|__/g, "");
+    .replace(CODE_SPAN, (_m, _ticks: string, inner: string) => {
+      code.push(inner);
+      return HELD;
+    })
+    .replace(LINK, "$1")
+    .replace(/\*\*|__/g, "")
+    .replace(STAR_EM, "$1")
+    .replace(UNDERSCORE_EM, "$1");
+  return code.length ? shown.replace(/\u0000/g, () => code.shift() ?? "") : shown;
 }
 
 /** The terms, in the order typed and next to each other: a strong sign the text is about them. */

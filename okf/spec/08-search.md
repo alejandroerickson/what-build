@@ -156,7 +156,11 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
   mark, in a text with an ellipsis or a ligature too (`plain-query.ts` `excerpt`). Markdown shows
   as its words in every excerpt, a source's and those of an assumption's body, an outcome's
   description, a mockup's brief and notes and the product concept alike: heading marks, list and
-  quote markers, bold and a table's rule row are dropped (`shownWords`). Results are scored by how many of the words they hold, in the title
+  quote markers, a table's rule row and a code fence's lines are dropped, and so are the markers
+  of bold, italics (`*words*`, `_words_`, never inside a word, so `snake_case` stays) and a code
+  span, whose words show as written; a link or an image shows as its text, without its address
+  (`shownWords`). The marks are made on the words shown, and a hit's `char_start` is still where
+  its piece starts in the text as written. Results are scored by how many of the words they hold, in the title
   above the body, with exact words, words side by side and a title equal to the query ranked
   higher. When anything holds every word, only those are returned; otherwise the ones holding the
   most, with `partial: true` and each result's `missing` words. At most `limit` results (60 unless
