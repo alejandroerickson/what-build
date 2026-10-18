@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { track } from "../lib/analytics.ts";
+import { nestQuotes } from "../lib/format.ts";
 import { findWords, hitHref, hitMeta, kindOf, Marked, matchedCount, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse } from "../lib/find.tsx";
 import type { Product } from "../lib/session.tsx";
 import { Glyph, type GlyphName } from "../ui/index.tsx";
@@ -189,7 +190,7 @@ function Palette({ app, base, product, text, setText, via, onClose }: { app: str
       ) : null}
       {typed && d && !d.results.length ? (
         <p className="find-pal-empty">
-          Nothing in {product.name} matches “{text.trim()}”. Try another word.
+          Nothing in {product.name} matches “{nestQuotes(text.trim())}”. Try another word.
         </p>
       ) : null}
       {opts.length ? (

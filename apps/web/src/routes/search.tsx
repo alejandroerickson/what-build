@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { track } from "../lib/analytics.ts";
+import { nestQuotes } from "../lib/format.ts";
 import { byArea, FIND_AREAS, findWords, hitHref, hitMeta, kindOf, Marked, matchedCount, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse, type FindResult } from "../lib/find.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { REVIEW_STATUS } from "../lib/status.ts";
@@ -117,7 +118,7 @@ export function SearchPage() {
         </Sheet>
       ) : !shown.length ? (
         <Sheet>
-          <EmptyState size="inline" title={`Nothing ${area ? `in ${area.label} ` : ""}matches “${q.trim()}”`}>
+          <EmptyState size="inline" title={`Nothing ${area ? `in ${area.label} ` : ""}matches “${nestQuotes(q.trim())}”`}>
             Try another word, or fewer words.
           </EmptyState>
         </Sheet>
