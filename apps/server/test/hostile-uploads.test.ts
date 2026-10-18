@@ -374,6 +374,134 @@ describe("a job that keeps stopping the worker", () => {
   });
 });
 
+describe("a read that keeps failing", () => {
+  const LATER = "9999_from_a_later_release.sql";
+  /** A source whose attachment is queued to be read, and its stored bytes' key. */
+  async function queued(title: string) {
+    const src = await alice.api("POST", `${P}/sources`, { title });
+    expect(src.status, JSON.stringify(src.body)).toBe(201);
+    const recordId = src.body.record_id as string;
+    const g = await alice.api("POST", `${P}/sources/${recordId}/uploads`, { record_id: recordId, path: "notes.md" });
+    expect(g.status, JSON.stringify(g.body)).toBe(201);
+    expect((await fetch(g.body.url, { method: "PUT", headers: g.body.headers, body: "# Notes\n\nCrews meet at the depot.\n" })).status).toBe(201);
+    // Read in the source's organization, as row-level security asks; its job names it.
+    const key = await h.db.transaction().execute(async (trx) => {
+      await sql`select set_config('app.tenant_id', tenant_id, true) from jobs where kind = 'derive' and payload->>'record_id' = ${recordId}`.execute(trx);
+      return (await sql<{ blob_key: string }>`select blob_key from file_versions where record_id = ${recordId}`.execute(trx)).rows[0]!.blob_key;
+    });
+    return { recordId, key };
+  }
+  const job = async (recordId: string) =>
+    (await sql<{ attempts: number; done_at: string | null; locked_at: string | null; error: string | null }>`
+      select attempts, done_at, locked_at, error from jobs where kind = 'derive' and payload->>'record_id' = ${recordId}`.execute(h.db)).rows[0]!;
+  /** One attempt: what the worker claims now, its wait after a failed attempt left out. */
+  const attempt = async (recordId: string) => {
+    await sql`update jobs set run_after = now() where kind = 'derive' and payload->>'record_id' = ${recordId}`.execute(h.db);
+    await h.worker.drain();
+  };
+  /** Each attempt fails as reading the stored bytes throws, rather than stopping the process; `then` runs first. */
+  const refuse = (key: string, then: () => Promise<void> = async () => {}) => {
+    const get = h.blobs.get;
+    h.blobs.get = async (k: string) => {
+      if (k !== key) return get.call(h.blobs, k);
+      await then();
+      throw new Error("the store refused these bytes");
+    };
+    return () => {
+      h.blobs.get = get;
+    };
+  };
+  const reading = async (recordId: string) => (await alice.api("GET", `${P}/sources/${recordId}?detail=full`)).body.attachments[0].text as { status: string; status_detail: string | null };
+
+  it("records the reading as failed when it gives the read up at its last attempt, so Read it again reads it", async () => {
+    const { recordId, key } = await queued("Depot notes read five times");
+    const serve = refuse(key);
+    try {
+      for (let n = 1; n < 5; n++) {
+        await attempt(recordId);
+        // An attempt left: the job waits for the next, and the attachment is still being read.
+        expect(await job(recordId)).toMatchObject({ attempts: n, done_at: null, error: "the store refused these bytes" });
+        expect((await reading(recordId)).status).toBe("pending");
+      }
+      await attempt(recordId);
+    } finally {
+      serve();
+    }
+    // Given up, with the reading that says so: no longer "Reading" for good.
+    expect(await job(recordId)).toMatchObject({ attempts: 5, done_at: expect.any(String), locked_at: null, error: "the store refused these bytes" });
+    const d = await derivation(recordId);
+    expect(d).toMatchObject({ status: "failed", parser: "none" });
+    expect(d.status_detail).toBe(
+      'this file could not be read: reading it failed 5 times, so it was given up; the file is stored, and reading it again may help (Read it again in the web app, or derived(action="rederive"))',
+    );
+    expect(await reading(recordId)).toEqual(expect.objectContaining({ status: "failed", status_detail: d.status_detail }));
+    expect((await alice.api("GET", `${P}/sources/${recordId}`)).body).toMatchObject({ derived_status: "failed", status_detail: d.status_detail });
+    const log = (await alice.api("GET", `${P}/activity?entity_id=${recordId}&limit=20`)).body.items as { action: string; summary: string }[];
+    expect(log).toContainEqual(expect.objectContaining({ action: "derivation_failed", summary: "Could not read the text of notes.md: failed" }));
+
+    // Read it again, as the web app asks for it: the text read becomes the source's.
+    expect((await alice.api("POST", `${P}/sources/${recordId}/rederive`, { path: "notes.md" })).status).toBe(200);
+    await h.worker.drain();
+    expect((await derivation(recordId)).status).toBe("ready");
+    expect(await reading(recordId)).toMatchObject({ status: "ready" });
+    expect((await alice.api("GET", `${P}/sources/${recordId}`)).body).toMatchObject({ derived_status: "ready", text_from: "notes.md" });
+  });
+
+  it("gives up nothing while a later version's migration is recorded, leaving the read and its last attempt for that version", async () => {
+    const { recordId, key } = await queued("Depot notes read as a release rolls out");
+    await sql`update jobs set attempts = 4 where kind = 'derive' and payload->>'record_id' = ${recordId}`.execute(h.db);
+    // The release's migration job records its migration while this worker's last attempt runs,
+    // after the worker and its claim last looked: the give-up looks again itself.
+    let serve = refuse(key, async () => {
+      await sql`insert into schema_migrations (name) values (${LATER}) on conflict do nothing`.execute(h.db);
+    });
+    try {
+      await attempt(recordId);
+      expect(await job(recordId)).toEqual({ attempts: 4, done_at: null, locked_at: null, error: "the store refused these bytes" });
+      expect((await alice.api("GET", `${P}/sources/${recordId}/derivations`)).body.items).toEqual([]);
+      expect((await reading(recordId)).status).toBe("pending");
+    } finally {
+      serve();
+      await sql`delete from schema_migrations where name = ${LATER}`.execute(h.db);
+    }
+    // The database holds only migrations this version carries again, as when the version that
+    // carries them runs: the read has its last attempt, and is given up when that fails too.
+    serve = refuse(key);
+    try {
+      await attempt(recordId);
+    } finally {
+      serve();
+    }
+    expect(await job(recordId)).toMatchObject({ attempts: 5, done_at: expect.any(String) });
+    expect(await derivation(recordId)).toMatchObject({ status: "failed", parser: "none", status_detail: expect.stringContaining("could not be read") });
+  });
+
+  it("gives up nothing it cannot record, and leaves the job to the give-up of abandoned jobs", async () => {
+    const { recordId, key } = await queued("Depot notes read with nowhere to keep the reading");
+    await sql`update jobs set attempts = 4 where kind = 'derive' and payload->>'record_id' = ${recordId}`.execute(h.db);
+    const serve = refuse(key);
+    const put = h.blobs.put;
+    // The failed reading's own bytes cannot be stored either, so its transaction rolls back, give-up and all.
+    h.blobs.put = async (k, data, options) => {
+      if (k.includes(`/r/${recordId}/d/`)) throw new Error("the store is full");
+      return put.call(h.blobs, k, data, options);
+    };
+    try {
+      await attempt(recordId);
+    } finally {
+      serve();
+      h.blobs.put = put;
+    }
+    expect(await job(recordId)).toMatchObject({ attempts: 5, done_at: null, locked_at: expect.any(String) });
+    expect((await alice.api("GET", `${P}/sources/${recordId}/derivations`)).body.items).toEqual([]);
+    // Once its lock is ten minutes old, the give-up of abandoned jobs takes it, and records the reading.
+    await sql`update jobs set locked_at = now() - interval '11 minutes' where kind = 'derive' and payload->>'record_id' = ${recordId}`.execute(h.db);
+    await h.worker.drain();
+    expect(await job(recordId)).toMatchObject({ done_at: expect.any(String) });
+    expect(await derivation(recordId)).toMatchObject({ status: "failed", parser: "none" });
+  });
+});
+
 describe("Story and mockup HTML a request parses", () => {
   const amplified = "<div><p>" + Array.from({ length: 500 }, (_, i) => `<b class=c${i}>`).join("") + "</p></div>" + "<div>x</div>".repeat(4_000);
   // Under the 1,000,000 characters a page may hold, so the parse is what refuses it.

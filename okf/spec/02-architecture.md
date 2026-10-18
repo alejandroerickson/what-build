@@ -90,8 +90,10 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
   any job, or do any housekeeping, once the database records a migration its version does not
   carry: a release's migrations run before its version serves, and work they queue under a kind
   both versions run waits for the new version instead of being run, skipped or given up by code
-  written for the schema before it. The claim checks this in the statement that takes the job, and
-  the migration is recorded in the transaction that queued the work, so nothing slips between.
+  written for the schema before it. The claim checks this in the statement that takes the job, as
+  do the give-ups of an abandoned job and of a read whose last attempt failed, in the statements
+  that give them up, and the migration is recorded in the transaction that queued the work, so
+  nothing slips between.
 - **An attachment is read in a thread of its own.** The worker starts a worker thread for each parse,
   with no environment, a heap of `WHATBUILD_PARSE_MEMORY_MB` (384 by default), half as much again
   for buffers and `WHATBUILD_PARSE_TIMEOUT_SECONDS` (120); a parse past them is stopped and fails,

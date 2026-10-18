@@ -56,8 +56,16 @@ thread's JavaScript heap is held to `WHATBUILD_PARSE_MEMORY_MB` (384 MB by defau
 holds outside the heap to half as much again, and its run to `WHATBUILD_PARSE_TIMEOUT_SECONDS`
 (120 by default). A parse past any of them is stopped, and its reading is `failed` with the limit
 and its value in `status_detail`. A job is tried at most five times, counting the times the process
-stopped while running it; a reading whose job stopped the process all five times is given up and
-recorded as `failed` with parser `none`, and `rederive` tries once more.
+stopped while running it. A reading whose job failed all five times is given up and recorded as
+`failed` with parser `none`, its `status_detail` saying why: the job stopped the process each time,
+or it failed with an error (the store or the database refusing what it read, say), which until then
+left the attachment `pending` for good. After an error, the reading, which says that the file could
+not be read and that reading it again may help, is recorded in the transaction that gives the job
+up, so neither happens without the other. Read it again, or `rederive`, tries once more. While the
+database has a later version's migration, a reading's job is not given up, as none is claimed
+([§2.3](02-architecture.md#23-the-shape-of-the-deployment)): it is left for the version that carries
+the migration, and one whose last attempt failed with an error has that attempt back, since it may
+have failed on that version's schema.
 
 A reading, the derived text it becomes (§5.4) and that text's pieces in the search index
 ([§8.3](08-search.md)) are written in one transaction, so search never finds words the source's
@@ -365,7 +373,7 @@ Each reading has a `status`, terminal for that reading:
 | `needs_transcript` | A recording (an audio or video media type or extension): stored and playable, never transcribed. Its transcript is another attachment. `duration_ms` gives its playing time when the container states it. |
 | `unsupported` | No words to read: no parser reads this attachment's extension or media type, or it is pictures, an image or a PDF with no text layer (a scan's pages are pictures; there is no OCR). It is no failure, and reading it again changes nothing. For an image or a PDF of pictures, `status_detail` says that an agent that can see it should describe it in the source's summary and write its words as the text with `derived(action="write_text")` if search should find them. |
 | `too_large` | Too large to read: over the parse cap, 25 MiB by default for every format (`WHATBUILD_PARSE_CAP_BYTES`), in which case the file is not read at all; a DOCX, XLSX or DOC package whose parts unpack to more than the cap; a PDF of more than 2,000 pages; or a file that would make more than 200,000 paragraphs. The attachment is stored; `status_detail` says which. |
-| `failed` | The parser errored, **or** it kept almost nothing: a text-like file (plain text, Markdown, VTT, SRT, CSV, TSV) that kept under 10% of at least 200 characters, or an HTML page with no readable text (a page whose text is drawn by scripts, such as a single-page app's shell); **or** the parse needed more memory or time than the deployment gives one file, or stopped the server five times (§5.1). `status_detail` says which. |
+| `failed` | The parser errored, **or** it kept almost nothing: a text-like file (plain text, Markdown, VTT, SRT, CSV, TSV) that kept under 10% of at least 200 characters, or an HTML page with no readable text (a page whose text is drawn by scripts, such as a single-page app's shell); **or** the parse needed more memory or time than the deployment gives one file, or its reading stopped the server, or failed with an error, five times (§5.1). `status_detail` says which. |
 
 ◆ Decision: a PDF with no text layer is `unsupported`, as an image is, not `failed`: its pages are
 pictures, and reading it again cannot find words in them. A failure is worth retrying; a picture

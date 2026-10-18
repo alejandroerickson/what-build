@@ -91,6 +91,14 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   stayed `pending` ("Reading") for good. Readings now leave the character out and count it in
   `facts.null_characters_dropped` (Markdown parser 5, CSV 4, WebVTT and SubRip 3; plain text is 8
   above). Such an attachment is read once it is read again with `derived(action="rederive")`.
+- **Nothing to change; people and agents will notice a reading that kept failing says so.** A
+  reading whose five attempts each failed with an error, rather than by stopping the server, was
+  given up with nothing recorded, so its attachment read "Reading" (`pending`) for good, as one
+  holding a null character did (above). Such a reading is now recorded as `failed` ("Couldn't be
+  read"), saying that the file could not be read and that reading it again may help, and Read it
+  again in the web app, or `derived(action="rederive")`, tries once more. An attachment an earlier
+  release left `pending` so, whatever the error, waits to be read again as the one above does; the
+  worker's log has a `job … derive failed (attempt 5, giving up)` line for each.
 - **Nothing to change; people will notice attachments say what they are at once.** Recordings,
   images and formats no parser reads show their status the moment they arrive instead of
   "Reading". An image, or a PDF whose pages are pictures (PDF parser 5), is "Not read as text"
