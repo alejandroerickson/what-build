@@ -750,6 +750,9 @@ a product that isn't archived (`canDelete`). One dialog serves every delete
    an undo toast, because it is reversible. Its tooltip says what archiving does: takes this out of
    your views and out of what an agent can search, keeps everything. A comment, which keeps why
    it was archived, asks for that reason first, optionally, and then has the same undo toast.
+   ◆ Decision: the reason is asked in a dialog rather than offered after archiving, since
+   `update_annotation` takes it only with the archive; Archive instead, in a comment's delete
+   dialog, archives at once without one.
 2. **Delete** sits inside the same menu, below a separator, styled as destructive, never
    pre-selected and never the primary button of any dialog.
 3. Choosing it opens a dialog titled as a question ("Delete this assumption permanently?"), that
