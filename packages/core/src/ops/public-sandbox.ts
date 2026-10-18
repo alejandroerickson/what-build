@@ -13,7 +13,7 @@ import {
   type SandboxContext, type SandboxSettings, type SandboxState,
 } from "../public-sandbox.ts";
 import { expectedEtag, id } from "../schemas.ts";
-import { decodeCursor, encodeCursor, newEtag, newId, randomToken, sha256Hex } from "../util.ts";
+import { decodeCursor, encodeCursor, likeContaining, newEtag, newId, randomToken, sha256Hex } from "../util.ts";
 import { MAX_ATTACHMENTS } from "./attachments.ts";
 import { MAX_BATCH } from "./sources.ts";
 import { MAX_MOCKUPS, MOCKUP_HTML_TOTAL, MOCKUP_PAGE_MAX } from "./mockups.ts";
@@ -483,7 +483,7 @@ export const listSandboxVisitors = defineOperation({
     const needle = input.query?.toLowerCase().replace(/^visitor\s+/, "");
     if (needle)
       q = q.where((eb) =>
-        eb.or([eb(sql<string>`lower(a.display_name)`, "like", `%${needle}%`), eb(sql<string>`lower(a.email)`, "like", `%${needle}%`), eb(VISITOR_CODE_SQL, "=", needle.toUpperCase())]),
+        eb.or([eb(sql<string>`lower(a.display_name)`, "like", likeContaining(needle)), eb(sql<string>`lower(a.email)`, "like", likeContaining(needle)), eb(VISITOR_CODE_SQL, "=", needle.toUpperCase())]),
       );
     const after = input.cursor ? decodeCursor<string>(input.cursor) : undefined;
     if (input.cursor && !after) throw invalid("invalid_cursor", "That cursor isn’t from this list.");

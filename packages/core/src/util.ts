@@ -89,6 +89,15 @@ export function uniq<T>(items: T[]): T[] {
   return [...new Set(items)];
 }
 
+/**
+ * A LIKE or ILIKE pattern for text that contains `typed` as it was typed: its `%`, `_` and `\`
+ * match themselves, not any text, any character or an escape. Every LIKE that takes what a
+ * caller typed builds its pattern here.
+ */
+export function likeContaining(typed: string): string {
+  return `%${typed.replace(/[\\%_]/g, "\\$&")}%`;
+}
+
 /** Opaque cursors: URL-safe base64 of a JSON value. */
 export function encodeCursor(value: unknown): string {
   return Buffer.from(JSON.stringify(value)).toString("base64url");

@@ -6,6 +6,9 @@
  * - The word still being typed (the last one, with no space after it) matches as a prefix, even
  *   when it is short.
  * - "Quoted words" match as a phrase, exactly.
+ * - An id or a number (a word with a digit in it, such as CB26-20734, 2026-05-01 or 2026) is one
+ *   word, hyphens and all, matched as written: as a prefix only while it is being typed, never
+ *   with its ending forgiven, and never corrected into another.
  * - Small words (the, of, how…) are left out when other words remain.
  * - A word naming a kind of thing ("mockups", "assumptions") brings that kind first instead of
  *   being searched for, when other words remain.
@@ -17,7 +20,7 @@ export type FindKind = "idea" | "outcome" | "source" | "assumption" | "mockup" |
 export interface FindTerm {
   /** The word or phrase as typed, lowercased. */
   text: string;
-  /** What is matched: the word's root, or the phrase's words. Lowercased, accents kept (Postgres's `simple` tokens keep them). */
+  /** What is matched: the word's root, an id or number as typed, or the phrase's words. Lowercased, accents kept (Postgres's `simple` tokens keep them). */
   root: string;
   /** A prefix match, or (short words and phrases) the whole word or phrase only. */
   prefix: boolean;
@@ -86,17 +89,38 @@ export function wordRoot(word: string): string {
 }
 
 const WORD = /[\p{L}\p{N}]+/gu;
+/** Letters and digits, with single hyphens between them: a word, a hyphenated word, or an id. */
+const TOKEN = /[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*/gu;
+const DIGIT = /\p{N}/u;
+
+/** An id or a number: a word with a digit in it. It matches as written and is never corrected. */
+export function idLike(word: string): boolean {
+  return DIGIT.test(word);
+}
+
+/**
+ * The words of `text`, lowercased. An id with hyphens in it (CB26-20734, 2026-05-01) stays one
+ * word; a hyphenated word without a digit ("follow-up") is its words.
+ */
+export function queryWords(text: string): string[] {
+  const out: string[] = [];
+  for (const [t] of text.toLowerCase().matchAll(TOKEN)) {
+    if (t.includes("-") && !idLike(t)) out.push(...t.split("-"));
+    else out.push(t);
+  }
+  return out;
+}
 
 export function parseFind(raw: string): ParsedFind {
   const text = raw.normalize("NFC");
   const typing = !/[\s"]$/.test(text);
   const phrases: string[] = [];
   const rest = text.replace(/"([^"]*)("|$)/g, (_, p: string) => {
-    const words = p.toLowerCase().match(WORD);
-    if (words?.length) phrases.push(words.join(" "));
+    const words = queryWords(p);
+    if (words.length) phrases.push(words.join(" "));
     return " ";
   });
-  const words = rest.toLowerCase().match(WORD) ?? [];
+  const words = queryWords(rest);
   const terms: FindTerm[] = [];
   const ignored: string[] = [];
   let kind: FindKind | null = null;
@@ -113,8 +137,9 @@ export function parseFind(raw: string): ParsedFind {
       ignored.push(w);
       return;
     }
-    const prefix = last || w.length > 3;
-    terms.push({ text: w, root: wordRoot(w), prefix, phrase: false });
+    // An id or a number is a prefix only while it is being typed: CB26-2073 is not CB26-20734.
+    if (idLike(w)) terms.push({ text: w, root: w, prefix: last, phrase: false });
+    else terms.push({ text: w, root: wordRoot(w), prefix: last || w.length > 3, phrase: false });
   });
   for (const p of phrases) terms.push({ text: p, root: p, prefix: false, phrase: true });
   // The same root twice adds nothing.
@@ -123,10 +148,16 @@ export function parseFind(raw: string): ParsedFind {
   return { terms: unique.slice(0, MAX_TERMS), ignored, kind };
 }
 
-/** A Postgres tsquery for one term (words are letters and digits only, so quoting them is safe). */
+/**
+ * A Postgres tsquery for one term (words are letters, digits and hyphens only, so quoting them is
+ * safe). Postgres reads a quoted id as its parser reads the text, so CB26-20734 becomes the phrase
+ * cb26 <-> -20734, as it is stored; and since a number after a hyphen is stored with the hyphen,
+ * a term that starts with a digit matches that form too.
+ */
 export function termTsquery(t: FindTerm): string {
   if (t.phrase) return t.root.split(" ").map((w) => `'${w}'`).join(" <-> ");
-  return `'${t.root}'${t.prefix ? ":*" : ""}`;
+  const star = t.prefix ? ":*" : "";
+  return /^\p{N}/u.test(t.root) ? `'${t.root}'${star} | '-${t.root}'${star}` : `'${t.root}'${star}`;
 }
 
 /** A regular expression that finds a term in folded text. */
@@ -251,16 +282,18 @@ export function editDistanceWithin(a: string, b: string, max: number): boolean {
 /**
  * The word in `texts` closest to a word that found nothing: within one edit for words of up to
  * five letters, two for longer ones; a word still being typed is compared with the start of each
- * word. The most frequent wins a tie.
+ * word. The most frequent wins a tie. Ids and numbers are never corrected, nor offered as a
+ * correction: one digit away is another thing, not a typo.
  */
 export function closestWord(word: string, texts: string[], typing: boolean): string | null {
   const w = fold(word);
+  if (idLike(w)) return null;
   const max = w.length >= 6 ? 2 : 1;
   const counts = new Map<string, number>();
   for (const t of texts) for (const m of fold(t).matchAll(WORD)) counts.set(m[0], (counts.get(m[0]) ?? 0) + 1);
   let best: { word: string; d: number; n: number } | null = null;
   for (const [cand, n] of counts) {
-    if (cand === w || cand.length < 3 || (typing && cand.startsWith(w))) continue;
+    if (cand === w || cand.length < 3 || idLike(cand) || (typing && cand.startsWith(w))) continue;
     // A word still being typed is compared with the starts of each candidate around its length.
     const targets = typing ? [w.length - 1, w.length, w.length + 1].filter((l) => l >= 3 && l <= cand.length).map((l) => cand.slice(0, l)) : [cand];
     for (let d = 1; d <= max; d++) {

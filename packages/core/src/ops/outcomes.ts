@@ -6,7 +6,7 @@ import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, dropRevisions, leaveT
 import { invalid, notFound } from "../errors.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag, id } from "../schemas.ts";
-import { newEtag, newId } from "../util.ts";
+import { likeContaining, newEtag, newId } from "../util.ts";
 
 type Row = Selectable<OutcomesTable>;
 
@@ -77,14 +77,14 @@ export const listOutcomes = defineOperation({
   async handler(ctx, input) {
     let q = ctx.db.selectFrom("outcomes").selectAll().where("product_id", "=", productId(ctx));
     if (!input.include_archived) q = q.where("archived_at", "is", null);
-    if (input.query) q = q.where(sql<boolean>`(title ilike ${"%" + input.query + "%"} or description ilike ${"%" + input.query + "%"})`);
+    if (input.query) q = q.where(sql<boolean>`(title ilike ${likeContaining(input.query)} or description ilike ${likeContaining(input.query)})`);
     if (input.cursor) q = q.where("position", ">", Number(input.cursor));
     const rows = (await q.orderBy("position").orderBy("outcome_id").limit(input.limit + 1).execute()) as Row[];
     const items = rows.slice(0, input.limit);
     let archived_hidden = 0;
     if (!input.include_archived) {
       let a = ctx.db.selectFrom("outcomes").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", productId(ctx)).where("archived_at", "is not", null);
-      if (input.query) a = a.where(sql<boolean>`(title ilike ${"%" + input.query + "%"} or description ilike ${"%" + input.query + "%"})`);
+      if (input.query) a = a.where(sql<boolean>`(title ilike ${likeContaining(input.query)} or description ilike ${likeContaining(input.query)})`);
       archived_hidden = Number((await a.executeTakeFirst())?.n ?? 0);
     }
     return {

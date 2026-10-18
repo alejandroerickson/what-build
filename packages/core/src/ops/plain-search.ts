@@ -1,6 +1,6 @@
 import { sql, type RawBuilder } from "kysely";
 import { productId } from "../common.ts";
-import { closestWord, excerpt, fold, matchText, parseFind, termPattern, termTsquery, wordRoot, type FindKind, type FindTerm, type ParsedFind, type TextMatch } from "../plain-query.ts";
+import { closestWord, excerpt, fold, idLike, matchText, parseFind, termPattern, termTsquery, wordRoot, type FindKind, type FindTerm, type ParsedFind, type TextMatch } from "../plain-query.ts";
 import type { OpContext } from "../registry.ts";
 
 /**
@@ -18,7 +18,12 @@ export interface PlainInput {
   kind?: FindKind;
   record_id?: string;
   strict: boolean;
+  /** How many results at most, the best first. */
+  limit: number;
 }
+
+/** How many results plain search returns when the call does not say. */
+export const PLAIN_LIMIT = 60;
 
 type Input = PlainInput;
 
@@ -257,8 +262,9 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
 /** Words that matched nothing anywhere, each replaced by the closest word the product does hold. */
 async function corrections(ctx: OpContext, p: ParsedFind, found: boolean[], typing: boolean): Promise<{ from: string; to: string }[]> {
   const pid = productId(ctx);
-  // A finished word of three letters is too short to guess at; one still being typed is not.
-  const lost = p.terms.map((t, k) => ({ t, k })).filter(({ t, k }) => !found[k] && !t.phrase && fold(t.text).length >= (typing && k === p.terms.length - 1 ? 3 : 4));
+  // A finished word of three letters is too short to guess at; one still being typed is not. An id
+  // or a number is never guessed at: one digit away is another thing.
+  const lost = p.terms.map((t, k) => ({ t, k })).filter(({ t, k }) => !found[k] && !t.phrase && !idLike(t.text) && fold(t.text).length >= (typing && k === p.terms.length - 1 ? 3 : 4));
   if (!lost.length) return [];
   const titles = await sql<{ t: string }>`
     select title as t from records where product_id = ${pid} and archived_at is null
@@ -293,12 +299,12 @@ async function run(ctx: OpContext, p: ParsedFind, i: Input) {
 }
 
 export const PLAIN_DESCRIPTION =
-  "mode \"plain\" searches everything in the product the way a person types into a search box, ranked: sources, each with the best places it says the words (its derived text, summary, notes or comments; hits give the field and where the piece starts), assumptions, outcomes, mockups, Story pages and the product concept. Words match in any order, each at the start of a word; endings are forgiven (\"pricing\" finds price and priced); the last word matches as a prefix; \"quoted words\" match as a phrase; small words (the, of, how) are skipped; a word that matches nothing is replaced by the closest word the product holds, and `corrections` says so (`strict: true` turns that off). When nothing holds every word, results hold most of them and list the `missing` ones. At most 60 results come back, best first; `counts` says how many of each kind matched in all, so say so when more matched than came back. It takes `kind` and `record_id`, not the date or tag filters.";
+  "mode \"plain\" searches everything in the product the way a person types into a search box, ranked: sources, each with the best places it says the words (its derived text, summary, notes or comments; hits give the field and where the piece starts), assumptions, outcomes, mockups, Story pages and the product concept. Words match in any order, each at the start of a word; endings are forgiven (\"pricing\" finds price and priced); the last word is taken as still being typed and matches as a prefix even when short, unless the query ends with a space; \"quoted words\" match as a phrase; an id or a number (CB26-20734, 2026-05-01, 2026) is one word, hyphens and all, matched as written; small words (the, of, how) are skipped; a word that matches nothing is replaced by the closest word the product holds, and `corrections` says so (`strict: true` turns that off), but an id or a number is never corrected. When nothing holds every word, results hold most of them and list the `missing` ones. At most `limit` results come back (60 unless you say), best first; `counts` says how many of each kind matched in all, so say so when more matched than came back. It takes `kind`, `record_id`, `strict` and `limit`, not the date or tag filters or a cursor.";
 
 export async function plainSearch(ctx: OpContext, i: PlainInput) {
   let p = parseFind(i.query);
   const typing = !/[\s"]$/.test(i.query);
-  const empty = { query: i.query, terms: [], ignored: p.ignored, kind_hint: p.kind, corrections: [], partial: false, counts: {}, results: [] };
+  const empty = { query: i.query, terms: [], ignored: p.ignored, kind_hint: p.kind, corrections: [], partial: false, counts: {}, hits_matched: 0, results: [] };
   if (!p.terms.length) return empty;
   let r = await run(ctx, p, i);
   let fixed: { from: string; to: string }[] = [];
@@ -330,6 +336,7 @@ export async function plainSearch(ctx: OpContext, i: PlainInput) {
     partial,
     counts,
     hits_matched: r.hits,
-    results: shown.slice(0, i.record_id ? 1 : 60),
+    // With record_id, that source is the only result there can be.
+    results: shown.slice(0, i.record_id ? 1 : i.limit),
   };
 }

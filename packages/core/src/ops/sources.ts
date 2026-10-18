@@ -8,7 +8,7 @@ import { effectiveRole, membershipsFor, roleAtLeast } from "../policy.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag, id, isoDate, tags } from "../schemas.ts";
 import { indexSource, indexText } from "../text-index.ts";
-import { newEtag, newId, sameEtag, slugify, uniq } from "../util.ts";
+import { likeContaining, newEtag, newId, sameEtag, slugify, uniq } from "../util.ts";
 
 type RecordRow = Selectable<RecordsTable>;
 
@@ -295,7 +295,7 @@ export const listSources = defineOperation({
     if (input.date_to) q = q.where("date", "<=", input.date_to);
     if (input.tags?.length) q = q.where(sql<boolean>`tags @> ${normalizeTags(input.tags)}::text[]`);
     if (input.query) {
-      const like = `%${input.query}%`;
+      const like = likeContaining(input.query);
       q = q.where(
         sql<boolean>`(title ilike ${like} or array_to_string(tags, ' ') ilike ${like}
           or exists (select 1 from files f where f.record_id = records.record_id and f.path ilike ${like}))`,
