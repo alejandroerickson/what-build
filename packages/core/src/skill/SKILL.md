@@ -616,7 +616,8 @@ says "delete", "remove" or "get rid of", archive unless they say they want it go
 Restore brings each back: `sources(action="restore")` (by `record_ids`, as `archive` takes
 them), `update_annotation` with `archived: false`, `assumptions(action="archive",
 archived: false)`, `outcomes` or `mockups` with `action="restore"`, and
-`story(action="restore_page")`.
+`story(action="restore_page")`. An archived source is read-only: its text, summary, notes,
+attachments and comments are refused any change (`409 record_archived`) until it is restored.
 
 **Delete is permanent.** It needs admin and an Admin connection, so on an Edit connection you are
 not offered it at all. Only when the person asks: call the matching impact first

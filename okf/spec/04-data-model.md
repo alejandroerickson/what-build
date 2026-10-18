@@ -269,7 +269,11 @@ anchored to any part of the source's text
 | `archive_reason` | Optional, ≤ 500 chars: why the comment was archived. Given only with `archived: true`; restoring clears it. It stays with the comment: the activity log records that a comment was archived, never why (§4.10). |
 
 Editable (text only, keeping revisions), archivable. `sources.annotate` refuses a segment range
-(`seq_start`, `seq_end`) with `422 invalid_input`, saying a comment is on the whole source.
+(`seq_start`, `seq_end`) with `422 invalid_input`, saying a comment is on the whole source. A
+comment is part of its source, which is read-only while archived: adding, editing, archiving,
+restoring and deleting one are refused then with `409 record_archived`, before its etag is
+checked, saying how to restore the source (`sources.restore`, or Restore in the web app); its
+comments still read.
 Comments are searched with the rest of the source; an archived one is not
 ([§8](08-search.md)).
 
