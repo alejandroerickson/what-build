@@ -105,7 +105,9 @@ const published = await publish({
     { page_id: "state", title: "State", entry: "state.html" },
   ],
 });
-check(published.current.prototype?.file_count === 12, "published a prototype of 12 files", `${published.current.prototype?.file_count} files`);
+// Publish answers with what comes next, not the canvas; get reads the version back.
+const { current } = await (await page.request.get(`${P}/mockups/${published.mockup_id}`)).json();
+check(current.prototype?.file_count === 12, "published a prototype of 12 files", `${current.prototype?.file_count} files`);
 check(
   published.prototype_warnings.some((w) => w.startsWith("state.html uses localStorage")),
   "publish warns that state.html uses localStorage",
@@ -193,7 +195,7 @@ check(storage.rest === "1", "the rest of a document that guards it works");
 
 // Never at the top level on the app's origin.
 const top = await context.newPage();
-const opened = await top.goto(published.current.pages[0].prototype_url);
+const opened = await top.goto(current.pages[0].prototype_url);
 check(opened?.status() === 403, "a prototype's document opened at the top level is refused", String(opened?.status()));
 await top.close();
 
