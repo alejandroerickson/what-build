@@ -74,6 +74,8 @@ export interface Block {
   page?: number;
   /** The table this block is a row of. */
   table?: TableRef;
+  /** The text opens with a Markdown list item, so a speaker's label goes on a line of its own above it. */
+  opensWithList?: boolean;
 }
 
 /**

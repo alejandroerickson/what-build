@@ -3,7 +3,7 @@ import { constants, deflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { stripCueMarkup, voiceName } from "../src/cues.ts";
 import { DEFAULT_PARSE_CAP_BYTES, derive, MAX_HTML_DEPTH, MAX_PDF_PAGES, MAX_SEGMENTS, parseHtml, toParsedFile, type ParseResult } from "../src/index.ts";
-import { atxHeading, stripInlineMarkdown } from "../src/plaintext.ts";
+import { atxHeading, MAX_LIST_DEPTH, stripInlineMarkdown } from "../src/plaintext.ts";
 import { speakerLine } from "../src/speakers.ts";
 import { codePointLength, isSpaceUnit, nonSpaceCodePoints } from "../src/text.ts";
 import { makeBlankPdf, makeDocx, makePdf, makeXlsx, utf8 } from "./fixtures.ts";
@@ -251,6 +251,20 @@ describe("patterns that once backtracked", () => {
         expect(atxHeading(s), JSON.stringify(s)).toEqual(m ? [m[1], m[2]] : null);
       }
     }
+  });
+
+  it("keeps the lines of a paragraph of half a million lines, and bounds a list nested without end", async () => {
+    const lines = await measured(utf8("a short line\n".repeat(500_000)), "lines.txt");
+    expect(lines.r.status).toBe("ready");
+    expect(lines.ms).toBeLessThan(5000);
+    expect(lines.r.markdown.startsWith("a short line  \na short line  \n")).toBe(true);
+    // Each item one space deeper than the last: laid out no deeper than MAX_LIST_DEPTH.
+    const deep = Array.from({ length: 3000 }, (_, i) => `${" ".repeat(i)}- item ${i}`).join("\n");
+    const nested = await measured(utf8(deep), "deep.txt");
+    expect(nested.r.status).toBe("ready");
+    expect(nested.ms).toBeLessThan(2000);
+    const indents = nested.r.markdown.split("\n").map((l) => l.length - l.trimStart().length);
+    expect(Math.max(...indents)).toBe(2 * (MAX_LIST_DEPTH - 1));
   });
 
   it("trims long runs of spaces inside a line, an XLSX format of semicolons and a cue of spaces in linear time", async () => {

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { clock, derive, recordingDurationMs, sliceCodePoints, type ParseResult } from "../src/index.ts";
 import { bytesReader } from "../src/media.ts";
 import { splitLong } from "../src/text.ts";
-import { stripInlineMarkdown } from "../src/plaintext.ts";
+import { stripInlineMarkdown, wraps } from "../src/plaintext.ts";
 import { dateFormatOf } from "../src/xlsx.ts";
 import { makeDocx, makeDocxList, makeDocxParagraphs, makeFlac, makeMp3, makeMp4, makePdf, makeWav, makeXlsx, makeXlsxSheet, utf8 } from "./fixtures.ts";
 import { makeCompoundFile, makeWordDoc } from "./word-fixtures.ts";
@@ -92,13 +92,15 @@ describe("plain text and Markdown", () => {
   });
 
   it("reads a Speaker: transcript one turn per segment, with speakers", async () => {
-    const t = "Interviewer: How do you plan?\nDana: Quarterly, then\nwe revise monthly.\nInterviewer: Who decides?\nDana: The ops lead.\n";
+    const t =
+      "Interviewer: How do you plan?\nDana: Quarterly, then we revise it monthly, every Friday afternoon with the\ncrew leads in the yard.\nInterviewer: Who decides?\nDana: The ops lead.\nWe all sign it off.\n";
     const r = await derive(utf8(t), "interview.txt");
     expect(r.segments.map((s) => [s.speaker, s.text])).toEqual([
       ["Interviewer", "How do you plan?"],
-      ["Dana", "Quarterly, then we revise monthly."],
+      // A line that wraps a sentence onto the next joins it; a line of its own stays one.
+      ["Dana", "Quarterly, then we revise it monthly, every Friday afternoon with the crew leads in the yard."],
       ["Interviewer", "Who decides?"],
-      ["Dana", "The ops lead."],
+      ["Dana", "The ops lead.  \nWe all sign it off."],
     ]);
   });
 
@@ -138,9 +140,10 @@ describe("plain text and Markdown", () => {
     expectOffsetsExact(r);
   });
 
-  it("splits plain-text bullets too", async () => {
+  it("keeps a plain-text list a list, under the line that introduces it", async () => {
     const r = await derive(utf8("Follow-ups:\n- call Dana\n- send the price sheet\n"), "note.txt");
-    expect(r.segments.map((s) => s.text)).toEqual(["Follow-ups:", "call Dana", "send the price sheet"]);
+    expect(r.markdown).toBe("Follow-ups:\n- call Dana\n- send the price sheet\n");
+    expectOffsetsExact(r);
   });
 
   it("renders a pipe table one row per segment with header pairs, dropping the rule", async () => {
@@ -801,6 +804,91 @@ describe("the readable text", () => {
   it("lays a spreadsheet out as a table numbered by its rows", async () => {
     const r = await derive(utf8("Quarterly crews\nName,Crew\nDana,North\nSam,\n"), "crews.csv");
     expect(r.markdown).toBe("[row 1] Quarterly crews\n\n| Row | Name | Crew |\n| --- | --- | --- |\n| 3 | Dana | North |\n| 4 | Sam |  |\n");
+  });
+
+  it("keeps a plain-text file's lines as its author broke them", async () => {
+    const txt =
+      "Meeting recorder export\r\nCall: Crew lead interview, Example Co\r\nRecorded: 14 August 2026, 2 minutes\r\n\r\n" +
+      "Attendees\nDana Lee\nSam Ortiz\n\ncall dana\nsend price sheet\n\n" +
+      "Crews text the office every morning to say which jobs they will reach today.\nThe office copies the messages into a spreadsheet by hand.\nNobody called it a crisis.\n";
+    const r = await derive(utf8(txt), "notes.txt");
+    expect(r.parser_version).toBe("8");
+    // Each line stays a line: a Markdown hard break, two spaces before the line end.
+    expect(r.markdown).toBe(
+      "Meeting recorder export  \nCall: Crew lead interview, Example Co  \nRecorded: 14 August 2026, 2 minutes\n\n" +
+        "Attendees  \nDana Lee  \nSam Ortiz\n\ncall dana  \nsend price sheet\n\n" +
+        "Crews text the office every morning to say which jobs they will reach today.  \nThe office copies the messages into a spreadsheet by hand.  \nNobody called it a crisis.\n",
+    );
+    expectOffsetsExact(r);
+  });
+
+  it("keeps list markers: Markdown's bullets and numbers as lists, nested as indented, other bullets as written", async () => {
+    const txt = [
+      "Steps",
+      "1. Plan the week",
+      "2. Text the crews",
+      "",
+      "1) Call the depot",
+      "2) Book the van",
+      "",
+      "- Scheduling",
+      "  - double bookings",
+      "      - on Mondays",
+      "  - wrong addresses",
+      "* Pricing",
+      "Thanks, Sam",
+      "",
+      "Observations",
+      "• Crews text the office",
+      "– Nobody called it a crisis",
+      "☐ Ask about gate codes",
+      "•\tScheduling",
+      "o\tdouble bookings",
+    ].join("\n");
+    const r = await derive(utf8(txt), "visit.txt");
+    expect(r.markdown).toBe(
+      "Steps\n1. Plan the week\n2. Text the crews\n\n1) Call the depot\n2) Book the van\n\n" +
+        // A list ends where an unindented line follows it, so that line is not taken into its last item.
+        "- Scheduling\n  - double bookings\n    - on Mondays\n  - wrong addresses\n* Pricing\n\nThanks, Sam\n\n" +
+        "Observations  \n• Crews text the office  \n– Nobody called it a crisis  \n☐ Ask about gate codes  \n• Scheduling  \no double bookings\n",
+    );
+    // A numbered line inside a paragraph is not a list Markdown would start there, and stays a line.
+    expect((await derive(utf8("The year was\n2019. It stayed a line.\n"), "a.txt")).markdown).toBe("The year was  \n2019. It stayed a line.\n");
+    expectOffsetsExact(r);
+  });
+
+  it("reflows hard-wrapped prose, and joins a line that wraps a sentence onto the next", async () => {
+    const wrapped = [
+      "Hi team, following up on the call with Dana from Example Co yesterday. She",
+      "said the crews plan by the week, and that the Friday export is the part",
+      "that hurts. I asked whether they had tried the scheduling tool again and",
+      "she said no. Next steps: send her the price sheet and book a follow-up",
+      "for October.",
+    ].join("\n");
+    const r = await derive(utf8(wrapped + "\n"), "email.txt");
+    expect(r.markdown).toBe(wrapped.replace(/\n/g, " ") + "\n");
+    // An item wrapped onto an indented line reads as one item.
+    const items = await derive(utf8("- Crews text the office every morning to say which jobs they will reach\n  today, and the office copies them.\n- Nobody called it a crisis.\n"), "items.txt");
+    expect(items.markdown).toBe("- Crews text the office every morning to say which jobs they will reach today, and the office copies them.\n- Nobody called it a crisis.\n");
+    expect(wraps("Crews text the office every morning to say which jobs they", "will reach today.", 60)).toBe(true);
+    // Not after a sentence's end or before a capital, and never in a paragraph of short lines.
+    expect(wraps("Crews text the office every morning to say which jobs.", "will reach today.", 60)).toBe(false);
+    expect(wraps("Crews text the office every morning to say which jobs they", "Will reach today.", 60)).toBe(false);
+    expect(wraps("call dana", "send price sheet", 16)).toBe(false);
+    // Nor where the next line's first word would have fitted on the line: that break was the author's.
+    expect(wraps("Crews text the office", "every morning", 60)).toBe(false);
+  });
+
+  it("keeps rules and underlines on their own, and a marker alone as itself", async () => {
+    const r = await derive(utf8("Notes\n=====\nWe met Dana.\n-\nNext\n-----\nEnd\n#\n"), "a.txt");
+    expect(r.markdown).toBe("Notes\n\n=====\n\nWe met Dana.\n\n\\-\n\nNext\n\n-----\n\nEnd  \n\\#\n");
+  });
+
+  it("puts a speaker's label above a list in a transcript of timed labels", async () => {
+    const txt = "Dana (14:02 UTC):\nPlan the week first.\nThen the crews.\n\nSam (14:03 UTC):\n- Week plan drafted\n- Crews next\n\nDana (14:05 UTC):\nGood.\n\nSam (14:09 UTC):\nDone.\n";
+    const r = await derive(utf8(txt), "session.txt");
+    expect(r.markdown).toBe("**Dana:** Plan the week first.  \nThen the crews.\n\n**Sam:**  \n- Week plan drafted\n- Crews next\n\n**Dana:** Good.\n\n**Sam:** Done.\n");
+    expect(r.segments.filter((s) => s.speaker).map((s) => s.speaker)).toEqual(["Dana", "Sam", "Dana", "Sam"]);
   });
 
   it("keeps a Markdown file as it was written", async () => {

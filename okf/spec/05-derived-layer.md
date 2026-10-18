@@ -133,7 +133,7 @@ into paragraphs, headings, turns and table rows, and those are laid out as one M
 
 | Format | Notes |
 |---|---|
-| Plain text (`.txt`, `.text`) | Paragraphs split on blank lines; ATX headings stay headings; each list item (`-`, `*`, `+`, `1.`) is its own paragraph, a numbered item keeping its number (`1.`) and a bullet dropping its marker; pipe tables become tables. A transcript is read turn by turn with its speakers (below). |
+| Plain text (`.txt`, `.text`) | Read as written. Paragraphs split on blank lines and keep their lines: each line stays a line (a Markdown hard break, two spaces before the line end), unless it only wraps a sentence onto the next (below). List items keep their markers: `-`, `*` and `+` bullets and `1.` and `1)` numbers as Markdown lists, nested as they are indented (at most eight deep), and other bullets (`•`, `–`, a check box, Word's `o` and `§`) as written. ATX headings stay headings; pipe tables become tables; a rule or an underline (`-----`, `=====`) stands on its own, so it never makes the line above it a heading. A transcript is read turn by turn with its speakers (below). |
 | Markdown (`.md`, `.markdown`) | Kept as written. Parsed as plain text is, plus setext headings, with blockquote markers, thematic breaks and inline emphasis and code markers set aside, so `**Name:** words` is a speaker turn and `**Name** (14:02 UTC):` on a line of its own a timed label (below). |
 | WebVTT, SRT | Cue timing; speakers from `<v Name>` voice tags and from `Name:` prefixes; caption markup stripped. |
 | DOCX | Headings (a Title above Heading 1), paragraphs, tables, the accepted view of tracked changes (insertions kept, deletions dropped), and reviewer comments under `# Review comments`, each `Author: words`. A paragraph in a decimal Word list (numbered directly or by its style) starts with its number as Word counts it (`2.`, `1.1.`); bullets and other number formats (letters, roman numerals) get no marker. `Name: words` paragraphs, including a bold `Name:` run, are speaker turns in a transcript (below). |
@@ -143,6 +143,22 @@ into paragraphs, headings, turns and table rows, and those are laid out as one M
 | PDF | Text layer only, page by page, for a PDF of at most 2,000 pages; a page's lines are joined into paragraphs that end at sentence punctuation. No OCR; images are never decoded. |
 | HTML | Main-content text with headings; scripts, styles, navigation, forms and frames dropped; tables as tables; adjacent elements (labels, breadcrumbs) kept apart by a space. A page that nests elements more than 512 deep, or would make far more elements than it has tags, fails with the reason. |
 
+**Line breaks in plain text** ([`plaintext.ts`](../../packages/parsers/src/plaintext.ts)). A
+break between two lines is a wrap, and joins them with a space, when the first does not end a
+sentence (`.`, `!`, `?`, `:`), the next starts with a lower-case letter, the paragraph's longest
+line is at least 40 characters, and the next line's first word would not have fitted on the first
+within that width: what a text wrapped to a width looks like. A paragraph in which more than half
+the breaks are wraps (not counting those before a list item) is hard-wrapped prose, and reads as
+one paragraph: all of those breaks join. Every other break is kept, so lists of names, one item
+per line and line-broken notes read as written, and a short line is never joined to the next. A
+line after a Markdown list that is not indented under its last item ends the list, with a blank
+line before it.
+
+◆ Decision: a plain-text file reads as its author laid it out, its lines and list markers kept,
+rather than reflowed into paragraphs: a list, a file of one item per line or a block of notes means
+its lines. Only prose that is plainly hard-wrapped is joined, so a phrase across a wrap is still
+found by a substring search.
+
 **Untimed transcripts.** Plain text, Markdown, DOCX and DOC share one rule
 ([`speakers.ts`](../../packages/parsers/src/speakers.ts)), so a transcript reads the same whatever
 it was saved as. A file is a transcript when it has at least four lines (paragraphs, for DOCX and DOC), at
@@ -150,7 +166,8 @@ least 60% of them are `Name:` turns (a capitalised name of up to 41 characters, 
 label, optionally after a timestamp), and at least half of those turns come from a name that speaks
 more than once. The last condition keeps field lines such as `Project:`, `Date:` and `Location:`, and
 an occasional `Note:`, as prose. A short aside in brackets may stand between the name and the colon,
-`Dana (14:02 UTC): words`; the aside is dropped and the speaker is `Dana`.
+`Dana (14:02 UTC): words`; the aside is dropped and the speaker is `Dana`. In plain text a turn's
+later lines are laid out as a paragraph's are: kept, or joined where they wrap its sentence.
 
 Plain text and Markdown also read a transcript whose turns start with a **timed label on a line of
 its own**, the words in the paragraphs below it: `Dana (14:02 UTC):` (in Markdown also
@@ -160,8 +177,9 @@ its own**, the words in the paragraphs below it: `Dana (14:02 UTC):` (in Markdow
 labels and at least half of them are by a name that recurs. Each paragraph and list item after a
 label then belongs to that speaker, until the next label, an inline turn, a heading or a thematic
 break. In such a file an inline `Name: words` line is a turn only when `Name` is one of the labels'
-speakers, so a line like `Decision: ship it` inside a turn stays that speaker's words. (A Markdown
-file keeps its own text; the speakers count in its facts.)
+speakers, so a line like `Decision: ship it` inside a turn stays that speaker's words. A speaker
+whose words open with a list has the label on a line of its own above it. (A Markdown file keeps
+its own text; the speakers count in its facts.)
 
 - No speech-to-text and no OCR in the product. A recording is stored and playable, never
   transcribed: its transcript is another attachment, or the source's derived text written by an
