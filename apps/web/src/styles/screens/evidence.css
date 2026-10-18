@@ -638,12 +638,37 @@ mark.text-find-current {
   color: var(--text);
   font-weight: var(--fw-medium);
 }
-.comment-delete {
+.comment-actions {
   margin-left: auto;
 }
 .comment-text {
   max-width: var(--measure);
   font-size: var(--fs-body);
+}
+/* Archived comments stay out of the way until asked for, then sit muted under the others. */
+.source-comments-archived {
+  border-top: 1px solid var(--line);
+}
+.comment.is-archived .comment-text {
+  color: var(--muted);
+}
+.comment-archived {
+  max-width: var(--measure);
+  margin: 0;
+  color: var(--faint);
+  font-size: var(--fs-sm);
+}
+.source-comments-foot {
+  padding: var(--s-3) var(--sheet-px);
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-sm);
+}
+.source-comments-foot button {
+  padding: 0;
+  font: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
 }
 .comment-form {
   display: grid;

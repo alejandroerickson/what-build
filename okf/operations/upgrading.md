@@ -92,6 +92,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   longer quotes a comment's archive reason, and reads older entries without it. A product
   export's `README.txt` lists every kind of file the bundle holds, and `assumptions.json` no
   longer carries the database's search vector.
+- **Nothing to change; people will notice they can archive a comment in the web app.** An editor
+  archives a comment from its menu, saying why if they like, and restores it from the archived
+  comments a source's Comments list on request; a comment's delete dialog offers Archive
+  instead, and every delete dialog has Cancel.
 - **The skill is 0.33.0.** Connected agents are asked to update their installed skill. It tells
   them which etag a source's summary, notes and text take, how search matches and pages, how a
   source's text is chosen and laid out, what an image or a scan needs, how to restore what was

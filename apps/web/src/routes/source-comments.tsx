@@ -1,19 +1,54 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { api } from "../lib/api.ts";
-import { attribution, relativeTime } from "../lib/format.ts";
+import { useSearchParams } from "react-router";
+import { api, qs } from "../lib/api.ts";
+import { actorName, attribution, plural, relativeTime } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import type { Annotation, RecordFull } from "../lib/types.ts";
-import { Button, EmptyState, ErrorCallout, IconButton, Sheet, SheetHeader, Tag, TextArea, TextField, useToast } from "../ui/index.tsx";
+import {
+  Button, Dialog, EmptyState, ErrorCallout, Glyph, Menu, MenuItem, MenuSeparator, Sheet, SheetHeader, StatusBadge, Tag, TextArea, TextField, useToast,
+} from "../ui/index.tsx";
 import { DeleteDialog } from "./delete-dialog.tsx";
 import "../styles/screens/evidence.css";
 
-/** A source's comments: each on the source as a whole, newest first, with a form to add one. */
+/** Every comment on a source, archived ones too, newest first, as sources.list_annotations pages them. */
+async function everyComment(base: string, recordId: string): Promise<Annotation[]> {
+  const all: Annotation[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await api<{ items: Annotation[]; next_cursor: string | null }>(
+      "GET",
+      `${base}/sources/${recordId}/annotations${qs({ include_archived: "true", limit: 200, cursor })}`,
+    );
+    all.push(...page.items);
+    cursor = page.next_cursor ?? undefined;
+  } while (cursor && all.length < 2000);
+  return all;
+}
+
+/**
+ * A source's comments: each on the source as a whole, newest first, with a form to add one.
+ * Archived ones stay out of the way until asked for (`?include_archived=1`), muted, under the others.
+ */
 export function CommentsView({ record }: { record: RecordFull }) {
-  const { canWrite } = useProduct();
+  const { api: base, canWrite } = useProduct();
+  const [params, setParams] = useSearchParams();
   const [writing, setWriting] = useState(false);
   const writable = canWrite && !record.archived_at;
+  const showArchived = params.get("include_archived") === "1";
+  const every = useQuery({ queryKey: ["source-comments", base, record.record_id], queryFn: () => everyComment(base, record.record_id) });
+  const archived = (every.data ?? []).filter((a) => a.archived_at);
+  const setShowArchived = (on: boolean) =>
+    setParams(
+      (p) => {
+        const next = new URLSearchParams(p);
+        if (on) next.set("include_archived", "1");
+        else next.delete("include_archived");
+        return next;
+      },
+      { replace: !on },
+    );
   return (
     <Sheet labelledBy="comments-h">
       <SheetHeader
@@ -35,7 +70,11 @@ export function CommentsView({ record }: { record: RecordFull }) {
       ) : null}
       {!record.annotations.length ? (
         writing ? null : (
-          <EmptyState size="inline" title="No comments yet" action={writable ? <Button size="sm" onClick={() => setWriting(true)}>Comment</Button> : undefined}>
+          <EmptyState
+            size="inline"
+            title={archived.length ? "No current comments" : "No comments yet"}
+            action={writable ? <Button size="sm" onClick={() => setWriting(true)}>Comment</Button> : undefined}
+          >
             Comments say what someone made of this source.
           </EmptyState>
         )
@@ -43,47 +82,174 @@ export function CommentsView({ record }: { record: RecordFull }) {
         <ul className="source-comments">
           {record.annotations.map((a) => (
             <li key={a.annotation_id}>
-              <Comment annotation={a} />
+              <Comment annotation={a} writable={writable} />
             </li>
           ))}
         </ul>
       )}
+      {showArchived && archived.length ? (
+        <ul className="source-comments source-comments-archived" aria-label="Archived comments">
+          {archived.map((a) => (
+            <li key={a.annotation_id}>
+              <Comment annotation={a} writable={writable} />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {archived.length ? (
+        <div className="source-comments-foot">
+          <button type="button" className="quiet-link" aria-expanded={showArchived} onClick={() => setShowArchived(!showArchived)}>
+            {showArchived ? "Hide archived comments" : `Show ${plural(archived.length, "archived comment")}`}
+          </button>
+        </div>
+      ) : null}
     </Sheet>
   );
 }
 
-/** One person's comment on a source. */
-function Comment({ annotation: a }: { annotation: Annotation }) {
+/**
+ * Archive a comment, with the reason the person gave, or restore it: sources.update_annotation. A
+ * failure reloads the comments, so trying again names the comment's latest etag; a dialog says
+ * the failure itself (`inDialog`), anywhere else a toast does.
+ */
+function useCommentArchive(a: Annotation, { inDialog = false } = {}) {
+  const { api: base } = useProduct();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const reload = () => {
+    void qc.invalidateQueries({ queryKey: ["source", base, a.record_id] });
+    void qc.invalidateQueries({ queryKey: ["source-comments", base, a.record_id] });
+  };
+  const m = useMutation({
+    mutationFn: ({ archived, etag, reason }: { archived: boolean; etag: string; reason?: string }) =>
+      api<Annotation>("PATCH", `${base}/annotations/${a.annotation_id}`, { expected_etag: etag, archived, ...(reason ? { archive_reason: reason } : {}) }),
+    onSuccess: (next, { archived }) => {
+      reload();
+      toast(
+        archived ? "Comment archived." : "Comment restored.",
+        archived ? { action: { label: "Undo", onClick: () => m.mutate({ archived: false, etag: next.etag }) } } : {},
+      );
+    },
+    onError: (e) => {
+      reload();
+      if (!inDialog) toast((e as Error).message, { tone: "negative" });
+    },
+  });
+  return m;
+}
+
+/** One person's comment on a source, with what an editor and an admin can do to it. */
+function Comment({ annotation: a, writable }: { annotation: Annotation; writable: boolean }) {
   const { api: base, canDelete } = useProduct();
   const qc = useQueryClient();
   const toast = useToast();
-  const [deleting, setDeleting] = useState(false);
+  const [dialog, setDialog] = useState<"archive" | "delete" | null>(null);
+  const archive = useCommentArchive(a);
+  const archived = Boolean(a.archived_at);
+  const whose = `${actorName(a.created_by)}’s comment from ${relativeTime(a.created_at)}`;
   return (
-    <article className="comment">
+    <article className={`comment${archived ? " is-archived" : ""}`}>
       <div className="comment-meta">
         <strong className="comment-author">{attribution(a.created_by)}</strong>
         <time dateTime={a.created_at}>{relativeTime(a.created_at)}</time>
         {a.tags.map((t) => (
           <Tag key={t}>{t}</Tag>
         ))}
-        {canDelete ? <IconButton size="sm" icon="trash" label="Delete this comment permanently" className="comment-delete" onClick={() => setDeleting(true)} /> : null}
+        {archived ? <StatusBadge tone="neutral">Archived</StatusBadge> : null}
+        {writable || canDelete ? (
+          <Menu label={`Actions for ${whose}`} trigger={<Glyph name="ellipsis" />} triggerClassName="icon-btn icon-btn-sm comment-actions" align="end">
+            {writable && archived ? (
+              <MenuItem icon="archive-restore" onSelect={() => archive.mutate({ archived: false, etag: a.etag })}>
+                Restore
+              </MenuItem>
+            ) : null}
+            {writable && !archived ? (
+              <MenuItem icon="archive" meta="Reversible" onSelect={() => setDialog("archive")}>
+                Archive…
+              </MenuItem>
+            ) : null}
+            {canDelete ? (
+              <>
+                {writable ? <MenuSeparator /> : null}
+                <MenuItem icon="trash" tone="danger" onSelect={() => setDialog("delete")}>
+                  Delete permanently…
+                </MenuItem>
+              </>
+            ) : null}
+          </Menu>
+        ) : null}
       </div>
       <Markdown source={a.note} className="prose comment-text" headingShift={3} />
-      {deleting ? (
+      {archived ? (
+        <p className="comment-archived">
+          Archived {relativeTime(a.archived_at)}
+          {a.archive_reason ? <>: {a.archive_reason}</> : "."}
+        </p>
+      ) : null}
+      {dialog === "archive" ? <ArchiveComment annotation={a} onClose={() => setDialog(null)} /> : null}
+      {dialog === "delete" ? (
         <DeleteDialog
           title="Delete this comment permanently?"
           etag={a.etag}
           deletePath={`${base}/annotations/${a.annotation_id}`}
+          alternative={writable && !archived ? { label: "Archive instead", onSelect: () => archive.mutate({ archived: true, etag: a.etag }) } : undefined}
           renderImpact={() => <p>This deletes the comment by {attribution(a.created_by)}, with its earlier text.</p>}
           onDeleted={() => {
             void qc.invalidateQueries({ queryKey: ["source", base, a.record_id] });
+            void qc.invalidateQueries({ queryKey: ["source-comments", base, a.record_id] });
             toast("Comment deleted. The activity log records who, when and why.");
-            setDeleting(false);
+            setDialog(null);
           }}
-          onClose={() => setDeleting(false)}
+          onClose={() => setDialog(null)}
         />
       ) : null}
     </article>
+  );
+}
+
+/**
+ * Archive a comment, saying why if the person wants to: the reason stays with the comment, and the
+ * activity log records only that it was archived.
+ */
+function ArchiveComment({ annotation: a, onClose }: { annotation: Annotation; onClose: () => void }) {
+  const [reason, setReason] = useState("");
+  const archive = useCommentArchive(a, { inDialog: true });
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title="Archive this comment"
+      description="It leaves the source’s comments and search, including your agents’, and keeps everything. You can restore it."
+      dismissable={!archive.isPending}
+      footer={
+        <>
+          <Button onClick={onClose} disabled={archive.isPending}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            icon="archive"
+            busy={archive.isPending}
+            busyLabel="Archiving…"
+            onClick={() => archive.mutate({ archived: true, etag: a.etag, reason: reason.trim() }, { onSuccess: onClose })}
+          >
+            Archive
+          </Button>
+        </>
+      }
+    >
+      <TextArea
+        label="Why is it being archived?"
+        optional
+        maxLength={500}
+        rows={3}
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        hint="Kept with the comment. The activity log records that it was archived, not why."
+        autoFocus
+      />
+      {archive.isError ? <ErrorCallout inset error={archive.error} /> : null}
+    </Dialog>
   );
 }
 

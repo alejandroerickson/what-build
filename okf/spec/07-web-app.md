@@ -414,7 +414,11 @@ The sources, and everything for reading them.
     "Write notes" for an editor; both open the summary's dialog, with its etag and its handling of
     a change made meanwhile) and **Comments** (every comment on the source, newest first, and
     "Comment" for an editor, which opens a form for a comment on the whole source with optional
-    tags).
+    tags). Each comment's menu offers an editor **Archive…**, a dialog asking why, optionally
+    (the reason stays with the comment; the activity log records only that it was archived), and
+    an admin **Delete permanently…** (§7.10). Archived comments are left out until "Show N
+    archived comments", at the section's foot, lists them under the others (`?include_archived=1`):
+    muted, marked Archived with when and why, and with Restore in their menu for an editor.
   - **Attachments** lists every attachment under a line saying that each one's text is read and
     kept, that the source's text is taken from one of them, and that attachments are never
     searched. Each row gives its name, how its text was read ("Text read · 12,345 characters",
@@ -719,7 +723,7 @@ a product that isn't archived (`canDelete`). One dialog serves every delete
 | Object | Archive | Delete |
 |---|---|---|
 | Source | its actions menu | its actions menu |
-| Comment | — | a delete button on the comment, wherever it shows |
+| Comment | its menu, with an optional reason, and in its delete dialog | its menu |
 | Assumption | its actions menu | its actions menu |
 | Outcome | its row's menu on Idea | its row's menu |
 | Story page | its row's menu in the tree, and the inspector's About | its row's menu, and the inspector's About |
@@ -729,7 +733,8 @@ a product that isn't archived (`canDelete`). One dialog serves every delete
 
 1. The visible control is **Archive**. It is a plain, ordinary action with no confirmation beyond
    an undo toast, because it is reversible. Its tooltip says what archiving does: takes this out of
-   your views and out of what an agent can search, keeps everything.
+   your views and out of what an agent can search, keeps everything. A comment, which keeps why
+   it was archived, asks for that reason first, optionally, and then has the same undo toast.
 2. **Delete** sits inside the same menu, below a separator, styled as destructive, never
    pre-selected and never the primary button of any dialog.
 3. Choosing it opens a dialog titled as a question ("Delete this assumption permanently?"), that

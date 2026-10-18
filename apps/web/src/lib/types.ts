@@ -69,6 +69,10 @@ export interface Annotation {
   etag: string;
   created_at: string;
   created_by: Actor;
+  /** When it was archived; sources.get lists only the comments that are not. */
+  archived_at: string | null;
+  /** Why it was archived, in its archiver's words, when they said. */
+  archive_reason: string | null;
 }
 
 /** A window of a source's derived text. */
