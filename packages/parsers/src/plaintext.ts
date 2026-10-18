@@ -1,7 +1,7 @@
 import { labelledSpeakers, looksLikeTranscript, speakerLabel, speakerTurn } from "./speakers.ts";
 import { tableBlocks } from "./tables.ts";
 import { markdownAsIs } from "./markdown.ts";
-import { decodeText } from "./text.ts";
+import { codePointLength, decodeText } from "./text.ts";
 import type { Block, FormatParser } from "./types.ts";
 
 const LINE_TERMINATOR = /[\n\r\u2028\u2029]/;
@@ -229,6 +229,172 @@ function prepare(source: string, markdown: boolean): Line[] {
   return out;
 }
 
+/**
+ * A bullet as plain-text authors write one, then its text: Markdown's own (`-`, `*`, `+`), the
+ * typographic ones (`•`, `–` and their kin), a check box, and the `o` and `§` that Word's lower list
+ * levels become when pasted as text (`o` only before a tab, so "o well" is not a list).
+ */
+const BULLET = /^(?:([-*+•◦‣⁃▪▫●○■□–—·∙§➢➤►▶→✓✔☐☑☒✗✘])[ \t]+|(o)\t[ \t]*)(?=\S)/u;
+/** A numbered item, `1.` or `1)`, then its text. */
+const ORDERED = /^(\d{1,9})([.)])[ \t]+(?=\S)/;
+/** A line that is only a run of `-` or `=`: under a line of text Markdown would make that line a heading. */
+const UNDERLINE = /^\s*(?:-+|=+)\s*$/;
+/** A marker alone on its line, which Markdown would read as an empty list item or heading. */
+const BARE_MARKER = /^(?:[-*+]|\d{1,9}[.)]|#{1,6})$/;
+/** Characters that may close a sentence after its last mark: quotes and brackets. */
+const CLOSERS = new Set(['"', "'", "”", "’", ")", "]", "}", "»"]);
+/** Marks that end a sentence, or a line that introduces the next (`Attendees:`). */
+const SENTENCE_END = new Set([".", "!", "?", ":", "…", "。", "！", "？", "："]);
+const LOWERCASE_START = /^\p{Ll}/u;
+
+/**
+ * A paragraph narrower than this is never taken for hard-wrapped prose: short lines are lists,
+ * names and notes, whatever case they start in.
+ */
+export const WRAP_MIN_WIDTH = 40;
+
+/**
+ * Lists nest at most this deep; a deeper item is laid out at the deepest level, so a file of ever
+ * deeper items cannot make a text that a Markdown reader has to descend into level by level.
+ */
+export const MAX_LIST_DEPTH = 8;
+
+function indentWidth(line: string): number {
+  let w = 0;
+  for (const ch of line) {
+    if (ch === " ") w++;
+    else if (ch === "\t") w += 4;
+    else break;
+  }
+  return w;
+}
+
+function endsSentence(line: string): boolean {
+  let i = line.length - 1;
+  while (i >= 0 && CLOSERS.has(line[i]!)) i--;
+  return i >= 0 && SENTENCE_END.has(line[i]!);
+}
+
+function firstWordLength(line: string): number {
+  let end = 0;
+  while (end < line.length && line[end] !== " " && line[end] !== "\t") end++;
+  return codePointLength(line.slice(0, end));
+}
+
+/**
+ * Whether the break between two lines of a paragraph only wraps a sentence onto the next line, as a
+ * text wrapped to a width does: the first line does not end a sentence, the next starts in lower
+ * case, and its first word would not have fitted on the first line within the paragraph's width.
+ */
+export function wraps(line: string, next: string, width: number): boolean {
+  if (width < WRAP_MIN_WIDTH || !LOWERCASE_START.test(next) || endsSentence(line)) return false;
+  return codePointLength(line) + 1 + firstWordLength(next) > width;
+}
+
+/** One line of a laid-out paragraph: a line of text, a Markdown list item, or a line inside one. */
+interface LaidLine {
+  kind: "line" | "item" | "inside";
+  text: string;
+  /** The spaces before it in the readable text: a nested item's, or a line inside an item. */
+  indent: number;
+  /**
+   * A line of text after a Markdown list or a quote (`> …`), which a blank line must close, or
+   * Markdown would read the line into the list's last item or the quote.
+   */
+  closes?: boolean;
+}
+
+const isQuote = (line: string) => line.startsWith(">");
+
+/** An open Markdown list item: where its marker stood in the file, where it stands, and how wide the marker is. */
+interface OpenItem {
+  from: number;
+  at: number;
+  width: number;
+}
+
+/**
+ * A plain-text paragraph as the readable text lays it out, keeping the author's lines: each line
+ * stays a line (a Markdown hard break, two spaces before the line end), a list item keeps its
+ * marker (`-`, `*` and `+` bullets and `1.` or `1)` numbers as Markdown lists, nested by their
+ * indentation; other bullets as written), and a line that only wraps a sentence onto the next joins
+ * it. A paragraph in which most breaks are such wraps is hard-wrapped prose, and reads as one
+ * flowing paragraph. `first` stands for the first line's text when it is a speaker's turn, whose
+ * name is said apart; the line as written still sets the paragraph's width.
+ */
+export function layoutLines(raw: string[], first?: string): { text: string; opensWithList: boolean } {
+  const lines = raw.map((r) => ({ trimmed: r.trim(), indent: indentWidth(r) }));
+  // A loop, not Math.max(...): a paragraph may have more lines than a call takes arguments.
+  let width = 0;
+  for (const l of lines) width = Math.max(width, codePointLength(l.trimmed));
+  const wrapped = lines.slice(1).map((l, i) => wraps(lines[i]!.trimmed, l.trimmed, width));
+  const build = (joinAll: boolean) => {
+    const out: LaidLine[] = [];
+    let open: OpenItem[] = [];
+    let joinable = 0;
+    let wraps = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const { trimmed, indent } = lines[i]!;
+      const text = i === 0 && first !== undefined ? first : trimmed;
+      const prev = out[out.length - 1];
+      const closes = (line: string) => open.length > 0 || (prev?.kind === "line" && isQuote(prev.text) && !isQuote(line));
+      // A turn's words are never an item; a numbered line is one where Markdown would read it as
+      // one: first in its paragraph, numbered 1, or in a list already.
+      const bullet = i === 0 && first !== undefined ? null : BULLET.exec(trimmed);
+      const numbered = i === 0 && first !== undefined ? null : ORDERED.exec(trimmed);
+      if (bullet || (numbered && (i === 0 || numbered[1] === "1" || open.length > 0))) {
+        const marker = bullet ? (bullet[1] ?? bullet[2]!) : numbered![1]! + numbered![2]!;
+        const body = trimmed.slice((bullet ?? numbered)![0].length);
+        if (bullet && !/^[-*+]$/.test(marker)) {
+          // A bullet Markdown does not read stays a line, as written.
+          out.push({ kind: "line", text: `${marker} ${body}`, indent: 0, closes: closes(trimmed) });
+          open = [];
+          continue;
+        }
+        while (open.length && (open[open.length - 1]!.from >= indent || open.length >= MAX_LIST_DEPTH)) open.pop();
+        const parent = open[open.length - 1];
+        const at = parent ? parent.at + parent.width : 0;
+        open.push({ from: indent, at, width: marker.length + 1 });
+        out.push({ kind: "item", text: `${marker} ${body}`, indent: at });
+        continue;
+      }
+      if (prev) {
+        joinable++;
+        if (wrapped[i - 1]) wraps++;
+        if (wrapped[i - 1] || joinAll) {
+          prev.text += " " + trimmed;
+          continue;
+        }
+      }
+      // A line of its own: inside the open item when indented under it, else after the list.
+      const top = open[open.length - 1];
+      if (top && indent > top.from) {
+        out.push({ kind: "inside", text, indent: top.at + top.width });
+        continue;
+      }
+      out.push({ kind: "line", text: escapeBareMarker(text), indent: 0, closes: closes(text) });
+      open = [];
+    }
+    return { out, joinable, wraps };
+  };
+  let laid = build(false);
+  if (laid.joinable >= 2 && laid.wraps * 2 > laid.joinable) laid = build(true);
+  let text = "";
+  for (const [k, l] of laid.out.entries()) {
+    const line = " ".repeat(l.indent) + l.text;
+    if (k === 0) text = line;
+    else if (l.kind === "item") text += "\n" + line;
+    else if (l.closes) text += "\n\n" + line;
+    else text += "  \n" + line;
+  }
+  return { text, opensWithList: laid.out[0]?.kind === "item" };
+}
+
+/** A lone `-`, `1.` or `#` on a line reads as itself, not as an empty list item or heading. */
+function escapeBareMarker(line: string): string {
+  return BARE_MARKER.test(line) ? line.replace(/[-*+.)#]/g, (c) => `\\${c}`) : line;
+}
+
 function parseText(source: string, markdown: boolean): { blocks: Block[]; facts: Record<string, number> } {
   const lines = prepare(source, markdown);
   const texts = lines.filter((l) => l.kind === "line").map((l) => l.text);
@@ -236,20 +402,27 @@ function parseText(source: string, markdown: boolean): { blocks: Block[]; facts:
   const labelled = looksLikeTranscript(texts) ? null : labelledSpeakers(texts);
   const transcript = Boolean(labelled) || looksLikeTranscript(texts);
   const blocks: Block[] = [];
+  // The paragraph being read: in Markdown its lines trimmed, to be joined; in plain text its lines
+  // as written, to be laid out line by line.
   let para: string[] = [];
   let item: string | null = null;
-  let turn: Block | null = null;
+  // A speaker's turn: its words, and in plain text its lines as written, the first holding the name.
+  let turn: { speaker: string; text: string; lines: string[] } | null = null;
   // Who is speaking after a timed label on a line of its own: every paragraph and list item until
   // the next label, turn, heading or break.
   let voice: string | null = null;
   let tables = 0;
   const flush = () => {
-    if (turn) blocks.push(turn);
+    if (turn) blocks.push({ text: markdown ? turn.text : layoutLines(turn.lines, turn.text).text, speaker: turn.speaker });
     turn = null;
     const said = voice ? { speaker: voice } : {};
     if (item !== null) blocks.push({ text: item.replace(/\s+/g, " ").trim(), ...said });
     item = null;
-    if (para.length) blocks.push({ text: para.join(" ").replace(/\s+/g, " "), ...said });
+    if (para.length && markdown) blocks.push({ text: para.join(" ").replace(/\s+/g, " "), ...said });
+    else if (para.length) {
+      const laid = layoutLines(para);
+      blocks.push({ text: laid.text, ...said, ...(voice && laid.opensWithList ? { opensWithList: true } : {}) });
+    }
     para = [];
   };
   for (let i = 0; i < lines.length; i++) {
@@ -283,6 +456,14 @@ function parseText(source: string, markdown: boolean): { blocks: Block[]; facts:
       voice = null;
       continue;
     }
+    if (!markdown && (THEMATIC_BREAK.test(line) || UNDERLINE.test(line))) {
+      // A rule or an underline stands on its own, as written, so it never turns the line above
+      // into a heading; a rule ends a speaker's paragraphs, as in Markdown.
+      flush();
+      voice = null;
+      blocks.push({ text: escapeBareMarker(line.trim()) });
+      continue;
+    }
     if (transcript) {
       const label = speakerLabel(line);
       if (label) {
@@ -294,11 +475,12 @@ function parseText(source: string, markdown: boolean): { blocks: Block[]; facts:
       if (t && (!labelled || labelled.has(t.speaker.toLowerCase()))) {
         flush();
         voice = null;
-        turn = { text: t.text, speaker: t.speaker };
+        turn = { text: t.text, speaker: t.speaker, lines: [line] };
         continue;
       }
       if (turn) {
-        turn.text += " " + line.trim();
+        if (markdown) turn.text += " " + line.trim();
+        else turn.lines.push(line);
         continue;
       }
     }
@@ -315,6 +497,11 @@ function parseText(source: string, markdown: boolean): { blocks: Block[]; facts:
       for (const b of tableBlocks(rows)) blocks.push(b);
       tables++;
       i = j - 1;
+      continue;
+    }
+    if (!markdown) {
+      // Plain text keeps its lines: the paragraph, list items and all, is laid out when it ends.
+      para.push(line);
       continue;
     }
     const li = line.match(LIST_ITEM);
@@ -339,14 +526,16 @@ function parseText(source: string, markdown: boolean): { blocks: Block[]; facts:
 }
 
 /**
- * Plain text. Paragraphs split on blank lines; ATX headings, list items and pipe-table rows become
- * their own segments. A text whose lines are mostly "Name:" turns is read as a transcript, one turn
- * per segment with its speaker. So is one whose turns start with a timed label on a line of their
- * own, "Dana (14:02):", each paragraph below a label being a segment with that speaker.
+ * Plain text, read as written. Paragraphs split on blank lines and keep their lines, list markers
+ * and all (`layoutLines`), unless a paragraph is hard-wrapped prose; ATX headings, pipe tables, and
+ * rules and underlines stand on their own. A text whose lines are mostly "Name:" turns is read as a
+ * transcript, one turn per segment with its speaker. So is one whose turns start with a timed label
+ * on a line of their own, "Dana (14:02):", each paragraph below a label being a segment with that
+ * speaker.
  */
 export const plaintextParser: FormatParser = {
   name: "plaintext",
-  version: "7",
+  version: "8",
   parse(bytes) {
     return parseText(decodeText(bytes), false);
   },

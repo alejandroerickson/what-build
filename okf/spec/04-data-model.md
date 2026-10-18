@@ -176,8 +176,11 @@ A source is one discovery event or document. It is stored as a **record**, so it
   derived text's `text: { chars, etag, updated_at, updated_by, taken_from }` or `null`, the
   comments, and the summary and notes it has, as `agent_notes: [{ kind, etag, updated_at,
   updated_by }]`, each etag the one `derived.write_note` takes, §4.6). Neither includes file bytes
-  or the text itself. `warnings` says when an attachment has text the source does not use, so search finds the
-  source only by its title, tags, summary, notes and comments.
+  or the text itself. `warnings` names the attachments with text that the derived text does not
+  use, which search never reads (whether the text is taken from another attachment or was written
+  or edited), and says when the source has no derived text though an attachment has text, so
+  search finds the source only by its title, tags, summary, notes and comments. An attachment with
+  no text (a recording, an image) is not named.
 - **Duplicates are warned about, not refused.** `sources.create` and `attachments.create_upload`
   return a warning naming any live source in the product with the same title (ignoring case and
   surrounding space) and date.
@@ -230,7 +233,7 @@ each attachment as:
 | `media_type`, `size`, `sha256` | Of its current version, taken from the stored object, never from caller claims. |
 | `file_version_id`, `versions` | Its current version, and every version, newest first, each `{ file_version_id, size, media_type, created_at, created_by }`. Uploading to an existing `path` adds a version; earlier versions stay retrievable. |
 | `added_at`, `added_by` | |
-| `text` | How its current version was read: `{ status, status_detail, chars, duration_ms, parser, derivation_id, read_at }`. `status` is `pending` until it has been read, then the reading's: `ready`, `needs_transcript`, `unsupported`, `too_large` or `failed` ([§5.5](05-derived-layer.md)). |
+| `text` | How its current version was read: `{ status, status_detail, chars, duration_ms, parser, derivation_id, read_at }`. `status` is the reading's: `ready`, `needs_transcript`, `unsupported`, `too_large` or `failed` ([§5.5](05-derived-layer.md)). Before it is read, it is what the attachment's name, type and size already settle (`unsupported`, `needs_transcript` or `too_large`, with `derivation_id` null), else `pending`. A recording's `status_detail` says, beside the source's derived text, where that text comes from. |
 | `is_text_source` | True while the source's derived text is still this attachment's text. |
 
 - **Every version of every attachment is read** when it arrives, and what was read is kept with it
@@ -242,6 +245,8 @@ each attachment as:
   `derived_from`, `derivation_note` or `derived_by` is refused with `422 invalid_input` and a hint
   that attachments have none.
 - A recording is stored and playable, never transcribed: its transcript is another attachment.
+  An image, and a PDF whose pages are pictures, is stored and shown, and no words are read from
+  it: an agent that can see it writes them as the source's derived text.
 
 Default limits: **100 MB per attachment** (`WHATBUILD_FILE_MAX_BYTES`), 25 MiB through the
 service's own relay, **50 attachments per source** (`409 too_many_attachments`), and 25 MiB read

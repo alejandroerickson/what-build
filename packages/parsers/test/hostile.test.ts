@@ -3,7 +3,8 @@ import { constants, deflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { stripCueMarkup, voiceName } from "../src/cues.ts";
 import { DEFAULT_PARSE_CAP_BYTES, derive, MAX_HTML_DEPTH, MAX_PDF_PAGES, MAX_SEGMENTS, parseHtml, toParsedFile, type ParseResult } from "../src/index.ts";
-import { atxHeading, stripInlineMarkdown } from "../src/plaintext.ts";
+import { formatNumber, formatText, readFormat } from "../src/numfmt.ts";
+import { atxHeading, MAX_LIST_DEPTH, stripInlineMarkdown } from "../src/plaintext.ts";
 import { speakerLine } from "../src/speakers.ts";
 import { codePointLength, isSpaceUnit, nonSpaceCodePoints } from "../src/text.ts";
 import { makeBlankPdf, makeDocx, makePdf, makeXlsx, utf8 } from "./fixtures.ts";
@@ -253,6 +254,37 @@ describe("patterns that once backtracked", () => {
     }
   });
 
+  it("keeps the lines of a paragraph of half a million lines, and bounds a list nested without end", async () => {
+    const lines = await measured(utf8("a short line\n".repeat(500_000)), "lines.txt");
+    expect(lines.r.status).toBe("ready");
+    expect(lines.ms).toBeLessThan(5000);
+    expect(lines.r.markdown.startsWith("a short line  \na short line  \n")).toBe(true);
+    // Each item one space deeper than the last: laid out no deeper than MAX_LIST_DEPTH.
+    const deep = Array.from({ length: 3000 }, (_, i) => `${" ".repeat(i)}- item ${i}`).join("\n");
+    const nested = await measured(utf8(deep), "deep.txt");
+    expect(nested.r.status).toBe("ready");
+    expect(nested.ms).toBeLessThan(2000);
+    const indents = nested.r.markdown.split("\n").map((l) => l.length - l.trimStart().length);
+    expect(Math.max(...indents)).toBe(2 * (MAX_LIST_DEPTH - 1));
+  });
+
+  it("applies number formats of any shape without throwing, in bounded time and length", () => {
+    const pieces = ["0", "#", "?", ",", ".", "%", "E+", "e-", '"', '"x"', "[", "]", ";", "@", "y", "mm", "d", "hh", "ss", ".00", "AM/PM", "A/P", "/", "/8", "\\", "_", "*", "[Red]", "[<0]", "[>=1000]", "[h]", "[$€-407]", "[$-F800]", "General", " ", "-", "(", ")", "\u{1F4CA}"];
+    const values = [0, -0.5, 1, 1234567.891, -1e-9, 9.99e20, 1e22, 46086.75, -3, Number.NaN];
+    const started = performance.now();
+    for (const code of randomStrings(pieces, 5000, 24)) {
+      const f = readFormat(code);
+      for (const v of values) expect((formatNumber(f, v, false) ?? "").length, code).toBeLessThan(1000);
+      expect(formatText(f, "text").length).toBeLessThan(1000);
+    }
+    expect(performance.now() - started).toBeLessThan(3000);
+    // The longest code Excel takes, applied to many cells: each cell costs what the code's length does.
+    const widest = readFormat(`#,${"0".repeat(120)}.${"0".repeat(120)}%`);
+    const t0 = performance.now();
+    for (let i = 0; i < 20_000; i++) formatNumber(widest, i * 1.5, false);
+    expect(performance.now() - t0).toBeLessThan(3000);
+  });
+
   it("trims long runs of spaces inside a line, an XLSX format of semicolons and a cue of spaces in linear time", async () => {
     expect((await measured(utf8(`a${" ".repeat(200_000)}b\n`), "spaces.txt")).ms).toBeLessThan(1000);
     const styles = `<styleSheet><numFmts><numFmt numFmtId="200" formatCode="${";".repeat(20_000)}"/></numFmts><cellXfs>${'<xf numFmtId="200"/>'.repeat(200)}</cellXfs></styleSheet>`;
@@ -386,10 +418,10 @@ describe("files that would make too much", () => {
       const { r, ms } = await measured(makeBlankPdf(pages), "blank.pdf");
       expect(r.status, `${pages} pages`).toBe("too_large");
       expect(r.status_detail).toBe(`the PDF has ${pages} pages; PDFs over ${MAX_PDF_PAGES} pages are stored but not parsed`);
-      expect(r.parser_version).toBe("4");
+      expect(r.parser_version).toBe("5");
       expect(ms).toBeLessThan(3000);
     }
-    expect((await derive(makeBlankPdf(3), "blank.pdf")).status_detail).toContain("no text layer");
+    expect(await derive(makeBlankPdf(3), "blank.pdf")).toMatchObject({ status: "unsupported", status_detail: expect.stringContaining("no text layer") });
   });
 
   it(`marks a file that would make more than ${MAX_SEGMENTS} passages too large, in every format that could`, async () => {

@@ -5,7 +5,7 @@ import { api, ApiError } from "../lib/api.ts";
 import { attribution, relativeTime } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
-import { derivedStatus, derivedStatusDetail } from "../lib/status.ts";
+import { derivedStatus, derivedStatusDetail, pictureKind, PICTURES } from "../lib/status.ts";
 import type { Attachment, RecordFull } from "../lib/types.ts";
 import { Button, Callout, Dialog, EmptyState, ErrorCallout, FindField, Glyph, IconButton, Loading, Menu, MenuGroup, MenuItem, Sheet, SheetHeader, TextArea, useToast } from "../ui/index.tsx";
 
@@ -320,9 +320,15 @@ function NoText({
       </Button>
     </span>
   ) : undefined;
+  // Attachments that are pictures (images, PDFs of scanned pages) say so, rather than "a format".
+  const unread = record.attachments.filter((a) => a.text.status === "unsupported");
+  const kinds = new Set(unread.map(pictureKind));
+  const pictures = record.derived_status === "unsupported" && kinds.size > 0 && !kinds.has(null);
+  const explain = pictures ? (kinds.size > 1 ? PICTURES.both : kinds.has("image") ? PICTURES.image : PICTURES.scan) : status.explain;
+  const next = pictures ? PICTURES.next(unread.length > 1) : status.next;
   return (
     <EmptyState size="inline" title={record.derived_status === "awaiting_file" ? "No text yet" : status.label} action={actions}>
-      {status.explain} {detail ? <span className="muted">({detail})</span> : null} {writable ? (status.next ?? "") : ""}
+      {explain} {detail ? <span className="muted">({detail})</span> : null} {writable ? (next ?? "") : ""}
     </EmptyState>
   );
 }

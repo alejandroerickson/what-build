@@ -324,9 +324,10 @@ The sources, and everything for reading them.
   **Describe it** asks for the title, the **date captured** (optional, with help text
   distinguishing it from today) and tags, offering the product's most used tags to add with one
   click ([§4.4](04-data-model.md)), and nothing else. **Add attachments** is one drop zone, optional,
-  that takes any number of files, with no role to choose; it says that the first attachment whose
-  text WhatBuild can read becomes the source's text, which search reads, which formats it reads,
-  and that a recording needs its transcript too. **Create** makes the source and uploads each
+  that takes any number of files, with no role to choose; it says that they are read in the order
+  listed and the first in which WhatBuild finds text becomes the source's text, which search reads
+  ([§5.4](05-derived-layer.md)), which formats it reads, that a recording needs its transcript too,
+  and that no words are read from images or scanned pages. **Create** makes the source and uploads each
   attachment with its progress, then opens the source, whose Text says how its attachment is being
   read ([decision](../decisions/a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)).
   Nothing asks what kind of material it is or where to file it.
@@ -401,10 +402,13 @@ The sources, and everything for reading them.
     the latest" to say again what it would replace.
     A source with no text says why here, not in a status callout over the page: "Reading its attachment"
     while it is read, or what its status means and what to do (a recording needs its transcript
-    as another attachment, a format not read, too large, could not be read, no attachment yet, or
-    an attachment whose text it does not use), with the server's `status_detail` only where it
-    says more (a size or an error); editors get "Use the text of <attachment>", "Add attachments"
-    and "Write the text".
+    as another attachment; its attachments are pictures, images or a PDF whose pages are pictures,
+    from which no words are read, and an agent that can see them can write the summary and the
+    text; a format not read; too large; could not be read; no attachment yet; or an attachment
+    whose text it does not use), with the server's `status_detail` only where it says more (a size
+    or an error). A source whose attachments are not read as text is labelled "Not read as text",
+    never as a failure. Editors get "Use the text of <attachment>", "Add attachments" and "Write
+    the text".
   - **Notes** (the source's notes, rendered Markdown attributed to whoever wrote them last, with
     "Edit notes" for an editor; with none, an empty state that says what notes are for, and
     "Write notes" for an editor; both open the summary's dialog, with its etag and its handling of
@@ -414,12 +418,14 @@ The sources, and everything for reading them.
   - **Attachments** lists every attachment under a line saying that each one's text is read and
     kept, that the source's text is taken from one of them, and that attachments are never
     searched. Each row gives its name, how its text was read ("Text read · 12,345 characters",
-    "Recording, 12:03 · no text", "Format not read", "Too large to read", "Couldn't be read", or
-    "Reading"), "The source's text" on the one it came from, its type in words (such as "Word
-    document", not its media type), size, versions, and who added it when, with Download, and a
-    menu with **Show it** (a PDF, an image, a recording, Markdown, HTML in a sandbox, or plain
-    text, in a dialog; a recording with its length), **Use its text…** and **Read it again** for
-    editors. An image opens in a viewer with zoom (buttons, `+` `-`, `0` to fit, `1` for actual
+    "Recording, 12:03 · no text", "Image · no text", "Scan · no text" for a PDF whose pages are
+    pictures, "Format not read", "Too large to read", "Couldn't be read", or "Reading"), with the
+    server's `status_detail` under it except for pictures, "The source's text" on the one it came
+    from, its type in words (such as "Word document", not its media type), size, versions, and who
+    added it when, with Download, and a menu with **Show it** (a PDF, an image, a recording,
+    Markdown, HTML in a sandbox, or plain text, in a dialog; a recording with its length), **Use
+    its text…** and **Read it again** for editors, the last not for pictures, which no reading
+    finds words in. An image opens in a viewer with zoom (buttons, `+` `-`, `0` to fit, `1` for actual
     size, double-click, a pinch or Ctrl/Cmd and the wheel), drag to pan, full screen (`F`), and,
     when the source has several images, previous and next (the arrow keys) and a strip of
     thumbnails. **Add attachments** adds more, with no roles.

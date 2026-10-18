@@ -10,11 +10,12 @@ export const MAX_PDF_PAGES = 2000;
 
 /**
  * PDF: the text layer only, per page — a `# Page N` heading segment, then that page's text.
- * No OCR: a scanned PDF with no text layer keeps almost nothing and reports `failed`.
+ * No OCR: a PDF with no text layer, a scan's pages being pictures, reports `unsupported`, as an
+ * image does (index.ts).
  */
 export const pdfParser: FormatParser = {
   name: "pdf",
-  version: "4",
+  version: "5",
   async parse(bytes) {
     const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
     // pdf.js has no limit on what a compressed stream decodes to. It is given the limits it has,

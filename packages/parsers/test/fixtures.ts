@@ -63,40 +63,62 @@ export function makeXlsx(): Uint8Array {
 }
 
 /**
- * A one-sheet XLSX from rows of cells: a string is an inline text cell, `[value, style]` a number
- * with a `cellXfs` style index. `numFmts` are custom formats (id 164 up) and `xfs` the number format
- * id of each cell style, written to `xl/styles.xml`.
+ * A cell of a test workbook: a string is an inline text cell, `[value, style]` a number with a
+ * `cellXfs` style index, `{ text, style }` a styled text cell, and `{ formula, value?, type? }` a
+ * formula with its stored value, or none, as a library that never calculates writes it.
  */
-export function makeXlsxSheet(
-  rows: (string | [number, number])[][],
-  options: { numFmts?: string[]; xfs?: number[]; date1904?: boolean } = {},
-): Uint8Array {
+export type XlsxCell = string | [number, number] | { text: string; style: number } | { formula: string; value?: string; type?: string };
+
+export interface XlsxSheet {
+  name: string;
+  rows: XlsxCell[][];
+  state?: "hidden" | "veryHidden";
+  /** 1-based row numbers the sheet hides. */
+  hiddenRows?: number[];
+  /** Column letters the sheet hides. */
+  hiddenColumns?: string[];
+}
+
+/**
+ * An XLSX of sheets. `numFmts` are custom formats (id 164 up) and `xfs` the number format id of each
+ * cell style, written to `xl/styles.xml`.
+ */
+export function makeWorkbook(sheets: XlsxSheet[], options: { numFmts?: string[]; xfs?: number[]; date1904?: boolean } = {}): Uint8Array {
   const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
   const col = (i: number) => String.fromCharCode(65 + i);
   const pr = options.date1904 ? '<workbookPr date1904="1"/>' : "";
-  const workbook = `<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${pr}<sheets><sheet name="Register" sheetId="1" r:id="rId1"/></sheets></workbook>`;
-  const rels = `<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Target="worksheets/sheet1.xml" Type="x"/></Relationships>`;
-  const body = rows
-    .map((cells, r) => {
-      const xml = cells
-        .map((c, i) => {
-          const ref = `${col(i)}${r + 1}`;
-          if (typeof c === "string") return `<c r="${ref}" t="inlineStr"><is><t>${esc(c)}</t></is></c>`;
-          return `<c r="${ref}" s="${c[1]}"><v>${c[0]}</v></c>`;
-        })
-        .join("");
-      return `<row r="${r + 1}">${xml}</row>`;
-    })
-    .join("\n");
-  const numFmts = (options.numFmts ?? []).map((code, i) => `<numFmt numFmtId="${164 + i}" formatCode="${esc(code)}"/>`).join("");
-  const xfs = (options.xfs ?? [0]).map((id) => `<xf numFmtId="${id}" fontId="0" fillId="0" borderId="0" xfId="0"/>`).join("");
-  const styles = `<?xml version="1.0"?><styleSheet><numFmts count="${options.numFmts?.length ?? 0}">${numFmts}</numFmts><cellXfs count="1">${xfs}</cellXfs></styleSheet>`;
-  return zipSync({
+  const entries = sheets.map((s, i) => `<sheet name="${esc(s.name)}" sheetId="${i + 1}"${s.state ? ` state="${s.state}"` : ""} r:id="rId${i + 1}"/>`).join("");
+  const workbook = `<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${pr}<sheets>${entries}</sheets></workbook>`;
+  const rels = `<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Target="worksheets/sheet${i + 1}.xml" Type="x"/>`).join("")}</Relationships>`;
+  const cell = (c: XlsxCell, ref: string) => {
+    if (typeof c === "string") return `<c r="${ref}" t="inlineStr"><is><t>${esc(c)}</t></is></c>`;
+    if (Array.isArray(c)) return `<c r="${ref}" s="${c[1]}"><v>${c[0]}</v></c>`;
+    if ("text" in c) return `<c r="${ref}" s="${c.style}" t="inlineStr"><is><t>${esc(c.text)}</t></is></c>`;
+    const v = c.value === undefined ? "" : c.value === "" ? "<v/>" : `<v>${esc(c.value)}</v>`;
+    return `<c r="${ref}"${c.type ? ` t="${c.type}"` : ""}><f>${esc(c.formula)}</f>${v}</c>`;
+  };
+  const files: Record<string, Uint8Array> = {
     "xl/workbook.xml": strToU8(workbook),
     "xl/_rels/workbook.xml.rels": strToU8(rels),
-    "xl/styles.xml": strToU8(styles),
-    "xl/worksheets/sheet1.xml": strToU8(`<?xml version="1.0"?><worksheet><sheetData>${body}</sheetData></worksheet>`),
-  });
+  };
+  for (const [i, s] of sheets.entries()) {
+    const body = s.rows
+      .map((cells, r) => `<row r="${r + 1}"${s.hiddenRows?.includes(r + 1) ? ' hidden="1"' : ""}>${cells.map((c, j) => cell(c, `${col(j)}${r + 1}`)).join("")}</row>`)
+      .join("\n");
+    const cols = s.hiddenColumns?.length
+      ? `<cols>${s.hiddenColumns.map((l) => `<col min="${l.charCodeAt(0) - 64}" max="${l.charCodeAt(0) - 64}" width="9" hidden="1" customWidth="1"/>`).join("")}</cols>`
+      : "";
+    files[`xl/worksheets/sheet${i + 1}.xml`] = strToU8(`<?xml version="1.0"?><worksheet>${cols}<sheetData>${body}</sheetData></worksheet>`);
+  }
+  const numFmts = (options.numFmts ?? []).map((code, i) => `<numFmt numFmtId="${164 + i}" formatCode="${esc(code)}"/>`).join("");
+  const xfs = (options.xfs ?? [0]).map((id) => `<xf numFmtId="${id}" fontId="0" fillId="0" borderId="0" xfId="0"/>`).join("");
+  files["xl/styles.xml"] = strToU8(`<?xml version="1.0"?><styleSheet><numFmts count="${options.numFmts?.length ?? 0}">${numFmts}</numFmts><cellXfs count="1">${xfs}</cellXfs></styleSheet>`);
+  return zipSync(files);
+}
+
+/** A one-sheet XLSX, the sheet named Register, from rows of cells (see `makeWorkbook`). */
+export function makeXlsxSheet(rows: XlsxCell[][], options: { numFmts?: string[]; xfs?: number[]; date1904?: boolean } = {}): Uint8Array {
+  return makeWorkbook([{ name: "Register", rows }], options);
 }
 
 /**
