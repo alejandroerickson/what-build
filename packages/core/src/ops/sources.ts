@@ -1,4 +1,4 @@
-import { currentReading, settledReading } from "@whatbuild/parsers";
+import { currentReading, IMAGE_DETAIL, SCAN_DETAIL, settledReading } from "@whatbuild/parsers";
 import { sql, type Selectable } from "kysely";
 import { z } from "zod";
 import { checkEtag, keepRevision, normalizeTags, productId, recordActivity, tenantId } from "../common.ts";
@@ -120,7 +120,16 @@ export interface TextStatus {
   pending_path: string | null;
   /** The attachments read with some text that the source's derived text is not taken from. */
   unused_text: string[];
+  /**
+   * Its status is `unsupported` because what it holds is pictures: each of its attachments read as
+   * `unsupported` is an image, or a PDF whose pages are pictures. Someone who can see them gives it
+   * its words, where a format no parser reads wants a copy in one that a parser does.
+   */
+  pictures: boolean;
 }
+
+/** The details of an attachment that is pictures, as `currentReading` says them. */
+const PICTURE_DETAILS = new Set<string>([IMAGE_DETAIL, SCAN_DETAIL]);
 
 /**
  * Where each source's derived text stands: `ready` when it has one; otherwise `pending` while an
@@ -172,6 +181,7 @@ export async function derivedStatuses(ctx: OpContext, recordIds: string[]) {
     }
     const durations = mine.map((x) => x.duration_ms).filter((d): d is number => d !== null);
     const textFrom = text?.path ?? null;
+    const unread = mine.filter((x) => x.shown.status === "unsupported");
     out.set(id, {
       derived_status: status,
       status_detail: detail,
@@ -181,6 +191,7 @@ export async function derivedStatuses(ctx: OpContext, recordIds: string[]) {
       text_from: textFrom,
       pending_path,
       unused_text: mine.filter((x) => x.shown.status === "ready" && Number(x.text_chars ?? 0) > 0 && x.path !== textFrom).map((x) => x.path),
+      pictures: status === "unsupported" && unread.length > 0 && unread.every((x) => PICTURE_DETAILS.has(x.shown.status_detail ?? "")),
     });
   }
   return out;
@@ -208,7 +219,7 @@ export function sourceWarnings(s: Pick<TextStatus, "derived_status" | "text_from
       `This source's derived text is taken from ${s.text_from}, so ${read}. If ${one ? "its" : "their"} words should be found, write them into the derived text, the summary or the notes, or add ${one ? "it" : "each"} as a source of its own.`,
     ];
   return [
-    `This source's derived text was written or edited, so it follows no attachment: ${read}, and a new version of ${one ? "it" : "one"} does not change the derived text. Take an attachment's text with derived(action="write_text", from_attachment=…) only if it should replace the derived text.`,
+    `This source's derived text was written or edited, so it follows no attachment: ${read}, and a new version of ${one ? "it" : "one"} does not change the derived text. Take an attachment's text with derived(action="write_text", from_attachment=…), passing the derived text's etag as expected_etag, only if it should replace the derived text.`,
   ];
 }
 

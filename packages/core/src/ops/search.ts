@@ -348,7 +348,11 @@ async function coverage(ctx: OpContext, where: RawBuilder<unknown>) {
     from records r where r.product_id = ${productId(ctx)} and ${where}`.execute(ctx.db);
   const without = all.rows.filter((r) => !r.has_text).map((r) => r.record_id);
   const counts: Record<string, number> = {};
-  for (const s of (await derivedStatuses(ctx, without)).values()) counts[s.derived_status] = (counts[s.derived_status] ?? 0) + 1;
+  for (const s of (await derivedStatuses(ctx, without)).values()) {
+    // Pictures are unsupported too, but they want someone who can see them, not another format.
+    const reason = s.pictures ? "pictures" : s.derived_status;
+    counts[reason] = (counts[reason] ?? 0) + 1;
+  }
   const cov = { considered: all.rows.length, without_text: without.length, counts };
   return {
     searched: ["title", "tags", "summary", "text", "notes", "comments"],
@@ -360,8 +364,9 @@ async function coverage(ctx: OpContext, where: RawBuilder<unknown>) {
 
 /**
  * What a search of sources examined, in plain sentences. Sources without a derived text are
- * counted by reason, because "still being read" and "a recording with no transcript" call for
- * different next steps.
+ * counted by reason, because "still being read", "a recording with no transcript" and "pictures,
+ * not read as text" call for different next steps. `counts` is by derived status, but for
+ * `pictures`: the unsupported sources whose unread attachments are all images or PDFs of pictures.
  */
 export function coverageStatement(cov: { considered: number; without_text: number; counts: Record<string, number> }): string {
   const withText = cov.considered - cov.without_text;
@@ -373,6 +378,9 @@ export function coverageStatement(cov: { considered: number; without_text: numbe
     c["awaiting_file"] ? `${are(c["awaiting_file"], "has", "have")} no attachment yet` : "",
     c["awaiting_text"] ? `${are(c["awaiting_text"], "has an attachment whose text it does not use", "have an attachment whose text they do not use")}` : "",
     c["needs_transcript"] ? `${are(c["needs_transcript"], "is a recording", "are recordings")} with no transcript (add the transcript as an attachment)` : "",
+    c["pictures"]
+      ? `${are(c["pictures"], "has", "have")} pictures that are not read as text (images, or PDFs whose pages are pictures; write the text if search should find their words)`
+      : "",
     unreadable ? `${are(unreadable, "has", "have")} only attachments that could not be read (unsupported, too large or failed)` : "",
   ].filter(Boolean);
   if (gaps.length) parts.push(`No derived text: ${gaps.join("; ")}.`);

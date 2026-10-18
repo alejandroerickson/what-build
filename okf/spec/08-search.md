@@ -197,8 +197,11 @@ Search must never claim to have examined what it did not.
   comments of 3 sources, and the derived text of the 2 that have one. No derived text: 1 is a
   recording with no transcript (add the transcript as an attachment). Attachments are never
   searched." The reasons are: still being read; no attachment yet; an attachment whose text the
-  source does not use; a recording with no transcript; and only attachments that could not be
-  read (unsupported, too large or failed). The web app's Search does not show it.
+  source does not use; a recording with no transcript; pictures that are not read as text (a
+  source whose status is `unsupported` because each of its unread attachments is an image or a
+  PDF whose pages are pictures, which someone who can see them gives its words); and only
+  attachments that could not be read (unsupported, too large or failed). The web app's Search
+  does not show it.
 
 ## 8.6 Earlier readings
 

@@ -116,6 +116,13 @@ describe("what upload, read and search say about a source", () => {
       expect(got.body).toMatchObject({ derived_status: "unsupported", status_detail: detail, warnings: [] });
       expect(got.body.attachments[0].text).toMatchObject({ status: "unsupported", status_detail: detail });
     }
+    // Search counts them apart from attachments that could not be read: they want someone who can see them.
+    for (const s of [photo, scan]) {
+      const { coverage } = (await alice.api("GET", `${P}/search?query=crews&record_id=${s.recordId}`)).body;
+      expect(coverage.statement).toBe(
+        "Searched the title, tags, summary, notes and comments of 1 source, and the derived text of the 0 that have one. No derived text: 1 has pictures that are not read as text (images, or PDFs whose pages are pictures; write the text if search should find their words). Attachments are never searched.",
+      );
+    }
     const done = await alice.api("POST", `${P}/sources/${scan.recordId}/uploads/complete`, { record_id: scan.recordId, path: "signed-contract.pdf" });
     expect(done.body.note).toBe(`signed-contract.pdf is stored and downloadable, but ${SCAN_DETAIL}. It is kept with the source and never searched.`);
     expect((await alice.api("GET", `${P}/sources/${scan.recordId}/derived/manifest`)).body).toMatchObject({ status: "unsupported", parser: "pdf", facts: { text_layer_chars: 0 } });
@@ -175,7 +182,7 @@ describe("what upload, read and search say about a source", () => {
     const edited = await alice.api("PUT", `${P}/sources/${recordId}/derived/text`, { edits: [{ old_text: "by the week", new_text: "by the fortnight" }], expected_etag: cur.body.etag });
     expect(edited.status).toBe(200);
     expect((await alice.api("GET", `${P}/sources/${recordId}`)).body.warnings).toEqual([
-      "This source's derived text was written or edited, so it follows no attachment: the text read from pipeline-notes.md and pipeline.xlsx is kept but never searched, and a new version of one does not change the derived text. Take an attachment's text with derived(action=\"write_text\", from_attachment=…) only if it should replace the derived text.",
+      "This source's derived text was written or edited, so it follows no attachment: the text read from pipeline-notes.md and pipeline.xlsx is kept but never searched, and a new version of one does not change the derived text. Take an attachment's text with derived(action=\"write_text\", from_attachment=…), passing the derived text's etag as expected_etag, only if it should replace the derived text.",
     ]);
   });
 

@@ -37,7 +37,7 @@ async function attach(recordId: string, path: string, body: string | Uint8Array)
   expect(grant.status, JSON.stringify(grant.body)).toBe(201);
   const put = await fetch(grant.body.url, { method: "PUT", headers: grant.body.headers, body });
   expect(put.status).toBe(201);
-  return ((await put.json()) as { attachment: { file_version_id: string } }).attachment;
+  return ((await put.json()) as { attachment: { file_version_id: string; note: string } }).attachment;
 }
 
 const text = (id: string, query = "", base = P) => alice.api("GET", `${base}/sources/${id}/derived/text${query}`);
@@ -70,8 +70,12 @@ describe("a source's derived text", () => {
       updated_by: { display_name: "WhatBuild", client: "parser" },
     });
 
-    // A second attachment is read and kept beside it, and never takes its place.
-    await attach(id, "summary.txt", SUMMARY);
+    // A second attachment is read and kept beside it, and never takes its place; its note says how
+    // to make it the source's text, with the etag that write needs.
+    const beside = await attach(id, "summary.txt", SUMMARY);
+    expect(beside.note).toContain(
+      "The source already has a derived text, so this one is kept beside it; if it should replace it, take it with derived(action=\"write_text\", from_attachment), passing the derived text's etag as expected_etag.",
+    );
     await h.worker.drain();
     expect((await text(id)).body).toMatchObject({ text: WEEK, etag: read.body.etag });
     const full = await alice.api("GET", `${P}/sources/${id}?detail=full`);

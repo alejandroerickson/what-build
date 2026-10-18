@@ -257,7 +257,7 @@ export function attachmentNote(
     case "pending":
       return `${path} is being read. ${
         source.hasText
-          ? "The source already has a derived text, so this one is kept beside it; take it with derived(action=\"write_text\", from_attachment) if it should replace it."
+          ? "The source already has a derived text, so this one is kept beside it; if it should replace it, take it with derived(action=\"write_text\", from_attachment), passing the derived text's etag as expected_etag."
           : "Once it is read, its text becomes the source's derived text, which search reads."
       } ${kept}`;
     case "ready":
