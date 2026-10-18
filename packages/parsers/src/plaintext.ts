@@ -297,9 +297,14 @@ interface LaidLine {
   text: string;
   /** The spaces before it in the readable text: a nested item's, or a line inside an item. */
   indent: number;
-  /** A line of text that follows a Markdown list, which a blank line must close. */
-  afterList?: boolean;
+  /**
+   * A line of text after a Markdown list or a quote (`> …`), which a blank line must close, or
+   * Markdown would read the line into the list's last item or the quote.
+   */
+  closes?: boolean;
 }
+
+const isQuote = (line: string) => line.startsWith(">");
 
 /** An open Markdown list item: where its marker stood in the file, where it stands, and how wide the marker is. */
 interface OpenItem {
@@ -332,6 +337,7 @@ export function layoutLines(raw: string[], first?: string): { text: string; open
       const { trimmed, indent } = lines[i]!;
       const text = i === 0 && first !== undefined ? first : trimmed;
       const prev = out[out.length - 1];
+      const closes = (line: string) => open.length > 0 || (prev?.kind === "line" && isQuote(prev.text) && !isQuote(line));
       // A turn's words are never an item; a numbered line is one where Markdown would read it as
       // one: first in its paragraph, numbered 1, or in a list already.
       const bullet = i === 0 && first !== undefined ? null : BULLET.exec(trimmed);
@@ -341,7 +347,7 @@ export function layoutLines(raw: string[], first?: string): { text: string; open
         const body = trimmed.slice((bullet ?? numbered)![0].length);
         if (bullet && !/^[-*+]$/.test(marker)) {
           // A bullet Markdown does not read stays a line, as written.
-          out.push({ kind: "line", text: `${marker} ${body}`, indent: 0, afterList: open.length > 0 });
+          out.push({ kind: "line", text: `${marker} ${body}`, indent: 0, closes: closes(trimmed) });
           open = [];
           continue;
         }
@@ -366,7 +372,7 @@ export function layoutLines(raw: string[], first?: string): { text: string; open
         out.push({ kind: "inside", text, indent: top.at + top.width });
         continue;
       }
-      out.push({ kind: "line", text: escapeBareMarker(text), indent: 0, afterList: open.length > 0 });
+      out.push({ kind: "line", text: escapeBareMarker(text), indent: 0, closes: closes(text) });
       open = [];
     }
     return { out, joinable, wraps };
@@ -378,7 +384,7 @@ export function layoutLines(raw: string[], first?: string): { text: string; open
     const line = " ".repeat(l.indent) + l.text;
     if (k === 0) text = line;
     else if (l.kind === "item") text += "\n" + line;
-    else if (l.afterList) text += "\n\n" + line;
+    else if (l.closes) text += "\n\n" + line;
     else text += "  \n" + line;
   }
   return { text, opensWithList: laid.out[0]?.kind === "item" };

@@ -154,8 +154,9 @@ within that width: what a text wrapped to a width looks like. A paragraph in whi
 the breaks are wraps (not counting those before a list item) is hard-wrapped prose, and reads as
 one paragraph: all of those breaks join. Every other break is kept, so lists of names, one item
 per line and line-broken notes read as written, and a short line is never joined to the next. A
-line after a Markdown list that is not indented under its last item ends the list, with a blank
-line before it.
+line after a Markdown list that is not indented under its last item ends the list, and a line after
+quoted lines (`> …`, as in a reply to an email) that is not quoted ends the quote, each with a blank
+line before it, so Markdown never reads it into the list or the quote.
 
 ◆ Decision: a workbook reads as the sheet displays it, not as its stored values: a reader quotes
 `+14.0%` where the sheet shows it, not `0.14`. Its hidden sheets, columns and rows are read, so

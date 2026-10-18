@@ -998,6 +998,12 @@ describe("the readable text", () => {
     expect(r.markdown).toBe("Notes\n\n=====\n\nWe met Dana.\n\n\\-\n\nNext\n\n-----\n\nEnd  \n\\#\n");
   });
 
+  it("ends a quoted message before the reply under it, as a list ends before the line after it", async () => {
+    const r = await derive(utf8("On Monday, Dana wrote:\n> We plan by the week.\n> Crews text the office.\nThanks, noted.\n"), "reply.txt");
+    // Without the blank line, Markdown would read the reply into the quote.
+    expect(r.markdown).toBe("On Monday, Dana wrote:  \n> We plan by the week.  \n> Crews text the office.\n\nThanks, noted.\n");
+  });
+
   it("puts a speaker's label above a list in a transcript of timed labels", async () => {
     const txt = "Dana (14:02 UTC):\nPlan the week first.\nThen the crews.\n\nSam (14:03 UTC):\n- Week plan drafted\n- Crews next\n\nDana (14:05 UTC):\nGood.\n\nSam (14:09 UTC):\nDone.\n";
     const r = await derive(utf8(txt), "session.txt");
