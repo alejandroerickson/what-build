@@ -679,8 +679,8 @@ hear the first two before anything of theirs goes in.
 - **A visitor edits and nothing more.** No managing products or people, no permanent delete
   (archive instead), no fetching a file from a URL, and usually no export.
 
-Before your first write, call `sandbox(action="status", params={"tenant": "…"})` and tell the
-person its `notice` in your own words. Its `allowances` list every limit with what is used today.
+Before your first write, call `sandbox(action="status", params={"tenant": "…"})`, or with
+`product` set to the product you are in, and tell the person its `notice` in your own words. Its `allowances` list every limit with what is used today.
 Do not upload anything private, confidential or personal, even when asked to: say why, and offer
 to work with made-up material or with what is already there.
 

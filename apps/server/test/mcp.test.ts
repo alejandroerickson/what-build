@@ -4,6 +4,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { OPERATIONS, REST_BODY_MAX_BYTES, SKILL_VERSION } from "@whatbuild/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MCP_BODY_MAX_BYTES, toolDefinitions } from "../src/mcp.ts";
+import { syncSandboxTenant } from "../src/public-sandbox.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 let h: Harness;
@@ -289,5 +290,60 @@ describe("OAuth for MCP clients", () => {
       const r = await fetch(`${h.baseUrl}/oauth/register`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ redirect_uris: [uri] }) });
       expect(r.status, uri).toBe(400);
     }
+  });
+});
+
+describe("an organization's or a team's action named with a product", () => {
+  let sandboxPath: string;
+  let tenantSlug: string;
+  let token: string;
+
+  beforeAll(async () => {
+    const t = await alice.api("POST", "/api/v1/tenants", { name: "Try Co" });
+    tenantSlug = t.body.tenant.slug;
+    const p = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${t.body.team.slug}/products`, { name: "Showcase" });
+    sandboxPath = p.body.path;
+    expect(await syncSandboxTenant(h.db, tenantSlug, () => {})).toBe(t.body.tenant.tenant_id);
+    // Two products are reachable now, so nothing is guessed.
+    token = await h.connectAgent(alice, "Sandbox agent");
+  });
+
+  it("acts on the organization the product is in, as the other tools take a product", async () => {
+    const client = await connect(token);
+    const status = await client.callTool({ name: "sandbox", arguments: { action: "status", product: sandboxPath } });
+    expect(status.isError, JSON.stringify(status.content)).toBeFalsy();
+    expect(text(status)).toMatchObject({ public_sandbox: true, organization: { slug: tenantSlug }, you: { role: "staff" } });
+    // So does any organization's action without a product of its own.
+    const log = await client.callTool({ name: "members", arguments: { action: "activity", product: sandboxPath } });
+    expect(log.isError, JSON.stringify(log.content)).toBeFalsy();
+    // A product the caller cannot see names nothing.
+    const other = await client.callTool({ name: "sandbox", arguments: { action: "status", product: "nowhere/team/product" } });
+    expect((other.content as { text: string }[])[0]!.text).toMatch(/^404: /);
+    await client.close();
+  });
+
+  it("says what to pass when the call names neither the organization nor a product, or when product means something else there", async () => {
+    const client = await connect(token);
+    const none = await client.callTool({ name: "sandbox", arguments: { action: "status" } });
+    expect((none.content as { text: string }[])[0]!.text).toMatch(
+      /^422: `tenant` is missing: sandbox\(action="status"\) acts on an organization\. Pass params\.tenant, the organization's slug or id: the first part of a product's path .*, or name any product in it with product\. Nothing was changed\./,
+    );
+    const members = await client.callTool({ name: "members", arguments: { action: "list", product: sandboxPath } });
+    expect(text(members).error.code).toBe("invalid_input");
+    expect(text(members).error.message).toContain("params.product names a product of its own here");
+    // Named in params, the organization is used as it always was.
+    const listed = await client.callTool({ name: "members", arguments: { action: "list", params: { tenant: tenantSlug } } });
+    expect(listed.isError, JSON.stringify(listed.content)).toBeFalsy();
+    await client.close();
+  });
+
+  it("on a connector scoped to the product, takes the organization from the connector", async () => {
+    const [tn, tm, pr] = sandboxPath.split("/");
+    const scoped = await h.connectAgent(alice, "Scoped sandbox agent", `/mcp/t/${tn}/${tm}/${pr}`);
+    const client = await connect(scoped, `${h.baseUrl}/mcp/t/${tn}/${tm}/${pr}`);
+    const status = await client.callTool({ name: "sandbox", arguments: { action: "status" } });
+    expect(status.isError, JSON.stringify(status.content)).toBeFalsy();
+    expect(text(status)).toMatchObject({ organization: { slug: tenantSlug } });
+    await client.close();
   });
 });

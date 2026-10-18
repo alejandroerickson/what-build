@@ -324,7 +324,10 @@ The addressed tenant, team and product are always explicit. Nothing on the serve
 On MCP a product-scoped call resolves its product in this order: the `product` argument (an id or
 `tenant/team/product`); the product the endpoint is scoped to; the only unarchived product the
 caller can reach inside the endpoint's scope; otherwise `422 product_required` listing those
-products ([`apps/server/src/mcp.ts`](../../apps/server/src/mcp.ts)). Every product-scoped MCP
+products ([`apps/server/src/mcp.ts`](../../apps/server/src/mcp.ts)). An organization's or a team's
+call takes `tenant` (and `team`) from its params or the endpoint, and otherwise the organization
+and team of a `product` it names that the caller can see, unless it takes a product of its own
+([§6.5](06-operations-and-adapters.md)). Every product-scoped MCP
 result echoes `scope` (tenant, team, product, `your_role` capped by the connection's level, and
 `connection_level`) so an agent and the person reading its transcript can see where a write landed
 and what it may do there.

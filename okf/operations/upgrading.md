@@ -115,6 +115,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   arguments; and a list sent as one value says what the list takes (`status` takes a list, such as
   `["confirmed"]`). On a connection whose person turned feedback off, `submit_feedback` is
   refused with `403 feedback_off` whatever is sent, a call with invalid input included.
+- **Nothing to change; agents will notice `product` naming an organization.** Over MCP, an
+  organization's or a team's action, such as `sandbox(action="status")`, called with `product`
+  and no `tenant` acts on the organization (and team) that product is in, where it was refused
+  with "`tenant` is required"; called with neither, it says to pass `params.tenant` and where to
+  read it. `members(action="list")`, `grant` and `revoke`, which take a product of their own in
+  `params`, still need `params.tenant`.
 - **The skill is 0.33.0.** Connected agents are asked to update their installed skill. It tells
   them which etag a source's summary, notes and text take, how search matches and pages, how a
   source's text is chosen and laid out, what an image or a scan needs, how to restore what was

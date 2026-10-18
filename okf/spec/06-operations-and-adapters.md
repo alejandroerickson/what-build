@@ -718,6 +718,13 @@ Rules:
 - **Product resolution.** A product-scoped call resolves its product from the `product` argument,
   then the endpoint's product, then the only product the caller can reach inside the endpoint's
   scope; otherwise `422 product_required` listing up to 50 of those products ([§3.6](03-accounts-teams-and-identity.md)).
+  An organization's or a team's action takes its `tenant` (and `team`) from `params`, and on a
+  scoped endpoint defaults to the endpoint's. Named with `product` instead, it acts on the
+  organization, and team, that the product is in, once the product is found visible to the
+  caller (`404` otherwise), as `sandbox(action="status", product=…)` does; an action that takes a
+  product of its own in `params` (`members` `list`, `grant` and `revoke`) does not read `product`
+  so. Naming none is `422 invalid_input`, saying `tenant` (or `team`) is missing, where to read it
+  (the first parts of a product's path) and, where it applies, that `product` names it too.
 - **Scoped means scoped.** On a scoped endpoint the scope is checked in `execute`, after
   authorization and before the handler, so a refused call changes nothing and writes no activity.
 - **Listed by level.** `tools/list` answers each connection with only the actions its level allows
