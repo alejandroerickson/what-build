@@ -143,9 +143,18 @@ describe("how plain search reads a query", () => {
     );
     // A code span shows what it holds as written; a fence's lines go, and what they hold stays.
     expect(shownWords("Run `*args*` and `` a ` b `` with `__init__`\n```ts\nconst crew = 2;\n```")).toBe("Run *args* and  a ` b  with __init__\n\nconst crew = 2;\n");
-    // What is not italics, a link or code stays as written: words joined by underscores, sums, lone stars, escapes.
-    for (const plain of ["snake_case_name and file_name.txt", "2*3*4 and a * b * c", "Cost* includes VAT*. *Note: draft", "*word*s and un*frig*ging", "\\*kept\\* and \\[kept\\](x) and \\`kept\\`", "[ref][1] and [x] done"])
+    // What is not italics, a link or code stays as written: words joined by underscores, sums, lone stars.
+    for (const plain of ["snake_case_name and file_name.txt", "2*3*4 and a * b * c", "Cost* includes VAT*. *Note: draft", "*word*s and un*frig*ging", "[ref][1] and [x] done", "C:\\Users\\crew"])
       expect(shownWords(plain), plain).toBe(plain);
+  });
+
+  it("shows an escaped character alone, and never takes it for markup", () => {
+    expect(shownWords("**Dana \\[PM\\]:** We plan \\*not italic\\*, \\_nor this\\_, \\`nor code\\` and a\\\\b.")).toBe("Dana [PM]: We plan *not italic*, _nor this_, `nor code` and a\\b.");
+    expect(shownWords("\\# Not a heading\n\\- nor a list item, and \\[not a link\\](x)")).toBe("# Not a heading\n- nor a list item, and [not a link](x)");
+    // In a link's text it shows; in an address it goes with the address; in a code span it is written as it is.
+    expect(shownWords("[the \\[board\\]](https://example.com/a\\_b) and \\* and `a\\*b`")).toBe("the [board] and * and a\\*b");
+    // Italics around an escaped character, and one inside italics, read as a reader sees them.
+    expect(shownWords("\\(*the board*\\) and *the gate\\**")).toBe("(the board) and the gate*");
   });
 
   it("finds the word a misspelling meant among the product's own words", () => {
@@ -347,6 +356,29 @@ describe("plain search's excerpts", () => {
     }
     // A hit still says where its piece starts in the text as written, which a reader opens it at.
     expect(hits[0]).toMatchObject({ field: "text", char_start: 0 });
+  });
+
+  it("shows an escaped character alone in an excerpt, its marks on the words shown", async () => {
+    const md = "The \\*late\\* crew pins \\[the gate rota\\] by the hut, and \\_every\\_ lead reads the rota twice.";
+    expect((await lee.api("POST", `${L}/assumptions`, { statement: "Late crews read the hut first.", body: md })).status).toBe(201);
+    const source = await lee.api("POST", `${L}/sources`, { title: "Hut notes — Example Co", tags: [] });
+    // A first paragraph long enough to be pieces of its own, so the escaped one is a piece that starts after it.
+    const first = "The hut opens at six and the crews come in one by one. ".repeat(30).trim();
+    expect((await lee.api("PUT", `${L}/sources/${source.body.record_id}/derived/text`, { content: `${first}\n\n${md}\n` })).status).toBe(200);
+
+    const r = (await lee.api("GET", `${L}/search?mode=plain&query=${encodeURIComponent('"gate rota" late')}`)).body;
+    const assumption = r.results.find((x: { kind: string }) => x.kind === "assumption");
+    const hit = r.results.find((x: { kind: string; id: string }) => x.kind === "source" && x.id === source.body.record_id).hits[0];
+    const shown = "The *late* crew pins [the gate rota] by the hut, and _every_ lead reads the rota twice.";
+    for (const e of [{ text: assumption.snippet, marks: assumption.snippet_marks }, { text: hit.text, marks: hit.marks }]) {
+      expect(e.text).toContain(shown);
+      expect(e.marks.map(([a, b]: [number, number]) => e.text.slice(a, b))).toEqual(["late", "gate rota"]);
+    }
+    expect(hit.text).not.toContain("\\");
+    // Where its piece starts is counted in the text as written, backslashes and all.
+    expect(hit.char_start).toBe(first.length + 2);
+    const at = await lee.api("GET", `${L}/sources/${source.body.record_id}/derived/text?offset=${hit.char_start}&limit=40`);
+    expect(at.body.text.startsWith("The \\*late\\* crew")).toBe(true);
   });
 
   it("counts a source's matches as its Find in the text does, in its text alone, beside the places it says them", async () => {

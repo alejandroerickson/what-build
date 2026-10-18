@@ -158,7 +158,8 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
   description, a mockup's brief and notes and the product concept alike: heading marks, list and
   quote markers, a table's rule row and a code fence's lines are dropped, and so are the markers
   of bold, italics (`*words*`, `_words_`, never inside a word, so `snake_case` stays) and a code
-  span, whose words show as written; a link or an image shows as its text, without its address
+  span, whose words show as written; a link or an image shows as its text, without its address,
+  and an escaped character (`\[`, `\*`) as itself, without its backslash, never read as markup
   (`shownWords`). The marks are made on the words shown, and a hit's `char_start` is still where
   its piece starts in the text as written. Results are scored by how many of the words they hold, in the title
   above the body, with exact words, words side by side and a title equal to the query ranked
