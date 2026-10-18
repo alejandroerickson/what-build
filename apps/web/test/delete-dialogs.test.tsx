@@ -41,6 +41,7 @@ vi.mock("../src/lib/session.tsx", async (original) => ({
 const { DeleteDialog } = await import("../src/routes/delete-dialog.tsx");
 const { entryImpactWords } = await import("../src/routes/registers.tsx");
 const { DeletePage } = await import("../src/routes/story-actions.tsx");
+const { servedBy } = await import("../src/routes/idea.tsx");
 const { SourceDetailPage } = await import("../src/routes/source-detail.tsx");
 
 beforeAll(() => {
@@ -172,5 +173,12 @@ describe("deleting what is already archived", () => {
     unmount?.();
     await render(<DeletePage page={{ ...page, archived_at: "2026-10-02T09:00:00.000Z" }} onArchive={() => {}} onDeleted={() => {}} onClose={() => {}} />);
     expect(footer()).toEqual(["Cancel", "Delete permanently"]);
+  });
+});
+
+describe("deleting an outcome", () => {
+  it("counts the assumptions that serve it in good grammar, one or more", () => {
+    expect(servedBy(1)).toBe("1 assumption serves it, and will no longer be linked to it.");
+    expect(servedBy(3)).toBe("3 assumptions serve it, and will no longer be linked to it.");
   });
 });

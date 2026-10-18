@@ -173,6 +173,11 @@ function IdeaPanel({ includeArchived }: { includeArchived: boolean }) {
   );
 }
 
+/** What a deleted outcome's dialog says of the assumptions that serve it, which stay, unlinked from it. */
+export function servedBy(n: number): string {
+  return `${plural(n, "assumption")} ${n === 1 ? "serves" : "serve"} it, and will no longer be linked to it.`;
+}
+
 /** What deleting an outcome destroys, as outcomes.delete_impact reports it. */
 interface OutcomeImpact {
   etag: string;
@@ -348,7 +353,7 @@ export function IdeaPage() {
           renderImpact={(i) => (
             <>
               <p>This deletes {quotedAtEnd(deleting.title)}</p>
-              {i.assumptions.length ? <p>{plural(i.assumptions.length, "assumption")} serve it, and will no longer be linked to it.</p> : null}
+              {i.assumptions.length ? <p>{servedBy(i.assumptions.length)}</p> : null}
             </>
           )}
           onDeleted={() => {
