@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild at three altitudes
 description: The whole system from the top down, the major parts, and the mechanics underneath, with links to the detail.
 tags: [overview, architecture, tenancy, access, mcp]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -63,7 +63,8 @@ React 19, React Router 7, TanStack Query 5, Vite 8; Vitest. Details in
 [architecture](../spec/02-architecture.md).
 
 **Operations.** 118 operations, each defined once and exposed through both REST and MCP, but for
-deleting an organization, which only its owner does, in the web app
+two: deleting an organization and previewing that delete, which only its owner does, in the web
+app. Agents are offered the other 116, as 14 tools
 ([decision](../decisions/one-registry-two-front-doors.md)).
 
 **Tenancy.** Organization (tenant) → team → product. One shared database and schema; every content

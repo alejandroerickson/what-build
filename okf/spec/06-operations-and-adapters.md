@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 118 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -602,7 +602,7 @@ only the actions its level allows (below).
 
 | Tool | Actions |
 |---|---|
-| `products` | `list`, `create_tenant`, `create_team`, `create`, `get`, `update`, `archive`, `restore`, `delete_impact`, `delete`, `export`, `exports` |
+| `products` | `list`, `create_tenant`, `create_team`, `create`, `get`, `update`, `archive`, `restore`, `delete_impact`, `delete`, `export`, `exports`, `tenant_allowances`, `set_tenant_allowance`, `remove_tenant_allowance`, `usage` |
 | `members` | `list`, `grant`, `revoke`, `cancel_invitation`, `activity` |
 | `sandbox` | `status`, `join`, `settings`, `update_settings`, `save_baseline`, `baselines`, `reset`, `invites`, `create_invite`, `revoke_invite`, `visitors`, `remove_visitor` |
 | `outcomes` | `list`, `get`, `create`, `update`, `archive`, `restore`, `delete_impact`, `delete`, `revisions`, `get_revision`, `restore_revision` |
