@@ -53,13 +53,17 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   for the first `story(action="set_style")`, for `products(action="set_tenant_allowance")` on an
   address without an allowance, and by `mockups(action="publish")` without `mockup_id`, which
   refused it without saying so in `details`; leave it out until the object exists.
-- **Nothing is read again by itself, except in a public sandbox; existing plain-text and workbook
-  attachments read better once read again.** A `.txt` now keeps its lines and list markers, joining
-  only hard-wrapped prose, and ends a quoted message before the reply under it; an `.xlsx` reads
-  values as the sheet shows them (`+14.0%`, not `0.14`), reads and marks hidden sheets, columns and
-  rows and a value other than zero that its format shows as nothing (a zero shown as nothing stays a
-  blank), and says when a formula was saved without its value (plain-text parser 8, XLSX 6). A
-  reading made earlier keeps its layout until its attachment is read again, with
+- **Nothing is read again by itself, except in a public sandbox; existing plain-text, workbook and
+  PDF attachments read better once read again.** A `.txt` now keeps its lines and list markers,
+  joining only hard-wrapped prose, sets a list under a line that ends in a colon apart from it, so
+  the list reads as a list whatever number it starts at, and ends a quoted message before the reply
+  under it; an `.xlsx` reads values as the sheet shows them (`+14.0%`, not `0.14`), reads and marks
+  hidden sheets, columns and rows and a value other than zero that its format shows as nothing (a
+  zero shown as nothing stays a blank), and says when a formula was saved without its value; a
+  `.pdf` reads a table as a table, a label beside its value (`Samples: 79`) and a running header or
+  footer once, where it first appears, leaving its page numbers out, which
+  `facts.headers_and_footers` in `derived(action="manifest")` lists (plain-text parser 8, XLSX 6,
+  PDF 5). A reading made earlier keeps its layout until its attachment is read again, with
   `derived(action="rederive")` or Read it again in the web app, or by a public sandbox's reset
   (below); a source whose text still follows that attachment then takes the new text, and a text
   someone wrote or edited is left alone. Left unread, those sources read and are found as before.
@@ -71,15 +75,22 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   version of the one that reads it now, or found unsupported when no parser read its format, where
   one does now, is read again by this version's parsers, recording nothing in the activity log, and
   a text still taken from it follows. A baseline saved before this release holds such readings for
-  its plain-text, workbook and PDF attachments (plain-text parser 8, XLSX 6, PDF 5), and one saved
-  before v0.14.0 for most of its attachments, so each reset reads them again, a minute or two of
-  work, until the baseline is saved again. To save it without what visitors add meanwhile, set
-  `visitor_access` to `read`, reset, let the readings finish (the log has a `job … derive …` line
-  for each), save the baseline, then set `visitor_access` back as it was. A sandbox source whose
-  only readable attachment was unsupported when the baseline was saved, such as a `.csv` one, gets
-  its text. A reading that failed, found the file too large, or found a recording or only pictures
-  (an image, or a PDF whose pages are pictures, even one an earlier release recorded as failed) is
-  never read again.
+  its plain-text, Markdown, CSV, TSV, WebVTT, SubRip, workbook and PDF attachments (plain-text
+  parser 8, Markdown 5, CSV 4, WebVTT and SubRip 3, XLSX 6, PDF 5), and one saved before v0.14.0
+  for most of its attachments, so each reset reads them again, a minute or two of work, until the
+  baseline is saved again. To save it without what visitors add meanwhile, set `visitor_access` to
+  `read`, reset, let the readings finish (the log has a `job … derive …` line for each), save the
+  baseline, then set `visitor_access` back as it was. A sandbox source whose only readable
+  attachment was unsupported when the baseline was saved, such as a `.csv` one, gets its text. A
+  reading that failed, found the file too large, or found a recording or only pictures (an image,
+  or a PDF whose pages are pictures, even one an earlier release recorded as failed) is never read
+  again.
+- **Nothing to change; a text file that holds a null character is read.** A text, Markdown, CSV,
+  TSV, WebVTT or SubRip attachment with a null character (U+0000) in it, which a Postgres text
+  value cannot hold, could not have its reading saved when the source was to take its text, and
+  stayed `pending` ("Reading") for good. Readings now leave the character out and count it in
+  `facts.null_characters_dropped` (Markdown parser 5, CSV 4, WebVTT and SubRip 3; plain text is 8
+  above). Such an attachment is read once it is read again with `derived(action="rederive")`.
 - **Nothing to change; people will notice attachments say what they are at once.** Recordings,
   images and formats no parser reads show their status the moment they arrive instead of
   "Reading". An image, or a PDF whose pages are pictures (PDF parser 5), is "Not read as text"

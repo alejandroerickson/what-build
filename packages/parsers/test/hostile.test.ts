@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { stripCueMarkup, voiceName } from "../src/cues.ts";
 import { DEFAULT_PARSE_CAP_BYTES, derive, MAX_HTML_DEPTH, MAX_PDF_PAGES, MAX_SEGMENTS, parseHtml, toParsedFile, type ParseResult } from "../src/index.ts";
 import { formatNumber, formatText, readFormat } from "../src/numfmt.ts";
+import { layoutPage, repeatedLines, type TextRun } from "../src/pdf-layout.ts";
 import { atxHeading, MAX_LIST_DEPTH, stripInlineMarkdown } from "../src/plaintext.ts";
 import { speakerLine } from "../src/speakers.ts";
 import { codePointLength, isSpaceUnit, nonSpaceCodePoints } from "../src/text.ts";
@@ -453,6 +454,33 @@ describe("files that would make too much", () => {
     expect(stored).toMatchObject({ status: "ready", char_count: Array.from(r.markdown).length });
     expect(new TextDecoder().decode(stored.text_md)).toBe(new TextDecoder().decode(new TextEncoder().encode(r.markdown)));
     expect(toParsedFile({ ...r, segments: [], text: "", markdown: "" })).toMatchObject({ char_count: 0, text_md: new Uint8Array(0) });
+  });
+});
+
+describe("PDF pages that would take long to lay out", () => {
+  const run = (text: string, x: number, y: number, order: number, size = 10): TextRun => ({ text, x, y, width: text.length * size * 0.5, size, order, rtl: false });
+
+  it("lays out a line of very many runs, and many lines of cells that never make a table, in bounded time", () => {
+    // Two hundred thousand runs on one baseline: more than a function call takes arguments.
+    const wide = Array.from({ length: 200_000 }, (_, i) => run("a", i * 6, 700, i));
+    let started = performance.now();
+    expect(layoutPage(wide, [], 0, 792).lines).toHaveLength(1);
+    expect(performance.now() - started).toBeLessThan(3000);
+    // Ten thousand lines of three cells, one under the next, set where no column lines up: a
+    // table is looked for under each, and the search stops at the page's budget.
+    const rows = Array.from({ length: 10_000 }, (_, i) => [0, 1, 2].map((j) => run("cell", 72 + j * 120 + ((i * 37 + j * 11) % 23), 130_000 - i * 12, i * 3 + j))).flat();
+    started = performance.now();
+    const page = layoutPage(rows, [], 0, 130_100);
+    expect(page.lines).toHaveLength(10_000);
+    expect(page.lines.some((l) => l.table)).toBe(false);
+    expect(performance.now() - started).toBeLessThan(3000);
+  });
+
+  it("compares lines repeated up the margin in time linear in their length", () => {
+    const pages = [1, 2, 3].map(() => layoutPage([run("The text of the page.", 72, 400, 0)], [[run("9".repeat(200_000), 580, 300, 1)]], 0, 792));
+    const started = performance.now();
+    expect(repeatedLines(pages).said).toEqual([]);
+    expect(performance.now() - started).toBeLessThan(1000);
   });
 });
 

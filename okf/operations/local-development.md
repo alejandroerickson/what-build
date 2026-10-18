@@ -35,6 +35,36 @@ migrations a later commit ran on it, and the worker of an earlier commit then ta
 would in a deployment, and says so in its log: run that commit on a fresh database, or delete
 `.what-build/pg` to start again.
 
+## The local Postgres
+
+Each embedded cluster (`.what-build/pg` for `pnpm dev` and a copy of production,
+`.what-build/test-pg` for the tests, `.what-build/e2e/pg` for the end-to-end instance) is made in
+UTF-8 with the C.UTF-8 locale, as Neon's databases are by default: text functions count
+characters, text sorts by code point, and full-text search and trigrams read letters beyond ASCII
+as production does ([`testing/pg.ts`](../../apps/server/src/testing/pg.ts),
+[decision](../decisions/development-substitutes-adapters-never-behavior.md)). macOS and CI's Linux
+have a C.UTF-8 locale; a system without one gets PostgreSQL's own (`builtin`) C.UTF-8, which sorts
+and changes case the same way but whose search and trigrams take only ASCII letters for letters.
+
+A cluster made before local clusters were UTF-8 is SQL_ASCII, where `left()` and `length()` count
+bytes:
+
+- The tests' cluster holds nothing to keep, and is made again when the tests start.
+- The end-to-end instance's is made again when its golden master is built
+  ([end-to-end tests](end-to-end-tests.md#the-golden-master)).
+- The development cluster holds your work, so it is kept as it is, and `pnpm dev` says at start
+  that it is SQL_ASCII. For a UTF-8 one, stop `pnpm dev`, move the old cluster aside
+  (`mv .what-build/pg .what-build/pg-sql_ascii`), and start `pnpm dev` again: it makes a new
+  cluster and seeds it, and `pnpm fixture load` puts a copy of production into it again.
+
+Each checkout uses only its own clusters ([`testing/pg.ts`](../../apps/server/src/testing/pg.ts)).
+A tool that finds a Postgres already answering on a cluster's port uses it only when its
+`data_directory` is this checkout's; another checkout's cluster, or any other server, is refused
+before anything is made, started or dropped, and the refusal names the other cluster's data
+directory. So two checkouts side by side each need ports of their own: `WHATBUILD_PG_PORT` for
+`pnpm dev`, a copy of production and `pnpm fixture`, `WHATBUILD_TEST_PG_PORT` for the tests, and
+`WHATBUILD_E2E_PG_PORT` for the end-to-end instance.
+
 ## Development and production
 
 The server behaves as a development server only when `NODE_ENV` is exactly `development` or
@@ -85,7 +115,7 @@ plans in `e2e/plans/` there through the browser and MCP and reports what it find
 | Command | What it does |
 |---|---|
 | `pnpm typecheck` | `tsc` over parsers, core, server and web. |
-| `pnpm test` | Vitest: parsers, server (against an embedded Postgres 17) and web projects. `pnpm vitest run --project web` runs one. To run the server tests on another Postgres, such as the version a host offers, set `TEST_DATABASE_ADMIN_URL` (a superuser, which creates a database per test file) and `TEST_DATABASE_APP_URL_TEMPLATE` (the same server as a role named `whatbuild` without `SUPERUSER` or `BYPASSRLS`, with `{db}` for the database). The embedded server listens on `:54331`; `WHATBUILD_TEST_PG_PORT` moves it, so two checkouts can run the suite at once. |
+| `pnpm test` | Vitest: parsers, server (against an embedded Postgres 17) and web projects. `pnpm vitest run --project web` runs one. To run the server tests on another Postgres, such as the version a host offers, set `TEST_DATABASE_ADMIN_URL` (a superuser, which creates a database per test file, on a server in UTF-8, as the suite checks) and `TEST_DATABASE_APP_URL_TEMPLATE` (the same server as a role named `whatbuild` without `SUPERUSER` or `BYPASSRLS`, with `{db}` for the database). The embedded server listens on `:54331`; `WHATBUILD_TEST_PG_PORT` moves it, so two checkouts can run the suite at once. |
 | `pnpm build` | The web bundle and the server bundle. |
 | `pnpm gen:skill` | Re-embeds `packages/core/src/skill/SKILL.md`; CI fails if it is stale. |
 | `pnpm db:migrate`, `pnpm db:seed` | Run migrations or the seed against `DATABASE_URL`, as a development server. |

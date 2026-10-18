@@ -9,7 +9,7 @@ import { renderMarkdown } from "./markdown.ts";
 import { markdownParser, plaintextParser } from "./plaintext.ts";
 import { extensionOf, SCAN_DETAIL, settle } from "./statuses.ts";
 import { assemble, decodeText, nonSpaceCodePoints } from "./text.ts";
-import { DEFAULT_PARSE_CAP_BYTES, TooLargeError, type DerivationStatus, type FormatParser, type ParseResult, type Segment } from "./types.ts";
+import { DEFAULT_PARSE_CAP_BYTES, TooLargeError, type DerivationStatus, type FormatParse, type FormatParser, type ParseResult, type Segment, type TableRef } from "./types.ts";
 import { xlsxParser } from "./xlsx.ts";
 
 export type { Block, DerivationStatus, FormatParse, ParsedFile, ParseResult, Segment, TableRef } from "./types.ts";
@@ -99,17 +99,66 @@ function nonReady(
   };
 }
 
+/** U+0000, which a Postgres text value cannot hold. */
+const NUL = "\u0000";
+
+const withoutNul = (s: string) => (s.includes(NUL) ? s.replaceAll(NUL, "") : s);
+
+/**
+ * Drop U+0000 from what a parser read, before it is laid out: from each block's text and speaker,
+ * each table's cells and a Markdown file's own text. A text file read as UTF-8 keeps any it holds,
+ * and Postgres refuses a text value with one in it, so the reading could not be stored. Returns how
+ * many were dropped from the readable text: from a Markdown file's own text, or from its blocks.
+ */
+function dropNul(parsed: FormatParse): number {
+  let dropped = 0;
+  const asIs = parsed.markdown !== undefined;
+  const strip = (s: string, counts: boolean) => {
+    const t = withoutNul(s);
+    if (counts) dropped += s.length - t.length;
+    return t;
+  };
+  const tables = new Set<TableRef>();
+  for (const b of parsed.blocks) {
+    if (b.table && !tables.has(b.table)) {
+      tables.add(b.table);
+      b.table.header = b.table.header.map((c) => strip(c, !asIs));
+      b.table.rows = b.table.rows.map((r) => r.map((c) => strip(c, !asIs)));
+    }
+    // A table's row repeats its cells, which are counted once, with the table.
+    b.text = strip(b.text, !asIs && !b.table);
+    if (b.speaker) b.speaker = strip(b.speaker, !asIs);
+  }
+  if (parsed.markdown !== undefined) parsed.markdown = strip(parsed.markdown, true);
+  return dropped;
+}
+
+/** A reading's detail and facts without U+0000, which their columns cannot hold either. */
+function stored(r: ParseResult): ParseResult {
+  if (r.status_detail !== null) r.status_detail = withoutNul(r.status_detail);
+  for (const [k, v] of Object.entries(r.facts)) {
+    if (typeof v === "string") r.facts[k] = withoutNul(v);
+    else if (Array.isArray(v)) r.facts[k] = v.map(withoutNul);
+  }
+  return r;
+}
+
 /**
  * Derive the text of one file: its segments, and the readable Markdown a derivation stores. A pure
  * function of bytes: it never throws for a bad file — every outcome is a status — so the worker can
  * always record what happened. What it may cost in memory and time is bounded where it runs: the
- * server runs it in a worker thread of its own (apps/server/src/parse-thread.ts).
+ * server runs it in a worker thread of its own (apps/server/src/parse-thread.ts). Nothing it returns
+ * holds U+0000: the facts say how many were dropped (`null_characters_dropped`).
  */
 export async function derive(
   bytes: Uint8Array,
   fileName: string,
   options: { mediaType?: string | null; parseCapBytes?: number } = {},
 ): Promise<ParseResult> {
+  return stored(await read(bytes, fileName, options));
+}
+
+async function read(bytes: Uint8Array, fileName: string, options: { mediaType?: string | null; parseCapBytes?: number }): Promise<ParseResult> {
   const cap = options.parseCapBytes ?? DEFAULT_PARSE_CAP_BYTES;
   const settled = settledReading(fileName, { mediaType: options.mediaType, size: bytes.byteLength, parseCapBytes: cap });
   if (settled) {
@@ -119,11 +168,13 @@ export async function derive(
     return r;
   }
   const parser = parserFor(fileName, options.mediaType)!;
-  let parsed: Awaited<ReturnType<FormatParser["parse"]>>;
+  let parsed: FormatParse;
   let segments: Segment[];
   let text: string;
+  let nul: number;
   try {
     parsed = await parser.parse(bytes, fileName, { maxBytes: cap });
+    nul = dropNul(parsed);
     ({ segments, text } = assemble(parsed.blocks));
   } catch (err) {
     const e = err as Error;
@@ -131,7 +182,7 @@ export async function derive(
     if (err instanceof TooLargeError) return nonReady("too_large", e.message, parser.name, parser.version);
     return nonReady("failed", `${e.name ?? "Error"}: ${e.message ?? String(err)}`.slice(0, 200), parser.name, parser.version);
   }
-  const facts = parsed.facts ?? {};
+  const facts = nul ? { ...parsed.facts, null_characters_dropped: nul } : (parsed.facts ?? {});
   // Silent loss is the worst failure: a text parse that keeps almost nothing reports `failed`.
   const ext = extensionOf(fileName);
   if (TEXT_LIKE.has(ext)) {

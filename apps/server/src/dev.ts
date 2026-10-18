@@ -29,6 +29,15 @@ import { Worker } from "./worker.ts";
  *                            pnpm dev; mail only prints here (okf/operations/end-to-end-tests.md)
  */
 const root = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
+
+/** Said once at start, when the development cluster was made before local clusters were made in UTF-8. */
+const OLD_CLUSTER = (encoding: string) => `
+  The local Postgres in .what-build/pg was made in ${encoding}, before local clusters were made in
+  UTF-8, so its text functions count bytes where production counts characters. It holds your local
+  work, so it is left as it is. For one in UTF-8: stop pnpm dev, move the old one aside
+  (mv .what-build/pg .what-build/pg-${encoding.toLowerCase()}), and start pnpm dev again, which makes a
+  new one and seeds it; pnpm fixture load puts a copy of production into it again.
+`;
 const FIXTURE = process.argv.includes("--fixture");
 const END_TO_END = process.argv.includes("--e2e");
 const API_PORT = END_TO_END ? E2E.apiPort : Number(process.env["PORT"] ?? 8787);
@@ -43,7 +52,8 @@ async function main() {
     for (const [name, port, variable] of [["API", API_PORT, "WHATBUILD_E2E_API_PORT"], ["web", WEB_PORT, "WHATBUILD_E2E_WEB_PORT"]] as const)
       if (!(await portFree(port))) throw new Error(`The end-to-end instance's ${name} port ${port} is taken by another process. Stop it, or choose another port with ${variable}.`);
     console.log("Starting the end-to-end instance's Postgres (embedded, in .what-build/e2e/pg)…");
-    pg = await connectOrStartLocalPg(E2E.pgDir, E2E.pgPort);
+    pg = await connectOrStartLocalPg(E2E.pgDir, E2E.pgPort, { portVariable: "WHATBUILD_E2E_PG_PORT" });
+    if (pg.encoding !== "UTF8") console.log(`  The golden master was built in ${pg.encoding}, before local clusters were made in UTF-8: build it again with pnpm e2e golden.`);
     const reset = await resetToGolden(pg).catch(async (e: unknown) => {
       await pg!.stop();
       throw e;
@@ -53,7 +63,8 @@ async function main() {
     console.log(`Reset to the golden master (from the pull ${reset.golden.pull}, built ${reset.golden.built_at}).`);
   } else if (!databaseUrl) {
     console.log("Starting Postgres (embedded, in .what-build/pg)…");
-    pg = await startLocalPg(resolve(root, ".what-build/pg"), Number(process.env["WHATBUILD_PG_PORT"] ?? 54329));
+    pg = await startLocalPg(resolve(root, ".what-build/pg"), Number(process.env["WHATBUILD_PG_PORT"] ?? 54329), { portVariable: "WHATBUILD_PG_PORT" });
+    if (pg.encoding !== "UTF8") console.log(OLD_CLUSTER(pg.encoding));
     if (FIXTURE && !(await pg.hasDatabase(FIXTURE_DATABASE))) {
       await pg.stop();
       throw new Error("No copy is loaded: run pnpm fixture pull, then pnpm fixture load.");

@@ -239,6 +239,10 @@ well:
 - Headings stay headings; paragraphs, numbered items and tables stay as they were, a table as one
   table. A PDF has a `# Page N` heading for each page; a spreadsheet is a table for each sheet, its
   first column the sheet's row number.
+- A PDF reads as its pages do: a table as a table, a label beside its value (`Samples: 79`), other
+  cells of a line apart (` · `). A header or footer repeated on most pages is read once, where it
+  first appears, and page numbers are left out; `facts.headers_and_footers` in
+  `derived(action="manifest")` lists them.
 - A text file keeps its lines and list markers; only prose wrapped to a width is joined.
 - A spreadsheet's values read as the sheet shows them (`+14.0%`, not `0.14`); hidden sheets,
   columns and rows are read and marked `(hidden)`; a formula saved without its value reads
