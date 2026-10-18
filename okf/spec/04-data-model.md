@@ -270,11 +270,11 @@ comments' segment ranges and anchors, keeping their text.
 
 ## 4.7 Evidence links
 
-Writing may mention a source in prose by its id ("source 01K…"). The web app renders such a
-mention in Markdown as an evidence link that reads as the source's title and opens the source
-([`apps/web/src/lib/markdown.tsx`](../../apps/web/src/lib/markdown.tsx)). A source has no
-passages to point at: a mention written while it had ("source 01K…, segments 4–6") opens the
-source too, and its numbers are left out. A link is presentation
+Markdown may link to a source, at its address (`…/evidence/<record_id>`); the web app sets such a
+link as an evidence link, a quiet token that opens the source
+([`apps/web/src/lib/markdown.tsx`](../../apps/web/src/lib/markdown.tsx)). A source mentioned in
+prose by its id alone ("source 01K…") stays as written, and so does one written while sources had
+passages ("source 01K…, segments 4–6"). A link is presentation
 only. Nothing structural points from an assumption, a Story page, a mockup or another source to a
 source, and nothing records what mentions what: what bears on a piece of work is found by
 searching the product ([§8](08-search.md),

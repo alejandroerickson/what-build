@@ -37,8 +37,8 @@ stakeholders to read), not a quoted or cited record of how decisions were reache
 - A Story page may quote, paraphrase, sum up or link to anything in the product, as suits the page
   or as the person asks. Nothing requires, restricts or defaults how it quotes, attributes or
   links; what holds is that it is true to what it draws on.
-- Prose may still mention a source by its id ("source 01K…"); the app shows it as a link to the
-  source, and nothing records it. A source has no passages to point at
+- A source mentioned in prose by its id ("source 01K…") stays as written: nothing turns it into a
+  link or records it. A source has no passages to point at
   ([decision](a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)).
 - The citations assumptions held became quotes at the end of their bodies; those of Story and
   mockup versions were dropped, since a page's HTML holds what it quotes.
