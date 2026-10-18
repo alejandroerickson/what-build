@@ -104,7 +104,9 @@ the browser's back button and "open in new tab" both work.
   concept, then outcomes), **Evidence** (sources, each with the best three places it says the
   words, each saying where and opening there as the palette's do, and "N more places in this
   source"), **Exploration** (mockups, then assumptions, each with its status as a badge, said once) and
-  **Story**. A kind named in the query brings its area first. The panel shows Everything and each
+  **Story**. A kind named in the query brings its area first. When nothing holds every word, each
+  result also names the words it lacks ("Missing: …"), which the palette leaves to its line,
+  "Nothing has all your words.". The panel shows Everything and each
   area with its count (`?show=idea|evidence|exploration|story`). With `record_id` it lists every
   place one source says the words, each opening at its own match, with a link back to searching
   everything. A corrected word

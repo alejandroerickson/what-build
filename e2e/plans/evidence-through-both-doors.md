@@ -28,9 +28,11 @@ the same is tried in the sandbox, where the sandbox's limits apply.
    `attachment`, whose `note` says it is being read and will become the source's text, and that
    it is kept and never searched; no `complete_upload` is needed.
 3. **Web, as Sam.** Open Evidence. *Expect:* the new source is listed with its title and tags;
-   opening it shows its Text once the attachment has been read (the page updates by itself), with
-   "Read from" naming the file, each turn starting with **Dana** or the interviewer in bold, and
-   Attachments listing the file as read, with its length, as the source's text.
+   the panel's filters are Tags and Archived, with Added by only when more than one person has
+   added sources (a fresh golden master shows Tags and Archived alone; Sam's source may bring Added
+   by); opening the source shows its Text once the attachment has been read (the page updates by
+   itself), with "Read from" naming the file, each turn starting with **Dana** or the interviewer
+   in bold, and Attachments listing the file as read, with its length, as the source's text.
 4. **Web, as Sam.** Search for "van checklist" from the panel's Search field. *Expect:* the source
    is found, and only it, saying the words are in its text; opening the hit shows its Text with
    the words marked, and the find field holding them, counting the matches ("1 of …") and stepping
@@ -38,7 +40,10 @@ the same is tried in the sandbox, where the sandbox's limits apply.
 5. **Web, as Sam.** On the source, edit the text: correct one word in Dana's turn, then save. Open
    Comments and comment on the source, then add a summary under its title. *Expect:* the text
    now says it was written by Sam, just now, and keeps the correction; the comment is listed in Comments, on the
-   whole source; the summary shows under the title, attributed to Sam.
+   whole source; the summary shows under the title, attributed to Sam. Then archive the comment
+   from its menu, saying why, and restore it. *Expect:* archived, it leaves Comments, which offer
+   "Show 1 archived comment"; that lists it muted, marked Archived, with when and why; Restore in
+   its menu puts it back among the comments.
 6. **MCP, as Sam.** Read the source (`sources` `get` with `detail: "full"`), its comments, its
    summary (`derived` `read_note`) and its text (`derived` `text`). Then `search` for the
    corrected word, and read the text around the hit with `derived(action="text")` from a little
@@ -55,7 +60,8 @@ the same is tried in the sandbox, where the sandbox's limits apply.
    search finds nothing, and its `coverage` says "Attachments are never searched."; the
    attachment's own text holds the made-up word, and `sources(action="get")`'s `warnings` names
    both files as text the source's text does not use. On the web, Attachments lists both files,
-   neither marked as the source's text, since Sam edited it in step 5.
+   neither marked as the source's text, since Sam edited it in step 5, under a line saying the
+   source's text was written here and follows no attachment.
 8. **MCP, as Sam.** Write the made-up word into the source's text with
    `derived(action="write_text")` and `edits`, passing the etag from step 6 as `expected_etag`;
    then again with the same old etag. *Expect:* the first answers with a new etag and a short
@@ -75,7 +81,9 @@ the same is tried in the sandbox, where the sandbox's limits apply.
 11. **Web, as Sam.** Open Activity. *Expect:* entries for both sources, the attachments, the text
     edits and the comment, each saying who did it and whether it came from the web or from an
     agent; reading each attachment is WhatBuild's, "on the server", never "in the app", and reads
-    "Read the text of <file>" without a parser's label; the comment reads "Added a comment".
+    "Read the text of <file>" without a parser's label; the comment reads "Added a comment", and
+    archiving and restoring it read "archived a comment on" and "restored a comment on" the
+    source, without the reason.
 12. **MCP, as Sam.** Update the first source's title with an `expected_etag` from before the last
     change (read the source, change it once, then change it again with the old etag). *Expect:*
     the second write is refused with `409 stale_etag`, and nothing changed.
