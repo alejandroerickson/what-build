@@ -750,7 +750,7 @@ a product that isn't archived (`canDelete`). One dialog serves every delete
 | Outcome | its row's menu on Idea | its row's menu |
 | Story page | its row's menu in the tree, and the inspector's About | its row's menu, and the inspector's About |
 | Mockup | in its delete dialog, as the alternative | the inspector's Version, under Download |
-| Product | Settings, Archive this product | Settings, Delete this product |
+| Product | Settings, Archive this product, and in its delete dialog | Settings, Delete this product |
 | Organization | — | Members, Delete this organization, for owners, never in a public sandbox |
 
 1. The visible control is **Archive**. It is a plain, ordinary action with no confirmation beyond
@@ -826,7 +826,8 @@ never described as deleting. A list row showing an archived object says *Archive
   and nowhere else.
 - **Product settings** (`…/settings`, in the product's shell): name, slug and product concept; **People**;
   export; the organization; and, for admins, archive or restore and **Delete this product**,
-  whose dialog counts everything in it and needs a reason and the product's name typed (§7.10). **People** lists everyone who can reach this
+  whose dialog counts everything in it, needs a reason and the product's name typed, and offers
+  Archive instead while the product is live (§7.10). **People** lists everyone who can reach this
   product and how, in words: a product role, or a role inherited from the team or the
   organization (`members.list` with `product`). Product admins get a role picker (admin, editor,
   viewer, reader) for product roles, **Add people** (pick someone already in the organization whom

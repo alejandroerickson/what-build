@@ -14,12 +14,23 @@ const BASE = "/api/v1/p/acme/core/crew";
 const by = { account_id: "a1", display_name: "Riley Chen", surface: "web", client: null };
 /** Whether the source the page shows is archived. */
 const source = { archived_at: null as string | null };
+/** The product its Settings show, to an admin. */
+const product = {
+  product_id: "p1", name: "Crewboard", slug: "crew", concept: "", archived_at: null as string | null, etag: "product-etag", path: "acme/core/crew",
+  tenant: { tenant_id: "t1", slug: "acme", name: "Acme" }, team: { team_id: "tm1", slug: "core", name: "Core" }, your_role: "admin",
+};
 
 vi.mock("../src/lib/api.ts", async (original) => {
   const real = await original<typeof import("../src/lib/api.ts")>();
   return {
     ...real,
-    api: vi.fn(async (_method: string, path: string) => {
+    api: vi.fn(async (method: string, path: string) => {
+      if (path === `${BASE}/delete-impact`)
+        return { etag: "product-impact-etag", contents: { sources: 2, stored_files: 0, bytes: 0, comments: 0, outcomes: 0, assumptions: 0, story_pages: 0, mockups: 0, exports: 0, people: 0 } };
+      if (method === "POST" && path === `${BASE}/archive`) return { product_id: product.product_id, archived_at: "2026-10-02T09:00:00.000Z" };
+      if (path === `${BASE}/exports`) return { items: [] };
+      if (path === "/api/v1/me/products") return { items: [], tenants: [] };
+      if (path.startsWith("/api/v1/tenants/acme/members")) return { product: { product_id: product.product_id, name: product.name, team_id: "tm1", team: "Core" }, members: [], invitations: [] };
       if (path === `${BASE}/sources/${ID}?detail=full`)
         return {
           record_id: ID, title: "Crew lead interview — Example Co", date: null, tags: [], uploaded_by: by, uploaded_at: "2026-10-01T09:00:00.000Z",
@@ -35,10 +46,12 @@ vi.mock("../src/lib/api.ts", async (original) => {
 });
 vi.mock("../src/lib/session.tsx", async (original) => ({
   ...(await original<typeof import("../src/lib/session.tsx")>()),
-  useProduct: () => ({ api: BASE, app: "/t/acme/core/crew", canWrite: true, canDelete: true }),
+  useProduct: () => ({ api: BASE, app: "/t/acme/core/crew", canWrite: true, canDelete: true, isAdmin: true, product }),
 }));
 
+const { api } = await import("../src/lib/api.ts");
 const { DeleteDialog } = await import("../src/routes/delete-dialog.tsx");
+const { ProductSettingsPage } = await import("../src/routes/product-misc.tsx");
 const { entryImpactWords } = await import("../src/routes/registers.tsx");
 const { DeletePage } = await import("../src/routes/story-actions.tsx");
 const { servedBy } = await import("../src/routes/idea.tsx");
@@ -62,7 +75,14 @@ afterEach(() => {
   unmount = null;
   document.body.innerHTML = "";
   source.archived_at = null;
+  product.archived_at = null;
+  vi.mocked(api).mockClear();
 });
+
+/** Lets the queries and the dialog a click opened settle. */
+async function settle() {
+  for (let i = 0; i < 5; i++) await act(async () => new Promise((r) => setTimeout(r, 0)));
+}
 
 async function render(node: ReactNode, at = "/") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -172,6 +192,29 @@ describe("deleting what is already archived", () => {
     expect(footer()).toEqual(["Cancel", "Archive instead", "Delete permanently"]);
     unmount?.();
     await render(<DeletePage page={{ ...page, archived_at: "2026-10-02T09:00:00.000Z" }} onArchive={() => {}} onDeleted={() => {}} onClose={() => {}} />);
+    expect(footer()).toEqual(["Cancel", "Delete permanently"]);
+  });
+});
+
+describe("deleting a product", () => {
+  it("offers Archive instead while the product is live, as the dialogs of everything else that can be archived do, and it archives the product", async () => {
+    await render(<ProductSettingsPage />);
+    await act(async () => button("Delete Crewboard permanently…").click());
+    await settle();
+    expect(document.querySelector("dialog[open] .dialog-title")?.textContent).toBe("Delete Crewboard permanently?");
+    expect(footer()).toEqual(["Cancel", "Archive instead", "Delete permanently"]);
+    await act(async () => button("Archive instead").click());
+    await settle();
+    expect(vi.mocked(api).mock.calls).toContainEqual(["POST", `${BASE}/archive`, { expected_etag: "product-etag" }]);
+    expect(vi.mocked(api).mock.calls.some(([m]) => m === "DELETE")).toBe(false);
+    expect(document.querySelector("dialog[open]")).toBeNull();
+  });
+
+  it("leaves Archive instead out once the product is archived", async () => {
+    product.archived_at = "2026-10-02T09:00:00.000Z";
+    await render(<ProductSettingsPage />);
+    await act(async () => button("Delete Crewboard permanently…").click());
+    await settle();
     expect(footer()).toEqual(["Cancel", "Delete permanently"]);
   });
 });
