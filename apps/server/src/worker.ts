@@ -37,7 +37,8 @@ interface Job {
  * can run it without a broker. Derivation always runs here, never inside the request that uploaded
  * the file, in every environment, and the parse itself in a worker thread of its own held to a
  * memory and a time limit (parse-thread.ts). A job that stops the process anyway, or fails, is given
- * up after five attempts, and a read given up records a failed reading of its attachment.
+ * up after five attempts (an export at its first failure), and a read given up records a failed
+ * reading of its attachment.
  */
 export class Worker {
   private timer: NodeJS.Timeout | null = null;
@@ -205,8 +206,8 @@ export class Worker {
 
   /**
    * Give up the jobs that used every attempt without finishing. A job that fails is given up in
-   * `run` (a read in `giveUpRead`); these are the ones the process stopped during, every time, most
-   * likely because the job itself took it down (a file that needs more memory than the server has).
+   * `run`, by `giveUp`; these are the ones the process stopped during, every time, most likely
+   * because the job itself took it down (a file that needs more memory than the server has).
    * Claiming one again would take the server down again, so it is marked done, and a derivation or
    * an export records that it failed.
    */
@@ -279,39 +280,30 @@ export class Worker {
       });
     } catch (e) {
       const msg = (e as Error).message?.slice(0, 500) ?? String(e);
-      const final = job.attempts >= MAX_ATTEMPTS || job.kind === "export";
-      if (final && job.kind === "derive") return this.giveUpRead(job, msg);
-      if (job.kind === "export")
-        await this.env.db.transaction().execute(async (trx) => {
-          await sql`select set_config('app.tenant_id', ${job.tenant_id}, true)`.execute(trx);
-          await markExportFailed(trx, String(job.payload["export_id"]), msg);
-        });
-      this.log(`job ${job.job_id} ${job.kind} failed (attempt ${job.attempts}${final ? ", giving up" : ""}): ${msg}`);
+      // An export is given up at its first failure, any other job at its last attempt.
+      if (job.attempts >= MAX_ATTEMPTS || job.kind === "export") return this.giveUp(job, msg);
+      this.log(`job ${job.job_id} ${job.kind} failed (attempt ${job.attempts}): ${msg}`);
       await this.env.db
         .updateTable("jobs")
-        .set({
-          error: msg,
-          locked_at: null,
-          locked_by: null,
-          run_after: new Date(Date.now() + 2 ** job.attempts * 5000).toISOString(),
-          ...(final ? { done_at: new Date().toISOString() } : {}),
-        })
+        .set({ error: msg, locked_at: null, locked_by: null, run_after: new Date(Date.now() + 2 ** job.attempts * 5000).toISOString() })
         .where("job_id", "=", job.job_id)
         .execute();
     }
   }
 
   /**
-   * Give up a read whose last attempt failed with an error, recording in the same transaction a
-   * `failed` reading of its attachment version that says it could not be read and that reading it
-   * again may help. Its attachment then says so, where it would read "Reading" for good, and Read it
-   * again (`derived.rederive`) reads it afresh. The statement that gives it up looks for a later
-   * version's migration, as the claim and the abandoned jobs' give-up do: while the database has one,
-   * the attempt may have failed on that version's schema, so the job is left for the version that
-   * carries it, this attempt not spent, and nothing is recorded. Should the give-up itself fail, the
-   * job keeps its lock, and the abandoned jobs' give-up takes it once that is ten minutes old.
+   * Give up a job whose last attempt failed with an error (an export's first), in one transaction
+   * with what records that it ended. A read records a `failed` reading of its attachment version
+   * that says it could not be read and that reading it again may help: its attachment then says so,
+   * where it would read "Reading" for good, and Read it again (`derived.rederive`) reads it afresh.
+   * An export records its failure. The statement that gives it up looks for a later version's
+   * migration, as the claim and the abandoned jobs' give-up do: while the database has one, the
+   * attempt may have failed on that version's schema, so the job is left for the version that
+   * carries it, this attempt not spent, and nothing is recorded. Should the give-up itself fail,
+   * nothing changes and the job keeps its lock: once that is ten minutes old, the abandoned jobs'
+   * give-up takes a job at its last attempt, and the claim an export, which then runs again.
    */
-  private async giveUpRead(job: Job, error: string): Promise<void> {
+  private async giveUp(job: Job, error: string): Promise<void> {
     const outcome = await this.env.db
       .transaction()
       .execute(async (trx): Promise<"given up" | "left" | "taken over"> => {
@@ -329,21 +321,24 @@ export class Worker {
             returning job_id`.execute(trx);
           return left.rows.length ? "left" : "taken over";
         }
-        await runDerivation(trx, this.env.ports, {
-          tenant_id: job.tenant_id,
-          record_id: String(job.payload["record_id"]),
-          file_version_id: String(job.payload["file_version_id"]),
-          force: Boolean(job.payload["force"]),
-          quiet: Boolean(job.payload["quiet"]),
-          failed: READ_GIVEN_UP,
-        });
+        if (job.kind === "derive")
+          await runDerivation(trx, this.env.ports, {
+            tenant_id: job.tenant_id,
+            record_id: String(job.payload["record_id"]),
+            file_version_id: String(job.payload["file_version_id"]),
+            force: Boolean(job.payload["force"]),
+            quiet: Boolean(job.payload["quiet"]),
+            failed: READ_GIVEN_UP,
+          });
+        else if (job.kind === "export") await markExportFailed(trx, String(job.payload["export_id"]), error);
         return "given up";
       })
       .catch((e: Error) => e);
-    const failed = `job ${job.job_id} derive failed (attempt ${job.attempts}`;
-    if (outcome === "given up") this.log(`${failed}, giving up; its reading is recorded as failed): ${error}`);
+    const failed = `job ${job.job_id} ${job.kind} failed (attempt ${job.attempts}`;
+    const recorded = job.kind === "derive" ? "; its reading is recorded as failed" : job.kind === "export" ? "; the export is recorded as failed" : "";
+    if (outcome === "given up") this.log(`${failed}, giving up${recorded}): ${error}`);
     else if (outcome === "left") this.log(`${failed}): ${error}; left, this attempt not spent, for the version that carries the database's later migrations`);
     else if (outcome === "taken over") this.log(`${failed}): ${error}; another worker has taken it over`);
-    else this.log(`${failed}, giving up): ${error}; recording that it was given up failed (${outcome.message}), so it is given up once its lock is ten minutes old`);
+    else this.log(`${failed}, giving up): ${error}; giving it up failed (${outcome.message}), so it waits until its lock is ten minutes old`);
   }
 }
