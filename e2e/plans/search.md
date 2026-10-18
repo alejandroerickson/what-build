@@ -32,10 +32,11 @@ that what one door writes the other finds at once, and that a reader has no sear
    *Expect:* results arrive as you type, without Enter, at most eight, best match first, each with
    its kind's glyph, the title with the words marked, what it is (a source with its date and its
    number of matches) and a line of matching text saying where it is ("In its text"); the field's
-   button reads "All N results". Move down with the arrow keys to a source that matched only in its
-   text, note its number of matches ("N matches"), and press Enter. *Expect:* the source opens on
-   its Text with the word marked, the find field holding it and counting the same number of
-   matches ("1 of N", N as the palette said), and the palette is closed.
+   button reads "All N results". Move down with the arrow keys to a source whose line says "In its
+   text" (its title may hold the word too), note its number of matches ("N matches"), and press
+   Enter. *Expect:* the source opens on its Text with the word marked from the match the line
+   showed, the find field holding it and counting the same number of matches ("… of N", N as the
+   palette said), and the palette is closed.
 4. **Web, as Sam.** On the source, press `/`. *Expect:* the palette opens again with the words
    from step 3, selected, so typing replaces them. Delete them. *Expect:* the search is under
    "Recent searches". Pick it. *Expect:* it fills the field. Press Escape, then go through the
@@ -60,10 +61,13 @@ that what one door writes the other finds at once, and that a reader has no sear
      the typo as typed and finds nothing;
    - the text word with "the" and "of" around it; *Expect:* the Search screen says "Left out: the,
      of" and finds what the word alone finds;
-   - the text word and a made-up word; *Expect:* "Nothing has all your words.", and each result
-     names the made-up word as Missing;
-   - a made-up word alone; *Expect:* "Nothing in <product> matches …" with a suggestion, and no
-     error;
+   - the text word and a made-up word; *Expect:* "Nothing has all your words." in both; on the
+     Search screen only, each result also names the made-up word as Missing
+     (`okf/spec/07-web-app.md` §7.2);
+   - a made-up word alone; *Expect:* no error; the palette says "Nothing in <product> matches
+     “<word>”. Try another word.", and the Search screen "Nothing matches “<word>”" over "Try
+     another word, or fewer words."; searched again in straight quotes, `"<word>"`, it shows in
+     one pair of quotation marks in both, never two;
    - "mockups" and a word from a mockup; *Expect:* "Mockups first.", and the mockup leads;
    - two words side by side in one source's text, in quotes, then the same two in the other order
      in quotes; *Expect:* the first finds that source, the second does not;
@@ -83,14 +87,18 @@ that what one door writes the other finds at once, and that a reader has no sear
    listed once, with its number of matches, the best three places it says the words, each saying
    where, and "N more places in this source". Follow that. *Expect:* every place in that source,
    the three shown and the N more, and a way back to searching everything. Open one of its places
-   in its text. *Expect:* the source's Text with the words marked, and the find field counting as
-   many matches as the source's number of matches said ("1 of" that number, a place in the text
-   often holding more than one match), stepping from one to the next with the arrows or Enter.
+   in its text, not the first. *Expect:* the source's Text with the words marked, the find field
+   starting at that place's own match (not "1 of …") and counting as many matches as the source's
+   number of matches said (a place in the text often holding more than one match), and stepping
+   from one match to the next with its Previous and Next buttons, or Enter and Shift+Enter (the
+   arrow keys do not step).
 9. **Web, as Sam.** Open `/search?q=<the text word>&mode=ranked&scope=all`, an address in the
    old form. *Expect:* the new Search screen with the same words. Open Evidence. *Expect:* its panel
-   holds only the filters (Tags, Added by, Archived), with no search of its own and no Added
-   window; the headings read as headings. Open `…/evidence?query=<a word in a source title>`.
-   *Expect:* the sources narrowed by title, shown as a filter in use that can be removed.
+   holds only the filters: Tags and Archived, and Added by only when more than one person has
+   added sources (a fresh golden master shows Tags and Archived alone); no search of its own and no
+   Added window; the headings read as headings. Open `…/evidence?query=<a word in a source title>`.
+   *Expect:* the sources whose titles, tags or attachment names hold the word, shown as a filter
+   in use, "“<word>” in titles, tags or attachment names", that can be removed.
 10. **MCP, as Sam.** Call `search` with `mode: "plain"` for the queries of steps 3 and 6.
     *Expect:* the same results as the web showed, in the same order, with `corrections`,
     `partial`, `missing`, `ignored` and `kind_hint` saying what the web's notes said; a source's

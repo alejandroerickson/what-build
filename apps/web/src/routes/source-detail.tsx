@@ -2,7 +2,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/rea
 import { useContext, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError, isObjectId, qs } from "../lib/api.ts";
-import { actorName, attribution, formatBytes, formatDate, plural, relativeTime } from "../lib/format.ts";
+import { actorName, attribution, formatBytes, formatDate, plural, quotedAtEnd, relativeTime } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import type { Actor, RecordFull } from "../lib/types.ts";
@@ -440,7 +440,13 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
               },
               { label: "Date captured", value: r.date ? <span className="num" title="When the meeting happened, or the document is dated">{formatDate(r.date)}</span> : "No date" },
               { label: "Date added", value: <When at={r.uploaded_at} by={r.uploaded_by} byTo={`${app}/evidence?added_by=${encodeURIComponent(r.uploaded_by.account_id)}`} /> },
-              { label: "Date updated", value: r.updated_at !== r.uploaded_at ? <When at={r.updated_at} by={r.updated_by} /> : <span className="faint">Not since it was added</span> },
+              // Its details (title, date captured, tags), its move here from another product or its
+              // archiving: the text, summary, notes, comments and attachments say when they were
+              // written, and leave this alone.
+              {
+                label: "Details updated",
+                value: r.updated_at !== r.uploaded_at ? <When at={r.updated_at} by={r.updated_by} /> : <span className="faint">Not changed since it was added</span>,
+              },
             ]}
           />
         </Group>
@@ -601,7 +607,7 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["sources", base] });
       void qc.invalidateQueries({ queryKey: ["product"] });
-      toast(`Deleted “${record.title}”. The activity log records who, when and why.`);
+      toast(`Deleted ${quotedAtEnd(record.title)} The activity log records who, when and why.`);
       navigate(`${app}/evidence`);
     },
   });
@@ -610,20 +616,26 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
     <Dialog
       open
       onClose={onClose}
-      title="Delete permanently"
+      title="Delete this source permanently?"
       description="This can’t be undone. Archiving takes it out of lists and search and erases nothing."
       dismissable={!del.isPending}
       footer={
         <>
-          <Button
-            onClick={() => {
-              archive.mutate(false);
-              onClose();
-            }}
-            disabled={Boolean(record.archived_at) || del.isPending}
-          >
-            Archive instead
+          <Button onClick={onClose} disabled={del.isPending}>
+            Cancel
           </Button>
+          {/* Already archived, it has nothing to offer instead. */}
+          {record.archived_at ? null : (
+            <Button
+              onClick={() => {
+                archive.mutate(false);
+                onClose();
+              }}
+              disabled={del.isPending}
+            >
+              Archive instead
+            </Button>
+          )}
           <Button variant="danger" disabled={!i || !reason.trim() || typed !== record.title} busy={del.isPending} busyLabel="Deleting…" onClick={() => del.mutate()}>
             Delete permanently
           </Button>

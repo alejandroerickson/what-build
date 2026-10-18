@@ -299,7 +299,7 @@ A neutral grey studio with a single indigo accent and three status hues; every v
 ### Primary
 - **Studio Indigo** (accent; accent-dark in dark): primary commit buttons, the focus ring (2px solid, 1px offset), the text caret, and the base of every accent tint.
 - **Indigo Pressed** (accent-hover): hover on primary buttons. It darkens in light and lightens in dark.
-- **Selection Wash** (select) with **Selection Ink** (select-text): the current nav item, text selection, and the colour of evidence tokens in prose. Evidence tokens and search highlights are accent mixed at 7 to 22% into transparent, not separate hues.
+- **Selection Wash** (select) with **Selection Ink** (select-text): the current nav item, text selection, and the colour of evidence tokens in prose. Evidence tokens and search highlights are accent mixed at 7 to 22% into transparent, not separate hues. In dark, a search highlight is Studio Indigo itself (the light accent, darker than the dark one) at 40%: it stands out by its colour rather than its lightness, so muted text on it keeps 4.5:1.
 
 ### Tertiary (status)
 - **Evidence Green** (ok): positive status, reviewed, success toasts.

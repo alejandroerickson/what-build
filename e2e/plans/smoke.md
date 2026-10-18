@@ -35,7 +35,8 @@ other plans will too.
    invitations, and the standard organization has no sandbox page.
 6. **Web, as Riley.** Find the archived product among archived products, in either organization.
    *Expect:* it is listed as archived and can be opened; only its Settings offers to delete it,
-   to Riley as an admin, as Delete this product permanently, behind its typed name.
+   to Riley as an admin: under the heading "Delete this product", a button reads "Delete <product
+   name> permanently…", and its dialog asks for the product's name to be typed.
 7. **Web, as Jordan (reader).** Sign in, then open the product's Evidence, Exploration and a source
    by their addresses. *Expect:* Jordan reaches the Story and reads its pages; every other address
    takes Jordan back to the Story (`okf/decisions/a-reader-reads-only-the-story.md`), without
@@ -55,12 +56,15 @@ other plans will too.
     *Expect:* the products are listed with the role reader; both are refused with a clear error, not
     an empty result.
 12. **Web, any person.** At phone width (390 × 844) and in the dark theme, revisit the overview, a
-    source and a Story page. *Expect:* nothing overflows, overlaps or becomes unreadable.
+    source and a Story page. *Expect:* nothing overflows, overlaps or becomes unreadable, and the
+    overview's tiles under each product show each section's name and count whole.
 13. **Web, as Sam.** On a source, choose Submit feedback in the account menu, choose Bug, write a
     line saying it is an end-to-end test, and send it. *Expect:* the dialog says it sends the
-    words, the kind, the release and "Evidence, a source", and not Sam's name or address unless
-    the box to share it with the developer of WhatBuild is ticked; the dialog never shows Sam's
-    address; it closes with a thank-you toast. Do not tick the box.
+    words, "its kind" once a kind is chosen (not before), the release (on a development server,
+    such as the end-to-end instance, "that it is a development server" instead of a release) and
+    the screen, "Evidence, a source"; and not Sam's name or address unless the box to share it
+    with the developer of WhatBuild is ticked; the dialog never shows Sam's address; it closes
+    with a thank-you toast. Do not tick the box.
 
 ## Look out for
 

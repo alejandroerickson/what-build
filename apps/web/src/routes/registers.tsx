@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
-import { attribution, plural, relativeTime } from "../lib/format.ts";
+import { attribution, plural, quotedAtEnd, relativeTime } from "../lib/format.ts";
 import { findByTitle } from "../lib/fuzzy.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
@@ -13,7 +13,7 @@ import {
   Button, ButtonLink, Callout, ChoiceRow, EmptyState, ErrorCallout, FiltersInUse, FormGrid, Glyph, ListRow, Loading, Menu, MenuItem, MenuNote, MenuSeparator, PageHeader, SelectField, Sheet,
   SheetBody, SheetHeader, StatusBadge, Tag, TextArea, useToast,
 } from "../ui/index.tsx";
-import { DeleteDialog } from "./delete-dialog.tsx";
+import { DeleteDialog, listed } from "./delete-dialog.tsx";
 import { Byline, searchWith, useCopyLink } from "./exploration-common.tsx";
 import { FirstUse } from "./first-use.tsx";
 import { entryViews, Marked, TitleFind, useEntryList } from "./exploration-panel.tsx";
@@ -276,6 +276,18 @@ interface EntryImpact {
   linked_from: { id: string; statement: string; type: string }[];
 }
 
+/**
+ * What deleting an assumption deletes, as the other delete dialogs say it: the assumption, its
+ * reviews, and the links to it from other assumptions, which go with it.
+ */
+export function entryImpactWords(one: string, i: Pick<EntryImpact, "review_count" | "linked_from">): string {
+  return `This deletes ${listed([
+    `the ${one}`,
+    i.review_count > 0 && `its ${plural(i.review_count, "review")}`,
+    i.linked_from.length > 0 && `the links to it from ${plural(i.linked_from.length, "other assumption")}`,
+  ])}.`;
+}
+
 export function RegisterEntryPage({ kind }: { kind: Kind }) {
   const { id = "" } = useParams();
   const { api: base, app, canWrite, canDelete } = useProduct();
@@ -379,20 +391,12 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
           title={`Delete this ${ONE[kind].toLowerCase()} permanently?`}
           impactPath={`${base}/${kind}/${e.id}/delete-impact`}
           deletePath={`${base}/${kind}/${e.id}`}
-          alternative={{ label: "Archive instead", disabled: archived || !canWrite, onSelect: () => setArchived.mutate({ archived: true, etag: e.etag, undo: true }) }}
-          renderImpact={(i) => (
-            <>
-              <p>
-                This deletes the {ONE[kind].toLowerCase()}
-                {i.review_count ? ` with its ${plural(i.review_count, "review")}` : ""}.
-              </p>
-              {i.linked_from.length ? <p>{plural(i.linked_from.length, "other assumption")} link to it, and those links will be removed.</p> : null}
-            </>
-          )}
+          alternative={archived || !canWrite ? undefined : { label: "Archive instead", onSelect: () => setArchived.mutate({ archived: true, etag: e.etag, undo: true }) }}
+          renderImpact={(i) => <p>{entryImpactWords(ONE[kind].toLowerCase(), i)}</p>}
           onDeleted={() => {
             void qc.invalidateQueries({ queryKey: ["register", base, kind] });
             void qc.invalidateQueries({ queryKey: ["product"] });
-            toast(`Deleted “${e.statement}”. The activity log records who, when and why.`);
+            toast(`Deleted ${quotedAtEnd(e.statement)} The activity log records who, when and why.`);
             navigate(listPath);
           }}
           onClose={() => setDeleting(false)}

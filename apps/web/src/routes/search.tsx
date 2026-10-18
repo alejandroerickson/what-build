@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { track } from "../lib/analytics.ts";
+import { nestQuotes } from "../lib/format.ts";
 import { byArea, FIND_AREAS, findWords, hitHref, hitMeta, kindOf, Marked, matchedCount, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse, type FindResult } from "../lib/find.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { REVIEW_STATUS } from "../lib/status.ts";
@@ -117,7 +118,7 @@ export function SearchPage() {
         </Sheet>
       ) : !shown.length ? (
         <Sheet>
-          <EmptyState size="inline" title={`Nothing ${area ? `in ${area.label} ` : ""}matches “${q.trim()}”`}>
+          <EmptyState size="inline" title={`Nothing ${area ? `in ${area.label} ` : ""}matches “${nestQuotes(q.trim())}”`}>
             Try another word, or fewer words.
           </EmptyState>
         </Sheet>
@@ -201,7 +202,8 @@ function ResultList({ results, app, q, find }: { results: FindResult[]; app: str
                 <Marked text={r.title} marks={r.title_marks} />
               </span>
               <span className="find-meta">
-                {resultMeta(r)}
+                {/* The badge at the row's end says an assumption's status. */}
+                {resultMeta(r, { status: false })}
                 {r.missing.length ? <span className="find-missing"> · Missing: {r.missing.map((m, i) => <s key={i}>{(i ? ", " : "") + m}</s>)}</span> : null}
               </span>
               {r.snippet ? (

@@ -59,6 +59,19 @@ function textWords(a: Attachment): string {
 }
 
 /**
+ * The line over a source's attachments: each one's text is read and kept, and never searched; and
+ * where the source's text comes from: one of them, or, once someone wrote or edited it (taken_from
+ * null), none, since it was written here. A source with no text yet says nothing of it.
+ */
+export function attachmentsNote(record: Pick<RecordFull, "text">): string {
+  const kept = "Each attachment’s text is read and kept with the source";
+  const never = "Attachments are never searched.";
+  if (!record.text) return `${kept}. ${never}`;
+  if (record.text.taken_from) return `${kept}; the source’s text is taken from one of them. ${never}`;
+  return `${kept}. The source’s text was written here and follows no attachment. ${never}`;
+}
+
+/**
  * A source's attachments: its files, each kept with every version, its text read and kept, never
  * searched. One of them is the source's text, until someone edits it.
  */
@@ -98,7 +111,7 @@ export function AttachmentsView({ record, onAdd }: { record: RecordFull; onAdd?:
         </EmptyState>
       ) : (
         <>
-          <p className="source-files-note">Each attachment&rsquo;s text is read and kept with the source; the source&rsquo;s text is taken from one of them. Attachments are never searched.</p>
+          <p className="source-files-note">{attachmentsNote(record)}</p>
           <ul className="source-files">
             {record.attachments.map((a) => {
               const kind = previewKind(a);

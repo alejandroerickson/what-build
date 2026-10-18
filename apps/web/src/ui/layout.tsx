@@ -103,7 +103,8 @@ export function ListRow({ to, lead, title, sub, children, end, className = "" }:
 export function FiltersInUse({ chips, clearTo }: { chips: { label: string; to: string }[]; clearTo: string }) {
   if (!chips.length) return null;
   return (
-    <div className="filters-in-use" aria-label="Filters in use">
+    // A group, so its name is announced: a plain div's label is not.
+    <div className="filters-in-use" role="group" aria-label="Filters in use">
       {chips.map((c) => (
         <Link key={c.label} to={c.to} className="chip filters-in-use-chip" replace aria-label={`Remove filter: ${c.label}`}>
           <span className="ellipsis">{c.label}</span>

@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../lib/api.ts";
+import { quotedAtEnd } from "../lib/format.ts";
 import { useProduct } from "../lib/session.tsx";
 import { useToast } from "../ui/index.tsx";
 import { DeleteDialog } from "./delete-dialog.tsx";
@@ -57,7 +58,7 @@ export function useArchiveActions(tree: Arrangement) {
     },
     onSuccess: (inPlace, { page }) => {
       refresh(page.page_id);
-      toast(inPlace ? `Restored “${page.title}”.` : `Restored “${page.title}”. The Story changed meanwhile, so it is at the end.`);
+      toast(inPlace ? `Restored ${quotedAtEnd(page.title)}` : `Restored ${quotedAtEnd(page.title)} The Story changed meanwhile, so it is at the end.`);
     },
     onError: (e, { page }) => {
       refresh(page.page_id);
@@ -71,7 +72,7 @@ export function useArchiveActions(tree: Arrangement) {
     onSuccess: (r, { page, before }) => {
       refresh(page.page_id);
       const moved = r.promoted_children.length ? ` ${r.promoted_children.length === 1 ? "Its subpage moved" : "Its subpages moved"} up into its place.` : "";
-      toast(`Archived “${page.title}”.${moved}`, { action: { label: "Undo", onClick: () => putBack.mutate({ page, before }) } });
+      toast(`Archived ${quotedAtEnd(page.title)}${moved}`, { action: { label: "Undo", onClick: () => putBack.mutate({ page, before }) } });
     },
     onError: (e, { page }) => {
       refresh(page.page_id);
@@ -83,7 +84,7 @@ export function useArchiveActions(tree: Arrangement) {
     mutationFn: (page: PageRef) => api("POST", `${base}/story/pages/${page.page_id}/restore`, { expected_etag: page.etag }),
     onSuccess: (_r, page) => {
       refresh(page.page_id);
-      toast(`Restored “${page.title}”.`);
+      toast(`Restored ${quotedAtEnd(page.title)}`);
     },
     onError: (e, page) => {
       refresh(page.page_id);
@@ -116,7 +117,7 @@ export function DeletePage({ page, onArchive, onDeleted, onClose }: { page: Page
       title="Delete this Story page permanently?"
       impactPath={`${base}/story/pages/${page.page_id}/delete-impact`}
       deletePath={`${base}/story/pages/${page.page_id}`}
-      alternative={{ label: "Archive instead", disabled: Boolean(page.archived_at) || !canWrite, onSelect: () => onArchive(page) }}
+      alternative={page.archived_at || !canWrite ? undefined : { label: "Archive instead", onSelect: () => onArchive(page) }}
       renderImpact={(i) => (
         <>
           <p>
@@ -129,7 +130,7 @@ export function DeletePage({ page, onArchive, onDeleted, onClose }: { page: Page
         void qc.invalidateQueries({ queryKey: ["story-tree", base] });
         void qc.invalidateQueries({ queryKey: ["story-pages", base] });
         void qc.invalidateQueries({ queryKey: ["product"] });
-        toast(`Deleted “${page.title}”. The activity log records who, when and why.`);
+        toast(`Deleted ${quotedAtEnd(page.title)} The activity log records who, when and why.`);
         onDeleted();
       }}
       onClose={onClose}

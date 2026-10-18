@@ -3,7 +3,7 @@ import { MOCKUP_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
-import { attribution, formatBytes, formatDate, formatDateTime, plural } from "../lib/format.ts";
+import { attribution, formatBytes, formatDate, formatDateTime, plural, quotedAtEnd } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
@@ -1411,7 +1411,7 @@ function DeleteMockup({ mockup, onClose }: { mockup: MockupView; onClose: () => 
       title="Delete this mockup permanently?"
       impactPath={`${base}/mockups/${mockup.mockup_id}/delete-impact`}
       deletePath={`${base}/mockups/${mockup.mockup_id}`}
-      alternative={{ label: "Archive instead", disabled: Boolean(mockup.archived_at), onSelect: () => archive.mutate() }}
+      alternative={mockup.archived_at ? undefined : { label: "Archive instead", onSelect: () => archive.mutate() }}
       allowed={(i) => !i.story_pages_showing.length}
       renderImpact={(i) =>
         i.story_pages_showing.length ? (
@@ -1446,7 +1446,7 @@ function DeleteMockup({ mockup, onClose }: { mockup: MockupView; onClose: () => 
       onDeleted={() => {
         void qc.invalidateQueries({ queryKey: ["mockups", base] });
         void qc.invalidateQueries({ queryKey: ["product"] });
-        toast(`Deleted “${mockup.title}”. The activity log records who, when and why.`);
+        toast(`Deleted ${quotedAtEnd(mockup.title)} The activity log records who, when and why.`);
         navigate(`${app}/exploration/mockups`);
       }}
       onClose={onClose}

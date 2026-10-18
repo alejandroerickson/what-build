@@ -163,14 +163,16 @@ export function EvidenceFilters() {
 }
 
 /**
- * List orders. Three are dates, each named as one: captured (the source's own date, when the
- * evidence happened, and the default), added to WhatBuild, and updated (its details last edited).
+ * List orders. Three are dates: captured (the source's own date, when the evidence happened, and
+ * the default), added to WhatBuild, and details updated (its title, date or tags last changed, or
+ * it moved here from another product, or was archived or restored; not its text, summary, notes,
+ * comments or attachments).
  * Choosing the current order again reverses it.
  */
 const SORTS = [
   { id: "date", label: "Date captured", first: "desc", desc: "newest first", asc: "oldest first" },
   { id: "added", label: "Date added", first: "desc", desc: "newest first", asc: "oldest first" },
-  { id: "updated", label: "Date updated", first: "desc", desc: "newest first", asc: "oldest first" },
+  { id: "updated", label: "Details updated", first: "desc", desc: "newest first", asc: "oldest first" },
   { id: "title", label: "Title", first: "asc", desc: "Z to A", asc: "A to Z" },
 ] as const;
 type Sort = (typeof SORTS)[number]["id"];
@@ -276,12 +278,12 @@ function useShowSummaries(): [boolean, (on: boolean) => void] {
 
 /**
  * A row's one date: the one the list is ordered by. The date captured by default, and "2 h ago"
- * when the list is ordered by date added or updated (or by title, which shows when it was added),
- * with who did it in its tooltip.
+ * when the list is ordered by date added or details updated (or by title, which shows when it was
+ * added), with who did it in its tooltip.
  */
 function rowDate(r: RecordSummary, sort: Sort): { text: string; said: string; title: string; none?: boolean } {
   if (sort === "added" || sort === "title") return { text: relativeTime(r.uploaded_at), said: "Added", title: `Added ${formatDateTime(r.uploaded_at)} by ${attribution(r.uploaded_by)}` };
-  if (sort === "updated") return { text: relativeTime(r.updated_at), said: "Updated", title: `Updated ${formatDateTime(r.updated_at)} by ${attribution(r.updated_by)}` };
+  if (sort === "updated") return { text: relativeTime(r.updated_at), said: "Details updated", title: `Details updated ${formatDateTime(r.updated_at)} by ${attribution(r.updated_by)}` };
   if (r.date) return { text: formatDate(r.date), said: "Captured", title: "Date captured" };
   return { text: "No date", said: "", title: "No date captured", none: true };
 }
@@ -415,7 +417,8 @@ export function EvidencePage() {
     return `${app}/evidence${s ? `?${s}` : ""}`;
   };
   const chips: { label: string; to: string }[] = [];
-  if (f.query) chips.push({ label: `Titles matching “${f.query}”`, to: without(["query"]) });
+  // sources.list matches the words in titles, tags and attachment names, never in what sources say.
+  if (f.query) chips.push({ label: `“${f.query}” in titles, tags or attachment names`, to: without(["query"]) });
   if (f.tags) chips.push({ label: `Tagged ${splitTags(f.tags).join(", ")}`, to: without(["tags"]) });
   if (f.added_by) chips.push({ label: `Added by ${facets.data?.added_by.find((p) => p.account_id === f.added_by)?.display_name ?? "one person"}`, to: without(["added_by"]) });
   if (f.date_from || f.date_to) chips.push({ label: `Captured ${f.date_from ? formatDate(f.date_from) : "any time"} to ${f.date_to ? formatDate(f.date_to) : "now"}`, to: without(["date_from", "date_to"]) });
@@ -455,8 +458,8 @@ export function EvidencePage() {
         ) : !records.length ? (
           active.length && (product.counts.sources ?? 0) > 0 ? (
             f.query && chips.length === 1 ? (
-              <EmptyState size="inline" title={`No source titles match “${f.query}”`} action={<ButtonLink to={without(["query"])}>Clear the search</ButtonLink>}>
-                This looks in titles, tags and attachment names. Use Search to find what sources say.
+              <EmptyState size="inline" title={`No titles, tags or attachment names hold “${f.query}”`} action={<ButtonLink to={without(["query"])}>Clear the search</ButtonLink>}>
+                Use Search to find what sources say.
               </EmptyState>
             ) : (
               <EmptyState size="inline" title="No sources match these filters" action={<ButtonLink to={`${app}/evidence`}>Clear filters</ButtonLink>} />

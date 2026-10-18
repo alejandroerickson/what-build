@@ -96,13 +96,19 @@ export function usePageTitle(title: string | null | undefined) {
   }, [set, title]);
 }
 
-/** A labelled section inside the panel's context slot, with an optional right-hand control. */
+/**
+ * A section inside the panel's context slot, with an optional right-hand control: a group named by
+ * its title, which is a heading, as the inspector's groups' are, so assistive technology reads the
+ * panel's structure and can move by its headings.
+ */
 export function PanelSection({ title, end, children }: { title: ReactNode; end?: ReactNode; children: ReactNode }) {
   const id = useId();
   return (
     <div className="panel-section" role="group" aria-labelledby={id}>
       <div className="panel-section-head">
-        <span id={id}>{title}</span>
+        <h2 id={id} className="panel-section-title">
+          {title}
+        </h2>
         {end}
       </div>
       {children}

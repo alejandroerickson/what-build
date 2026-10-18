@@ -148,21 +148,28 @@ export function findWords(d: Pick<FindResponse, "terms">): string {
   return wordsToFind(d.terms);
 }
 
-/** Where a hit opens: its source, at the section it is in, with the words found marked in the text. */
+/**
+ * Where a hit opens: its source, at the section it is in, with the words found marked in the text
+ * and, with `at` (where the hit's piece of the text starts), the find starting at its own match.
+ */
 export function hitHref(app: string, recordId: string, h: FindHit, find: string): string {
   const view = HIT_VIEW[h.field];
-  return `${app}/evidence/${recordId}?view=${view}${view === "text" && h.field === "text" && find ? `&find=${encodeURIComponent(find)}` : ""}`;
+  return `${app}/evidence/${recordId}?view=${view}${view === "text" && h.field === "text" && find ? `&find=${encodeURIComponent(find)}&at=${h.char_start}` : ""}`;
 }
 
-/** The quiet line under a result's title: what it is, and what tells it apart. */
-export function resultMeta(r: FindResult): string {
+/**
+ * The quiet line under a result's title: what it is, and what tells it apart. An assumption's
+ * status is in it unless the row shows it as a status badge (`status: false`), as the Search
+ * screen does, so it is said once.
+ */
+export function resultMeta(r: FindResult, { status = true }: { status?: boolean } = {}): string {
   const parts: string[] = [kindOf(r.kind).one];
   if (r.kind === "source") {
     if (r.meta.date) parts.push(formatDate(r.meta.date));
     // Counted as the source's Find in the text counts them, so the two numbers agree.
     if (r.match_count) parts.push(`${r.match_count} ${r.match_count === 1 ? "match" : "matches"}`);
   }
-  if (r.kind === "assumption" && r.meta.status) parts.push(REVIEW_STATUS[r.meta.status]?.label ?? r.meta.status);
+  if (status && r.kind === "assumption" && r.meta.status) parts.push(REVIEW_STATUS[r.meta.status]?.label ?? r.meta.status);
   if (r.kind === "mockup" && r.meta.page_title) parts.push(`page “${r.meta.page_title}”`);
   return parts.join(" · ");
 }

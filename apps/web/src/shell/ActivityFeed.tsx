@@ -195,6 +195,15 @@ export function ActivityFeed(filter: ActivityFilter & { query?: ReturnType<typeo
 type ActivityPages = UseInfiniteQueryResult<InfiniteData<{ items: ActivityItem[]; next_cursor: string | null }>>;
 
 /**
+ * A day's count of changes. The log loads newest first, so only the oldest day loaded may go on
+ * past the changes loaded so far: while older ones wait, it says "37+ changes", claiming no total.
+ */
+export function dayCount(loaded: number, more: boolean): string {
+  if (more) return `${loaded}+ changes`;
+  return `${loaded} ${loaded === 1 ? "change" : "changes"}`;
+}
+
+/**
  * Any log drawn as the feed: a product's, or an organization's access changes. linkOf says where an
  * entry leads, if anywhere; empty is what shows before anything has happened.
  */
@@ -220,9 +229,7 @@ export function ActivityLog({ query: q, linkOf, empty }: { query: ActivityPages;
         <section key={`${g.day}-${gi}`} className="activity-group" aria-labelledby={`activity-day-${gi}`}>
           <h2 className="activity-day" id={`activity-day-${gi}`}>
             {g.day}
-            <span className="activity-day-count num">
-              {g.items.length} {g.items.length === 1 ? "change" : "changes"}
-            </span>
+            <span className="activity-day-count num">{dayCount(g.items.length, Boolean(q.hasNextPage) && gi === groups.length - 1)}</span>
           </h2>
           <ol className="activity-list">
             {g.items.map((i) => {

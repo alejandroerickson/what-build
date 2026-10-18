@@ -94,8 +94,9 @@ the browser's back button and "open in new tab" both work.
   best place,
   saying where it is ("In its text", "In its summary", "In its notes", "In a comment"), or another
   result's matching text. Arrows (or Ctrl+N and Ctrl+P) move; Enter opens the selected result (a
-  source matched only in what it says opens at that section: its Text, which the summary heads,
-  with the words marked when they are in the text; its Notes; or its Comments). The **All N results**
+  source matched in what it says opens at the place its line shows, even when its title holds the
+  words too: its Text, which the summary heads, with the words marked when they are in the text;
+  its Notes; or its Comments). The **All N results**
   button at the field's end (⌘Enter / Ctrl+Enter) opens the Search screen with the words, and
   empties the palette. Closing it (Escape or a click outside) keeps the words for next time; another
   product starts empty. A line under the field says how the words were read: a corrected word
@@ -104,10 +105,13 @@ the browser's back button and "open in new tab" both work.
   results under the product's four areas, each a sheet in the panel's order: **Idea** (the product
   concept, then outcomes), **Evidence** (sources, each with the best three places it says the
   words, each saying where and opening there as the palette's do, and "N more places in this
-  source"), **Exploration** (mockups, then assumptions, with their status) and
-  **Story**. A kind named in the query brings its area first. The panel shows Everything and each
+  source"), **Exploration** (mockups, then assumptions, each with its status as a badge, said once) and
+  **Story**. A kind named in the query brings its area first. When nothing holds every word, each
+  result also names the words it lacks ("Missing: …"), which the palette leaves to its line,
+  "Nothing has all your words.". The panel shows Everything and each
   area with its count (`?show=idea|evidence|exploration|story`). With `record_id` it lists every
-  place one source says the words, with a link back to searching everything. A corrected word
+  place one source says the words, each opening at its own match, with a link back to searching
+  everything. A corrected word
   offers "Search for <word> instead" (`?strict=1`). When more match than the 60 listed, it says
   "Showing the best 60 of N. Add a word to narrow them.", and the palette's All N results counts
   every match. Nothing holding the words says "Nothing matches" and suggests another word or fewer
@@ -116,8 +120,10 @@ the browser's back button and "open in new tab" both work.
   alone with its count, and the quiet group is gone. The product opens on the Story, and any other
   product screen, opened by a link or typed, takes a reader to the Story, with a toast saying they
   can read only this product's Story.
-- **A context slot** under the navigation, which the screen fills: the page tree on Story, find
-  and filters on Evidence, the mockups and the three lists with their filters on Exploration.
+- **A context slot** under the navigation, which the screen fills: the page tree on Story, the
+  filters on Evidence, the mockups and the three lists with their filters on Exploration.
+  Each of its sections is a group named by its title, a heading, so a screen reader can move
+  between them as it does between the inspector's groups.
 - **The footer** holds the account menu, which is about the person: their email; each
   organization they belong to, with their role in it and a link to its **Members** (an organization
   where they read only the Story is left out, since its members are not shown to them); the theme
@@ -225,9 +231,12 @@ person's organization role is in the account menu, and who has which role is on 
 /t/:tenant/:team/:product                     → …/idea
   /idea               ?status&outcome         the product concept, outcomes with counts (outcome: one a search opened, marked)
   /evidence           ?tags&added_by&date_from&date_to&query&include_archived&sort&order
-                      (date_from, date_to: the date captured; query: a title search; both from a link)
+                      (date_from, date_to: the date captured; query: words in titles, tags or attachment
+                      names; both from a link)
   /evidence/new                               intake: describe it, add attachments, create
-  /evidence/:record   ?view=text|notes|comments|attachments &find=<words>
+  /evidence/:record   ?view=text|notes|comments|attachments &find=<words>&at &include_archived
+                      (at: where a search hit's piece of the text starts, so the find starts there;
+                      include_archived: Comments lists the archived comments too)
   /search             ?q&show&record_id&strict
   /exploration                                → …/exploration/mockups
   /exploration/mockups                        → the mockup last opened here, or the most recent; first use with none
@@ -341,18 +350,21 @@ The sources, and everything for reading them.
   tags and people come from `sources.facets`. While any filter is on, a "Clear filters" link sits
   above Tags. On a source page the same links lead back to the list.
   Paged. The sheet is titled **Sources** (the section stays Evidence). The filters in use,
-  the title search among them ("Titles matching …"), show as removable chips above the rows.
-  Three dates are named as
-  dates everywhere: **date captured** (the source's own date: when the interview or call
-  happened, or the date the document carries), **date added** (when it came into WhatBuild) and
-  **date updated** (when its details were last edited). "Sort by" and a segmented control in the
-  header order the list by date captured (the default, undated last), date added, date updated or
-  title (`?sort=date|added|updated|title`). A small triangle beside the current order shows its
+  among them the words a link searched for (`?query`, matched in titles, tags and attachment
+  names: "“…” in titles, tags or attachment names"), show as removable chips above the rows.
+  Three dates are named the same everywhere: **date captured** (the source's own date: when the
+  interview or call happened, or the date the document carries), **date added** (when it came
+  into WhatBuild) and **details updated** (when its details, its title, date captured or tags,
+  last changed, or it moved here from another product, or was archived or restored: the date
+  updated of [§4.3](04-data-model.md), named for what it covers; its text, summary, notes,
+  comments and attachments each say when they were written, and leave it alone). "Sort by" and
+  a segmented control in the header order the list by date captured (the default, undated last),
+  date added, details updated or title (`?sort=date|added|updated|title`). A small triangle beside the current order shows its
   direction; choosing it again reverses it (`?order=asc|desc`; dates start newest first, title A
   to Z). When the sheet is narrower than 680px the same choices sit in a menu. Each row shows its
   tags under the title, and at its end a paperclip with its number of attachments and one date:
   the one the list is ordered by. That is the date captured ("No date" when it has none), or
-  "2 h ago" when ordered by date added or updated, with who did it and the full time in its
+  "2 h ago" when ordered by date added or details updated, with who did it and the full time in its
   tooltip; ordered by title, it is the date added. A row whose source has a summary leads with a chevron that unfolds the
   summary's first three lines, as plain words, under the tags
   ([decision](../decisions/a-source-carries-a-summary-notes-and-whole-source-comments.md)); the
@@ -393,8 +405,10 @@ The sources, and everything for reading them.
     It opens **folded** to its first nine lines, the last two fading into the sheet, when it
     runs longer; a click on the fade, or on "Show the whole text" under it, unfolds it for the
     rest of the visit. Its header holds **Find in the text**, which unfolds it, marks the words,
-    says "1 of 4" and steps through the matches (the arrows, or Enter and Shift+Enter), the words
-    held in the URL as `?find=`, so a search hit opens here with them marked. A very long text,
+    says "1 of 4" and steps through the matches (the Previous and Next match buttons, or Enter and
+    Shift+Enter), the words held in the URL as `?find=`, so a search hit opens here with them
+    marked, from its own match: `&at=` says where the hit's piece of the text starts, and the find
+    starts at the first match there (without it, at the first). A very long text,
     unfolded, shows its first 300,000 characters and "Show all N characters", unless a find is on. Editors get **Edit**, once the text has
     loaded, a dialog holding the Markdown (saving it empty removes the text; it names the etag of
     the text it opened, and when someone changed or removed the text meanwhile it does what the
@@ -416,10 +430,15 @@ The sources, and everything for reading them.
     "Write notes" for an editor; both open the summary's dialog, with its etag and its handling of
     a change made meanwhile) and **Comments** (every comment on the source, newest first, and
     "Comment" for an editor, which opens a form for a comment on the whole source with optional
-    tags).
+    tags). Each comment's menu offers an editor **Archive…**, a dialog asking why, optionally
+    (the reason stays with the comment; the activity log records only that it was archived), and
+    an admin **Delete permanently…** (§7.10). Archived comments are left out until "Show N
+    archived comments", at the section's foot, lists them under the others (`?include_archived=1`):
+    muted, marked Archived with when and why, and with Restore in their menu for an editor.
   - **Attachments** lists every attachment under a line saying that each one's text is read and
-    kept, that the source's text is taken from one of them, and that attachments are never
-    searched. Each row gives its name, how its text was read ("Text read · 12,345 characters",
+    kept, that the source's text is taken from one of them (once someone wrote or edited it, that
+    it was written here and follows no attachment; without a text, neither), and that attachments
+    are never searched. Each row gives its name, how its text was read ("Text read · 12,345 characters",
     "Recording, 12:03 · no text", "Image · no text", "Scan · no text" for a PDF whose pages are
     pictures, "Format not read", "Too large to read", "Couldn't be read", or "Reading"), with the
     server's `status_detail` under it except for pictures, "The source's text" on the one it came
@@ -432,9 +451,10 @@ The sources, and everything for reading them.
     when the source has several images, previous and next (the arrow keys) and a strip of
     thumbnails. **Add attachments** adds more, with no roles.
   - **Inspector,** titled Details: **About** (the three dates together — Date captured
-    (or "No date"), Date added and Date updated, the last two each with "by <who>", adding "via
+    (or "No date"), Date added and Details updated, the last two each with "by <who>", adding "via
     <surface>" when it was not the web, the person who added it linking to the list filtered to
-    what they added, and Date updated saying "Not since it was added" when nothing changed; Tags,
+    what they added, and Details updated saying "Not changed since it was added" while neither
+    its details nor its archiving changed; Tags,
     each a link to the list filtered to it; nothing else), "Activity on this source", and
     Archive.
 - **Evidence links.** A Markdown link to a source is set as a quiet evidence token and opens the
@@ -706,7 +726,9 @@ claude-desktop, confirmed an assumption — 14:02". The surface is "in the app",
 reads "on the server", however the attachment was uploaded, and says what came of it in a
 person's words: "Read the text of call.vtt; it is the source’s derived text", never the parser's
 internal label (events recorded with one are read without it, over MCP as in the app). The kind of object changed (`?entity_type=`) or
-one object (`&entity_id=`) narrows it, held in the URL.
+one object (`&entity_id=`) narrows it, held in the URL. Entries are grouped by day, each with its
+count of changes, and load 50 at a time under "Show older changes"; the oldest day loaded may go on
+past them, so while older changes wait its count says only what is loaded ("37+ changes").
 
 This is how a person answers "what did my colleague's agent just do to my product" without reading
 a diff. It is also the first place to look when a `409` surprises someone.
@@ -721,7 +743,7 @@ a product that isn't archived (`canDelete`). One dialog serves every delete
 | Object | Archive | Delete |
 |---|---|---|
 | Source | its actions menu | its actions menu |
-| Comment | — | a delete button on the comment, wherever it shows |
+| Comment | its menu, with an optional reason, and in its delete dialog | its menu |
 | Assumption | its actions menu | its actions menu |
 | Outcome | its row's menu on Idea | its row's menu |
 | Story page | its row's menu in the tree, and the inspector's About | its row's menu, and the inspector's About |
@@ -731,7 +753,11 @@ a product that isn't archived (`canDelete`). One dialog serves every delete
 
 1. The visible control is **Archive**. It is a plain, ordinary action with no confirmation beyond
    an undo toast, because it is reversible. Its tooltip says what archiving does: takes this out of
-   your views and out of what an agent can search, keeps everything.
+   your views and out of what an agent can search, keeps everything. A comment, which keeps why
+   it was archived, asks for that reason first, optionally, and then has the same undo toast.
+   ◆ Decision: the reason is asked in a dialog rather than offered after archiving, since
+   `update_annotation` takes it only with the archive; Archive instead, in a comment's delete
+   dialog, archives at once without one.
 2. **Delete** sits inside the same menu, below a separator, styled as destructive, never
    pre-selected and never the primary button of any dialog.
 3. Choosing it opens a dialog titled as a question ("Delete this assumption permanently?"), that
@@ -741,9 +767,9 @@ a product that isn't archived (`canDelete`). One dialog serves every delete
    assumptions link to it, and that those links go with it; for an outcome, the assumptions it is
    taken from. A mockup a Story page shows lists those pages, and its delete stays disabled.
 4. The dialog asks for a reason, which the button needs. A source also needs its title typed, and
-   a whole product or organization its name. Archive is offered again, in the dialog, as the
-   secondary action, wherever the object can be archived; elsewhere the secondary action is
-   Cancel.
+   a whole product or organization its name. Every delete dialog has Cancel, and wherever the
+   object can be archived, Archive instead beside it, offering it again; for what is already
+   archived it is left out.
 5. Afterwards, a toast states what was deleted and that the activity log records who, when and
    why. Nothing is silently gone.
 
