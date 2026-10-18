@@ -7,7 +7,7 @@ import { conflict, invalid, notFound } from "../errors.ts";
 import { defineOperation, type OpContext, type OperationDef } from "../registry.ts";
 import { authorType, expectedEtag, id, tags } from "../schemas.ts";
 import { applyEdits, editsInput, textDiff } from "../text-edits.ts";
-import { newEtag, newId, uniq } from "../util.ts";
+import { likeContaining, newEtag, newId, uniq } from "../util.ts";
 import { archivedOutcomeIds } from "./outcomes.ts";
 
 type Row = Selectable<RegisterEntriesTable>;
@@ -228,7 +228,7 @@ function registerOps(): OperationDef[] {
       if (!input.include_archived) q = q.where("archived_at", "is", null);
       if (input.outcome_id) q = q.where(sql<boolean>`${input.outcome_id} = any(outcome_ids)`);
       if (input.tag) q = q.where(sql<boolean>`${normalizeTags([input.tag])[0]!} = any(tags)`);
-      if (input.query) q = q.where(sql<boolean>`(statement ilike ${"%" + input.query + "%"} or body ilike ${"%" + input.query + "%"})`);
+      if (input.query) q = q.where(sql<boolean>`(statement ilike ${likeContaining(input.query)} or body ilike ${likeContaining(input.query)})`);
       if (input.human_confidence) {
         const latest = sql`(select r.confidence from reviews r where r.entry_id = register_entries.entry_id and r.reviewer_type = 'human' and r.confidence is not null order by r.review_id desc limit 1)`;
         q = input.human_confidence === "unreviewed" ? q.where(sql<boolean>`${latest} is null`) : q.where(sql<boolean>`${latest} = ${input.human_confidence}`);

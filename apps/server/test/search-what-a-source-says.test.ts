@@ -1,3 +1,5 @@
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { RESET_CONFIRMATION } from "@whatbuild/core";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -231,6 +233,169 @@ describe("search over what a source says", () => {
   });
 });
 
+/** A text in two pieces: the first says "gate code" three times, past a character outside the basic plane, the second once more. */
+const GATE_LOG =
+  [
+    "Gate code changed on Monday 🚧. The new gate code is on the board, and the lead keeps the GATE CODE card.",
+    "Routes are planned the night before. ".repeat(22).trim(),
+    "Trucks are loaded in the order of the route. ".repeat(18).trim(),
+    "Drivers ask for the gate code at night.",
+  ].join("\n\n") + "\n";
+
+const codePoints = (s: string) => Array.from(s).length;
+
+describe("every place, as typed", () => {
+  let D: string;
+  const src: Record<"log" | "roster" | "fuel" | "route" | "planB" | "planXB" | "crane", string> = { log: "", roster: "", fuel: "", route: "", planB: "", planXB: "", crane: "" };
+  let roll: string; // a comment on the roster
+
+  beforeAll(async () => {
+    const t = await alice.api("POST", "/api/v1/tenants", { name: "Depot Co" });
+    const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Depot" });
+    D = `/api/v1/p/${p.body.path}`;
+    src.log = await source(D, alice, "Depot log — Example Co");
+    expect((await alice.api("PUT", `${D}/sources/${src.log}/derived/text`, { content: GATE_LOG })).status).toBe(200);
+    src.roster = await source(D, alice, "Crew roster — Example Co");
+    expect((await alice.api("PUT", `${D}/sources/${src.roster}/derived/text`, { content: "The vanguard crew leaves first.\n" })).status).toBe(200);
+    expect((await alice.api("PUT", `${D}/sources/${src.roster}/agent-notes/notes`, { content: "Postcodes are on the label." })).status).toBe(200);
+    roll = (await alice.api("POST", `${D}/sources/${src.roster}/annotations`, { note: "The code is on the roll call." })).body.annotation_id;
+    src.fuel = await source(D, alice, "Fuel report — Example Co");
+    expect((await alice.api("PUT", `${D}/sources/${src.fuel}/agent-notes/notes`, { content: "Fuel use is down 10% since May." })).status).toBe(200);
+    src.route = await source(D, alice, "Route survey — Example Co");
+    expect((await alice.api("PUT", `${D}/sources/${src.route}/agent-notes/notes`, { content: "Route 105 is closed for repairs." })).status).toBe(200);
+    src.planB = await source(D, alice, "Plan_B rollout — Example Co");
+    src.planXB = await source(D, alice, "PlanXB rollout — Example Co");
+    src.crane = await source(D, alice, "Crane ticket — Example Co");
+    expect((await alice.api("PUT", `${D}/sources/${src.crane}/derived/text`, { content: "Ticket CB26-20734 is open for the crane. Ticket CB26-20733 was the pump.\n" })).status).toBe(200);
+  });
+
+  it("gives every place a source says the words as a hit of its own, each read back exactly", async () => {
+    const { hits } = await search("gate code", `&record_id=${src.log}`, D);
+    const places = [...GATE_LOG.matchAll(/gate code/gi)].map((m) => ({ start: codePoints(GATE_LOG.slice(0, m.index)), words: m[0] }));
+    expect(places.map((x) => x.words)).toEqual(["Gate code", "gate code", "GATE CODE", "gate code"]);
+    expect(where(hits)).toEqual(places.map((x) => ({ record_id: src.log, field: "text", char_start: x.start, char_end: x.start + 9 })));
+    for (const [k, hit] of hits.entries()) {
+      const read = await alice.api("GET", `${D}/sources/${src.log}/derived/text?offset=${hit.char_start}&limit=${hit.char_end - hit.char_start}`);
+      expect(read.body.text).toBe(places[k]!.words);
+      // Each snippet is around its own place.
+      expect(hit.snippet).toContain(places[k]!.words);
+    }
+    expect(hits[3]!.snippet).toContain("Drivers ask for the gate code at night.");
+  });
+
+  it("never cuts a character in two at a snippet's edge", async () => {
+    // The window around these words starts in the middle of the run of 🚧, each two code units.
+    const signs = await source(D, alice, "Site signs — Example Co");
+    expect((await alice.api("PUT", `${D}/sources/${signs}/derived/text`, { content: `${"🚧".repeat(100)}  gate code${" is on the board".repeat(12)}\n` })).status).toBe(200);
+    const [hit] = (await search("gate code", `&record_id=${signs}`, D)).hits;
+    expect(hit!.char_start).toBe(102);
+    expect(hit!.snippet.startsWith("…🚧")).toBe(true);
+    expect(hit!.snippet).toContain("🚧  gate code is on the board");
+    expect(Buffer.from(hit!.snippet, "utf8").toString("utf8")).toBe(hit!.snippet);
+  });
+
+  it("counts hits against the limit and pages through them, inside a piece and across pieces, without repeating or skipping one", async () => {
+    const all = (await search("gate code", `&record_id=${src.log}`, D)).hits;
+    for (const limit of [1, 2, 3]) {
+      const paged: Hit[] = [];
+      let cursor: string | null = null;
+      do {
+        const page = (await search("gate code", `&record_id=${src.log}&limit=${limit}${cursor ? `&cursor=${cursor}` : ""}`, D)) as Awaited<ReturnType<typeof search>> & { next_cursor: string | null };
+        expect(page.hits.length).toBeLessThanOrEqual(limit);
+        paged.push(...page.hits);
+        cursor = page.next_cursor;
+      } while (cursor);
+      expect(paged, `limit ${limit}`).toEqual(all);
+    }
+    // A cursor from before every place was a hit names a piece, and resumes after it.
+    const old = Buffer.from(JSON.stringify([src.log, 4, "", 0])).toString("base64url");
+    expect(where((await search("gate code", `&record_id=${src.log}&cursor=${old}`, D)).hits)).toEqual(where(all.slice(3)));
+    const wrong = await alice.api("GET", `${D}/search?query=gate&cursor=${Buffer.from(JSON.stringify(["x", 1])).toString("base64url")}`);
+    expect(wrong.body.error).toMatchObject({ code: "invalid_cursor" });
+  });
+
+  it("matches the query as sent, spaces included, and refuses one that is only spaces", async () => {
+    expect(where((await search("code", `&record_id=${src.roster}`, D)).hits)).toEqual([
+      { record_id: src.roster, field: "notes", char_start: 4, char_end: 8 },
+      { record_id: src.roster, field: "comment", annotation_id: roll, char_start: 4, char_end: 8 },
+    ]);
+    // " code" is not in "Postcodes".
+    expect(where((await search(" code", `&record_id=${src.roster}`, D)).hits)).toEqual([{ record_id: src.roster, field: "comment", annotation_id: roll, char_start: 3, char_end: 8 }]);
+    // Ranked mode reads terms, so spaces around them change nothing.
+    expect((await search("  gate AND code  ", `&mode=ranked&record_id=${src.log}`, D)).hits).toHaveLength(2);
+    for (const mode of ["substring", "ranked", "plain"]) {
+      const r = await alice.api("GET", `${D}/search?mode=${mode}&query=${encodeURIComponent("   ")}`);
+      expect(r.status, mode).toBe(422);
+      expect(r.body.error).toMatchObject({ code: "invalid_input", message: expect.stringContaining("holds only spaces") });
+    }
+  });
+
+  it("in plain mode, takes a space after the last word to say it is finished", async () => {
+    const plain = async (q: string) => (await alice.api("GET", `${D}/search?mode=plain&strict=true&query=${encodeURIComponent(q)}`)).body;
+    // Still being typed, a short word matches the start of a longer one; finished, only itself.
+    expect((await plain("van")).results.map((x: { id: string }) => x.id)).toEqual([src.roster]);
+    expect(await plain("van ")).toMatchObject({ query: "van ", results: [] });
+  });
+
+  it("finds %, _ and \\ as typed, in search and in every list's query", async () => {
+    expect((await search("10%", "", D)).hits.map((x) => x.record_id)).toEqual([src.fuel]);
+    const a = await alice.api("POST", `${D}/assumptions`, { statement: "Idle time falls 10% when crews start at the yard.", body: "The fuel report says so." });
+    expect(a.status, JSON.stringify(a.body)).toBe(201);
+    expect((await alice.api("POST", `${D}/assumptions`, { statement: "Route 105 stays closed until spring.", body: "The route survey says so." })).status).toBe(201);
+    const found = await alice.api("GET", `${D}/search?scope=assumptions&query=${encodeURIComponent("10%")}`);
+    expect(found.body.assumptions.map((x: { id: string }) => x.id)).toEqual([a.body.id]);
+    const listed = await alice.api("GET", `${D}/assumptions?query=${encodeURIComponent("10%")}`);
+    expect(listed.body.items.map((x: { id: string }) => x.id)).toEqual([a.body.id]);
+    const sources = await alice.api("GET", `${D}/sources?query=${encodeURIComponent("plan_b")}`);
+    expect(sources.body.records.map((x: { record_id: string }) => x.record_id)).toEqual([src.planB]);
+    const o = await alice.api("POST", `${D}/outcomes`, { title: "Crews spend 50% less time waiting at the gate" });
+    expect(o.status, JSON.stringify(o.body)).toBe(201);
+    expect((await alice.api("POST", `${D}/outcomes`, { title: "Leads plan 500 jobs a week without overtime" })).status).toBe(201);
+    const outcomes = await alice.api("GET", `${D}/outcomes?query=${encodeURIComponent("50%")}`);
+    expect(outcomes.body.items.map((x: { outcome_id: string }) => x.outcome_id)).toEqual([o.body.outcome_id]);
+    // A backslash is a character too, not an escape.
+    expect((await alice.api("GET", `${D}/outcomes?query=${encodeURIComponent("5\\0")}`)).body.items).toEqual([]);
+  });
+
+  it("over MCP, says what it searched in search_scope beside the scope every answer carries", async () => {
+    const token = await h.connectAgent(alice, "search-agent");
+    const client = new Client({ name: "search-agent", version: "1.0.0" });
+    await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${token}` } } }));
+    const path = D.replace("/api/v1/p/", "");
+    const call = async (args: Record<string, unknown>) => {
+      const r = await client.callTool({ name: "search", arguments: { product: path, ...args } });
+      expect(r.isError, JSON.stringify(r.content)).toBeFalsy();
+      return JSON.parse((r.content as { text: string }[])[0]!.text);
+    };
+    const all = await call({ query: "10%", scope: "all" });
+    expect(all).toMatchObject({ search_scope: "all", scope: { product: { path } } });
+    expect(all.hits.map((x: Hit) => x.record_id)).toEqual([src.fuel]);
+    expect(all.assumptions).toHaveLength(1);
+    expect(await call({ query: "gate code" })).toMatchObject({ search_scope: "sources", scope: { product: { path } } });
+    // Over REST there is no such echo, and search's own scope keeps its name there too.
+    expect((await alice.api("GET", `${D}/search?scope=all&query=gate`)).body).toMatchObject({ scope: "all", search_scope: "all" });
+    await client.close();
+  });
+
+  it("in plain mode, reads an id as one word, finds it whole, and never corrects it into another", async () => {
+    const plain = async (q: string) => (await alice.api("GET", `${D}/search?mode=plain&query=${encodeURIComponent(q)}`)).body;
+    const r = await plain("CB26-20734");
+    expect(r).toMatchObject({ terms: [{ text: "cb26-20734", phrase: false }], corrections: [], partial: false });
+    expect(r.results.map((x: { id: string }) => x.id)).toEqual([src.crane]);
+    const hit = r.results[0].hits[0];
+    expect(hit.marks.map(([a, b]: [number, number]) => hit.text.slice(a, b))).toEqual(["CB26-20734"]);
+    // An id nothing holds is missing, not replaced by its neighbour.
+    expect(await plain("CB26-20735 ")).toMatchObject({ corrections: [], results: [] });
+    // The number alone is found where a hyphen joins it to the rest of the id.
+    expect((await plain("20734")).results.map((x: { id: string }) => x.id)).toEqual([src.crane]);
+    // Still being typed, an id matches as a prefix; finished, only as itself.
+    expect((await plain("CB26-2073")).results.map((x: { id: string }) => x.id)).toEqual([src.crane]);
+    expect(await plain("CB26-2073 ")).toMatchObject({ corrections: [], results: [] });
+    // A phrase may hold an id.
+    expect((await plain('"ticket CB26-20733" pump')).results.map((x: { id: string }) => x.id)).toEqual([src.crane]);
+  });
+});
+
 describe("a public sandbox reset", () => {
   let olive: Browser;
   let T: string;
@@ -297,5 +462,18 @@ describe("a public sandbox reset", () => {
     // Read for the reset, not by anyone: it leaves no line in the activity log.
     const log = (await olive.api("GET", `${S}/activity?entity_id=${late}`)).body.items as { action: string }[];
     expect(log.map((i) => i.action)).not.toContain("derived");
+  });
+
+  it("finds a visitor by an address as typed, an underscore in it matching only an underscore", async () => {
+    const inv = await olive.api("POST", `${T}/sandbox/invites`, { label: "Search visitors", places: 5 });
+    expect(inv.status, JSON.stringify(inv.body)).toBe(201);
+    const code = String(inv.body.invite_link).split("/join/")[1]!;
+    for (const [email, name] of [["dana_lee@visitor.example", "Dana Example"], ["danaxlee@visitor.example", "Dana Visitor"]] as const) {
+      const visitor = await h.signIn(email, name);
+      expect((await visitor.api("POST", "/api/v1/sandbox/join", { code })).status).toBe(200);
+    }
+    const found = await olive.api("GET", `${T}/sandbox/visitors?query=${encodeURIComponent("dana_lee")}`);
+    expect(found.body.items.map((v: { email: string }) => v.email)).toEqual(["dana_lee@visitor.example"]);
+    expect((await olive.api("GET", `${T}/sandbox/visitors?query=dana`)).body.items).toHaveLength(2);
   });
 });

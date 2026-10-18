@@ -1,4 +1,4 @@
-import { closestWord, excerpt, matchText, parseFind, wordRoot } from "@whatbuild/core";
+import { closestWord, excerpt, matchText, parseFind, termTsquery, wordRoot } from "@whatbuild/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createPorts } from "../src/app.ts";
 import { seed } from "../src/seed.ts";
@@ -39,6 +39,23 @@ describe("how plain search reads a query", () => {
     expect(parseFind('"group ch').terms).toMatchObject([{ text: "group ch", phrase: true }]);
   });
 
+  it("reads an id or a number as one word, matched as written, a prefix only while it is typed", () => {
+    expect(parseFind("CB26-20734 ").terms).toEqual([{ text: "cb26-20734", root: "cb26-20734", prefix: false, phrase: false }]);
+    expect(parseFind("crane CB26-2073").terms).toMatchObject([{ text: "crane" }, { text: "cb26-2073", prefix: true }]);
+    expect(parseFind("invoices 2026-05-01 ").terms.map((t) => t.text)).toEqual(["invoices", "2026-05-01"]);
+    // Its ending is never forgiven, and a number of four digits is not a prefix once finished.
+    expect(parseFind("2026s 2026 ").terms).toEqual([
+      { text: "2026s", root: "2026s", prefix: false, phrase: false },
+      { text: "2026", root: "2026", prefix: false, phrase: false },
+    ]);
+    // A hyphenated word without a digit is its words, as before; a phrase keeps an id whole.
+    expect(parseFind("follow-up call ").terms.map((t) => t.text)).toEqual(["follow", "up", "call"]);
+    expect(parseFind('"ticket CB26-20734"').terms).toMatchObject([{ text: "ticket cb26-20734", phrase: true }]);
+    // Postgres reads the quoted id as it reads the text (cb26 <-> -20734), and stores a number after a hyphen with it.
+    expect(termTsquery(parseFind("CB26-20734 ").terms[0]!)).toBe("'cb26-20734'");
+    expect(termTsquery(parseFind("20734").terms[0]!)).toBe("'20734':* | '-20734':*");
+  });
+
   it("marks matches whatever the case or accents, and cuts an excerpt around the densest run", () => {
     const m = matchText("Café pricing: the PRICE was right.", parseFind("cafe price ").terms);
     expect(m.found).toEqual([true, true]);
@@ -56,6 +73,10 @@ describe("how plain search reads a query", () => {
     expect(closestWord("zzzz", texts, false)).toBeNull();
     // A word still being typed is compared with the start of each word.
     expect(closestWord("aprov", texts, true)).toBe("approval");
+    // An id or a number is never corrected, and never offered as a correction.
+    expect(closestWord("20735", ["Ticket CB26-20734 and ticket 20733"], false)).toBeNull();
+    expect(closestWord("cb27", ["Ticket CB26-20734"], false)).toBeNull();
+    expect(closestWord("rout", ["rout1 then the route"], false)).toBe("route");
   });
 });
 
@@ -136,6 +157,17 @@ describe("plain search over the sample product", () => {
     const one = await find("crew", `&record_id=${id}`);
     expect(one.results).toHaveLength(1);
     expect(one.results[0].hits).toHaveLength(one.results[0].hit_count);
+  });
+
+  it("returns at most limit results, 60 unless asked, and counts every match", async () => {
+    const all = await find("crew");
+    const matched = Object.values(all.counts as Record<string, number>).reduce((a, b) => a + b, 0);
+    expect(all.results).toHaveLength(Math.min(60, matched));
+    expect(matched).toBeGreaterThan(2);
+    const two = await find("crew", "&limit=2");
+    expect(two.results).toEqual(all.results.slice(0, 2));
+    expect(two.counts).toEqual(all.counts);
+    expect((await sam.api("GET", `${S}/search?mode=plain&query=crew&limit=201`)).body).toMatchObject({ error: { code: "invalid_input" } });
   });
 
   it("takes no tag or date filters, and keeps its own options to itself", async () => {

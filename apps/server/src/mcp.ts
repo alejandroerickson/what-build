@@ -172,6 +172,11 @@ async function resolveProduct(env: Env, principal: Principal, given: string | un
 /** Refusals for a call that names no product, team or tenant (or names one in a form that is not a reference). */
 const UNADDRESSED = new Set(["product_required", "team_required", "tenant_required", "invalid_product"]);
 
+/**
+ * Where a product-scoped call ran, added to its answer as `scope`. Every such answer has it under
+ * that name, so no operation answers a field of its own as `scope` over MCP: search says what it
+ * searched as `search_scope`.
+ */
 function scopeEcho(scope: Scope, level: ConnectionLevel | undefined) {
   if (!scope.product) return undefined;
   return {
