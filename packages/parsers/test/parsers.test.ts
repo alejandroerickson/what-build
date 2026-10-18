@@ -740,6 +740,18 @@ describe("XLSX", () => {
     expect(formatNumber(readFormat("yyyy-mm-dd hh:mm"), 0.75, true)).toBe("1904-01-01 18:00");
   });
 
+  it("takes a date alone from the day its serial falls in, and rounds only a time it shows", () => {
+    // 45658.9999999 is 2025-01-01 at 23:59:59.991: that day under a date alone, as SheetJS shows it.
+    expect(formatNumber(readFormat("yyyy-mm-dd"), 45658.9999999, false)).toBe("2025-01-01");
+    expect(formatNumber(readFormat("d-mmm-yy"), 45658.9999999, false)).toBe("1-Jan-25");
+    expect(formatNumber(builtinFormat(14)!, 45658.9999999, false)).toBe("2025-01-01");
+    // A time rounds to the finest part it shows, into the next day.
+    expect(formatNumber(readFormat("yyyy-mm-dd hh:mm"), 45658.9999999, false)).toBe("2025-01-02 00:00");
+    expect(formatNumber(builtinFormat(22)!, 45658.9999999, false)).toBe("2025-01-02 00:00");
+    // A serial a float's error short of midnight is that midnight.
+    expect(formatNumber(readFormat("yyyy-mm-dd"), 45658.9999999999, false)).toBe("2025-01-02");
+  });
+
   it("counts dates from 1904 when the workbook uses the 1904 date system", async () => {
     const r = await derive(makeXlsxSheet([["Permit", "Expiry"], ["EL 101", [44660, 1]], ["EL 102", [0, 1]]], { numFmts: ["yyyy-mm-dd"], xfs: [0, 164], date1904: true }), "register.xlsx");
     expect(r.segments.slice(2).map((s) => s.text)).toEqual(["[Register, row 2] Permit: EL 101 | Expiry: 2026-04-10", "[Register, row 3] Permit: EL 102 | Expiry: 1904-01-01"]);

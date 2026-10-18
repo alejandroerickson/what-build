@@ -572,16 +572,28 @@ function datePlan(t: Token[]): DatePlan {
   };
 }
 
+/**
+ * The seconds a date serial counts. A section that shows a time rounds them to the finest part it
+ * shows, so 12:00:00.5 is 12:00:01 under h:mm:ss, and 23:59:59.991 the next day's 00:00 under
+ * yyyy-mm-dd hh:mm. A date alone is the day the serial falls in, without rounding to the second
+ * first, as SheetJS shows 45658.9999999 (23:59:59.991) under yyyy-mm-dd as 2025-01-01; only a serial
+ * within a ten-thousandth of a second of midnight, a float's error short of it, is the next day.
+ */
+function serialSeconds(serial: number, sub: number, time: boolean): { totalSeconds: number; fraction: number } {
+  if (!time) return { totalSeconds: Math.floor(serial * 86_400 + 1e-4), fraction: 0 };
+  const ticks = Math.round(serial * 86_400 * 10 ** sub);
+  const totalSeconds = Math.floor(ticks / 10 ** sub);
+  return { totalSeconds, fraction: ticks - totalSeconds * 10 ** sub };
+}
+
 /** A date or time section applied to a date serial. */
 function formatDate(section: Section, serial: number, date1904: boolean): string | undefined {
   if (serial > 2_958_465) return undefined;
   const t = section.tokens;
   const plan = (section.datePlan ??= datePlan(t));
   const { minute, sub, twelve } = plan;
-  // Rounded to the finest part shown; the minutes and hours are then counted down from it.
-  const ticks = Math.round(serial * 86_400 * 10 ** sub);
-  const totalSeconds = Math.floor(ticks / 10 ** sub);
-  const fraction = ticks - totalSeconds * 10 ** sub;
+  // The minutes and hours are counted down from the seconds.
+  const { totalSeconds, fraction } = serialSeconds(serial, sub, plan.time !== null);
   const days = Math.floor(totalSeconds / 86_400);
   const secs = totalSeconds - days * 86_400;
   const [H, M, S] = [Math.floor(secs / 3600), Math.floor((secs % 3600) / 60), secs % 60];
@@ -619,7 +631,7 @@ function formatDate(section: Section, serial: number, date1904: boolean): string
 /** The locale's own date and time formats, read in ISO 8601: `2026-04-10`, `2026-04-10 12:00`, `13:30:00`. */
 function isoDate(serial: number, kind: "date" | "datetime" | "time", date1904: boolean): string | undefined {
   if (serial < 0 || serial > 2_958_465) return undefined;
-  const totalSeconds = Math.round(serial * 86_400);
+  const { totalSeconds } = serialSeconds(serial, 0, kind !== "date");
   const days = Math.floor(totalSeconds / 86_400);
   const secs = totalSeconds - days * 86_400;
   const clock = `${pad(Math.floor(secs / 3600))}:${pad(Math.floor((secs % 3600) / 60))}`;
