@@ -299,7 +299,7 @@ A neutral grey studio with a single indigo accent and three status hues; every v
 ### Primary
 - **Studio Indigo** (accent; accent-dark in dark): primary commit buttons, the focus ring (2px solid, 1px offset), the text caret, and the base of every accent tint.
 - **Indigo Pressed** (accent-hover): hover on primary buttons. It darkens in light and lightens in dark.
-- **Selection Wash** (select) with **Selection Ink** (select-text): the current nav item, text selection, and the colour of evidence tokens in prose. Evidence tokens and search highlights are accent mixed at 7 to 22% into transparent, not separate hues.
+- **Selection Wash** (select) with **Selection Ink** (select-text): the current nav item, text selection, and the colour of evidence tokens in prose. Evidence tokens and search highlights are accent mixed at 7 to 22% into transparent, not separate hues. In dark, a search highlight is Studio Indigo itself (the light accent, darker than the dark one) at 40%: it stands out by its colour rather than its lightness, so muted text on it keeps 4.5:1.
 
 ### Tertiary (status)
 - **Evidence Green** (ok): positive status, reviewed, success toasts.
@@ -416,7 +416,7 @@ Compact and calm. Default buttons read as white tiles with a hairline, not as fi
 - **Phone:** the same panel becomes the drawer, opened from the floating pill.
 
 ### Menus, Dialogs, Toasts
-- **Menu:** popover fill, 8px corners, 6px pad, hairline border (Line 2 in dark), lifted shadow. It enters in 120ms with a 2px drop and leaves in 100ms. An item may carry a second line, a faint 11px detail under its text; the item grows to fit it.
+- **Menu:** popover fill, 8px corners, 6px pad, hairline border (Line 2 in dark), lifted shadow. It enters in 120ms with a 2px drop and leaves in 100ms. An item may carry a second line, a faint 11px detail under its text; the item grows to fit it. A hairline separator divides groups of items: whatever a person's role or the object's state leaves in a menu, none begins or ends it, and two never meet.
 - **Dialog:** 520px max, 12px corners, lifted shadow, a head, a body and a right-aligned foot above a hairline. It enters in 160ms.
 - **Search palette:** opened from the panel's Search field (a Hover-filled 28px button under the product switch reading "Search <product>", with its shortcut in a small key cap), ⌘K / Ctrl+K, or `/`. A 640px popover-fill surface with 12px corners and the lifted shadow, set 12vh from the top over a scrim at 60%. It springs into place over 560ms (a 3px overshoot and a small settle; it simply appears with reduced motion), and if nothing is typed or clicked for three seconds it flashes white once and fades back to Lifted over 1.8s. A 48px field row at 14px holds the search glyph (a spinner while a newer answer loads), the input, and, once something is typed, an **All N results** default button with its key cap. Empty, it is the field alone, or the field with "Recent searches" and Clear above clock-glyph rows. Results are 8px-cornered rows with a 14px faint glyph, a medium title with matched words marked, faint meta at the right and a muted two-line excerpt; the selected row takes the selection wash. There is no footer and no Esc key cap.
 - **Toast:** a 40px popover row with an 8px radius, hairline border and lifted shadow, holding a tone icon, text, an optional action and a close button.

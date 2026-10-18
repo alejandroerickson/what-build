@@ -172,6 +172,18 @@ export function termTsquery(t: FindTerm): string {
   return spelledApart(t) ? `${whole} | ${t.root.split("-").map((w) => `'${w}'`).join(" <-> ")}${star}` : whole;
 }
 
+/**
+ * A tsquery for the pieces of text where a find with this term may mark something: the term as a
+ * prefix, as a find marks every word with any ending (from a root that starts with this term's),
+ * and a phrase with its last word as a prefix, as a find marks a phrase with no end to it. It finds
+ * more than a find marks, never less; the find's own pattern then counts what it marks.
+ */
+export function findTsquery(t: FindTerm): string {
+  if (!t.phrase) return termTsquery({ ...t, prefix: true });
+  const words = t.root.split(" ");
+  return words.map((w, k) => `'${w}'${k === words.length - 1 ? ":*" : ""}`).join(" <-> ");
+}
+
 /** An id that ends in a number after a hyphen: the 01 of 2026-05-01, the 20734 of CB26-20734. */
 const ENDS_IN_NUMBER = /-\p{N}+$/u;
 
@@ -197,42 +209,81 @@ export interface TextMatch {
   ranges: [number, number][];
   /** Terms found as the very word typed rather than another form of it. */
   exact: number;
+  /** Every match apart, as [start, end, term], in the text's order: which terms occur where. */
+  spans: [number, number, number][];
 }
 
-/** Where the terms occur in `text`. Folding keeps offsets for all but rare characters (ligatures), which are then off by a little. */
+/**
+ * `text` folded one character at a time, with where each folded code unit came from, for a text
+ * that folding makes longer or shorter (… folds to three dots, ﬁ to two letters): matched as a
+ * whole, its offsets would point past the words.
+ */
+function foldedApart(text: string): { folded: string; from: number[] } {
+  let folded = "";
+  const from: number[] = [];
+  for (let i = 0; i < text.length; ) {
+    const ch = String.fromCodePoint(text.codePointAt(i)!);
+    const f = fold(ch);
+    for (let k = 0; k < f.length; k++) from.push(i);
+    folded += f;
+    i += ch.length;
+  }
+  from.push(text.length);
+  return { folded, from };
+}
+
+/** At most this many places are kept of one text's matches, which is more than an excerpt shows. */
+const MAX_SPANS = 400;
+
+/**
+ * Where the terms occur in `text`. Which terms it holds is read on the text folded whole; where
+ * they are, on the text folded one character at a time when folding it whole moves offsets, so a
+ * text with an ellipsis or a ligature in it still has its words marked.
+ */
 export function matchText(text: string, terms: FindTerm[]): TextMatch {
   const folded = fold(text);
-  const aligned = folded.length === text.length;
+  const apart = folded.length === text.length ? null : foldedApart(text);
   const found = terms.map(() => false);
-  const spans: [number, number][] = [];
+  const spans: [number, number, number][] = [];
   let exact = 0;
   terms.forEach((t, i) => {
     let exactHere = false;
     for (const m of folded.matchAll(termPattern(t))) {
       found[i] = true;
       if (m[0] === fold(t.text)) exactHere = true;
-      if (aligned) spans.push([m.index, m.index + m[0].length]);
-      if (spans.length > 400) break;
+      if (!apart && spans.length < MAX_SPANS) spans.push([m.index, m.index + m[0].length, i]);
     }
+    if (apart)
+      for (const m of apart.folded.matchAll(termPattern(t))) {
+        const [a, b] = [apart.from[m.index]!, apart.from[m.index + m[0].length]!];
+        if (b > a && spans.length < MAX_SPANS) spans.push([a, b, i]);
+      }
     if (exactHere) exact++;
   });
-  spans.sort((a, b) => a[0] - b[0]);
+  spans.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
   const ranges: [number, number][] = [];
   for (const [s, e] of spans) {
     const last = ranges[ranges.length - 1];
     if (last && s <= last[1]) last[1] = Math.max(last[1], e);
     else ranges.push([s, e]);
   }
-  return { found, ranges, exact };
+  return { found, ranges, exact, spans };
 }
 
+const WORD_CHAR = /[\p{L}\p{N}]/u;
+const isLow = (c: number) => c >= 0xdc00 && c <= 0xdfff;
+
 /**
- * About `width` characters of `text` around the densest run of matches, cut at word boundaries,
- * with the match ranges moved to the excerpt.
+ * About `width` characters of `text`, whitespace collapsed, with its matches marked: centred on
+ * the place where the most of the terms occur within one width (then the most matches), so a
+ * phrase or a word that occurs late is in it rather than an earlier occurrence of one of its
+ * words. It starts and ends at word boundaries, unless that would leave out a mark it was chosen
+ * for, and never inside a character. A match it cuts is marked as far as it goes, so an excerpt
+ * of a text that holds a match always holds a mark.
  */
-export function excerpt(text: string, ranges: [number, number][], width = 220): { text: string; marks: [number, number][] } {
+export function excerpt(text: string, match: Pick<TextMatch, "ranges" | "spans">, width = 220): { text: string; marks: [number, number][] } {
   const clean = text.replace(/\s+/g, " ").trim();
-  // Collapsing whitespace moves offsets; find the ranges again in the cleaned text by mapping.
+  // Collapsing whitespace moves offsets; find the matches again in the cleaned text by mapping.
   const map: number[] = [];
   {
     let j = 0;
@@ -254,34 +305,59 @@ export function excerpt(text: string, ranges: [number, number][], width = 220): 
     }
     map.push(j);
   }
-  const rs = ranges.map(([s, e]) => [map[s] ?? 0, map[e] ?? clean.length] as [number, number]).filter(([s, e]) => e > s && s < clean.length);
+  const at = (o: number) => Math.min(map[o] ?? clean.length, clean.length);
+  const rs = match.ranges.map(([s, e]) => [at(s), at(e)] as [number, number]).filter(([s, e]) => e > s);
   if (clean.length <= width) return { text: clean, marks: rs };
-  // The window holding the most matches, starting a little before one of them.
-  let best = 0;
-  let bestCount = -1;
-  for (const [s] of rs.length ? rs : [[0, 0] as [number, number]]) {
-    const start = Math.max(0, s - 60);
-    const count = rs.filter(([a, b]) => a >= start && b <= start + width).length;
-    if (count > bestCount) {
-      best = start;
-      bestCount = count;
+  const spans = match.spans.map(([s, e, k]) => [at(s), at(e), k] as const).filter(([s, e]) => e > s);
+  // The place where the most terms occur within one width, then the most matches, the first of equals.
+  let best: { from: number; to: number; terms: number; count: number } | null = null;
+  for (let a = 0; a < spans.length; a++) {
+    const terms = new Set<number>();
+    let to = spans[a]![1];
+    let count = 0;
+    for (let b = a; b < spans.length && spans[b]![1] - spans[a]![0] <= width; b++) {
+      terms.add(spans[b]![2]);
+      to = Math.max(to, spans[b]![1]);
+      count++;
+    }
+    if (!best || terms.size > best.terms || (terms.size === best.terms && count > best.count)) best = { from: spans[a]![0], to: Math.max(to, spans[a]![1]), terms: terms.size, count };
+  }
+  const word = (i: number) => i >= 0 && i < clean.length && WORD_CHAR.test(clean[i]!);
+  // Centred on that place, inside the text.
+  let start = best ? Math.round((best.from + best.to) / 2 - width / 2) : 0;
+  start = Math.max(0, Math.min(start, clean.length - width));
+  if (best) start = Math.min(start, best.from);
+  if (clean[start] === " ") start++;
+  // At the start of a word: back to the start of the one it cuts, if the place still fits; else on to the next.
+  if (start > 0 && word(start - 1) && word(start)) {
+    let back = start;
+    while (back > 0 && word(back - 1) && start - back < 30) back--;
+    if (!word(back - 1) && (!best || back + width >= best.to)) start = back;
+    else while (start < clean.length && word(start) && (!best || start < best.from)) start++;
+  }
+  if (clean[start] === " ") start++;
+  if (start > 0 && isLow(clean.charCodeAt(start))) start++;
+  let end = Math.min(clean.length, start + width);
+  // At the end of a word: back to before the one it cuts, if the place still fits; else on to its end, if it is near.
+  if (end < clean.length && word(end - 1) && word(end)) {
+    let back = end;
+    while (back > start && word(back - 1) && end - back < 30) back--;
+    if (back > start && !word(back - 1) && (!best || back >= best.to)) end = back;
+    else {
+      let on = end;
+      while (on < clean.length && word(on) && on - end < 30) on++;
+      if (!word(on)) end = on;
     }
   }
-  let start = best;
-  if (start > 0) {
-    const sp = clean.lastIndexOf(" ", start);
-    start = sp > start - 20 && sp >= 0 ? sp + 1 : start;
-  }
-  if (start + width > clean.length) start = Math.max(0, clean.length - width);
-  let end = Math.min(clean.length, start + width);
-  if (end < clean.length) {
-    const sp = clean.lastIndexOf(" ", end);
-    if (sp > start + width - 30) end = sp;
-  }
+  if (end < clean.length && isLow(clean.charCodeAt(end))) end--;
+  const shown = clean.slice(start, end).trimEnd();
+  end = start + shown.length;
   const pre = start > 0 ? "…" : "";
   const post = end < clean.length ? "…" : "";
-  const marks = rs.filter(([a, b]) => a >= start && b <= end).map(([a, b]) => [a - start + pre.length, b - start + pre.length] as [number, number]);
-  return { text: pre + clean.slice(start, end) + post, marks };
+  const marks = rs
+    .filter(([a, b]) => b > start && a < end)
+    .map(([a, b]) => [Math.max(a, start) - start + pre.length, Math.min(b, end) - start + pre.length] as [number, number]);
+  return { text: pre + shown + post, marks };
 }
 
 /** Levenshtein distance, giving up once it passes `max`. */

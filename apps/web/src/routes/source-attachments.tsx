@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, qs } from "../lib/api.ts";
-import { actorName, fileTypeName, formatBytes, plural, relativeTime } from "../lib/format.ts";
+import { actorName, fileTypeName, formatBytes, plural, relativeTime, viaSurface } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { ATTACHMENT_TEXT, pictureKind } from "../lib/status.ts";
@@ -59,6 +59,19 @@ function textWords(a: Attachment): string {
 }
 
 /**
+ * The line over a source's attachments: each one's text is read and kept, and never searched; and
+ * where the source's text comes from: one of them, or, once someone wrote or edited it (taken_from
+ * null), none, since it was written here. A source with no text yet says nothing of it.
+ */
+export function attachmentsNote(record: Pick<RecordFull, "text">): string {
+  const kept = "Each attachment’s text is read and kept with the source";
+  const never = "Attachments are never searched.";
+  if (!record.text) return `${kept}. ${never}`;
+  if (record.text.taken_from) return `${kept}; the source’s text is taken from one of them. ${never}`;
+  return `${kept}. The source’s text was written here and follows no attachment. ${never}`;
+}
+
+/**
  * A source's attachments: its files, each kept with every version, its text read and kept, never
  * searched. One of them is the source's text, until someone edits it.
  */
@@ -98,7 +111,7 @@ export function AttachmentsView({ record, onAdd }: { record: RecordFull; onAdd?:
         </EmptyState>
       ) : (
         <>
-          <p className="source-files-note">Each attachment&rsquo;s text is read and kept with the source; the source&rsquo;s text is taken from one of them. Attachments are never searched.</p>
+          <p className="source-files-note">{attachmentsNote(record)}</p>
           <ul className="source-files">
             {record.attachments.map((a) => {
               const kind = previewKind(a);
@@ -124,7 +137,7 @@ export function AttachmentsView({ record, onAdd }: { record: RecordFull; onAdd?:
                       <span>
                         <span title={a.media_type ?? undefined}>{fileTypeName(a.media_type, a.path)}</span> · {formatBytes(a.size)}
                         {a.versions.length > 1 ? ` · ${plural(a.versions.length, "version")}` : ""}
-                        {` · added ${relativeTime(a.added_at)} by ${actorName(a.added_by)}`}
+                        {` · added ${relativeTime(a.added_at)} by ${actorName(a.added_by)}${viaSurface(a.added_by)}`}
                       </span>
                     </span>
                     {a.text.status_detail && a.text.status !== "ready" && !picture ? <span className="source-file-detail faint">{a.text.status_detail}</span> : null}

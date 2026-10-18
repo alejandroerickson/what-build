@@ -1,4 +1,4 @@
-import { codePointLength, currentReading, derive, isRecording, recordingDurationMs, sliceCodePoints, toParsedFile, type ByteReader, type ParsedFile } from "@whatbuild/parsers";
+import { codePointLength, currentReading, derive, isRecording, parserFor, recordingDurationMs, sliceCodePoints, toParsedFile, type ByteReader, type ParsedFile } from "@whatbuild/parsers";
 import { z } from "zod";
 import { recordActivity, tenantId } from "../common.ts";
 import { json, type Tx } from "../db.ts";
@@ -408,6 +408,23 @@ function blobRangeReader(ports: Ports, key: string): ByteReader {
     }
     return out;
   };
+}
+
+/**
+ * Whether this version's parsers would read an attachment afresh: its reading was made by another
+ * parser or an earlier version of the one that reads it now, or found no parser where one reads it
+ * now. A parser that read the file and found only pictures (a PDF with no text layer) made an
+ * `unsupported` reading of its own, judged as a `ready` one is, so one made by this version's
+ * parser is never read again. A reading that failed, found the file too large or found a recording
+ * stays as it is: read again it would most likely end the same way, and `rederive` tries it
+ * whenever someone asks. That includes a PDF of pictures an earlier version recorded as failed,
+ * which `currentReading` says as `unsupported`.
+ */
+export function readByAnOlderParser(path: string, mediaType: string | null, reading: { status: string; parser: string; parser_version: string }): boolean {
+  const parser = isRecording(path, mediaType) ? undefined : parserFor(path, mediaType);
+  if (reading.status === "unsupported" && reading.parser === "none") return parser !== undefined;
+  if (reading.status !== "ready" && reading.status !== "unsupported") return false;
+  return parser?.name !== reading.parser || parser.version !== reading.parser_version;
 }
 
 /**

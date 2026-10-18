@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AppError, invalid } from "../errors.ts";
+import { invalid } from "../errors.ts";
 import { countFeedback, FEEDBACK_PER_DAY } from "../feedback.ts";
 import { defineOperation } from "../registry.ts";
 import { SKILL_TEMPLATE } from "../skill/skill-text.ts";
@@ -53,9 +53,8 @@ export const submitFeedback = defineOperation({
   }),
   rest: { method: "POST", path: "/feedback" },
   mcp: { tool: "submit_feedback" },
+  // Turned off for the connection, it is refused in execute before its input is read (feedbackOff).
   async handler(ctx, input) {
-    if (ctx.principal.feedback === false)
-      throw new AppError(403, "feedback_off", "The person turned off submit_feedback for this connection, in Connect an agent. Send no feedback another way; tell them what went wrong instead.");
     if (input.reply && ctx.principal.surface !== "web") throw invalid("invalid_input", "Only a person shares their address for a reply, in the web app. Leave reply out.");
     await countFeedback(ctx.db, ctx.principal.account_id);
     const feedback_id = newId();

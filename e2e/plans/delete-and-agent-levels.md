@@ -27,8 +27,9 @@ raise its own level. It deletes only what it made itself in the run.
 4. **MCP, as Sam, at `--level admin`.** Repeat the delete. *Expect:* `403 forbidden` naming editor
    and admin: Sam's own role is editor, and the level never adds to it. Archive the source instead;
    it leaves the list and search.
-5. **Web, as Sam.** On that source's page, and on an assumption's. *Expect:* Archive is offered,
-   Delete permanently is not.
+5. **Web, as Sam.** On that source's page, archived in step 4, then on a live source's page and on
+   an assumption's. *Expect:* the archived source offers Restore; the live source and the
+   assumption offer Archive; none offers Delete permanently.
 6. **MCP, as Riley, at the default level.** Add the second text as a source. Then on the web, as
    Riley, open Connect an agent: the connection says Edit. Raise it to Admin there.
    *Expect:* the change is confirmed with Undo, and listing the tools again as Riley, still without
@@ -38,17 +39,21 @@ raise its own level. It deletes only what it made itself in the run.
    `deleted: true`; reading the source answers `410 record_deleted` with the reason; Activity on
    the web shows the delete, attributed to Riley through the agent.
 8. **Web, as Riley.** Add the third text as a source, comment on it, and
-   create an assumption and an outcome. Delete each from its own screen: the comment
-   from the comment, the assumption and the outcome from their menus, the source from its menu.
-   *Expect:* every dialog says it can't be undone, shows what goes, needs a reason, offers Archive
-   instead where the thing can be archived, and only the source asks for its title typed. After
-   each, the thing is gone and a toast says the activity log records it.
+   create an assumption and an outcome. Delete each from its own screen: the comment from its
+   menu, the assumption and the outcome from their menus, the source from its menu.
+   *Expect:* every dialog asks "Delete this … permanently?", says it can't be undone, shows what
+   goes, needs a reason, has Cancel and Archive instead (each of these can be archived, the
+   comment too), and only the source asks for its title typed. After each, the thing is gone and
+   a toast says the activity log records it, quoting a statement that ends with a full stop
+   without a second one.
 9. **Web, as Riley.** On a mockup that a Story page shows, open Delete permanently from the
    inspector. *Expect:* the dialog names the Story page that shows it, and the delete stays
    disabled. Cancel.
 10. **Web, as Riley.** Open the product's Settings and the organization's Members page.
     *Expect:* Delete this product and Delete this organization are there, each asking for the
-    name to be typed; open each dialog, check the counts look right, and cancel. Do not delete.
+    name to be typed; open each dialog, check the counts look right, and cancel. The product's
+    dialog, the product being live, has Archive instead beside Cancel; the organization's, which
+    can't be archived, has Cancel alone. Do not delete or archive.
 11. **The sandbox organization, as Riley.** Open its Members page. *Expect:* no Delete this
     organization. As Sam there, nothing offers a permanent delete.
 12. **Web, as Riley, then MCP on the same connection.** On Connect an agent, untick Can submit

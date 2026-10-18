@@ -70,7 +70,11 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       // A grant given to a visitor before the public sandbox stopped their writes takes no bytes after.
       const sandbox = await sandboxForAccount(env.db, tenantId, grant.principal.account_id);
       if (sandbox?.visitor && sandbox.settings.visitor_access !== "write")
-        throw new AppError(403, sandbox.settings.visitor_access === "closed" ? "sandbox_closed" : "sandbox_read_only", "This public sandbox is not taking visitors' uploads for now. Nothing was stored; try again later with a new grant.");
+        throw new AppError(
+          403,
+          sandbox.settings.visitor_access === "closed" ? "sandbox_closed" : "sandbox_read_only",
+          `This public sandbox is not taking ${sandbox.member ? "uploads for now, except from its owners and admins" : "visitors' uploads for now"}. Nothing was stored; try again later with a new grant.`,
+        );
       // A grant carries its requester's authority only while they may still write here: someone made a reader or viewer, or removed, since it was given stores nothing.
       const role = await inTenant(env, tenantId, async (trx) => {
         const product = await trx.selectFrom("products").select("team_id").where("product_id", "=", grant.product_id).executeTakeFirst();

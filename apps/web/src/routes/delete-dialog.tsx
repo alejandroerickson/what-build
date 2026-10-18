@@ -9,8 +9,9 @@ const CONFIRM = "delete permanently";
 /**
  * The one dialog for deleting something permanently. It shows what goes, read from the thing's
  * delete_impact; asks why, which is recorded with the deletion; for a whole product or
- * organization, asks for its name to be typed; and offers the reversible alternative beside it.
- * Delete is never the default button, and the dialog can't be dismissed while it runs.
+ * organization, asks for its name to be typed; and offers Cancel and, where there is one, the
+ * reversible alternative beside it. Delete is never the default button, and the dialog can't be
+ * dismissed while it runs.
  */
 export function DeleteDialog<I extends object>({ title, impactPath, etag, deletePath, typeToConfirm, renderImpact, alternative, allowed, onDeleted, onClose }: {
   /** "Delete this assumption permanently?" */
@@ -24,8 +25,8 @@ export function DeleteDialog<I extends object>({ title, impactPath, etag, delete
   typeToConfirm?: { what: string; name: string };
   /** What the impact means, in plain words. */
   renderImpact: (impact: I) => ReactNode;
-  /** The reversible alternative, such as Archive instead. */
-  alternative?: { label: string; onSelect: () => void; disabled?: boolean };
+  /** The reversible alternative, such as Archive instead; left out where it can't apply, as for what is already archived. */
+  alternative?: { label: string; onSelect: () => void };
   /** Whether the impact allows the delete at all; renderImpact says why not. */
   allowed?: (impact: I) => boolean;
   onDeleted: () => void;
@@ -58,21 +59,20 @@ export function DeleteDialog<I extends object>({ title, impactPath, etag, delete
       dismissable={!del.isPending}
       footer={
         <>
+          <Button onClick={onClose} disabled={del.isPending}>
+            Cancel
+          </Button>
           {alternative ? (
             <Button
               onClick={() => {
                 alternative.onSelect();
                 onClose();
               }}
-              disabled={alternative.disabled || del.isPending}
+              disabled={del.isPending}
             >
               {alternative.label}
             </Button>
-          ) : (
-            <Button onClick={onClose} disabled={del.isPending}>
-              Cancel
-            </Button>
-          )}
+          ) : null}
           <Button variant="danger" disabled={!permitted || !reason.trim() || !named} busy={del.isPending} busyLabel="Deleting…" onClick={() => del.mutate()}>
             Delete permanently
           </Button>

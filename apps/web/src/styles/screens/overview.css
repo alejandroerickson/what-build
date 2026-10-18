@@ -230,10 +230,11 @@
   cursor: pointer;
 }
 
-/* One click to each section: the panel's four destinations, as tiles. */
+/* One click to each section: the panel's four destinations, as tiles of one width, the widest
+   one's (at least 118px), so "Exploration" and its count are never cut. */
 .overview-product-go {
   display: grid;
-  grid-template-columns: repeat(4, 118px);
+  grid-template-columns: repeat(4, minmax(118px, 1fr));
   gap: var(--s-1h);
 }
 .overview-go {
@@ -279,7 +280,7 @@
 
 @container overview (max-width: 820px) {
   .overview-product-go {
-    grid-template-columns: repeat(2, 112px);
+    grid-template-columns: repeat(2, minmax(112px, 1fr));
   }
 }
 
@@ -306,7 +307,7 @@
     gap: var(--s-3);
   }
   .overview-product-go {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(max-content, 1fr));
   }
 }
 
@@ -336,7 +337,7 @@
     margin-left: 0;
   }
   .overview-product-go {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(max-content, 1fr));
   }
 }
 

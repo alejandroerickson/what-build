@@ -92,6 +92,8 @@ export function FindField({ label, className = "", ...rest }: { label: string } 
 /**
  * A checkbox or radio with its label as one 28px row, and an optional count at the right.
  * `boxed` draws the checked row with a fill and border (for a short list of exclusive options).
+ * A hint under the label describes the choice: the label (and count) name it, and the hint is its
+ * description, so a screen reader does not read the whole hint as its name.
  */
 export function ChoiceRow({ type = "checkbox", label, count, hint, variant = "plain", className = "", ...rest }: {
   type?: "checkbox" | "radio";
@@ -100,14 +102,29 @@ export function ChoiceRow({ type = "checkbox", label, count, hint, variant = "pl
   hint?: ReactNode;
   variant?: "plain" | "boxed";
 } & Omit<InputHTMLAttributes<HTMLInputElement>, "type">) {
+  const id = useId();
+  const counted = count !== undefined;
   return (
     <label className={`choice-row choice-${variant} ${className}`}>
-      <input type={type} {...rest} />
+      <input
+        type={type}
+        aria-labelledby={hint ? `${id}-label${counted ? ` ${id}-count` : ""}` : undefined}
+        aria-describedby={hint ? `${id}-hint` : undefined}
+        {...rest}
+      />
       <span className="choice-label">
-        {label}
-        {hint ? <span className="choice-hint">{hint}</span> : null}
+        <span id={`${id}-label`}>{label}</span>
+        {hint ? (
+          <span className="choice-hint" id={`${id}-hint`}>
+            {hint}
+          </span>
+        ) : null}
       </span>
-      {count !== undefined ? <span className="choice-count num">{count}</span> : null}
+      {counted ? (
+        <span className="choice-count num" id={`${id}-count`}>
+          {count}
+        </span>
+      ) : null}
     </label>
   );
 }

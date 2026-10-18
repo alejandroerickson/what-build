@@ -47,9 +47,9 @@ well, not `422`, with `current_etag` and a message saying which etag to pass and
 clearing or removing is a write like any other. Where an object's etag sits beside another's (a
 source's summary, notes and derived text beside the source's own; a page's notes beside the
 page's), sending the other's current etag is recognised and named; an older one is refused as not
-the current etag. A summary, notes or derived text someone removed has nothing to match: an etag
-sent for it is refused the same way, with `current_etag: null`, saying to leave it out for the
-first write.
+the current etag. Before the first write there is nothing to match, nor is there for a summary,
+notes or derived text someone removed: an etag sent then is refused the same way by every such
+write, with `current_etag: null`, saying to leave it out for the first write.
 
 A source's etag also changes when an attachment is added (`complete_upload` returns the new one
 as `record_etag`). Reading an attachment, which no caller does, does not change it, so an etag
@@ -149,7 +149,7 @@ A source is one discovery event or document. It is stored as a **record**, so it
 | `tags` | ≤ 50, each 1–50 chars: what the material is, whom it concerns, what it bears on (§4.4). Stored NFKC-normalized, spacing collapsed, lower-case, without repeats. |
 | `copied_from` | `{ product_id, record_id }` when the source is a copy ([§3.7](03-accounts-teams-and-identity.md)). |
 | `uploaded_by`, `uploaded_at` | Actor snapshot and time of creation: the **date added**. |
-| `updated_by`, `updated_at` | Actor snapshot and time of the last change to the source's details, archive or restore: the **date updated**. Adding an attachment changes the etag but not this. |
+| `updated_by`, `updated_at` | Actor snapshot and time of the last change to the source's details, its move to another product ([§3.7](03-accounts-teams-and-identity.md)), archive or restore, each a change to the source itself, as for every object (§4.1): the **date updated**, which the web app calls **details updated** for what it covers. Adding an attachment changes the etag but not this, nor do its text, summary, notes and comments, which keep their own. |
 | attachments | §4.5. `attachment_count` counts them. |
 | derived text | The source's words, one Markdown document with an etag of its own, at most one per source ([§5.4](05-derived-layer.md)). `text_chars` is its length in code points, 0 without one. |
 | `derived_status` | Where the derived text stands: `ready` (the source has one), `pending` (an attachment is arriving or being read), `awaiting_file` (no attachment), `awaiting_text` (an attachment has text the source does not use), or how its newest attachment was read: `needs_transcript`, `unsupported`, `too_large` or `failed` ([§5.5](05-derived-layer.md)). |
@@ -159,7 +159,11 @@ A source is one discovery event or document. It is stored as a **record**, so it
   readings, the derived text and the comments are untouched.
 - **Archive** takes the source out of browse and out of search (including the search space an
   agent can reach). It erases nothing, and the source stays readable by id; `restore` puts it
-  back. This is the default and the first action the UI offers.
+  back. This is the default and the first action the UI offers. While archived the source is
+  read-only ([decision](../decisions/archive-by-default-delete-guarded.md)): correcting its title,
+  date or tags, writing its derived text, summary or notes, adding or reading again an attachment,
+  and adding or changing a comment are each refused with `409 record_archived`, saying how to
+  restore it; `sources.restore` brings it back.
 - **Delete** ([§9.5](09-data-lifecycle.md)) destroys the source and every byte under it,
   permanently. Admins may do it, through either adapter (an agent on an Admin connection). It
   requires the current etag, a reason,
@@ -269,7 +273,11 @@ anchored to any part of the source's text
 | `archive_reason` | Optional, ≤ 500 chars: why the comment was archived. Given only with `archived: true`; restoring clears it. It stays with the comment: the activity log records that a comment was archived, never why (§4.10). |
 
 Editable (text only, keeping revisions), archivable. `sources.annotate` refuses a segment range
-(`seq_start`, `seq_end`) with `422 invalid_input`, saying a comment is on the whole source.
+(`seq_start`, `seq_end`) with `422 invalid_input`, saying a comment is on the whole source. A
+comment is part of its source, which is read-only while archived: adding, editing, archiving,
+restoring and deleting one are refused then with `409 record_archived`, before its etag is
+checked, saying how to restore the source (`sources.restore`, or Restore in the web app); its
+comments still read.
 Comments are searched with the rest of the source; an archived one is not
 ([§8](08-search.md)).
 
@@ -589,8 +597,9 @@ one HTML document for a browser to print to PDF ([§6.4](06-operations-and-adapt
   other page in `mockups` (`422 invalid_hierarchy`).
 
 `set_hierarchy` takes the hierarchy's etag as `expected_etag`. Before the first save there is none
-(`get_hierarchy` gives `etag: null`), and `expected_etag` is null or left out; once saved, leaving
-it out is `409 stale_etag`, saying to read `get_hierarchy` and pass its etag. A page that was never
+(`get_hierarchy` gives `etag: null`), and `expected_etag` is null or left out (an etag sent then
+is `409 stale_etag` with `current_etag: null`); once saved, leaving it out is `409 stale_etag`,
+saying to read `get_hierarchy` and pass its etag. A page that was never
 published, or is archived, is refused too (`422 invalid_hierarchy`, with `details.unpublished` or
 `details.archived`), and the refusal says what to do: publish it, or restore it, first, or leave
 it out.
@@ -607,7 +616,8 @@ only to `data:`), an optional `specimen_html` (a page in the style, validated li
 `etag`, `updated_at`, `updated_by`. `story.get_style` returns it (or null) with the house style
 catalogue; `story.set_style` replaces it. `house_style` adopts a house style whole, other fields
 adapt it; without `house_style`, omitted fields carry forward, and the first style needs `name`,
-`rules` and `stylesheet`. `expected_etag` is required once a style exists. `422 invalid_style`
+`rules` and `stylesheet`. `expected_etag` is required once a style exists, and left out for the
+first (one sent then is `409 stale_etag` with `current_etag: null`). `422 invalid_style`
 lists every problem. Setting a style changes no published page. The app previews a style on its
 `specimen_html`, or on a sample page in its stylesheet; each house style has a sample page too
 (`GET …/story/style/specimen`, `GET …/story/house-styles/{id}/specimen`, both served like a Story
@@ -714,7 +724,7 @@ case are refused, since they would overwrite each other when unzipped.
 
 **Publishing.** `mockups.publish` without `mockup_id` creates a mockup with its first version: a
 `title` and at least one page with a `title` and `html` (or an `entry`, from an upload that brings
-a prototype). With `mockup_id` it publishes the next
+a prototype), and no `expected_etag` (one sent is `409 stale_etag` with `current_etag: null`). With `mockup_id` it publishes the next
 version and needs the mockup's etag (`409 stale_etag`); an archived mockup refuses it
 (`409 mockup_archived`). A version starts from a base, the current one unless `from_version: N`
 names another, and takes every field it omits (`title`, `summary`, `brief`, `columns`) from the

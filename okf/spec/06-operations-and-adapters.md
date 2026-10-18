@@ -52,17 +52,24 @@ call came through:
 
 1. **Refuse what the caller may not call at all**, before anything about a product is resolved:
    an operation only a person does in the web app (`403 web_only`), and, for an agent, one above
-   its connection's level (`403 connection_level`, [§3.8](03-accounts-teams-and-identity.md)).
-   Neither says anything about any product.
+   its connection's level (`403 connection_level`, [§3.8](03-accounts-teams-and-identity.md)) or
+   `submit_feedback` when the person turned it off for the connection (`403 feedback_off`, §6.9),
+   whatever was sent with it. None says anything about any product.
 2. **Resolve and authorize the scope** ([§3.6](03-accounts-teams-and-identity.md)): a caller
    who cannot see the product gets `404` before their input is even validated. For an agent the
-   role in the scope is then capped by its connection's level.
+   role in the scope is then capped by its connection's level. A tenant, team or product named
+   with a null character (U+0000) is refused first (`422 invalid_input`, naming it): no scope's
+   name holds one, and Postgres reads no text that does.
 3. **In a public sandbox, admit the visitor** ([§9.7](09-data-lifecycle.md)): whether visitors
    are let in, what a visitor never does, and the limits on calls and writes a minute
    (`403`, `429`). This runs before validation, so a call that is refused still counts as a call.
 4. **Validate the input** strictly (`422 invalid_input`, "Nothing was changed"), after renaming an
-   accepted alias to its canonical field (§6.5). A visitor's input is then checked for size
-   (`413 too_large`).
+   accepted alias to its canonical field (§6.5). A string anywhere in it that holds a null
+   character (U+0000) is refused the same way, naming the field (`details.fields`), since
+   Postgres keeps no such character in text; nothing strips it. Over REST a path or a query that
+   holds one is refused before any route runs, naming the field as here (§6.4), so this check
+   meets a JSON body's and an MCP call's, beside the schema's own refusals. A visitor's input is
+   then checked for size (`413 too_large`).
 5. Refuse writes to an archived product (`409 product_archived`) unless the operation allows it.
    An operation with slow work outside the database (`attachments.fetch_url`'s download) does it now,
    in its `prepare` step, holding no database connection; its checks read through a short
@@ -111,8 +118,9 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
   when there is nothing to match. It answers a stale etag and, for a write that may create what
   it writes (a source's summary, notes and derived text, a Story page's versions and notes, the
   Story's style and hierarchy, a mockup's versions, an allowance), a missing one once the object
-  exists; its message says which etag to pass and where to read it, and names another etag of the
-  object sent in its place ([§4.1](04-data-model.md)).
+  exists, and one sent while there is nothing to match, with `current_etag: null`; its message
+  says which etag to pass and where to read it, or to leave it out for the first write, and names
+  another etag of the object sent in its place ([§4.1](04-data-model.md)).
 - **`quota_exceeded`** carries `{ quota, limit, used, unit }` in `details`. It is returned for the
   50 Story pages and the 50 mockups a product holds ([§9.2](09-data-lifecycle.md)), the mockups'
   adding `archived`, and for a visitor's daily
@@ -126,12 +134,20 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
 - **`413 too_large`** carries `{ limit }`, and for a visitor's input `{ field, limit, unit }`.
 - Database unique violations become `409 conflict`; serialization failures become
   `409 concurrent_change` ("Retry"). Anything unexpected is `500 internal`, logged, and never
-  leaks details.
+  leaks details. Its message says to try again and how to report it if it repeats, as the door
+  names the way: Submit feedback in the account menu over REST (the web app), `submit_feedback`
+  over MCP, or telling the person on a connection whose person turned feedback off.
 - Messages are written for an agent to act on: they say what was wrong and what a correct call
   looks like. `422 invalid_input` leads with the cause, in its own words rather than the validation
   library's: the fields it did not recognize first, each with the required field it was probably
   meant as when one is missing beside it ("`content` is not a field of this action; did you mean
   `notes`?"), then what is missing ("`notes` is required"), then any other problem with a value.
+  A value of the wrong type is named once, without the checks the library also ran on it, and a
+  list sent as something else says in one sentence what the list takes, with an example made from
+  what was sent ("`status` takes a list of any of unconfirmed, confirmed, refuted and superseded,
+  such as ["confirmed"], not a string"). A standalone tool called with `describe`, `action` or
+  `params` is told it is a tool of its own whose arguments are its fields, which it names, and
+  that only the grouped tools take those three; no field is suggested in their place.
   It ends "Nothing was changed; correct the call and send it again", so a refusal never reads as a
   call with nothing to do ([`schemas.ts`](../../packages/core/src/schemas.ts) `formatIssues`).
   A field that a neighbouring operation takes adds a hint: `derived.text` refusing `start`, `end`,
@@ -203,6 +219,17 @@ as the `ETag` header. Every successful answer names the operation it ran in
 `X-WhatBuild-Operation`, which the web app counts changes by ([§9.1](09-data-lifecycle.md)).
 Operations that create something answer `201`. Cookie-authenticated writes
 must come from the app's own origin (`403 forbidden_origin`).
+
+A null character (U+0000) in a request is refused with `422 invalid_input` before any route reads
+it, on every route, the app's own pages, sign-in and OAuth included, and before the caller is
+identified (`apps/server/src/null-characters.ts`): in the path, the query, a form's fields, and the
+JSON body of every route but an operation's, whose input check names its fields beside the
+schema's own refusals (§6.1). A field is named as an operation names it: by its query or form
+key, by the parameter its route gives a path segment (`record_id`, `page_id`, `product`), or by
+its path in the JSON; a part of the address no route names is called the address. The MCP
+endpoint's body and an upload's bytes are read as they came and not here (MCP's operations check
+theirs), and OAuth client registration cleans a client's name of control characters itself, as
+it always has.
 
 ### The operation catalogue
 
@@ -435,7 +462,8 @@ Notes on recent actions:
   document publish would store ([§4.11](04-data-model.md)).
 - `story.get_style` and `story.set_style` read and replace the product's Story style, the design
   system every page follows: an adopted house style (`house_style`) or the team's own
-  (`name`, `rules`, `stylesheet`), with its own etag; `422 invalid_style` lists every problem
+  (`name`, `rules`, `stylesheet`), with its own etag, left out for the first style (one sent then
+  is `409 stale_etag` with `current_etag: null`); `422 invalid_style` lists every problem
   ([§4.11](04-data-model.md)). A style based on a house style no longer in the catalogue carries a
   `note` (in `get_style`, `set_style` and the guidance's `product_style`) saying how to move to a
   current one. `story.guidance` takes `house_style` to return one house style in
@@ -492,8 +520,9 @@ Notes on recent actions:
   (the `title` and `description` on each node are ignored), and placing a page is adding it there.
   `story.set_hierarchy` takes the
   tree and, optionally, `mockups` to reorder that section ([§4.11](04-data-model.md)). Before the
-  first save its `expected_etag` may be null or left out; once saved, leaving it out is
-  `409 stale_etag`, saying to read `get_hierarchy`.
+  first save its `expected_etag` may be null or left out (an etag sent then is `409 stale_etag`
+  with `current_etag: null`); once saved, leaving it out is `409 stale_etag`, saying to read
+  `get_hierarchy`.
 - `outcomes.create` takes an optional `position`, as `update` does, to place the new outcome
   between two others; omitted, it goes last ([§4.2](04-data-model.md)).
 - `members.list` takes an optional `product` to list only the people who can reach it, each with
@@ -651,8 +680,10 @@ refresh it. ◆ Decision: say so rather than build sessions for it. The instruct
 that a tool the skill describes but its list lacks, or a skill newer than the version they name,
 means an older list, and to ask the person to start a new session; `get_skill`'s description says
 the same of a newer version than the instructions named. `unknown_tool` and `unknown_action` name
-the server's version and its tools or the tool's actions (also in `details`: `server_version`,
-`tools` or `actions`), and say the client may hold a list from another version.
+the server's version and the tools, or the tool's actions, the connection is offered, as its
+`tools/list` names them (also in `details`: `server_version`, `tools` or `actions`), so never
+`submit_feedback` where its person turned it off, and say the client may hold a list from another
+version.
 
 **Tools.** Fourteen tools over the 116 operations an agent may be offered (all 118 but deleting an
 organization and its preview): eleven grouped by noun, three standalone
@@ -688,6 +719,10 @@ Rules:
   `params`), it returns that action's scope, access, whether it mutates, its guidance and its
   exact JSON Schema — without executing.
 - **Strict.** Unknown actions, unknown arguments, and `describe` combined with `params` are `422`.
+  A grouped tool called without `action` is `422 invalid_input` saying `action` is missing and
+  listing the tool's actions (also in `details.actions`). It, and `unknown_action`, list only the
+  actions the connection is offered, as its `tools/list` does (below): never a permanent delete or
+  a sandbox's control panel to an Edit connection.
 - **Aliases for names a caller reads.** The id is `outcome_id` on `outcomes` but `id` on
   `assumptions`. Each tool also accepts the other convention for its own entity: `id` on
   `outcomes`, `assumption_id` on `assumptions`. A field may also be accepted under the name it is
@@ -700,6 +735,13 @@ Rules:
 - **Product resolution.** A product-scoped call resolves its product from the `product` argument,
   then the endpoint's product, then the only product the caller can reach inside the endpoint's
   scope; otherwise `422 product_required` listing up to 50 of those products ([§3.6](03-accounts-teams-and-identity.md)).
+  An organization's or a team's action takes its `tenant` (and `team`) from `params`, and on a
+  scoped endpoint defaults to the endpoint's. Named with `product` instead, it acts on the
+  organization, and team, that the product is in, once the product is found visible to the
+  caller (`404` otherwise), as `sandbox(action="status", product=…)` does; an action that takes a
+  product of its own in `params` (`members` `list`, `grant` and `revoke`) does not read `product`
+  so. Naming none is `422 invalid_input`, saying `tenant` (or `team`) is missing, where to read it
+  (the first parts of a product's path) and, where it applies, that `product` names it too.
 - **Scoped means scoped.** On a scoped endpoint the scope is checked in `execute`, after
   authorization and before the handler, so a refused call changes nothing and writes no activity.
 - **Listed by level.** `tools/list` answers each connection with only the actions its level allows
@@ -891,8 +933,9 @@ agents; the `429` refusal's message gives the moment the next UTC day begins, mi
 they may send again ([§4.13](04-data-model.md#413-feedback)). The web app sends it from
 **Submit feedback** in the account menu ([§7](07-web-app.md)). The skill asks agents to use it when a tool's behavior or
 guidance misled them, so the product's agent surface improves from real use. A connection whose
-person turned feedback off is not offered the tool, is refused it with `403 feedback_off`, and is
-told so in the server's instructions, so it does not take the missing tool for an old tool list.
+person turned feedback off is not offered the tool, is refused it with `403 feedback_off` before
+anything else about the call is read, its input included, and is told so in the server's
+instructions, so it does not take the missing tool for an old tool list.
 The people who run the deployment get the reports in a daily digest at `WHATBUILD_FEEDBACK_EMAIL`
 ([mail](../operations/mail.md),
 ◆ [decision](../decisions/feedback-names-nobody-and-reaches-the-maintainers-in-a-daily-digest.md)).

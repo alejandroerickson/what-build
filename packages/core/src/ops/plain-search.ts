@@ -1,6 +1,7 @@
 import { sql, type RawBuilder } from "kysely";
 import { productId } from "../common.ts";
-import { closestWord, excerpt, fold, idLike, matchText, parseFind, termPattern, termTsquery, wordRoot, type FindKind, type FindTerm, type ParsedFind, type TextMatch } from "../plain-query.ts";
+import { findCount, findPattern, findWords } from "../find-in-text.ts";
+import { closestWord, excerpt, findTsquery, fold, idLike, matchText, parseFind, termPattern, termTsquery, wordRoot, type FindKind, type FindTerm, type ParsedFind, type TextMatch } from "../plain-query.ts";
 import type { OpContext } from "../registry.ts";
 
 /**
@@ -57,6 +58,12 @@ export interface FindResult {
   /** Where a source says the words, best first, and how many places there are. */
   hits?: Omit<Hit, "found">[];
   hit_count?: number;
+  /**
+   * How many times a source's derived text says the words, counted as its Find in the text counts
+   * them for the same words: the number the web app shows as "N matches". Left out when counting
+   * would read past COUNT_PIECES_MAX pieces, rather than given short.
+   */
+  match_count?: number;
 }
 
 /** Text from stored HTML: scripts, styles and tags dropped, entities blanked. */
@@ -67,14 +74,48 @@ function htmlText(col: RawBuilder<unknown>): RawBuilder<string> {
 }
 
 /**
- * A piece of Markdown as a reader sees its words, for an excerpt: emphasis markers, heading marks
- * and a table's rule row dropped. Single passes over a piece of at most a few thousand characters.
+ * What shows as written: a backslash escape, as the ASCII punctuation it escapes, and a code span
+ * (a run of backticks, what it holds, and a run as long), as what it holds (CommonMark). One pass
+ * reads both, so an escaped backtick opens no code span and nothing in a code span is an escape.
+ */
+const AS_WRITTEN = /\\([!-\/:-@[-`{-~])|(?<!`)(`+)(?!`)([^\n]*?[^`\n])\2(?!`)/g;
+/** A line that opens or closes a fenced code block, its language with it. */
+const FENCE = /^[ \t]*(?:`{3,}|~{3,})[^`\n]*$/gm;
+/** A link or an image, `[text](address "title")`: its text stays, as a reader sees it, and the rest goes. */
+const LINK = /!?\[([^[\]\n]*)\]\((?:<[^<>\n]*>|(?:[^()\s]|\([^()\s]*\))*)(?:\s+(?:"[^"\n]*"|'[^'\n]*'|\([^()\n]*\)))?\)/g;
+/**
+ * Italics, `*words*` and `_words_`: a marker that opens before a word and one that closes after
+ * one, on one line, and neither inside a word, so `snake_case` and `2*3*4` stay as written.
+ */
+const STAR_EM = /(?<![*\p{L}\p{N}])\*(?![\s*])([^*\n]*?[^\s*])\*(?![*\p{L}\p{N}])/gu;
+const UNDERSCORE_EM = /(?<![_\p{L}\p{N}])_(?![\s_])([^_\n]*?[^\s_])_(?![_\p{L}\p{N}])/gu;
+/** What shows as written stands here while the rest is read, by its place in the list it is held in. A stored text never holds a null character. */
+const HELD = /\u0000(\d+)\u0000/g;
+
+/**
+ * A piece of Markdown as a reader sees its words, for an excerpt: heading marks, the marks before
+ * a list item or a quoted line, a table's rule row and a code fence's lines dropped, bold, italics
+ * and a code span's backticks dropped (what a code span holds shows as written), a link or an
+ * image shown as its text, and an escaped character shown without its backslash, never taken for
+ * markup. Every Markdown text plain search shows an excerpt of goes through it: a source's, an
+ * assumption's body, an outcome's description, a mockup's brief and notes, the product concept. An
+ * excerpt and its marks are made from what it returns, so the marks fall on the words shown.
+ * Single passes over a piece of at most a few thousand characters.
  */
 export function shownWords(md: string): string {
-  return md
+  const held: string[] = [];
+  const shown = md
+    .replace(/\u0000/g, "")
     .replace(/^[ \t|:]*-{3,}[-:| \t]*$/gm, "")
+    .replace(FENCE, "")
     .replace(/^#{1,6}[ \t]+/gm, "")
-    .replace(/\*\*|__/g, "");
+    .replace(/^[ \t]*(?:>[ \t]?|[-*+][ \t]+)+/gm, "")
+    .replace(AS_WRITTEN, (_m, escaped: string | undefined, _ticks: string | undefined, code: string | undefined) => `\u0000${held.push(escaped ?? code ?? "") - 1}\u0000`)
+    .replace(LINK, "$1")
+    .replace(/\*\*|__/g, "")
+    .replace(STAR_EM, "$1")
+    .replace(UNDERSCORE_EM, "$1");
+  return held.length ? shown.replace(HELD, (_m, i: string) => held[Number(i)] ?? "") : shown;
 }
 
 /** The terms, in the order typed and next to each other: a strong sign the text is about them. */
@@ -109,7 +150,7 @@ function scoreDoc(doc: Doc, p: ParsedFind, kind: FindKind) {
   let snippet: string | null = null;
   let snippet_marks: Marks = [];
   const best = bodies.filter((b) => b.m.ranges.length).sort((a, b) => b.m.found.filter(Boolean).length - a.m.found.filter(Boolean).length)[0];
-  if (best && inTitle < n) ({ text: snippet, marks: snippet_marks } = excerpt(best.text, best.m.ranges));
+  if (best && inTitle < n) ({ text: snippet, marks: snippet_marks } = excerpt(best.text, best.m));
   // What the score adds beyond plain coverage: where and how the words matched.
   const bonus = score - (100 * covered) / n;
   return { score, bonus, found, title: t, snippet, snippet_marks };
@@ -169,7 +210,7 @@ async function sources(ctx: OpContext, p: ParsedFind, i: Input, q: string): Prom
   for (const h of hits.rows) {
     const shown = shownWords(h.text);
     const m = matchText(shown, p.terms);
-    const ex = excerpt(shown, m.ranges, 240);
+    const ex = excerpt(shown, m, 240);
     const hit: Hit = { field: h.field, annotation_id: h.field === "comment" ? h.ref : null, char_start: h.char_start, text: ex.text, marks: ex.marks, found: m.found.filter(Boolean).length };
     byRecord.set(h.record_id, [...(byRecord.get(h.record_id) ?? []), { hit, m }]);
   }
@@ -268,14 +309,15 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
     if (!s.found.some(Boolean)) return;
     out.push({ kind, id: idv, title: doc.title, title_marks: s.title.ranges, snippet: s.snippet, snippet_marks: s.snippet_marks, missing: missingWords(p, s.found), score: round(s.score), meta });
   };
-  for (const a of assumptions?.rows ?? []) push("assumption", a.entry_id, { title: a.statement, body: [a.body] }, { status: a.status });
-  for (const o of outcomes?.rows ?? []) push("outcome", o.outcome_id, { title: o.title, body: [o.description] }, {});
+  // What is Markdown is read as its words, as a source's text is.
+  for (const a of assumptions?.rows ?? []) push("assumption", a.entry_id, { title: a.statement, body: [shownWords(a.body)] }, { status: a.status });
+  for (const o of outcomes?.rows ?? []) push("outcome", o.outcome_id, { title: o.title, body: [shownWords(o.description)] }, {});
   // A mockup is one result; the page that matches best is the one it opens on.
   const byMockup = new Map<string, NonNullable<typeof mockups>["rows"]>();
   for (const m of mockups?.rows ?? []) byMockup.set(m.mockup_id, [...(byMockup.get(m.mockup_id) ?? []), m]);
   for (const [mid, pages] of byMockup) {
     const first = pages[0]!;
-    const scored = pages.map((pg) => ({ pg, s: scoreDoc({ title: first.title, body: [first.summary, pg.page_title ?? "", pg.notes ?? "", pg.text ?? "", first.brief] }, p, "mockup") }));
+    const scored = pages.map((pg) => ({ pg, s: scoreDoc({ title: first.title, body: [first.summary, pg.page_title ?? "", shownWords(pg.notes ?? ""), pg.text ?? "", shownWords(first.brief)] }, p, "mockup") }));
     scored.sort((a, b) => b.s.score - a.s.score);
     const top = scored[0]!;
     const found = p.terms.map((_, k) => scored.some((x) => x.s.found[k]));
@@ -293,7 +335,7 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
     });
   }
   for (const s of story?.rows ?? []) push("story", s.page_id, { title: s.title, body: [s.summary, s.text] }, {});
-  if (idea?.concept) push("idea", pid, { title: "Product concept", body: [idea.concept] }, {});
+  if (idea?.concept) push("idea", pid, { title: "Product concept", body: [shownWords(idea.concept)] }, {});
   return out;
 }
 
@@ -337,7 +379,36 @@ async function run(ctx: OpContext, p: ParsedFind, i: Input) {
 }
 
 export const PLAIN_DESCRIPTION =
-  "mode \"plain\" searches everything in the product the way a person types into a search box, ranked: sources, each with the best places it says the words (its derived text, summary, notes or comments; hits give the field and where the piece starts), assumptions, outcomes, mockups, Story pages and the product concept. Words match in any order, each at the start of a word; endings are forgiven (\"pricing\" finds price and priced); the last word is taken as still being typed and matches as a prefix even when short, unless the query ends with a space; \"quoted words\" match as a phrase; an id or a number (CB26-20734, 2026-05-01, 2026) is one word, hyphens and all, matched as written, and one with a letter in it also as its words side by side (q3-planning finds \"Q3 planning\"); small words (the, of, how) are skipped; a word that matches nothing is replaced by the closest word the product holds, and `corrections` says so (`strict: true` turns that off), but an id or a number is never corrected. When nothing holds every word, results hold most of them and list the `missing` ones. At most `limit` results come back (60 unless you say), best first; `counts` says how many of each kind matched in all, so say so when more matched than came back. It takes `kind`, `record_id`, `strict` and `limit`, not the date or tag filters or a cursor.";
+  "mode \"plain\" searches everything in the product the way a person types into a search box, ranked: sources, each with the best places it says the words (its derived text, summary, notes or comments; hits give the field and where the piece starts), how many places in hit_count, and in match_count how many times its derived text says them, as the source's Find in the text in the web app counts them, assumptions, outcomes, mockups, Story pages and the product concept. Words match in any order, each at the start of a word; endings are forgiven (\"pricing\" finds price and priced); the last word is taken as still being typed and matches as a prefix even when short, unless the query ends with a space; \"quoted words\" match as a phrase; an id or a number (CB26-20734, 2026-05-01, 2026) is one word, hyphens and all, matched as written, and one with a letter in it also as its words side by side (q3-planning finds \"Q3 planning\"); small words (the, of, how) are skipped; a word that matches nothing is replaced by the closest word the product holds, and `corrections` says so (`strict: true` turns that off), but an id or a number is never corrected. When nothing holds every word, results hold most of them and list the `missing` ones. At most `limit` results come back (60 unless you say), best first; `counts` says how many of each kind matched in all, so say so when more matched than came back. It takes `kind`, `record_id`, `strict` and `limit`, not the date or tag filters or a cursor.";
+
+/** At most this many pieces of derived text are read to count matches, so a search for a common word stays quick. */
+const COUNT_PIECES_MAX = 2000;
+
+/**
+ * Each source result's `match_count`: the matches its Find in the text marks for the words this
+ * search read, counted in the pieces of its derived text that may hold one. Only the derived text
+ * is counted, because the find marks only it. The pieces are read in the results' order, so the
+ * best come first; a source the limit cuts, and those after it, are left without a count.
+ */
+async function countMatches(ctx: OpContext, p: ParsedFind, results: FindResult[]): Promise<void> {
+  const sources = results.filter((r) => r.kind === "source");
+  const pattern = findPattern(findWords(p.terms));
+  if (!sources.length || !pattern) return;
+  const ids = sources.map((r) => r.id);
+  const q = p.terms.map((t) => `(${findTsquery(t)})`).join(" | ");
+  const rows = await sql<{ record_id: string; text: string }>`
+    select c.record_id, c.text from text_chunks c
+    where c.record_id = any(${ids}::text[]) and c.field = 'text' and c.tsv @@ to_tsquery('simple', ${q})
+    order by array_position(${ids}::text[], c.record_id), c.n
+    limit ${COUNT_PIECES_MAX + 1}`.execute(ctx.db);
+  const counts = new Map<string, number>();
+  for (const r of rows.rows.slice(0, COUNT_PIECES_MAX)) counts.set(r.record_id, (counts.get(r.record_id) ?? 0) + findCount(r.text, pattern));
+  const cut = rows.rows.length > COUNT_PIECES_MAX ? rows.rows[COUNT_PIECES_MAX]!.record_id : null;
+  for (const r of sources) {
+    if (r.id === cut) break;
+    r.match_count = counts.get(r.id) ?? 0;
+  }
+}
 
 export async function plainSearch(ctx: OpContext, i: PlainInput) {
   let p = parseFind(i.query);
@@ -369,6 +440,9 @@ export async function plainSearch(ctx: OpContext, i: PlainInput) {
   // answer, else those that hold every word.
   const more = partial ? r.beyond.any : r.beyond.all;
   if (more) counts.source = (counts.source ?? 0) + more;
+  // With record_id, that source is the only result there can be.
+  const results = shown.slice(0, i.record_id ? 1 : i.limit);
+  await countMatches(ctx, p, results);
   return {
     query: i.query,
     terms: p.terms.map((t) => ({ text: t.text, phrase: t.phrase })),
@@ -378,7 +452,6 @@ export async function plainSearch(ctx: OpContext, i: PlainInput) {
     partial,
     counts,
     hits_matched: r.hits,
-    // With record_id, that source is the only result there can be.
-    results: shown.slice(0, i.record_id ? 1 : i.limit),
+    results,
   };
 }

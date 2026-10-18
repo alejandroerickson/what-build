@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fileTypeName, nestQuotes, untilTime } from "../src/lib/format.ts";
+import { fileTypeName, nestQuotes, quotedAtEnd, untilTime, viaSurface } from "../src/lib/format.ts";
 
 describe("untilTime", () => {
   const now = Date.parse("2026-09-29T10:00:00Z");
@@ -27,6 +27,19 @@ describe("nestQuotes", () => {
   });
 });
 
+describe("quotedAtEnd", () => {
+  it("ends a sentence after words in quotation marks with a full stop", () => {
+    expect(`Deleted ${quotedAtEnd("Crew planning")} The activity log records who, when and why.`).toBe("Deleted “Crew planning”. The activity log records who, when and why.");
+  });
+  it("lets words that end with their own stop end the sentence, so the punctuation is never doubled", () => {
+    expect(quotedAtEnd("Crews plan by the day.")).toBe("“Crews plan by the day.”");
+    expect(quotedAtEnd("Do crews plan by the day?")).toBe("“Do crews plan by the day?”");
+    expect(quotedAtEnd("Crews plan by the day…")).toBe("“Crews plan by the day…”");
+    expect(quotedAtEnd('Crews call it "slow."')).toBe("“Crews call it ‘slow.’”");
+    expect(quotedAtEnd("  Crews plan by the day.  ")).toBe("“Crews plan by the day.”");
+  });
+});
+
 describe("fileTypeName", () => {
   it("names common office and text formats", () => {
     expect(fileTypeName("application/vnd.openxmlformats-officedocument.wordprocessingml.document")).toBe("Word document");
@@ -39,5 +52,16 @@ describe("fileTypeName", () => {
     expect(fileTypeName("application/octet-stream", "notes.key")).toBe("KEY file");
     expect(fileTypeName("application/x-thing")).toBe("application/x-thing");
     expect(fileTypeName(null)).toBe("Unknown type");
+  });
+});
+
+describe("viaSurface", () => {
+  it("says through what someone did something, after their name, when it was not the web", () => {
+    expect(viaSurface({ surface: "mcp", client: "claude-code" })).toBe(" via claude-code");
+    expect(viaSurface({ surface: "mcp", client: null })).toBe(" via an agent");
+    expect(viaSurface({ surface: "rest", client: null })).toBe(" via the API");
+    expect(viaSurface({ surface: "web", client: null })).toBe("");
+    expect(viaSurface({ surface: null, client: null })).toBe("");
+    expect(viaSurface(null)).toBe("");
   });
 });

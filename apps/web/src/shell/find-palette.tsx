@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { track } from "../lib/analytics.ts";
+import { nestQuotes } from "../lib/format.ts";
 import { findWords, hitHref, hitMeta, kindOf, Marked, matchedCount, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse } from "../lib/find.tsx";
 import type { Product } from "../lib/session.tsx";
 import { Glyph, type GlyphName } from "../ui/index.tsx";
@@ -38,8 +39,9 @@ const SHOWN = 8;
 function options(app: string, d: FindResponse | undefined): Option[] {
   return (d?.results ?? []).slice(0, SHOWN).map((r) => {
     const hit = r.hits?.[0];
-    // A source found by what it says, not its title, opens where it says it.
-    const atHit = Boolean(hit && !r.title_marks.length);
+    // A source found by what it says opens where it says it, the place its line shows, whether or
+    // not its title holds the words too.
+    const atHit = Boolean(hit);
     return {
       key: `${r.kind}:${r.id}`,
       kind: atHit ? hit!.field : r.kind,
@@ -147,6 +149,8 @@ function Palette({ app, base, product, text, setText, via, onClose }: { app: str
           ref={input}
           type="text"
           role="combobox"
+          // Its own name, apart from the dialog's ("Search <product>"), which its placeholder repeats.
+          aria-label="Words to search for"
           aria-expanded={opts.length > 0}
           aria-controls={opts.length ? listId : undefined}
           aria-autocomplete="list"
@@ -189,7 +193,7 @@ function Palette({ app, base, product, text, setText, via, onClose }: { app: str
       ) : null}
       {typed && d && !d.results.length ? (
         <p className="find-pal-empty">
-          Nothing in {product.name} matches “{text.trim()}”. Try another word.
+          Nothing in {product.name} matches “{nestQuotes(text.trim())}”. Try another word.
         </p>
       ) : null}
       {opts.length ? (

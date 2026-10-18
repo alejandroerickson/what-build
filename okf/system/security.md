@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild keeps each organization's material to its own people, and treats agent-written HTML, uploads and source text as hostile
 description: The threat model: what is protected, who the attackers are, the trust boundaries, and each control with where it lives in code and the decision that governs it.
 tags: [security, threat-model, tenancy, identity, oauth, sandbox, uploads]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: draft
 ---
 
@@ -246,6 +246,11 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   parts, absolute paths, `\ : * ? " < > | #`, control characters and names that collide once case
   is set aside (`prototypePath`); its bytes are stored under ids and their hash, never their path.
 - File paths refuse traversal, backslashes and control characters (`packages/core/src/media.ts`).
+- A null character (U+0000) is refused in every request's path, query, form fields and JSON body
+  before any route reads it (`apps/server/src/null-characters.ts`), and in an operation's input by
+  its own check, naming the field either way, so none reaches Postgres, which keeps none in text,
+  or a file path; nothing strips it. Uploaded bytes and the MCP endpoint's body are not read by
+  the middleware, and an MCP call's input meets the operation's check.
 - Parsing is a pure function of bytes, run by the worker in a worker thread of its own for each
   file, with an empty environment (`apps/server/src/parse-thread.ts`,
   [decision](../decisions/each-file-is-parsed-in-a-thread-of-its-own-with-memory-and-time-limits.md)).

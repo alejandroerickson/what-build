@@ -3,7 +3,7 @@ type: System Concept
 title: A copy of production on your machine, for manual QA, agent-driven end-to-end tests and trying migrations on real data
 description: Pulling the public sandbox or other organizations of the deployment, with their files, loading them into the embedded Postgres, serving them with pending migrations applied, and keeping the copy private.
 tags: [development, testing, qa, production, fixture, migrations]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -75,7 +75,9 @@ organizations it holds. That is the server
 `pnpm dev` runs, and the load starts it if it is not running. The dump is restored as the
 application's role, the way [Cloud Run](cloud-run.md) restores a backup. The load also replaces
 `.what-build/fixture-blobs` with a working copy of the files. The synthetic database, `whatbuild`,
-is untouched.
+is untouched. A copy loaded into a cluster made before local clusters were UTF-8 is SQL_ASCII with
+it, and its text functions count bytes: `pnpm dev:fixture` says so when it starts, and
+[local development](local-development.md#the-local-postgres) says how to make the cluster again.
 
 Load again whenever you want the copy back as it was pulled: after a test that changed data, or to
 run a migration again. The load refuses while the copy is being served, so stop

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
+import { findPattern } from "@whatbuild/core/find-in-text";
 import { api, ApiError } from "../lib/api.ts";
 import { attribution, relativeTime } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
@@ -76,24 +77,26 @@ export function ChangedMeanwhile({ noun, theirs, onLoad, rows = 8, className }: 
   );
 }
 
-const SUFFIXES = ["ations", "ation", "ments", "ment", "ings", "ing", "ers", "er", "ies", "ied", "ed", "es", "ly", "s"];
+// What a find marks, shared with plain search, which counts the same matches for a source's result.
+export { findPattern };
 
-/** A word's root, so a find also marks its other endings, as search reads words ("pricing" marks "priced"). */
-function root(word: string): string {
-  const w = word.toLowerCase();
-  for (const s of SUFFIXES) if (w.endsWith(s) && w.length - s.length >= 4) return w.slice(0, -s.length).replace(/e$/, "");
-  return w.length > 4 ? w.replace(/e$/, "") : w;
-}
-
-const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-/** What a find marks: each word at the start of a word, with any ending, and each "quoted phrase" as written. */
-export function findPattern(find: string): RegExp | undefined {
-  const parts = [...find.matchAll(/"([^"]+)"|(\S+)/g)]
-    .map((m) => (m[1] !== undefined ? escape(m[1].trim()).replace(/\s+/g, "\\s+") : `${escape(root(m[2]!))}[\\p{L}\\p{N}]*`))
-    .filter((p) => p && p !== "[\\p{L}\\p{N}]*");
-  if (!parts.length) return undefined;
-  return new RegExp(`(?<![\\p{L}\\p{N}])(?:${parts.join("|")})`, "giu");
+/**
+ * Which match of a find to start at: the first at or after a place in the text, such as where the
+ * piece of text a search hit is in starts (`at`, in code points, as search counts them), or the
+ * last when none follows. Matches are counted in the text as written and marks in the text as
+ * drawn, so the two agree but where the words fall inside Markdown that is not drawn as words,
+ * such as a link's address.
+ */
+export function matchFrom(text: string, pattern: RegExp, at: number): number {
+  // Code points to the string's own units, which a character outside the basic plane takes two of.
+  let place = 0;
+  for (let n = 0; n < at && place < text.length; n++) place += text.codePointAt(place)! > 0xffff ? 2 : 1;
+  let i = 0;
+  for (const m of text.matchAll(pattern)) {
+    if (m.index >= place) return i;
+    i++;
+  }
+  return Math.max(i - 1, 0);
 }
 
 /** The first part of a long text, ending at a paragraph. */
@@ -113,6 +116,8 @@ export function TextView({ record, onAddAttachments }: { record: RecordFull; onA
   const { api: base, canWrite } = useProduct();
   const [params, setParams] = useSearchParams();
   const find = params.get("find") ?? "";
+  // Where the piece of text a search hit is in starts: the find starts at its first match there.
+  const near = params.get("at");
   const [typed, setTyped] = useState(find);
   const [all, setAll] = useState(false);
   const [unfolded, setUnfolded] = useState(false);
@@ -142,6 +147,8 @@ export function TextView({ record, onAddAttachments }: { record: RecordFull; onA
             const next = new URLSearchParams(prev);
             if (typed.trim()) next.set("find", typed);
             else next.delete("find");
+            // Other words start at their first match.
+            next.delete("at");
             return next;
           },
           { replace: true },
@@ -169,12 +176,14 @@ export function TextView({ record, onAddAttachments }: { record: RecordFull; onA
     setUnfolded(true);
     fold.current?.focus({ preventScroll: true });
   };
-  // Count the marks once they are drawn, and bring the first into view.
+  // Count the marks once they are drawn, and bring the first into view: a search hit's own, when
+  // the address says where it is (?at=), or else the first.
   useEffect(() => {
     const found = body.current?.querySelectorAll("mark.text-find") ?? [];
     setMarks(found.length);
-    setAt(0);
-  }, [shown, pattern]);
+    const start = pattern && near && /^\d+$/.test(near) ? matchFrom(shown, pattern, Number(near)) : 0;
+    setAt(Math.min(start, Math.max(found.length - 1, 0)));
+  }, [shown, pattern, near]);
   useEffect(() => {
     const found = body.current?.querySelectorAll("mark.text-find");
     if (!found?.length) return;

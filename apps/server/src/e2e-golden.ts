@@ -47,14 +47,16 @@ export async function keepOnlyTenant(c: pg.Client, tenantId: string) {
 
 /**
  * Copy one organization's content into a new organization that is not a sandbox: its teams,
- * products and everything in them, the activity log and the memberships of everyone but its
- * visitors, with every id made new and every reference to an old id, in any column or JSON,
- * pointing at the new one. Files are shared.
+ * products and everything in them, the search index of their sources, the activity log and the
+ * memberships of everyone but its visitors, with every id made new and every reference to an old
+ * id, in any column or JSON, pointing at the new one. Files are shared.
  */
 export async function copyTenant(c: pg.Client, fromTenantId: string, slug: string, name: string) {
   // The copy may be from before some of these tables existed: its own migrations come later.
   const present = new Set(await tablesWith(c, "tenant_id"));
-  const tables = [...BASELINE_TABLES, "memberships"].filter((t) => present.has(t));
+  // The index is copied with what it indexes, as it stands once the build's jobs are done, so the
+  // copy finds what the original finds. A piece's offsets hold, since a new id is as long as the old.
+  const tables = [...BASELINE_TABLES, "text_chunks", "memberships"].filter((t) => present.has(t));
   const people = (await c.query<{ account_id: string; sandbox_only: boolean }>("select account_id, sandbox_only from accounts")).rows;
   const accounts = new Set(people.map((p) => p.account_id));
   const rows = new Map<string, Record<string, unknown>[]>();

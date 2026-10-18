@@ -3,7 +3,7 @@ import { MOCKUP_PAGE_SANDBOX } from "@whatbuild/core/page-sandbox";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
-import { attribution, formatBytes, formatDate, formatDateTime, plural } from "../lib/format.ts";
+import { attribution, formatBytes, formatDate, formatDateTime, plural, quotedAtEnd } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
@@ -1391,6 +1391,13 @@ interface MockupImpact {
   earlier_story_versions_showing: { page_id: string; title: string; version: number }[];
 }
 
+/** What deleting a mockup deletes, as its dialog says it: every version, each with its own pages, notes, files and brief. */
+export function mockupImpactWords(title: string, versions: number): string {
+  return versions === 1
+    ? `This deletes “${title}” with its only version: its pages, notes, files and brief.`
+    : `This deletes “${title}” with all ${versions} of its versions: their pages, notes, files and briefs.`;
+}
+
 /** Delete a mockup for good. A Story page that shows it holds it: that page goes, or gets HTML of its own, first. */
 function DeleteMockup({ mockup, onClose }: { mockup: MockupView; onClose: () => void }) {
   const { app, api: base } = useProduct();
@@ -1411,7 +1418,7 @@ function DeleteMockup({ mockup, onClose }: { mockup: MockupView; onClose: () => 
       title="Delete this mockup permanently?"
       impactPath={`${base}/mockups/${mockup.mockup_id}/delete-impact`}
       deletePath={`${base}/mockups/${mockup.mockup_id}`}
-      alternative={{ label: "Archive instead", disabled: Boolean(mockup.archived_at), onSelect: () => archive.mutate() }}
+      alternative={mockup.archived_at ? undefined : { label: "Archive instead", onSelect: () => archive.mutate() }}
       allowed={(i) => !i.story_pages_showing.length}
       renderImpact={(i) =>
         i.story_pages_showing.length ? (
@@ -1431,9 +1438,7 @@ function DeleteMockup({ mockup, onClose }: { mockup: MockupView; onClose: () => 
           </>
         ) : (
           <>
-            <p>
-              This deletes “{mockup.title}” with {i.version_count === 1 ? "its only version" : `all ${i.version_count} of its versions`}: their pages, notes, files and brief.
-            </p>
+            <p>{mockupImpactWords(mockup.title, i.version_count)}</p>
             {i.earlier_story_versions_showing.length ? (
               <p>
                 {i.earlier_story_versions_showing.length === 1 ? "An earlier version of a Story page shows it, and will" : `${i.earlier_story_versions_showing.length} earlier versions of Story pages show it, and will`}{" "}
@@ -1446,7 +1451,7 @@ function DeleteMockup({ mockup, onClose }: { mockup: MockupView; onClose: () => 
       onDeleted={() => {
         void qc.invalidateQueries({ queryKey: ["mockups", base] });
         void qc.invalidateQueries({ queryKey: ["product"] });
-        toast(`Deleted “${mockup.title}”. The activity log records who, when and why.`);
+        toast(`Deleted ${quotedAtEnd(mockup.title)} The activity log records who, when and why.`);
         navigate(`${app}/exploration/mockups`);
       }}
       onClose={onClose}

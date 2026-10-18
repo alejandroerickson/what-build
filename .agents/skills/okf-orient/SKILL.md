@@ -41,7 +41,7 @@ Run `corepack pnpm attention` once per session and tell the person what it print
 | Screens, URLs, interface behavior | `okf/spec/07-web-app.md`, then `DESIGN.md` for visuals |
 | Search modes and ranking | `okf/spec/08-search.md` |
 | Archive, delete, retention, export | `okf/spec/09-data-lifecycle.md` |
-| What is built, what is next, open questions | `okf/spec/10-roadmap.md` |
+| What is built, what is next, open questions, problems seen but not yet explained | `okf/spec/10-roadmap.md` |
 | Agent-driven end-to-end tests, the golden master, writing a test plan | `okf/operations/end-to-end-tests.md`, then `e2e/plans/README.md` |
 | Running, testing and deploying | `okf/operations/`; the table in `AGENTS.md` names the guide and the skill for each task |
 | Mail: what the server sends, which deployment sends it and through what, setting it up or repairing it | `okf/operations/mail.md` |

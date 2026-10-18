@@ -182,6 +182,44 @@ describe("an agent connection's feedback switch", () => {
     const refused = result(await client.callTool({ name: "submit_feedback", arguments: { category: "other", message: "Let me in." } }));
     expect(refused.status).toBe(403);
     expect(refused.json.error.code).toBe("feedback_off");
+    // Off is off, whatever is sent: a call with a field it lacks, an unknown one or describe is refused for the switch, not the input.
+    for (const args of [{ category: "issue" }, { category: "praise", message: "Hi.", colour: "red" }, { describe: true }, { category: "issue", describe: true }])
+      expect(result(await client.callTool({ name: "submit_feedback", arguments: args })).json.error.code, JSON.stringify(args)).toBe("feedback_off");
+    await client.close();
+    expect(await h.db.selectFrom("feedback").selectAll().execute()).toEqual([]);
+  });
+
+  it("names in an unknown tool's refusal only the tools the connection is offered: none the person turned off", async () => {
+    const token = await h.connectAgent(ines, "Naming agent", "/mcp", "editor");
+    let client = await connect(token);
+    const on = result(await client.callTool({ name: "insights", arguments: { action: "list" } }));
+    expect(on.json.error).toMatchObject({ code: "unknown_tool", details: { tools: await toolNames(client) } });
+    expect(on.json.error.details.tools).toContain("submit_feedback");
+    await client.close();
+
+    await ines.api("PATCH", `/api/v1/me/agents/${(await agentNamed(ines, "Naming agent")).family_id}`, { feedback: false });
+    client = await connect(token);
+    const listed = await toolNames(client);
+    const off = result(await client.callTool({ name: "insights", arguments: { action: "list" } }));
+    expect(off.status).toBe(422);
+    expect(off.json.error).toMatchObject({ code: "unknown_tool", details: { tools: listed } });
+    expect(off.json.error.message).toContain(`offers this connection these tools: ${listed.join(", ")}.`);
+    expect(off.json.error.message).not.toContain("submit_feedback");
+    await client.close();
+  });
+
+  it("on, refuses describe as a standalone tool's argument, saying what it takes, and suggests no field", async () => {
+    const client = await connect(await h.connectAgent(ines, "Describing agent", "/mcp", "editor"));
+    const one = result(await client.callTool({ name: "submit_feedback", arguments: { category: "issue", describe: true } }));
+    expect(one.status).toBe(422);
+    expect(one.json.error.message).toBe(
+      "`describe` is not an argument of submit_feedback: it is a tool of its own, whose arguments are its fields (category, message, tool, details, screen and reply), and only the grouped tools take action, params and describe. `message` is required. Nothing was changed; correct the call and send it again.",
+    );
+    expect(one.json.error.message).not.toContain("did you mean");
+    const grouped = result(await client.callTool({ name: "submit_feedback", arguments: { action: "send", params: { category: "issue", message: "Hi." } } }));
+    expect(grouped.json.error.message).toMatch(/^`action` and `params` are not arguments of submit_feedback: it is a tool of its own, whose arguments are its fields \(category, message, /);
+    const skill = result(await client.callTool({ name: "get_skill", arguments: { describe: true } }));
+    expect(skill.json.error.message).toMatch(/^`describe` is not an argument of get_skill: it is a tool of its own, which takes no arguments, and only the grouped tools take action, params and describe\. Nothing was changed/);
     await client.close();
     expect(await h.db.selectFrom("feedback").selectAll().execute()).toEqual([]);
   });

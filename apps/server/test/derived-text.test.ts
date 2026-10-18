@@ -286,6 +286,15 @@ describe("a source's derived text", () => {
     expect((await write(one, { content: "Rewritten.\n", expected_etag: await etagOf(one) })).status).toBe(200);
     expect((await alice.api("GET", `${P}/sources/${one}/derived/manifest`)).body).toMatchObject({ path: "only.md", status: "ready" });
   });
+
+  it("reads a text file that holds null characters, which a Postgres text value cannot, and keeps its text without them", async () => {
+    const s = await source("Radio log export — Example Co");
+    await attach(s, "radio-log.txt", "Crews call in\u0000 before seven.\u0000\n");
+    await h.worker.drain();
+    expect((await text(s)).body).toMatchObject({ text: "Crews call in before seven.\n", taken_from: { path: "radio-log.txt" } });
+    expect((await alice.api("GET", `${P}/sources/${s}/derived/manifest`)).body).toMatchObject({ status: "ready", facts: { null_characters_dropped: 2 } });
+    expect(await hits("call in before seven")).toContainEqual(expect.objectContaining({ record_id: s, field: "text" }));
+  });
 });
 
 describe("copying a source to another product", () => {

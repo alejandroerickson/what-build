@@ -170,7 +170,7 @@ async function pull(args: string[]) {
 async function dumpOrganizations(url: string, slugs: string[], file: string) {
   const source = new pg.Client({ connectionString: nodePgUrl(url) });
   await source.connect();
-  const local = await connectOrStartLocalPg(resolve(root, ".what-build/pg"), PG_PORT);
+  const local = await connectOrStartLocalPg(resolve(root, ".what-build/pg"), PG_PORT, { portVariable: "WHATBUILD_PG_PORT" });
   const scratch = `pull_${randomBytes(4).toString("hex")}`;
   const tmp = mkdtempSync(join(tmpdir(), "whatbuild-pull-"));
   try {
@@ -341,7 +341,7 @@ function restoreDump(local: LocalPg, database: string, dump: string) {
 }
 
 async function load(requested?: string) {
-  const local = await connectOrStartLocalPg(resolve(root, ".what-build/pg"), PG_PORT);
+  const local = await connectOrStartLocalPg(resolve(root, ".what-build/pg"), PG_PORT, { portVariable: "WHATBUILD_PG_PORT" });
   try {
     const s = await restorePull(local, FIXTURE_DATABASE, FIXTURE_BLOBS, requested).catch((e: unknown) => {
       throw e instanceof Error && e.message.includes("is in use") ? new Error("The copy is being served: stop pnpm dev:fixture, then load again.") : e;

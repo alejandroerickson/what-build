@@ -1,4 +1,7 @@
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { OPERATIONS, type OperationDef } from "@whatbuild/core";
+import { sql } from "kysely";
 import { z } from "zod";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { toolDefinitions } from "../src/mcp.ts";
@@ -13,6 +16,19 @@ let ed: Browser;
 let P: string;
 
 const op = (name: string) => OPERATIONS.find((o) => o.name === name)!;
+
+/** A tool call's answer: its status and the JSON after it. */
+function result(r: unknown): { status: number; json: any } {
+  const t = (r as { content: { text: string }[] }).content[0]!.text;
+  if (t.startsWith("{")) return { status: 200, json: JSON.parse(t) };
+  return { status: Number(t.slice(0, 3)), json: JSON.parse(t.slice(t.indexOf("\n") + 1)) };
+}
+
+async function agent(token: string) {
+  const client = new Client({ name: "messages-agent", version: "1.0.0" });
+  await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${token}` } } }));
+  return client;
+}
 /** Every description an operation's input schema gives its fields, as one text. */
 const fieldTexts = (o: OperationDef) => JSON.stringify(z.toJSONSchema(o.input, { io: "input", unrepresentable: "any" }));
 
@@ -122,5 +138,53 @@ describe("descriptions that say only what is true", () => {
     const products = toolDefinitions().tools.find((t) => t.name === "products")!;
     expect(products.description).toMatch(/export a whole product as a ZIP/);
     expect(products.description).toMatch(/how it is used/);
+  });
+});
+
+describe("refusals each door words for its caller", () => {
+  it("says how to report an unexpected error: Submit feedback in the web app, submit_feedback for an agent, or the person when it is off", async () => {
+    const client = await agent(await h.connectAgent(alice, "Reporting agent"));
+    const quiet = await agent(await h.connectAgent(alice, "Quiet agent"));
+    const family = (await alice.api("GET", "/api/v1/me/agents")).body.items.find((a: { client_name: string }) => a.client_name === "Quiet agent").family_id;
+    expect((await alice.api("PATCH", `/api/v1/me/agents/${family}`, { feedback: false })).status).toBe(200);
+    // A table gone from under a read is an error nothing expects.
+    await sql`alter table outcomes rename to outcomes_away`.execute(h.db);
+    try {
+      const web = await alice.api("GET", `${P}/outcomes`);
+      expect(web.status).toBe(500);
+      expect(web.body.error).toMatchObject({ code: "internal", message: "WhatBuild hit an unexpected error. It has been logged; try again, and report it with Submit feedback, in the account menu, if it repeats." });
+      const mcp = result(await client.callTool({ name: "outcomes", arguments: { action: "list", product: P.slice("/api/v1/p/".length) } }));
+      expect(mcp.status).toBe(500);
+      expect(mcp.json.error.message).toBe("WhatBuild hit an unexpected error. It has been logged; try again, and report it with submit_feedback if it repeats.");
+      const off = result(await quiet.callTool({ name: "outcomes", arguments: { action: "list", product: P.slice("/api/v1/p/".length) } }));
+      expect(off.status).toBe(500);
+      expect(off.json.error.message).toBe("WhatBuild hit an unexpected error. It has been logged; try again, and tell the person if it repeats.");
+    } finally {
+      await sql`alter table outcomes_away rename to outcomes`.execute(h.db);
+      await client.close();
+      await quiet.close();
+    }
+  });
+
+  it("says once, in a sentence, what a list takes when it is sent something else", async () => {
+    const client = await agent(await h.connectAgent(alice, "Listing agent"));
+    const product = P.slice("/api/v1/p/".length);
+    const status = result(await client.callTool({ name: "assumptions", arguments: { action: "list", product, params: { status: "confirmed" } } }));
+    expect(status.status).toBe(422);
+    expect(status.json.error.message).toBe(
+      '`status` takes a list of any of unconfirmed, confirmed, refuted and superseded, such as ["confirmed"], not a string. Nothing was changed; correct the call and send it again.',
+    );
+    // Other lists read the same way, with what was sent as the example where it fits.
+    const tags = await alice.api("POST", `${P}/assumptions`, { statement: "Crews plan on Mondays.", tags: "planning, crews" });
+    expect(tags.status).toBe(422);
+    expect(tags.body.error.message).toBe('`tags` takes a list of strings, such as ["planning","crews"], not a string. Nothing was changed; correct the call and send it again.');
+    const long = await alice.api("POST", `${P}/assumptions`, { statement: "Crews plan on Mondays.", tags: "x".repeat(60) });
+    expect(long.body.error.message).not.toMatch(/Too big|characters/);
+    const links = await alice.api("POST", `${P}/assumptions`, { statement: "Crews plan on Mondays.", links: 3 });
+    expect(links.body.error.message).toMatch(/^`links` takes a list of objects, not a number\./);
+    const wrong = result(await client.callTool({ name: "assumptions", arguments: { action: "list", product, params: { status: ["maybe"] } } }));
+    expect(wrong.status).toBe(422);
+    expect(wrong.json.error.message).toMatch(/^`status\.0`: Invalid option/);
+    await client.close();
   });
 });

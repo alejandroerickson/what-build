@@ -3,7 +3,7 @@ type: System Concept
 title: Agent-driven end-to-end tests on a golden master
 description: An agent follows a written test plan through the real web app and the real MCP server, on a local instance reset each time to a golden master made from production's public sandbox, and reports failures and anomalies.
 tags: [development, testing, qa, e2e, agents, mcp, browser]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: draft
 ---
 
@@ -54,7 +54,8 @@ application's role, and shaped into two organizations
 - **The standard organization** (`<slug>-standard`, named "<name> (standard)"): a copy of the
   sandbox organization's teams, products, content, activity and the memberships of everyone but
   its visitors, under new ids, with every reference to an old id rewritten, in columns and in
-  JSON. A new id keeps the time of the one it replaces, so lists ordered by id, such as activity,
+  JSON. Its sources' search index is copied with them, so search finds in it what it finds in the
+  sandbox organization. A new id keeps the time of the one it replaces, so lists ordered by id, such as activity,
   keep their order in the copy. It is not a sandbox. The files are shared, since blobs never change. After the copy, every
   foreign key is checked.
 
@@ -66,9 +67,18 @@ the development sign-in's people are given their roles in both: Riley owns each 
 The golden master is real people's data, with every rule of that guide: it stays in `.what-build/`,
 and plans, reports that leave the machine, commits and issues never name or quote it.
 
+The golden master is built in the instance's cluster in UTF-8, as every local cluster is
+([local development](local-development.md#the-local-postgres)). **A golden master built before
+local clusters were UTF-8 must be built again:** its cluster is SQL_ASCII, where text functions
+count bytes rather than characters, and `pnpm dev:e2e` says so when it starts. `pnpm e2e golden`
+makes the instance's cluster again in UTF-8 when it finds it SQL_ASCII, since it holds only the
+golden master and copies of it, and refuses while the instance runs; stop it with `pnpm e2e stop`.
+
 The build migrates what it keeps to the schema of the code it runs from, and the worker does
 the jobs those migrations queue, before the standard copy is made, so the copy covers every table
-there is. Once built, the golden master does not change: migrations added to the code later
+there is, and the search index as those jobs left it. A golden master built before the copy took
+the index has none in the standard organization, where search then finds a source by its title
+and tags at most: build it again. Once built, the golden master does not change: migrations added to the code later
 run on each fresh copy when it is served. Build it again from a newer pull to move it forward, and
 stop the instance first. In a git worktree without pulls of its own, pulls are read
 from the main checkout's `.what-build/fixtures`.
@@ -80,7 +90,9 @@ corepack pnpm dev:e2e
 ```
 
 An agent runs it in the background with its output in `.what-build/e2e/server.log`, and
-`pnpm e2e stop` stops it and the browser. It drops `e2e`, creates it again from `golden` (a Postgres template copy, which takes a moment
+`pnpm e2e stop` stops it and the browser: this checkout's, which its process id in
+`.what-build/e2e/dev.pid` names, never another checkout's instance. It refuses to start while this
+checkout's instance runs. It drops `e2e`, creates it again from `golden` (a Postgres template copy, which takes a moment
 even for a large copy), copies the files, applies any migration newer than the golden master, names the sandbox organization the public
 sandbox, and serves. It also marks the sandbox as reset just now, so that its daily reset does not
 put the baseline back over the golden master's content when the instance starts; a run that lasts
@@ -91,8 +103,11 @@ after `0030_one_derived_text_per_source`, which reads every attachment again and
 search index from nothing, search finds little until the log shows each product's `index_texts`
 job done. Building the golden master again does that work once. It refuses to start when another process holds its API or web port, since that server would
 answer the tests instead. The ports can be moved with `WHATBUILD_E2E_WEB_PORT`,
-`WHATBUILD_E2E_API_PORT` and `WHATBUILD_E2E_PG_PORT`; `WHATBUILD_E2E_URL` points the browser and
-MCP tools elsewhere. `GET /mcp 405` lines in its log are expected: MCP clients probe for a
+`WHATBUILD_E2E_API_PORT` and `WHATBUILD_E2E_PG_PORT`. `pnpm dev:e2e` and `pnpm e2e golden` use only
+this checkout's Postgres, in its `.what-build/e2e/pg`: when another checkout's end-to-end Postgres
+answers on the port, they refuse, naming that cluster's data directory, and drop or make nothing in
+it: give this checkout's another port with `WHATBUILD_E2E_PG_PORT`. `WHATBUILD_E2E_URL` points the
+browser and MCP tools elsewhere. `GET /mcp 405` lines in its log are expected: MCP clients probe for a
 server-initiated stream, which WhatBuild does not offer.
 
 ## Running a plan

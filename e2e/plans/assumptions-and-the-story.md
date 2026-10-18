@@ -42,8 +42,10 @@ checked on the way.
 7. **Web, as Jordan (reader).** Open the Story. *Expect:* the new page is in the tree where step 6
    put it; it renders in the house style, with its HTML as published; the page's details show its
    About alone, without the notes for agents, which a reader is not given (the decision on
-   readers); a link in a page that points into Evidence, where one exists, takes Jordan back to
-   the Story with a toast saying they can read only the Story.
+   readers). Where the page links into Evidence, check that link: a driver cannot click inside
+   the page's sandboxed frame, so open the address the link points to at the top level, as Jordan.
+   *Expect:* Jordan is taken back to the Story, with the toast "You can only read this product's
+   Story."
 8. **Web, as Jordan.** Try to open the assumption from step 1 by its address. *Expect:* refused,
    with a clear message.
 9. **MCP, as Jordan.** Try to create an assumption, and to preview and publish a Story page.

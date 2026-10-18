@@ -51,7 +51,7 @@ const isNumeric = (v: string) => /^[-+]?(\d+([.,]\d+)?|\.\d+)([eE][-+]?\d+)?%?$/
  */
 export const csvParser: FormatParser = {
   name: "csv",
-  version: "3",
+  version: "4",
   parse(bytes, fileName) {
     const source = decodeText(bytes);
     const delimiter = sniffDelimiter(source, fileName);

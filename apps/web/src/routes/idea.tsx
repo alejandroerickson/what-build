@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
-import { plural } from "../lib/format.ts";
+import { plural, quotedAtEnd } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { PanelContext, PanelFilter, PanelSection } from "../shell/slots.tsx";
@@ -173,6 +173,11 @@ function IdeaPanel({ includeArchived }: { includeArchived: boolean }) {
   );
 }
 
+/** What a deleted outcome's dialog says of the assumptions that serve it, which stay, unlinked from it. */
+export function servedBy(n: number): string {
+  return `${plural(n, "assumption")} ${n === 1 ? "serves" : "serve"} it, and will no longer be linked to it.`;
+}
+
 /** What deleting an outcome destroys, as outcomes.delete_impact reports it. */
 interface OutcomeImpact {
   etag: string;
@@ -212,7 +217,7 @@ export function IdeaPage() {
       api<Outcome>("POST", `${base}/outcomes/${o.outcome_id}/${archived ? "archive" : "restore"}`, { expected_etag: o.etag }),
     onSuccess: (next, { o, archived, undo }) => {
       refresh();
-      if (undo) toast(archived ? `Archived “${o.title}”.` : `Restored “${o.title}”.`, { action: { label: "Undo", onClick: () => setArchived.mutate({ o: next, archived: !archived }) } });
+      if (undo) toast(archived ? `Archived ${quotedAtEnd(o.title)}` : `Restored ${quotedAtEnd(o.title)}`, { action: { label: "Undo", onClick: () => setArchived.mutate({ o: next, archived: !archived }) } });
     },
     onError: failed,
   });
@@ -347,13 +352,13 @@ export function IdeaPage() {
           alternative={deleting.archived_at ? undefined : { label: "Archive instead", onSelect: () => setArchived.mutate({ o: deleting, archived: true, undo: true }) }}
           renderImpact={(i) => (
             <>
-              <p>This deletes “{deleting.title}”.</p>
-              {i.assumptions.length ? <p>{plural(i.assumptions.length, "assumption")} serve it, and will no longer be linked to it.</p> : null}
+              <p>This deletes {quotedAtEnd(deleting.title)}</p>
+              {i.assumptions.length ? <p>{servedBy(i.assumptions.length)}</p> : null}
             </>
           )}
           onDeleted={() => {
             refresh();
-            toast(`Deleted “${deleting.title}”. The activity log records who, when and why.`);
+            toast(`Deleted ${quotedAtEnd(deleting.title)} The activity log records who, when and why.`);
             setDeleting(null);
           }}
           onClose={() => setDeleting(null)}

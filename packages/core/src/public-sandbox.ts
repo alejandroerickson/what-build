@@ -253,6 +253,11 @@ export interface SandboxState {
 export interface SandboxContext extends SandboxState {
   /** Whether the caller is a visitor: anyone but the organization's owners and admins. */
   visitor: boolean;
+  /**
+   * Whether the caller is someone its staff gave a role (a member, in `sandbox.status`) rather than
+   * someone who came in by an invitation link: treated as a visitor, and told so, but never called one.
+   */
+  member: boolean;
   /** The name the caller writes under, when they are a visitor. */
   appears_as: string | null;
 }
@@ -293,7 +298,7 @@ export async function sandboxForAccount(db: Db, tenantId: string, accountId: str
     .where("account_id", "=", accountId)
     .executeTakeFirst();
   const visitor = !(grant?.role === "owner" || grant?.role === "admin");
-  return { ...(await loadSandbox(db, tenantId)), visitor, appears_as: visitor ? visitorName(tenantId, accountId) : null };
+  return { ...(await loadSandbox(db, tenantId)), visitor, member: visitor && grant?.role !== "visitor", appears_as: visitor ? visitorName(tenantId, accountId) : null };
 }
 
 /** The sandbox's settings row, made if it is missing, and held until the transaction ends. */
@@ -350,6 +355,23 @@ export async function usageToday(db: Db, sandbox: Pick<SandboxState, "tenant_id"
 
 const restricted = (message: string, details?: Record<string, unknown>) => new AppError(403, "sandbox_restricted", message, details);
 
+/** What a refusal adds for someone its staff gave a role: the limits are theirs too, as everyone's but the staff's. */
+const EXCEPT_STAFF = ", except for its owners and admins";
+
+/**
+ * Whom a refusal says the sandbox's limits are for. They are for everyone but its staff, and a
+ * refusal names them as its caller is one of them: to a visitor, visitors; to someone its staff
+ * gave a role, who is no visitor, everyone but its owners and admins.
+ */
+function limitsFor(sandbox: Pick<SandboxContext, "member">) {
+  return sandbox.member ? { each: "each person but its owners and admins", all: "everyone but its owners and admins together" } : { each: "each visitor", all: "all visitors together" };
+}
+
+/** Something off for anyone but the sandbox's staff, as a refusal says it to its caller. */
+function shutFor(sandbox: Pick<SandboxContext, "member">, what: string, state: string): string {
+  return sandbox.member ? `${what} ${state} in this public sandbox${EXCEPT_STAFF}` : `${what} ${state} for visitors in this public sandbox`;
+}
+
 /** `used` is what the day had used before the refused call; `asked`, when one call takes several, how many it would have taken. */
 function quota(sandbox: SandboxState, name: SandboxSettingKey, used: number, unit: string, what: string, asked = 1) {
   const limit = sandbox.settings[name] as number;
@@ -364,16 +386,16 @@ function quota(sandbox: SandboxState, name: SandboxSettingKey, used: number, uni
  * Operations counted against a daily allowance beyond the count of writes, and what one call takes
  * from it: one, unless `takes` says how many its input adds.
  */
-const DAILY: Record<string, { counter: Counter; setting: SandboxSettingKey; unit: string; what: (n: number) => string; takes?: (input: unknown) => number }> = {
-  "sources.create": { counter: "sources", setting: "sources_per_day", unit: "sources", what: (n) => `each visitor ${n} new sources a day` },
-  "attachments.create_upload": { counter: "sources", setting: "sources_per_day", unit: "sources", what: (n) => `each visitor ${n} new sources a day` },
+const DAILY: Record<string, { counter: Counter; setting: SandboxSettingKey; unit: string; what: (n: number, each: string) => string; takes?: (input: unknown) => number }> = {
+  "sources.create": { counter: "sources", setting: "sources_per_day", unit: "sources", what: (n, each) => `${each} ${n} new sources a day` },
+  "attachments.create_upload": { counter: "sources", setting: "sources_per_day", unit: "sources", what: (n, each) => `${each} ${n} new sources a day` },
   // Each source in the batch is a source added.
   "attachments.create_uploads": {
-    counter: "sources", setting: "sources_per_day", unit: "sources", what: (n) => `each visitor ${n} new sources a day`,
+    counter: "sources", setting: "sources_per_day", unit: "sources", what: (n, each) => `${each} ${n} new sources a day`,
     takes: (input) => Math.max(1, (input as { sources?: unknown[] } | null)?.sources?.length ?? 1),
   },
-  "sources.copy_to_product": { counter: "sources", setting: "sources_per_day", unit: "sources", what: (n) => `each visitor ${n} new sources a day` },
-  "products.export": { counter: "exports", setting: "exports_per_day", unit: "exports", what: (n) => `each visitor ${n} exports a day` },
+  "sources.copy_to_product": { counter: "sources", setting: "sources_per_day", unit: "sources", what: (n, each) => `${each} ${n} new sources a day` },
+  "products.export": { counter: "exports", setting: "exports_per_day", unit: "exports", what: (n, each) => `${each} ${n} exports a day` },
 };
 
 /** What a daily allowance set to 0 switches off, for a person. */
@@ -386,8 +408,8 @@ const OFF: Partial<Record<SandboxSettingKey, string>> = {
   org_bytes_per_day: "Uploading files",
 };
 
-function off(setting: SandboxSettingKey) {
-  return restricted(`${OFF[setting]} is off for visitors in this public sandbox. Reading and searching still work.`, { setting, limit: 0 });
+function off(sandbox: Pick<SandboxContext, "member">, setting: SandboxSettingKey) {
+  return restricted(`${shutFor(sandbox, OFF[setting]!, "is off")}. Reading and searching still work.`, { setting, limit: 0 });
 }
 
 /**
@@ -398,11 +420,11 @@ function switchedOff(sandbox: SandboxContext, op: Pick<OperationDef, "name" | "m
   const s = sandbox.settings;
   if (!op.mutates) return;
   if (op.name !== "products.export") {
-    if (s.writes_per_day === 0) throw off("writes_per_day");
-    if (s.org_writes_per_day === 0) throw off("org_writes_per_day");
+    if (s.writes_per_day === 0) throw off(sandbox, "writes_per_day");
+    if (s.org_writes_per_day === 0) throw off(sandbox, "org_writes_per_day");
   }
   const daily = DAILY[op.name];
-  if (daily && s[daily.setting] === 0) throw off(daily.setting);
+  if (daily && s[daily.setting] === 0) throw off(sandbox, daily.setting);
 }
 
 /**
@@ -413,7 +435,11 @@ export function refuseVisitorWrite(sandbox: SandboxContext, op: Pick<OperationDe
   if (!op.mutates) return;
   // Export is never blocked by a read-only state; its own daily allowance still applies.
   if (sandbox.settings.visitor_access === "read" && op.name !== "products.export")
-    throw new AppError(403, "sandbox_read_only", `This public sandbox is read-only for visitors for now, so ${op.name} was refused. Reading and searching still work.`);
+    throw new AppError(
+      403,
+      "sandbox_read_only",
+      `This public sandbox is read-only ${sandbox.member ? `for now${EXCEPT_STAFF}` : "for visitors for now"}, so ${op.name} was refused. Reading and searching still work.`,
+    );
   switchedOff(sandbox, op);
 }
 
@@ -429,9 +455,9 @@ export async function admitVisitor(db: Db, sandbox: SandboxContext, principal: P
   const s = sandbox.settings;
   if (inTenant && !ALWAYS_ANSWERED.has(op.name)) {
     if (s.visitor_access === "closed")
-      throw new AppError(403, "sandbox_closed", "This public sandbox is closed to visitors for now. Nothing of yours was changed; try again later.");
+      throw new AppError(403, "sandbox_closed", `This public sandbox is closed ${sandbox.member ? "for now, except to its owners and admins" : "to visitors for now"}. Nothing of yours was changed; try again later.`);
     if (principal.surface === "mcp" && !s.visitor_agents)
-      throw restricted("Agents are turned off for visitors in this public sandbox. Use the web app instead.");
+      throw restricted(`${shutFor(sandbox, "Agents", "are turned off")}. Use the web app instead.`);
     refuseVisitorWrite(sandbox, op);
   }
 
@@ -441,9 +467,9 @@ export async function admitVisitor(db: Db, sandbox: SandboxContext, principal: P
   const n = await bump(db, sandbox.tenant_id, "minute", minute, adds);
   const over = (used: number | undefined, limit: number) => (used ?? 0) > limit;
   if (over(n.get(`${principal.account_id}:requests`), s.requests_per_minute))
-    throw rateLimited(`This public sandbox allows each visitor ${s.requests_per_minute} calls a minute. Wait for the next minute, then carry on.`, { limit: s.requests_per_minute, per: "minute", retry_after_seconds: 60 - new Date().getUTCSeconds() });
+    throw rateLimited(`This public sandbox allows ${limitsFor(sandbox).each} ${s.requests_per_minute} calls a minute. Wait for the next minute, then carry on.`, { limit: s.requests_per_minute, per: "minute", retry_after_seconds: 60 - new Date().getUTCSeconds() });
   if (op.mutates && over(n.get(`${principal.account_id}:writes`), s.writes_per_minute))
-    throw rateLimited(`This public sandbox allows each visitor ${s.writes_per_minute} writes a minute. Wait for the next minute, then carry on; reads are unaffected.`, { limit: s.writes_per_minute, per: "minute", retry_after_seconds: 60 - new Date().getUTCSeconds() });
+    throw rateLimited(`This public sandbox allows ${limitsFor(sandbox).each} ${s.writes_per_minute} writes a minute. Wait for the next minute, then carry on; reads are unaffected.`, { limit: s.writes_per_minute, per: "minute", retry_after_seconds: 60 - new Date().getUTCSeconds() });
 }
 
 /**
@@ -484,14 +510,14 @@ export async function countVisitorWrite(trx: Db, sandbox: SandboxContext, princi
   // An export is counted, and never stopped by the allowance of writes: it is how someone leaves with their work.
   if (op.name !== "products.export") {
     const mine = n.get(`${me}:writes`) ?? 0;
-    if (mine > s.writes_per_day) throw quota(sandbox, "writes_per_day", mine - 1, "writes", `each visitor ${s.writes_per_day} writes a day`);
+    if (mine > s.writes_per_day) throw quota(sandbox, "writes_per_day", mine - 1, "writes", `${limitsFor(sandbox).each} ${s.writes_per_day} writes a day`);
     const all = n.get(`${ORG}:writes`) ?? 0;
-    if (all > s.org_writes_per_day) throw quota(sandbox, "org_writes_per_day", all - 1, "writes", `${s.org_writes_per_day} writes a day from all visitors together`);
+    if (all > s.org_writes_per_day) throw quota(sandbox, "org_writes_per_day", all - 1, "writes", `${s.org_writes_per_day} writes a day from ${limitsFor(sandbox).all}`);
   }
   if (daily) {
     const used = n.get(`${me}:${daily.counter}`) ?? 0;
     const limit = s[daily.setting] as number;
-    if (used > limit) throw quota(sandbox, daily.setting, used - takes, daily.unit, daily.what(limit), takes);
+    if (used > limit) throw quota(sandbox, daily.setting, used - takes, daily.unit, daily.what(limit, limitsFor(sandbox).each), takes);
   }
 }
 
@@ -503,11 +529,11 @@ export async function visitorUploadLimit(trx: Db, sandbox: SandboxContext, accou
   const s = sandbox.settings;
   if (s.documents_only && !parserFor(file.path, mediaTypeFor(file.path, file.media_type)))
     throw restricted(`This public sandbox takes only files its parsers read: text, Markdown, transcripts (VTT, SRT), HTML, Word (DOC, DOCX), PDF, spreadsheets and XML. ${file.path} is not one of them.`, { path: file.path });
-  if (s.bytes_per_day === 0) throw off("bytes_per_day");
-  if (s.org_bytes_per_day === 0) throw off("org_bytes_per_day");
+  if (s.bytes_per_day === 0) throw off(sandbox, "bytes_per_day");
+  if (s.org_bytes_per_day === 0) throw off(sandbox, "org_bytes_per_day");
   const used = await usageToday(trx, sandbox, accountId);
-  if (used.bytes >= s.bytes_per_day) throw quota(sandbox, "bytes_per_day", used.bytes, "bytes", `each visitor ${s.bytes_per_day} bytes of uploads a day`);
-  if (used.org_bytes >= s.org_bytes_per_day) throw quota(sandbox, "org_bytes_per_day", used.org_bytes, "bytes", `${s.org_bytes_per_day} bytes of uploads a day from all visitors together`);
+  if (used.bytes >= s.bytes_per_day) throw quota(sandbox, "bytes_per_day", used.bytes, "bytes", `${limitsFor(sandbox).each} ${s.bytes_per_day} bytes of uploads a day`);
+  if (used.org_bytes >= s.org_bytes_per_day) throw quota(sandbox, "org_bytes_per_day", used.org_bytes, "bytes", `${s.org_bytes_per_day} bytes of uploads a day from ${limitsFor(sandbox).all}`);
   const limit = Math.min(fileMaxBytes, s.file_max_bytes, s.bytes_per_day - used.bytes, s.org_bytes_per_day - used.org_bytes);
   if (file.size !== undefined && file.size > limit)
     throw tooLarge(
@@ -528,7 +554,8 @@ export async function countVisitorBytes(trx: Db, sandbox: SandboxContext, accoun
 }
 
 export function visitorMayFetchUrl(sandbox: SandboxContext): void {
-  if (!sandbox.settings.fetch_url) throw restricted("Fetching a file from a URL is off for visitors in this public sandbox. Download the file yourself and upload it with attachments(action=\"request_upload\").");
+  if (!sandbox.settings.fetch_url)
+    throw restricted(`${shutFor(sandbox, "Fetching a file from a URL", "is off")}. Download the file yourself and upload it with attachments(action="request_upload").`);
 }
 
 // ---- Running alone ------------------------------------------------------------------------------

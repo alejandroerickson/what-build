@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -23,7 +23,8 @@ status: stable
 5. **One behavior.** The same operation gives the same result on a laptop and in production.
 
 Requirements 3 and 5 together settle the database question: **Postgres is the only one**, and
-development runs the same major version (17) from the `embedded-postgres` npm package. A second
+development runs the same major version (17) from the `embedded-postgres` npm package, in UTF-8
+with the C.UTF-8 locale, as Neon's databases are ([local development](../operations/local-development.md#the-local-postgres)). A second
 SQL engine would mean two dialects, two full-text implementations and two sets of migrations to
 keep in step forever, for no behavior a caller can see.
 
@@ -85,7 +86,15 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
   `worker` runs the worker alone. Splitting them is a configuration change, not a code change.
   A worker claims only the kinds of job its version runs (`JOB_KINDS` in
   `apps/server/src/worker.ts`), so while a release rolls out, an instance of the version before it
-  leaves a kind the new version's migration queued, without spending its attempts.
+  leaves a kind the new version's migration queued, without spending its attempts. Nor does it take
+  any job, or do any housekeeping, once the database records a migration its version does not
+  carry: a release's migrations run before its version serves, and work they queue under a kind
+  both versions run waits for the new version instead of being run, skipped or given up by code
+  written for the schema before it. The claim checks this in the statement that takes the job, and
+  so does every give-up in the statement that gives a job up, whether the job stopped the process
+  at every attempt or failed at its last (an export at its first): one that failed then is left for
+  the new version with that attempt not spent, since it may have failed on the new schema. The
+  migration is recorded in the transaction that queued the work, so nothing slips between.
 - **An attachment is read in a thread of its own.** The worker starts a worker thread for each parse,
   with no environment, a heap of `WHATBUILD_PARSE_MEMORY_MB` (384 by default), half as much again
   for buffers and `WHATBUILD_PARSE_TIMEOUT_SECONDS` (120); a parse past them is stopped and fails,

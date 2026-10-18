@@ -3,7 +3,7 @@ type: Specification
 title: Accounts belong to tenants, tenants hold teams, teams run products, and one role check decides every call.
 description: The account → tenant → team → product hierarchy, sign-in, roles and what they grant, addressing and isolation, moving sources between products, caller identity, attribution, and who is who in the public sandbox.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, sandbox]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -232,7 +232,8 @@ and its product concept.
   The check holds a lock on the account for the transaction, so two creations at once cannot both
   take the last place.
 - Only instance owners read and change allowances: `products.tenant_allowances`,
-  `products.set_tenant_allowance` (guarded by the row's etag once it exists; with `notify`, an
+  `products.set_tenant_allowance` (guarded by the row's etag once it exists, and refusing one sent
+  for an address that has none with `409 stale_etag` and `current_etag: null`; with `notify`, an
   address whose allowance grows is emailed a link to `/welcome`) and
   `products.remove_tenant_allowance`, which returns an address to the default. These belong to no
   tenant, so they write no activity event; each row keeps who gave it and who last changed it.
@@ -323,7 +324,10 @@ The addressed tenant, team and product are always explicit. Nothing on the serve
 On MCP a product-scoped call resolves its product in this order: the `product` argument (an id or
 `tenant/team/product`); the product the endpoint is scoped to; the only unarchived product the
 caller can reach inside the endpoint's scope; otherwise `422 product_required` listing those
-products ([`apps/server/src/mcp.ts`](../../apps/server/src/mcp.ts)). Every product-scoped MCP
+products ([`apps/server/src/mcp.ts`](../../apps/server/src/mcp.ts)). An organization's or a team's
+call takes `tenant` (and `team`) from its params or the endpoint, and otherwise the organization
+and team of a `product` it names that the caller can see, unless it takes a product of its own
+([§6.5](06-operations-and-adapters.md)). Every product-scoped MCP
 result echoes `scope` (tenant, team, product, `your_role` capped by the connection's level, and
 `connection_level`) so an agent and the person reading its transcript can see where a write landed
 and what it may do there.
@@ -515,7 +519,8 @@ else in the organization is a visitor**, whatever role they hold. `sandbox.statu
 them how they stand (`you.role`): `staff`; `visitor`, for someone who came in by an invitation
 link and holds the tenant role `visitor`; or `member`, for someone staff gave a role, who is
 treated as a visitor is (the made-up name, the limits, no administering, nobody else seen) and is
-told so. The notice each is shown says who sees what they add, and under which name. A member
+told so, and whose refusals name the limits as everyone's but the staff's, never as visitors'
+([§9.7](09-data-lifecycle.md)). The notice each is shown says who sees what they add, and under which name. A member
 who reads only the Story there (a reader wherever they hold a role) writes nothing, so they are
 told that instead: `you.story_only` is true, `appears_as` is null, the notice says they can only
 read the Story, and `you.can` that they write nothing. Each allowance in the status names the refusal a call

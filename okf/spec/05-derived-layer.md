@@ -23,20 +23,23 @@ attachment, the derived text and their operations are in
 A **reading** (a `derivation` on the wire, identified by a `derivation_id`) is one immutable read of
 one version of one attachment. Every version of every attachment is read: when the attachment is
 added, when a new version arrives at its path, when a source is copied to another product (its
-attachments are read afresh there), and when `derived.rederive` asks for it (for example after a
-parser upgrade). Earlier readings are retained and readable by id. `rederive` returns
-`previous_derivation_id`; the attachment's latest reading stays in place until the new one
-finishes, so a caller knows it is done when `derived.manifest` for that attachment reports a
-different `derivation_id`.
+attachments are read afresh there), when `derived.rederive` asks for it (for example after a parser
+upgrade), and when a public sandbox's reset puts back a reading that this version's parsers would
+make afresh, such as one an older parser made ([§9.7](09-data-lifecycle.md#the-reset)). Earlier
+readings are retained and readable by id. `rederive` returns `previous_derivation_id`; the
+attachment's latest reading stays in place until the new one finishes, so a caller knows it is done
+when `derived.manifest` for that attachment reports a different `derivation_id`.
 
 **Where it runs.** Always on the Postgres job queue, in the worker
 ([`apps/server/src/worker.ts`](../../apps/server/src/worker.ts)), in every environment. The
-transaction that adds the attachment enqueues the job, and the worker wakes after the commit. The
-upload response is never held while a file is read, and a slow PDF cannot occupy a request. Reading
-inline in the request would be an observable behavior difference and is forbidden
-([§1.5 rule 12](01-product.md)). A reading's row is written only when it finishes, so until then
-the attachment's text status is `pending`, unless its name, type and size already settle how it
-will be read (§5.5).
+transaction that adds the attachment enqueues the job, and the worker wakes after the commit. A
+reading a release's migration queues is done by that release's workers: the version it replaces
+takes no job once the migration is recorded
+([§2.3](02-architecture.md#23-the-shape-of-the-deployment)). The upload response is never held while
+a file is read, and a slow PDF cannot occupy a request. Reading inline in the request would be an
+observable behavior difference and is forbidden ([§1.5 rule 12](01-product.md)). A reading's row is
+written only when it finishes, so until then the attachment's text status is `pending`, unless its
+name, type and size already settle how it will be read (§5.5).
 
 The activity log records each outcome under the system actor (WhatBuild, client `parser`):
 `derived`, "Read the text of interview.vtt", with "; it is the source’s derived text" when its text
@@ -53,8 +56,16 @@ thread's JavaScript heap is held to `WHATBUILD_PARSE_MEMORY_MB` (384 MB by defau
 holds outside the heap to half as much again, and its run to `WHATBUILD_PARSE_TIMEOUT_SECONDS`
 (120 by default). A parse past any of them is stopped, and its reading is `failed` with the limit
 and its value in `status_detail`. A job is tried at most five times, counting the times the process
-stopped while running it; a reading whose job stopped the process all five times is given up and
-recorded as `failed` with parser `none`, and `rederive` tries once more.
+stopped while running it. A reading whose job failed all five times is given up and recorded as
+`failed` with parser `none`, its `status_detail` saying why: the job stopped the process each time,
+or it failed with an error (the store or the database refusing what it read, say), which until then
+left the attachment `pending` for good. After an error, the reading, which says that the file could
+not be read and that reading it again may help, is recorded in the transaction that gives the job
+up, so neither happens without the other. Read it again, or `rederive`, tries once more. While the
+database has a later version's migration, a reading's job is not given up, as none is claimed
+([§2.3](02-architecture.md#23-the-shape-of-the-deployment)): it is left for the version that carries
+the migration, and one whose last attempt failed with an error has that attempt back, since it may
+have failed on that version's schema.
 
 A reading, the derived text it becomes (§5.4) and that text's pieces in the search index
 ([§8.3](08-search.md)) are written in one transaction, so search never finds words the source's
@@ -91,13 +102,16 @@ WAV, FLAC and MP3 (a Xing, Info or VBRI frame count, else the constant bitrate).
 other files and for a container that cannot be read. A recording over the parse cap is not
 downloaded; only the byte ranges holding those headers are read.
 
-`facts` holds format-specific counts (pages and text-layer characters for PDF; tables, tracked
+`facts` holds format-specific counts (for PDF, pages, the characters of text read
+(`text_layer_chars`), tables, and each line repeated across its pages that was read once or left
+out (`headers_and_footers`) with the count of lines left out (`headers_and_footers_left_out`); tables, tracked
 changes and comments for DOCX; `doc_format` and tables for DOC; for XLSX, sheets, hidden sheets
 (`hidden_sheets`), the hidden rows and columns read (`hidden_rows`, `hidden_columns`), the values
 other than zero a format shows as nothing (`hidden_values`) and the formulas saved without a value
 (`formulas_without_values`); rows and the delimiter for CSV; skipped
 cues for VTT and SRT; `transcript_turns` for a text, Markdown, DOCX or DOC file read as a
-transcript). `inference: "none"` states that no model produced or altered the text.
+transcript), and, in any format, `null_characters_dropped` when the reading left out null
+characters (§5.3). `inference: "none"` states that no model produced or altered the text.
 
 Readings made while sources had passages also hold a `segments.jsonl`, which nothing reads any
 more; a product export includes it ([§4.14](04-data-model.md)).
@@ -112,8 +126,8 @@ into paragraphs, headings, turns and table rows, and those are laid out as one M
 - Paragraphs are separated by a blank line, and the text ends with one newline.
 - **Headings stay headings**, as `#` to `######`, at levels that agree across formats: a Markdown
   `#` title and a DOCX Title are level 1, and the sections under them (`##`, or Heading 1 below a
-  Title) level 2. A PDF has a `# Page N` heading before each page's text, and a workbook a
-  `# Sheet: <name>` heading before each sheet.
+  Title) level 2. A PDF has a `# Page N` heading before each page's text, its own headings under
+  it at level 2 and below, and a workbook a `# Sheet: <name>` heading before each sheet.
 - **A timed transcript** (VTT, SRT) says who spoke and when in the text: a turn is
   `**Dana** (12:05): words`, its time `m:ss`, or `h:mm:ss` from an hour on. A speaker's consecutive
   cues run on as one paragraph until it holds about 1,200 characters; the next cue then opens a
@@ -121,7 +135,7 @@ into paragraphs, headings, turns and table rows, and those are laid out as one M
   cues (end before start) are skipped and counted in `facts`.
 - **An untimed transcript** (plain text, DOCX, DOC; below) labels a turn `**Dana:** words`; the
   later paragraphs of the same turn are not labelled again.
-- **A table** of two or more rows (DOCX, DOC, HTML, a pipe table in plain text) is one GitHub pipe
+- **A table** of two or more rows (DOCX, DOC, HTML, PDF, a pipe table in plain text) is one GitHub pipe
   table under its first row, as wide as its widest row, each cell's spacing collapsed and its `|`
   escaped. A table of one row is a paragraph of its cells joined with ` | `.
 - **A workbook** (XLSX, and CSV and TSV, read as a one-sheet workbook) is one table per sheet from
@@ -137,14 +151,14 @@ into paragraphs, headings, turns and table rows, and those are laid out as one M
 
 | Format | Notes |
 |---|---|
-| Plain text (`.txt`, `.text`) | Read as written. Paragraphs split on blank lines and keep their lines: each line stays a line (a Markdown hard break, two spaces before the line end), unless it only wraps a sentence onto the next (below). List items keep their markers: `-`, `*` and `+` bullets and `1.` and `1)` numbers as Markdown lists, nested as they are indented (at most eight deep), and other bullets (`•`, `–`, a check box, Word's `o` and `§`) as written. ATX headings stay headings; pipe tables become tables; a rule or an underline (`-----`, `=====`) stands on its own, so it never makes the line above it a heading. A transcript is read turn by turn with its speakers (below). |
+| Plain text (`.txt`, `.text`) | Read as written. Paragraphs split on blank lines and keep their lines: each line stays a line (a Markdown hard break, two spaces before the line end), unless it only wraps a sentence onto the next (below). List items keep their markers: `-`, `*` and `+` bullets and `1.` and `1)` numbers as Markdown lists, nested as they are indented (at most eight deep), and other bullets (`•`, `–`, a check box, Word's `o` and `§`) as written. A Markdown list under a line that ends in a colon (`Dispatcher:`) is set apart from it by a blank line, so it reads as a list whatever number it starts at (in Markdown only a list numbered 1 may interrupt a paragraph); a numbered line opens one there only when the next line numbers on from it (`3.`, then `4.`), so a sentence that ends in a colon keeps the line under it that merely starts with a year. ATX headings stay headings; pipe tables become tables; a rule or an underline (`-----`, `=====`) stands on its own, so it never makes the line above it a heading. A transcript is read turn by turn with its speakers (below). |
 | Markdown (`.md`, `.markdown`) | Kept as written. Parsed as plain text is, plus setext headings, with blockquote markers, thematic breaks and inline emphasis and code markers set aside, so `**Name:** words` is a speaker turn and `**Name** (14:02 UTC):` on a line of its own a timed label (below). |
 | WebVTT, SRT | Cue timing; speakers from `<v Name>` voice tags and from `Name:` prefixes; caption markup stripped. |
 | DOCX | Headings (a Title above Heading 1), paragraphs, tables, the accepted view of tracked changes (insertions kept, deletions dropped), and reviewer comments under `# Review comments`, each `Author: words`. A paragraph in a decimal Word list (numbered directly or by its style) starts with its number as Word counts it (`2.`, `1.1.`); bullets and other number formats (letters, roman numerals) get no marker. `Name: words` paragraphs, including a bold `Name:` run, are speaker turns in a transcript (below). |
 | DOC (`.doc`, `application/msword`) | The format is read from the file's first bytes, never from its name, and the `doc_format` fact records it. A **Word binary document** (an OLE2 compound file) from Word 97-2003 (`word97`), or from Word 6.0 or Word 95 (`word6`), gives its main text through the piece table, with 8-bit Windows-1252 and UTF-16 pieces: one paragraph per paragraph, built-in heading styles (Title, Subtitle, Heading 1-9) as headings at DOCX's levels, tables as tables, field results kept and field codes dropped, page and section breaks as paragraph breaks, and `Name: words` paragraphs as speaker turns in a transcript. Word 97 tables come from the paragraphs' table flags; Word 6 tables are inferred from cell marks, the first row setting the width. Headers, footnotes, comments and list numbers are not read. Encrypted documents, fast-saved Word 6 and Word 95 documents and Word 2 and older documents fail with the reason. A **DOCX package** under a `.doc` name is read by the DOCX parser (`docx`); a **MIME HTML** file (Word's "Web Page" save, wiki Word exports) has its first `text/html` part, quoted-printable or base64, read by the HTML parser (`mhtml`); **plain HTML** is read by the HTML parser in the character set its `<meta>` declares (`html`). Rich Text Format and anything else fail with the reason, as does HTML with no readable text. |
 | XLSX | Sheets and rows, laid out as above, each value as the sheet shows it, through its cell's number format ([`numfmt.ts`](../../packages/parsers/src/numfmt.ts)): percentages, decimals, thousands separators and scaling (`#,##0,`), currency, explicit signs (`+0.0%`), negatives in brackets, fractions, scientific notation, conditions (`[>=1000]0.0,"K"`), a text section (`@" (est.)"`), and dates and times (`5 Mar 2026`, `1:30 PM`, elapsed `30:00:00`) in the workbook's 1900 or 1904 date system: a date alone is the day its value falls in, and a time is rounded to the finest part it shows, into the next day if need be. A negative in a section that shows it only by a colour (`#,##0;[Red]#,##0`) gets the minus the colour stood for. The locale's own formats, which a file does not record, read in ISO 8601: the short date (14) and the date and time (22) as `2026-04-10` and `2026-04-10 12:00`, the system long date and time (`[$-F800]`, `[$-F400]`) as a date and `13:30:00`; the currency formats that show the locale's symbol (5 to 8, 42, 44) read without one. A negative date, a date alone on a day before the 1900 system's first, and a number in a text format read as General shows them; a time under one day in a format that shows a date and a time shows as the time alone (`0.5` under `m/d/yyyy h:mm` is `12:00`). A hidden sheet, column or row is read, so search finds it, and marked: `# Sheet: Workings (hidden)`, a column `Rate (hidden)`, a row `3 (hidden)`; so is a value its format shows as nothing (`;;;`, or `0;;0` for a negative), read as General: `42 (hidden)`. A zero its format shows as nothing (`0;-0;;@`, `#,##0;(#,##0);`, `;;;`) is the blank the sheet shows, an empty cell, as hiding zeros hides no information. A formula the file holds without its value, as libraries that never calculate write it, reads `=SUM(B2:B3) (no stored value)` rather than 0 or nothing. |
 | CSV, TSV (`.csv`, `.tsv`) | Read like a one-sheet workbook, with the same header rule. Quoted fields may hold delimiters and line breaks; the delimiter (comma, semicolon or tab) is taken from the first line. |
-| PDF | Text layer only, page by page, for a PDF of at most 2,000 pages; a page's lines are joined into paragraphs that end at sentence punctuation. No OCR; images are never decoded. A PDF with no text layer, its pages pictures as a scan's are, is `unsupported`, as an image is (§5.5). |
+| PDF | Text layer only, page by page, for a PDF of at most 2,000 pages, each page laid out as a person reads it (below): headings set larger than the text, paragraphs, a table as a table, a label beside its value, and a running header or footer once, its page numbers left out. No OCR; images are never decoded. A PDF with no text layer, its pages pictures as a scan's are, is `unsupported`, as an image is (§5.5). |
 | HTML | Main-content text with headings; scripts, styles, navigation, forms and frames dropped; tables as tables; adjacent elements (labels, breadcrumbs) kept apart by a space. A page that nests elements more than 512 deep, or would make far more elements than it has tags, fails with the reason. |
 
 **Line breaks in plain text** ([`plaintext.ts`](../../packages/parsers/src/plaintext.ts)). Only
@@ -172,6 +186,70 @@ read, so their content is found, and marked, so a reader knows the sheet hides t
 rather than reflowed into paragraphs: a list, a file of one item per line or a block of notes means
 its lines. Only prose that is plainly hard-wrapped is joined, so a phrase across a wrap is still
 found by a substring search.
+
+**A PDF's page** ([`pdf-layout.ts`](../../packages/parsers/src/pdf-layout.ts)). A content stream
+draws a page's text in runs, in an order of its own: usually its prose's, a column at a time, but a
+table's or a form's in any order, a label long before its value. So the runs are read in the stream's
+order and laid out by where they stand on the page:
+
+- **Lines.** Runs drawn one after another whose heights overlap by half are a line, read across the
+  page (from the right, where most of its text runs right to left). Lines drawn apart on one
+  baseline are one line, as a form's labels drawn before their values are, unless either stands in
+  a column of prose (lines that wrap onto the next, or long lines of one cell), so each column of a
+  page of two is read in turn. A run drawn twice beside itself, as a heavier weight is faked, is
+  read once.
+- **Cells.** A gap at least 0.8 of the font's height wide parts a line's cells. A label and its value
+  stay together, `Samples: 79`; other cells of a line that is no table's row are kept apart by
+  ` · ` (`Quarterly report · March 2026`), and it is a paragraph of its own. A list marker or a
+  heading's number set apart by a hanging indent stays with its words, and a line of justified
+  prose stretched to its column's width, a word to a cell between lines of prose as wide, reads as
+  prose.
+- **Tables.** Lines of two cells or more (parted there at 0.4 of the font's height, as a table set
+  tight is), one under the next, are a table when their cells stand in the same columns, two rows
+  at least, and every column after the first is aligned: each cell under the first row on its left
+  edge, its middle or, numbers, its right edge, the first row (a heading) as it may be. A table ends
+  where the space to the next line is more than 1.35 times its rows' widest, or 2.5 of the font's
+  height, or where its columns stop being aligned. A cell's words wrapped onto a second line join
+  its row; in a row, one cell may reach across one gutter, as two cells set close are read as one
+  run when nothing in the file parts them, and stays in the first of its columns, in a third of the
+  rows at most. A table is a pipe table under its first row (`table_count` counts them), except a
+  form, half of whose rows hold a label (`Client:` beside `Example Co.`), read a line per row, and
+  columns of prose drawn a line across them at a time, read a column at a time.
+- **Headings.** A line of one cell set clearly larger than its page's text, every run of it at
+  least 1.15 times the size most of the page's characters outside its tables are set in, is a
+  heading of its own, never run into the text before or after it, with the lines just under it in
+  its size joined to it. It is one when it takes at most three lines and 200 characters, holds a
+  letter, is no list item and does not end as prose does (`.`, `,`, `;`, `…`): a large line that
+  does is prose set large, a pull quote or large print, and reads as a paragraph, as before. Its
+  level follows its size, the same size the same level throughout the file: the largest is level
+  2, under the page's `# Page N`, the next 3, and so on to 6. A heading set in the text's own size,
+  in bold or in capitals, is not told from the text, since the text layer says nothing of a font's
+  weight: it is read with the paragraph under it.
+- **Paragraphs.** Lines of one cell are joined into a paragraph that ends at a line ending in `.`,
+  `!`, `?`, `:` or `;`, as they always were, or at a heading: list items that end no sentence run
+  on. Lines next to one another that each start with a short label (`Sample ID: S-0001`) stand
+  apart.
+- **Running headers and footers.** One of the three lines at a page's top or bottom, in the outer
+  eighth of the page and set apart from the text inward by white space at least 1.5 of the smaller
+  font's height, or a line at another angle than the page's text (a stamp up the margin), is
+  repeated when its words, its page number aside (`Page 3 of 12`, `3 / 12`, a page's number or
+  roman numeral alone), stand within a fiftieth of the page's height of one place on two pages at
+  least and on half the pages. Any other number keeps lines apart, so `Week 13` and `Week 14` are not
+  repeats. A repeated line is read once, where it first appears (a header at the top of its page, a
+  footer or a stamp at the end), without its page number, and left out of later pages; a page number
+  alone is left out on every page. `headers_and_footers` lists each repeated line as it first
+  reads, and `headers_and_footers_left_out` counts the lines left out.
+- **Angles.** A page reads in the frame most of its text stands upright in, so a landscape page
+  drawn a quarter turn reads as it would upright; lines at other angles follow the page's text.
+
+◆ Decision: a running header or footer is read once rather than left out, because it may name the
+document or hold its number, which search should find; a page number is left out, as the
+`# Page N` heading says it. A line is taken for one only where the page sets it apart and most pages
+repeat it, so a page's own first line stays.
+
+◆ Decision: a PDF's table reads as a pipe table only when its columns are found, aligned; rows whose
+columns cannot be found read a line each, their cells kept apart, which reads as the page does
+without claiming a structure the file does not show.
 
 **Untimed transcripts.** Plain text, Markdown, DOCX and DOC share one rule
 ([`speakers.ts`](../../packages/parsers/src/speakers.ts)), so a transcript reads the same whatever
@@ -201,6 +279,11 @@ keeps its own text; the speakers count in its facts.)
   agent with its own transcription tool. An image, or a PDF whose pages are pictures, is stored and
   shown, and no words are read from it: an agent that can see it describes it in the source's
   summary and, if search should find its words, writes them as the derived text.
+- **No reading holds a null character** (U+0000), which a Postgres text value cannot hold: a text
+  file read as UTF-8 keeps any it has, and a reading with one in it could not be stored, so its
+  attachment would stay `pending`. `derive` drops them from what any parser read, its detail and
+  its facts included, and `null_characters_dropped` in the facts counts those left out of the text.
+  A text-like file that is almost all null characters keeps almost nothing, and is `failed` (§5.5).
 - Parsers are pure functions of bytes → readable Markdown (`derive`, then `toParsedFile` for the
   bytes a reading stores), with no I/O (the recording-duration reader
   takes a byte-range callback, so the worker can serve it ranges of a stored file), and never throw for a bad file:
@@ -300,7 +383,7 @@ Each reading has a `status`, terminal for that reading:
 | `needs_transcript` | A recording (an audio or video media type or extension): stored and playable, never transcribed. Its transcript is another attachment. `duration_ms` gives its playing time when the container states it. |
 | `unsupported` | No words to read: no parser reads this attachment's extension or media type, or it is pictures, an image or a PDF with no text layer (a scan's pages are pictures; there is no OCR). It is no failure, and reading it again changes nothing. For an image or a PDF of pictures, `status_detail` says that an agent that can see it should describe it in the source's summary and write its words as the text with `derived(action="write_text")` if search should find them. |
 | `too_large` | Too large to read: over the parse cap, 25 MiB by default for every format (`WHATBUILD_PARSE_CAP_BYTES`), in which case the file is not read at all; a DOCX, XLSX or DOC package whose parts unpack to more than the cap; a PDF of more than 2,000 pages; or a file that would make more than 200,000 paragraphs. The attachment is stored; `status_detail` says which. |
-| `failed` | The parser errored, **or** it kept almost nothing: a text-like file (plain text, Markdown, VTT, SRT, CSV, TSV) that kept under 10% of at least 200 characters, or an HTML page with no readable text (a page whose text is drawn by scripts, such as a single-page app's shell); **or** the parse needed more memory or time than the deployment gives one file, or stopped the server five times (§5.1). `status_detail` says which. |
+| `failed` | The parser errored, **or** it kept almost nothing: a text-like file (plain text, Markdown, VTT, SRT, CSV, TSV) that kept under 10% of at least 200 characters, or an HTML page with no readable text (a page whose text is drawn by scripts, such as a single-page app's shell); **or** the parse needed more memory or time than the deployment gives one file, or its reading stopped the server, or failed with an error, five times (§5.1). `status_detail` says which. |
 
 ◆ Decision: a PDF with no text layer is `unsupported`, as an image is, not `failed`: its pages are
 pictures, and reading it again cannot find words in them. A failure is worth retrying; a picture
@@ -317,9 +400,12 @@ A reading is never rewritten, but one an earlier version made is said as this ve
 wherever it is read (`currentReading` in [`statuses.ts`](../../packages/parsers/src/statuses.ts)),
 so a backup or a public sandbox's baseline brings no retired words back: a recording that asked for
 "a transcript as a new source" asks for one as another attachment, a PDF of pictures once recorded
-as `failed` reads `unsupported`, and an image once said to be "a format no parser reads" says how
-an agent gives it its words. A recording's detail beside the source's derived text says where that
-text comes from instead of asking for a transcript.
+as `failed` reads `unsupported`, and an image once said to be "a format no parser reads" says how an
+agent gives it its words. None of them needs reading again, and a public sandbox's reset leaves them
+as they are: it reads again only what this version's parsers would read differently (§5.1), never a
+reading that failed or found a recording, nor one in which this version's parser found only
+pictures. A recording's detail beside the source's derived text says where that text comes from
+instead of asking for a transcript.
 
 A source's `derived_status` says where its derived text stands (`derivedStatuses` in
 [`ops/sources.ts`](../../packages/core/src/ops/sources.ts)):
