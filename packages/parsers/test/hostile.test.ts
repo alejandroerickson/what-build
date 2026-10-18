@@ -3,6 +3,7 @@ import { constants, deflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { stripCueMarkup, voiceName } from "../src/cues.ts";
 import { DEFAULT_PARSE_CAP_BYTES, derive, MAX_HTML_DEPTH, MAX_PDF_PAGES, MAX_SEGMENTS, parseHtml, toParsedFile, type ParseResult } from "../src/index.ts";
+import { formatNumber, formatText, readFormat } from "../src/numfmt.ts";
 import { atxHeading, MAX_LIST_DEPTH, stripInlineMarkdown } from "../src/plaintext.ts";
 import { speakerLine } from "../src/speakers.ts";
 import { codePointLength, isSpaceUnit, nonSpaceCodePoints } from "../src/text.ts";
@@ -265,6 +266,23 @@ describe("patterns that once backtracked", () => {
     expect(nested.ms).toBeLessThan(2000);
     const indents = nested.r.markdown.split("\n").map((l) => l.length - l.trimStart().length);
     expect(Math.max(...indents)).toBe(2 * (MAX_LIST_DEPTH - 1));
+  });
+
+  it("applies number formats of any shape without throwing, in bounded time and length", () => {
+    const pieces = ["0", "#", "?", ",", ".", "%", "E+", "e-", '"', '"x"', "[", "]", ";", "@", "y", "mm", "d", "hh", "ss", ".00", "AM/PM", "A/P", "/", "/8", "\\", "_", "*", "[Red]", "[<0]", "[>=1000]", "[h]", "[$€-407]", "[$-F800]", "General", " ", "-", "(", ")", "\u{1F4CA}"];
+    const values = [0, -0.5, 1, 1234567.891, -1e-9, 9.99e20, 1e22, 46086.75, -3, Number.NaN];
+    const started = performance.now();
+    for (const code of randomStrings(pieces, 5000, 24)) {
+      const f = readFormat(code);
+      for (const v of values) expect((formatNumber(f, v, false) ?? "").length, code).toBeLessThan(1000);
+      expect(formatText(f, "text").length).toBeLessThan(1000);
+    }
+    expect(performance.now() - started).toBeLessThan(3000);
+    // The longest code Excel takes, applied to many cells: each cell costs what the code's length does.
+    const widest = readFormat(`#,${"0".repeat(120)}.${"0".repeat(120)}%`);
+    const t0 = performance.now();
+    for (let i = 0; i < 20_000; i++) formatNumber(widest, i * 1.5, false);
+    expect(performance.now() - t0).toBeLessThan(3000);
   });
 
   it("trims long runs of spaces inside a line, an XLSX format of semicolons and a cue of spaces in linear time", async () => {

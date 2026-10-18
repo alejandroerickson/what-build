@@ -91,9 +91,11 @@ other files and for a container that cannot be read. A recording over the parse 
 downloaded; only the byte ranges holding those headers are read.
 
 `facts` holds format-specific counts (pages and text-layer characters for PDF; tables, tracked
-changes and comments for DOCX; `doc_format` and tables for DOC; sheets for XLSX; rows and the
-delimiter for CSV; skipped cues for VTT and SRT; `transcript_turns` for a text, Markdown, DOCX or DOC
-file read as a transcript). `inference: "none"` states that no model produced or altered the text.
+changes and comments for DOCX; `doc_format` and tables for DOC; for XLSX, sheets, hidden sheets
+(`hidden_sheets`), the hidden rows and columns read (`hidden_rows`, `hidden_columns`) and the
+formulas saved without a value (`formulas_without_values`); rows and the delimiter for CSV; skipped
+cues for VTT and SRT; `transcript_turns` for a text, Markdown, DOCX or DOC file read as a
+transcript). `inference: "none"` states that no model produced or altered the text.
 
 Readings made while sources had passages also hold a `segments.jsonl`, which nothing reads any
 more; a product export includes it ([§4.14](04-data-model.md)).
@@ -138,7 +140,7 @@ into paragraphs, headings, turns and table rows, and those are laid out as one M
 | WebVTT, SRT | Cue timing; speakers from `<v Name>` voice tags and from `Name:` prefixes; caption markup stripped. |
 | DOCX | Headings (a Title above Heading 1), paragraphs, tables, the accepted view of tracked changes (insertions kept, deletions dropped), and reviewer comments under `# Review comments`, each `Author: words`. A paragraph in a decimal Word list (numbered directly or by its style) starts with its number as Word counts it (`2.`, `1.1.`); bullets and other number formats (letters, roman numerals) get no marker. `Name: words` paragraphs, including a bold `Name:` run, are speaker turns in a transcript (below). |
 | DOC (`.doc`, `application/msword`) | The format is read from the file's first bytes, never from its name, and the `doc_format` fact records it. A **Word binary document** (an OLE2 compound file) from Word 97-2003 (`word97`), or from Word 6.0 or Word 95 (`word6`), gives its main text through the piece table, with 8-bit Windows-1252 and UTF-16 pieces: one paragraph per paragraph, built-in heading styles (Title, Subtitle, Heading 1-9) as headings at DOCX's levels, tables as tables, field results kept and field codes dropped, page and section breaks as paragraph breaks, and `Name: words` paragraphs as speaker turns in a transcript. Word 97 tables come from the paragraphs' table flags; Word 6 tables are inferred from cell marks, the first row setting the width. Headers, footnotes, comments and list numbers are not read. Encrypted documents, fast-saved Word 6 and Word 95 documents and Word 2 and older documents fail with the reason. A **DOCX package** under a `.doc` name is read by the DOCX parser (`docx`); a **MIME HTML** file (Word's "Web Page" save, wiki Word exports) has its first `text/html` part, quoted-printable or base64, read by the HTML parser (`mhtml`); **plain HTML** is read by the HTML parser in the character set its `<meta>` declares (`html`). Rich Text Format and anything else fail with the reason, as does HTML with no readable text. |
-| XLSX | Sheets and rows, laid out as above. A number whose cell format is a date or time (the built-in formats 14–22 and 45–47, or a custom format with day, month, year, hour or second codes outside quotes and brackets) renders in ISO 8601: `2026-04-10`, `2026-04-10 12:00`, `13:30`, or elapsed hours `30:00:00`, in the workbook's 1900 or 1904 date system. Other numbers keep their stored value, not their displayed format. |
+| XLSX | Sheets and rows, laid out as above, each value as the sheet shows it, through its cell's number format ([`numfmt.ts`](../../packages/parsers/src/numfmt.ts)): percentages, decimals, thousands separators and scaling (`#,##0,`), currency, explicit signs (`+0.0%`), negatives in brackets, fractions, scientific notation, conditions (`[>=1000]0.0,"K"`), a text section (`@" (est.)"`), and dates and times (`5 Mar 2026`, `1:30 PM`, elapsed `30:00:00`) in the workbook's 1900 or 1904 date system. A negative in a section that shows it only by a colour (`#,##0;[Red]#,##0`) gets the minus the colour stood for. The locale's own formats, which a file does not record, read in ISO 8601: the short date (14) and the date and time (22) as `2026-04-10` and `2026-04-10 12:00`, the system long date and time (`[$-F800]`, `[$-F400]`) as a date and `13:30:00`; the currency formats that show the locale's symbol (5 to 8, 42, 44) read without one. A negative date, a day before the 1900 system's first, and a number in a text format read as General shows them. A hidden sheet, column or row is read, so search finds it, and marked: `# Sheet: Workings (hidden)`, a column `Rate (hidden)`, a row `3 (hidden)`. A formula the file holds without its value, as libraries that never calculate write it, reads `=SUM(B2:B3) (no stored value)` rather than 0 or nothing. |
 | CSV, TSV (`.csv`, `.tsv`) | Read like a one-sheet workbook, with the same header rule. Quoted fields may hold delimiters and line breaks; the delimiter (comma, semicolon or tab) is taken from the first line. |
 | PDF | Text layer only, page by page, for a PDF of at most 2,000 pages; a page's lines are joined into paragraphs that end at sentence punctuation. No OCR; images are never decoded. |
 | HTML | Main-content text with headings; scripts, styles, navigation, forms and frames dropped; tables as tables; adjacent elements (labels, breadcrumbs) kept apart by a space. A page that nests elements more than 512 deep, or would make far more elements than it has tags, fails with the reason. |
@@ -153,6 +155,10 @@ one paragraph: all of those breaks join. Every other break is kept, so lists of 
 per line and line-broken notes read as written, and a short line is never joined to the next. A
 line after a Markdown list that is not indented under its last item ends the list, with a blank
 line before it.
+
+◆ Decision: a workbook reads as the sheet displays it, not as its stored values: a reader quotes
+`+14.0%` where the sheet shows it, not `0.14`. Its hidden sheets, columns and rows are read, so
+their content is found, and marked, so a reader knows the sheet hides them.
 
 ◆ Decision: a plain-text file reads as its author laid it out, its lines and list markers kept,
 rather than reflowed into paragraphs: a list, a file of one item per line or a block of notes means

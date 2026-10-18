@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import { clock, derive, recordingDurationMs, sliceCodePoints, type ParseResult } from "../src/index.ts";
 import { bytesReader } from "../src/media.ts";
 import { splitLong } from "../src/text.ts";
+import { builtinFormat, formatNumber, formatText, readFormat } from "../src/numfmt.ts";
 import { stripInlineMarkdown, wraps } from "../src/plaintext.ts";
-import { dateFormatOf } from "../src/xlsx.ts";
-import { makeDocx, makeDocxList, makeDocxParagraphs, makeFlac, makeMp3, makeMp4, makePdf, makeWav, makeXlsx, makeXlsxSheet, utf8 } from "./fixtures.ts";
+import { makeDocx, makeDocxList, makeDocxParagraphs, makeFlac, makeMp3, makeMp4, makePdf, makeWav, makeWorkbook, makeXlsx, makeXlsxSheet, utf8 } from "./fixtures.ts";
 import { makeCompoundFile, makeWordDoc } from "./word-fixtures.ts";
 
 /** The offset invariant every derivation must hold: text[char_start:char_end] == segment.text, in code points. */
@@ -669,10 +669,37 @@ describe("XLSX", () => {
       "[Register, row 3] Sample: KL-02 | Cu_pct: 0.9 | S_pct: (blank)",
       "[Register, row 4] Sample: NR | Cu_pct: (blank) | S_pct: (blank)",
     ]);
-    expect(r.parser_version).toBe("5");
+    expect(r.parser_version).toBe("6");
   });
 
-  it("renders numbers in date and time formats as ISO dates and times, and other numbers as numbers", async () => {
+  it("reads each value as its cell's number format shows it", async () => {
+    const r = await derive(
+      makeXlsxSheet(
+        [
+          ["Metric", "Change", "Share", "Ratio", "Revenue", "Margin", "Delta", "Status"],
+          ["Bookings", [0.14, 1], [0.256, 2], [2.9666666666666666, 3], [57700, 4], [-1234, 5], [-1234, 6], { text: "late", style: 7 }],
+          ["Churn", [-0.05, 1], [1, 2], [-0.0004, 3], [-57700, 4], [1234, 5], [1234, 6], "steady"],
+          ["Pipeline", [0, 1], [1234567, 8], [0.375, 9], [1234567, 10], [0, 11], [0.000123, 12], [45000, 0]],
+        ],
+        {
+          numFmts: ["+0.0%;-0.0%;0.0%", "0.000", '+"$"#,##0;-"$"#,##0', "#,##0;[Red]#,##0", '@" (est.)"', '#,##0.0,,"M"', "# ?/8", '_("$"* #,##0_);_("$"* \\(#,##0\\);_("$"* "-"_);_(@_)'],
+          xfs: [0, 164, 9, 165, 166, 37, 167, 168, 169, 170, 171, 171, 11],
+        },
+      ),
+      "metrics.xlsx",
+    );
+    expect(r.markdown).toBe(
+      "# Sheet: Register\n\n" +
+        "| Row | Metric | Change | Share | Ratio | Revenue | Margin | Delta | Status |\n" +
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n" +
+        // Signs as the format writes them, negatives in brackets or (shown only in red) with a minus.
+        "| 2 | Bookings | +14.0% | 26% | 2.967 | +$57,700 | (1,234) | -1,234 | late (est.) |\n" +
+        "| 3 | Churn | -5.0% | 100% | 0.000 | -$57,700 | 1,234 | 1,234 | steady |\n" +
+        "| 4 | Pipeline | 0.0% | 1.2M | 3/8 | $1,234,567 | $- | 1.23E-04 | 45000 |\n",
+    );
+  });
+
+  it("reads dates and times as the format shows them, and the locale's own formats in ISO 8601", async () => {
     const r = await derive(
       makeXlsxSheet(
         [
@@ -690,8 +717,10 @@ describe("XLSX", () => {
     expect(r.segments.map((s) => s.text)).toEqual([
       "# Sheet: Register",
       "[Register, row 1] Permit | Granted | Expiry | Checked | Meeting | Lead time | Logged | Renewed | Share",
-      "[Register, row 2] Permit: EL 101 | Granted: 2019-04-10 | Expiry: 2026-04-10 | Checked: 2026-02-02 12:00 | Meeting: 13:30 | Lead time: 12.5 | Logged: 30:00:00 | Renewed: 2026-03-05 | Share: 0.25",
-      "[Register, row 3] Permit: EL 102 | Granted: 1900-01-01 | Expiry: 1900-02-29 | Checked: 1900-03-01 | Meeting: -3 | Lead time: 0.5 | Logged: 2026-04-10 | Renewed: 45000 | Share: 2023-01-01 18:00:00",
+      // 14 and 22 are the locale's short date and date and time, which the file does not record: ISO 8601.
+      "[Register, row 2] Permit: EL 101 | Granted: 2019-04-10 | Expiry: 2026-04-10 | Checked: 2026-02-02 12:00 | Meeting: 13:30 | Lead time: 12.5 days | Logged: 30:00:00 | Renewed: 5 Mar 2026 | Share: 25.00%",
+      // A negative date, and a day before the 1900 system's first, read as numbers.
+      "[Register, row 3] Permit: EL 102 | Granted: 1900-01-01 | Expiry: 1900-02-29 | Checked: 1900-03-01 | Meeting: -3 | Lead time: 0.5 | Logged: 2026-04-10 | Renewed: 45000 | Share: 01/01/2023 06:00:00 PM",
     ]);
   });
 
@@ -700,18 +729,68 @@ describe("XLSX", () => {
     expect(r.segments.slice(2).map((s) => s.text)).toEqual(["[Register, row 2] Permit: EL 101 | Expiry: 2026-04-10", "[Register, row 3] Permit: EL 102 | Expiry: 1904-01-01"]);
   });
 
-  it("tells date formats from number formats", () => {
-    expect(dateFormatOf("General")).toBeUndefined();
-    expect(dateFormatOf("#,##0.00")).toBeUndefined();
-    expect(dateFormatOf('0" days"')).toBeUndefined();
-    expect(dateFormatOf("0.00E+00")).toBeUndefined();
-    expect(dateFormatOf("[Red]0.0%")).toBeUndefined();
-    expect(dateFormatOf("_-* #,##0_-;-* #,##0_-")).toBeUndefined();
-    expect(dateFormatOf("mmm-yy")).toMatchObject({ date: true, time: false });
-    expect(dateFormatOf("h:mm AM/PM")).toMatchObject({ date: false, time: true, seconds: false });
-    expect(dateFormatOf("mm:ss")).toMatchObject({ date: false, time: true, seconds: true });
-    expect(dateFormatOf('yyyy-mm-dd"T"hh:mm')).toMatchObject({ date: true, time: true, seconds: false });
-    expect(dateFormatOf("[h]:mm")).toMatchObject({ elapsed: "h" });
+  it("applies a format's parts: thousands, scaling, decimals, exponents, fractions, conditions, text and dates", () => {
+    const shown = (code: string, v: number | string) => {
+      const f = readFormat(code);
+      return typeof v === "string" ? formatText(f, v) : formatNumber(f, v, false);
+    };
+    expect(shown("#,##0.00", -1234.5)).toBe("-1,234.50");
+    expect(shown("#,##0,", 1234567)).toBe("1,235");
+    expect(shown("0.0#", 1.5)).toBe("1.5");
+    expect(shown("#.00", 0.5)).toBe(".50");
+    expect(shown("0.00", -0.001)).toBe("0.00");
+    expect(shown("00000", 123)).toBe("00123");
+    expect(shown("(000) 000-0000", 5551234567)).toBe("(555) 123-4567");
+    expect(shown("0.00E+00", 99999)).toBe("1.00E+05");
+    expect(shown("##0.0E+0", 12345)).toBe("12.3E+3");
+    expect(shown("# ?/?", 1.5)).toBe("1 1/2");
+    expect(shown('[>=1000000]0.0,,"M";[>=1000]0.0,"K";0', 1500)).toBe("1.5K");
+    expect(shown('[>=1000000]0.0,,"M";[>=1000]0.0,"K";0', -12)).toBe("-12");
+    expect(shown("[$€-407]#,##0.00", 1234.5)).toBe("€1,234.50");
+    expect(shown("#,##0;#,##0", -1234)).toBe("1,234");
+    expect(shown('0;-0;0;"Name: "@', "Dana")).toBe("Name: Dana");
+    expect(shown("@", 12)).toBeUndefined();
+    expect(shown("dddd, mmmm d, yyyy", 46086)).toBe("Thursday, March 5, 2026");
+    expect(shown("dd.mm.yy", 46086)).toBe("05.03.26");
+    expect(shown("h:mm AM/PM", 0.5625)).toBe("1:30 PM");
+    expect(shown("hh:mm:ss.000", 0.5000057870370371)).toBe("12:00:00.500");
+    expect(shown("yyyy-mm-dd", -3)).toBeUndefined();
+    expect(shown("[$-F800]dddd, mmmm dd, yyyy", 46086)).toBe("2026-03-05");
+    expect(formatNumber(builtinFormat(14)!, 46122.25, false)).toBe("2026-04-10");
+    // A code longer than Excel takes is read as General.
+    expect(shown("0".repeat(300), 12.5)).toBe("12.5");
+  });
+
+  it("reads hidden sheets, columns and rows, and says they are hidden", async () => {
+    const r = await derive(
+      makeWorkbook([
+        { name: "Plan", rows: [["Crew", "Lead", "Rate"], ["North", "Dana", [42, 0]], ["South", "Sam", [38, 0]], ["East", "Priya", [40, 0]]], hiddenRows: [3], hiddenColumns: ["C"] },
+        { name: "Workings", state: "hidden", rows: [["Note", "Owner"], ["Rates from the 2026 card", "Sam"]] },
+      ]),
+      "plan.xlsx",
+    );
+    expect(r.markdown).toBe(
+      "# Sheet: Plan\n\n| Row | Crew | Lead | Rate (hidden) |\n| --- | --- | --- | --- |\n| 2 | North | Dana | 42 |\n| 3 (hidden) | South | Sam | 38 |\n| 4 | East | Priya | 40 |\n\n" +
+        "# Sheet: Workings (hidden)\n\n| Row | Note | Owner |\n| --- | --- | --- |\n| 2 | Rates from the 2026 card | Sam |\n",
+    );
+    expect(r.facts).toMatchObject({ sheet_count: 2, hidden_sheets: ["Workings"], hidden_rows: 1, hidden_columns: 1 });
+  });
+
+  it("says a formula was saved without its value, rather than reading it as 0", async () => {
+    const r = await derive(
+      makeXlsxSheet([
+        ["Item", "Cost", "Total", "Label", "Check"],
+        ["Vans", [1200, 0], { formula: "B2*12", value: "" }, { formula: 'A2&""', value: "", type: "str" }, { formula: "B2>1000", value: "1", type: "b" }],
+        ["Fuel", [300, 0], { formula: "SUM(B2:B3)" }, { formula: "A3", value: "Fuel", type: "str" }, { formula: "B3>1000", value: "0", type: "b" }],
+      ]),
+      "costs.xlsx",
+    );
+    expect(r.segments.slice(2).map((s) => s.text)).toEqual([
+      // A string formula whose value is empty has a value, the empty string.
+      "[Register, row 2] Item: Vans | Cost: 1200 | Total: =B2*12 (no stored value) | Label: (blank) | Check: TRUE",
+      "[Register, row 3] Item: Fuel | Cost: 300 | Total: =SUM(B2:B3) (no stored value) | Label: Fuel | Check: FALSE",
+    ]);
+    expect(r.facts["formulas_without_values"]).toBe(2);
   });
 });
 
