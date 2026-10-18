@@ -238,10 +238,14 @@ describe("a mockup's prototype", () => {
     expect((await fetch(`${h.baseUrl}/prototypes/${expired}/index.html`)).status).toBe(401);
     const otherPurpose = signer.sign({ ...claims, purpose: "mockup" });
     expect((await fetch(`${h.baseUrl}/prototypes/${otherPurpose}/index.html`)).status).toBe(401);
-    for (const path of ["%2e%2e/index.html", "css%2fapp.css", "css%5capp.css", "index.html%00", "%E0%A4%A", "css%2F..%2Fdata.json"]) {
+    for (const path of ["%2e%2e/index.html", "css%2fapp.css", "css%5capp.css", "%E0%A4%A", "css%2F..%2Fdata.json"]) {
       const res = await fetch(`${base}${path}`);
       expect(res.status, path).toBe(404);
     }
+    // A null character is refused before any route reads the address, as on every route.
+    const nul = await fetch(`${base}index.html%00`);
+    expect(nul.status).toBe(422);
+    expect(((await nul.json()) as { error: { code: string } }).error.code).toBe("invalid_input");
     // Dot segments a browser would resolve before sending, sent as they are: the server resolves them
     // too, before routing, so this address is /api/v1/me, which wants a session, and no prototype file.
     const raw = await new Promise<number>((resolve, reject) => {

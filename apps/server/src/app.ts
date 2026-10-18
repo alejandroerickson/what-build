@@ -12,6 +12,7 @@ import { oauthRoutes } from "./auth/oauth.ts";
 import { authRoutes } from "./auth/routes.ts";
 import type { ServerConfig } from "./config.ts";
 import { mcpRoutes } from "./mcp.ts";
+import { refuseNullCharacters } from "./null-characters.ts";
 import { threadParser } from "./parse-thread.ts";
 import { prototypeRoutes } from "./prototype.ts";
 import { publicRoutes, staticRoutes } from "./public-routes.ts";
@@ -208,6 +209,10 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; cl
   const tooLarge = "Request bodies here are limited to 64 KB.";
   app.use("/oauth/*", bodyLimit({ maxSize: AUTH_BODY_MAX_BYTES, onError: (c) => c.json({ error: "invalid_request", error_description: tooLarge }, 413) }));
   app.use("/auth/*", bodyLimit({ maxSize: AUTH_BODY_MAX_BYTES, onError: (c) => c.json({ error: { code: "too_large", status: 413, message: tooLarge } }, 413) }));
+
+  // A null character in a request's path, query, form or JSON is refused before any route reads
+  // it, naming the field; an operation's JSON is checked with its input (null-characters.ts).
+  app.use("*", refuseNullCharacters());
 
   // A public sandbox's overdue reset runs before the request that finds it, so nobody is served
   // what its hour should have erased.

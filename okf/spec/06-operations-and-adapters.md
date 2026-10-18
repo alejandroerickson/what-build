@@ -65,9 +65,11 @@ call came through:
    (`403`, `429`). This runs before validation, so a call that is refused still counts as a call.
 4. **Validate the input** strictly (`422 invalid_input`, "Nothing was changed"), after renaming an
    accepted alias to its canonical field (§6.5). A string anywhere in it that holds a null
-   character (U+0000), from the query string, the path, the body or an MCP call alike, is refused
-   the same way, naming the field (`details.fields`), since Postgres keeps no such character in
-   text; nothing strips it. A visitor's input is then checked for size (`413 too_large`).
+   character (U+0000) is refused the same way, naming the field (`details.fields`), since
+   Postgres keeps no such character in text; nothing strips it. Over REST a path or a query that
+   holds one is refused before any route runs, naming the field as here (§6.4), so this check
+   meets a JSON body's and an MCP call's, beside the schema's own refusals. A visitor's input is
+   then checked for size (`413 too_large`).
 5. Refuse writes to an archived product (`409 product_archived`) unless the operation allows it.
    An operation with slow work outside the database (`attachments.fetch_url`'s download) does it now,
    in its `prepare` step, holding no database connection; its checks read through a short
@@ -217,6 +219,17 @@ as the `ETag` header. Every successful answer names the operation it ran in
 `X-WhatBuild-Operation`, which the web app counts changes by ([§9.1](09-data-lifecycle.md)).
 Operations that create something answer `201`. Cookie-authenticated writes
 must come from the app's own origin (`403 forbidden_origin`).
+
+A null character (U+0000) in a request is refused with `422 invalid_input` before any route reads
+it, on every route, the app's own pages, sign-in and OAuth included, and before the caller is
+identified (`apps/server/src/null-characters.ts`): in the path, the query, a form's fields, and the
+JSON body of every route but an operation's, whose input check names its fields beside the
+schema's own refusals (§6.1). A field is named as an operation names it: by its query or form
+key, by the parameter its route gives a path segment (`record_id`, `page_id`, `product`), or by
+its path in the JSON; a part of the address no route names is called the address. The MCP
+endpoint's body and an upload's bytes are read as they came and not here (MCP's operations check
+theirs), and OAuth client registration cleans a client's name of control characters itself, as
+it always has.
 
 ### The operation catalogue
 

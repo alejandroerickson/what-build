@@ -107,8 +107,9 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   export's `README.txt` lists every kind of file the bundle holds, and `assumptions.json` no
   longer carries the database's search vector.
 - **Nothing to change; agents and people will notice clearer refusals.** A null character
-  (U+0000) in any field of a call, or in the product, team or organization it names, is refused
-  with `422 invalid_input` naming the field, where it answered 500. An unexpected error says how
+  (U+0000) in a request, its address, query, form or JSON fields and an MCP call's input alike, is
+  refused with `422 invalid_input` naming the field, before anything reads it, where it answered
+  500 (a source's attachment and text, an export, Story and mockup pages and sign-in included). An unexpected error says how
   to report it where it was met: Submit feedback in the web app's account menu, `submit_feedback`
   for an agent. A grouped tool called without `action` says it is missing and lists the tool's
   actions; a standalone tool called with `describe`, `action` or `params` says its fields are its

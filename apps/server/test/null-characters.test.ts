@@ -85,13 +85,14 @@ describe("a null character over REST", () => {
     expect((await alice.api("GET", `${P}/assumptions`)).body.items).toEqual([]);
   });
 
-  it("is named beside the schema's own refusals, and left to them for a field they already refuse", async () => {
+  it("in an operation's body, is named beside the schema's own refusals, and left to them for a field they already refuse", async () => {
     const r = await alice.api("POST", `${P}/outcomes`, { title: "Gate\u0000", colour: "red" });
     expect(r.status).toBe(422);
     expect(r.body.error.message).toMatch(/^`colour` is not a field of this action\. `title` holds a null character/);
-    const id = await alice.api("GET", `${P}/sources/01%00`);
-    expect(id.body.error.message).toContain("must be a source id");
-    expect(id.body.error.message).not.toContain("null character");
+    const link = await alice.api("POST", `${P}/assumptions`, { statement: "Crews open the gate.", links: [{ id: "01\u0000", type: "supports" }] });
+    expect(link.status).toBe(422);
+    expect(link.body.error.message).toContain("must be an assumption id");
+    expect(link.body.error.message).not.toContain("null character");
   });
 });
 
@@ -113,5 +114,53 @@ describe("a null character over MCP", () => {
     const ok = result(await client.callTool({ name: "search", arguments: { product: path, query: "gate" } }));
     expect(ok.status).toBe(200);
     expect(ok.json.hits.length).toBeGreaterThan(0);
+  });
+});
+
+describe("a null character on a route outside the operation registry", () => {
+  it("is refused in the path and the query of the routes that serve bytes, naming the parameter", async () => {
+    const s = await alice.api("POST", `${P}/sources`, { title: "Bytes — Example Co", tags: [] });
+    const id = s.body.record_id as string;
+    for (const [url, field] of [
+      [`${P}/sources/${id}/attachment?path=a%00b`, "path"],
+      [`${P}/sources/ab%00/attachment?path=notes.md`, "record_id"],
+      [`${P}/sources/ab%00/text`, "record_id"],
+      [`${P}/exports/ab%00/file`, "export_id"],
+      [`${P}/story/pages/ab%00/versions/1/html`, "page_id"],
+      [`${P}/mockups/ab%00/versions/1/pages/plan/html`, "mockup_id"],
+    ] as const) {
+      const r = await alice.api("GET", url);
+      expect(r.status, url).toBe(422);
+      refusesNul(r.body, field);
+    }
+  });
+
+  it("is refused in the JSON or form fields of sign-in and OAuth, and in an address no route names, before anything else", async () => {
+    const dev = await fetch(`${h.baseUrl}/auth/dev-sign-in`, { method: "POST", headers: { "content-type": "application/json", origin: h.baseUrl }, body: JSON.stringify({ email: "nul@example.com", display_name: "Nul\u0000" }) });
+    expect(dev.status).toBe(422);
+    refusesNul((await dev.json()) as never, "display_name");
+    const token = await fetch(`${h.baseUrl}/oauth/token`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ grant_type: "authorization_code", code: "x", client_id: "wbc_\u0000" }) });
+    expect(token.status).toBe(422);
+    refusesNul((await token.json()) as never, "client_id");
+    const uri = await fetch(`${h.baseUrl}/oauth/register`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ client_name: "Agent", redirect_uris: ["https://agent.example/c\u0000b"] }) });
+    expect(uri.status).toBe(422);
+    refusesNul((await uri.json()) as never, "redirect_uris.0");
+    // No route names this part of the address; nobody need be signed in to be told.
+    const asset = await fetch(`${h.baseUrl}/assets/a%00b.js`);
+    expect(asset.status).toBe(422);
+    const body = (await asset.json()) as { error: { code: string; message: string; details: { fields: string[] } } };
+    expect(body.error).toMatchObject({ code: "invalid_input", details: { fields: [] } });
+    expect(body.error.message).toMatch(/^The address holds a null character \(U\+0000\)/);
+  });
+
+  it("leaves what a route cleans or reads as it came: a client's name, an attachment's bytes", async () => {
+    const named = await fetch(`${h.baseUrl}/oauth/register`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ client_name: "Age\u0000nt", redirect_uris: ["https://agent.example/cb"] }) });
+    expect(named.status).toBe(201);
+    expect(((await named.json()) as { client_name: string }).client_name).toBe("Agent");
+    const s = await alice.api("POST", `${P}/sources`, { title: "Binary — Example Co", tags: [] });
+    const grant = await alice.api("POST", `${P}/sources/${s.body.record_id}/uploads`, { record_id: s.body.record_id, path: "data.json" });
+    expect(grant.status, JSON.stringify(grant.body)).toBe(201);
+    const put = await fetch(grant.body.url, { method: "PUT", headers: { ...grant.body.headers, "content-type": "application/json" }, body: '{"note": "a\\u0000b"}\u0000' });
+    expect(put.status).toBe(201);
   });
 });
