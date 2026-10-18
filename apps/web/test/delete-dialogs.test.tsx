@@ -57,6 +57,7 @@ const { DeletePage } = await import("../src/routes/story-actions.tsx");
 const { servedBy } = await import("../src/routes/idea.tsx");
 const { SourceDetailPage, sourceImpactWords } = await import("../src/routes/source-detail.tsx");
 const { organizationImpactWords } = await import("../src/routes/org.tsx");
+const { mockupImpactWords } = await import("../src/routes/mockups.tsx");
 
 beforeAll(() => {
   // jsdom draws no modal layer; a dialog that opens is enough here.
@@ -253,6 +254,13 @@ describe("deleting a product", () => {
     await act(async () => button("Delete Crewboard permanently…").click());
     await settle();
     expect(footer()).toEqual(["Cancel", "Delete permanently"]);
+  });
+});
+
+describe("deleting a mockup", () => {
+  it("says what goes with its versions in good grammar, one or several", () => {
+    expect(mockupImpactWords("Week board", 1)).toBe("This deletes “Week board” with its only version: its pages, notes, files and brief.");
+    expect(mockupImpactWords("Week board", 3)).toBe("This deletes “Week board” with all 3 of its versions: their pages, notes, files and briefs.");
   });
 });
 
