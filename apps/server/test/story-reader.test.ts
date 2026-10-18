@@ -126,12 +126,17 @@ describe("a Story reader", () => {
     expect((await alice.api("POST", `${P}/story/pages/old-plan/archive`, { expected_etag: old.body.etag })).status).toBe(200);
     const pages = await rita.api("GET", `${P}/story/pages?include_archived=true`);
     expect(pages.body.items.map((x: { page_id: string }) => x.page_id)).toEqual(["overview"]);
+    // Nor is a reader told that the team archived anything.
+    expect(pages.body).not.toHaveProperty("archived_hidden");
+    expect(pages.body).not.toHaveProperty("note");
+    expect((await rita.api("GET", `${P}/story/pages`)).body).not.toHaveProperty("archived_hidden");
     for (const path of [`${P}/story/pages/old-plan`, `${P}/story/pages/old-plan/versions`, `${P}/story/pages/old-plan/versions/1`, `${P}/story/pages/old-plan/versions/1/html`, `${P}/story/print-view?page_ids=old-plan`, `${P}/story/print?page_ids=overview,old-plan`]) {
       const r = await rita.api("GET", path);
       expect(r.status, path).toBe(404);
     }
     const team = await alice.api("GET", `${P}/story/pages?include_archived=true`);
     expect(team.body.items.map((x: { page_id: string }) => x.page_id)).toEqual(["old-plan", "overview"]);
+    expect((await alice.api("GET", `${P}/story/pages`)).body).toMatchObject({ items: [{ page_id: "overview" }], archived_hidden: 1 });
     expect((await alice.api("GET", `${P}/story/pages/old-plan`)).status).toBe(200);
     expect((await alice.api("GET", `${P}/story/pages/old-plan/versions/1/html`)).status).toBe(200);
   });

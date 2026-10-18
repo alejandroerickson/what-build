@@ -217,11 +217,18 @@ describe("the product's Story style", () => {
     const s = await vic.api("GET", `${P}/story/style`);
     expect(s.body.style).toMatchObject({ name: "Clear, ours", based_on: "tufte", based_on_name: null, kind: "house" });
     expect(s.body.style.stylesheet).toBe(HOUSE_STYLES.find((s) => s.id === "clear")!.stylesheet);
+    // Its stylesheet was written before the vocabulary's newer blocks, and the style says so, with the way on.
+    expect(s.body.style.note).toMatch(/^Based on tufte, a house style no longer in the catalogue: its stylesheet predates the current vocabulary, so \.quotes, \.tally,.* set_style \{ house_style \} and publish each page with restyle: true\.$/);
+    const g = await vic.api("GET", `${P}/story/guidance?section=checklist`);
+    expect(g.body.product_style).toMatchObject({ based_on: "tufte", note: s.body.style.note });
     const r = await alice.api("PUT", `${P}/story/style`, { summary: "Ours now.", expected_etag: s.body.style.etag });
     expect(r.status).toBe(200);
-    expect(r.body.style).toMatchObject({ based_on: "tufte", summary: "Ours now." });
+    expect(r.body.style).toMatchObject({ based_on: "tufte", summary: "Ours now.", note: s.body.style.note });
     await setBasedOn("clear");
-    etag = (await vic.api("GET", `${P}/story/style`)).body.style.etag;
+    const current = (await vic.api("GET", `${P}/story/style`)).body.style;
+    expect(current).not.toHaveProperty("note");
+    expect((await vic.api("GET", `${P}/story/guidance?section=checklist`)).body.product_style).not.toHaveProperty("note");
+    etag = current.etag;
   });
 
   it("refuses a stylesheet or specimen that would reach the network", async () => {

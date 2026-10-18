@@ -408,7 +408,9 @@ version is immutable: `version` (1, 2, 3…), `title`, `summary` (describes the 
 recognised without reading it). Readers see the latest version; any version
 can be read by number. Limit: 50 pages per product (`409 quota_exceeded`). Agents write pages; agents
 and people arrange, archive and restore them, and admins delete them
-([decision](../decisions/agents-write-the-story-people-arrange-it.md)).
+([decision](../decisions/agents-write-the-story-people-arrange-it.md)). `story.list_pages` leaves
+archived pages out unless `include_archived`, and says how many it left out (`archived_hidden`, with
+a `note` when there are any); a reader is given neither the archived pages nor their count.
 ◆ Decision: a version has no change note. What changed is in the activity log, and an agent's
 working context is in the page's notes. The `story_versions.note` column stays for versions
 published before the note was removed, and is neither written nor returned; a product export
@@ -548,7 +550,10 @@ one HTML document for a browser to print to PDF ([§6.4](06-operations-and-adapt
 
 `set_hierarchy` takes the hierarchy's etag as `expected_etag`. Before the first save there is none
 (`get_hierarchy` gives `etag: null`), and `expected_etag` is null or left out; once saved, leaving
-it out is `409 stale_etag`, saying to read `get_hierarchy` and pass its etag.
+it out is `409 stale_etag`, saying to read `get_hierarchy` and pass its etag. A page that was never
+published, or is archived, is refused too (`422 invalid_hierarchy`, with `details.unpublished` or
+`details.archived`), and the refusal says what to do: publish it, or restore it, first, or leave
+it out.
 
 Every published page appears exactly once, in the tree or among the Published mockups
 ([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)).
@@ -591,7 +596,10 @@ with `.tag`, `dl.facts` and `nav.pages`; and for evidence and what changes `div.
 signature moves of its own. They also set what a browser draws for itself: the selection, the
 scrollbar, the focus ring, and where a printed page may break. A product that adopted a house
 style since removed keeps its copy: it reads as a house style with its `based_on` id and no
-`based_on_name`, and an agent can still change or replace it.
+`based_on_name`, and an agent can still change or replace it. Its stylesheet predates the
+current vocabulary, so `story.get_style` (and `story.guidance`, where it reports the product's
+style) gives it a `note` saying that blocks added since may render unstyled, and that adopting a
+current house style and publishing each page with `restyle` moves it to a current base.
 
 **Carried typefaces** ([`story-fonts.ts`](../../packages/core/src/story-fonts.ts),
 [decision](../decisions/story-pages-name-typefaces-the-server-carries.md)): Archivo (with its

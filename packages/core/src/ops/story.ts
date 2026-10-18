@@ -10,7 +10,7 @@ import { entryAddress, prototypeAddress, prototypeNotice } from "../prototype.ts
 import { refuseVisitorWrite } from "../public-sandbox.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag, id } from "../schemas.ts";
-import { escapeHtml, inspectStoryCss, inspectStoryHtml, STORY_CSS_MAX, STORY_HTML_MAX } from "../story-html.ts";
+import { escapeHtml, inspectStoryCss, inspectStoryHtml, STORY_CSS_MAX, STORY_HTML_MAX, STORY_MAX_SCRIPTS, STORY_SCRIPT_BUDGET } from "../story-html.ts";
 import { composePrintDocument, PRINT_MAX_PAGES, printOrder } from "../story-print.ts";
 import {
   ANTI_PATTERNS, CARRIED_TYPEFACES, catalogue, CHECKLIST, components, COMPOSITIONS, CONTENT_RULES, DESIGN_PASSES, DESIGN_TOOLS, GUIDANCE_VERSION, LINKS_NOTE, linkTemplates,
@@ -66,14 +66,26 @@ async function loadStyle(ctx: OpContext, lock = false) {
   return q.executeTakeFirst();
 }
 
+/**
+ * What is said of a style adopted from a house style no longer in the catalogue. Its stylesheet was
+ * written before the blocks the vocabulary has gained since, so a page that uses them may show them
+ * unstyled, with nothing else to say so.
+ */
+function retiredBaseNote(basedOn: string | null): string | null {
+  if (!basedOn || houseStyle(basedOn)) return null;
+  return `Based on ${basedOn}, a house style no longer in the catalogue: its stylesheet predates the current vocabulary, so .quotes, .tally, .flow, .diagram, .shot and .pins, mark, and a timeline's reached and current milestones may render unstyled. To move to a current base, adopt one with set_style { house_style } and publish each page with restyle: true.`;
+}
+
 function styleView(s: StyleRow, withCss: boolean) {
   const base = houseStyle(s.based_on ?? "");
+  const note = retiredBaseNote(s.based_on);
   return {
     name: s.name,
     summary: s.summary,
     based_on: s.based_on,
     based_on_name: base?.name ?? null,
     kind: s.based_on ? ("house" as const) : ("team" as const),
+    ...(note ? { note } : {}),
     rules: s.rules,
     ...(withCss ? { stylesheet: s.stylesheet } : { stylesheet_chars: s.stylesheet.length }),
     has_own_specimen: s.specimen_html !== null,
@@ -103,6 +115,7 @@ export const guidance = defineOperation({
     const links = linkTemplates(ctx.ports.config.publicBaseUrl, productPath(ctx));
     const current = await loadStyle(ctx);
     const picked = input.house_style ? houseStyle(input.house_style)! : undefined;
+    const retired = current ? retiredBaseNote(current.based_on) : null;
     const base = {
       section: input.section,
       version: GUIDANCE_VERSION,
@@ -111,11 +124,11 @@ export const guidance = defineOperation({
       rendering:
         "HTML is untrusted and shown in a sandboxed frame. Bounded inline scripts run; forms, frames, remote resources, same-origin access and navigating the parent are blocked. Use target=\"_blank\" rel=\"noopener noreferrer\" on every link; a link to another page of this Story (links.story_page) is shown in place by the app. Replace every REPLACE placeholder and adapt recipes to the content.",
       product_style: current
-        ? { name: current.name, based_on: current.based_on, summary: current.summary, etag: current.etag, read_with: 'story(action="get_style")' }
+        ? { name: current.name, based_on: current.based_on, summary: current.summary, etag: current.etag, read_with: 'story(action="get_style")', ...(retired ? { note: retired } : {}) }
         : { none: true, next: "Settle the Story style with the person before the first page: see style_workflow." },
       links,
       links_note: LINKS_NOTE,
-      limits: { html_characters: STORY_HTML_MAX, stylesheet_characters: STORY_CSS_MAX, inline_scripts: 10, script_characters: 32000, pages_per_product: MAX_PAGES, hierarchy_depth: MAX_DEPTH },
+      limits: { html_characters: STORY_HTML_MAX, stylesheet_characters: STORY_CSS_MAX, inline_scripts: STORY_MAX_SCRIPTS, script_characters: STORY_SCRIPT_BUDGET, pages_per_product: MAX_PAGES, hierarchy_depth: MAX_DEPTH },
       ...(picked ? { house_style: { ...picked, starter_html: starterHtml(picked.stylesheet) } } : {}),
     };
     const style = { style_workflow: STYLE_WORKFLOW, house_styles: catalogue(), carried_typefaces: CARRIED_TYPEFACES, vocabulary: VOCABULARY };
@@ -146,7 +159,7 @@ export const getStyle = defineOperation({
   mutates: false,
   summary: "The product's Story style: the design system every Story page follows, with its rules and stylesheet. Also lists the house styles.",
   description:
-    "Read this before writing or restyling any page, and paste the stylesheet into the page's <style>. style is null until someone sets one: then ask the person whether their company has a design system to follow, or offer a house style (guidance with house_style shows one in full), and save the choice with set_style. kind is house (adopted from a house style, possibly adapted) or team (the team's own design system). include_stylesheet false leaves the CSS out. To see a page in the style, preview it: the page a preview serves carries the stylesheet where publish puts it, so a page published with body never needs the CSS from here.",
+    "Read this before writing or restyling any page, and follow its rules. A page published with body gets this stylesheet from WhatBuild, so you never send it; paste it into <style> yourself only for a page you send whole as html. style is null until someone sets one: then ask the person whether their company has a design system to follow, or offer a house style (guidance with house_style shows one in full), and save the choice with set_style. kind is house (adopted from a house style, possibly adapted) or team (the team's own design system). note appears when the style is based on a house style no longer in the catalogue, and says how to move to a current one. include_stylesheet false leaves the CSS out. To see a page in the style, preview it: the page a preview serves carries the stylesheet where publish puts it.",
   input: z.strictObject({ include_stylesheet: z.boolean().default(true) }),
   rest: { method: "GET", path: "/story/style" },
   mcp: { tool: "story", action: "get_style" },
@@ -223,15 +236,25 @@ export const listPages = defineOperation({
   access: "story",
   mutates: false,
   summary: "The Story's pages, without HTML: title, summary, current version and etag.",
-  description: "Archived pages are left out unless include_archived; a reader (the Story-only role) is never given them. The hierarchy (get_hierarchy) is the reader's navigation.",
+  description:
+    "Archived pages are left out unless include_archived; archived_hidden says how many were left out. A reader (the Story-only role) is never given archived pages, nor their count. The hierarchy (get_hierarchy) is the reader's navigation.",
   input: z.strictObject({ include_archived: z.boolean().default(false) }),
   rest: { method: "GET", path: "/story/pages" },
   mcp: { tool: "story", action: "list_pages" },
   async handler(ctx, input) {
-    let q = ctx.db.selectFrom("story_pages").selectAll().where("product_id", "=", productId(ctx));
-    if (!input.include_archived || readsOnlyTheStory(ctx.scope.role)) q = q.where("archived_at", "is", null);
-    const rows = await q.orderBy("title").execute();
-    return { items: rows.map(pageSummary) };
+    const rows = await ctx.db.selectFrom("story_pages").selectAll().where("product_id", "=", productId(ctx)).orderBy("title").execute();
+    const live = rows.filter((r) => !r.archived_at);
+    // What the team archived is not part of a reader's Story, so a reader is not told it exists.
+    if (readsOnlyTheStory(ctx.scope.role)) return { items: live.map(pageSummary) };
+    const shown = input.include_archived ? rows : live;
+    const archived_hidden = rows.length - shown.length;
+    return {
+      items: shown.map(pageSummary),
+      archived_hidden,
+      ...(archived_hidden
+        ? { note: `${archived_hidden} archived page${archived_hidden === 1 ? " is" : "s are"} not listed; pass include_archived to see ${archived_hidden === 1 ? "it" : "them"}.` }
+        : {}),
+    };
   },
 });
 
@@ -726,8 +749,11 @@ export const setHierarchy = defineOperation({
     const pages = all.length ? await ctx.db.selectFrom("story_pages").select(["page_id", "archived_at"]).where("product_id", "=", productId(ctx)).where("page_id", "in", all).execute() : [];
     const missing = all.filter((x) => !pages.some((p) => p.page_id === x));
     const archived = pages.filter((p) => p.archived_at).map((p) => p.page_id);
-    if (missing.length) throw invalid("invalid_hierarchy", `Unpublished pages: ${missing.join(", ")}.`);
-    if (archived.length) throw invalid("invalid_hierarchy", `Archived pages: ${archived.join(", ")}.`);
+    const them = (ids: string[]) => (ids.length === 1 ? "it" : "them");
+    if (missing.length)
+      throw invalid("invalid_hierarchy", `Unpublished pages: ${missing.join(", ")}. Publish ${them(missing)} first, or leave ${them(missing)} out.`, { unpublished: missing });
+    if (archived.length)
+      throw invalid("invalid_hierarchy", `Archived pages: ${archived.join(", ")}. Restore ${them(archived)} first (restore_page), or leave ${them(archived)} out.`, { archived });
     const live = await livePages(ctx);
     const inTree = ids.filter((x) => live.get(x)?.shows_mockup);
     if (inTree.length) throw invalid("invalid_hierarchy", `These pages show mockup pages, so they belong in mockups, not items: ${inTree.join(", ")}.`);
