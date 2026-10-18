@@ -3,7 +3,7 @@ type: Index
 title: The WhatBuild specification is ten documents, read in order.
 description: What WhatBuild is in one paragraph, the ten spec files with what each settles, the conventions they share, and the decisions that shape the rest.
 tags: [spec, index, conventions]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -38,7 +38,7 @@ That is how it is developed and how CI runs it.
 | 7 | [Web application](07-web-app.md) | The shell, screens and routes (behavior; the look is in [DESIGN.md](../../DESIGN.md)) |
 | 8 | [Search and retrieval](08-search.md) | Lexical search over what sources say, its index and coverage, and the retrieval planned |
 | 9 | [Data lifecycle](09-data-lifecycle.md) | Quotas, backups, versioning, export, archive and delete, deleting a tenant, what we tell people |
-| 10 | [Roadmap](10-roadmap.md) | Build phases with acceptance criteria and status, and open questions |
+| 10 | [Roadmap](10-roadmap.md) | Build phases with acceptance criteria and status, open questions, and problems seen but not yet explained |
 
 ## Conventions
 
