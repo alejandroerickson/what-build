@@ -261,6 +261,51 @@ describe("a source's derived text", () => {
   });
 });
 
+describe("refusals of retired inputs", () => {
+  it("name what replaced a source's outline, citations, refs and related sources", async () => {
+    const s = await source("Retired fields — Example Co");
+    for (const r of [await note(s.record_id, "outline", { content: "- One" }), await readNote(s.record_id, "outline"), await mcp(agent, "write_note", { record_id: s.record_id, note_kind: "outline", content: "- One" })]) {
+      expect(r.status).toBe(422);
+      expect(r.body.error.message).toMatch(/A source has no outline any more: note_kind is summary .* or notes .*\. Find your way through a long source with search and derived\(action="text"\) windows\./);
+    }
+    // Another value of the field gets no word about outlines.
+    expect((await note(s.record_id, "draft", { content: "x" })).body.error.message).not.toMatch(/outline/);
+
+    const a = (await alice.api("POST", `${P}/assumptions`, { statement: "Crew leads plan by the week." })).body;
+    const cited = /Nothing takes citations, refs or related sources any more: evidence is found by searching, not cited\. Say in words what the work rests on/;
+    for (const r of [
+      await alice.api("PATCH", `${P}/assumptions/${a.id}`, { expected_etag: a.etag, citations: [] }),
+      await alice.api("POST", `${P}/story/pages/overview/versions`, { title: "Overview", body: "<p>Hi</p>", refs: { sources: [s.record_id] } }),
+      await alice.api("POST", `${P}/sources`, { title: "Related — Example Co", related_records: [s.record_id] }),
+      await alice.api("PATCH", `${P}/sources/${s.record_id}`, { expected_etag: s.etag, related_records: [] }),
+    ]) {
+      expect(r.status).toBe(422);
+      expect(r.body.error.message).toMatch(cited);
+    }
+  });
+
+  it("say derived text reads by offset and limit, for a passage's fields and for length", async () => {
+    const s = await source("Window fields — Example Co");
+    await text(s.record_id, { content: "Plan the week, then the day.\n" });
+    const hint = /reads by code-point offset: send offset and limit, where the window starts \(.*\) and how many characters it holds\. There are no passages to read by number\./;
+    for (const q of ["start=1&end=3", "seq=1", "length=10", "unit=passage"]) {
+      const r = await alice.api("GET", `${P}/sources/${s.record_id}/derived/text?${q}`);
+      expect(r.status, q).toBe(422);
+      expect(r.body.error.message, q).toMatch(hint);
+    }
+    const r = await mcp(agent, "text", { record_id: s.record_id, length: 10 });
+    expect(r.status).toBe(422);
+    expect(r.body.error.message).toMatch(hint);
+  });
+
+  it("name the filter dimensions gave way to: tags on sources, tag on assumptions", async () => {
+    const sources = await alice.api("GET", `${P}/sources?customer=example`);
+    expect(sources.body.error.message).toMatch(/no dimensions .* any more: .* with tags, and filter by `tags`\.$/);
+    const assumptions = await alice.api("GET", `${P}/assumptions?customer=example`);
+    expect(assumptions.body.error.message).toMatch(/no dimensions .* any more: .* with tags, and filter by `tag`\.$/);
+  });
+});
+
 describe("numbers in what derived says", () => {
   it("are written with separators, in its refusals and its descriptions", async () => {
     const s = await source("Long notes — Example Co");

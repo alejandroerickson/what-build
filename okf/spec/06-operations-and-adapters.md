@@ -134,12 +134,16 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
   `notes`?"), then what is missing ("`notes` is required"), then any other problem with a value.
   It ends "Nothing was changed; correct the call and send it again", so a refusal never reads as a
   call with nothing to do ([`schemas.ts`](../../packages/core/src/schemas.ts) `formatIssues`).
-  A field that a neighbouring operation takes adds a hint: `derived.text` refusing `start`, `end`
-  or `unit` says it reads by code-point `offset` and `limit`, such as a little before a search
-  hit's `char_start`, and that there are no passages to read by number (`WRONG_FIELD_HINTS` in
+  A field that a neighbouring operation takes adds a hint: `derived.text` refusing `start`, `end`,
+  `unit`, `seq` or `length` says it reads by code-point `offset` and `limit` (where the window
+  starts, such as a little before a search hit's `char_start`, and how many characters it holds),
+  and that there are no passages to read by number (`WRONG_FIELD_HINTS` in
   [`field-aliases.ts`](../../packages/core/src/field-aliases.ts)). So does a field the object no
-  longer has (a source's kind or dimensions, an attachment's role; Notes on recent actions,
-  below, and `retiredFieldHint` in [`execute.ts`](../../packages/core/src/execute.ts)). MCP
+  longer has, or a value a field no longer takes, naming what replaced it: a source's kind or
+  dimensions (tags, and the `tags` filter on sources and search, `tag` on assumptions), an
+  attachment's role, citations, `refs` and related sources (search, and words), `note_kind`
+  `outline` (the summary and the notes); Notes on recent actions, below, and `retiredFieldHint` in
+  [`execute.ts`](../../packages/core/src/execute.ts). MCP
   returns the same object as a tool error (`isError: true`) whose text begins with
   the status (`"422: …"`) followed by the JSON.
 
@@ -365,7 +369,8 @@ Notes on recent actions:
   `lifecycle_stage`; `sources.create`, `sources.update`, `attachments.create_upload`,
   `assumptions.create` and `assumptions.update` take no `dimensions`, and reads of sources and
   assumptions carry none. A call to a `sources`, `attachments`, `search` or `assumptions` operation
-  naming one is `422 invalid_input`, with a hint to use tags.
+  naming one is `422 invalid_input`, with a hint to use tags and the filter that took their place:
+  `tags` on sources and search, `tag` on assumptions.
 - Sources have no `participants`, `source_system` or `provenance_depth`, and assumptions no
   `provenance_depth` ([decision](../decisions/sources-are-described-by-tags.md)). `sources.list`
   and `search` lost the `provenance_depth` filter, `sources.list`'s `query` reads the title, tags
@@ -373,8 +378,9 @@ Notes on recent actions:
   `422 invalid_input`, with a hint that a source is described by its title, date and tags.
 - A comment is on a whole source: `sources.annotate` takes no `seq_start` or `seq_end` (naming
   them is `422 invalid_input`, saying so), and comments carry no anchor. `derived.outline` is
-  gone, and `derived.write_note` and `derived.read_note` take `note_kind` `summary` or `notes`;
-  `write_note` with empty content removes the note
+  gone, and `derived.write_note` and `derived.read_note` take `note_kind` `summary` or `notes`
+  (`outline` is `422 invalid_input`, with a hint that a source has no outline and what the summary
+  and the notes are for); `write_note` with empty content removes the note
   ([decision](../decisions/a-source-carries-a-summary-notes-and-whole-source-comments.md)).
   `sources.get` with `detail: "full"` has no `outline`.
 - Insights and decisions are retired, with their operations and their MCP tools; what a product
@@ -383,7 +389,10 @@ Notes on recent actions:
   ([decision](../decisions/evidence-is-searched-not-cited.md)): `assumptions`, `story` and
   `mockups` have no `check_citations`, the `lineage` tool and `sources.used_by` are gone, and no
   operation takes or returns `citations`, `citation_count`, `refs`, `resolved_refs` or
-  `related_records`; a call that sends one is `422 invalid_input`. `assumptions.list` has no
+  `related_records`; a call that sends `citations`, `refs` or `related_records` is
+  `422 invalid_input`, with a hint that evidence is found by searching, not cited, and that what a
+  piece of work rests on is said in words (an assumption's body, a Story page's notes, a source's
+  notes), naming a source by its id where it helps. `assumptions.list` has no
   `record_id` filter, and `search` with `record_id` searches no assumptions.
   `sources.move_to_product` is never refused for what mentions the source, and
   `sources.delete_impact` reports its attachments' versions, bytes, readings and comments

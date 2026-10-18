@@ -242,8 +242,9 @@ one window by code-point offset:
 Offsets and lengths are Unicode code points, not UTF-16 units and not bytes, and a window never
 splits a character; implementations MUST test this with astral-plane characters. `truncated` says
 more follows: page with consecutive offsets. A `limit` over 20,000 is refused (`422`), never
-clipped. Sent `start`, `end` or `unit`, `derived.text` refuses them with a hint that it reads by
-offset and that there are no passages to read by number.
+clipped. Sent `start`, `end`, `unit`, `seq` or `length`, `derived.text` refuses them with a hint
+that it reads by `offset` and `limit` (where the window starts and how many characters it holds)
+and that there are no passages to read by number.
 
 ## 5.5 Statuses
 

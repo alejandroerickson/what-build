@@ -289,7 +289,8 @@ through the same operations; each records who wrote it last and when. Both are s
 Both are someone's reading of the source; its words are its derived text
 ([§5.4](05-derived-layer.md)). There is no outline: migration
 `0029_simplify_source_details.sql` deleted the agent outlines a product held, and dropped the
-comments' segment ranges and anchors, keeping their text. Migration
+comments' segment ranges and anchors, keeping their text; `note_kind` `outline` is refused
+(`422 invalid_input`) with a hint naming the summary and notes. Migration
 `0031_summaries_and_notes_have_etags.sql` gave every summary and note an etag, live and in saved
 sandbox baselines, so a reset puts each back with the etag it was saved with.
 
