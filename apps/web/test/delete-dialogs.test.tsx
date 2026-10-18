@@ -36,6 +36,7 @@ vi.mock("../src/lib/session.tsx", async (original) => ({
 }));
 
 const { DeleteDialog } = await import("../src/routes/delete-dialog.tsx");
+const { entryImpactWords } = await import("../src/routes/registers.tsx");
 const { SourceDetailPage } = await import("../src/routes/source-detail.tsx");
 
 beforeAll(() => {
@@ -127,5 +128,19 @@ describe("deleting a source", () => {
     expect(footer()).toEqual(["Cancel", "Archive instead", "Delete permanently"]);
     await act(async () => button("Cancel").click());
     expect(document.querySelector("dialog[open]")).toBeNull();
+  });
+});
+
+describe("deleting an assumption", () => {
+  const link = (id: string) => ({ id, statement: "Crews share vans.", type: "assumption" });
+  it("says what it deletes as the other dialogs do, the links to it from other assumptions among it", () => {
+    expect(entryImpactWords("assumption", { review_count: 0, linked_from: [] })).toBe("This deletes the assumption.");
+    expect(entryImpactWords("assumption", { review_count: 2, linked_from: [link("a1")] })).toBe(
+      "This deletes the assumption, its 2 reviews and the links to it from 1 other assumption.",
+    );
+    expect(entryImpactWords("assumption", { review_count: 0, linked_from: [link("a1"), link("a2")] })).toBe(
+      "This deletes the assumption and the links to it from 2 other assumptions.",
+    );
+    expect(entryImpactWords("assumption", { review_count: 1, linked_from: [link("a1")] })).not.toMatch(/remove/i);
   });
 });
