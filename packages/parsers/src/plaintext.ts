@@ -245,7 +245,13 @@ const BARE_MARKER = /^(?:[-*+]|\d{1,9}[.)]|#{1,6})$/;
 const CLOSERS = new Set(['"', "'", "”", "’", ")", "]", "}", "»"]);
 /** Marks that end a sentence, or a line that introduces the next (`Attendees:`). */
 const SENTENCE_END = new Set([".", "!", "?", ":", "…", "。", "！", "？", "："]);
+/** Marks that end a sentence, and not a line that introduces the next. */
+const FULL_STOP = new Set([".", "!", "?", "…", "。", "！", "？"]);
+/** A sentence's end, then the capital that starts the next, on one line or across a break. */
+const SENTENCE_BREAK = /[.!?…]["'”’)\]}»]*\s+["'“‘(\[]*\p{Lu}/u;
 const LOWERCASE_START = /^\p{Ll}/u;
+/** A word in lower case and its colon at a line's start (`warning:`, `note:`): a line of its own, as in a log. */
+const LABEL_START = /^\p{Ll}[\p{L}\p{N}_-]*:(?:\s|$)/u;
 
 /**
  * A paragraph narrower than this is never taken for hard-wrapped prose: short lines are lists,
@@ -269,10 +275,10 @@ function indentWidth(line: string): number {
   return w;
 }
 
-function endsSentence(line: string): boolean {
+function endsSentence(line: string, marks: ReadonlySet<string> = SENTENCE_END): boolean {
   let i = line.length - 1;
   while (i >= 0 && CLOSERS.has(line[i]!)) i--;
-  return i >= 0 && SENTENCE_END.has(line[i]!);
+  return i >= 0 && marks.has(line[i]!);
 }
 
 function firstWordLength(line: string): number {
@@ -284,10 +290,11 @@ function firstWordLength(line: string): number {
 /**
  * Whether the break between two lines of a paragraph only wraps a sentence onto the next line, as a
  * text wrapped to a width does: the first line does not end a sentence, the next starts in lower
- * case, and its first word would not have fitted on the first line within the paragraph's width.
+ * case and not with a label (`warning: …`), and its first word would not have fitted on the first
+ * line within the paragraph's width.
  */
 export function wraps(line: string, next: string, width: number): boolean {
-  if (width < WRAP_MIN_WIDTH || !LOWERCASE_START.test(next) || endsSentence(line)) return false;
+  if (width < WRAP_MIN_WIDTH || !LOWERCASE_START.test(next) || LABEL_START.test(next) || endsSentence(line)) return false;
   return codePointLength(line) + 1 + firstWordLength(next) > width;
 }
 
@@ -312,6 +319,18 @@ const isQuote = (line: string) => line.startsWith(">");
  */
 const joins = (line: string, next: string) => !isQuote(line) && !isQuote(next);
 
+/**
+ * Whether a paragraph is prose, whose breaks may join: a sentence in it ends before the paragraph
+ * does and the next starts with a capital, or the paragraph is one sentence, ended, that wraps at
+ * every break between its lines of text (not before a list item, not next to a quoted line). Notes
+ * and a log's lines end no sentence, so they keep their lines however their lengths fall.
+ */
+function isProse(lines: string[], wrapped: boolean[]): boolean {
+  if (SENTENCE_BREAK.test(lines.join("\n"))) return true;
+  if (!endsSentence(lines[lines.length - 1] ?? "", FULL_STOP)) return false;
+  return lines.every((l, i) => i === 0 || wrapped[i - 1] || BULLET.test(l) || ORDERED.test(l) || !joins(lines[i - 1]!, l));
+}
+
 /** An open Markdown list item: where its marker stood in the file, where it stands, and how wide the marker is. */
 interface OpenItem {
   from: number;
@@ -323,9 +342,9 @@ interface OpenItem {
  * A plain-text paragraph as the readable text lays it out, keeping the author's lines: each line
  * stays a line (a Markdown hard break, two spaces before the line end), a list item keeps its
  * marker (`-`, `*` and `+` bullets and `1.` or `1)` numbers as Markdown lists, nested by their
- * indentation; other bullets as written), and a line that only wraps a sentence onto the next joins
- * it. A paragraph in which most breaks are such wraps is hard-wrapped prose, and reads as one
- * flowing paragraph. `first` stands for the first line's text when it is a speaker's turn, whose
+ * indentation; other bullets as written), and in prose (isProse) a line that only wraps a sentence
+ * onto the next joins it. A paragraph of prose in which most breaks are such wraps is hard-wrapped,
+ * and reads as one flowing paragraph. `first` stands for the first line's text when it is a speaker's turn, whose
  * name is said apart; the line as written still sets the paragraph's width.
  */
 export function layoutLines(raw: string[], first?: string): { text: string; opensWithList: boolean } {
@@ -333,7 +352,9 @@ export function layoutLines(raw: string[], first?: string): { text: string; open
   // A loop, not Math.max(...): a paragraph may have more lines than a call takes arguments.
   let width = 0;
   for (const l of lines) width = Math.max(width, codePointLength(l.trimmed));
-  const wrapped = lines.slice(1).map((l, i) => joins(lines[i]!.trimmed, l.trimmed) && wraps(lines[i]!.trimmed, l.trimmed, width));
+  const wrapAt = lines.slice(1).map((l, i) => joins(lines[i]!.trimmed, l.trimmed) && wraps(lines[i]!.trimmed, l.trimmed, width));
+  // Only prose joins: notes and a log's lines are kept as their author broke them.
+  const wrapped = isProse(lines.map((l) => l.trimmed), wrapAt) ? wrapAt : wrapAt.map(() => false);
   const build = (joinAll: boolean) => {
     const out: LaidLine[] = [];
     let open: OpenItem[] = [];

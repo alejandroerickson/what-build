@@ -1041,6 +1041,25 @@ describe("the readable text", () => {
     expect(wraps("Crews text the office", "every morning", 60)).toBe(false);
   });
 
+  it("keeps notes and a log's lines as written, however their lengths fall, and joins only prose", async () => {
+    const laid = async (lines: string[]) => (await derive(utf8(lines.join("\n") + "\n"), "notes.txt")).markdown;
+    const asWritten = (lines: string[]) => lines.join("  \n") + "\n";
+    // A line that starts with a label is a line of its own, as in a log.
+    const log = ["error: could not reach the depot printer (retrying in 5s)", "warning: the van checklist was not synced before the crews left"];
+    expect(await laid(log)).toBe(asWritten(log));
+    expect(wraps("The printer at the depot could not be reached this morning and the", "warning: the van checklist was not synced.", 70)).toBe(false);
+    // Notes end no sentence, so the longest line is not taken for a wrap onto the next.
+    const notes = ["call the depot about the van checklist", "ask dana whether the crews can start at the yard at six", "send sam the price sheet and the revised schedule today"];
+    expect(await laid(notes)).toBe(asWritten(notes));
+    // Nor when the last ends with a full stop, as a break before it is no wrap.
+    const stopped = [...notes.slice(0, 2), `${notes[2]}.`];
+    expect(await laid(stopped)).toBe(asWritten(stopped));
+    // One sentence that wraps at every break is prose, and joins.
+    expect(await laid(["Let me know if you have any questions about the schedule or the price", "sheet for the north crews."])).toBe(
+      "Let me know if you have any questions about the schedule or the price sheet for the north crews.\n",
+    );
+  });
+
   it("keeps rules and underlines on their own, and a marker alone as itself", async () => {
     const r = await derive(utf8("Notes\n=====\nWe met Dana.\n-\nNext\n-----\nEnd\n#\n"), "a.txt");
     expect(r.markdown).toBe("Notes\n\n=====\n\nWe met Dana.\n\n\\-\n\nNext\n\n-----\n\nEnd  \n\\#\n");
