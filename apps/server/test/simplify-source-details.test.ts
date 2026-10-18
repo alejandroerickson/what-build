@@ -53,7 +53,7 @@ describe("sources without participants, source system or provenance", () => {
     expect(outline.status).toBe(422);
     expect((await alice.api("GET", `${P}/sources/${id}/derived/outline`)).status).toBe(404);
 
-    const cleared = await alice.api("PUT", `${P}/sources/${id}/agent-notes/summary`, { content: "  " });
+    const cleared = await alice.api("PUT", `${P}/sources/${id}/agent-notes/summary`, { content: "  ", expected_etag: summary.body.etag });
     expect(cleared.status).toBe(200);
     expect((await alice.api("GET", `${P}/sources/${id}/agent-notes/summary`)).status).toBe(404);
     const full = await alice.api("GET", `${P}/sources/${id}?detail=full`);

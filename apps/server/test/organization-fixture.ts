@@ -20,8 +20,8 @@ export interface Organization {
   product: { id: string; slug: string; path: string; etag: string };
   annex: { id: string; path: string };
   outcome: { id: string; etag: string };
-  /** Its first source, tagged with `tag` among others. */
-  source: { id: string; etag: string; path: string; fileVersionId: string; derivationId: string; tag: string };
+  /** Its first source, tagged with `tag` among others, with the etags of its derived text and its summary. */
+  source: { id: string; etag: string; path: string; fileVersionId: string; derivationId: string; tag: string; textEtag: string; summaryEtag: string };
   view: { id: string; etag: string };
   annotation: { id: string; etag: string };
   assumption: { id: string; etag: string };
@@ -69,7 +69,7 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
   expect(detail.text).toMatchObject({ taken_from: { path: notePath } });
   const derivations = ok(await owner.api("GET", `${P}/sources/${src.record_id}/derivations`), 200);
   expect(derivations.items[0].status).toBe("ready");
-  ok(await owner.api("PUT", `${P}/sources/${src.record_id}/agent-notes/summary`, { content: `${marker} summary for agents.` }), 200);
+  const summary = ok(await owner.api("PUT", `${P}/sources/${src.record_id}/agent-notes/summary`, { content: `${marker} summary for agents.` }), 200);
   const ann = ok(await owner.api("POST", `${P}/sources/${src.record_id}/annotations`, { record_id: src.record_id, note: `${marker} annotation.` }));
 
   const as = ok(await owner.api("POST", `${P}/assumptions`, { statement: `${marker} assumption: crews read texts first.`, body: `${marker} the interview notes say so.`, outcome_ids: [o.outcome_id], author_type: "human" }));
@@ -137,7 +137,10 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
     product: { id: p.product_id, slug: p.path.split("/")[2], path: p.path, etag: product.etag },
     annex: { id: a.product_id, path: a.path },
     outcome: { id: o.outcome_id, etag: o2.etag },
-    source: { id: src.record_id, etag: source.etag, path: notePath, fileVersionId: file.file_version_id, derivationId: derivations.items[0].derivation_id, tag: `${marker.toLowerCase()}-tag` },
+    source: {
+      id: src.record_id, etag: source.etag, path: notePath, fileVersionId: file.file_version_id, derivationId: derivations.items[0].derivation_id, tag: `${marker.toLowerCase()}-tag`,
+      textEtag: detail.text.etag, summaryEtag: summary.etag,
+    },
     view: { id: view.record_id, etag: viewNow.etag },
     annotation: { id: ann.annotation_id, etag: ann.etag },
     assumption: { id: as.id, etag: link.etag },

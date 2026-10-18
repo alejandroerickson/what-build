@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 118 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -107,6 +107,12 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
   needs editor"). With no role at all the answer is `404`, never `403`
   ([§3.5](03-accounts-teams-and-identity.md)). `connection_level` carries `{ level, needed }`
   and says that only the person raises it, under Connect an agent.
+- **`stale_etag`** carries `current_etag` in `details`: the etag the object has now, or `null`
+  when there is nothing to match. It answers a stale etag and, for a write that may create what
+  it writes (a source's summary, notes and derived text, a Story page's versions and notes, the
+  Story's style and hierarchy, a mockup's versions, an allowance), a missing one once the object
+  exists; its message says which etag to pass and where to read it, and names another etag of the
+  object sent in its place ([§4.1](04-data-model.md)).
 - **`quota_exceeded`** carries `{ quota, limit, used, unit }` in `details`. It is returned for the
   50 Story pages and the 50 mockups a product holds ([§9.2](09-data-lifecycle.md)), the mockups'
   adding `archived`, and for a visitor's daily
@@ -315,6 +321,16 @@ being changed inside the handler.
 
 Notes on recent actions:
 
+- A source's summary and notes have an etag of their own, as its derived text has, and a write
+  over any of the three needs it once there is one
+  ([decision](../decisions/a-write-that-may-create-its-object-needs-its-etag-once-it-exists.md)):
+  `derived.write_note` takes `expected_etag` and answers with the new `etag` (`null` once
+  cleared); `derived.read_note`, and `sources.get` with `detail: "full"` in `agent_notes`, return
+  it; `derived.write_text`'s `expected_etag` is required once the source has a derived text. The
+  first write takes none. A write without the etag once the part exists, with a stale one, or with
+  another of the source's etags is `409 stale_etag` with `current_etag`, its message saying which
+  etag to pass and where to read it; an etag sent when there is nothing to match is
+  `409 stale_etag` with `current_etag: null`, saying to leave it out ([§4.1](04-data-model.md)).
 - A source's words are one derived text, and its files are attachments that are read and kept but
   never searched
   ([decision](../decisions/a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)).
@@ -403,7 +419,9 @@ Notes on recent actions:
   previews.
 - `story.write_notes` replaces a page's notes for agents. The notes carry their own etag
   (`publish` → `agent_notes_etag`, `get_page` → `agent_notes.etag`), separate from the page etag,
-  and are not versioned with the page. While the notes are empty the etag may be omitted.
+  and are not versioned with the page. While the notes are empty the etag may be omitted; once
+  they hold anything, a write without it is `409 stale_etag`, as for a source's summary and notes
+  ([§4.1](04-data-model.md)).
 - A reader's `story.get_page` leaves out `agent_notes`, and a reader's `products.get` and
   `products.list` leave out `concept` and count only `story_pages` (and `stage_counts.story`)
   ([§3.5](03-accounts-teams-and-identity.md)).

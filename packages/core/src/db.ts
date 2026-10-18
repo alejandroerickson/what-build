@@ -422,6 +422,11 @@ export interface AgentNotesTable {
   content: string;
   updated_at: Ts;
   updated_by: Json<ActorSnapshot>;
+  /**
+   * Changes on every write. The column has a default only for rows written before it existed (a
+   * saved sandbox baseline); code names a new one on every insert and update.
+   */
+  etag: string;
 }
 
 export interface OutcomesTable {

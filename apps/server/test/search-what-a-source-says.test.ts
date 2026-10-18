@@ -87,8 +87,12 @@ beforeAll(async () => {
   ids.long = await source(P, alice, "Yard routine — Example Co");
   expect((await alice.api("PUT", `${P}/sources/${ids.long}/derived/text`, { content: LONG })).status).toBe(200);
   await h.worker.drain();
-  expect((await alice.api("PUT", `${P}/sources/${ids.unused}/derived/text`, { content: "" })).status).toBe(200);
+  const unused = (await alice.api("GET", `${P}/sources/${ids.unused}/derived/text`)).body.etag;
+  expect((await alice.api("PUT", `${P}/sources/${ids.unused}/derived/text`, { content: "", expected_etag: unused })).status).toBe(200);
 });
+
+/** The etag of a source's summary or notes, which a write over it names. */
+const noteEtag = async (base: string, who: Browser, recordId: string, kind: "summary" | "notes") => (await who.api("GET", `${base}/sources/${recordId}/agent-notes/${kind}`)).body.etag as string;
 afterAll(async () => h?.close());
 
 describe("search over what a source says", () => {
@@ -202,8 +206,8 @@ describe("search over what a source says", () => {
     expect((await search("overtime")).hits.map((x) => x.annotation_id)).toEqual([overtime]);
 
     // The summary rewritten and the notes cleared.
-    await alice.api("PUT", `${P}/sources/${ids.call}/agent-notes/summary`, { content: "Crews plan by the week." });
-    await alice.api("PUT", `${P}/sources/${ids.call}/agent-notes/notes`, { content: "" });
+    expect((await alice.api("PUT", `${P}/sources/${ids.call}/agent-notes/summary`, { content: "Crews plan by the week.", expected_etag: await noteEtag(P, alice, ids.call, "summary") })).status).toBe(200);
+    expect((await alice.api("PUT", `${P}/sources/${ids.call}/agent-notes/notes`, { content: "", expected_etag: await noteEtag(P, alice, ids.call, "notes") })).status).toBe(200);
     expect((await search("by the job")).hits).toEqual([]);
     expect((await search("dispatch board")).hits).toEqual([]);
     expect((await search("plan by the week")).hits.map((x) => x.field)).toEqual(["summary"]);
@@ -226,7 +230,7 @@ describe("search over what a source says", () => {
 
   it("places a match in the words as written, whatever the case of the query", async () => {
     // İ lowercases to two code units; the match is still placed by the words as written.
-    await alice.api("PUT", `${P}/sources/${ids.call}/agent-notes/notes`, { content: "İzmir depot: Night crews swap trucks." });
+    expect((await alice.api("PUT", `${P}/sources/${ids.call}/agent-notes/notes`, { content: "İzmir depot: Night crews swap trucks." })).status).toBe(200);
     expect(where((await search("NIGHT CREWS")).hits)).toEqual([{ record_id: ids.call, field: "notes", char_start: 13, char_end: 24 }]);
   });
 });
@@ -238,6 +242,7 @@ describe("a public sandbox reset", () => {
   let visit: string;
   let second: string;
   let late: string;
+  let savedSummary: string;
 
   beforeAll(async () => {
     olive = await h.signIn("olive@example.com", "Olive Owner");
@@ -255,7 +260,9 @@ describe("a public sandbox reset", () => {
     second = await source(S, olive, "Second visit — Example Co");
     await attach(S, olive, second, "second.md", "# Second\n\nCrews swap shifts by text.\n");
     await h.worker.drain();
-    expect((await olive.api("PUT", `${S}/sources/${visit}/agent-notes/summary`, { content: "Fridays matter most." })).status).toBe(200);
+    const summary = await olive.api("PUT", `${S}/sources/${visit}/agent-notes/summary`, { content: "Fridays matter most." });
+    expect(summary.status).toBe(200);
+    savedSummary = summary.body.etag;
     // An attachment that arrives just before the baseline is saved, and is not read yet.
     late = await source(S, olive, "Late notes — Example Co");
     await attach(S, olive, late, "late.md", "# Late\n\nThe dispatcher keeps a paper log.\n");
@@ -264,8 +271,9 @@ describe("a public sandbox reset", () => {
 
   it("rebuilds the search index, so search finds what it put back at once", async () => {
     // After the baseline: a text rewritten, a summary cleared, a source deleted.
-    expect((await olive.api("PUT", `${S}/sources/${visit}/derived/text`, { content: "Replaced after the baseline.\n" })).status).toBe(200);
-    expect((await olive.api("PUT", `${S}/sources/${visit}/agent-notes/summary`, { content: "" })).status).toBe(200);
+    const text = (await olive.api("GET", `${S}/sources/${visit}/derived/text`)).body.etag;
+    expect((await olive.api("PUT", `${S}/sources/${visit}/derived/text`, { content: "Replaced after the baseline.\n", expected_etag: text })).status).toBe(200);
+    expect((await olive.api("PUT", `${S}/sources/${visit}/agent-notes/summary`, { content: "", expected_etag: savedSummary })).status).toBe(200);
     const impact = await olive.api("GET", `${S}/sources/${second}/delete-impact`);
     expect((await olive.api("DELETE", `${S}/sources/${second}`, { expected_etag: impact.body.etag, reason: "Sample", confirm: "delete permanently" })).status).toBe(200);
     expect((await search("every Friday", "", S, olive)).hits).toEqual([]);
@@ -279,6 +287,9 @@ describe("a public sandbox reset", () => {
     expect((await search("matter most", "", S, olive)).hits.map((x) => [x.record_id, x.field])).toEqual([[visit, "summary"]]);
     expect((await search("swap shifts", "", S, olive)).hits.map((x) => [x.record_id, x.field])).toEqual([[second, "text"]]);
     expect((await search("Second visit", "", S, olive)).hits.map((x) => [x.record_id, x.field])).toEqual([[second, "title"]]);
+    // The summary is back with the etag it had when the baseline was saved, so a write over it names that one.
+    expect(await noteEtag(S, olive, visit, "summary")).toBe(savedSummary);
+    expect((await olive.api("PUT", `${S}/sources/${visit}/agent-notes/summary`, { content: "Fridays still matter most.", expected_etag: savedSummary })).status).toBe(200);
   });
 
   it("queues a reading of an attachment the baseline never read, quietly, once", async () => {

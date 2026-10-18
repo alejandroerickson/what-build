@@ -3,7 +3,7 @@ type: Specification
 title: Every attachment is read into readable Markdown and kept, and each source has one derived text that people and agents read, edit and search.
 description: Reading attachments (when a reading runs, its thread and limits, what it stores, its statuses), the parsers and how they lay text out, the derived text and how it follows its attachment, and the reads and writes of the derived layer.
 tags: [spec, derived-layer, parsers, derived-text, attachments]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -213,9 +213,13 @@ reading that is not `ready`, or holds no text, never touches it.
   `409 no_text` while the attachment is being read or when it was read as anything but `ready`. A
   text taken this way is not held to the 2,000,000.
 
-None, or more than one, is `422 invalid_input`. `expected_etag` is optional; a stale one, or one
-sent when the source has no text, is `409 stale_etag`. An archived source refuses it
-(`409 record_archived`). It answers `{ record_id, chars, etag, updated_at, taken_from, diff? }`,
+None, or more than one, is `422 invalid_input`. `expected_etag` is the text's own etag, left out
+for the first text and required once the source has one, whichever way it is written, removing it
+included ([§4.1](04-data-model.md)). Without it, with a stale one, or with another of the source's
+etags in its place (the source's own, its summary's or its notes', each named in the refusal), the
+write is `409 stale_etag` with `current_etag` and a message saying where to read the text's etag;
+one sent when the source has no text is `409 stale_etag` with `current_etag: null`, saying to
+leave it out for the first write. An archived source refuses it (`409 record_archived`). It answers `{ record_id, chars, etag, updated_at, taken_from, diff? }`,
 writes the text's pieces into the search index in the same transaction, and records `text_written`
 in the activity log: "Wrote the derived text", "Rewrote the derived text", "Edited the derived
 text", "Removed the derived text" or "Took the derived text from interview.vtt". The text keeps no
@@ -284,6 +288,7 @@ search reads its title, tags, summary, notes and comments.
   previous_derivation_id }`; `409 no_file` when the attachment has no stored version yet. When the
   derived text is still that attachment's, the new reading replaces it (§5.4).
 - `derived.write_note` and `derived.read_note`: a source's summary and notes
-  ([§4.6](04-data-model.md)), searched with the rest of it.
+  ([§4.6](04-data-model.md)), searched with the rest of it, each with an etag of its own that a
+  write over it names once it exists ([§4.1](04-data-model.md)).
 - Every reading stays readable by id, unless the source was deleted, in which case a read returns
   `410 record_deleted` with the tombstone ([§9.5](09-data-lifecycle.md)).
