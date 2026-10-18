@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, qs } from "../lib/api.ts";
-import { actorName, fileTypeName, formatBytes, plural, relativeTime } from "../lib/format.ts";
+import { actorName, fileTypeName, formatBytes, plural, relativeTime, viaSurface } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { ATTACHMENT_TEXT, pictureKind } from "../lib/status.ts";
@@ -137,7 +137,7 @@ export function AttachmentsView({ record, onAdd }: { record: RecordFull; onAdd?:
                       <span>
                         <span title={a.media_type ?? undefined}>{fileTypeName(a.media_type, a.path)}</span> · {formatBytes(a.size)}
                         {a.versions.length > 1 ? ` · ${plural(a.versions.length, "version")}` : ""}
-                        {` · added ${relativeTime(a.added_at)} by ${actorName(a.added_by)}`}
+                        {` · added ${relativeTime(a.added_at)} by ${actorName(a.added_by)}${viaSurface(a.added_by)}`}
                       </span>
                     </span>
                     {a.text.status_detail && a.text.status !== "ready" && !picture ? <span className="source-file-detail faint">{a.text.status_detail}</span> : null}

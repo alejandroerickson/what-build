@@ -2,7 +2,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/rea
 import { useContext, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError, isObjectId, qs } from "../lib/api.ts";
-import { actorName, attribution, formatBytes, formatDate, plural, quotedAtEnd, relativeTime } from "../lib/format.ts";
+import { actorName, attribution, formatBytes, formatDate, plural, quotedAtEnd, relativeTime, viaSurface } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import type { Actor, RecordFull } from "../lib/types.ts";
@@ -170,12 +170,6 @@ export function SourceDetailPage() {
       {dialog === "attachments" ? <AddAttachments record={r} onClose={() => setDialog(null)} /> : null}
     </>
   );
-}
-
-function surfaceLabel(actor: Actor) {
-  if (actor.surface === "mcp") return actor.client || "an agent";
-  if (actor.surface === "rest") return "the API";
-  return "the web";
 }
 
 /**
@@ -409,7 +403,7 @@ function When({ at, by, byTo }: { at: string; by: Actor | null | undefined; byTo
         ) : (
           actorName(by)
         )}
-        {by?.surface && by.surface !== "web" ? ` via ${surfaceLabel(by)}` : ""}
+        {viaSurface(by)}
       </small>
     </span>
   );

@@ -5,8 +5,9 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 // The line over a source's attachments says where the source's text comes from: one of them, or,
-// once someone wrote or edited the text, none of them. An attachment whose reading was given up says
-// so, and offers Read it again.
+// once someone wrote or edited the text, none of them. Each row says who added the attachment, and
+// through which agent, as Details does. An attachment whose reading was given up says so, and
+// offers Read it again.
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -17,6 +18,8 @@ const read = { status: "ready", status_detail: null, chars: 120, duration_ms: nu
 const attachment = { path: "interview.txt", media_type: "text/plain", size: 120, file_version_id: "f1", versions: [], added_at: "2026-10-01T09:00:00.000Z", added_by: by, text: read, is_text_source: false };
 /** The attachment's latest reading, which a test may change. */
 let reading: Record<string, unknown> = read;
+/** Who added the attachment, which a test may change. */
+let addedBy: Record<string, unknown> = by;
 
 vi.mock("../src/lib/api.ts", async (original) => ({
   ...(await original<typeof import("../src/lib/api.ts")>()),
@@ -25,7 +28,7 @@ vi.mock("../src/lib/api.ts", async (original) => ({
       return {
         record_id: ID, title: "Crew lead interview — Example Co", date: null, tags: [], uploaded_by: by, uploaded_at: "2026-10-01T09:00:00.000Z",
         updated_at: "2026-10-01T09:00:00.000Z", updated_by: by, archived_at: null, derived_status: "ready", text_chars: 30, attachment_count: 1,
-        etag: "source-etag", duration_ms: null, status_detail: null, warnings: [], annotation_count: 0, pending_upload_path: null, attachments: [{ ...attachment, text: reading }],
+        etag: "source-etag", duration_ms: null, status_detail: null, warnings: [], annotation_count: 0, pending_upload_path: null, attachments: [{ ...attachment, text: reading, added_by: addedBy }],
         annotations: [], agent_notes: [],
         // Written by hand: it follows no attachment.
         text: { chars: 30, etag: "text-1", updated_at: "2026-10-02T09:00:00.000Z", updated_by: by, taken_from: null },
@@ -53,6 +56,7 @@ afterEach(() => {
   unmount = null;
   document.body.innerHTML = "";
   reading = read;
+  addedBy = by;
   vi.mocked(api).mockClear();
 });
 
@@ -120,5 +124,19 @@ describe("an attachment whose reading was given up", () => {
     await act(async () => again!.click());
     for (let i = 0; i < 3; i++) await act(async () => new Promise((r) => setTimeout(r, 0)));
     expect(vi.mocked(api).mock.calls).toContainEqual(["POST", `${BASE}/sources/${ID}/rederive`, { path: "interview.txt" }]);
+  });
+});
+
+describe("an attachment's row", () => {
+  /** The facts under the row's name: its type, size, and who added it when. */
+  const facts = async () => (await openAttachments()).querySelector(".source-file-sub")?.textContent ?? "";
+
+  it("says which agent added it, when an agent did, as Details does", async () => {
+    addedBy = { ...by, surface: "mcp", client: "claude-code" };
+    expect(await facts()).toMatch(/ · added .+ by Riley Chen via claude-code$/);
+  });
+
+  it("says only who added it on the web", async () => {
+    expect(await facts()).toMatch(/ · added .+ by Riley Chen$/);
   });
 });

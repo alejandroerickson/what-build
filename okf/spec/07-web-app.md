@@ -445,8 +445,9 @@ The sources, and everything for reading them.
     pictures, "Format not read", "Too large to read", "Couldn't be read", or "Reading"), with the
     server's `status_detail` under it except for pictures, "The source's text" on the one it came
     from, its type in words (such as "Word document", not its media type), size, versions, and who
-    added it when, with Download, and a menu with **Show it** (a PDF, an image, a recording,
-    Markdown, HTML in a sandbox, or plain text, in a dialog; a recording with its length), **Use
+    added it when, adding "via <surface>" when it was not the web, as About does, with Download,
+    and a menu with **Show it** (a PDF, an image, a recording, Markdown, HTML in a sandbox, or
+    plain text, in a dialog; a recording with its length), **Use
     its text…** and **Read it again** for editors, the last not for pictures, which no reading
     finds words in. An image opens in a viewer with zoom (buttons, `+` `-`, `0` to fit, `1` for actual
     size, double-click, a pinch or Ctrl/Cmd and the wheel), drag to pan, full screen (`F`), and,
