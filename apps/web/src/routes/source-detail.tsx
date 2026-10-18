@@ -440,8 +440,9 @@ function SourceInspector({ record: r }: { record: SourceRecord }) {
               },
               { label: "Date captured", value: r.date ? <span className="num" title="When the meeting happened, or the document is dated">{formatDate(r.date)}</span> : "No date" },
               { label: "Date added", value: <When at={r.uploaded_at} by={r.uploaded_by} byTo={`${app}/evidence?added_by=${encodeURIComponent(r.uploaded_by.account_id)}`} /> },
-              // Its details (title, date captured, tags) or its archiving: the text, summary, notes,
-              // comments and attachments say when they were written, and leave this alone.
+              // Its details (title, date captured, tags), its move here from another product or its
+              // archiving: the text, summary, notes, comments and attachments say when they were
+              // written, and leave this alone.
               {
                 label: "Details updated",
                 value: r.updated_at !== r.uploaded_at ? <When at={r.updated_at} by={r.updated_by} /> : <span className="faint">Not changed since it was added</span>,

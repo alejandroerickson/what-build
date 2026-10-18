@@ -165,7 +165,8 @@ export function EvidenceFilters() {
 /**
  * List orders. Three are dates: captured (the source's own date, when the evidence happened, and
  * the default), added to WhatBuild, and details updated (its title, date or tags last changed, or
- * it was archived or restored; not its text, summary, notes, comments or attachments).
+ * it moved here from another product, or was archived or restored; not its text, summary, notes,
+ * comments or attachments).
  * Choosing the current order again reverses it.
  */
 const SORTS = [

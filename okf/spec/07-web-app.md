@@ -353,11 +353,11 @@ The sources, and everything for reading them.
   Three dates are named the same everywhere: **date captured** (the source's own date: when the
   interview or call happened, or the date the document carries), **date added** (when it came
   into WhatBuild) and **details updated** (when its details, its title, date captured or tags,
-  last changed, or it was archived or restored: the date updated of [§4.3](04-data-model.md),
-  named for what it covers; its text, summary, notes, comments and attachments each say when
-  they were written, and leave it alone). "Sort by" and a segmented control in the header order
-  the list by date captured (the default, undated last), date added, details updated or title
-  (`?sort=date|added|updated|title`). A small triangle beside the current order shows its
+  last changed, or it moved here from another product, or was archived or restored: the date
+  updated of [§4.3](04-data-model.md), named for what it covers; its text, summary, notes,
+  comments and attachments each say when they were written, and leave it alone). "Sort by" and
+  a segmented control in the header order the list by date captured (the default, undated last),
+  date added, details updated or title (`?sort=date|added|updated|title`). A small triangle beside the current order shows its
   direction; choosing it again reverses it (`?order=asc|desc`; dates start newest first, title A
   to Z). When the sheet is narrower than 680px the same choices sit in a menu. Each row shows its
   tags under the title, and at its end a paperclip with its number of attachments and one date:
