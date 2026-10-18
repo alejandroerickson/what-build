@@ -415,7 +415,8 @@ export function EvidencePage() {
     return `${app}/evidence${s ? `?${s}` : ""}`;
   };
   const chips: { label: string; to: string }[] = [];
-  if (f.query) chips.push({ label: `Titles matching “${f.query}”`, to: without(["query"]) });
+  // sources.list matches the words in titles, tags and attachment names, never in what sources say.
+  if (f.query) chips.push({ label: `“${f.query}” in titles, tags or attachment names`, to: without(["query"]) });
   if (f.tags) chips.push({ label: `Tagged ${splitTags(f.tags).join(", ")}`, to: without(["tags"]) });
   if (f.added_by) chips.push({ label: `Added by ${facets.data?.added_by.find((p) => p.account_id === f.added_by)?.display_name ?? "one person"}`, to: without(["added_by"]) });
   if (f.date_from || f.date_to) chips.push({ label: `Captured ${f.date_from ? formatDate(f.date_from) : "any time"} to ${f.date_to ? formatDate(f.date_to) : "now"}`, to: without(["date_from", "date_to"]) });
@@ -455,8 +456,8 @@ export function EvidencePage() {
         ) : !records.length ? (
           active.length && (product.counts.sources ?? 0) > 0 ? (
             f.query && chips.length === 1 ? (
-              <EmptyState size="inline" title={`No source titles match “${f.query}”`} action={<ButtonLink to={without(["query"])}>Clear the search</ButtonLink>}>
-                This looks in titles, tags and attachment names. Use Search to find what sources say.
+              <EmptyState size="inline" title={`No titles, tags or attachment names hold “${f.query}”`} action={<ButtonLink to={without(["query"])}>Clear the search</ButtonLink>}>
+                Use Search to find what sources say.
               </EmptyState>
             ) : (
               <EmptyState size="inline" title="No sources match these filters" action={<ButtonLink to={`${app}/evidence`}>Clear filters</ButtonLink>} />

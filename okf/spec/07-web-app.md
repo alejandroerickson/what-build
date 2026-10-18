@@ -225,7 +225,8 @@ person's organization role is in the account menu, and who has which role is on 
 /t/:tenant/:team/:product                     → …/idea
   /idea               ?status&outcome         the product concept, outcomes with counts (outcome: one a search opened, marked)
   /evidence           ?tags&added_by&date_from&date_to&query&include_archived&sort&order
-                      (date_from, date_to: the date captured; query: a title search; both from a link)
+                      (date_from, date_to: the date captured; query: words in titles, tags or attachment
+                      names; both from a link)
   /evidence/new                               intake: describe it, add attachments, create
   /evidence/:record   ?view=text|notes|comments|attachments &find=<words>&at
                       (at: where a search hit's piece of the text starts, so the find starts there)
@@ -342,7 +343,8 @@ The sources, and everything for reading them.
   tags and people come from `sources.facets`. While any filter is on, a "Clear filters" link sits
   above Tags. On a source page the same links lead back to the list.
   Paged. The sheet is titled **Sources** (the section stays Evidence). The filters in use,
-  the title search among them ("Titles matching …"), show as removable chips above the rows.
+  among them the words a link searched for (`?query`, matched in titles, tags and attachment
+  names: "“…” in titles, tags or attachment names"), show as removable chips above the rows.
   Three dates are named as
   dates everywhere: **date captured** (the source's own date: when the interview or call
   happened, or the date the document carries), **date added** (when it came into WhatBuild) and
