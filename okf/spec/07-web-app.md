@@ -765,7 +765,7 @@ a product that isn't archived (`canDelete`). One dialog serves every delete
 3. Choosing it opens a dialog titled as a question ("Delete this assumption permanently?"), that
    says it can't be undone and shows the object's preview as plain sentences before any control:
    *This deletes its attachments (4 stored versions, 218 MB), its text, summary and notes, and 1
-   comment.* For an assumption it says how many other
+   comment.* A count of none is left out. For an assumption it says how many other
    assumptions link to it, and that those links go with it; for an outcome, the assumptions it is
    taken from. A mockup a Story page shows lists those pages, and its delete stays disabled.
 4. The dialog asks for a reason, which the button needs. A source also needs its title typed, and

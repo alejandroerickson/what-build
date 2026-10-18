@@ -55,7 +55,8 @@ const { ProductSettingsPage } = await import("../src/routes/product-misc.tsx");
 const { entryImpactWords } = await import("../src/routes/registers.tsx");
 const { DeletePage } = await import("../src/routes/story-actions.tsx");
 const { servedBy } = await import("../src/routes/idea.tsx");
-const { SourceDetailPage } = await import("../src/routes/source-detail.tsx");
+const { SourceDetailPage, sourceImpactWords } = await import("../src/routes/source-detail.tsx");
+const { organizationImpactWords } = await import("../src/routes/org.tsx");
 
 beforeAll(() => {
   // jsdom draws no modal layer; a dialog that opens is enough here.
@@ -152,9 +153,42 @@ describe("deleting a source", () => {
     for (let i = 0; i < 5; i++) await act(async () => new Promise((r) => setTimeout(r, 0)));
     expect(document.querySelector("dialog[open] .dialog-title")?.textContent).toBe("Delete this source permanently?");
     expect(document.querySelector("dialog[open] .dialog-description")?.textContent).toBe("This can’t be undone. Archiving takes it out of lists and search and erases nothing.");
+    // It has no attachments and no comments, and counts neither.
+    expect(document.querySelector("dialog[open] .source-impact p")?.textContent).toBe("This deletes its text, summary and notes.");
     expect(footer()).toEqual(["Cancel", "Archive instead", "Delete permanently"]);
     await act(async () => button("Cancel").click());
     expect(document.querySelector("dialog[open]")).toBeNull();
+  });
+});
+
+describe("what a delete dialog counts", () => {
+  it("leaves a source's count of none out, and says the rest as before", () => {
+    expect(sourceImpactWords({ file_versions: 4, bytes: 218 * 1024 * 1024, annotations: 1 })).toBe(
+      "This deletes its attachments (4 stored versions, 218.0 MB), its text, summary and notes, and 1 comment.",
+    );
+    expect(sourceImpactWords({ file_versions: 1, bytes: 2048, annotations: 0 })).toBe("This deletes its attachments (1 stored version, 2.0 KB), its text, summary and notes.");
+    expect(sourceImpactWords({ file_versions: 0, bytes: 0, annotations: 3 })).toBe("This deletes its text, summary and notes, and 3 comments.");
+    expect(sourceImpactWords({ file_versions: 0, bytes: 0, annotations: 0 })).toBe("This deletes its text, summary and notes.");
+  });
+
+  it("leaves an organization's counts of none out", () => {
+    const products = (n: number) => Array.from({ length: n }, (_, i) => ({ product_id: `p${i}`, name: `Product ${i}`, archived: false }));
+    const none = { teams: 0, products: [], sources: 0, stored_files: 0, bytes: 0, people: 0, pending_invitations: 0 };
+    expect(organizationImpactWords("Acme", { ...none, teams: 2, products: products(3), sources: 5, stored_files: 1, bytes: 2048, people: 4, pending_invitations: 2 })).toEqual({
+      goes: "Everything in Acme goes at once: its 2 teams and all 3 of its products, with 5 sources and 1 stored file (2.0 KB).",
+      people: "4 people lose their roles here, and 2 invitations stop working. Their accounts, and their roles in other organizations, stay.",
+    });
+    // A new organization: one team, one product, nothing in it yet, and its owner.
+    expect(organizationImpactWords("Acme", { ...none, teams: 1, products: products(1), people: 1 })).toEqual({
+      goes: "Everything in Acme goes at once: its team and its product.",
+      people: "1 person loses their roles here. Their accounts, and their roles in other organizations, stay.",
+    });
+    expect(organizationImpactWords("Acme", { ...none, teams: 1, sources: 2, people: 1, pending_invitations: 1 })).toEqual({
+      goes: "Everything in Acme goes at once: its team, with 2 sources.",
+      people: "1 person loses their roles here, and 1 invitation stops working. Their accounts, and their roles in other organizations, stay.",
+    });
+    expect(organizationImpactWords("Acme", none)).toEqual({ goes: "Everything in Acme goes at once.", people: null });
+    expect(organizationImpactWords("Acme", { ...none, pending_invitations: 3 }).people).toBe("3 invitations stop working.");
   });
 });
 

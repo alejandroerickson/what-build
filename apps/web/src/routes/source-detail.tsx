@@ -586,6 +586,16 @@ function EditDetails({ record, onClose, onReload }: { record: SourceRecord; onCl
 /** What archiving would do instead, said in a live source's delete dialog; an archived one is already out of lists and search. */
 const ARCHIVING_INSTEAD = "Archiving takes it out of lists and search and erases nothing.";
 
+/**
+ * What deleting a source deletes, as its dialog says it: its attachments' stored versions, its
+ * text, summary and notes, and its comments, leaving out a count of none.
+ */
+export function sourceImpactWords(i: { file_versions: number; bytes: number; annotations: number }): string {
+  const attachments = i.file_versions > 0 ? `its attachments (${plural(i.file_versions, "stored version")}, ${formatBytes(i.bytes)}), ` : "";
+  const comments = i.annotations > 0 ? `, and ${plural(i.annotations, "comment")}` : "";
+  return `This deletes ${attachments}its text, summary and notes${comments}.`;
+}
+
 function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () => void }) {
   const { api: base, app } = useProduct();
   const navigate = useNavigate();
@@ -651,9 +661,7 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
         <ErrorCallout inset error={impact.error} onRetry={() => impact.refetch()} />
       ) : i ? (
         <div className="stack-sm source-impact">
-          <p>
-            This deletes its attachments ({plural(i.file_versions, "stored version")}, {formatBytes(i.bytes)}), its text, summary and notes, and {plural(i.annotations, "comment")}.
-          </p>
+          <p>{sourceImpactWords(i)}</p>
           <p>Links to it from Story pages, mockups and notes will open a record of the deletion instead.</p>
         </div>
       ) : null}
