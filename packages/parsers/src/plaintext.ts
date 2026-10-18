@@ -595,7 +595,7 @@ export const plaintextParser: FormatParser = {
  */
 export const markdownParser: FormatParser = {
   name: "markdown",
-  version: "4",
+  version: "5",
   parse(bytes) {
     const source = decodeText(bytes);
     // A Markdown file already reads as it was written; its own text is the readable text.

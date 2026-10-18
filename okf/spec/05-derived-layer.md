@@ -97,7 +97,8 @@ changes and comments for DOCX; `doc_format` and tables for DOC; for XLSX, sheets
 other than zero a format shows as nothing (`hidden_values`) and the formulas saved without a value
 (`formulas_without_values`); rows and the delimiter for CSV; skipped
 cues for VTT and SRT; `transcript_turns` for a text, Markdown, DOCX or DOC file read as a
-transcript). `inference: "none"` states that no model produced or altered the text.
+transcript), and, in any format, `null_characters_dropped` when the reading left out null
+characters (§5.3). `inference: "none"` states that no model produced or altered the text.
 
 Readings made while sources had passages also hold a `segments.jsonl`, which nothing reads any
 more; a product export includes it ([§4.14](04-data-model.md)).
@@ -201,6 +202,11 @@ keeps its own text; the speakers count in its facts.)
   agent with its own transcription tool. An image, or a PDF whose pages are pictures, is stored and
   shown, and no words are read from it: an agent that can see it describes it in the source's
   summary and, if search should find its words, writes them as the derived text.
+- **No reading holds a null character** (U+0000), which a Postgres text value cannot hold: a text
+  file read as UTF-8 keeps any it has, and a reading with one in it could not be stored, so its
+  attachment would stay `pending`. `derive` drops them from what any parser read, its detail and
+  its facts included, and `null_characters_dropped` in the facts counts those left out of the text.
+  A text-like file that is almost all null characters keeps almost nothing, and is `failed` (§5.5).
 - Parsers are pure functions of bytes → readable Markdown (`derive`, then `toParsedFile` for the
   bytes a reading stores), with no I/O (the recording-duration reader
   takes a byte-range callback, so the worker can serve it ranges of a stored file), and never throw for a bad file:

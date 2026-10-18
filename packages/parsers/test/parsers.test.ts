@@ -646,7 +646,7 @@ describe("CSV", () => {
       "[row 4] Sample: NR | Cu_pct: (blank) | S_pct: (blank)",
       "[row 5] Checked twice",
     ]);
-    expect(r.parser_version).toBe("3");
+    expect(r.parser_version).toBe("4");
   });
 });
 
@@ -941,6 +941,29 @@ describe("statuses", () => {
     expect(currentReading("unsupported", "no parser reads .key files")).toEqual({ status: "unsupported", status_detail: "no parser reads .key files" });
     expect(currentReading("failed", "Error: bad XRef entry")).toEqual({ status: "failed", status_detail: "Error: bad XRef entry" });
     expect(currentReading("ready", null)).toEqual({ status: "ready", status_detail: null });
+  });
+});
+
+describe("null characters", () => {
+  it("drops U+0000, which Postgres text cannot hold, and says in the facts how many", async () => {
+    const txt = await derive(utf8("Crews plan\u0000 the week\u0000 on Friday.\n"), "notes.txt");
+    expect(txt).toMatchObject({ status: "ready", markdown: "Crews plan the week on Friday.\n", facts: { null_characters_dropped: 2 } });
+    expect(txt.text).not.toContain("\u0000");
+    expectOffsetsExact(txt);
+    // A Markdown file keeps its own text, without them.
+    const md = await derive(utf8("# Visit\n\nCrews\u0000 plan the week.\n"), "visit.md");
+    expect(md).toMatchObject({ status: "ready", parser_version: "5", markdown: "# Visit\n\nCrews plan the week.\n", facts: { null_characters_dropped: 1 } });
+    // A table's cell is counted once, though its row repeats it.
+    const csv = await derive(utf8("Item,Cost\nVans\u0000,1200\n"), "costs.csv");
+    expect(csv).toMatchObject({ status: "ready", parser_version: "4", markdown: "| Row | Item | Cost |\n| --- | --- | --- |\n| 2 | Vans | 1200 |\n", facts: { null_characters_dropped: 1 } });
+    for (const r of [txt, md, csv]) expect(JSON.stringify(r)).not.toContain("\\u0000");
+    // A file without one says nothing of them.
+    expect((await derive(utf8("Crews plan the week.\n"), "notes.txt")).facts).not.toHaveProperty("null_characters_dropped");
+  });
+
+  it("fails a text file that is almost all null characters, as one whose parse kept almost nothing", async () => {
+    const r = await derive(new Uint8Array(4096).map((_, i) => (i % 64 === 0 ? 0x41 : 0)), "dump.txt");
+    expect(r).toMatchObject({ status: "failed", status_detail: "the parse kept only 64 of 4096 characters", facts: { null_characters_dropped: 4032 } });
   });
 });
 

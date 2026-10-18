@@ -173,7 +173,7 @@ function parseCues(source: string): { blocks: Block[]; inverted: number } {
 
 export const vttParser: FormatParser = {
   name: "webvtt",
-  version: "2",
+  version: "3",
   timed: true,
   parse(bytes) {
     const { blocks, inverted } = parseCues(decodeText(bytes));
@@ -183,7 +183,7 @@ export const vttParser: FormatParser = {
 
 export const srtParser: FormatParser = {
   name: "subrip",
-  version: "2",
+  version: "3",
   timed: true,
   parse(bytes) {
     const { blocks, inverted } = parseCues(decodeText(bytes));

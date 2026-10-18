@@ -53,6 +53,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   before. Nothing else needs reading again: a scan recorded as failed reads `unsupported`, a
   recording that asked for "a transcript as a new source" asks for another attachment, and an image
   says how an agent gives it its words, in sandbox baselines too.
+- **Nothing to change; a text file that holds a null character is read.** A text, Markdown, CSV,
+  TSV, WebVTT or SubRip attachment with a null character (U+0000) in it, which a Postgres text
+  value cannot hold, could not have its reading saved when the source was to take its text, and
+  stayed `pending` ("Reading") for good. Readings now leave the character out and count it in
+  `facts.null_characters_dropped` (Markdown parser 5, CSV 4, WebVTT and SubRip 3; plain text is 8
+  above). Such an attachment is read once it is read again with `derived(action="rederive")`.
 - **Nothing to change; people will notice attachments say what they are at once.** Recordings,
   images and formats no parser reads show their status the moment they arrive instead of
   "Reading". An image, or a PDF whose pages are pictures (PDF parser 5), is "Not read as text"
