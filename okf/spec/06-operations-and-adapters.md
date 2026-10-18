@@ -680,8 +680,10 @@ refresh it. ◆ Decision: say so rather than build sessions for it. The instruct
 that a tool the skill describes but its list lacks, or a skill newer than the version they name,
 means an older list, and to ask the person to start a new session; `get_skill`'s description says
 the same of a newer version than the instructions named. `unknown_tool` and `unknown_action` name
-the server's version and its tools or the tool's actions (also in `details`: `server_version`,
-`tools` or `actions`), and say the client may hold a list from another version.
+the server's version and the tools, or the tool's actions, the connection is offered, as its
+`tools/list` names them (also in `details`: `server_version`, `tools` or `actions`), so never
+`submit_feedback` where its person turned it off, and say the client may hold a list from another
+version.
 
 **Tools.** Fourteen tools over the 116 operations an agent may be offered (all 118 but deleting an
 organization and its preview): eleven grouped by noun, three standalone
@@ -718,7 +720,9 @@ Rules:
   exact JSON Schema — without executing.
 - **Strict.** Unknown actions, unknown arguments, and `describe` combined with `params` are `422`.
   A grouped tool called without `action` is `422 invalid_input` saying `action` is missing and
-  listing the tool's actions (also in `details.actions`).
+  listing the tool's actions (also in `details.actions`). It, and `unknown_action`, list only the
+  actions the connection is offered, as its `tools/list` does (below): never a permanent delete or
+  a sandbox's control panel to an Edit connection.
 - **Aliases for names a caller reads.** The id is `outcome_id` on `outcomes` but `id` on
   `assumptions`. Each tool also accepts the other convention for its own entity: `id` on
   `outcomes`, `assumption_id` on `assumptions`. A field may also be accepted under the name it is

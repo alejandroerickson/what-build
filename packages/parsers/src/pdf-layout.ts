@@ -15,6 +15,7 @@ import type { Block } from "./types.ts";
  * - Lines drawn apart on one baseline are one line, as a form's label and its value are, unless
  *   one of them stands in a column of prose: each column of a page of two is read in turn.
  * - Lines of cells set in the same columns, one under the next, are a table.
+ * - A line set clearly larger than the page's text is a heading of its own (`pageHeadings`).
  * - A line repeated in the same place on most pages (a running header or footer, a page number)
  *   is read once, where it first appears, or not at all (`repeatedLines`).
  */
@@ -596,6 +597,73 @@ function tableOf(lines: Line[], columns: Columns, em: number): Table | null {
   return { rows: rows.map((r) => r.cells), form: labelled * 2 >= rows.length, prose };
 }
 
+/**
+ * A heading is a line set clearly larger than its page's text: every run of it at least this many
+ * times the size most of the page's characters are set in.
+ */
+const HEADING_RATIO = 1.15;
+/** A heading takes at most this many lines, one under the next in one size, and this many characters. */
+const MAX_HEADING_LINES = 3;
+const MAX_HEADING_CHARS = 200;
+/** How a large line that is prose set large ends, as a pull quote or a paragraph in large print does. */
+const PROSE_END = new Set([".", ",", ";", "…", "。", "，", "；"]);
+/** A line that starts with a bullet is a list item, whatever its size. */
+const BULLET = /^[•◦▪▫‣⁃●○■□►▸▹▶➢➤✓✔☐☑–—*·∙-]\s/u;
+
+/** The size most of a page's characters are set in, outside its tables: the size of its text. */
+function bodySize(lines: Line[]): number | null {
+  const weight = new Map<number, number>();
+  for (const l of lines) {
+    if (l.table) continue;
+    let n = 0;
+    for (const c of l.cells) n += c.text.length;
+    const size = Math.round(l.size * 10) / 10;
+    weight.set(size, (weight.get(size) ?? 0) + n);
+  }
+  let body: number | null = null;
+  for (const [size, n] of weight) if (body === null || n > weight.get(body)! || (n === weight.get(body)! && size < body)) body = size;
+  return body;
+}
+
+/** Whether `b` goes on the heading that `a` is a line of: just under it, in its size, across the same stretch. */
+function headingGoesOn(a: Line, b: Line): boolean {
+  const down = a.y - b.y;
+  const em = Math.max(a.size, b.size);
+  return down > 0 && down <= 2 * em && Math.abs(a.size - b.size) <= 0.05 * em && b.x0 < a.x1 && b.x1 > a.x0;
+}
+
+/** A heading a page's lines make: its words, how many lines it takes, and the size it is set in. */
+interface PageHeading {
+  text: string;
+  lines: number;
+  size: number;
+}
+
+/**
+ * A page's headings, by the line each starts at: a line of one cell, outside a table, set clearly
+ * larger than the page's text (`HEADING_RATIO`), with the lines just under it in its size joined to
+ * it. Lines like that are a heading when they are at most `MAX_HEADING_LINES` and
+ * `MAX_HEADING_CHARS` long, hold a letter, are no list item, and do not end as prose does; any
+ * other run of them is read as it always was, as paragraphs.
+ */
+function pageHeadings(lines: Line[]): Map<number, PageHeading> {
+  const out = new Map<number, PageHeading>();
+  const body = bodySize(lines);
+  if (body === null) return out;
+  const large = (l: Line) => !l.table && l.cells.length === 1 && l.small >= HEADING_RATIO * body;
+  for (let k = 0; k < lines.length; k++) {
+    if (!large(lines[k]!)) continue;
+    let j = k;
+    while (j + 1 < lines.length && large(lines[j + 1]!) && headingGoesOn(lines[j]!, lines[j + 1]!)) j++;
+    const run = lines.slice(k, j + 1);
+    const text = run.map((l) => l.cells[0]!.text).join(" ").replace(/\s+/g, " ").trim();
+    if (run.length <= MAX_HEADING_LINES && codePointLength(text) <= MAX_HEADING_CHARS && LETTER.test(text) && !BULLET.test(text) && !PROSE_END.has(lastMark(text)))
+      out.set(k, { text, lines: run.length, size: run.reduce((m, l) => Math.max(m, l.size), 0) });
+    k = j;
+  }
+  return out;
+}
+
 /** A line that starts with a short label and its colon (`Sample ID: S-0001`), as a form's lines do. */
 function labelled(line: Line): boolean {
   const first = line.cells[0]!.text;
@@ -608,9 +676,14 @@ function labelled(line: Line): boolean {
 /** How a repeated line is read: left out, or kept, where it first appears, as this text, at the top of its page or the end. */
 export type Repeated = { keep: string | null; top: boolean };
 
-/** A page's blocks, after its `# Page N` heading, and the characters of text they hold. */
-export function pageBlocks(page: PageLayout, pageNo: number, repeated: Map<Line, Repeated>): { blocks: Block[]; chars: number; tables: number } {
+/**
+ * A page's blocks, after its `# Page N` heading, and the characters of text they hold. Its headings
+ * are among them, each with the size it is set in, for pdf.ts to give it a level once every page is
+ * read: their words for now, at level 2.
+ */
+export function pageBlocks(page: PageLayout, pageNo: number, repeated: Map<Line, Repeated>): { blocks: Block[]; chars: number; tables: number; headings: { block: Block; size: number }[] } {
   const blocks: Block[] = [];
+  const headed: { block: Block; size: number }[] = [];
   let chars = 0;
   const push = (text: string) => {
     blocks.push({ text, page: pageNo });
@@ -624,9 +697,24 @@ export function pageBlocks(page: PageLayout, pageNo: number, repeated: Map<Line,
   };
   const tables = new Set<Table>();
   const lines = page.lines.filter((l) => !repeated.has(l));
+  const headings = pageHeadings(lines);
+  // The lines up to this one are a heading's, already read.
+  let readTo = -1;
   // A header kept reads first, whenever the stream draws it.
   for (const l of page.lines) if (repeated.get(l)?.keep && repeated.get(l)!.top) push(repeated.get(l)!.keep!);
   for (const [k, line] of lines.entries()) {
+    if (k <= readTo) continue;
+    const heading = headings.get(k);
+    if (heading) {
+      // A heading stands on its own, never run into the text before or after it.
+      flush();
+      const block: Block = { text: heading.text, heading_level: 2, page: pageNo };
+      blocks.push(block);
+      headed.push({ block, size: heading.size });
+      chars += heading.text.length;
+      readTo = k + heading.lines - 1;
+      continue;
+    }
     const t = line.table;
     if (t) {
       if (tables.has(t)) continue;
@@ -675,7 +763,7 @@ export function pageBlocks(page: PageLayout, pageNo: number, repeated: Map<Line,
   flush();
   // A footer kept, and a stamp, read last.
   for (const l of [...page.lines, ...page.turned]) if (repeated.get(l)?.keep && !repeated.get(l)!.top) push(repeated.get(l)!.keep!);
-  return { blocks, chars, tables: [...tables].filter((t) => !t.form && !t.prose).length };
+  return { blocks, chars, tables: [...tables].filter((t) => !t.form && !t.prose).length, headings: headed };
 }
 
 /** A page number as a repeated line says it, its numbers made `#`: `#`, `page #`, `# of #`, `- # -`. */

@@ -74,18 +74,48 @@ function htmlText(col: RawBuilder<unknown>): RawBuilder<string> {
 }
 
 /**
- * A piece of Markdown as a reader sees its words, for an excerpt: emphasis markers, heading marks,
- * the marks before a list item or a quoted line, and a table's rule row dropped. Every Markdown
- * text plain search shows an excerpt of goes through it: a source's, an assumption's body, an
- * outcome's description, a mockup's brief and notes, the product concept. Single passes over a
- * piece of at most a few thousand characters.
+ * What shows as written: a backslash escape, as the ASCII punctuation it escapes, and a code span
+ * (a run of backticks, what it holds, and a run as long), as what it holds (CommonMark). One pass
+ * reads both, so an escaped backtick opens no code span and nothing in a code span is an escape.
+ */
+const AS_WRITTEN = /\\([!-\/:-@[-`{-~])|(?<!`)(`+)(?!`)([^\n]*?[^`\n])\2(?!`)/g;
+/** A line that opens or closes a fenced code block, its language with it. */
+const FENCE = /^[ \t]*(?:`{3,}|~{3,})[^`\n]*$/gm;
+/** A link or an image, `[text](address "title")`: its text stays, as a reader sees it, and the rest goes. */
+const LINK = /!?\[([^[\]\n]*)\]\((?:<[^<>\n]*>|(?:[^()\s]|\([^()\s]*\))*)(?:\s+(?:"[^"\n]*"|'[^'\n]*'|\([^()\n]*\)))?\)/g;
+/**
+ * Italics, `*words*` and `_words_`: a marker that opens before a word and one that closes after
+ * one, on one line, and neither inside a word, so `snake_case` and `2*3*4` stay as written.
+ */
+const STAR_EM = /(?<![*\p{L}\p{N}])\*(?![\s*])([^*\n]*?[^\s*])\*(?![*\p{L}\p{N}])/gu;
+const UNDERSCORE_EM = /(?<![_\p{L}\p{N}])_(?![\s_])([^_\n]*?[^\s_])_(?![_\p{L}\p{N}])/gu;
+/** What shows as written stands here while the rest is read, by its place in the list it is held in. A stored text never holds a null character. */
+const HELD = /\u0000(\d+)\u0000/g;
+
+/**
+ * A piece of Markdown as a reader sees its words, for an excerpt: heading marks, the marks before
+ * a list item or a quoted line, a table's rule row and a code fence's lines dropped, bold, italics
+ * and a code span's backticks dropped (what a code span holds shows as written), a link or an
+ * image shown as its text, and an escaped character shown without its backslash, never taken for
+ * markup. Every Markdown text plain search shows an excerpt of goes through it: a source's, an
+ * assumption's body, an outcome's description, a mockup's brief and notes, the product concept. An
+ * excerpt and its marks are made from what it returns, so the marks fall on the words shown.
+ * Single passes over a piece of at most a few thousand characters.
  */
 export function shownWords(md: string): string {
-  return md
+  const held: string[] = [];
+  const shown = md
+    .replace(/\u0000/g, "")
     .replace(/^[ \t|:]*-{3,}[-:| \t]*$/gm, "")
+    .replace(FENCE, "")
     .replace(/^#{1,6}[ \t]+/gm, "")
     .replace(/^[ \t]*(?:>[ \t]?|[-*+][ \t]+)+/gm, "")
-    .replace(/\*\*|__/g, "");
+    .replace(AS_WRITTEN, (_m, escaped: string | undefined, _ticks: string | undefined, code: string | undefined) => `\u0000${held.push(escaped ?? code ?? "") - 1}\u0000`)
+    .replace(LINK, "$1")
+    .replace(/\*\*|__/g, "")
+    .replace(STAR_EM, "$1")
+    .replace(UNDERSCORE_EM, "$1");
+  return held.length ? shown.replace(HELD, (_m, i: string) => held[Number(i)] ?? "") : shown;
 }
 
 /** The terms, in the order typed and next to each other: a strong sign the text is about them. */

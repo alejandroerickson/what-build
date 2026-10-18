@@ -88,13 +88,13 @@ describe("MCP", () => {
     expect(d.input_schema.additionalProperties).toBe(false);
     const bad = await client.callTool({ name: "assumptions", arguments: { action: "explode" } });
     expect(bad.isError).toBe(true);
-    expect((bad.content as { text: string }[])[0]!.text).toMatch(/^422: Unknown assumptions action: explode\. This server, version [\d.]+, has these assumptions actions: list,/);
+    expect((bad.content as { text: string }[])[0]!.text).toMatch(/^422: Unknown assumptions action: explode\. This server, version [\d.]+, offers this connection these assumptions actions: list,/);
     expect(text(bad).error.details).toMatchObject({ server_version: SKILL_VERSION, actions: expect.arrayContaining(["create", "review"]) });
     const field = await client.callTool({ name: "outcomes", arguments: { action: "create", product: path, params: { title: "x", colour: "red" } } });
     expect((field.content as { text: string }[])[0]!.text).toMatch(/^422: `colour` is not a field of this action\./);
     // A tool the server does not have: the refusal lists the server's tools and says the client's list may be out of date.
     const tool = await client.callTool({ name: "insights", arguments: { action: "list" } });
-    expect((tool.content as { text: string }[])[0]!.text).toMatch(/^422: Unknown tool insights\. This server, version [\d.]+, has these tools: .*story.*start a new session/s);
+    expect((tool.content as { text: string }[])[0]!.text).toMatch(/^422: Unknown tool insights\. This server, version [\d.]+, offers this connection these tools: .*story.*start a new session/s);
     expect(text(tool).error).toMatchObject({ code: "unknown_tool", details: { server_version: SKILL_VERSION, tools: expect.arrayContaining(["story", "mockups"]) } });
     await client.close();
   });

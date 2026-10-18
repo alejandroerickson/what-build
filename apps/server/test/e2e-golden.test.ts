@@ -58,4 +58,39 @@ describe("the golden master's standard organization", () => {
     expect((await admin.query("select 1 from memberships where tenant_id = $1 and account_id = $2", [tenantId, visitorId])).rowCount).toBe(2);
     expect((await admin.query<{ sandbox: boolean }>("select sandbox from tenants where tenant_id = $1", [copy])).rows[0]!.sandbox).toBe(false);
   });
+
+  it("copies the search index with what it indexes, so plain search finds the same words in the copy", async () => {
+    const owner = await h.signIn("indexer@sample.example", "Sample Indexer");
+    const t = await owner.api("POST", "/api/v1/tenants", { name: "Indexed Sample" });
+    const { slug, tenant_id: tenantId } = t.body.tenant;
+    const team = t.body.team.slug;
+    const product = await owner.api("POST", `/api/v1/teams/${slug}/${team}/products`, { name: "Yard" });
+    const P = `/api/v1/p/${product.body.path}`;
+    const source = await owner.api("POST", `${P}/sources`, { title: "Yard walk — Example Co", tags: ["visit"] });
+    const recordId = source.body.record_id as string;
+    expect((await owner.api("PUT", `${P}/sources/${recordId}/derived/text`, { content: "The crews keep a quorvel board by the gate.\n\nNobody in the office reads it.\n" })).status).toBe(200);
+    const comment = await owner.api("POST", `${P}/sources/${recordId}/annotations`, { note: "Ask the lead about the zantic rota." });
+    expect(comment.status).toBe(201);
+
+    const ids = await copyTenant(admin, tenantId, `${slug}-standard`, "Indexed Sample (standard)");
+    type Piece = { record_id: string; field: string; ref: string; n: number; char_start: number; char_end: number; text: string; words: string };
+    const pieces = async (tenant: string) =>
+      (await admin.query<Piece>("select record_id, field, ref, n, char_start, char_end, text, tsv::text as words from text_chunks where tenant_id = $1", [tenant])).rows;
+    const key = (p: Piece) => `${p.record_id} ${p.field} ${p.ref} ${p.n}`;
+    const original = await pieces(tenantId);
+    // Its title, tags, text and comment.
+    expect(original.map((p) => p.field).sort()).toEqual(["comment", "tags", "text", "title"]);
+    // The same pieces, word for word and offset for offset, under the copy's ids, the comment's among them.
+    const expected = original.map((p) => ({ ...p, record_id: ids.get(p.record_id)!, ref: p.ref ? ids.get(p.ref)! : "" }));
+    expect((await pieces(ids.get(tenantId)!)).sort((a, b) => key(a).localeCompare(key(b)))).toEqual(expected.sort((a, b) => key(a).localeCompare(key(b))));
+    expect(expected.find((p) => p.field === "comment")!.ref).toBe(ids.get(comment.body.annotation_id));
+
+    const C = `/api/v1/p/${slug}-standard/${product.body.path.split("/").slice(1).join("/")}`;
+    for (const base of [P, C])
+      for (const word of ["quorvel", "zantic"]) {
+        const r = await owner.api("GET", `${base}/search?mode=plain&query=${word}`);
+        expect(r.status, `${base} ${word}`).toBe(200);
+        expect(r.body.results.map((x: { kind: string; title: string }) => [x.kind, x.title]), `${base} ${word}`).toEqual([["source", "Yard walk — Example Co"]]);
+      }
+  });
 });

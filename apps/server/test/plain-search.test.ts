@@ -1,6 +1,7 @@
 import { closestWord, excerpt, matchText, parseFind, termTsquery, wordRoot } from "@whatbuild/core";
 import { findCount, findPattern, findWords } from "@whatbuild/core/find-in-text";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { shownWords } from "../../../packages/core/src/ops/plain-search.ts";
 import { createPorts } from "../src/app.ts";
 import { seed } from "../src/seed.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
@@ -131,6 +132,29 @@ describe("how plain search reads a query", () => {
     const e = cut("gate ", `${"🚧".repeat(80)} the gate ${"🚧".repeat(80)}`, 60);
     expect(e.marked).toEqual(["gate"]);
     expect(Buffer.from(e.text, "utf8").toString("utf8")).toBe(e.text);
+  });
+
+  it("shows Markdown as a reader sees its words: italics, code spans and a link's text, and nothing it only looks like", () => {
+    expect(shownWords("The *crew board* is by the gate, see [the yard map](https://example.com/map_(v2) \"Map\") and `rota_v2`; _leads_ check it, as **every** lead does.")).toBe(
+      "The crew board is by the gate, see the yard map and rota_v2; leads check it, as every lead does.",
+    );
+    expect(shownWords("***All of it*** and *a **b** c*, (*see below*), ![the board](board.png) and [a link](<https://example.com/a b>)")).toBe(
+      "All of it and a b c, (see below), the board and a link",
+    );
+    // A code span shows what it holds as written; a fence's lines go, and what they hold stays.
+    expect(shownWords("Run `*args*` and `` a ` b `` with `__init__`\n```ts\nconst crew = 2;\n```")).toBe("Run *args* and  a ` b  with __init__\n\nconst crew = 2;\n");
+    // What is not italics, a link or code stays as written: words joined by underscores, sums, lone stars.
+    for (const plain of ["snake_case_name and file_name.txt", "2*3*4 and a * b * c", "Cost* includes VAT*. *Note: draft", "*word*s and un*frig*ging", "[ref][1] and [x] done", "C:\\Users\\crew"])
+      expect(shownWords(plain), plain).toBe(plain);
+  });
+
+  it("shows an escaped character alone, and never takes it for markup", () => {
+    expect(shownWords("**Dana \\[PM\\]:** We plan \\*not italic\\*, \\_nor this\\_, \\`nor code\\` and a\\\\b.")).toBe("Dana [PM]: We plan *not italic*, _nor this_, `nor code` and a\\b.");
+    expect(shownWords("\\# Not a heading\n\\- nor a list item, and \\[not a link\\](x)")).toBe("# Not a heading\n- nor a list item, and [not a link](x)");
+    // In a link's text it shows; in an address it goes with the address; in a code span it is written as it is.
+    expect(shownWords("[the \\[board\\]](https://example.com/a\\_b) and \\* and `a\\*b`")).toBe("the [board] and * and a\\*b");
+    // Italics around an escaped character, and one inside italics, read as a reader sees them.
+    expect(shownWords("\\(*the board*\\) and *the gate\\**")).toBe("(the board) and the gate*");
   });
 
   it("finds the word a misspelling meant among the product's own words", () => {
@@ -307,6 +331,54 @@ describe("plain search's excerpts", () => {
       ["idea", "Who it is for Crew leads who send the morning dispatch Owners who read it later"],
     ].sort((a, b) => (r.results.findIndex((x: { kind: string }) => x.kind === a[0]) - r.results.findIndex((x: { kind: string }) => x.kind === b[0]))));
     for (const x of r.results) expect(x.snippet ?? "", x.kind).not.toMatch(/##|\*\*|(^|\s)[->] /);
+  });
+
+  it("shows italics, code and a link as their words in an assumption's body, a mockup's notes and a source's text, its marks on the words shown", async () => {
+    const md = "The *night crew* keeps the rota in `rota_v2`, beside [the yard map](https://example.com/yard_map_(v2)), as _every_ lead does.";
+    expect((await lee.api("POST", `${L}/assumptions`, { statement: "Night crews keep their own rota.", body: md })).status).toBe(201);
+    const mockup = await lee.api("POST", `${L}/mockups`, { title: "Rota screen", pages: [{ page_id: "rota", title: "Rota", html: "<p>Shifts</p>", notes: md }] });
+    expect(mockup.status, JSON.stringify(mockup.body)).toBe(201);
+    const source = await lee.api("POST", `${L}/sources`, { title: "Shift notes — Example Co", tags: [] });
+    expect((await lee.api("PUT", `${L}/sources/${source.body.record_id}/derived/text`, { content: `${md}\n` })).status).toBe(200);
+
+    const r = (await lee.api("GET", `${L}/search?mode=plain&query=${encodeURIComponent('"yard map" rota')}`)).body;
+    const of = (kind: string) => r.results.find((x: { kind: string }) => x.kind === kind);
+    const hits = of("source").hits as { text: string; marks: [number, number][]; char_start: number }[];
+    const excerpts = [
+      { text: of("assumption").snippet, marks: of("assumption").snippet_marks },
+      { text: of("mockup").snippet, marks: of("mockup").snippet_marks },
+      ...hits.map((x) => ({ text: x.text, marks: x.marks })),
+    ];
+    expect(excerpts).toHaveLength(3);
+    for (const e of excerpts) {
+      expect(e.text).toBe("The night crew keeps the rota in rota_v2, beside the yard map, as every lead does.");
+      expect(e.marks.map(([a, b]: [number, number]) => e.text.slice(a, b))).toEqual(["rota", "rota", "yard map"]);
+    }
+    // A hit still says where its piece starts in the text as written, which a reader opens it at.
+    expect(hits[0]).toMatchObject({ field: "text", char_start: 0 });
+  });
+
+  it("shows an escaped character alone in an excerpt, its marks on the words shown", async () => {
+    const md = "The \\*late\\* crew pins \\[the gate rota\\] by the hut, and \\_every\\_ lead reads the rota twice.";
+    expect((await lee.api("POST", `${L}/assumptions`, { statement: "Late crews read the hut first.", body: md })).status).toBe(201);
+    const source = await lee.api("POST", `${L}/sources`, { title: "Hut notes — Example Co", tags: [] });
+    // A first paragraph long enough to be pieces of its own, so the escaped one is a piece that starts after it.
+    const first = "The hut opens at six and the crews come in one by one. ".repeat(30).trim();
+    expect((await lee.api("PUT", `${L}/sources/${source.body.record_id}/derived/text`, { content: `${first}\n\n${md}\n` })).status).toBe(200);
+
+    const r = (await lee.api("GET", `${L}/search?mode=plain&query=${encodeURIComponent('"gate rota" late')}`)).body;
+    const assumption = r.results.find((x: { kind: string }) => x.kind === "assumption");
+    const hit = r.results.find((x: { kind: string; id: string }) => x.kind === "source" && x.id === source.body.record_id).hits[0];
+    const shown = "The *late* crew pins [the gate rota] by the hut, and _every_ lead reads the rota twice.";
+    for (const e of [{ text: assumption.snippet, marks: assumption.snippet_marks }, { text: hit.text, marks: hit.marks }]) {
+      expect(e.text).toContain(shown);
+      expect(e.marks.map(([a, b]: [number, number]) => e.text.slice(a, b))).toEqual(["late", "gate rota"]);
+    }
+    expect(hit.text).not.toContain("\\");
+    // Where its piece starts is counted in the text as written, backslashes and all.
+    expect(hit.char_start).toBe(first.length + 2);
+    const at = await lee.api("GET", `${L}/sources/${source.body.record_id}/derived/text?offset=${hit.char_start}&limit=40`);
+    expect(at.body.text.startsWith("The \\*late\\* crew")).toBe(true);
   });
 
   it("counts a source's matches as its Find in the text does, in its text alone, beside the places it says them", async () => {

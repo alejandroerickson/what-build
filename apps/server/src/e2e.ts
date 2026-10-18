@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
 import { createBlobStore, createMailer, createPorts } from "./app.ts";
@@ -22,7 +22,7 @@ import { Worker } from "./worker.ts";
  *                                    and serve them on :5283, beside any pnpm dev
  *   pnpm e2e plans                   list the plans
  *   pnpm e2e run [plan]              start a run: a folder for its log, screenshots and report
- *   pnpm e2e stop                    stop the browser and pnpm dev:e2e
+ *   pnpm e2e stop                    stop this checkout's browser and pnpm dev:e2e
  *   pnpm e2e browser <command>       drive a real browser (pnpm e2e browser help)
  *   pnpm e2e mcp <command>           call the MCP server as an agent (pnpm e2e mcp help)
  *
@@ -43,6 +43,8 @@ export const E2E = {
   goldenRecord: join(E2E_DIR, "golden.json"),
   runs: join(E2E_DIR, "runs"),
   currentRun: join(E2E_DIR, "current-run"),
+  /** The process id of this checkout's pnpm dev:e2e while it runs, so pnpm e2e stop stops it and no other checkout's. */
+  pidFile: join(E2E_DIR, "dev.pid"),
 };
 export const e2eBaseUrl = () => process.env["WHATBUILD_E2E_URL"] ?? `http://localhost:${E2E.webPort}`;
 export const PLANS = resolve(root, "e2e/plans");
@@ -214,15 +216,68 @@ function startRun(plan: string | undefined) {
   Report      write it to ${join(dir, "report.md")}`);
 }
 
-/** Stop the browser and the instance (pnpm dev:e2e), wherever they were started from. */
+/**
+ * The command line of a running process, whole, or null when there is none or it cannot be read:
+ * from /proc where there is one, else from ps at any width.
+ */
+function commandOf(pid: number): string | null {
+  try {
+    if (existsSync("/proc/self/cmdline")) return readFileSync(`/proc/${pid}/cmdline`, "utf8").split("\0").join(" ").trim() || null;
+    return execFileSync("ps", ["-ww", "-o", "command=", "-p", String(pid)], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The process id of this checkout's pnpm dev:e2e, from its pid file, or null when none runs. A file
+ * left by an instance that is gone is removed, so a process that took its id later is never taken
+ * for it: the id must still be running dev.ts in its end-to-end mode.
+ */
+export function instancePid(pidFile = E2E.pidFile): number | null {
+  if (!existsSync(pidFile)) return null;
+  const pid = Number(readFileSync(pidFile, "utf8").trim());
+  if (Number.isInteger(pid) && pid > 0 && commandOf(pid)?.includes("dev.ts --e2e")) return pid;
+  rmSync(pidFile, { force: true });
+  return null;
+}
+
+/** Record this process as the checkout's end-to-end instance, until it exits. Called by pnpm dev:e2e. */
+export function holdInstancePid(pidFile = E2E.pidFile) {
+  mkdirSync(dirname(pidFile), { recursive: true });
+  writeFileSync(pidFile, `${process.pid}\n`);
+  process.on("exit", () => {
+    if (existsSync(pidFile) && readFileSync(pidFile, "utf8").trim() === String(process.pid)) rmSync(pidFile, { force: true });
+  });
+}
+
+/**
+ * Stop this checkout's end-to-end instance, and no other checkout's: interrupt the process its pid
+ * file names, as Ctrl-C does, and wait for it to stop its servers and its Postgres.
+ */
+export async function stopInstance(pidFile = E2E.pidFile, waitMs = 30_000): Promise<{ pid: number | null; stopped: boolean }> {
+  const pid = instancePid(pidFile);
+  if (pid === null) return { pid, stopped: false };
+  try {
+    process.kill(pid, "SIGINT");
+  } catch {
+    // It ended by itself just now.
+  }
+  for (const until = Date.now() + waitMs; Date.now() < until; await new Promise((r) => setTimeout(r, 100)))
+    if (!commandOf(pid)?.includes("dev.ts --e2e")) {
+      if (existsSync(pidFile) && readFileSync(pidFile, "utf8").trim() === String(pid)) rmSync(pidFile, { force: true });
+      return { pid, stopped: true };
+    }
+  return { pid, stopped: false };
+}
+
+/** Stop the browser and the instance (pnpm dev:e2e) this checkout started. */
 async function stopAll() {
   await (await import("./e2e-browser.ts")).browserCommand(["stop"]);
-  try {
-    execFileSync("pkill", ["-INT", "-f", "dev.ts --e2e"]);
-    console.log("Stopped pnpm dev:e2e.");
-  } catch {
-    console.log("pnpm dev:e2e is not running.");
-  }
+  const { pid, stopped } = await stopInstance();
+  if (stopped) console.log("Stopped pnpm dev:e2e.");
+  else if (pid === null) console.log("pnpm dev:e2e is not running from this checkout.");
+  else console.log(`pnpm dev:e2e (process ${pid}) was asked to stop and is still stopping. Run pnpm e2e stop again in a moment.`);
 }
 
 async function main() {
@@ -239,7 +294,7 @@ async function main() {
   pnpm dev:e2e                      reset to the golden master and serve on ${e2eBaseUrl()}
   pnpm e2e plans                    list the plans in e2e/plans
   pnpm e2e run [plan]               start a run of a plan (with none, print the current run)
-  pnpm e2e stop                     stop the browser and pnpm dev:e2e
+  pnpm e2e stop                     stop this checkout's browser and pnpm dev:e2e
   pnpm e2e browser <command>        drive the browser (pnpm e2e browser help)
   pnpm e2e mcp <command>            call the MCP server as an agent (pnpm e2e mcp help)`);
   

@@ -60,10 +60,11 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   under it; an `.xlsx` reads values as the sheet shows them (`+14.0%`, not `0.14`), reads and marks
   hidden sheets, columns and rows and a value other than zero that its format shows as nothing (a
   zero shown as nothing stays a blank), and says when a formula was saved without its value; a
-  `.pdf` reads a table as a table, a label beside its value (`Samples: 79`) and a running header or
-  footer once, where it first appears, leaving its page numbers out, which
-  `facts.headers_and_footers` in `derived(action="manifest")` lists (plain-text parser 8, XLSX 6,
-  PDF 5). A reading made earlier keeps its layout until its attachment is read again, with
+  `.pdf` reads a table as a table, a label beside its value (`Samples: 79`), a heading set larger
+  than its page's text as a Markdown heading of its own rather than the first words of the
+  paragraph under it, and a running header or footer once, where it first appears, leaving its
+  page numbers out, which `facts.headers_and_footers` in `derived(action="manifest")` lists
+  (plain-text parser 8, XLSX 6, PDF 5). A reading made earlier keeps its layout until its attachment is read again, with
   `derived(action="rederive")` or Read it again in the web app, or by a public sandbox's reset
   (below); a source whose text still follows that attachment then takes the new text, and a text
   someone wrote or edited is left alone. Left unread, those sources read and are found as before.
@@ -123,7 +124,9 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   too, are centred on where the most of the words are (a quoted phrase on the phrase), start and
   end at whole words, and mark their words in a text with an ellipsis or a ligature in it, where
   they were left unmarked; an assumption's body and the product concept show as words, without
-  their Markdown, as a source's text does. A source's result carries `match_count`, how many times
+  their Markdown, as a source's text does, and every excerpt, a mockup's notes and a source's text
+  too, drops italics and code markers, shows a link as its text, without its address, and shows
+  an escaped character (`\[`, `\*`) without its backslash. A source's result carries `match_count`, how many times
   its text says the words as its Find in the text counts them, and that is the "N matches" the
   palette and the Search screen show, so it agrees with the find's "… of N" (it counted places
   before, which `hit_count` still does).
@@ -155,7 +158,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   500 (a source's attachment and text, an export, Story and mockup pages and sign-in included). An unexpected error says how
   to report it where it was met: Submit feedback in the web app's account menu, `submit_feedback`
   for an agent. A grouped tool called without `action` says it is missing and lists the tool's
-  actions; a standalone tool called with `describe`, `action` or `params` says its fields are its
+  actions, and an unknown action lists them too: only those the connection is offered, as its tool
+  list shows them, where an unknown action listed every one, a permanent delete to an Edit
+  connection included, and an unknown tool lists the tools the connection is offered, without
+  `submit_feedback` where its person turned it off; a standalone tool called with `describe`, `action` or `params` says its fields are its
   arguments; and a list sent as one value says what the list takes (`status` takes a list, such as
   `["confirmed"]`). On a connection whose person turned feedback off, `submit_feedback` is
   refused with `403 feedback_off` whatever is sent, a call with invalid input included. An
@@ -163,7 +169,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   (`sources(action="update")`) and editing, archiving, restoring or deleting one of its comments
   are refused with `409 record_archived`, as adding a comment was, and the refusal says how to
   restore the source; the web app offered none of them there but an admin's delete of a comment,
-  which it now leaves out too.
+  which it now leaves out too. In a public sandbox, someone its staff gave a role, who meets its
+  limits but is no visitor, is no longer told a limit is for visitors: a refusal says what is off
+  "except for its owners and admins" and counts "each person but its owners and admins", and a
+  visitor is told as before.
 - **Nothing to change; agents will notice `product` naming an organization.** Over MCP, an
   organization's or a team's action, such as `sandbox(action="status")`, called with `product`
   and no `tenant` acts on the organization (and team) that product is in, where it was refused

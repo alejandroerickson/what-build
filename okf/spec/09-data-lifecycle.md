@@ -454,7 +454,12 @@ missing or unreadable value is its default.
 They apply to visitors only. Staff meet the limits every organization has (§9.2), and so does a
 visitor, who meets whichever is lower. `sandbox.settings` returns all of them as `limits`, with
 each one's value, default, what it is counted over and the error it answers with; `sandbox.status`
-returns them to a visitor with what is used today.
+returns them to a visitor with what is used today. A refusal says whom a limit is for as its
+caller stands (`you.role` in `sandbox.status`, [§3.10](03-accounts-teams-and-identity.md)): to a
+visitor who came in by an invitation link, visitors ("Writing is off for visitors in this public
+sandbox", "each visitor"); to a member, whom staff gave a role and who is no visitor, everyone but
+its owners and admins ("Writing is off in this public sandbox, except for its owners and admins",
+"each person but its owners and admins").
 
 | Limit | Setting | Default | Counted over | Refusal |
 |---|---|---|---|---|
@@ -503,7 +508,8 @@ Rules:
    `org_writes_per_day`, `sources_per_day`, `exports_per_day`, `bytes_per_day`, `org_bytes_per_day`)
    is switched off rather than used up: the call is refused, before its allowance is counted, with
    `403 sandbox_restricted`, like a switch that is off, with `{ setting, limit: 0 }` in `details` and
-   a message that says it is off for visitors, never that it starts again at the next reset.
+   a message that says it is off (for visitors, or except for its owners and admins, as above),
+   never that it starts again at the next reset.
    `sandbox.status` still lists it, and the app shows it to a visitor as Off.
 9. **A Story preview is a call, not a write.** `story.preview` changes nothing anyone sees, so it
    takes nothing from the writes a visitor or the organization has left; its text meets

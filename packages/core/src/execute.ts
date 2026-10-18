@@ -138,7 +138,8 @@ async function sandboxOf(env: Env, principal: Principal, scope: Scope): Promise<
   if (scope.tenant) {
     if (!scope.tenant.sandbox) return null;
     const visitor = isVisitor(scope);
-    return { ...(await loadSandbox(env.db, scope.tenant.tenant_id)), visitor, appears_as: visitor ? visitorName(scope.tenant.tenant_id, principal.account_id) : null };
+    // Anyone but its staff meets its limits; only someone who came in by an invitation link is a visitor.
+    return { ...(await loadSandbox(env.db, scope.tenant.tenant_id)), visitor, member: visitor && scope.tenantRole !== "visitor", appears_as: visitor ? visitorName(scope.tenant.tenant_id, principal.account_id) : null };
   }
   if (!principal.sandbox_only) return null;
   const held = await env.db
@@ -150,7 +151,7 @@ async function sandboxOf(env: Env, principal: Principal, scope: Scope): Promise<
     .where("t.sandbox", "=", true)
     .executeTakeFirst();
   if (!held) return null;
-  return { ...(await loadSandbox(env.db, held.tenant_id)), visitor: true, appears_as: visitorName(held.tenant_id, principal.account_id) };
+  return { ...(await loadSandbox(env.db, held.tenant_id)), visitor: true, member: false, appears_as: visitorName(held.tenant_id, principal.account_id) };
 }
 
 /**

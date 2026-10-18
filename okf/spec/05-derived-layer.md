@@ -126,8 +126,8 @@ into paragraphs, headings, turns and table rows, and those are laid out as one M
 - Paragraphs are separated by a blank line, and the text ends with one newline.
 - **Headings stay headings**, as `#` to `######`, at levels that agree across formats: a Markdown
   `#` title and a DOCX Title are level 1, and the sections under them (`##`, or Heading 1 below a
-  Title) level 2. A PDF has a `# Page N` heading before each page's text, and a workbook a
-  `# Sheet: <name>` heading before each sheet.
+  Title) level 2. A PDF has a `# Page N` heading before each page's text, its own headings under
+  it at level 2 and below, and a workbook a `# Sheet: <name>` heading before each sheet.
 - **A timed transcript** (VTT, SRT) says who spoke and when in the text: a turn is
   `**Dana** (12:05): words`, its time `m:ss`, or `h:mm:ss` from an hour on. A speaker's consecutive
   cues run on as one paragraph until it holds about 1,200 characters; the next cue then opens a
@@ -158,7 +158,7 @@ into paragraphs, headings, turns and table rows, and those are laid out as one M
 | DOC (`.doc`, `application/msword`) | The format is read from the file's first bytes, never from its name, and the `doc_format` fact records it. A **Word binary document** (an OLE2 compound file) from Word 97-2003 (`word97`), or from Word 6.0 or Word 95 (`word6`), gives its main text through the piece table, with 8-bit Windows-1252 and UTF-16 pieces: one paragraph per paragraph, built-in heading styles (Title, Subtitle, Heading 1-9) as headings at DOCX's levels, tables as tables, field results kept and field codes dropped, page and section breaks as paragraph breaks, and `Name: words` paragraphs as speaker turns in a transcript. Word 97 tables come from the paragraphs' table flags; Word 6 tables are inferred from cell marks, the first row setting the width. Headers, footnotes, comments and list numbers are not read. Encrypted documents, fast-saved Word 6 and Word 95 documents and Word 2 and older documents fail with the reason. A **DOCX package** under a `.doc` name is read by the DOCX parser (`docx`); a **MIME HTML** file (Word's "Web Page" save, wiki Word exports) has its first `text/html` part, quoted-printable or base64, read by the HTML parser (`mhtml`); **plain HTML** is read by the HTML parser in the character set its `<meta>` declares (`html`). Rich Text Format and anything else fail with the reason, as does HTML with no readable text. |
 | XLSX | Sheets and rows, laid out as above, each value as the sheet shows it, through its cell's number format ([`numfmt.ts`](../../packages/parsers/src/numfmt.ts)): percentages, decimals, thousands separators and scaling (`#,##0,`), currency, explicit signs (`+0.0%`), negatives in brackets, fractions, scientific notation, conditions (`[>=1000]0.0,"K"`), a text section (`@" (est.)"`), and dates and times (`5 Mar 2026`, `1:30 PM`, elapsed `30:00:00`) in the workbook's 1900 or 1904 date system: a date alone is the day its value falls in, and a time is rounded to the finest part it shows, into the next day if need be. A negative in a section that shows it only by a colour (`#,##0;[Red]#,##0`) gets the minus the colour stood for. The locale's own formats, which a file does not record, read in ISO 8601: the short date (14) and the date and time (22) as `2026-04-10` and `2026-04-10 12:00`, the system long date and time (`[$-F800]`, `[$-F400]`) as a date and `13:30:00`; the currency formats that show the locale's symbol (5 to 8, 42, 44) read without one. A negative date, a date alone on a day before the 1900 system's first, and a number in a text format read as General shows them; a time under one day in a format that shows a date and a time shows as the time alone (`0.5` under `m/d/yyyy h:mm` is `12:00`). A hidden sheet, column or row is read, so search finds it, and marked: `# Sheet: Workings (hidden)`, a column `Rate (hidden)`, a row `3 (hidden)`; so is a value its format shows as nothing (`;;;`, or `0;;0` for a negative), read as General: `42 (hidden)`. A zero its format shows as nothing (`0;-0;;@`, `#,##0;(#,##0);`, `;;;`) is the blank the sheet shows, an empty cell, as hiding zeros hides no information. A formula the file holds without its value, as libraries that never calculate write it, reads `=SUM(B2:B3) (no stored value)` rather than 0 or nothing. |
 | CSV, TSV (`.csv`, `.tsv`) | Read like a one-sheet workbook, with the same header rule. Quoted fields may hold delimiters and line breaks; the delimiter (comma, semicolon or tab) is taken from the first line. |
-| PDF | Text layer only, page by page, for a PDF of at most 2,000 pages, each page laid out as a person reads it (below): paragraphs, a table as a table, a label beside its value, and a running header or footer once, its page numbers left out. No OCR; images are never decoded. A PDF with no text layer, its pages pictures as a scan's are, is `unsupported`, as an image is (§5.5). |
+| PDF | Text layer only, page by page, for a PDF of at most 2,000 pages, each page laid out as a person reads it (below): headings set larger than the text, paragraphs, a table as a table, a label beside its value, and a running header or footer once, its page numbers left out. No OCR; images are never decoded. A PDF with no text layer, its pages pictures as a scan's are, is `unsupported`, as an image is (§5.5). |
 | HTML | Main-content text with headings; scripts, styles, navigation, forms and frames dropped; tables as tables; adjacent elements (labels, breadcrumbs) kept apart by a space. A page that nests elements more than 512 deep, or would make far more elements than it has tags, fails with the reason. |
 
 **Line breaks in plain text** ([`plaintext.ts`](../../packages/parsers/src/plaintext.ts)). Only
@@ -215,10 +215,20 @@ order and laid out by where they stand on the page:
   rows at most. A table is a pipe table under its first row (`table_count` counts them), except a
   form, half of whose rows hold a label (`Client:` beside `Example Co.`), read a line per row, and
   columns of prose drawn a line across them at a time, read a column at a time.
+- **Headings.** A line of one cell set clearly larger than its page's text, every run of it at
+  least 1.15 times the size most of the page's characters outside its tables are set in, is a
+  heading of its own, never run into the text before or after it, with the lines just under it in
+  its size joined to it. It is one when it takes at most three lines and 200 characters, holds a
+  letter, is no list item and does not end as prose does (`.`, `,`, `;`, `…`): a large line that
+  does is prose set large, a pull quote or large print, and reads as a paragraph, as before. Its
+  level follows its size, the same size the same level throughout the file: the largest is level
+  2, under the page's `# Page N`, the next 3, and so on to 6. A heading set in the text's own size,
+  in bold or in capitals, is not told from the text, since the text layer says nothing of a font's
+  weight: it is read with the paragraph under it.
 - **Paragraphs.** Lines of one cell are joined into a paragraph that ends at a line ending in `.`,
-  `!`, `?`, `:` or `;`, as they always were: a heading runs into the paragraph under it, and list
-  items that end no sentence run on. Lines next to one another that each start with a short label
-  (`Sample ID: S-0001`) stand apart.
+  `!`, `?`, `:` or `;`, as they always were, or at a heading: list items that end no sentence run
+  on. Lines next to one another that each start with a short label (`Sample ID: S-0001`) stand
+  apart.
 - **Running headers and footers.** One of the three lines at a page's top or bottom, in the outer
   eighth of the page and set apart from the text inward by white space at least 1.5 of the smaller
   font's height, or a line at another angle than the page's text (a stamp up the margin), is

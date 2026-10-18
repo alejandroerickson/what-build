@@ -54,7 +54,8 @@ application's role, and shaped into two organizations
 - **The standard organization** (`<slug>-standard`, named "<name> (standard)"): a copy of the
   sandbox organization's teams, products, content, activity and the memberships of everyone but
   its visitors, under new ids, with every reference to an old id rewritten, in columns and in
-  JSON. A new id keeps the time of the one it replaces, so lists ordered by id, such as activity,
+  JSON. Its sources' search index is copied with them, so search finds in it what it finds in the
+  sandbox organization. A new id keeps the time of the one it replaces, so lists ordered by id, such as activity,
   keep their order in the copy. It is not a sandbox. The files are shared, since blobs never change. After the copy, every
   foreign key is checked.
 
@@ -75,7 +76,9 @@ golden master and copies of it, and refuses while the instance runs; stop it wit
 
 The build migrates what it keeps to the schema of the code it runs from, and the worker does
 the jobs those migrations queue, before the standard copy is made, so the copy covers every table
-there is. Once built, the golden master does not change: migrations added to the code later
+there is, and the search index as those jobs left it. A golden master built before the copy took
+the index has none in the standard organization, where search then finds a source by its title
+and tags at most: build it again. Once built, the golden master does not change: migrations added to the code later
 run on each fresh copy when it is served. Build it again from a newer pull to move it forward, and
 stop the instance first. In a git worktree without pulls of its own, pulls are read
 from the main checkout's `.what-build/fixtures`.
@@ -87,7 +90,9 @@ corepack pnpm dev:e2e
 ```
 
 An agent runs it in the background with its output in `.what-build/e2e/server.log`, and
-`pnpm e2e stop` stops it and the browser. It drops `e2e`, creates it again from `golden` (a Postgres template copy, which takes a moment
+`pnpm e2e stop` stops it and the browser: this checkout's, which its process id in
+`.what-build/e2e/dev.pid` names, never another checkout's instance. It refuses to start while this
+checkout's instance runs. It drops `e2e`, creates it again from `golden` (a Postgres template copy, which takes a moment
 even for a large copy), copies the files, applies any migration newer than the golden master, names the sandbox organization the public
 sandbox, and serves. It also marks the sandbox as reset just now, so that its daily reset does not
 put the baseline back over the golden master's content when the instance starts; a run that lasts

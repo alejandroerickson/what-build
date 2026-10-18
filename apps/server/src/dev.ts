@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { createBlobStore, createMailer, createPorts } from "./app.ts";
 import { loadConfig } from "./config.ts";
 import { createDb, migrate } from "./database.ts";
-import { E2E, resetToGolden } from "./e2e.ts";
+import { E2E, holdInstancePid, instancePid, resetToGolden } from "./e2e.ts";
 import { addSamplePeople, FIXTURE_BLOBS, FIXTURE_DATABASE } from "./fixture.ts";
 import { SEED_ACCOUNTS, seed, seedSandbox } from "./seed.ts";
 import { connectOrStartLocalPg, startLocalPg, type LocalPg } from "./testing/pg.ts";
@@ -48,9 +48,13 @@ async function main() {
   let databaseUrl = END_TO_END ? undefined : process.env["DATABASE_URL"];
   let sandboxTenant: string | undefined;
   if (END_TO_END) {
+    const running = instancePid();
+    if (running !== null) throw new Error(`This checkout's end-to-end instance is already running (process ${running}). Stop it with pnpm e2e stop first.`);
     // Another server on these ports would answer the tests in its place, with other code and data.
     for (const [name, port, variable] of [["API", API_PORT, "WHATBUILD_E2E_API_PORT"], ["web", WEB_PORT, "WHATBUILD_E2E_WEB_PORT"]] as const)
       if (!(await portFree(port))) throw new Error(`The end-to-end instance's ${name} port ${port} is taken by another process. Stop it, or choose another port with ${variable}.`);
+    // So that pnpm e2e stop stops this instance, and no other checkout's.
+    holdInstancePid();
     console.log("Starting the end-to-end instance's Postgres (embedded, in .what-build/e2e/pg)…");
     pg = await connectOrStartLocalPg(E2E.pgDir, E2E.pgPort, { portVariable: "WHATBUILD_E2E_PG_PORT" });
     if (pg.encoding !== "UTF8") console.log(`  The golden master was built in ${pg.encoding}, before local clusters were made in UTF-8: build it again with pnpm e2e golden.`);
