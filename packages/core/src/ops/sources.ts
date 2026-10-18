@@ -24,8 +24,16 @@ export async function loadRecord(ctx: OpContext, recordId: string, opts: { lock?
     if (tomb) throw gone("record_deleted", `Source ${recordId} was deleted permanently on ${tomb.deleted_at}.`, { tombstone: tomb });
     throw notFound(`Source ${recordId} doesn’t exist in this product.`);
   }
-  if (opts.live && row.archived_at) throw conflict("record_archived", `Source ${recordId} is archived; restore it first.`);
+  if (opts.live && row.archived_at) throw archivedSource(recordId);
   return row;
+}
+
+/** The refusal of a write to an archived source, which is read-only until restored: what to do, in both doors' words. */
+export function archivedSource(recordId: string) {
+  return conflict(
+    "record_archived",
+    `Source ${recordId} is archived, and an archived source is read-only. Nothing was changed. Restore it first, with sources(action="restore", params={"record_ids": ["${recordId}"]}) or Restore on the source in the web app, then send this again.`,
+  );
 }
 
 /**
@@ -598,12 +606,13 @@ export const updateSource = defineOperation({
   mutates: true,
   summary: "Correct a source's metadata in place: title, date or tags. Pass only what changes.",
   description:
-    "Fix mistakes here; never archive and recreate, because links and comments point at the record id. The id, attachments, derived text and comments are untouched. tags replaces the whole list. Requires expected_etag: the source's current etag, from sources(action=\"get\") or the result of your last write to it. Adding an attachment also changes it. A stale one gets 409 stale_etag with details.current_etag; read the source again before retrying.",
+    "Fix mistakes here; never archive and recreate, because links and comments point at the record id. The id, attachments, derived text and comments are untouched. tags replaces the whole list. An archived source is read-only: restore it first (sources(action=\"restore\")), or this is refused with 409 record_archived. Requires expected_etag: the source's current etag, from sources(action=\"get\") or the result of your last write to it. Adding an attachment also changes it. A stale one gets 409 stale_etag with details.current_etag; read the source again before retrying.",
   input: z.strictObject({ record_id: id("source"), expected_etag: expectedEtag, ...recordMetadata, title: recordMetadata.title.optional() }),
   rest: { method: "PATCH", path: "/sources/:record_id" },
   mcp: { tool: "sources", action: "update" },
   async handler(ctx, input) {
-    const r = await loadRecord(ctx, input.record_id, { lock: true });
+    // An archived source is read-only, its title, date and tags too, until sources.restore brings it back.
+    const r = await loadRecord(ctx, input.record_id, { lock: true, live: true });
     checkEtag(input.expected_etag, r.etag, "source");
     const next = {
       title: input.title ?? r.title,
@@ -778,7 +787,7 @@ export const updateAnnotation = defineOperation({
   mutates: true,
   summary: "Edit a comment's text or tags, or archive or restore it.",
   description:
-    "Requires expected_etag. Pass only what changes. The previous text is kept, and a product export includes it, but no action reads it back yet. When archiving, say why in archive_reason rather than rewriting the comment; the reason stays with the comment (list_annotations shows it) and stays out of the activity log.",
+    "Requires expected_etag. Pass only what changes. The previous text is kept, and a product export includes it, but no action reads it back yet. When archiving, say why in archive_reason rather than rewriting the comment; the reason stays with the comment (list_annotations shows it) and stays out of the activity log. While the source is archived it is read-only, its comments included: this is refused with 409 record_archived until the source is restored.",
   input: z.strictObject({
     annotation_id: id("annotation"),
     expected_etag: expectedEtag,
@@ -792,6 +801,8 @@ export const updateAnnotation = defineOperation({
   async handler(ctx, input) {
     const a = await ctx.db.selectFrom("annotations").selectAll().where("annotation_id", "=", input.annotation_id).where("product_id", "=", productId(ctx)).forUpdate().executeTakeFirst();
     if (!a) throw notFound(`Comment ${input.annotation_id} doesn’t exist in this product.`);
+    // A comment is part of its source, which is read-only while archived: editing, archiving and restoring one wait for it.
+    await loadRecord(ctx, a.record_id, { live: true });
     checkEtag(input.expected_etag, a.etag, "comment");
     if (input.archive_reason !== undefined && input.archived !== true) throw invalid("invalid_input", "archive_reason goes with archived: true.");
     if (input.note !== undefined && input.note !== a.note) {
@@ -831,7 +842,7 @@ export const deleteAnnotation = defineOperation({
   mutates: true,
   summary: "DELETE PERMANENTLY — cannot be undone. Delete one comment on a source; archiving it is the reversible alternative.",
   description:
-    "Destroys the comment, its tags and its earlier text, and leaves a tombstone: reads of it return 410 with who, when and why. Nothing points at a comment, so there is no delete_impact: show the person the comment itself (from list_annotations) and delete only once they approve. " +
+    "Destroys the comment, its tags and its earlier text, and leaves a tombstone: reads of it return 410 with who, when and why. Nothing points at a comment, so there is no delete_impact: show the person the comment itself (from list_annotations) and delete only once they approve. While the source is archived, it is refused with 409 record_archived until the source is restored. " +
     `This is permanent and cannot be undone. Needs admin, and a connection at Admin. Never slip a delete into a run of other actions. Pass the comment's etag as expected_etag, the person's reason, and confirm set to exactly "${DELETE_CONFIRMATION}".`,
   input: z.strictObject({ annotation_id: id("annotation"), ...deleteGuards }),
   rest: { method: "DELETE", path: "/annotations/:annotation_id" },
@@ -843,6 +854,8 @@ export const deleteAnnotation = defineOperation({
       await refuseIfDeleted(ctx, "annotation", input.annotation_id, `Comment ${input.annotation_id}`);
       throw notFound(`Comment ${input.annotation_id} doesn’t exist in this product.`);
     }
+    // Deleting a comment is a write to its source, refused while the source is archived, as adding one is.
+    await loadRecord(ctx, a.record_id, { live: true });
     checkEtag(input.expected_etag, a.etag, "comment");
     const r = await ctx.db.selectFrom("records").select("title").where("record_id", "=", a.record_id).executeTakeFirst();
     await leaveTombstone(ctx, { object_type: "annotation", object_id: a.annotation_id, title: truncateQuote(a.note, 200), reason: input.reason });

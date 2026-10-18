@@ -70,7 +70,7 @@ Most tools are grouped: `sources`, `attachments`, `derived`, `outcomes`, `assump
     assumptions(action="create", describe=true)
     assumptions(action="create", product="acme/core/onboarding", params={"statement": "…"})
 
-`search`, `get_skill` and `submit_feedback` are standalone tools with direct arguments. Unknown actions and fields are refused (422), and errors begin with the status code and
+`search`, `get_skill` and `submit_feedback` are standalone tools: their fields are their arguments, with no `action`, `params` or `describe`. Unknown actions and fields are refused (422), and errors begin with the status code and
 say what a correct call looks like. A list that pages answers `next_cursor`: pass it back as
 `cursor` (sources, comments, outcomes, assumptions, search, activity, a sandbox's visitors). A Story
 page's or a mockup's versions page by number: pass `next_before` back as `before`. Other lists
@@ -82,7 +82,10 @@ when you tell the person a time, give it in their own time zone.
 
 Changing something that exists takes the `etag` of your last read of it as `expected_etag`. A
 source has four: its own (for `sources(action="update")` and `move_to_product`), and one each on
-its derived text, its summary and its notes (below). `tags` sent to `sources(action="update")`,
+its derived text, its summary and its notes (below). A write that may create what it writes (a
+source's summary, notes or text, a Story page's first version, the first Story style or
+hierarchy, a new mockup, an allowance) takes none the first time, and refuses one sent then
+(`409 stale_etag` with `current_etag: null`): leave it out until the thing exists. `tags` sent to `sources(action="update")`,
 `update_annotation` or `assumptions(action="update")` replaces the whole list, as do an
 assumption's `outcome_ids` and `links`: send every one to keep.
 
@@ -341,7 +344,7 @@ Search reads what sources say: each source's title, tags, summary, derived text,
 never its attachments; and assumptions' statements and bodies. It is lexical, in three modes. Exact
 text is the default: it matches the query as you send it, ignoring only case, so its spaces, `%`
 and `_` count; send no stray spaces. `ranked` takes `"phrases"`, `prefix*`, AND, OR, NOT and
-parentheses. `plain` searches everything in the product the way a person types into the app's
+parentheses, and a number in it finds the id it ends (`20734` finds `CB26-20734`). `plain` searches everything in the product the way a person types into the app's
 search box: sources with the best places they say the words, assumptions, outcomes, mockups, Story
 pages and the product concept, forgiving endings and word order, correcting a word that matches
 nothing (`corrections` says so; `strict: true` turns it off), and naming `missing` words when
@@ -359,7 +362,8 @@ the call ran).
 A hit names its source (`record_id`), the `field` it is in (`title`, `tags`, `summary`, `text`,
 `notes`, or `comment` with the comment's `annotation_id`) and where: `char_start` and `char_end`
 are code-point offsets into that field. In exact search every place the words occur is a hit of
-its own, and `limit` counts hits: pass `next_cursor` back as `cursor` for the rest. Read around a
+its own, and `limit` counts hits: pass `next_cursor` back as `cursor` for the rest. With
+`scope: "all"`, assumptions come on the first page only; the pages after it hold source hits. Read around a
 hit in the text with `derived(action="text", offset=…)`, starting a little before `char_start`.
 Each text is matched in pieces of about 1,500 characters, so AND, OR and NOT combine terms within
 one piece: search terms that may sit far apart separately.
@@ -612,7 +616,9 @@ says "delete", "remove" or "get rid of", archive unless they say they want it go
 Restore brings each back: `sources(action="restore")` (by `record_ids`, as `archive` takes
 them), `update_annotation` with `archived: false`, `assumptions(action="archive",
 archived: false)`, `outcomes` or `mockups` with `action="restore"`, and
-`story(action="restore_page")`.
+`story(action="restore_page")`. An archived source is read-only: its title, date and tags, its
+text, summary and notes, its attachments and its comments are refused any change
+(`409 record_archived`) until it is restored.
 
 **Delete is permanent.** It needs admin and an Admin connection, so on an Edit connection you are
 not offered it at all. Only when the person asks: call the matching impact first
@@ -675,8 +681,8 @@ hear the first two before anything of theirs goes in.
 - **A visitor edits and nothing more.** No managing products or people, no permanent delete
   (archive instead), no fetching a file from a URL, and usually no export.
 
-Before your first write, call `sandbox(action="status", params={"tenant": "…"})` and tell the
-person its `notice` in your own words. Its `allowances` list every limit with what is used today.
+Before your first write, call `sandbox(action="status", params={"tenant": "…"})`, or with
+`product` set to the product you are in, and tell the person its `notice` in your own words. Its `allowances` list every limit with what is used today.
 Do not upload anything private, confidential or personal, even when asked to: say why, and offer
 to work with made-up material or with what is already there.
 

@@ -48,7 +48,11 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   summary and the notes, and `derived(action="text")` and `text.etag` the text's. An integration
   that rewrote these without reading first is refused until it reads, then passes the etag.
   People will notice that saving a summary, notes or text someone else changed meanwhile shows
-  their version, and saves over it only when asked.
+  their version, and saves over it only when asked. The other way round, an etag sent where there
+  is nothing to match is refused (`409 stale_etag`, `current_etag: null`) where it was ignored:
+  for the first `story(action="set_style")`, for `products(action="set_tenant_allowance")` on an
+  address without an allowance, and by `mockups(action="publish")` without `mockup_id`, which
+  refused it without saying so in `details`; leave it out until the object exists.
 - **Nothing is read again by itself, except in a public sandbox; existing plain-text and workbook
   attachments read better once read again.** A `.txt` now keeps its lines and list markers, joining
   only hard-wrapped prose, and ends a quoted message before the reply under it; an `.xlsx` reads
@@ -93,7 +97,17 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   finds the number after a hyphen, and never corrects it into a neighbouring one; one with a letter
   in it is found as its words side by side too (`q3-planning` in "Q3 planning"). Over MCP it takes
   `limit` (60 results unless asked). Search answers `search_scope`, the only place its own
-  scope shows over MCP.
+  scope shows over MCP. With `scope: "all"`, assumptions come on the first page only, so the
+  pages after it no longer repeat them, and a search of assumptions alone refuses a cursor
+  (`422 invalid_cursor`). Ranked search finds a bare number where a hyphen joins it to the rest of
+  an id (`20734` in `CB26-20734`). Plain search's excerpts, in the palette and the Search screen
+  too, are centred on where the most of the words are (a quoted phrase on the phrase), start and
+  end at whole words, and mark their words in a text with an ellipsis or a ligature in it, where
+  they were left unmarked; an assumption's body and the product concept show as words, without
+  their Markdown, as a source's text does. A source's result carries `match_count`, how many times
+  its text says the words as its Find in the text counts them, and that is the "N matches" the
+  palette and the Search screen show, so it agrees with the find's "1 of N" (it counted places
+  before, which `hit_count` still does).
 - **Nothing to change; agents will write the Story differently. The Story guidance is 5.0.0.**
   The Story is the team's own communication (what to build, the pitch, the plan), and neither the
   guidance nor the skill sets a rule about how a page quotes, paraphrases, attributes or links;
@@ -116,11 +130,32 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   longer quotes a comment's archive reason, and reads older entries without it. A product
   export's `README.txt` lists every kind of file the bundle holds, and `assumptions.json` no
   longer carries the database's search vector.
+- **Nothing to change; agents and people will notice clearer refusals.** A null character
+  (U+0000) in a request, its address, query, form or JSON fields and an MCP call's input alike, is
+  refused with `422 invalid_input` naming the field, before anything reads it, where it answered
+  500 (a source's attachment and text, an export, Story and mockup pages and sign-in included). An unexpected error says how
+  to report it where it was met: Submit feedback in the web app's account menu, `submit_feedback`
+  for an agent. A grouped tool called without `action` says it is missing and lists the tool's
+  actions; a standalone tool called with `describe`, `action` or `params` says its fields are its
+  arguments; and a list sent as one value says what the list takes (`status` takes a list, such as
+  `["confirmed"]`). On a connection whose person turned feedback off, `submit_feedback` is
+  refused with `403 feedback_off` whatever is sent, a call with invalid input included. An
+  archived source is read-only, as archiving always promised: correcting its title, date or tags
+  (`sources(action="update")`) and editing, archiving, restoring or deleting one of its comments
+  are refused with `409 record_archived`, as adding a comment was, and the refusal says how to
+  restore the source; the web app already offered none of them there.
+- **Nothing to change; agents will notice `product` naming an organization.** Over MCP, an
+  organization's or a team's action, such as `sandbox(action="status")`, called with `product`
+  and no `tenant` acts on the organization (and team) that product is in, where it was refused
+  with "`tenant` is required"; called with neither, it says to pass `params.tenant` and where to
+  read it. `members(action="list")`, `grant` and `revoke`, which take a product of their own in
+  `params`, still need `params.tenant`.
 - **The skill is 0.33.0.** Connected agents are asked to update their installed skill. It tells
-  them which etag a source's summary, notes and text take, how search matches and pages, how a
-  source's text is chosen and laid out, what an image or a scan needs, how to restore what was
-  archived, and, with the server's instructions, which installed copy to follow when there are
-  several. Nothing needs a new session: the new fields go through actions every client already
+  them which etag a source's summary, notes and text take, and to send none before a first write,
+  how search matches and pages, how a source's text is chosen and laid out, what an image or a
+  scan needs, how to restore what was archived and that an archived source is read-only, that a
+  standalone tool takes its fields as its arguments, and, with the server's instructions, which
+  installed copy to follow when there are several. Nothing needs a new session: the new fields go through actions every client already
   lists. An agent that keeps the older skill is refused when it writes a summary, notes or text
   without its etag, and the refusal says where to read it.
 

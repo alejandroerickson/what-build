@@ -1,10 +1,20 @@
 import { closestWord, excerpt, matchText, parseFind, termTsquery, wordRoot } from "@whatbuild/core";
+import { findCount, findPattern, findWords } from "@whatbuild/core/find-in-text";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createPorts } from "../src/app.ts";
 import { seed } from "../src/seed.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 describe("how plain search reads a query", () => {
+  it("reads the pieces a find may mark from a root that starts each root the find marks from", () => {
+    // Counting a source's matches reads the pieces its terms match as prefixes, so every place the
+    // find marks is in one of them: the find's root of a word starts with search's.
+    for (const w of ["pricing", "prices", "price", "planning", "planned", "note", "notes", "lies", "crew", "crews", "messages", "message", "ux", "scheduling", "quotes", "cb26-20734", "2026"]) {
+      const marked = /\(\?:(.*)\[\\p\{L\}\\p\{N\}\]\*\)$/.exec(findPattern(w)!.source)![1]!.replace(/\\/g, "");
+      expect(marked.startsWith(wordRoot(w)), `${w}: ${marked} from ${wordRoot(w)}`).toBe(true);
+    }
+  });
+
   it("forgives endings, so one root is a prefix of every form", () => {
     expect(wordRoot("pricing")).toBe("pric");
     expect(wordRoot("prices")).toBe("pric");
@@ -73,9 +83,54 @@ describe("how plain search reads a query", () => {
     expect(m.found).toEqual([true, true]);
     expect(m.ranges).toEqual([[0, 4], [5, 12], [18, 23]]);
     const long = `${"filler words here ".repeat(30)}the crew lead texts the office ${"more filler ".repeat(30)}`;
-    const e = excerpt(long, matchText(long, parseFind("crew office ").terms).ranges, 120);
+    const e = excerpt(long, matchText(long, parseFind("crew office ").terms), 120);
     expect(e.text.startsWith("…")).toBe(true);
     expect(e.marks.map(([a, b]) => e.text.slice(a, b))).toEqual(["crew", "office"]);
+  });
+
+  /** An excerpt of `text` for `query`, with what each mark covers. */
+  const cut = (query: string, text: string, width = 120) => {
+    const e = excerpt(text, matchText(text, parseFind(query).terms), width);
+    return { text: e.text, marked: e.marks.map(([a, b]) => e.text.slice(a, b)) };
+  };
+
+  it("marks the words of a text whose folding moves offsets, an ellipsis or a ligature in it", () => {
+    expect(cut('"crew message"', "Well… the crew lead said the crew message goes out at six.").marked).toEqual(["crew message"]);
+    expect(cut("file crew", "The ﬁle says the crew is late.").marked).toEqual(["ﬁle", "crew"]);
+    const m = matchText("½ of the crew… and the CREW", parseFind("crew ").terms);
+    expect(m.ranges.map(([a, b]) => "½ of the crew… and the CREW".slice(a, b))).toEqual(["crew", "CREW"]);
+  });
+
+  it("centres an excerpt on the place where the most of the words occur, a phrase on the phrase itself", () => {
+    // The phrase's first word comes early and alone; the excerpt is around the phrase, not it.
+    const phrase = cut('"crew message"', `Crew notes. ${"The yard opens at dawn and the trucks leave. ".repeat(8)}Later the crew message came, after the trucks left.`);
+    expect(phrase.marked).toEqual(["crew message"]);
+    expect(phrase.text).toContain("Later the crew message came");
+    // More matches of one word lose to fewer that hold every word.
+    const words = cut("crew message ", `Crew crew crew crew crew. ${"The yard is busy at dawn. ".repeat(8)}The message reached every crew at noon. ${"Then nothing. ".repeat(8)}`);
+    expect(words.marked).toEqual(["message", "crew"]);
+    // The place is in the middle, with words on both sides of it.
+    const mid = cut("gate code ", `${"word ".repeat(100)}the gate code ${"word ".repeat(100)}`);
+    const at = mid.text.indexOf("gate code");
+    expect(at).toBeGreaterThan(40);
+    expect(mid.text.length - at).toBeGreaterThan(40);
+  });
+
+  it("starts and ends an excerpt at word boundaries, unless the mark would fall out, and always holds a mark", () => {
+    for (const lead of ["", "a", "ab", "abc", "abcd"]) {
+      const e = cut("gate ", `${lead}${"yardmaster ".repeat(20)}the gate is shut ${"evening ".repeat(20)}`);
+      expect(e.marked, lead).toEqual(["gate"]);
+      expect(e.text, lead).toMatch(/^…(yardmaster|the) /);
+      expect(e.text, lead).toMatch(/ (evening|shut)…$/);
+    }
+    // A word too long to fit is cut, and so is a match longer than the excerpt, which is marked as far as it goes.
+    const long = cut("gate", `${"x".repeat(60)} gate${"y".repeat(400)} end`, 100);
+    expect(long.marked).toHaveLength(1);
+    expect(long.marked[0]!.startsWith("gate")).toBe(true);
+    // Emoji around the words are never cut in two.
+    const e = cut("gate ", `${"🚧".repeat(80)} the gate ${"🚧".repeat(80)}`, 60);
+    expect(e.marked).toEqual(["gate"]);
+    expect(Buffer.from(e.text, "utf8").toString("utf8")).toBe(e.text);
   });
 
   it("finds the word a misspelling meant among the product's own words", () => {
@@ -218,5 +273,76 @@ describe("plain search's counts", () => {
     // A source holds every word or it is not counted, when something holds them all.
     const both = await lee.api("GET", `${L}/search?mode=plain&query=${encodeURIComponent("quorvel depot")}`);
     expect(both.body).toMatchObject({ partial: false, counts: { source: 1 } });
+  });
+});
+
+/** A text with an ellipsis, where the phrase's first word comes long before the phrase. */
+const YARD = `Well… the crew lead said so. ${"The yard opens at dawn and the trucks leave on time. ".repeat(12)}Later the crew message came, after the trucks left the yard.\n`;
+
+describe("plain search's excerpts", () => {
+  let lee: Browser;
+  let L: string;
+  let note: string;
+
+  beforeAll(async () => {
+    lee = await h.signIn("lee.excerpts@example.com", "Lee Excerpts");
+    const t = await lee.api("POST", "/api/v1/tenants", { name: "Excerpt Co" });
+    const p = await lee.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Dispatch" });
+    L = `/api/v1/p/${p.body.path}`;
+    const product = await lee.api("GET", L);
+    const concept = "## Who it is for\n\n- **Crew leads** who send the morning dispatch\n- > Owners who read it later";
+    expect((await lee.api("PATCH", L, { expected_etag: product.body.etag, concept })).status).toBe(200);
+    const a = await lee.api("POST", `${L}/assumptions`, { statement: "Leads read the board first.", body: "## Why\n\n- The **dispatch** board is by the door.\n- > Quoted: every lead checks it." });
+    expect(a.status, JSON.stringify(a.body)).toBe(201);
+    const r = await lee.api("POST", `${L}/sources`, { title: "Yard notes — Example Co", tags: [] });
+    note = r.body.record_id;
+    expect((await lee.api("PUT", `${L}/sources/${note}/derived/text`, { content: YARD })).status).toBe(200);
+  });
+
+  it("shows an assumption's body and the product concept as words, as a source's text is, without the Markdown", async () => {
+    const r = (await lee.api("GET", `${L}/search?mode=plain&query=dispatch`)).body;
+    const snippets = r.results.filter((x: { kind: string }) => x.kind === "assumption" || x.kind === "idea").map((x: { kind: string; snippet: string }) => [x.kind, x.snippet]);
+    expect(snippets).toEqual([
+      ["assumption", "Why The dispatch board is by the door. Quoted: every lead checks it."],
+      ["idea", "Who it is for Crew leads who send the morning dispatch Owners who read it later"],
+    ].sort((a, b) => (r.results.findIndex((x: { kind: string }) => x.kind === a[0]) - r.results.findIndex((x: { kind: string }) => x.kind === b[0]))));
+    for (const x of r.results) expect(x.snippet ?? "", x.kind).not.toMatch(/##|\*\*|(^|\s)[->] /);
+  });
+
+  it("counts a source's matches as its Find in the text does, in its text alone, beside the places it says them", async () => {
+    const rota = await lee.api("POST", `${L}/sources`, { title: "Rota — Example Co", tags: [] });
+    const text = "The crew leaves at six.\n\nEvery crew lead checks the crew board, and crews swap on Fridays.\n";
+    expect((await lee.api("PUT", `${L}/sources/${rota.body.record_id}/derived/text`, { content: text })).status).toBe(200);
+    const board = await lee.api("POST", `${L}/sources`, { title: "Board — Example Co", tags: [] });
+    expect((await lee.api("PUT", `${L}/sources/${board.body.record_id}/agent-notes/summary`, { content: "The crew board is by the gate." })).status).toBe(200);
+    const r = (await lee.api("GET", `${L}/search?mode=plain&query=crew`)).body;
+    const of = (id: string) => r.results.find((x: { id: string }) => x.id === id);
+    // One place (the text is one piece) where the find marks four words: crew, crew, crew and crews.
+    expect(of(rota.body.record_id)).toMatchObject({ hit_count: 1, match_count: 4 });
+    expect(of(rota.body.record_id).match_count).toBe(findCount(text, findPattern(findWords(r.terms))!));
+    // A source that says it only in its summary has a place, and nothing for the find to mark in its text.
+    expect(of(board.body.record_id)).toMatchObject({ hit_count: 1, match_count: 0 });
+    // A phrase counts as the find marks it, and narrowing to the source counts the same.
+    const phrase = (await lee.api("GET", `${L}/search?mode=plain&query=${encodeURIComponent('"crew board"')}&record_id=${rota.body.record_id}`)).body;
+    expect(phrase.results[0]).toMatchObject({ id: rota.body.record_id, match_count: 1 });
+    const yard = (await lee.api("GET", `${L}/search?mode=plain&query=crew&record_id=${note}`)).body;
+    expect(yard.results[0].match_count).toBe(findCount(YARD, findPattern("crew")!));
+  });
+
+  it("centres a phrase's hit on the phrase, marked, in a text with an ellipsis before it", async () => {
+    for (const q of ['"crew message"', '"crew message" ']) {
+      const r = (await lee.api("GET", `${L}/search?mode=plain&query=${encodeURIComponent(q)}`)).body;
+      const source = r.results.find((x: { id: string }) => x.id === note);
+      expect(source, q).toBeDefined();
+      for (const hit of source.hits) {
+        expect(hit.marks.length, hit.text).toBeGreaterThan(0);
+        expect(hit.marks.map(([a, b]: [number, number]) => hit.text.slice(a, b).toLowerCase())).toContain("crew message");
+        // It starts at a word's start, not inside one.
+        const words = YARD.replace(/\s+/g, " ").trim();
+        const at = words.indexOf(hit.text.replace(/^…/, "").replace(/…$/, ""));
+        expect(at, hit.text).toBeGreaterThanOrEqual(0);
+        expect(at === 0 || /[^\p{L}\p{N}]/u.test(words[at - 1]!), hit.text).toBe(true);
+      }
+    }
   });
 });

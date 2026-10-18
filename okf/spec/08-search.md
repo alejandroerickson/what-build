@@ -70,7 +70,9 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
   - Substring hits come by source, then by field in the order title, tags, summary, text, notes,
     comment, then by place; ranked hits by score.
 - Assumption hits come back as `assumptions` (id, statement, status, and score in ranked mode), at
-  most `limit` of them.
+  most `limit` of them, on the first page only: assumptions are not paged, so with `scope: "all"`
+  the pages `next_cursor` gives carry source hits alone, and a search of assumptions alone answers
+  in one page and refuses a cursor (`422 invalid_cursor`).
 - Results are bounded and paged as everywhere ([§6.3](06-operations-and-adapters.md)): `limit`
   counts hits. The substring cursor is a keyset of the last hit, its piece and its place there, so
   a page may end inside a piece and the next one carry on in it; the ranked cursor is an offset. A
@@ -89,7 +91,10 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
 - **`ranked`:** a small boolean grammar — terms, `"quoted phrases"`, `prefix*`, `AND`, `OR`, `NOT`
   and parentheses, adjacent terms implying AND, at most 64 tokens — compiled to a Postgres
   `tsquery` over the language-neutral `simple` configuration (no stemming), matched against a
-  stored, GIN-indexed `tsvector`, and ranked with `ts_rank_cd`. A score is not a confidence.
+  stored, GIN-indexed `tsvector`, and ranked with `ts_rank_cd`. A score is not a confidence. A
+  term that starts with a digit, a prefix included, also matches the form the database stores
+  after a hyphen, as plain mode's do (below): `20734` finds `CB26-20734`, stored as `cb26` and
+  `-20734`, and `05` the month of `2026-05-01`.
 - Each text is matched in pieces of about 1,500 characters (§8.3), in both modes: `AND`, `OR` and
   `NOT` combine terms within one piece, and words a piece boundary separates never match together.
   The `search` description says so.
@@ -131,12 +136,27 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
   and comments, archived sources and comments left out), assumptions, outcomes (not archived),
   mockups (each page's text at the current version), Story pages and the product concept. A source holds every word
   when its title, tags and pieces hold them between them, and is returned once, with the best
-  three places it says the words in `hits` (all of them with `record_id`) and how many pieces
-  matched in `hit_count`. A hit is `{ field, annotation_id, char_start, text, marks }`: `field` is
+  three places it says the words in `hits` (all of them with `record_id`), how many pieces
+  matched in `hit_count`, and in `match_count` how many times its derived text says them, counted
+  as its Find in the text counts them for the same words ([§7](07-web-app.md)), with the one
+  pattern and the one reading of the Markdown the web app shows
+  ([`find-in-text.ts`](../../packages/core/src/find-in-text.ts), which the app's find uses too),
+  so the result's "N matches" and the find's "1 of N" agree. Only the derived text is counted,
+  because only it is marked by the find. The count reads the pieces of the returned sources'
+  derived texts that may hold a match, in the results' order, at most 2,000 of them in a search:
+  a source past that has no `match_count` rather than one too small. A hit is `{ field, annotation_id, char_start, text, marks }`: `field` is
   `text`, `summary`, `notes` or `comment` (with the comment's `annotation_id`, null otherwise),
   `char_start` is where the piece starts in its field, in code points, and `text` an excerpt of up
   to 240 characters with the matched stretches as `[start, end]` `marks`; among equal hits the
-  derived text comes first. Results are scored by how many of the words they hold, in the title
+  derived text comes first. An excerpt, a hit's or a result's `snippet`, is centred on the place
+  where the most of the words occur within it, then the most matches, so a quoted phrase is shown
+  where the phrase is rather than where its first word comes earlier; it starts and ends at word
+  boundaries unless that would leave out a mark it was chosen for, never inside a character, and
+  marks a match it cuts as far as it goes, so an excerpt of text that holds a match always holds a
+  mark, in a text with an ellipsis or a ligature too (`plain-query.ts` `excerpt`). Markdown shows
+  as its words in every excerpt, a source's and those of an assumption's body, an outcome's
+  description, a mockup's brief and notes and the product concept alike: heading marks, list and
+  quote markers, bold and a table's rule row are dropped (`shownWords`). Results are scored by how many of the words they hold, in the title
   above the body, with exact words, words side by side and a title equal to the query ranked
   higher. When anything holds every word, only those are returned; otherwise the ones holding the
   most, with `partial: true` and each result's `missing` words. At most `limit` results (60 unless
@@ -148,7 +168,7 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
   results }`, where `hits_matched` counts the pieces of those summaries, derived texts, notes and
   comments that hold any of the words;
   each result has `kind`, `id`, `title` and `snippet` with their marks, `missing`, `score` and
-  `meta`, and a source its `hits` and `hit_count`.
+  `meta`, and a source its `hits`, `hit_count` and `match_count`.
   ◆ Decision: plain mode returns no `coverage`; the other modes do.
   ([decision](../decisions/one-search-reads-plain-words-across-the-whole-product.md))
 - **One engine.** Because there is only one database, development and production rank results

@@ -32,9 +32,10 @@ that what one door writes the other finds at once, and that a reader has no sear
    *Expect:* results arrive as you type, without Enter, at most eight, best match first, each with
    its kind's glyph, the title with the words marked, what it is (a source with its date and its
    number of matches) and a line of matching text saying where it is ("In its text"); the field's
-   button reads "All N results". Move down with the arrow keys and press Enter on a source that
-   matched only in its text. *Expect:* the source opens on its Text with the word marked, the find
-   field holding it and counting the matches, and the palette is closed.
+   button reads "All N results". Move down with the arrow keys to a source that matched only in its
+   text, note its number of matches ("N matches"), and press Enter. *Expect:* the source opens on
+   its Text with the word marked, the find field holding it and counting the same number of
+   matches ("1 of N", N as the palette said), and the palette is closed.
 4. **Web, as Sam.** On the source, press `/`. *Expect:* the palette opens again with the words
    from step 3, selected, so typing replaces them. Delete them. *Expect:* the search is under
    "Recent searches". Pick it. *Expect:* it fills the field. Press Escape, then go through the
@@ -79,11 +80,12 @@ that what one door writes the other finds at once, and that a reader has no sear
    response's `counts` over MCP), and the Search screen says "Showing the best 60 of
    N. Add a word to narrow them."
 8. **Web, as Sam.** On the Search screen, find the source with the most matches. *Expect:* it is
-   listed once, with the best three places it says the words, each saying where, and "N more
-   places in this source". Follow that. *Expect:* every place in that source, as many as its
-   number of matches said, and a way back to searching everything. Open one of them. *Expect:*
-   the source's Text with the words marked, and the find field stepping from one match to the
-   next with the arrows or Enter.
+   listed once, with its number of matches, the best three places it says the words, each saying
+   where, and "N more places in this source". Follow that. *Expect:* every place in that source,
+   the three shown and the N more, and a way back to searching everything. Open one of its places
+   in its text. *Expect:* the source's Text with the words marked, and the find field counting as
+   many matches as the source's number of matches said ("1 of" that number, a place in the text
+   often holding more than one match), stepping from one to the next with the arrows or Enter.
 9. **Web, as Sam.** Open `/search?q=<the text word>&mode=ranked&scope=all`, an address in the
    old form. *Expect:* the new Search screen with the same words. Open Evidence. *Expect:* its panel
    holds only the filters (Tags, Added by, Archived), with no search of its own and no Added

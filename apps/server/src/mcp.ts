@@ -2,7 +2,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import {
-  AppError, countCall, effectiveRole, execute, invalid, levelAllows, membershipsFor, narrowProductList, OPERATIONS, parseInput, parseProductRef, resolveConnectorScope, REST_BODY_MAX_BYTES, SKILL_NAME, SKILL_VERSION, toAppError,
+  AppError, countCall, effectiveRole, execute, invalid, levelAllows, membershipsFor, narrowProductList, OPERATIONS, parseInput, parseProductRef, resolveConnectorScope, resolveScope, REST_BODY_MAX_BYTES, SKILL_NAME, SKILL_VERSION, toAppError,
   type ConnectionLevel, type ConnectorScope, type Env, type OperationDef, type Principal, type Scope, type ScopeRef,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
@@ -30,7 +30,7 @@ const GROUP_SUFFIX =
 const PRODUCT_PARAM = {
   type: "string",
   description:
-    'The product: its product_id, or "tenant/team/product" as products(action="list") shows. Optional when the connector is scoped to one product or you can reach only one. A scoped connector refuses any product outside its scope.',
+    'The product: its product_id, or "tenant/team/product" as products(action="list") shows. Optional when the connector is scoped to one product or you can reach only one. A scoped connector refuses any product outside its scope. For an action on an organization or a team, such as sandbox(action="status"), it stands for the organization and team the product is in when params names none, unless the action takes a product of its own in params.',
 };
 
 function jsonSchema(op: OperationDef): Record<string, unknown> {
@@ -173,6 +173,41 @@ async function resolveProduct(env: Env, principal: Principal, given: string | un
 /** Refusals for a call that names no product, team or tenant (or names one in a form that is not a reference). */
 const UNADDRESSED = new Set(["product_required", "team_required", "tenant_required", "invalid_product"]);
 
+/** An operation that takes a product of its own in its fields, which the `product` argument is then not read as naming its place. */
+const takesProduct = (op: OperationDef) => "product" in ((op.input as unknown as { shape?: Record<string, unknown> }).shape ?? {});
+
+/**
+ * For an organization's or a team's action named with `product` and no tenant: the organization,
+ * and for a team's action the team, that the product is in, as the other tools take a product.
+ * The product must be one the caller can see. An action that takes a product of its own in params
+ * (granting a role on a product, listing its people) is left to say what it needs instead.
+ */
+async function placeOfProduct(env: Env, principal: Principal, op: OperationDef, fields: Record<string, unknown>, product: string): Promise<void> {
+  if (takesProduct(op)) return;
+  const where = await resolveScope(env.db, principal, "product", "any", parseProductRef(product), op.name);
+  fields["tenant"] = where.tenant!.slug;
+  if (op.scope === "team" && fields["team"] === undefined) fields["team"] = where.team!.slug;
+}
+
+/**
+ * The refusal of an organization's or a team's action that names neither, saying what to pass. It
+ * is `422 invalid_input`, as the field it lacks always answered, now with where to find it.
+ */
+function whereToAct(op: OperationDef, code: "tenant_required" | "team_required"): AppError {
+  const call = `${op.mcp.tool}(action="${op.mcp.action}")`;
+  const own = takesProduct(op);
+  const missing = code === "team_required" ? "`team` is missing" : "`tenant` is missing";
+  const pass =
+    op.scope === "team"
+      ? "Pass params.tenant and params.team, the first two parts of a product's path as products(action=\"list\") shows it (acme and core in acme/core/onboarding)"
+      : "Pass params.tenant, the organization's slug or id: the first part of a product's path as products(action=\"list\") shows it (acme in acme/core/onboarding)";
+  return invalid(
+    "invalid_input",
+    `${missing}: ${call} acts on ${op.scope === "team" ? "a team" : "an organization"}. ${pass}${own ? "; params.product names a product of its own here, so the product argument does not stand for it" : ", or name any product in it with product"}. Nothing was changed.`,
+    { operation: op.name },
+  );
+}
+
 /**
  * Where a product-scoped call ran, added to its answer as `scope`. Every such answer has it under
  * that name, so no operation answers a field of its own as `scope` over MCP: search says what it
@@ -195,8 +230,9 @@ function textResult(value: unknown, isError = false) {
   return { content: [{ type: "text" as const, text: JSON.stringify(value) }], ...(isError ? { isError: true } : {}) };
 }
 
-function errorResult(e: unknown) {
-  const err = toAppError(e);
+/** A refusal as a tool error; an unexpected one says how this agent reports it. */
+function errorResult(e: unknown, principal: Principal) {
+  const err = toAppError(e, principal);
   if (err.status === 500) console.error("mcp:", e);
   return { content: [{ type: "text" as const, text: `${err.status}: ${err.message}\n${JSON.stringify({ error: err.toJSON() })}` }], isError: true };
 }
@@ -228,11 +264,18 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
         op = group.find((o) => o.mcp.action === args["action"]);
         const extra = Object.keys(args).filter((k) => !["action", "params", "describe", "product"].includes(k));
         if (extra.length) throw invalid("unknown_field", `Unknown argument(s) ${extra.join(", ")}. Grouped tools take action, params, describe and product.`);
+        const actions = group.map((o) => o.mcp.action!);
+        if (args["action"] === undefined || args["action"] === null || args["action"] === "")
+          throw invalid(
+            "invalid_input",
+            `\`action\` is missing: ${name} needs one of its actions (${actions.join(", ")}), with the action's fields in params. Call it with an action and describe=true to see that action's fields. Nothing was changed.`,
+            { actions },
+          );
         if (!op)
           throw invalid(
             "unknown_action",
-            `Unknown ${name} action: ${String(args["action"])}. This server, version ${SKILL_VERSION}, has these ${name} actions: ${group.map((o) => o.mcp.action).join(", ")}.${STALE_LIST}`,
-            { server_version: SKILL_VERSION, actions: group.map((o) => o.mcp.action) },
+            `Unknown ${name} action: ${String(args["action"])}. This server, version ${SKILL_VERSION}, has these ${name} actions: ${actions.join(", ")}.${STALE_LIST}`,
+            { server_version: SKILL_VERSION, actions },
           );
         if (args["describe"] === true) {
           if (args["params"] && Object.keys(args["params"] as object).length) throw invalid("invalid_input", "describe=true only describes an action; omit params.");
@@ -263,9 +306,18 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
       let ran: Awaited<ReturnType<typeof execute>>;
       try {
         if (op.scope === "product") ref = await resolveProduct(env, principal, productArg as string | undefined, fence);
+        else if ((op.scope === "team" || op.scope === "tenant") && productArg !== undefined && rawInput && typeof rawInput === "object" && (rawInput as Record<string, unknown>)["tenant"] === undefined)
+          await placeOfProduct(env, principal, op, rawInput as Record<string, unknown>, productArg as string);
         reached = true;
         ran = await execute(env, principal, op, rawInput, ref, fence);
       } catch (e) {
+        if (e instanceof AppError && (e.code === "tenant_required" || e.code === "team_required")) {
+          // The rest of the input is checked as it stands, and the place it lacks then says what to pass.
+          const placed = { ...(rawInput && typeof rawInput === "object" ? (rawInput as Record<string, unknown>) : {}) };
+          for (const k of ["tenant", "team"]) if (placed[k] === undefined && k in ((op.input as unknown as { shape?: object }).shape ?? {})) placed[k] = "-";
+          parseInput(op, placed);
+          throw whereToAct(op, e.code);
+        }
         if (e instanceof AppError && UNADDRESSED.has(e.code)) parseInput(op, rawInput);
         throw e;
       }
@@ -279,7 +331,7 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
         const operation = op?.name ?? (DEFINITIONS.groups.has(name) ? `${name}.(unknown)` : "(unknown tool)");
         countCall(env, principal, { operation, feature: op?.mcp.tool ?? null, outcome: toAppError(e).code, sandbox: Boolean(principal.sandbox_only) });
       }
-      return errorResult(e);
+      return errorResult(e, principal);
     }
   });
   return server;

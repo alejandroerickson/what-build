@@ -1,8 +1,8 @@
 ---
 type: Roadmap
 title: Phases 0 to 5 are mostly built, and a public sandbox; durability, data rights and public sign-up come next.
-description: What is built and what is not, phase by phase, with acceptance criteria; the open questions that remain, the ones already settled, and the risks.
-tags: [roadmap, status, phases, open-questions, risks]
+description: What is built and what is not, phase by phase, with acceptance criteria; the open questions that remain, the ones already settled, the risks, and problems seen that are not yet explained.
+tags: [roadmap, status, phases, open-questions, risks, problems]
 generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
@@ -388,3 +388,12 @@ Each has a default so work is not blocked.
 | **Contributor setup rot.** A local environment nobody runs stops working. | CI uses the same path a contributor does, so a broken `pnpm dev` breaks the build. |
 | **Public-repo hygiene.** Agents write most commits, and history keeps whatever slips in. | Sample content fully synthetic; git hooks and CI refuse secrets, local paths, real addresses, session talk and stray files; private notes have an ignored place, `_private/`; everything GitHub holds is audited before the repository goes public ([security checks](../operations/security-checks.md)). |
 | **Known vulnerabilities.** A dependency, a workflow or the app's headers turn out to be exploitable. | Pinned scanners on every pull request and weekly, Dependabot security updates, a weekly ZAP scan, CodeQL once public; the [threat model](../system/security.md) names each control. |
+
+## Seen, not yet explained
+
+Problems seen in use that could not be reproduced, with what is known, so whoever meets one again
+can look further.
+
+| What was seen | What is known |
+|---|---|
+| `assumptions(action="list")` without filters twice showed, for three assumptions, other outcomes (`outcome_ids`) than `assumptions(action="get")`, a list filtered by outcome and a later list showed, with the same etags and no activity in between. | `list` and `get` read `outcome_ids` from the same column of each assumption's own row, in one query each, with no cache, join or reordering between (`packages/core/src/ops/registers.ts`), and the MCP adapter adds only `scope`. It could not be reproduced. To rule out on the reading side: outcome ids made close together share most of their 26 characters, and a list without filters carries many of them. |

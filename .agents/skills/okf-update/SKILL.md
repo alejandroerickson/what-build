@@ -102,7 +102,7 @@ extend this map in the same change.
 | How a part fits together, for orientation | System Concept | `okf/system/` |
 | A durable choice and why | Decision | `okf/decisions/` (the `okf-decision` skill) |
 | A small choice inside one area that a reviewer may want to reverse | a `◆ Decision:` line | inline in that spec section |
-| Built, not built, next, open questions, risks | Roadmap | `okf/spec/10-roadmap.md` only |
+| Built, not built, next, open questions, risks, a problem seen that could not be reproduced | Roadmap | `okf/spec/10-roadmap.md` only |
 | How to run, deploy or operate | Process (operations) | `okf/operations/` |
 | How to make changes: rules and checks | Process | `okf/process/` |
 | What the product and the repository are and are not | Charter | `okf/project/charter.md` |

@@ -8,7 +8,8 @@ import { resolveScope, type ScopeRef } from "./policy.ts";
 import type { Ports } from "./ports.ts";
 import { capRole, connectionNeeds, LEVEL_NAMES, levelAllows, type OpContext, type OperationDef, type Principal, type Scope } from "./registry.ts";
 import { admitVisitor, checkVisitorInput, countVisitorWrite, isVisitor, loadSandbox, lockSandbox, visitorActor, visitorName, type SandboxContext } from "./public-sandbox.ts";
-import { formatIssues } from "./schemas.ts";
+import { formatIssues, nullCharacterPaths, nullCharacterSentence, wordList } from "./schemas.ts";
+import { feedbackOff } from "./feedback.ts";
 import { countCall } from "./usage.ts";
 
 export interface Env {
@@ -85,11 +86,45 @@ function retiredFieldHint(op: OperationDef, error: z.ZodError, input: unknown): 
   );
 }
 
+/** What a grouped tool's call carries beside an action's fields. A standalone tool takes none of them. */
+const GROUPED_ARGUMENTS = ["action", "params", "describe"];
+
+/**
+ * A standalone tool called as a grouped one is: its fields are its arguments, with no action,
+ * params or describe beside them. Said in place of "not a field", which could suggest a field.
+ */
+function standaloneSentence(op: OperationDef, sent: string[]): string {
+  const fields = Object.keys((op.input as unknown as { shape?: Record<string, unknown> }).shape ?? {});
+  return (
+    `${wordList(sent.map((k) => `\`${k}\``))} ${sent.length === 1 ? "is not an argument" : "are not arguments"} of ${op.mcp.tool}: it is a tool of its own, ` +
+    `${fields.length ? `whose arguments are its fields (${wordList(fields)})` : "which takes no arguments"}, and only the grouped tools take action, params and describe.`
+  );
+}
+
+/**
+ * Validate an operation's input strictly, whichever door it came through. A field that holds a
+ * null character is refused too, by name, since Postgres keeps no such character in text: one the
+ * schema already refused is left to that refusal.
+ */
 export function parseInput<I extends z.ZodType>(op: OperationDef<I>, raw: unknown): z.output<I> {
   const input = resolveAliases(op, raw ?? {});
   const parsed = op.input.safeParse(input);
-  if (!parsed.success) {
-    throw invalid("invalid_input", `${formatIssues(parsed.error, input)} Nothing was changed; correct the call and send it again.${retiredFieldHint(op, parsed.error, input)}`, { operation: op.name });
+  const refused = parsed.success ? [] : parsed.error.issues.flatMap((i) => (i.code === "unrecognized_keys" ? (i as { keys: string[] }).keys.map((k) => [...i.path, k]) : [i.path]));
+  const nul = nullCharacterPaths(input).filter((p) => !refused.some((r) => r.every((k, n) => p[n] === k)));
+  if (!parsed.success || nul.length) {
+    const shape = (op.input as unknown as { shape?: Record<string, unknown> }).shape ?? {};
+    const envelope = !op.mcp.action && input && typeof input === "object" ? GROUPED_ARGUMENTS.filter((k) => k in input && !(k in shape)) : [];
+    const problems = [
+      envelope.length ? standaloneSentence(op, envelope) : "",
+      parsed.success ? "" : formatIssues(parsed.error, input, { schema: op.input, skip: envelope }),
+      nul.length ? nullCharacterSentence(nul) : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    throw invalid("invalid_input", `${problems} Nothing was changed; correct the call and send it again.${parsed.success ? "" : retiredFieldHint(op, parsed.error, input)}`, {
+      operation: op.name,
+      ...(nul.length ? { fields: nul.map((p) => p.join(".")) } : {}),
+    });
   }
   return parsed.data;
 }
@@ -169,6 +204,8 @@ async function run(
   if (op.webOnly && principal.surface !== "web")
     throw new AppError(403, "web_only", `Only a person can do ${op.name}, in the WhatBuild web app. Nothing was changed.`);
   if (!levelAllows(principal.level, op)) throw connectionLevelTooLow(op, principal);
+  // Nor one the person turned off for this connection, whatever was sent with it.
+  if (op.name === "submit_feedback" && principal.feedback === false) throw feedbackOff();
   // Scope first: a caller who cannot see the product learns nothing, not even whether their input was valid.
   const raw = (rawInput && typeof rawInput === "object" ? rawInput : {}) as Record<string, unknown>;
   const resolved = await resolveScope(env.db, principal, op.scope, op.access, refFromInput(op, raw, ref), op.name);
@@ -230,10 +267,22 @@ function connectionLevelTooLow(op: OperationDef, principal: Principal): AppError
   );
 }
 
-export function toAppError(e: unknown): AppError {
+/**
+ * How the caller reports an unexpected error that repeats, as its door names the way: an agent
+ * with the submit_feedback tool (or to the person, when they turned it off), a person with Submit
+ * feedback in the web app's account menu, and both when the door does not say who called.
+ */
+function reportIt(caller?: Pick<Principal, "surface" | "feedback">): string {
+  if (caller?.surface === "mcp") return caller.feedback === false ? "tell the person if it repeats" : "report it with submit_feedback if it repeats";
+  if (caller?.surface === "web") return "report it with Submit feedback, in the account menu, if it repeats";
+  return "report it if it repeats: an agent with submit_feedback, a person with Submit feedback in the web app's account menu";
+}
+
+/** Any error as the one shape both doors answer with; `caller` says how to report an unexpected one. */
+export function toAppError(e: unknown, caller?: Pick<Principal, "surface" | "feedback">): AppError {
   if (e instanceof AppError) return e;
   const pg = e as { code?: string; constraint?: string; message?: string };
   if (pg?.code === "23505") return conflict("conflict", "That conflicts with something that already exists. Read the current state and retry.", { constraint: pg.constraint });
   if (pg?.code === "40001" || pg?.code === "40P01") return conflict("concurrent_change", "Another change landed at the same moment. Retry.");
-  return new AppError(500, "internal", "WhatBuild hit an unexpected error. It has been logged; try again, and report it with submit_feedback if it repeats.");
+  return new AppError(500, "internal", `WhatBuild hit an unexpected error. It has been logged; try again, and ${reportIt(caller)}.`);
 }

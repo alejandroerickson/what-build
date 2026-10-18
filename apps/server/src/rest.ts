@@ -16,6 +16,9 @@ export const SCOPE_PREFIX: Record<OperationDef["scope"], string> = {
   account: "/api/v1",
 };
 
+/** Who calls REST: it answers the web app's session only, so an unexpected error says how a person reports it. */
+const WEB = { surface: "web" } as const;
+
 /** The response header that names the operation a REST call ran. */
 export const OPERATION_HEADER = "X-WhatBuild-Operation";
 
@@ -123,7 +126,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
         c.header(OPERATION_HEADER, op.name);
         return c.json(result as object, op.rest.method === "POST" && CREATES.test(op.name) ? 201 : 200);
       } catch (e) {
-        const err = toAppError(e);
+        const err = toAppError(e, WEB);
         if (err.status === 500) console.error(`${op.name}:`, e);
         return errorResponse(c, err);
       }
@@ -167,7 +170,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       if (!found) throw new AppError(404, "not_found", "No such attachment on this source.");
       return streamFile(c, env, found, path, c.req.query("download") === "1");
     } catch (e) {
-      return errorResponse(c, toAppError(e));
+      return errorResponse(c, toAppError(e, WEB));
     }
   });
 
@@ -193,7 +196,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
         "Cache-Control": "private, no-store",
       });
     } catch (e) {
-      return errorResponse(c, toAppError(e));
+      return errorResponse(c, toAppError(e, WEB));
     }
   });
 
@@ -203,7 +206,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       const { sendExport } = await import("./uploads.ts");
       return await sendExport(c, env, scope.tenant!.tenant_id, c.req.param("export_id")!, scope.product!.product_id);
     } catch (e) {
-      return errorResponse(c, toAppError(e));
+      return errorResponse(c, toAppError(e, WEB));
     }
   });
 
@@ -234,7 +237,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       // and keeps its own sandbox, which allows forms.
       return storyHtml(c, v.html, v.mockup ? undefined : theme, frame, v.mockup);
     } catch (e) {
-      return errorResponse(c, toAppError(e));
+      return errorResponse(c, toAppError(e, WEB));
     }
   });
 
@@ -259,7 +262,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       // A page that enters the prototype has no HTML of its own: its frame opens the entry (prototype_url).
       return storyHtml(c, p.html ?? prototypeNotice(), undefined, c.req.query("frame") === "1", true);
     } catch (e) {
-      return errorResponse(c, toAppError(e));
+      return errorResponse(c, toAppError(e, WEB));
     }
   });
 
@@ -275,7 +278,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       if (!s) throw new AppError(404, "not_found", "This product has no Story style yet.");
       return storyHtml(c, styleSpecimen(s), theme, c.req.query("frame") === "1");
     } catch (e) {
-      return errorResponse(c, toAppError(e));
+      return errorResponse(c, toAppError(e, WEB));
     }
   });
   app.get(`${SCOPE_PREFIX.product}/story/house-styles/:style/specimen`, async (c) => {
@@ -286,7 +289,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       if (!style) throw new AppError(404, "not_found", `No such house style: ${HOUSE_STYLE_IDS.join(", ")}.`);
       return storyHtml(c, houseSpecimen(style), theme, c.req.query("frame") === "1");
     } catch (e) {
-      return errorResponse(c, toAppError(e));
+      return errorResponse(c, toAppError(e, WEB));
     }
   });
 
@@ -301,7 +304,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       const { html, nonce } = result as { html: string; nonce: string };
       return c.body(html, 200, printResponseHeaders(nonce));
     } catch (e) {
-      const err = toAppError(e);
+      const err = toAppError(e, WEB);
       if (err.status === 500) console.error("story print view:", e);
       return errorResponse(c, err);
     }

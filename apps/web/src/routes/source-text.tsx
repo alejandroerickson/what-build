@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
+import { findPattern } from "@whatbuild/core/find-in-text";
 import { api, ApiError } from "../lib/api.ts";
 import { attribution, relativeTime } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
@@ -76,25 +77,8 @@ export function ChangedMeanwhile({ noun, theirs, onLoad, rows = 8, className }: 
   );
 }
 
-const SUFFIXES = ["ations", "ation", "ments", "ment", "ings", "ing", "ers", "er", "ies", "ied", "ed", "es", "ly", "s"];
-
-/** A word's root, so a find also marks its other endings, as search reads words ("pricing" marks "priced"). */
-function root(word: string): string {
-  const w = word.toLowerCase();
-  for (const s of SUFFIXES) if (w.endsWith(s) && w.length - s.length >= 4) return w.slice(0, -s.length).replace(/e$/, "");
-  return w.length > 4 ? w.replace(/e$/, "") : w;
-}
-
-const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-/** What a find marks: each word at the start of a word, with any ending, and each "quoted phrase" as written. */
-export function findPattern(find: string): RegExp | undefined {
-  const parts = [...find.matchAll(/"([^"]+)"|(\S+)/g)]
-    .map((m) => (m[1] !== undefined ? escape(m[1].trim()).replace(/\s+/g, "\\s+") : `${escape(root(m[2]!))}[\\p{L}\\p{N}]*`))
-    .filter((p) => p && p !== "[\\p{L}\\p{N}]*");
-  if (!parts.length) return undefined;
-  return new RegExp(`(?<![\\p{L}\\p{N}])(?:${parts.join("|")})`, "giu");
-}
+// What a find marks, shared with plain search, which counts the same matches for a source's result.
+export { findPattern };
 
 /** The first part of a long text, ending at a paragraph. */
 function firstPart(text: string): string {

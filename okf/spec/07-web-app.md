@@ -89,7 +89,9 @@ the browser's back button and "open in new tab" both work.
   newest first, kept in the browser and cleared at sign-out (§9.1); picking one fills the field, and
   Clear empties the list. Results come as you type, best match first, at most eight: each with its
   kind's glyph, its title with the words marked, what it is (Source with its date and its number
-  of matches, Assumption with its status, Mockup with the page), and a source's best place,
+  of matches, counted as its Find in the text counts them for the same words, so opening it in its
+  text shows "1 of" that number; Assumption with its status, Mockup with the page), and a source's
+  best place,
   saying where it is ("In its text", "In its summary", "In its notes", "In a comment"), or another
   result's matching text. Arrows (or Ctrl+N and Ctrl+P) move; Enter opens the selected result (a
   source matched only in what it says opens at that section: its Text, which the summary heads,
