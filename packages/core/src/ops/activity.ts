@@ -57,11 +57,18 @@ export const listActivity = defineOperation({
       entity_type: r.entity_type,
       entity_id: r.entity_id,
       entity_title: r.entity_title,
-      summary: r.action === "derived" ? withoutParserLabel(r.summary) : r.summary,
+      summary: summaryAsRead(r.action, r.summary),
     }));
     return { items, next_cursor: rows.length > input.limit ? items[items.length - 1]!.activity_id : null };
   },
 });
+
+/** An entry's summary as it reads now, whenever it was recorded. */
+export function summaryAsRead(action: string, summary: string): string {
+  if (action === "derived") return withoutParserLabel(summary);
+  if (action === "note_archived") return withoutArchiveReason(summary);
+  return summary;
+}
 
 /**
  * Parse events recorded before summaries stopped naming the parser ended with its internal label,
@@ -69,6 +76,14 @@ export const listActivity = defineOperation({
  */
 export function withoutParserLabel(summary: string): string {
   return summary.replace(/ \([a-z]+ \d+\)$/, "");
+}
+
+/**
+ * An archived comment's entry recorded before the log stopped quoting content ended with the
+ * reason it was archived, "Archived a comment: …"; it is read without the person's words.
+ */
+export function withoutArchiveReason(summary: string): string {
+  return summary.replace(/^Archived a comment: [\s\S]*$/, "Archived a comment");
 }
 
 export const activityOps = [listActivity];

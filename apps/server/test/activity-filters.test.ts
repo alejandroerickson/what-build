@@ -134,4 +134,22 @@ describe("what an entry says", () => {
     const linked = (await log("&entity_type=assumption")).find((i) => i.action === "linked");
     expect(linked?.summary).toBe("Linked to an assumption it supports");
   });
+
+  it("never quotes why a comment was archived, in an entry recorded when it did", async () => {
+    const activityId = newId();
+    await h.db.transaction().execute(async (trx) => {
+      await sql`select set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
+      await trx
+        .insertInto("activity")
+        .values({
+          activity_id: activityId, tenant_id: tenantId, team_id: null, product_id: productId,
+          actor: json({ account_id: "someone", display_name: "Someone", surface: "web", client: null }),
+          actor_account_id: "someone", channel: "web", action: "note_archived", entity_type: "source", entity_id: null, entity_title: "Sample crew call",
+          summary: "Archived a comment: The crew lead asked us to drop it.",
+        })
+        .execute();
+    });
+    const entry = (await log("&entity_type=source")).find((i) => i.activity_id === activityId);
+    expect(entry?.summary).toBe("Archived a comment");
+  });
 });

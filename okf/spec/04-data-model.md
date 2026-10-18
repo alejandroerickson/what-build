@@ -380,7 +380,10 @@ An append-only event log, written in the same transaction as the mutation that c
 | `summary` | ≤ 280 chars, generated: "Marked confirmed with high confidence", "Read the text of call.vtt; it is the source’s derived text" (never the parser's name or version, which the reading's manifest holds), "Edited the derived text", "Added a comment". |
 
 - **It never contains content.** No bodies, no source text, no HTML, no email addresses. The
-  summary names objects; it does not quote them.
+  summary names objects; it does not quote them. An archived comment's entry once ended with the
+  reason it was archived ("Archived a comment: …"); `activity.list` reads such an entry without it,
+  as it reads an old parse entry without the parser's label, though the stored row, and so an
+  export's `activity.jsonl`, still holds it.
 - `activity.list` filters by `entity_type`, `entity_id`, `actor`, `channel`, `by` (`people` for
   the app and the REST API, `agents` for MCP; what WhatBuild does by itself, which has no
   channel, is in neither) and `since`, with the usual bounds. `entity_type` offers exactly the
