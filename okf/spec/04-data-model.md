@@ -417,10 +417,11 @@ An append-only event log, written in the same transaction as the mutation that c
   as it reads an old parse entry without the parser's label, though the stored row, and so an
   export's `activity.jsonl`, still holds it.
 - `activity.list` filters by `entity_type`, `entity_id`, `actor`, `channel`, `by` (`people` for
-  the app and the REST API, `agents` for MCP; what WhatBuild does by itself, which has no
-  channel, is in neither) and `since`, with the usual bounds. `entity_type` offers exactly the
-  kinds of object a product's log has entries about ([§6.4](06-operations-and-adapters.md)). Every
-  role on the product but a reader, who reads only the Story, can read it.
+  the web app, and for the REST API in entries from when personal tokens reached it; `agents` for
+  MCP; what WhatBuild does by itself, which has no channel, is in neither) and `since`, with the
+  usual bounds. `entity_type` offers exactly the kinds of object a product's log has entries about
+  ([§6.4](06-operations-and-adapters.md)). Every role on the product but a reader, who reads only
+  the Story, can read it.
 - Events are immutable and are retained for the life of the tenant, with one exception: when an
   insight or a decision became a source (§4.7), its events were relabelled as the source's. They
   are included in a product export.

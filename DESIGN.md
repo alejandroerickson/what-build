@@ -395,7 +395,7 @@ Compact and calm. Default buttons read as white tiles with a hairline, not as fi
 ### Chips and Tags
 - **Chip:** 24px, 4px corners, Hover fill, 11.5px text with a faint leading glyph. Link chips darken to Hover Strong on hover.
 - **Tag:** 18px outlined label (Line 2 hairline, muted 11px text) for a quiet attribute.
-- **Evidence link:** an inline accent-tinted token (7% accent, 13% on hover) in selection ink with tabular numerals, such as a source named in prose.
+- **Evidence link:** an inline accent-tinted token (7% accent, 13% on hover) in selection ink with tabular numerals, for a Markdown link to a source; a source mentioned by its id stays as written.
 
 ### Cards / Containers
 - **Sheet:** panel fill, 12px corners, resting shadow, content clipped. A hairline separates the head from the rows.

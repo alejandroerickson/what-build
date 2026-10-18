@@ -158,9 +158,10 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
   limits (`story.list_pages`, `mockups.list`), `derived.list` (the newest 100 readings) and
   `outcomes.revisions` (the newest `limit`) among them.
   Page sizes are per operation: default 50, at most 200 for sources, comments, search, activity,
-  a sandbox's visitors and outcome revisions; default 25, at most 100 for assumptions and Story
-  and mockup versions; outcomes default to 100, at most 100. Asking for more than the maximum is
-  `422`, not a silent clamp.
+  a sandbox's visitors and outcome revisions (search's plain mode returns 60 results unless asked,
+  at most 200, in one answer that takes no cursor); default 25, at most 100 for assumptions and
+  Story and mockup versions; outcomes default to 100, at most 100. Asking for more than the maximum
+  is `422`, not a silent clamp.
 - `sources.list` orders by `sort`: `added` (newest added first, the default), `date` (the
   source's own date, newest first, undated last), `updated` (details most recently changed first)
   or `title` (A to Z). `order` (`asc` or `desc`) reverses a sort; it defaults to `desc` for the

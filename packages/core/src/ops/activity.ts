@@ -20,13 +20,13 @@ export const listActivity = defineOperation({
   mutates: false,
   summary: "What changed in this product, who changed it, and through which surface — newest first.",
   description:
-    "Use it for \"what changed since…\", when resuming work, and before revising something a teammate may just have edited. Entries name what changed; they never quote content, so read the item itself before relying on it. Do not write a separate \"what I changed\" note: every write is already here. Filters: entity_type, entity_id (the history of one item), actor (account id), by (people: what people did in the app or through the REST API; agents: what agents did over MCP; what WhatBuild does by itself, such as reading an attachment, has no channel and is in neither), channel, since (ISO 8601).",
+    "Use it for \"what changed since…\", when resuming work, and before revising something a teammate may just have edited. Entries name what changed; they never quote content, so read the item itself before relying on it. Do not write a separate \"what I changed\" note: every write is already here. Filters: entity_type, entity_id (the history of one item), actor (account id), by (people: what people did in the web app, and through the REST API in entries from when personal tokens reached it; agents: what agents did over MCP; what WhatBuild does by itself, such as reading an attachment, has no channel and is in neither), channel, since (ISO 8601).",
   input: z.strictObject({
     entity_type: z.enum(ENTITY_TYPES).optional(),
     entity_id: z.string().max(100).optional(),
     actor: z.string().max(100).optional(),
     channel: z.enum(["web", "rest", "mcp"]).optional(),
-    /** people: what people did in the app or through the REST API; agents: what agents did over MCP. Neither holds what WhatBuild does by itself. */
+    /** people: what people did in the web app, and through the REST API in older entries; agents: what agents did over MCP. Neither holds what WhatBuild does by itself. */
     by: z.enum(["people", "agents"]).optional(),
     since: z.iso.datetime({ offset: true }).optional(),
     limit: z.number().int().min(1).max(200).default(50),
