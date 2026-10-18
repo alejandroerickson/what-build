@@ -67,13 +67,17 @@ function htmlText(col: RawBuilder<unknown>): RawBuilder<string> {
 }
 
 /**
- * A piece of Markdown as a reader sees its words, for an excerpt: emphasis markers, heading marks
- * and a table's rule row dropped. Single passes over a piece of at most a few thousand characters.
+ * A piece of Markdown as a reader sees its words, for an excerpt: emphasis markers, heading marks,
+ * the marks before a list item or a quoted line, and a table's rule row dropped. Every Markdown
+ * text plain search shows an excerpt of goes through it: a source's, an assumption's body, an
+ * outcome's description, a mockup's brief and notes, the product concept. Single passes over a
+ * piece of at most a few thousand characters.
  */
 export function shownWords(md: string): string {
   return md
     .replace(/^[ \t|:]*-{3,}[-:| \t]*$/gm, "")
     .replace(/^#{1,6}[ \t]+/gm, "")
+    .replace(/^[ \t]*(?:>[ \t]?|[-*+][ \t]+)+/gm, "")
     .replace(/\*\*|__/g, "");
 }
 
@@ -109,7 +113,7 @@ function scoreDoc(doc: Doc, p: ParsedFind, kind: FindKind) {
   let snippet: string | null = null;
   let snippet_marks: Marks = [];
   const best = bodies.filter((b) => b.m.ranges.length).sort((a, b) => b.m.found.filter(Boolean).length - a.m.found.filter(Boolean).length)[0];
-  if (best && inTitle < n) ({ text: snippet, marks: snippet_marks } = excerpt(best.text, best.m.ranges));
+  if (best && inTitle < n) ({ text: snippet, marks: snippet_marks } = excerpt(best.text, best.m));
   // What the score adds beyond plain coverage: where and how the words matched.
   const bonus = score - (100 * covered) / n;
   return { score, bonus, found, title: t, snippet, snippet_marks };
@@ -169,7 +173,7 @@ async function sources(ctx: OpContext, p: ParsedFind, i: Input, q: string): Prom
   for (const h of hits.rows) {
     const shown = shownWords(h.text);
     const m = matchText(shown, p.terms);
-    const ex = excerpt(shown, m.ranges, 240);
+    const ex = excerpt(shown, m, 240);
     const hit: Hit = { field: h.field, annotation_id: h.field === "comment" ? h.ref : null, char_start: h.char_start, text: ex.text, marks: ex.marks, found: m.found.filter(Boolean).length };
     byRecord.set(h.record_id, [...(byRecord.get(h.record_id) ?? []), { hit, m }]);
   }
@@ -268,14 +272,15 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
     if (!s.found.some(Boolean)) return;
     out.push({ kind, id: idv, title: doc.title, title_marks: s.title.ranges, snippet: s.snippet, snippet_marks: s.snippet_marks, missing: missingWords(p, s.found), score: round(s.score), meta });
   };
-  for (const a of assumptions?.rows ?? []) push("assumption", a.entry_id, { title: a.statement, body: [a.body] }, { status: a.status });
-  for (const o of outcomes?.rows ?? []) push("outcome", o.outcome_id, { title: o.title, body: [o.description] }, {});
+  // What is Markdown is read as its words, as a source's text is.
+  for (const a of assumptions?.rows ?? []) push("assumption", a.entry_id, { title: a.statement, body: [shownWords(a.body)] }, { status: a.status });
+  for (const o of outcomes?.rows ?? []) push("outcome", o.outcome_id, { title: o.title, body: [shownWords(o.description)] }, {});
   // A mockup is one result; the page that matches best is the one it opens on.
   const byMockup = new Map<string, NonNullable<typeof mockups>["rows"]>();
   for (const m of mockups?.rows ?? []) byMockup.set(m.mockup_id, [...(byMockup.get(m.mockup_id) ?? []), m]);
   for (const [mid, pages] of byMockup) {
     const first = pages[0]!;
-    const scored = pages.map((pg) => ({ pg, s: scoreDoc({ title: first.title, body: [first.summary, pg.page_title ?? "", pg.notes ?? "", pg.text ?? "", first.brief] }, p, "mockup") }));
+    const scored = pages.map((pg) => ({ pg, s: scoreDoc({ title: first.title, body: [first.summary, pg.page_title ?? "", shownWords(pg.notes ?? ""), pg.text ?? "", shownWords(first.brief)] }, p, "mockup") }));
     scored.sort((a, b) => b.s.score - a.s.score);
     const top = scored[0]!;
     const found = p.terms.map((_, k) => scored.some((x) => x.s.found[k]));
@@ -293,7 +298,7 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
     });
   }
   for (const s of story?.rows ?? []) push("story", s.page_id, { title: s.title, body: [s.summary, s.text] }, {});
-  if (idea?.concept) push("idea", pid, { title: "Product concept", body: [idea.concept] }, {});
+  if (idea?.concept) push("idea", pid, { title: "Product concept", body: [shownWords(idea.concept)] }, {});
   return out;
 }
 

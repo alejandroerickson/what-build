@@ -141,7 +141,15 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
   `text`, `summary`, `notes` or `comment` (with the comment's `annotation_id`, null otherwise),
   `char_start` is where the piece starts in its field, in code points, and `text` an excerpt of up
   to 240 characters with the matched stretches as `[start, end]` `marks`; among equal hits the
-  derived text comes first. Results are scored by how many of the words they hold, in the title
+  derived text comes first. An excerpt, a hit's or a result's `snippet`, is centred on the place
+  where the most of the words occur within it, then the most matches, so a quoted phrase is shown
+  where the phrase is rather than where its first word comes earlier; it starts and ends at word
+  boundaries unless that would leave out a mark it was chosen for, never inside a character, and
+  marks a match it cuts as far as it goes, so an excerpt of text that holds a match always holds a
+  mark, in a text with an ellipsis or a ligature too (`plain-query.ts` `excerpt`). Markdown shows
+  as its words in every excerpt, a source's and those of an assumption's body, an outcome's
+  description, a mockup's brief and notes and the product concept alike: heading marks, list and
+  quote markers, bold and a table's rule row are dropped (`shownWords`). Results are scored by how many of the words they hold, in the title
   above the body, with exact words, words side by side and a title equal to the query ranked
   higher. When anything holds every word, only those are returned; otherwise the ones holding the
   most, with `partial: true` and each result's `missing` words. At most `limit` results (60 unless

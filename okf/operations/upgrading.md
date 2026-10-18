@@ -72,7 +72,11 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   scope shows over MCP. With `scope: "all"`, assumptions come on the first page only, so the
   pages after it no longer repeat them, and a search of assumptions alone refuses a cursor
   (`422 invalid_cursor`). Ranked search finds a bare number where a hyphen joins it to the rest of
-  an id (`20734` in `CB26-20734`).
+  an id (`20734` in `CB26-20734`). Plain search's excerpts, in the palette and the Search screen
+  too, are centred on where the most of the words are (a quoted phrase on the phrase), start and
+  end at whole words, and mark their words in a text with an ellipsis or a ligature in it, where
+  they were left unmarked; an assumption's body and the product concept show as words, without
+  their Markdown, as a source's text does.
 - **Nothing to change; agents will write the Story differently. The Story guidance is 5.0.0.**
   The Story is the team's own communication (what to build, the pitch, the plan), and neither the
   guidance nor the skill sets a rule about how a page quotes, paraphrases, attributes or links;
