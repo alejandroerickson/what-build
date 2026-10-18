@@ -17,7 +17,7 @@ export interface SheetRow {
   hidden?: boolean;
 }
 
-/** Said after a hidden sheet's name, a hidden column's label and a hidden row's number. */
+/** Said after a hidden sheet's name, a hidden column's label, a hidden row's number and a value its format hides. */
 export const HIDDEN = "(hidden)";
 
 function columnIndex(ref: string): number {
@@ -112,6 +112,9 @@ function cellFormats(stylesXml: Uint8Array | undefined): (NumberFormat | undefin
 
 const isTrue = (v: string | undefined) => v === "1" || v === "true";
 
+/** A cell's text on one line, its spacing collapsed, at most a cell's length. */
+const cellText = (s: string) => s.replace(/\s+/g, " ").trim().slice(0, MAX_CELL);
+
 /**
  * The columns a worksheet hides (`<col hidden="1">`, or a width of 0), as indexes from 0. Only the
  * columns read count, so a range over the whole sheet costs no more than they do.
@@ -132,8 +135,9 @@ function hiddenColumnsOf(sheet: ReturnType<typeof parseXml>): Set<number> {
  * XLSX: a `# Sheet: <name>` heading per worksheet and one segment per non-empty row, prefixed
  * `[<Sheet>, row N]`. The first all-text row with two or more cells in the top 20 becomes the
  * header, and later rows render `label: value` pairs. Each value reads as the sheet shows it,
- * through its cell's number format (numfmt.ts); a hidden sheet, column or row is read and says it is
- * hidden; and a formula saved without its value says so instead of reading as 0.
+ * through its cell's number format (numfmt.ts); a hidden sheet, column or row, and a value its format
+ * shows as nothing, is read and says it is hidden; and a formula saved without its value says so
+ * instead of reading as 0.
  */
 export const xlsxParser: FormatParser = {
   name: "xlsx",
@@ -175,6 +179,7 @@ export const xlsxParser: FormatParser = {
     const truncatedSheets: string[] = [];
     let hiddenRows = 0;
     let hiddenColumns = 0;
+    let hiddenValues = 0;
     let unsaved = 0;
     for (const sheet of sheets) {
       const xml = files[sheet.path];
@@ -205,6 +210,8 @@ export const xlsxParser: FormatParser = {
           const fmt = formats[Number(c.attrs["s"] ?? 0)];
           let value = "";
           let isText = false;
+          // The value as General shows it, for a format that shows it as nothing.
+          let general = "";
           if (f && !raw && t !== "str" && t !== "inlineStr") {
             // A formula the file holds without its value, as libraries that never calculate write it:
             // its formula, said to have no value, rather than a 0 nobody calculated.
@@ -226,10 +233,23 @@ export const xlsxParser: FormatParser = {
             value = raw;
           } else if (v) {
             const num = Number(raw);
-            value = !raw.trim() || !Number.isFinite(num) ? raw : ((fmt && formatNumber(fmt, num, date1904)) ?? generalNumber(num));
+            if (!raw.trim() || !Number.isFinite(num)) value = raw;
+            else {
+              general = generalNumber(num);
+              value = (fmt && formatNumber(fmt, num, date1904)) ?? general;
+            }
           }
-          if (isText && fmt && value) value = formatText(fmt, value);
-          value = value.replace(/\s+/g, " ").trim().slice(0, MAX_CELL);
+          if (isText && fmt && value) {
+            general = value;
+            value = formatText(fmt, value);
+          }
+          value = cellText(value);
+          if (!value && cellText(general)) {
+            // A format whose section shows nothing (;;;, or 0;;0 for a negative) hides a value the
+            // cell holds: it is read as General, and said to be hidden.
+            value = `${cellText(general)} ${HIDDEN}`;
+            hiddenValues++;
+          }
           if (!value) continue;
           cells.push({ col, value, isText });
           if (hiddenCols.has(col)) usedHidden.add(col);
@@ -255,6 +275,7 @@ export const xlsxParser: FormatParser = {
         hidden_sheets: sheets.filter((s) => s.hidden).map((s) => s.name),
         hidden_rows: hiddenRows,
         hidden_columns: hiddenColumns,
+        hidden_values: hiddenValues,
         formulas_without_values: unsaved,
       },
     };

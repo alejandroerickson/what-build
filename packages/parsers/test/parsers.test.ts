@@ -804,6 +804,26 @@ describe("XLSX", () => {
     expect(r.facts).toMatchObject({ sheet_count: 2, hidden_sheets: ["Workings"], hidden_rows: 1, hidden_columns: 1 });
   });
 
+  it("reads a value its format shows as nothing as General, and says it is hidden", async () => {
+    const r = await derive(
+      makeXlsxSheet(
+        [
+          ["Crew", "Rate", "Delta", "Note"],
+          ["North", [42, 1], [-5, 2], { text: "Owner only", style: 1 }],
+          ["South", [38, 0], [5, 2], { text: "Shown", style: 0 }],
+        ],
+        // ;;; shows nothing at all, and 0;;0 nothing for a negative.
+        { numFmts: [";;;", "0;;0"], xfs: [0, 164, 165] },
+      ),
+      "rates.xlsx",
+    );
+    expect(r.segments.slice(2).map((s) => s.text)).toEqual([
+      "[Register, row 2] Crew: North | Rate: 42 (hidden) | Delta: -5 (hidden) | Note: Owner only (hidden)",
+      "[Register, row 3] Crew: South | Rate: 38 | Delta: 5 | Note: Shown",
+    ]);
+    expect(r.facts["hidden_values"]).toBe(3);
+  });
+
   it("says a formula was saved without its value, rather than reading it as 0", async () => {
     const r = await derive(
       makeXlsxSheet([

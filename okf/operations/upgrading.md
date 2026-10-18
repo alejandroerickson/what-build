@@ -38,16 +38,17 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   People will notice that saving a summary, notes or text someone else changed meanwhile shows
   their version, and saves over it only when asked.
 - **Nothing runs by itself; existing plain-text and workbook attachments read better once read
-  again.** A `.txt` now keeps its lines and list markers, joining only hard-wrapped prose, and
-  ends a quoted message before the reply under it; an `.xlsx` reads values as the sheet shows
-  them (`+14.0%`, not `0.14`), reads and marks hidden sheets, columns and rows, and says when a
-  formula was saved without its value (plain-text parser 8, XLSX 6). A reading made earlier keeps
-  its layout until its attachment is read again, with `derived(action="rederive")` or Read it again
-  in the web app; a source whose text still follows that attachment then takes the new text, and a
-  text someone wrote or edited is left alone. Left unread, those sources read and are found as
-  before. Nothing else needs reading again: a scan recorded as failed reads `unsupported`, a
-  recording that asked for "a transcript as a new source" asks for another attachment, and an
-  image says how an agent gives it its words, in sandbox baselines too.
+  again.** A `.txt` now keeps its lines and list markers, joining only hard-wrapped prose, and ends
+  a quoted message before the reply under it; an `.xlsx` reads values as the sheet shows them
+  (`+14.0%`, not `0.14`), reads and marks hidden sheets, columns and rows and a value its format
+  shows as nothing, and says when a formula was saved without its value (plain-text parser 8, XLSX
+  6). A reading made earlier keeps its layout until its attachment is read again, with
+  `derived(action="rederive")` or Read it again in the web app; a source whose text still follows
+  that attachment then takes the new text, and a text someone wrote or edited is left alone. Left
+  unread, those sources read and are found as before. Nothing else needs reading again: a scan
+  recorded as failed reads `unsupported`, a recording that asked for "a transcript as a new source"
+  asks for another attachment, and an image says how an agent gives it its words, in sandbox
+  baselines too.
 - **Nothing to change; people will notice attachments say what they are at once.** Recordings,
   images and formats no parser reads show their status the moment they arrive instead of
   "Reading". An image, or a PDF whose pages are pictures (PDF parser 5), is "Not read as text"
