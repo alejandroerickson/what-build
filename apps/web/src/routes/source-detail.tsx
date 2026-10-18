@@ -623,15 +623,18 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
           <Button onClick={onClose} disabled={del.isPending}>
             Cancel
           </Button>
-          <Button
-            onClick={() => {
-              archive.mutate(false);
-              onClose();
-            }}
-            disabled={Boolean(record.archived_at) || del.isPending}
-          >
-            Archive instead
-          </Button>
+          {/* Already archived, it has nothing to offer instead. */}
+          {record.archived_at ? null : (
+            <Button
+              onClick={() => {
+                archive.mutate(false);
+                onClose();
+              }}
+              disabled={del.isPending}
+            >
+              Archive instead
+            </Button>
+          )}
           <Button variant="danger" disabled={!i || !reason.trim() || typed !== record.title} busy={del.isPending} busyLabel="Deleting…" onClick={() => del.mutate()}>
             Delete permanently
           </Button>

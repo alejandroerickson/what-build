@@ -25,8 +25,8 @@ export function DeleteDialog<I extends object>({ title, impactPath, etag, delete
   typeToConfirm?: { what: string; name: string };
   /** What the impact means, in plain words. */
   renderImpact: (impact: I) => ReactNode;
-  /** The reversible alternative, such as Archive instead. */
-  alternative?: { label: string; onSelect: () => void; disabled?: boolean };
+  /** The reversible alternative, such as Archive instead; left out where it can't apply, as for what is already archived. */
+  alternative?: { label: string; onSelect: () => void };
   /** Whether the impact allows the delete at all; renderImpact says why not. */
   allowed?: (impact: I) => boolean;
   onDeleted: () => void;
@@ -68,7 +68,7 @@ export function DeleteDialog<I extends object>({ title, impactPath, etag, delete
                 alternative.onSelect();
                 onClose();
               }}
-              disabled={alternative.disabled || del.isPending}
+              disabled={del.isPending}
             >
               {alternative.label}
             </Button>

@@ -1411,7 +1411,7 @@ function DeleteMockup({ mockup, onClose }: { mockup: MockupView; onClose: () => 
       title="Delete this mockup permanently?"
       impactPath={`${base}/mockups/${mockup.mockup_id}/delete-impact`}
       deletePath={`${base}/mockups/${mockup.mockup_id}`}
-      alternative={{ label: "Archive instead", disabled: Boolean(mockup.archived_at), onSelect: () => archive.mutate() }}
+      alternative={mockup.archived_at ? undefined : { label: "Archive instead", onSelect: () => archive.mutate() }}
       allowed={(i) => !i.story_pages_showing.length}
       renderImpact={(i) =>
         i.story_pages_showing.length ? (

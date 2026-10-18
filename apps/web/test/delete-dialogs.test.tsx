@@ -12,6 +12,8 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 const ID = "01K8A2B3C4D5E6F7G8H9J0K1M2";
 const BASE = "/api/v1/p/acme/core/crew";
 const by = { account_id: "a1", display_name: "Riley Chen", surface: "web", client: null };
+/** Whether the source the page shows is archived. */
+const source = { archived_at: null as string | null };
 
 vi.mock("../src/lib/api.ts", async (original) => {
   const real = await original<typeof import("../src/lib/api.ts")>();
@@ -21,11 +23,12 @@ vi.mock("../src/lib/api.ts", async (original) => {
       if (path === `${BASE}/sources/${ID}?detail=full`)
         return {
           record_id: ID, title: "Crew lead interview — Example Co", date: null, tags: [], uploaded_by: by, uploaded_at: "2026-10-01T09:00:00.000Z",
-          updated_at: "2026-10-01T09:00:00.000Z", updated_by: by, archived_at: null, derived_status: "awaiting_file", text_chars: 0, attachment_count: 0,
+          updated_at: "2026-10-01T09:00:00.000Z", updated_by: by, archived_at: source.archived_at, derived_status: "awaiting_file", text_chars: 0, attachment_count: 0,
           etag: "source-etag", duration_ms: null, status_detail: null, warnings: [], annotation_count: 0, pending_upload_path: null, attachments: [],
           annotations: [], text: null, agent_notes: [],
         };
-      if (path.endsWith("/delete-impact")) return { etag: "impact-etag", file_versions: 0, bytes: 0, derivations: 0, annotations: 0, review_count: 0, linked_from: [] };
+      if (path.endsWith("/delete-impact"))
+        return { etag: "impact-etag", file_versions: 0, bytes: 0, derivations: 0, annotations: 0, review_count: 0, linked_from: [], archived: false, version_count: 1, sub_pages_promoted: [] };
       return { sources: 0, tags: [], added_by: [] };
     }),
   };
@@ -37,6 +40,7 @@ vi.mock("../src/lib/session.tsx", async (original) => ({
 
 const { DeleteDialog } = await import("../src/routes/delete-dialog.tsx");
 const { entryImpactWords } = await import("../src/routes/registers.tsx");
+const { DeletePage } = await import("../src/routes/story-actions.tsx");
 const { SourceDetailPage } = await import("../src/routes/source-detail.tsx");
 
 beforeAll(() => {
@@ -56,6 +60,7 @@ afterEach(() => {
   unmount?.();
   unmount = null;
   document.body.innerHTML = "";
+  source.archived_at = null;
 });
 
 async function render(node: ReactNode, at = "/") {
@@ -142,5 +147,30 @@ describe("deleting an assumption", () => {
       "This deletes the assumption and the links to it from 2 other assumptions.",
     );
     expect(entryImpactWords("assumption", { review_count: 1, linked_from: [link("a1")] })).not.toMatch(/remove/i);
+  });
+});
+
+describe("deleting what is already archived", () => {
+  it("offers Cancel alone for an archived source, with nothing to archive instead", async () => {
+    source.archived_at = "2026-10-02T09:00:00.000Z";
+    await render(
+      <Routes>
+        <Route path="/t/acme/core/crew/evidence/:recordId" element={<SourceDetailPage />} />
+      </Routes>,
+      `/t/acme/core/crew/evidence/${ID}`,
+    );
+    await act(async () => (document.querySelector('[aria-label="Source actions"]') as HTMLButtonElement).click());
+    await act(async () => button("Delete permanently…").click());
+    for (let i = 0; i < 5; i++) await act(async () => new Promise((r) => setTimeout(r, 0)));
+    expect(footer()).toEqual(["Cancel", "Delete permanently"]);
+  });
+
+  it("offers Archive instead for a live Story page and leaves it out for an archived one", async () => {
+    const page = { page_id: "p1", title: "Where the plan stands", etag: "p-1", archived_at: null as string | null };
+    await render(<DeletePage page={page} onArchive={() => {}} onDeleted={() => {}} onClose={() => {}} />);
+    expect(footer()).toEqual(["Cancel", "Archive instead", "Delete permanently"]);
+    unmount?.();
+    await render(<DeletePage page={{ ...page, archived_at: "2026-10-02T09:00:00.000Z" }} onArchive={() => {}} onDeleted={() => {}} onClose={() => {}} />);
+    expect(footer()).toEqual(["Cancel", "Delete permanently"]);
   });
 });

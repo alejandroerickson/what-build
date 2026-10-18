@@ -117,7 +117,7 @@ export function DeletePage({ page, onArchive, onDeleted, onClose }: { page: Page
       title="Delete this Story page permanently?"
       impactPath={`${base}/story/pages/${page.page_id}/delete-impact`}
       deletePath={`${base}/story/pages/${page.page_id}`}
-      alternative={{ label: "Archive instead", disabled: Boolean(page.archived_at) || !canWrite, onSelect: () => onArchive(page) }}
+      alternative={page.archived_at || !canWrite ? undefined : { label: "Archive instead", onSelect: () => onArchive(page) }}
       renderImpact={(i) => (
         <>
           <p>

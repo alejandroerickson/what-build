@@ -391,7 +391,7 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
           title={`Delete this ${ONE[kind].toLowerCase()} permanently?`}
           impactPath={`${base}/${kind}/${e.id}/delete-impact`}
           deletePath={`${base}/${kind}/${e.id}`}
-          alternative={{ label: "Archive instead", disabled: archived || !canWrite, onSelect: () => setArchived.mutate({ archived: true, etag: e.etag, undo: true }) }}
+          alternative={archived || !canWrite ? undefined : { label: "Archive instead", onSelect: () => setArchived.mutate({ archived: true, etag: e.etag, undo: true }) }}
           renderImpact={(i) => <p>{entryImpactWords(ONE[kind].toLowerCase(), i)}</p>}
           onDeleted={() => {
             void qc.invalidateQueries({ queryKey: ["register", base, kind] });
