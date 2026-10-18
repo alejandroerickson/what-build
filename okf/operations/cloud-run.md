@@ -219,7 +219,9 @@ builds and pushes the image, points the migration job at it, runs it, then deplo
 with `WHATBUILD_RELEASE` set to the tag and sends traffic to it. The build passes the commit to
 the image as `WHATBUILD_COMMIT`, and the image records it with the build time, so
 `/api/v1/meta` reports `release` (version, commit, `built_at`) and the account menu shows
-"Release v0.2.0", linked to the release's page on GitHub. Before assuming a release is live, check
+"Release v0.2.0", linked to the release's page on GitHub. The web app is built with the same
+commit, so a page left open across the deploy loads the new release at its next screen
+([§7.1](../spec/07-web-app.md#71-principles)). Before assuming a release is live, check
 that a trigger exists and compare the release:
 
 ```bash

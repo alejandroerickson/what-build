@@ -297,7 +297,10 @@ deployment is involved
 - **Every response** says `Cross-Origin-Resource-Policy: same-origin`,
   `Cross-Origin-Embedder-Policy: credentialless`, `X-Content-Type-Options: nosniff` and a
   `Permissions-Policy` that turns off the browser features WhatBuild never uses, unless its route
-  set its own (`RESPONSE_HEADERS` in [`app.ts`](../../apps/server/src/app.ts)). Responses under
+  set its own (`RESPONSE_HEADERS` in [`app.ts`](../../apps/server/src/app.ts)). Every response
+  also names the commit the image was built from in `X-WhatBuild-Commit` (a development server
+  records none and names none), which the web app compares with its own
+  ([§7.1](07-web-app.md#71-principles)). Responses under
   `/api`, `/mcp`, `/auth` and `/oauth` say `Cache-Control: no-store` unless the route says
   otherwise, and files served back say `private, no-store`. Every HTML response's
   `Content-Security-Policy` defines `frame-ancestors`, `form-action` and `base-uri`, which have no

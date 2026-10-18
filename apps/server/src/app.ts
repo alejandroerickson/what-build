@@ -158,9 +158,10 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
 }
 
 /** One application: static web app, REST, MCP, OAuth and the upload relay on one origin, and the public site on its own host. */
-export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; clock?: SandboxClock }) {
+export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; clock?: SandboxClock; release?: Release }) {
   const env: Env & { config: ServerConfig } = { db: deps.db, ports: deps.ports, config: deps.config };
   const clock = deps.clock ?? new SandboxClock(env, deps.config.env === "test" ? () => {} : undefined);
+  const release = deps.release ?? RELEASE;
   const app = new Hono();
 
   app.use("*", async (c, next) => {
@@ -175,6 +176,9 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; cl
   app.use("*", async (c, next) => {
     await next();
     for (const [name, value] of Object.entries(RESPONSE_HEADERS)) if (!c.res.headers.has(name)) c.header(name, value);
+    // The commit this image was built from, which the web app compares with its own to know that a
+    // release replaced the one it was loaded from (apps/web/src/lib/new-release.ts).
+    if (release.commit) c.header("X-WhatBuild-Commit", release.commit);
     if (PRIVATE_PATHS.test(c.req.path) && !c.res.headers.has("Cache-Control")) c.header("Cache-Control", "no-store");
     if (c.res.headers.get("Content-Type")?.startsWith("text/html") && !c.res.headers.has("Content-Security-Policy")) c.header("Content-Security-Policy", FALLBACK_HTML_POLICY);
   });
@@ -227,7 +231,7 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; cl
   // First, so the public site's host never reaches the app's routes.
   app.route("/", siteRoutes({ db: deps.db, config: deps.config }));
   app.route("/", prototypeRoutes(env));
-  app.route("/", publicRoutes({ db: deps.db, config: deps.config, release: RELEASE }));
+  app.route("/", publicRoutes({ db: deps.db, config: deps.config, release }));
   app.route("/", sandboxRoutes({ db: deps.db, clock }));
   app.route("/", oauthRoutes({ db: deps.db, config: deps.config }));
   app.route("/", authRoutes({ db: deps.db, config: deps.config, mailer: deps.ports.mailer ?? new ConsoleMailer() }));
