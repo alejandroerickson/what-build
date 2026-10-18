@@ -144,7 +144,14 @@ describe("a source's derived text", () => {
 
     const back = await write(id, { from_attachment: "notes.md" });
     expect(back.body.taken_from).toMatchObject({ path: "notes.md" });
-    expect((await alice.api("GET", `${P}/sources/${id}`)).body).toMatchObject({ derived_status: "ready", text_from: "notes.md", warnings: [] });
+    // Its text taken from one attachment, the source says which other has text that search never reads.
+    expect((await alice.api("GET", `${P}/sources/${id}`)).body).toMatchObject({
+      derived_status: "ready",
+      text_from: "notes.md",
+      warnings: [
+        "This source's derived text is taken from notes.md, so the text read from summary.txt is kept but never searched. If its words should be found, write them into the derived text, the summary or the notes, or add it as a source of its own.",
+      ],
+    });
     expect((await text(id)).body.text).toBe("# Notes\n\nCrews plan by the month.\n");
     expect(await logOf(id, "text_written")).toEqual([
       "Took the derived text from notes.md",
@@ -161,17 +168,20 @@ describe("a source's derived text", () => {
     expect(stale.status).toBe(409);
     expect(stale.body.error).toMatchObject({ code: "stale_etag", details: { current_etag: cur.body.etag } });
 
-    // An attachment still being read has no text yet, and a recording has none.
+    // An attachment still being read has no text yet, and a recording has none, read or not.
+    await attach(id, "minutes-late.md", "# Late minutes\n\nRead after the rest.\n");
     await attach(id, "call.m4a", new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]));
-    const reading = await write(id, { from_attachment: "call.m4a" });
+    const reading = await write(id, { from_attachment: "minutes-late.md" });
     expect(reading.status).toBe(409);
     expect(reading.body.error.code).toBe("no_text");
     expect(reading.body.error.message).toMatch(/still being read/);
+    const unread = await write(id, { from_attachment: "call.m4a" });
+    expect(unread.body.error).toMatchObject({ code: "no_text", message: expect.stringMatching(/^call\.m4a has no text to take: it is needs_transcript/) });
     await h.worker.drain();
     const recording = await write(id, { from_attachment: "call.m4a" });
     expect(recording.status).toBe(409);
     expect(recording.body.error.code).toBe("no_text");
-    expect(recording.body.error.message).toMatch(/needs_transcript/);
+    expect(recording.body.error.message).toMatch(/was read as needs_transcript/);
     expect((await write(id, { from_attachment: "minutes.md" })).status).toBe(404);
 
     // Exactly one of content, edits and from_attachment.

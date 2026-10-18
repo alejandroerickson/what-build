@@ -42,7 +42,9 @@ the same is tried in the sandbox, where the sandbox's limits apply.
 6. **MCP, as Sam.** Read the source (`sources` `get` with `detail: "full"`), its comments, its
    summary (`derived` `read_note`) and its text (`derived` `text`). Then `search` for the
    corrected word, and read the text around the hit with `derived(action="text")` from a little
-   before its `char_start`. *Expect:* `derived_status` is `ready` and `text.taken_from` is null;
+   before its `char_start`. *Expect:* `derived_status` is `ready` and `text.taken_from` is null,
+   and `warnings` says the text was written or edited, so it follows no attachment and the
+   transcript's own reading is kept but never searched;
    the comment from step 5, attributed to Sam on the web; the summary as Sam wrote it; the text
    with Sam's correction and its speakers in bold; the hit names `field: "text"`, and the window
    around it holds the corrected word.
@@ -51,8 +53,9 @@ the same is tried in the sandbox, where the sandbox's limits apply.
    then read what was read from it with `derived(action="text", path=…)`. *Expect:* the upload's
    note says the source already has a text, so this one is kept beside it and never searched;
    search finds nothing, and its `coverage` says "Attachments are never searched."; the
-   attachment's own text holds the made-up word. On the web, Attachments lists both files, and
-   only the transcript is marked as the source's text.
+   attachment's own text holds the made-up word, and `sources(action="get")`'s `warnings` names
+   both files as text the source's text does not use. On the web, Attachments lists both files,
+   neither marked as the source's text, since Sam edited it in step 5.
 8. **MCP, as Sam.** Write the made-up word into the source's text with
    `derived(action="write_text")` and `edits`, passing the etag from step 6 as `expected_etag`;
    then again with the same old etag. *Expect:* the first answers with a new etag and a short

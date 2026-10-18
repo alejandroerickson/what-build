@@ -3,7 +3,7 @@ type: Specification
 title: Every attachment is read into readable Markdown and kept, and each source has one derived text that people and agents read, edit and search.
 description: Reading attachments (when a reading runs, its thread and limits, what it stores, its statuses), the parsers and how they lay text out, the derived text and how it follows its attachment, and the reads and writes of the derived layer.
 tags: [spec, derived-layer, parsers, derived-text, attachments]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -35,7 +35,8 @@ transaction that adds the attachment enqueues the job, and the worker wakes afte
 upload response is never held while a file is read, and a slow PDF cannot occupy a request. Reading
 inline in the request would be an observable behavior difference and is forbidden
 ([§1.5 rule 12](01-product.md)). A reading's row is written only when it finishes, so until then
-the attachment's text status is `pending` (§5.5).
+the attachment's text status is `pending`, unless its name, type and size already settle how it
+will be read (§5.5).
 
 The activity log records each outcome under the system actor (WhatBuild, client `parser`):
 `derived`, "Read the text of interview.vtt", with "; it is the source’s derived text" when its text
@@ -142,7 +143,7 @@ into paragraphs, headings, turns and table rows, and those are laid out as one M
 | DOC (`.doc`, `application/msword`) | The format is read from the file's first bytes, never from its name, and the `doc_format` fact records it. A **Word binary document** (an OLE2 compound file) from Word 97-2003 (`word97`), or from Word 6.0 or Word 95 (`word6`), gives its main text through the piece table, with 8-bit Windows-1252 and UTF-16 pieces: one paragraph per paragraph, built-in heading styles (Title, Subtitle, Heading 1-9) as headings at DOCX's levels, tables as tables, field results kept and field codes dropped, page and section breaks as paragraph breaks, and `Name: words` paragraphs as speaker turns in a transcript. Word 97 tables come from the paragraphs' table flags; Word 6 tables are inferred from cell marks, the first row setting the width. Headers, footnotes, comments and list numbers are not read. Encrypted documents, fast-saved Word 6 and Word 95 documents and Word 2 and older documents fail with the reason. A **DOCX package** under a `.doc` name is read by the DOCX parser (`docx`); a **MIME HTML** file (Word's "Web Page" save, wiki Word exports) has its first `text/html` part, quoted-printable or base64, read by the HTML parser (`mhtml`); **plain HTML** is read by the HTML parser in the character set its `<meta>` declares (`html`). Rich Text Format and anything else fail with the reason, as does HTML with no readable text. |
 | XLSX | Sheets and rows, laid out as above, each value as the sheet shows it, through its cell's number format ([`numfmt.ts`](../../packages/parsers/src/numfmt.ts)): percentages, decimals, thousands separators and scaling (`#,##0,`), currency, explicit signs (`+0.0%`), negatives in brackets, fractions, scientific notation, conditions (`[>=1000]0.0,"K"`), a text section (`@" (est.)"`), and dates and times (`5 Mar 2026`, `1:30 PM`, elapsed `30:00:00`) in the workbook's 1900 or 1904 date system. A negative in a section that shows it only by a colour (`#,##0;[Red]#,##0`) gets the minus the colour stood for. The locale's own formats, which a file does not record, read in ISO 8601: the short date (14) and the date and time (22) as `2026-04-10` and `2026-04-10 12:00`, the system long date and time (`[$-F800]`, `[$-F400]`) as a date and `13:30:00`; the currency formats that show the locale's symbol (5 to 8, 42, 44) read without one. A negative date, a day before the 1900 system's first, and a number in a text format read as General shows them. A hidden sheet, column or row is read, so search finds it, and marked: `# Sheet: Workings (hidden)`, a column `Rate (hidden)`, a row `3 (hidden)`. A formula the file holds without its value, as libraries that never calculate write it, reads `=SUM(B2:B3) (no stored value)` rather than 0 or nothing. |
 | CSV, TSV (`.csv`, `.tsv`) | Read like a one-sheet workbook, with the same header rule. Quoted fields may hold delimiters and line breaks; the delimiter (comma, semicolon or tab) is taken from the first line. |
-| PDF | Text layer only, page by page, for a PDF of at most 2,000 pages; a page's lines are joined into paragraphs that end at sentence punctuation. No OCR; images are never decoded. |
+| PDF | Text layer only, page by page, for a PDF of at most 2,000 pages; a page's lines are joined into paragraphs that end at sentence punctuation. No OCR; images are never decoded. A PDF with no text layer, its pages pictures as a scan's are, is `unsupported`, as an image is (§5.5). |
 | HTML | Main-content text with headings; scripts, styles, navigation, forms and frames dropped; tables as tables; adjacent elements (labels, breadcrumbs) kept apart by a space. A page that nests elements more than 512 deep, or would make far more elements than it has tags, fails with the reason. |
 
 **Line breaks in plain text** ([`plaintext.ts`](../../packages/parsers/src/plaintext.ts)). A
@@ -189,7 +190,9 @@ its own text; the speakers count in its facts.)
 
 - No speech-to-text and no OCR in the product. A recording is stored and playable, never
   transcribed: its transcript is another attachment, or the source's derived text written by an
-  agent with its own transcription tool.
+  agent with its own transcription tool. An image, or a PDF whose pages are pictures, is stored and
+  shown, and no words are read from it: an agent that can see it describes it in the source's
+  summary and, if search should find its words, writes them as the derived text.
 - Parsers are pure functions of bytes → readable Markdown (`derive`, then `toParsedFile` for the
   bytes a reading stores), with no I/O (the recording-duration reader
   takes a byte-range callback, so the worker can serve it ranges of a stored file), and never throw for a bad file:
@@ -220,9 +223,15 @@ attachment version it is the text of (`from_file_version_id`, read as
 - any other source keeps its text: one someone wrote or edited, or one taken from another
   attachment. The reading is kept beside it.
 
-So a source's text is taken from the first attachment whose text can be read, follows that
-attachment through new versions and readings, and stops following it once someone writes it. A
-reading that is not `ready`, or holds no text, never touches it.
+So a source's text is the text of the first of its attachments whose reading finishes `ready` with
+some text. Attachments are queued to be read as they arrive (the web app uploads them one after
+another, in the order listed) and read in that order, so it is usually the first to arrive in a
+format WhatBuild reads; where several instances read at once, a short file can finish before a
+longer one that arrived first. A reading that is not `ready`, or holds no text, never touches it,
+so a recording, an image or a format no parser reads is passed over. The text follows that
+attachment through new versions and readings, and stops following it once someone writes it;
+`from_attachment` (below) takes another attachment's text, which it then follows. Once someone
+removes the text, the next reading with text fills it again.
 
 **Writing it.** `derived.write_text { record_id, content | edits | from_attachment, expected_etag? }`
 (`PUT …/sources/:record_id/derived/text`, editor; people use it in the app) takes exactly one of:
@@ -273,20 +282,36 @@ Each reading has a `status`, terminal for that reading:
 |---|---|
 | `ready` | Text read. |
 | `needs_transcript` | A recording (an audio or video media type or extension): stored and playable, never transcribed. Its transcript is another attachment. `duration_ms` gives its playing time when the container states it. |
-| `unsupported` | No parser reads this attachment's extension or media type. |
+| `unsupported` | No words to read: no parser reads this attachment's extension or media type, or it is pictures, an image or a PDF with no text layer (a scan's pages are pictures; there is no OCR). It is no failure, and reading it again changes nothing. For an image or a PDF of pictures, `status_detail` says that an agent that can see it should describe it in the source's summary and write its words as the text with `derived(action="write_text")` if search should find them. |
 | `too_large` | Too large to read: over the parse cap, 25 MiB by default for every format (`WHATBUILD_PARSE_CAP_BYTES`), in which case the file is not read at all; a DOCX, XLSX or DOC package whose parts unpack to more than the cap; a PDF of more than 2,000 pages; or a file that would make more than 200,000 paragraphs. The attachment is stored; `status_detail` says which. |
-| `failed` | The parser errored, **or** it kept almost nothing: a text-like file (plain text, Markdown, VTT, SRT, CSV, TSV) that kept under 10% of at least 200 characters, a PDF with no text layer (a scan; there is no OCR), or an HTML page with no readable text (a page whose text is drawn by scripts, such as a single-page app's shell); **or** the parse needed more memory or time than the deployment gives one file, or stopped the server five times (§5.1). `status_detail` says which. |
+| `failed` | The parser errored, **or** it kept almost nothing: a text-like file (plain text, Markdown, VTT, SRT, CSV, TSV) that kept under 10% of at least 200 characters, or an HTML page with no readable text (a page whose text is drawn by scripts, such as a single-page app's shell); **or** the parse needed more memory or time than the deployment gives one file, or stopped the server five times (§5.1). `status_detail` says which. |
 
-An attachment's `text.status` ([§4.5](04-data-model.md)) is its latest reading's, or `pending`
-until its current version has been read.
+◆ Decision: a PDF with no text layer is `unsupported`, as an image is, not `failed`: its pages are
+pictures, and reading it again cannot find words in them. A failure is worth retrying; a picture
+needs someone who can see it.
+
+An attachment's `text.status` ([§4.5](04-data-model.md)) is its latest reading's. Until its current
+version has been read, it is what the attachment's name, media type and size already settle
+(`settledReading` in [`packages/parsers/src/index.ts`](../../packages/parsers/src/index.ts), the
+rule `derive` follows, so the reading then records the same): `too_large` over the parse cap,
+`needs_transcript` for a recording, and `unsupported` for a format no parser reads, an image among
+them. Anything else is `pending` until it is read.
+
+A reading is never rewritten, but one an earlier version made is said as this version would say it,
+wherever it is read (`currentReading` in [`statuses.ts`](../../packages/parsers/src/statuses.ts)),
+so a backup or a public sandbox's baseline brings no retired words back: a recording that asked for
+"a transcript as a new source" asks for one as another attachment, a PDF of pictures once recorded
+as `failed` reads `unsupported`, and an image once said to be "a format no parser reads" says how
+an agent gives it its words. A recording's detail beside the source's derived text says where that
+text comes from instead of asking for a transcript.
 
 A source's `derived_status` says where its derived text stands (`derivedStatuses` in
 [`ops/sources.ts`](../../packages/core/src/ops/sources.ts)):
 
 | `derived_status` | Meaning |
 |---|---|
-| `ready` | It has a derived text. |
-| `pending` | It has none yet, and an attachment is arriving (an unexpired upload grant) or being read. |
+| `ready` | It has a derived text. `warnings` names each attachment with text that the derived text does not use, which search never reads. |
+| `pending` | It has none yet, and an attachment is arriving (an unexpired upload grant) or being read. One whose name, type and size settle its reading is never being read. |
 | `awaiting_file` | No attachment, and no text. |
 | `awaiting_text` | An attachment has text the source does not use: its text was removed. `warnings` says to take an attachment's text or write one. |
 | `needs_transcript`, `unsupported`, `too_large`, `failed` | No attachment could be read: how its newest attachment was read, with `status_detail`. |

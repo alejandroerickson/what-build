@@ -1,4 +1,4 @@
-import { codePointLength, derive, isRecording, recordingDurationMs, sliceCodePoints, toParsedFile, type ByteReader, type ParsedFile } from "@whatbuild/parsers";
+import { codePointLength, currentReading, derive, isRecording, recordingDurationMs, sliceCodePoints, toParsedFile, type ByteReader, type ParsedFile } from "@whatbuild/parsers";
 import { z } from "zod";
 import { checkEtag, recordActivity, tenantId } from "../common.ts";
 import { json, type Tx } from "../db.ts";
@@ -9,7 +9,7 @@ import { expectedEtag, id } from "../schemas.ts";
 import { applyEdits, editsInput, textDiff } from "../text-edits.ts";
 import { indexText } from "../text-index.ts";
 import { newEtag, newId } from "../util.ts";
-import { attachmentReadings, loadRecord, takenFrom, textFileId } from "./sources.ts";
+import { attachmentReadings, attachmentText, loadRecord, takenFrom, textFileId } from "./sources.ts";
 
 export const TEXT_WINDOW_MAX = 20_000;
 export const AGENT_NOTE_MAX = 100_000;
@@ -67,8 +67,8 @@ export const manifest = defineOperation({
       record_id: d.record_id,
       path: d.source_path,
       file_version_id: d.file_version_id,
-      status: d.status,
-      status_detail: d.status_detail,
+      // A reading an earlier version made is said as this one would say it.
+      ...currentReading(d.status, d.status_detail),
       parser: d.parser,
       parser_version: d.parser_version,
       text_chars: d.text_chars,
@@ -166,11 +166,16 @@ export const writeText = defineOperation({
     if (input.from_attachment !== undefined) {
       const reading = (await attachmentReadings(ctx.db, [r.record_id])).find((x) => x.path === input.from_attachment);
       if (!reading) throw notFound(`No attachment ${input.from_attachment} on this source.`);
-      if (reading.status !== "ready")
+      if (reading.status !== "ready") {
+        // Before it is read, its name, type and size may already say it will have no text.
+        const shown = attachmentText(reading, ctx.ports.config.parseCapBytes);
         throw conflict(
           "no_text",
-          reading.status ? `${reading.path} has no text to take: it was read as ${reading.status}${reading.status_detail ? ` (${reading.status_detail})` : ""}.` : `${reading.path} is still being read. Try again once sources(action="get") lists its text as ready.`,
+          shown.status === "pending"
+            ? `${reading.path} is still being read. Try again once sources(action="get") lists its text as ready.`
+            : `${reading.path} has no text to take: it ${reading.derivation_id ? "was read as" : "is"} ${shown.status}${shown.status_detail ? ` (${shown.status_detail})` : ""}.`,
         );
+      }
       content = new TextDecoder().decode(await ctx.ports.blobs.get(`${reading.blob_prefix}/text.md`));
       from = reading.current_version_id;
       summary = `Took the derived text from ${reading.path}`;
@@ -225,7 +230,7 @@ export const listDerivations = defineOperation({
       .limit(100)
       .execute();
     const current = new Set((await attachmentReadings(ctx.db, [r.record_id])).map((x) => x.derivation_id));
-    return { items: rows.map(({ source_path, ...x }) => ({ ...x, path: source_path, is_current: current.has(x.derivation_id) })) };
+    return { items: rows.map(({ source_path, ...x }) => ({ ...x, ...currentReading(x.status, x.status_detail), path: source_path, is_current: current.has(x.derivation_id) })) };
   },
 });
 

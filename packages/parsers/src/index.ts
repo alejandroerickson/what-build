@@ -7,8 +7,9 @@ import { bytesReader, recordingDurationMs } from "./media.ts";
 import { pdfParser } from "./pdf.ts";
 import { renderMarkdown } from "./markdown.ts";
 import { markdownParser, plaintextParser } from "./plaintext.ts";
+import { extensionOf, SCAN_DETAIL, settle } from "./statuses.ts";
 import { assemble, decodeText, nonSpaceCodePoints } from "./text.ts";
-import { DEFAULT_PARSE_CAP_BYTES, TooLargeError, type FormatParser, type ParseResult, type Segment } from "./types.ts";
+import { DEFAULT_PARSE_CAP_BYTES, TooLargeError, type DerivationStatus, type FormatParser, type ParseResult, type Segment } from "./types.ts";
 import { xlsxParser } from "./xlsx.ts";
 
 export type { Block, DerivationStatus, FormatParse, ParsedFile, ParseResult, Segment, TableRef } from "./types.ts";
@@ -19,10 +20,9 @@ export { recordingDurationMs, type ByteReader } from "./media.ts";
 export { DEFAULT_PARSE_CAP_BYTES, TooLargeError } from "./types.ts";
 export { HtmlLimitError, MAX_HTML_DEPTH, parseHtml } from "./html.ts";
 export { TooManyEntriesError, unzipParts, zipEntries, type ZipEntry } from "./zip.ts";
-
-export const RECORDING_EXTENSIONS = [
-  ".mp3", ".mp4", ".m4a", ".wav", ".mov", ".webm", ".mkv", ".aac", ".flac", ".ogg", ".wma", ".m4v", ".opus",
-];
+export {
+  currentReading, extensionOf, IMAGE_DETAIL, IMAGE_EXTENSIONS, isImage, isRecording, RECORDING_DETAIL, RECORDING_EXTENSIONS, SCAN_DETAIL, tooLargeDetail,
+} from "./statuses.ts";
 
 const PARSERS: Record<string, FormatParser> = {
   ".vtt": vttParser,
@@ -46,12 +46,6 @@ const TEXT_LIKE = new Set([".txt", ".text", ".md", ".markdown", ".vtt", ".srt", 
 
 export const SUPPORTED_EXTENSIONS = Object.keys(PARSERS);
 
-export function extensionOf(fileName: string): string {
-  const base = fileName.split("/").pop() ?? fileName;
-  const i = base.lastIndexOf(".");
-  return i > 0 ? base.slice(i).toLowerCase() : "";
-}
-
 const MEDIA_TYPE_EXTENSIONS: Record<string, string> = {
   "text/vtt": ".vtt",
   "application/x-subrip": ".srt",
@@ -72,9 +66,18 @@ export function parserFor(fileName: string, mediaType?: string | null): FormatPa
   return PARSERS[ext] ?? (mediaType ? PARSERS[MEDIA_TYPE_EXTENSIONS[mediaType.split(";")[0]!.trim()] ?? ""] : undefined);
 }
 
-export function isRecording(fileName: string, mediaType?: string | null): boolean {
-  if (mediaType && /^(audio|video)\//.test(mediaType)) return true;
-  return RECORDING_EXTENSIONS.includes(extensionOf(fileName));
+/**
+ * How a file will be read when its name, media type and size already say, before its bytes are:
+ * `too_large` over the cap, `needs_transcript` for a recording, `unsupported` for a format no parser
+ * reads (an image among them). Undefined when only its bytes can tell. `derive` decides by the same
+ * rule, so a status said early is the status its reading records.
+ */
+export function settledReading(
+  fileName: string,
+  options: { mediaType?: string | null | undefined; size: number; parseCapBytes?: number },
+): { status: DerivationStatus; status_detail: string } | undefined {
+  const file = { name: fileName, mediaType: options.mediaType, size: options.size };
+  return settle(file, options.parseCapBytes ?? DEFAULT_PARSE_CAP_BYTES, Boolean(parserFor(fileName, options.mediaType)));
 }
 
 function nonReady(
@@ -108,20 +111,14 @@ export async function derive(
   options: { mediaType?: string | null; parseCapBytes?: number } = {},
 ): Promise<ParseResult> {
   const cap = options.parseCapBytes ?? DEFAULT_PARSE_CAP_BYTES;
-  if (bytes.byteLength > cap) {
-    return nonReady("too_large", `the file is ${bytes.byteLength} bytes; files over ${cap} bytes are stored but not parsed`);
+  const settled = settledReading(fileName, { mediaType: options.mediaType, size: bytes.byteLength, parseCapBytes: cap });
+  if (settled) {
+    const r = nonReady(settled.status, settled.status_detail);
+    // A recording's playing time is in its container's headers.
+    if (settled.status === "needs_transcript") r.duration_ms = await recordingDurationMs(bytesReader(bytes), bytes.byteLength);
+    return r;
   }
-  if (isRecording(fileName, options.mediaType)) {
-    return {
-      ...nonReady("needs_transcript", "a recording is stored and playable but has no text; add its transcript as another attachment"),
-      duration_ms: await recordingDurationMs(bytesReader(bytes), bytes.byteLength),
-    };
-  }
-  const parser = parserFor(fileName, options.mediaType);
-  if (!parser) {
-    const ext = extensionOf(fileName) || "(no extension)";
-    return nonReady("unsupported", `no parser reads ${ext} files`);
-  }
+  const parser = parserFor(fileName, options.mediaType)!;
   let parsed: Awaited<ReturnType<FormatParser["parse"]>>;
   let segments: Segment[];
   let text: string;
@@ -153,11 +150,9 @@ export async function derive(
       facts,
     };
   }
+  // A PDF with no text layer is pictures of pages, as a scan is: unread as an image is, not a failure.
   if (parser === pdfParser && Number(facts["text_layer_chars"] ?? 0) === 0) {
-    return {
-      ...nonReady("failed", "the PDF has no text layer (a scan?); no OCR is performed", parser.name, parser.version),
-      facts,
-    };
+    return { ...nonReady("unsupported", SCAN_DETAIL, parser.name, parser.version), facts };
   }
   const timed = Boolean(parser.timed);
   const duration = timed ? segments.reduce((m, s) => Math.max(m, s.end_ms ?? 0), 0) : null;

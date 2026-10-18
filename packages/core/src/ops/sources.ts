@@ -1,3 +1,4 @@
+import { currentReading, settledReading } from "@whatbuild/parsers";
 import { sql, type Selectable } from "kysely";
 import { z } from "zod";
 import { checkEtag, keepRevision, normalizeTags, productId, recordActivity, tenantId } from "../common.ts";
@@ -27,7 +28,11 @@ export async function loadRecord(ctx: OpContext, recordId: string, opts: { lock?
   return row;
 }
 
-/** Each of the sources' attachments with its latest reading, of its current version. */
+/**
+ * Each of the sources' attachments with its latest reading, of its current version, and that
+ * version's media type and size. A reading's status and detail are said as this version says them
+ * (`currentReading`), whenever it was made.
+ */
 export async function attachmentReadings(db: Tx, recordIds: string[]) {
   if (!recordIds.length) return [];
   const r = await sql<{
@@ -37,6 +42,8 @@ export async function attachmentReadings(db: Tx, recordIds: string[]) {
     added_at: string;
     added_by: unknown;
     current_version_id: string | null;
+    media_type: string | null;
+    size: string | null;
     derivation_id: string | null;
     status: string | null;
     status_detail: string | null;
@@ -47,14 +54,34 @@ export async function attachmentReadings(db: Tx, recordIds: string[]) {
     blob_prefix: string | null;
     read_at: string | null;
   }>`
-    select f.record_id, f.file_id, f.path, f.added_at, f.added_by, f.current_version_id,
+    select f.record_id, f.file_id, f.path, f.added_at, f.added_by, f.current_version_id, v.media_type, v.size,
       d.derivation_id, d.status, d.status_detail, d.parser, d.parser_version, d.text_chars, d.duration_ms, d.blob_prefix, d.created_at as read_at
     from files f
+    left join file_versions v on v.file_version_id = f.current_version_id
     left join lateral (
       select * from derivations d where d.file_version_id = f.current_version_id order by d.derivation_id desc limit 1) d on true
     where f.record_id = any(${recordIds})
     order by f.record_id, f.added_at, f.path`.execute(db);
-  return r.rows.map((x) => ({ ...x, duration_ms: x.duration_ms === null ? null : Number(x.duration_ms) }));
+  return r.rows.map((x) => ({
+    ...x,
+    ...(x.status ? currentReading(x.status, x.status_detail) : {}),
+    size: x.size === null ? null : Number(x.size),
+    duration_ms: x.duration_ms === null ? null : Number(x.duration_ms),
+  }));
+}
+
+type AttachmentReading = Awaited<ReturnType<typeof attachmentReadings>>[number];
+
+/**
+ * How an attachment's text stands: its latest reading's; before it is read, what its name, type
+ * and size already settle (a format no parser reads, a recording, a file over the parse cap), as
+ * its reading will record it; else `pending`. `settled` says the name, type and size decide its
+ * reading, so a reading of it still to come changes nothing.
+ */
+export function attachmentText(a: AttachmentReading, parseCapBytes: number): { status: string; status_detail: string | null; settled: boolean } {
+  const settled = a.size === null ? undefined : settledReading(a.path, { mediaType: a.media_type, size: a.size, parseCapBytes });
+  if (a.derivation_id) return { status: a.status!, status_detail: a.status_detail, settled: Boolean(settled) };
+  return settled ? { ...settled, settled: true } : { status: "pending", status_detail: null, settled: false };
 }
 
 /** The attachment a source's derived text was taken from, while it is still that attachment's text. */
@@ -91,18 +118,22 @@ export interface TextStatus {
   text_from: string | null;
   /** An attachment whose upload is under way. */
   pending_path: string | null;
+  /** The attachments read with some text that the source's derived text is not taken from. */
+  unused_text: string[];
 }
 
 /**
  * Where each source's derived text stands: `ready` when it has one; otherwise `pending` while an
  * attachment is arriving or being read, `awaiting_file` with no attachment, `awaiting_text` when
  * an attachment has text the source does not use, and else how its newest attachment was read
- * (`needs_transcript`, `unsupported`, `too_large` or `failed`).
+ * (`needs_transcript`, `unsupported`, `too_large` or `failed`). An attachment whose name, type and
+ * size settle its reading (`attachmentText`) is never being read: its status is known at once.
  */
 export async function derivedStatuses(ctx: OpContext, recordIds: string[]) {
   const out = new Map<string, TextStatus>();
   if (!recordIds.length) return out;
-  const readings = await attachmentReadings(ctx.db, recordIds);
+  const cap = ctx.ports.config.parseCapBytes;
+  const readings = (await attachmentReadings(ctx.db, recordIds)).map((x) => ({ ...x, shown: attachmentText(x, cap) }));
   const texts = await ctx.db
     .selectFrom("source_texts as t")
     .leftJoin("file_versions as v", "v.file_version_id", "t.from_file_version_id")
@@ -110,10 +141,11 @@ export async function derivedStatuses(ctx: OpContext, recordIds: string[]) {
     .select(["t.record_id", "t.chars", "f.path"])
     .where("t.record_id", "in", recordIds)
     .execute();
-  const jobs = await sql<{ record_id: string }>`
-    select distinct payload->>'record_id' as record_id from jobs
+  // The attachment versions waiting to be read, or read again.
+  const jobs = await sql<{ file_version_id: string }>`
+    select distinct payload->>'file_version_id' as file_version_id from jobs
     where kind = 'derive' and done_at is null and payload->>'record_id' = any(${recordIds})`.execute(ctx.db);
-  const reading = new Set(jobs.rows.map((j) => j.record_id));
+  const queued = new Set(jobs.rows.map((j) => j.file_version_id));
   const grants = await ctx.db
     .selectFrom("upload_grants")
     .select(["record_id", "path"])
@@ -126,26 +158,29 @@ export async function derivedStatuses(ctx: OpContext, recordIds: string[]) {
     const mine = readings.filter((x) => x.record_id === id);
     const text = texts.find((x) => x.record_id === id);
     const pending_path = grants.find((g) => g.record_id === id)?.path ?? null;
+    const reading = mine.some((x) => x.shown.status === "pending" || (!x.shown.settled && x.current_version_id !== null && queued.has(x.current_version_id)));
     let status: string;
     let detail: string | null = null;
     if (text) status = "ready";
-    else if (reading.has(id) || pending_path || mine.some((x) => !x.derivation_id)) status = "pending";
+    else if (reading || pending_path) status = "pending";
     else if (!mine.length) status = "awaiting_file";
-    else if (mine.some((x) => x.status === "ready")) status = "awaiting_text";
+    else if (mine.some((x) => x.shown.status === "ready")) status = "awaiting_text";
     else {
       const newest = mine.reduce((a, b) => (b.added_at > a.added_at ? b : a));
-      status = newest.status ?? "pending";
-      detail = newest.status_detail;
+      status = newest.shown.status;
+      detail = newest.shown.status_detail;
     }
     const durations = mine.map((x) => x.duration_ms).filter((d): d is number => d !== null);
+    const textFrom = text?.path ?? null;
     out.set(id, {
       derived_status: status,
       status_detail: detail,
       text_chars: text ? Number(text.chars) : 0,
       duration_ms: durations.length ? Math.max(...durations) : null,
       attachment_count: mine.length,
-      text_from: text?.path ?? null,
+      text_from: textFrom,
       pending_path,
+      unused_text: mine.filter((x) => x.shown.status === "ready" && Number(x.text_chars ?? 0) > 0 && x.path !== textFrom).map((x) => x.path),
     });
   }
   return out;
@@ -155,9 +190,26 @@ export async function derivedStatuses(ctx: OpContext, recordIds: string[]) {
 export const NO_TEXT_WARNING =
   "This source has an attachment with text but no derived text of its own, so search finds it only by its title, tags, summary, notes and comments. Take an attachment's text with derived(action=\"write_text\", from_attachment=…), or write the text.";
 
-/** What a read of a source should warn about, beyond its derived_status. */
-function sourceWarnings(s: { derived_status: string }): string[] {
-  return s.derived_status === "awaiting_text" ? [NO_TEXT_WARNING] : [];
+/** Some paths, in words: "a.vtt", "a.vtt and b.xlsx", "a.vtt, b.xlsx and c.pdf". */
+const listed = (paths: string[]) => (paths.length < 2 ? (paths[0] ?? "") : `${paths.slice(0, -1).join(", ")} and ${paths[paths.length - 1]}`);
+
+/**
+ * What a read of a source should warn about, beyond its derived_status: that it has no derived
+ * text though an attachment has text, or which attachments hold text its derived text does not
+ * use, which search never reads. An attachment with no text (a recording, an image) is not named.
+ */
+export function sourceWarnings(s: Pick<TextStatus, "derived_status" | "text_from" | "unused_text">): string[] {
+  if (s.derived_status === "awaiting_text") return [NO_TEXT_WARNING];
+  if (s.derived_status !== "ready" || !s.unused_text.length) return [];
+  const one = s.unused_text.length === 1;
+  const read = `the text read from ${listed(s.unused_text)} is kept but never searched`;
+  if (s.text_from)
+    return [
+      `This source's derived text is taken from ${s.text_from}, so ${read}. If ${one ? "its" : "their"} words should be found, write them into the derived text, the summary or the notes, or add ${one ? "it" : "each"} as a source of its own.`,
+    ];
+  return [
+    `This source's derived text was written or edited, so it follows no attachment: ${read}, and a new version of ${one ? "it" : "one"} does not change the derived text. Take an attachment's text with derived(action="write_text", from_attachment=…) only if it should replace the derived text.`,
+  ];
 }
 
 /**
@@ -362,8 +414,20 @@ export const listSources = defineOperation({
   },
 });
 
-/** A source's attachments as a read shows them: each with its versions and how its text was read. */
-export async function attachmentEntries(db: Tx, recordId: string) {
+/**
+ * A recording's detail beside the source's derived text, when it has one: where that text comes
+ * from, instead of asking for a transcript the source already has.
+ */
+export function recordingDetail(detail: string | null, source: { hasText: boolean; textFrom: string | null }): string | null {
+  if (!source.hasText) return detail;
+  return `a recording is stored and playable but has no text of its own; ${source.textFrom ? `the source's text is taken from ${source.textFrom}` : "the source's text was written or edited"}`;
+}
+
+/**
+ * A source's attachments as a read shows them: each with its versions and how its text was read,
+ * or, before it is read, what its name, type and size already settle (`attachmentText`).
+ */
+export async function attachmentEntries(db: Tx, recordId: string, parseCapBytes: number) {
   const readings = await attachmentReadings(db, [recordId]);
   const versions = await db
     .selectFrom("file_versions")
@@ -372,9 +436,14 @@ export async function attachmentEntries(db: Tx, recordId: string) {
     .orderBy("file_version_id", "desc")
     .execute();
   const textFile = await textFileId(db, recordId);
+  const source = {
+    hasText: Boolean(await db.selectFrom("source_texts").select("record_id").where("record_id", "=", recordId).executeTakeFirst()),
+    textFrom: readings.find((a) => a.file_id === textFile)?.path ?? null,
+  };
   return readings.map((a) => {
     const vs = versions.filter((v) => v.file_id === a.file_id);
     const cur = vs.find((v) => v.file_version_id === a.current_version_id) ?? vs[0];
+    const shown = attachmentText(a, parseCapBytes);
     return {
       path: a.path,
       media_type: cur?.media_type ?? null,
@@ -385,9 +454,15 @@ export async function attachmentEntries(db: Tx, recordId: string) {
       added_at: a.added_at,
       added_by: a.added_by,
       // Read when it arrives; kept, never searched.
-      text: a.derivation_id
-        ? { status: a.status!, status_detail: a.status_detail, chars: Number(a.text_chars ?? 0), duration_ms: a.duration_ms, parser: a.parser, derivation_id: a.derivation_id, read_at: a.read_at }
-        : { status: "pending", status_detail: null, chars: 0, duration_ms: null, parser: null, derivation_id: null, read_at: null },
+      text: {
+        status: shown.status,
+        status_detail: shown.status === "needs_transcript" ? recordingDetail(shown.status_detail, source) : shown.status_detail,
+        chars: Number(a.text_chars ?? 0),
+        duration_ms: a.duration_ms,
+        parser: a.parser,
+        derivation_id: a.derivation_id,
+        read_at: a.read_at,
+      },
       is_text_source: a.file_id === textFile,
     };
   });
@@ -400,7 +475,7 @@ export const getSource = defineOperation({
   mutates: false,
   summary: "Read a source cheaply (brief), or everything about it (full): attachments, derived text, comments.",
   description:
-    "Start with detail=\"brief\": derived_status says whether the source has a derived text (ready) and text_chars how long it is, to plan derived(action=\"text\") windows; warnings says when an attachment has text the source does not use. etag is the one sources.update and sources.delete expect. `full` adds the attachments (each with how its text was read, and which one the derived text was taken from), the derived text's etag and who wrote it last, comments and which of the summary and notes exist. Neither returns file bytes or the text itself. An archived source is still readable by id.",
+    "Start with detail=\"brief\": derived_status says whether the source has a derived text (ready) and text_chars how long it is, to plan derived(action=\"text\") windows; warnings names each attachment with text that the derived text does not use, which search never reads (attachments with no text, such as recordings and images, are not named), and says when the source has no derived text though an attachment has text. etag is the one sources.update and sources.delete expect. `full` adds the attachments (each with how its text was read, and which one the derived text was taken from), the derived text's etag and who wrote it last, comments and which of the summary and notes exist. Neither returns file bytes or the text itself. An archived source is still readable by id.",
   input: z.strictObject({ record_id: id("source"), detail: z.enum(["brief", "full"]).default("brief") }),
   rest: { method: "GET", path: "/sources/:record_id" },
   mcp: { tool: "sources", action: "get" },
@@ -427,7 +502,7 @@ export const getSource = defineOperation({
       updated_at: r.updated_at,
       updated_by: r.updated_by,
       pending_upload_path: s.pending_path,
-      attachments: await attachmentEntries(ctx.db, r.record_id),
+      attachments: await attachmentEntries(ctx.db, r.record_id, ctx.ports.config.parseCapBytes),
       text: text
         ? { chars: Number(text.chars), etag: text.etag, updated_at: text.updated_at, updated_by: text.updated_by, taken_from: await takenFrom(ctx.db, text.from_file_version_id) }
         : null,

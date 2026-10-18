@@ -1,6 +1,6 @@
 import { strToU8, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
-import { clock, derive, recordingDurationMs, sliceCodePoints, type ParseResult } from "../src/index.ts";
+import { clock, currentReading, derive, IMAGE_DETAIL, RECORDING_DETAIL, recordingDurationMs, SCAN_DETAIL, settledReading, sliceCodePoints, type ParseResult } from "../src/index.ts";
 import { bytesReader } from "../src/media.ts";
 import { splitLong } from "../src/text.ts";
 import { builtinFormat, formatNumber, formatText, readFormat } from "../src/numfmt.ts";
@@ -803,10 +803,12 @@ describe("PDF", () => {
     expectOffsetsExact(r);
   });
 
-  it("fails honestly when there is no text layer", async () => {
+  it("reads a PDF with no text layer as an image is read: unsupported, not failed", async () => {
     const r = await derive(makePdf([]), "scan.pdf");
-    expect(r.status).toBe("failed");
-    expect(r.status_detail).toMatch(/no text layer/);
+    expect(r).toMatchObject({ status: "unsupported", parser: "pdf", parser_version: "5", status_detail: SCAN_DETAIL, facts: { text_layer_chars: 0 } });
+    // Its detail says what an agent that can see the pages does instead.
+    expect(r.status_detail).toMatch(/^the PDF has no text layer: its pages are pictures, as a scan's are, and WhatBuild performs no OCR; an agent that can see its pages should read them/);
+    expect(r.status_detail).toContain('derived(action="write_text")');
   });
 });
 
@@ -852,11 +854,44 @@ describe("statuses", () => {
   it("marks unknown formats unsupported", async () => {
     const r = await derive(new Uint8Array(10), "slides.pptx");
     expect(r.status).toBe("unsupported");
-    expect(r.status_detail).toContain(".pptx");
+    expect(r.status_detail).toBe("no parser reads .pptx files");
+  });
+  it("marks an image unsupported, saying how an agent gives it its words", async () => {
+    for (const [name, type] of [["board.png", null], ["photo", "image/jpeg"]] as const) {
+      expect(await derive(new Uint8Array(10), name, { mediaType: type })).toMatchObject({ status: "unsupported", status_detail: IMAGE_DETAIL });
+    }
+    expect(IMAGE_DETAIL).toMatch(/^WhatBuild reads no words from an image, as it performs no OCR; an agent that can see it should describe it in the source's summary/);
   });
   it("marks oversized files too large without parsing", async () => {
     const r = await derive(new Uint8Array(11), "a.txt", { parseCapBytes: 10 });
     expect(r.status).toBe("too_large");
+    expect(r.status_detail).toBe("the file is 11 bytes; files over 10 bytes are stored but not read");
+  });
+  it("says from a file's name, type and size alone what its reading will find, when they settle it", async () => {
+    const settled = (name: string, size: number, mediaType?: string) => settledReading(name, { mediaType, size, parseCapBytes: 100 });
+    expect(settled("call.m4a", 50)).toEqual({ status: "needs_transcript", status_detail: RECORDING_DETAIL });
+    expect(settled("board.png", 50)).toEqual({ status: "unsupported", status_detail: IMAGE_DETAIL });
+    expect(settled("deck.key", 50)).toEqual({ status: "unsupported", status_detail: "no parser reads .key files" });
+    // Too large first, as a reading finds it, whatever the format.
+    expect(settled("board.png", 101)).toEqual({ status: "too_large", status_detail: "the file is 101 bytes; files over 100 bytes are stored but not read" });
+    // Only the bytes say how a readable format reads.
+    expect(settled("notes.txt", 50)).toBeUndefined();
+    expect(settled("scan.pdf", 50)).toBeUndefined();
+    expect(settled("export", 50, "text/csv")).toBeUndefined();
+    // And the reading says the same.
+    for (const name of ["call.m4a", "board.png", "deck.key"]) {
+      const r = await derive(new Uint8Array(50), name, { parseCapBytes: 100 });
+      expect({ status: r.status, status_detail: r.status_detail }).toEqual(settled(name, 50));
+    }
+  });
+  it("says a reading an earlier version made as this one would", () => {
+    expect(currentReading("needs_transcript", "a recording is stored and playable but has no text; add a transcript as a new source")).toEqual({ status: "needs_transcript", status_detail: RECORDING_DETAIL });
+    expect(currentReading("failed", "the PDF has no text layer (a scan?); no OCR is performed")).toEqual({ status: "unsupported", status_detail: SCAN_DETAIL });
+    expect(currentReading("unsupported", "no parser reads .png files")).toEqual({ status: "unsupported", status_detail: IMAGE_DETAIL });
+    // Anything else is said as it was.
+    expect(currentReading("unsupported", "no parser reads .key files")).toEqual({ status: "unsupported", status_detail: "no parser reads .key files" });
+    expect(currentReading("failed", "Error: bad XRef entry")).toEqual({ status: "failed", status_detail: "Error: bad XRef entry" });
+    expect(currentReading("ready", null)).toEqual({ status: "ready", status_detail: null });
   });
 });
 

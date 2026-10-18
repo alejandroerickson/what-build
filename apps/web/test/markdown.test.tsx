@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { formatCue, formatDate, formatDateTime, relativeTime } from "../src/lib/format.ts";
 import { inAppHref, Markdown, markdownText, mentionLabels } from "../src/lib/markdown.tsx";
-import { derivedStatusDetail } from "../src/lib/status.ts";
+import { derivedStatus, derivedStatusDetail, pictureKind } from "../src/lib/status.ts";
 import { findPattern } from "../src/routes/source-text.tsx";
 
 const html = (md: string) => renderToStaticMarkup(<Markdown source={md} />);
@@ -100,6 +100,17 @@ describe("statuses", () => {
     expect(derivedStatusDetail("too_large", "the file is 90 bytes")).toBe("the file is 90 bytes");
     expect(derivedStatusDetail("something_new", "why")).toBe("why");
     expect(derivedStatusDetail("failed", null)).toBeNull();
+  });
+
+  it("tells pictures, which read no words and are no failure, from formats WhatBuild cannot read", () => {
+    const att = (path: string, media_type: string | null, status = "unsupported") => ({ path, media_type, text: { status } });
+    expect(pictureKind(att("board.png", "image/png"))).toBe("image");
+    expect(pictureKind(att("photo.heic", "application/octet-stream"))).toBe("image");
+    // A PDF is read; only one with no text layer, its pages pictures, comes back unsupported.
+    expect(pictureKind(att("signed.pdf", "application/pdf"))).toBe("scan");
+    expect(pictureKind(att("signed.pdf", "application/pdf", "ready"))).toBeNull();
+    expect(pictureKind(att("deck.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"))).toBeNull();
+    expect(derivedStatus("unsupported").label).toBe("Not read as text");
   });
 });
 

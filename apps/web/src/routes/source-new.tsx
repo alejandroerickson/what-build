@@ -206,7 +206,7 @@ export function SourceNewPage() {
           <div className="intake-files">
             <DropZone
               label="Attachments"
-              hint="The first one whose text WhatBuild can read becomes the source’s text, which search reads. It reads text, Markdown, transcripts (VTT, SRT), Word, PDF, spreadsheets and HTML, and doesn’t transcribe recordings: add a recording’s transcript too."
+              hint="They’re read in the order listed, and the first in which WhatBuild finds text becomes the source’s text, which search reads. It reads text, Markdown, transcripts (VTT, SRT), Word, PDF, spreadsheets and HTML, but no words in images or scanned pages, and it doesn’t transcribe recordings: add a recording’s transcript too."
               multiple
               onFiles={(f) => setItems([...items, ...f.filter((file) => !items.some((i) => i.file.name === file.name)).map((file) => ({ file, state: "waiting" as const, loaded: 0 }))])}
             />

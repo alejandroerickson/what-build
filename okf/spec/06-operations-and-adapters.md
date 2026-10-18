@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 118 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -706,8 +706,10 @@ of preference for an agent (`packages/core/src/ops/attachments.ts`):
    warnings }`
    (`create_upload` returns `{ record, upload, warnings }`, `create_uploads` a list of them as `items`). `warnings` flags, without refusing, a
    format no parser reads (the attachment will be kept, but its text cannot be read, so it cannot
-   become the source's derived text; a recording is not flagged, since its result says it), and for
-   `create_upload` a live source with the same title and date. The agent PUTs the
+   become the source's derived text; a recording is not flagged, since its result says it), an
+   image (kept and shown, but read for no words: an agent that can see it describes it in the
+   summary and writes its words as the text), and for `create_upload` a live source with the same
+   title and date. The agent PUTs the
    local file's raw bytes to `url` (the service's own upload relay,
    `/api/v1/uploads/:grant_id`) with exactly those headers, using whatever shell or HTTP tool it
    has. The relay first checks that whoever requested the grant can still write to the product
@@ -723,9 +725,15 @@ of preference for an agent (`packages/core/src/ops/attachments.ts`):
    and its text will become the source's derived text, or the source already has one and this text
    will be kept beside it (take it with `derived.write_text`'s `from_attachment`); it has been
    read; it is a recording, stored and playable but never transcribed (add its transcript as
-   another attachment); or no parser reads its format (with the formats that are read). Every note
-   says the attachment is kept and never searched, and a recording or an unread format is named at
-   once, before the worker has run. Grants are single-file, create-only, signed, and expire after
+   another attachment, or, beside the source's derived text, where that text comes from); it is an
+   image, or a PDF whose pages are pictures, with no words read (and how an agent that can see it
+   gives the source its words); or no parser reads its format (with the formats that are read).
+   Every note says the attachment is kept and never searched. A recording, an image, an unread
+   format and a file over the parse cap are known by name, type and size, so the attachment's
+   `text.status` says so at once, before the worker has run, as its reading then records it
+   ([§5.5](05-derived-layer.md)); `warnings` here is empty, and `fetch_url` adds a URL's
+   fragment to it. A grant takes one file, once: it adds an attachment, or, at a path the source
+   already has, a new version of it, the earlier versions kept. Grants are signed and expire after
    30 minutes by default (`WHATBUILD_GRANT_TTL_SECONDS`). The relay takes at most 25 MB
    (`WHATBUILD_RELAY_MAX_BYTES`); when the deployment enables signed URLs
    (`WHATBUILD_GCS_SIGNED_URLS=1`), the grant also carries a `direct` block for a PUT straight to

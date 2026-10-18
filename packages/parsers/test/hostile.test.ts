@@ -418,10 +418,10 @@ describe("files that would make too much", () => {
       const { r, ms } = await measured(makeBlankPdf(pages), "blank.pdf");
       expect(r.status, `${pages} pages`).toBe("too_large");
       expect(r.status_detail).toBe(`the PDF has ${pages} pages; PDFs over ${MAX_PDF_PAGES} pages are stored but not parsed`);
-      expect(r.parser_version).toBe("4");
+      expect(r.parser_version).toBe("5");
       expect(ms).toBeLessThan(3000);
     }
-    expect((await derive(makeBlankPdf(3), "blank.pdf")).status_detail).toContain("no text layer");
+    expect(await derive(makeBlankPdf(3), "blank.pdf")).toMatchObject({ status: "unsupported", status_detail: expect.stringContaining("no text layer") });
   });
 
   it(`marks a file that would make more than ${MAX_SEGMENTS} passages too large, in every format that could`, async () => {
