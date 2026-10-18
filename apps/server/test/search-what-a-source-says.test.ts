@@ -250,7 +250,7 @@ const codePoints = (s: string) => Array.from(s).length;
 
 describe("every place, as typed", () => {
   let D: string;
-  const src: Record<"log" | "roster" | "fuel" | "route" | "planB" | "planXB" | "crane", string> = { log: "", roster: "", fuel: "", route: "", planB: "", planXB: "", crane: "" };
+  const src: Record<"log" | "roster" | "fuel" | "route" | "planB" | "planXB" | "crane" | "invoices", string> = { log: "", roster: "", fuel: "", route: "", planB: "", planXB: "", crane: "", invoices: "" };
   let roll: string; // a comment on the roster
 
   beforeAll(async () => {
@@ -271,6 +271,8 @@ describe("every place, as typed", () => {
     src.planXB = await source(D, alice, "PlanXB rollout — Example Co");
     src.crane = await source(D, alice, "Crane ticket — Example Co");
     expect((await alice.api("PUT", `${D}/sources/${src.crane}/derived/text`, { content: "Ticket CB26-20734 is open for the crane. Ticket CB26-20733 was the pump.\n" })).status).toBe(200);
+    src.invoices = await source(D, alice, "Depot ledger — Example Co");
+    expect((await alice.api("PUT", `${D}/sources/${src.invoices}/derived/text`, { content: "The invoices for the crane were logged 2026-05-01T10:00 by the depot.\n" })).status).toBe(200);
   });
 
   it("gives every place a source says the words as a hit of its own, each read back exactly", async () => {
@@ -397,6 +399,13 @@ describe("every place, as typed", () => {
     expect(await plain("CB26-2073 ")).toMatchObject({ corrections: [], results: [] });
     // A phrase may hold an id.
     expect((await plain('"ticket CB26-20733" pump')).results.map((x: { id: string }) => x.id)).toEqual([src.crane]);
+    // The database ends the number after a hyphen before a letter, and so does marking: the date in
+    // a timestamp is found, held and marked, not missing.
+    const logged = await plain("invoices 2026-05-01 crane");
+    expect(logged).toMatchObject({ partial: false, corrections: [] });
+    expect(logged.results.map((x: { id: string; missing: string[] }) => [x.id, x.missing])).toEqual([[src.invoices, []]]);
+    const at = logged.results[0].hits[0];
+    expect(at.marks.map(([a, b]: [number, number]) => at.text.slice(a, b))).toEqual(["invoices", "crane", "2026-05-01"]);
   });
 });
 

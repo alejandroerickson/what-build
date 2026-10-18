@@ -54,6 +54,11 @@ describe("how plain search reads a query", () => {
     // Postgres reads the quoted id as it reads the text (cb26 <-> -20734), and stores a number after a hyphen with it.
     expect(termTsquery(parseFind("CB26-20734 ").terms[0]!)).toBe("'cb26-20734'");
     expect(termTsquery(parseFind("20734").terms[0]!)).toBe("'20734':* | '-20734':*");
+    // It ends a number after a hyphen before a letter, so a date is found in a timestamp; a number
+    // alone runs on into letters, as 2020s is one word.
+    expect(matchText("logged 2026-05-01T10:00", parseFind("2026-05-01 ").terms).found).toEqual([true]);
+    expect(matchText("logged 2026-05-011", parseFind("2026-05-01 ").terms).found).toEqual([false]);
+    expect(matchText("the 2020s", parseFind("2020 ").terms).found).toEqual([false]);
   });
 
   it("marks matches whatever the case or accents, and cuts an excerpt around the densest run", () => {

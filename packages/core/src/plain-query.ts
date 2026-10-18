@@ -160,11 +160,20 @@ export function termTsquery(t: FindTerm): string {
   return /^\p{N}/u.test(t.root) ? `'${t.root}'${star} | '-${t.root}'${star}` : `'${t.root}'${star}`;
 }
 
-/** A regular expression that finds a term in folded text. */
+/** An id that ends in a number after a hyphen: the 01 of 2026-05-01, the 20734 of CB26-20734. */
+const ENDS_IN_NUMBER = /-\p{N}+$/u;
+
+/**
+ * A regular expression that finds a term in folded text, where Postgres finds it. A term ends where
+ * its word does; but Postgres reads a number after a hyphen as ending before a letter, so an id that
+ * ends in one is found before a letter too, as 2026-05-01 is in 2026-05-01T10:00. A number alone
+ * runs on into letters there as here: 2020 is not in 2020s.
+ */
 export function termPattern(t: FindTerm): RegExp {
   const esc = (s: string) => fold(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const body = t.phrase ? t.root.split(" ").map(esc).join("[^\\p{L}\\p{N}]+") : esc(t.root);
-  return new RegExp(`(?<![\\p{L}\\p{N}])${body}${t.prefix ? "[\\p{L}\\p{N}]*" : "(?![\\p{L}\\p{N}])"}`, "gu");
+  const end = t.prefix ? "[\\p{L}\\p{N}]*" : !t.phrase && ENDS_IN_NUMBER.test(t.root) ? "(?!\\p{N})" : "(?![\\p{L}\\p{N}])";
+  return new RegExp(`(?<![\\p{L}\\p{N}])${body}${end}`, "gu");
 }
 
 export interface TextMatch {
