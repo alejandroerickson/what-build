@@ -33,7 +33,7 @@ const PART: Record<Part, { of: string; missing: string; none: string; own: strin
     none: `This source has no summary now, so there is no etag to match: derived(action="read_note", note_kind="summary") answers 404. Leave expected_etag out for the first write.`,
     own: "its summary has its own",
     pass: `Pass the summary's etag: derived(action="read_note", note_kind="summary") returns it, as does sources(action="get", detail="full") in agent_notes.`,
-    stale: "This source's summary changed since you read it. Read it again, reconcile, and retry with the new etag.",
+    stale: `That is not the current etag of this source's summary. Read it again with derived(action="read_note", note_kind="summary"), see what it says now, and pass its etag.`,
   },
   notes: {
     of: "the etag of the source's notes",
@@ -41,7 +41,7 @@ const PART: Record<Part, { of: string; missing: string; none: string; own: strin
     none: `This source has no notes now, so there is no etag to match: derived(action="read_note", note_kind="notes") answers 404. Leave expected_etag out for the first write.`,
     own: "its notes have their own",
     pass: `Pass the notes' etag: derived(action="read_note", note_kind="notes") returns it, as does sources(action="get", detail="full") in agent_notes.`,
-    stale: "This source's notes changed since you read them. Read them again, reconcile, and retry with the new etag.",
+    stale: `That is not the current etag of this source's notes. Read them again with derived(action="read_note", note_kind="notes"), see what they say now, and pass their etag.`,
   },
   text: {
     of: "the etag of the source's derived text",
@@ -49,7 +49,7 @@ const PART: Record<Part, { of: string; missing: string; none: string; own: strin
     none: `This source has no derived text now, so there is no etag to match: derived(action="text") answers 404. Leave expected_etag out for the first write.`,
     own: "its derived text has its own",
     pass: `Pass the derived text's etag: derived(action="text") returns it, as does sources(action="get", detail="full") as text.etag.`,
-    stale: "This source's derived text changed since you read it. Read it again, reconcile, and retry with the new etag.",
+    stale: `That is not the current etag of this source's derived text. Read it again with derived(action="text"), see what it says now, and pass its etag.`,
   },
 };
 
@@ -57,7 +57,10 @@ const PART: Record<Part, { of: string; missing: string; none: string; own: strin
  * A write to a part of a source takes no etag while the part does not exist, and its current etag
  * once it does. A missing etag, a stale one, one sent when there is nothing to match, or another of
  * the source's etags sent in its place is 409 stale_etag with current_etag, saying what to pass.
- * The caller holds the source's lock, so the check and the write it guards are one step.
+ * Another part's etag is named only while it is that part's current one: an older one, of the source
+ * after an attachment moved it on, say, is told apart from nothing, so the refusal says only that it
+ * is not the current etag, never that the part changed. The caller holds the source's lock, so the
+ * check and the write it guards are one step.
  */
 async function checkPartEtag(ctx: OpContext, source: { record_id: string; etag: string }, part: Part, current: string | null, expected: string | undefined) {
   const words = PART[part];

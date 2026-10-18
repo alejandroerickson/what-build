@@ -62,10 +62,11 @@ the same is tried in the sandbox, where the sandbox's limits apply.
    `diff`; the second is refused with `409 stale_etag`, and nothing changed. `search` for the
    made-up word now finds the source, in `text`. Then rewrite the summary with
    `derived(action="write_note", note_kind="summary")`, first without `expected_etag`, then with
-   the source's own etag, then with the etag `read_note` gave in step 6. *Expect:* the first two
-   are refused with `409 stale_etag` and `current_etag`, the first saying to read the summary and
-   pass its etag, the second that it is the source's etag; the third answers with a new etag, and
-   the web shows the new summary under the title.
+   the source's own etag as `sources(action="get")` gives it now (step 7's upload moved it on from
+   step 6's), then with the etag `read_note` gave in step 6. *Expect:* the first two are refused
+   with `409 stale_etag` and `current_etag`, the first saying to read the summary and pass its
+   etag, the second that it is the source's etag; the third answers with a new etag, and the web
+   shows the new summary under the title.
 9. **Web, as Sam.** Create a second source through the upload flow on the web, with a title and
    tags, and a short synthetic file in its one drop zone for attachments. *Expect:* it is created
    with no role to choose, read and listed, and its Text shows the file's words.

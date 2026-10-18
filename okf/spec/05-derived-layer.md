@@ -257,10 +257,12 @@ removes the text, the next reading with text fills it again.
 None, or more than one, is `422 invalid_input`. `expected_etag` is the text's own etag, left out
 for the first text and required once the source has one, whichever way it is written, removing it
 included ([§4.1](04-data-model.md)). Without it, with a stale one, or with another of the source's
-etags in its place (the source's own, its summary's or its notes', each named in the refusal), the
-write is `409 stale_etag` with `current_etag` and a message saying where to read the text's etag;
-one sent when the source has no text is `409 stale_etag` with `current_etag: null`, saying to
-leave it out for the first write. An archived source refuses it (`409 record_archived`). It answers `{ record_id, chars, etag, updated_at, taken_from, diff? }`,
+etags in its place, the write is `409 stale_etag` with `current_etag` and a message saying where to
+read the text's etag. The source's own etag, its summary's and its notes' are each named in the
+refusal while they are current; any other etag, an older one of any part included (the source's
+from before an attachment was added, say), is refused as not the text's current etag, without
+saying the text changed, which it may not have. One sent when the source has no text is
+`409 stale_etag` with `current_etag: null`, saying to leave it out for the first write. An archived source refuses it (`409 record_archived`). It answers `{ record_id, chars, etag, updated_at, taken_from, diff? }`,
 writes the text's pieces into the search index in the same transaction, and records `text_written`
 in the activity log: "Wrote the derived text", "Rewrote the derived text", "Edited the derived
 text", "Removed the derived text" or "Took the derived text from interview.vtt". The text keeps no

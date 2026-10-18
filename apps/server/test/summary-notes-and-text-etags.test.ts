@@ -117,14 +117,26 @@ describe("a source's summary and notes", () => {
     const written = await text(s.record_id, { content: "Crews text the office every Friday.\n" });
     expect(written.status, JSON.stringify(written.body)).toBe(200);
 
-    refused(await note(s.record_id, "summary", { content: "x", expected_etag: "an-old-etag" }), /^This source's summary changed since you read it\. Read it again, reconcile, and retry with the new etag\.$/, summary.body.etag);
-    refused(await note(s.record_id, "notes", { content: "x", expected_etag: "an-old-etag" }), /^This source's notes changed since you read them\./, notes.body.etag);
+    refused(
+      await note(s.record_id, "summary", { content: "x", expected_etag: "an-old-etag" }),
+      /^That is not the current etag of this source's summary\. Read it again with derived\(action="read_note", note_kind="summary"\), see what it says now, and pass its etag\.$/,
+      summary.body.etag,
+    );
+    refused(await note(s.record_id, "notes", { content: "x", expected_etag: "an-old-etag" }), /^That is not the current etag of this source's notes\. Read them again/, notes.body.etag);
     const pass = /Pass the summary's etag: derived\(action="read_note", note_kind="summary"\) returns it, as does sources\(action="get", detail="full"\) in agent_notes\.$/;
     const withSource = await note(s.record_id, "summary", { content: "x", expected_etag: s.etag });
     refused(withSource, /^That is the source's etag; its summary has its own\. /, summary.body.etag);
     expect(withSource.body.error.message).toMatch(pass);
     refused(await note(s.record_id, "summary", { content: "x", expected_etag: notes.body.etag }), /^That is the etag of the source's notes; its summary has its own\. /, summary.body.etag);
     refused(await note(s.record_id, "summary", { content: "x", expected_etag: written.body.etag }), /^That is the etag of the source's derived text; its summary has its own\. /, summary.body.etag);
+    // The source's etag is named while it is current. Once an attachment moves it on, the one read
+    // before is no one's current etag: the refusal says so, and not that the summary changed.
+    const grant = await alice.api("POST", `${P}/sources/${s.record_id}/uploads`, { record_id: s.record_id, path: "notes.txt" });
+    expect((await fetch(grant.body.url, { method: "PUT", headers: grant.body.headers, body: "Radios are kept at the depot.\n" })).status).toBe(201);
+    const moved = (await full(s.record_id)).etag;
+    expect(moved).not.toBe(s.etag);
+    refused(await note(s.record_id, "summary", { content: "x", expected_etag: s.etag }), /^That is not the current etag of this source's summary\. /, summary.body.etag);
+    refused(await note(s.record_id, "summary", { content: "x", expected_etag: moved }), /^That is the source's etag; its summary has its own\. /, summary.body.etag);
     refused(await note(s.record_id, "notes", { content: "x", expected_etag: summary.body.etag }), /^That is the etag of the source's summary; its notes have their own\. Pass the notes' etag/, notes.body.etag);
     expect((await readNote(s.record_id, "summary")).body).toMatchObject({ content: "Crews text the office.", etag: summary.body.etag });
     expect((await readNote(s.record_id, "notes")).body).toMatchObject({ content: "Follow up on the radios.", etag: notes.body.etag });
@@ -137,7 +149,7 @@ describe("a source's summary and notes", () => {
     expect(second.status, JSON.stringify(second.body)).toBe(200);
     expect(second.body.etag).not.toBe(first.body.etag);
     // Sent again with the etag it was read with, a write is refused: someone wrote since.
-    refused(await note(s.record_id, "summary", { content: "Crews plan by the day.", expected_etag: first.body.etag }), /changed since you read it/, second.body.etag);
+    refused(await note(s.record_id, "summary", { content: "Crews plan by the day.", expected_etag: first.body.etag }), /^That is not the current etag of this source's summary\./, second.body.etag);
     // REST also takes the etag as If-Match.
     const third = await note(s.record_id, "summary", { content: "Crews plan by the week, then the day." }, alice, { "if-match": `"${second.body.etag}"` });
     expect(third.status, JSON.stringify(third.body)).toBe(200);
@@ -219,12 +231,12 @@ describe("a source's derived text", () => {
     const summary = await note(s.record_id, "summary", { content: "A full Monday." });
     refused(await text(s.record_id, { content: "x\n", expected_etag: summary.body.etag }), /^That is the etag of the source's summary; its derived text has its own\. /, first.body.etag);
     const stale = await text(s.record_id, { content: "x\n", expected_etag: "an-old-etag" });
-    refused(stale, /^This source's derived text changed since you read it\. Read it again, reconcile, and retry with the new etag\.$/, first.body.etag);
+    refused(stale, /^That is not the current etag of this source's derived text\. Read it again with derived\(action="text"\), see what it says now, and pass its etag\.$/, first.body.etag);
     expect((await alice.api("GET", `${P}/sources/${s.record_id}/derived/text`)).body).toMatchObject({ text: "Monday column is full.\n", etag: first.body.etag });
 
     const edited = await text(s.record_id, { edits: [{ old_text: "Monday", new_text: "Tuesday" }], expected_etag: first.body.etag });
     expect(edited.status, JSON.stringify(edited.body)).toBe(200);
-    refused(await text(s.record_id, { content: "Back to Monday.\n", expected_etag: first.body.etag }), /changed since you read it/, edited.body.etag);
+    refused(await text(s.record_id, { content: "Back to Monday.\n", expected_etag: first.body.etag }), /^That is not the current etag of this source's derived text\./, edited.body.etag);
   });
 
   it("says to leave the etag out when there is no text to match", async () => {

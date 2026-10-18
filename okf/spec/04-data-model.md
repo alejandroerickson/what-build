@@ -46,9 +46,10 @@ source's summary and notes (`derived.write_note`, §4.6) and its derived text
 well, not `422`, with `current_etag` and a message saying which etag to pass and where to read it;
 clearing or removing is a write like any other. Where an object's etag sits beside another's (a
 source's summary, notes and derived text beside the source's own; a page's notes beside the
-page's), sending the wrong one is recognised and named. A summary, notes or derived text someone
-removed has nothing to match: an etag sent for it is refused the same way, with
-`current_etag: null`, saying to leave it out for the first write.
+page's), sending the other's current etag is recognised and named; an older one is refused as not
+the current etag. A summary, notes or derived text someone removed has nothing to match: an etag
+sent for it is refused the same way, with `current_etag: null`, saying to leave it out for the
+first write.
 
 A source's etag also changes when an attachment is added (`complete_upload` returns the new one
 as `record_etag`). Reading an attachment, which no caller does, does not change it, so an etag

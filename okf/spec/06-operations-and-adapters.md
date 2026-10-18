@@ -341,8 +341,9 @@ Notes on recent actions:
   it; `derived.write_text`'s `expected_etag` is required once the source has a derived text. The
   first write takes none. A write without the etag once the part exists, with a stale one, or with
   another of the source's etags is `409 stale_etag` with `current_etag`, its message saying which
-  etag to pass and where to read it; an etag sent when there is nothing to match is
-  `409 stale_etag` with `current_etag: null`, saying to leave it out ([§4.1](04-data-model.md)).
+  etag to pass and where to read it (another part's etag is named while it is current); an etag
+  sent when there is nothing to match is `409 stale_etag` with `current_etag: null`, saying to
+  leave it out ([§4.1](04-data-model.md)).
 - A source's words are one derived text, and its files are attachments that are read and kept but
   never searched
   ([decision](../decisions/a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)).
