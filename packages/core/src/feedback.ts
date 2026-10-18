@@ -1,6 +1,6 @@
 import { sql } from "kysely";
 import type { Db } from "./db.ts";
-import { rateLimited } from "./errors.ts";
+import { AppError, rateLimited } from "./errors.ts";
 import type { Ports } from "./ports.ts";
 
 /**
@@ -10,6 +10,13 @@ import type { Ports } from "./ports.ts";
  * plain-text digest, at most one a day, to the address the deployment names
  * (`WHATBUILD_FEEDBACK_EMAIL`); without one, reports stay in the database.
  */
+
+/**
+ * The refusal of submit_feedback on an agent's connection whose person turned it off. It comes
+ * before anything else about the call, its input included: the tool is off, whatever was sent.
+ */
+export const feedbackOff = () =>
+  new AppError(403, "feedback_off", "The person turned off submit_feedback for this connection, in Connect an agent. Send no feedback another way; tell them what went wrong instead.");
 
 /** Reports one person, with their agents, may send in a day (UTC). */
 export const FEEDBACK_PER_DAY = 10;

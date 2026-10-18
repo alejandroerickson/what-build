@@ -98,6 +98,19 @@ describe("MCP", () => {
     await client.close();
   });
 
+  it("says an action is missing, and lists the tool's actions, when a grouped tool is called without one", async () => {
+    const client = await connect(agentToken);
+    for (const args of [{ params: {} }, { describe: true }, { action: "" }, { action: null }]) {
+      const r = await client.callTool({ name: "sources", arguments: args });
+      expect(r.isError).toBe(true);
+      const t = (r.content as { text: string }[])[0]!.text;
+      expect(t, JSON.stringify(args)).toMatch(/^422: `action` is missing: sources needs one of its actions \(facets, list, get, [a-z_, ]+\), with the action's fields in params\. Call it with an action and describe=true to see that action's fields\. Nothing was changed\./);
+      expect(t).not.toContain("undefined");
+      expect(text(r).error).toMatchObject({ code: "invalid_input", details: { actions: expect.arrayContaining(["list", "get", "create"]) } });
+    }
+    await client.close();
+  });
+
   it("runs the agent path: create with upload, PUT, complete, read, search, read the text around a hit, record", async () => {
     const client = await connect(agentToken);
     // Only one product is reachable, so `product` may be omitted.

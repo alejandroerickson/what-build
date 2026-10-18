@@ -38,6 +38,8 @@ export const authorType = z
 
 const quote = (path: PropertyKey[]) => `\`${path.join(".")}\``;
 const list = (names: string[]) => (names.length < 3 ? names.join(" and ") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`);
+/** Names as words: "a", "a and b", "a, b and c". */
+export const wordList = list;
 
 /**
  * Where a value holds a null character (U+0000), as paths into it. Postgres keeps no such
@@ -97,19 +99,91 @@ function likelyRename(unknown: string, missing: string[], unknowns: number): str
   return near.length === 1 ? near[0] : undefined;
 }
 
+/** A schema without the wrappers that change no value's shape: optional, nullable, a default. */
+function unwrapped(schema: z.ZodType | undefined): z.ZodType | undefined {
+  let s = schema as unknown as { def: { type: string; innerType?: z.ZodType; in?: z.ZodType } } | undefined;
+  for (let i = 0; s && i < 10; i++) {
+    if (["optional", "nullable", "default", "prefault", "readonly", "catch", "nonoptional"].includes(s.def.type)) s = s.def.innerType as never;
+    else if (s.def.type === "pipe") s = s.def.in as never;
+    else break;
+  }
+  return s as unknown as z.ZodType | undefined;
+}
+
+/** The schema of the field at a path, or undefined where the path leaves what the schema says. */
+function schemaAt(schema: z.ZodType | undefined, path: PropertyKey[]): z.ZodType | undefined {
+  let s = unwrapped(schema);
+  for (const k of path) {
+    const def = (s as unknown as { def?: { type: string; shape?: Record<string, z.ZodType>; element?: z.ZodType } } | undefined)?.def;
+    if (def?.type === "object") s = unwrapped(def.shape?.[String(k)]);
+    else if (def?.type === "array") s = unwrapped(def.element);
+    else return undefined;
+  }
+  return s;
+}
+
+const kindOf = (s: z.ZodType | undefined) => (s as unknown as { def?: { type: string } } | undefined)?.def?.type;
+const enumValues = (s: z.ZodType) => Object.values((s as unknown as { def: { entries: Record<string, string | number> } }).def.entries).map(String);
+
+/** What a value sent is, in words: "a string", "null". */
+function sentAs(value: unknown): string {
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "a list";
+  if (typeof value === "object") return "an object";
+  if (typeof value === "boolean") return String(value);
+  return withArticle(typeof value);
+}
+
+/**
+ * A list field sent as something else, in one sentence that says what it takes, with an example
+ * made from what was sent where it can be: "`status` takes a list of any of unconfirmed,
+ * confirmed, refuted and superseded, such as ["confirmed"], not a string."
+ */
+function notAList(path: PropertyKey[], list_: z.ZodType, value: unknown): string {
+  const element = unwrapped((list_ as unknown as { def: { element: z.ZodType } }).def.element);
+  const sent = typeof value === "string" && value.length <= 200 ? value.split(",").map((v) => v.trim()).filter(Boolean).slice(0, 3) : [];
+  let takes = "a list";
+  let example: string[] = [];
+  if (kindOf(element) === "enum") {
+    const values = enumValues(element!);
+    takes = `a list of any of ${list(values)}`;
+    example = sent.filter((v) => values.includes(v));
+    if (!example.length) example = values.slice(0, 1);
+  } else if (kindOf(element) === "string") {
+    takes = "a list of strings";
+    example = sent;
+  } else if (kindOf(element) === "number") takes = "a list of numbers";
+  else if (kindOf(element) === "object") takes = "a list of objects";
+  return `${quote(path)} takes ${takes}${example.length ? `, such as ${JSON.stringify(example)}` : ""}, not ${sentAs(value)}.`;
+}
+
 /**
  * Format zod issues as one message an agent can act on. The cause leads: fields the call sent that
  * are not recognized come first, each with the required field it was likely meant as, then what is
- * missing ("`notes` is required"), then any other problem with a value.
+ * missing ("`notes` is required"), then any other problem with a value. A value of the wrong type
+ * is named once, without the checks the library also ran on it (a string's length against a
+ * list's limit), and a list sent as something else says what the list takes, from `schema`.
+ * `skip` names top-level fields the caller words a refusal of itself.
  */
-export function formatIssues(error: z.ZodError, input?: unknown): string {
+export function formatIssues(error: z.ZodError, input?: unknown, opts: { schema?: z.ZodType; skip?: string[] } = {}): string {
   const unknown: { path: PropertyKey[]; keys: string[] }[] = [];
   const missing: PropertyKey[][] = [];
   const other: string[] = [];
+  const sent = (path: PropertyKey[]) => valueAt(input, path) !== undefined;
+  const wrongType = new Set(error.issues.filter((i) => i.code === "invalid_type" && i.path.length && sent(i.path)).map((i) => i.path.join(".")));
+  const named = new Set<string>();
   for (const i of error.issues) {
-    if (i.code === "unrecognized_keys") unknown.push({ path: i.path, keys: (i as { keys: string[] }).keys });
-    else if (i.code === "invalid_type" && i.path.length && valueAt(input, i.path) === undefined) missing.push(i.path);
-    else other.push(i.path.length ? `${quote(i.path)}: ${i.message.replace(/^Invalid input: /, "")}` : i.message);
+    const at = i.path.join(".");
+    if (i.code === "unrecognized_keys") {
+      const keys = (i as { keys: string[] }).keys.filter((k) => i.path.length || !opts.skip?.includes(k));
+      if (keys.length) unknown.push({ path: i.path, keys });
+    } else if (i.code === "invalid_type" && i.path.length && !sent(i.path)) missing.push(i.path);
+    else if (wrongType.has(at)) {
+      if (i.code !== "invalid_type" || named.has(at)) continue;
+      named.add(at);
+      const field = schemaAt(opts.schema, i.path);
+      other.push(kindOf(field) === "array" ? notAList(i.path, field!, valueAt(input, i.path)) : `${quote(i.path)}: ${i.message.replace(/^Invalid input: /, "")}`);
+    } else other.push(i.path.length ? `${quote(i.path)}: ${i.message.replace(/^Invalid input: /, "")}` : i.message);
   }
   const parts: string[] = [];
   const suggested = new Set<string>();

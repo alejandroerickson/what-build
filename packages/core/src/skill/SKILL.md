@@ -70,7 +70,7 @@ Most tools are grouped: `sources`, `attachments`, `derived`, `outcomes`, `assump
     assumptions(action="create", describe=true)
     assumptions(action="create", product="acme/core/onboarding", params={"statement": "…"})
 
-`search`, `get_skill` and `submit_feedback` are standalone tools with direct arguments. Unknown actions and fields are refused (422), and errors begin with the status code and
+`search`, `get_skill` and `submit_feedback` are standalone tools: their fields are their arguments, with no `action`, `params` or `describe`. Unknown actions and fields are refused (422), and errors begin with the status code and
 say what a correct call looks like. A list that pages answers `next_cursor`: pass it back as
 `cursor` (sources, comments, outcomes, assumptions, search, activity, a sandbox's visitors). A Story
 page's or a mockup's versions page by number: pass `next_before` back as `before`. Other lists

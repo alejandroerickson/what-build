@@ -195,8 +195,9 @@ function textResult(value: unknown, isError = false) {
   return { content: [{ type: "text" as const, text: JSON.stringify(value) }], ...(isError ? { isError: true } : {}) };
 }
 
-function errorResult(e: unknown) {
-  const err = toAppError(e);
+/** A refusal as a tool error; an unexpected one says how this agent reports it. */
+function errorResult(e: unknown, principal: Principal) {
+  const err = toAppError(e, principal);
   if (err.status === 500) console.error("mcp:", e);
   return { content: [{ type: "text" as const, text: `${err.status}: ${err.message}\n${JSON.stringify({ error: err.toJSON() })}` }], isError: true };
 }
@@ -228,11 +229,18 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
         op = group.find((o) => o.mcp.action === args["action"]);
         const extra = Object.keys(args).filter((k) => !["action", "params", "describe", "product"].includes(k));
         if (extra.length) throw invalid("unknown_field", `Unknown argument(s) ${extra.join(", ")}. Grouped tools take action, params, describe and product.`);
+        const actions = group.map((o) => o.mcp.action!);
+        if (args["action"] === undefined || args["action"] === null || args["action"] === "")
+          throw invalid(
+            "invalid_input",
+            `\`action\` is missing: ${name} needs one of its actions (${actions.join(", ")}), with the action's fields in params. Call it with an action and describe=true to see that action's fields. Nothing was changed.`,
+            { actions },
+          );
         if (!op)
           throw invalid(
             "unknown_action",
-            `Unknown ${name} action: ${String(args["action"])}. This server, version ${SKILL_VERSION}, has these ${name} actions: ${group.map((o) => o.mcp.action).join(", ")}.${STALE_LIST}`,
-            { server_version: SKILL_VERSION, actions: group.map((o) => o.mcp.action) },
+            `Unknown ${name} action: ${String(args["action"])}. This server, version ${SKILL_VERSION}, has these ${name} actions: ${actions.join(", ")}.${STALE_LIST}`,
+            { server_version: SKILL_VERSION, actions },
           );
         if (args["describe"] === true) {
           if (args["params"] && Object.keys(args["params"] as object).length) throw invalid("invalid_input", "describe=true only describes an action; omit params.");
@@ -279,7 +287,7 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
         const operation = op?.name ?? (DEFINITIONS.groups.has(name) ? `${name}.(unknown)` : "(unknown tool)");
         countCall(env, principal, { operation, feature: op?.mcp.tool ?? null, outcome: toAppError(e).code, sandbox: Boolean(principal.sandbox_only) });
       }
-      return errorResult(e);
+      return errorResult(e, principal);
     }
   });
   return server;

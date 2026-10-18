@@ -94,7 +94,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   longer carries the database's search vector.
 - **Nothing to change; agents and people will notice clearer refusals.** A null character
   (U+0000) in any field of a call, or in the product, team or organization it names, is refused
-  with `422 invalid_input` naming the field, where it answered 500.
+  with `422 invalid_input` naming the field, where it answered 500. An unexpected error says how
+  to report it where it was met: Submit feedback in the web app's account menu, `submit_feedback`
+  for an agent. A grouped tool called without `action` says it is missing and lists the tool's
+  actions; a standalone tool called with `describe`, `action` or `params` says its fields are its
+  arguments; and a list sent as one value says what the list takes (`status` takes a list, such as
+  `["confirmed"]`). On a connection whose person turned feedback off, `submit_feedback` is
+  refused with `403 feedback_off` whatever is sent, a call with invalid input included.
 - **The skill is 0.33.0.** Connected agents are asked to update their installed skill. It tells
   them which etag a source's summary, notes and text take, how search matches and pages, how a
   source's text is chosen and laid out, what an image or a scan needs, how to restore what was
