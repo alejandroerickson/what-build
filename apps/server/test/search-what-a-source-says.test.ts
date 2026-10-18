@@ -324,6 +324,28 @@ describe("every place, as typed", () => {
     expect(wrong.body.error).toMatchObject({ code: "invalid_cursor" });
   });
 
+  it("refuses a cursor changed by hand as not this search's, before it reaches the database", async () => {
+    const cursor = (v: unknown) => Buffer.from(JSON.stringify(v)).toString("base64url");
+    const tampered: [string, unknown][] = [
+      ["substring", [src.log, 4.5, "", 0, 3]],
+      ["substring", [src.log, 4, "", 3e9, 3]],
+      ["substring", [`${src.log}\u0000`, 4, "", 0, 3]],
+      ["substring", [src.log, 4, "\u0000", 0]],
+      ["substring", [src.log, 4, "", 0, -1]],
+      ["substring", [src.log, 7, "", 0]],
+      ["ranked", -1],
+      ["ranked", 1.5],
+      ["ranked", 3e9],
+    ];
+    for (const [mode, c] of tampered) {
+      const r = await alice.api("GET", `${D}/search?mode=${mode}&query=gate&cursor=${cursor(c)}`);
+      expect(r.status, `${mode} ${JSON.stringify(c)}`).toBe(422);
+      expect(r.body.error.code).toBe("invalid_cursor");
+    }
+    // A cursor as search writes it still pages.
+    expect((await alice.api("GET", `${D}/search?mode=ranked&query=gate&cursor=${cursor(1)}`)).status).toBe(200);
+  });
+
   it("matches the query as sent, spaces included, and refuses one that is only spaces", async () => {
     expect(where((await search("code", `&record_id=${src.roster}`, D)).hits)).toEqual([
       { record_id: src.roster, field: "notes", char_start: 4, char_end: 8 },

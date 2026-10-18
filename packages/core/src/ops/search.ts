@@ -242,15 +242,34 @@ type Piece = { record_id: string; field: TextField; ref: string; rank_f: number;
 /** Where a substring hit is in the order of hits: its piece, then the code point it starts at. */
 type SubstringKey = [record_id: string, rank_f: number, ref: string, n: number, char_start: number];
 
+/** The largest number a Postgres integer holds, as a piece's number and a field's place are. */
+const INT_MAX = 2_147_483_647;
+
+/** A whole number from `min` to INT_MAX: a count, an offset or a place, as search writes one in a cursor. */
+const isCount = (v: unknown, min = 0): v is number => typeof v === "number" && Number.isInteger(v) && v >= min && v <= INT_MAX;
+
+/** Text a cursor names a source or a comment by: never a NUL, which Postgres cannot take in text. */
+const isKeyText = (v: unknown): v is string => typeof v === "string" && !v.includes("\u0000");
+
+const notThisSearch = () => invalid("invalid_cursor", "That cursor doesn’t belong to this search.");
+
 /**
  * The substring cursor: the last hit's key. A key without a place (four parts) comes from before
- * every occurrence was a hit, when a piece gave one hit at most, and resumes after that piece.
+ * every occurrence was a hit, when a piece gave one hit at most, and resumes after that piece. Each
+ * part is checked as search writes it, so a cursor changed by hand is refused here, not by Postgres.
  */
 function substringCursor(cursor: string): SubstringKey | [string, number, string, number] {
   const c = decodeCursor<unknown>(cursor);
   const ok =
-    Array.isArray(c) && (c.length === 4 || c.length === 5) && typeof c[0] === "string" && typeof c[1] === "number" && typeof c[2] === "string" && typeof c[3] === "number" && (c.length === 4 || typeof c[4] === "number");
-  if (!ok) throw invalid("invalid_cursor", "That cursor doesn’t belong to this search.");
+    Array.isArray(c) &&
+    (c.length === 4 || c.length === 5) &&
+    isKeyText(c[0]) &&
+    isCount(c[1], 1) &&
+    c[1] <= SEARCHED_FIELDS.length &&
+    isKeyText(c[2]) &&
+    isCount(c[3]) &&
+    (c.length === 4 || isCount(c[4]));
+  if (!ok) throw notThisSearch();
   return c as SubstringKey;
 }
 
@@ -296,8 +315,8 @@ async function substringHits(ctx: OpContext, i: Input, limit: number, where: Raw
 /** Ranked mode: a hit is a piece that matches, with its score, best first, paged by offset. */
 async function rankedHits(ctx: OpContext, i: Input, limit: number, where: RawBuilder<unknown>, comments: RawBuilder<unknown>) {
   const q = tsquery(parseRanked(i.query));
-  const offset = i.cursor ? decodeCursor<number>(i.cursor) : 0;
-  if (i.cursor && typeof offset !== "number") throw invalid("invalid_cursor", "That cursor doesn’t belong to this search.");
+  const offset = i.cursor ? decodeCursor<unknown>(i.cursor) : 0;
+  if (!isCount(offset)) throw notThisSearch();
   const res = await sql<Piece>`
     select c.record_id, c.field, c.ref, ${fieldRank} as rank_f, c.n, c.char_start, c.char_end, c.text,
       ts_rank_cd(c.tsv, q.query)::float as score
@@ -306,10 +325,10 @@ async function rankedHits(ctx: OpContext, i: Input, limit: number, where: RawBui
       (select ${q} as query) q
     where r.product_id = ${productId(ctx)} and ${where} and ${comments} and c.tsv @@ q.query
     order by score desc, c.record_id, rank_f, c.ref, c.n
-    limit ${limit + 1} offset ${offset ?? 0}`.execute(ctx.db);
+    limit ${limit + 1} offset ${offset}`.execute(ctx.db);
   return {
     hits: res.rows.slice(0, limit).map((piece) => ({ piece, char_start: piece.char_start, char_end: piece.char_end, snippet: firstWords(piece.text) })),
-    next: res.rows.length > limit ? encodeCursor((offset ?? 0) + limit) : null,
+    next: res.rows.length > limit ? encodeCursor(offset + limit) : null,
   };
 }
 

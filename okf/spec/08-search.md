@@ -73,7 +73,9 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
   most `limit` of them.
 - Results are bounded and paged as everywhere ([§6.3](06-operations-and-adapters.md)): `limit`
   counts hits. The substring cursor is a keyset of the last hit, its piece and its place there, so
-  a page may end inside a piece and the next one carry on in it; the ranked cursor is an offset.
+  a page may end inside a piece and the next one carry on in it; the ranked cursor is an offset. A
+  cursor search did not write (one changed by hand: a number that is not a whole one in range, a
+  NUL in a key) is `422 invalid_cursor`, refused before the database reads it.
 - The response carries a `coverage` object (§8.5).
 - Search is a read, and reads are never blocked by a quota ([§9.2](09-data-lifecycle.md)).
 
