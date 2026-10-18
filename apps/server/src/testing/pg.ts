@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import pg from "pg";
 
@@ -40,9 +40,53 @@ export interface LocalPgOptions {
    * local clusters were UTF-8 is made again in its place.
    */
   disposable?: boolean;
+  /** The environment variable that moves the cluster's port, which a refusal names when another server holds it. */
+  portVariable?: string;
 }
 
 const adminUrlOf = (port: number) => `postgres://postgres:postgres@localhost:${port}/postgres`;
+
+/**
+ * What answers on `port`: null when nothing does; the data directory of a cluster that answers as
+ * this repository's clusters do (user and password `postgres`); undefined for any other server.
+ */
+async function serverOn(port: number): Promise<string | null | undefined> {
+  const c = new pg.Client({ connectionString: adminUrlOf(port), connectionTimeoutMillis: 2000 });
+  c.on("error", () => {});
+  try {
+    await c.connect();
+  } catch (e) {
+    return (e as { code?: string }).code === "ECONNREFUSED" ? null : undefined;
+  }
+  try {
+    return (await c.query<{ data_directory: string }>("show data_directory")).rows[0]?.data_directory;
+  } catch {
+    return undefined;
+  } finally {
+    await c.end().catch(() => {});
+  }
+}
+
+const samePath = (a: string, b: string) => {
+  try {
+    return realpathSync(a) === realpathSync(b);
+  } catch {
+    return resolve(a) === resolve(b);
+  }
+};
+
+/**
+ * A checkout uses only its own clusters, so that no tool of one drops or makes a database in
+ * another's: a server on the port that is not this checkout's cluster is refused, named.
+ */
+function notOurs(port: number, dataDir: string, found: string | undefined, variable: string | undefined): Error {
+  const move = `choose another port for this checkout's${variable ? ` with ${variable}` : ""}`;
+  return new Error(
+    found
+      ? `Port ${port} is taken by another checkout's Postgres, whose data directory is ${found}; this checkout's is ${dataDir}. Stop the other one, or ${move}.`
+      : `Port ${port} is taken by a server that is not this checkout's Postgres, whose data directory is ${dataDir}. Stop that server, or ${move}.`,
+  );
+}
 
 /** The encoding the cluster on `port` makes databases in: its template database's. */
 async function clusterEncoding(port: number): Promise<string> {
@@ -56,9 +100,20 @@ async function clusterEncoding(port: number): Promise<string> {
   }
 }
 
+/**
+ * Start the cluster in `dir` on `port`, making it first if it does not exist, or again if it is
+ * disposable and was made before local clusters were UTF-8. Refused, before anything is made or
+ * started, when a server already answers on the port: this checkout's cluster already running, or
+ * another's.
+ */
 export async function startLocalPg(dir: string, port: number, options: LocalPgOptions = {}): Promise<LocalPg> {
-  const { default: EmbeddedPostgres } = await import("embedded-postgres");
   const dataDir = resolve(dir);
+  const found = await serverOn(port);
+  if (found !== null) {
+    if (found !== undefined && samePath(found, dataDir)) throw new Error(`This checkout's Postgres, in ${dataDir}, is already running on port ${port}: stop what runs it, then try again.`);
+    throw notOurs(port, dataDir, found, options.portVariable);
+  }
+  const { default: EmbeddedPostgres } = await import("embedded-postgres");
   const server = (initdbFlags: string[]) =>
     new EmbeddedPostgres({ databaseDir: dataDir, user: "postgres", password: "postgres", port, persistent: true, initdbFlags, onLog: () => {}, onError: () => {} });
   let running = server(UTF8_CLUSTER);
@@ -96,17 +151,16 @@ export async function startLocalPg(dir: string, port: number, options: LocalPgOp
 
 /**
  * The embedded Postgres in `dir` on `port`: the one already running there, which stop() then leaves
- * running, or one started now. A disposable cluster already running that was made before local
- * clusters were UTF-8 cannot be made again while it runs, so it is refused.
+ * running, or one started now. A server on the port is used only when it is that cluster, this
+ * checkout's (its `data_directory` is `dir`); another checkout's, or any other server, is refused.
+ * A disposable cluster already running that was made before local clusters were UTF-8 cannot be made
+ * again while it runs, so it is refused too.
  */
 export async function connectOrStartLocalPg(dir: string, port: number, options: LocalPgOptions = {}): Promise<LocalPg> {
-  const probe = new pg.Client({ connectionString: adminUrlOf(port), connectionTimeoutMillis: 2000 });
-  try {
-    await probe.connect();
-    await probe.end();
-  } catch {
-    return startLocalPg(dir, port, options);
-  }
+  const dataDir = resolve(dir);
+  const found = await serverOn(port);
+  if (found === null) return startLocalPg(dir, port, options);
+  if (found === undefined || !samePath(found, dataDir)) throw notOurs(port, dataDir, found, options.portVariable);
   const encoding = await clusterEncoding(port);
   if (encoding !== "UTF8" && options.disposable) {
     throw new Error(

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { createServer, type AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,7 +8,8 @@ import { connectOrStartLocalPg, startLocalPg, UTF8_CLUSTER_BUILTIN } from "../sr
 
 // Local clusters are made in UTF-8 with the C.UTF-8 locale, as Neon's databases are, so text
 // functions count characters as production's do. One made before, in SQL_ASCII, is made again when
-// it holds nothing to keep (the tests', the end-to-end instance's), and left as it is otherwise.
+// it holds nothing to keep (the tests', the end-to-end instance's), and left as it is otherwise. A
+// checkout uses only its own clusters: another's on the same port is refused, and left as it is.
 
 /** A port nothing listens on now. */
 async function freePort(): Promise<number> {
@@ -115,6 +116,47 @@ describe("local Postgres clusters", () => {
       expect((await connectOrStartLocalPg(dir, port)).encoding).toBe("SQL_ASCII");
     } finally {
       await old.server.stop();
+    }
+  });
+
+  it("use a Postgres already running on their port only when it is this checkout's cluster", async () => {
+    const ours = scratch();
+    const theirs = scratch();
+    const port = await freePort();
+    // Another checkout's end-to-end cluster, serving its golden master.
+    const other = await startLocalPg(theirs, port);
+    try {
+      await rows(other.adminUrl, "create database golden");
+      const refusal = `Port ${port} is taken by another checkout's Postgres, whose data directory is ${theirs}; this checkout's is ${ours}. Stop the other one, or choose another port for this checkout's with WHATBUILD_E2E_PG_PORT.`;
+      await expect(connectOrStartLocalPg(ours, port, { disposable: true, portVariable: "WHATBUILD_E2E_PG_PORT" })).rejects.toThrow(refusal);
+      await expect(startLocalPg(ours, port, { disposable: true, portVariable: "WHATBUILD_E2E_PG_PORT" })).rejects.toThrow(refusal);
+      // Nothing of the other's was dropped or made again, and nothing was made here.
+      expect(await other.hasDatabase("golden")).toBe(true);
+      expect(existsSync(ours)).toBe(false);
+      // The checkout whose cluster it is uses it as it runs, and leaves it running.
+      const again = await connectOrStartLocalPg(theirs, port, { disposable: true });
+      expect(again.encoding).toBe("UTF8");
+      await again.stop();
+      expect(await other.hasDatabase("golden")).toBe(true);
+      // Starting it again while it runs is refused, saying so.
+      await expect(startLocalPg(theirs, port)).rejects.toThrow(`This checkout's Postgres, in ${theirs}, is already running on port ${port}: stop what runs it, then try again.`);
+    } finally {
+      await other.stop();
+    }
+  });
+
+  it("refuse a port that a server other than a local cluster holds", async () => {
+    const port = await freePort();
+    const server = createServer((socket) => socket.destroy());
+    await new Promise<void>((done) => server.listen(port, "127.0.0.1", () => done()));
+    try {
+      const dir = scratch();
+      const refusal = `Port ${port} is taken by a server that is not this checkout's Postgres, whose data directory is ${dir}. Stop that server, or choose another port for this checkout's with WHATBUILD_PG_PORT.`;
+      await expect(connectOrStartLocalPg(dir, port, { portVariable: "WHATBUILD_PG_PORT" })).rejects.toThrow(refusal);
+      await expect(startLocalPg(dir, port, { portVariable: "WHATBUILD_PG_PORT" })).rejects.toThrow(refusal);
+      expect(existsSync(dir)).toBe(false);
+    } finally {
+      await new Promise<void>((done) => server.close(() => done()));
     }
   });
 

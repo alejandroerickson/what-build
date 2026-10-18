@@ -11,7 +11,7 @@ export async function setup(project: TestProject) {
     return;
   }
   // The tests' cluster holds nothing to keep: one made before local clusters were UTF-8 is made again.
-  pgServer = await startLocalPg(".what-build/test-pg", Number(process.env["WHATBUILD_TEST_PG_PORT"] ?? 54331), { disposable: true });
+  pgServer = await startLocalPg(".what-build/test-pg", Number(process.env["WHATBUILD_TEST_PG_PORT"] ?? 54331), { disposable: true, portVariable: "WHATBUILD_TEST_PG_PORT" });
   project.provide("adminUrl", pgServer.adminUrl);
   project.provide("appUrlTemplate", pgServer.appUrl("{db}"));
 }

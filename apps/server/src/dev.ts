@@ -52,7 +52,7 @@ async function main() {
     for (const [name, port, variable] of [["API", API_PORT, "WHATBUILD_E2E_API_PORT"], ["web", WEB_PORT, "WHATBUILD_E2E_WEB_PORT"]] as const)
       if (!(await portFree(port))) throw new Error(`The end-to-end instance's ${name} port ${port} is taken by another process. Stop it, or choose another port with ${variable}.`);
     console.log("Starting the end-to-end instance's Postgres (embedded, in .what-build/e2e/pg)…");
-    pg = await connectOrStartLocalPg(E2E.pgDir, E2E.pgPort);
+    pg = await connectOrStartLocalPg(E2E.pgDir, E2E.pgPort, { portVariable: "WHATBUILD_E2E_PG_PORT" });
     if (pg.encoding !== "UTF8") console.log(`  The golden master was built in ${pg.encoding}, before local clusters were made in UTF-8: build it again with pnpm e2e golden.`);
     const reset = await resetToGolden(pg).catch(async (e: unknown) => {
       await pg!.stop();
@@ -63,7 +63,7 @@ async function main() {
     console.log(`Reset to the golden master (from the pull ${reset.golden.pull}, built ${reset.golden.built_at}).`);
   } else if (!databaseUrl) {
     console.log("Starting Postgres (embedded, in .what-build/pg)…");
-    pg = await startLocalPg(resolve(root, ".what-build/pg"), Number(process.env["WHATBUILD_PG_PORT"] ?? 54329));
+    pg = await startLocalPg(resolve(root, ".what-build/pg"), Number(process.env["WHATBUILD_PG_PORT"] ?? 54329), { portVariable: "WHATBUILD_PG_PORT" });
     if (pg.encoding !== "UTF8") console.log(OLD_CLUSTER(pg.encoding));
     if (FIXTURE && !(await pg.hasDatabase(FIXTURE_DATABASE))) {
       await pg.stop();

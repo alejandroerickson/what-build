@@ -54,6 +54,14 @@ bytes:
   (`mv .what-build/pg .what-build/pg-sql_ascii`), and start `pnpm dev` again: it makes a new
   cluster and seeds it, and `pnpm fixture load` puts a copy of production into it again.
 
+Each checkout uses only its own clusters ([`testing/pg.ts`](../../apps/server/src/testing/pg.ts)).
+A tool that finds a Postgres already answering on a cluster's port uses it only when its
+`data_directory` is this checkout's; another checkout's cluster, or any other server, is refused
+before anything is made, started or dropped, and the refusal names the other cluster's data
+directory. So two checkouts side by side each need ports of their own: `WHATBUILD_PG_PORT` for
+`pnpm dev`, a copy of production and `pnpm fixture`, `WHATBUILD_TEST_PG_PORT` for the tests, and
+`WHATBUILD_E2E_PG_PORT` for the end-to-end instance.
+
 ## Development and production
 
 The server behaves as a development server only when `NODE_ENV` is exactly `development` or

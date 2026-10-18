@@ -98,8 +98,11 @@ after `0030_one_derived_text_per_source`, which reads every attachment again and
 search index from nothing, search finds little until the log shows each product's `index_texts`
 job done. Building the golden master again does that work once. It refuses to start when another process holds its API or web port, since that server would
 answer the tests instead. The ports can be moved with `WHATBUILD_E2E_WEB_PORT`,
-`WHATBUILD_E2E_API_PORT` and `WHATBUILD_E2E_PG_PORT`; `WHATBUILD_E2E_URL` points the browser and
-MCP tools elsewhere. `GET /mcp 405` lines in its log are expected: MCP clients probe for a
+`WHATBUILD_E2E_API_PORT` and `WHATBUILD_E2E_PG_PORT`. `pnpm dev:e2e` and `pnpm e2e golden` use only
+this checkout's Postgres, in its `.what-build/e2e/pg`: when another checkout's end-to-end Postgres
+answers on the port, they refuse, naming that cluster's data directory, and drop or make nothing in
+it: give this checkout's another port with `WHATBUILD_E2E_PG_PORT`. `WHATBUILD_E2E_URL` points the
+browser and MCP tools elsewhere. `GET /mcp 405` lines in its log are expected: MCP clients probe for a
 server-initiated stream, which WhatBuild does not offer.
 
 ## Running a plan
