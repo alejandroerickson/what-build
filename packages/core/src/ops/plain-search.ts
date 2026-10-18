@@ -121,7 +121,19 @@ function missingWords(p: ParsedFind, found: boolean[]): string[] {
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
-async function sources(ctx: OpContext, p: ParsedFind, i: Input, q: string): Promise<{ results: FindResult[]; hits: number; found: boolean[] }> {
+/** Sources that match beyond the pieces results are built from: how many hold any of the words, and how many hold them all. */
+interface Beyond {
+  any: number;
+  all: number;
+}
+
+/**
+ * Plain search's sources: each built from the best pieces that say the words (at most `limit` of
+ * them) and from its title and tags, with how many pieces matched and which words anything holds.
+ * When more pieces matched than were read, the sources the rest belong to are counted in the
+ * database (`beyond`), so the counts cover every source that matched.
+ */
+async function sources(ctx: OpContext, p: ParsedFind, i: Input, q: string): Promise<{ results: FindResult[]; hits: number; found: boolean[]; beyond: Beyond }> {
   const pid = productId(ctx);
   const one = i.record_id ? sql`and r.record_id = ${i.record_id}` : sql``;
   const perTerm = p.terms.map((t) => sql`(c.tsv @@ to_tsquery('simple', ${termTsquery(t)}))::int`);
@@ -149,6 +161,7 @@ async function sources(ctx: OpContext, p: ParsedFind, i: Input, q: string): Prom
         and to_tsvector('simple', r.title || ' ' || array_to_string(r.tags, ' ')) @@ to_tsquery('simple', ${q})`.execute(ctx.db),
   ]);
   const ids = new Set([...hits.rows.map((h) => h.record_id), ...titled.rows.map((r) => r.record_id)]);
+  const beyond = hits.rows.length < limit || i.record_id ? { any: 0, all: 0 } : await sourcesBeyond(ctx, p, q, live, [...ids]);
   const meta = ids.size
     ? await ctx.db.selectFrom("records").select(["record_id", "title", "date", "tags"]).where("record_id", "in", [...ids]).execute()
     : [];
@@ -186,7 +199,32 @@ async function sources(ctx: OpContext, p: ParsedFind, i: Input, q: string): Prom
       hit_count: own.length,
     };
   });
-  return { results, hits: counts.rows[0]?.n ?? 0, found: (counts.rows[0]?.found ?? []).map((f, k) => f || titled.rows.some((r) => matchText(`${r.title} ${r.tags.join(" ")}`, p.terms).found[k])) };
+  return {
+    results,
+    hits: counts.rows[0]?.n ?? 0,
+    found: (counts.rows[0]?.found ?? []).map((f, k) => f || titled.rows.some((r) => matchText(`${r.title} ${r.tags.join(" ")}`, p.terms).found[k])),
+    beyond,
+  };
+}
+
+/**
+ * The sources whose matching pieces all lie beyond the ones results were built from, counted by
+ * what their pieces hold. Their titles and tags hold none of the words, or they would be among the
+ * results.
+ */
+async function sourcesBeyond(ctx: OpContext, p: ParsedFind, q: string, live: RawBuilder<unknown>, built: string[]): Promise<Beyond> {
+  const holds = p.terms.map((t, k) => sql`bool_or(c.tsv @@ to_tsquery('simple', ${termTsquery(t)})) as ${sql.ref(`t${k}`)}`);
+  const every = sql.join(p.terms.map((_, k) => sql.ref(`t${k}`)), sql` and `);
+  const r = await sql<Beyond>`
+    select count(*)::int as "any", (count(*) filter (where ${every}))::int as "all"
+    from (
+      select ${sql.join(holds)}
+      from text_chunks c join records r on r.record_id = c.record_id
+        left join annotations a on c.field = 'comment' and a.annotation_id = c.ref
+      where ${live} and c.tsv @@ to_tsquery('simple', ${q}) and not (c.record_id = any(${built}::text[]))
+      group by c.record_id
+    ) x`.execute(ctx.db);
+  return r.rows[0] ?? { any: 0, all: 0 };
 }
 
 async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): Promise<FindResult[]> {
@@ -290,12 +328,12 @@ async function corrections(ctx: OpContext, p: ParsedFind, found: boolean[], typi
 async function run(ctx: OpContext, p: ParsedFind, i: Input) {
   const q = p.terms.map(termTsquery).map((x) => `(${x})`).join(" | ");
   const [sp, small] = await Promise.all([
-    !i.kind || i.kind === "source" ? sources(ctx, p, i, q) : Promise.resolve({ results: [], hits: 0, found: p.terms.map(() => false) }),
+    !i.kind || i.kind === "source" ? sources(ctx, p, i, q) : Promise.resolve({ results: [], hits: 0, found: p.terms.map(() => false), beyond: { any: 0, all: 0 } }),
     smallKinds(ctx, p, i, q),
   ]);
   const all = [...sp.results, ...small];
   const found = p.terms.map((_, k) => sp.found[k] || all.some((r) => !r.missing.includes(p.terms[k]!.text)));
-  return { all, hits: sp.hits, found };
+  return { all, hits: sp.hits, found, beyond: sp.beyond };
 }
 
 export const PLAIN_DESCRIPTION =
@@ -327,6 +365,10 @@ export async function plainSearch(ctx: OpContext, i: PlainInput) {
   const shown = (partial ? r.all : complete).sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
   const counts: Partial<Record<FindKind, number>> = {};
   for (const x of shown) counts[x.kind] = (counts[x.kind] ?? 0) + 1;
+  // Sources matched beyond the pieces results come from count too: all of them for a partial
+  // answer, else those that hold every word.
+  const more = partial ? r.beyond.any : r.beyond.all;
+  if (more) counts.source = (counts.source ?? 0) + more;
   return {
     query: i.query,
     terms: p.terms.map((t) => ({ text: t.text, phrase: t.phrase })),

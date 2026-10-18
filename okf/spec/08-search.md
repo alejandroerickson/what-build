@@ -139,7 +139,9 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
   higher. When anything holds every word, only those are returned; otherwise the ones holding the
   most, with `partial: true` and each result's `missing` words. At most `limit` results (60 unless
   the call says, at most 200), the best first; `counts` counts every match, so a caller can say
-  when more matched than came back. The response
+  when more matched than came back. Sources are built from the 400 best pieces that hold any of
+  the words (200 with `record_id`) and from their titles and tags; a source whose matching pieces
+  all lie beyond those is still counted, by what its pieces hold, in the database. The response
   is `{ mode, query, terms, ignored, kind_hint, corrections, partial, counts, hits_matched,
   results }`, where `hits_matched` counts the pieces of those summaries, derived texts, notes and
   comments that hold any of the words;

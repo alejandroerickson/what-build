@@ -192,3 +192,31 @@ describe("plain search over the sample product", () => {
     expect((await jordan.api("GET", `${S}/search?mode=plain&query=crew`)).status).toBe(403);
   });
 });
+
+describe("plain search's counts", () => {
+  it("counts every source that matched, beyond the pieces its results are built from", async () => {
+    const lee = await h.signIn("lee@example.com", "Lee Example");
+    const t = await lee.api("POST", "/api/v1/tenants", { name: "Ledger Co" });
+    const p = await lee.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Ledger" });
+    const L = `/api/v1/p/${p.body.path}`;
+    const source = async (title: string, content: string) => {
+      const r = await lee.api("POST", `${L}/sources`, { title, tags: [] });
+      expect((await lee.api("PUT", `${L}/sources/${r.body.record_id}/derived/text`, { content })).status).toBe(200);
+      return r.body.record_id as string;
+    };
+    // One source says the word once; another says it twice in each of more pieces than results are
+    // built from, so all of those rank above the first source's one.
+    await source("Yard ledger — Example Co", "The quorvel entry is at the end of the yard ledger.\n");
+    const filler = "the ledger line is kept by the yard office ".repeat(22);
+    const many = await source("Depot ledger — Example Co", Array.from({ length: 410 }, (_, k) => `Entry ${k}: quorvel ${filler}quorvel.`).join("\n\n") + "\n");
+    const r = await lee.api("GET", `${L}/search?mode=plain&query=quorvel`);
+    expect(r.status).toBe(200);
+    expect(r.body.hits_matched).toBe(411);
+    expect(r.body.results.map((x: { id: string }) => x.id)).toEqual([many]);
+    // Both sources matched, so say so, though only one came back.
+    expect(r.body.counts).toEqual({ source: 2 });
+    // A source holds every word or it is not counted, when something holds them all.
+    const both = await lee.api("GET", `${L}/search?mode=plain&query=${encodeURIComponent("quorvel depot")}`);
+    expect(both.body).toMatchObject({ partial: false, counts: { source: 1 } });
+  });
+});
