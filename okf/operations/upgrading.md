@@ -39,7 +39,11 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   summary and the notes, and `derived(action="text")` and `text.etag` the text's. An integration
   that rewrote these without reading first is refused until it reads, then passes the etag.
   People will notice that saving a summary, notes or text someone else changed meanwhile shows
-  their version, and saves over it only when asked.
+  their version, and saves over it only when asked. The other way round, an etag sent where there
+  is nothing to match is refused (`409 stale_etag`, `current_etag: null`) where it was ignored:
+  for the first `story(action="set_style")`, for `products(action="set_tenant_allowance")` on an
+  address without an allowance, and by `mockups(action="publish")` without `mockup_id`, which
+  refused it without saying so in `details`; leave it out until the object exists.
 - **Nothing runs by itself; existing plain-text and workbook attachments read better once read
   again.** A `.txt` now keeps its lines and list markers, joining only hard-wrapped prose, and ends
   a quoted message before the reply under it; an `.xlsx` reads values as the sheet shows them

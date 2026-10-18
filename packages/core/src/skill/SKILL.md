@@ -82,7 +82,10 @@ when you tell the person a time, give it in their own time zone.
 
 Changing something that exists takes the `etag` of your last read of it as `expected_etag`. A
 source has four: its own (for `sources(action="update")` and `move_to_product`), and one each on
-its derived text, its summary and its notes (below). `tags` sent to `sources(action="update")`,
+its derived text, its summary and its notes (below). A write that may create what it writes (a
+source's summary, notes or text, a Story page's first version, the first Story style or
+hierarchy, a new mockup, an allowance) takes none the first time, and refuses one sent then
+(`409 stale_etag` with `current_etag: null`): leave it out until the thing exists. `tags` sent to `sources(action="update")`,
 `update_annotation` or `assumptions(action="update")` replaces the whole list, as do an
 assumption's `outcome_ids` and `links`: send every one to keep.
 

@@ -30,8 +30,10 @@ maintainer chose on 2026-10-18 that they follow the same rule.
 - Where an object's etag sits beside another's (a source's summary, notes and derived text beside
   the source's; a Story page's notes beside the page's), sending the wrong one is recognised and
   named.
-- A source's summary, notes and derived text can be removed: an etag sent when there is none is
-  refused the same way, with `current_etag: null`, saying to leave it out for the first write.
+- An etag sent while there is nothing to match, before the first write or once a source's
+  summary, notes or derived text was removed, is refused the same way, with
+  `current_etag: null`, saying to leave it out for the first write: a caller holding an etag of
+  something that is not there has read something else, and is told so rather than written past.
 - Rejected: an optional etag, which overwrites silently; an etag always required, with a token for
   "none", which makes an agent read a `404` before every first write.
 

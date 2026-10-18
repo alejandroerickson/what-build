@@ -176,7 +176,7 @@ export const setStyle = defineOperation({
   mutates: true,
   summary: "Set the product's Story style: adopt a house style, or save the team's own design system as one stylesheet and its rules.",
   description:
-    `house_style adopts a house style whole (${HOUSE_STYLE_IDS.join(", ")}); pass other fields with it to adapt it. Without house_style, fields you omit carry forward from the current style; the first style needs name, rules and stylesheet, and is the team's own. Pass based_on: null when you replace an adopted house style with the team's own design system. A team stylesheet should style the shared vocabulary (guidance → vocabulary) so pages can move between styles; the app previews it on a sample page unless you pass specimen_html, a page in the style, validated like a Story page. The stylesheet follows the same rules as a page's <style>: no @import and data: URIs only. A typeface WhatBuild carries (guidance → carried_typefaces) needs no font file: name it in quotes in font-family. expected_etag is the style's etag, required once a style exists. Setting a style does not restyle published pages: republish them in the new style.`,
+    `house_style adopts a house style whole (${HOUSE_STYLE_IDS.join(", ")}); pass other fields with it to adapt it. Without house_style, fields you omit carry forward from the current style; the first style needs name, rules and stylesheet, and is the team's own. Pass based_on: null when you replace an adopted house style with the team's own design system. A team stylesheet should style the shared vocabulary (guidance → vocabulary) so pages can move between styles; the app previews it on a sample page unless you pass specimen_html, a page in the style, validated like a Story page. The stylesheet follows the same rules as a page's <style>: no @import and data: URIs only. A typeface WhatBuild carries (guidance → carried_typefaces) needs no font file: name it in quotes in font-family. expected_etag is the style's etag, required once a style exists; leave it out for the first style, as one sent while there is none is refused with 409 stale_etag and current_etag null. Setting a style does not restyle published pages: republish them in the new style.`,
   input: z.strictObject({
     house_style: z.enum(HOUSE_STYLE_IDS).optional().describe("Adopt this house style."),
     name: z.string().trim().min(1).max(80).optional(),
@@ -185,7 +185,7 @@ export const setStyle = defineOperation({
     stylesheet: z.string().min(1).max(STORY_CSS_MAX).optional(),
     specimen_html: z.string().max(STORY_HTML_MAX).nullable().optional().describe("A page that shows the style; null returns to the sample page."),
     based_on: z.enum(HOUSE_STYLE_IDS).nullable().optional().describe("The house style this adapts, or null when it is the team's own design system. Carried forward when omitted."),
-    expected_etag: expectedEtag.optional().describe("The style's etag from get_style. Required once a style exists."),
+    expected_etag: expectedEtag.optional().describe("The style's etag from get_style. Required once a style exists; left out for the first style."),
   }),
   rest: { method: "PUT", path: "/story/style" },
   mcp: { tool: "story", action: "set_style" },
@@ -194,7 +194,8 @@ export const setStyle = defineOperation({
     if (current) {
       if (input.expected_etag === undefined) throw conflict("stale_etag", "This product already has a Story style; read it with get_style and pass its etag as expected_etag.", { current_etag: current.etag });
       checkEtag(input.expected_etag, current.etag, "Story style");
-    }
+    } else if (input.expected_etag !== undefined)
+      throw conflict("stale_etag", "This product has no Story style yet, so there is no etag to match: get_style answers style null. Leave expected_etag out for the first style.", { current_etag: null });
     const house = input.house_style ? houseStyle(input.house_style)! : undefined;
     const start = house
       ? { name: house.name, summary: house.summary, based_on: house.id as string | null, rules: house.rules, stylesheet: house.stylesheet, specimen_html: null as string | null }
@@ -491,7 +492,7 @@ async function draftVersion(ctx: OpContext, input: PublishInput, opts: { lock: b
   const ways = [input.html !== undefined && "html", input.body !== undefined && "body", input.patch_html && "patch_html", input.restyle && "restyle"].filter(Boolean);
   if (ways.length > 1) throw invalid("invalid_input", `Pass one of html, body, patch_html and restyle, not ${ways.join(" and ")}.`);
   if (!existing) {
-    if (input.expected_etag) throw conflict("stale_etag", `Page "${input.page_id}" doesn’t exist yet; omit expected_etag for its first version.`);
+    if (input.expected_etag) throw conflict("stale_etag", `Page "${input.page_id}" doesn’t exist yet, so there is no etag to match. Leave expected_etag out for its first version.`, { current_etag: null });
     if (input.from_version) throw notFound(`Page "${input.page_id}" has never been published, so it has no version ${input.from_version}.`);
     if (!input.title) throw invalid("invalid_input", "A page’s first version needs a title.");
     if (input.patch_html) throw invalid("invalid_input", "patch_html edits an earlier version; a page’s first version needs html or body.");
@@ -738,7 +739,8 @@ export const setHierarchy = defineOperation({
     if (h) {
       if (!input.expected_etag) throw conflict("stale_etag", "The hierarchy has been saved before; read it with get_hierarchy and pass its etag as expected_etag.", { current_etag: h.etag });
       checkEtag(input.expected_etag, h.etag, "story hierarchy");
-    } else if (input.expected_etag) throw conflict("stale_etag", "No hierarchy has been saved yet; pass expected_etag null.");
+    } else if (input.expected_etag)
+      throw conflict("stale_etag", "No hierarchy has been saved yet, so there is no etag to match: get_hierarchy gives etag null. Leave expected_etag out, or pass null, for the first save.", { current_etag: null });
     const ids = flatten(input.items);
     const order = input.mockups ?? null;
     const all = [...ids, ...(order ?? [])];
@@ -921,7 +923,7 @@ export const promoteMockup = defineOperation({
     const version_id = newId();
     let pageIdOut: string;
     if (!existing) {
-      if (input.expected_etag) throw conflict("stale_etag", `Page "${input.page_id}" doesn’t exist yet; omit expected_etag to create it.`);
+      if (input.expected_etag) throw conflict("stale_etag", `Page "${input.page_id}" doesn’t exist yet, so there is no etag to match. Leave expected_etag out to create it.`, { current_etag: null });
       const count = await ctx.db.selectFrom("story_pages").select((eb) => eb.fn.countAll<number>().as("n")).where("product_id", "=", pid).executeTakeFirst();
       if (Number(count?.n ?? 0) >= MAX_PAGES) throw conflict("quota_exceeded", `A product’s Story holds at most ${MAX_PAGES} pages.`, { quota: "story_pages", limit: MAX_PAGES, used: Number(count?.n ?? 0), unit: "pages" });
       pageIdOut = input.page_id ?? (await freeSlug(ctx, mp.page_id));

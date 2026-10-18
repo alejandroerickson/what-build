@@ -116,8 +116,9 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
   when there is nothing to match. It answers a stale etag and, for a write that may create what
   it writes (a source's summary, notes and derived text, a Story page's versions and notes, the
   Story's style and hierarchy, a mockup's versions, an allowance), a missing one once the object
-  exists; its message says which etag to pass and where to read it, and names another etag of the
-  object sent in its place ([§4.1](04-data-model.md)).
+  exists, and one sent while there is nothing to match, with `current_etag: null`; its message
+  says which etag to pass and where to read it, or to leave it out for the first write, and names
+  another etag of the object sent in its place ([§4.1](04-data-model.md)).
 - **`quota_exceeded`** carries `{ quota, limit, used, unit }` in `details`. It is returned for the
   50 Story pages and the 50 mockups a product holds ([§9.2](09-data-lifecycle.md)), the mockups'
   adding `archived`, and for a visitor's daily
@@ -448,7 +449,8 @@ Notes on recent actions:
   document publish would store ([§4.11](04-data-model.md)).
 - `story.get_style` and `story.set_style` read and replace the product's Story style, the design
   system every page follows: an adopted house style (`house_style`) or the team's own
-  (`name`, `rules`, `stylesheet`), with its own etag; `422 invalid_style` lists every problem
+  (`name`, `rules`, `stylesheet`), with its own etag, left out for the first style (one sent then
+  is `409 stale_etag` with `current_etag: null`); `422 invalid_style` lists every problem
   ([§4.11](04-data-model.md)). A style based on a house style no longer in the catalogue carries a
   `note` (in `get_style`, `set_style` and the guidance's `product_style`) saying how to move to a
   current one. `story.guidance` takes `house_style` to return one house style in
@@ -505,8 +507,9 @@ Notes on recent actions:
   (the `title` and `description` on each node are ignored), and placing a page is adding it there.
   `story.set_hierarchy` takes the
   tree and, optionally, `mockups` to reorder that section ([§4.11](04-data-model.md)). Before the
-  first save its `expected_etag` may be null or left out; once saved, leaving it out is
-  `409 stale_etag`, saying to read `get_hierarchy`.
+  first save its `expected_etag` may be null or left out (an etag sent then is `409 stale_etag`
+  with `current_etag: null`); once saved, leaving it out is `409 stale_etag`, saying to read
+  `get_hierarchy`.
 - `outcomes.create` takes an optional `position`, as `update` does, to place the new outcome
   between two others; omitted, it goes last ([§4.2](04-data-model.md)).
 - `members.list` takes an optional `product` to list only the people who can reach it, each with

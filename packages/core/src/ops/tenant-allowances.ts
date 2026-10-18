@@ -2,7 +2,7 @@ import { sql } from "kysely";
 import { z } from "zod";
 import { checkEtag } from "../common.ts";
 import { json, type Db } from "../db.ts";
-import { forbidden, invalid, notFound, staleEtag } from "../errors.ts";
+import { conflict, forbidden, invalid, notFound } from "../errors.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag } from "../schemas.ts";
 import { isInstanceOwner } from "../tenant-allowance.ts";
@@ -91,12 +91,12 @@ export const setTenantAllowance = defineOperation({
   connection: "admin",
   summary: "Let an address create a number of organizations, or change how many (instance owners).",
   description:
-    "allowed counts every organization the address's account has created, so 1 with one already created lets it create no more. 0 lets it create none, whatever the default. The address need not have an account yet: while sign-up is limited, an allowance above 0 also lets it sign up. To change an existing allowance pass expected_etag from products(action=\"tenant_allowances\"). With notify (the default), an address whose allowance grows is told by email where to start. Use remove_tenant_allowance to return an address to the default.",
+    "allowed counts every organization the address's account has created, so 1 with one already created lets it create no more. 0 lets it create none, whatever the default. The address need not have an account yet: while sign-up is limited, an allowance above 0 also lets it sign up. To change an existing allowance pass expected_etag from products(action=\"tenant_allowances\"); for an address without one leave it out, as one sent then is refused with 409 stale_etag and current_etag null. With notify (the default), an address whose allowance grows is told by email where to start. Use remove_tenant_allowance to return an address to the default.",
   input: z.strictObject({
     email: address,
     allowed: z.number().int().min(0).max(1000),
     note: z.string().trim().max(200).optional().describe("Why, for the instance's owners. Never shown to the person."),
-    expected_etag: expectedEtag.optional().describe("Required when the address already has an allowance."),
+    expected_etag: expectedEtag.optional().describe("Required when the address already has an allowance; left out when it has none."),
     notify: z.boolean().default(true),
   }),
   rest: { method: "PUT", path: "/tenant-allowances" },
@@ -108,7 +108,8 @@ export const setTenantAllowance = defineOperation({
     const existing = await ctx.db.selectFrom("tenant_allowances").selectAll().where("email", "=", input.email).forUpdate().executeTakeFirst();
     const actor = json(ctx.actor);
     if (existing) {
-      if (!input.expected_etag) throw staleEtag(existing.etag, "allowance");
+      if (!input.expected_etag)
+        throw conflict("stale_etag", `${input.email} already has an allowance; read it with products(action="tenant_allowances") and pass its etag as expected_etag.`, { current_etag: existing.etag });
       checkEtag(input.expected_etag, existing.etag, "allowance");
       await ctx.db
         .updateTable("tenant_allowances")
@@ -116,6 +117,8 @@ export const setTenantAllowance = defineOperation({
         .where("email", "=", input.email)
         .execute();
     } else {
+      if (input.expected_etag !== undefined)
+        throw conflict("stale_etag", `${input.email} has no allowance of its own yet, so there is no etag to match: products(action="tenant_allowances") does not list it. Leave expected_etag out to give it one.`, { current_etag: null });
       await ctx.db
         .insertInto("tenant_allowances")
         .values({ email: input.email, allowed: input.allowed, note: input.note ?? "", etag: newEtag(), created_at: ctx.now, created_by: actor, updated_at: ctx.now, updated_by: actor })
