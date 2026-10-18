@@ -92,6 +92,9 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   longer quotes a comment's archive reason, and reads older entries without it. A product
   export's `README.txt` lists every kind of file the bundle holds, and `assumptions.json` no
   longer carries the database's search vector.
+- **Nothing to change; agents and people will notice clearer refusals.** A null character
+  (U+0000) in any field of a call, or in the product, team or organization it names, is refused
+  with `422 invalid_input` naming the field, where it answered 500.
 - **The skill is 0.33.0.** Connected agents are asked to update their installed skill. It tells
   them which etag a source's summary, notes and text take, how search matches and pages, how a
   source's text is chosen and laid out, what an image or a scan needs, how to restore what was

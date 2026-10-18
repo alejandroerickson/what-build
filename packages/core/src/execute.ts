@@ -8,7 +8,7 @@ import { resolveScope, type ScopeRef } from "./policy.ts";
 import type { Ports } from "./ports.ts";
 import { capRole, connectionNeeds, LEVEL_NAMES, levelAllows, type OpContext, type OperationDef, type Principal, type Scope } from "./registry.ts";
 import { admitVisitor, checkVisitorInput, countVisitorWrite, isVisitor, loadSandbox, lockSandbox, visitorActor, visitorName, type SandboxContext } from "./public-sandbox.ts";
-import { formatIssues } from "./schemas.ts";
+import { formatIssues, nullCharacterPaths, nullCharacterSentence } from "./schemas.ts";
 import { countCall } from "./usage.ts";
 
 export interface Env {
@@ -85,11 +85,22 @@ function retiredFieldHint(op: OperationDef, error: z.ZodError, input: unknown): 
   );
 }
 
+/**
+ * Validate an operation's input strictly, whichever door it came through. A field that holds a
+ * null character is refused too, by name, since Postgres keeps no such character in text: one the
+ * schema already refused is left to that refusal.
+ */
 export function parseInput<I extends z.ZodType>(op: OperationDef<I>, raw: unknown): z.output<I> {
   const input = resolveAliases(op, raw ?? {});
   const parsed = op.input.safeParse(input);
-  if (!parsed.success) {
-    throw invalid("invalid_input", `${formatIssues(parsed.error, input)} Nothing was changed; correct the call and send it again.${retiredFieldHint(op, parsed.error, input)}`, { operation: op.name });
+  const refused = parsed.success ? [] : parsed.error.issues.flatMap((i) => (i.code === "unrecognized_keys" ? (i as { keys: string[] }).keys.map((k) => [...i.path, k]) : [i.path]));
+  const nul = nullCharacterPaths(input).filter((p) => !refused.some((r) => r.every((k, n) => p[n] === k)));
+  if (!parsed.success || nul.length) {
+    const problems = [parsed.success ? "" : formatIssues(parsed.error, input), nul.length ? nullCharacterSentence(nul) : ""].filter(Boolean).join(" ");
+    throw invalid("invalid_input", `${problems} Nothing was changed; correct the call and send it again.${parsed.success ? "" : retiredFieldHint(op, parsed.error, input)}`, {
+      operation: op.name,
+      ...(nul.length ? { fields: nul.map((p) => p.join(".")) } : {}),
+    });
   }
   return parsed.data;
 }

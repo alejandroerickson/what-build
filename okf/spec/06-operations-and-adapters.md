@@ -56,13 +56,17 @@ call came through:
    Neither says anything about any product.
 2. **Resolve and authorize the scope** ([§3.6](03-accounts-teams-and-identity.md)): a caller
    who cannot see the product gets `404` before their input is even validated. For an agent the
-   role in the scope is then capped by its connection's level.
+   role in the scope is then capped by its connection's level. A tenant, team or product named
+   with a null character (U+0000) is refused first (`422 invalid_input`, naming it): no scope's
+   name holds one, and Postgres reads no text that does.
 3. **In a public sandbox, admit the visitor** ([§9.7](09-data-lifecycle.md)): whether visitors
    are let in, what a visitor never does, and the limits on calls and writes a minute
    (`403`, `429`). This runs before validation, so a call that is refused still counts as a call.
 4. **Validate the input** strictly (`422 invalid_input`, "Nothing was changed"), after renaming an
-   accepted alias to its canonical field (§6.5). A visitor's input is then checked for size
-   (`413 too_large`).
+   accepted alias to its canonical field (§6.5). A string anywhere in it that holds a null
+   character (U+0000), from the query string, the path, the body or an MCP call alike, is refused
+   the same way, naming the field (`details.fields`), since Postgres keeps no such character in
+   text; nothing strips it. A visitor's input is then checked for size (`413 too_large`).
 5. Refuse writes to an archived product (`409 product_archived`) unless the operation allows it.
    An operation with slow work outside the database (`attachments.fetch_url`'s download) does it now,
    in its `prepare` step, holding no database connection; its checks read through a short

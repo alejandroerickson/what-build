@@ -2,7 +2,7 @@ import { sql } from "kysely";
 import type { Db } from "./db.ts";
 import { AppError, forbidden, invalid, notFound } from "./errors.ts";
 import type { OpAccess, OpScope, Principal, ProductRole, Scope, TenantRole } from "./registry.ts";
-import { withArticle } from "./schemas.ts";
+import { refuseNullCharacters, withArticle } from "./schemas.ts";
 import { ULID_PATTERN } from "./util.ts";
 
 /**
@@ -147,6 +147,8 @@ export async function resolveScope(
 ): Promise<Scope> {
   const empty: Scope = { tenant: null, team: null, product: null, role: null, tenantRole: null };
   if (opScope === "account") return empty;
+  // A null character names nothing, and Postgres reads no text that holds one: refused before any lookup.
+  refuseNullCharacters({ tenant: ref.tenant, team: ref.team, product: ref.product });
 
   const hidden = () => notFound(`No such ${opScope} is visible to you. It may not exist, or you may not be a member.`);
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { invalid } from "./errors.ts";
 import { ULID_PATTERN } from "./util.ts";
 
 /** A word with "a" or "an" before it, by its first letter: "an outcome", "a source", "an editor". */
@@ -37,6 +38,31 @@ export const authorType = z
 
 const quote = (path: PropertyKey[]) => `\`${path.join(".")}\``;
 const list = (names: string[]) => (names.length < 3 ? names.join(" and ") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`);
+
+/**
+ * Where a value holds a null character (U+0000), as paths into it. Postgres keeps no such
+ * character in text, so a call that sends one is refused before anything reads it, and never
+ * has it stripped.
+ */
+export function nullCharacterPaths(value: unknown, path: PropertyKey[] = [], found: PropertyKey[][] = []): PropertyKey[][] {
+  if (typeof value === "string") {
+    if (value.includes("\u0000")) found.push(path);
+  } else if (Array.isArray(value)) value.forEach((v, i) => nullCharacterPaths(v, [...path, i], found));
+  else if (value && typeof value === "object") for (const [k, v] of Object.entries(value)) nullCharacterPaths(v, [...path, k], found);
+  return found;
+}
+
+/** The sentence that refuses the null characters at these paths, naming each field. */
+export function nullCharacterSentence(paths: PropertyKey[][]): string {
+  return `${list(paths.map(quote))} ${paths.length === 1 ? "holds" : "hold"} a null character (U+0000), which WhatBuild cannot store or search: take it out.`;
+}
+
+/** Refuse a call whose fields hold a null character, naming them: `422 invalid_input`. */
+export function refuseNullCharacters(fields: Record<string, unknown>, details: Record<string, unknown> = {}): void {
+  const paths = nullCharacterPaths(fields);
+  if (paths.length)
+    throw invalid("invalid_input", `${nullCharacterSentence(paths)} Nothing was changed; correct the call and send it again.`, { ...details, fields: paths.map((p) => p.join(".")) });
+}
 
 /** The value at a path in the raw input, or undefined when any step is missing. */
 function valueAt(input: unknown, path: PropertyKey[]): unknown {
