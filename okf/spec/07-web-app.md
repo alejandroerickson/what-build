@@ -353,7 +353,9 @@ The sources, and everything for reading them.
   Three dates are named as
   dates everywhere: **date captured** (the source's own date: when the interview or call
   happened, or the date the document carries), **date added** (when it came into WhatBuild) and
-  **date updated** (when its details were last edited). "Sort by" and a segmented control in the
+  **date updated** (when its details last changed, or it was archived or restored, as
+  [§4.3](04-data-model.md) has it; its text, summary, notes, comments and attachments each say
+  when they were written, and leave it alone). "Sort by" and a segmented control in the
   header order the list by date captured (the default, undated last), date added, date updated or
   title (`?sort=date|added|updated|title`). A small triangle beside the current order shows its
   direction; choosing it again reverses it (`?order=asc|desc`; dates start newest first, title A
@@ -449,7 +451,8 @@ The sources, and everything for reading them.
   - **Inspector,** titled Details: **About** (the three dates together — Date captured
     (or "No date"), Date added and Date updated, the last two each with "by <who>", adding "via
     <surface>" when it was not the web, the person who added it linking to the list filtered to
-    what they added, and Date updated saying "Not since it was added" when nothing changed; Tags,
+    what they added, and Date updated saying "Not since it was added" while neither its details nor
+    its archiving changed; Tags,
     each a link to the list filtered to it; nothing else), "Activity on this source", and
     Archive.
 - **Evidence links.** A Markdown link to a source is set as a quiet evidence token and opens the
