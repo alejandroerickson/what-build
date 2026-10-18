@@ -31,6 +31,15 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   read before going back can still match a summary or notes changed in between, and a write with it
   goes through. Rehearse on the dev deployment first, as for every release that migrates
   ([dev-deployment](dev-deployment.md)).
+- **A version being replaced takes no jobs once a later version's migrations have run.** Nothing to
+  set. A release's migrations run while the version before it still serves; from then on that
+  version's worker waits, and its log says the database has migrations it does not carry, so the
+  work a migration queues is done by the version it was queued for. It protects the upgrades that
+  start from this release or a later one, because the version being replaced must already do it:
+  taking this release, v0.15.0 goes on taking jobs while `0031` runs, as before, and `0031` queues
+  none. From this release on, going back past a later release's migration means restoring the
+  database, even where that release's notes say the earlier code runs on its schema: on the later
+  schema, the earlier version's worker waits ([recovering](recovering-from-a-bad-release.md)).
 - **Agents and integrations must send an etag they could leave out before.** Once a source has a
   summary, notes or a derived text, `derived(action="write_note")` and
   `derived(action="write_text")` refuse a write or a clearing without its current etag
@@ -40,18 +49,33 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   that rewrote these without reading first is refused until it reads, then passes the etag.
   People will notice that saving a summary, notes or text someone else changed meanwhile shows
   their version, and saves over it only when asked.
-- **Nothing runs by itself; existing plain-text and workbook attachments read better once read
-  again.** A `.txt` now keeps its lines and list markers, joining only hard-wrapped prose, and ends
-  a quoted message before the reply under it; an `.xlsx` reads values as the sheet shows them
-  (`+14.0%`, not `0.14`), reads and marks hidden sheets, columns and rows and a value other than
-  zero that its format shows as nothing (a zero shown as nothing stays a blank), and says when a
-  formula was saved without its value (plain-text parser 8, XLSX 6). A reading made earlier keeps
-  its layout until its attachment is read again, with `derived(action="rederive")` or Read it again
-  in the web app; a source whose text still follows that attachment then takes the new text, and a
-  text someone wrote or edited is left alone. Left unread, those sources read and are found as
-  before. Nothing else needs reading again: a scan recorded as failed reads `unsupported`, a
-  recording that asked for "a transcript as a new source" asks for another attachment, and an image
-  says how an agent gives it its words, in sandbox baselines too.
+- **Nothing is read again by itself, except in a public sandbox; existing plain-text and workbook
+  attachments read better once read again.** A `.txt` now keeps its lines and list markers, joining
+  only hard-wrapped prose, and ends a quoted message before the reply under it; an `.xlsx` reads
+  values as the sheet shows them (`+14.0%`, not `0.14`), reads and marks hidden sheets, columns and
+  rows and a value other than zero that its format shows as nothing (a zero shown as nothing stays a
+  blank), and says when a formula was saved without its value (plain-text parser 8, XLSX 6). A
+  reading made earlier keeps its layout until its attachment is read again, with
+  `derived(action="rederive")` or Read it again in the web app, or by a public sandbox's reset
+  (below); a source whose text still follows that attachment then takes the new text, and a text
+  someone wrote or edited is left alone. Left unread, those sources read and are found as before.
+  Nothing else needs reading again: a scan recorded as failed reads `unsupported`, a recording that
+  asked for "a transcript as a new source" asks for another attachment, and an image says how an
+  agent gives it its words, in sandbox baselines too.
+- **A public sandbox's reset reads again what its baseline read with an older parser.** Nothing to
+  set. At each reset, an attachment whose saved reading was made by another parser or an earlier
+  version of the one that reads it now, or found unsupported when no parser read its format, where
+  one does now, is read again by this version's parsers, recording nothing in the activity log, and
+  a text still taken from it follows. A baseline saved before this release holds such readings for
+  its plain-text, workbook and PDF attachments (plain-text parser 8, XLSX 6, PDF 5), and one saved
+  before v0.14.0 for most of its attachments, so each reset reads them again, a minute or two of
+  work, until the baseline is saved again. To save it without what visitors add meanwhile, set
+  `visitor_access` to `read`, reset, let the readings finish (the log has a `job … derive …` line
+  for each), save the baseline, then set `visitor_access` back as it was. A sandbox source whose
+  only readable attachment was unsupported when the baseline was saved, such as a `.csv` one, gets
+  its text. A reading that failed, found the file too large, or found a recording or only pictures
+  (an image, or a PDF whose pages are pictures, even one an earlier release recorded as failed) is
+  never read again.
 - **Nothing to change; people will notice attachments say what they are at once.** Recordings,
   images and formats no parser reads show their status the moment they arrive instead of
   "Reading". An image, or a PDF whose pages are pictures (PDF parser 5), is "Not read as text"
@@ -158,6 +182,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   are done. Rehearse on the dev deployment first and watch the jobs finish
   ([dev-deployment](dev-deployment.md)). It drops a table and columns, so going back past it means
   restoring the database ([recovering](recovering-from-a-bad-release.md)).
+- **If v0.13.0 was still running when `0030` ran,** its worker may have taken some of the readings
+  the migration queued and skipped them: it looked for a file's role, which the migration had
+  dropped. Its log has a `job … derive <source id>: skipped` line for each. Those attachments keep
+  their earlier reading, a text taken from their passages keeps the migration's layout, and a
+  source that had no passages has no text. Read them again from the source's Attachments (**Read it
+  again**) or with `derived(action="rederive")`. From the release after v0.15.0, a public
+  sandbox's reset reads them again by itself.
 - **A source's words are one text, and its files are attachments.** Nothing to set. People see a
   source's words as one document under **Text**, where Passages and Original were, which editors
   can edit or take from another attachment; **Attachments** lists every file with how its text was

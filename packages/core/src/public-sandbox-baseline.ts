@@ -2,6 +2,7 @@ import { sql } from "kysely";
 import { json, type ActorSnapshot, type Db } from "./db.ts";
 import { conflict, notFound } from "./errors.ts";
 import { queueEvidenceMoves } from "./evidence-move.ts";
+import { readByAnOlderParser } from "./ops/derived.ts";
 import { lockSettings } from "./public-sandbox.ts";
 import { indexSources } from "./text-index.ts";
 import { newId } from "./util.ts";
@@ -249,13 +250,22 @@ export async function resetToBaseline(
     visitors_removed = Number(idle.numAffectedRows ?? 0);
   }
 
-  // Search reads the restored texts at once; an attachment the baseline never read is read now.
+  // Search reads the restored texts at once. An attachment the baseline never read is read now, and
+  // so is one it read with an older parser than this version's: a baseline saved before an upgrade
+  // would otherwise bring the older reading back every day.
   await indexSources(trx, {});
-  const unread = await sql<{ record_id: string; file_version_id: string }>`
-    select f.record_id, f.current_version_id as file_version_id from files f
-    where f.tenant_id = ${tenantId} and f.current_version_id is not null
-      and not exists (select 1 from derivations d where d.file_version_id = f.current_version_id)`.execute(trx);
-  for (const u of unread.rows) await opts.enqueue("derive", { record_id: u.record_id, file_version_id: u.file_version_id, quiet: true });
+  const attachments = await sql<{ record_id: string; file_version_id: string; path: string; media_type: string; status: string | null; parser: string | null; parser_version: string | null }>`
+    select f.record_id, f.current_version_id as file_version_id, f.path, v.media_type, d.status, d.parser, d.parser_version
+    from files f join file_versions v on v.file_version_id = f.current_version_id
+    left join lateral (
+      select status, parser, parser_version from derivations d
+      where d.file_version_id = f.current_version_id order by d.derivation_id desc limit 1) d on true
+    where f.tenant_id = ${tenantId}`.execute(trx);
+  for (const a of attachments.rows) {
+    if (a.status === null) await opts.enqueue("derive", { record_id: a.record_id, file_version_id: a.file_version_id, quiet: true });
+    else if (readByAnOlderParser(a.path, a.media_type, { status: a.status, parser: a.parser ?? "none", parser_version: a.parser_version ?? "0" }))
+      await opts.enqueue("derive", { record_id: a.record_id, file_version_id: a.file_version_id, force: true, quiet: true });
+  }
   await queueEvidenceMoves(trx, opts.enqueue);
 
   const kept = await baselineBlobs(trx, tenantId);

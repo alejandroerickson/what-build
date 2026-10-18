@@ -1,9 +1,11 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { RESET_CONFIRMATION } from "@whatbuild/core";
+import { SCAN_DETAIL } from "@whatbuild/parsers";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { syncSandboxTenant } from "../src/public-sandbox.ts";
+import { makeBlankPdf } from "../../../packages/parsers/test/fixtures.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 // Search reads a source's title, tags, summary, derived text, notes and comments, through a search
@@ -451,6 +453,7 @@ describe("every place, as typed", () => {
 
 describe("a public sandbox reset", () => {
   let olive: Browser;
+  let tenant: string;
   let T: string;
   let S: string;
   let visit: string;
@@ -461,6 +464,7 @@ describe("a public sandbox reset", () => {
   beforeAll(async () => {
     olive = await h.signIn("olive@example.com", "Olive Owner");
     const t = await olive.api("POST", "/api/v1/tenants", { name: "Reset Sandbox" });
+    tenant = t.body.tenant.tenant_id;
     T = `/api/v1/tenants/${t.body.tenant.slug}`;
     const p = await olive.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Showcase" });
     S = `/api/v1/p/${p.body.path}`;
@@ -535,5 +539,73 @@ describe("a public sandbox reset", () => {
     const found = await olive.api("GET", `${T}/sandbox/visitors?query=${encodeURIComponent("dana_lee")}`);
     expect(found.body.items.map((v: { email: string }) => v.email)).toEqual(["dana_lee@visitor.example"]);
     expect((await olive.api("GET", `${T}/sandbox/visitors?query=dana`)).body.items).toHaveLength(2);
+  });
+
+  it("reads again, quietly, each attachment its baseline read with an older parser than this version's", async () => {
+    const rota = await source(S, olive, "Shift rota — Example Co");
+    await attach(S, olive, rota, "rota.csv", "crew,shift\nNorth,early\nSouth,late\n");
+    await h.worker.drain();
+    const saved = await olive.api("POST", `${T}/sandbox/baselines`, { note: "Four sources" });
+    expect(saved.status, JSON.stringify(saved.body)).toBe(200);
+    const versionOf = async (id: string) => (await olive.api("GET", `${S}/sources/${id}?detail=full`)).body.attachments[0].file_version_id as string;
+    const versions = { visit: await versionOf(visit), rota: await versionOf(rota) };
+    // The baseline as an earlier release saved it: visit.md read by an earlier version of the
+    // Markdown parser, and the rota found unreadable, as sheets were before a parser read them, so
+    // its source has no text.
+    await h.db.transaction().execute(async (trx) => {
+      await sql`select set_config('app.tenant_id', ${tenant}, true)`.execute(trx);
+      const reading = (version: string, earlier: Record<string, unknown>) =>
+        sql`update sandbox_baseline_rows set row = row || ${JSON.stringify(earlier)}::jsonb
+            where baseline_id = ${saved.body.baseline_id} and table_name = 'derivations' and row->>'file_version_id' = ${version}`.execute(trx);
+      await reading(versions.visit, { parser_version: "0" });
+      await reading(versions.rota, { status: "unsupported", status_detail: "no parser reads .csv files", parser: "none", parser_version: "0", text_chars: 0 });
+      await sql`delete from sandbox_baseline_rows where baseline_id = ${saved.body.baseline_id} and table_name = 'source_texts' and row->>'record_id' = ${rota}`.execute(trx);
+    });
+
+    expect((await olive.api("POST", `${T}/sandbox/reset`, { confirm: RESET_CONFIRMATION })).status).toBe(200);
+    // Those two only: second.md and late.md were read by this version's parser, so nothing reads them again.
+    const queued = await sql<{ payload: Record<string, unknown> }>`select payload from jobs where kind = 'derive' and done_at is null and tenant_id = ${tenant}`.execute(h.db);
+    expect(queued.rows.map((j) => j.payload).sort((a, b) => String(a["record_id"]).localeCompare(String(b["record_id"])))).toEqual(
+      [
+        { record_id: visit, file_version_id: versions.visit, force: true, quiet: true },
+        { record_id: rota, file_version_id: versions.rota, force: true, quiet: true },
+      ].sort((a, b) => a.record_id.localeCompare(b.record_id)),
+    );
+    expect((await olive.api("GET", `${S}/sources/${rota}/derived/text`)).status).toBe(404);
+    const logOf = async (id: string) => ((await olive.api("GET", `${S}/activity?entity_id=${id}`)).body.items as { action: string }[]).map((i) => i.action);
+    const logs = { visit: await logOf(visit), rota: await logOf(rota) };
+
+    await h.worker.drain();
+    expect((await olive.api("GET", `${S}/sources/${rota}/derived/text`)).body).toMatchObject({ taken_from: { path: "rota.csv" } });
+    expect((await search("South", "", S, olive)).hits.map((x) => [x.record_id, x.field])).toEqual([[rota, "text"]]);
+    expect((await olive.api("GET", `${S}/sources/${visit}/derived/text`)).body).toMatchObject({ text: "# Visit\n\nCrews text the office every Friday.\n", taken_from: { path: "visit.md" } });
+    // Read for the reset, not by anyone: the activity log has no line more than the baseline gave back.
+    expect({ visit: await logOf(visit), rota: await logOf(rota) }).toEqual(logs);
+  });
+
+  it("reads nothing again from a baseline saved once its readings were done, a PDF of pictures among them", async () => {
+    // A PDF whose pages are pictures, which this version's parser reads as unsupported, and one an
+    // earlier version recorded as failed, which is said as unsupported now: reading either again
+    // finds no words.
+    const scan = await source(S, olive, "Site photos — Example Co");
+    await attach(S, olive, scan, "site-photos.pdf", makeBlankPdf(1));
+    const older = await source(S, olive, "Older scan — Example Co");
+    await attach(S, olive, older, "older-scan.pdf", makeBlankPdf(1));
+    await h.worker.drain();
+    expect((await olive.api("GET", `${S}/sources/${scan}?detail=full`)).body.attachments[0].text).toMatchObject({ status: "unsupported", status_detail: SCAN_DETAIL });
+    // Saved once the last reset's readings were done, so every reading in it is this version's.
+    const saved = await olive.api("POST", `${T}/sandbox/baselines`, { note: "Six sources" });
+    expect(saved.status, JSON.stringify(saved.body)).toBe(200);
+    await h.db.transaction().execute(async (trx) => {
+      await sql`select set_config('app.tenant_id', ${tenant}, true)`.execute(trx);
+      const failed = { status: "failed", status_detail: "the PDF has no text layer (a scan?); no OCR is performed", parser_version: "4" };
+      await sql`update sandbox_baseline_rows set row = row || ${JSON.stringify(failed)}::jsonb
+          where baseline_id = ${saved.body.baseline_id} and table_name = 'derivations' and row->>'record_id' = ${older}`.execute(trx);
+    });
+
+    expect((await olive.api("POST", `${T}/sandbox/reset`, { confirm: RESET_CONFIRMATION })).status).toBe(200);
+    const queued = await sql<{ payload: Record<string, unknown> }>`select payload from jobs where kind = 'derive' and done_at is null and tenant_id = ${tenant}`.execute(h.db);
+    expect(queued.rows.map((j) => j.payload)).toEqual([]);
+    expect((await olive.api("GET", `${S}/sources/${older}?detail=full`)).body.attachments[0].text).toMatchObject({ status: "unsupported", status_detail: SCAN_DETAIL });
   });
 });

@@ -23,20 +23,23 @@ attachment, the derived text and their operations are in
 A **reading** (a `derivation` on the wire, identified by a `derivation_id`) is one immutable read of
 one version of one attachment. Every version of every attachment is read: when the attachment is
 added, when a new version arrives at its path, when a source is copied to another product (its
-attachments are read afresh there), and when `derived.rederive` asks for it (for example after a
-parser upgrade). Earlier readings are retained and readable by id. `rederive` returns
-`previous_derivation_id`; the attachment's latest reading stays in place until the new one
-finishes, so a caller knows it is done when `derived.manifest` for that attachment reports a
-different `derivation_id`.
+attachments are read afresh there), when `derived.rederive` asks for it (for example after a parser
+upgrade), and when a public sandbox's reset puts back a reading that this version's parsers would
+make afresh, such as one an older parser made ([§9.7](09-data-lifecycle.md#the-reset)). Earlier
+readings are retained and readable by id. `rederive` returns `previous_derivation_id`; the
+attachment's latest reading stays in place until the new one finishes, so a caller knows it is done
+when `derived.manifest` for that attachment reports a different `derivation_id`.
 
 **Where it runs.** Always on the Postgres job queue, in the worker
 ([`apps/server/src/worker.ts`](../../apps/server/src/worker.ts)), in every environment. The
-transaction that adds the attachment enqueues the job, and the worker wakes after the commit. The
-upload response is never held while a file is read, and a slow PDF cannot occupy a request. Reading
-inline in the request would be an observable behavior difference and is forbidden
-([§1.5 rule 12](01-product.md)). A reading's row is written only when it finishes, so until then
-the attachment's text status is `pending`, unless its name, type and size already settle how it
-will be read (§5.5).
+transaction that adds the attachment enqueues the job, and the worker wakes after the commit. A
+reading a release's migration queues is done by that release's workers: the version it replaces
+takes no job once the migration is recorded
+([§2.3](02-architecture.md#23-the-shape-of-the-deployment)). The upload response is never held while
+a file is read, and a slow PDF cannot occupy a request. Reading inline in the request would be an
+observable behavior difference and is forbidden ([§1.5 rule 12](01-product.md)). A reading's row is
+written only when it finishes, so until then the attachment's text status is `pending`, unless its
+name, type and size already settle how it will be read (§5.5).
 
 The activity log records each outcome under the system actor (WhatBuild, client `parser`):
 `derived`, "Read the text of interview.vtt", with "; it is the source’s derived text" when its text
@@ -317,9 +320,12 @@ A reading is never rewritten, but one an earlier version made is said as this ve
 wherever it is read (`currentReading` in [`statuses.ts`](../../packages/parsers/src/statuses.ts)),
 so a backup or a public sandbox's baseline brings no retired words back: a recording that asked for
 "a transcript as a new source" asks for one as another attachment, a PDF of pictures once recorded
-as `failed` reads `unsupported`, and an image once said to be "a format no parser reads" says how
-an agent gives it its words. A recording's detail beside the source's derived text says where that
-text comes from instead of asking for a transcript.
+as `failed` reads `unsupported`, and an image once said to be "a format no parser reads" says how an
+agent gives it its words. None of them needs reading again, and a public sandbox's reset leaves them
+as they are: it reads again only what this version's parsers would read differently (§5.1), never a
+reading that failed or found a recording, nor one in which this version's parser found only
+pictures. A recording's detail beside the source's derived text says where that text comes from
+instead of asking for a transcript.
 
 A source's `derived_status` says where its derived text stands (`derivedStatuses` in
 [`ops/sources.ts`](../../packages/core/src/ops/sources.ts)):

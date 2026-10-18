@@ -3,7 +3,7 @@ type: System Concept
 title: When a new version breaks a WhatBuild deployment, go back to the last good version, and restore the database first if the new one migrated it.
 description: For the operator of any WhatBuild deployment and the agent working for them; how to see what runs, tell whether the bad version changed the schema, go back on Cloud Run (Neon, Cloud SQL, another Postgres) or Azure, check it, and fix forward.
 tags: [operations, recovery, rollback, migrations, deployment, cloud-run, neon, azure, runbook]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -28,6 +28,16 @@ the **schema** (the database). They go back differently:
 So: **if the bad release ran no migration, put the previous code back and stop. If it did, restore
 the database to just before it, then put the previous code back.** Never repair the schema by
 hand, delete rows from `schema_migrations`, or edit a migration file to undo it.
+
+Previous code from a release after v0.15.0, run on a database that still has the later
+migrations, does no background work: its worker takes no job and does no housekeeping, and its log
+says the database has migrations its version does not carry
+([architecture](../spec/02-architecture.md#23-the-shape-of-the-deployment)). Uploads stay unread,
+exports unbuilt and the bytes of deleted files stored until the database is restored or the later
+version runs again. So going back to one of those releases past a migration means restoring the
+database, even when the later release's notes say the previous code runs on its schema, and after
+a deploy whose migration failed partway (step 3), the previous version serves while its worker
+waits for the restore.
 
 ## 1. Stop making it worse
 
@@ -77,7 +87,8 @@ Any one of these answers it:
 
 Each migration file runs in its own transaction. A file that fails changes nothing, the deploy
 stops, and the previous version keeps serving; but files before it in the same deploy stay
-applied. If anything was applied, take the path in step 5.
+applied, and from a release after v0.15.0 the previous version's worker then waits (above). If
+anything was applied, take the path in step 5.
 
 ## 4. No migration: put the previous code back
 
