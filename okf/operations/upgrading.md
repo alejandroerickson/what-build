@@ -155,7 +155,9 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   500 (a source's attachment and text, an export, Story and mockup pages and sign-in included). An unexpected error says how
   to report it where it was met: Submit feedback in the web app's account menu, `submit_feedback`
   for an agent. A grouped tool called without `action` says it is missing and lists the tool's
-  actions; a standalone tool called with `describe`, `action` or `params` says its fields are its
+  actions, and an unknown action lists them too: only those the connection is offered, as its tool
+  list shows them, where an unknown action listed every one, a permanent delete to an Edit
+  connection included; a standalone tool called with `describe`, `action` or `params` says its fields are its
   arguments; and a list sent as one value says what the list takes (`status` takes a list, such as
   `["confirmed"]`). On a connection whose person turned feedback off, `submit_feedback` is
   refused with `403 feedback_off` whatever is sent, a call with invalid input included. An

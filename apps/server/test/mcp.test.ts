@@ -88,7 +88,7 @@ describe("MCP", () => {
     expect(d.input_schema.additionalProperties).toBe(false);
     const bad = await client.callTool({ name: "assumptions", arguments: { action: "explode" } });
     expect(bad.isError).toBe(true);
-    expect((bad.content as { text: string }[])[0]!.text).toMatch(/^422: Unknown assumptions action: explode\. This server, version [\d.]+, has these assumptions actions: list,/);
+    expect((bad.content as { text: string }[])[0]!.text).toMatch(/^422: Unknown assumptions action: explode\. This server, version [\d.]+, offers this connection these assumptions actions: list,/);
     expect(text(bad).error.details).toMatchObject({ server_version: SKILL_VERSION, actions: expect.arrayContaining(["create", "review"]) });
     const field = await client.callTool({ name: "outcomes", arguments: { action: "create", product: path, params: { title: "x", colour: "red" } } });
     expect((field.content as { text: string }[])[0]!.text).toMatch(/^422: `colour` is not a field of this action\./);

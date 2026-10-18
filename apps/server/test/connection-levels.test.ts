@@ -92,6 +92,36 @@ describe("what each level may do", () => {
     await client.close();
   });
 
+  it("names only the actions the connection is offered when an action is missing or unknown", async () => {
+    const levels = ["viewer", "editor", "admin"] as const;
+    const clients = await Promise.all(levels.map(async (level) => connect(await h.connectAgent(olga, `Naming agent (${level})`, "/mcp", level))));
+    const named: Record<string, Record<string, string[]>> = {};
+    for (const [k, client] of clients.entries()) {
+      const { tools } = await client.listTools();
+      for (const tool of ["sources", "sandbox"]) {
+        const listed = (tools.find((t) => t.name === tool)!.inputSchema.properties!["action"] as { enum: string[] }).enum;
+        const missing = result(await client.callTool({ name: tool, arguments: { params: {} } }));
+        expect(missing.status).toBe(422);
+        expect(missing.json.error.details.actions).toEqual(listed);
+        expect(missing.json.error.message).toContain(`${tool} needs one of its actions (${listed.join(", ")}),`);
+        const unknown = result(await client.callTool({ name: tool, arguments: { action: "explode", product: path, params: {} } }));
+        expect(unknown.json.error).toMatchObject({ code: "unknown_action", details: { actions: listed } });
+        expect(unknown.json.error.message).toContain(`offers this connection these ${tool} actions: ${listed.join(", ")}.`);
+        (named[levels[k]!] ??= {})[tool] = listed;
+      }
+      await client.close();
+    }
+    // An Edit connection is told of no permanent delete, and of none of a sandbox's control panel.
+    expect(named["editor"]!["sources"]).toContain("archive");
+    for (const a of ["delete", "delete_annotation"]) {
+      expect(named["editor"]!["sources"]).not.toContain(a);
+      expect(named["admin"]!["sources"]).toContain(a);
+    }
+    expect(named["editor"]!["sandbox"]).toEqual(["status", "join"]);
+    expect(named["viewer"]!["sandbox"]).toEqual(["status"]);
+    expect(named["admin"]!["sandbox"]).toEqual(expect.arrayContaining(["settings", "reset", "visitors"]));
+  });
+
   it("lets Read only read and nothing else", async () => {
     const client = await connect(await h.connectAgent(olga, "Reading agent", "/mcp", "viewer"));
     const actions = await offered(client);

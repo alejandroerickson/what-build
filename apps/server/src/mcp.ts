@@ -93,17 +93,22 @@ export function toolDefinitions(level?: ConnectionLevel) {
 
 const DEFINITIONS = toolDefinitions();
 const TOOL_NAMES = DEFINITIONS.tools.map((t) => t.name);
-/** What each connection level lists: an Edit connection is never shown a permanent delete. */
-const LISTED: Record<ConnectionLevel, ReturnType<typeof toolDefinitions>["tools"]> = {
-  viewer: toolDefinitions("viewer").tools,
-  editor: toolDefinitions("editor").tools,
-  admin: toolDefinitions("admin").tools,
+/** What each connection level is offered: an Edit connection is never shown a permanent delete. */
+const OFFERED: Record<ConnectionLevel, ReturnType<typeof toolDefinitions>> = {
+  viewer: toolDefinitions("viewer"),
+  editor: toolDefinitions("editor"),
+  admin: toolDefinitions("admin"),
 };
 
 /** What a connection lists: its level's tools, without submit_feedback where the person turned it off. */
 function listedFor(principal: Principal) {
-  const tools = principal.level ? LISTED[principal.level] : DEFINITIONS.tools;
+  const tools = principal.level ? OFFERED[principal.level].tools : DEFINITIONS.tools;
   return principal.feedback === false ? tools.filter((t) => t.name !== "submit_feedback") : tools;
+}
+
+/** A grouped tool's actions as the connection's tool list names them: those its level allows. */
+function actionsFor(principal: Principal, tool: string): string[] {
+  return ((principal.level ? OFFERED[principal.level] : DEFINITIONS).groups.get(tool) ?? []).map((o) => o.mcp.action!);
 }
 
 /** Said when the person turned feedback off, so the agent doesn't take the missing tool for an old tool list. */
@@ -264,7 +269,9 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
         op = group.find((o) => o.mcp.action === args["action"]);
         const extra = Object.keys(args).filter((k) => !["action", "params", "describe", "product"].includes(k));
         if (extra.length) throw invalid("unknown_field", `Unknown argument(s) ${extra.join(", ")}. Grouped tools take action, params, describe and product.`);
-        const actions = group.map((o) => o.mcp.action!);
+        // The actions a refusal names are the ones this connection is offered. A call is still looked
+        // up among all of them, so one above the connection's level is told what it needs.
+        const actions = actionsFor(principal, name);
         if (args["action"] === undefined || args["action"] === null || args["action"] === "")
           throw invalid(
             "invalid_input",
@@ -274,7 +281,7 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
         if (!op)
           throw invalid(
             "unknown_action",
-            `Unknown ${name} action: ${String(args["action"])}. This server, version ${SKILL_VERSION}, has these ${name} actions: ${actions.join(", ")}.${STALE_LIST}`,
+            `Unknown ${name} action: ${String(args["action"])}. This server, version ${SKILL_VERSION}, offers this connection these ${name} actions: ${actions.join(", ")}.${STALE_LIST}`,
             { server_version: SKILL_VERSION, actions },
           );
         if (args["describe"] === true) {
