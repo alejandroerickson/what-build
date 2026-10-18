@@ -1,5 +1,5 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError, isObjectId, qs } from "../lib/api.ts";
 import { actorName, attribution, formatBytes, formatDate, plural, relativeTime } from "../lib/format.ts";
@@ -12,7 +12,7 @@ import {
   MenuSeparator, PageHeader, Segmented, Sheet, SheetHeader, TextArea, TextField, useToast,
 } from "../ui/index.tsx";
 import "../styles/screens/evidence.css";
-import { AddAttachments, AttachmentsView } from "./source-attachments.tsx";
+import { AddAttachments, AttachmentsView, SourceImages } from "./source-attachments.tsx";
 import { CommentsView } from "./source-comments.tsx";
 import { TextView } from "./source-text.tsx";
 import { EvidenceFilters, splitTags, TagSuggestions } from "./evidence.tsx";
@@ -145,6 +145,7 @@ export function SourceDetailPage() {
           </Callout>
         </div>
       ) : null}
+      <SourceImages record={r} />
       <div className="source-sections">
         <Segmented
           label="Source sections"
@@ -157,7 +158,7 @@ export function SourceDetailPage() {
           ]}
         />
       </div>
-      {view === "text" ? <TextView record={r} onAddAttachments={writable ? () => setDialog("attachments") : undefined} /> : null}
+      {view === "text" ? <TextView key={r.record_id} record={r} onAddAttachments={writable ? () => setDialog("attachments") : undefined} /> : null}
       {view === "notes" ? <NotesView record={r} note={agentNotes?.data ?? null} loading={Boolean(agentNotes?.isPending && noteKinds.includes("notes"))} /> : null}
       {view === "comments" ? <CommentsView record={r} /> : null}
       {view === "attachments" ? <AttachmentsView record={r} onAdd={writable ? () => setDialog("attachments") : undefined} /> : null}
@@ -176,21 +177,13 @@ function surfaceLabel(actor: Actor) {
 }
 
 /**
- * The summary under the title: what the source is and says, for people, clamped to four lines.
- * Editors can write or change it here; without one, others see nothing.
+ * The summary under the title, whole: what the source is and what it tells the team, the part of
+ * a source people read. Editors can write or change it here; without one, others see nothing.
  */
 function SourceDescription({ record, note, loading }: { record: SourceRecord; note: AgentNote | null; loading: boolean }) {
   const { canWrite } = useProduct();
-  const [open, setOpen] = useState(false);
-  const [overflows, setOverflows] = useState(false);
   const [editing, setEditing] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
   const writable = canWrite && !record.archived_at;
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el || open) return;
-    setOverflows(el.scrollHeight > el.clientHeight + 1);
-  }, [note, open]);
   if (loading) return <Loading variant="lines" lines={2} label="Loading the summary…" />;
   const editor = editing ? <NoteDialog record={record} kind="summary" current={note?.content ?? ""} onClose={() => setEditing(false)} /> : null;
   if (!note)
@@ -204,15 +197,10 @@ function SourceDescription({ record, note, loading }: { record: SourceRecord; no
     ) : null;
   return (
     <div className="source-description">
-      <div ref={ref} id="source-summary" className={`source-summary${open ? "" : " source-summary-clamped"}`}>
+      <div className="source-summary">
         <Markdown source={note.content} className="prose" headingShift={3} />
       </div>
       <div className="source-summary-foot">
-        {overflows || open ? (
-          <button type="button" className="quiet-link source-summary-toggle" aria-expanded={open} aria-controls="source-summary" onClick={() => setOpen(!open)}>
-            {open ? "Show less" : "Show all"}
-          </button>
-        ) : null}
         <span>
           Summary by {attribution(note.updated_by)}, {relativeTime(note.updated_at)}
         </span>

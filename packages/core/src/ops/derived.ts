@@ -252,7 +252,9 @@ export const rederive = defineOperation({
 
 const NOTE_KIND = z
   .enum(["summary", "notes"])
-  .describe("summary: what the source is and what it says, for the people who read its page. notes: freeform working notes on the source, for agents and people.");
+  .describe(
+    "summary: what the source is and what it tells the team, the part of a source people read: it heads the source's page and shows in the Evidence list. notes: freeform working notes on the source, for agents and people.",
+  );
 
 export const writeNote = defineOperation({
   name: "derived.write_note",
@@ -261,7 +263,7 @@ export const writeNote = defineOperation({
   mutates: true,
   summary: "Write a source's summary or its notes. Empty content clears it.",
   description:
-    `Markdown, up to ${AGENT_NOTE_MAX} characters; it replaces what was there, and people can edit both in the app too. Both are searched. The summary heads the source's page and is read by people, not agents: a few short sentences or bullets in plain words saying what the source is and what it tells the team, with no ids or codes. Notes are freeform: whatever is worth keeping about the source that is not its words, structured as you like, so the next agent need not work it out again.`,
+    `Markdown, up to ${AGENT_NOTE_MAX} characters; it replaces what was there, and people can edit both in the app too. Both are searched. Write the summary with care: it is the part of a source people read. It heads the source's page and shows in the Evidence list, and people browsing sources read the summary and rarely anything below it. Make it succinct and high in signal: two to four short sentences, or a few bullets, saying what the source is and what it tells the team (the finding, the number, the decision, what is still open) in plain words, with no ids or codes, no preamble and no restating of the title. Notes are freeform: whatever is worth keeping about the source that is not its words, structured as you like, so the next agent need not work it out again.`,
   input: z.strictObject({ record_id: id("source"), note_kind: NOTE_KIND, content: z.string().max(AGENT_NOTE_MAX) }),
   rest: { method: "PUT", path: "/sources/:record_id/agent-notes/:note_kind" },
   mcp: { tool: "derived", action: "write_note" },

@@ -48,9 +48,10 @@ const FIT: View = { zoom: "fit", offset: { x: 0, y: 0 } };
 /**
  * One of a source's images with zoom, pan and full screen, and every other image of the source a
  * step away: arrow keys, the previous and next buttons, or a strip of thumbnails. A format the
- * browser can't decode falls back to a download.
+ * browser can't decode falls back to a download. `inline` is the viewer on a source's page rather
+ * than in a dialog: it names the image and offers its download itself.
  */
-export function ImageViewer({ images, current, onSelect, downloadUrl }: { images: ViewerImage[]; current: string; onSelect: (path: string) => void; downloadUrl: string }) {
+export function ImageViewer({ images, current, onSelect, downloadUrl, inline = false }: { images: ViewerImage[]; current: string; onSelect: (path: string) => void; downloadUrl: string; inline?: boolean }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
@@ -271,8 +272,9 @@ export function ImageViewer({ images, current, onSelect, downloadUrl }: { images
   }
 
   const name = image.path;
+  const named = inline || fullscreen;
   return (
-    <div ref={rootRef} className={`image-viewer${fullscreen ? " image-viewer-fullscreen" : ""}`} onKeyDown={onKeyDown}>
+    <div ref={rootRef} className={`image-viewer${inline ? " image-viewer-inline" : ""}${fullscreen ? " image-viewer-fullscreen" : ""}`} onKeyDown={onKeyDown}>
       <div className="image-viewer-toolbar">
         <div className="image-viewer-group">
           {images.length > 1 ? (
@@ -284,7 +286,11 @@ export function ImageViewer({ images, current, onSelect, downloadUrl }: { images
               <IconButton size="sm" icon="chevron-right" label="Next image" title="Next image (→)" disabled={!hasNext} onClick={next} />
             </>
           ) : null}
-          {fullscreen ? <span className="image-viewer-name ellipsis">{name}</span> : null}
+          {named ? (
+            <span className="image-viewer-name ellipsis" title={name}>
+              {name}
+            </span>
+          ) : null}
         </div>
         <div className="image-viewer-group">
           <IconButton size="sm" icon="minus" label="Zoom out" title="Zoom out (−)" disabled={!ready} onClick={zoomOut} />
@@ -312,7 +318,7 @@ export function ImageViewer({ images, current, onSelect, downloadUrl }: { images
               />
             </>
           ) : null}
-          {fullscreen ? (
+          {named ? (
             <a className="icon-btn icon-btn-sm" href={downloadUrl} aria-label={`Download ${name}`} title="Download">
               <Glyph name="download" />
             </a>

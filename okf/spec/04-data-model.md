@@ -254,8 +254,11 @@ chars, written with `derived.write_note` (`note_kind` `summary` or `notes`; empt
 it) and read with `derived.read_note`. People write and edit both in the web app, and agents
 through the same operations; each records who wrote it last and when. Both are searched.
 
-- The **summary** heads the source's page and is written for people: a few short sentences saying
-  what the source is and what it tells the team, without ids or codes.
+- The **summary** is the part of a source people read: it heads the source's page, whole, and
+  unfolds under its row in the Evidence list, and people browsing sources read it and rarely
+  anything below. It is written for them: two to four short sentences or a few bullets, succinct
+  and high in signal, saying what the source is and what it tells the team, without ids or codes.
+  `sources.list` returns it with `include_summary`, cut at 1,000 characters.
 - The **notes** are freeform: whatever is worth keeping about the source that is not its words,
   structured as the writer likes. Agents keep their working knowledge of a source there, and
   what an attachment was made from.

@@ -177,6 +177,17 @@ describe("listing sources in order", () => {
     expect(read.body.records).toEqual([expect.objectContaining({ record_id: notes.recordId, title: "Planning notes", text_from: "sortable-notes.md", derived_status: "ready" })]);
     const none = await alice.api("GET", `${P}/sources?query=Sortable%20delta`);
     expect(none.body.records[0]).toMatchObject({ text_from: null, derived_status: "awaiting_file", attachment_count: 0 });
+    expect(none.body.records[0]).not.toHaveProperty("summary");
+
+    // include_summary adds each source's summary, null without one and cut short when long.
+    await alice.api("PUT", `${P}/sources/${june}/agent-notes/summary`, { content: "Crews plan the week on **Sunday night**." });
+    await alice.api("PUT", `${P}/sources/${sept}/agent-notes/summary`, { content: `${"Crews text the office. ".repeat(60)}` });
+    const summed = await alice.api("GET", `${P}/sources?query=Sortable&sort=date&include_summary=true`);
+    const summaryOf = (id: string) => summed.body.records.find((x: { record_id: string }) => x.record_id === id).summary;
+    expect(summaryOf(june)).toBe("Crews plan the week on **Sunday night**.");
+    expect(summaryOf(aug)).toBeNull();
+    expect(summaryOf(sept)).toMatch(/^Crews text the office\. .*\S…$/);
+    expect(Array.from(summaryOf(sept) as string).length).toBeLessThanOrEqual(1000);
 
     const bad = await alice.api("GET", `${P}/sources?sort=date&cursor=${june}`);
     expect(bad.status).toBe(422);

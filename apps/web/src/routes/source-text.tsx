@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
 import { attribution, relativeTime } from "../lib/format.ts";
@@ -55,8 +55,9 @@ function firstPart(text: string): string {
 
 /**
  * The source's derived text: its words as one document, what search reads. Where it came from is
- * said above it; editors write or edit it, or take an attachment's text. `?find=` marks words in
- * it and steps through them.
+ * said above it; editors write or edit it, or take an attachment's text. It opens folded to its
+ * first lines, fading out, so the summary above stays what people read first; a click on the fade
+ * unfolds it. `?find=` unfolds it, marks words in it and steps through them.
  */
 export function TextView({ record, onAddAttachments }: { record: RecordFull; onAddAttachments?: (() => void) | undefined }) {
   const { api: base, canWrite } = useProduct();
@@ -64,11 +65,14 @@ export function TextView({ record, onAddAttachments }: { record: RecordFull; onA
   const find = params.get("find") ?? "";
   const [typed, setTyped] = useState(find);
   const [all, setAll] = useState(false);
+  const [unfolded, setUnfolded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
   const [editing, setEditing] = useState(false);
   const [using, setUsing] = useState<Attachment | null>(null);
   const [at, setAt] = useState(0);
   const [marks, setMarks] = useState(0);
   const body = useRef<HTMLDivElement>(null);
+  const fold = useRef<HTMLDivElement>(null);
   const writable = canWrite && !record.archived_at;
   const text = record.text;
   const q = useQuery({
@@ -100,6 +104,21 @@ export function TextView({ record, onAddAttachments }: { record: RecordFull; onA
   const pattern = useMemo(() => findPattern(find), [find]);
   const content = q.data ?? "";
   const shown = all || pattern ? content : firstPart(content);
+  const folded = !unfolded && !pattern;
+  // A find unfolds the text for good: clearing it leaves the reader where they were.
+  useEffect(() => {
+    if (pattern) setUnfolded(true);
+  }, [pattern]);
+  // Folded, the text is cut at a height; only a text that runs past it fades and offers the rest.
+  useLayoutEffect(() => {
+    const el = fold.current;
+    if (!el || !folded) return;
+    setOverflows(el.scrollHeight > el.clientHeight + 1);
+  }, [shown, folded]);
+  const unfold = () => {
+    setUnfolded(true);
+    fold.current?.focus({ preventScroll: true });
+  };
   // Count the marks once they are drawn, and bring the first into view.
   useEffect(() => {
     const found = body.current?.querySelectorAll("mark.text-find") ?? [];
@@ -177,9 +196,19 @@ export function TextView({ record, onAddAttachments }: { record: RecordFull; onA
           ) : q.isError ? (
             <ErrorCallout inset title="The text couldn’t be loaded" error={q.error} onRetry={() => q.refetch()} />
           ) : (
-            <div ref={body} className="source-text-body">
-              <Markdown source={shown} className="prose source-text" headingShift={1} mark={pattern} />
-              {shown.length < content.length ? (
+            <div ref={body} className={`source-text-body${folded ? " is-folded" : ""}${folded && overflows ? " is-cut" : ""}`}>
+              <div ref={fold} id="source-text-fold" className="source-text-fold" tabIndex={-1}>
+                <Markdown source={shown} className="prose source-text" headingShift={1} mark={pattern} />
+              </div>
+              {folded && overflows ? (
+                <button type="button" className="source-text-unfold" aria-expanded={false} aria-controls="source-text-fold" onClick={unfold}>
+                  <span className="source-text-unfold-label">
+                    <Glyph name="chevron-down" size="sm" />
+                    Show the whole text
+                  </span>
+                </button>
+              ) : null}
+              {!folded && shown.length < content.length ? (
                 <p className="source-text-more">
                   <Button size="sm" onClick={() => setAll(true)}>
                     Show all {count(text.chars)} characters

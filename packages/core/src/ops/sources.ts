@@ -258,6 +258,9 @@ export const sourceFacets = defineOperation({
 
 // ---- Listing and reading ------------------------------------------------------------------------
 
+/** How much of each source's summary sources.list returns with include_summary. */
+export const LIST_SUMMARY_MAX = 1000;
+
 export const listSources = defineOperation({
   name: "sources.list",
   scope: "product",
@@ -265,7 +268,8 @@ export const listSources = defineOperation({
   mutates: false,
   summary: "List sources by metadata: newest added first, or by date, last update or title, either way round. For what sources say, use search.",
   description:
-    "Filters combine. `tags` must all be on a source; sources(action=\"facets\") lists the tags in use and who added sources. `added_by` is an account_id; `added_since` keeps sources added at or after a date or time; `date_from` and `date_to` bound the source's own date. `query` is a case-insensitive substring over metadata only — title, tags and attachment names — never what a source says; use `search` for that. `sort`: added (newest added first, the default), date (the source's own date, newest first, undated last), updated (details most recently changed first) or title (A to Z). `order` reverses it: asc or desc, defaulting to desc for the three dates and asc for title; undated sources stay last either way. Returns summaries with derived_status, the attachment the derived text was taken from (text_from) and next_cursor; pass the cursor back with the same filters, sort and order.",
+    "Filters combine. `tags` must all be on a source; sources(action=\"facets\") lists the tags in use and who added sources. `added_by` is an account_id; `added_since` keeps sources added at or after a date or time; `date_from` and `date_to` bound the source's own date. `query` is a case-insensitive substring over metadata only — title, tags and attachment names — never what a source says; use `search` for that. `sort`: added (newest added first, the default), date (the source's own date, newest first, undated last), updated (details most recently changed first) or title (A to Z). `order` reverses it: asc or desc, defaulting to desc for the three dates and asc for title; undated sources stay last either way. Returns each source's metadata with derived_status, the attachment the derived text was taken from (text_from) and next_cursor; pass the cursor back with the same filters, sort and order. " +
+    `include_summary adds each source's summary (null without one, cut at ${LIST_SUMMARY_MAX} characters), which is what people read when they browse the list.`,
   input: z.strictObject({
     tags: z.array(z.string()).max(20).optional().describe("All must match."),
     added_by: z.string().min(1).max(100).optional().describe("An account_id from sources(action=\"facets\"): only the sources that person added, in the app or through an agent."),
@@ -274,6 +278,7 @@ export const listSources = defineOperation({
     date_to: isoDate.optional().describe("The source's own date, on or before."),
     query: z.string().max(500).optional(),
     include_archived: z.boolean().default(false),
+    include_summary: z.boolean().default(false).describe("Add each source's summary."),
     sort: z.enum(["added", "date", "updated", "title"]).default("added"),
     order: z.enum(["asc", "desc"]).optional().describe("Defaults to desc for added, date and updated, and asc for title."),
     limit: z.number().int().min(1).max(200).default(50),
@@ -333,8 +338,25 @@ export const listSources = defineOperation({
         input.sort === "added"
           ? last.record_id
           : Buffer.from(JSON.stringify({ v: input.sort === "date" ? last.date : input.sort === "updated" ? last.sort_updated : last.sort_title, id: last.record_id })).toString("base64url");
+    const summaries =
+      input.include_summary && page.length
+        ? new Map(
+            (
+              await ctx.db
+                .selectFrom("agent_notes")
+                .select(["record_id", sql<string>`left(content, ${LIST_SUMMARY_MAX + 1})`.as("content")])
+                .where("kind", "=", "summary")
+                .where("record_id", "in", page.map((r) => r.record_id))
+                .execute()
+            ).map((n) => [n.record_id, truncateQuote(n.content, LIST_SUMMARY_MAX)]),
+          )
+        : null;
     return {
-      records: page.map((r) => ({ ...recordSummary(r, statuses.get(r.record_id)), text_from: statuses.get(r.record_id)?.text_from ?? null })),
+      records: page.map((r) => ({
+        ...recordSummary(r, statuses.get(r.record_id)),
+        text_from: statuses.get(r.record_id)?.text_from ?? null,
+        ...(summaries ? { summary: summaries.get(r.record_id) ?? null } : {}),
+      })),
       next_cursor: next,
     };
   },

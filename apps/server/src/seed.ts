@@ -2,7 +2,7 @@ import { actorOf, createTenantWithTeam, execute, houseStyle, json, loadSandbox, 
 import { sql } from "kysely";
 import { findOrCreateAccount } from "./auth/identity.ts";
 import {
-  MOCKUP, HANDOFF_HTML, HANDOFF_NOTES, INTERVIEW_AGENT_NOTES, INTERVIEW_RECORDER_EXPORT, INTERVIEW_TXT, INTERVIEW_VTT, OVERVIEW_NOTES, OWNER_NOTES_MD, RESEARCH_EXPORT_MD, SAMPLE, STORY_HTML,
+  MOCKUP, HANDOFF_HTML, HANDOFF_NOTES, INTERVIEW_AGENT_NOTES, INTERVIEW_RECORDER_EXPORT, INTERVIEW_TXT, INTERVIEW_VTT, OVERVIEW_NOTES, OWNER_NOTES_MD, RESEARCH_EXPORT_MD, SAMPLE, SOURCE_SUMMARIES, STORY_HTML,
 } from "./seed-content.ts";
 import { syncSandboxTenant } from "./public-sandbox.ts";
 import type { Worker } from "./worker.ts";
@@ -77,6 +77,10 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
   // The agent's summary and working notes for the Greenline call.
   for (const note_kind of ["summary", "notes"] as const) {
     await call(env, samAgent, "derived.write_note", { record_id: vtt, note_kind, content: INTERVIEW_AGENT_NOTES[note_kind] }, ref);
+  }
+  // And a summary for every other source, which the Evidence list shows.
+  for (const [record_id, content] of [[txt, SOURCE_SUMMARIES.oakAndAsh], [notes, SOURCE_SUMMARIES.fernside], [survey, SOURCE_SUMMARIES.survey]] as const) {
+    await call(env, samAgent, "derived.write_note", { record_id, note_kind: "summary", content }, ref);
   }
 
   const base = env.ports.config.publicBaseUrl;

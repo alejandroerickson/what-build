@@ -22,6 +22,8 @@ export interface RecordSummary {
   etag: string;
   /** The attachment the derived text was taken from; sources.list includes it. */
   text_from?: string | null;
+  /** The source's summary, cut short when long; sources.list includes it when asked. */
+  summary?: string | null;
 }
 
 /** How an attachment's text was read: kept with the source, never searched. */

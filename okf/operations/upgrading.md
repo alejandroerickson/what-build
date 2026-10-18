@@ -23,7 +23,14 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Nothing to change; people will notice Evidence reads differently.** A source's page shows its
+  summary whole, then its images in the viewer, then its text folded to its first lines (a click
+  near the bottom unfolds it). The Sources list shows one date per row, the one it is ordered by,
+  and each row can unfold its summary; Show summaries unfolds them all.
+- **The skill is 0.32.0.** It tells agents the summary is the part of a source people read, to be
+  written succinct and high in signal, and that `sources(action="list", include_summary=true)`
+  returns the summaries. Connected agents are asked to update it; the new `include_summary`
+  works without a new session.
 
 ## v0.14.2
 

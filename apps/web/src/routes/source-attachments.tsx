@@ -158,6 +158,29 @@ export function AttachmentsView({ record, onAdd }: { record: RecordFull; onAdd?:
   );
 }
 
+/**
+ * A source's images on its page, under the summary: the first is the first thing people see, and
+ * the others are a step away in the same viewer.
+ */
+export function SourceImages({ record }: { record: RecordFull }) {
+  const { api: base } = useProduct();
+  const [current, setCurrent] = useState<string | null>(null);
+  const images = record.attachments.filter((a) => previewKind(a) === "image");
+  if (!images.length) return null;
+  const shown = images.find((a) => a.path === current) ?? images[0]!;
+  return (
+    <section className="source-images" aria-label={images.length > 1 ? `${images.length} images` : "Image"}>
+      <ImageViewer
+        inline
+        images={images.map((x) => ({ path: x.path, url: attachmentUrl(base, record.record_id, x.path) }))}
+        current={shown.path}
+        onSelect={setCurrent}
+        downloadUrl={attachmentUrl(base, record.record_id, shown.path, true)}
+      />
+    </section>
+  );
+}
+
 /** One attachment as it was uploaded: a PDF, an image, a recording or a text, shown in a dialog. */
 function AttachmentPreview({ record, path, onSelect, onClose }: { record: RecordFull; path: string; onSelect: (path: string) => void; onClose: () => void }) {
   const { api: base } = useProduct();

@@ -91,6 +91,19 @@ A single call. Treat the once-a-week mistake rate as her estimate, not a measure
 `,
 };
 
+/** What an agent wrote about each of the other sources: the summary people read when they browse Evidence. */
+export const SOURCE_SUMMARIES = {
+  oakAndAsh:
+    "Dev plans day by day from a spreadsheet. Two weeks ago a client listed twice double-booked the mower crew, and the CONFIRMED column he added since is half empty. " +
+    "Time saved on planning would go to answering new customers sooner: slow answers lose him jobs.",
+  fernside:
+    "Priya plans six cleaning crews alone on Sunday evenings, from memory, a wall calendar and one group chat, where changes after Sunday get lost. " +
+    "She asks to see who is free on a given morning, and for one message per crew. She thinks in days and people, not jobs.",
+  survey:
+    "23 of 41 crew leads answered. 19 plan once a week, for a median of 2.5 hours, most of them in a spreadsheet (14); three of the four on scheduling software still keep one " +
+    "\"for the real plan\". In their words, they think in jobs, not time slots, and sending everyone their day takes longest.",
+};
+
 export const INTERVIEW_TXT = `Interviewer: Tell me about the last time the schedule went wrong.
 Dev: Two weeks ago. We double-booked the mower crew on Tuesday because the spreadsheet had the same client twice.
 Interviewer: How did you find out?

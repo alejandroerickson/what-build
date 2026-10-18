@@ -84,12 +84,59 @@
 .sort-mark.is-desc {
   transform: rotate(180deg);
 }
+.sources-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* The title is the row's link, stretched over the whole row; the summary toggle sits above it. */
 .source-row {
+  position: relative;
   grid-template-columns: minmax(0, 1fr) auto;
 }
-.source-row .list-end {
-  display: flex;
-  gap: var(--s-3);
+.has-toggles > .source-row {
+  grid-template-columns: var(--h-sm) minmax(0, 1fr) auto;
+  /* The toggle's chevron lines up with the sheet's gutter. */
+  padding-left: calc(var(--sheet-px) - (var(--h-sm) - var(--icon-md)) / 2);
+}
+.source-row:hover {
+  background: var(--hover);
+}
+.source-row:has(.source-row-link:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.source-row-link {
+  color: inherit;
+  text-decoration: none;
+}
+.source-row-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+.source-row-link:focus-visible {
+  outline: none;
+}
+.source-row-toggle {
+  position: relative;
+  z-index: 1;
+  align-self: start;
+  /* Centred on the title's first line. */
+  margin: calc((var(--fs-base) * var(--lh-ui) - var(--h-sm)) / 2) calc(-1 * var(--s-1h)) 0 0;
+}
+.source-row-toggle .glyph {
+  transition: transform var(--dur-1) var(--ease);
+}
+.source-row-toggle[aria-expanded="true"] .glyph {
+  transform: rotate(90deg);
+}
+.source-row .source-row-toggle[aria-expanded="true"]:not(:hover) {
+  background: transparent;
+  color: var(--muted);
+}
+.source-row .source-row-toggle:hover {
+  background: var(--hover-strong);
 }
 .source-row-sub {
   display: flex;
@@ -97,18 +144,47 @@
   align-items: center;
   gap: 4px var(--s-1h);
 }
+/* A summary unfolded: its first three lines, as plain words. */
+.source-row-summary {
+  display: -webkit-box;
+  max-width: var(--measure);
+  margin-top: var(--s-1h);
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
 .source-row.is-archived .list-title {
   color: var(--muted);
   font-weight: var(--fw-regular);
 }
+.source-row .list-end {
+  display: flex;
+  gap: var(--s-3);
+}
 .source-row-count {
-  width: 96px;
+  min-width: 32px;
   text-align: right;
 }
-.source-row-added {
-  width: 196px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.source-row-attachments {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.source-row-date {
+  width: 76px;
+  text-align: right;
+}
+.source-row-date.is-none {
+  color: var(--faint);
+}
+@media (prefers-reduced-motion: reduce) {
+  .source-row-toggle .glyph {
+    transition: none;
+  }
 }
 .sources-more {
   display: flex;
@@ -129,16 +205,6 @@
   font-size: var(--fs-body);
   line-height: var(--lh-body);
 }
-.source-summary-clamped {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
-  line-clamp: 4;
-  overflow: hidden;
-}
-.source-summary-clamped .prose > * + * {
-  margin-top: 0;
-}
 .source-summary-foot {
   display: flex;
   flex-wrap: wrap;
@@ -148,7 +214,6 @@
   color: var(--faint);
   font-size: var(--fs-sm);
 }
-.source-summary-toggle,
 .source-summary-edit {
   min-height: var(--h-sm);
   padding: 0;
@@ -159,6 +224,10 @@
 /* With no summary yet, an editor sees only the button that writes one. */
 .source-description-empty {
   margin-left: calc(var(--crumb-inset) - var(--s-2));
+}
+/* A source's images, under the summary: the viewer as a sheet of its own. */
+.source-images {
+  margin: 0 0 var(--s-4);
 }
 .source-sections {
   margin: 0 0 var(--s-3);
@@ -235,7 +304,53 @@
   font-weight: var(--fw-medium);
 }
 .source-text-body {
+  position: relative;
   padding: var(--s-3h) var(--sheet-px) var(--s-4);
+}
+/* Folded: the text's first lines, the last two fading into the sheet. */
+.source-text-body.is-folded .source-text-fold {
+  max-height: calc(var(--fs-prose) * 1.62 * 9);
+  overflow: hidden;
+}
+.source-text-body.is-cut {
+  padding-bottom: calc(var(--h-sm) + var(--s-3));
+}
+.source-text-body.is-cut .source-text-fold {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--fs-prose) * 4), transparent);
+}
+.source-text-fold:focus {
+  outline: none;
+}
+/* The fade and the line under it are one control: a click near the bottom unfolds the text. */
+.source-text-unfold {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: flex-end;
+  height: calc(var(--fs-prose) * 4 + var(--h-sm) + var(--s-3));
+  padding: 0 var(--sheet-px) var(--s-2);
+  border: 0;
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+.source-text-unfold:focus-visible {
+  outline-offset: -2px;
+}
+.source-text-unfold-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1h);
+  min-height: var(--h-sm);
+  font-weight: var(--fw-medium);
+  transition: color var(--dur-1) var(--ease);
+}
+.source-text-unfold:hover .source-text-unfold-label {
+  color: var(--text);
 }
 .source-text {
   max-width: var(--measure);
@@ -288,10 +403,26 @@ mark.text-find-current {
   border-radius: var(--r-md);
   background: var(--panel);
 }
+.image-viewer-inline {
+  border: 0;
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+}
+/* As wide as the canvas and four-thirds as tall, short of most of the window. */
+.image-viewer-inline:not(.image-viewer-fullscreen) .image-viewer-stage {
+  height: auto;
+  min-height: 220px;
+  max-height: min(56vh, 640px);
+  aspect-ratio: 4 / 3;
+}
+.image-viewer-inline .image-viewer-name {
+  color: var(--muted);
+}
 .image-viewer-fullscreen {
   height: 100%;
   border: 0;
   border-radius: 0;
+  box-shadow: none;
 }
 .image-viewer-toolbar {
   display: flex;
@@ -323,6 +454,9 @@ mark.text-find-current {
 .image-viewer-name {
   margin-left: var(--s-2);
   font-weight: var(--fw-medium);
+}
+.image-viewer-group:has(.image-viewer-name) {
+  flex: 1 1 0;
 }
 .image-viewer-divider {
   width: 1px;
@@ -435,6 +569,11 @@ mark.text-find-current {
   .image-viewer-ready,
   .image-viewer-easing,
   .image-viewer-thumb {
+    transition: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .source-text-unfold-label {
     transition: none;
   }
 }
@@ -778,20 +917,34 @@ mark.text-find-current {
   .form-grid > .tag-suggestions {
     margin-left: 0;
   }
+  .source-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .has-toggles > .source-row {
+    grid-template-columns: var(--h-sm) minmax(0, 1fr);
+  }
   .source-row .list-end {
     display: flex;
-    grid-column: 1;
+    grid-column: -2;
     justify-content: flex-start;
     text-align: left;
   }
   .source-row-count,
-  .source-row-added {
+  .source-row-date {
+    min-width: 0;
     width: auto;
     text-align: left;
   }
   .text-find-bar,
   .text-find-bar .find {
     width: 100%;
+  }
+  .image-viewer-inline:not(.image-viewer-fullscreen) {
+    margin: 0 calc(-1 * var(--s-3));
+    border-radius: 0;
+  }
+  .source-text-unfold {
+    border-radius: 0;
   }
   .source-file-actions {
     min-width: 0;
