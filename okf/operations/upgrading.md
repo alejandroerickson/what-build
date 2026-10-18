@@ -125,10 +125,11 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   read it. `members(action="list")`, `grant` and `revoke`, which take a product of their own in
   `params`, still need `params.tenant`.
 - **The skill is 0.33.0.** Connected agents are asked to update their installed skill. It tells
-  them which etag a source's summary, notes and text take, how search matches and pages, how a
-  source's text is chosen and laid out, what an image or a scan needs, how to restore what was
-  archived, and, with the server's instructions, which installed copy to follow when there are
-  several. Nothing needs a new session: the new fields go through actions every client already
+  them which etag a source's summary, notes and text take, and to send none before a first write,
+  how search matches and pages, how a source's text is chosen and laid out, what an image or a
+  scan needs, how to restore what was archived and that an archived source is read-only, that a
+  standalone tool takes its fields as its arguments, and, with the server's instructions, which
+  installed copy to follow when there are several. Nothing needs a new session: the new fields go through actions every client already
   lists. An agent that keeps the older skill is refused when it writes a summary, notes or text
   without its etag, and the refusal says where to read it.
 
