@@ -431,7 +431,8 @@ The sources, and everything for reading them.
     a change made meanwhile) and **Comments** (every comment on the source, newest first, and
     "Comment" for an editor, which opens a form for a comment on the whole source with optional
     tags). Each comment's menu is named by who wrote the comment, when, and its first words, so
-    that two by one person at the same time are told apart, and offers an editor **Archive…**, a
+    that two by one person at the same time are told apart (where they start alike too, by which
+    of them each is: "(1 of 2)"), and offers an editor **Archive…**, a
     dialog asking why, optionally (the reason stays with the comment; the activity log records
     only that it was archived), and an admin **Delete permanently…** (§7.10). Archived comments are left out until "Show N
     archived comments", at the section's foot, lists them under the others (`?include_archived=1`):

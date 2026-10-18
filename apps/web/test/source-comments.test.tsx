@@ -268,6 +268,23 @@ describe("a comment's menu", () => {
     expect(document.querySelector('[role="menu"]')?.getAttribute("aria-label")).toBe(names[0]);
   });
 
+  it("says which of them each is where comments by one person at one time say the same, as a write sent twice does, the archived ones shown among them", async () => {
+    server.comments = [
+      comment("c3", "Gate codes again."),
+      comment("c2", "Gate codes again."),
+      comment("c1", "Gate codes again.", { at: "2026-10-02T09:00:00.000Z", reason: null }),
+      comment("c0", "Crews plan by the day."),
+    ];
+    const host = await open("?view=comments&include_archived=1");
+    const names = [...host.querySelectorAll('article.comment button[aria-haspopup="menu"]')].map((b) => (b.getAttribute("aria-label") ?? "").replace(/ from .+?, /, " from …, "));
+    expect(names).toEqual([
+      "Actions for Riley Chen’s comment from …, “Gate codes again.” (1 of 3)",
+      "Actions for Riley Chen’s comment from …, “Gate codes again.” (2 of 3)",
+      "Actions for Riley Chen’s comment from …, “Crews plan by the day.”",
+      "Actions for Riley Chen’s comment from …, “Gate codes again.” (3 of 3)",
+    ]);
+  });
+
   it("quotes a comment's first words as plain words, its own quotation marks nested, and a long one cut short", () => {
     expect(commentOpening("See [the notes](https://example.com) on `gate codes`.")).toBe("See the notes on gate codes.");
     expect(commentOpening('"The link is slow," said the crew lead, twice.')).toBe("‘The link is slow,’ said the…");

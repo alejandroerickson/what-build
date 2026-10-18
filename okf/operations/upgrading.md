@@ -174,8 +174,8 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   archives a comment from its menu, saying why if they like, and restores it from the archived
   comments a source's Comments list on request; a comment's delete dialog offers Archive
   instead, as a live product's does too, and every delete dialog has Cancel. A screen reader names
-  each comment's menu by the comment's first words too, so two by one person at the same time are
-  told apart. A search hit opens
+  each comment's menu by the comment's first words too, and by which of them it is where two start
+  alike, so two by one person at the same time are told apart. A search hit opens
   a source's text at its own match, from the palette too when the source's title holds the words;
   a day in Activity whose older changes are not loaded yet counts "37+ changes"; search marks
   stand out in the dark theme; an attachment an agent added says which agent, as the source's

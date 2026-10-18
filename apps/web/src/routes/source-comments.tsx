@@ -41,6 +41,8 @@ export function CommentsView({ record }: { record: RecordFull }) {
   const showArchived = params.get("include_archived") === "1";
   const every = useQuery({ queryKey: ["source-comments", base, record.record_id], queryFn: () => everyComment(base, record.record_id) });
   const archived = (every.data ?? []).filter((a) => a.archived_at);
+  // Every menu shown here has a name of its own, the archived comments' too.
+  const menuNames = commentMenuNames([...record.annotations, ...(showArchived ? archived : [])]);
   const setShowArchived = (on: boolean) =>
     setParams(
       (p) => {
@@ -84,7 +86,7 @@ export function CommentsView({ record }: { record: RecordFull }) {
         <ul className="source-comments">
           {record.annotations.map((a) => (
             <li key={a.annotation_id}>
-              <Comment annotation={a} writable={writable} deletable={deletable} />
+              <Comment annotation={a} menuName={menuNames.get(a.annotation_id)!} writable={writable} deletable={deletable} />
             </li>
           ))}
         </ul>
@@ -93,7 +95,7 @@ export function CommentsView({ record }: { record: RecordFull }) {
         <ul className="source-comments source-comments-archived" aria-label="Archived comments">
           {archived.map((a) => (
             <li key={a.annotation_id}>
-              <Comment annotation={a} writable={writable} deletable={deletable} />
+              <Comment annotation={a} menuName={menuNames.get(a.annotation_id)!} writable={writable} deletable={deletable} />
             </li>
           ))}
         </ul>
@@ -154,16 +156,38 @@ export function commentOpening(note: string): string {
   return nestQuotes(kept);
 }
 
-/** One person's comment on a source, with what an editor and an admin can do to it. */
-function Comment({ annotation: a, writable, deletable }: { annotation: Annotation; writable: boolean; deletable: boolean }) {
+/**
+ * The names of the menus of the comments shown together: whose comment each is, when, and its first
+ * words. Comments that would still share a name, by one person at one time and starting with the
+ * same words, as a write sent twice does, say which of them each is: "(1 of 2)".
+ */
+export function commentMenuNames(comments: Annotation[]): Map<string, string> {
+  const names = comments.map((a) => {
+    const opening = commentOpening(a.note);
+    return `Actions for ${actorName(a.created_by)}’s comment from ${relativeTime(a.created_at)}${opening ? `, “${opening}”` : ""}`;
+  });
+  const alike = new Map<string, number>();
+  for (const n of names) alike.set(n, (alike.get(n) ?? 0) + 1);
+  const seen = new Map<string, number>();
+  return new Map(
+    comments.map((a, i) => {
+      const name = names[i]!;
+      const of = alike.get(name)!;
+      if (of === 1) return [a.annotation_id, name];
+      seen.set(name, (seen.get(name) ?? 0) + 1);
+      return [a.annotation_id, `${name} (${seen.get(name)} of ${of})`];
+    }),
+  );
+}
+
+/** One person's comment on a source, with what an editor and an admin can do to it, in a menu called `menuName`. */
+function Comment({ annotation: a, menuName, writable, deletable }: { annotation: Annotation; menuName: string; writable: boolean; deletable: boolean }) {
   const { api: base } = useProduct();
   const qc = useQueryClient();
   const toast = useToast();
   const [dialog, setDialog] = useState<"archive" | "delete" | null>(null);
   const archive = useCommentArchive(a);
   const archived = Boolean(a.archived_at);
-  const opening = commentOpening(a.note);
-  const whose = `${actorName(a.created_by)}’s comment from ${relativeTime(a.created_at)}${opening ? `, “${opening}”` : ""}`;
   return (
     <article className={`comment${archived ? " is-archived" : ""}`}>
       <div className="comment-meta">
@@ -174,7 +198,7 @@ function Comment({ annotation: a, writable, deletable }: { annotation: Annotatio
         ))}
         {archived ? <StatusBadge tone="neutral">Archived</StatusBadge> : null}
         {writable || deletable ? (
-          <Menu label={`Actions for ${whose}`} trigger={<Glyph name="ellipsis" />} triggerClassName="icon-btn icon-btn-sm comment-actions" align="end">
+          <Menu label={menuName} trigger={<Glyph name="ellipsis" />} triggerClassName="icon-btn icon-btn-sm comment-actions" align="end">
             {writable && archived ? (
               <MenuItem icon="archive-restore" onSelect={() => archive.mutate({ archived: false, etag: a.etag })}>
                 Restore
