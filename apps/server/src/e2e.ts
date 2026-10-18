@@ -216,10 +216,14 @@ function startRun(plan: string | undefined) {
   Report      write it to ${join(dir, "report.md")}`);
 }
 
-/** The command line of a running process, or null when there is none or it cannot be read. */
+/**
+ * The command line of a running process, whole, or null when there is none or it cannot be read:
+ * from /proc where there is one, else from ps at any width.
+ */
 function commandOf(pid: number): string | null {
   try {
-    return execFileSync("ps", ["-o", "command=", "-p", String(pid)], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
+    if (existsSync("/proc/self/cmdline")) return readFileSync(`/proc/${pid}/cmdline`, "utf8").split("\0").join(" ").trim() || null;
+    return execFileSync("ps", ["-ww", "-o", "command=", "-p", String(pid)], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
   } catch {
     return null;
   }
@@ -254,7 +258,11 @@ export function holdInstancePid(pidFile = E2E.pidFile) {
 export async function stopInstance(pidFile = E2E.pidFile, waitMs = 30_000): Promise<{ pid: number | null; stopped: boolean }> {
   const pid = instancePid(pidFile);
   if (pid === null) return { pid, stopped: false };
-  process.kill(pid, "SIGINT");
+  try {
+    process.kill(pid, "SIGINT");
+  } catch {
+    // It ended by itself just now.
+  }
   for (const until = Date.now() + waitMs; Date.now() < until; await new Promise((r) => setTimeout(r, 100)))
     if (!commandOf(pid)?.includes("dev.ts --e2e")) {
       if (existsSync(pidFile) && readFileSync(pidFile, "utf8").trim() === String(pid)) rmSync(pidFile, { force: true });
