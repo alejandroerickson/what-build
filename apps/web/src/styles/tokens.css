@@ -174,11 +174,17 @@
   --shadow-2: 0 10px 28px rgb(0 0 0 / 0.55), 0 0 0 0.5px rgb(255 255 255 / 0.1);
   --shadow-paper: 0 0 0 1px rgb(255 255 255 / 0.08), 0 1px 3px rgb(0 0 0 / 0.3);
   --shadow-flash: 0 0 0 1px rgb(255 255 255 / 0.85), 0 0 0 7px rgb(255 255 255 / 0.3), 0 0 90px 28px rgb(255 255 255 / 0.35);
+  /* A search mark: Studio Indigo itself (the light accent), not the lighter dark one, so on a dark
+     surface the mark gains colour rather than lightness and stands out, while muted text on it, in
+     the palette's selected row too, keeps 4.5:1. The dark accent at 22% read faint here. */
+  --highlight: color-mix(in srgb, #5a53e8 40%, transparent);
 }
 
 /* Colour-mixed tokens resolve per scope, so each theme block re-derives them. */
+.theme-light {
+  --highlight: color-mix(in srgb, var(--accent) 22%, transparent);
+}
 .theme-light,
 .theme-dark {
-  --highlight: color-mix(in srgb, var(--accent) 22%, transparent);
   --hit-bg: color-mix(in srgb, var(--accent) 9%, var(--panel));
 }
