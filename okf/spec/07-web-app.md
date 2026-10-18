@@ -709,7 +709,9 @@ claude-desktop, confirmed an assumption — 14:02". The surface is "in the app",
 reads "on the server", however the attachment was uploaded, and says what came of it in a
 person's words: "Read the text of call.vtt; it is the source’s derived text", never the parser's
 internal label (events recorded with one are read without it, over MCP as in the app). The kind of object changed (`?entity_type=`) or
-one object (`&entity_id=`) narrows it, held in the URL.
+one object (`&entity_id=`) narrows it, held in the URL. Entries are grouped by day, each with its
+count of changes, and load 50 at a time under "Show older changes"; the oldest day loaded may go on
+past them, so while older changes wait its count says only what is loaded ("37+ changes").
 
 This is how a person answers "what did my colleague's agent just do to my product" without reading
 a diff. It is also the first place to look when a `409` surprises someone.
