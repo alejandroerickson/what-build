@@ -76,6 +76,9 @@ describe("sources narrowed by a link's words", () => {
   it("say the words are matched in titles, tags or attachment names", async () => {
     const host = await open("?query=van");
     expect([...host.querySelectorAll(".filters-in-use-chip")].map((c) => c.textContent)).toEqual(["“van” in titles, tags or attachment names"]);
+    // The chips are a group named for what they are, which a screen reader announces.
+    const group = host.querySelector(".filters-in-use")!;
+    expect([group.getAttribute("role"), group.getAttribute("aria-label")]).toEqual(["group", "Filters in use"]);
     expect(host.textContent).not.toContain("Titles matching");
   });
 
