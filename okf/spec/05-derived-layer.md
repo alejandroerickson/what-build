@@ -192,8 +192,9 @@ labels and at least half of them are by a name that recurs. Each paragraph and l
 label then belongs to that speaker, until the next label, an inline turn, a heading or a thematic
 break. In such a file an inline `Name: words` line is a turn only when `Name` is one of the labels'
 speakers, so a line like `Decision: ship it` inside a turn stays that speaker's words. A speaker
-whose words open with a list has the label on a line of its own above it. (A Markdown file keeps
-its own text; the speakers count in its facts.)
+whose words open with a list has the label as a paragraph of its own above it, so a list numbered
+from 3 reads as a list, which in Markdown could not interrupt the label's line. (A Markdown file
+keeps its own text; the speakers count in its facts.)
 
 - No speech-to-text and no OCR in the product. A recording is stored and playable, never
   transcribed: its transcript is another attachment, or the source's derived text written by an

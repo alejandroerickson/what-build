@@ -1094,8 +1094,11 @@ describe("the readable text", () => {
   it("puts a speaker's label above a list in a transcript of timed labels", async () => {
     const txt = "Dana (14:02 UTC):\nPlan the week first.\nThen the crews.\n\nSam (14:03 UTC):\n- Week plan drafted\n- Crews next\n\nDana (14:05 UTC):\nGood.\n\nSam (14:09 UTC):\nDone.\n";
     const r = await derive(utf8(txt), "session.txt");
-    expect(r.markdown).toBe("**Dana:** Plan the week first.  \nThen the crews.\n\n**Sam:**  \n- Week plan drafted\n- Crews next\n\n**Dana:** Good.\n\n**Sam:** Done.\n");
+    expect(r.markdown).toBe("**Dana:** Plan the week first.  \nThen the crews.\n\n**Sam:**\n\n- Week plan drafted\n- Crews next\n\n**Dana:** Good.\n\n**Sam:** Done.\n");
     expect(r.segments.filter((s) => s.speaker).map((s) => s.speaker)).toEqual(["Dana", "Sam", "Dana", "Sam"]);
+    // A list that starts at 3 cannot interrupt a paragraph in Markdown: the label is a paragraph of its own.
+    const numbered = await derive(utf8(txt.replace("- Week plan drafted\n- Crews next", "3. Week plan drafted\n4. Crews next")), "session.txt");
+    expect(numbered.markdown).toContain("**Sam:**\n\n3. Week plan drafted\n4. Crews next\n\n**Dana:** Good.");
   });
 
   it("keeps a Markdown file as it was written", async () => {
