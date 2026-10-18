@@ -141,7 +141,7 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
   as its Find in the text counts them for the same words ([§7](07-web-app.md)), with the one
   pattern and the one reading of the Markdown the web app shows
   ([`find-in-text.ts`](../../packages/core/src/find-in-text.ts), which the app's find uses too),
-  so the result's "N matches" and the find's "1 of N" agree. Only the derived text is counted,
+  so the result's "N matches" and the find's "… of N" agree. Only the derived text is counted,
   because only it is marked by the find. The count reads the pieces of the returned sources'
   derived texts that may hold a match, in the results' order, at most 2,000 of them in a search:
   a source past that has no `match_count` rather than one too small. A hit is `{ field, annotation_id, char_start, text, marks }`: `field` is

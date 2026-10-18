@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { Markdown } from "../src/lib/markdown.tsx";
 
 // Plain search counts a source's matches as its Find in the text marks them (core's findCount), so
-// "N matches" on a result and the find's "1 of N" agree. The count follows this renderer: these
+// "N matches" on a result and the find's "… of N" agree. The count follows this renderer: these
 // texts hold what makes the shown words differ from the written ones.
 
 const marks = (source: string, pattern: RegExp) => renderToStaticMarkup(<Markdown source={source} className="prose source-text" headingShift={1} mark={pattern} />).match(/<mark class="text-find">/g)?.length ?? 0;
