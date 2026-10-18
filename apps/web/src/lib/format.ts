@@ -123,6 +123,16 @@ export function nestQuotes(text: string): string {
   });
 }
 
+/**
+ * Words in the app's quotation marks at the end of a sentence, with the sentence's full stop: a
+ * statement that ends with its own stop ends the sentence with it, so it reads “Crews plan by the
+ * day.” and never “Crews plan by the day.”. Its own quotation marks become single ones.
+ */
+export function quotedAtEnd(text: string): string {
+  const t = nestQuotes(text).trim();
+  return /[.!?…][’)\]]*$/.test(t) ? `“${t}”` : `“${t}”.`;
+}
+
 const FILE_TYPES: Record<string, string> = {
   "application/pdf": "PDF document",
   "application/msword": "Word document",

@@ -2,7 +2,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/rea
 import { useContext, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError, isObjectId, qs } from "../lib/api.ts";
-import { actorName, attribution, formatBytes, formatDate, plural, relativeTime } from "../lib/format.ts";
+import { actorName, attribution, formatBytes, formatDate, plural, quotedAtEnd, relativeTime } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import type { Actor, RecordFull } from "../lib/types.ts";
@@ -601,7 +601,7 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["sources", base] });
       void qc.invalidateQueries({ queryKey: ["product"] });
-      toast(`Deleted “${record.title}”. The activity log records who, when and why.`);
+      toast(`Deleted ${quotedAtEnd(record.title)} The activity log records who, when and why.`);
       navigate(`${app}/evidence`);
     },
   });

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
-import { attribution, plural, relativeTime } from "../lib/format.ts";
+import { attribution, plural, quotedAtEnd, relativeTime } from "../lib/format.ts";
 import { findByTitle } from "../lib/fuzzy.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
@@ -392,7 +392,7 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
           onDeleted={() => {
             void qc.invalidateQueries({ queryKey: ["register", base, kind] });
             void qc.invalidateQueries({ queryKey: ["product"] });
-            toast(`Deleted “${e.statement}”. The activity log records who, when and why.`);
+            toast(`Deleted ${quotedAtEnd(e.statement)} The activity log records who, when and why.`);
             navigate(listPath);
           }}
           onClose={() => setDeleting(false)}
