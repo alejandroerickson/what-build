@@ -430,6 +430,34 @@ describe("limits on what a visitor does", () => {
     await set({ exports_per_day: 10 });
   });
 
+  it("counts every source of a batch against the day's sources, and adds none of a batch that would pass it", async () => {
+    const sourcesUsed = async () => (await viktor.api("GET", `${T}/sandbox`)).body.allowances.find((a: { key: string }) => a.key === "sources_per_day").used as number;
+    const batch = (label: string, n: number) => ({ sources: Array.from({ length: n }, (_, i) => ({ title: `Sample ${label} ${i + 1}`, path: `${label}-${i + 1}.md` })) });
+    const before = await sourcesUsed();
+    await set({ sources_per_day: before + 3 });
+    const two = await viktor.api("POST", `${P}/sources/with-uploads`, batch("first-batch", 2));
+    expect(two.status, JSON.stringify(two.body)).toBe(201);
+    expect(two.body.items).toHaveLength(2);
+    expect(await sourcesUsed()).toBe(before + 2);
+    // Two more would pass the allowance: the call is refused whole, and takes nothing from it.
+    const over = await viktor.api("POST", `${P}/sources/with-uploads`, batch("refused-batch", 2));
+    expect(over.status).toBe(409);
+    expect(over.body.error).toMatchObject({ code: "quota_exceeded", details: { quota: "sources_per_day", limit: before + 3, used: before + 2, unit: "sources" } });
+    expect(over.body.error.message).toMatch(/new sources a day, and this call would add 2 with 1 left today\./);
+    expect(await sourcesUsed()).toBe(before + 2);
+    const listed = await viktor.api("GET", `${P}/sources?query=batch`);
+    expect(listed.body.records.map((r: { title: string }) => r.title).sort()).toEqual(["Sample first-batch 1", "Sample first-batch 2"]);
+    expect((await viktor.api("POST", `${P}/sources/with-uploads`, batch("last-batch", 1))).status).toBe(201);
+    expect(await sourcesUsed()).toBe(before + 3);
+    // Staff are not visitors, and a batch at 0 is switched off like a single source.
+    expect((await olive.api("POST", `${P}/sources/with-uploads`, batch("staff-batch", 2))).status).toBe(201);
+    await set({ sources_per_day: 0 });
+    const off = await viktor.api("POST", `${P}/sources/with-uploads`, batch("off-batch", 1));
+    expect(off.status).toBe(403);
+    expect(off.body.error).toMatchObject({ code: "sandbox_restricted", details: { setting: "sources_per_day", limit: 0 } });
+    await set({ sources_per_day: 100 });
+  });
+
   it("refuses what a daily allowance of 0 switches off as off, not as an allowance used up", async () => {
     await set({ exports_per_day: 0 });
     const off = await viktor.api("POST", `${P}/exports`, {});

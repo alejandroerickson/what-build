@@ -1,7 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { FEEDBACK_PER_DAY, sendFeedbackDigest } from "@whatbuild/core";
+import { FEEDBACK_PER_DAY, OPERATIONS, sendFeedbackDigest } from "@whatbuild/core";
+import { feedbackDay } from "../../../packages/core/src/feedback.ts";
 import { sql } from "kysely";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createPorts } from "../src/app.ts";
@@ -125,6 +126,13 @@ describe("the daily limit", () => {
     const over = await ines.api("POST", "/api/v1/feedback", { category: "other", message: "One too many." });
     expect(over.status).toBe(429);
     expect(over.body.error.code).toBe("rate_limited");
+    // A day is the UTC day, and the refusal says when the next one begins; its details stay as they were.
+    const until = new RegExp(`^You have sent ${FEEDBACK_PER_DAY} pieces of feedback this UTC day, the most a day takes\\. You can send more from (\\S+), midnight UTC\\.$`).exec(over.body.error.message)?.[1];
+    expect(until, over.body.error.message).toBeDefined();
+    expect(until).toMatch(/T00:00:00\.000Z$/);
+    expect(Date.parse(until!) - Date.now()).toBeGreaterThan(0);
+    expect(Date.parse(until!) - Date.now()).toBeLessThanOrEqual(86400_000);
+    expect(over.body.error.details).toEqual({ limit: FEEDBACK_PER_DAY });
     const agentOver = result(await client.callTool({ name: "submit_feedback", arguments: { category: "other", message: "Also too many." } }));
     expect(agentOver.status).toBe(429);
     expect((await omar.api("POST", "/api/v1/feedback", { category: "other", message: "Mine still counts." })).status).toBe(200);
@@ -133,6 +141,16 @@ describe("the daily limit", () => {
     const counts = await h.db.selectFrom("feedback_counts").selectAll().where("account_id", "is not", null).execute();
     expect(Object.keys(counts[0]!).sort()).toEqual(["account_id", "day", "sent"]);
     await client.close();
+  });
+
+  it("counts by the UTC day, whatever the hour where the person is, and says so", () => {
+    expect(feedbackDay(new Date("2026-12-31T23:59:59.999Z"))).toEqual({ day: "2026-12-31", resets_at: "2027-01-01T00:00:00.000Z" });
+    expect(feedbackDay(new Date("2027-01-01T00:00:00.000Z"))).toEqual({ day: "2027-01-01", resets_at: "2027-01-02T00:00:00.000Z" });
+    // Eight in the evening on 18 October in California is already the 19th in UTC.
+    expect(feedbackDay(new Date("2026-10-18T20:00:00-07:00")).day).toBe("2026-10-19");
+    const description = OPERATIONS.find((o) => o.name === "submit_feedback")!.description;
+    expect(description).toContain(`may send ${FEEDBACK_PER_DAY} a day, counted by the UTC day`);
+    expect(description).toContain("the message says when it starts again (midnight UTC)");
   });
 
   it("forgets a day once it is over", async () => {

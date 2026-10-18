@@ -1,8 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { formatCue, formatDate, formatDateTime, relativeTime } from "../src/lib/format.ts";
-import { inAppHref, Markdown, markdownText, mentionLabels } from "../src/lib/markdown.tsx";
-import { derivedStatusDetail } from "../src/lib/status.ts";
+import { inAppHref, Markdown, markdownText } from "../src/lib/markdown.tsx";
+import { derivedStatus, derivedStatusDetail, pictureKind } from "../src/lib/status.ts";
 import { findPattern } from "../src/routes/source-text.tsx";
 
 const html = (md: string) => renderToStaticMarkup(<Markdown source={md} />);
@@ -41,20 +41,15 @@ describe("safe Markdown", () => {
     expect(out).toMatch(/<li><input[^>]*> done<\/li>/);
     expect(out).not.toContain("[ ]");
   });
-  it("renders evidence as a linked token named by its source, resolving a source mentioned by id when titles are known", () => {
+  it("renders a link to a source as the quiet evidence token, and leaves a source mentioned by id as written", () => {
     const id = "01K5Z8T2Q4R6S8V0W2X4Y6Z8A0";
     const linked = html(`It takes hours ([Crew lead interview](/t/a/b/c/evidence/${id})).`);
     expect(linked).toContain('class="evidence-link"');
     expect(linked).toContain(">Crew lead interview</a>");
-    // A mention written while sources had passages opens the source; its numbers point at nothing now.
-    const bare = renderToStaticMarkup(
-      <Markdown source={`As she said (source ${id}, segments 1–3; source 01K5Z8T2Q4R6S8V0W2X4Y6Z8A1).`} evidence={{ app: "/t/a/b/c", titles: { [id]: "Crew lead interview — Greenline, Aug 2026" } }} />,
-    );
-    expect(bare).not.toContain(id + ",");
-    expect(bare).not.toContain("segments");
-    expect(bare).toContain(`href="/t/a/b/c/evidence/${id}"`);
-    expect(bare).toContain(">Crew lead interview</a>");
-    expect(bare).toContain(">Source</a>");
+    // A mention by id is words, not a link: nothing resolves it.
+    const bare = html(`As she said (source ${id}, segments 1–3).`);
+    expect(bare).toContain(`source ${id}, segments 1–3`);
+    expect(bare).not.toContain("<a");
   });
   it("marks the words a find names, with their other endings, wherever they are in the text", () => {
     const out = renderToStaticMarkup(<Markdown source={"# Pricing\n\n**Dana** (0:05): Prices are priced on Fridays; *repricing* is not.\n\n| Plan | Price |\n|---|---|\n| A | 4 |"} mark={findPattern("pricing")} />);
@@ -64,20 +59,6 @@ describe("safe Markdown", () => {
     expect(out).toContain("<em>repricing</em>");
     expect(renderToStaticMarkup(<Markdown source="Friday close and the close of Friday" mark={findPattern('"Friday close"')} />)).toContain('<mark class="text-find">Friday close</mark> and the close of Friday');
     expect(findPattern("  ")).toBeUndefined();
-  });
-  it("extends a chip label until each mentioned source reads differently", () => {
-    const [a, b, c, d, e] = ["A0", "A1", "A2", "A3", "A4"].map((x) => `01K5Z8T2Q4R6S8V0W2X4Y6Z8${x}`) as [string, string, string, string, string];
-    const titles = { [a]: "Usability study — crew", [b]: "Usability study — office", [c]: "Digest", [d]: "Digest", [e]: "Kickoff notes — March" };
-    expect(mentionLabels([a, b, c, d, e], titles)).toEqual({
-      [a]: "Usability study (crew)",
-      [b]: "Usability study (office)",
-      [c]: "Digest (1)",
-      [d]: "Digest (2)",
-      [e]: "Kickoff notes",
-    });
-    const out = renderToStaticMarkup(<Markdown source={`One (source ${a}, segment 29), another (source ${b}).`} evidence={{ app: "/p", titles }} />);
-    expect(out).toContain(">Usability study (crew)</a>");
-    expect(out).toContain(">Usability study (office)</a>");
   });
 });
 
@@ -100,6 +81,17 @@ describe("statuses", () => {
     expect(derivedStatusDetail("too_large", "the file is 90 bytes")).toBe("the file is 90 bytes");
     expect(derivedStatusDetail("something_new", "why")).toBe("why");
     expect(derivedStatusDetail("failed", null)).toBeNull();
+  });
+
+  it("tells pictures, which read no words and are no failure, from formats WhatBuild cannot read", () => {
+    const att = (path: string, media_type: string | null, status = "unsupported") => ({ path, media_type, text: { status } });
+    expect(pictureKind(att("board.png", "image/png"))).toBe("image");
+    expect(pictureKind(att("photo.heic", "application/octet-stream"))).toBe("image");
+    // A PDF is read; only one with no text layer, its pages pictures, comes back unsupported.
+    expect(pictureKind(att("signed.pdf", "application/pdf"))).toBe("scan");
+    expect(pictureKind(att("signed.pdf", "application/pdf", "ready"))).toBeNull();
+    expect(pictureKind(att("deck.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"))).toBeNull();
+    expect(derivedStatus("unsupported").label).toBe("Not read as text");
   });
 });
 

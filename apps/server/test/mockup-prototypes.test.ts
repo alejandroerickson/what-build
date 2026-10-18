@@ -112,7 +112,10 @@ describe("a mockup's prototype", () => {
     expect(r.status, JSON.stringify(r.body)).toBe(201);
     mockupId = r.body.mockup_id;
     etag = r.body.etag;
-    const proto = r.body.current.prototype;
+    // Publish answers with what comes next; get reads the version, with its prototype's address.
+    const current = (await alice.api("GET", `${P}/mockups/${mockupId}`)).body.current;
+    expect(current.version_id).toBe(r.body.current_version_id);
+    const proto = current.prototype;
     expect(proto).toMatchObject({ file_count: 11, sandbox: "allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox" });
     expect(proto.bytes).toBe(Object.values(files).reduce((n, b) => n + b.length, 0));
     base = proto.base_url;
@@ -122,11 +125,12 @@ describe("a mockup's prototype", () => {
     expect(Object.keys(claims).sort()).toEqual(["exp", "purpose", "t", "v", "xv"]);
     expect(claims.exp % 3600).toBe(0);
     expect(Date.parse(proto.expires_at) - Date.now()).toBeGreaterThan(8 * 3600_000 - 60_000);
-    expect(r.body.current.pages).toEqual([
+    expect(current.pages).toEqual([
       expect.objectContaining({ page_id: "board", entry: "index.html?crew=north#today", prototype_url: `${base}index.html?crew=north#today` }),
       expect.objectContaining({ page_id: "about", entry: "about.html", poster: "img/dot.png", prototype_url: `${base}about.html` }),
     ]);
-    expect(r.body.current.pages[0]).not.toHaveProperty("html_path");
+    expect(current.pages[0]).not.toHaveProperty("html_path");
+    expect(r.body.page_ids).toEqual(["board", "about"]);
     expect(r.body.prototype_warnings).toEqual(
       expect.arrayContaining([
         expect.stringMatching(/^css\/app\.css names \/assets\/logo\.png, a root-relative address/),
@@ -136,7 +140,7 @@ describe("a mockup's prototype", () => {
     );
     // A link to elsewhere opens a tab, so it is no warning.
     expect(r.body.prototype_warnings.join(" ")).not.toContain("example.com");
-    versionOne = (await rows("mockup_prototype_files", sql`version_id = ${r.body.current.version_id}`)) as never;
+    versionOne = (await rows("mockup_prototype_files", sql`version_id = ${r.body.current_version_id}`)) as never;
     for (const f of versionOne) {
       expect(f.blob_key).toBe(`t/${tenantId}/p/${productId}/mockup-prototypes/${uploadId}/${f.sha256}`);
       expect(f.blob_key).not.toContain(f.path);
@@ -269,9 +273,11 @@ describe("a mockup's prototype", () => {
     });
     expect(v2.status, JSON.stringify(v2.body)).toBe(201);
     etag = v2.body.etag;
-    expect(v2.body.current.prototype.file_count).toBe(11);
-    expect(v2.body.current.pages.map((p: { entry: string }) => p.entry)).toEqual(["index.html?crew=north#today", "about.html#team", "embed/earlier.html"]);
-    const kept = await rows("mockup_prototype_files", sql`version_id = ${v2.body.current.version_id}`);
+    const two = (await alice.api("GET", `${P}/mockups/${mockupId}`)).body.current;
+    expect(two.prototype.file_count).toBe(11);
+    expect(two.pages.map((p: { entry: string }) => p.entry)).toEqual(["index.html?crew=north#today", "about.html#team", "embed/earlier.html"]);
+    expect(v2.body).not.toHaveProperty("prototype_warnings");
+    const kept = await rows("mockup_prototype_files", sql`version_id = ${v2.body.current_version_id}`);
     expect(kept.map((r) => r["blob_key"]).sort()).toEqual(versionOne.map((r) => r.blob_key).sort());
 
     // An upload listing every path, with only one file in it: the rest keep the base's blobs.
@@ -286,7 +292,7 @@ describe("a mockup's prototype", () => {
     });
     expect(v3.status, JSON.stringify(v3.body)).toBe(201);
     etag = v3.body.etag;
-    const three = await rows("mockup_prototype_files", sql`version_id = ${v3.body.current.version_id}`);
+    const three = await rows("mockup_prototype_files", sql`version_id = ${v3.body.current_version_id}`);
     expect(three).toHaveLength(11);
     for (const r of three) {
       const one = versionOne.find((x) => x.path === r["path"])!;
@@ -328,7 +334,7 @@ describe("a mockup's prototype", () => {
     const again = await alice.api("POST", `${P}/mockups`, { mockup_id: mockupId, expected_etag: etag, from_version: 1, upload_id: await uploadBytes(zipSync(zip)) });
     expect(again.status, JSON.stringify(again.body)).toBe(201);
     etag = again.body.etag;
-    const back = await rows("mockup_prototype_files", sql`version_id = ${again.body.current.version_id}`);
+    const back = await rows("mockup_prototype_files", sql`version_id = ${again.body.current_version_id}`);
     expect(back.map((r) => r["blob_key"]).sort()).toEqual(versionOne.map((r) => r.blob_key).sort());
     await h.worker.drain();
     expect(h.blobs.blobs.size).toBe(before);
@@ -487,7 +493,7 @@ describe("what a prototype's ZIP may not hold", () => {
     );
     const big = await publish(zipSync({ "manifest.json": strToU8(page), "prototype/index.html": strToU8("<p>a</p>"), "prototype/video.mp4": new Uint8Array(26 * MiB) }, { level: 9 }));
     expect(big.status).toBe(422);
-    expect(big.body.error.details.problems).toEqual([`prototype/video.mp4 is ${26 * MiB} bytes; a prototype file is at most ${25 * MiB}.`]);
+    expect(big.body.error.details.problems).toEqual(["prototype/video.mp4 is 27,262,976 bytes; a prototype file is at most 26,214,400."]);
     const entries: Record<string, Uint8Array> = { "manifest.json": strToU8(page) };
     for (let i = 0; i < 2200; i++) entries[`prototype/f${i}.txt`] = strToU8("x");
     const crowd = await publish(zipSync(entries));
@@ -539,8 +545,9 @@ describe("on a content site of its own", () => {
     expect((await fetch(g.body.url, { method: "PUT", headers: g.body.headers, body: zip })).status).toBe(201);
     const r = await owner.api("POST", `${Q}/mockups`, { upload_id: g.body.upload_id });
     expect(r.status, JSON.stringify(r.body)).toBe(201);
-    base = r.body.current.prototype.base_url;
-    expect(r.body.current.prototype.sandbox).toBe("allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals");
+    const { prototype } = (await owner.api("GET", `${Q}/mockups/${r.body.mockup_id}`)).body.current;
+    base = prototype.base_url;
+    expect(prototype.sandbox).toBe("allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals");
   });
   afterAll(async () => c?.close());
 

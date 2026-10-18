@@ -1,7 +1,10 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { composePrintDocument, FRAME_SCRIPT, HOUSE_STYLE_IDS, HOUSE_STYLES, houseSpecimen, inspectStoryCss, inspectStoryHtml, STORY_FONTS, storyFontFaces, storyFontsNamed, withStoryFonts, withStoryFrame } from "@whatbuild/core";
+import {
+  composePrintDocument, FRAME_SCRIPT, GUIDANCE_VERSION, HOUSE_STYLE_IDS, HOUSE_STYLES, houseSpecimen, inspectStoryCss, inspectStoryHtml, STORY_FONTS, STORY_HTML_MAX, STORY_MAX_SCRIPTS,
+  STORY_SCRIPT_BUDGET, storyFontFaces, storyFontsNamed, withStoryFonts, withStoryFrame,
+} from "@whatbuild/core";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { staticRoutes } from "../src/public-routes.ts";
@@ -71,6 +74,34 @@ describe("house styles", () => {
 
   it("each use a typeface the server carries", () => {
     for (const s of HOUSE_STYLES) expect(storyFontsNamed(s.stylesheet).length, s.id).toBeGreaterThan(0);
+  });
+
+  it("draw every mark of a tally in the width it gets, with exactly --n of them filled", () => {
+    // Each declaration on a rule whose subject is the tally, in or out of a media query.
+    const tallyDeclarations = (css: string) =>
+      [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+        .filter(([, selectors]) => selectors!.split(",").some((sel) => /\.tally\b/.test(sel.trim().split(/\s*[>+~]\s*|\s+/).pop()!)))
+        .flatMap(([, , body]) => body!.split(";").map((d) => d.trim()).filter(Boolean))
+        .map((d) => [d.slice(0, d.indexOf(":")).trim(), d.slice(d.indexOf(":") + 1).trim()] as const);
+    for (const s of HOUSE_STYLES) {
+      const decls = tallyDeclarations(s.stylesheet);
+      const values = (...props: string[]) => decls.filter(([p]) => props.includes(p)).map(([, v]) => v);
+      // A fixed size would clip a long tally in a narrow block, leaving only filled marks in view.
+      expect(values("width"), s.id).toEqual(["calc(var(--of, 10) * var(--dot))"]);
+      expect(values("max-width"), s.id).toEqual(["100%"]);
+      expect(values("height", "min-width"), s.id).toEqual([]);
+      expect(values("aspect-ratio").length, s.id).toBeGreaterThan(0);
+      for (const v of values("aspect-ratio")) expect(v, s.id).toMatch(/^var\(--of, 10\) \/ [\d.]+$/);
+      // A mark is a share of the width the tally gets, and so is the fill, so they always agree.
+      const masks = values("mask", "-webkit-mask", "mask-size", "-webkit-mask-size", "mask-position", "-webkit-mask-position");
+      expect(masks.length, s.id).toBeGreaterThan(0);
+      for (const v of masks) {
+        expect(v, s.id).not.toContain("--dot");
+        if (/repeat-x/.test(v)) expect(v, s.id).toContain("/ calc(100% / var(--of, 10)) 100% repeat-x");
+      }
+      for (const v of values("background", "background-size", "background-image")) expect(v, s.id).not.toContain("--dot");
+      expect(values("background").join(" "), s.id).toContain("calc(100% * var(--n, 0) / var(--of, 10))");
+    }
   });
 });
 
@@ -143,6 +174,23 @@ describe("Story guidance", () => {
     for (const appToken of ["#5a53e8", "#8b85ff", '\\"Inter', "Inter Variable", "--wb-"]) expect(text, appToken).not.toContain(appToken);
   });
 
+  it("says what the Story is for, sets no rule about quoting, attributing or linking, and keeps the accuracy checks", async () => {
+    const g = await vic.api("GET", `${P}/story/guidance`);
+    expect(g.body.version).toBe(GUIDANCE_VERSION);
+    expect(g.body.writing.purpose).toContain("not a quoted or cited record of how decisions were reached");
+    expect(g.body.writing.purpose).toContain("quote it, paraphrase it, sum it up or link to it");
+    const text = JSON.stringify(g.body);
+    for (const rule of ["exact quotation", "exact words", "by role", "source reference", "source links", "No link", "Open the mockup", "analysis, not evidence", "consent note", "naming people", "passage", "evidence_wall"])
+      expect(text, rule).not.toContain(rule);
+    // Linking is the author's choice: every template stays, with who can follow each.
+    expect(Object.keys(g.body.links)).toEqual(["source", "outcome", "assumption", "mockup", "story_page"]);
+    expect(g.body.links_note).toContain("A reader (the role that may read only the Story) opens story_page links");
+    // What a page must not misstate stays.
+    expect(g.body.writing.fact_guardrails.join(" ")).toContain("Never add a person, owner, date, source, quote, count");
+    expect(g.body.checklist.find((c: { check: string }) => c.check === "Accuracy").question).toContain("quotation");
+    expect(g.body.limits).toMatchObject({ html_characters: STORY_HTML_MAX, inline_scripts: STORY_MAX_SCRIPTS, script_characters: STORY_SCRIPT_BUDGET });
+  });
+
   it("returns one house style in full on request", async () => {
     const g = await vic.api("GET", `${P}/story/guidance?section=style&house_style=wide`);
     expect(g.body.house_style.id).toBe("wide");
@@ -197,11 +245,18 @@ describe("the product's Story style", () => {
     const s = await vic.api("GET", `${P}/story/style`);
     expect(s.body.style).toMatchObject({ name: "Clear, ours", based_on: "tufte", based_on_name: null, kind: "house" });
     expect(s.body.style.stylesheet).toBe(HOUSE_STYLES.find((s) => s.id === "clear")!.stylesheet);
+    // Its stylesheet was written before the vocabulary's newer blocks, and the style says so, with the way on.
+    expect(s.body.style.note).toMatch(/^Based on tufte, a house style no longer in the catalogue: its stylesheet predates the current vocabulary, so \.quotes, \.tally,.* set_style \{ house_style \} and publish each page with restyle: true\.$/);
+    const g = await vic.api("GET", `${P}/story/guidance?section=checklist`);
+    expect(g.body.product_style).toMatchObject({ based_on: "tufte", note: s.body.style.note });
     const r = await alice.api("PUT", `${P}/story/style`, { summary: "Ours now.", expected_etag: s.body.style.etag });
     expect(r.status).toBe(200);
-    expect(r.body.style).toMatchObject({ based_on: "tufte", summary: "Ours now." });
+    expect(r.body.style).toMatchObject({ based_on: "tufte", summary: "Ours now.", note: s.body.style.note });
     await setBasedOn("clear");
-    etag = (await vic.api("GET", `${P}/story/style`)).body.style.etag;
+    const current = (await vic.api("GET", `${P}/story/style`)).body.style;
+    expect(current).not.toHaveProperty("note");
+    expect((await vic.api("GET", `${P}/story/guidance?section=checklist`)).body.product_style).not.toHaveProperty("note");
+    etag = current.etag;
   });
 
   it("refuses a stylesheet or specimen that would reach the network", async () => {

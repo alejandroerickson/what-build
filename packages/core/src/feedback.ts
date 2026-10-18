@@ -29,21 +29,28 @@ export const FEEDBACK_KINDS: Record<string, string> = {
   other: "Other",
 };
 
-const today = () => new Date().toISOString().slice(0, 10);
+/** The UTC day it is, as yyyy-mm-dd, and the moment the next one begins, when the allowances start again. */
+export function feedbackDay(now = new Date()): { day: string; resets_at: string } {
+  return {
+    day: now.toISOString().slice(0, 10),
+    resets_at: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)).toISOString(),
+  };
+}
 
 /**
  * Count a report against the sender's day and the deployment's, or refuse it with
- * `429 rate_limited`. The count is kept apart from the reports, so it never says which are whose.
+ * `429 rate_limited`. A day is the UTC day, whatever the sender's time zone, and a refusal says
+ * when the next one begins. The count is kept apart from the reports, so it never says which are whose.
  */
-export async function countFeedback(db: Db, accountId: string): Promise<void> {
-  const day = today();
+export async function countFeedback(db: Db, accountId: string, now = new Date()): Promise<void> {
+  const { day, resets_at } = feedbackDay(now);
   const received = await db
     .selectFrom("feedback")
     .select((eb) => eb.fn.countAll<number>().as("n"))
     .where("received_at", ">=", `${day}T00:00:00.000Z`)
     .executeTakeFirst();
   if (Number(received?.n ?? 0) >= FEEDBACK_PER_DEPLOYMENT_PER_DAY)
-    throw rateLimited("WhatBuild has taken all the feedback it takes in a day. Try again tomorrow.", { limit: FEEDBACK_PER_DEPLOYMENT_PER_DAY });
+    throw rateLimited(`WhatBuild has taken all the feedback it takes in a day, counted by the UTC day. It takes more from ${resets_at}, midnight UTC.`, { limit: FEEDBACK_PER_DEPLOYMENT_PER_DAY });
   const counted = await db
     .insertInto("feedback_counts")
     .values({ account_id: accountId, day, sent: 1 })
@@ -51,7 +58,10 @@ export async function countFeedback(db: Db, accountId: string): Promise<void> {
     .returning("sent")
     .executeTakeFirst();
   if (!counted)
-    throw rateLimited(`You have sent ${FEEDBACK_PER_DAY} pieces of feedback today, the most a day takes. Try again tomorrow.`, { limit: FEEDBACK_PER_DAY });
+    throw rateLimited(
+      `You have sent ${FEEDBACK_PER_DAY} pieces of feedback this UTC day, the most a day takes. You can send more from ${resets_at}, midnight UTC.`,
+      { limit: FEEDBACK_PER_DAY },
+    );
 }
 
 /** A day's counts go once the day is over. */

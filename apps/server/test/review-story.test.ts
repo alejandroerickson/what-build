@@ -295,6 +295,34 @@ describe("the Story's navigation", () => {
     expect(placed.body.items).toEqual([{ page_id: "overview", title: "Overview", description: expect.any(String), children: [{ page_id: "detail", title: "Detail", description: expect.any(String), children: [] }] }]);
     expect(ids(placed.body.unplaced)).toEqual(["plan"]);
   });
+
+  it("refuses a page that is not published, or is archived, and says what to do instead", async () => {
+    const got = await alice.api("GET", `${N}/story/hierarchy`);
+    const unpublished = await alice.api("PUT", `${N}/story/hierarchy`, { items: [...got.body.items, { page_id: "pilot", children: [] }], expected_etag: got.body.etag });
+    expect(unpublished.status).toBe(422);
+    expect(unpublished.body.error).toMatchObject({ code: "invalid_hierarchy", message: "Unpublished pages: pilot. Publish it first, or leave it out.", details: { unpublished: ["pilot"] } });
+    const two = await alice.api("PUT", `${N}/story/hierarchy`, { items: [{ page_id: "pilot", children: [{ page_id: "faq", children: [] }] }], expected_etag: got.body.etag });
+    expect(two.body.error.message).toBe("Unpublished pages: pilot, faq. Publish them first, or leave them out.");
+
+    const plan = await alice.api("GET", `${N}/story/pages/plan`);
+    expect((await alice.api("POST", `${N}/story/pages/plan/archive`, { expected_etag: plan.body.etag })).status).toBe(200);
+    const now = await alice.api("GET", `${N}/story/hierarchy`);
+    const archived = await alice.api("PUT", `${N}/story/hierarchy`, { items: [...now.body.items, { page_id: "plan", children: [] }], expected_etag: now.body.etag });
+    expect(archived.status).toBe(422);
+    expect(archived.body.error).toMatchObject({ code: "invalid_hierarchy", message: "Archived pages: plan. Restore it first (restore_page), or leave it out.", details: { archived: ["plan"] } });
+    // Nothing was saved.
+    expect((await alice.api("GET", `${N}/story/hierarchy`)).body.etag).toBe(now.body.etag);
+  });
+
+  it("lists the live pages, and says how many archived ones it left out", async () => {
+    const list = await alice.api("GET", `${N}/story/pages`);
+    expect(ids(list.body.items)).toEqual(["detail", "overview"]);
+    expect(list.body).toMatchObject({ archived_hidden: 1, note: "1 archived page is not listed; pass include_archived to see it." });
+    const all = await alice.api("GET", `${N}/story/pages?include_archived=true`);
+    expect(ids(all.body.items)).toEqual(["detail", "overview", "plan"]);
+    expect(all.body.archived_hidden).toBe(0);
+    expect(all.body).not.toHaveProperty("note");
+  });
 });
 
 describe("Story print view", () => {

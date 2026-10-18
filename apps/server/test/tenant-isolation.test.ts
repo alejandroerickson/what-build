@@ -135,17 +135,24 @@ const SCOPED: Record<string, Probe> = {
     input: (a) => ({ record_id: a.source.id }),
     inside: (a, b) => [{ record_id: a.source.id }, { record_id: b.source.id, derivation_id: a.source.derivationId }, { record_id: a.source.id, path: a.source.path }],
   },
+  // With the victim's real etags, so a probe would be let through if isolation failed.
   "derived.write_text": {
-    input: (a) => ({ record_id: a.source.id, content: "Planted text." }),
+    input: (a) => ({ record_id: a.source.id, content: "Planted text.", expected_etag: a.source.textEtag }),
     inside: (a) => [
-      { record_id: a.source.id, content: "Planted text." },
-      { record_id: a.source.id, edits: [{ old_text: a.marker, new_text: "Planted" }] },
-      { record_id: a.source.id, from_attachment: a.source.path },
+      { record_id: a.source.id, content: "Planted text.", expected_etag: a.source.textEtag },
+      { record_id: a.source.id, edits: [{ old_text: a.marker, new_text: "Planted" }], expected_etag: a.source.textEtag },
+      { record_id: a.source.id, from_attachment: a.source.path, expected_etag: a.source.textEtag },
     ],
   },
   "derived.list": { input: (a) => ({ record_id: a.source.id }) },
   "derived.rederive": { input: (a) => ({ record_id: a.source.id }) },
-  "derived.write_note": { input: (a) => ({ record_id: a.source.id, note_kind: "summary", content: "Planted summary." }) },
+  "derived.write_note": {
+    input: (a) => ({ record_id: a.source.id, note_kind: "summary", content: "Planted summary.", expected_etag: a.source.summaryEtag }),
+    inside: (a) => [
+      { record_id: a.source.id, note_kind: "summary", content: "Planted summary.", expected_etag: a.source.summaryEtag },
+      { record_id: a.source.id, note_kind: "notes", content: "Planted notes." },
+    ],
+  },
   "derived.read_note": { input: (a) => ({ record_id: a.source.id, note_kind: "summary" }) },
   search: {
     input: () => ({ query: "crews", scope: "all" }),

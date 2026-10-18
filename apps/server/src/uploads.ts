@@ -7,6 +7,9 @@ import { sql } from "kysely";
 import type { ServerConfig } from "./config.ts";
 import { storyHtml, storyTheme, streamFile } from "./rest.ts";
 
+/** A count of bytes as people read it: 10,485,760. */
+const bytes = (n: number) => n.toLocaleString("en-US");
+
 async function inTenant<T>(env: Env, tenantId: string, fn: (trx: Tx) => Promise<T>): Promise<T> {
   return env.db.transaction().execute(async (trx) => {
     await sql`select set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
@@ -55,7 +58,14 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       const tenantId = String(claims["t"]);
       const grant = await inTenant(env, tenantId, (trx) => trx.selectFrom("upload_grants").selectAll().where("grant_id", "=", c.req.param("grant_id")).executeTakeFirst());
       if (!grant) throw notFound("No such upload grant.");
-      if (grant.uploaded_at) throw conflict("already_uploaded", `Bytes for ${grant.path} already arrived under this grant. Call attachments(action="complete_upload") to add them.`);
+      // Bytes that reach the relay are attached in the same step, so a grant that took them is used up.
+      if (grant.uploaded_at)
+        throw conflict(
+          "already_uploaded",
+          grant.completed_at
+            ? `Bytes for ${grant.path} already arrived under this grant and are attached to source ${grant.record_id}; nothing more is needed. For a new version of ${grant.path}, request another grant with attachments(action="request_upload").`
+            : `Bytes for ${grant.path} already arrived under this grant. Call attachments(action="complete_upload") with record_id ${grant.record_id} and path ${grant.path} to attach them.`,
+        );
       if (Date.parse(grant.expires_at) < Date.now()) throw new AppError(401, "invalid_grant", "The upload grant has expired. Request a new one.");
       // A grant given to a visitor before the public sandbox stopped their writes takes no bytes after.
       const sandbox = await sandboxForAccount(env.db, tenantId, grant.principal.account_id);
@@ -71,7 +81,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       const declared = c.req.header("content-length");
       if (declared !== undefined && (!/^\d+$/.test(declared))) throw new AppError(400, "invalid_length", "Content-Length is not a number.");
       if (declared !== undefined && Number(declared) > max)
-        throw tooLarge(`The file is ${declared} bytes; this upload route takes at most ${max}.${env.ports.blobs.signedUploadUrl ? " Use the grant's `direct` URL for larger files." : ""}`, { limit: max });
+        throw tooLarge(`The file is ${bytes(Number(declared))} bytes; this upload route takes at most ${bytes(max)}.${env.ports.blobs.signedUploadUrl ? " Use the grant's `direct` URL for larger files." : ""}`, { limit: max });
       const body = c.req.raw.body;
       if (!body) throw new AppError(400, "empty_body", "Send the file's bytes as the request body.");
       const stored = await env.ports.blobs.putStream(grant.blob_key!, body, { contentType: grant.media_type ?? "application/octet-stream", maxBytes: max });
@@ -108,7 +118,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       const max = Math.min(Number(upload.max_bytes), env.config.relayMaxBytes);
       const declared = c.req.header("content-length");
       if (declared !== undefined && !/^\d+$/.test(declared)) throw new AppError(400, "invalid_length", "Content-Length is not a number.");
-      if (declared !== undefined && Number(declared) > max) throw tooLarge(`The ZIP is ${declared} bytes; a canvas's ZIP is at most ${max}.`, { limit: max });
+      if (declared !== undefined && Number(declared) > max) throw tooLarge(`The ZIP is ${bytes(Number(declared))} bytes; a canvas's ZIP is at most ${bytes(max)}.`, { limit: max });
       const body = c.req.raw.body;
       if (!body) throw new AppError(400, "empty_body", "Send the ZIP's bytes as the request body.");
       const stored = await env.ports.blobs.putStream(upload.blob_key, body, { contentType: "application/zip", maxBytes: max });
@@ -122,7 +132,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
   app.get("/api/v1/downloads/:file_version_id", async (c) => {
     try {
       const claims = env.ports.grants.verify(c.req.header(DOWNLOAD_GRANT_HEADER) ?? "");
-      if (!claims || claims["purpose"] !== "download" || claims["fv"] !== c.req.param("file_version_id")) throw new AppError(401, "invalid_grant", "The download grant is missing, invalid or expired. Request a new one with files(action=\"get_download\").");
+      if (!claims || claims["purpose"] !== "download" || claims["fv"] !== c.req.param("file_version_id")) throw new AppError(401, "invalid_grant", "The download grant is missing, invalid or expired. Request a new one with attachments(action=\"get_download\").");
       const found = await inTenant(env, String(claims["t"]), async (trx) => {
         const v = await trx.selectFrom("file_versions").selectAll().where("file_version_id", "=", c.req.param("file_version_id")).executeTakeFirst();
         if (!v) return null;
@@ -178,7 +188,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
   app.get("/api/v1/downloads/export/:export_id", async (c) => {
     try {
       const claims = env.ports.grants.verify(c.req.header(DOWNLOAD_GRANT_HEADER) ?? "");
-      if (!claims || claims["purpose"] !== "export" || claims["e"] !== c.req.param("export_id")) throw new AppError(401, "invalid_grant", "The download grant is missing, invalid or expired. List exports again for a fresh one.");
+      if (!claims || claims["purpose"] !== "export" || claims["e"] !== c.req.param("export_id")) throw new AppError(401, "invalid_grant", "The download grant is missing, invalid or expired. Call products(action=\"exports\") again for a fresh one.");
       return await sendExport(c, env, String(claims["t"]), c.req.param("export_id"));
     } catch (e) {
       return fail(c, e);

@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild turns a team's discovery material into insight and a story, with agents as first-class contributors.
 description: Who the product is for, the core loop, the four screens, the vocabulary, the non-negotiable behaviors, and what the product is not.
 tags: [spec, product, vocabulary, principles]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -41,7 +41,8 @@ status: stable
    ([decision](../decisions/a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)).
 4. **Explore.** Mock up directions as versioned canvases of HTML pages under a brief, and register
    the consequential assumptions, each saying why the team holds it.
-5. **Tell the story.** Publish an outward-facing, stakeholder-readable set of versioned HTML pages
+5. **Tell the story.** Publish the team's communication with its stakeholders (what it means to
+   build and why, the pitch, the plan, where things stand) as a set of versioned HTML pages
    organized in a hierarchy.
 6. **Iterate together.** Teammates and their agents keep adding material and revising synthesis in
    parallel, with attribution, optimistic concurrency, and an activity log throughout.
@@ -59,7 +60,7 @@ of one of them.
 | **Idea** | The product concept, then the outcomes. The landing screen of a product: where a product idea becomes explicit direction. |
 | **Evidence** | The sources: upload with a title and tags, browse by tag, by who added and when, source pages with each source's text, notes, comments and attachments, search. |
 | **Exploration** | Mockups (canvases of agent-made HTML pages, each with design notes, under a brief) and the assumption register. Formerly called Synthesis. |
-| **Story** | The outward-facing report: an ordered hierarchy of versioned, sandboxed HTML pages. |
+| **Story** | The team's communication with its stakeholders: an ordered hierarchy of versioned, sandboxed HTML pages. |
 
 **Activity** is not a fifth destination: it is a quiet page reached from the product's panel, and from
 an item's "Activity on this …" link, filtered to that item ([§7](07-web-app.md)). Product settings
@@ -95,8 +96,8 @@ Idea screen's terms are a decision: [A product starts with its idea](../decision
 | **revision** | The previous text of an authored body, kept immutably whenever that body is overwritten. |
 | **assumption** | What the team treats as true while the evidence is incomplete: an entry in the product's one reviewed **register**. |
 | **review** | An attributed status judgment on an assumption. |
-| **Story**, **page** | The stakeholder report and its versioned HTML pages. |
-| **view** | A derived source, tagged `view`, `analysis` or `digest`, that says in its text what it was built from. |
+| **Story**, **page** | The team's communication with its stakeholders, and its versioned HTML pages. |
+| **view** | A derived source, tagged `analysis` (or `view`, `digest`), that says in its text what it was built from. |
 | **activity** | The append-only log of what changed in a product, and who changed it. |
 
 "Findings" and "open questions" are deliberately **not** product types. Do not introduce them.

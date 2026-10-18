@@ -44,7 +44,7 @@ export const VOCABULARY = [
   { element: `<main class="page">`, role: "The page container." },
   { element: `<header class="opening">`, role: "Opening: .kicker, h1 (the conclusion), .lead (why it matters), .meta (date, status)." },
   { element: "<section> with an h2", role: "One job per section. h3 for subheads." },
-  { element: `<figure class="quote"><blockquote>…</blockquote><figcaption>…</figcaption></figure>`, role: "An exact quotation with who said it and when." },
+  { element: `<figure class="quote"><blockquote>…</blockquote><figcaption>…</figcaption></figure>`, role: "A quotation set apart from the text, with an optional caption under it." },
   { element: `<aside class="note">`, role: "A side note: a limit, a definition, or what the page rests on." },
   { element: `<aside class="callout" data-tone="caution">`, role: "Something that changes how the page should be read. Say its status in words." },
   { element: `<span class="status" data-state="evidence|caution|open">`, role: "A state label; the text always names the state." },
@@ -59,8 +59,8 @@ export const VOCABULARY = [
   { element: `<dl class="facts"><dt>In scope</dt><dd>…</dd></dl>`, role: "Labelled facts about one thing: scope, what it serves, how it is measured." },
   { element: `<nav class="pages" aria-label="…"><ul><li><a href="…"><strong>Page title</strong><span>What the page holds.</span></a></li></ul></nav>`, role: "Links to other Story pages, each with a line on what it holds: the pages beneath a landing page, or where to read next." },
   { element: "<details><summary>", role: "Optional method detail; never hide a consequential caveat." },
-  { element: "<mark>", role: "The words that matter inside a quotation or passage. A few words, once or twice a page." },
-  { element: `<div class="quotes"><figure class="quote">…</figure><figure class="quote">…</figure></div>`, role: "Several short exact quotations side by side: many voices on one theme." },
+  { element: "<mark>", role: "The words that matter inside a quotation or a sentence. A few words, once or twice a page." },
+  { element: `<div class="quotes"><figure class="quote">…</figure><figure class="quote">…</figure></div>`, role: "Several quotations side by side: many voices on one theme." },
   { element: `<ol class="flow"><li><strong>Step</strong><span>What happens in it.</span></li></ol>`, role: "A process or a journey in order, three to six steps, drawn with arrows between them. A step may end with a .tag." },
   { element: `<figure class="diagram"><svg viewBox="…" role="img" aria-labelledby="…"><title id="…">…</title>…</svg><figcaption>…</figcaption></figure>`, role: "A flowchart or a structure drawn as inline SVG. Give shapes class node (node key for the one that matters), lines class edge with an arrowhead marker whose path is class head, and text class label (label small, label on-key). The style colours them and sets their type; on a phone the diagram scrolls inside itself." },
   { element: `<figure class="shot" data-device="phone|desktop"><div class="screen"><img src="data:…" alt="…"><span class="pin" style="--x: 40%; --y: 20%">1</span></div><figcaption><p>…</p><ol class="pins"><li>…</li></ol></figcaption></figure>`, role: "A mockup or a part of one, framed as a screen, with numbered pins placed by percentage and explained in order in ol.pins. The image or SVG inside keeps the mockup's own look." },
@@ -176,7 +176,7 @@ export function specimenBody(): string {
 </ol>
 <figure class="shot" data-device="phone">
 <div class="screen">${SPECIMEN_PHONE}<span class="pin" style="--x: 88%; --y: 14%">1</span><span class="pin" style="--x: 66%; --y: 38.5%">2</span><span class="pin" style="--x: 88%; --y: 91.5%">3</span></div>
-<figcaption><p>Mockup: Crew message, version 3 · <a href="#flow">Open the mockup</a></p>
+<figcaption><p>Mockup: Crew message, version 3</p>
 <ol class="pins">
 <li><strong>One crew, one message.</strong> An owner asked for exactly this instead of a group thread everyone scrolls.</li>
 <li><strong>Gate codes travel with the job.</strong> A wrong gate code is one of the mistakes a crew lead named.</li>
@@ -221,7 +221,7 @@ export function specimenBody(): string {
 <li><strong>Prototype the message</strong> from a real week’s plan, and read it through with both pilot crews.</li>
 <li><strong>Interview two more owners</strong> of cleaning crews about whether they plan by the job or by the day.</li>
 </ol>
-<details><summary>How we know this</summary><p>Quotes are exact. Counts come from the survey export; the once-a-week mistake rate is one crew lead’s estimate, not a measurement.</p></details>
+<details><summary>How we know this</summary><p>Counts come from the survey export; the once-a-week mistake rate is one crew lead’s estimate, not a measurement.</p></details>
 </section>
 </main>`;
 }

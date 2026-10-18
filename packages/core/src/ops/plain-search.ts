@@ -1,6 +1,6 @@
 import { sql, type RawBuilder } from "kysely";
 import { productId } from "../common.ts";
-import { closestWord, excerpt, fold, matchText, parseFind, termPattern, termTsquery, wordRoot, type FindKind, type FindTerm, type ParsedFind, type TextMatch } from "../plain-query.ts";
+import { closestWord, excerpt, fold, idLike, matchText, parseFind, termPattern, termTsquery, wordRoot, type FindKind, type FindTerm, type ParsedFind, type TextMatch } from "../plain-query.ts";
 import type { OpContext } from "../registry.ts";
 
 /**
@@ -18,7 +18,12 @@ export interface PlainInput {
   kind?: FindKind;
   record_id?: string;
   strict: boolean;
+  /** How many results at most, the best first. */
+  limit: number;
 }
+
+/** How many results plain search returns when the call does not say. */
+export const PLAIN_LIMIT = 60;
 
 type Input = PlainInput;
 
@@ -116,7 +121,19 @@ function missingWords(p: ParsedFind, found: boolean[]): string[] {
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
-async function sources(ctx: OpContext, p: ParsedFind, i: Input, q: string): Promise<{ results: FindResult[]; hits: number; found: boolean[] }> {
+/** Sources that match beyond the pieces results are built from: how many hold any of the words, and how many hold them all. */
+interface Beyond {
+  any: number;
+  all: number;
+}
+
+/**
+ * Plain search's sources: each built from the best pieces that say the words (at most `limit` of
+ * them) and from its title and tags, with how many pieces matched and which words anything holds.
+ * When more pieces matched than were read, the sources the rest belong to are counted in the
+ * database (`beyond`), so the counts cover every source that matched.
+ */
+async function sources(ctx: OpContext, p: ParsedFind, i: Input, q: string): Promise<{ results: FindResult[]; hits: number; found: boolean[]; beyond: Beyond }> {
   const pid = productId(ctx);
   const one = i.record_id ? sql`and r.record_id = ${i.record_id}` : sql``;
   const perTerm = p.terms.map((t) => sql`(c.tsv @@ to_tsquery('simple', ${termTsquery(t)}))::int`);
@@ -144,6 +161,7 @@ async function sources(ctx: OpContext, p: ParsedFind, i: Input, q: string): Prom
         and to_tsvector('simple', r.title || ' ' || array_to_string(r.tags, ' ')) @@ to_tsquery('simple', ${q})`.execute(ctx.db),
   ]);
   const ids = new Set([...hits.rows.map((h) => h.record_id), ...titled.rows.map((r) => r.record_id)]);
+  const beyond = hits.rows.length < limit || i.record_id ? { any: 0, all: 0 } : await sourcesBeyond(ctx, p, q, live, [...ids]);
   const meta = ids.size
     ? await ctx.db.selectFrom("records").select(["record_id", "title", "date", "tags"]).where("record_id", "in", [...ids]).execute()
     : [];
@@ -181,7 +199,32 @@ async function sources(ctx: OpContext, p: ParsedFind, i: Input, q: string): Prom
       hit_count: own.length,
     };
   });
-  return { results, hits: counts.rows[0]?.n ?? 0, found: (counts.rows[0]?.found ?? []).map((f, k) => f || titled.rows.some((r) => matchText(`${r.title} ${r.tags.join(" ")}`, p.terms).found[k])) };
+  return {
+    results,
+    hits: counts.rows[0]?.n ?? 0,
+    found: (counts.rows[0]?.found ?? []).map((f, k) => f || titled.rows.some((r) => matchText(`${r.title} ${r.tags.join(" ")}`, p.terms).found[k])),
+    beyond,
+  };
+}
+
+/**
+ * The sources whose matching pieces all lie beyond the ones results were built from, counted by
+ * what their pieces hold. Their titles and tags hold none of the words, or they would be among the
+ * results.
+ */
+async function sourcesBeyond(ctx: OpContext, p: ParsedFind, q: string, live: RawBuilder<unknown>, built: string[]): Promise<Beyond> {
+  const holds = p.terms.map((t, k) => sql`bool_or(c.tsv @@ to_tsquery('simple', ${termTsquery(t)})) as ${sql.ref(`t${k}`)}`);
+  const every = sql.join(p.terms.map((_, k) => sql.ref(`t${k}`)), sql` and `);
+  const r = await sql<Beyond>`
+    select count(*)::int as "any", (count(*) filter (where ${every}))::int as "all"
+    from (
+      select ${sql.join(holds)}
+      from text_chunks c join records r on r.record_id = c.record_id
+        left join annotations a on c.field = 'comment' and a.annotation_id = c.ref
+      where ${live} and c.tsv @@ to_tsquery('simple', ${q}) and not (c.record_id = any(${built}::text[]))
+      group by c.record_id
+    ) x`.execute(ctx.db);
+  return r.rows[0] ?? { any: 0, all: 0 };
 }
 
 async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): Promise<FindResult[]> {
@@ -257,8 +300,9 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
 /** Words that matched nothing anywhere, each replaced by the closest word the product does hold. */
 async function corrections(ctx: OpContext, p: ParsedFind, found: boolean[], typing: boolean): Promise<{ from: string; to: string }[]> {
   const pid = productId(ctx);
-  // A finished word of three letters is too short to guess at; one still being typed is not.
-  const lost = p.terms.map((t, k) => ({ t, k })).filter(({ t, k }) => !found[k] && !t.phrase && fold(t.text).length >= (typing && k === p.terms.length - 1 ? 3 : 4));
+  // A finished word of three letters is too short to guess at; one still being typed is not. An id
+  // or a number is never guessed at: one digit away is another thing.
+  const lost = p.terms.map((t, k) => ({ t, k })).filter(({ t, k }) => !found[k] && !t.phrase && !idLike(t.text) && fold(t.text).length >= (typing && k === p.terms.length - 1 ? 3 : 4));
   if (!lost.length) return [];
   const titles = await sql<{ t: string }>`
     select title as t from records where product_id = ${pid} and archived_at is null
@@ -284,21 +328,21 @@ async function corrections(ctx: OpContext, p: ParsedFind, found: boolean[], typi
 async function run(ctx: OpContext, p: ParsedFind, i: Input) {
   const q = p.terms.map(termTsquery).map((x) => `(${x})`).join(" | ");
   const [sp, small] = await Promise.all([
-    !i.kind || i.kind === "source" ? sources(ctx, p, i, q) : Promise.resolve({ results: [], hits: 0, found: p.terms.map(() => false) }),
+    !i.kind || i.kind === "source" ? sources(ctx, p, i, q) : Promise.resolve({ results: [], hits: 0, found: p.terms.map(() => false), beyond: { any: 0, all: 0 } }),
     smallKinds(ctx, p, i, q),
   ]);
   const all = [...sp.results, ...small];
   const found = p.terms.map((_, k) => sp.found[k] || all.some((r) => !r.missing.includes(p.terms[k]!.text)));
-  return { all, hits: sp.hits, found };
+  return { all, hits: sp.hits, found, beyond: sp.beyond };
 }
 
 export const PLAIN_DESCRIPTION =
-  "mode \"plain\" searches everything in the product the way a person types into a search box, ranked: sources, each with the best places it says the words (its derived text, summary, notes or comments; hits give the field and where the piece starts), assumptions, outcomes, mockups, Story pages and the product concept. Words match in any order, each at the start of a word; endings are forgiven (\"pricing\" finds price and priced); the last word matches as a prefix; \"quoted words\" match as a phrase; small words (the, of, how) are skipped; a word that matches nothing is replaced by the closest word the product holds, and `corrections` says so (`strict: true` turns that off). When nothing holds every word, results hold most of them and list the `missing` ones. At most 60 results come back, best first; `counts` says how many of each kind matched in all, so say so when more matched than came back. It takes `kind` and `record_id`, not the date or tag filters.";
+  "mode \"plain\" searches everything in the product the way a person types into a search box, ranked: sources, each with the best places it says the words (its derived text, summary, notes or comments; hits give the field and where the piece starts), assumptions, outcomes, mockups, Story pages and the product concept. Words match in any order, each at the start of a word; endings are forgiven (\"pricing\" finds price and priced); the last word is taken as still being typed and matches as a prefix even when short, unless the query ends with a space; \"quoted words\" match as a phrase; an id or a number (CB26-20734, 2026-05-01, 2026) is one word, hyphens and all, matched as written, and one with a letter in it also as its words side by side (q3-planning finds \"Q3 planning\"); small words (the, of, how) are skipped; a word that matches nothing is replaced by the closest word the product holds, and `corrections` says so (`strict: true` turns that off), but an id or a number is never corrected. When nothing holds every word, results hold most of them and list the `missing` ones. At most `limit` results come back (60 unless you say), best first; `counts` says how many of each kind matched in all, so say so when more matched than came back. It takes `kind`, `record_id`, `strict` and `limit`, not the date or tag filters or a cursor.";
 
 export async function plainSearch(ctx: OpContext, i: PlainInput) {
   let p = parseFind(i.query);
   const typing = !/[\s"]$/.test(i.query);
-  const empty = { query: i.query, terms: [], ignored: p.ignored, kind_hint: p.kind, corrections: [], partial: false, counts: {}, results: [] };
+  const empty = { query: i.query, terms: [], ignored: p.ignored, kind_hint: p.kind, corrections: [], partial: false, counts: {}, hits_matched: 0, results: [] };
   if (!p.terms.length) return empty;
   let r = await run(ctx, p, i);
   let fixed: { from: string; to: string }[] = [];
@@ -321,6 +365,10 @@ export async function plainSearch(ctx: OpContext, i: PlainInput) {
   const shown = (partial ? r.all : complete).sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
   const counts: Partial<Record<FindKind, number>> = {};
   for (const x of shown) counts[x.kind] = (counts[x.kind] ?? 0) + 1;
+  // Sources matched beyond the pieces results come from count too: all of them for a partial
+  // answer, else those that hold every word.
+  const more = partial ? r.beyond.any : r.beyond.all;
+  if (more) counts.source = (counts.source ?? 0) + more;
   return {
     query: i.query,
     terms: p.terms.map((t) => ({ text: t.text, phrase: t.phrase })),
@@ -330,6 +378,7 @@ export async function plainSearch(ctx: OpContext, i: PlainInput) {
     partial,
     counts,
     hits_matched: r.hits,
-    results: shown.slice(0, i.record_id ? 1 : 60),
+    // With record_id, that source is the only result there can be.
+    results: shown.slice(0, i.record_id ? 1 : i.limit),
   };
 }

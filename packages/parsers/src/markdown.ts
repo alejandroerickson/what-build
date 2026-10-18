@@ -75,7 +75,9 @@ export function renderMarkdown(blocks: Block[]): string {
     }
     close();
     if (speaker) {
-      out.push(speaker === lastSpeaker ? text : `**${escapeName(speaker)}:** ${text}`);
+      // A label before a list is a paragraph of its own: in Markdown only a list that starts at 1 may
+      // interrupt a paragraph, so a list from 3. would otherwise run on after the label as words.
+      out.push(speaker === lastSpeaker ? text : `**${escapeName(speaker)}:**${b.opensWithList ? "\n\n" : " "}${text}`);
       lastSpeaker = speaker;
       continue;
     }

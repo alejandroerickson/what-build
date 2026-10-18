@@ -135,7 +135,7 @@ details > p:last-child { margin-bottom: 1.25rem; }
 .pins { margin: 1.25rem 0 0; }
 .pins > li { padding-left: 2.5rem; font-size: 0.9375rem; line-height: 1.5; }
 .pins > li::before { top: 0; }
-.tally { --dot: 0.75em; --tally: var(--ink); --tally-off: var(--line); height: calc(var(--dot) * 0.75); width: calc(var(--of, 10) * var(--dot) - var(--dot) * 0.25); vertical-align: 0; -webkit-mask: linear-gradient(90deg, #000 75%, transparent 0) 0 0 / var(--dot) 100% repeat-x; mask: linear-gradient(90deg, #000 75%, transparent 0) 0 0 / var(--dot) 100% repeat-x; }
+.tally { --dot: 0.75em; --tally: var(--ink); --tally-off: var(--line); aspect-ratio: var(--of, 10) / 0.75; vertical-align: 0; -webkit-mask: linear-gradient(90deg, #000 75%, transparent 0) 0 0 / calc(100% / var(--of, 10)) 100% repeat-x; mask: linear-gradient(90deg, #000 75%, transparent 0) 0 0 / calc(100% / var(--of, 10)) 100% repeat-x; }
 @media (max-width: 48rem) {
   :root { --wide: 112%; }
   .opening { gap: 1.25rem; }

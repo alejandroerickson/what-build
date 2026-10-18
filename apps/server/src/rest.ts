@@ -20,7 +20,7 @@ export const SCOPE_PREFIX: Record<OperationDef["scope"], string> = {
 export const OPERATION_HEADER = "X-WhatBuild-Operation";
 
 /** Operations that create something answer 201. */
-const CREATES = /\.(create\w*|publish|promote_mockup|request_upload|add_note|fetch_url|annotate|export)$|^members\.grant$/;
+const CREATES = /\.(create\w*|publish|promote_mockup|request_upload|fetch_url|annotate|export)$|^members\.grant$/;
 
 export function restPath(op: OperationDef): string {
   return `${SCOPE_PREFIX[op.scope]}${op.rest.path}`;

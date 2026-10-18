@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 118 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -107,6 +107,12 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
   needs editor"). With no role at all the answer is `404`, never `403`
   ([§3.5](03-accounts-teams-and-identity.md)). `connection_level` carries `{ level, needed }`
   and says that only the person raises it, under Connect an agent.
+- **`stale_etag`** carries `current_etag` in `details`: the etag the object has now, or `null`
+  when there is nothing to match. It answers a stale etag and, for a write that may create what
+  it writes (a source's summary, notes and derived text, a Story page's versions and notes, the
+  Story's style and hierarchy, a mockup's versions, an allowance), a missing one once the object
+  exists; its message says which etag to pass and where to read it, and names another etag of the
+  object sent in its place ([§4.1](04-data-model.md)).
 - **`quota_exceeded`** carries `{ quota, limit, used, unit }` in `details`. It is returned for the
   50 Story pages and the 50 mockups a product holds ([§9.2](09-data-lifecycle.md)), the mockups'
   adding `archived`, and for a visitor's daily
@@ -128,21 +134,34 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
   `notes`?"), then what is missing ("`notes` is required"), then any other problem with a value.
   It ends "Nothing was changed; correct the call and send it again", so a refusal never reads as a
   call with nothing to do ([`schemas.ts`](../../packages/core/src/schemas.ts) `formatIssues`).
-  A field that a neighbouring operation takes adds a hint: `derived.text` refusing `start`, `end`
-  or `unit` says it reads by code-point `offset` and `limit`, such as a little before a search
-  hit's `char_start`, and that there are no passages to read by number (`WRONG_FIELD_HINTS` in
+  A field that a neighbouring operation takes adds a hint: `derived.text` refusing `start`, `end`,
+  `unit`, `seq` or `length` says it reads by code-point `offset` and `limit` (where the window
+  starts, such as a little before a search hit's `char_start`, and how many characters it holds),
+  and that there are no passages to read by number (`WRONG_FIELD_HINTS` in
   [`field-aliases.ts`](../../packages/core/src/field-aliases.ts)). So does a field the object no
-  longer has (a source's kind or dimensions, an attachment's role; Notes on recent actions,
-  below, and `retiredFieldHint` in [`execute.ts`](../../packages/core/src/execute.ts)). MCP
+  longer has, or a value a field no longer takes, naming what replaced it: a source's kind or
+  dimensions (tags, and the `tags` filter on sources and search, `tag` on assumptions), an
+  attachment's role, citations, `refs` and related sources (search, and words), `note_kind`
+  `outline` (the summary and the notes); Notes on recent actions, below, and `retiredFieldHint` in
+  [`execute.ts`](../../packages/core/src/execute.ts). MCP
   returns the same object as a tool error (`isError: true`) whose text begins with
   the status (`"422: …"`) followed by the JSON.
 
 ## 6.3 Bounds and paging
 
-- Lists and search are paged with an opaque `cursor`; responses carry `next_cursor` or `null`.
-  Page sizes are per operation: default 50, at most 200 for sources, search, activity and
-  revisions; default 25, at most 100 for assumptions and Story versions; outcomes
-  default to 100. Asking for more than the maximum is `422`, not a silent clamp.
+- The lists that can grow without bound are paged with an opaque `cursor`, and their responses
+  carry `next_cursor` or `null`: `sources.list`, `sources.list_annotations`, `outcomes.list`,
+  `assumptions.list`, `search`, `activity.list`, `members.activity` and `sandbox.visitors`. A
+  Story page's and a mockup's versions (`story.list_versions`, `mockups.list_versions`) page by
+  version number instead: `before` returns the versions numbered below it, and responses carry
+  `next_before` or `null`. Every other list answers in one response: those bounded by a product's
+  limits (`story.list_pages`, `mockups.list`), `derived.list` (the newest 100 readings) and
+  `outcomes.revisions` (the newest `limit`) among them.
+  Page sizes are per operation: default 50, at most 200 for sources, comments, search, activity,
+  a sandbox's visitors and outcome revisions (search's plain mode returns 60 results unless asked,
+  at most 200, in one answer that takes no cursor); default 25, at most 100 for assumptions and
+  Story and mockup versions; outcomes default to 100, at most 100. Asking for more than the maximum
+  is `422`, not a silent clamp.
 - `sources.list` orders by `sort`: `added` (newest added first, the default), `date` (the
   source's own date, newest first, undated last), `updated` (details most recently changed first)
   or `title` (A to Z). `order` (`asc` or `desc`) reverses a sort; it defaults to `desc` for the
@@ -315,6 +334,17 @@ being changed inside the handler.
 
 Notes on recent actions:
 
+- A source's summary and notes have an etag of their own, as its derived text has, and a write
+  over any of the three needs it once there is one
+  ([decision](../decisions/a-write-that-may-create-its-object-needs-its-etag-once-it-exists.md)):
+  `derived.write_note` takes `expected_etag` and answers with the new `etag` (`null` once
+  cleared); `derived.read_note`, and `sources.get` with `detail: "full"` in `agent_notes`, return
+  it; `derived.write_text`'s `expected_etag` is required once the source has a derived text. The
+  first write takes none. A write without the etag once the part exists, with a stale one, or with
+  another of the source's etags is `409 stale_etag` with `current_etag`, its message saying which
+  etag to pass and where to read it (another part's etag is named while it is current); an etag
+  sent when there is nothing to match is `409 stale_etag` with `current_etag: null`, saying to
+  leave it out ([§4.1](04-data-model.md)).
 - A source's words are one derived text, and its files are attachments that are read and kept but
   never searched
   ([decision](../decisions/a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)).
@@ -349,7 +379,8 @@ Notes on recent actions:
   `lifecycle_stage`; `sources.create`, `sources.update`, `attachments.create_upload`,
   `assumptions.create` and `assumptions.update` take no `dimensions`, and reads of sources and
   assumptions carry none. A call to a `sources`, `attachments`, `search` or `assumptions` operation
-  naming one is `422 invalid_input`, with a hint to use tags.
+  naming one is `422 invalid_input`, with a hint to use tags and the filter that took their place:
+  `tags` on sources and search, `tag` on assumptions.
 - Sources have no `participants`, `source_system` or `provenance_depth`, and assumptions no
   `provenance_depth` ([decision](../decisions/sources-are-described-by-tags.md)). `sources.list`
   and `search` lost the `provenance_depth` filter, `sources.list`'s `query` reads the title, tags
@@ -357,8 +388,9 @@ Notes on recent actions:
   `422 invalid_input`, with a hint that a source is described by its title, date and tags.
 - A comment is on a whole source: `sources.annotate` takes no `seq_start` or `seq_end` (naming
   them is `422 invalid_input`, saying so), and comments carry no anchor. `derived.outline` is
-  gone, and `derived.write_note` and `derived.read_note` take `note_kind` `summary` or `notes`;
-  `write_note` with empty content removes the note
+  gone, and `derived.write_note` and `derived.read_note` take `note_kind` `summary` or `notes`
+  (`outline` is `422 invalid_input`, with a hint that a source has no outline and what the summary
+  and the notes are for); `write_note` with empty content removes the note
   ([decision](../decisions/a-source-carries-a-summary-notes-and-whole-source-comments.md)).
   `sources.get` with `detail: "full"` has no `outline`.
 - Insights and decisions are retired, with their operations and their MCP tools; what a product
@@ -367,13 +399,20 @@ Notes on recent actions:
   ([decision](../decisions/evidence-is-searched-not-cited.md)): `assumptions`, `story` and
   `mockups` have no `check_citations`, the `lineage` tool and `sources.used_by` are gone, and no
   operation takes or returns `citations`, `citation_count`, `refs`, `resolved_refs` or
-  `related_records`; a call that sends one is `422 invalid_input`. `assumptions.list` has no
+  `related_records`; a call that sends `citations`, `refs` or `related_records` is
+  `422 invalid_input`, with a hint that evidence is found by searching, not cited, and that what a
+  piece of work rests on is said in words (an assumption's body, a Story page's notes, a source's
+  notes), naming a source by its id where it helps. `assumptions.list` has no
   `record_id` filter, and `search` with `record_id` searches no assumptions.
   `sources.move_to_product` is never refused for what mentions the source, and
   `sources.delete_impact` reports its attachments' versions, bytes, readings and comments
   ([§4.3](04-data-model.md)).
 - `assumptions.update` takes `edits` (exact replacements that must match once) and returns
-  `changed` and a short `diff` ([§4.1](04-data-model.md)). Without `status`, the assumption list
+  `changed` and a short `diff` ([§4.1](04-data-model.md)); its `tags`, `outcome_ids` and `links`,
+  when sent, each replace the whole list, as `sources.update`'s and
+  `sources.update_annotation`'s `tags` do. `assumptions.supersede` takes `reviewer_type` for the
+  review it records on the old entry, defaulting as `review`'s does ([§4.8](04-data-model.md)).
+  Without `status`, the assumption list
   returns the current entries (unconfirmed and confirmed), the ones every count counts, with
   `not_current_hidden` (the refuted and superseded ones matching its other filters) and, when that
   is not zero, a `note`; a `status` list names what to return instead. It returns
@@ -397,16 +436,22 @@ Notes on recent actions:
 - `story.get_style` and `story.set_style` read and replace the product's Story style, the design
   system every page follows: an adopted house style (`house_style`) or the team's own
   (`name`, `rules`, `stylesheet`), with its own etag; `422 invalid_style` lists every problem
-  ([§4.11](04-data-model.md)). `story.guidance` takes `house_style` to return one house style in
+  ([§4.11](04-data-model.md)). A style based on a house style no longer in the catalogue carries a
+  `note` (in `get_style`, `set_style` and the guidance's `product_style`) saying how to move to a
+  current one. `story.guidance` takes `house_style` to return one house style in
   full. Beside the operations, `GET P/story/style/specimen` and
   `GET P/story/house-styles/:style/specimen` serve sample pages in the Story sandbox for the app's
   previews.
 - `story.write_notes` replaces a page's notes for agents. The notes carry their own etag
   (`publish` → `agent_notes_etag`, `get_page` → `agent_notes.etag`), separate from the page etag,
-  and are not versioned with the page. While the notes are empty the etag may be omitted.
+  and are not versioned with the page. While the notes are empty the etag may be omitted; once
+  they hold anything, a write without it is `409 stale_etag`, as for a source's summary and notes
+  ([§4.1](04-data-model.md)).
 - A reader's `story.get_page` leaves out `agent_notes`, and a reader's `products.get` and
   `products.list` leave out `concept` and count only `story_pages` (and `stage_counts.story`)
-  ([§3.5](03-accounts-teams-and-identity.md)).
+  ([§3.5](03-accounts-teams-and-identity.md)). `story.list_pages` leaves archived pages out unless
+  `include_archived`, and counts them in `archived_hidden` (with a `note` when there are any); a
+  reader is given neither the archived pages nor their count ([§4.11](04-data-model.md)).
 - `mockups.publish` creates a mockup, or publishes the next version of one: the whole canvas,
   with its brief, its pages in order and each page's notes and size, and the files it carries for
   collaborators. A later version keeps what it omits, and a page or file that keeps its id or path
@@ -415,7 +460,14 @@ Notes on recent actions:
   in `get_download`'s layout, and `mockups.publish { upload_id }` reads it in place of `pages`,
   `files` and the brief, so no page's HTML travels through a tool call; it is refused to a visitor
   to a public sandbox (`403`), and the result names `from_upload` and gives `upload { upload_id,
-  size, sha256 }`, the ZIP as its PUT answered ([§4.12](04-data-model.md), §6.7). A page is held
+  size, sha256 }`, the ZIP as its PUT answered ([§4.12](04-data-model.md), §6.7). `publish`
+  answers with what a caller needs next, not the canvas it sent: `{ mockup_id, title,
+  current_version, current_version_id, etag, based_on_version, page_ids, url, next }`, where
+  `page_ids` are the canvas's pages in order and `url` is the canvas in the web app, with
+  `from_upload` and `upload` after an upload and `prototype_warnings` when one brings a prototype;
+  `mockups.get` reads the version back. ◆ Decision: a version's brief, page notes and page details
+  run to tens of thousands of characters, which an echo would put into an agent's context after
+  every publish; every other write still answers with its object. A page is held
   to a mockup page's HTML rules, not a Story page's: scripts without a budget, and forms whose
   submit handlers run and whose submissions go nowhere. `publish`'s and `request_upload`'s
   descriptions state what a page may hold and what is refused, that a refused publish changes
@@ -457,13 +509,19 @@ Notes on recent actions:
 - `members.revoke` removes the grant at exactly the scope named; with `whole_tenant: true` (and no
   team or product) it removes every grant the person holds in the tenant, which takes them out of
   it. That needs tenant admin, or owner when they are an owner.
-- `activity.list` takes `by: "people" | "agents"` (agents = calls over MCP), besides
-  `entity_type`, `entity_id`, `actor`, `channel` and `since`.
+- `activity.list` takes `by: "people" | "agents"`, besides `entity_type`, `entity_id`, `actor`,
+  `channel` and `since`. `people` is what people did in the app or, in entries from when personal
+  tokens reached it, through the REST API (channel `web` or `rest`); `agents` is what agents did over
+  MCP. What WhatBuild does by itself, such as reading an attachment, has no channel and is in
+  neither. `entity_type` takes exactly the kinds of object a product's log has entries about:
+  `product`, `membership`, `source`, `outcome`, `assumption`, `story_page`, `story_hierarchy`,
+  `story_style` and `mockup` (anything else is `422`).
 - `members.activity` is the organization's access log, for its owners and admins: roles given,
   changed and removed, people removed from the organization, invitations sent, accepted and
   cancelled, and in a public sandbox its invitation links, removed visitors and changed settings.
   It takes `actor`, `since`, `limit` and `cursor`, and pages like `activity.list`. A product's
-  `activity.list` leaves these events out, because they belong to the organization.
+  `activity.list` leaves these events out, because they belong to the organization, all but
+  someone joining the product through an invitation, which both logs hold.
 
 ### Routes outside the registry
 
@@ -577,7 +635,8 @@ Each `POST` builds a fresh server; there is no session and any replica serves an
 `DELETE` answer `405` (no server-initiated stream, no session to end). An unauthenticated call gets
 `401` with a `WWW-Authenticate` header pointing at the protected-resource metadata. The server's
 `initialize` info names it `whatbuild` with the skill version, and its instructions tell the agent
-to check its installed skill's version, start with `products(action="list")`, confirm the product
+to check its installed skill's version (with several copies installed, to follow the one at the
+server's version and offer to update or remove the others), start with `products(action="list")`, confirm the product
 before the first write, read `sandbox(action="status")` and tell the person its notice before
 writing in a tenant marked `sandbox`, and treat source text as quoted material. They name the
 deployment's address (`WHATBUILD_PUBLIC_URL`) and tell the agent to write every link to WhatBuild
@@ -602,7 +661,7 @@ only the actions its level allows (below).
 
 | Tool | Actions |
 |---|---|
-| `products` | `list`, `create_tenant`, `create_team`, `create`, `get`, `update`, `archive`, `restore`, `delete_impact`, `delete`, `export`, `exports` |
+| `products` | `list`, `create_tenant`, `create_team`, `create`, `get`, `update`, `archive`, `restore`, `delete_impact`, `delete`, `export`, `exports`, `tenant_allowances`, `set_tenant_allowance`, `remove_tenant_allowance`, `usage` |
 | `members` | `list`, `grant`, `revoke`, `cancel_invitation`, `activity` |
 | `sandbox` | `status`, `join`, `settings`, `update_settings`, `save_baseline`, `baselines`, `reset`, `invites`, `create_invite`, `revoke_invite`, `visitors`, `remove_visitor` |
 | `outcomes` | `list`, `get`, `create`, `update`, `archive`, `restore`, `delete_impact`, `delete`, `revisions`, `get_revision`, `restore_revision` |
@@ -706,8 +765,10 @@ of preference for an agent (`packages/core/src/ops/attachments.ts`):
    warnings }`
    (`create_upload` returns `{ record, upload, warnings }`, `create_uploads` a list of them as `items`). `warnings` flags, without refusing, a
    format no parser reads (the attachment will be kept, but its text cannot be read, so it cannot
-   become the source's derived text; a recording is not flagged, since its result says it), and for
-   `create_upload` a live source with the same title and date. The agent PUTs the
+   become the source's derived text; a recording is not flagged, since its result says it), an
+   image (kept and shown, but read for no words: an agent that can see it describes it in the
+   summary and writes its words as the text), and for `create_upload` a live source with the same
+   title and date. The agent PUTs the
    local file's raw bytes to `url` (the service's own upload relay,
    `/api/v1/uploads/:grant_id`) with exactly those headers, using whatever shell or HTTP tool it
    has. The relay first checks that whoever requested the grant can still write to the product
@@ -716,16 +777,24 @@ of preference for an agent (`packages/core/src/ops/attachments.ts`):
    agent's claims, adds the attachment at once (or a version of it, at a path it already has),
    changes the source's etag, and queues the attachment to be read
    ([§5.1](05-derived-layer.md)); its `201` response, `{ uploaded, size, sha256, attachment, next }`,
-   carries the attachment, so nothing more need be called.
+   carries the attachment, so nothing more need be called. A grant takes one PUT: a second is
+   `409 already_uploaded`, which says the attachment is already on the source and that a new
+   version takes a new grant.
    `attachments.complete_upload` adds an attachment PUT to a `direct` URL; after the relay it only
    confirms, idempotently. Both give the attachment (§4.5) with `record_id`, the source's new etag
    as `record_etag`, and a `note` on what becomes of its text that agrees with it: it is being read
    and its text will become the source's derived text, or the source already has one and this text
    will be kept beside it (take it with `derived.write_text`'s `from_attachment`); it has been
    read; it is a recording, stored and playable but never transcribed (add its transcript as
-   another attachment); or no parser reads its format (with the formats that are read). Every note
-   says the attachment is kept and never searched, and a recording or an unread format is named at
-   once, before the worker has run. Grants are single-file, create-only, signed, and expire after
+   another attachment, or, beside the source's derived text, where that text comes from); it is an
+   image, or a PDF whose pages are pictures, with no words read (and how an agent that can see it
+   gives the source its words); or no parser reads its format (with the formats that are read).
+   Every note says the attachment is kept and never searched. A recording, an image, an unread
+   format and a file over the parse cap are known by name, type and size, so the attachment's
+   `text.status` says so at once, before the worker has run, as its reading then records it
+   ([§5.5](05-derived-layer.md)); `warnings` here is empty, and `fetch_url` adds a URL's
+   fragment to it. A grant takes one file, once: it adds an attachment, or, at a path the source
+   already has, a new version of it, the earlier versions kept. Grants are signed and expire after
    30 minutes by default (`WHATBUILD_GRANT_TTL_SECONDS`). The relay takes at most 25 MB
    (`WHATBUILD_RELAY_MAX_BYTES`); when the deployment enables signed URLs
    (`WHATBUILD_GCS_SIGNED_URLS=1`), the grant also carries a `direct` block for a PUT straight to
@@ -781,7 +850,9 @@ drifts. One constant, `SKILL_VERSION` in `packages/core/src/ops/meta.ts`, sets t
 
 - `get_skill` returns `{ name, version, filename, content }`. The server instructions tell an agent
   to compare versions and, when stale or absent, fetch the new one and *propose* installing it
-  through its harness — never to self-install silently.
+  through its harness — never to self-install silently. With several copies installed (in
+  different places, or under different names), the one at the server's version is the one to
+  follow; the skill says the same.
 
 **The Connect page** (`/connect`, and `…/connect` inside a product; "Connect an agent" in the app)
 lets a person connect an MCP client with no help from anyone who knows the system, and nothing to
@@ -815,9 +886,10 @@ configure but one address. It shows:
 ## 6.9 Feedback
 
 `submit_feedback { category, message, tool?, details?, screen?, reply? }` is available on both
-adapters and is write-only, names nobody, and is limited to 10 a day for a person and their agents
-([§4.13](04-data-model.md#413-feedback)). The web app sends it from **Submit feedback** in the
-account menu ([§7](07-web-app.md)). The skill asks agents to use it when a tool's behavior or
+adapters and is write-only, names nobody, and is limited to 10 a UTC day for a person and their
+agents; the `429` refusal's message gives the moment the next UTC day begins, midnight UTC, when
+they may send again ([§4.13](04-data-model.md#413-feedback)). The web app sends it from
+**Submit feedback** in the account menu ([§7](07-web-app.md)). The skill asks agents to use it when a tool's behavior or
 guidance misled them, so the product's agent surface improves from real use. A connection whose
 person turned feedback off is not offered the tool, is refused it with `403 feedback_off`, and is
 told so in the server's instructions, so it does not take the missing tool for an old tool list.

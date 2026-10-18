@@ -67,7 +67,15 @@ export const svgUrl = (svg: string) =>
 /** Markdown bullet list for a style's rules. */
 export const rule = (lines: string[]) => lines.map((l) => `- ${l}`).join("\n");
 
-/** What every house style needs regardless of character: box model, reflow, focus, table scrolling, and the vocabulary's structure. */
+/**
+ * What every house style needs regardless of character: box model, reflow, focus, table scrolling, and the vocabulary's structure.
+ *
+ * A tally is --of marks of --dot each, and never wider than the block it sits in. Its marks, its fill
+ * and its height are all parts of the width it gets (a mark is 1/--of of it, the fill --n/--of, the
+ * height set by aspect-ratio), so in a narrow block, on a phone or in a column, every mark shrinks
+ * and still shows, and exactly --n of them are filled. A style changes a mark's size with --dot, its
+ * shape with the mask (one tile per mark: calc(100% / var(--of))), and then its height with aspect-ratio.
+ */
 export const BASE = `*, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; scrollbar-color: var(--muted) transparent; }
 img, svg, video { max-width: 100%; height: auto; }
@@ -125,7 +133,7 @@ mark { padding: 0 0.12em; border-radius: 0.12em; background: var(--mark, color-m
 .pins > li { position: relative; min-height: 1.75rem; padding-left: 2.6rem; counter-increment: pin; }
 .pins > li + li { margin-top: 1rem; }
 .pins > li::before { content: counter(pin); position: absolute; left: 0; top: 0; display: grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 50%; background: var(--accent, var(--ink)); color: var(--on-accent, var(--paper)); font-size: 0.8125rem; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums lining-nums; }
-.tally { --dot: 0.8em; display: inline-block; max-width: 100%; height: calc(var(--dot) * 0.84); width: calc(var(--of, 10) * var(--dot) - var(--dot) * 0.16); vertical-align: -0.04em; background: linear-gradient(90deg, var(--tally, currentColor) calc(var(--n, 0) * var(--dot)), var(--tally-off, color-mix(in srgb, currentColor 22%, transparent)) 0); -webkit-mask: radial-gradient(circle closest-side, #000 94%, transparent) calc(var(--dot) * -0.08) 0 / var(--dot) 100% repeat-x; mask: radial-gradient(circle closest-side, #000 94%, transparent) calc(var(--dot) * -0.08) 0 / var(--dot) 100% repeat-x; }
+.tally { --dot: 0.8em; display: inline-block; width: calc(var(--of, 10) * var(--dot)); max-width: 100%; aspect-ratio: var(--of, 10) / 0.84; vertical-align: -0.04em; background: linear-gradient(90deg, var(--tally, currentColor) calc(100% * var(--n, 0) / var(--of, 10)), var(--tally-off, color-mix(in srgb, currentColor 22%, transparent)) 0); -webkit-mask: radial-gradient(circle closest-side, #000 94%, transparent) 0 0 / calc(100% / var(--of, 10)) 100% repeat-x; mask: radial-gradient(circle closest-side, #000 94%, transparent) 0 0 / calc(100% / var(--of, 10)) 100% repeat-x; }
 @media (max-width: 48rem) {
   .lines { grid-template-columns: minmax(0, 1fr) auto; }
   .lines > li { grid-template-columns: minmax(0, 1fr) auto; grid-template-columns: subgrid; }

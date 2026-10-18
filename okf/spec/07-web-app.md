@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -324,9 +324,10 @@ The sources, and everything for reading them.
   **Describe it** asks for the title, the **date captured** (optional, with help text
   distinguishing it from today) and tags, offering the product's most used tags to add with one
   click ([§4.4](04-data-model.md)), and nothing else. **Add attachments** is one drop zone, optional,
-  that takes any number of files, with no role to choose; it says that the first attachment whose
-  text WhatBuild can read becomes the source's text, which search reads, which formats it reads,
-  and that a recording needs its transcript too. **Create** makes the source and uploads each
+  that takes any number of files, with no role to choose; it says that they are read in the order
+  listed and the first in which WhatBuild finds text becomes the source's text, which search reads
+  ([§5.4](05-derived-layer.md)), which formats it reads, that a recording needs its transcript too,
+  and that no words are read from images or scanned pages. **Create** makes the source and uploads each
   attachment with its progress, then opens the source, whose Text says how its attachment is being
   read ([decision](../decisions/a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)).
   Nothing asks what kind of material it is or where to file it.
@@ -368,7 +369,13 @@ The sources, and everything for reading them.
     whoever wrote it last, with Edit for an editor. It is what people read of a source, so nothing
     above it competes and the text below starts folded. With no summary,
     an editor sees "Add a summary" and everyone else nothing. Both open a dialog holding the
-    Markdown; saving it empty removes the summary. Editing the details (title, date and tags,
+    Markdown; saving it empty removes the summary. Saving names the etag of what the dialog opened
+    (none for the first summary), so a change made meanwhile is never overwritten unseen: when
+    someone changed it, the dialog says so ("Someone changed the summary while you were
+    editing"), keeps the person's text in its box, shows theirs read-only under it as "Their
+    version" to compare and copy from, and saves over it only with "Save mine over theirs"; when
+    someone removed it, it says so and "Save" puts the person's back. Nothing keeps an earlier
+    summary, so the notice says that saving replaces theirs. Editing the details (title, date and tags,
     offering the product's tags), adding attachments, archive, restore and delete (§7.10) are in
     the page's actions menu.
   - **Images.** When the source has image attachments, the image viewer (the one Attachments
@@ -386,30 +393,39 @@ The sources, and everything for reading them.
     rest of the visit. Its header holds **Find in the text**, which unfolds it, marks the words,
     says "1 of 4" and steps through the matches (the arrows, or Enter and Shift+Enter), the words
     held in the URL as `?find=`, so a search hit opens here with them marked. A very long text,
-    unfolded, shows its first 300,000 characters and "Show all N characters", unless a find is on. Editors get **Edit**, a dialog holding the
-    Markdown (saving it empty removes the text; if someone changed it meanwhile, the dialog says so
-    and keeps their changes to copy), and, when another attachment has text, a menu **Use an
-    attachment's text** listing them, each confirmed in a dialog that says what it replaces.
+    unfolded, shows its first 300,000 characters and "Show all N characters", unless a find is on. Editors get **Edit**, once the text has
+    loaded, a dialog holding the Markdown (saving it empty removes the text; it names the etag of
+    the text it opened, and when someone changed or removed the text meanwhile it does what the
+    summary's dialog does), and, when another attachment has text, a menu **Use an
+    attachment's text** listing them, each confirmed in a dialog that says what it replaces; if
+    the text changed while that dialog was open, it replaces nothing, says so, and offers "Load
+    the latest" to say again what it would replace.
     A source with no text says why here, not in a status callout over the page: "Reading its attachment"
     while it is read, or what its status means and what to do (a recording needs its transcript
-    as another attachment, a format not read, too large, could not be read, no attachment yet, or
-    an attachment whose text it does not use), with the server's `status_detail` only where it
-    says more (a size or an error); editors get "Use the text of <attachment>", "Add attachments"
-    and "Write the text".
+    as another attachment; its attachments are pictures, images or a PDF whose pages are pictures,
+    from which no words are read, and an agent that can see them can write the summary and the
+    text; a format not read; too large; could not be read; no attachment yet; or an attachment
+    whose text it does not use), with the server's `status_detail` only where it says more (a size
+    or an error). A source whose attachments are not read as text is labelled "Not read as text",
+    never as a failure. Editors get "Use the text of <attachment>", "Add attachments" and "Write
+    the text".
   - **Notes** (the source's notes, rendered Markdown attributed to whoever wrote them last, with
     "Edit notes" for an editor; with none, an empty state that says what notes are for, and
-    "Write notes" for an editor) and **Comments** (every comment on the source, newest first, and
+    "Write notes" for an editor; both open the summary's dialog, with its etag and its handling of
+    a change made meanwhile) and **Comments** (every comment on the source, newest first, and
     "Comment" for an editor, which opens a form for a comment on the whole source with optional
     tags).
   - **Attachments** lists every attachment under a line saying that each one's text is read and
     kept, that the source's text is taken from one of them, and that attachments are never
     searched. Each row gives its name, how its text was read ("Text read · 12,345 characters",
-    "Recording, 12:03 · no text", "Format not read", "Too large to read", "Couldn't be read", or
-    "Reading"), "The source's text" on the one it came from, its type in words (such as "Word
-    document", not its media type), size, versions, and who added it when, with Download, and a
-    menu with **Show it** (a PDF, an image, a recording, Markdown, HTML in a sandbox, or plain
-    text, in a dialog; a recording with its length), **Use its text…** and **Read it again** for
-    editors. An image opens in a viewer with zoom (buttons, `+` `-`, `0` to fit, `1` for actual
+    "Recording, 12:03 · no text", "Image · no text", "Scan · no text" for a PDF whose pages are
+    pictures, "Format not read", "Too large to read", "Couldn't be read", or "Reading"), with the
+    server's `status_detail` under it except for pictures, "The source's text" on the one it came
+    from, its type in words (such as "Word document", not its media type), size, versions, and who
+    added it when, with Download, and a menu with **Show it** (a PDF, an image, a recording,
+    Markdown, HTML in a sandbox, or plain text, in a dialog; a recording with its length), **Use
+    its text…** and **Read it again** for editors, the last not for pictures, which no reading
+    finds words in. An image opens in a viewer with zoom (buttons, `+` `-`, `0` to fit, `1` for actual
     size, double-click, a pinch or Ctrl/Cmd and the wheel), drag to pan, full screen (`F`), and,
     when the source has several images, previous and next (the arrow keys) and a strip of
     thumbnails. **Add attachments** adds more, with no roles.
@@ -419,11 +435,9 @@ The sources, and everything for reading them.
     what they added, and Date updated saying "Not since it was added" when nothing changed; Tags,
     each a link to the list filtered to it; nothing else), "Activity on this source", and
     Archive.
-- **Evidence links** in Markdown read as the source's title and open the source
-  ([§4.7](04-data-model.md)). A title is cut at its em-dash qualifier; where two sources mentioned
-  on the page would read alike, each adds its qualifiers in brackets ("Usability study (crew)"),
-  and identical titles are numbered. A source mentioned the bare way ("source <id>", as a view, a
-  digest or an agent's notes may write it) shows as the same link.
+- **Evidence links.** A Markdown link to a source is set as a quiet evidence token and opens the
+  source ([§4.7](04-data-model.md)). A source mentioned by its id alone ("source <id>") is shown as
+  written, not as a link.
 
 ## 7.7 Exploration
 
@@ -452,8 +466,10 @@ counts, filters and search work on what is loaded.
 ([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)) A mockup opens as a
 canvas the full width of the window and its height below the crumbs, so the screen itself does not
 scroll: every page of the shown version at its own size in its sandboxed frame ([§4.12](04-data-model.md)), laid out `columns` to a row (one row when null),
-on a dotted board. Agents publish mockups; the screen reads them and offers nothing that changes
-them. Its one write is promoting a page to the Story.
+on a dotted board. Agents publish mockups; the screen reads them and never publishes, edits or
+restores one. Its writes are promoting a page to the Story, and, for a product's admins,
+**Delete permanently…** under Version in the inspector, whose dialog offers **Archive instead**
+(§7.10).
 
 - **Opening.** `…/exploration/mockups` opens the mockup last opened in this product in this
   browser, otherwise the most recent; with none, the first-use state gives the request to copy for

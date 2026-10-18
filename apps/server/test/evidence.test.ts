@@ -1,5 +1,9 @@
+import { IMAGE_DETAIL, RECORDING_DETAIL, SCAN_DETAIL } from "@whatbuild/parsers";
+import { sql, type Transaction } from "kysely";
 import { connect, createServer, type AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { truncateQuote } from "../../../packages/core/src/ops/sources.ts";
+import { makePdf, makeXlsx } from "../../../packages/parsers/test/fixtures.ts";
 import { makeWordDoc } from "../../../packages/parsers/test/word-fixtures.ts";
 import { publicOnlyLookup } from "../src/adapters/misc.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
@@ -7,15 +11,25 @@ import { startHarness, type Browser, type Harness } from "./harness.ts";
 let h: Harness;
 let alice: Browser;
 let P: string;
+let tenantId: string;
 
 beforeAll(async () => {
   h = await startHarness();
   alice = await h.signIn("alice@example.com", "Alice Example");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Example Research" });
+  tenantId = t.body.tenant.tenant_id;
   const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Scheduling" });
   P = `/api/v1/p/${p.body.path}`;
 });
 afterAll(async () => h?.close());
+
+/** Work on the rows of this test's tenant directly, as a migration or a restore would. */
+async function inTenant<T>(fn: (trx: Transaction<any>) => Promise<T>): Promise<T> {
+  return h.db.transaction().execute(async (trx) => {
+    await sql`select set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
+    return fn(trx as Transaction<any>);
+  });
+}
 
 /** Create a source, PUT its first attachment through the relay, and complete the upload. */
 async function upload(tag: string, path: string, body: string | Uint8Array) {
@@ -46,21 +60,27 @@ describe("what upload, read and search say about a source", () => {
     expect(again.body.note).toBe("visit.md has been read. It is kept with the source and never searched.");
   });
 
-  it("says a recording and an unreadable format have no text, even before the worker runs", async () => {
+  it("says a recording and an unreadable format have no text the moment they arrive, before the worker runs", async () => {
     const rec = await upload("recording", "call.m4a", new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]));
+    // The name and type settle it, so the upload answers with the status its reading will record, not pending.
+    expect(rec.putAttachment).toMatchObject({ text: { status: "needs_transcript", status_detail: RECORDING_DETAIL, derivation_id: null } });
     expect(rec.completed.note).toMatch(/recording/);
     expect(rec.completed.note).toMatch(/never transcribes/);
     expect(rec.completed.note).toMatch(/Add its transcript as another attachment\./);
     expect(rec.completed.note).not.toMatch(/becomes the source's derived text/);
+    expect((await alice.api("GET", `${P}/sources/${rec.recordId}`)).body).toMatchObject({ derived_status: "needs_transcript", status_detail: RECORDING_DETAIL });
     const deck = await upload("document", "readout.pptx", new Uint8Array([80, 75, 3, 4]));
-    expect(deck.completed.note).toMatch(/No parser reads \.pptx files/);
+    expect(deck.completed.text).toMatchObject({ status: "unsupported", status_detail: "no parser reads .pptx files" });
+    expect(deck.completed.note).toMatch(/^No parser reads \.pptx files, so readout\.pptx is stored and downloadable but has no text\./);
     expect(deck.completed.note).toMatch(/\.docx/);
+    expect((await alice.api("GET", `${P}/sources/${deck.recordId}`)).body).toMatchObject({ derived_status: "unsupported" });
     await h.worker.drain();
+    // Read, it says the same.
     const done = await alice.api("POST", `${P}/sources/${deck.recordId}/uploads/complete`, { record_id: deck.recordId, path: "readout.pptx" });
-    expect(done.body.text.status).toBe("unsupported");
-    expect(done.body.note).toMatch(/^No parser reads this format, so readout\.pptx is stored and downloadable but has no text/);
+    expect(done.body.text).toMatchObject({ status: "unsupported", status_detail: "no parser reads .pptx files", derivation_id: expect.any(String) });
+    expect(done.body.note).toBe(deck.completed.note);
     const recorded = await alice.api("GET", `${P}/sources/${rec.recordId}`);
-    expect(recorded.body).toMatchObject({ derived_status: "needs_transcript", text_chars: 0, status_detail: "a recording is stored and playable but has no text; add its transcript as another attachment" });
+    expect(recorded.body).toMatchObject({ derived_status: "needs_transcript", text_chars: 0, status_detail: RECORDING_DETAIL });
   });
 
   it("counts sources without a derived text by reason, with correct plurals", async () => {
@@ -81,6 +101,91 @@ describe("what upload, read and search say about a source", () => {
     expect(recordings.body.coverage.statement).toBe(
       "Searched the title, tags, summary, notes and comments of 1 source, and the derived text of the 0 that have one. No derived text: 1 is a recording with no transcript (add the transcript as an attachment). Attachments are never searched.",
     );
+  });
+
+  it("reads a PDF of pictures as it reads an image: no text, and what an agent that can see it does", async () => {
+    const photo = await upload("photo", "board.png", new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]));
+    expect(photo.putAttachment).toMatchObject({ text: { status: "unsupported", status_detail: IMAGE_DETAIL, derivation_id: null } });
+    expect(photo.completed.note).toBe(`board.png is stored and shown, but ${IMAGE_DETAIL}. It is kept with the source and never searched.`);
+    const scan = await upload("document", "signed-contract.pdf", makePdf([]));
+    // Only a PDF's bytes say whether it has a text layer, so it is read first.
+    expect(scan.completed.text.status).toBe("pending");
+    await h.worker.drain();
+    for (const [s, detail] of [[photo, IMAGE_DETAIL], [scan, SCAN_DETAIL]] as const) {
+      const got = await alice.api("GET", `${P}/sources/${s.recordId}?detail=full`);
+      expect(got.body).toMatchObject({ derived_status: "unsupported", status_detail: detail, warnings: [] });
+      expect(got.body.attachments[0].text).toMatchObject({ status: "unsupported", status_detail: detail });
+    }
+    // Search counts them apart from attachments that could not be read: they want someone who can see them.
+    for (const s of [photo, scan]) {
+      const { coverage } = (await alice.api("GET", `${P}/search?query=crews&record_id=${s.recordId}`)).body;
+      expect(coverage.statement).toBe(
+        "Searched the title, tags, summary, notes and comments of 1 source, and the derived text of the 0 that have one. No derived text: 1 has pictures that are not read as text (images, or PDFs whose pages are pictures; write the text if search should find their words). Attachments are never searched.",
+      );
+    }
+    const done = await alice.api("POST", `${P}/sources/${scan.recordId}/uploads/complete`, { record_id: scan.recordId, path: "signed-contract.pdf" });
+    expect(done.body.note).toBe(`signed-contract.pdf is stored and downloadable, but ${SCAN_DETAIL}. It is kept with the source and never searched.`);
+    expect((await alice.api("GET", `${P}/sources/${scan.recordId}/derived/manifest`)).body).toMatchObject({ status: "unsupported", parser: "pdf", facts: { text_layer_chars: 0 } });
+  });
+
+  it("says a reading an earlier version recorded as this version says it", async () => {
+    const rec = await upload("recording", "older-call.m4a", new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]));
+    const scan = await upload("document", "older-scan.pdf", makePdf([]));
+    await h.worker.drain();
+    // Readings as earlier versions recorded them, which a backup or a sandbox's baseline brings back:
+    // a recording asked for its transcript as a new source, and a PDF of pictures was a failure.
+    await inTenant((trx) => sql`update derivations set status_detail = 'a recording is stored and playable but has no text; add a transcript as a new source' where record_id = ${rec.recordId}`.execute(trx));
+    await inTenant((trx) => sql`update derivations set status = 'failed', status_detail = 'the PDF has no text layer (a scan?); no OCR is performed' where record_id = ${scan.recordId}`.execute(trx));
+    const r = await alice.api("GET", `${P}/sources/${rec.recordId}?detail=full`);
+    expect(r.body).toMatchObject({ derived_status: "needs_transcript", status_detail: RECORDING_DETAIL });
+    expect(r.body.attachments[0].text.status_detail).toBe(RECORDING_DETAIL);
+    expect((await alice.api("GET", `${P}/sources/${rec.recordId}/derived/manifest`)).body).toMatchObject({ status: "needs_transcript", status_detail: RECORDING_DETAIL });
+    const s = await alice.api("GET", `${P}/sources/${scan.recordId}?detail=full`);
+    expect(s.body).toMatchObject({ derived_status: "unsupported", status_detail: SCAN_DETAIL });
+    expect(s.body.attachments[0].text).toMatchObject({ status: "unsupported", status_detail: SCAN_DETAIL });
+    expect((await alice.api("GET", `${P}/sources/${scan.recordId}/derivations`)).body.items[0]).toMatchObject({ status: "unsupported", status_detail: SCAN_DETAIL });
+    // Reading the attachment's text says it the same way.
+    expect((await alice.api("GET", `${P}/sources/${scan.recordId}/derived/text?path=older-scan.pdf`)).body).toMatchObject({ of: "attachment", status: "unsupported", status_detail: SCAN_DETAIL, text: "" });
+  });
+
+  it("says a recording beside the attachment its source's text comes from needs nothing more", async () => {
+    const { recordId } = await upload("interview", "crew-call.vtt", "WEBVTT\n\n00:00:01.000 --> 00:00:04.000\n<v Sam>Crews plan on Fridays.\n");
+    await h.worker.drain();
+    const grant = await alice.api("POST", `${P}/sources/${recordId}/uploads`, { record_id: recordId, path: "crew-call.m4a" });
+    const put = await fetch(grant.body.url, { method: "PUT", headers: grant.body.headers, body: new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]) });
+    const { attachment } = (await put.json()) as { attachment: Record<string, any> };
+    const beside = "a recording is stored and playable but has no text of its own; the source's text is taken from crew-call.vtt";
+    expect(attachment.text).toMatchObject({ status: "needs_transcript", status_detail: beside });
+    expect(attachment.note).toBe("crew-call.m4a is a recording: it is stored and playable, but WhatBuild never transcribes, so it has no text of its own. The source's text is taken from crew-call.vtt. It is kept with the source and never searched.");
+    await h.worker.drain();
+    const got = await alice.api("GET", `${P}/sources/${recordId}?detail=full`);
+    expect(got.body).toMatchObject({ derived_status: "ready", text_from: "crew-call.vtt", warnings: [] });
+    expect(got.body.attachments.find((a: { path: string }) => a.path === "crew-call.m4a").text.status_detail).toBe(beside);
+  });
+
+  it("warns of each attachment with text that the derived text does not use, and of none without text", async () => {
+    const { recordId } = await upload("analysis", "pipeline-notes.md", "# Pipeline\n\nCrews plan by the week.\n");
+    for (const [path, body] of [
+      ["pipeline.xlsx", makeXlsx()],
+      ["review-call.m4a", new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112])],
+      ["whiteboard.png", new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])],
+    ] as const) {
+      const grant = await alice.api("POST", `${P}/sources/${recordId}/uploads`, { record_id: recordId, path });
+      expect((await fetch(grant.body.url, { method: "PUT", headers: grant.body.headers, body })).status).toBe(201);
+    }
+    await h.worker.drain();
+    const taken = await alice.api("GET", `${P}/sources/${recordId}`);
+    expect(taken.body).toMatchObject({ derived_status: "ready", text_from: "pipeline-notes.md" });
+    expect(taken.body.warnings).toEqual([
+      "This source's derived text is taken from pipeline-notes.md, so the text read from pipeline.xlsx is kept but never searched. If its words should be found, write them into the derived text, the summary or the notes, or add it as a source of its own.",
+    ]);
+    // Edited, the text follows no attachment, and every attachment with text is named.
+    const cur = await alice.api("GET", `${P}/sources/${recordId}/derived/text`);
+    const edited = await alice.api("PUT", `${P}/sources/${recordId}/derived/text`, { edits: [{ old_text: "by the week", new_text: "by the fortnight" }], expected_etag: cur.body.etag });
+    expect(edited.status).toBe(200);
+    expect((await alice.api("GET", `${P}/sources/${recordId}`)).body.warnings).toEqual([
+      "This source's derived text was written or edited, so it follows no attachment: the text read from pipeline-notes.md and pipeline.xlsx is kept but never searched, and a new version of one does not change the derived text. Take an attachment's text with derived(action=\"write_text\", from_attachment=…), passing the derived text's etag as expected_etag, only if it should replace the derived text.",
+    ]);
   });
 
   it("names each speaker in the derived text, so what someone said is found and read where they said it", async () => {
@@ -110,18 +215,25 @@ describe("what upload, read and search say about a source", () => {
     const ranged = await alice.api("POST", `${P}/sources/${recordId}/annotations`, { record_id: recordId, note: "A range.", seq_start: 0, seq_end: 2 });
     expect(ranged.status).toBe(422);
     expect(ranged.body.error.message).toContain("A comment is on the whole source: it takes no segment range.");
-    // A long archive reason is cut on a word boundary, with an ellipsis, in the activity log.
-    const reason = "The crews plan by hand on Fridays. ".repeat(10).trim();
+    // The archive reason is the person's words: it stays on the comment, and the log never quotes it.
+    const reason = "The crews plan by hand on Fridays, so this no longer holds.";
     const archived = await alice.api("PATCH", `${P}/annotations/${a.body.annotation_id}`, { expected_etag: a.body.etag, archived: true, archive_reason: reason });
     expect(archived.status).toBe(200);
+    expect(archived.body.archive_reason).toBe(reason);
     const log = await alice.api("GET", `${P}/activity?entity_id=${recordId}`);
     const comments = log.body.items.filter((i: { action: string }) => i.action.startsWith("note_")).map((i: { summary: string }) => i.summary);
-    expect(comments[1]).toBe("Added a comment");
-    const cut = (comments[0] as string).replace(/^Archived a comment: /, "");
+    expect(comments).toEqual(["Archived a comment", "Added a comment"]);
+    expect(JSON.stringify(log.body)).not.toContain("Fridays");
+  });
+
+  it("cuts a long text on a word boundary, with an ellipsis", () => {
+    const text = "The crews plan by hand on Fridays. ".repeat(10).trim();
+    const cut = truncateQuote(text, 200);
     expect(Array.from(cut).length).toBeLessThanOrEqual(200);
     expect(cut.endsWith("…")).toBe(true);
-    expect(reason.startsWith(cut.slice(0, -1))).toBe(true);
-    expect(reason[cut.length - 1]).toMatch(/\s/);
+    expect(text.startsWith(cut.slice(0, -1))).toBe(true);
+    expect(text[cut.length - 1]).toMatch(/\s/);
+    expect(truncateQuote("Short.", 200)).toBe("Short.");
   });
 });
 

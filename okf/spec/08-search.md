@@ -1,9 +1,9 @@
 ---
 type: Specification
 title: Search reads what a source says, its title, tags, summary, derived text, notes and comments, and never its attachments; it is lexical, bounded, and says exactly what it examined.
-description: The search operation as built (substring, ranked and plain modes, scopes, filters, hits with their field and offsets, coverage), the search index of a source's texts, earlier readings, and the planned semantic retrieval.
+description: The search operation as built (substring, ranked and plain modes, scopes, filters, hits with their field and offsets, every place in substring mode, coverage), the search index of a source's texts, earlier readings, and the planned semantic retrieval.
 tags: [spec, search, retrieval, coverage, index]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -23,23 +23,30 @@ It is lexical and says so. Semantic retrieval (§8.7) is planned, not built.
 
 ```
 search {
-  query:     string (1–500)                  // required
+  query:     string (1–500)                  // required, as typed: never trimmed
   mode?:     "substring" (default) | "ranked" | "plain"
   scope?:    "sources" (default) | "assumptions" | "all"
   record_id?, date_from?, date_to?, tags[]?,          // source filters
-  include_archived? (false), limit? (50, at most 200), cursor?
+  include_archived? (false), limit? (50 hits; 60 results in plain mode; at most 200), cursor?
   kind?, strict? (false)                              // plain mode only
 }
 ```
 
-Plain mode (§8.2) takes only `query`, `record_id`, `kind` and `strict`; any other filter with it
-(dates, tags, a cursor, `include_archived`, a `scope` other than `sources`), or `kind` or `strict`
-in another mode, is `422 invalid_filter`.
+Plain mode (§8.2) takes only `query`, `record_id`, `kind`, `strict` and `limit`; any other filter
+with it (dates, tags, a cursor, `include_archived`, a `scope` other than `sources`), or `kind` or
+`strict` in another mode, is `422 invalid_filter`.
 
 - One product per call. There is no cross-product search, and there will never be a
   cross-tenant one.
+- The query is used as it was sent, never trimmed: in substring mode its spaces are part of the
+  text it matches, and in plain mode a space at its end says the last word is finished (§8.2).
+  Ranked mode reads terms, so spaces around them change nothing. A query of nothing but spaces is
+  `422 invalid_input`.
 - `scope` says what is searched: `sources`, what the product's sources say; `assumptions`, their
-  statements and bodies; `all`, both. The `passages` scope is gone (`422 invalid_input`).
+  statements and bodies; `all`, both. The `passages` scope is gone (`422 invalid_input`). The
+  answer repeats it as `search_scope`, and over REST as `scope` too: over MCP, `scope` is where the
+  call ran, as on every product-scoped answer ([§6.5](06-operations-and-adapters.md)).
+  ◆ Decision: a second name rather than a rename, so no caller that reads `scope` over REST breaks.
 - Date and tag filters apply to sources: `date_from` and `date_to` bound the source's own date,
   and a source must carry every tag given. Combining them with `scope: "assumptions"` is
   `422 invalid_filter`. `record_id` keeps the search to that one source, so with it no
@@ -53,15 +60,22 @@ in another mode, is `422 invalid_filter`.
     matched words in substring mode, the piece that matched (§8.3) in ranked mode. So
     `derived.text { record_id, offset }` from a little before `char_start` reads the words around a
     hit in `text` ([§5.4](05-derived-layer.md)).
-  - `snippet` is at most 160 characters: around the match in substring mode, the start of the
+  - In substring mode every place the query occurs is a hit of its own, with its own offsets and
+    snippet; places do not overlap. In ranked mode a hit is a piece that matches.
+    ◆ Decision: every place, not one hit per piece at its first match, so a hit is always the
+    matched words and none is hidden behind another in its piece.
+  - `snippet` is at most 160 characters: around its own place in substring mode, the start of the
     piece in ranked mode. `score` comes in ranked mode.
   - Each source's `title`, `date`, `tags` and `archived_at` are sent once, in `records`.
   - Substring hits come by source, then by field in the order title, tags, summary, text, notes,
     comment, then by place; ranked hits by score.
 - Assumption hits come back as `assumptions` (id, statement, status, and score in ranked mode), at
   most `limit` of them.
-- Results are bounded and paged as everywhere ([§6.3](06-operations-and-adapters.md)): the
-  substring cursor is a keyset, the ranked one an offset.
+- Results are bounded and paged as everywhere ([§6.3](06-operations-and-adapters.md)): `limit`
+  counts hits. The substring cursor is a keyset of the last hit, its piece and its place there, so
+  a page may end inside a piece and the next one carry on in it; the ranked cursor is an offset. A
+  cursor search did not write (one changed by hand: a number that is not a whole one in range, a
+  NUL in a key) is `422 invalid_cursor`, refused before the database reads it.
 - The response carries a `coverage` object (§8.5).
 - Search is a read, and reads are never blocked by a quota ([§9.2](09-data-lifecycle.md)).
 
@@ -69,6 +83,9 @@ in another mode, is `422 invalid_filter`.
 
 - **`substring`** (the default): exact, case-insensitive substring match (`ILIKE`), indexed with
   `pg_trgm`. Right for identifiers, part numbers, and quotes where tokenization gets in the way.
+  The query is matched as typed: `%`, `_` and `\` in it are characters, never wildcards or an
+  escape. So is the `query` of every list that takes one (sources, assumptions, outcomes, a
+  sandbox's visitors), through one helper, `likeContaining` in `packages/core/src/util.ts`.
 - **`ranked`:** a small boolean grammar — terms, `"quoted phrases"`, `prefix*`, `AND`, `OR`, `NOT`
   and parentheses, adjacent terms implying AND, at most 64 tokens — compiled to a Postgres
   `tsquery` over the language-neutral `simple` configuration (no stemming), matched against a
@@ -89,7 +106,17 @@ in another mode, is `422 invalid_filter`.
   (`packages/core/src/plain-query.ts`):
   - each word matches at the start of a word, in any order; endings are forgiven by a small
     suffix-stripping stemmer whose root matches as a prefix ("pricing" finds price and priced), and
-    the last word, possibly still being typed, always matches as a prefix;
+    the last word, taken as still being typed, matches as a prefix even when it is short, unless the
+    query ends with a space;
+  - an id or a number, a word with a digit in it (`CB26-20734`, `2026-05-01`, `2026`), is one word
+    with its hyphens, matched as written: no ending is forgiven, and it is a prefix only while it
+    is being typed. It is matched as the database's parser stored it, which keeps `CB26-20734` as
+    `cb26` followed by `-20734`, so the number alone finds it too, and ends a number after a hyphen
+    before a letter, so `2026-05-01` is found in `2026-05-01T10:00` (a number alone runs on: `2020`
+    is not in `2020s`). One with a letter in it is found written as its words side by side too, in
+    order (`'q3-planning' | 'q3' <-> 'planning'`), so `q3-planning`, `covid-19` and `mid-2026` find
+    "Q3 planning", "COVID 19" and "mid 2026"; an id of digits alone, such as a date, is found only
+    as written. A hyphenated word without a digit ("follow-up") is its words;
   - `"quoted words"` match as a phrase; accents are folded; small words (the, of, how) are left out
     and listed in `ignored`, unless nothing else is left;
   - a kind word (`mockups`, `assumptions`, …) brings that kind first and is returned as
@@ -97,7 +124,8 @@ in another mode, is `422 invalid_filter`.
   - a word that matches nothing is replaced by the closest word the product holds (at most one
     edit, two for words of six letters or more, a transposition counting as one), taken from
     titles and from what the product's live sources say alike, by trigram; `corrections` lists
-    each `{ from, to }`, and `strict: true` turns this off.
+    each `{ from, to }`, and `strict: true` turns this off. An id or a number is never corrected,
+    nor offered as a correction: one digit away is another thing, not a typo.
 
   It searches sources (their title and tags, and the pieces of their summary, derived text, notes
   and comments, archived sources and comments left out), assumptions, outcomes (not archived),
@@ -111,8 +139,11 @@ in another mode, is `422 invalid_filter`.
   derived text comes first. Results are scored by how many of the words they hold, in the title
   above the body, with exact words, words side by side and a title equal to the query ranked
   higher. When anything holds every word, only those are returned; otherwise the ones holding the
-  most, with `partial: true` and each result's `missing` words. At most 60 results, the best first;
-  `counts` counts every match, so a caller can say when more matched than came back. The response
+  most, with `partial: true` and each result's `missing` words. At most `limit` results (60 unless
+  the call says, at most 200), the best first; `counts` counts every match, so a caller can say
+  when more matched than came back. Sources are built from the 400 best pieces that hold any of
+  the words (200 with `record_id`) and from their titles and tags; a source whose matching pieces
+  all lie beyond those is still counted, by what its pieces hold, in the database. The response
   is `{ mode, query, terms, ignored, kind_hint, corrections, partial, counts, hits_matched,
   results }`, where `hits_matched` counts the pieces of those summaries, derived texts, notes and
   comments that hold any of the words;
@@ -174,8 +205,11 @@ Search must never claim to have examined what it did not.
   comments of 3 sources, and the derived text of the 2 that have one. No derived text: 1 is a
   recording with no transcript (add the transcript as an attachment). Attachments are never
   searched." The reasons are: still being read; no attachment yet; an attachment whose text the
-  source does not use; a recording with no transcript; and only attachments that could not be
-  read (unsupported, too large or failed). The web app's Search does not show it.
+  source does not use; a recording with no transcript; pictures that are not read as text (a
+  source whose status is `unsupported` because each of its unread attachments is an image or a
+  PDF whose pages are pictures, which someone who can see them gives its words); and only
+  attachments that could not be read (unsupported, too large or failed). The web app's Search
+  does not show it.
 
 ## 8.6 Earlier readings
 

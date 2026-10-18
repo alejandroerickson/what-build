@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the assumption register, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -27,18 +27,36 @@ Every editable object carries:
 | `updated_at`, `updated_by` | Same, for the latest mutation. |
 | `archived_at` | Where the type supports archive (sources, annotations, outcomes, assumptions, Story pages, mockups). Archived objects are excluded from lists and search unless asked for, and remain readable by id. |
 
-**Concurrency.** Every update, review, link, single-object archive and restore, and every Story
-publish after a page's first version requires the current etag (`expected_etag` in the input, or
-`If-Match` in REST). Missing → `422`. Stale → `409 stale_etag`, with the current etag in
-`details.current_etag` so a caller can re-read and retry deliberately. Creates take no etag;
-neither do the batch `sources.archive` / `sources.restore`. A source's etag also changes when an
-attachment is added (`complete_upload` returns the new one as `record_etag`). Reading an
-attachment, which no caller does, does not change it, so an etag never goes stale while the worker
-runs; nor do the source's summary, notes, comments and derived text, which are written apart from
-it. The derived text has an etag of its own, which `derived.write_text` takes as an optional
-`expected_etag` and which a reading that replaces the text changes
-([§5.4](05-derived-layer.md)). Check-and-write is atomic: the row is locked (`SELECT … FOR UPDATE`)
-in the same transaction.
+**Concurrency.** Every update, review, link, single-object archive and restore requires the
+current etag (`expected_etag` in the input, or `If-Match` in REST). Missing → `422`. Stale →
+`409 stale_etag`, with the current etag in `details.current_etag` so a caller can re-read and retry
+deliberately. Creates take no etag; neither do the batch `sources.archive` / `sources.restore`,
+adding an attachment or a new version of one (each is kept beside the others), asking for one to
+be read again (`derived.rederive`), and changes to access (`members`, a sandbox's invitations and
+visitors).
+
+**A write that may create what it writes** takes no etag the first time, and the current one
+once the object exists
+([decision](../decisions/a-write-that-may-create-its-object-needs-its-etag-once-it-exists.md)): a
+source's summary and notes (`derived.write_note`, §4.6) and its derived text
+(`derived.write_text`, [§5.4](05-derived-layer.md)), a Story page's next version (`story.publish`,
+`story.promote_mockup`) and its notes (`story.write_notes`), the Story's style and hierarchy
+(§4.11), a mockup's next version (`mockups.publish`, §4.12) and an organization allowance
+(`products.set_tenant_allowance`). Once the object exists, a missing etag is `409 stale_etag` as
+well, not `422`, with `current_etag` and a message saying which etag to pass and where to read it;
+clearing or removing is a write like any other. Where an object's etag sits beside another's (a
+source's summary, notes and derived text beside the source's own; a page's notes beside the
+page's), sending the other's current etag is recognised and named; an older one is refused as not
+the current etag. A summary, notes or derived text someone removed has nothing to match: an etag
+sent for it is refused the same way, with `current_etag: null`, saying to leave it out for the
+first write.
+
+A source's etag also changes when an attachment is added (`complete_upload` returns the new one
+as `record_etag`). Reading an attachment, which no caller does, does not change it, so an etag
+never goes stale while the worker runs; nor do the source's summary, notes, comments and derived
+text, each written apart from it under an etag of its own. A reading that replaces the derived
+text changes the text's etag ([§5.4](05-derived-layer.md)). Check-and-write is atomic: the row is
+locked (`SELECT … FOR UPDATE`) in the same transaction.
 
 **Unknown fields are rejected** (`422 invalid_input`), in every input, at every depth: every input
 schema is a strict Zod object.
@@ -157,9 +175,13 @@ A source is one discovery event or document. It is stored as a **record**, so it
   recording or timed transcript among the attachments), `status_detail`, `annotation_count` and
   `warnings`) and `full` (adds `copied_from`, `pending_upload_path`, the `attachments` (§4.5), the
   derived text's `text: { chars, etag, updated_at, updated_by, taken_from }` or `null`, the
-  comments, and which of its summary and notes exist). Neither includes file bytes or the text
-  itself. `warnings` says when an attachment has text the source does not use, so search finds the
-  source only by its title, tags, summary, notes and comments.
+  comments, and the summary and notes it has, as `agent_notes: [{ kind, etag, updated_at,
+  updated_by }]`, each etag the one `derived.write_note` takes, §4.6). Neither includes file bytes
+  or the text itself. `warnings` names the attachments with text that the derived text does not
+  use, which search never reads (whether the text is taken from another attachment or was written
+  or edited), and says when the source has no derived text though an attachment has text, so
+  search finds the source only by its title, tags, summary, notes and comments. An attachment with
+  no text (a recording, an image) is not named.
 - **Duplicates are warned about, not refused.** `sources.create` and `attachments.create_upload`
   return a warning naming any live source in the product with the same title (ignoring case and
   surrounding space) and date.
@@ -172,8 +194,8 @@ folder and no organization field
 
 - A tag says what the material is (`interview`, `workshop`, `deck`, `analysis`), whom it concerns
   (an organization, a segment) or what it bears on. Tags are free text and describe discovery
-  work, never a built-in classification. Derived material is tagged `view`, `analysis` or `digest`
-  (§4.9).
+  work, never a built-in classification. Derived material is tagged `analysis` (or `view`,
+  `digest`) (§4.9).
 - `sources.facets` lists what sources can be filtered by: `tags`, the tags in use with the number
   of sources carrying each, most used first and then A to Z (at most 500; `tags_truncated` says the
   list stopped), and `added_by`, each person who added sources (`account_id`, `display_name` as
@@ -212,7 +234,7 @@ each attachment as:
 | `media_type`, `size`, `sha256` | Of its current version, taken from the stored object, never from caller claims. |
 | `file_version_id`, `versions` | Its current version, and every version, newest first, each `{ file_version_id, size, media_type, created_at, created_by }`. Uploading to an existing `path` adds a version; earlier versions stay retrievable. |
 | `added_at`, `added_by` | |
-| `text` | How its current version was read: `{ status, status_detail, chars, duration_ms, parser, derivation_id, read_at }`. `status` is `pending` until it has been read, then the reading's: `ready`, `needs_transcript`, `unsupported`, `too_large` or `failed` ([§5.5](05-derived-layer.md)). |
+| `text` | How its current version was read: `{ status, status_detail, chars, duration_ms, parser, derivation_id, read_at }`. `status` is the reading's: `ready`, `needs_transcript`, `unsupported`, `too_large` or `failed` ([§5.5](05-derived-layer.md)). Before it is read, it is what the attachment's name, type and size already settle (`unsupported`, `needs_transcript` or `too_large`, with `derivation_id` null), else `pending`. A recording's `status_detail` says, beside the source's derived text, where that text comes from. |
 | `is_text_source` | True while the source's derived text is still this attachment's text. |
 
 - **Every version of every attachment is read** when it arrives, and what was read is kept with it
@@ -224,6 +246,8 @@ each attachment as:
   `derived_from`, `derivation_note` or `derived_by` is refused with `422 invalid_input` and a hint
   that attachments have none.
 - A recording is stored and playable, never transcribed: its transcript is another attachment.
+  An image, and a PDF whose pages are pictures, is stored and shown, and no words are read from
+  it: an agent that can see it writes them as the source's derived text.
 
 Default limits: **100 MB per attachment** (`WHATBUILD_FILE_MAX_BYTES`), 25 MiB through the
 service's own relay, **50 attachments per source** (`409 too_many_attachments`), and 25 MiB read
@@ -242,7 +266,7 @@ anchored to any part of the source's text
 | `annotation_id`, `record_id` | |
 | `note` | Markdown, 1–2,000 chars. |
 | `tags` | As sources. |
-| `archive_reason` | Optional, ≤ 500 chars: why the comment was archived. Given only with `archived: true`; restoring clears it. |
+| `archive_reason` | Optional, ≤ 500 chars: why the comment was archived. Given only with `archived: true`; restoring clears it. It stays with the comment: the activity log records that a comment was archived, never why (§4.10). |
 
 Editable (text only, keeping revisions), archivable. `sources.annotate` refuses a segment range
 (`seq_start`, `seq_end`) with `422 invalid_input`, saying a comment is on the whole source.
@@ -250,8 +274,13 @@ Comments are searched with the rest of the source; an archived one is not
 ([§8](08-search.md)).
 
 A source also has at most one **summary** and one set of **notes**, each Markdown up to 100,000
-chars, written with `derived.write_note` (`note_kind` `summary` or `notes`; empty content removes
-it) and read with `derived.read_note`. People write and edit both in the web app, and agents
+chars, written with `derived.write_note { record_id, note_kind, content, expected_etag? }`
+(`note_kind` `summary` or `notes`; empty content removes it) and read with `derived.read_note`,
+which answers `{ record_id, note_kind, content, etag, updated_at, updated_by }`, or `404` when
+there is none. Each has an etag of its own, apart from the source's: the first write takes none,
+and once there is one, replacing or clearing it takes its current etag (§4.1). `write_note`
+answers `{ record_id, note_kind, chars, etag, updated_at }`, with `etag: null` once cleared; the
+time it answers with is the time it stored. People write and edit both in the web app, and agents
 through the same operations; each records who wrote it last and when. Both are searched.
 
 - The **summary** is the part of a source people read: it heads the source's page, whole, and
@@ -266,15 +295,18 @@ through the same operations; each records who wrote it last and when. Both are s
 Both are someone's reading of the source; its words are its derived text
 ([§5.4](05-derived-layer.md)). There is no outline: migration
 `0029_simplify_source_details.sql` deleted the agent outlines a product held, and dropped the
-comments' segment ranges and anchors, keeping their text.
+comments' segment ranges and anchors, keeping their text; `note_kind` `outline` is refused
+(`422 invalid_input`) with a hint naming the summary and notes. Migration
+`0031_summaries_and_notes_have_etags.sql` gave every summary and note an etag, live and in saved
+sandbox baselines, so a reset puts each back with the etag it was saved with.
 
 ## 4.7 Evidence links
 
-Writing may mention a source in prose by its id ("source 01K…"). The web app renders such a
-mention in Markdown as an evidence link that reads as the source's title and opens the source
-([`apps/web/src/lib/markdown.tsx`](../../apps/web/src/lib/markdown.tsx)). A source has no
-passages to point at: a mention written while it had ("source 01K…, segments 4–6") opens the
-source too, and its numbers are left out. A link is presentation
+Markdown may link to a source, at its address (`…/evidence/<record_id>`); the web app sets such a
+link as an evidence link, a quiet token that opens the source
+([`apps/web/src/lib/markdown.tsx`](../../apps/web/src/lib/markdown.tsx)). A source mentioned in
+prose by its id alone ("source 01K…") stays as written, and so does one written while sources had
+passages ("source 01K…, segments 4–6"). A link is presentation
 only. Nothing structural points from an assumption, a Story page, a mockup or another source to a
 source, and nothing records what mentions what: what bears on a piece of work is found by
 searching the product ([§8](08-search.md),
@@ -319,7 +351,7 @@ List items carry the entry's state without a `get` per entry: `status`, `frozen`
 `superseded_by`, `link_count` (links out), `linked_from_count` (links in), `review_count`,
 `human_review` and `archived_outcome_ids`. The list filters by one or more statuses; without
 one it returns the current entries (unconfirmed and confirmed), so it agrees with the counts on
-products and outcomes and with the register's default view, and says in `not_current_hidden` how
+products and with the register's default view, and says in `not_current_hidden` how
 many refuted or superseded entries it left out.
 
 An assumption names no source structurally: its body says, in words, what it rests on, and an
@@ -342,6 +374,8 @@ or "a source no longer in WhatBuild". Those entries took a new etag; their statu
 - `confidence` (`low`, `medium`, `high`) is accepted only when `reviewer_type = human`; otherwise
   `422 confidence_requires_human`. Lists filter by the latest human confidence.
 - Reviews are never edited or removed. A changed mind is a new review.
+- The review `supersede` records on the old entry (below) takes `reviewer_type` the same way, with
+  the same default, so a correction an agent relays from the person is recorded as the person's.
 
 ### Corrections and links
 
@@ -357,8 +391,8 @@ or "a source no longer in WhatBuild". Those entries took a new etag; their statu
 
 ## 4.9 Views
 
-A **view** is a document built from other material and stored as a source tagged `view` (or
-`analysis`, `digest`): something produced *from* other sources. It says in its own text what it was built from and when. WhatBuild keeps no record of a view's
+A **view** is a document built from other material and stored as a source tagged `analysis` (or
+`view`, `digest`), as the insights moved into Evidence are: something produced *from* other sources. It says in its own text what it was built from and when. WhatBuild keeps no record of a view's
 inputs and does not report when they change; an agent builds a view again when the person wants it
 current ([decision](../decisions/evidence-is-searched-not-cited.md)). A view is never presented
 as direct evidence.
@@ -378,10 +412,16 @@ An append-only event log, written in the same transaction as the mutation that c
 | `summary` | ≤ 280 chars, generated: "Marked confirmed with high confidence", "Read the text of call.vtt; it is the source’s derived text" (never the parser's name or version, which the reading's manifest holds), "Edited the derived text", "Added a comment". |
 
 - **It never contains content.** No bodies, no source text, no HTML, no email addresses. The
-  summary names objects; it does not quote them.
+  summary names objects; it does not quote them. An archived comment's entry once ended with the
+  reason it was archived ("Archived a comment: …"); `activity.list` reads such an entry without it,
+  as it reads an old parse entry without the parser's label, though the stored row, and so an
+  export's `activity.jsonl`, still holds it.
 - `activity.list` filters by `entity_type`, `entity_id`, `actor`, `channel`, `by` (`people` for
-  the app and the REST API, `agents` for MCP) and `since`, with the usual bounds. Every role on the
-  product can read it.
+  the web app, and for the REST API in entries from when personal tokens reached it; `agents` for
+  MCP; what WhatBuild does by itself, which has no channel, is in neither) and `since`, with the
+  usual bounds. `entity_type` offers exactly the kinds of object a product's log has entries about
+  ([§6.4](06-operations-and-adapters.md)). Every role on the product but a reader, who reads only
+  the Story, can read it.
 - Events are immutable and are retained for the life of the tenant, with one exception: when an
   insight or a decision became a source (§4.7), its events were relabelled as the source's. They
   are included in a product export.
@@ -408,7 +448,9 @@ version is immutable: `version` (1, 2, 3…), `title`, `summary` (describes the 
 recognised without reading it). Readers see the latest version; any version
 can be read by number. Limit: 50 pages per product (`409 quota_exceeded`). Agents write pages; agents
 and people arrange, archive and restore them, and admins delete them
-([decision](../decisions/agents-write-the-story-people-arrange-it.md)).
+([decision](../decisions/agents-write-the-story-people-arrange-it.md)). `story.list_pages` leaves
+archived pages out unless `include_archived`, and says how many it left out (`archived_hidden`, with
+a `note` when there are any); a reader is given neither the archived pages nor their count.
 ◆ Decision: a version has no change note. What changed is in the activity log, and an agent's
 working context is in the page's notes. The `story_versions.note` column stays for versions
 published before the note was removed, and is neither written nor returned; a product export
@@ -548,7 +590,10 @@ one HTML document for a browser to print to PDF ([§6.4](06-operations-and-adapt
 
 `set_hierarchy` takes the hierarchy's etag as `expected_etag`. Before the first save there is none
 (`get_hierarchy` gives `etag: null`), and `expected_etag` is null or left out; once saved, leaving
-it out is `409 stale_etag`, saying to read `get_hierarchy` and pass its etag.
+it out is `409 stale_etag`, saying to read `get_hierarchy` and pass its etag. A page that was never
+published, or is archived, is refused too (`422 invalid_hierarchy`, with `details.unpublished` or
+`details.archived`), and the refusal says what to do: publish it, or restore it, first, or leave
+it out.
 
 Every published page appears exactly once, in the tree or among the Published mockups
 ([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)).
@@ -589,9 +634,14 @@ with `.tag`, `dl.facts` and `nav.pages`; and for evidence and what changes `div.
 `figure.shot` with `.screen`, `.pin` and `ol.pins`), so content moves between styles unchanged;
 `BASE` in `house-styles/kit.ts` gives every style the vocabulary's structure, and each adds
 signature moves of its own. They also set what a browser draws for itself: the selection, the
-scrollbar, the focus ring, and where a printed page may break. A product that adopted a house
-style since removed keeps its copy: it reads as a house style with its `based_on` id and no
-`based_on_name`, and an agent can still change or replace it.
+scrollbar, the focus ring, and where a printed page may break. A tally is never wider than the
+block it sits in: its marks, its fill and its height are shares of the width it gets, so on a
+phone or in a column every mark shows and exactly `--n` of them are filled. A product that adopted
+a house style since removed keeps its copy: it reads as a house style with its `based_on` id and
+no `based_on_name`, and an agent can still change or replace it. Its stylesheet predates the
+current vocabulary, so `story.get_style` (and `story.guidance`, where it reports the product's
+style) gives it a `note` saying that blocks added since may render unstyled, and that adopting a
+current house style and publishing each page with `restyle` moves it to a current base.
 
 **Carried typefaces** ([`story-fonts.ts`](../../packages/core/src/story-fonts.ts),
 [decision](../decisions/story-pages-name-typefaces-the-server-carries.md)): Archivo (with its
@@ -610,13 +660,17 @@ layout, adapt, polish), a push to use a design skill such as Impeccable when the
 to mention it once when it does not, the sandbox rules, recipes, writing rules and a checklist.
 It carries no stylesheet of its own and nothing of the app's look; `house_style` returns that
 style in full with a starter page, and `product_style` says whether the product has a style yet.
-The writing guidance asks for pages that explain in their own words and quote a person only where
-their exact words matter, attributed in words, with no source reference or link to the evidence
-after each claim ([decision](../decisions/evidence-is-searched-not-cited.md)); source-level quoting rules
-honoured (attribution by role where a source limits naming people, looked for before the first
-page), derived views labelled as analysis rather than evidence, a plan's dates presented as the
-team's plan with their origin kept in the page's notes, and pages placed in the hierarchy unless
-the author's instructions say otherwise. A first version that
+The writing guidance says what the Story is for: the team's own communication with the people it
+works with (what to build and why, the pitch, the plan, where things stand, or whatever else the
+team wants its stakeholders to read), not a quoted or cited record of how decisions were reached.
+It sets no rule about how a page quotes, paraphrases, attributes or links what is in the product
+([decision](../decisions/evidence-is-searched-not-cited.md)): `links` gives a template for a link
+to a source, the outcomes, an assumption, a mockup and a Story page, and `links_note` says who can
+follow each (everyone on the team; a reader only Story pages and links outside WhatBuild). It keeps
+what a page must not misstate: no person, date, quotation, count, measurement or decision the
+sources do not establish, interpretation labelled as such, a plan's dates presented as the team's
+plan with their origin kept in the page's notes; and it asks for pages placed in the hierarchy
+unless the author's instructions say otherwise. A first version that
 omits both `body` and `html` gets a generated title page in the product's Story style, or a plain
 page when there is none.
 
@@ -845,8 +899,9 @@ client registered) or the `screen`, and `reply_to` only when the person shared t
 `submitted_by` holds who sent a report made before this, and is null since. One person, with their
 agents, sends at most 10 a UTC day (`feedback_counts`, a count per account and day that never says
 which reports, deleted once the day is over), and a deployment takes at most 200 a day; past
-either, `429 rate_limited`. An agent connection whose person turned feedback off is refused with
-`403 feedback_off` ([§3.8](03-accounts-teams-and-identity.md#38-identity-of-the-caller)).
+either, `429 rate_limited`, whose message gives the moment the next UTC day begins (midnight UTC),
+when the allowance starts again; its `details` hold only the `limit`. An agent connection whose
+person turned feedback off is refused with `403 feedback_off` ([§3.8](03-accounts-teams-and-identity.md#38-identity-of-the-caller)).
 
 **The digest.** With `WHATBUILD_FEEDBACK_EMAIL` set and mail configured, the worker mails what is
 unsent (`sent_at` null) to that address in one plain-text message, at most 100 reports, at most once
@@ -866,8 +921,13 @@ write-only like feedback
 
 ## 4.14 The product bundle
 
-A product exports to a single ZIP (`products.export`, open to every role on the product). A worker
-job builds it; it can be downloaded for seven days ([`export.ts`](../../packages/core/src/ops/export.ts)).
+A product exports to a single ZIP (`products.export`, open to every role on the product but a
+reader, who reads only the Story; a public sandbox limits what its visitors export,
+[§9.7](09-data-lifecycle.md)).
+A worker job builds it; it can be downloaded for seven days ([`export.ts`](../../packages/core/src/ops/export.ts)).
+Its README.txt names every kind of file below and what each holds, and `bundle.json`'s `layout`
+lists their paths; both are made from one list (`BUNDLE_LAYOUT`), which a test holds to what an
+export writes.
 
 ```
 bundle.json                 format (whatbuild-product-bundle) and format version (2), exported_at/by,
@@ -879,9 +939,10 @@ records/<record_id>/text.md                      the source's derived text, when
 records/<record_id>/attachments/<file_version_id>/<path>   every version of every attachment
 records/<record_id>/derived/<derivation_id>/{text.md,manifest.json}   every reading (and segments.jsonl, in one made while sources had passages)
 records/<record_id>/annotations.json · agent-notes/{summary,notes}.md
-assumptions.json            with their reviews
+assumptions.json            with their reviews (every column but the search vector)
 revisions.json
-story/hierarchy.json  ·  story/pages/<page_id>/page.json  ·  story/pages/<page_id>/v<n>.{json,html}
+story/hierarchy.json  ·  story/style.{json,css} (when the product has a Story style)
+story/pages/<page_id>/page.json  ·  story/pages/<page_id>/v<n>.{json,html}
                             (a version that shows a mockup page has no .html; its JSON names the page)
 mockups/<mockup_id>/mockup.json
 mockups/<mockup_id>/v<n>/{version.json,brief.md}  ·  mockups/<mockup_id>/v<n>/pages/<page_id>.{html,notes.md}

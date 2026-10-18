@@ -4,7 +4,7 @@ import { api, qs } from "../lib/api.ts";
 import { actorName, fileTypeName, formatBytes, plural, relativeTime } from "../lib/format.ts";
 import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
-import { ATTACHMENT_TEXT } from "../lib/status.ts";
+import { ATTACHMENT_TEXT, pictureKind } from "../lib/status.ts";
 import type { Attachment, RecordFull } from "../lib/types.ts";
 import { Button, Dialog, EmptyState, ErrorCallout, Glyph, Loading, Menu, MenuItem, Sheet, SheetHeader, StatusBadge, useToast, type GlyphName } from "../ui/index.tsx";
 import { ImageViewer } from "./image-viewer.tsx";
@@ -45,11 +45,16 @@ function clockLength(ms: number) {
   return h ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
 }
 
-/** How an attachment's text was read, in a few words: "Text read · 12,345 characters", "Recording, 12:03 · no text". */
+/**
+ * How an attachment's text was read, in a few words: "Text read · 12,345 characters", "Recording,
+ * 12:03 · no text", "Image · no text", "Scan · no text" for a PDF whose pages are pictures.
+ */
 function textWords(a: Attachment): string {
   const t = a.text;
   if (t.status === "ready") return `Text read · ${t.chars.toLocaleString("en-GB")} characters`;
   if (t.status === "needs_transcript") return t.duration_ms ? `Recording, ${clockLength(t.duration_ms)} · no text` : "Recording · no text";
+  const picture = pictureKind(a);
+  if (picture) return picture === "image" ? "Image · no text" : "Scan · no text";
   return ATTACHMENT_TEXT[t.status]?.label ?? t.status;
 }
 
@@ -98,6 +103,8 @@ export function AttachmentsView({ record, onAdd }: { record: RecordFull; onAdd?:
             {record.attachments.map((a) => {
               const kind = previewKind(a);
               const tone = ATTACHMENT_TEXT[a.text.status]?.tone ?? "neutral";
+              // Pictures read no words, however often they are read: the badge says so, and the source's Text what to do.
+              const picture = pictureKind(a);
               return (
                 <li key={a.path} className="source-file">
                   <Glyph name={glyphOf(a)} />
@@ -120,7 +127,7 @@ export function AttachmentsView({ record, onAdd }: { record: RecordFull; onAdd?:
                         {` · added ${relativeTime(a.added_at)} by ${actorName(a.added_by)}`}
                       </span>
                     </span>
-                    {a.text.status_detail && a.text.status !== "ready" ? <span className="source-file-detail faint">{a.text.status_detail}</span> : null}
+                    {a.text.status_detail && a.text.status !== "ready" && !picture ? <span className="source-file-detail faint">{a.text.status_detail}</span> : null}
                   </span>
                   <span className="source-file-actions">
                     <a href={attachmentUrl(base, record.record_id, a.path, true)} className="icon-btn icon-btn-md" aria-label={`Download ${a.path}`} title={`Download ${a.path}`}>
@@ -138,7 +145,7 @@ export function AttachmentsView({ record, onAdd }: { record: RecordFull; onAdd?:
                             Use its text…
                           </MenuItem>
                         ) : null}
-                        {writable && a.text.status !== "pending" ? (
+                        {writable && a.text.status !== "pending" && !picture ? (
                           <MenuItem icon="rotate-ccw" detail="Its text is read again" onSelect={() => reread.mutate(a.path)}>
                             Read it again
                           </MenuItem>
@@ -249,7 +256,10 @@ function AttachmentPreview({ record, path, onSelect, onClose }: { record: Record
   );
 }
 
-/** Add attachments to a source: each is read when it arrives, and the first with text becomes the source's text if it has none. */
+/**
+ * Add attachments to a source, uploaded one after another in the order given: each is read when it
+ * arrives, and, if the source has no text, the first whose reading finds text becomes it.
+ */
 export function AddAttachments({ record, onClose }: { record: RecordFull; onClose: () => void }) {
   const { api: base } = useProduct();
   const qc = useQueryClient();
@@ -276,7 +286,7 @@ export function AddAttachments({ record, onClose }: { record: RecordFull; onClos
       description={
         record.text
           ? "Each attachment’s text is read and kept with the source. The source keeps its text; you can switch it to an attachment’s later."
-          : "Each attachment’s text is read and kept with the source. The first one whose text can be read becomes the source’s text."
+          : "Each attachment’s text is read and kept with the source. They’re read in the order listed, and the first in which WhatBuild finds text becomes the source’s text."
       }
       footer={
         <>

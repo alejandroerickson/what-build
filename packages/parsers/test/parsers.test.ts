@@ -1,11 +1,11 @@
 import { strToU8, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
-import { clock, derive, recordingDurationMs, sliceCodePoints, type ParseResult } from "../src/index.ts";
+import { clock, currentReading, derive, IMAGE_DETAIL, RECORDING_DETAIL, recordingDurationMs, SCAN_DETAIL, settledReading, sliceCodePoints, type ParseResult } from "../src/index.ts";
 import { bytesReader } from "../src/media.ts";
 import { splitLong } from "../src/text.ts";
-import { stripInlineMarkdown } from "../src/plaintext.ts";
-import { dateFormatOf } from "../src/xlsx.ts";
-import { makeDocx, makeDocxList, makeDocxParagraphs, makeFlac, makeMp3, makeMp4, makePdf, makeWav, makeXlsx, makeXlsxSheet, utf8 } from "./fixtures.ts";
+import { builtinFormat, formatNumber, formatText, readFormat } from "../src/numfmt.ts";
+import { stripInlineMarkdown, wraps } from "../src/plaintext.ts";
+import { makeDocx, makeDocxList, makeDocxParagraphs, makeFlac, makeMp3, makeMp4, makePdf, makeWav, makeWorkbook, makeXlsx, makeXlsxSheet, utf8 } from "./fixtures.ts";
 import { makeCompoundFile, makeWordDoc } from "./word-fixtures.ts";
 
 /** The offset invariant every derivation must hold: text[char_start:char_end] == segment.text, in code points. */
@@ -92,13 +92,15 @@ describe("plain text and Markdown", () => {
   });
 
   it("reads a Speaker: transcript one turn per segment, with speakers", async () => {
-    const t = "Interviewer: How do you plan?\nDana: Quarterly, then\nwe revise monthly.\nInterviewer: Who decides?\nDana: The ops lead.\n";
+    const t =
+      "Interviewer: How do you plan?\nDana: Quarterly, then we revise it monthly, every Friday afternoon with the\ncrew leads in the yard.\nInterviewer: Who decides?\nDana: The ops lead.\nWe all sign it off.\n";
     const r = await derive(utf8(t), "interview.txt");
     expect(r.segments.map((s) => [s.speaker, s.text])).toEqual([
       ["Interviewer", "How do you plan?"],
-      ["Dana", "Quarterly, then we revise monthly."],
+      // A line that wraps a sentence onto the next joins it; a line of its own stays one.
+      ["Dana", "Quarterly, then we revise it monthly, every Friday afternoon with the crew leads in the yard."],
       ["Interviewer", "Who decides?"],
-      ["Dana", "The ops lead."],
+      ["Dana", "The ops lead.  \nWe all sign it off."],
     ]);
   });
 
@@ -138,9 +140,10 @@ describe("plain text and Markdown", () => {
     expectOffsetsExact(r);
   });
 
-  it("splits plain-text bullets too", async () => {
+  it("keeps a plain-text list a list, under the line that introduces it", async () => {
     const r = await derive(utf8("Follow-ups:\n- call Dana\n- send the price sheet\n"), "note.txt");
-    expect(r.segments.map((s) => s.text)).toEqual(["Follow-ups:", "call Dana", "send the price sheet"]);
+    expect(r.markdown).toBe("Follow-ups:\n- call Dana\n- send the price sheet\n");
+    expectOffsetsExact(r);
   });
 
   it("renders a pipe table one row per segment with header pairs, dropping the rule", async () => {
@@ -666,10 +669,37 @@ describe("XLSX", () => {
       "[Register, row 3] Sample: KL-02 | Cu_pct: 0.9 | S_pct: (blank)",
       "[Register, row 4] Sample: NR | Cu_pct: (blank) | S_pct: (blank)",
     ]);
-    expect(r.parser_version).toBe("5");
+    expect(r.parser_version).toBe("6");
   });
 
-  it("renders numbers in date and time formats as ISO dates and times, and other numbers as numbers", async () => {
+  it("reads each value as its cell's number format shows it", async () => {
+    const r = await derive(
+      makeXlsxSheet(
+        [
+          ["Metric", "Change", "Share", "Ratio", "Revenue", "Margin", "Delta", "Status"],
+          ["Bookings", [0.14, 1], [0.256, 2], [2.9666666666666666, 3], [57700, 4], [-1234, 5], [-1234, 6], { text: "late", style: 7 }],
+          ["Churn", [-0.05, 1], [1, 2], [-0.0004, 3], [-57700, 4], [1234, 5], [1234, 6], "steady"],
+          ["Pipeline", [0, 1], [1234567, 8], [0.375, 9], [1234567, 10], [0, 11], [0.000123, 12], [45000, 0]],
+        ],
+        {
+          numFmts: ["+0.0%;-0.0%;0.0%", "0.000", '+"$"#,##0;-"$"#,##0', "#,##0;[Red]#,##0", '@" (est.)"', '#,##0.0,,"M"', "# ?/8", '_("$"* #,##0_);_("$"* \\(#,##0\\);_("$"* "-"_);_(@_)'],
+          xfs: [0, 164, 9, 165, 166, 37, 167, 168, 169, 170, 171, 171, 11],
+        },
+      ),
+      "metrics.xlsx",
+    );
+    expect(r.markdown).toBe(
+      "# Sheet: Register\n\n" +
+        "| Row | Metric | Change | Share | Ratio | Revenue | Margin | Delta | Status |\n" +
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n" +
+        // Signs as the format writes them, negatives in brackets or (shown only in red) with a minus.
+        "| 2 | Bookings | +14.0% | 26% | 2.967 | +$57,700 | (1,234) | -1,234 | late (est.) |\n" +
+        "| 3 | Churn | -5.0% | 100% | 0.000 | -$57,700 | 1,234 | 1,234 | steady |\n" +
+        "| 4 | Pipeline | 0.0% | 1.2M | 3/8 | $1,234,567 | $- | 1.23E-04 | 45000 |\n",
+    );
+  });
+
+  it("reads dates and times as the format shows them, and the locale's own formats in ISO 8601", async () => {
     const r = await derive(
       makeXlsxSheet(
         [
@@ -687,9 +717,39 @@ describe("XLSX", () => {
     expect(r.segments.map((s) => s.text)).toEqual([
       "# Sheet: Register",
       "[Register, row 1] Permit | Granted | Expiry | Checked | Meeting | Lead time | Logged | Renewed | Share",
-      "[Register, row 2] Permit: EL 101 | Granted: 2019-04-10 | Expiry: 2026-04-10 | Checked: 2026-02-02 12:00 | Meeting: 13:30 | Lead time: 12.5 | Logged: 30:00:00 | Renewed: 2026-03-05 | Share: 0.25",
-      "[Register, row 3] Permit: EL 102 | Granted: 1900-01-01 | Expiry: 1900-02-29 | Checked: 1900-03-01 | Meeting: -3 | Lead time: 0.5 | Logged: 2026-04-10 | Renewed: 45000 | Share: 2023-01-01 18:00:00",
+      // 14 and 22 are the locale's short date and date and time, which the file does not record: ISO 8601.
+      "[Register, row 2] Permit: EL 101 | Granted: 2019-04-10 | Expiry: 2026-04-10 | Checked: 2026-02-02 12:00 | Meeting: 13:30 | Lead time: 12.5 days | Logged: 30:00:00 | Renewed: 5 Mar 2026 | Share: 25.00%",
+      // A negative date, and a day before the 1900 system's first, read as numbers.
+      "[Register, row 3] Permit: EL 102 | Granted: 1900-01-01 | Expiry: 1900-02-29 | Checked: 1900-03-01 | Meeting: -3 | Lead time: 0.5 | Logged: 2026-04-10 | Renewed: 45000 | Share: 01/01/2023 06:00:00 PM",
     ]);
+  });
+
+  it("shows a time under one day in a date and time format as the time alone, as the 1900 system has no day 0", async () => {
+    const r = await derive(
+      makeXlsxSheet([["Crew", "Starts", "Ends", "Break", "Logged", "Day"], ["North", [0.5, 1], [0.75, 2], [0.25, 3], [0.5, 4], [0.5, 5]]], {
+        numFmts: ["m/d/yyyy h:mm", "yyyy-mm-dd hh:mm", "dd/mm/yyyy\\ h:mm AM/PM", "yyyy-mm-dd"],
+        xfs: [0, 164, 165, 166, 22, 167],
+      }),
+      "shifts.xlsx",
+    );
+    // A date alone has nothing to show for it, and reads as a number.
+    expect(r.segments.slice(2).map((s) => s.text)).toEqual(["[Register, row 2] Crew: North | Starts: 12:00 | Ends: 18:00 | Break: 6:00 AM | Logged: 12:00 | Day: 0.5"]);
+    // From day 1 on, the date and the time.
+    expect(formatNumber(readFormat("m/d/yyyy h:mm"), 1.5, false)).toBe("1/1/1900 12:00");
+    // In the 1904 system, day 0 is a date.
+    expect(formatNumber(readFormat("yyyy-mm-dd hh:mm"), 0.75, true)).toBe("1904-01-01 18:00");
+  });
+
+  it("takes a date alone from the day its serial falls in, and rounds only a time it shows", () => {
+    // 45658.9999999 is 2025-01-01 at 23:59:59.991: that day under a date alone, as SheetJS shows it.
+    expect(formatNumber(readFormat("yyyy-mm-dd"), 45658.9999999, false)).toBe("2025-01-01");
+    expect(formatNumber(readFormat("d-mmm-yy"), 45658.9999999, false)).toBe("1-Jan-25");
+    expect(formatNumber(builtinFormat(14)!, 45658.9999999, false)).toBe("2025-01-01");
+    // A time rounds to the finest part it shows, into the next day.
+    expect(formatNumber(readFormat("yyyy-mm-dd hh:mm"), 45658.9999999, false)).toBe("2025-01-02 00:00");
+    expect(formatNumber(builtinFormat(22)!, 45658.9999999, false)).toBe("2025-01-02 00:00");
+    // A serial a float's error short of midnight is that midnight.
+    expect(formatNumber(readFormat("yyyy-mm-dd"), 45658.9999999999, false)).toBe("2025-01-02");
   });
 
   it("counts dates from 1904 when the workbook uses the 1904 date system", async () => {
@@ -697,18 +757,89 @@ describe("XLSX", () => {
     expect(r.segments.slice(2).map((s) => s.text)).toEqual(["[Register, row 2] Permit: EL 101 | Expiry: 2026-04-10", "[Register, row 3] Permit: EL 102 | Expiry: 1904-01-01"]);
   });
 
-  it("tells date formats from number formats", () => {
-    expect(dateFormatOf("General")).toBeUndefined();
-    expect(dateFormatOf("#,##0.00")).toBeUndefined();
-    expect(dateFormatOf('0" days"')).toBeUndefined();
-    expect(dateFormatOf("0.00E+00")).toBeUndefined();
-    expect(dateFormatOf("[Red]0.0%")).toBeUndefined();
-    expect(dateFormatOf("_-* #,##0_-;-* #,##0_-")).toBeUndefined();
-    expect(dateFormatOf("mmm-yy")).toMatchObject({ date: true, time: false });
-    expect(dateFormatOf("h:mm AM/PM")).toMatchObject({ date: false, time: true, seconds: false });
-    expect(dateFormatOf("mm:ss")).toMatchObject({ date: false, time: true, seconds: true });
-    expect(dateFormatOf('yyyy-mm-dd"T"hh:mm')).toMatchObject({ date: true, time: true, seconds: false });
-    expect(dateFormatOf("[h]:mm")).toMatchObject({ elapsed: "h" });
+  it("applies a format's parts: thousands, scaling, decimals, exponents, fractions, conditions, text and dates", () => {
+    const shown = (code: string, v: number | string) => {
+      const f = readFormat(code);
+      return typeof v === "string" ? formatText(f, v) : formatNumber(f, v, false);
+    };
+    expect(shown("#,##0.00", -1234.5)).toBe("-1,234.50");
+    expect(shown("#,##0,", 1234567)).toBe("1,235");
+    expect(shown("0.0#", 1.5)).toBe("1.5");
+    expect(shown("#.00", 0.5)).toBe(".50");
+    expect(shown("0.00", -0.001)).toBe("0.00");
+    expect(shown("00000", 123)).toBe("00123");
+    expect(shown("(000) 000-0000", 5551234567)).toBe("(555) 123-4567");
+    expect(shown("0.00E+00", 99999)).toBe("1.00E+05");
+    expect(shown("##0.0E+0", 12345)).toBe("12.3E+3");
+    expect(shown("# ?/?", 1.5)).toBe("1 1/2");
+    expect(shown('[>=1000000]0.0,,"M";[>=1000]0.0,"K";0', 1500)).toBe("1.5K");
+    expect(shown('[>=1000000]0.0,,"M";[>=1000]0.0,"K";0', -12)).toBe("-12");
+    expect(shown("[$€-407]#,##0.00", 1234.5)).toBe("€1,234.50");
+    expect(shown("#,##0;#,##0", -1234)).toBe("1,234");
+    expect(shown('0;-0;0;"Name: "@', "Dana")).toBe("Name: Dana");
+    expect(shown("@", 12)).toBeUndefined();
+    expect(shown("dddd, mmmm d, yyyy", 46086)).toBe("Thursday, March 5, 2026");
+    expect(shown("dd.mm.yy", 46086)).toBe("05.03.26");
+    expect(shown("h:mm AM/PM", 0.5625)).toBe("1:30 PM");
+    expect(shown("hh:mm:ss.000", 0.5000057870370371)).toBe("12:00:00.500");
+    expect(shown("yyyy-mm-dd", -3)).toBeUndefined();
+    expect(shown("[$-F800]dddd, mmmm dd, yyyy", 46086)).toBe("2026-03-05");
+    expect(formatNumber(builtinFormat(14)!, 46122.25, false)).toBe("2026-04-10");
+    // A code longer than Excel takes is read as General.
+    expect(shown("0".repeat(300), 12.5)).toBe("12.5");
+  });
+
+  it("reads hidden sheets, columns and rows, and says they are hidden", async () => {
+    const r = await derive(
+      makeWorkbook([
+        { name: "Plan", rows: [["Crew", "Lead", "Rate"], ["North", "Dana", [42, 0]], ["South", "Sam", [38, 0]], ["East", "Priya", [40, 0]]], hiddenRows: [3], hiddenColumns: ["C"] },
+        { name: "Workings", state: "hidden", rows: [["Note", "Owner"], ["Rates from the 2026 card", "Sam"]] },
+      ]),
+      "plan.xlsx",
+    );
+    expect(r.markdown).toBe(
+      "# Sheet: Plan\n\n| Row | Crew | Lead | Rate (hidden) |\n| --- | --- | --- | --- |\n| 2 | North | Dana | 42 |\n| 3 (hidden) | South | Sam | 38 |\n| 4 | East | Priya | 40 |\n\n" +
+        "# Sheet: Workings (hidden)\n\n| Row | Note | Owner |\n| --- | --- | --- |\n| 2 | Rates from the 2026 card | Sam |\n",
+    );
+    expect(r.facts).toMatchObject({ sheet_count: 2, hidden_sheets: ["Workings"], hidden_rows: 1, hidden_columns: 1 });
+  });
+
+  it("reads a value its format shows as nothing as General, and says it is hidden, but a zero as the blank it shows", async () => {
+    const r = await derive(
+      makeXlsxSheet(
+        [
+          ["Crew", "Rate", "Delta", "Note", "Spare", "Reserve"],
+          ["North", [42, 1], [-5, 2], { text: "Owner only", style: 1 }, [0, 3], [0, 1]],
+          ["South", [38, 0], [5, 2], { text: "Shown", style: 0 }, [0, 4], [12, 3]],
+        ],
+        // ;;; shows nothing at all and 0;;0 nothing for a negative; 0;-0;;@ and #,##0;(#,##0); show a zero as a blank.
+        { numFmts: [";;;", "0;;0", "0;-0;;@", "#,##0;(#,##0);"], xfs: [0, 164, 165, 166, 167] },
+      ),
+      "rates.xlsx",
+    );
+    expect(r.segments.slice(2).map((s) => s.text)).toEqual([
+      "[Register, row 2] Crew: North | Rate: 42 (hidden) | Delta: -5 (hidden) | Note: Owner only (hidden) | Spare: (blank) | Reserve: (blank)",
+      "[Register, row 3] Crew: South | Rate: 38 | Delta: 5 | Note: Shown | Spare: (blank) | Reserve: 12",
+    ]);
+    // A zero shown as a blank hides nothing, so it is not counted.
+    expect(r.facts["hidden_values"]).toBe(3);
+  });
+
+  it("says a formula was saved without its value, rather than reading it as 0", async () => {
+    const r = await derive(
+      makeXlsxSheet([
+        ["Item", "Cost", "Total", "Label", "Check"],
+        ["Vans", [1200, 0], { formula: "B2*12", value: "" }, { formula: 'A2&""', value: "", type: "str" }, { formula: "B2>1000", value: "1", type: "b" }],
+        ["Fuel", [300, 0], { formula: "SUM(B2:B3)" }, { formula: "A3", value: "Fuel", type: "str" }, { formula: "B3>1000", value: "0", type: "b" }],
+      ]),
+      "costs.xlsx",
+    );
+    expect(r.segments.slice(2).map((s) => s.text)).toEqual([
+      // A string formula whose value is empty has a value, the empty string.
+      "[Register, row 2] Item: Vans | Cost: 1200 | Total: =B2*12 (no stored value) | Label: (blank) | Check: TRUE",
+      "[Register, row 3] Item: Fuel | Cost: 300 | Total: =SUM(B2:B3) (no stored value) | Label: Fuel | Check: FALSE",
+    ]);
+    expect(r.facts["formulas_without_values"]).toBe(2);
   });
 });
 
@@ -721,10 +852,12 @@ describe("PDF", () => {
     expectOffsetsExact(r);
   });
 
-  it("fails honestly when there is no text layer", async () => {
+  it("reads a PDF with no text layer as an image is read: unsupported, not failed", async () => {
     const r = await derive(makePdf([]), "scan.pdf");
-    expect(r.status).toBe("failed");
-    expect(r.status_detail).toMatch(/no text layer/);
+    expect(r).toMatchObject({ status: "unsupported", parser: "pdf", parser_version: "5", status_detail: SCAN_DETAIL, facts: { text_layer_chars: 0 } });
+    // Its detail says what an agent that can see the pages does instead.
+    expect(r.status_detail).toMatch(/^the PDF has no text layer: its pages are pictures, as a scan's are, and WhatBuild performs no OCR; an agent that can see its pages should read them/);
+    expect(r.status_detail).toContain('derived(action="write_text")');
   });
 });
 
@@ -770,11 +903,44 @@ describe("statuses", () => {
   it("marks unknown formats unsupported", async () => {
     const r = await derive(new Uint8Array(10), "slides.pptx");
     expect(r.status).toBe("unsupported");
-    expect(r.status_detail).toContain(".pptx");
+    expect(r.status_detail).toBe("no parser reads .pptx files");
+  });
+  it("marks an image unsupported, saying how an agent gives it its words", async () => {
+    for (const [name, type] of [["board.png", null], ["photo", "image/jpeg"]] as const) {
+      expect(await derive(new Uint8Array(10), name, { mediaType: type })).toMatchObject({ status: "unsupported", status_detail: IMAGE_DETAIL });
+    }
+    expect(IMAGE_DETAIL).toMatch(/^WhatBuild reads no words from an image, as it performs no OCR; an agent that can see it should describe it in the source's summary/);
   });
   it("marks oversized files too large without parsing", async () => {
     const r = await derive(new Uint8Array(11), "a.txt", { parseCapBytes: 10 });
     expect(r.status).toBe("too_large");
+    expect(r.status_detail).toBe("the file is 11 bytes; files over 10 bytes are stored but not read");
+  });
+  it("says from a file's name, type and size alone what its reading will find, when they settle it", async () => {
+    const settled = (name: string, size: number, mediaType?: string) => settledReading(name, { mediaType, size, parseCapBytes: 100 });
+    expect(settled("call.m4a", 50)).toEqual({ status: "needs_transcript", status_detail: RECORDING_DETAIL });
+    expect(settled("board.png", 50)).toEqual({ status: "unsupported", status_detail: IMAGE_DETAIL });
+    expect(settled("deck.key", 50)).toEqual({ status: "unsupported", status_detail: "no parser reads .key files" });
+    // Too large first, as a reading finds it, whatever the format.
+    expect(settled("board.png", 101)).toEqual({ status: "too_large", status_detail: "the file is 101 bytes; files over 100 bytes are stored but not read" });
+    // Only the bytes say how a readable format reads.
+    expect(settled("notes.txt", 50)).toBeUndefined();
+    expect(settled("scan.pdf", 50)).toBeUndefined();
+    expect(settled("export", 50, "text/csv")).toBeUndefined();
+    // And the reading says the same.
+    for (const name of ["call.m4a", "board.png", "deck.key"]) {
+      const r = await derive(new Uint8Array(50), name, { parseCapBytes: 100 });
+      expect({ status: r.status, status_detail: r.status_detail }).toEqual(settled(name, 50));
+    }
+  });
+  it("says a reading an earlier version made as this one would", () => {
+    expect(currentReading("needs_transcript", "a recording is stored and playable but has no text; add a transcript as a new source")).toEqual({ status: "needs_transcript", status_detail: RECORDING_DETAIL });
+    expect(currentReading("failed", "the PDF has no text layer (a scan?); no OCR is performed")).toEqual({ status: "unsupported", status_detail: SCAN_DETAIL });
+    expect(currentReading("unsupported", "no parser reads .png files")).toEqual({ status: "unsupported", status_detail: IMAGE_DETAIL });
+    // Anything else is said as it was.
+    expect(currentReading("unsupported", "no parser reads .key files")).toEqual({ status: "unsupported", status_detail: "no parser reads .key files" });
+    expect(currentReading("failed", "Error: bad XRef entry")).toEqual({ status: "failed", status_detail: "Error: bad XRef entry" });
+    expect(currentReading("ready", null)).toEqual({ status: "ready", status_detail: null });
   });
 });
 
@@ -801,6 +967,139 @@ describe("the readable text", () => {
   it("lays a spreadsheet out as a table numbered by its rows", async () => {
     const r = await derive(utf8("Quarterly crews\nName,Crew\nDana,North\nSam,\n"), "crews.csv");
     expect(r.markdown).toBe("[row 1] Quarterly crews\n\n| Row | Name | Crew |\n| --- | --- | --- |\n| 3 | Dana | North |\n| 4 | Sam |  |\n");
+  });
+
+  it("keeps a plain-text file's lines as its author broke them", async () => {
+    const txt =
+      "Meeting recorder export\r\nCall: Crew lead interview, Example Co\r\nRecorded: 14 August 2026, 2 minutes\r\n\r\n" +
+      "Attendees\nDana Lee\nSam Ortiz\n\ncall dana\nsend price sheet\n\n" +
+      "Crews text the office every morning to say which jobs they will reach today.\nThe office copies the messages into a spreadsheet by hand.\nNobody called it a crisis.\n";
+    const r = await derive(utf8(txt), "notes.txt");
+    expect(r.parser_version).toBe("8");
+    // Each line stays a line: a Markdown hard break, two spaces before the line end.
+    expect(r.markdown).toBe(
+      "Meeting recorder export  \nCall: Crew lead interview, Example Co  \nRecorded: 14 August 2026, 2 minutes\n\n" +
+        "Attendees  \nDana Lee  \nSam Ortiz\n\ncall dana  \nsend price sheet\n\n" +
+        "Crews text the office every morning to say which jobs they will reach today.  \nThe office copies the messages into a spreadsheet by hand.  \nNobody called it a crisis.\n",
+    );
+    expectOffsetsExact(r);
+  });
+
+  it("keeps list markers: Markdown's bullets and numbers as lists, nested as indented, other bullets as written", async () => {
+    const txt = [
+      "Steps",
+      "1. Plan the week",
+      "2. Text the crews",
+      "",
+      "1) Call the depot",
+      "2) Book the van",
+      "",
+      "- Scheduling",
+      "  - double bookings",
+      "      - on Mondays",
+      "  - wrong addresses",
+      "* Pricing",
+      "Thanks, Sam",
+      "",
+      "Observations",
+      "• Crews text the office",
+      "– Nobody called it a crisis",
+      "☐ Ask about gate codes",
+      "•\tScheduling",
+      "o\tdouble bookings",
+    ].join("\n");
+    const r = await derive(utf8(txt), "visit.txt");
+    expect(r.markdown).toBe(
+      "Steps\n1. Plan the week\n2. Text the crews\n\n1) Call the depot\n2) Book the van\n\n" +
+        // A list ends where an unindented line follows it, so that line is not taken into its last item.
+        "- Scheduling\n  - double bookings\n    - on Mondays\n  - wrong addresses\n* Pricing\n\nThanks, Sam\n\n" +
+        "Observations  \n• Crews text the office  \n– Nobody called it a crisis  \n☐ Ask about gate codes  \n• Scheduling  \no double bookings\n",
+    );
+    // A numbered line inside a paragraph is not a list Markdown would start there, and stays a line.
+    expect((await derive(utf8("The year was\n2019. It stayed a line.\n"), "a.txt")).markdown).toBe("The year was  \n2019. It stayed a line.\n");
+    expectOffsetsExact(r);
+  });
+
+  it("reflows hard-wrapped prose, and joins a line that wraps a sentence onto the next", async () => {
+    const wrapped = [
+      "Hi team, following up on the call with Dana from Example Co yesterday. She",
+      "said the crews plan by the week, and that the Friday export is the part",
+      "that hurts. I asked whether they had tried the scheduling tool again and",
+      "she said no. Next steps: send her the price sheet and book a follow-up",
+      "for October.",
+    ].join("\n");
+    const r = await derive(utf8(wrapped + "\n"), "email.txt");
+    expect(r.markdown).toBe(wrapped.replace(/\n/g, " ") + "\n");
+    // An item wrapped onto an indented line reads as one item.
+    const items = await derive(utf8("- Crews text the office every morning to say which jobs they will reach\n  today, and the office copies them.\n- Nobody called it a crisis.\n"), "items.txt");
+    expect(items.markdown).toBe("- Crews text the office every morning to say which jobs they will reach today, and the office copies them.\n- Nobody called it a crisis.\n");
+    expect(wraps("Crews text the office every morning to say which jobs they", "will reach today.", 60)).toBe(true);
+    // Not after a sentence's end or before a capital, and never in a paragraph of short lines.
+    expect(wraps("Crews text the office every morning to say which jobs.", "will reach today.", 60)).toBe(false);
+    expect(wraps("Crews text the office every morning to say which jobs they", "Will reach today.", 60)).toBe(false);
+    expect(wraps("call dana", "send price sheet", 16)).toBe(false);
+    // Nor where the next line's first word would have fitted on the line: that break was the author's.
+    expect(wraps("Crews text the office", "every morning", 60)).toBe(false);
+  });
+
+  it("keeps notes and a log's lines as written, however their lengths fall, and joins only prose", async () => {
+    const laid = async (lines: string[]) => (await derive(utf8(lines.join("\n") + "\n"), "notes.txt")).markdown;
+    const asWritten = (lines: string[]) => lines.join("  \n") + "\n";
+    // A line that starts with a label is a line of its own, as in a log.
+    const log = ["error: could not reach the depot printer (retrying in 5s)", "warning: the van checklist was not synced before the crews left"];
+    expect(await laid(log)).toBe(asWritten(log));
+    expect(wraps("The printer at the depot could not be reached this morning and the", "warning: the van checklist was not synced.", 70)).toBe(false);
+    // Notes end no sentence, so the longest line is not taken for a wrap onto the next.
+    const notes = ["call the depot about the van checklist", "ask dana whether the crews can start at the yard at six", "send sam the price sheet and the revised schedule today"];
+    expect(await laid(notes)).toBe(asWritten(notes));
+    // Nor when the last ends with a full stop, as a break before it is no wrap.
+    const stopped = [...notes.slice(0, 2), `${notes[2]}.`];
+    expect(await laid(stopped)).toBe(asWritten(stopped));
+    // One sentence that wraps at every break is prose, and joins.
+    expect(await laid(["Let me know if you have any questions about the schedule or the price", "sheet for the north crews."])).toBe(
+      "Let me know if you have any questions about the schedule or the price sheet for the north crews.\n",
+    );
+  });
+
+  it("keeps rules and underlines on their own, and a marker alone as itself", async () => {
+    const r = await derive(utf8("Notes\n=====\nWe met Dana.\n-\nNext\n-----\nEnd\n#\n"), "a.txt");
+    expect(r.markdown).toBe("Notes\n\n=====\n\nWe met Dana.\n\n\\-\n\nNext\n\n-----\n\nEnd  \n\\#\n");
+  });
+
+  it("ends a quoted message before the reply under it, as a list ends before the line after it", async () => {
+    const r = await derive(utf8("On Monday, Dana wrote:\n> We plan by the week.\n> Crews text the office.\nThanks, noted.\n"), "reply.txt");
+    // Without the blank line, Markdown would read the reply into the quote.
+    expect(r.markdown).toBe("On Monday, Dana wrote:  \n> We plan by the week.  \n> Crews text the office.\n\nThanks, noted.\n");
+  });
+
+  it("never joins a quoted line to the line after it or before it, whatever its case", async () => {
+    const quote = [
+      "> We plan by the week, and the crews text the office every morning.",
+      "> They say which jobs they will reach, and we start in the spring",
+      "> once the vans are back from the depot and the yard is ready for spring",
+    ];
+    // A reply in lower case under the longest quoted line looks like a wrap, but is not one.
+    const reply = await derive(utf8([...quote, "thanks, that is great news for the whole team.", ""].join("\n")), "reply.txt");
+    expect(reply.markdown).toBe(`${quote.join("  \n")}\n\nthanks, that is great news for the whole team.\n`);
+    // Nor is a quote under hard-wrapped prose taken into it.
+    const prose = [
+      "Dana wrote back this morning about the crews and the schedule, and what",
+      "she said about the vans and the depot is worth keeping in mind before we",
+      "plan the spring, since the crews will want to know where the vans are and",
+      "when the yard opens again. Here it is, as she wrote it to the crews today",
+    ];
+    const above = await derive(utf8([...prose, "> the vans are back from the depot in March, and the yard opens then", ""].join("\n")), "above.txt");
+    expect(above.markdown).toBe(`${prose.join(" ")}  \n> the vans are back from the depot in March, and the yard opens then\n`);
+  });
+
+  it("puts a speaker's label above a list in a transcript of timed labels", async () => {
+    const txt = "Dana (14:02 UTC):\nPlan the week first.\nThen the crews.\n\nSam (14:03 UTC):\n- Week plan drafted\n- Crews next\n\nDana (14:05 UTC):\nGood.\n\nSam (14:09 UTC):\nDone.\n";
+    const r = await derive(utf8(txt), "session.txt");
+    expect(r.markdown).toBe("**Dana:** Plan the week first.  \nThen the crews.\n\n**Sam:**\n\n- Week plan drafted\n- Crews next\n\n**Dana:** Good.\n\n**Sam:** Done.\n");
+    expect(r.segments.filter((s) => s.speaker).map((s) => s.speaker)).toEqual(["Dana", "Sam", "Dana", "Sam"]);
+    // A list that starts at 3 cannot interrupt a paragraph in Markdown: the label is a paragraph of its own.
+    const numbered = await derive(utf8(txt.replace("- Week plan drafted\n- Crews next", "3. Week plan drafted\n4. Crews next")), "session.txt");
+    expect(numbered.markdown).toContain("**Sam:**\n\n3. Week plan drafted\n4. Crews next\n\n**Dana:** Good.");
   });
 
   it("keeps a Markdown file as it was written", async () => {

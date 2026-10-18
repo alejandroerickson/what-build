@@ -118,6 +118,7 @@ mark { background: var(--mark); color: var(--over); }
 .quotes .quote:nth-child(even) { background: var(--tint-blue); }
 .quotes blockquote { font-size: 1.15rem; line-height: 1.45; }
 .tally { --tally: var(--pink); --tally-off: var(--tint-blue); }
+.figure:nth-child(3n+1) .tally, .callout[data-tone="caution"] .tally, .timeline > li[aria-current] .tally { --tally: var(--over); --tally-off: color-mix(in srgb, var(--over) 25%, transparent); }
 .columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1.5rem; margin: 1.75rem 0.5rem 1.75rem 0; }
 .columns > * { padding: 1.25rem 1.4rem 1.4rem; border: 2px solid var(--blue); box-shadow: 0.45rem 0.45rem 0 var(--tint-pink); }
 .columns h3 { margin-top: 0; color: var(--blue); }

@@ -37,11 +37,13 @@ async function attach(recordId: string, path: string, body: string | Uint8Array)
   expect(grant.status, JSON.stringify(grant.body)).toBe(201);
   const put = await fetch(grant.body.url, { method: "PUT", headers: grant.body.headers, body });
   expect(put.status).toBe(201);
-  return ((await put.json()) as { attachment: { file_version_id: string } }).attachment;
+  return ((await put.json()) as { attachment: { file_version_id: string; note: string } }).attachment;
 }
 
 const text = (id: string, query = "", base = P) => alice.api("GET", `${base}/sources/${id}/derived/text${query}`);
 const write = (id: string, body: Record<string, unknown>, who = alice) => who.api("PUT", `${P}/sources/${id}/derived/text`, body);
+/** The derived text's etag, which a write over it names. */
+const etagOf = async (id: string) => (await text(id)).body.etag as string;
 const hits = async (query: string, base = P) => (await alice.api("GET", `${base}/search?query=${encodeURIComponent(query)}`)).body.hits as { record_id: string; field: string }[];
 const logOf = async (id: string, action: string) =>
   ((await alice.api("GET", `${P}/activity?entity_id=${id}&limit=100`)).body.items as { action: string; summary: string }[]).filter((i) => i.action === action).map((i) => i.summary);
@@ -68,8 +70,12 @@ describe("a source's derived text", () => {
       updated_by: { display_name: "WhatBuild", client: "parser" },
     });
 
-    // A second attachment is read and kept beside it, and never takes its place.
-    await attach(id, "summary.txt", SUMMARY);
+    // A second attachment is read and kept beside it, and never takes its place; its note says how
+    // to make it the source's text, with the etag that write needs.
+    const beside = await attach(id, "summary.txt", SUMMARY);
+    expect(beside.note).toContain(
+      "The source already has a derived text, so this one is kept beside it; if it should replace it, take it with derived(action=\"write_text\", from_attachment), passing the derived text's etag as expected_etag.",
+    );
     await h.worker.drain();
     expect((await text(id)).body).toMatchObject({ text: WEEK, etag: read.body.etag });
     const full = await alice.api("GET", `${P}/sources/${id}?detail=full`);
@@ -123,7 +129,7 @@ describe("a source's derived text", () => {
     expect(whole.body).toMatchObject({ chars: written.length, taken_from: null });
     expect(whole.body).not.toHaveProperty("diff");
 
-    const took = await write(id, { from_attachment: "summary.txt" });
+    const took = await write(id, { from_attachment: "summary.txt", expected_etag: whole.body.etag });
     expect(took.body).toMatchObject({ chars: SUMMARY.length, taken_from: { path: "summary.txt" } });
     expect((await text(id)).body).toMatchObject({ text: SUMMARY, taken_from: { path: "summary.txt" } });
     // Taken from an attachment, it follows that attachment.
@@ -132,7 +138,7 @@ describe("a source's derived text", () => {
     expect((await text(id)).body.text).toBe("Plainer words about the visit.\n");
 
     // Removed, the source has attachments with text it does not use, and says so.
-    const removed = await write(id, { content: "" });
+    const removed = await write(id, { content: "", expected_etag: await etagOf(id) });
     expect(removed.body).toMatchObject({ record_id: id, chars: 0, etag: null, taken_from: null });
     expect((await text(id)).status).toBe(404);
     expect((await alice.api("GET", `${P}/sources/${id}/text`)).status).toBe(404);
@@ -144,7 +150,14 @@ describe("a source's derived text", () => {
 
     const back = await write(id, { from_attachment: "notes.md" });
     expect(back.body.taken_from).toMatchObject({ path: "notes.md" });
-    expect((await alice.api("GET", `${P}/sources/${id}`)).body).toMatchObject({ derived_status: "ready", text_from: "notes.md", warnings: [] });
+    // Its text taken from one attachment, the source says which other has text that search never reads.
+    expect((await alice.api("GET", `${P}/sources/${id}`)).body).toMatchObject({
+      derived_status: "ready",
+      text_from: "notes.md",
+      warnings: [
+        "This source's derived text is taken from notes.md, so the text read from summary.txt is kept but never searched. If its words should be found, write them into the derived text, the summary or the notes, or add it as a source of its own.",
+      ],
+    });
     expect((await text(id)).body.text).toBe("# Notes\n\nCrews plan by the month.\n");
     expect(await logOf(id, "text_written")).toEqual([
       "Took the derived text from notes.md",
@@ -161,18 +174,22 @@ describe("a source's derived text", () => {
     expect(stale.status).toBe(409);
     expect(stale.body.error).toMatchObject({ code: "stale_etag", details: { current_etag: cur.body.etag } });
 
-    // An attachment still being read has no text yet, and a recording has none.
+    // An attachment still being read has no text yet, and a recording has none, read or not.
+    const etag = cur.body.etag;
+    await attach(id, "minutes-late.md", "# Late minutes\n\nRead after the rest.\n");
     await attach(id, "call.m4a", new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]));
-    const reading = await write(id, { from_attachment: "call.m4a" });
+    const reading = await write(id, { from_attachment: "minutes-late.md", expected_etag: etag });
     expect(reading.status).toBe(409);
     expect(reading.body.error.code).toBe("no_text");
     expect(reading.body.error.message).toMatch(/still being read/);
+    const unread = await write(id, { from_attachment: "call.m4a", expected_etag: etag });
+    expect(unread.body.error).toMatchObject({ code: "no_text", message: expect.stringMatching(/^call\.m4a has no text to take: it is needs_transcript/) });
     await h.worker.drain();
-    const recording = await write(id, { from_attachment: "call.m4a" });
+    const recording = await write(id, { from_attachment: "call.m4a", expected_etag: etag });
     expect(recording.status).toBe(409);
     expect(recording.body.error.code).toBe("no_text");
-    expect(recording.body.error.message).toMatch(/needs_transcript/);
-    expect((await write(id, { from_attachment: "minutes.md" })).status).toBe(404);
+    expect(recording.body.error.message).toMatch(/was read as needs_transcript/);
+    expect((await write(id, { from_attachment: "minutes.md", expected_etag: etag })).status).toBe(404);
 
     // Exactly one of content, edits and from_attachment.
     const two = await write(id, { content: "Two ways.\n", from_attachment: "notes.md" });
@@ -182,7 +199,7 @@ describe("a source's derived text", () => {
     expect(three.status).toBe(422);
     expect((await write(id, {})).status).toBe(422);
     // An edit that matches nothing changes nothing.
-    expect((await write(id, { edits: [{ old_text: "by the fortnight", new_text: "by the year" }] })).body.error.code).toBe("edit_not_found");
+    expect((await write(id, { edits: [{ old_text: "by the fortnight", new_text: "by the year" }], expected_etag: etag })).body.error.code).toBe("edit_not_found");
     // Only editors write it.
     const viewer = await write(id, { content: "A viewer's words.\n" }, vic);
     expect(viewer.status).toBe(403);
@@ -245,7 +262,7 @@ describe("a source's derived text", () => {
     expect(b.body).toMatchObject({ path: "b.md", status: "ready", text_chars: "# B\n\nSecond export.\n".length });
 
     // Written by hand, the text is no attachment's: a call must name one.
-    await write(s, { content: "Both exports agree.\n" });
+    expect((await write(s, { content: "Both exports agree.\n", expected_etag: await etagOf(s) })).status).toBe(200);
     const which = await alice.api("GET", `${P}/sources/${s}/derived/manifest`);
     expect(which.status).toBe(422);
     expect(which.body.error.message).toBe("Name the attachment with path: this source has 2 (a.md, b.md).");
@@ -266,7 +283,7 @@ describe("a source's derived text", () => {
     const one = await source("One export — Example Co");
     await attach(one, "only.md", "# Only\n");
     await h.worker.drain();
-    await write(one, { content: "Rewritten.\n" });
+    expect((await write(one, { content: "Rewritten.\n", expected_etag: await etagOf(one) })).status).toBe(200);
     expect((await alice.api("GET", `${P}/sources/${one}/derived/manifest`)).body).toMatchObject({ path: "only.md", status: "ready" });
   });
 });
@@ -319,7 +336,7 @@ describe("copying a source to another product", () => {
     const s = await source("Typed-up notes — Example Co");
     await attach(s, "scan.txt", "Scanned words.\n");
     await h.worker.drain();
-    await write(s, { content: "Typed up by hand.\n" });
+    expect((await write(s, { content: "Typed up by hand.\n", expected_etag: await etagOf(s) })).status).toBe(200);
     const copy = await alice.api("POST", `${P}/sources/${s}/copy`, { to_product: "annex" });
     expect(copy.status).toBe(200);
     await h.worker.drain();

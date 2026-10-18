@@ -1,4 +1,4 @@
-import { isRecording, parserFor, SUPPORTED_EXTENSIONS } from "@whatbuild/parsers";
+import { isImage, isRecording, parserFor, SUPPORTED_EXTENSIONS } from "@whatbuild/parsers";
 import { z } from "zod";
 import { productId, recordActivity, tenantId } from "../common.ts";
 import { json } from "../db.ts";
@@ -18,7 +18,7 @@ export const MAX_ATTACHMENTS = 50;
 
 /** Said where an attachment is added or listed: what WhatBuild does with it. */
 export const ATTACHMENT_RULE =
-  "Each attachment's text is read and kept, never searched. A source's derived text is taken from the first attachment whose text can be read, and is what search reads.";
+  "Each attachment's text is read and kept, never searched. A source's derived text, which search reads, is the text of the first of its attachments whose reading finds some text: attachments are read in the order they arrive, so usually the first to arrive in a format WhatBuild reads. It follows that attachment's new versions until someone writes or edits it; derived(action=\"write_text\", from_attachment) takes another's.";
 
 function checkPath(path: string) {
   const problem = validFilePath(path);
@@ -27,12 +27,18 @@ function checkPath(path: string) {
 
 /**
  * A warning, before any bytes move, when no parser reads a file's format: it is kept, but its text
- * cannot be read, so it cannot become the source's derived text. A recording is left out; its
+ * cannot be read, so it cannot become the source's derived text. An image gets its own: no parser
+ * reads a picture, so its words come from an agent that can see it. A recording is left out; its
  * result already says it is kept and needs a transcript.
  */
 export function unreadableWarnings(path: string, declaredType?: string | null): string[] {
   const mediaType = mediaTypeFor(path, declaredType);
   if (isRecording(path, mediaType) || parserFor(path, mediaType)) return [];
+  if (isImage(path, mediaType))
+    return [
+      `${path} is an image: it will be kept and shown, but WhatBuild reads no words from an image (it performs no OCR), so it cannot become the source's derived text. ` +
+        `If you can see it, describe it in the source's summary, and write any words it shows as the source's text with derived(action="write_text") if search should find them.`,
+    ];
   const ext = extensionOf(path) || "(no extension)";
   return [
     `No parser reads ${ext} files, so ${path} will be kept and downloadable but its text cannot be read, and it cannot become the source's derived text. ` +
@@ -100,7 +106,7 @@ async function issueGrant(
 // ---- Upload grants ------------------------------------------------------------------------------
 
 const requestUploadInput = {
-  path: z.string().min(1).max(200).describe("The attachment's file name on the source, e.g. interview.vtt. Uploading to an existing path adds a version."),
+  path: z.string().min(1).max(200).describe("The attachment's file name on the source, e.g. interview.vtt. Uploading to a path the source already has adds a new version of that attachment; its earlier versions are kept."),
   media_type: z.string().max(200).optional(),
   size: z.number().int().min(0).optional().describe("The file's size in bytes, when known, so an oversized file is refused before it transfers."),
 };
@@ -112,7 +118,7 @@ export const requestUpload = defineOperation({
   mutates: true,
   summary: "Get a short-lived grant to PUT one file's bytes to a source, as an attachment. Never pass file bytes through a tool call.",
   description:
-    `Returns {url, method: "PUT", headers, max_bytes, expires_at, warnings}; warnings flag a format no parser reads, before any bytes move. Send the local file's bytes with your own shell or HTTP tool (curl -T file -H …); a 201 from url means the attachment is added. Only a PUT to a \`direct\` url needs complete_upload afterwards. Grants are single-file, create-only, and expire. ${ATTACHMENT_RULE} Never encode file content as base64 in a tool argument; if you cannot reach the URL, ask the person to use the web upload instead.`,
+    `Returns {url, method: "PUT", headers, max_bytes, expires_at, warnings}; warnings flag a format no parser reads, and an image, before any bytes move. Send the local file's bytes with your own shell or HTTP tool (curl -T file -H …); a 201 from url means the attachment is added. Only a PUT to a \`direct\` url needs complete_upload afterwards. A grant takes one file, once, and expires: it adds an attachment, or, at a path the source already has, a new version of it, the earlier versions kept. ${ATTACHMENT_RULE} Never encode file content as base64 in a tool argument; if you cannot reach the URL, ask the person to use the web upload instead.`,
   input: z.strictObject({ record_id: id("source"), ...requestUploadInput }),
   rest: { method: "POST", path: "/sources/:record_id/uploads" },
   mcp: { tool: "attachments", action: "request_upload" },
@@ -145,7 +151,7 @@ export const createUpload = defineOperation({
   mutates: true,
   summary: "Create a source and get an upload grant for its first attachment, in one call.",
   description:
-    "Takes sources.create's metadata plus the file's path. Returns {record, upload, warnings}; PUT the bytes to upload.url with upload.headers, and a 201 means the attachment is added; its text becomes the source's derived text once it is read. For several sources at once, use create_uploads. Read warnings first: they flag a format no parser reads, and an existing source with the same title and date.",
+    "Takes sources.create's metadata plus the file's path. Returns {record, upload, warnings}; PUT the bytes to upload.url with upload.headers, and a 201 means the attachment is added; its text becomes the source's derived text once it is read. For several sources at once, use create_uploads. Read warnings first: they flag a format no parser reads, an image (whose words you give the source yourself, if you can see it), and an existing source with the same title and date.",
   input: createUploadInput,
   rest: { method: "POST", path: "/sources/with-upload" },
   mcp: { tool: "attachments", action: "create_upload" },
@@ -227,33 +233,48 @@ export async function completeGrant(ctx: OpContext, grantId: string) {
     if (sandbox?.visitor) await countVisitorBytes(ctx.db, sandbox, g.principal.account_id, size!);
     await recordActivity(ctx, { action: "file_added", entity_type: "source", entity_id: g.record_id, entity_title: record.title, summary: `Added the attachment ${g.path}` });
   }
-  const entry = (await attachmentEntries(ctx.db, g.record_id)).find((e) => e.path === g.path)!;
-  const text = await ctx.db.selectFrom("source_texts").select("from_file_version_id").where("record_id", "=", g.record_id).executeTakeFirst();
+  const entries = await attachmentEntries(ctx.db, g.record_id, ctx.ports.config.parseCapBytes);
+  const entry = entries.find((e) => e.path === g.path)!;
+  const hasText = Boolean(await ctx.db.selectFrom("source_texts").select("record_id").where("record_id", "=", g.record_id).executeTakeFirst());
   const { etag: record_etag } = await ctx.db.selectFrom("records").select("etag").where("record_id", "=", g.record_id).executeTakeFirstOrThrow();
-  return { ...entry, record_id: g.record_id, record_etag, note: attachmentNote(entry.path, entry.media_type, entry.text.status, entry.text.status_detail, Boolean(text)), warnings: [] as string[] };
+  const source = { hasText, textFrom: entries.find((e) => e.is_text_source && e.path !== g.path)?.path ?? null };
+  return { ...entry, record_id: g.record_id, record_etag, note: attachmentNote(entry, source), warnings: [] as string[] };
 }
 
-/** What becomes of an attachment's text, in words that match its text status. */
-export function attachmentNote(path: string, mediaType: string | null, status: string, statusDetail: string | null, sourceHasText: boolean): string {
-  const detail = statusDetail ? ` (${statusDetail})` : "";
+/**
+ * What becomes of an attachment's text, in words that match its text status: one being read, one
+ * read, or one whose name, type and size settled its status before it was read. `source` is where
+ * the source's derived text stands.
+ */
+export function attachmentNote(
+  a: { path: string; media_type: string | null; text: { status: string; status_detail: string | null } },
+  source: { hasText: boolean; textFrom: string | null },
+): string {
+  const { path } = a;
+  const { status, status_detail } = a.text;
   const kept = "It is kept with the source and never searched.";
-  const becomes = sourceHasText
-    ? "The source already has a derived text, so this one is kept beside it; take it with derived(action=\"write_text\", from_attachment) if it should replace it."
-    : "Once it is read, its text becomes the source's derived text, which search reads.";
-  if (status === "pending") {
-    if (isRecording(path, mediaType)) return `${path} is a recording: it is stored and playable, but WhatBuild never transcribes, so it has no text. Add its transcript as another attachment. ${kept}`;
-    if (!parserFor(path, mediaType)) return `No parser reads ${extensionOf(path) || "(no extension)"} files, so ${path} is stored and downloadable but has no text. Readable formats: ${SUPPORTED_EXTENSIONS.join(", ")}. ${kept}`;
-    return `${path} is being read. ${becomes} ${kept}`;
-  }
   switch (status) {
+    case "pending":
+      return `${path} is being read. ${
+        source.hasText
+          ? "The source already has a derived text, so this one is kept beside it; if it should replace it, take it with derived(action=\"write_text\", from_attachment), passing the derived text's etag as expected_etag."
+          : "Once it is read, its text becomes the source's derived text, which search reads."
+      } ${kept}`;
     case "ready":
       return `${path} has been read. ${kept}`;
-    case "needs_transcript":
-      return `${path} is a recording: it is stored and playable, but WhatBuild never transcribes, so it has no text. Add its transcript as another attachment. ${kept}`;
+    case "needs_transcript": {
+      const recording = `${path} is a recording: it is stored and playable, but WhatBuild never transcribes, so it has no text of its own.`;
+      if (source.textFrom) return `${recording} The source's text is taken from ${source.textFrom}. ${kept}`;
+      if (source.hasText) return `${recording} The source's text was written or edited. ${kept}`;
+      return `${recording} Add its transcript as another attachment. ${kept}`;
+    }
     case "unsupported":
-      return `No parser reads this format, so ${path} is stored and downloadable but has no text${detail}. ${kept}`;
+      // An image, and a PDF whose pages are pictures, say how an agent gives them their words.
+      if (isImage(path, a.media_type)) return `${path} is stored and shown, but ${status_detail}. ${kept}`;
+      if (parserFor(path, a.media_type)) return `${path} is stored and downloadable, but ${status_detail}. ${kept}`;
+      return `No parser reads ${extensionOf(path) || "(no extension)"} files, so ${path} is stored and downloadable but has no text. Readable formats: ${SUPPORTED_EXTENSIONS.join(", ")}. ${kept}`;
     default:
-      return `${path} could not be read: ${status}${detail}. It is stored and downloadable. ${kept}`;
+      return `${path} could not be read: ${status}${status_detail ? ` (${status_detail})` : ""}. It is stored and downloadable. ${kept}`;
   }
 }
 

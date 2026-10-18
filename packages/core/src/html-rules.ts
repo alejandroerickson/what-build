@@ -104,7 +104,7 @@ const found = (css: string, re: RegExp) => {
 export function inspectPageHtml(html: string, rules: PageRules): string[] {
   const { surface } = rules;
   const problems: string[] = [];
-  if (html.length > rules.maxChars) problems.push(`The ${surface} is ${html.length} characters; a ${surface} holds at most ${rules.maxChars}.`);
+  if (html.length > rules.maxChars) problems.push(`The ${surface} is ${html.length.toLocaleString("en-US")} characters; a ${surface} holds at most ${rules.maxChars.toLocaleString("en-US")}.`);
   let doc: Node;
   try {
     // Bounded: a page nested too deep, or one that makes far more elements than it has tags, is refused.
@@ -155,7 +155,7 @@ export function inspectPageHtml(html: string, rules: PageRules): string[] {
   walk(doc);
   if (rules.maxScripts !== null && scripts > rules.maxScripts) problems.push(`The ${surface} has ${scripts} inline scripts; a ${surface} holds at most ${rules.maxScripts}.`);
   if (rules.scriptBudget !== null && budget > rules.scriptBudget)
-    problems.push(`Inline scripts and event handlers total ${budget} characters; a ${surface} allows at most ${rules.scriptBudget}${rules.scriptBudgetReason ? `, ${rules.scriptBudgetReason}` : ""}.`);
+    problems.push(`Inline scripts and event handlers total ${budget.toLocaleString("en-US")} characters; a ${surface} allows at most ${rules.scriptBudget.toLocaleString("en-US")}${rules.scriptBudgetReason ? `, ${rules.scriptBudgetReason}` : ""}.`);
   return problems;
 }
 

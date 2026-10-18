@@ -11,7 +11,7 @@ import { mcpPrincipal } from "./auth/identity.ts";
 import type { ServerConfig } from "./config.ts";
 
 const GROUP_SENTENCES: Record<string, string> = {
-  products: "Find the products (discoveries) you can reach, and create or manage products, tenants and teams. Start with list; confirm the product with the person before writing.",
+  products: "Find the products (discoveries) you can reach; create and manage products, tenants and teams; export a whole product as a ZIP; and, for whoever runs this WhatBuild, the allowances to start organizations and how it is used. Start with list; confirm the product with the person before writing.",
   members: "See who belongs to a tenant and grant or revoke roles on the tenant, a team or a product; invites people by email.",
   sandbox: "A public sandbox: an organization that invited visitors work in, which is put back to a saved baseline every day. status says what it is for you, with the notice to tell the person and what is left of each allowance; join enters one with an invitation code. The rest is its control panel, for its owners and admins: settings and limits, baselines, reset, invitations and visitors.",
   sources: "Find, read, create and correct sources — the discovery evidence — and comment on them. Metadata only: use search for what sources say, and derived for their text.",
@@ -19,7 +19,7 @@ const GROUP_SENTENCES: Record<string, string> = {
   derived: "Read and write a source's derived text (its words as one Markdown document, what search reads), read the text read from an attachment and how it was read, read an attachment again, and write or read the source's summary and notes.",
   outcomes: "Read and maintain the product's outcomes: what its users should be able to achieve with it, the compass the rest of the product is read against. Read them first. An outcome cites nothing and is current or archived. Updates change only the fields you pass and keep old text as revisions.",
   assumptions: "The assumption register: premises the team treats as true while evidence is incomplete, with attributed reviews.",
-  story: "Read and publish the Story: versioned, sandboxed HTML pages that explain the product to stakeholders, each with notes for agents, arranged in a hierarchy with its own etag. Pages follow the product's Story style (get_style, set_style): the team's own design system or an adopted house style, never WhatBuild's look. Read guidance first, then the style, and a page's notes before revising it; preview a page, and look at it, before publishing it.",
+  story: "Read and publish the Story: versioned, sandboxed HTML pages where the team tells the people it works with what it means to build, its plan and where things stand, each with notes for agents, arranged in a hierarchy with its own etag. Pages follow the product's Story style (get_style, set_style): the team's own design system or an adopted house style, never WhatBuild's look. Read guidance first, then the style, and a page's notes before revising it; preview a page, and look at it, before publishing it.",
   mockups: "Read and publish mockups: canvases of agent-made HTML pages (screens, flows, alternatives) in Exploration, each with design notes per page and a Markdown brief that says what the canvas explores. A version is the whole canvas. Download a version as a ZIP to build the next one elsewhere, then publish the pages that changed.",
   activity: "What changed in the product, who changed it, and whether an agent did it.",
 };
@@ -112,6 +112,7 @@ const FEEDBACK_OFF =
 
 export const SERVER_INSTRUCTIONS =
   `This server uses the ${SKILL_NAME} skill, version ${SKILL_VERSION}. Before using its tools, check the installed skill's metadata.version. ` +
+  "If more than one copy is installed (in different places, or under different names), the one at this version is the one to follow: ignore the others, and offer to update or remove them. " +
   "If it matches, use the installed skill without fetching it again. If the skill is absent, unversioned, or a different version, call get_skill for the complete current SKILL.md, " +
   "then use your harness's supported way to propose installing or updating it (install only where already authorized), preserving unrelated skills and local changes. " +
   "If installing is unavailable or declined, use the fetched guidance for this session. The skill is guidance, not an access requirement. " +
@@ -172,6 +173,11 @@ async function resolveProduct(env: Env, principal: Principal, given: string | un
 /** Refusals for a call that names no product, team or tenant (or names one in a form that is not a reference). */
 const UNADDRESSED = new Set(["product_required", "team_required", "tenant_required", "invalid_product"]);
 
+/**
+ * Where a product-scoped call ran, added to its answer as `scope`. Every such answer has it under
+ * that name, so no operation answers a field of its own as `scope` over MCP: search says what it
+ * searched as `search_scope`.
+ */
 function scopeEcho(scope: Scope, level: ConnectionLevel | undefined) {
   if (!scope.product) return undefined;
   return {
