@@ -250,7 +250,9 @@ const codePoints = (s: string) => Array.from(s).length;
 
 describe("every place, as typed", () => {
   let D: string;
-  const src: Record<"log" | "roster" | "fuel" | "route" | "planB" | "planXB" | "crane" | "invoices", string> = { log: "", roster: "", fuel: "", route: "", planB: "", planXB: "", crane: "", invoices: "" };
+  const src: Record<"log" | "roster" | "fuel" | "route" | "planB" | "planXB" | "crane" | "invoices" | "quarter", string> = {
+    log: "", roster: "", fuel: "", route: "", planB: "", planXB: "", crane: "", invoices: "", quarter: "",
+  };
   let roll: string; // a comment on the roster
 
   beforeAll(async () => {
@@ -273,6 +275,8 @@ describe("every place, as typed", () => {
     expect((await alice.api("PUT", `${D}/sources/${src.crane}/derived/text`, { content: "Ticket CB26-20734 is open for the crane. Ticket CB26-20733 was the pump.\n" })).status).toBe(200);
     src.invoices = await source(D, alice, "Depot ledger — Example Co");
     expect((await alice.api("PUT", `${D}/sources/${src.invoices}/derived/text`, { content: "The invoices for the crane were logged 2026-05-01T10:00 by the depot.\n" })).status).toBe(200);
+    src.quarter = await source(D, alice, "Quarter review — Example Co");
+    expect((await alice.api("PUT", `${D}/sources/${src.quarter}/derived/text`, { content: "The Q3 planning call moved to mid 2026, once the COVID 19 rules ended. It was noted 2026 05 01.\n" })).status).toBe(200);
   });
 
   it("gives every place a source says the words as a hit of its own, each read back exactly", async () => {
@@ -406,6 +410,20 @@ describe("every place, as typed", () => {
     expect(logged.results.map((x: { id: string; missing: string[] }) => [x.id, x.missing])).toEqual([[src.invoices, []]]);
     const at = logged.results[0].hits[0];
     expect(at.marks.map(([a, b]: [number, number]) => at.text.slice(a, b))).toEqual(["invoices", "crane", "2026-05-01"]);
+  });
+
+  it("in plain mode, finds a hyphenated word with a letter in it written as its words too, and a date only as written", async () => {
+    const plain = async (q: string) => (await alice.api("GET", `${D}/search?mode=plain&query=${encodeURIComponent(q)}`)).body;
+    for (const [q, words] of [["q3-planning", "Q3 planning"], ["covid-19 ", "COVID 19"], ["mid-2026 ", "mid 2026"]] as const) {
+      const r = await plain(q);
+      expect(r.results.map((x: { id: string }) => x.id), q).toEqual([src.quarter]);
+      const hit = r.results[0].hits[0];
+      expect(hit.marks.map(([a, b]: [number, number]) => hit.text.slice(a, b)), q).toEqual([words]);
+    }
+    // Its words in another order are not it.
+    expect((await plain("planning-q3 ")).results).toEqual([]);
+    // A date is found only as written, never as numbers that happen to stand side by side.
+    expect((await plain("2026-05-01 ")).results.map((x: { id: string }) => x.id)).toEqual([src.invoices]);
   });
 });
 

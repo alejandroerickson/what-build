@@ -52,8 +52,15 @@ describe("how plain search reads a query", () => {
     expect(parseFind("follow-up call ").terms.map((t) => t.text)).toEqual(["follow", "up", "call"]);
     expect(parseFind('"ticket CB26-20734"').terms).toMatchObject([{ text: "ticket cb26-20734", phrase: true }]);
     // Postgres reads the quoted id as it reads the text (cb26 <-> -20734), and stores a number after a hyphen with it.
-    expect(termTsquery(parseFind("CB26-20734 ").terms[0]!)).toBe("'cb26-20734'");
+    expect(termTsquery(parseFind("CB26-20734 ").terms[0]!)).toBe("'cb26-20734' | 'cb26' <-> '20734'");
     expect(termTsquery(parseFind("20734").terms[0]!)).toBe("'20734':* | '-20734':*");
+    // An id with a letter in it is found as its words side by side too, in order; a date only as written.
+    expect(termTsquery(parseFind("q3-planning ").terms[0]!)).toBe("'q3-planning' | 'q3' <-> 'planning'");
+    expect(termTsquery(parseFind("covid-19").terms[0]!)).toBe("'covid-19':* | 'covid' <-> '19':*");
+    expect(termTsquery(parseFind("2026-05-01 ").terms[0]!)).toBe("'2026-05-01' | '-2026-05-01'");
+    expect(matchText("The Q3: planning call", parseFind("q3-planning ").terms).ranges).toEqual([[4, 16]]);
+    expect(matchText("Planning for Q3", parseFind("q3-planning ").terms).found).toEqual([false]);
+    expect(matchText("logged 2026 05 01", parseFind("2026-05-01 ").terms).found).toEqual([false]);
     // It ends a number after a hyphen before a letter, so a date is found in a timestamp; a number
     // alone runs on into letters, as 2020s is one word.
     expect(matchText("logged 2026-05-01T10:00", parseFind("2026-05-01 ").terms).found).toEqual([true]);

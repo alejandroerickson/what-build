@@ -346,7 +346,8 @@ search box: sources with the best places they say the words, assumptions, outcom
 pages and the product concept, forgiving endings and word order, correcting a word that matches
 nothing (`corrections` says so; `strict: true` turns it off), and naming `missing` words when
 nothing holds them all. In `plain`, an id or a number (`CB26-20734`, `2026-05-01`) is one word,
-matched as written and never corrected; the last word matches as a prefix unless the query ends
+matched as written and never corrected, and one with a letter in it also as its words side by side
+(`q3-planning` finds "Q3 planning"); the last word matches as a prefix unless the query ends
 with a space; and `limit` caps the results (60 unless you say). Use `plain` to find where
 something is across the product, and exact or ranked search, with its filters, to gather evidence.
 No mode does semantic matching, and **an empty search does not prove the evidence is absent**.

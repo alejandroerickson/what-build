@@ -8,7 +8,8 @@
  * - "Quoted words" match as a phrase, exactly.
  * - An id or a number (a word with a digit in it, such as CB26-20734, 2026-05-01 or 2026) is one
  *   word, hyphens and all, matched as written: as a prefix only while it is being typed, never
- *   with its ending forgiven, and never corrected into another.
+ *   with its ending forgiven, and never corrected into another. One with a letter in it is also
+ *   found written as its words side by side: q3-planning in "Q3 planning", covid-19 in "COVID 19".
  * - Small words (the, of, how…) are left out when other words remain.
  * - A word naming a kind of thing ("mockups", "assumptions") brings that kind first instead of
  *   being searched for, when other words remain.
@@ -149,15 +150,26 @@ export function parseFind(raw: string): ParsedFind {
 }
 
 /**
+ * Whether a term is an id with hyphens and a letter in it (q3-planning, covid-19, mid-2026, CB26-20734),
+ * found written as its words side by side too. An id of digits alone, such as a date, is found only
+ * as written.
+ */
+function spelledApart(t: FindTerm): boolean {
+  return !t.phrase && t.root.includes("-") && /\p{L}/u.test(t.root);
+}
+
+/**
  * A Postgres tsquery for one term (words are letters, digits and hyphens only, so quoting them is
  * safe). Postgres reads a quoted id as its parser reads the text, so CB26-20734 becomes the phrase
  * cb26 <-> -20734, as it is stored; and since a number after a hyphen is stored with the hyphen,
- * a term that starts with a digit matches that form too.
+ * a term that starts with a digit matches that form too. An id with a letter in it matches its
+ * words side by side as well: 'q3-planning' | 'q3' <-> 'planning'.
  */
 export function termTsquery(t: FindTerm): string {
   if (t.phrase) return t.root.split(" ").map((w) => `'${w}'`).join(" <-> ");
   const star = t.prefix ? ":*" : "";
-  return /^\p{N}/u.test(t.root) ? `'${t.root}'${star} | '-${t.root}'${star}` : `'${t.root}'${star}`;
+  const whole = /^\p{N}/u.test(t.root) ? `'${t.root}'${star} | '-${t.root}'${star}` : `'${t.root}'${star}`;
+  return spelledApart(t) ? `${whole} | ${t.root.split("-").map((w) => `'${w}'`).join(" <-> ")}${star}` : whole;
 }
 
 /** An id that ends in a number after a hyphen: the 01 of 2026-05-01, the 20734 of CB26-20734. */
@@ -171,7 +183,9 @@ const ENDS_IN_NUMBER = /-\p{N}+$/u;
  */
 export function termPattern(t: FindTerm): RegExp {
   const esc = (s: string) => fold(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const body = t.phrase ? t.root.split(" ").map(esc).join("[^\\p{L}\\p{N}]+") : esc(t.root);
+  // Between a phrase's words, or an id's written apart, whatever Postgres does not read as a word.
+  const words = t.phrase ? t.root.split(" ") : spelledApart(t) ? t.root.split("-") : [t.root];
+  const body = words.map(esc).join("[^\\p{L}\\p{N}]+");
   const end = t.prefix ? "[\\p{L}\\p{N}]*" : !t.phrase && ENDS_IN_NUMBER.test(t.root) ? "(?!\\p{N})" : "(?![\\p{L}\\p{N}])";
   return new RegExp(`(?<![\\p{L}\\p{N}])${body}${end}`, "gu");
 }

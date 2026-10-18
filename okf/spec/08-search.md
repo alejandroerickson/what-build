@@ -111,7 +111,10 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
     is being typed. It is matched as the database's parser stored it, which keeps `CB26-20734` as
     `cb26` followed by `-20734`, so the number alone finds it too, and ends a number after a hyphen
     before a letter, so `2026-05-01` is found in `2026-05-01T10:00` (a number alone runs on: `2020`
-    is not in `2020s`). A hyphenated word without a digit ("follow-up") is its words;
+    is not in `2020s`). One with a letter in it is found written as its words side by side too, in
+    order (`'q3-planning' | 'q3' <-> 'planning'`), so `q3-planning`, `covid-19` and `mid-2026` find
+    "Q3 planning", "COVID 19" and "mid 2026"; an id of digits alone, such as a date, is found only
+    as written. A hyphenated word without a digit ("follow-up") is its words;
   - `"quoted words"` match as a phrase; accents are folded; small words (the, of, how) are left out
     and listed in `ignored`, unless nothing else is left;
   - a kind word (`mockups`, `assumptions`, …) brings that kind first and is returned as

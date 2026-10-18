@@ -63,8 +63,9 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   of only spaces is refused (`422`). `%`, `_` and `\` in a search, or in the `query` of the
   source, assumption, outcome and sandbox-visitor lists, match themselves instead of any text.
   Plain search, the web app's too, reads an id or a number such as `CB26-20734` as one word,
-  finds the number after a hyphen, and never corrects it into a neighbouring one; over MCP it
-  takes `limit` (60 results unless asked). Search answers `search_scope`, the only place its own
+  finds the number after a hyphen, and never corrects it into a neighbouring one; one with a letter
+  in it is found as its words side by side too (`q3-planning` in "Q3 planning"). Over MCP it takes
+  `limit` (60 results unless asked). Search answers `search_scope`, the only place its own
   scope shows over MCP.
 - **Nothing to change; agents will write the Story differently. The Story guidance is 5.0.0.**
   The Story is the team's own communication (what to build, the pitch, the plan), and neither the
