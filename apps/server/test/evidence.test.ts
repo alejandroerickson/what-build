@@ -1,5 +1,6 @@
 import { connect, createServer, type AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { truncateQuote } from "../../../packages/core/src/ops/sources.ts";
 import { makeWordDoc } from "../../../packages/parsers/test/word-fixtures.ts";
 import { publicOnlyLookup } from "../src/adapters/misc.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
@@ -110,18 +111,25 @@ describe("what upload, read and search say about a source", () => {
     const ranged = await alice.api("POST", `${P}/sources/${recordId}/annotations`, { record_id: recordId, note: "A range.", seq_start: 0, seq_end: 2 });
     expect(ranged.status).toBe(422);
     expect(ranged.body.error.message).toContain("A comment is on the whole source: it takes no segment range.");
-    // A long archive reason is cut on a word boundary, with an ellipsis, in the activity log.
-    const reason = "The crews plan by hand on Fridays. ".repeat(10).trim();
+    // The archive reason is the person's words: it stays on the comment, and the log never quotes it.
+    const reason = "The crews plan by hand on Fridays, so this no longer holds.";
     const archived = await alice.api("PATCH", `${P}/annotations/${a.body.annotation_id}`, { expected_etag: a.body.etag, archived: true, archive_reason: reason });
     expect(archived.status).toBe(200);
+    expect(archived.body.archive_reason).toBe(reason);
     const log = await alice.api("GET", `${P}/activity?entity_id=${recordId}`);
     const comments = log.body.items.filter((i: { action: string }) => i.action.startsWith("note_")).map((i: { summary: string }) => i.summary);
-    expect(comments[1]).toBe("Added a comment");
-    const cut = (comments[0] as string).replace(/^Archived a comment: /, "");
+    expect(comments).toEqual(["Archived a comment", "Added a comment"]);
+    expect(JSON.stringify(log.body)).not.toContain("Fridays");
+  });
+
+  it("cuts a long text on a word boundary, with an ellipsis", () => {
+    const text = "The crews plan by hand on Fridays. ".repeat(10).trim();
+    const cut = truncateQuote(text, 200);
     expect(Array.from(cut).length).toBeLessThanOrEqual(200);
     expect(cut.endsWith("…")).toBe(true);
-    expect(reason.startsWith(cut.slice(0, -1))).toBe(true);
-    expect(reason[cut.length - 1]).toMatch(/\s/);
+    expect(text.startsWith(cut.slice(0, -1))).toBe(true);
+    expect(text[cut.length - 1]).toMatch(/\s/);
+    expect(truncateQuote("Short.", 200)).toBe("Short.");
   });
 });
 

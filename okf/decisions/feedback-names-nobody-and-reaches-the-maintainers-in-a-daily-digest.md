@@ -1,9 +1,9 @@
 ---
 type: Decision
 title: Feedback names nobody and reaches the people who run WhatBuild in a daily digest
-description: People and their agents send feedback that keeps its words, kind and release but not who sent it, at most ten a day each, and the deployment mails it once a day to an address it names.
+description: People and their agents send feedback that keeps its words, kind and release but not who sent it, at most ten a UTC day each, and the deployment mails it once a day to an address it names.
 tags: [decision, feedback, privacy, mail, mcp, agents]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -23,7 +23,9 @@ Only invited people use most deployments, so a CAPTCHA would cost more ease than
   (never the name its client registered) or the screen a person was on, and the person's address
   only when they tick the box to share it. Agents cannot share an address.
 - One person, with their agents, sends at most 10 a day, and a deployment takes at most 200; a
-  separate count enforces the first and never says which reports are whose. No CAPTCHA.
+  separate count enforces the first and never says which reports are whose. No CAPTCHA. A day is
+  the UTC day, wherever the sender is, so the refusal (`429 rate_limited`) gives in its message the
+  moment the next one begins, midnight UTC, rather than saying "tomorrow".
 - `WHATBUILD_FEEDBACK_EMAIL` names the address. The worker sends what is unsent in one plain-text
   digest, at most once every 24 hours and only when there is something new, and marks each report
   sent. Without the setting, or without mail, feedback stays in the database. Submitting is

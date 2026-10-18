@@ -352,7 +352,7 @@ export const updateProduct = defineOperation({
   mutates: true,
   summary: "Rename a product, change its slug, or rewrite its product concept (product admins).",
   description:
-    "Pass only the fields that change, plus expected_etag. The previous product concept is kept as a revision, so an overwrite never loses text.",
+    "Pass only the fields that change, plus expected_etag. The previous product concept is kept, and a product export includes it, but no action reads it back yet.",
   input: z.strictObject({
     expected_etag: expectedEtag,
     name: z.string().trim().min(1).max(100).optional(),
@@ -813,7 +813,7 @@ export const listAccessActivity = defineOperation({
   mutates: false,
   summary: "Who gave, changed or removed whose access in the organization, and when: newest first (tenant admins).",
   description:
-    "The organization's access log: roles given, changed and removed, people removed from the organization, invitations sent, accepted and cancelled, and in a public sandbox its invitation links, removed visitors and changed settings. A product's activity.list leaves these out, because they belong to the organization. Entries name the person and the scope and never an email address; a sandbox visitor appears under their made-up name. Filters: actor (account id), since (ISO 8601).",
+    "The organization's access log: roles given, changed and removed, people removed from the organization, invitations sent, accepted and cancelled, and in a public sandbox its invitation links, removed visitors and changed settings. A product's activity.list leaves these out, because they belong to the organization, all but someone joining the product through an invitation. Entries name the person and the scope and never an email address; a sandbox visitor appears under their made-up name. Filters: actor (account id), since (ISO 8601).",
   input: z.strictObject({
     tenant: z.string().min(1),
     actor: z.string().max(100).optional(),

@@ -492,7 +492,7 @@ export const createSource = defineOperation({
   scope: "product",
   access: "write",
   mutates: true,
-  summary: "Create a source (a record) from metadata; then add attachments with attachments.request_upload or attachments.fetch_url, or write its text with derived.write_text.",
+  summary: "Create a source from its title, date and tags; then add attachments with attachments.request_upload or attachments.fetch_url, or write its text with derived.write_text.",
   description:
     "Describe the material with a title and tags; there are no kinds or folders. To create a source and get an upload grant in one call, use attachments(action=\"create_upload\"). Before creating, check sources(action=\"list\", query=…) for an equivalent source — duplicates dilute search. warnings names any live source with the same title and date; nothing is refused.",
   input: z.strictObject(recordMetadata),
@@ -629,7 +629,7 @@ export const annotate = defineOperation({
     "A comment is an observation about the whole source, shown with the source's other comments and attributed to you. It is not anchored to any part of the text. Comments are searched with the rest of the source.",
   input: z.strictObject({
     record_id: id("source"),
-    note: z.string().trim().min(1).max(2000).describe("The comment, Markdown, up to 2,000 characters."),
+    note: z.string().trim().min(1).max(2000).describe("The comment's text: Markdown, up to 2,000 characters."),
     tags: tags.optional(),
   }),
   rest: { method: "POST", path: "/sources/:record_id/annotations" },
@@ -691,12 +691,13 @@ export const updateAnnotation = defineOperation({
   access: "write",
   mutates: true,
   summary: "Edit a comment's text or tags, or archive or restore it.",
-  description: "Requires expected_etag. The previous text is kept as a revision. When archiving, say why in archive_reason rather than rewriting the comment.",
+  description:
+    "Requires expected_etag. Pass only what changes. The previous text is kept, and a product export includes it, but no action reads it back yet. When archiving, say why in archive_reason rather than rewriting the comment; the reason stays with the comment (list_annotations shows it) and stays out of the activity log.",
   input: z.strictObject({
     annotation_id: id("annotation"),
     expected_etag: expectedEtag,
-    note: z.string().trim().min(1).max(2000).optional(),
-    tags: tags.optional(),
+    note: z.string().trim().min(1).max(2000).optional().describe("The comment's new text, which replaces it: Markdown, up to 2,000 characters."),
+    tags: tags.optional().describe("The comment's whole list of tags, which replaces the current one: send every tag to keep, or [] for none. Up to 50, stored lower-case."),
     archived: z.boolean().optional(),
     archive_reason: z.string().trim().min(1).max(500).optional().describe("Why the comment is archived. Only with archived: true; restoring clears it."),
   }),
@@ -730,7 +731,8 @@ export const updateAnnotation = defineOperation({
       entity_type: "source",
       entity_id: a.record_id,
       entity_title: r?.title ?? null,
-      summary: input.archived === true ? (input.archive_reason ? `Archived a comment: ${truncateQuote(input.archive_reason, 200)}` : "Archived a comment") : input.archived === false ? "Restored a comment" : "Edited a comment",
+      // The archive reason is the person's own words, so it stays on the comment: the log never quotes content.
+      summary: input.archived === true ? "Archived a comment" : input.archived === false ? "Restored a comment" : "Edited a comment",
     });
     return ctx.db.selectFrom("annotations").selectAll().where("annotation_id", "=", a.annotation_id).executeTakeFirstOrThrow();
   },
@@ -793,7 +795,7 @@ export const moveSource = defineOperation({
   mutates: true,
   summary: "Move a source, with its attachments, derived text, summary, notes and comments, to another product in the same team.",
   description:
-    "The record keeps its id, so its attachments and their versions, its derived text, summary, notes and comments move intact. Copy instead to keep it in both.",
+    "The source keeps its record_id, so its attachments and their versions, its derived text, summary, notes and comments move intact. Copy instead to keep it in both.",
   input: z.strictObject({ record_id: id("source"), to_product: z.string().min(1).describe("Target product id or slug, in the same team."), expected_etag: expectedEtag }),
   rest: { method: "POST", path: "/sources/:record_id/move" },
   mcp: { tool: "sources", action: "move_to_product" },

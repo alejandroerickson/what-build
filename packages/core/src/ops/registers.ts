@@ -5,7 +5,7 @@ import { json, type RegisterEntriesTable, type RegisterLink } from "../db.ts";
 import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, dropRevisions, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
 import { conflict, invalid, notFound } from "../errors.ts";
 import { defineOperation, type OpContext, type OperationDef } from "../registry.ts";
-import { authorType, expectedEtag, id, tags } from "../schemas.ts";
+import { authorType, expectedEtag, id, replacingTags, tags } from "../schemas.ts";
 import { applyEdits, editsInput, textDiff } from "../text-edits.ts";
 import { likeContaining, newEtag, newId, uniq } from "../util.ts";
 import { archivedOutcomeIds } from "./outcomes.ts";
@@ -171,7 +171,11 @@ function registerOps(): OperationDef[] {
 
   const createFields = {
     statement: z.string().trim().min(1).max(1000).describe("The premise in one sentence. Frozen after the first review."),
-    body: z.string().max(10_000).default("").describe("Markdown: reasoning, stakes, alternatives considered."),
+    body: z
+      .string()
+      .max(10_000)
+      .default("")
+      .describe("Markdown: why the team holds it, in a sentence or two of your own: what it rests on, and what would change it. It may rest on nothing yet; then say so. Frozen after the first review."),
     outcome_ids: z.array(id("outcome")).max(20).optional(),
     links: z.array(linkInput).max(50).optional(),
     tags: tags.optional(),
@@ -209,8 +213,8 @@ function registerOps(): OperationDef[] {
     scope: "product",
     access: "read",
     mutates: false,
-    summary: `List ${kind}s, newest first, without quotes or review notes.`,
-    description: `${meaning} Without status it lists the current entries (unconfirmed and confirmed), the ones products(action="list") and outcomes count; not_current_hidden says how many refuted or superseded entries matching the other filters it left out. Pass status (one or more of unconfirmed, confirmed, refuted, superseded) to list those too. Filter also by an outcome, a tag or human confidence. Archived entries are left out unless include_archived. Each item says whether it is frozen (reviewed, so its statement and body can no longer be edited), which entries supersede it (superseded_by, newest first), and how many links it has out (link_count) and in (linked_from_count); get returns the links themselves.`,
+    summary: `List ${kind}s, newest first: each one's statement, status and counts, without its body, links or review notes.`,
+    description: `${meaning} Without status it lists the current entries (unconfirmed and confirmed), the ones products(action="list") and products(action="get") count; not_current_hidden says how many refuted or superseded entries matching the other filters it left out. Pass status (one or more of unconfirmed, confirmed, refuted, superseded) to list those too. Filter also by an outcome, a tag or human confidence. Archived entries are left out unless include_archived. Each item says whether it is frozen (reviewed, so its statement and body can no longer be edited), which entries supersede it (superseded_by, newest first), and how many links it has out (link_count) and in (linked_from_count); get returns the links themselves.`,
     input: z.strictObject({
       status: z.array(STATUS).max(4).optional().describe("Only these statuses. Omit for the current ones: unconfirmed and confirmed."),
       outcome_id: id("outcome").optional(),
@@ -272,7 +276,7 @@ function registerOps(): OperationDef[] {
     scope: "product",
     access: "read",
     mutates: false,
-    summary: `Read a ${kind}: statement, body, links, and the latest 20 reviews.`,
+    summary: "Read an assumption: statement, body, links, and the latest 20 reviews.",
     description: "links are this entry's own typed links to other assumptions; linked_from lists the entries that link to it.",
     input: z.strictObject({ id: idField }),
     rest: { method: "GET", path: `/${tool}/:id` },
@@ -287,7 +291,7 @@ function registerOps(): OperationDef[] {
     scope: "product",
     access: "write",
     mutates: true,
-    summary: `Record a ${kind}. Starts unconfirmed.`,
+    summary: "Record an assumption. Starts unconfirmed.",
     description: `${meaning} Create one only when the team needs to track this specific premise, and keep the register small. Say in the body why the team holds it. Label author_type honestly: ordinary conversational agreement is not a person's authorship.`,
     input: z.strictObject(createFields),
     rest: { method: "POST", path: `/${tool}` },
@@ -303,18 +307,18 @@ function registerOps(): OperationDef[] {
     scope: "product",
     access: "write",
     mutates: true,
-    summary: `Edit a ${kind}. Statement and body only until its first review; tags, outcomes and links always.`,
+    summary: "Edit an assumption. Statement and body only until its first review; tags, outcomes and links always.",
     description:
-      "After the first review the statement and body are frozen, because a confirmation must refer to the exact words reviewed; correct a reviewed entry with supersede. For a small correction before then, pass edits (exact replacements in the statement or body that must each match once) instead of re-sending the whole text. Earlier text is kept as a revision. The result lists changed fields and a short diff of each changed text; check it.",
+      "After the first review the statement and body are frozen, because a confirmation must refer to the exact words reviewed; correct a reviewed entry with supersede. For a small correction before then, pass edits (exact replacements in the statement or body that must each match once) instead of re-sending the whole text. The earlier statement and body are kept, and a product export includes them, but no action reads them back yet. tags, outcome_ids and links, when sent, each replace the whole list: send every item to keep. The result lists changed fields and a short diff of each changed text; check it.",
     input: z.strictObject({
       id: idField,
       expected_etag: expectedEtag,
       statement: createFields.statement.optional(),
       body: z.string().max(10_000).optional(),
       edits: editsInput(["body", "statement"] as const, "body").optional(),
-      outcome_ids: createFields.outcome_ids,
-      links: createFields.links,
-      tags: createFields.tags,
+      outcome_ids: createFields.outcome_ids.describe("The whole list of outcomes it bears on, which replaces the current one; [] for none."),
+      links: createFields.links.describe("The whole list of its links, which replaces the current one; [] for none. link and unlink change one at a time."),
+      tags: replacingTags.optional(),
     }),
     rest: { method: "PATCH", path: `/${tool}/:id` },
     mcp: { tool, action: "update" },
@@ -376,7 +380,7 @@ function registerOps(): OperationDef[] {
     scope: "product",
     access: "write",
     mutates: true,
-    summary: `Record an attributed review of a ${kind}: a status and a required note, optionally a human's confidence. Any review freezes the statement and body.`,
+    summary: "Record an attributed review of an assumption: a status and a required note, optionally a human's confidence. Any review freezes the statement and body.",
     description:
       "Status is unconfirmed, confirmed, refuted or superseded; any review may move it anywhere. reviewer_type defaults to human in the web app and agent elsewhere; an agent may declare human only when relaying a judgment the person made in the conversation. confidence (low, medium, high) measures a human's view of suitability for current work, not truth, and is accepted only with reviewer_type human. Review with the current status to record confidence alone. Any review, by a person or an agent and whatever the status (even one that keeps it unconfirmed), freezes the entry's statement and body for good: make every edit first, and after that correct it only with supersede. Reviews are never edited; a changed mind is a new review.",
     input: z.strictObject({
@@ -405,20 +409,22 @@ function registerOps(): OperationDef[] {
     scope: "product",
     access: "write",
     mutates: true,
-    summary: `Correct a ${kind} by creating a new entry that supersedes it; the old one is reviewed as superseded in the same step.`,
-    description: "Takes the new entry's fields (as create) plus the old entry's id, its expected_etag and a note explaining the correction. Both happen atomically or not at all.",
-    input: z.strictObject({ id: idField, expected_etag: expectedEtag, note: z.string().trim().min(1).max(2000), ...createFields }),
+    summary: "Correct an assumption by creating a new entry that supersedes it; the old one is reviewed as superseded in the same step.",
+    description:
+      "Takes the new entry's fields (as create) plus the old entry's id, its expected_etag and a note explaining the correction, which becomes the old entry's review. reviewer_type says who judged the old entry superseded, as in review: it defaults to human in the web app and agent elsewhere, and an agent declares human only when relaying a correction the person made in the conversation; author_type labels the new entry the same way. Both happen atomically or not at all.",
+    input: z.strictObject({ id: idField, expected_etag: expectedEtag, note: z.string().trim().min(1).max(2000), reviewer_type: authorType.optional(), ...createFields }),
     rest: { method: "POST", path: `/${tool}/:id/supersede` },
     mcp: { tool, action: "supersede" },
     async handler(ctx, input) {
       const old = await load(ctx, input.id, true);
       checkEtag(input.expected_etag, old.etag, kind);
-      const { id: oldId, expected_etag, note, ...fields } = input;
+      const { id: oldId, expected_etag, note, reviewer_type, ...fields } = input;
       void expected_etag;
+      const reviewerType = reviewer_type ?? defaultReviewerType(ctx);
       const links = [...(fields.links ?? []).filter((l) => !(l.id === oldId && l.type === "supersedes")), { id: oldId, type: "supersedes" as const }];
       const newId_ = await insertEntry(ctx, { ...fields, links });
-      await appendReview(ctx, old, { status: "superseded", note, reviewer_type: defaultReviewerType(ctx), confidence: null });
-      await recordActivity(ctx, { action: "superseded", entity_type: kind, entity_id: old.entry_id, entity_title: old.statement, summary: "Superseded by a corrected entry" });
+      await appendReview(ctx, old, { status: "superseded", note, reviewer_type: reviewerType, confidence: null });
+      await recordActivity(ctx, { action: "superseded", entity_type: kind, entity_id: old.entry_id, entity_title: old.statement, summary: `Superseded by a corrected entry${reviewerType === "agent" ? " (agent review)" : ""}` });
       return { superseded: old.entry_id, entry: await detail(ctx, await load(ctx, newId_)) };
     },
   });
@@ -428,7 +434,7 @@ function registerOps(): OperationDef[] {
     scope: "product",
     access: "write",
     mutates: true,
-    summary: `Add a typed link from this ${kind} to another: supports, contradicts or supersedes.`,
+    summary: "Add a typed link from this assumption to another: supports, contradicts or supersedes.",
     description: "Links are checked before anything changes: the target must exist in this product, self-links and duplicates are refused, and supersedes stays acyclic.",
     input: z.strictObject({ id: idField, expected_etag: expectedEtag, target_id: id("assumption"), type: z.enum(["supports", "contradicts", "supersedes"]) }),
     rest: { method: "POST", path: `/${tool}/:id/links` },
@@ -439,7 +445,7 @@ function registerOps(): OperationDef[] {
       const links = [...row.links, { id: input.target_id, type: input.type }];
       await checkLinks(ctx, row.entry_id, links);
       await ctx.db.updateTable("register_entries").set({ links: json(links), etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("entry_id", "=", row.entry_id).execute();
-      await recordActivity(ctx, { action: "linked", entity_type: kind, entity_id: row.entry_id, entity_title: row.statement, summary: `Linked: ${input.type} another entry` });
+      await recordActivity(ctx, { action: "linked", entity_type: kind, entity_id: row.entry_id, entity_title: row.statement, summary: `Linked to an assumption it ${input.type}` });
       return detail(ctx, await load(ctx, row.entry_id));
     },
   });
@@ -460,7 +466,7 @@ function registerOps(): OperationDef[] {
       const links = row.links.filter((l) => !(l.id === input.target_id && l.type === input.type));
       if (links.length === row.links.length) throw notFound("No such link on this assumption.");
       await ctx.db.updateTable("register_entries").set({ links: json(links), etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) }).where("entry_id", "=", row.entry_id).execute();
-      await recordActivity(ctx, { action: "unlinked", entity_type: kind, entity_id: row.entry_id, entity_title: row.statement, summary: `Removed a ${input.type} link` });
+      await recordActivity(ctx, { action: "unlinked", entity_type: kind, entity_id: row.entry_id, entity_title: row.statement, summary: `Removed its link to an assumption it ${input.type}` });
       return detail(ctx, await load(ctx, row.entry_id));
     },
   });
@@ -470,7 +476,7 @@ function registerOps(): OperationDef[] {
     scope: "product",
     access: "write",
     mutates: true,
-    summary: `Archive or restore a ${kind}. Archive takes it out of lists and search and erases nothing.`,
+    summary: "Archive or restore an assumption. Archive takes it out of lists and search and erases nothing.",
     description: "Set archived true to archive, false to restore. For a changed mind about the claim itself, review it or supersede it instead.",
     input: z.strictObject({ id: idField, expected_etag: expectedEtag, archived: z.boolean() }),
     rest: { method: "POST", path: `/${tool}/:id/archive` },
@@ -491,7 +497,7 @@ function registerOps(): OperationDef[] {
     scope: "product",
     access: "read",
     mutates: false,
-    summary: `Preview exactly what deleting a ${kind} would destroy, and what points at it.`,
+    summary: "Preview exactly what deleting an assumption would destroy, and what points at it.",
     description: `Read-only. Show the person this result before proposing a delete. linked_from lists the other assumptions whose links to it would be removed. Pass this result's etag as the delete's expected_etag.`,
     input: z.strictObject({ id: idField }),
     rest: { method: "GET", path: `/${tool}/:id/delete-impact` },
@@ -506,7 +512,7 @@ function registerOps(): OperationDef[] {
     scope: "product",
     access: "admin",
     mutates: true,
-    summary: `DELETE PERMANENTLY — cannot be undone. Destroys a ${kind} with its reviews and history; archive is the reversible alternative.`,
+    summary: "DELETE PERMANENTLY — cannot be undone. Destroys an assumption with its reviews and history; archive is the reversible alternative.",
     description:
       `Archive (${tool}(action="archive")) is the reversible alternative, and review or supersede corrects the claim itself; one of those is almost always what is wanted. ` +
       DELETE_GUIDANCE +

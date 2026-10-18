@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -65,8 +65,8 @@ Nothing yet.
   edit; Notes, Comments and Attachments sections, where Files was; comments on the whole source,
   not on passages; and no outline.
 - **Agents can no longer send participants, a source system, provenance or a comment range.** A
-  call that does is refused with `422` and a hint. `derived(action="outline")` is gone (120 operations),
-  and `write_note` and `read_note` take `summary` or `notes`. **The skill is 0.30.0**: it tells
+  call that does is refused with `422` and a hint. `derived(action="outline")` is gone, and
+  `write_note` and `read_note` take `summary` or `notes`. **The skill is 0.30.0**: it tells
   agents the summary is written for people and what belongs in notes. Connected agents are asked
   to update it, and need a new session for the shorter list of `derived` actions.
 - **Migration `0030_one_derived_text_per_source`.** It gives each source one derived text: the

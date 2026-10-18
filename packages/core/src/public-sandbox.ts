@@ -119,7 +119,7 @@ export const SANDBOX_LIMITS: LimitInfo[] = [
   { key: "requests_per_minute", group: "frequency", label: "Calls", unit: "calls", per: "Each visitor, each minute", refusal: "429 rate_limited", help: "Every call a visitor or their agent makes, reads included." },
   { key: "writes_per_minute", group: "frequency", label: "Writes", unit: "writes", per: "Each visitor, each minute", refusal: "429 rate_limited", help: "Calls that change something." },
   { key: "writes_per_day", group: "frequency", label: "Writes", unit: "writes", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "A day runs from one scheduled reset to the next. 0 switches it off, refused with 403 sandbox_restricted." },
-  { key: "sources_per_day", group: "frequency", label: "Sources added", unit: "sources", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "Sources created or copied in. 0 switches it off, refused with 403 sandbox_restricted." },
+  { key: "sources_per_day", group: "frequency", label: "Sources added", unit: "sources", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "Sources created or copied in, each source of a batch counted. 0 switches it off, refused with 403 sandbox_restricted." },
   { key: "exports_per_day", group: "frequency", label: "Exports", unit: "exports", per: "Each visitor, each day", refusal: "409 quota_exceeded", help: "Product exports a visitor asks for. 0, the default, switches exports off (403 sandbox_restricted) and keeps the sandbox's content in the sandbox." },
   { key: "org_writes_per_day", group: "frequency", label: "Writes", unit: "writes", per: "All visitors together, each day", refusal: "409 quota_exceeded", help: "A ceiling on every visitor's writes added up. 0 switches it off, refused with 403 sandbox_restricted." },
   { key: "file_max_bytes", group: "size", label: "File size", unit: "bytes", per: "Each file", refusal: "413 too_large", help: "Checked as the file uploads." },
@@ -350,17 +350,28 @@ export async function usageToday(db: Db, sandbox: Pick<SandboxState, "tenant_id"
 
 const restricted = (message: string, details?: Record<string, unknown>) => new AppError(403, "sandbox_restricted", message, details);
 
-function quota(sandbox: SandboxState, name: SandboxSettingKey, used: number, unit: string, what: string) {
+/** `used` is what the day had used before the refused call; `asked`, when one call takes several, how many it would have taken. */
+function quota(sandbox: SandboxState, name: SandboxSettingKey, used: number, unit: string, what: string, asked = 1) {
   const limit = sandbox.settings[name] as number;
-  return conflict("quota_exceeded", `This public sandbox allows ${what}. The allowance starts again at ${sandbox.day_end}. Reading, searching and what is already here are unaffected.`, {
+  const left = Math.max(0, limit - used);
+  const batch = asked > 1 ? `, and this call would add ${asked} with ${left} left today` : "";
+  return conflict("quota_exceeded", `This public sandbox allows ${what}${batch}. The allowance starts again at ${sandbox.day_end}. Reading, searching and what is already here are unaffected.`, {
     quota: name, limit, used, unit, resets_at: sandbox.day_end,
   });
 }
 
-/** Operations counted against a daily allowance beyond the count of writes. */
-const DAILY: Record<string, { counter: Counter; setting: SandboxSettingKey; unit: string; what: (n: number) => string }> = {
+/**
+ * Operations counted against a daily allowance beyond the count of writes, and what one call takes
+ * from it: one, unless `takes` says how many its input adds.
+ */
+const DAILY: Record<string, { counter: Counter; setting: SandboxSettingKey; unit: string; what: (n: number) => string; takes?: (input: unknown) => number }> = {
   "sources.create": { counter: "sources", setting: "sources_per_day", unit: "sources", what: (n) => `each visitor ${n} new sources a day` },
   "attachments.create_upload": { counter: "sources", setting: "sources_per_day", unit: "sources", what: (n) => `each visitor ${n} new sources a day` },
+  // Each source in the batch is a source added.
+  "attachments.create_uploads": {
+    counter: "sources", setting: "sources_per_day", unit: "sources", what: (n) => `each visitor ${n} new sources a day`,
+    takes: (input) => Math.max(1, (input as { sources?: unknown[] } | null)?.sources?.length ?? 1),
+  },
   "sources.copy_to_product": { counter: "sources", setting: "sources_per_day", unit: "sources", what: (n) => `each visitor ${n} new sources a day` },
   "products.export": { counter: "exports", setting: "exports_per_day", unit: "exports", what: (n) => `each visitor ${n} exports a day` },
 };
@@ -456,17 +467,19 @@ export function checkVisitorInput(sandbox: SandboxContext, op: Pick<OperationDef
 
 /**
  * A visitor's daily allowances, counted inside the operation's own transaction: a call that is
- * refused, or that fails, takes nothing from the allowance.
+ * refused, or that fails, takes nothing from the allowance. `input` is the call's validated input,
+ * for an operation that adds several of what an allowance counts.
  */
-export async function countVisitorWrite(trx: Db, sandbox: SandboxContext, principal: Principal, op: Pick<OperationDef, "name" | "mutates">): Promise<void> {
+export async function countVisitorWrite(trx: Db, sandbox: SandboxContext, principal: Principal, op: Pick<OperationDef, "name" | "mutates">, input?: unknown): Promise<void> {
   if (!op.mutates) return;
   const s = sandbox.settings;
   const me = principal.account_id;
   const daily = DAILY[op.name];
+  const takes = daily?.takes ? daily.takes(input) : 1;
   const n = await bump(trx, sandbox.tenant_id, "day", sandbox.day_start, [
     { account_id: me, counter: "writes", by: 1 },
     { account_id: ORG, counter: "writes", by: 1 },
-    ...(daily ? [{ account_id: me, counter: daily.counter, by: 1 }] : []),
+    ...(daily ? [{ account_id: me, counter: daily.counter, by: takes }] : []),
   ]);
   // An export is counted, and never stopped by the allowance of writes: it is how someone leaves with their work.
   if (op.name !== "products.export") {
@@ -478,7 +491,7 @@ export async function countVisitorWrite(trx: Db, sandbox: SandboxContext, princi
   if (daily) {
     const used = n.get(`${me}:${daily.counter}`) ?? 0;
     const limit = s[daily.setting] as number;
-    if (used > limit) throw quota(sandbox, daily.setting, used - 1, daily.unit, daily.what(limit));
+    if (used > limit) throw quota(sandbox, daily.setting, used - takes, daily.unit, daily.what(limit), takes);
   }
 }
 

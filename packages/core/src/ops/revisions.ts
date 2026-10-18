@@ -2,7 +2,7 @@ import { z } from "zod";
 import { productId } from "../common.ts";
 import { notFound } from "../errors.ts";
 import { defineOperation, type OperationDef, type OpContext } from "../registry.ts";
-import { expectedEtag, id } from "../schemas.ts";
+import { expectedEtag, id, withArticle } from "../schemas.ts";
 
 /**
  * The three revision operations on an object with an authored body (an outcome): list the kept
@@ -22,12 +22,13 @@ function revisionOps(cfg: {
   toUpdate: (content: Record<string, unknown>) => Record<string, unknown>;
 }) {
   const idSchema = id(cfg.label);
+  const aLabel = withArticle(cfg.label);
   const list = defineOperation({
     name: `${cfg.tool}.revisions`,
     scope: "product",
     access: "read",
     mutates: false,
-    summary: `List the kept revisions of a ${cfg.label}: who replaced which text, and when. No bodies.`,
+    summary: `List the kept revisions of ${aLabel}: who replaced which text, and when. No bodies.`,
     description: `Revision n holds the text as it was before the nth overwrite. Use get_revision to read one and restore_revision to bring it back.`,
     input: z.strictObject({ [cfg.idField]: idSchema, limit: z.number().int().min(1).max(200).default(50) }),
     rest: { method: "GET", path: `/${cfg.tool}/:${cfg.idField}/revisions` },
@@ -51,7 +52,7 @@ function revisionOps(cfg: {
     scope: "product",
     access: "read",
     mutates: false,
-    summary: `Read one kept revision of a ${cfg.label}.`,
+    summary: `Read one kept revision of ${aLabel}.`,
     description: "Returns the text as it was, with who wrote it and who replaced it.",
     input: z.strictObject({ [cfg.idField]: idSchema, n: z.number().int().min(1) }),
     rest: { method: "GET", path: `/${cfg.tool}/:${cfg.idField}/revisions/:n` },
@@ -75,7 +76,7 @@ function revisionOps(cfg: {
     scope: "product",
     access: "write",
     mutates: true,
-    summary: `Bring back a kept revision of a ${cfg.label} as a new update.`,
+    summary: `Bring back a kept revision of ${aLabel} as a new update.`,
     description: "The current text is itself kept as a revision first, so restoring is always reversible.",
     input: z.strictObject({ [cfg.idField]: idSchema, n: z.number().int().min(1), expected_etag: expectedEtag }),
     rest: { method: "POST", path: `/${cfg.tool}/:${cfg.idField}/revisions/:n/restore` },

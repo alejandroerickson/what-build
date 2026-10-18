@@ -15,6 +15,7 @@ import {
   entryAddress, isPrototypeHtml, isPrototypeImage, PROTOTYPE_ENTRY_SUFFIX_MAX, PROTOTYPE_FILE_MAX_BYTES, PROTOTYPE_MAX_BYTES, PROTOTYPE_MAX_FILES,
   PROTOTYPE_PATH_MAX, PROTOTYPE_POSTER_MAX_BYTES, PROTOTYPE_PRODUCT_MAX_BYTES, prototypeAddress, prototypeMediaType, prototypePath, prototypeWarnings, splitEntry,
 } from "../prototype.ts";
+import { linkTemplates } from "../story-guidance.ts";
 import { newEtag, newId, sha256Hex } from "../util.ts";
 import { storyPagesShowing } from "./story.ts";
 
@@ -40,6 +41,8 @@ export const MOCKUP_UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
 export const MOCKUP_UPLOAD_UNPACKED_MAX = 96 * 1024 * 1024;
 export const MOCKUP_UPLOAD_MAX_ENTRIES = PROTOTYPE_MAX_FILES + 2 * MAX_MOCKUP_PAGES + MAX_MOCKUP_FILES + 2;
 const MIB = 1024 * 1024;
+/** A number as people read it in a description or a refusal: 1,000,000. */
+const fmt = (x: number) => x.toLocaleString("en-US");
 export const MOCKUP_UPLOAD_PURPOSE = "mockup_upload";
 const DEFAULT_WIDTH = 1280;
 const DEFAULT_HEIGHT = 800;
@@ -48,12 +51,12 @@ const DEFAULT_HEIGHT = 800;
 const PAGE_RULES_TEXT =
   `What a page may hold: inline CSS; inline scripts and event handlers, of any number and length; forms and their controls, whose submit handlers run but whose submissions go nowhere (form-action 'none'), so handle submit, call preventDefault and give a form no target; images, fonts and media as data: URIs; links. ` +
   `Refused: anything loaded from elsewhere (a src, srcset, poster or the like that is not a data: URI, a url() in CSS that is neither data: nor a #fragment, @import, <script src>, <link>), frames and embeds (<iframe>, <frame>, <frameset>, <embed>, <object>, <portal>), <base> and <meta http-equiv>. ` +
-  `A page holds at most ${MOCKUP_PAGE_MAX} characters, and a version ${MOCKUP_HTML_TOTAL} in all, counted as a JavaScript string's length, not in bytes.`;
+  `A page holds at most ${fmt(MOCKUP_PAGE_MAX)} characters, and a version ${fmt(MOCKUP_HTML_TOTAL)} in all, counted as a JavaScript string's length, not in bytes.`;
 const SAFE_CHECK_TEXT =
   "Every problem is listed at once (422), each naming the page, the rule and the element. A refused publish changes nothing and leaves an upload unused, so publishing is a safe way to check a canvas.";
 /** What a prototype is, what it may do, and what publish says about it. */
 const PROTOTYPE_TEXT =
-  `A version may also carry a prototype: a team's multi-file prototype as it is (HTML documents that link to one another, scripts, styles, fonts, images, media, fixtures), uploaded under prototype/ in the canvas ZIP and never sent in a call; at most ${PROTOTYPE_MAX_FILES} files and ${PROTOTYPE_MAX_BYTES / MIB} MB, ${PROTOTYPE_FILE_MAX_BYTES / MIB} MB a file, and ${PROTOTYPE_PRODUCT_MAX_BYTES / MIB} MB of distinct prototype bytes in a product. Its files are any bytes, given back byte for byte, and are not held to a page's HTML rules: they are served in the sandbox under a short-lived address of their own, and load only one another, by relative address, with no network. A page with entry instead of html enters it: the path of one of its HTML documents, with a ?query and #fragment if wanted; several pages may enter one prototype, and its links move between its documents inside the page's frame. ` +
+  `A version may also carry a prototype: a team's multi-file prototype as it is (HTML documents that link to one another, scripts, styles, fonts, images, media, fixtures), uploaded under prototype/ in the canvas ZIP and never sent in a call; at most ${fmt(PROTOTYPE_MAX_FILES)} files and ${PROTOTYPE_MAX_BYTES / MIB} MB, ${PROTOTYPE_FILE_MAX_BYTES / MIB} MB a file, and ${PROTOTYPE_PRODUCT_MAX_BYTES / MIB} MB of distinct prototype bytes in a product. Its files are any bytes, given back byte for byte, and are not held to a page's HTML rules: they are served in the sandbox under a short-lived address of their own, and load only one another, by relative address, with no network. A page with entry instead of html enters it: the path of one of its HTML documents, with a ?query and #fragment if wanted; several pages may enter one prototype, and its links move between its documents inside the page's frame. ` +
   `A prototype is stateless: localStorage, sessionStorage, IndexedDB and document.cookie are unavailable in WhatBuild's sandbox and throw, so each document load starts fresh; keep state in script variables while a document is open, or in the address (query or hash) across its documents. Forms run their submit handlers and submit nowhere. A root-relative address (/assets/app.js) points outside the prototype and does not load: build with a relative base (./). ` +
   "Publish answers with prototype_warnings, naming each file: root-relative and remote addresses, addresses the prototype does not hold, and scripts that use browser storage or cookies. A warning never refuses.";
 /** What a frame does with a page taller than it, as the canvas and the Story show it. */
@@ -77,7 +80,7 @@ const pageInput = z.strictObject({
   html: z
     .string()
     .min(1)
-    .max(MOCKUP_PAGE_MAX, `a mockup page holds at most ${MOCKUP_PAGE_MAX} characters`)
+    .max(MOCKUP_PAGE_MAX, `a mockup page holds at most ${fmt(MOCKUP_PAGE_MAX)} characters`)
     .optional()
     .describe("The whole page, one self-contained document. A new page needs html or entry; omit to keep the base version's."),
   entry: z
@@ -135,9 +138,14 @@ function summaryView(e: { mockup_id: string; title: string; summary: string; ver
   };
 }
 
-function htmlPath(ctx: OpContext, mockupId: string, n: number, pageId: string) {
+/** The product as addresses name it: tenant/team/product. */
+function productPathOf(ctx: OpContext) {
   const s = ctx.scope;
-  return `/api/v1/p/${s.tenant!.slug}/${s.team!.slug}/${s.product!.slug}/mockups/${mockupId}/versions/${n}/pages/${pageId}/html`;
+  return `${s.tenant!.slug}/${s.team!.slug}/${s.product!.slug}`;
+}
+
+function htmlPath(ctx: OpContext, mockupId: string, n: number, pageId: string) {
+  return `/api/v1/p/${productPathOf(ctx)}/mockups/${mockupId}/versions/${n}/pages/${pageId}/html`;
 }
 
 /** A version's prototype files, in byte order of their paths. */
@@ -293,7 +301,7 @@ export const requestMockupUpload = defineOperation({
   mutates: true,
   summary: "Get a short-lived grant to PUT a canvas as a ZIP, for publish to read by upload_id. Use it instead of sending page HTML through a tool call.",
   description:
-    `PUT one ZIP to url with exactly the headers given (curl -T canvas.zip -H …), then call publish with upload_id and whatever else changes (mockup_id and expected_etag for a later version). The ZIP has get_download's layout, so a download round-trips: manifest.json lists the canvas's pages in order, [{page_id, title?, width?, height?, entry?, poster?}], and may give title, summary, columns, files ([{path}]) and prototype ([{path, sha256?}]); brief.md is the brief; pages/<page_id>.html and pages/<page_id>.notes.md hold a page's HTML and notes; files/<path> holds a file the version carries; prototype/<path> holds a file of the version's prototype, any bytes. A page whose HTML or notes the ZIP leaves out keeps the base version's, so a ZIP can carry only the pages that changed, with every page still listed. The files listed in manifest.json are the whole set, a listed path missing from files/ keeping the base's content; without a files list, the files under files/ are the whole set, and with none either the version keeps the base's files. The prototype follows the same rule: listed paths are the whole set, one missing from prototype/ keeping the base's bytes (and its sha256, if given, must match); without a list, the files under prototype/ are the whole set; with neither, the base's prototype carries forward; "prototype": [] drops it. Prototype paths are relative, at most ${PROTOTYPE_PATH_MAX} characters and 16 folders deep, without \\ : * ? " < > | # or a control character; two that differ only in case are refused. ${PROTOTYPE_TEXT} Other fields in manifest.json are not read. Everything else in the ZIP is refused, and so are a name used twice and a symbolic link; one top-level folder around it all is allowed. Each page in it is checked as one sent in the call is. ${PAGE_RULES_TEXT} Files are UTF-8 text. At most ${MOCKUP_UPLOAD_MAX_BYTES / MIB} MB packed, ${MOCKUP_UPLOAD_UNPACKED_MAX / MIB} MB unpacked and ${MOCKUP_UPLOAD_MAX_ENTRIES} entries. ${SAFE_CHECK_TEXT} An upload's bytes cannot be replaced: to change a page, PUT a new ZIP under a new upload. The grant expires, a successful publish reads an upload once and answers with its size and sha256, and an upload nobody publishes is discarded a day after its grant expires. Keep the grant header out of reports and logs.`,
+    `PUT one ZIP to url with exactly the headers given (curl -T canvas.zip -H …), then call publish with upload_id and whatever else changes (mockup_id and expected_etag for a later version). The ZIP has get_download's layout, so a download round-trips: manifest.json lists the canvas's pages in order, [{page_id, title?, width?, height?, entry?, poster?}], and may give title, summary, columns, files ([{path}]) and prototype ([{path, sha256?}]); brief.md is the brief; pages/<page_id>.html and pages/<page_id>.notes.md hold a page's HTML and notes; files/<path> holds a file the version carries; prototype/<path> holds a file of the version's prototype, any bytes. A page whose HTML or notes the ZIP leaves out keeps the base version's, so a ZIP can carry only the pages that changed, with every page still listed. The files listed in manifest.json are the whole set, a listed path missing from files/ keeping the base's content; without a files list, the files under files/ are the whole set, and with none either the version keeps the base's files. The prototype follows the same rule: listed paths are the whole set, one missing from prototype/ keeping the base's bytes (and its sha256, if given, must match); without a list, the files under prototype/ are the whole set; with neither, the base's prototype carries forward; "prototype": [] drops it. Prototype paths are relative, at most ${PROTOTYPE_PATH_MAX} characters and 16 folders deep, without \\ : * ? " < > | # or a control character; two that differ only in case are refused. ${PROTOTYPE_TEXT} Other fields in manifest.json are not read. Everything else in the ZIP is refused, and so are a name used twice and a symbolic link; one top-level folder around it all is allowed. Each page in it is checked as one sent in the call is. ${PAGE_RULES_TEXT} Files are UTF-8 text. At most ${MOCKUP_UPLOAD_MAX_BYTES / MIB} MB packed, ${MOCKUP_UPLOAD_UNPACKED_MAX / MIB} MB unpacked and ${fmt(MOCKUP_UPLOAD_MAX_ENTRIES)} entries. ${SAFE_CHECK_TEXT} An upload's bytes cannot be replaced: to change a page, PUT a new ZIP under a new upload. The grant expires, a successful publish reads an upload once and answers with its size and sha256, and an upload nobody publishes is discarded a day after its grant expires. Keep the grant header out of reports and logs.`,
   input: z.strictObject({ size: z.number().int().min(0).optional().describe("The ZIP's size in bytes, when known, so an oversized one is refused before it transfers.") }),
   rest: { method: "POST", path: "/mockups/uploads" },
   mcp: { tool: "mockups", action: "request_upload" },
@@ -301,7 +309,7 @@ export const requestMockupUpload = defineOperation({
     // A visitor's text is capped field by field (checkVisitorInput); a ZIP would carry it past that.
     if (ctx.sandbox?.visitor) throw forbidden("In a public sandbox, publish a mockup's pages in the call itself; uploading a canvas is for organizations of your own.");
     const max = Math.min(MOCKUP_UPLOAD_MAX_BYTES, ctx.ports.config.relayMaxBytes);
-    if (input.size !== undefined && input.size > max) throw tooLarge(`A canvas's ZIP is at most ${max} bytes; this one is ${input.size}.`, { limit: max });
+    if (input.size !== undefined && input.size > max) throw tooLarge(`A canvas's ZIP is at most ${fmt(max)} bytes; this one is ${fmt(input.size)}.`, { limit: max });
     const upload_id = newId();
     const expiresAt = new Date(Date.parse(ctx.now) + ctx.ports.config.grantTtlSeconds * 1000);
     await ctx.db
@@ -382,7 +390,7 @@ export function readCanvasZip(uploadId: string, bytes: Uint8Array): CanvasUpload
   try {
     list = zipEntries(bytes, (name) => !ZIP_LITTER(name), MOCKUP_UPLOAD_UNPACKED_MAX, MOCKUP_UPLOAD_MAX_ENTRIES);
   } catch (e) {
-    if (e instanceof TooManyEntriesError) throw invalid("invalid_upload", `Nothing was published: ${e.message}. A canvas's ZIP holds at most ${MOCKUP_UPLOAD_MAX_ENTRIES} entries.`);
+    if (e instanceof TooManyEntriesError) throw invalid("invalid_upload", `Nothing was published: ${e.message}. A canvas's ZIP holds at most ${fmt(MOCKUP_UPLOAD_MAX_ENTRIES)} entries.`);
     if (e instanceof TooLargeError) throw invalid("invalid_upload", `Nothing was published: the ZIP unpacks to more than ${MOCKUP_UPLOAD_UNPACKED_MAX / MIB} MB, and a canvas's ZIP unpacks to at most that. Leave out what the canvas does not need and request a new upload.`);
     throw invalid("invalid_upload", `Nothing was published: the upload is not a ZIP WhatBuild can read (${(e as Error).message}). Zip the canvas again and request a new upload.`);
   }
@@ -417,7 +425,7 @@ export function readCanvasZip(uploadId: string, bytes: Uint8Array): CanvasUpload
         continue;
       }
       const data = entries[name]!;
-      if (data.length > PROTOTYPE_FILE_MAX_BYTES) problems.push(`${rel} is ${data.length} bytes; a prototype file is at most ${PROTOTYPE_FILE_MAX_BYTES}.`);
+      if (data.length > PROTOTYPE_FILE_MAX_BYTES) problems.push(`${rel} is ${fmt(data.length)} bytes; a prototype file is at most ${fmt(PROTOTYPE_FILE_MAX_BYTES)}.`);
       const key = checked.path.toLowerCase();
       const clash = protoKeys.get(key);
       if (clash !== undefined) problems.push(`prototype/${clash} and ${rel} name the same file once case and accents are set aside; they would overwrite each other when unzipped.`);
@@ -443,8 +451,8 @@ export function readCanvasZip(uploadId: string, bytes: Uint8Array): CanvasUpload
   }
   const listed = new Set(manifest.pages.map((p) => p.page_id));
   const listedFiles = manifest.files ? new Set(manifest.files.map((f) => f.path)) : null;
-  if (proto.length > PROTOTYPE_MAX_FILES) problems.push(`The prototype holds ${proto.length} files; at most ${PROTOTYPE_MAX_FILES}.`);
-  if (protoBytes > PROTOTYPE_MAX_BYTES) problems.push(`The prototype holds ${protoBytes} bytes; at most ${PROTOTYPE_MAX_BYTES}.`);
+  if (proto.length > PROTOTYPE_MAX_FILES) problems.push(`The prototype holds ${fmt(proto.length)} files; at most ${fmt(PROTOTYPE_MAX_FILES)}.`);
+  if (protoBytes > PROTOTYPE_MAX_BYTES) problems.push(`The prototype holds ${fmt(protoBytes)} bytes; at most ${fmt(PROTOTYPE_MAX_BYTES)}.`);
   let listedProto: { path: string; sha256?: string | undefined }[] | null = null;
   if (manifest.prototype) {
     listedProto = [];
@@ -487,13 +495,13 @@ export function readCanvasZip(uploadId: string, bytes: Uint8Array): CanvasUpload
     const html = text.get(`pages/${p.page_id}.html`);
     const notes = text.get(`pages/${p.page_id}.notes.md`);
     if (html !== undefined && !html.trim()) problems.push(`pages/${p.page_id}.html is empty.`);
-    if (html !== undefined && html.length > MOCKUP_PAGE_MAX) problems.push(`pages/${p.page_id}.html holds ${html.length} characters; a mockup page holds at most ${MOCKUP_PAGE_MAX}.`);
-    if (notes !== undefined && notes.length > PAGE_NOTES_MAX) problems.push(`pages/${p.page_id}.notes.md holds ${notes.length} characters; a page's notes hold at most ${PAGE_NOTES_MAX}.`);
+    if (html !== undefined && html.length > MOCKUP_PAGE_MAX) problems.push(`pages/${p.page_id}.html holds ${fmt(html.length)} characters; a mockup page holds at most ${fmt(MOCKUP_PAGE_MAX)}.`);
+    if (notes !== undefined && notes.length > PAGE_NOTES_MAX) problems.push(`pages/${p.page_id}.notes.md holds ${fmt(notes.length)} characters; a page's notes hold at most ${fmt(PAGE_NOTES_MAX)}.`);
     if (html !== undefined && p.entry !== undefined) problems.push(`Page ${p.page_id} has both pages/${p.page_id}.html and an entry in manifest.json; a page has one.`);
     return { ...p, ...(html !== undefined ? { html } : {}), ...(notes !== undefined ? { notes } : {}) };
   });
   const brief = text.get("brief.md");
-  if (brief !== undefined && brief.length > BRIEF_MAX) problems.push(`brief.md holds ${brief.length} characters; a brief holds at most ${BRIEF_MAX}.`);
+  if (brief !== undefined && brief.length > BRIEF_MAX) problems.push(`brief.md holds ${fmt(brief.length)} characters; a brief holds at most ${fmt(BRIEF_MAX)}.`);
   if (problems.length) throw invalid("invalid_upload", `Nothing was published: ${problems.join(" ")}`, { problems });
   const files = listedFiles ? manifest.files!.map((f) => ({ path: f.path, ...(text.has(`files/${f.path}`) ? { content: text.get(`files/${f.path}`)! } : {}) })) : carried.length ? carried.sort((a, b) => (a.path < b.path ? -1 : 1)) : undefined;
   return {
@@ -608,7 +616,7 @@ export const publishMockup = defineOperation({
   mutates: true,
   summary: "Publish the next version of a mockup's canvas, or create a mockup with its first version. A later version keeps whatever you omit.",
   description:
-    `Without mockup_id, creates a mockup: give a title, a brief and at least one page with a title and html. With mockup_id, publishes the next version: pass the mockup's etag, and send only what changes. pages, when given, is the whole canvas in order: a page you leave out is dropped from this version, and a page whose page_id was on the base version keeps its title, notes, size and html unless you send them, so a version that changes one page sends that page's html alone. The brief is Markdown: what the canvas explores, for whom, the questions it is meant to answer, and what each page tries; write it for the next agent as much as for people. Each page is one self-contained HTML document shown in a sandboxed frame of width × height CSS pixels (default ${DEFAULT_WIDTH} × ${DEFAULT_HEIGHT}; 390 wide for a phone; height at most 4000), with no network. ${PAGE_RULES_TEXT} ${SAFE_CHECK_TEXT} ${TALL_PAGES_TEXT} columns sets how many pages sit side by side before the canvas wraps; null keeps one row. files carries text files for collaborators to pull into their own projects (DESIGN.md, components, tokens), at most ${MAX_MOCKUP_FILES} and ${(MOCKUP_FILES_TOTAL / 1_000_000).toFixed(0)} million characters a version; WhatBuild never uses them to draw a page, so inline what a page needs. Like pages, files when given is the whole set: a path that was on the base keeps its content unless you send it, a path you leave out is dropped, a new path needs content, and [] drops them all; omit files to keep them. ${PROTOTYPE_TEXT} A version published without an upload keeps its base's prototype, and its pages may enter it. from_version: N starts from that earlier version instead of the current one. To keep page HTML out of the call, upload the canvas as a ZIP (request_upload) and pass upload_id: the ZIP gives pages, files and the brief, and the call gives the rest, and the result names from_upload with upload {upload_id, size, sha256}, the ZIP's own bytes as its PUT answered. At most ${MAX_MOCKUP_PAGES} pages, ${(MOCKUP_HTML_TOTAL / 1_000_000).toFixed(0)} million characters of HTML in all, and ${MAX_MOCKUPS} mockups in a product, archived ones included (list gives quota, used and limit).`,
+    `Without mockup_id, creates a mockup: give a title, a brief and at least one page with a title and html. With mockup_id, publishes the next version: pass the mockup's etag, and send only what changes. pages, when given, is the whole canvas in order: a page you leave out is dropped from this version, and a page whose page_id was on the base version keeps its title, notes, size and html unless you send them, so a version that changes one page sends that page's html alone. The brief is Markdown: what the canvas explores, for whom, the questions it is meant to answer, and what each page tries; write it for the next agent as much as for people. Each page is one self-contained HTML document shown in a sandboxed frame of width × height CSS pixels (default ${DEFAULT_WIDTH} × ${DEFAULT_HEIGHT}; 390 wide for a phone; height at most 4000), with no network. ${PAGE_RULES_TEXT} ${SAFE_CHECK_TEXT} ${TALL_PAGES_TEXT} columns sets how many pages sit side by side before the canvas wraps; null keeps one row. files carries text files for collaborators to pull into their own projects (DESIGN.md, components, tokens), at most ${MAX_MOCKUP_FILES} and ${(MOCKUP_FILES_TOTAL / 1_000_000).toFixed(0)} million characters a version; WhatBuild never uses them to draw a page, so inline what a page needs. Like pages, files when given is the whole set: a path that was on the base keeps its content unless you send it, a path you leave out is dropped, a new path needs content, and [] drops them all; omit files to keep them. ${PROTOTYPE_TEXT} A version published without an upload keeps its base's prototype, and its pages may enter it. from_version: N starts from that earlier version instead of the current one. To keep page HTML out of the call, upload the canvas as a ZIP (request_upload) and pass upload_id: the ZIP gives pages, files and the brief, and the call gives the rest, and the result names from_upload with upload {upload_id, size, sha256}, the ZIP's own bytes as its PUT answered. At most ${MAX_MOCKUP_PAGES} pages, ${(MOCKUP_HTML_TOTAL / 1_000_000).toFixed(0)} million characters of HTML in all, and ${MAX_MOCKUPS} mockups in a product, archived ones included (list gives quota, used and limit). It answers with what you need next, not the canvas you sent: mockup_id, title, current_version and current_version_id, the etag to publish the next version with, based_on_version, page_ids in the canvas's order, url (the canvas in the web app, to give the person), and prototype_warnings when an upload brings a prototype; mockups(action="get") reads the version back.`,
   input: z.strictObject({
     mockup_id: id("mockup").optional().describe("Omit to create a mockup."),
     title: z.string().trim().min(1).max(200).optional(),
@@ -705,7 +713,7 @@ export const publishMockup = defineOperation({
     const same = files.map((x) => x.path.toLowerCase()).find((x, i, all) => all.indexOf(x) !== i);
     if (same) problems.push(`File ${same} appears more than once, perhaps with different capitals.`);
     const fileChars = files.reduce((n, x) => n + x.content.length, 0);
-    if (fileChars > MOCKUP_FILES_TOTAL) problems.push(`The files total ${fileChars} characters; a version holds at most ${MOCKUP_FILES_TOTAL}.`);
+    if (fileChars > MOCKUP_FILES_TOTAL) problems.push(`The files total ${fmt(fileChars)} characters; a version holds at most ${fmt(MOCKUP_FILES_TOTAL)}.`);
     // The prototype: the upload's when it gives one (a listed path it leaves out keeping the base's
     // bytes), otherwise the base's, carried forward.
     let prototype: ProtoRow[] = base?.prototype ?? [];
@@ -726,7 +734,7 @@ export const publishMockup = defineOperation({
       } else prototype = stored;
     }
     const protoBytes = prototype.reduce((n, r) => n + r.size, 0);
-    if (protoBytes > PROTOTYPE_MAX_BYTES) problems.push(`The prototype holds ${protoBytes} bytes; at most ${PROTOTYPE_MAX_BYTES}.`);
+    if (protoBytes > PROTOTYPE_MAX_BYTES) problems.push(`The prototype holds ${fmt(protoBytes)} bytes; at most ${fmt(PROTOTYPE_MAX_BYTES)}.`);
     const byPath = new Map(prototype.map((r) => [r.path, r]));
     pages.forEach((pg, i) => {
       if (!pg.entry) return;
@@ -741,7 +749,7 @@ export const publishMockup = defineOperation({
         const poster = "path" in named ? byPath.get(named.path) : undefined;
         if (!poster) problems.push(`${where}'s poster names ${pg.poster}, which the prototype does not hold.`);
         else if (!isPrototypeImage(poster.media_type)) problems.push(`${where}'s poster ${pg.poster} is not a PNG, JPEG, GIF, WebP or AVIF image.`);
-        else if (poster.size > PROTOTYPE_POSTER_MAX_BYTES) problems.push(`${where}'s poster ${pg.poster} is ${poster.size} bytes; a poster is at most ${PROTOTYPE_POSTER_MAX_BYTES}.`);
+        else if (poster.size > PROTOTYPE_POSTER_MAX_BYTES) problems.push(`${where}'s poster ${pg.poster} is ${fmt(poster.size)} bytes; a poster is at most ${fmt(PROTOTYPE_POSTER_MAX_BYTES)}.`);
       }
     });
     if (problems.length) throw invalid("invalid_input", `Nothing was published: ${problems.join(" ")}`, { problems });
@@ -759,7 +767,7 @@ export const publishMockup = defineOperation({
       if (used > PROTOTYPE_PRODUCT_MAX_BYTES)
         throw conflict(
           "quota_exceeded",
-          `Nothing was published: a product's mockups hold at most ${PROTOTYPE_PRODUCT_MAX_BYTES} bytes of prototypes, each distinct file counted once, and this version would bring them to ${used}. Delete a mockup that is no longer needed, or publish a smaller prototype.`,
+          `Nothing was published: a product's mockups hold at most ${fmt(PROTOTYPE_PRODUCT_MAX_BYTES)} bytes of prototypes, each distinct file counted once, and this version would bring them to ${fmt(used)}. Delete a mockup that is no longer needed, or publish a smaller prototype.`,
           { quota: "prototype_bytes", used, limit: PROTOTYPE_PRODUCT_MAX_BYTES, unit: "bytes" },
         );
     }
@@ -769,7 +777,7 @@ export const publishMockup = defineOperation({
       for (const msg of inspectMockupHtml(p.html)) problems.push(`${p.page_id}: ${msg}`);
     }
     const total = pages.reduce((n, p) => n + (p.html?.length ?? 0), 0);
-    if (total > MOCKUP_HTML_TOTAL) problems.push(`The pages total ${total} characters of HTML; a version holds at most ${MOCKUP_HTML_TOTAL}.`);
+    if (total > MOCKUP_HTML_TOTAL) problems.push(`The pages total ${fmt(total)} characters of HTML; a version holds at most ${fmt(MOCKUP_HTML_TOTAL)}.`);
     if (problems.length) throw invalid("invalid_html", `Nothing was published: ${problems.join(" ")}`, { problems });
 
     const title = input.title ?? base!.title;
@@ -826,12 +834,20 @@ export const publishMockup = defineOperation({
       await ctx.enqueue("delete_blobs", { keys: [u.blob_key], prefixes: [] });
     }
     const e = await loadMockup(ctx, mockup_id);
+    // What a caller needs next, not the canvas it just sent: a version's brief, notes and page
+    // details run to tens of thousands of characters, and get reads them back.
     return {
-      ...summaryView(e),
-      current: await versionView(ctx, e.current_version_id, false),
+      mockup_id: e.mockup_id,
+      title: e.title,
+      current_version: e.version_count,
+      current_version_id: e.current_version_id,
+      etag: e.etag,
       based_on_version: base?.n ?? null,
+      page_ids: pages.map((p) => p.page_id),
+      url: linkTemplates(ctx.ports.config.publicBaseUrl, productPathOf(ctx)).mockup.replace("{mockup_id}", e.mockup_id),
       ...(upload ? { from_upload: upload.upload_id, upload } : {}),
       ...(canvas?.prototype ? { prototype_warnings: canvas.prototype.warnings } : {}),
+      next: 'Show the person url. mockups(action="get") reads the version back: the brief, each page\'s notes, size and hash, the files and the prototype. Publish the next version with this etag.',
     };
   },
 });

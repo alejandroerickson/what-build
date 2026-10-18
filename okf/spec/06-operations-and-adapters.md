@@ -398,7 +398,11 @@ Notes on recent actions:
   `sources.delete_impact` reports its attachments' versions, bytes, readings and comments
   ([§4.3](04-data-model.md)).
 - `assumptions.update` takes `edits` (exact replacements that must match once) and returns
-  `changed` and a short `diff` ([§4.1](04-data-model.md)). Without `status`, the assumption list
+  `changed` and a short `diff` ([§4.1](04-data-model.md)); its `tags`, `outcome_ids` and `links`,
+  when sent, each replace the whole list, as `sources.update`'s and
+  `sources.update_annotation`'s `tags` do. `assumptions.supersede` takes `reviewer_type` for the
+  review it records on the old entry, defaulting as `review`'s does ([§4.8](04-data-model.md)).
+  Without `status`, the assumption list
   returns the current entries (unconfirmed and confirmed), the ones every count counts, with
   `not_current_hidden` (the refuted and superseded ones matching its other filters) and, when that
   is not zero, a `note`; a `status` list names what to return instead. It returns
@@ -442,7 +446,14 @@ Notes on recent actions:
   in `get_download`'s layout, and `mockups.publish { upload_id }` reads it in place of `pages`,
   `files` and the brief, so no page's HTML travels through a tool call; it is refused to a visitor
   to a public sandbox (`403`), and the result names `from_upload` and gives `upload { upload_id,
-  size, sha256 }`, the ZIP as its PUT answered ([§4.12](04-data-model.md), §6.7). A page is held
+  size, sha256 }`, the ZIP as its PUT answered ([§4.12](04-data-model.md), §6.7). `publish`
+  answers with what a caller needs next, not the canvas it sent: `{ mockup_id, title,
+  current_version, current_version_id, etag, based_on_version, page_ids, url, next }`, where
+  `page_ids` are the canvas's pages in order and `url` is the canvas in the web app, with
+  `from_upload` and `upload` after an upload and `prototype_warnings` when one brings a prototype;
+  `mockups.get` reads the version back. ◆ Decision: a version's brief, page notes and page details
+  run to tens of thousands of characters, which an echo would put into an agent's context after
+  every publish; every other write still answers with its object. A page is held
   to a mockup page's HTML rules, not a Story page's: scripts without a budget, and forms whose
   submit handlers run and whose submissions go nowhere. `publish`'s and `request_upload`'s
   descriptions state what a page may hold and what is refused, that a refused publish changes
@@ -484,13 +495,19 @@ Notes on recent actions:
 - `members.revoke` removes the grant at exactly the scope named; with `whole_tenant: true` (and no
   team or product) it removes every grant the person holds in the tenant, which takes them out of
   it. That needs tenant admin, or owner when they are an owner.
-- `activity.list` takes `by: "people" | "agents"` (agents = calls over MCP), besides
-  `entity_type`, `entity_id`, `actor`, `channel` and `since`.
+- `activity.list` takes `by: "people" | "agents"`, besides `entity_type`, `entity_id`, `actor`,
+  `channel` and `since`. `people` is what people did in the app or, in entries from when personal
+  tokens reached it, through the REST API (channel `web` or `rest`); `agents` is what agents did over
+  MCP. What WhatBuild does by itself, such as reading an attachment, has no channel and is in
+  neither. `entity_type` takes exactly the kinds of object a product's log has entries about:
+  `product`, `membership`, `source`, `outcome`, `assumption`, `story_page`, `story_hierarchy`,
+  `story_style` and `mockup` (anything else is `422`).
 - `members.activity` is the organization's access log, for its owners and admins: roles given,
   changed and removed, people removed from the organization, invitations sent, accepted and
   cancelled, and in a public sandbox its invitation links, removed visitors and changed settings.
   It takes `actor`, `since`, `limit` and `cursor`, and pages like `activity.list`. A product's
-  `activity.list` leaves these events out, because they belong to the organization.
+  `activity.list` leaves these events out, because they belong to the organization, all but
+  someone joining the product through an invitation, which both logs hold.
 
 ### Routes outside the registry
 
@@ -629,7 +646,7 @@ only the actions its level allows (below).
 
 | Tool | Actions |
 |---|---|
-| `products` | `list`, `create_tenant`, `create_team`, `create`, `get`, `update`, `archive`, `restore`, `delete_impact`, `delete`, `export`, `exports` |
+| `products` | `list`, `create_tenant`, `create_team`, `create`, `get`, `update`, `archive`, `restore`, `delete_impact`, `delete`, `export`, `exports`, `tenant_allowances`, `set_tenant_allowance`, `remove_tenant_allowance`, `usage` |
 | `members` | `list`, `grant`, `revoke`, `cancel_invitation`, `activity` |
 | `sandbox` | `status`, `join`, `settings`, `update_settings`, `save_baseline`, `baselines`, `reset`, `invites`, `create_invite`, `revoke_invite`, `visitors`, `remove_visitor` |
 | `outcomes` | `list`, `get`, `create`, `update`, `archive`, `restore`, `delete_impact`, `delete`, `revisions`, `get_revision`, `restore_revision` |
@@ -743,7 +760,9 @@ of preference for an agent (`packages/core/src/ops/attachments.ts`):
    agent's claims, adds the attachment at once (or a version of it, at a path it already has),
    changes the source's etag, and queues the attachment to be read
    ([§5.1](05-derived-layer.md)); its `201` response, `{ uploaded, size, sha256, attachment, next }`,
-   carries the attachment, so nothing more need be called.
+   carries the attachment, so nothing more need be called. A grant takes one PUT: a second is
+   `409 already_uploaded`, which says the attachment is already on the source and that a new
+   version takes a new grant.
    `attachments.complete_upload` adds an attachment PUT to a `direct` URL; after the relay it only
    confirms, idempotently. Both give the attachment (§4.5) with `record_id`, the source's new etag
    as `record_etag`, and a `note` on what becomes of its text that agrees with it: it is being read
@@ -842,9 +861,10 @@ configure but one address. It shows:
 ## 6.9 Feedback
 
 `submit_feedback { category, message, tool?, details?, screen?, reply? }` is available on both
-adapters and is write-only, names nobody, and is limited to 10 a day for a person and their agents
-([§4.13](04-data-model.md#413-feedback)). The web app sends it from **Submit feedback** in the
-account menu ([§7](07-web-app.md)). The skill asks agents to use it when a tool's behavior or
+adapters and is write-only, names nobody, and is limited to 10 a UTC day for a person and their
+agents; the `429` refusal's message gives the moment the next UTC day begins, midnight UTC, when
+they may send again ([§4.13](04-data-model.md#413-feedback)). The web app sends it from
+**Submit feedback** in the account menu ([§7](07-web-app.md)). The skill asks agents to use it when a tool's behavior or
 guidance misled them, so the product's agent surface improves from real use. A connection whose
 person turned feedback off is not offered the tool, is refused it with `403 feedback_off`, and is
 told so in the server's instructions, so it does not take the missing tool for an old tool list.

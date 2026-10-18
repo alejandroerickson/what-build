@@ -460,8 +460,10 @@ counts, filters and search work on what is loaded.
 ([decision](../decisions/mockups-are-versioned-canvases-in-exploration.md)) A mockup opens as a
 canvas the full width of the window and its height below the crumbs, so the screen itself does not
 scroll: every page of the shown version at its own size in its sandboxed frame ([§4.12](04-data-model.md)), laid out `columns` to a row (one row when null),
-on a dotted board. Agents publish mockups; the screen reads them and offers nothing that changes
-them. Its one write is promoting a page to the Story.
+on a dotted board. Agents publish mockups; the screen reads them and never publishes, edits or
+restores one. Its writes are promoting a page to the Story, and, for a product's admins,
+**Delete permanently…** under Version in the inspector, whose dialog offers **Archive instead**
+(§7.10).
 
 - **Opening.** `…/exploration/mockups` opens the mockup last opened in this product in this
   browser, otherwise the most recent; with none, the first-use state gives the request to copy for

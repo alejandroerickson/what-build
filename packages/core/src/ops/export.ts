@@ -2,7 +2,7 @@ import { sql } from "kysely";
 import { Zip, ZipPassThrough, strToU8 } from "fflate";
 import { z } from "zod";
 import { productId, recordActivity, tenantId } from "../common.ts";
-import { json, type Tx } from "../db.ts";
+import { json, type RegisterEntriesTable, type Tx } from "../db.ts";
 import { conflict } from "../errors.ts";
 import type { Ports } from "../ports.ts";
 import { defineOperation } from "../registry.ts";
@@ -12,16 +12,61 @@ export const EXPORT_FORMAT = "whatbuild-product-bundle";
 export const EXPORT_FORMAT_VERSION = 2;
 const EXPORT_DAYS = 7;
 
+/**
+ * Every kind of file a bundle holds, in the order README.txt lists them. bundle.json's layout and
+ * README.txt are both made from it, and a test holds it to what an export writes. In a path, <…>
+ * stands for one name, v<n> for a version number, and <path> for a path that may have folders.
+ */
+export const BUNDLE_LAYOUT: readonly { path: string; holds: string }[] = [
+  { path: "bundle.json", holds: "The format and its version, when and by whom the product was exported, the product, and this layout." },
+  { path: "README.txt", holds: "This file." },
+  { path: "outcomes.json", holds: "The product's outcomes." },
+  { path: "records/<record_id>/record.json", holds: "A source: its details, its derived text's details, and its attachments with their versions." },
+  { path: "records/<record_id>/text.md", holds: "The source's derived text, the Markdown search reads." },
+  { path: "records/<record_id>/attachments/<file_version_id>/<path>", holds: "Every stored version of every attachment, byte for byte; MISSING.txt where the bytes could not be read." },
+  { path: "records/<record_id>/derived/<derivation_id>/<file>", holds: "What an attachment was read as: text.md and manifest.json, with segments.jsonl in readings made while sources had passages." },
+  { path: "records/<record_id>/annotations.json", holds: "The source's comments." },
+  { path: "records/<record_id>/agent-notes/<kind>.md", holds: "The source's summary (summary.md) and notes (notes.md)." },
+  { path: "assumptions.json", holds: "The assumptions, each with its reviews." },
+  { path: "revisions.json", holds: "Earlier texts of the outcomes, the assumptions, the comments and the product concept." },
+  { path: "story/hierarchy.json", holds: "The Story's page tree and its Published mockups." },
+  { path: "story/style.json", holds: "The Story style, when the product has one." },
+  { path: "story/style.css", holds: "The Story style's stylesheet." },
+  { path: "story/pages/<page_id>/page.json", holds: "A Story page." },
+  { path: "story/pages/<page_id>/v<n>.json", holds: "One version of the page. A version that shows a mockup page names it here and has no HTML of its own." },
+  { path: "story/pages/<page_id>/v<n>.html", holds: "That version's HTML." },
+  { path: "mockups/<mockup_id>/mockup.json", holds: "A mockup." },
+  { path: "mockups/<mockup_id>/v<n>/version.json", holds: "One version of its canvas: the pages in order, each without its HTML and notes." },
+  { path: "mockups/<mockup_id>/v<n>/brief.md", holds: "The version's brief." },
+  { path: "mockups/<mockup_id>/v<n>/pages/<page_id>.html", holds: "A page's HTML. A page that enters the prototype has none; version.json gives its entry." },
+  { path: "mockups/<mockup_id>/v<n>/pages/<page_id>.notes.md", holds: "A page's design notes." },
+  { path: "mockups/<mockup_id>/v<n>/files/<path>", holds: "A file the version carries for collaborators." },
+  { path: "mockups/<mockup_id>/v<n>/prototype/<path>", holds: "A file of the version's prototype, as it was uploaded." },
+  { path: "tombstones.json", holds: "What was deleted permanently: what it was, who deleted it, when and why." },
+  { path: "activity.jsonl", holds: "The activity log, one event a line." },
+];
+
+/**
+ * The columns of an assumption a bundle holds: every one but the search vector the database keeps
+ * for itself. Listing them against the table's type makes a new column fail the typecheck until it
+ * is added here.
+ */
+const ASSUMPTION_COLUMNS = Object.keys({
+  entry_id: 1, tenant_id: 1, product_id: 1, kind: 1, statement: 1, body: 1, links: 1, outcome_ids: 1, tags: 1, author: 1, author_type: 1,
+  status: 1, review_count: 1, archived_at: 1, etag: 1, created_at: 1, updated_at: 1, updated_by: 1,
+} satisfies Record<keyof RegisterEntriesTable, 1>) as (keyof RegisterEntriesTable)[];
+
 export const exportProduct = defineOperation({
   name: "products.export",
   scope: "product",
   access: "read",
   mutates: true,
-  // Export is never blocked, not even by archiving.
+  // No quota and no archiving stops an export; only a public sandbox limits its visitors'.
   allowArchivedProduct: true,
-  summary: "Export the whole product to one ZIP: every source file, parse, note, outcome, revision, assumption, review, Story version, mockup version and activity event.",
+  summary:
+    "Export the whole product to one ZIP: every source with its attachments, texts, summary, notes and comments, and the outcomes, assumptions with their reviews, earlier texts, Story versions, mockup versions, tombstones and activity.",
   description:
-    "Any role may export, always — export is never blocked. The bundle is built in the background; call products(action=\"exports\") to see when it is ready and get a download grant. Readable with a ZIP tool and nothing else: JSON, Markdown, HTML and the original files.",
+    "A viewer, editor or admin may export, at any time: no quota stops it, and an archived product exports too. A reader, who reads only the Story, is refused (403). In a public sandbox a visitor's exports are limited by exports_per_day, which is 0 unless its staff raise it, so a visitor's export is usually refused (403 sandbox_restricted). One export of a product is built at a time (409 export_in_progress). The bundle is built in the background; call products(action=\"exports\") to see when it is ready and get a download grant. Readable with a ZIP tool and nothing else: JSON, Markdown, HTML and the original files, each kind listed in the bundle's README.txt.",
   input: z.strictObject({}),
   rest: { method: "POST", path: "/exports" },
   mcp: { tool: "products", action: "export" },
@@ -68,6 +113,17 @@ export const listExports = defineOperation({
 });
 
 export const exportOps = [exportProduct, listExports];
+
+/** A bundle's README.txt: what it is, then every kind of file it holds and what each holds. */
+export function bundleReadme(what: string): string {
+  return (
+    `WhatBuild product bundle: ${what}.\n\n` +
+    "Everything is plain files: JSON for structured data, Markdown for texts, HTML for pages, and\n" +
+    "every attachment as it was uploaded. In a path, <…> stands for one name, v<n> for a version\n" +
+    "number, and <path> for a path that may have folders. What each file holds:\n\n" +
+    BUNDLE_LAYOUT.map((f) => `${f.path}\n    ${f.holds}\n`).join("")
+  );
+}
 
 /**
  * Build a product bundle in the worker. Streams the ZIP into the blob store so a large product
@@ -121,7 +177,7 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
       tenant,
       team,
       product: { product_id: product.product_id, slug: product.slug, name: product.name, concept: product.concept, created_at: product.created_at, archived_at: product.archived_at },
-      layout: "records/<record_id>/record.json · text.md · attachments/<file_version_id>/<path> · derived/<derivation_id>/* · assumptions.json · story/* · mockups/*",
+      layout: BUNDLE_LAYOUT.map((f) => f.path).join(" · "),
     }),
   );
   add("outcomes.json", j(await db.selectFrom("outcomes").selectAll().where("product_id", "=", pid).orderBy("position").execute()));
@@ -165,7 +221,7 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
     for (const a of agent) add(`${base}/agent-notes/${a.kind}.md`, a.content);
   }
 
-  const entries = await db.selectFrom("register_entries").selectAll().where("product_id", "=", pid).where("kind", "=", "assumption").orderBy("entry_id").execute();
+  const entries = await db.selectFrom("register_entries").select(ASSUMPTION_COLUMNS).where("product_id", "=", pid).where("kind", "=", "assumption").orderBy("entry_id").execute();
   const reviews = entries.length ? await db.selectFrom("reviews").selectAll().where("entry_id", "in", entries.map((e) => e.entry_id)).orderBy("review_id").execute() : [];
   add("assumptions.json", j(entries.map((e) => ({ ...e, reviews: reviews.filter((r) => r.entry_id === e.entry_id) }))));
 
@@ -214,15 +270,7 @@ export async function runExport(db: Tx, ports: Ports, job: { tenant_id: string; 
   add("tombstones.json", j(await db.selectFrom("tombstones").selectAll().where("product_id", "=", pid).execute()));
   const activity = await db.selectFrom("activity").selectAll().where("product_id", "=", pid).orderBy("activity_id").execute();
   add("activity.jsonl", activity.map((a) => JSON.stringify(a)).join("\n") + (activity.length ? "\n" : ""));
-  add(
-    "README.txt",
-    `WhatBuild product bundle: ${product.name} (${tenant.name} / ${team.name}).\n\n` +
-      "Everything is plain files: JSON for structured data, Markdown for each source's derived text\n" +
-      "(records/<id>/text.md), the text read from its attachments (records/<id>/derived/<id>/text.md) and mockup briefs\n" +
-      "and notes, HTML for Story versions and mockup pages (a Story version that shows a mockup page names it in its JSON),\n" +
-      "each mockup version's prototype under mockups/<id>/v<n>/prototype/ as it was uploaded,\n" +
-      "and every stored version of every attachment under records/<id>/attachments/.\n",
-  );
+  add("README.txt", bundleReadme(`${product.name} (${tenant.name} / ${team.name})`));
   zip.end();
   const stored = await upload;
   await db.updateTable("exports").set({ status: "ready", blob_key: key, size: stored.size, file_count: files, completed_at: new Date().toISOString() }).where("export_id", "=", ex.export_id).execute();
