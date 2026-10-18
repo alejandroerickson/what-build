@@ -3,7 +3,7 @@ type: Roadmap
 title: Phases 0 to 5 are mostly built, and a public sandbox; durability, data rights and public sign-up come next.
 description: What is built and what is not, phase by phase, with acceptance criteria; the open questions that remain, the ones already settled, and the risks.
 tags: [roadmap, status, phases, open-questions, risks]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -182,7 +182,6 @@ lets a defect through, when it writes a Story of many pages over MCP.
 | `story.restyle` gives every live page the product's current stylesheet in one call, with each page's etag checked | After `set_style`, `publish { restyle }` is one call per page. |
 | Publishing warns, without refusing, about a class the page uses that neither the product's stylesheet nor the page's own styles define | A page written for one style and published under another renders unstyled blocks, and nothing says so. |
 | Publishing warns about a list item in `.steps` or `.lines` that does not have the shape the vocabulary gives | A house style once laid a step out as a grid, which broke any step holding a link or bold text. The styles no longer do, and a check would catch the next such fault. |
-| A source may carry a quoting rule in its metadata (for example "by role only"), and `story.guidance` lists the rules in force in the product | An agreement that limits naming an organisation is one source among many. An agent finds it only by reading it, and a Story is what is read outside the team. |
 | The print view turns a link to another Story page that is in the same export into a link within the document | A printed Story's links between its own pages lead back to the app. |
 | `story.guidance` names the width the app shows a page at, and the house styles are checked at it | A page is shown at up to 900 pixels. A style's grid that holds three figures at 1,100 pixels may hold two at 900. |
 | A page's body is stored apart from its stylesheet | A version would then hold what the author wrote, a style change would need no new versions, and an export would not repeat the stylesheet in every version. It changes what a version is, so it needs a decision first. |
@@ -361,7 +360,8 @@ Each has a default so work is not blocked.
   ([§3.7](03-accounts-teams-and-identity.md)).
 - Assumptions freeze at first review; corrections supersede ([§4.8](04-data-model.md)).
 - Evidence is found by searching, not kept as citations: nothing structural points from an
-  assumption, a Story page or a mockup to a source, and a Story explains in words
+  assumption, a Story page or a mockup to a source, and a Story page quotes, paraphrases or links
+  what is in the product however suits its readers, with no rule about any of it
   ([decision](../decisions/evidence-is-searched-not-cited.md)).
 - Sources are described by a title and tags, with no kinds, folders or organization field
   ([decision](../decisions/sources-are-described-by-tags.md)).

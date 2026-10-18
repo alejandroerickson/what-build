@@ -13,8 +13,8 @@ import { expectedEtag, id } from "../schemas.ts";
 import { escapeHtml, inspectStoryCss, inspectStoryHtml, STORY_CSS_MAX, STORY_HTML_MAX } from "../story-html.ts";
 import { composePrintDocument, PRINT_MAX_PAGES, printOrder } from "../story-print.ts";
 import {
-  ANTI_PATTERNS, CARRIED_TYPEFACES, catalogue, CHECKLIST, components, COMPOSITIONS, CONTENT_RULES, DESIGN_PASSES, DESIGN_TOOLS, GUIDANCE_VERSION, linkTemplates, SANDBOX_RULES,
-  starterHtml, STYLE_WORKFLOW, TASTE, VOCABULARY, WORKFLOW, WRITING,
+  ANTI_PATTERNS, CARRIED_TYPEFACES, catalogue, CHECKLIST, components, COMPOSITIONS, CONTENT_RULES, DESIGN_PASSES, DESIGN_TOOLS, GUIDANCE_VERSION, LINKS_NOTE, linkTemplates,
+  SANDBOX_RULES, starterHtml, STYLE_WORKFLOW, TASTE, VOCABULARY, WORKFLOW, WRITING,
 } from "../story-guidance.ts";
 import { HOUSE_STYLE_IDS, houseStyle, pageDocument, PLAIN_STYLESHEET } from "../story-styles.ts";
 import { newEtag, newId, randomToken, sha256Hex, uniq } from "../util.ts";
@@ -114,6 +114,7 @@ export const guidance = defineOperation({
         ? { name: current.name, based_on: current.based_on, summary: current.summary, etag: current.etag, read_with: 'story(action="get_style")' }
         : { none: true, next: "Settle the Story style with the person before the first page: see style_workflow." },
       links,
+      links_note: LINKS_NOTE,
       limits: { html_characters: STORY_HTML_MAX, stylesheet_characters: STORY_CSS_MAX, inline_scripts: 10, script_characters: 32000, pages_per_product: MAX_PAGES, hierarchy_depth: MAX_DEPTH },
       ...(picked ? { house_style: { ...picked, starter_html: starterHtml(picked.stylesheet) } } : {}),
     };

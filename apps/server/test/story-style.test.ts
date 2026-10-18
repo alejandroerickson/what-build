@@ -1,7 +1,10 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { composePrintDocument, FRAME_SCRIPT, HOUSE_STYLE_IDS, HOUSE_STYLES, houseSpecimen, inspectStoryCss, inspectStoryHtml, STORY_FONTS, storyFontFaces, storyFontsNamed, withStoryFonts, withStoryFrame } from "@whatbuild/core";
+import {
+  composePrintDocument, FRAME_SCRIPT, GUIDANCE_VERSION, HOUSE_STYLE_IDS, HOUSE_STYLES, houseSpecimen, inspectStoryCss, inspectStoryHtml, STORY_FONTS, STORY_HTML_MAX, STORY_MAX_SCRIPTS,
+  STORY_SCRIPT_BUDGET, storyFontFaces, storyFontsNamed, withStoryFonts, withStoryFrame,
+} from "@whatbuild/core";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { staticRoutes } from "../src/public-routes.ts";
@@ -141,6 +144,23 @@ describe("Story guidance", () => {
     expect(JSON.stringify(g.body.design_tools)).toContain("Impeccable");
     const text = JSON.stringify(g.body);
     for (const appToken of ["#5a53e8", "#8b85ff", '\\"Inter', "Inter Variable", "--wb-"]) expect(text, appToken).not.toContain(appToken);
+  });
+
+  it("says what the Story is for, sets no rule about quoting, attributing or linking, and keeps the accuracy checks", async () => {
+    const g = await vic.api("GET", `${P}/story/guidance`);
+    expect(g.body.version).toBe(GUIDANCE_VERSION);
+    expect(g.body.writing.purpose).toContain("not a quoted or cited record of how decisions were reached");
+    expect(g.body.writing.purpose).toContain("quote it, paraphrase it, sum it up or link to it");
+    const text = JSON.stringify(g.body);
+    for (const rule of ["exact quotation", "exact words", "by role", "source reference", "source links", "No link", "Open the mockup", "analysis, not evidence", "consent note", "naming people", "passage", "evidence_wall"])
+      expect(text, rule).not.toContain(rule);
+    // Linking is the author's choice: every template stays, with who can follow each.
+    expect(Object.keys(g.body.links)).toEqual(["source", "outcome", "assumption", "mockup", "story_page"]);
+    expect(g.body.links_note).toContain("A reader (the role that may read only the Story) opens story_page links");
+    // What a page must not misstate stays.
+    expect(g.body.writing.fact_guardrails.join(" ")).toContain("Never add a person, owner, date, source, quote, count");
+    expect(g.body.checklist.find((c: { check: string }) => c.check === "Accuracy").question).toContain("quotation");
+    expect(g.body.limits).toMatchObject({ html_characters: STORY_HTML_MAX, inline_scripts: STORY_MAX_SCRIPTS, script_characters: STORY_SCRIPT_BUDGET });
   });
 
   it("returns one house style in full on request", async () => {

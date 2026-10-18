@@ -245,7 +245,7 @@ export const LARGE: HouseStyle = {
     "Colour means state and nothing else: green is evidence or done, red is caution, grey is open. Every .status names its state in words beside its mark.",
     "Put the numbers that matter in .figures, one per row, written short (\"19 of 23\", \"2.5 h\") so each stays on one line at full size.",
     "In ol.timeline, mark what is reached with data-state=\"done\" and the release in progress with aria-current=\"step\"; the current row carries the thick bar, so mark only one.",
-    "Use <mark> once or twice a page, on a few words of a quote or passage: it reverses the text out of black and is the strongest emphasis the page has. Keep the framed .callout for the one thing that changes how the page reads.",
+    "Use <mark> once or twice a page, on a few words of a quote or a sentence: it reverses the text out of black and is the strongest emphasis the page has. Keep the framed .callout for the one thing that changes how the page reads.",
   ])}\n`,
   stylesheet: CSS,
 };

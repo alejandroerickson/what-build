@@ -66,8 +66,9 @@ permissions and one activity log.
 - A source's words are one derived text, taken from one of its attachments until someone edits it;
   every attachment is read and kept but never searched, and the UI says so. Search reads a
   source's title, tags, summary, text, notes and comments.
-- Nothing keeps citations: agents find what bears on a piece of work by searching, and the Story
-  explains in words, quoting a person only where their words matter.
+- Nothing keeps citations: agents find what bears on a piece of work by searching. The Story is the
+  team's own communication (what to build, the pitch, the plan), and a page quotes, paraphrases or
+  links what is in the product however suits its readers.
 - Archive is the reversible default everywhere; delete is permanent, explicit, guarded and an admin's.
 - Story pages are agent-authored, self-contained HTML shown in a sandbox. Agents write the Story;
   people read it, export it to PDF, and arrange, archive and delete its pages by hand. Pages follow the product's Story style: the

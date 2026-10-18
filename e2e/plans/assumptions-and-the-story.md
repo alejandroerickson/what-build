@@ -32,8 +32,8 @@ checked on the way.
    on the web.
 5. **MCP, as Sam.** Get the assumption. *Expect:* the review from step 4, with Riley as reviewer.
 6. **MCP, as Sam.** Read the Story guidance and the house style, then preview a new Story page that
-   explains the assumption in its own words, quoting the source only if its exact words matter
-   and without a link to it, open the preview's url in the browser with
+   tells stakeholders what the assumption means for what the team builds, drawing on the source
+   however suits the page (quoting, paraphrasing or linking it), open the preview's url in the browser with
    its grant (`open <url> --header "<name>: <value>"`) at desktop and phone width (`viewport 390
    844`), light and dark (`theme dark`, or `?theme=dark` on the url), then publish the same call and place the
    page under the overview page in the hierarchy. *Expect:* the preview creates no page (the Story
@@ -57,8 +57,9 @@ checked on the way.
 ## Look out for
 
 - Anything that still shows citations, references, "Cited in", "Cited by" or "Built from".
-- A Story page that puts a source reference or a link to the evidence after its claims, which the
-  Story guidance tells agents not to do.
+- Story guidance or a skill that still tells an agent how to quote, attribute or link on a Story
+  page (exact quotations only, attribution by role, no links to the evidence); the Story sets no
+  such rule.
 - Anything a reader can see that the decision on readers says they cannot
   (`okf/decisions/a-reader-reads-only-the-story.md`).
 - A Story page that looks different in the app's frame and in the print view.

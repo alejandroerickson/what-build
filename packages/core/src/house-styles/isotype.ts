@@ -168,7 +168,7 @@ export const ISOTYPE: HouseStyle = {
     "Colours have jobs: red is what matters now, blue is the plan and links, green is done, ochre is caution and decisions. Never use them for decoration.",
     "Labels (data-label, captions, table heads) are spaced capitals; headings and text are sentence case.",
     "A plan is a bar (ol.timeline): data-state=\"done\" fills green, aria-current=\"step\" red, the rest dashed.",
-    "Keep charts honest: a stated denominator, the source beside it, no third dimension.",
+    "Keep charts honest: a stated denominator, no third dimension.",
   ])}\n`,
   stylesheet: CSS,
 };

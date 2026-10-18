@@ -3,7 +3,7 @@ type: Specification
 title: Every object in a product, with its fields, limits and invariants, as the REST and MCP wire sees it.
 description: The common envelope (ids, etags, attribution, revisions), outcomes, sources and their tags, attachments, comments, summaries and notes, evidence links, the assumption register, views, activity, Story, mockups, feedback, the product bundle, and the storage layout.
 tags: [spec, data-model, schema, revisions, story, mockups, export]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -610,13 +610,17 @@ layout, adapt, polish), a push to use a design skill such as Impeccable when the
 to mention it once when it does not, the sandbox rules, recipes, writing rules and a checklist.
 It carries no stylesheet of its own and nothing of the app's look; `house_style` returns that
 style in full with a starter page, and `product_style` says whether the product has a style yet.
-The writing guidance asks for pages that explain in their own words and quote a person only where
-their exact words matter, attributed in words, with no source reference or link to the evidence
-after each claim ([decision](../decisions/evidence-is-searched-not-cited.md)); source-level quoting rules
-honoured (attribution by role where a source limits naming people, looked for before the first
-page), derived views labelled as analysis rather than evidence, a plan's dates presented as the
-team's plan with their origin kept in the page's notes, and pages placed in the hierarchy unless
-the author's instructions say otherwise. A first version that
+The writing guidance says what the Story is for: the team's own communication with the people it
+works with (what to build and why, the pitch, the plan, where things stand, or whatever else the
+team wants its stakeholders to read), not a quoted or cited record of how decisions were reached.
+It sets no rule about how a page quotes, paraphrases, attributes or links what is in the product
+([decision](../decisions/evidence-is-searched-not-cited.md)): `links` gives a template for a link
+to a source, the outcomes, an assumption, a mockup and a Story page, and `links_note` says who can
+follow each (everyone on the team; a reader only Story pages and links outside WhatBuild). It keeps
+what a page must not misstate: no person, date, quotation, count, measurement or decision the
+sources do not establish, interpretation labelled as such, a plan's dates presented as the team's
+plan with their origin kept in the page's notes; and it asks for pages placed in the hierarchy
+unless the author's instructions say otherwise. A first version that
 omits both `body` and `html` gets a generated title page in the product's Story style, or a plain
 page when there is none.
 
