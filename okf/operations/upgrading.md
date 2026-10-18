@@ -26,8 +26,11 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 - **Migration `0031_summaries_and_notes_have_etags`.** It gives every source's summary and notes
   (`agent_notes`) an etag of its own, live and in saved sandbox baselines. Nothing is dropped and
   no text changes, and an earlier release runs on the new schema (the column has a default), so
-  going back needs no restore. Rehearse on the dev deployment first, as for every release that
-  migrates ([dev-deployment](dev-deployment.md)).
+  going back needs no restore. The earlier release's `derived(action="write_note")` replaces a
+  summary or notes without changing its etag, though: after going back and forward again, an etag
+  read before going back can still match a summary or notes changed in between, and a write with it
+  goes through. Rehearse on the dev deployment first, as for every release that migrates
+  ([dev-deployment](dev-deployment.md)).
 - **Agents and integrations must send an etag they could leave out before.** Once a source has a
   summary, notes or a derived text, `derived(action="write_note")` and
   `derived(action="write_text")` refuse a write or a clearing without its current etag
