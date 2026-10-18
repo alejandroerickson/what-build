@@ -71,6 +71,8 @@ describe("MCP", () => {
     expect(tools).toHaveLength(14);
     // The client keeps the list it connected with, so the instructions say what a missing tool means.
     expect(client.getInstructions()).toMatch(/start a new session/);
+    // With several copies of the skill installed, the one at the server's version is the one to follow.
+    expect(client.getInstructions()).toContain("If more than one copy is installed (in different places, or under different names), the one at this version is the one to follow");
     // Agents write links with the deployment's own address, never another name it answers on.
     expect(client.getInstructions()).toContain(`This deployment's address is ${h.baseUrl}.`);
     const skill = text(await client.callTool({ name: "get_skill", arguments: {} }));

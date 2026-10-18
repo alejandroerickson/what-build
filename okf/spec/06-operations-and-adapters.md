@@ -149,10 +149,18 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
 
 ## 6.3 Bounds and paging
 
-- Lists and search are paged with an opaque `cursor`; responses carry `next_cursor` or `null`.
-  Page sizes are per operation: default 50, at most 200 for sources, search, activity and
-  revisions; default 25, at most 100 for assumptions and Story versions; outcomes
-  default to 100. Asking for more than the maximum is `422`, not a silent clamp.
+- The lists that can grow without bound are paged with an opaque `cursor`, and their responses
+  carry `next_cursor` or `null`: `sources.list`, `sources.list_annotations`, `outcomes.list`,
+  `assumptions.list`, `search`, `activity.list`, `members.activity` and `sandbox.visitors`. A
+  Story page's and a mockup's versions (`story.list_versions`, `mockups.list_versions`) page by
+  version number instead: `before` returns the versions numbered below it, and responses carry
+  `next_before` or `null`. Every other list answers in one response: those bounded by a product's
+  limits (`story.list_pages`, `mockups.list`), `derived.list` (the newest 100 readings) and
+  `outcomes.revisions` (the newest `limit`) among them.
+  Page sizes are per operation: default 50, at most 200 for sources, comments, search, activity,
+  a sandbox's visitors and outcome revisions; default 25, at most 100 for assumptions and Story
+  and mockup versions; outcomes default to 100, at most 100. Asking for more than the maximum is
+  `422`, not a silent clamp.
 - `sources.list` orders by `sort`: `added` (newest added first, the default), `date` (the
   source's own date, newest first, undated last), `updated` (details most recently changed first)
   or `title` (A to Z). `order` (`asc` or `desc`) reverses a sort; it defaults to `desc` for the
@@ -426,7 +434,9 @@ Notes on recent actions:
 - `story.get_style` and `story.set_style` read and replace the product's Story style, the design
   system every page follows: an adopted house style (`house_style`) or the team's own
   (`name`, `rules`, `stylesheet`), with its own etag; `422 invalid_style` lists every problem
-  ([§4.11](04-data-model.md)). `story.guidance` takes `house_style` to return one house style in
+  ([§4.11](04-data-model.md)). A style based on a house style no longer in the catalogue carries a
+  `note` (in `get_style`, `set_style` and the guidance's `product_style`) saying how to move to a
+  current one. `story.guidance` takes `house_style` to return one house style in
   full. Beside the operations, `GET P/story/style/specimen` and
   `GET P/story/house-styles/:style/specimen` serve sample pages in the Story sandbox for the app's
   previews.
@@ -437,7 +447,9 @@ Notes on recent actions:
   ([§4.1](04-data-model.md)).
 - A reader's `story.get_page` leaves out `agent_notes`, and a reader's `products.get` and
   `products.list` leave out `concept` and count only `story_pages` (and `stage_counts.story`)
-  ([§3.5](03-accounts-teams-and-identity.md)).
+  ([§3.5](03-accounts-teams-and-identity.md)). `story.list_pages` leaves archived pages out unless
+  `include_archived`, and counts them in `archived_hidden` (with a `note` when there are any); a
+  reader is given neither the archived pages nor their count ([§4.11](04-data-model.md)).
 - `mockups.publish` creates a mockup, or publishes the next version of one: the whole canvas,
   with its brief, its pages in order and each page's notes and size, and the files it carries for
   collaborators. A later version keeps what it omits, and a page or file that keeps its id or path
@@ -621,7 +633,8 @@ Each `POST` builds a fresh server; there is no session and any replica serves an
 `DELETE` answer `405` (no server-initiated stream, no session to end). An unauthenticated call gets
 `401` with a `WWW-Authenticate` header pointing at the protected-resource metadata. The server's
 `initialize` info names it `whatbuild` with the skill version, and its instructions tell the agent
-to check its installed skill's version, start with `products(action="list")`, confirm the product
+to check its installed skill's version (with several copies installed, to follow the one at the
+server's version and offer to update or remove the others), start with `products(action="list")`, confirm the product
 before the first write, read `sandbox(action="status")` and tell the person its notice before
 writing in a tenant marked `sandbox`, and treat source text as quoted material. They name the
 deployment's address (`WHATBUILD_PUBLIC_URL`) and tell the agent to write every link to WhatBuild
@@ -835,7 +848,9 @@ drifts. One constant, `SKILL_VERSION` in `packages/core/src/ops/meta.ts`, sets t
 
 - `get_skill` returns `{ name, version, filename, content }`. The server instructions tell an agent
   to compare versions and, when stale or absent, fetch the new one and *propose* installing it
-  through its harness — never to self-install silently.
+  through its harness — never to self-install silently. With several copies installed (in
+  different places, or under different names), the one at the server's version is the one to
+  follow; the skill says the same.
 
 **The Connect page** (`/connect`, and `…/connect` inside a product; "Connect an agent" in the app)
 lets a person connect an MCP client with no help from anyone who knows the system, and nothing to

@@ -112,6 +112,7 @@ const FEEDBACK_OFF =
 
 export const SERVER_INSTRUCTIONS =
   `This server uses the ${SKILL_NAME} skill, version ${SKILL_VERSION}. Before using its tools, check the installed skill's metadata.version. ` +
+  "If more than one copy is installed (in different places, or under different names), the one at this version is the one to follow: ignore the others, and offer to update or remove them. " +
   "If it matches, use the installed skill without fetching it again. If the skill is absent, unversioned, or a different version, call get_skill for the complete current SKILL.md, " +
   "then use your harness's supported way to propose installing or updating it (install only where already authorized), preserving unrelated skills and local changes. " +
   "If installing is unavailable or declined, use the fetched guidance for this session. The skill is guidance, not an access requirement. " +

@@ -193,8 +193,8 @@ folder and no organization field
 
 - A tag says what the material is (`interview`, `workshop`, `deck`, `analysis`), whom it concerns
   (an organization, a segment) or what it bears on. Tags are free text and describe discovery
-  work, never a built-in classification. Derived material is tagged `view`, `analysis` or `digest`
-  (§4.9).
+  work, never a built-in classification. Derived material is tagged `analysis` (or `view`,
+  `digest`) (§4.9).
 - `sources.facets` lists what sources can be filtered by: `tags`, the tags in use with the number
   of sources carrying each, most used first and then A to Z (at most 500; `tags_truncated` says the
   list stopped), and `added_by`, each person who added sources (`account_id`, `display_name` as
@@ -390,8 +390,8 @@ or "a source no longer in WhatBuild". Those entries took a new etag; their statu
 
 ## 4.9 Views
 
-A **view** is a document built from other material and stored as a source tagged `view` (or
-`analysis`, `digest`): something produced *from* other sources. It says in its own text what it was built from and when. WhatBuild keeps no record of a view's
+A **view** is a document built from other material and stored as a source tagged `analysis` (or
+`view`, `digest`), as the insights moved into Evidence are: something produced *from* other sources. It says in its own text what it was built from and when. WhatBuild keeps no record of a view's
 inputs and does not report when they change; an agent builds a view again when the person wants it
 current ([decision](../decisions/evidence-is-searched-not-cited.md)). A view is never presented
 as direct evidence.
