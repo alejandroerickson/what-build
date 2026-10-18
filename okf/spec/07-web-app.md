@@ -230,8 +230,9 @@ person's organization role is in the account menu, and who has which role is on 
                       (date_from, date_to: the date captured; query: words in titles, tags or attachment
                       names; both from a link)
   /evidence/new                               intake: describe it, add attachments, create
-  /evidence/:record   ?view=text|notes|comments|attachments &find=<words>&at
-                      (at: where a search hit's piece of the text starts, so the find starts there)
+  /evidence/:record   ?view=text|notes|comments|attachments &find=<words>&at &include_archived
+                      (at: where a search hit's piece of the text starts, so the find starts there;
+                      include_archived: Comments lists the archived comments too)
   /search             ?q&show&record_id&strict
   /exploration                                → …/exploration/mockups
   /exploration/mockups                        → the mockup last opened here, or the most recent; first use with none
