@@ -172,6 +172,18 @@ export function termTsquery(t: FindTerm): string {
   return spelledApart(t) ? `${whole} | ${t.root.split("-").map((w) => `'${w}'`).join(" <-> ")}${star}` : whole;
 }
 
+/**
+ * A tsquery for the pieces of text where a find with this term may mark something: the term as a
+ * prefix, as a find marks every word with any ending (from a root that starts with this term's),
+ * and a phrase with its last word as a prefix, as a find marks a phrase with no end to it. It finds
+ * more than a find marks, never less; the find's own pattern then counts what it marks.
+ */
+export function findTsquery(t: FindTerm): string {
+  if (!t.phrase) return termTsquery({ ...t, prefix: true });
+  const words = t.root.split(" ");
+  return words.map((w, k) => `'${w}'${k === words.length - 1 ? ":*" : ""}`).join(" <-> ");
+}
+
 /** An id that ends in a number after a hyphen: the 01 of 2026-05-01, the 20734 of CB26-20734. */
 const ENDS_IN_NUMBER = /-\p{N}+$/u;
 

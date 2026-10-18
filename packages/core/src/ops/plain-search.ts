@@ -1,6 +1,7 @@
 import { sql, type RawBuilder } from "kysely";
 import { productId } from "../common.ts";
-import { closestWord, excerpt, fold, idLike, matchText, parseFind, termPattern, termTsquery, wordRoot, type FindKind, type FindTerm, type ParsedFind, type TextMatch } from "../plain-query.ts";
+import { findCount, findPattern, findWords } from "../find-in-text.ts";
+import { closestWord, excerpt, findTsquery, fold, idLike, matchText, parseFind, termPattern, termTsquery, wordRoot, type FindKind, type FindTerm, type ParsedFind, type TextMatch } from "../plain-query.ts";
 import type { OpContext } from "../registry.ts";
 
 /**
@@ -57,6 +58,12 @@ export interface FindResult {
   /** Where a source says the words, best first, and how many places there are. */
   hits?: Omit<Hit, "found">[];
   hit_count?: number;
+  /**
+   * How many times a source's derived text says the words, counted as its Find in the text counts
+   * them for the same words: the number the web app shows as "N matches". Left out when counting
+   * would read past COUNT_PIECES_MAX pieces, rather than given short.
+   */
+  match_count?: number;
 }
 
 /** Text from stored HTML: scripts, styles and tags dropped, entities blanked. */
@@ -342,7 +349,36 @@ async function run(ctx: OpContext, p: ParsedFind, i: Input) {
 }
 
 export const PLAIN_DESCRIPTION =
-  "mode \"plain\" searches everything in the product the way a person types into a search box, ranked: sources, each with the best places it says the words (its derived text, summary, notes or comments; hits give the field and where the piece starts), assumptions, outcomes, mockups, Story pages and the product concept. Words match in any order, each at the start of a word; endings are forgiven (\"pricing\" finds price and priced); the last word is taken as still being typed and matches as a prefix even when short, unless the query ends with a space; \"quoted words\" match as a phrase; an id or a number (CB26-20734, 2026-05-01, 2026) is one word, hyphens and all, matched as written, and one with a letter in it also as its words side by side (q3-planning finds \"Q3 planning\"); small words (the, of, how) are skipped; a word that matches nothing is replaced by the closest word the product holds, and `corrections` says so (`strict: true` turns that off), but an id or a number is never corrected. When nothing holds every word, results hold most of them and list the `missing` ones. At most `limit` results come back (60 unless you say), best first; `counts` says how many of each kind matched in all, so say so when more matched than came back. It takes `kind`, `record_id`, `strict` and `limit`, not the date or tag filters or a cursor.";
+  "mode \"plain\" searches everything in the product the way a person types into a search box, ranked: sources, each with the best places it says the words (its derived text, summary, notes or comments; hits give the field and where the piece starts), how many places in hit_count, and in match_count how many times its derived text says them, as the source's Find in the text in the web app counts them, assumptions, outcomes, mockups, Story pages and the product concept. Words match in any order, each at the start of a word; endings are forgiven (\"pricing\" finds price and priced); the last word is taken as still being typed and matches as a prefix even when short, unless the query ends with a space; \"quoted words\" match as a phrase; an id or a number (CB26-20734, 2026-05-01, 2026) is one word, hyphens and all, matched as written, and one with a letter in it also as its words side by side (q3-planning finds \"Q3 planning\"); small words (the, of, how) are skipped; a word that matches nothing is replaced by the closest word the product holds, and `corrections` says so (`strict: true` turns that off), but an id or a number is never corrected. When nothing holds every word, results hold most of them and list the `missing` ones. At most `limit` results come back (60 unless you say), best first; `counts` says how many of each kind matched in all, so say so when more matched than came back. It takes `kind`, `record_id`, `strict` and `limit`, not the date or tag filters or a cursor.";
+
+/** At most this many pieces of derived text are read to count matches, so a search for a common word stays quick. */
+const COUNT_PIECES_MAX = 2000;
+
+/**
+ * Each source result's `match_count`: the matches its Find in the text marks for the words this
+ * search read, counted in the pieces of its derived text that may hold one. Only the derived text
+ * is counted, because the find marks only it. The pieces are read in the results' order, so the
+ * best come first; a source the limit cuts, and those after it, are left without a count.
+ */
+async function countMatches(ctx: OpContext, p: ParsedFind, results: FindResult[]): Promise<void> {
+  const sources = results.filter((r) => r.kind === "source");
+  const pattern = findPattern(findWords(p.terms));
+  if (!sources.length || !pattern) return;
+  const ids = sources.map((r) => r.id);
+  const q = p.terms.map((t) => `(${findTsquery(t)})`).join(" | ");
+  const rows = await sql<{ record_id: string; text: string }>`
+    select c.record_id, c.text from text_chunks c
+    where c.record_id = any(${ids}::text[]) and c.field = 'text' and c.tsv @@ to_tsquery('simple', ${q})
+    order by array_position(${ids}::text[], c.record_id), c.n
+    limit ${COUNT_PIECES_MAX + 1}`.execute(ctx.db);
+  const counts = new Map<string, number>();
+  for (const r of rows.rows.slice(0, COUNT_PIECES_MAX)) counts.set(r.record_id, (counts.get(r.record_id) ?? 0) + findCount(r.text, pattern));
+  const cut = rows.rows.length > COUNT_PIECES_MAX ? rows.rows[COUNT_PIECES_MAX]!.record_id : null;
+  for (const r of sources) {
+    if (r.id === cut) break;
+    r.match_count = counts.get(r.id) ?? 0;
+  }
+}
 
 export async function plainSearch(ctx: OpContext, i: PlainInput) {
   let p = parseFind(i.query);
@@ -374,6 +410,9 @@ export async function plainSearch(ctx: OpContext, i: PlainInput) {
   // answer, else those that hold every word.
   const more = partial ? r.beyond.any : r.beyond.all;
   if (more) counts.source = (counts.source ?? 0) + more;
+  // With record_id, that source is the only result there can be.
+  const results = shown.slice(0, i.record_id ? 1 : i.limit);
+  await countMatches(ctx, p, results);
   return {
     query: i.query,
     terms: p.terms.map((t) => ({ text: t.text, phrase: t.phrase })),
@@ -383,7 +422,6 @@ export async function plainSearch(ctx: OpContext, i: PlainInput) {
     partial,
     counts,
     hits_matched: r.hits,
-    // With record_id, that source is the only result there can be.
-    results: shown.slice(0, i.record_id ? 1 : i.limit),
+    results,
   };
 }

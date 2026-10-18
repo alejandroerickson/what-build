@@ -76,7 +76,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   too, are centred on where the most of the words are (a quoted phrase on the phrase), start and
   end at whole words, and mark their words in a text with an ellipsis or a ligature in it, where
   they were left unmarked; an assumption's body and the product concept show as words, without
-  their Markdown, as a source's text does.
+  their Markdown, as a source's text does. A source's result carries `match_count`, how many times
+  its text says the words as its Find in the text counts them, and that is the "N matches" the
+  palette and the Search screen show, so it agrees with the find's "1 of N" (it counted places
+  before, which `hit_count` still does).
 - **Nothing to change; agents will write the Story differently. The Story guidance is 5.0.0.**
   The Story is the team's own communication (what to build, the pitch, the plan), and neither the
   guidance nor the skill sets a rule about how a page quotes, paraphrases, attributes or links;

@@ -1,10 +1,20 @@
 import { closestWord, excerpt, matchText, parseFind, termTsquery, wordRoot } from "@whatbuild/core";
+import { findCount, findPattern, findWords } from "@whatbuild/core/find-in-text";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createPorts } from "../src/app.ts";
 import { seed } from "../src/seed.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 describe("how plain search reads a query", () => {
+  it("reads the pieces a find may mark from a root that starts each root the find marks from", () => {
+    // Counting a source's matches reads the pieces its terms match as prefixes, so every place the
+    // find marks is in one of them: the find's root of a word starts with search's.
+    for (const w of ["pricing", "prices", "price", "planning", "planned", "note", "notes", "lies", "crew", "crews", "messages", "message", "ux", "scheduling", "quotes", "cb26-20734", "2026"]) {
+      const marked = /\(\?:(.*)\[\\p\{L\}\\p\{N\}\]\*\)$/.exec(findPattern(w)!.source)![1]!.replace(/\\/g, "");
+      expect(marked.startsWith(wordRoot(w)), `${w}: ${marked} from ${wordRoot(w)}`).toBe(true);
+    }
+  });
+
   it("forgives endings, so one root is a prefix of every form", () => {
     expect(wordRoot("pricing")).toBe("pric");
     expect(wordRoot("prices")).toBe("pric");
@@ -297,6 +307,26 @@ describe("plain search's excerpts", () => {
       ["idea", "Who it is for Crew leads who send the morning dispatch Owners who read it later"],
     ].sort((a, b) => (r.results.findIndex((x: { kind: string }) => x.kind === a[0]) - r.results.findIndex((x: { kind: string }) => x.kind === b[0]))));
     for (const x of r.results) expect(x.snippet ?? "", x.kind).not.toMatch(/##|\*\*|(^|\s)[->] /);
+  });
+
+  it("counts a source's matches as its Find in the text does, in its text alone, beside the places it says them", async () => {
+    const rota = await lee.api("POST", `${L}/sources`, { title: "Rota — Example Co", tags: [] });
+    const text = "The crew leaves at six.\n\nEvery crew lead checks the crew board, and crews swap on Fridays.\n";
+    expect((await lee.api("PUT", `${L}/sources/${rota.body.record_id}/derived/text`, { content: text })).status).toBe(200);
+    const board = await lee.api("POST", `${L}/sources`, { title: "Board — Example Co", tags: [] });
+    expect((await lee.api("PUT", `${L}/sources/${board.body.record_id}/agent-notes/summary`, { content: "The crew board is by the gate." })).status).toBe(200);
+    const r = (await lee.api("GET", `${L}/search?mode=plain&query=crew`)).body;
+    const of = (id: string) => r.results.find((x: { id: string }) => x.id === id);
+    // One place (the text is one piece) where the find marks four words: crew, crew, crew and crews.
+    expect(of(rota.body.record_id)).toMatchObject({ hit_count: 1, match_count: 4 });
+    expect(of(rota.body.record_id).match_count).toBe(findCount(text, findPattern(findWords(r.terms))!));
+    // A source that says it only in its summary has a place, and nothing for the find to mark in its text.
+    expect(of(board.body.record_id)).toMatchObject({ hit_count: 1, match_count: 0 });
+    // A phrase counts as the find marks it, and narrowing to the source counts the same.
+    const phrase = (await lee.api("GET", `${L}/search?mode=plain&query=${encodeURIComponent('"crew board"')}&record_id=${rota.body.record_id}`)).body;
+    expect(phrase.results[0]).toMatchObject({ id: rota.body.record_id, match_count: 1 });
+    const yard = (await lee.api("GET", `${L}/search?mode=plain&query=crew&record_id=${note}`)).body;
+    expect(yard.results[0].match_count).toBe(findCount(YARD, findPattern("crew")!));
   });
 
   it("centres a phrase's hit on the phrase, marked, in a text with an ellipsis before it", async () => {

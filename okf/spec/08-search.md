@@ -136,8 +136,15 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
   and comments, archived sources and comments left out), assumptions, outcomes (not archived),
   mockups (each page's text at the current version), Story pages and the product concept. A source holds every word
   when its title, tags and pieces hold them between them, and is returned once, with the best
-  three places it says the words in `hits` (all of them with `record_id`) and how many pieces
-  matched in `hit_count`. A hit is `{ field, annotation_id, char_start, text, marks }`: `field` is
+  three places it says the words in `hits` (all of them with `record_id`), how many pieces
+  matched in `hit_count`, and in `match_count` how many times its derived text says them, counted
+  as its Find in the text counts them for the same words ([§7](07-web-app.md)), with the one
+  pattern and the one reading of the Markdown the web app shows
+  ([`find-in-text.ts`](../../packages/core/src/find-in-text.ts), which the app's find uses too),
+  so the result's "N matches" and the find's "1 of N" agree. Only the derived text is counted,
+  because only it is marked by the find. The count reads the pieces of the returned sources'
+  derived texts that may hold a match, in the results' order, at most 2,000 of them in a search:
+  a source past that has no `match_count` rather than one too small. A hit is `{ field, annotation_id, char_start, text, marks }`: `field` is
   `text`, `summary`, `notes` or `comment` (with the comment's `annotation_id`, null otherwise),
   `char_start` is where the piece starts in its field, in code points, and `text` an excerpt of up
   to 240 characters with the matched stretches as `[start, end]` `marks`; among equal hits the
@@ -161,7 +168,7 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
   results }`, where `hits_matched` counts the pieces of those summaries, derived texts, notes and
   comments that hold any of the words;
   each result has `kind`, `id`, `title` and `snippet` with their marks, `missing`, `score` and
-  `meta`, and a source its `hits` and `hit_count`.
+  `meta`, and a source its `hits`, `hit_count` and `match_count`.
   ◆ Decision: plain mode returns no `coverage`; the other modes do.
   ([decision](../decisions/one-search-reads-plain-words-across-the-whole-product.md))
 - **One engine.** Because there is only one database, development and production rank results
