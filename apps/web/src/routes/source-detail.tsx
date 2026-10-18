@@ -583,6 +583,9 @@ function EditDetails({ record, onClose, onReload }: { record: SourceRecord; onCl
   );
 }
 
+/** What archiving would do instead, said in a live source's delete dialog; an archived one is already out of lists and search. */
+const ARCHIVING_INSTEAD = "Archiving takes it out of lists and search and erases nothing.";
+
 function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () => void }) {
   const { api: base, app } = useProduct();
   const navigate = useNavigate();
@@ -617,7 +620,7 @@ function DeleteSource({ record, onClose }: { record: SourceRecord; onClose: () =
       open
       onClose={onClose}
       title="Delete this source permanently?"
-      description="This can’t be undone. Archiving takes it out of lists and search and erases nothing."
+      description={record.archived_at ? "This can’t be undone." : `This can’t be undone. ${ARCHIVING_INSTEAD}`}
       dismissable={!del.isPending}
       footer={
         <>

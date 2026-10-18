@@ -151,6 +151,7 @@ describe("deleting a source", () => {
     await act(async () => button("Delete permanently…").click());
     for (let i = 0; i < 5; i++) await act(async () => new Promise((r) => setTimeout(r, 0)));
     expect(document.querySelector("dialog[open] .dialog-title")?.textContent).toBe("Delete this source permanently?");
+    expect(document.querySelector("dialog[open] .dialog-description")?.textContent).toBe("This can’t be undone. Archiving takes it out of lists and search and erases nothing.");
     expect(footer()).toEqual(["Cancel", "Archive instead", "Delete permanently"]);
     await act(async () => button("Cancel").click());
     expect(document.querySelector("dialog[open]")).toBeNull();
@@ -172,7 +173,7 @@ describe("deleting an assumption", () => {
 });
 
 describe("deleting what is already archived", () => {
-  it("offers Cancel alone for an archived source, with nothing to archive instead", async () => {
+  it("offers Cancel alone for an archived source, with nothing to archive instead, and says nothing of archiving it", async () => {
     source.archived_at = "2026-10-02T09:00:00.000Z";
     await render(
       <Routes>
@@ -184,6 +185,8 @@ describe("deleting what is already archived", () => {
     await act(async () => button("Delete permanently…").click());
     for (let i = 0; i < 5; i++) await act(async () => new Promise((r) => setTimeout(r, 0)));
     expect(footer()).toEqual(["Cancel", "Delete permanently"]);
+    expect(document.querySelector("dialog[open] .dialog-description")?.textContent).toBe("This can’t be undone.");
+    expect(document.querySelector("dialog[open]")?.textContent).not.toMatch(/archiving/i);
   });
 
   it("offers Archive instead for a live Story page and leaves it out for an archived one", async () => {
