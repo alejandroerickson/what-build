@@ -50,6 +50,8 @@ interface DatePlan {
   sub: number;
   /** Whether it shows a year, month or day, as well as or instead of a time. */
   day: boolean;
+  /** Where its time is: the first and last token of the time it shows, or null for a date alone. */
+  time: [first: number, last: number] | null;
   /** Whether hours count to 12, with AM and PM. */
   twelve: boolean;
 }
@@ -559,10 +561,13 @@ function isMinute(t: Token[], at: number): boolean {
 
 function datePlan(t: Token[]): DatePlan {
   const minute = t.map((x, i) => x.k === "date" && x.c[0] === "m" && x.c.length <= 2 && isMinute(t, i));
+  const isDay = (x: Token, i: number) => x.k === "date" && "ymd".includes(x.c[0]!) && !minute[i];
+  const timeAt = t.flatMap((x, i) => (x.k === "elapsed" || x.k === "ampm" || x.k === "subsec" || (x.k === "date" && !isDay(x, i)) ? [i] : []));
   return {
     minute,
     sub: t.reduce((n, x) => (x.k === "subsec" ? Math.max(n, x.n) : n), 0),
-    day: t.some((x, i) => x.k === "date" && "ymd".includes(x.c[0]!) && !minute[i]),
+    day: t.some(isDay),
+    time: timeAt.length ? [timeAt[0]!, timeAt[timeAt.length - 1]!] : null,
     twelve: t.some((x) => x.k === "ampm"),
   };
 }
@@ -580,11 +585,16 @@ function formatDate(section: Section, serial: number, date1904: boolean): string
   const days = Math.floor(totalSeconds / 86_400);
   const secs = totalSeconds - days * 86_400;
   const [H, M, S] = [Math.floor(secs / 3600), Math.floor((secs % 3600) / 60), secs % 60];
-  // A day before the 1900 system's first shows as a number, as Excel shows no date for it.
-  if (!date1904 && days < 1 && plan.day) return undefined;
+  // A day before the 1900 system's first has no date, as Excel shows none for it: a section that
+  // shows a time shows the time alone, from its first part to its last (0.5 under m/d/yyyy h:mm is
+  // 12:00), and a date alone reads as a number.
+  const dateless = !date1904 && days < 1 && plan.day;
+  if (dateless && !plan.time) return undefined;
+  const [from, to] = dateless ? plan.time! : [0, t.length - 1];
   const cal = calendar(days, date1904);
   let text = "";
   for (const [i, x] of t.entries()) {
+    if (i < from || i > to || (dateless && x.k === "date" && "ymd".includes(x.c[0]!) && !minute[i])) continue;
     if (x.k === "lit") text += x.s;
     else if (x.k === "elapsed") text += pad(x.c === "h" ? Math.floor(totalSeconds / 3600) : x.c === "m" ? Math.floor(totalSeconds / 60) : totalSeconds, x.n);
     else if (x.k === "ampm") text += x.s.length === 5 ? x.s.slice(H >= 12 ? 3 : 0, H >= 12 ? 5 : 2) : x.s[H >= 12 ? 2 : 0]!;
