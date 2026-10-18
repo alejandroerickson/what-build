@@ -150,7 +150,7 @@ export async function runEvidenceMove(db: Tx, ports: Ports, job: { tenant_id: st
     });
     await writeFile(db, ports, job.tenant_id, i.insight_id, `${slugify(i.title)}.md`, versions);
     if (i.summary.trim())
-      await db.insertInto("agent_notes").values({ record_id: i.insight_id, kind: "summary", tenant_id: job.tenant_id, content: i.summary, updated_at: i.updated_at, updated_by: json(i.updated_by) }).execute();
+      await db.insertInto("agent_notes").values({ record_id: i.insight_id, kind: "summary", tenant_id: job.tenant_id, content: i.summary, updated_at: i.updated_at, updated_by: json(i.updated_by), etag: newEtag() }).execute();
   }
 
   for (const d of decisions) {

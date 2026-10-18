@@ -7,15 +7,21 @@ import { Markdown } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { derivedStatus, derivedStatusDetail } from "../lib/status.ts";
 import type { Attachment, RecordFull } from "../lib/types.ts";
-import { Button, Dialog, EmptyState, ErrorCallout, FindField, Glyph, IconButton, Loading, Menu, MenuGroup, MenuItem, Sheet, SheetHeader, TextArea, useToast } from "../ui/index.tsx";
+import { Button, Callout, Dialog, EmptyState, ErrorCallout, FindField, Glyph, IconButton, Loading, Menu, MenuGroup, MenuItem, Sheet, SheetHeader, TextArea, useToast } from "../ui/index.tsx";
 
 /** Past this many characters, a text shows its first part until the reader asks for the rest. */
 const SHOWN_CHARS = 300_000;
 
 const count = (n: number) => n.toLocaleString("en-GB");
 
+/** A source's whole derived text, as the server keeps it, with the etag a write over it names. */
+interface WholeText {
+  content: string;
+  etag: string | null;
+}
+
 /** A source's whole derived text, as the server keeps it. */
-async function fetchText(base: string, recordId: string): Promise<string> {
+async function fetchText(base: string, recordId: string): Promise<WholeText> {
   let res: Response;
   try {
     res = await fetch(`${base}/sources/${recordId}/text`, { credentials: "same-origin" });
@@ -23,7 +29,51 @@ async function fetchText(base: string, recordId: string): Promise<string> {
     throw new ApiError(0, "network", "WhatBuild couldn’t be reached. Check your connection and try again.");
   }
   if (!res.ok) throw new ApiError(res.status, "error", res.status === 404 ? "This source has no text." : `WhatBuild answered with status ${res.status}.`);
-  return res.text();
+  return { content: await res.text(), etag: res.headers.get("ETag")?.replace(/^W\//, "").replace(/^"(.*)"$/, "$1") ?? null };
+}
+
+/**
+ * Someone else's version of a source's summary, notes or text, which an editor loads when a save
+ * is refused because it changed after the editor opened (409 stale_etag).
+ */
+export type Theirs = { state: "loading" } | { state: "changed"; content: string } | { state: "removed" } | { state: "unknown" };
+
+/**
+ * What an editor of a source's summary, notes or text says when a save was refused because
+ * someone changed it meanwhile: the person's words stay in their box, theirs show under it to
+ * compare and copy from, and saving again replaces theirs (nothing keeps an earlier version). When
+ * theirs could not be loaded, the person can load it again.
+ */
+export function ChangedMeanwhile({ noun, theirs, onLoad, rows = 8, className }: { noun: string; theirs: Theirs; onLoad: () => void; rows?: number; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  // The save button is at the dialog's foot: bring the notice into view beside it. (A block, so
+  // the effect returns nothing: browsers that answer scrollIntoView with a promise would hand it to
+  // React as a cleanup.)
+  useEffect(() => {
+    ref.current?.scrollIntoView?.({ block: "nearest" });
+  }, [theirs.state]);
+  const removed = theirs.state === "removed";
+  return (
+    <>
+      <div ref={ref} role="alert">
+        <Callout
+          tone="attention"
+          inset
+          title={`Someone ${removed ? "removed" : "changed"} the ${noun} while you were editing`}
+          action={theirs.state === "unknown" ? <Button size="sm" onClick={onLoad}>Load their version</Button> : undefined}
+        >
+          {theirs.state === "changed"
+            ? "Your text is still here, and their version is below. Saving replaces theirs with yours, so first copy anything of theirs you want to keep."
+            : removed
+              ? "Your text is still here. Saving puts it back."
+              : theirs.state === "loading"
+                ? "Your text is still here. Loading their version…"
+                : "Your text is still here. Their version couldn’t be loaded; load it to see what changed before you save."}
+        </Callout>
+      </div>
+      {theirs.state === "changed" ? <TextArea label="Their version" readOnly rows={rows} value={theirs.content} className={className} /> : null}
+    </>
+  );
 }
 
 const SUFFIXES = ["ations", "ation", "ments", "ment", "ings", "ing", "ers", "er", "ies", "ied", "ed", "es", "ly", "s"];
@@ -102,7 +152,7 @@ export function TextView({ record, onAddAttachments }: { record: RecordFull; onA
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [typed]);
   const pattern = useMemo(() => findPattern(find), [find]);
-  const content = q.data ?? "";
+  const content = q.data?.content ?? "";
   const shown = all || pattern ? content : firstPart(content);
   const folded = !unfolded && !pattern;
   // A find unfolds the text for good: clearing it leaves the reader where they were.
@@ -137,7 +187,7 @@ export function TextView({ record, onAddAttachments }: { record: RecordFull; onA
   // Without a text, the empty state offers what an editor can do instead.
   const actions = writable && text ? (
     <>
-      <Button size="sm" icon="pencil" onClick={() => setEditing(true)} disabled={!q.data && q.isPending}>
+      <Button size="sm" icon="pencil" onClick={() => setEditing(true)} disabled={!q.data}>
         Edit
       </Button>
       {readable.length ? (
@@ -221,7 +271,7 @@ export function TextView({ record, onAddAttachments }: { record: RecordFull; onA
       ) : (
         <NoText record={record} readable={readable} writable={writable} onWrite={() => setEditing(true)} onUse={setUsing} onAddAttachments={onAddAttachments} />
       )}
-      {editing ? <TextEditor record={record} current={text ? (q.data ?? "") : ""} etag={text?.etag ?? null} onClose={() => setEditing(false)} /> : null}
+      {editing ? <TextEditor record={record} opened={text && q.data ? q.data : { content: "", etag: null }} onClose={() => setEditing(false)} /> : null}
       {using ? <UseAttachmentText record={record} attachment={using} onClose={() => setUsing(null)} /> : null}
     </Sheet>
   );
@@ -277,12 +327,34 @@ function NoText({
   );
 }
 
-/** Write or edit the derived text, whole. Saving it empty removes it. */
-function TextEditor({ record, current, etag, onClose }: { record: RecordFull; current: string; etag: string | null; onClose: () => void }) {
+/**
+ * Write or edit the derived text, whole. Saving it empty removes it. Saving names the etag of the
+ * text the dialog opened, so a change someone made meanwhile is never overwritten unseen.
+ */
+function TextEditor({ record, opened, onClose }: { record: RecordFull; opened: WholeText; onClose: () => void }) {
   const { api: base } = useProduct();
   const qc = useQueryClient();
   const toast = useToast();
-  const [content, setContent] = useState(current);
+  // What the dialog opened: the person edits from it, whatever the page behind it loads meanwhile.
+  const [start] = useState(opened);
+  const [content, setContent] = useState(start.content);
+  const [etag, setEtag] = useState(start.etag);
+  const [theirs, setTheirs] = useState<Theirs | null>(null);
+  const loadTheirs = async () => {
+    setTheirs({ state: "loading" });
+    // The page behind the dialog shows theirs too, once it reloads.
+    void qc.invalidateQueries({ queryKey: ["source", base, record.record_id] });
+    try {
+      const now = await fetchText(base, record.record_id);
+      setEtag(now.etag);
+      setTheirs({ state: "changed", content: now.content });
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) {
+        setEtag(null);
+        setTheirs({ state: "removed" });
+      } else setTheirs({ state: "unknown" });
+    }
+  };
   const save = useMutation({
     mutationFn: () => api("PUT", `${base}/sources/${record.record_id}/derived/text`, { content, ...(etag ? { expected_etag: etag } : {}) }),
     onSuccess: () => {
@@ -291,6 +363,9 @@ function TextEditor({ record, current, etag, onClose }: { record: RecordFull; cu
       toast(content.trim() ? "Text saved." : "Text removed.");
       onClose();
     },
+    onError: (e) => {
+      if (e instanceof ApiError && e.code === "stale_etag") void loadTheirs();
+    },
   });
   const stale = save.error instanceof ApiError && save.error.code === "stale_etag";
   return (
@@ -298,15 +373,21 @@ function TextEditor({ record, current, etag, onClose }: { record: RecordFull; cu
       open
       wide
       onClose={onClose}
-      title={current ? "Edit the text" : "Write the text"}
+      title={start.content ? "Edit the text" : "Write the text"}
       dismissable={!save.isPending}
       footer={
         <>
           <Button onClick={onClose} disabled={save.isPending}>
             Cancel
           </Button>
-          <Button variant="primary" busy={save.isPending} busyLabel="Saving…" disabled={content === current} onClick={() => save.mutate()}>
-            Save
+          <Button
+            variant="primary"
+            busy={save.isPending}
+            busyLabel="Saving…"
+            disabled={(!theirs && content === start.content) || theirs?.state === "loading"}
+            onClick={() => save.mutate()}
+          >
+            {theirs?.state === "changed" ? "Save mine over theirs" : "Save"}
           </Button>
         </>
       }
@@ -320,13 +401,8 @@ function TextEditor({ record, current, etag, onClose }: { record: RecordFull; cu
         onChange={(e) => setContent(e.target.value)}
         autoFocus
       />
-      {save.isError ? (
-        <ErrorCallout
-          inset
-          title={stale ? "Someone changed the text since you opened it" : undefined}
-          error={stale ? new Error("Copy your changes, close this, and open it again to start from the latest text.") : save.error}
-        />
-      ) : null}
+      {theirs ? <ChangedMeanwhile noun="text" theirs={theirs} onLoad={() => void loadTheirs()} className="source-text-theirs" /> : null}
+      {save.isError && !stale ? <ErrorCallout inset error={save.error} /> : null}
     </Dialog>
   );
 }
@@ -346,6 +422,13 @@ function UseAttachmentText({ record, attachment, onClose }: { record: RecordFull
     },
   });
   const t = record.text;
+  const stale = use.error instanceof ApiError && use.error.code === "stale_etag";
+  // Reloading the source says again what its text is now, and gives the etag to name.
+  const reload = () =>
+    void qc.invalidateQueries({ queryKey: ["source", base, record.record_id] }).then(() => {
+      void qc.invalidateQueries({ queryKey: ["source-text", base, record.record_id] });
+      use.reset();
+    });
   return (
     <Dialog
       open
@@ -357,7 +440,7 @@ function UseAttachmentText({ record, attachment, onClose }: { record: RecordFull
           <Button onClick={onClose} disabled={use.isPending}>
             Cancel
           </Button>
-          <Button variant="primary" busy={use.isPending} busyLabel="Saving…" onClick={() => use.mutate()}>
+          <Button variant="primary" busy={use.isPending} busyLabel="Saving…" disabled={stale} onClick={() => use.mutate()}>
             Use its text
           </Button>
         </>
@@ -371,7 +454,15 @@ function UseAttachmentText({ record, attachment, onClose }: { record: RecordFull
             : "It replaces the text written for this source, edits included."}{" "}
         When a new version of {attachment.path} arrives, the text follows it until someone edits it.
       </p>
-      {use.isError ? <ErrorCallout inset error={use.error} /> : null}
+      {stale ? (
+        <div role="alert">
+          <Callout tone="attention" inset title="Someone changed the text while this was open" action={<Button size="sm" onClick={reload}>Load the latest</Button>}>
+            Nothing was replaced. Load the latest to see what it would replace now, then choose again.
+          </Callout>
+        </div>
+      ) : use.isError ? (
+        <ErrorCallout inset error={use.error} />
+      ) : null}
     </Dialog>
   );
 }

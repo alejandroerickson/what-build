@@ -27,18 +27,35 @@ Every editable object carries:
 | `updated_at`, `updated_by` | Same, for the latest mutation. |
 | `archived_at` | Where the type supports archive (sources, annotations, outcomes, assumptions, Story pages, mockups). Archived objects are excluded from lists and search unless asked for, and remain readable by id. |
 
-**Concurrency.** Every update, review, link, single-object archive and restore, and every Story
-publish after a page's first version requires the current etag (`expected_etag` in the input, or
-`If-Match` in REST). Missing → `422`. Stale → `409 stale_etag`, with the current etag in
-`details.current_etag` so a caller can re-read and retry deliberately. Creates take no etag;
-neither do the batch `sources.archive` / `sources.restore`. A source's etag also changes when an
-attachment is added (`complete_upload` returns the new one as `record_etag`). Reading an
-attachment, which no caller does, does not change it, so an etag never goes stale while the worker
-runs; nor do the source's summary, notes, comments and derived text, which are written apart from
-it. The derived text has an etag of its own, which `derived.write_text` takes as an optional
-`expected_etag` and which a reading that replaces the text changes
-([§5.4](05-derived-layer.md)). Check-and-write is atomic: the row is locked (`SELECT … FOR UPDATE`)
-in the same transaction.
+**Concurrency.** Every update, review, link, single-object archive and restore requires the
+current etag (`expected_etag` in the input, or `If-Match` in REST). Missing → `422`. Stale →
+`409 stale_etag`, with the current etag in `details.current_etag` so a caller can re-read and retry
+deliberately. Creates take no etag; neither do the batch `sources.archive` / `sources.restore`,
+adding an attachment or a new version of one (each is kept beside the others), asking for one to
+be read again (`derived.rederive`), and changes to access (`members`, a sandbox's invitations and
+visitors).
+
+**A write that may create what it writes** takes no etag the first time, and the current one
+once the object exists
+([decision](../decisions/a-write-that-may-create-its-object-needs-its-etag-once-it-exists.md)): a
+source's summary and notes (`derived.write_note`, §4.6) and its derived text
+(`derived.write_text`, [§5.4](05-derived-layer.md)), a Story page's next version (`story.publish`,
+`story.promote_mockup`) and its notes (`story.write_notes`), the Story's style and hierarchy
+(§4.11), a mockup's next version (`mockups.publish`, §4.12) and an organization allowance
+(`products.set_tenant_allowance`). Once the object exists, a missing etag is `409 stale_etag` as
+well, not `422`, with `current_etag` and a message saying which etag to pass and where to read it;
+clearing or removing is a write like any other. Where an object's etag sits beside another's (a
+source's summary, notes and derived text beside the source's own; a page's notes beside the
+page's), sending the wrong one is recognised and named. A summary, notes or derived text someone
+removed has nothing to match: an etag sent for it is refused the same way, with
+`current_etag: null`, saying to leave it out for the first write.
+
+A source's etag also changes when an attachment is added (`complete_upload` returns the new one
+as `record_etag`). Reading an attachment, which no caller does, does not change it, so an etag
+never goes stale while the worker runs; nor do the source's summary, notes, comments and derived
+text, each written apart from it under an etag of its own. A reading that replaces the derived
+text changes the text's etag ([§5.4](05-derived-layer.md)). Check-and-write is atomic: the row is
+locked (`SELECT … FOR UPDATE`) in the same transaction.
 
 **Unknown fields are rejected** (`422 invalid_input`), in every input, at every depth: every input
 schema is a strict Zod object.
@@ -157,8 +174,9 @@ A source is one discovery event or document. It is stored as a **record**, so it
   recording or timed transcript among the attachments), `status_detail`, `annotation_count` and
   `warnings`) and `full` (adds `copied_from`, `pending_upload_path`, the `attachments` (§4.5), the
   derived text's `text: { chars, etag, updated_at, updated_by, taken_from }` or `null`, the
-  comments, and which of its summary and notes exist). Neither includes file bytes or the text
-  itself. `warnings` says when an attachment has text the source does not use, so search finds the
+  comments, and the summary and notes it has, as `agent_notes: [{ kind, etag, updated_at,
+  updated_by }]`, each etag the one `derived.write_note` takes, §4.6). Neither includes file bytes
+  or the text itself. `warnings` says when an attachment has text the source does not use, so search finds the
   source only by its title, tags, summary, notes and comments.
 - **Duplicates are warned about, not refused.** `sources.create` and `attachments.create_upload`
   return a warning naming any live source in the product with the same title (ignoring case and
@@ -250,8 +268,13 @@ Comments are searched with the rest of the source; an archived one is not
 ([§8](08-search.md)).
 
 A source also has at most one **summary** and one set of **notes**, each Markdown up to 100,000
-chars, written with `derived.write_note` (`note_kind` `summary` or `notes`; empty content removes
-it) and read with `derived.read_note`. People write and edit both in the web app, and agents
+chars, written with `derived.write_note { record_id, note_kind, content, expected_etag? }`
+(`note_kind` `summary` or `notes`; empty content removes it) and read with `derived.read_note`,
+which answers `{ record_id, note_kind, content, etag, updated_at, updated_by }`, or `404` when
+there is none. Each has an etag of its own, apart from the source's: the first write takes none,
+and once there is one, replacing or clearing it takes its current etag (§4.1). `write_note`
+answers `{ record_id, note_kind, chars, etag, updated_at }`, with `etag: null` once cleared; the
+time it answers with is the time it stored. People write and edit both in the web app, and agents
 through the same operations; each records who wrote it last and when. Both are searched.
 
 - The **summary** is the part of a source people read: it heads the source's page, whole, and
@@ -266,7 +289,10 @@ through the same operations; each records who wrote it last and when. Both are s
 Both are someone's reading of the source; its words are its derived text
 ([§5.4](05-derived-layer.md)). There is no outline: migration
 `0029_simplify_source_details.sql` deleted the agent outlines a product held, and dropped the
-comments' segment ranges and anchors, keeping their text.
+comments' segment ranges and anchors, keeping their text; `note_kind` `outline` is refused
+(`422 invalid_input`) with a hint naming the summary and notes. Migration
+`0031_summaries_and_notes_have_etags.sql` gave every summary and note an etag, live and in saved
+sandbox baselines, so a reset puts each back with the etag it was saved with.
 
 ## 4.7 Evidence links
 

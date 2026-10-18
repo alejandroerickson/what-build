@@ -375,6 +375,12 @@ mark.text-find-current {
   font-size: var(--fs-base);
   line-height: 1.6;
 }
+/* Someone else's version, shown read-only under the editor after a save met their change. */
+.source-text-theirs {
+  font-family: var(--mono);
+  font-size: var(--fs-base);
+  line-height: 1.6;
+}
 .source-preview {
   min-height: 120px;
 }

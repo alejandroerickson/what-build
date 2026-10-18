@@ -14,7 +14,7 @@ import {
 import "../styles/screens/evidence.css";
 import { AddAttachments, AttachmentsView, SourceImages } from "./source-attachments.tsx";
 import { CommentsView } from "./source-comments.tsx";
-import { TextView } from "./source-text.tsx";
+import { ChangedMeanwhile, TextView, type Theirs } from "./source-text.tsx";
 import { EvidenceFilters, splitTags, TagSuggestions } from "./evidence.tsx";
 
 type View = "text" | "notes" | "comments" | "attachments";
@@ -22,10 +22,12 @@ const VIEWS: View[] = ["text", "notes", "comments", "attachments"];
 /** Sections a link may still name from before a source's words were one text. */
 const OLD_VIEWS: Record<string, View> = { passages: "text", original: "attachments", files: "attachments" };
 type AgentNoteKind = "summary" | "notes";
-type SourceRecord = RecordFull & { agent_notes?: { kind: AgentNoteKind; updated_at: string; updated_by: Actor }[] };
+type SourceRecord = RecordFull & { agent_notes?: { kind: AgentNoteKind; etag: string; updated_at: string; updated_by: Actor }[] };
 interface AgentNote {
   note_kind: AgentNoteKind;
   content: string;
+  /** The one a write over it names. */
+  etag: string;
   updated_at: string;
   updated_by: Actor;
 }
@@ -68,7 +70,7 @@ export function SourceDetailPage() {
   const noteKinds = (q.data?.agent_notes ?? []).map((n) => n.kind);
   const notes = useQueries({
     queries: (["summary", "notes"] as const).map((kind) => ({
-      queryKey: ["source-agent-note", base, recordId, kind, q.data?.agent_notes?.find((n) => n.kind === kind)?.updated_at ?? ""],
+      queryKey: ["source-agent-note", base, recordId, kind, q.data?.agent_notes?.find((n) => n.kind === kind)?.etag ?? ""],
       queryFn: () => api<AgentNote>("GET", `${base}/sources/${recordId}/agent-notes/${kind}`),
       enabled: noteKinds.includes(kind),
       staleTime: 60_000,
@@ -184,34 +186,38 @@ function SourceDescription({ record, note, loading }: { record: SourceRecord; no
   const { canWrite } = useProduct();
   const [editing, setEditing] = useState(false);
   const writable = canWrite && !record.archived_at;
-  if (loading) return <Loading variant="lines" lines={2} label="Loading the summary…" />;
-  const editor = editing ? <NoteDialog record={record} kind="summary" current={note?.content ?? ""} onClose={() => setEditing(false)} /> : null;
-  if (!note)
-    return writable ? (
-      <div className="source-description source-description-empty">
-        <Button size="sm" variant="quiet" icon="plus" onClick={() => setEditing(true)}>
-          Add a summary
-        </Button>
-        {editor}
-      </div>
-    ) : null;
   return (
-    <div className="source-description">
-      <div className="source-summary">
-        <Markdown source={note.content} className="prose" headingShift={3} />
-      </div>
-      <div className="source-summary-foot">
-        <span>
-          Summary by {attribution(note.updated_by)}, {relativeTime(note.updated_at)}
-        </span>
-        {writable ? (
-          <button type="button" className="quiet-link source-summary-edit" onClick={() => setEditing(true)}>
-            Edit
-          </button>
-        ) : null}
-      </div>
-      {editor}
-    </div>
+    <>
+      {loading ? (
+        <Loading variant="lines" lines={2} label="Loading the summary…" />
+      ) : !note ? (
+        writable ? (
+          <div className="source-description source-description-empty">
+            <Button size="sm" variant="quiet" icon="plus" onClick={() => setEditing(true)}>
+              Add a summary
+            </Button>
+          </div>
+        ) : null
+      ) : (
+        <div className="source-description">
+          <div className="source-summary">
+            <Markdown source={note.content} className="prose" headingShift={3} />
+          </div>
+          <div className="source-summary-foot">
+            <span>
+              Summary by {attribution(note.updated_by)}, {relativeTime(note.updated_at)}
+            </span>
+            {writable ? (
+              <button type="button" className="quiet-link source-summary-edit" onClick={() => setEditing(true)}>
+                Edit
+              </button>
+            ) : null}
+          </div>
+        </div>
+      )}
+      {/* In one place whatever the summary behind it shows, so a reload while it is open keeps what the person typed. */}
+      {editing ? <NoteDialog record={record} kind="summary" note={note} onClose={() => setEditing(false)} /> : null}
+    </>
   );
 }
 
@@ -232,42 +238,75 @@ const NOTE_WORDS: Record<AgentNoteKind, { title: string; label: string; hint: st
   },
 };
 
-/** Write a source's summary or notes. Saving it empty removes it. */
-function NoteDialog({ record, kind, current, onClose }: { record: SourceRecord; kind: AgentNoteKind; current: string; onClose: () => void }) {
+/**
+ * Write a source's summary or notes. Saving it empty removes it. Saving names the etag of what the
+ * dialog opened (none for the first), so a change someone made meanwhile is never overwritten unseen.
+ */
+function NoteDialog({ record, kind, note, onClose }: { record: SourceRecord; kind: AgentNoteKind; note: AgentNote | null; onClose: () => void }) {
   const { base, key } = useSourceKey();
   const qc = useQueryClient();
   const toast = useToast();
   const words = NOTE_WORDS[kind];
-  const [content, setContent] = useState(current);
+  // What the dialog opened: the person edits from it, whatever the page behind it loads meanwhile.
+  const [start] = useState(() => ({ content: note?.content ?? "", etag: note?.etag ?? null }));
+  const [content, setContent] = useState(start.content);
+  const [etag, setEtag] = useState(start.etag);
+  const [theirs, setTheirs] = useState<Theirs | null>(null);
+  const loadTheirs = async () => {
+    setTheirs({ state: "loading" });
+    // The page behind the dialog shows theirs too, once it reloads.
+    void qc.invalidateQueries({ queryKey: key });
+    try {
+      const now = await api<AgentNote>("GET", `${base}/sources/${record.record_id}/agent-notes/${kind}`);
+      setEtag(now.etag);
+      setTheirs({ state: "changed", content: now.content });
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) {
+        setEtag(null);
+        setTheirs({ state: "removed" });
+      } else setTheirs({ state: "unknown" });
+    }
+  };
   const save = useMutation({
-    mutationFn: () => api("PUT", `${base}/sources/${record.record_id}/agent-notes/${kind}`, { content }),
+    mutationFn: () => api("PUT", `${base}/sources/${record.record_id}/agent-notes/${kind}`, { content, ...(etag ? { expected_etag: etag } : {}) }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: key });
       void qc.invalidateQueries({ queryKey: ["source-agent-note", base, record.record_id, kind] });
       toast(content.trim() ? words.saved : words.cleared);
       onClose();
     },
+    onError: (e) => {
+      if (e instanceof ApiError && e.code === "stale_etag") void loadTheirs();
+    },
   });
+  const stale = save.error instanceof ApiError && save.error.code === "stale_etag";
   return (
     <Dialog
       open
       wide
       onClose={onClose}
-      title={current ? `Edit the ${words.title.toLowerCase()}` : `Write the ${words.title.toLowerCase()}`}
+      title={start.content ? `Edit the ${words.title.toLowerCase()}` : `Write the ${words.title.toLowerCase()}`}
       dismissable={!save.isPending}
       footer={
         <>
           <Button onClick={onClose} disabled={save.isPending}>
             Cancel
           </Button>
-          <Button variant="primary" busy={save.isPending} busyLabel="Saving…" disabled={content === current} onClick={() => save.mutate()}>
-            Save
+          <Button
+            variant="primary"
+            busy={save.isPending}
+            busyLabel="Saving…"
+            disabled={(!theirs && content === start.content) || theirs?.state === "loading"}
+            onClick={() => save.mutate()}
+          >
+            {theirs?.state === "changed" ? "Save mine over theirs" : "Save"}
           </Button>
         </>
       }
     >
       <TextArea label={words.label} hint={words.hint} rows={kind === "summary" ? 6 : 14} maxLength={100_000} value={content} onChange={(e) => setContent(e.target.value)} autoFocus />
-      {save.isError ? <ErrorCallout inset error={save.error} /> : null}
+      {theirs ? <ChangedMeanwhile noun={words.title.toLowerCase()} theirs={theirs} onLoad={() => void loadTheirs()} rows={kind === "summary" ? 4 : 8} /> : null}
+      {save.isError && !stale ? <ErrorCallout inset error={save.error} /> : null}
     </Dialog>
   );
 }
@@ -467,7 +506,7 @@ function NotesView({ record, note, loading }: { record: SourceRecord; note: Agen
           Notes keep what&rsquo;s worth knowing about this source that isn&rsquo;t in its words. Your agents keep them too.
         </EmptyState>
       )}
-      {editing ? <NoteDialog record={record} kind="notes" current={note?.content ?? ""} onClose={() => setEditing(false)} /> : null}
+      {editing ? <NoteDialog record={record} kind="notes" note={note} onClose={() => setEditing(false)} /> : null}
     </Sheet>
   );
 }

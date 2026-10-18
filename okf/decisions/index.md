@@ -3,7 +3,7 @@ type: Index
 title: Decisions
 description: Architectural decision records, each with its context, the choice, and what it constrains.
 tags: [index, decisions, adr]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -22,6 +22,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Self-hosting on Azure is done by an agent with the Azure CLI, from instructions in the repository, and shares nothing with the Cloud Run deployment](self-hosting-on-azure-is-agent-led-and-shares-nothing-with-cloud-run.md)
 - [Every capability is one registered operation, exposed through both REST and MCP](one-registry-two-front-doors.md)
 - [MCP exposes 14 tools, grouped by the kind of object, with an action parameter](mcp-tools-grouped-by-noun.md)
+- [A write that may create what it writes takes no etag the first time, and the current etag once it exists](a-write-that-may-create-its-object-needs-its-etag-once-it-exists.md)
 - [Tenants share one schema, partitioned by key and enforced three times](shared-schema-tenancy-with-row-level-security.md)
 - [Access is decided in the application, per product, by role](access-is-per-product-roles.md)
 - [A reader reads only the Story, never the evidence behind it](a-reader-reads-only-the-story.md)

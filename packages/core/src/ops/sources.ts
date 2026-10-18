@@ -400,7 +400,7 @@ export const getSource = defineOperation({
   mutates: false,
   summary: "Read a source cheaply (brief), or everything about it (full): attachments, derived text, comments.",
   description:
-    "Start with detail=\"brief\": derived_status says whether the source has a derived text (ready) and text_chars how long it is, to plan derived(action=\"text\") windows; warnings says when an attachment has text the source does not use. etag is the one sources.update and sources.delete expect. `full` adds the attachments (each with how its text was read, and which one the derived text was taken from), the derived text's etag and who wrote it last, comments and which of the summary and notes exist. Neither returns file bytes or the text itself. An archived source is still readable by id.",
+    "Start with detail=\"brief\": derived_status says whether the source has a derived text (ready) and text_chars how long it is, to plan derived(action=\"text\") windows; warnings says when an attachment has text the source does not use. etag is the one sources.update and sources.delete expect. `full` adds the attachments (each with how its text was read, and which one the derived text was taken from), the derived text's etag (the one derived(action=\"write_text\") takes) and who wrote it last, comments, and in agent_notes the summary and notes that exist, each with its own etag (the one derived(action=\"write_note\") takes) and who wrote it last. Neither returns file bytes or the text itself. An archived source is still readable by id.",
   input: z.strictObject({ record_id: id("source"), detail: z.enum(["brief", "full"]).default("brief") }),
   rest: { method: "GET", path: "/sources/:record_id" },
   mcp: { tool: "sources", action: "get" },
@@ -420,7 +420,7 @@ export const getSource = defineOperation({
     if (input.detail === "brief") return brief;
     const text = await ctx.db.selectFrom("source_texts").select(["chars", "etag", "updated_at", "updated_by", "from_file_version_id"]).where("record_id", "=", r.record_id).executeTakeFirst();
     const annotations = await ctx.db.selectFrom("annotations").selectAll().where("record_id", "=", r.record_id).where("archived_at", "is", null).orderBy("annotation_id", "desc").limit(100).execute();
-    const agentNotes = await ctx.db.selectFrom("agent_notes").select(["kind", "updated_at", "updated_by"]).where("record_id", "=", r.record_id).execute();
+    const agentNotes = await ctx.db.selectFrom("agent_notes").select(["kind", "etag", "updated_at", "updated_by"]).where("record_id", "=", r.record_id).execute();
     return {
       ...brief,
       copied_from: r.copied_from,

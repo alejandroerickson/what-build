@@ -33,10 +33,25 @@ const RETIRED_SOURCE_FIELDS = new Set(["kind", "organization", "folder"]);
 const RETIRED_SOURCE_HINT =
   " Sources have no kind, organization or folder any more: say what the material is and whom it concerns with tags, reusing the ones sources(action=\"facets\") lists.";
 
-/** Dimensions and their filters, which sources and assumptions no longer have. */
+/** Dimensions and their filters, which sources and assumptions no longer have. The filter that took their place is `tags` on sources and search, `tag` on assumptions. */
 const RETIRED_DIMENSION_FIELDS = new Set(["dimensions", "customer", "product_area", "lifecycle_stage"]);
-const RETIRED_DIMENSION_HINT =
-  " Sources and assumptions have no dimensions (customer, product area, lifecycle stage) any more: say whom the material concerns and what it bears on with tags, and filter by tags.";
+const retiredDimensionHint = (tool: string) =>
+  ` Sources and assumptions have no dimensions (customer, product area, lifecycle stage) any more: say whom the material concerns and what it bears on with tags, and filter by ${tool === "assumptions" ? "`tag`" : "`tags`"}.`;
+
+/** Citations and the graph around them, which nothing takes any more (decision: evidence is searched, not cited). */
+const RETIRED_CITATION_FIELDS = new Set(["citations", "refs", "related_records"]);
+const RETIRED_CITATION_HINT =
+  " Nothing takes citations, refs or related sources any more: evidence is found by searching, not cited. Say in words what the work rests on (an assumption's body, a Story page's notes, a source's notes), naming a source by its id where it helps, and find what bears on it with search.";
+
+/** Values a field no longer takes, and what took their place. */
+const RETIRED_VALUES: { ops: string[]; field: string; values: string[]; hint: string }[] = [
+  {
+    ops: ["derived.write_note", "derived.read_note"],
+    field: "note_kind",
+    values: ["outline"],
+    hint: " A source has no outline any more: note_kind is summary (what the source is and what it tells the team, which people read) or notes (anything else worth keeping). Find your way through a long source with search and derived(action=\"text\") windows.",
+  },
+];
 
 /** Participants, where a source came from, and provenance, which sources and assumptions no longer have. */
 const RETIRED_DETAIL_FIELDS = new Set(["participants", "source_system", "provenance_depth"]);
@@ -48,17 +63,25 @@ const RETIRED_ATTACHMENT_FIELDS = new Set(["role", "derived_from", "derivation_n
 const RETIRED_ATTACHMENT_HINT =
   " Attachments have no role or provenance any more: every attachment's text is read and kept, never searched, and the source's derived text is taken from one of them. Say what an attachment was made from in the source's notes.";
 
-/** A hint for fields the call named that this operation does not take: ones sources no longer have, or a neighbouring operation's. */
-function retiredFieldHint(op: OperationDef, error: z.ZodError): string {
+/**
+ * A hint for what the call named that this operation does not take: fields sources no longer
+ * have, a neighbouring operation's, or a value a field no longer takes.
+ */
+function retiredFieldHint(op: OperationDef, error: z.ZodError, input: unknown): string {
   const unknown = error.issues.filter((i) => i.code === "unrecognized_keys").flatMap((i) => (i as { keys: string[] }).keys);
   const retired = ["sources", "attachments", "search"].includes(op.mcp.tool) && unknown.some((k) => RETIRED_SOURCE_FIELDS.has(k));
   const dimensions = ["sources", "attachments", "search", "assumptions"].includes(op.mcp.tool) && unknown.some((k) => RETIRED_DIMENSION_FIELDS.has(k));
   const details = ["sources", "attachments", "search", "assumptions"].includes(op.mcp.tool) && unknown.some((k) => RETIRED_DETAIL_FIELDS.has(k));
   const attachment = op.mcp.tool === "attachments" && unknown.some((k) => RETIRED_ATTACHMENT_FIELDS.has(k));
+  const cited = unknown.some((k) => RETIRED_CITATION_FIELDS.has(k));
   const anchored = op.name === "sources.annotate" && unknown.some((k) => k === "seq_start" || k === "seq_end");
+  const sent = (field: string) => (input && typeof input === "object" ? (input as Record<string, unknown>)[field] : undefined);
+  const values = RETIRED_VALUES.filter(
+    (v) => v.ops.includes(op.name) && v.values.includes(String(sent(v.field))) && error.issues.some((i) => i.path.length === 1 && i.path[0] === v.field),
+  );
   return (
-    (retired ? RETIRED_SOURCE_HINT : "") + (dimensions ? RETIRED_DIMENSION_HINT : "") + (details ? RETIRED_DETAIL_HINT : "") + (attachment ? RETIRED_ATTACHMENT_HINT : "") +
-    (anchored ? " A comment is on the whole source: it takes no segment range." : "") + wrongFieldHint(op, unknown)
+    (retired ? RETIRED_SOURCE_HINT : "") + (dimensions ? retiredDimensionHint(op.mcp.tool) : "") + (details ? RETIRED_DETAIL_HINT : "") + (attachment ? RETIRED_ATTACHMENT_HINT : "") +
+    (cited ? RETIRED_CITATION_HINT : "") + (anchored ? " A comment is on the whole source: it takes no segment range." : "") + values.map((v) => v.hint).join("") + wrongFieldHint(op, unknown)
   );
 }
 
@@ -66,7 +89,7 @@ export function parseInput<I extends z.ZodType>(op: OperationDef<I>, raw: unknow
   const input = resolveAliases(op, raw ?? {});
   const parsed = op.input.safeParse(input);
   if (!parsed.success) {
-    throw invalid("invalid_input", `${formatIssues(parsed.error, input)} Nothing was changed; correct the call and send it again.${retiredFieldHint(op, parsed.error)}`, { operation: op.name });
+    throw invalid("invalid_input", `${formatIssues(parsed.error, input)} Nothing was changed; correct the call and send it again.${retiredFieldHint(op, parsed.error, input)}`, { operation: op.name });
   }
   return parsed.data;
 }

@@ -368,7 +368,13 @@ The sources, and everything for reading them.
     whoever wrote it last, with Edit for an editor. It is what people read of a source, so nothing
     above it competes and the text below starts folded. With no summary,
     an editor sees "Add a summary" and everyone else nothing. Both open a dialog holding the
-    Markdown; saving it empty removes the summary. Editing the details (title, date and tags,
+    Markdown; saving it empty removes the summary. Saving names the etag of what the dialog opened
+    (none for the first summary), so a change made meanwhile is never overwritten unseen: when
+    someone changed it, the dialog says so ("Someone changed the summary while you were
+    editing"), keeps the person's text in its box, shows theirs read-only under it as "Their
+    version" to compare and copy from, and saves over it only with "Save mine over theirs"; when
+    someone removed it, it says so and "Save" puts the person's back. Nothing keeps an earlier
+    summary, so the notice says that saving replaces theirs. Editing the details (title, date and tags,
     offering the product's tags), adding attachments, archive, restore and delete (§7.10) are in
     the page's actions menu.
   - **Images.** When the source has image attachments, the image viewer (the one Attachments
@@ -386,10 +392,13 @@ The sources, and everything for reading them.
     rest of the visit. Its header holds **Find in the text**, which unfolds it, marks the words,
     says "1 of 4" and steps through the matches (the arrows, or Enter and Shift+Enter), the words
     held in the URL as `?find=`, so a search hit opens here with them marked. A very long text,
-    unfolded, shows its first 300,000 characters and "Show all N characters", unless a find is on. Editors get **Edit**, a dialog holding the
-    Markdown (saving it empty removes the text; if someone changed it meanwhile, the dialog says so
-    and keeps their changes to copy), and, when another attachment has text, a menu **Use an
-    attachment's text** listing them, each confirmed in a dialog that says what it replaces.
+    unfolded, shows its first 300,000 characters and "Show all N characters", unless a find is on. Editors get **Edit**, once the text has
+    loaded, a dialog holding the Markdown (saving it empty removes the text; it names the etag of
+    the text it opened, and when someone changed or removed the text meanwhile it does what the
+    summary's dialog does), and, when another attachment has text, a menu **Use an
+    attachment's text** listing them, each confirmed in a dialog that says what it replaces; if
+    the text changed while that dialog was open, it replaces nothing, says so, and offers "Load
+    the latest" to say again what it would replace.
     A source with no text says why here, not in a status callout over the page: "Reading its attachment"
     while it is read, or what its status means and what to do (a recording needs its transcript
     as another attachment, a format not read, too large, could not be read, no attachment yet, or
@@ -398,7 +407,8 @@ The sources, and everything for reading them.
     and "Write the text".
   - **Notes** (the source's notes, rendered Markdown attributed to whoever wrote them last, with
     "Edit notes" for an editor; with none, an empty state that says what notes are for, and
-    "Write notes" for an editor) and **Comments** (every comment on the source, newest first, and
+    "Write notes" for an editor; both open the summary's dialog, with its etag and its handling of
+    a change made meanwhile) and **Comments** (every comment on the source, newest first, and
     "Comment" for an editor, which opens a form for a comment on the whole source with optional
     tags).
   - **Attachments** lists every attachment under a line saying that each one's text is read and
