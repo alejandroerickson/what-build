@@ -154,14 +154,18 @@ export function hitHref(app: string, recordId: string, h: FindHit, find: string)
   return `${app}/evidence/${recordId}?view=${view}${view === "text" && h.field === "text" && find ? `&find=${encodeURIComponent(find)}&at=${h.char_start}` : ""}`;
 }
 
-/** The quiet line under a result's title: what it is, and what tells it apart. */
-export function resultMeta(r: FindResult): string {
+/**
+ * The quiet line under a result's title: what it is, and what tells it apart. An assumption's
+ * status is in it unless the row shows it as a status badge (`status: false`), as the Search
+ * screen does, so it is said once.
+ */
+export function resultMeta(r: FindResult, { status = true }: { status?: boolean } = {}): string {
   const parts: string[] = [kindOf(r.kind).one];
   if (r.kind === "source") {
     if (r.meta.date) parts.push(formatDate(r.meta.date));
     if (r.hit_count) parts.push(`${r.hit_count} ${r.hit_count === 1 ? "match" : "matches"}`);
   }
-  if (r.kind === "assumption" && r.meta.status) parts.push(REVIEW_STATUS[r.meta.status]?.label ?? r.meta.status);
+  if (status && r.kind === "assumption" && r.meta.status) parts.push(REVIEW_STATUS[r.meta.status]?.label ?? r.meta.status);
   if (r.kind === "mockup" && r.meta.page_title) parts.push(`page “${r.meta.page_title}”`);
   return parts.join(" · ");
 }

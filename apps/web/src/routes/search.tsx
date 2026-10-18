@@ -202,7 +202,8 @@ function ResultList({ results, app, q, find }: { results: FindResult[]; app: str
                 <Marked text={r.title} marks={r.title_marks} />
               </span>
               <span className="find-meta">
-                {resultMeta(r)}
+                {/* The badge at the row's end says an assumption's status. */}
+                {resultMeta(r, { status: false })}
                 {r.missing.length ? <span className="find-missing"> · Missing: {r.missing.map((m, i) => <s key={i}>{(i ? ", " : "") + m}</s>)}</span> : null}
               </span>
               {r.snippet ? (

@@ -14,8 +14,16 @@ const APP = "/t/acme/core/crew";
 const product = { name: "Crewboard", path: "acme/core/crew", your_role: "editor" };
 
 const SOURCE = "01K8A2B3C4D5E6F7G8H9J0K1M2";
-/** What plain search answers for a query, when it finds anything: a source whose title holds the words too. */
+/** What plain search answers for a query, when it finds anything: a source whose title holds the words too, or an assumption. */
 const found: Record<string, unknown> = {
+  "two crews": {
+    query: "two crews",
+    terms: [{ text: "two", phrase: false }, { text: "crews", phrase: false }],
+    ignored: [], kind_hint: null, corrections: [], partial: false, counts: { assumption: 1 },
+    results: [
+      { kind: "assumption", id: "a1", title: "Two crews share one van on Mondays.", title_marks: [[0, 9]], snippet: null, snippet_marks: [], missing: [], score: 1, meta: { status: "confirmed" } },
+    ],
+  },
   "gate codes": {
     query: "gate codes",
     terms: [{ text: "gate", phrase: false }, { text: "codes", phrase: false }],
@@ -167,5 +175,27 @@ describe("following a source in the palette", () => {
     expect(where.searchParams.get("find")).toBe("gate codes");
     // At the match the line shows.
     expect(where.searchParams.get("at")).toBe("412");
+  });
+});
+
+describe("an assumption among the results", () => {
+  it("says its status once on the Search screen, as a badge, and once in the palette, in its line", async () => {
+    const host = await render(<SearchPage />, `${APP}/search?q=${encodeURIComponent("two crews")}`);
+    const row = host.querySelector(".find-item")!;
+    expect(row.querySelector(".find-meta")?.textContent).toBe("Assumption");
+    expect(row.querySelector(".status")?.textContent).toBe("Confirmed");
+    expect(row.textContent!.match(/Confirmed/g)).toHaveLength(1);
+    unmount?.();
+    await render(
+      <FindProvider app={APP} base={BASE} product={product as never}>
+        <FindLauncher product={product as never} />
+      </FindProvider>,
+      `${APP}/evidence`,
+    );
+    await act(async () => document.querySelector<HTMLButtonElement>(".find-launch")!.click());
+    await act(async () => type(document.querySelector<HTMLInputElement>("dialog.find-pal input")!, "two crews"));
+    await act(async () => new Promise((r) => setTimeout(r, 150)));
+    await settle();
+    expect(document.querySelector(".find-pal-meta")?.textContent).toBe("Assumption · Confirmed");
   });
 });
