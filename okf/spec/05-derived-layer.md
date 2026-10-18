@@ -32,12 +32,14 @@ when `derived.manifest` for that attachment reports a different `derivation_id`.
 
 **Where it runs.** Always on the Postgres job queue, in the worker
 ([`apps/server/src/worker.ts`](../../apps/server/src/worker.ts)), in every environment. The
-transaction that adds the attachment enqueues the job, and the worker wakes after the commit. The
-upload response is never held while a file is read, and a slow PDF cannot occupy a request. Reading
-inline in the request would be an observable behavior difference and is forbidden
-([§1.5 rule 12](01-product.md)). A reading's row is written only when it finishes, so until then
-the attachment's text status is `pending`, unless its name, type and size already settle how it
-will be read (§5.5).
+transaction that adds the attachment enqueues the job, and the worker wakes after the commit. A
+reading a release's migration queues is done by that release's workers: the version it replaces
+takes no job once the migration is recorded
+([§2.3](02-architecture.md#23-the-shape-of-the-deployment)). The upload response is never held while
+a file is read, and a slow PDF cannot occupy a request. Reading inline in the request would be an
+observable behavior difference and is forbidden ([§1.5 rule 12](01-product.md)). A reading's row is
+written only when it finishes, so until then the attachment's text status is `pending`, unless its
+name, type and size already settle how it will be read (§5.5).
 
 The activity log records each outcome under the system actor (WhatBuild, client `parser`):
 `derived`, "Read the text of interview.vtt", with "; it is the source’s derived text" when its text

@@ -37,7 +37,9 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   work a migration queues is done by the version it was queued for. It protects the upgrades that
   start from this release or a later one, because the version being replaced must already do it:
   taking this release, v0.15.0 goes on taking jobs while `0031` runs, as before, and `0031` queues
-  none.
+  none. From this release on, going back past a later release's migration means restoring the
+  database, even where that release's notes say the earlier code runs on its schema: on the later
+  schema, the earlier version's worker waits ([recovering](recovering-from-a-bad-release.md)).
 - **Agents and integrations must send an etag they could leave out before.** Once a source has a
   summary, notes or a derived text, `derived(action="write_note")` and
   `derived(action="write_text")` refuse a write or a clearing without its current etag

@@ -408,7 +408,8 @@ Runbooks live in [`okf/operations/`](../operations/index.md). The deployment run
 deployment, sign-in configuration. [Releasing](../operations/releasing.md) moves production, the
 [dev deployment](../operations/dev-deployment.md) rehearses a release that migrates before it
 does, and [recovering from a bad release](../operations/recovering-from-a-bad-release.md) goes
-back after one.
+back after one, restoring the database first when it migrated: an earlier version takes no job on
+a schema a later one migrated ([§2.3](02-architecture.md#23-the-shape-of-the-deployment)).
 
 - **backup** — [backups](../operations/backups.md): what is configured, where, with what
   retention, and how to check that it runs.

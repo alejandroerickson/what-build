@@ -3,7 +3,7 @@ type: System Concept
 title: Running WhatBuild locally, testing it, and checking the interface
 description: The one-command development setup, the test and build commands, and the browser scripts.
 tags: [development, testing, local]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-18}
 status: stable
 ---
 
@@ -30,7 +30,10 @@ Environment overrides: `DATABASE_URL` (your own Postgres instead of the embedded
 `WHATBUILD_WEB_PORT`, `WHATBUILD_PG_PORT`, `WHATBUILD_BLOB_DIR`. To run a second instance
 beside the first (another checkout, for example), change `PORT`, `WHATBUILD_WEB_PORT` and
 `WHATBUILD_PG_PORT`; in the same checkout, also point `DATABASE_URL` at a fresh database. The web
-app proxies to its own instance's API (`WHATBUILD_API` overrides it).
+app proxies to its own instance's API (`WHATBUILD_API` overrides it). A database keeps the
+migrations a later commit ran on it, and the worker of an earlier commit then takes no jobs, as it
+would in a deployment, and says so in its log: run that commit on a fresh database, or delete
+`.what-build/pg` to start again.
 
 ## Development and production
 
