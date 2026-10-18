@@ -2,9 +2,10 @@ import { DELETE_CONFIRMATION } from "@whatbuild/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
-// An archived source is read-only until it is restored, and its comments are part of it: adding,
-// editing, archiving, restoring and deleting a comment are refused while it is archived, as every
-// other write to it is (409 record_archived), saying how to restore it. Reading them is not.
+// An archived source is read-only until it is restored: its title, date and tags, and its comments,
+// which are part of it (adding, editing, archiving, restoring and deleting one), are refused any
+// change while it is archived, as every other write to it is (409 record_archived), saying how to
+// restore it. Reading it is not, and sources.restore brings it back.
 
 let h: Harness;
 let alice: Browser;
@@ -60,5 +61,22 @@ describe("a comment on an archived source", () => {
     expect((await alice.api("POST", `${P}/sources/${id}/annotations`, { note: "One more." })).status).toBe(201);
     const gone = await alice.api("DELETE", `${P}/annotations/${edited.body.annotation_id}`, { expected_etag: edited.body.etag, reason: "Not needed.", confirm: DELETE_CONFIRMATION });
     expect(gone.status, JSON.stringify(gone.body)).toBe(200);
+  });
+});
+
+describe("an archived source's details", () => {
+  it("are not corrected until the source is restored, which sources.restore still does", async () => {
+    const s = await alice.api("POST", `${P}/sources`, { title: "Yard survey — Example Co", date: "2026-09-01", tags: ["survey"] });
+    const id = s.body.record_id as string;
+    expect((await alice.api("POST", `${P}/sources/archive`, { record_ids: [id] })).status).toBe(200);
+    const archived = (await alice.api("GET", `${P}/sources/${id}`)).body;
+    for (const change of [{ title: "Yard survey, corrected — Example Co" }, { date: "2026-09-02" }, { tags: ["survey", "yard"] }])
+      archivedRefusal(await alice.api("PATCH", `${P}/sources/${id}`, { expected_etag: archived.etag, ...change }), id);
+    expect((await alice.api("GET", `${P}/sources/${id}`)).body).toMatchObject({ title: "Yard survey — Example Co", date: "2026-09-01", tags: ["survey"], etag: archived.etag });
+    const restored = await alice.api("POST", `${P}/sources/restore`, { record_ids: [id] });
+    expect(restored.body).toMatchObject({ restored: [{ record_id: id }], failed: [] });
+    const live = (await alice.api("GET", `${P}/sources/${id}`)).body;
+    const corrected = await alice.api("PATCH", `${P}/sources/${id}`, { expected_etag: live.etag, title: "Yard survey, corrected — Example Co" });
+    expect(corrected.status, JSON.stringify(corrected.body)).toBe(200);
   });
 });

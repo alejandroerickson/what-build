@@ -159,7 +159,11 @@ A source is one discovery event or document. It is stored as a **record**, so it
   readings, the derived text and the comments are untouched.
 - **Archive** takes the source out of browse and out of search (including the search space an
   agent can reach). It erases nothing, and the source stays readable by id; `restore` puts it
-  back. This is the default and the first action the UI offers.
+  back. This is the default and the first action the UI offers. While archived the source is
+  read-only ([decision](../decisions/archive-by-default-delete-guarded.md)): correcting its title,
+  date or tags, writing its derived text, summary or notes, adding or reading again an attachment,
+  and adding or changing a comment are each refused with `409 record_archived`, saying how to
+  restore it; `sources.restore` brings it back.
 - **Delete** ([§9.5](09-data-lifecycle.md)) destroys the source and every byte under it,
   permanently. Admins may do it, through either adapter (an agent on an Admin connection). It
   requires the current etag, a reason,

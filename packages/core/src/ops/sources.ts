@@ -606,12 +606,13 @@ export const updateSource = defineOperation({
   mutates: true,
   summary: "Correct a source's metadata in place: title, date or tags. Pass only what changes.",
   description:
-    "Fix mistakes here; never archive and recreate, because links and comments point at the record id. The id, attachments, derived text and comments are untouched. tags replaces the whole list. Requires expected_etag: the source's current etag, from sources(action=\"get\") or the result of your last write to it. Adding an attachment also changes it. A stale one gets 409 stale_etag with details.current_etag; read the source again before retrying.",
+    "Fix mistakes here; never archive and recreate, because links and comments point at the record id. The id, attachments, derived text and comments are untouched. tags replaces the whole list. An archived source is read-only: restore it first (sources(action=\"restore\")), or this is refused with 409 record_archived. Requires expected_etag: the source's current etag, from sources(action=\"get\") or the result of your last write to it. Adding an attachment also changes it. A stale one gets 409 stale_etag with details.current_etag; read the source again before retrying.",
   input: z.strictObject({ record_id: id("source"), expected_etag: expectedEtag, ...recordMetadata, title: recordMetadata.title.optional() }),
   rest: { method: "PATCH", path: "/sources/:record_id" },
   mcp: { tool: "sources", action: "update" },
   async handler(ctx, input) {
-    const r = await loadRecord(ctx, input.record_id, { lock: true });
+    // An archived source is read-only, its title, date and tags too, until sources.restore brings it back.
+    const r = await loadRecord(ctx, input.record_id, { lock: true, live: true });
     checkEtag(input.expected_etag, r.etag, "source");
     const next = {
       title: input.title ?? r.title,

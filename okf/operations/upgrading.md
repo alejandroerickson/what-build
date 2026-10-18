@@ -115,10 +115,11 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   actions; a standalone tool called with `describe`, `action` or `params` says its fields are its
   arguments; and a list sent as one value says what the list takes (`status` takes a list, such as
   `["confirmed"]`). On a connection whose person turned feedback off, `submit_feedback` is
-  refused with `403 feedback_off` whatever is sent, a call with invalid input included. Editing,
-  archiving, restoring or deleting a comment on an archived source is refused with
-  `409 record_archived`, as adding one was, and the refusal says how to restore the source; the
-  web app already hid those actions there.
+  refused with `403 feedback_off` whatever is sent, a call with invalid input included. An
+  archived source is read-only, as archiving always promised: correcting its title, date or tags
+  (`sources(action="update")`) and editing, archiving, restoring or deleting one of its comments
+  are refused with `409 record_archived`, as adding a comment was, and the refusal says how to
+  restore the source; the web app already offered none of them there.
 - **Nothing to change; agents will notice `product` naming an organization.** Over MCP, an
   organization's or a team's action, such as `sandbox(action="status")`, called with `product`
   and no `tenant` acts on the organization (and team) that product is in, where it was refused
