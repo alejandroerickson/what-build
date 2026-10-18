@@ -125,7 +125,7 @@ mark { background: var(--mark); }
 .quotes .quote:nth-child(3n+2) blockquote::before { border-radius: 0; background: var(--blue); color: var(--on-blue); }
 .quotes .quote:nth-child(3n) blockquote::before { background: var(--green); color: var(--on-green); }
 .quotes blockquote { font-size: 1.15rem; line-height: 1.5; }
-.tally { --dot: 0.8em; height: calc(var(--dot) * 1.6); width: calc(var(--of, 10) * var(--dot)); vertical-align: -0.3em; --tally: var(--blue); --tally-off: color-mix(in srgb, var(--ink) 20%, transparent); -webkit-mask: ${PERSON} 0 0 / var(--dot) 100% repeat-x; mask: ${PERSON} 0 0 / var(--dot) 100% repeat-x; }
+.tally { aspect-ratio: var(--of, 10) / 1.6; vertical-align: -0.3em; --tally: var(--blue); --tally-off: color-mix(in srgb, var(--ink) 20%, transparent); -webkit-mask: ${PERSON} 0 0 / calc(100% / var(--of, 10)) 100% repeat-x; mask: ${PERSON} 0 0 / calc(100% / var(--of, 10)) 100% repeat-x; }
 .columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; margin: 1.75rem 0; }
 .columns > * { padding: 1.3rem 1.4rem 1.4rem; background: var(--tint); }
 .columns h3 { margin-top: 0; padding-left: 1.4rem; background: linear-gradient(var(--blue), var(--blue)) 0 0.32em / 0.85rem 0.85rem no-repeat; }

@@ -594,9 +594,11 @@ with `.tag`, `dl.facts` and `nav.pages`; and for evidence and what changes `div.
 `figure.shot` with `.screen`, `.pin` and `ol.pins`), so content moves between styles unchanged;
 `BASE` in `house-styles/kit.ts` gives every style the vocabulary's structure, and each adds
 signature moves of its own. They also set what a browser draws for itself: the selection, the
-scrollbar, the focus ring, and where a printed page may break. A product that adopted a house
-style since removed keeps its copy: it reads as a house style with its `based_on` id and no
-`based_on_name`, and an agent can still change or replace it. Its stylesheet predates the
+scrollbar, the focus ring, and where a printed page may break. A tally is never wider than the
+block it sits in: its marks, its fill and its height are shares of the width it gets, so on a
+phone or in a column every mark shows and exactly `--n` of them are filled. A product that adopted
+a house style since removed keeps its copy: it reads as a house style with its `based_on` id and
+no `based_on_name`, and an agent can still change or replace it. Its stylesheet predates the
 current vocabulary, so `story.get_style` (and `story.guidance`, where it reports the product's
 style) gives it a `note` saying that blocks added since may render unstyled, and that adopting a
 current house style and publishing each page with `restyle` moves it to a current base.

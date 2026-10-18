@@ -75,6 +75,34 @@ describe("house styles", () => {
   it("each use a typeface the server carries", () => {
     for (const s of HOUSE_STYLES) expect(storyFontsNamed(s.stylesheet).length, s.id).toBeGreaterThan(0);
   });
+
+  it("draw every mark of a tally in the width it gets, with exactly --n of them filled", () => {
+    // Each declaration on a rule whose subject is the tally, in or out of a media query.
+    const tallyDeclarations = (css: string) =>
+      [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+        .filter(([, selectors]) => selectors!.split(",").some((sel) => /\.tally\b/.test(sel.trim().split(/\s*[>+~]\s*|\s+/).pop()!)))
+        .flatMap(([, , body]) => body!.split(";").map((d) => d.trim()).filter(Boolean))
+        .map((d) => [d.slice(0, d.indexOf(":")).trim(), d.slice(d.indexOf(":") + 1).trim()] as const);
+    for (const s of HOUSE_STYLES) {
+      const decls = tallyDeclarations(s.stylesheet);
+      const values = (...props: string[]) => decls.filter(([p]) => props.includes(p)).map(([, v]) => v);
+      // A fixed size would clip a long tally in a narrow block, leaving only filled marks in view.
+      expect(values("width"), s.id).toEqual(["calc(var(--of, 10) * var(--dot))"]);
+      expect(values("max-width"), s.id).toEqual(["100%"]);
+      expect(values("height", "min-width"), s.id).toEqual([]);
+      expect(values("aspect-ratio").length, s.id).toBeGreaterThan(0);
+      for (const v of values("aspect-ratio")) expect(v, s.id).toMatch(/^var\(--of, 10\) \/ [\d.]+$/);
+      // A mark is a share of the width the tally gets, and so is the fill, so they always agree.
+      const masks = values("mask", "-webkit-mask", "mask-size", "-webkit-mask-size", "mask-position", "-webkit-mask-position");
+      expect(masks.length, s.id).toBeGreaterThan(0);
+      for (const v of masks) {
+        expect(v, s.id).not.toContain("--dot");
+        if (/repeat-x/.test(v)) expect(v, s.id).toContain("/ calc(100% / var(--of, 10)) 100% repeat-x");
+      }
+      for (const v of values("background", "background-size", "background-image")) expect(v, s.id).not.toContain("--dot");
+      expect(values("background").join(" "), s.id).toContain("calc(100% * var(--n, 0) / var(--of, 10))");
+    }
+  });
 });
 
 describe("carried typefaces", () => {
