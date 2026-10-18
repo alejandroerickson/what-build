@@ -17,7 +17,10 @@ export interface SheetRow {
   hidden?: boolean;
 }
 
-/** Said after a hidden sheet's name, a hidden column's label, a hidden row's number and a value its format hides. */
+/**
+ * Said after a hidden sheet's name, a hidden column's label, a hidden row's number, and a value its
+ * format shows as nothing, unless that value is a zero.
+ */
 export const HIDDEN = "(hidden)";
 
 function columnIndex(ref: string): number {
@@ -135,9 +138,9 @@ function hiddenColumnsOf(sheet: ReturnType<typeof parseXml>): Set<number> {
  * XLSX: a `# Sheet: <name>` heading per worksheet and one segment per non-empty row, prefixed
  * `[<Sheet>, row N]`. The first all-text row with two or more cells in the top 20 becomes the
  * header, and later rows render `label: value` pairs. Each value reads as the sheet shows it,
- * through its cell's number format (numfmt.ts); a hidden sheet, column or row, and a value its format
- * shows as nothing, is read and says it is hidden; and a formula saved without its value says so
- * instead of reading as 0.
+ * through its cell's number format (numfmt.ts); a hidden sheet, column or row, and a value other than
+ * zero that its format shows as nothing, is read and says it is hidden; and a formula saved without
+ * its value says so instead of reading as 0.
  */
 export const xlsxParser: FormatParser = {
   name: "xlsx",
@@ -212,6 +215,7 @@ export const xlsxParser: FormatParser = {
           let isText = false;
           // The value as General shows it, for a format that shows it as nothing.
           let general = "";
+          let zero = false;
           if (f && !raw && t !== "str" && t !== "inlineStr") {
             // A formula the file holds without its value, as libraries that never calculate write it:
             // its formula, said to have no value, rather than a 0 nobody calculated.
@@ -236,6 +240,7 @@ export const xlsxParser: FormatParser = {
             if (!raw.trim() || !Number.isFinite(num)) value = raw;
             else {
               general = generalNumber(num);
+              zero = num === 0;
               value = (fmt && formatNumber(fmt, num, date1904)) ?? general;
             }
           }
@@ -244,9 +249,11 @@ export const xlsxParser: FormatParser = {
             value = formatText(fmt, value);
           }
           value = cellText(value);
-          if (!value && cellText(general)) {
-            // A format whose section shows nothing (;;;, or 0;;0 for a negative) hides a value the
-            // cell holds: it is read as General, and said to be hidden.
+          // A format whose section shows nothing (;;;, or 0;;0 for a negative) hides a value the
+          // cell holds: it is read as General, and said to be hidden. A zero shown as nothing is a
+          // blank, as sheets hide zeros across whole tables (0;-0;;@), and hides nothing: it reads as
+          // the empty cell the sheet shows.
+          if (!value && !zero && cellText(general)) {
             value = `${cellText(general)} ${HIDDEN}`;
             hiddenValues++;
           }

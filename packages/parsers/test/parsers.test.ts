@@ -804,23 +804,24 @@ describe("XLSX", () => {
     expect(r.facts).toMatchObject({ sheet_count: 2, hidden_sheets: ["Workings"], hidden_rows: 1, hidden_columns: 1 });
   });
 
-  it("reads a value its format shows as nothing as General, and says it is hidden", async () => {
+  it("reads a value its format shows as nothing as General, and says it is hidden, but a zero as the blank it shows", async () => {
     const r = await derive(
       makeXlsxSheet(
         [
-          ["Crew", "Rate", "Delta", "Note"],
-          ["North", [42, 1], [-5, 2], { text: "Owner only", style: 1 }],
-          ["South", [38, 0], [5, 2], { text: "Shown", style: 0 }],
+          ["Crew", "Rate", "Delta", "Note", "Spare", "Reserve"],
+          ["North", [42, 1], [-5, 2], { text: "Owner only", style: 1 }, [0, 3], [0, 1]],
+          ["South", [38, 0], [5, 2], { text: "Shown", style: 0 }, [0, 4], [12, 3]],
         ],
-        // ;;; shows nothing at all, and 0;;0 nothing for a negative.
-        { numFmts: [";;;", "0;;0"], xfs: [0, 164, 165] },
+        // ;;; shows nothing at all and 0;;0 nothing for a negative; 0;-0;;@ and #,##0;(#,##0); show a zero as a blank.
+        { numFmts: [";;;", "0;;0", "0;-0;;@", "#,##0;(#,##0);"], xfs: [0, 164, 165, 166, 167] },
       ),
       "rates.xlsx",
     );
     expect(r.segments.slice(2).map((s) => s.text)).toEqual([
-      "[Register, row 2] Crew: North | Rate: 42 (hidden) | Delta: -5 (hidden) | Note: Owner only (hidden)",
-      "[Register, row 3] Crew: South | Rate: 38 | Delta: 5 | Note: Shown",
+      "[Register, row 2] Crew: North | Rate: 42 (hidden) | Delta: -5 (hidden) | Note: Owner only (hidden) | Spare: (blank) | Reserve: (blank)",
+      "[Register, row 3] Crew: South | Rate: 38 | Delta: 5 | Note: Shown | Spare: (blank) | Reserve: 12",
     ]);
+    // A zero shown as a blank hides nothing, so it is not counted.
     expect(r.facts["hidden_values"]).toBe(3);
   });
 
