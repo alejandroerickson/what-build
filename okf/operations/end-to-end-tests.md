@@ -90,7 +90,9 @@ corepack pnpm dev:e2e
 ```
 
 An agent runs it in the background with its output in `.what-build/e2e/server.log`, and
-`pnpm e2e stop` stops it and the browser. It drops `e2e`, creates it again from `golden` (a Postgres template copy, which takes a moment
+`pnpm e2e stop` stops it and the browser: this checkout's, which its process id in
+`.what-build/e2e/dev.pid` names, never another checkout's instance. It refuses to start while this
+checkout's instance runs. It drops `e2e`, creates it again from `golden` (a Postgres template copy, which takes a moment
 even for a large copy), copies the files, applies any migration newer than the golden master, names the sandbox organization the public
 sandbox, and serves. It also marks the sandbox as reset just now, so that its daily reset does not
 put the baseline back over the golden master's content when the instance starts; a run that lasts
