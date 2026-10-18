@@ -166,7 +166,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   (`sources(action="update")`) and editing, archiving, restoring or deleting one of its comments
   are refused with `409 record_archived`, as adding a comment was, and the refusal says how to
   restore the source; the web app offered none of them there but an admin's delete of a comment,
-  which it now leaves out too.
+  which it now leaves out too. In a public sandbox, someone its staff gave a role, who meets its
+  limits but is no visitor, is no longer told a limit is for visitors: a refusal says what is off
+  "except for its owners and admins" and counts "each person but its owners and admins", and a
+  visitor is told as before.
 - **Nothing to change; agents will notice `product` naming an organization.** Over MCP, an
   organization's or a team's action, such as `sandbox(action="status")`, called with `product`
   and no `tenant` acts on the organization (and team) that product is in, where it was refused

@@ -606,6 +606,60 @@ describe("limits on what a visitor does", () => {
     expect((await settings()).seats.used).toBe(2);
     await set({ visitor_access: "write" });
   });
+
+  it("words what it refuses someone its staff gave a role as limits on everyone but them, never as on visitors", async () => {
+    expect((await olive.api("POST", `${T}/members`, { email: "member@staff.example", role: "editor", team })).status).toBe(201);
+    const member = await h.signIn("member@staff.example", "Morgan Member");
+    expect((await member.api("GET", `${T}/sandbox`)).body.you.role).toBe("member");
+    const said = async (who: Browser, method: string, path: string, body?: unknown) => {
+      const r = await who.api(method, path, body);
+      expect(r.status, JSON.stringify(r.body)).toBeGreaterThanOrEqual(400);
+      return r.body.error.message as string;
+    };
+    const both = async (method: string, path: string, body: unknown, forMember: string, forVisitor: string) => {
+      expect(await said(member, method, path, body)).toBe(forMember);
+      expect(await said(viktor, method, path, body)).toBe(forVisitor);
+    };
+    const grant = await member.api("POST", `${P}/sources/${seededSource}/uploads`, { path: "member.md" });
+    expect(grant.status).toBe(201);
+
+    const { visitor_access, visitor_agents, writes_per_day, writes_per_minute } = (await settings()).settings;
+    try {
+      await set({ writes_per_day: 0 });
+      await both("POST", `${P}/outcomes`, { title: "While writing is off" },
+        "Writing is off in this public sandbox, except for its owners and admins. Reading and searching still work.",
+        "Writing is off for visitors in this public sandbox. Reading and searching still work.");
+      await set({ writes_per_day: 100000, writes_per_minute: 0 });
+      await both("POST", `${P}/outcomes`, { title: "Too fast" },
+        "This public sandbox allows each person but its owners and admins 0 writes a minute. Wait for the next minute, then carry on; reads are unaffected.",
+        "This public sandbox allows each visitor 0 writes a minute. Wait for the next minute, then carry on; reads are unaffected.");
+      await set({ writes_per_minute: 1000 });
+      expect(await said(member, "POST", `${P}/sources/${seededSource}/fetch`, { url: "https://example.com/notes.txt" })).toMatch(/^Fetching a file from a URL is off in this public sandbox, except for its owners and admins\. /);
+      await set({ visitor_access: "read" });
+      await both("POST", `${P}/outcomes`, { title: "Not now" },
+        "This public sandbox is read-only for now, except for its owners and admins, so outcomes.create was refused. Reading and searching still work.",
+        "This public sandbox is read-only for visitors for now, so outcomes.create was refused. Reading and searching still work.");
+      // A grant given before writes stopped takes no bytes after, and says so to whoever holds it.
+      const late = await fetch(grant.body.url, { method: "PUT", headers: grant.body.headers, body: "too late" });
+      expect(late.status).toBe(403);
+      expect(((await late.json()) as { error: { message: string } }).error.message).toBe(
+        "This public sandbox is not taking uploads for now, except from its owners and admins. Nothing was stored; try again later with a new grant.",
+      );
+      await set({ visitor_access: "closed" });
+      await both("GET", `${P}/outcomes`, undefined,
+        "This public sandbox is closed for now, except to its owners and admins. Nothing of yours was changed; try again later.",
+        "This public sandbox is closed to visitors for now. Nothing of yours was changed; try again later.");
+      await set({ visitor_access: "write", visitor_agents: false });
+      const agent = new Client({ name: "member-agent", version: "1.0.0" });
+      await agent.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(member, "Member Agent")}` } } }));
+      const off = (await agent.callTool({ name: "outcomes", arguments: { action: "list", product: P.slice("/api/v1/p/".length) } })) as { content: { text: string }[] };
+      expect(off.content[0]!.text).toMatch(/^403: Agents are turned off in this public sandbox, except for its owners and admins\. Use the web app instead\.\n/);
+      await agent.close();
+    } finally {
+      await set({ visitor_access, visitor_agents, writes_per_day, writes_per_minute });
+      await olive.api("POST", `${T}/members/revoke`, { account_id: (await member.api("GET", "/api/v1/me")).body.account_id, whole_tenant: true });
+    }
+  });
 });
 
 describe("the baseline and the reset", () => {
