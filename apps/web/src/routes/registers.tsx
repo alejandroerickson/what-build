@@ -374,7 +374,8 @@ export function RegisterEntryPage({ kind }: { kind: Kind }) {
                 ) : null}
                 {canDelete ? (
                   <>
-                    <MenuSeparator />
+                    {/* Only what an editor can do sits above it: an archived one's menu holds Delete alone. */}
+                    {canWrite && !archived ? <MenuSeparator /> : null}
                     <MenuItem icon="trash" tone="danger" onSelect={() => setDeleting(true)}>
                       Delete permanently…
                     </MenuItem>

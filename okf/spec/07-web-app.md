@@ -760,8 +760,9 @@ a product that isn't archived (`canDelete`). One dialog serves every delete
    ◆ Decision: the reason is asked in a dialog rather than offered after archiving, since
    `update_annotation` takes it only with the archive; Archive instead, in a comment's delete
    dialog, archives at once without one.
-2. **Delete** sits inside the same menu, below a separator, styled as destructive, never
-   pre-selected and never the primary button of any dialog.
+2. **Delete** sits inside the same menu, below a separator when anything is above it, styled as
+   destructive, never pre-selected and never the primary button of any dialog. No menu begins or
+   ends with a separator, or shows two together (`apps/web/src/styles/ui.css`).
 3. Choosing it opens a dialog titled as a question ("Delete this assumption permanently?"), that
    says it can't be undone and shows the object's preview as plain sentences before any control:
    *This deletes its attachments (4 stored versions, 218 MB), its text, summary and notes, and 1
