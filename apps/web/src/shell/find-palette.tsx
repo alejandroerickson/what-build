@@ -39,8 +39,9 @@ const SHOWN = 8;
 function options(app: string, d: FindResponse | undefined): Option[] {
   return (d?.results ?? []).slice(0, SHOWN).map((r) => {
     const hit = r.hits?.[0];
-    // A source found by what it says, not its title, opens where it says it.
-    const atHit = Boolean(hit && !r.title_marks.length);
+    // A source found by what it says opens where it says it, the place its line shows, whether or
+    // not its title holds the words too.
+    const atHit = Boolean(hit);
     return {
       key: `${r.kind}:${r.id}`,
       kind: atHit ? hit!.field : r.kind,

@@ -92,8 +92,9 @@ the browser's back button and "open in new tab" both work.
   of matches, Assumption with its status, Mockup with the page), and a source's best place,
   saying where it is ("In its text", "In its summary", "In its notes", "In a comment"), or another
   result's matching text. Arrows (or Ctrl+N and Ctrl+P) move; Enter opens the selected result (a
-  source matched only in what it says opens at that section: its Text, which the summary heads,
-  with the words marked when they are in the text; its Notes; or its Comments). The **All N results**
+  source matched in what it says opens at the place its line shows, even when its title holds the
+  words too: its Text, which the summary heads, with the words marked when they are in the text;
+  its Notes; or its Comments). The **All N results**
   button at the field's end (⌘Enter / Ctrl+Enter) opens the Search screen with the words, and
   empties the palette. Closing it (Escape or a click outside) keeps the words for next time; another
   product starts empty. A line under the field says how the words were read: a corrected word

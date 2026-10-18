@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 // What the Search screen and the palette say of the words searched: a quoted query keeps its own
@@ -13,11 +13,31 @@ const BASE = "/api/v1/p/acme/core/crew";
 const APP = "/t/acme/core/crew";
 const product = { name: "Crewboard", path: "acme/core/crew", your_role: "editor" };
 
+const SOURCE = "01K8A2B3C4D5E6F7G8H9J0K1M2";
+/** What plain search answers for a query, when it finds anything: a source whose title holds the words too. */
+const found: Record<string, unknown> = {
+  "gate codes": {
+    query: "gate codes",
+    terms: [{ text: "gate", phrase: false }, { text: "codes", phrase: false }],
+    ignored: [], kind_hint: null, corrections: [], partial: false, counts: { source: 1 },
+    results: [
+      {
+        kind: "source", id: SOURCE, title: "Gate codes — crew lead interview", title_marks: [[0, 10]], snippet: null, snippet_marks: [], missing: [], score: 1,
+        meta: { date: "2026-09-10", tags: [] }, hit_count: 3,
+        hits: [
+          { field: "text", annotation_id: null, char_start: 412, text: "the gate codes in the text are old", marks: [[4, 14]] },
+          { field: "text", annotation_id: null, char_start: 980, text: "new gate codes every week", marks: [[4, 14]] },
+        ],
+      },
+    ],
+  },
+};
+
 vi.mock("../src/lib/api.ts", async (original) => ({
   ...(await original<typeof import("../src/lib/api.ts")>()),
   api: vi.fn(async (_method: string, path: string) => {
     const query = new URLSearchParams(path.split("?")[1]).get("query") ?? "";
-    return { query, terms: [], ignored: [], kind_hint: null, corrections: [], partial: false, counts: {}, results: [] };
+    return found[query] ?? { query, terms: [], ignored: [], kind_hint: null, corrections: [], partial: false, counts: {}, results: [] };
   }),
 }));
 vi.mock("../src/lib/session.tsx", async (original) => ({
@@ -116,5 +136,34 @@ describe("the palette", () => {
     expect(dialog.getAttribute("aria-label")).toBe("Search Crewboard");
     expect(field.getAttribute("aria-label")).toBe("Words to search for");
     expect(field.placeholder).toBe("Search Crewboard");
+  });
+});
+
+function Where() {
+  const loc = useLocation();
+  return <output className="where">{`${loc.pathname}${loc.search}`}</output>;
+}
+
+describe("following a source in the palette", () => {
+  it("opens it where the words are in its text, marked, even when its title holds them too", async () => {
+    await render(
+      <FindProvider app={APP} base={BASE} product={product as never}>
+        <FindLauncher product={product as never} />
+        <Where />
+      </FindProvider>,
+      `${APP}/evidence`,
+    );
+    await act(async () => document.querySelector<HTMLButtonElement>(".find-launch")!.click());
+    const field = document.querySelector<HTMLInputElement>("dialog.find-pal input")!;
+    await act(async () => type(field, "gate codes"));
+    await act(async () => new Promise((r) => setTimeout(r, 150)));
+    await settle();
+    expect(document.querySelector(".find-pal-opt")?.textContent).toContain("In its text");
+    await act(async () => field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    await settle();
+    const where = new URL(document.querySelector(".where")!.textContent!, "http://app.example.com");
+    expect(where.pathname).toBe(`${APP}/evidence/${SOURCE}`);
+    expect(where.searchParams.get("view")).toBe("text");
+    expect(where.searchParams.get("find")).toBe("gate codes");
   });
 });
