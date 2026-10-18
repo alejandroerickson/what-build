@@ -278,6 +278,11 @@ h1[tabindex="-1"]:focus {
   font-size: var(--fs-md);
   font-weight: var(--fw-semibold);
 }
+/* A heading, sized as the head it sits in. */
+.panel-section-title {
+  font-size: inherit;
+  line-height: inherit;
+}
 /* A filter in a panel section (Evidence's filters, Exploration's lists): one link per choice. */
 .panel-filter {
   display: flex;

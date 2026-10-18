@@ -116,8 +116,10 @@ the browser's back button and "open in new tab" both work.
   alone with its count, and the quiet group is gone. The product opens on the Story, and any other
   product screen, opened by a link or typed, takes a reader to the Story, with a toast saying they
   can read only this product's Story.
-- **A context slot** under the navigation, which the screen fills: the page tree on Story, find
-  and filters on Evidence, the mockups and the three lists with their filters on Exploration.
+- **A context slot** under the navigation, which the screen fills: the page tree on Story, the
+  filters on Evidence, the mockups and the three lists with their filters on Exploration.
+  Each of its sections is a group named by its title, a heading, so a screen reader can move
+  between them as it does between the inspector's groups.
 - **The footer** holds the account menu, which is about the person: their email; each
   organization they belong to, with their role in it and a link to its **Members** (an organization
   where they read only the Story is left out, since its members are not shown to them); the theme

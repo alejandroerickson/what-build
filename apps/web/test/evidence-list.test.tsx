@@ -33,6 +33,7 @@ vi.mock("../src/lib/session.tsx", async (original) => ({
 }));
 
 const { EvidencePage } = await import("../src/routes/evidence.tsx");
+const { ShellContext } = await import("../src/shell/slots.tsx");
 
 let unmount: (() => void) | null = null;
 afterEach(() => {
@@ -41,20 +42,29 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
+/** The shell's panel slot, which the Evidence screen fills with its filters. */
+const panel = document.createElement("div");
+const slots = {
+  panelContextEl: panel, inspectorEl: null, inspectorId: "inspector", registerPanelContext: () => () => {}, registerInspector: () => () => {},
+  inspectorOpen: false, setInspectorOpen: () => {}, inspectorHideLabel: "Hide details", setPageTitle: () => {}, focus: false, setFocus: () => {},
+};
+
 async function open(search: string) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const host = document.createElement("div");
-  document.body.append(host);
+  document.body.append(host, panel);
   const root = createRoot(host);
   unmount = () => act(() => root.unmount());
   await act(async () => {
     root.render(
       <QueryClientProvider client={qc}>
-        <MemoryRouter initialEntries={[`${APP}/evidence${search}`]}>
-          <Routes>
-            <Route path={`${APP}/evidence`} element={<EvidencePage />} />
-          </Routes>
-        </MemoryRouter>
+        <ShellContext.Provider value={slots}>
+          <MemoryRouter initialEntries={[`${APP}/evidence${search}`]}>
+            <Routes>
+              <Route path={`${APP}/evidence`} element={<EvidencePage />} />
+            </Routes>
+          </MemoryRouter>
+        </ShellContext.Provider>
       </QueryClientProvider>,
     );
   });
@@ -73,5 +83,14 @@ describe("sources narrowed by a link's words", () => {
     const host = await open("?query=gate");
     expect(host.querySelector(".empty-title")?.textContent).toBe("No titles, tags or attachment names hold “gate”");
     expect(host.querySelector(".empty-text")?.textContent).toBe("Use Search to find what sources say.");
+  });
+});
+
+describe("the Evidence panel", () => {
+  it("titles each group of filters with a heading that names the group", async () => {
+    await open("");
+    const groups = [...panel.querySelectorAll<HTMLElement>('[role="group"]')];
+    expect(groups.map((g) => document.getElementById(g.getAttribute("aria-labelledby")!)?.textContent)).toEqual(["Tags", "Archived"]);
+    expect(groups.map((g) => document.getElementById(g.getAttribute("aria-labelledby")!)?.tagName)).toEqual(["H2", "H2"]);
   });
 });
