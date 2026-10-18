@@ -306,6 +306,12 @@ interface LaidLine {
 
 const isQuote = (line: string) => line.startsWith(">");
 
+/**
+ * Whether a break between two lines may join them: never when either is quoted (`> …`), so the reply
+ * under a quote is never read into it, nor one quoted line into another with its `>` inside the text.
+ */
+const joins = (line: string, next: string) => !isQuote(line) && !isQuote(next);
+
 /** An open Markdown list item: where its marker stood in the file, where it stands, and how wide the marker is. */
 interface OpenItem {
   from: number;
@@ -327,7 +333,7 @@ export function layoutLines(raw: string[], first?: string): { text: string; open
   // A loop, not Math.max(...): a paragraph may have more lines than a call takes arguments.
   let width = 0;
   for (const l of lines) width = Math.max(width, codePointLength(l.trimmed));
-  const wrapped = lines.slice(1).map((l, i) => wraps(lines[i]!.trimmed, l.trimmed, width));
+  const wrapped = lines.slice(1).map((l, i) => joins(lines[i]!.trimmed, l.trimmed) && wraps(lines[i]!.trimmed, l.trimmed, width));
   const build = (joinAll: boolean) => {
     const out: LaidLine[] = [];
     let open: OpenItem[] = [];
@@ -361,7 +367,7 @@ export function layoutLines(raw: string[], first?: string): { text: string; open
       if (prev) {
         joinable++;
         if (wrapped[i - 1]) wraps++;
-        if (wrapped[i - 1] || joinAll) {
+        if (wrapped[i - 1] || (joinAll && joins(prev.text, trimmed))) {
           prev.text += " " + trimmed;
           continue;
         }

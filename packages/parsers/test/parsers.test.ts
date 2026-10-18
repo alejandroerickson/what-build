@@ -1052,6 +1052,26 @@ describe("the readable text", () => {
     expect(r.markdown).toBe("On Monday, Dana wrote:  \n> We plan by the week.  \n> Crews text the office.\n\nThanks, noted.\n");
   });
 
+  it("never joins a quoted line to the line after it or before it, whatever its case", async () => {
+    const quote = [
+      "> We plan by the week, and the crews text the office every morning.",
+      "> They say which jobs they will reach, and we start in the spring",
+      "> once the vans are back from the depot and the yard is ready for spring",
+    ];
+    // A reply in lower case under the longest quoted line looks like a wrap, but is not one.
+    const reply = await derive(utf8([...quote, "thanks, that is great news for the whole team.", ""].join("\n")), "reply.txt");
+    expect(reply.markdown).toBe(`${quote.join("  \n")}\n\nthanks, that is great news for the whole team.\n`);
+    // Nor is a quote under hard-wrapped prose taken into it.
+    const prose = [
+      "Dana wrote back this morning about the crews and the schedule, and what",
+      "she said about the vans and the depot is worth keeping in mind before we",
+      "plan the spring, since the crews will want to know where the vans are and",
+      "when the yard opens again. Here it is, as she wrote it to the crews today",
+    ];
+    const above = await derive(utf8([...prose, "> the vans are back from the depot in March, and the yard opens then", ""].join("\n")), "above.txt");
+    expect(above.markdown).toBe(`${prose.join(" ")}  \n> the vans are back from the depot in March, and the yard opens then\n`);
+  });
+
   it("puts a speaker's label above a list in a transcript of timed labels", async () => {
     const txt = "Dana (14:02 UTC):\nPlan the week first.\nThen the crews.\n\nSam (14:03 UTC):\n- Week plan drafted\n- Crews next\n\nDana (14:05 UTC):\nGood.\n\nSam (14:09 UTC):\nDone.\n";
     const r = await derive(utf8(txt), "session.txt");
