@@ -410,8 +410,10 @@ describe("the sample product", () => {
     const doc = await sam.api("GET", `${S}/story/print?page_ids=hand-off-test,overview`);
     expect(doc.status).toBe(200);
     expect(doc.body).not.toContain("<h1>The hand-off test</h1>");
-    // One source carries a summary and notes, and a second attachment whose text is kept beside its derived text.
-    const sources = await sam.api("GET", `${S}/sources`);
+    // Every source carries a summary, which the list shows. One also has notes, and a second
+    // attachment whose text is kept beside its derived text.
+    const sources = await sam.api("GET", `${S}/sources?include_summary=true`);
+    expect(sources.body.records.filter((r: { summary: string | null }) => !r.summary)).toEqual([]);
     const call = sources.body.records.find((r: { title: string }) => r.title.startsWith("Crew lead interview"));
     expect(call).toMatchObject({ derived_status: "ready", text_from: "interview.vtt", attachment_count: 2 });
     const source = await sam.api("GET", `${S}/sources/${call.record_id}?detail=full`);

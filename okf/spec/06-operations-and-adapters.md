@@ -151,7 +151,9 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
   With `date`, `updated` or `title`, a cursor the sort did not issue is `422 invalid_cursor`. Each
   summary in the list also names the attachment its derived text is still the text of
   (`text_from`, a path, or `null`). Every source summary carries `uploaded_at` and `updated_at`
-  with their actors.
+  with their actors. With `include_summary`, each also carries the source's own summary
+  (`summary`, `null` without one, cut at 1,000 characters at a word, with an ellipsis), which the
+  web app's list unfolds ([§4.6](04-data-model.md)).
 - Text windows (`derived.text`): at most 20,000 code points per call, the default, with
   `truncated` and `total_chars` ([§5.4](05-derived-layer.md)).
 - Lists return summaries — never bodies, HTML, or derived text.

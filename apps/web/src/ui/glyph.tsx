@@ -1,7 +1,7 @@
 import {
-  Activity, Archive, ArchiveRestore, ArrowLeft, ArrowRight, Blend, BookOpen, Bot, Box, Building, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp,
+  Activity, Archive, ArchiveRestore, ArrowLeft, ArrowRight, Blend, BookOpen, Bot, Box, Building, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronsDownUp, ChevronsUpDown, ChevronUp,
   CircleAlert, CircleCheck, CircleDashed, Clock, Cookie, Copy, CornerDownRight, Download, Ellipsis, ExternalLink, FileText, FileVolume, FolderInput,
-  FlaskConical, GitCommitHorizontal, GripVertical, Image, Info, Keyboard, LayoutGrid, Library, Lightbulb, Link, LoaderCircle, LogOut, Maximize2, Menu, MessageSquare, Mic, Minimize2, Minus, Monitor, Moon, MoveHorizontal, Palette, PanelLeftClose, PanelLeftOpen,
+  FlaskConical, GitCommitHorizontal, GripVertical, Image, Info, Keyboard, LayoutGrid, Library, Lightbulb, Link, LoaderCircle, LogOut, Maximize2, Menu, MessageSquare, Mic, Minimize2, Minus, Monitor, Moon, MoveHorizontal, Palette, PanelLeftClose, Paperclip, PanelLeftOpen,
   PanelRightClose, PanelRightOpen, Pencil, Plus, Quote, RotateCcw, Scale, Search, Settings, Signpost, Sun, Tag, Target, Trash, Triangle, TriangleAlert, Upload, UserPlus, Users, X, ZoomIn, ZoomOut, Scan, Hand, MousePointer2,
   type LucideIcon,
 } from "lucide-react";
@@ -40,6 +40,7 @@ const GLYPHS = {
   "file-text": FileText,
   "file-audio": FileVolume,
   flask: FlaskConical,
+  fold: ChevronsDownUp,
   "folder-input": FolderInput,
   "git-commit": GitCommitHorizontal,
   hand: Hand,
@@ -68,6 +69,7 @@ const GLYPHS = {
   "panel-left-open": PanelLeftOpen,
   "panel-right-close": PanelRightClose,
   "panel-right-open": PanelRightOpen,
+  paperclip: Paperclip,
   pencil: Pencil,
   plus: Plus,
   quote: Quote,
@@ -82,6 +84,7 @@ const GLYPHS = {
   target: Target,
   trash: Trash,
   triangle: Triangle,
+  unfold: ChevronsUpDown,
   "triangle-alert": TriangleAlert,
   upload: Upload,
   "user-plus": UserPlus,

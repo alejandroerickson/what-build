@@ -347,8 +347,15 @@ The sources, and everything for reading them.
   title (`?sort=date|added|updated|title`). A small triangle beside the current order shows its
   direction; choosing it again reverses it (`?order=asc|desc`; dates start newest first, title A
   to Z). When the sheet is narrower than 680px the same choices sit in a menu. Each row shows its
-  tags and its date captured under the title, and at its end "Added <when> by <who>", or "Updated
-  <when> by <who>" when the list is sorted by date updated. The header
+  tags under the title, and at its end a paperclip with its number of attachments and one date:
+  the one the list is ordered by. That is the date captured ("No date" when it has none), or
+  "2 h ago" when ordered by date added or updated, with who did it and the full time in its
+  tooltip; ordered by title, it is the date added. A row whose source has a summary leads with a chevron that unfolds the
+  summary's first three lines, as plain words, under the tags
+  ([decision](../decisions/a-source-carries-a-summary-notes-and-whole-source-comments.md)); the
+  whole row stays a link to the source. **Show summaries** in the header unfolds every row (and
+  **Hide summaries** folds them), a choice the browser keeps for the person
+  (`whatbuild.sources.summaries`, forgotten at sign-out). The header
   counts the sources listed, with "of N" live sources while filters narrow the list (left out once archived
   sources are included). While more pages wait to load, the count is still exact when
   `sources.facets` knows it: with no filter, one tag or one person; only otherwise is it the rows
@@ -357,22 +364,29 @@ The sources, and everything for reading them.
   they have, or none yet), so the twins can be told apart.
 - **Source page.** A source is the busiest object in the app, so the page is dense on purpose.
   - **Header:** the title and the actions menu, nothing else; every property is in the inspector.
-    Below it the **summary** ([§4.6](04-data-model.md)): rendered Markdown clamped to four lines
-    with "Show all", attributed to whoever wrote it last, with Edit for an editor. With no summary,
+    Below it the **summary** ([§4.6](04-data-model.md)), whole: rendered Markdown, attributed to
+    whoever wrote it last, with Edit for an editor. It is what people read of a source, so nothing
+    above it competes and the text below starts folded. With no summary,
     an editor sees "Add a summary" and everyone else nothing. Both open a dialog holding the
     Markdown; saving it empty removes the summary. Editing the details (title, date and tags,
     offering the product's tags), adding attachments, archive, restore and delete (§7.10) are in
     the page's actions menu.
+  - **Images.** When the source has image attachments, the image viewer (the one Attachments
+    opens, below) sits right under the summary, before everything else: the first image fitted
+    to a stage four-thirds as tall as it is wide (at most 56% of the window, and 640px), named,
+    with its download, and the others a step away. It is a sheet of its own, flush on a phone.
   - **Sections**, a segmented control held in the URL as `?view=` (links, not tabs): **Text**
     (`text`, the default), **Notes**, **Comments** and **Attachments**, the last two with their
     counts. There is no outline, and no passage reader.
   - **Text** is the source's derived text ([§5.4](05-derived-layer.md)), rendered as Markdown,
     under a line saying where it came from and how long it is: "Read from interview.vtt" while it
     is still an attachment's text, "Written by Riley, 2 days ago" once someone wrote or edited it.
-    Its header holds **Find in the text**, which marks the words, says "1 of 4" and steps through
-    the matches (the arrows, or Enter and Shift+Enter), the words held in the URL as `?find=`, so
-    a search hit opens here with them marked. A very long text shows its first 300,000 characters
-    and "Show all N characters", unless a find is on. Editors get **Edit**, a dialog holding the
+    It opens **folded** to its first nine lines, the last two fading into the sheet, when it
+    runs longer; a click on the fade, or on "Show the whole text" under it, unfolds it for the
+    rest of the visit. Its header holds **Find in the text**, which unfolds it, marks the words,
+    says "1 of 4" and steps through the matches (the arrows, or Enter and Shift+Enter), the words
+    held in the URL as `?find=`, so a search hit opens here with them marked. A very long text,
+    unfolded, shows its first 300,000 characters and "Show all N characters", unless a find is on. Editors get **Edit**, a dialog holding the
     Markdown (saving it empty removes the text; if someone changed it meanwhile, the dialog says so
     and keeps their changes to copy), and, when another attachment has text, a menu **Use an
     attachment's text** listing them, each confirmed in a dialog that says what it replaces.

@@ -2,13 +2,14 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { api, qs } from "../lib/api.ts";
-import { actorName, formatDate, plural, relativeTime } from "../lib/format.ts";
+import { attribution, formatDate, formatDateTime, plural, relativeTime } from "../lib/format.ts";
+import { markdownText } from "../lib/markdown.tsx";
 import { useProduct } from "../lib/session.tsx";
 import { derivedStatus } from "../lib/status.ts";
 import type { RecordSummary, SourceFacets } from "../lib/types.ts";
 import { PanelContext, PanelFilter, PanelSection, usePageTitle } from "../shell/slots.tsx";
 import {
-  Button, ButtonLink, EmptyState, ErrorCallout, FiltersInUse, Glyph, ListRow, Loading, Menu, MenuRadio, Segmented, Sheet, SheetHeader, StatusBadge, Tag,
+  Button, ButtonLink, EmptyState, ErrorCallout, FiltersInUse, Glyph, Loading, Menu, MenuRadio, Segmented, Sheet, SheetHeader, StatusBadge, Tag,
 } from "../ui/index.tsx";
 import { FirstUse } from "./first-use.tsx";
 import "../styles/screens/evidence.css";
@@ -250,6 +251,112 @@ export function sourcesCount({ loaded, more, filters, facets, of = "" }: { loade
   return known !== undefined ? `${known}${of}` : `${loaded}+${of}`;
 }
 
+/** Whether the list shows every source's summary, kept for the person in this browser. */
+const SUMMARIES_KEY = "whatbuild.sources.summaries";
+
+function useShowSummaries(): [boolean, (on: boolean) => void] {
+  const [on, setOn] = useState(() => {
+    try {
+      return localStorage.getItem(SUMMARIES_KEY) === "shown";
+    } catch {
+      return false;
+    }
+  });
+  const save = (next: boolean) => {
+    setOn(next);
+    try {
+      if (next) localStorage.setItem(SUMMARIES_KEY, "shown");
+      else localStorage.removeItem(SUMMARIES_KEY);
+    } catch {
+      // The choice lasts for this visit.
+    }
+  };
+  return [on, save];
+}
+
+/**
+ * A row's one date: the one the list is ordered by. The date captured by default, and "2 h ago"
+ * when the list is ordered by date added or updated (or by title, which shows when it was added),
+ * with who did it in its tooltip.
+ */
+function rowDate(r: RecordSummary, sort: Sort): { text: string; said: string; title: string; none?: boolean } {
+  if (sort === "added" || sort === "title") return { text: relativeTime(r.uploaded_at), said: "Added", title: `Added ${formatDateTime(r.uploaded_at)} by ${attribution(r.uploaded_by)}` };
+  if (sort === "updated") return { text: relativeTime(r.updated_at), said: "Updated", title: `Updated ${formatDateTime(r.updated_at)} by ${attribution(r.updated_by)}` };
+  if (r.date) return { text: formatDate(r.date), said: "Captured", title: "Date captured" };
+  return { text: "No date", said: "", title: "No date captured", none: true };
+}
+
+/**
+ * One source in the list. The title is the link, stretched over the whole row; a row with a
+ * summary leads with a toggle that unfolds its first three lines under the tags.
+ */
+function SourceRow({ r, to, sort, twin, open, onToggle, toggles }: {
+  r: RecordSummary;
+  to: string;
+  sort: Sort;
+  twin: boolean;
+  open: boolean;
+  onToggle: () => void;
+  /** Whether any row in the list has a summary, so every row keeps the toggle's column. */
+  toggles: boolean;
+}) {
+  const status = r.derived_status === "ready" ? null : derivedStatus(r.derived_status);
+  const twinNote = twin ? (r.text_from ? r.text_from.split("/").pop() : r.attachment_count ? plural(r.attachment_count, "attachment") : "No attachment yet") : null;
+  const date = rowDate(r, sort);
+  const summaryId = `source-summary-${r.record_id}`;
+  return (
+    <li className={`list-row source-row${r.archived_at ? " is-archived" : ""}`}>
+      {toggles ? (
+        r.summary ? (
+          <button type="button" className="icon-btn icon-btn-sm source-row-toggle" aria-expanded={open} aria-controls={summaryId} aria-label={`Summary of ${r.title}`} onClick={onToggle}>
+            <Glyph name="chevron-right" />
+          </button>
+        ) : (
+          <span className="source-row-toggle" aria-hidden="true" />
+        )
+      ) : null}
+      <span className="list-main">
+        <Link to={to} className="list-title source-row-link">
+          {r.title}
+        </Link>
+        {r.tags.length || twinNote ? (
+          <span className="list-sub source-row-sub">
+            {r.tags.slice(0, 3).map((t) => (
+              <Tag key={t}>{t}</Tag>
+            ))}
+            {r.tags.length > 3 ? <span title={r.tags.slice(3).join(", ")}>+{r.tags.length - 3}</span> : null}
+            {twinNote ? <span>{twinNote}</span> : null}
+          </span>
+        ) : null}
+        {r.summary ? (
+          <span id={summaryId} className="source-row-summary" hidden={!open}>
+            {markdownText(r.summary)}
+          </span>
+        ) : null}
+      </span>
+      <span className="list-end">
+        <span className="source-row-count num">
+          {r.archived_at ? (
+            <StatusBadge tone="neutral">Archived</StatusBadge>
+          ) : status ? (
+            <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+          ) : r.attachment_count ? (
+            <span className="source-row-attachments" title={plural(r.attachment_count, "attachment")}>
+              <Glyph name="paperclip" size="sm" />
+              <span aria-hidden="true">{r.attachment_count}</span>
+              <span className="visually-hidden">{plural(r.attachment_count, "attachment")}</span>
+            </span>
+          ) : null}
+        </span>
+        <span className={`source-row-date num${date.none ? " is-none" : ""}`} title={date.title}>
+          {date.said ? <span className="visually-hidden">{date.said} </span> : null}
+          {date.text}
+        </span>
+      </span>
+    </li>
+  );
+}
+
 export function EvidencePage() {
   const { api: base, app, canWrite, product } = useProduct();
   const [params] = useSearchParams();
@@ -264,12 +371,28 @@ export function EvidencePage() {
     queryFn: ({ pageParam }) =>
       api<{ records: RecordSummary[]; next_cursor: string | null }>(
         "GET",
-        `${base}/sources${qs({ ...f, include_archived: f.include_archived === "1" ? "true" : "", sort, order, cursor: pageParam, limit: 50 })}`,
+        `${base}/sources${qs({ ...f, include_archived: f.include_archived === "1" ? "true" : "", include_summary: "true", sort, order, cursor: pageParam, limit: 50 })}`,
       ),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_cursor ?? undefined,
   });
   const records = q.data?.pages.flatMap((p) => p.records) ?? [];
+  // Summaries: shown for every row or none, and each row can be turned the other way.
+  const [allShown, setAllShown] = useShowSummaries();
+  const [turned, setTurned] = useState<ReadonlySet<string>>(new Set());
+  const summarized = records.filter((r) => r.summary);
+  const isOpen = (id: string) => allShown !== turned.has(id);
+  const everyOpen = summarized.length > 0 && summarized.every((r) => isOpen(r.record_id));
+  const turn = (id: string) =>
+    setTurned((t) => {
+      const next = new Set(t);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  const showAll = (on: boolean) => {
+    setAllShown(on);
+    setTurned(new Set());
+  };
   // Titles shared by more than one listed source: those rows also name the attachment their text was read from.
   const titleCount = new Map<string, number>();
   for (const r of records) titleCount.set(r.title.trim().toLowerCase(), (titleCount.get(r.title.trim().toLowerCase()) ?? 0) + 1);
@@ -309,7 +432,18 @@ export function EvidencePage() {
           title="Sources"
           count={count}
           filter={<SortControl sort={sort} order={order} link={sortLink} />}
-          end={canWrite ? <AddSourceButton /> : undefined}
+          end={
+            summarized.length || canWrite ? (
+              <>
+                {summarized.length ? (
+                  <Button variant="quiet" icon={everyOpen ? "fold" : "unfold"} onClick={() => showAll(!everyOpen)}>
+                    {everyOpen ? "Hide summaries" : "Show summaries"}
+                  </Button>
+                ) : null}
+                {canWrite ? <AddSourceButton /> : null}
+              </>
+            ) : undefined
+          }
         />
         <FiltersInUse chips={chips} clearTo={without([...FILTER_KEYS])} />
         {q.isPending ? (
@@ -334,46 +468,20 @@ export function EvidencePage() {
           )
         ) : (
           <>
-            <div className="sources-rows">
-              {records.map((r) => {
-                const status = r.derived_status === "ready" ? null : derivedStatus(r.derived_status);
-                const twin = (titleCount.get(r.title.trim().toLowerCase()) ?? 0) > 1;
-                const meta = [
-                  r.date ? formatDate(r.date) : sort === "date" ? "No capture date" : null,
-                  twin ? (r.text_from ? r.text_from.split("/").pop() : r.attachment_count ? plural(r.attachment_count, "attachment") : "No attachment yet") : null,
-                ].filter(Boolean);
-                const updated = sort === "updated";
-                return (
-                  <ListRow
-                    key={r.record_id}
-                    to={`${app}/evidence/${r.record_id}`}
-                    className={r.archived_at ? "source-row is-archived" : "source-row"}
-                    title={r.title}
-                    sub={
-                      r.tags.length || meta.length ? (
-                        <span className="source-row-sub">
-                          {r.tags.slice(0, 3).map((t) => (
-                            <Tag key={t}>{t}</Tag>
-                          ))}
-                          {r.tags.length > 3 ? <span title={r.tags.slice(3).join(", ")}>+{r.tags.length - 3}</span> : null}
-                          {meta.length ? <span>{meta.join(" · ")}</span> : null}
-                        </span>
-                      ) : undefined
-                    }
-                    end={
-                      <>
-                        <span className="source-row-count num">
-                          {r.archived_at ? <StatusBadge tone="neutral">Archived</StatusBadge> : status ? <StatusBadge tone={status.tone}>{status.label}</StatusBadge> : r.attachment_count ? plural(r.attachment_count, "attachment") : null}
-                        </span>
-                        <span className="source-row-added">
-                          {updated ? `Updated ${relativeTime(r.updated_at)} by ${actorName(r.updated_by)}` : `Added ${relativeTime(r.uploaded_at)} by ${actorName(r.uploaded_by)}`}
-                        </span>
-                      </>
-                    }
-                  />
-                );
-              })}
-            </div>
+            <ul className={`sources-rows${summarized.length ? " has-toggles" : ""}`}>
+              {records.map((r) => (
+                <SourceRow
+                  key={r.record_id}
+                  r={r}
+                  to={`${app}/evidence/${r.record_id}`}
+                  sort={sort}
+                  twin={(titleCount.get(r.title.trim().toLowerCase()) ?? 0) > 1}
+                  open={Boolean(r.summary) && isOpen(r.record_id)}
+                  onToggle={() => turn(r.record_id)}
+                  toggles={summarized.length > 0}
+                />
+              ))}
+            </ul>
             {q.hasNextPage ? (
               <div className="sources-more">
                 <Button size="sm" onClick={() => q.fetchNextPage()} busy={q.isFetchingNextPage} busyLabel="Loading…">
