@@ -8,9 +8,8 @@ copy.
 Run `corepack pnpm attention`. It prints what is waiting in this repository: Dependabot's pull
 requests and alerts, a failed run on `main`, an accepted vulnerability whose time is up, changes
 production lacks, git hooks that are off, copies of production that hold every organization. If it prints anything, tell the person in a line or two
-before you start their task, and offer to handle each item with the skill it names. The maintainer
-works on many projects and will not remember this one's chores; this is how they hear of them. Do
-not act on an item unasked.
+before you start their task, and offer to handle each item with the skill it names. This is how the
+maintainer hears of these chores. Do not act on an item unasked.
 
 ## This repository is public
 
@@ -21,7 +20,8 @@ message and every pull request's text is published, and history keeps it.
   Keep those in `_private/` at the root of your checkout (ignored) or in your own memory, never
   anywhere else. Planned work belongs in `okf/spec/10-roadmap.md`.
 - Commit messages and pull request descriptions describe the change, never the conversation: no
-  prompts, no quoted requests, no account of who said what.
+  prompts, no quoted requests, no account of who said what, no first-person account of the work,
+  no link to a session. What goes in them instead is in `okf/process/working-in-this-repository.md`.
 - Never name private projects, clients, employers or files elsewhere on a machine, even when they
   shaped a change. A change stands on its own.
 - No secrets, tokens, absolute local paths or personal details. Sample content is synthetic, with

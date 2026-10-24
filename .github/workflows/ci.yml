@@ -2,8 +2,9 @@ name: CI
 
 # The same path a contributor runs: install, typecheck, test against a real Postgres (the
 # embedded-postgres package, nothing to provision), and build the production bundle. Beside it, the
-# check that nothing private is published: the new commits, their messages and the pull request's
-# text (okf/operations/security-checks.md). Actions are pinned to commits; Dependabot updates them.
+# check that nothing private is published in the new commits and their messages; the pull request's
+# text has a workflow of its own, pull-request-text.yml (okf/operations/security-checks.md). Actions
+# are pinned to commits; Dependabot updates them.
 on:
   push:
     branches: [main]
@@ -50,15 +51,6 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
         run: node scripts/check-publishable.mjs --revs "$BASE..$HEAD"
-      - name: The pull request's text
-        # Dependabot's text quotes its dependencies' public release notes, addresses and all.
-        if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]'
-        env:
-          TITLE: ${{ github.event.pull_request.title }}
-          BODY: ${{ github.event.pull_request.body }}
-        run: |
-          printf '%s\n\n%s\n' "$TITLE" "$BODY" > "$RUNNER_TEMP/pull-request.txt"
-          node scripts/check-publishable.mjs --message "$RUNNER_TEMP/pull-request.txt"
       - name: The pushed commits
         if: github.event_name == 'push'
         env:

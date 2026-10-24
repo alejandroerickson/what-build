@@ -1,6 +1,6 @@
 ---
 name: audit-for-leaks
-description: Check everything WhatBuild's GitHub repository holds (every branch, tag and pull request ref, pull request and issue text, release notes, Actions logs) for secrets and private material, deal with anything found, and make the repository public. Use when asked to audit, scan or check the repository or its history for secrets, leaks, personal details or private material; when something private may have been committed or pushed; before making the repository public; and when asked to make it public.
+description: Check everything WhatBuild's GitHub repository holds (every branch, tag and pull request ref, pull request and issue text, release notes, Actions logs and artifacts) for secrets and private material, deal with anything found, and make the repository public. Use when asked to audit, scan or check the repository or its history for secrets, leaks, personal details or private material; when something private may have been committed or pushed; before making the repository public; and when asked to make it public.
 ---
 
 # Audit for leaks
@@ -24,8 +24,10 @@ Read it before the first command. This file is how to conduct the work.
 ## Procedure
 
 1. **The working tree and local history:** `pnpm check:publishable --all`.
-2. **Everything GitHub holds:** a mirror clone, checked with `--all --repo`, then the pull request,
-   issue, release and Actions text, as the guide's "Auditing everything GitHub holds" shows.
+2. **Everything GitHub holds:** a mirror clone, checked with `--all --repo`, then
+   `node scripts/check-publishable.mjs --github` for the pull request, issue, review and release
+   text, every Actions log and every artifact, as the guide's "Auditing everything GitHub holds"
+   shows.
 3. **Read what no pattern catches.** Skim new files and commit messages since the last audit for
    names of private projects, clients or employers, first-person notes about work done, and quoted
    material from a copy of production. These are judgement, not rules.
