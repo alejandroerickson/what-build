@@ -17,11 +17,14 @@ can be made, not a new triage.
 ## This repository is public
 
 `alejandroerickson/what-build` is public and MIT-licensed. Everything committed, every commit
-message and every pull request's text is published, and history keeps it.
+message, every pull request's text and every issue and comment is published, and history keeps it.
 
 - No session memory in the repository: no logs, handoff notes, records of requests, or to-do lists.
   Keep those in `_private/` at the root of your checkout (ignored) or in your own memory, never
   anywhere else. Planned work belongs in `okf/spec/10-roadmap.md`.
+- Issues are for reports from people who use, run or contribute to WhatBuild, which agents triage
+  when asked ("Issues" in `okf/process/working-in-this-repository.md`). The maintainer's own work
+  is never an issue here: an agent working for the maintainer opens none.
 - Commit messages and pull request descriptions describe the change, never the conversation: no
   prompts, no quoted requests, no account of who said what, no first-person account of the work,
   no link to a session. What goes in them instead is in `okf/process/working-in-this-repository.md`.

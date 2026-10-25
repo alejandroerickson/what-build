@@ -41,8 +41,9 @@ Rolling back adds no missing claim.
 5. **Check it** (step 6): health, the release named in `/api/v1/meta`, sign-in, a product, search,
    and logs without 500s. Do not call it recovered before all of these pass.
 6. **Report** to the person: what broke, what you restored and to when, what was lost, and what
-   still needs doing (the fix forward and the tidying in steps 7 and 8). Offer to write the issue
-   for the project.
+   still needs doing (the fix forward and the tidying in steps 7 and 8). If the release itself is
+   at fault and the deployment is not the maintainer's, offer to report it to the project as an
+   issue, in general terms; the maintainer's own work is never an issue there (`AGENTS.md`).
 
 ## When the guide is wrong
 

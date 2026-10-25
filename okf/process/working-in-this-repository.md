@@ -3,7 +3,7 @@ type: Process
 title: How to change this repository
 description: The rules every change follows, for people and agents, including what may never be committed.
 tags: [process, agents, contributing, public]
-generated: {by: agent:claude, at: 2026-10-24}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -14,12 +14,12 @@ what to read, `okf-update` keeps the bundle true, and `okf-decision` records dec
 
 ## The repository is public
 
-Everything committed, including history, commit messages and pull requests' text, is published
-([decision](../decisions/public-repository-reference-docs.md)).
+Everything committed, including history, commit messages, pull requests' text, and every issue
+and comment, is published ([decision](../decisions/public-repository-reference-docs.md)).
 
 - No session notes, logs, requests, handoff notes or to-do lists anywhere in the repository. They
   go in `_private/` at the root of a checkout, which is ignored. Planned work goes in the
-  [roadmap](../spec/10-roadmap.md).
+  [roadmap](../spec/10-roadmap.md), never in an issue ([below](#issues)).
 - No secrets, tokens, absolute local paths, or personal details. No names of private projects,
   clients or employers, even when they shaped a change.
 - Commit messages and pull request descriptions describe the change, never the conversation that
@@ -56,6 +56,25 @@ Never:
 The hooks and CI refuse much of this (`identity`, `session-link`, `narration` in the
 [security checks](../operations/security-checks.md#what-the-publishable-check-refuses)); the rest
 is judgement. An edited pull request description is checked again.
+
+## Issues
+
+The repository's issues are for reports from people who use, run or contribute to WhatBuild: a bug,
+a request, a question. The maintainer's own work is never an issue here, and an agent working for
+the maintainer opens none. What it finds goes to the person, and planned work that may be public
+goes in the [roadmap](../spec/10-roadmap.md).
+
+Triaging a report, when asked:
+
+- Read it, and reproduce it locally on the sample content (`pnpm dev`) where you can.
+- With the person's agreement for each, label it (`bug`, `enhancement`, `documentation`,
+  `question`), ask the reporter for what is missing, or close it with the reason: a duplicate, fixed
+  in a release, or working as documented, with the link.
+- A fix is a pull request whose description says `Fixes #<n>`.
+- A report of a vulnerability: add nothing to it, and tell the person at once. It belongs in a
+  private report ([security policy](../../.github/SECURITY.md)).
+- A reply follows the rules for pull request text above: no account of the work, no link to a
+  session, no private names, nothing from a copy of production.
 
 ## Changing behavior
 
