@@ -51,7 +51,7 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
   const tenant = created.tenant.slug;
   const team = created.team.slug;
   await call(env, riley, "members.grant", { tenant, team, email: accounts[1]!.email, role: "editor" });
-  const product = (await call(env, riley, "products.create", { tenant, team, name: SAMPLE.product, slug: "crewboard", concept: SAMPLE.concept })) as { product_id: string };
+  const product = (await call(env, riley, "products.create", { tenant, team, name: SAMPLE.product, slug: "crewboard", concept: SAMPLE.concept, card_html: SAMPLE.concept_card })) as { product_id: string };
   const ref: ScopeRef = { product: product.product_id };
   await call(env, riley, "members.grant", { tenant, team, product: "crewboard", email: accounts[2]!.email, role: "reader" });
 

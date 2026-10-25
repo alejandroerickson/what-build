@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 118 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 119 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
 generated: {by: agent:claude, at: 2026-10-18}
 status: stable
@@ -36,7 +36,7 @@ defineOperation({
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 118. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 119. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
@@ -233,7 +233,7 @@ it always has.
 
 ### The operation catalogue
 
-All 118 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 119 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-teams-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -286,6 +286,7 @@ being changed inside the handler.
 | `outcomes` | `restore_revision` | `POST P/outcomes/:outcome_id/revisions/:n/restore` | editor |
 | `outcomes` | `delete_impact` | `GET P/outcomes/:outcome_id/delete-impact` | viewer |
 | `outcomes` | `delete` | `DELETE P/outcomes/:outcome_id` | admin |
+| `outcomes` | `card_guidance` | `GET P/idea/card-guidance` | viewer |
 | `sources` | `facets` | `GET P/sources/facets` | viewer |
 | `sources` | `list` | `GET P/sources` | viewer |
 | `sources` | `get` | `GET P/sources/:record_id` | viewer |
@@ -525,6 +526,26 @@ Notes on recent actions:
   `get_hierarchy`.
 - `outcomes.create` takes an optional `position`, as `update` does, to place the new outcome
   between two others; omitted, it goes last ([§4.2](04-data-model.md)).
+- An outcome and the product concept are each a card with two sides
+  ([decision](../decisions/idea-cards-have-a-front-for-people-and-a-back-for-agents.md)):
+  `card_html`, the front, and `description` or `concept`, the back. `outcomes.create`,
+  `outcomes.update`, `products.create` and `products.update` take `card_html` and check it against
+  the card's rules, listing every problem at once (`422 invalid_card`). An update that changes one
+  side and does not send the other is refused (`422 card_sides_together`, `details.missing`
+  naming it); the back of a card with no front yet may change alone. A write that leaves an outcome
+  with no front says so in `note`, and so do `outcomes.list` (counting the current outcomes with no
+  front, for an editor or above) and `products.get` (for a product admin, when the concept has
+  none). A write that touches a card returns `card_advice`, a list of what the guidance asks that
+  WhatBuild can check and the card misses (more words than a front holds, the outcome's title
+  repeated, no kit part, more than one hue, fixed colours, no pitch on the concept, an empty back);
+  it never refuses the write. `outcomes.list` gives `card_chars`, the front's length, in its
+  place; `outcomes.get` gives the front; `products.get` gives `card_chars` and, with
+  `include_card`, `card_html`. `outcomes.card_guidance` gives the guidance agents draw from (how to
+  choose what a front shows, the kit's parts with examples, how to write the back, a check before
+  sending), the pictogram names, the widths and most height a front shows at, and its most
+  characters. `restore_revision` brings back
+  both sides; a revision kept before cards had fronts brings back its title and back and keeps the
+  front.
 - `members.list` takes an optional `product` to list only the people who can reach it, each with
   `product_access { role, via }`. It answers `403` to someone who reads only the Story everywhere
   in the organization, and `products.list` marks such an organization `story_only: true`
@@ -685,7 +706,7 @@ the server's version and the tools, or the tool's actions, the connection is off
 `submit_feedback` where its person turned it off, and say the client may hold a list from another
 version.
 
-**Tools.** Fourteen tools over the 116 operations an agent may be offered (all 118 but deleting an
+**Tools.** Fourteen tools over the 117 operations an agent may be offered (all 119 but deleting an
 organization and its preview): eleven grouped by noun, three standalone
 ([decision](../decisions/mcp-tools-grouped-by-noun.md)). A connection is listed
 only the actions its level allows (below).
@@ -695,7 +716,7 @@ only the actions its level allows (below).
 | `products` | `list`, `create_tenant`, `create_team`, `create`, `get`, `update`, `archive`, `restore`, `delete_impact`, `delete`, `export`, `exports`, `tenant_allowances`, `set_tenant_allowance`, `remove_tenant_allowance`, `usage` |
 | `members` | `list`, `grant`, `revoke`, `cancel_invitation`, `activity` |
 | `sandbox` | `status`, `join`, `settings`, `update_settings`, `save_baseline`, `baselines`, `reset`, `invites`, `create_invite`, `revoke_invite`, `visitors`, `remove_visitor` |
-| `outcomes` | `list`, `get`, `create`, `update`, `archive`, `restore`, `delete_impact`, `delete`, `revisions`, `get_revision`, `restore_revision` |
+| `outcomes` | `list`, `get`, `create`, `update`, `archive`, `restore`, `delete_impact`, `delete`, `revisions`, `get_revision`, `restore_revision`, `card_guidance` |
 | `sources` | `facets`, `list`, `get`, `create`, `update`, `archive`, `restore`, `annotate`, `list_annotations`, `update_annotation`, `delete_annotation`, `move_to_product`, `copy_to_product`, `delete_impact`, `delete` |
 | `attachments` | `request_upload`, `create_upload`, `create_uploads`, `complete_upload`, `fetch_url`, `get_download` |
 | `derived` | `manifest`, `text`, `write_text`, `list`, `rederive`, `write_note`, `read_note` |

@@ -39,7 +39,7 @@ raise its own level. It deletes only what it made itself in the run.
    `deleted: true`; reading the source answers `410 record_deleted` with the reason; Activity on
    the web shows the delete, attributed to Riley through the agent.
 8. **Web, as Riley.** Add the third text as a source, comment on it, and
-   create an assumption and an outcome. Delete each from its own screen: the comment from its
+   create an assumption; have the agent create an outcome (the web app adds none). Delete each from its own screen: the comment from its
    menu, the assumption and the outcome from their menus, the source from its menu.
    *Expect:* every dialog asks "Delete this … permanently?", says it can't be undone, shows what
    goes, needs a reason, has Cancel and Archive instead (each of these can be archived, the

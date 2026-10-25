@@ -1,5 +1,5 @@
 import { HtmlLimitError, parseHtml } from "@whatbuild/parsers";
-import { MOCKUP_PAGE_SANDBOX, STORY_PAGE_SANDBOX } from "./page-sandbox.ts";
+import { IDEA_CARD_SANDBOX, MOCKUP_PAGE_SANDBOX, STORY_PAGE_SANDBOX } from "./page-sandbox.ts";
 
 /**
  * The rules agent-written HTML is held to, one set for each surface that shows it: a Story page and
@@ -70,6 +70,30 @@ export const MOCKUP_PAGE_RULES: PageRules = {
   scriptBudget: null,
   refusedElements: SELF_CONTAINED,
   sandbox: MOCKUP_PAGE_SANDBOX,
+};
+
+export const CARD_HTML_MAX = 40_000;
+
+/**
+ * The front of an Idea card (the product concept's, or an outcome's) is a picture a person takes in
+ * at a glance: only the markup inside the card, which WhatBuild wraps in a document with the card
+ * kit, no scripts or event handlers (the one script a card runs is WhatBuild's own), and nothing to
+ * click through to. The maintainer chose these rules on 2026-10-24.
+ */
+export const IDEA_CARD_RULES: PageRules = {
+  surface: "card front",
+  maxChars: CARD_HTML_MAX,
+  // A <script> is refused by element, below; the budget of none refuses event handlers and javascript: URLs.
+  maxScripts: null,
+  scriptBudget: 0,
+  scriptBudgetReason: "since a card is a picture: WhatBuild sizes and flips it, and the card kit draws what a card needs",
+  refusedElements: {
+    ...SELF_CONTAINED,
+    script: "a card is a picture, and the card kit draws what it needs without scripts",
+    form: "a card is a picture, with nothing to fill in",
+    a: "a card is a picture, with nothing to click through to; links belong on Story pages",
+  },
+  sandbox: IDEA_CARD_SANDBOX,
 };
 
 /**
@@ -162,6 +186,20 @@ export function inspectPageHtml(html: string, rules: PageRules): string[] {
 /** Validate a Story page (or a style's specimen) at publish. */
 export function inspectStoryHtml(html: string): string[] {
   return inspectPageHtml(html, STORY_PAGE_RULES);
+}
+
+/**
+ * Validate a card's front: the surface's rules, plus that it is only the card's markup (WhatBuild
+ * wraps it in a document) and that every pictogram it names is one the kit carries.
+ */
+export function inspectCardHtml(html: string, icons: ReadonlySet<string>): string[] {
+  const problems: string[] = [];
+  const whole = /<!doctype|<(html|head|body|title)(?=[\s>/])/i.exec(html);
+  if (whole) problems.push(`A card front is only the markup inside the card (this one holds ${clip(whole[0])}…>): WhatBuild wraps it in a document with the card kit.`);
+  const unknown = [...new Set([...html.matchAll(/data-icon\s*=\s*["']?([^"'\s>]*)/gi)].map((m) => m[1]!).filter((n) => !icons.has(n)))];
+  if (unknown.length)
+    problems.push(`The card kit carries no pictogram named ${unknown.slice(0, 5).map((n) => `"${clip(n)}"`).join(", ")}${unknown.length > 5 ? ` and ${unknown.length - 5} more` : ""}: outcomes(action="card_guidance") lists the names.`);
+  return [...problems, ...inspectPageHtml(html, IDEA_CARD_RULES)];
 }
 
 /** Validate a mockup page at publish. */

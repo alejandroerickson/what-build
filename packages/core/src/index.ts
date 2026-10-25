@@ -33,6 +33,7 @@ export * from "./public-sandbox.ts";
 export * from "./public-sandbox-baseline.ts";
 export * from "./schemas.ts";
 export * from "./story-html.ts";
+export { CARD_FRAMES, CARD_GUIDANCE, CARD_KIT_CSS, ideaCardDocument, ideaCardResponseHeaders, inspectIdeaCard } from "./idea-card.ts";
 export * from "./prototype.ts";
 export * from "./story-print.ts";
 export * from "./util.ts";

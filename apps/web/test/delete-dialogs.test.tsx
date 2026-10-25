@@ -49,6 +49,9 @@ vi.mock("../src/lib/session.tsx", async (original) => ({
   useProduct: () => ({ api: BASE, app: "/t/acme/core/crew", canWrite: true, canDelete: true, isAdmin: true, product }),
 }));
 
+// The theme module reads the system's scheme as it loads, and the Idea screen brings it in.
+window.matchMedia ??= (query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false });
+
 const { api } = await import("../src/lib/api.ts");
 const { DeleteDialog } = await import("../src/routes/delete-dialog.tsx");
 const { ProductSettingsPage } = await import("../src/routes/product-misc.tsx");

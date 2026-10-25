@@ -13,8 +13,10 @@ long on it as the person asked for; by default, cover every screen once.
 
 ## Steps
 
-1. **Web, as Sam.** Work through the product as a new editor would: read the Idea, add an outcome,
-   add a source, look at mockups, add an assumption, read the Story. Use the keyboard alone for
+1. **Web, as Sam.** Work through the product as a new editor would: read the Idea and open each
+   card's More info (by mouse and by keyboard; the picture stays in view, the text scrolls within
+   its card), drag an outcome to another place and move one back with its number and the arrow
+   keys (the order holds after a reload), add a source, look at mockups, add an assumption, read the Story. Use the keyboard alone for
    at least one task.
 2. **Web, as Sam.** Try the edges: an empty title, a very long title, text with emoji and
    right-to-left script, a file no parser reads, the back button after a save, two tabs editing

@@ -62,6 +62,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [A copy of production holds only the organizations it is for, by default the public sandbox, and nothing of any other leaves production](a-copy-of-production-holds-only-the-organizations-it-is-for.md)
 - [End-to-end tests are written plans that an agent runs through the web app and MCP, on a local instance reset to a golden master made from production's public sandbox](end-to-end-tests-are-plans-an-agent-runs-on-a-golden-master.md)
 - [A product starts with its idea, a product concept and the outcomes its users should achieve](a-product-starts-with-an-idea-concept-and-outcomes.md)
+- [The product concept and each outcome is a card with a front for people and a back for agents, and agents write both](idea-cards-have-a-front-for-people-and-a-back-for-agents.md)
 - [The web app uses the Studio design system](studio-design-system.md)
 - [The overview is WhatBuild's front door, and the one screen with display type](the-overview-is-the-front-door.md)
 - [The WhatBuild mark is one W in a rounded tile with a title-bar line, like one of the app's panels](the-mark-is-a-w-in-a-panel-with-a-title-bar.md)

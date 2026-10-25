@@ -140,7 +140,10 @@ export interface ProductsTable {
   team_id: string;
   slug: string;
   name: string;
+  /** The back of the product concept's card, for agents: Markdown. */
   concept: string;
+  /** The front of the product concept's card, for people: agent-written HTML in the card kit, or "". */
+  card_html: Generated<string>;
   archived_at: TsNull;
   etag: string;
   created_at: Ts;
@@ -434,7 +437,10 @@ export interface OutcomesTable {
   tenant_id: string;
   product_id: string;
   title: string;
+  /** The back of the outcome's card, for agents: Markdown. */
   description: string;
+  /** The front of the outcome's card, for people: agent-written HTML in the card kit, or "". */
+  card_html: Generated<string>;
   position: number;
   archived_at: TsNull;
   etag: string;
