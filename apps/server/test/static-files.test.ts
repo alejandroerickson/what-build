@@ -27,4 +27,12 @@ describe("the web app's files", () => {
       expect(await res.text(), path).not.toContain("not for the web");
     }
   });
+
+  it("answers an address whose escapes do not decode with Not found, not an error", async () => {
+    const dist = join(base, "escapes");
+    mkdirSync(dist, { recursive: true });
+    writeFileSync(join(dist, "index.html"), "<!doctype html><title>app</title>");
+    const app = staticRoutes(dist);
+    for (const path of ["/%C0", "/%E0%A4%A", "/assets/%"]) expect((await app.request(path)).status, path).toBe(404);
+  });
 });

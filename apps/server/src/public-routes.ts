@@ -139,7 +139,14 @@ export function staticRoutes(dist: string, opts: { analytics?: boolean; contentU
   if (!hasIndex) console.warn(`No web app at ${root}: serving the API and MCP only.`);
   app.get("*", (c) => {
     if (!hasIndex) return c.notFound();
-    const rel = normalize(decodeURIComponent(c.req.path)).replace(/^([/\\])+/, "");
+    // An address whose escapes do not decode (/%C0, as scanners send) names no file and no screen.
+    let decoded: string;
+    try {
+      decoded = decodeURIComponent(c.req.path);
+    } catch {
+      return c.notFound();
+    }
+    const rel = normalize(decoded).replace(/^([/\\])+/, "");
     const file = join(root, rel);
     const body = insideRoot(root, file) ? readFileIfAny(file) : null;
     if (body) {
