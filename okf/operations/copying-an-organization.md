@@ -44,11 +44,13 @@ corepack pnpm fixture pull --all                      # everything, as pg_dump t
 corepack pnpm fixture list                            # the pulls, and what each holds
 ```
 
-With `GCP_PROJECT` in `.env` or the environment, a pull reads the Cloud Run deployment through its
-backup role and its files bucket. For another deployment, set `WHATBUILD_FIXTURE_DATABASE_URL` and
-`WHATBUILD_FIXTURE_BUCKET` ([a copy of production](a-copy-of-production.md#pull)). A pull is a
-folder in `.what-build/fixtures/` named for its UTC time (`WHATBUILD_FIXTURE_DIR` puts it
-elsewhere), holding `database.dump`, `files/` and `pulled.json`, which names the organizations.
+With `GCP_PROJECT` in `.env` (from a git worktree without one, the main checkout's) or the
+environment, a pull reads the Cloud Run deployment through its backup role and its files bucket. For
+another deployment, set `WHATBUILD_FIXTURE_DATABASE_URL` and `WHATBUILD_FIXTURE_BUCKET` ([a copy of
+production](a-copy-of-production.md#pull)). A pull is a folder in `.what-build/fixtures/` (the main
+checkout's, from a git worktree without its own) named for its UTC time (`WHATBUILD_FIXTURE_DIR`
+puts it elsewhere), holding `database.dump`, `files/` and `pulled.json`, which names the
+organizations.
 
 | Option | Effect |
 |---|---|

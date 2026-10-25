@@ -1,6 +1,6 @@
 ---
 name: test-on-a-copy-of-production
-description: Pull a private copy of the production deployment's public sandbox, or of the organizations named, with their files, load it into the local app, and serve it with pending migrations applied. Use it for manual QA, agent-driven end-to-end tests, or trying a release's migrations on real data before production. Use it when asked to test or QA against production data, real data, a production copy, dump or fixture, to put the sandbox or an organization into the test database, to try a migration on the deployment's data, or to serve that copy locally.
+description: Pull a private copy of the production deployment's public sandbox, or of the organizations named, with their files, load it into the local app, and serve it with pending migrations applied. Use it for manual QA, agent-driven end-to-end tests, working on the app locally with real data, or trying a release's migrations on real data before production. Use it when asked to pull the sandbox, to run or work on the app locally with the sandbox's data or other real data, to test or QA against production data, real data, a production copy, dump or fixture, to put the sandbox or an organization into the local or test database, to try a migration on the deployment's data, or to serve that copy locally.
 ---
 
 # Test on a copy of production
