@@ -5,6 +5,7 @@ import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-ho
 import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider, type ReadableSpan } from "@opentelemetry/sdk-trace";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { createApp, createPorts } from "../src/app.ts";
 import { logError, querySummary, requestIdOf, tracer, withRequestId } from "../src/telemetry.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
@@ -108,6 +109,23 @@ describe("a request's trace", () => {
     const requests = finished().filter((s) => s.kind === SpanKind.SERVER);
     expect(requests.map((s) => s.name)).toContain("POST /mcp");
     expect(said(finished())).not.toContain("private-label");
+  });
+
+  it("is named by the request's ID on its log line, which the response carries", async () => {
+    // A server that logs, as one outside the tests does, on the same database.
+    const app = createApp({ db: h.db, ports: createPorts(h.config, h.blobs, h.mailer), config: { ...h.config, env: "development" } });
+    const lines: string[] = [];
+    const spy = vi.spyOn(console, "log").mockImplementation((line: string) => void lines.push(line));
+    let res: Response;
+    try {
+      res = await app.request("/api/v1/meta");
+    } finally {
+      spy.mockRestore();
+    }
+    const id = res.headers.get("x-request-id")!;
+    const line = lines.map((l) => JSON.parse(l) as Record<string, unknown>).find((l) => l["path"] === "/api/v1/meta");
+    expect(line).toMatchObject({ method: "GET", status: 200, request_id: id });
+    expect(inTrace(id).find((s) => s.kind === SpanKind.SERVER)?.name).toBe("GET /api/v1/meta");
   });
 
   it("gives every response an ID, the untraced ones too", async () => {
