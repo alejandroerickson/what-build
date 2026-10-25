@@ -6,10 +6,13 @@ one copy.
 ## At the start of every session
 
 Run `corepack pnpm attention`. It prints what is waiting in this repository: Dependabot's pull
-requests and alerts, a failed run on `main`, an accepted vulnerability whose time is up, changes
-production lacks, git hooks that are off, copies of production that hold every organization. If it prints anything, tell the person in a line or two
-before you start their task, and offer to handle each item with the skill it names. This is how the
-maintainer hears of these chores. Do not act on an item unasked.
+requests and the alerts nobody has accepted, a failed run on `main`, an accepted vulnerability whose
+time is up, changes production lacks, git hooks that are off, copies of production that hold every
+organization. If it prints anything, tell the person in a line or two before you start their task,
+and offer to handle each item with the skill it names. This is how the maintainer hears of these
+chores. Do not act on an item unasked. An accepted vulnerability has been looked at already: its
+line gives the reason, which says what fixes it and when. Say that, and offer the fix only once it
+can be made, not a new triage.
 
 ## This repository is public
 

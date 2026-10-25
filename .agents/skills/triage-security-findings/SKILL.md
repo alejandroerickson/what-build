@@ -15,6 +15,11 @@ work.
 - **Fix before accepting.** Upgrade a dependency or fix a workflow. Accept a finding only when no
   fix exists or WhatBuild cannot reach the vulnerable code, with a reason and an expiry, as the
   guide says.
+- **An acceptance is its own follow-up.** Its reason says what fixes the finding and when: for a
+  fix waiting to be a week old, its version and the day. `pnpm attention` shows that reason in the
+  acceptance's last 30 days, so a finding already accepted is in hand: tell the person what its
+  reason says, and do not triage it again before its day. If you also schedule the fix with your
+  own tools, look first for a schedule someone already made for it.
 - **Never weaken a check silently.** A rule turned off, an ignore added or a scanner skipped is
   said plainly in the commit message and in your report.
 - **An unfixed weakness is never described in the repository.** Not in `okf/`, not in a commit
@@ -24,8 +29,9 @@ work.
 
 ## Procedure
 
-1. **See what is waiting:** `pnpm attention` lists Dependabot's pull requests and alerts, failed
-   runs on `main` and accepted vulnerabilities near expiry. **Run the scanners:** `pnpm security`. With `GH_TOKEN=$(gh auth token)` zizmor adds its online
+1. **See what is waiting:** `pnpm attention` lists Dependabot's pull requests, its alerts that
+   are not accepted, failed runs on `main`, and accepted vulnerabilities near expiry with their
+   reasons. **Run the scanners:** `pnpm security`. With `GH_TOKEN=$(gh auth token)` zizmor adds its online
    audits. For the running app, run the Security workflow's ZAP job (`gh workflow run security.yml`)
    and read its summary.
    A ZAP run that fails on rule 10116 (ZAP is out of date) means ZAP published a newer version:
