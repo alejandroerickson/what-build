@@ -116,7 +116,8 @@ that what one door writes the other finds at once, and that a reader has no sear
     the made-up word straight away. *Expect:* the assumption is found, under Exploration on the
     Search screen. Archive it on the web, then search the word over MCP. *Expect:* nothing is found.
 12. **Web and MCP, as Sam, in the sandbox organization.** In the same product, repeat the palette
-    search of step 3 and the queries of step 6, and the MCP search of step 10. *Expect:* the same
+    search of step 3 and the queries of step 6, and the MCP search of step 10 through the sandbox's
+    own endpoint (`--endpoint /mcp/t/<sandbox org>`). *Expect:* the same
     results as in the standard organization, which holds the same content, and the made-up word of
     step 11 is found in neither organization's sandbox copy.
 13. **Web and MCP, as Jordan (reader).** Open the product. *Expect:* the panel has no Search field;

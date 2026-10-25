@@ -338,7 +338,7 @@ describe("the public sandbox", () => {
     expect(status.notice).not.toMatch(/Other visitors/);
     expect(status.allowances.find((a: { key: string }) => a.key === "writes_per_day").used).toBeGreaterThan(0);
     const viaAgent = new Client({ name: "colleague-agent", version: "1.0.0" });
-    await viaAgent.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(colleague, "Colleague Agent")}` } } }));
+    await viaAgent.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp/t/${org}`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(colleague, "Colleague Agent", `/mcp/t/${org}`)}` } } }));
     const overMcp = await viaAgent.callTool({ name: "sandbox", arguments: { action: "status", params: { tenant: org } } });
     expect(JSON.parse((overMcp as { content: { text: string }[] }).content[0]!.text).you.role).toBe("member");
     await viaAgent.close();
@@ -554,9 +554,9 @@ describe("limits on what a visitor does", () => {
   });
 
   it("applies the same limits to a visitor's agent", async () => {
-    const token = await h.connectAgent(viktor, "Sample Agent");
+    const token = await h.connectAgent(viktor, "Sample Agent", `/mcp/t/${org}`);
     const client = new Client({ name: "sample-agent", version: "1.0.0" });
-    await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${token}` } } }));
+    await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp/t/${org}`), { requestInit: { headers: { authorization: `Bearer ${token}` } } }));
     const text = (r: unknown) => (r as { content: { text: string }[] }).content[0]!.text;
     const made = await client.callTool({ name: "outcomes", arguments: { action: "create", params: { title: "From an agent" } } });
     const body = JSON.parse(text(made));
@@ -651,7 +651,7 @@ describe("limits on what a visitor does", () => {
         "This public sandbox is closed to visitors for now. Nothing of yours was changed; try again later.");
       await set({ visitor_access: "write", visitor_agents: false });
       const agent = new Client({ name: "member-agent", version: "1.0.0" });
-      await agent.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(member, "Member Agent")}` } } }));
+      await agent.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp/t/${org}`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(member, "Member Agent", `/mcp/t/${org}`)}` } } }));
       const off = (await agent.callTool({ name: "outcomes", arguments: { action: "list", product: P.slice("/api/v1/p/".length) } })) as { content: { text: string }[] };
       expect(off.content[0]!.text).toMatch(/^403: Agents are turned off in this public sandbox, except for its owners and admins\. Use the web app instead\.\n/);
       await agent.close();

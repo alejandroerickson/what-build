@@ -30,7 +30,7 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 | A member of another organization | An account, a session or an agent's token | Another organization's material |
 | A member with a lower role | A reader, viewer or product-only grant | More than the role allows; another product |
 | A sandbox visitor | A sandbox invitation link | Other visitors' identities, staff powers, resources |
-| A misled or malicious agent | Its person's token; instructions possibly planted in a source | What its person can reach, used against them |
+| A misled or malicious agent | Its person's token; instructions possibly planted in a source, by a stranger in the public sandbox | What its person can reach, used against them; from the sandbox, only the sandbox |
 | An author of hostile content | A Story or mockup page, an uploaded or fetched file | Script in the app's origin; the parsers; the network behind the server |
 | An MCP client passing as another | A registration of its own | A person's consent |
 
@@ -136,6 +136,13 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   handler runs (`packages/core/src/connector-scope.ts`). Over MCP the fence and the caller's role
   are checked before the tool's input is validated; only a call that names no product, team or
   tenant is told first that its input is malformed.
+- The unscoped connector reaches no public sandbox, where strangers write the content: a call
+  through `/mcp` that lands in one is refused with `403 sandbox_needs_its_own_connector` before any
+  handler runs, staff's included, and `products.list` there names a sandbox only by its name and
+  its own address ([decision](../decisions/the-public-sandbox-is-reached-only-through-its-own-connector.md)).
+  So a connection that reads what a stranger planted in the sandbox holds nothing else of
+  WhatBuild. An agent may still hold a second connector in the same session; the skill and the
+  server's instructions tell it not to, and that is a request, not a boundary.
 
 **Tenancy and access** ([decision](../decisions/shared-schema-tenancy-with-row-level-security.md),
 [decision](../decisions/access-is-per-product-roles.md), [decision](../decisions/a-reader-reads-only-the-story.md)).
@@ -339,7 +346,9 @@ approved release ([decision](../decisions/production-runs-releases-after-approva
 **Accepted, by decision.** An agent acts with its person's full role, made visible by attribution
 and declared authorship ([decision](../decisions/attribution-and-declared-authorship.md)). A page
 may link anywhere, open new tabs and navigate its own frame. Sandbox visitors see and change each
-other's work until the reset. These trade-offs are deliberate; each names what would change it:
+other's work until the reset, and each visitor's agent reads what the others wrote, through a
+connector that reaches the sandbox alone; a private copy of the sandbox for each visitor is
+planned ([roadmap](../spec/10-roadmap.md)). These trade-offs are deliberate; each names what would change it:
 
 - In invite-only mode the sign-in form tells an address that it may not sign up (`403
   invite_only`, [§6.2](../spec/06-operations-and-adapters.md)), and adding someone grants an

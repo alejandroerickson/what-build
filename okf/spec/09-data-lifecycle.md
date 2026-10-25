@@ -441,7 +441,7 @@ missing or unreadable value is its default.
 | Setting | Default | What it does |
 |---|---|---|
 | `visitor_access` | `write` | `read`: a visitor's writes are refused with `403 sandbox_read_only`, except export. `closed`: every call a visitor makes in the organization is refused with `403 sandbox_closed`, except `sandbox.status`. Neither takes a seat away. |
-| `visitor_agents` | `true` | `false` refuses a visitor's calls over MCP with `403 sandbox_restricted`. |
+| `visitor_agents` | `true` | `false` refuses a visitor's calls over MCP with `403 sandbox_restricted`. Either way an agent works here only through a connector scoped to the sandbox ([§3.10](03-accounts-teams-and-identity.md#310-the-public-sandbox)). |
 | `reset_enabled` | `true` | Whether the sandbox resets by itself. |
 | `reset_time`, `reset_timezone` | `02:00`, `America/Los_Angeles` | The local hour of the daily reset, and the IANA zone it is in. |
 | `max_visitors` | 200 | Seats. |

@@ -23,7 +23,15 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **An agent reaches a public sandbox only through the sandbox's own connector.** It concerns
+  anyone, staff included, whose agent works in a deployment's public sandbox through the unscoped
+  connector (`/mcp`), and asks nothing of the deployment. From this release every such call is
+  refused with `403 sandbox_needs_its_own_connector`, which changes nothing and names the address
+  to add instead, `/mcp/t/<sandbox>`; the sandbox's page, Connect an agent and the page behind an
+  invitation give it too. Through `/mcp`, `products(action="list")` no longer lists the sandbox's
+  products and teams, only its name and that address, under `public_sandboxes`. Download and upload
+  grants an agent was given through `/mcp` before the release keep working until they expire. The
+  skill is now at version 0.37.0; agents fetch it again as the server's instructions tell them.
 
 ## v0.18.1
 

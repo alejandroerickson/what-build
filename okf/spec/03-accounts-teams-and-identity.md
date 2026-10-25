@@ -340,12 +340,15 @@ outside it is refused with `403 outside_connector_scope` before any handler runs
 ([`connector-scope.ts`](../../packages/core/src/connector-scope.ts)), and the message names the
 scope. A person who works in several organizations adds one connector per organization in their
 agent and turns off the ones they are not using; for everything at once there is the unscoped
-`/mcp`.
+`/mcp`, which reaches every organization but a public sandbox
+(◆ [decision](../decisions/the-public-sandbox-is-reached-only-through-its-own-connector.md),
+[§3.10](#310-the-public-sandbox)).
 
 | Through | Answers | Refuses |
 |---|---|---|
 | an organization's endpoint | every product, team and tenant operation in that organization; `products.list` (narrowed to it), `get_skill`, `submit_feedback` | another organization; the other account-level operations (`products.create_tenant`, `sandbox.join`, the instance's allowances) |
 | a product's endpoint | that product's operations; `products.list` (narrowed to it); `sandbox.status` for its organization; the account reads above | every other product; team and tenant operations (`members.*`, `products.create`, `products.create_team`, the sandbox's control panel); moving or copying a source to another product |
+| `/mcp`, unscoped | every operation in every organization the person reaches, except a public sandbox; every account-level operation, `sandbox.join` included; `products.list` without sandboxes, which it lists under `public_sandboxes` | every product, team and tenant operation in a public sandbox, with `403 sandbox_needs_its_own_connector`, for staff too |
 
 The scope is resolved for the caller on the first tool call; an endpoint naming an organization or
 product they cannot reach answers `404` to every call, saying so.
@@ -568,6 +571,20 @@ any address: it is a bearer credential, unlike an invitation to an ordinary orga
 | `403 sandbox_closed` | `visitor_access` is `closed`. |
 
 Entering writes no activity event, because an event would carry a name.
+
+**An agent reaches the sandbox only through its own connector**
+(◆ [decision](../decisions/the-public-sandbox-is-reached-only-through-its-own-connector.md)). There
+an agent reads what strangers wrote, so it must hold nothing else of WhatBuild while it does. Every
+call through the unscoped `/mcp` that lands in a sandbox, staff's included, is refused with
+`403 sandbox_needs_its_own_connector` before its handler runs; the message and `details.connect_at`
+give the sandbox's address, `/mcp/t/<sandbox>`. On `/mcp`, `products.list` leaves sandboxes out
+of `items` and `tenants` and lists each under `public_sandboxes` (`organization`, `connect_at`,
+`connect_why`), and a call that names no product never defaults to a sandbox's; for someone who has
+nothing else, it is refused the same way. `sandbox.join` works through `/mcp`, and its answer,
+`sandbox.status` and the page behind an invitation link give `connect_at` and `connect_why` to
+anyone whose agent may work there: staff always, everyone else while `visitor_agents` is on. The
+consent page and the connected-agents list say that an unscoped connection reaches every product
+"except in a public sandbox" for an account in one (`reach.except_sandboxes`).
 
 **Seats.** `max_visitors` caps the visitors the sandbox holds, across every invitation. A visitor
 who has neither signed in nor used an agent for `visitor_idle_days` gives up their seat at the

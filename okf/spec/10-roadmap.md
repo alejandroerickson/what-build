@@ -249,8 +249,9 @@ Built, as [§3.10](03-accounts-teams-and-identity.md) and [§9.7](09-data-lifecy
 one organization named by `WHATBUILD_SANDBOX_TENANT`; invitation links with places, under a cap
 on seats; visitors who edit under made-up names, see nobody and administer nothing; limits on how
 often and how much, in one layer for REST and MCP, shown and changed in one control panel; a
-baseline of the organization's content; and a reset every day at an hour and time zone the
-sandbox's staff set.
+baseline of the organization's content; a reset every day at an hour and time zone the
+sandbox's staff set; and agents reaching it only through a connector scoped to it
+([decision](../decisions/the-public-sandbox-is-reached-only-through-its-own-connector.md)).
 
 *Accepted, each by a test in `apps/server/test/public-sandbox.test.ts`:*
 - A stranger signs up on an invitation alone in invite-only mode, and their account cannot create
@@ -262,6 +263,8 @@ sandbox's staff set.
 - After a reset the organization equals its baseline row for row, and no other organization's rows
   or blobs have changed.
 - Taking the deployment's setting away takes every visitor's access with it.
+- No call through the unscoped connector reads or writes the sandbox, staff's included, and the
+  refusal names the sandbox's own connector (`apps/server/test/connector-scope.test.ts`).
 
 Not built yet:
 
@@ -272,7 +275,7 @@ Not built yet:
 | A waiting list when the sandbox is full | Someone who arrives at a full sandbox is told to come back later, and nobody learns that they came. |
 | Staff under a made-up name | Staff write under their own names, which every visitor sees, in the baseline too. |
 | Moderation: a way for a visitor to report what another added | Staff can archive, remove a visitor, close the sandbox or reset it, but must notice first. |
-| A private copy of a product for each visitor | One visitor can archive or rewrite what the next came to see, within the limits and until the next reset. It needs product cloning, which is close to import. |
+| A private copy of a product for each visitor | One visitor can archive or rewrite what the next came to see, within the limits and until the next reset, and each visitor's agent reads what strangers wrote, which can carry instructions; its own connector limits what that text can reach, not whether the agent reads it. It needs product cloning, which is close to import. |
 | A test of the limits under real load | The counters are one row per visitor per minute in Postgres, tested for correctness and not for throughput. |
 
 ## Self-hosting on Azure

@@ -310,6 +310,8 @@ describe("OAuth for MCP clients", () => {
 describe("an organization's or a team's action named with a product", () => {
   let sandboxPath: string;
   let tenantSlug: string;
+  let plainPath: string;
+  let plainSlug: string;
   let token: string;
 
   beforeAll(async () => {
@@ -318,18 +320,24 @@ describe("an organization's or a team's action named with a product", () => {
     const p = await alice.api("POST", `/api/v1/teams/${tenantSlug}/${t.body.team.slug}/products`, { name: "Showcase" });
     sandboxPath = p.body.path;
     expect(await syncSandboxTenant(h.db, tenantSlug, () => {})).toBe(t.body.tenant.tenant_id);
-    // Two products are reachable now, so nothing is guessed.
-    token = await h.connectAgent(alice, "Sandbox agent");
+    const o = await alice.api("POST", "/api/v1/tenants", { name: "Plain Co" });
+    plainSlug = o.body.tenant.slug;
+    plainPath = (await alice.api("POST", `/api/v1/teams/${plainSlug}/${o.body.team.slug}/products`, { name: "Workbench" })).body.path;
+    // Several products are reachable now, so nothing is guessed.
+    token = await h.connectAgent(alice, "Unscoped agent");
   });
 
   it("acts on the organization the product is in, as the other tools take a product", async () => {
     const client = await connect(token);
-    const status = await client.callTool({ name: "sandbox", arguments: { action: "status", product: sandboxPath } });
-    expect(status.isError, JSON.stringify(status.content)).toBeFalsy();
-    expect(text(status)).toMatchObject({ public_sandbox: true, organization: { slug: tenantSlug }, you: { role: "staff" } });
+    // Plain Co is no sandbox, so status answers that it isn't one: the product named the organization.
+    const status = await client.callTool({ name: "sandbox", arguments: { action: "status", product: plainPath } });
+    expect((status.content as { text: string }[])[0]!.text).toMatch(/^404: Plain Co isn’t a public sandbox\./);
     // So does any organization's action without a product of its own.
-    const log = await client.callTool({ name: "members", arguments: { action: "activity", product: sandboxPath } });
+    const log = await client.callTool({ name: "members", arguments: { action: "activity", product: plainPath } });
     expect(log.isError, JSON.stringify(log.content)).toBeFalsy();
+    // A sandbox's product names its organization too, which the unscoped connector does not reach.
+    const sandbox = await client.callTool({ name: "sandbox", arguments: { action: "status", product: sandboxPath } });
+    expect(text(sandbox).error).toMatchObject({ code: "sandbox_needs_its_own_connector", details: { connect_at: `${h.baseUrl}/mcp/t/${tenantSlug}` } });
     // A product the caller cannot see names nothing.
     const other = await client.callTool({ name: "sandbox", arguments: { action: "status", product: "nowhere/team/product" } });
     expect((other.content as { text: string }[])[0]!.text).toMatch(/^404: /);
@@ -342,11 +350,11 @@ describe("an organization's or a team's action named with a product", () => {
     expect((none.content as { text: string }[])[0]!.text).toMatch(
       /^422: `tenant` is missing: sandbox\(action="status"\) acts on an organization\. Pass params\.tenant, the organization's slug or id: the first part of a product's path .*, or name any product in it with product\. Nothing was changed\./,
     );
-    const members = await client.callTool({ name: "members", arguments: { action: "list", product: sandboxPath } });
+    const members = await client.callTool({ name: "members", arguments: { action: "list", product: plainPath } });
     expect(text(members).error.code).toBe("invalid_input");
     expect(text(members).error.message).toContain("params.product names a product of its own here");
     // Named in params, the organization is used as it always was.
-    const listed = await client.callTool({ name: "members", arguments: { action: "list", params: { tenant: tenantSlug } } });
+    const listed = await client.callTool({ name: "members", arguments: { action: "list", params: { tenant: plainSlug } } });
     expect(listed.isError, JSON.stringify(listed.content)).toBeFalsy();
     await client.close();
   });

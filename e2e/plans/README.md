@@ -18,6 +18,10 @@ same products:
 `pnpm e2e run <plan>` prints their slugs and every product's path. The same three people are in
 both: Riley owns each organization, Sam edits every team, and Jordan reads every product's Story.
 
+Over MCP the sandbox organization is reached only through its own endpoint: pass
+`--endpoint /mcp/t/<sandbox org>` to `pnpm e2e mcp`. Through `/mcp`, the default, every call there
+is refused with `403 sandbox_needs_its_own_connector`.
+
 The content is real people's data. A plan never names or quotes it: it says "a product with
 sources", "a word you can see in a source's text", "the archived product", and the agent finds one
 in the run. Text a plan uploads is synthetic and written by the agent into the run's folder.

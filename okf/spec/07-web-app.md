@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-10-24}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -917,8 +917,11 @@ never described as deleting. A list row showing an archived object says *Archive
     get their own words and a link to the controls. It shows nothing while it loads or if it
     fails, so no screen waits for it.
   - **The invitation** (`/join/:code`) is readable signed out. It says what the sandbox is, that
-    it is public and erased, what a visitor can and cannot do, and the day's main limits, then
-    offers Sign in to enter, or Enter the sandbox when signed in. Opening the link never enters
+    it is public and erased, what a visitor can and cannot do, and the day's main limits; while
+    visitors' agents are let in, also the address a visitor's own agent connects at once they are
+    in, and that it should be connected to nothing else in WhatBuild at the same time, since it
+    reads what strangers wrote there. Then it offers Sign in to enter, or Enter the sandbox when
+    signed in. Opening the link never enters
     by itself. An invitation that admits nobody else says why. Sign-in reached from it is titled
     "Sign in to enter the sandbox".
   - **The controls** (`/t/:tenant/sandbox`, for owners and admins; Sandbox controls in the
@@ -933,7 +936,9 @@ never described as deleting. A list row showing an archived object says *Archive
     address or made-up name with `?visitor=`; Remove) and **Limits of this deployment**, read
     only. Reset now and Reset to this one ask first and list what is erased.
   - **For a visitor** the same address (About this sandbox in the account menu) shows the notice,
-    the name they write under, what they can do, and every allowance with what is used today. A
+    the name they write under, what they can do, **Your agent** (the sandbox's own MCP address to
+    copy, with why it should be the agent's only WhatBuild connection, while visitors' agents are
+    let in), and every allowance with what is used today. A
     member whom staff gave a role sees the same page, with the notice and what they can do
     written for a member. A member who reads only the Story sees **You read: The Story** and that
     they write nothing, in place of the name they write under. A daily allowance set to 0 shows as

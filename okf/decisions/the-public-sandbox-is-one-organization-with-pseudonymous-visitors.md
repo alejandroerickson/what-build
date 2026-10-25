@@ -3,7 +3,7 @@ type: Decision
 title: The public sandbox is one organization the deployment names, where invited visitors edit under made-up names and a daily reset puts a saved baseline back
 description: One shared organization instead of a copy per visitor; admission by invitation links with places and a cap on seats; visitors never see each other; limits are settings enforced in one layer.
 tags: [decision, sandbox, tenancy, roles, privacy, limits, invitations]
-generated: {by: agent:claude, at: 2026-10-12}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -50,6 +50,9 @@ of every row and a product-cloning feature that does not exist.
 
 - Visitors see and can change each other's work until the next reset; the notice on every screen
   says so. One visitor can archive what the next came to see, within the limits.
+- Each visitor's agent reads what other visitors wrote, so an agent reaches the sandbox only
+  through a connector scoped to it, never alongside the person's own organizations
+  ([decision](the-public-sandbox-is-reached-only-through-its-own-connector.md)).
 - The visitor role fails closed: without the deployment's setting, a visitor's grant gives nothing.
 - Staff changes are erased by a reset too, unless a baseline is saved after them.
 - A blob is deleted only when no row and no kept baseline refers to it.
