@@ -9,5 +9,5 @@ status: stable
 
 # Process
 
-- [Working in this repository](working-in-this-repository.md): public-repository rules, how to
-  change behavior, and what to check before finishing.
+- [Working in this repository](working-in-this-repository.md): public-repository rules, what issues
+  are for, how to change behavior, and what to check before finishing.

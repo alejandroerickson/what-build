@@ -3,7 +3,7 @@ type: System Concept
 title: Agent-driven end-to-end tests on a golden master
 description: An agent follows a written test plan through the real web app and the real MCP server, on a local instance reset each time to a golden master made from production's public sandbox, and reports failures and anomalies.
 tags: [development, testing, qa, e2e, agents, mcp, browser]
-generated: {by: agent:claude, at: 2026-10-18}
+generated: {by: agent:claude, at: 2026-10-25}
 status: draft
 ---
 
@@ -170,8 +170,10 @@ can still be piped).
 The skill sets the format: a table of steps, then each finding with its severity (blocker, major,
 minor, note), kind (failure, error, disagreement, permission, anomaly), where it happened, what was
 expected and seen, and its evidence in the run's folder. The report stays in the run's folder, since
-it may quote the golden master. The agent tells the person the result, and may open an issue for a
-finding when they agree, describing it in general terms.
+it may quote the golden master. The agent tells the person the result and opens no issue: the
+repository's issues are for reports from others
+([working in this repository](../process/working-in-this-repository.md#issues)). Wherever a
+finding is written down outside the run's folder, it is described in general terms.
 
 ## Writing a plan
 

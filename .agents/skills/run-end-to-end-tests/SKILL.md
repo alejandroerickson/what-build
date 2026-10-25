@@ -68,9 +68,10 @@ what the plan expects, and report. The system, with every command, is described 
    not let you write it, give it in full as your answer instead. Then `pnpm e2e stop`, unless the
    person wants to look around.
 8. **Tell the person** the result of each plan, each finding in one or two lines with its
-   severity, and where the report and screenshots are. Offer to open issues for findings; open
-   them only when they agree, and describe each in general terms, quoting nothing from the golden
-   master (the repository and its issues are public).
+   severity, and where the report and screenshots are. Open no issue for a finding: the
+   repository's issues are for reports from others (`AGENTS.md`). Wherever a finding is written
+   down outside the run's folder, describe it in general terms, quoting nothing from the golden
+   master.
 
 ## What counts as a finding
 
