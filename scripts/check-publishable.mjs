@@ -347,9 +347,12 @@ function fetchArchive(path, dir) {
   mkdirSync(dir, { recursive: true });
   const file = `${dir}.archive`;
   writeFileSync(file, body);
-  // Logs and most artifacts come zipped; a build record comes as a gzipped tar.
-  if (body[0] === 0x50 && body[1] === 0x4b) execFileSync("unzip", ["-q", "-o", file, "-d", dir]);
-  else if (body[0] === 0x1f && body[1] === 0x8b) execFileSync("tar", ["-xzf", file, "-C", dir]);
+  // Logs and most artifacts come zipped; a build record comes as a gzipped tar. A run whose jobs
+  // were all skipped logged nothing and comes as an empty zip, which unzip refuses to open.
+  const emptyZip = body.length === 22 && body.readUInt32LE(0) === 0x06054b50;
+  if (body[0] === 0x50 && body[1] === 0x4b) {
+    if (!emptyZip) execFileSync("unzip", ["-q", "-o", file, "-d", dir]);
+  } else if (body[0] === 0x1f && body[1] === 0x8b) execFileSync("tar", ["-xzf", file, "-C", dir]);
   else renameSync(file, join(dir, "content"));
   rmSync(file, { force: true });
   return true;
