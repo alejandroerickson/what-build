@@ -76,6 +76,9 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   backslash, percent sign or control character in the path, sends the person to `/`, and so does a
   path that normalizes to begin with `//`.
 - Sessions are 256-bit random tokens, stored as SHA-256 hashes, for 30 days, deleted on sign-out.
+  Sign out everywhere, in the web app alone, deletes every session of the account (this one too,
+  unless kept), revokes every agent connection and expires its unused upload grants at once
+  (`endEverything`, `identity.ts`); no operation reaches it, so an agent cannot lock its person out.
   Over HTTPS the cookie is `__Host-wb_session` (`HttpOnly`, `SameSite=Lax`, `Secure`, `Path=/`, no
   `Domain`), which only the app's own host can set, so no host under the same parent domain can
   plant a session; `wb_session` is taken only for a session issued before the prefix, which is then
