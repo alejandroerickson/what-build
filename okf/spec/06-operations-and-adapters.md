@@ -603,6 +603,7 @@ GET  P/story/print?page_ids=…                        the Story print view (HTM
 GET  P/mockups/:mockup_id/versions/:version/pages/:page_id/html   a mockup page's HTML
 GET  /api/v1/downloads/mockup/:version_id            a mockup version's ZIP under a download grant
 GET  /api/v1/downloads/story-preview/:preview_id?theme=light|dark   a Story preview's HTML under its grant
+GET  /api/v1/downloads/card-preview/:preview_id?theme=light|dark    a card preview's front under its grant
 GET  /prototypes/:grant/<path>                       a mockup prototype's file; the grant in the path is the credential (§4.12)
 GET  /api/v1/meta                                    server and skill version, release, sign-in methods (public)
 GET  /api/v1/connect                                 what the Connect page shows
@@ -613,6 +614,17 @@ POST /api/v1/sandbox/reset-if-due                    runs a sandbox's reset if i
 /auth/*  /oauth/*  /.well-known/oauth-*              sign-in and OAuth (§6.6)
 /health  /whatbuild-skill.md  /whatbuild-skill.zip
 ```
+
+**A download grant names whoever requested it**: the account (`a`) and, for an agent, its
+connection (`f`, the token family). Before a byte route sends anything it checks that the account
+still exists, that its role on the object's product, capped by the connection's level, still
+allows what the operation that gave the grant needed (viewer for an attachment, a mockup version's
+ZIP or an export; editor for a Story or card preview), that the connection is still connected, and
+that a public sandbox still admits them. Otherwise it answers `403`, "Whoever requested this grant
+can no longer read this product", or that the connection is disconnected, and sends nothing; a
+grant that names nobody is `401 invalid_grant`. A prototype's address is the exception: it names
+nobody, by decision, and keeps working for its hours
+([§4.12](04-data-model.md)).
 
 **Bytes are served by the service itself**, streamed from the object store with
 `X-Content-Type-Options: nosniff`, a `Content-Disposition`, range support,

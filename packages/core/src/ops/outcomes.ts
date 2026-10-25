@@ -10,7 +10,7 @@ import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag, id } from "../schemas.ts";
 import { likeContaining, newEtag, newId } from "../util.ts";
 import { adviseIdeaCard, CARD_FRAMES, CARD_GUIDANCE, CARD_HTML_MAX, CARD_ICON_NAMES, checkCardSides, checkIdeaCard } from "../idea-card.ts";
-import { DOWNLOAD_GRANT_HEADER } from "./attachments.ts";
+import { DOWNLOAD_GRANT_HEADER, requesterClaims } from "./attachments.ts";
 
 type Row = Selectable<OutcomesTable>;
 
@@ -416,7 +416,7 @@ export const outcomeCardPreview = defineOperation({
       .insertInto("card_previews")
       .values({ preview_id, tenant_id: tenantId(ctx), product_id: pid, kind: input.kind, title, card_html: input.card_html, created_by: json(ctx.actor), expires_at: expiresAt.toISOString(), created_at: ctx.now })
       .execute();
-    const token = ctx.ports.grants.sign({ v: 1, purpose: CARD_PREVIEW_PURPOSE, t: tenantId(ctx), cp: preview_id, exp: Math.floor(expiresAt.getTime() / 1000) });
+    const token = ctx.ports.grants.sign({ v: 1, purpose: CARD_PREVIEW_PURPOSE, t: tenantId(ctx), cp: preview_id, ...requesterClaims(ctx.principal), exp: Math.floor(expiresAt.getTime() / 1000) });
     const frame = CARD_FRAMES[input.kind];
     return {
       kind: input.kind,

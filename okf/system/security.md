@@ -239,7 +239,11 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   production refuses a key under 32 characters (`apps/server/src/adapters/misc.ts`). The relay
   ignores cookies and enforces the grant's size as bytes arrive (`apps/server/src/uploads.ts`),
   and checks again then that whoever requested the grant can still write; the stored object's own
-  size and hash decide the attachment's entry. A direct-to-bucket URL is signed for at most the grant's
+  size and hash decide the attachment's entry. A download grant (an attachment, a mockup version's
+  ZIP, a Story or card preview, an export) names its requester and an agent's connection, and its
+  route checks before the first byte that they may still read it there, at their connection's
+  level, that the connection is still connected, and that a public sandbox still admits them
+  (`requesterMayRead` in `apps/server/src/uploads.ts`). A direct-to-bucket URL is signed for at most the grant's
   size (`x-goog-content-length-range`, `directUploadSigning` in `blobs-gcs.ts`), and
   `attachments.complete_upload` reads the object's size before its bytes, discards one over the grant
   with `413`, and hashes the bytes as it streams them.
@@ -364,7 +368,7 @@ planned ([roadmap](../spec/10-roadmap.md)). These trade-offs are deliberate; eac
   page HTML and uploaded files from a separate origin is planned ([roadmap](../spec/10-roadmap.md)).
 - A prototype's address is a grant in a URL, unlike every other grant, because a frame sends no
   header and relative addresses must carry it. It reads one immutable version, names nobody and
-  lasts 8 hours; a prototype can send its own address away (a popup may open any URL), and with it
+  lasts 8 hours, so it keeps working for those hours after its requester loses access; a prototype can send its own address away (a popup may open any URL), and with it
   only what it already holds, and the platform's request logs keep it as they keep invitation
   links. A prototype's scripts may use `eval`, which reaches nothing their own code cannot.
 - Prototypes are served from the app's origin until a content site is set, as every Story and

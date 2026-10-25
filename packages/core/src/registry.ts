@@ -26,6 +26,8 @@ export interface Principal {
   sandbox_only?: boolean;
   /** An agent's connection level; absent for a person in the web app, who acts with their own role. */
   level?: ConnectionLevel;
+  /** An agent's connection (its OAuth token family); absent for a person in the web app. */
+  connection?: string;
   /** False when the person turned off submit_feedback for this agent's connection. */
   feedback?: boolean;
 }
