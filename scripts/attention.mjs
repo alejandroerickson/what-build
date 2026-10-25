@@ -37,20 +37,42 @@ async function hooks() {
   if (path !== "scripts/githooks") say("the git hooks are off in this clone: run `corepack pnpm install`, which turns them on");
 }
 
-// Local: accepted vulnerabilities whose time is up or nearly up.
-function accepted() {
+// The vulnerabilities accepted in .github/osv-scanner.toml: each one's id, the day its acceptance
+// ends and the days left until then, and its reason, which says what fixes it and when.
+function acceptances() {
   let text = "";
   try {
     text = readFileSync(".github/osv-scanner.toml", "utf8");
   } catch {
-    return;
+    return [];
   }
-  for (const block of text.split("[[IgnoredVulns]]").slice(1)) {
+  return text.split("[[IgnoredVulns]]").slice(1).flatMap((block) => {
     const id = /^\s*id\s*=\s*"([^"]+)"/m.exec(block)?.[1];
     const until = /^\s*ignoreUntil\s*=\s*(\d{4}-\d{2}-\d{2})/m.exec(block)?.[1];
-    if (!id || !until) continue;
-    const left = Math.ceil((Date.parse(until) - Date.now()) / 86_400_000);
-    if (left <= 30) say(`the accepted vulnerability ${id} ${left < 0 ? "expired" : "expires"} on ${until}: fix it or look at it again`, "triage-security-findings");
+    const reason = /^\s*reason\s*=\s*"((?:[^"\\]|\\.)*)"/m.exec(block)?.[1] ?? "";
+    return id && until ? [{ id, until, reason, left: Math.ceil((Date.parse(until) - Date.now()) / 86_400_000) }] : [];
+  });
+}
+
+// Local: accepted vulnerabilities whose time is up or nearly up, one line for those accepted together
+// (the same day and reason). The reason shows that the finding is in hand, and when it can be fixed.
+function accepted() {
+  const groups = new Map();
+  for (const a of acceptances().filter((a) => a.left <= 30)) {
+    const key = `${a.until}\n${a.reason}`;
+    groups.set(key, [...(groups.get(key) ?? []), a]);
+  }
+  for (const group of groups.values()) {
+    const { until, reason, left } = group[0];
+    const one = group.length === 1;
+    const ids = one ? group[0].id : `${group.slice(0, -1).map((a) => a.id).join(", ")} and ${group.at(-1).id}`;
+    const what = `the accepted vulnerabilit${one ? "y" : "ies"} ${ids}`;
+    say(
+      left > 0
+        ? `${what} expire${one ? "s" : ""} on ${until}, in ${left} day${left === 1 ? "" : "s"}${reason ? `. Accepted because: ${reason}` : ""}`
+        : `${what} expired on ${until}: fix ${one ? "it" : "them"} or look at ${one ? "it" : "them"} again${reason ? `. Accepted because: ${reason}` : ""}`,
+      "triage-security-findings",
+    );
   }
 }
 
@@ -103,9 +125,14 @@ async function github() {
   ]);
 
   for (const p of prs ?? []) say(`Dependabot's pull request #${p.number}, ${p.title}, opened ${ago(p.createdAt)}`, "triage-security-findings");
-  if (dependabot?.length) {
-    const ids = dependabot.map((a) => `${a.dependency?.package?.name} (${a.security_vulnerability?.severity})`);
-    say(`${dependabot.length} open Dependabot alert${dependabot.length === 1 ? "" : "s"}: ${ids.join(", ")}`, "triage-security-findings");
+  // An alert whose advisory is accepted in .github/osv-scanner.toml has been looked at; it stays open
+  // on GitHub until the fix reaches main, and accepted() reports it again when its time is nearly up.
+  const settled = new Set(acceptances().filter((a) => a.left > 0).map((a) => a.id));
+  const advisories = (a) => [a.security_advisory?.ghsa_id, ...(a.security_advisory?.identifiers ?? []).map((i) => i.value)];
+  const alerts = (dependabot ?? []).filter((a) => !advisories(a).some((id) => settled.has(id)));
+  if (alerts.length) {
+    const ids = alerts.map((a) => `${a.dependency?.package?.name} (${a.security_vulnerability?.severity})`);
+    say(`${alerts.length} open Dependabot alert${alerts.length === 1 ? "" : "s"}: ${ids.join(", ")}`, "triage-security-findings");
   }
   if (codeScanning?.length) say(`${codeScanning.length} open code scanning alert${codeScanning.length === 1 ? "" : "s"} (CodeQL)`, "triage-security-findings");
   if (secrets?.length) say(`${secrets.length} open secret scanning alert${secrets.length === 1 ? "" : "s"}: rotate first`, "audit-for-leaks");
