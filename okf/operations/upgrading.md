@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.17.0
+
 - **Migration `0032_idea_cards`.** It adds an empty `card_html` to every product and outcome, the
   front of its card. Nothing is dropped and no text changes, and an earlier release runs on the new
   schema (the columns have a default), so going back needs no restore; fronts drawn in between are
