@@ -838,8 +838,10 @@ of preference for an agent (`packages/core/src/ops/attachments.ts`):
    fragment to it. A grant takes one file, once: it adds an attachment, or, at a path the source
    already has, a new version of it, the earlier versions kept. Grants are signed and expire after
    30 minutes by default (`WHATBUILD_GRANT_TTL_SECONDS`). The relay takes at most 25 MB
-   (`WHATBUILD_RELAY_MAX_BYTES`); when the deployment enables signed URLs
-   (`WHATBUILD_GCS_SIGNED_URLS=1`), the grant also carries a `direct` block for a PUT straight to
+   (`WHATBUILD_RELAY_MAX_BYTES`). It refuses a larger body with `413 too_large`, at once when
+   `Content-Length` says so and otherwise when what arrives passes the limit, then reads and drops
+   the rest, so the sender's connection can take its next request. When the deployment enables
+   signed URLs (`WHATBUILD_GCS_SIGNED_URLS=1`), the grant also carries a `direct` block for a PUT straight to
    the bucket, up to the per-file limit of 100 MB (`WHATBUILD_FILE_MAX_BYTES`). The direct URL is
    signed with that limit as the allowed body size (`x-goog-content-length-range`, among the
    headers to send), so the bucket refuses a larger body; `attachments.complete_upload` reads the
