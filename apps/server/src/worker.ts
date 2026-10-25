@@ -1,10 +1,12 @@
 import { hostname } from "node:os";
+import { SpanKind, SpanStatusCode, type Span } from "@opentelemetry/api";
 import {
   blobsSafeToDelete, indexSources, lockSandbox, markExportFailed, pruneFeedbackCounts, pruneUsage, runDerivation, runEvidenceMove, runExport, sendFeedbackDigest, stagedPrototypeKeys, type Env,
 } from "@whatbuild/core";
 import { sql } from "kysely";
 import { pruneOAuthClients } from "./auth/oauth.ts";
 import { migrationNames } from "./database.ts";
+import { errorType, tracer } from "./telemetry.ts";
 
 /** A reading's blobs. One made while sources had passages also has a segments.jsonl, and an older one an outline.md, released with the rest. */
 const SIDECARS = ["segments.jsonl", "text.md", "outline.md", "manifest.json"];
@@ -307,7 +309,14 @@ export class Worker {
     }
   }
 
-  private async run(job: Job) {
+  /** A job is a trace of its own, named by its kind (telemetry.ts). */
+  private run(job: Job): Promise<void> {
+    return tracer.startActiveSpan(`job ${job.kind}`, { kind: SpanKind.CONSUMER, root: true, attributes: { "whatbuild.job.kind": job.kind, "whatbuild.job.attempt": job.attempts } }, (span) =>
+      this.runJob(job, span).finally(() => span.end()),
+    );
+  }
+
+  private async runJob(job: Job, span: Span) {
     const started = Date.now();
     try {
       await this.env.db.transaction().execute(async (trx) => {
@@ -343,6 +352,8 @@ export class Worker {
         await trx.updateTable("jobs").set({ done_at: new Date().toISOString(), error: null }).where("job_id", "=", job.job_id).execute();
       });
     } catch (e) {
+      span.setStatus({ code: SpanStatusCode.ERROR });
+      span.setAttribute("error.type", errorType(e));
       const msg = (e as Error).message?.slice(0, 500) ?? String(e);
       // An export is given up at its first failure, any other job at its last attempt.
       if (job.attempts >= MAX_ATTEMPTS || job.kind === "export") return this.giveUp(job, msg);

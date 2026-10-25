@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import type { DB } from "@whatbuild/core";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import pg from "pg";
+import { querySpan } from "./telemetry.ts";
 
 const TIMESTAMPTZ = 1184;
 const TIMESTAMP = 1114;
@@ -24,7 +25,8 @@ export function createDb(databaseUrl: string, max = 10): { db: Kysely<DB>; pool:
     types: { getTypeParser: typeParser as never },
     idleTimeoutMillis: 30_000,
   });
-  const db = new Kysely<DB>({ dialect: new PostgresDialect({ pool }) });
+  // Each statement inside a traced request or job is a span of its own (telemetry.ts).
+  const db = new Kysely<DB>({ dialect: new PostgresDialect({ pool }), log: querySpan });
   return { db, pool };
 }
 

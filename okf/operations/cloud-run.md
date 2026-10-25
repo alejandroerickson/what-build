@@ -1,7 +1,7 @@
 ---
 type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
-description: What the production deployment is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, cost, names, and useful commands; backups and the dev deployment have guides of their own.
+description: What the production deployment is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, its alerts and traces, cost, names, and useful commands; backups and the dev deployment have guides of their own.
 tags: [operations, deployment, cloud-run, gcp]
 generated: {by: agent:claude, at: 2026-10-25}
 status: stable
@@ -328,6 +328,92 @@ connected before (`401`) until it is connected again with the new address. Add
 ([§4.13](../spec/04-data-model.md)); nothing sends mail yet. Read it with Cloud SQL Studio or
 `psql`: `SELECT email, name, organization, note, created_at FROM interest ORDER BY created_at DESC;`
 
+## Alerts
+
+[`deploy/cloud-run/alerts.mjs`](../../deploy/cloud-run/alerts.mjs) creates four alert policies in
+Cloud Monitoring, or brings them up to date, each mailed to `ALERT_EMAIL` (by default the `gcloud`
+account running it); `setup.sh` runs it. They read only what Cloud Run measures and logs
+([decision](../decisions/alerts-watch-the-platform-and-traces-go-to-a-project-of-their-own.md)):
+
+| Policy | Mails when | Look first at |
+|---|---|---|
+| `whatbuild: server errors` | a 5xx response in five minutes | the service's error lines, below; a 503 or 504 with none means no instance could serve, or a request ran past the 300-second timeout |
+| `whatbuild: errors in the log` | a line of severity ERROR from the service (Cloud Run's request log aside), at most one mail an hour | the line itself: an unexpected error names its request, `request_id`; a sandbox reset; `Memory limit … exceeded` |
+| `whatbuild: memory` | an instance above 85% of its memory for five minutes | the worker's log lines for the file being read; [Parsing](#setting-it-up) for the limits and the service's memory |
+| `whatbuild: a job failed` | a failed run of `whatbuild-backup` or `whatbuild-migrate` | `gcloud run jobs executions list --job <job>`; [Backups](backups.md) or [Recovering](recovering-from-a-bad-release.md) |
+
+An unexpected error behind a 500 mails twice, once from each of the first two. Nothing calls the
+service: an uptime check every few minutes would keep an instance alive, and billed, all month. So
+an outage that keeps requests from reaching Cloud Run (the domain, DNS, Cloudflare) mails nothing.
+
+```bash
+PROJECT_ID=$P node deploy/cloud-run/alerts.mjs     # create or update; ALERT_EMAIL=… to mail elsewhere, DRY_RUN=1 to print them
+gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="whatbuild" AND severity>=ERROR AND NOT log_id("run.googleapis.com/requests")' \
+  --project $P --freshness 1d --limit 20      # the error lines
+gcloud logging read 'jsonPayload.request_id="<request id>"' --project $P --freshness 7d   # every line of one request
+```
+
+## Traces
+
+The service traces each request, the operation it runs, the statements run inside them and each
+job, when OpenTelemetry's standard settings name where to send them
+([§2.8](../spec/02-architecture.md#28-cross-cutting-rules)). Production sends them to Google's
+Telemetry API, into **a project of their own that runs nothing** (`GCP_TRACES_PROJECT` in the
+maintainer's `.env`): a project
+with trace storage also keeps Cloud Run's own span for each request it samples, with its whole
+address (a search's words, an invitation's token) and the browser's user agent, and nothing turns
+those off. With the traces elsewhere, the service's project has no trace storage, and Cloud Run's
+spans are dropped. **Never send a deployment's traces to its own project**, nor press Enable on
+its Trace Explorer page.
+
+Setting it up for a deployment, once (`setup.sh` does the last two steps with `TRACES_PROJECT`):
+
+```bash
+T=my-whatbuild-traces       # a new project, billed with the service's
+gcloud projects create $T --name "WhatBuild traces"
+gcloud billing projects link $T --billing-account "$(gcloud billing projects describe $P --format='value(billingAccountName)' | sed 's#billingAccounts/##')"
+gcloud services enable telemetry.googleapis.com cloudtrace.googleapis.com observability.googleapis.com bigquery.googleapis.com --project $T
+gcloud projects add-iam-policy-binding $T --member serviceAccount:whatbuild-runtime@$P.iam.gserviceaccount.com \
+  --role roles/telemetry.tracesWriter --condition None
+gcloud run services update whatbuild --project $P --region $R --update-env-vars \
+  OTEL_EXPORTER_OTLP_ENDPOINT=https://telemetry.googleapis.com,OTEL_RESOURCE_ATTRIBUTES=gcp.project_id=$T
+```
+
+A grant in a project made minutes before can be refused with `Forbidden` for a minute or two. A
+refused send loses that batch of spans, and the service says so at most once a minute
+(`"event":"tracing"`, severity WARNING); later batches go through once the grant has spread. The first
+spans create the project's trace storage, `_Trace` in `us`, within a few minutes. Then link it to
+BigQuery once, so an agent can query it: Google's Cloud Trace API cannot read spans written
+through the Telemetry API.
+
+```bash
+gcloud observability buckets datasets links create projects/$T/locations/us/buckets/_Trace/datasets/Spans/links/whatbuild_traces \
+  --dataset Spans --bucket _Trace --location us --project $T      # takes some minutes
+```
+
+**Reading them.** A person opens Trace Explorer in the traces project, where a request's ID
+finds its trace; the request's log lines name the same trace (`logging.googleapis.com/trace`). An
+agent queries the linked dataset, whose `_AllSpans` view has
+`trace_id`, `span_id`, `parent_span_id`, `name`, `kind`, `start_time`, `duration_nano`,
+`attributes` (JSON) and `status`:
+
+```bash
+bq query --project_id $T --use_legacy_sql=false '
+  select name, count(*) as n, round(avg(duration_nano) / 1e6) as avg_ms, round(max(duration_nano) / 1e6) as max_ms
+  from `'$T'.whatbuild_traces._AllSpans`
+  where start_time > timestamp_sub(current_timestamp(), interval 1 day) and kind = 2    -- 2: a request; 1: an operation; 3: a statement; 5: a job
+  group by name order by avg_ms desc limit 20'
+bq query --project_id $T --use_legacy_sql=false '
+  select name, parent_span_id, round(duration_nano / 1e6) as ms, to_json_string(attributes) as attributes
+  from `'$T'.whatbuild_traces._AllSpans` where trace_id = "<request id>" order by start_time'
+```
+
+A deployment may send its traces anywhere that takes OTLP over HTTP with protobuf instead:
+`OTEL_EXPORTER_OTLP_ENDPOINT` names it, and `OTEL_EXPORTER_OTLP_HEADERS` carries a key
+(`x-honeycomb-team=<key>` for Honeycomb, say, from a secret). The provider then belongs on the
+privacy page's list. Leaving `OTEL_EXPORTER_OTLP_ENDPOINT` unset, or `OTEL_SDK_DISABLED=true`,
+sends nothing.
+
 ## What it costs
 
 At a handful of people looking in bursts, the service itself fits in Cloud Run's free grant. CPU
@@ -351,7 +437,9 @@ public sandbox's upload allowances to match (`bytes_per_day`, `org_bytes_per_day
 [§9.7](../spec/09-data-lifecycle.md)): visitors' text and its search index land in Postgres. Storage is cents; data the service
 sends out costs about US$0.12 a GB, and is the one cost that grows with downloads. Mail through
 Cloudflare Email Sending needs the Workers Paid plan, which includes 3,000 messages a month
-([Mail](mail.md)).
+([Mail](mail.md)). The four alert policies cost about US$0.10 each a month; their mail costs
+nothing. Traces are billed by the million spans ingested, and production's few thousand requests a
+day make well under a million a month.
 
 ## What is where
 
@@ -368,6 +456,8 @@ Cloudflare Email Sending needs the Workers Paid plan, which includes 3,000 messa
 | Scheduler job | `whatbuild-sandbox-reset` (with `SANDBOX_TENANT`) | wakes the service a minute after the sandbox's reset hour |
 | Log exclusion | `whatbuild-request-addresses` on the `_Default` sink | Cloud Run logs every request itself, with its whole address, the client's IP and its browser, for 30 days. This drops its line for an address with a query (a search's words, a sign-in link's token) or an invitation link; the service's own line for it, masked, stays |
 | Restore points (Neon, optional) | branches `pre-migrate-<time>-<commit>`, secret `whatbuild-neon-api-key` | one per deploy before migrating, the newest three kept; the key reaches only the Neon project and is read by the build identity |
+| Alerts | four policies named `whatbuild: …`, one email channel | made by `deploy/cloud-run/alerts.mjs` ([Alerts](#alerts)) |
+| Traces | a project of their own (`TRACES_PROJECT`; production's is `GCP_TRACES_PROJECT` in `.env`): trace storage `_Trace` in `us`, BigQuery dataset `whatbuild_traces` | runs nothing; the runtime identity has Cloud Telemetry Traces Writer there, and nothing else ([Traces](#traces)) |
 | Backup (another Postgres, set up by hand) | job `whatbuild-backup`, scheduler job `whatbuild-backup-nightly`, identity `whatbuild-backup`, bucket `<project>-backups`, secret `whatbuild-backup-database-url` | a `pg_dump` each night as a read-only role that bypasses row-level security; the identity adds and reads dumps, never deletes; dumps expire after 35 days ([Backups](backups.md)) |
 
 ## Useful commands

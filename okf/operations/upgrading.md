@@ -23,7 +23,29 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **An unexpected error is one log line, and every response names its request.** It concerns
+  anyone who reads or filters a deployment's log. In production an unexpected error is now one
+  JSON line with `"severity": "ERROR"`, its label and stack in `message`, and the request's
+  `request_id`, where it was several lines of plain text; each request's log line carries
+  `request_id` too, and each response carries it in `X-Request-Id`. A filter on the old text
+  finds it in `jsonPayload.message`. Nothing to do.
+- **Traces, for a deployment that wants them.** Nothing changes unless a deployment sets
+  OpenTelemetry's settings: `OTEL_EXPORTER_OTLP_ENDPOINT`, and `OTEL_EXPORTER_OTLP_HEADERS` for a
+  service that takes a key ([Traces](cloud-run.md#traces)). On Cloud Run, send them to a project
+  of their own, never the service's: a project with trace storage also keeps Cloud Run's own
+  request spans, with every address whole. Production's traces project, its grant and its
+  BigQuery link are in place; once this release serves, set its two variables:
+
+  ```bash
+  set -a; . ./.env; set +a
+  gcloud run services update whatbuild --project $GCP_PROJECT --region $GCP_REGION --update-env-vars \
+    OTEL_EXPORTER_OTLP_ENDPOINT=https://telemetry.googleapis.com,OTEL_RESOURCE_ATTRIBUTES=gcp.project_id=$GCP_TRACES_PROJECT
+  ```
+
+  Then check that its spans arrive: the guide's first query, a few minutes after a request.
+- **Cloud Run: alerts.** A Cloud Run deployment set up before this release has none. Make them once
+  with `PROJECT_ID=<project> node deploy/cloud-run/alerts.mjs` ([Alerts](cloud-run.md#alerts));
+  production's are made.
 
 ## v0.17.2
 

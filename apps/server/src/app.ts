@@ -1,8 +1,10 @@
 import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { AppError, PERMISSIONS_POLICY, REST_BODY_MAX_BYTES, SKILL_VERSION, type BlobStore, type Db, type Env, type Mailer, type Ports } from "@whatbuild/core";
+import { SpanKind, SpanStatusCode, type Span } from "@opentelemetry/api";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
+import { routePath } from "hono/route";
 import { FsBlobStore, MemoryBlobStore } from "./adapters/blobs.ts";
 import { AcsMailer } from "./adapters/mail-acs.ts";
 import { ConsoleMailer, HmacGrantSigner, MemoryMailer, SafeUrlFetcher, SmtpMailer } from "./adapters/misc.ts";
@@ -16,9 +18,10 @@ import { refuseNullCharacters } from "./null-characters.ts";
 import { threadParser } from "./parse-thread.ts";
 import { prototypeRoutes } from "./prototype.ts";
 import { publicRoutes, staticRoutes } from "./public-routes.ts";
-import { restRoutes } from "./rest.ts";
+import { OPERATION_HEADER, restRoutes } from "./rest.ts";
 import { SandboxClock, sandboxRoutes } from "./public-sandbox.ts";
 import { siteRoutes } from "./site.ts";
+import { logError, requestFields, requestIdOf, tracer, withRequestId } from "./telemetry.ts";
 import { uploadRoutes } from "./uploads.ts";
 
 export const SERVER_VERSION = process.env["WHATBUILD_RELEASE"] ?? `dev-${SKILL_VERSION}`;
@@ -171,11 +174,28 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; cl
 
   app.use("*", async (c, next) => {
     const started = Date.now();
-    await next();
-    // Operational telemetry only: never content, email addresses or tokens. A prototype's files,
-    // like the app's assets, are logged only when one fails.
-    if (deps.config.env !== "test" && !c.req.path.startsWith("/assets/") && !(c.req.path.startsWith("/prototypes/") && c.res.status < 400))
-      console.log(JSON.stringify({ at: new Date().toISOString(), method: c.req.method, path: loggedPath(c.req.path), status: c.res.status, ms: Date.now() - started }));
+    const path = loggedPath(c.req.path);
+    // Operational telemetry only: never content, email addresses or tokens (telemetry.ts). A
+    // prototype's files, like the app's assets, are logged only when one fails, and never traced;
+    // nor is the health check.
+    const quiet = c.req.path.startsWith("/assets/") || c.req.path.startsWith("/prototypes/") || c.req.path === "/health";
+    const respond = async (span?: Span) => {
+      const id = requestIdOf(span);
+      await withRequestId(id, () => next());
+      c.header("X-Request-Id", id);
+      const operation = c.res.headers.get(OPERATION_HEADER);
+      if (span) {
+        // The route's pattern names the span when one matched; the app's screens and anything else fall back to the masked path.
+        const route = routePath(c);
+        span.updateName(`${c.req.method} ${route.includes("*") ? path : route}`);
+        span.setAttributes({ "url.path": path, "http.response.status_code": c.res.status, ...(route.includes("*") ? {} : { "http.route": route }), ...(operation ? { "whatbuild.operation": operation } : {}) });
+        if (c.res.status >= 500) span.setStatus({ code: SpanStatusCode.ERROR });
+      }
+      if (deps.config.env !== "test" && !c.req.path.startsWith("/assets/") && !(c.req.path.startsWith("/prototypes/") && c.res.status < 400))
+        console.log(JSON.stringify({ at: new Date().toISOString(), method: c.req.method, path, status: c.res.status, ms: Date.now() - started, ...requestFields(span) }));
+    };
+    if (quiet) return respond();
+    return tracer.startActiveSpan(c.req.method, { kind: SpanKind.SERVER, root: true, attributes: { "http.request.method": c.req.method } }, (span) => respond(span).finally(() => span.end()));
   });
 
   app.use("*", async (c, next) => {
@@ -225,7 +245,7 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; cl
     const p = c.req.path;
     if (p.startsWith("/api/") || p.startsWith("/mcp") || p.startsWith("/auth/")) {
       deps.onRequest?.();
-      await clock.resetIfDue().catch((e) => console.error("sandbox reset:", e));
+      await clock.resetIfDue().catch((e) => logError("sandbox reset", e));
     }
     return next();
   });
@@ -257,7 +277,7 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; cl
 
   app.onError((err, c) => {
     if (err instanceof AppError) return c.json({ error: err.toJSON() }, err.status as 400);
-    console.error(err);
+    logError(`${c.req.method} ${loggedPath(c.req.path)}`, err);
     return c.json({ error: { code: "internal", status: 500, message: "WhatBuild hit an unexpected error. Try again." } }, 500);
   });
   return app;

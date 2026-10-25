@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild keeps each organization's material to its own people, and treats agent-written HTML, uploads and source text as hostile
 description: The threat model: what is protected, who the attackers are, the trust boundaries, and each control with where it lives in code and the decision that governs it.
 tags: [security, threat-model, tenancy, identity, oauth, sandbox, uploads]
-generated: {by: agent:claude, at: 2026-10-18}
+generated: {by: agent:claude, at: 2026-10-25}
 status: draft
 ---
 
@@ -324,8 +324,12 @@ provider, email links are off rather than logged, and production refuses to star
 that would print them or deliver nothing (`WHATBUILD_MAILER` other than `smtp` or `none`), or with
 one it does not know (`config.ts`). Log lines hold method, masked path, status and time, never
 bodies, query strings or headers: the path's ids are masked, and so are the two links that are
-credentials themselves, `/invite/:token` and `/join/:code`. An unexpected error answers `500`
-without detail (`app.ts`). Emails show a sender's chosen name on one line, quoted and bounded
+credentials themselves, `/invite/:token` and `/join/:code`. Spans, when a deployment sends traces,
+hold less: a route's pattern or the masked path, names of operations, kinds and codes, never a
+statement's text or an error's message (`telemetry.ts`); and they go to a project that runs nothing,
+since Google keeps Cloud Run's own request spans, whole addresses and all, in any project with
+trace storage ([decision](../decisions/alerts-watch-the-platform-and-traces-go-to-a-project-of-their-own.md)).
+An unexpected error answers `500` without detail (`app.ts`). Emails show a sender's chosen name on one line, quoted and bounded
 (`quotedName`). The web app's files are served only from inside their folder (`insideRoot`).
 `pnpm fixture pull` gives `pg_dump` the password in `PGPASSWORD`, and reads only the rows of the organizations it copies ([copying an organization](../operations/copying-an-organization.md)). The image is built from an allow-list (`.dockerignore`) and runs as `node` with
 `NODE_ENV=production`; a server started without it is production all the same. CI gives pull requests a read-only token; production moves only on an
