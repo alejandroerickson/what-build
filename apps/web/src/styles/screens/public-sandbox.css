@@ -65,6 +65,10 @@
 .sandbox-facts b {
   font-weight: var(--fw-semibold);
 }
+.sandbox-connector {
+  display: grid;
+  gap: var(--s-1);
+}
 .sandbox-control {
   display: flex;
   flex-wrap: wrap;
@@ -228,6 +232,10 @@
   padding-left: 1.2em;
   color: var(--muted);
   line-height: 1.5;
+}
+/* An address breaks anywhere rather than widen the page at a phone's width. */
+.join-terms code {
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 760px) {

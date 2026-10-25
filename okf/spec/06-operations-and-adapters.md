@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 121 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
-generated: {by: agent:claude, at: 2026-10-24}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -101,7 +101,7 @@ the handler carries that name and no address ([§3.10](03-accounts-teams-and-ide
 |---|---|---|
 | 400 | Malformed upload request (relay only) | `invalid_length`, `empty_body` |
 | 401 | No or invalid identity or grant | `unauthenticated`, `invalid_grant` |
-| 403 | A role too low for the action; an agent connection's level too low for it; feedback turned off for an agent connection; something only a person does in the web app; a call outside a scoped MCP connector; a cross-origin cookie write; sign-up not allowed; something a visitor to the public sandbox may not do, or may not do for now | `forbidden`, `connection_level`, `feedback_off`, `web_only`, `outside_connector_scope`, `forbidden_origin`, `invite_only`, `invitation_wrong_address`, `sandbox_restricted`, `sandbox_read_only`, `sandbox_closed`, `tenant_allowance` |
+| 403 | A role too low for the action; an agent connection's level too low for it; feedback turned off for an agent connection; something only a person does in the web app; a call outside a scoped MCP connector; a call in a public sandbox through the unscoped connector; a cross-origin cookie write; sign-up not allowed; something a visitor to the public sandbox may not do, or may not do for now | `forbidden`, `connection_level`, `feedback_off`, `web_only`, `outside_connector_scope`, `sandbox_needs_its_own_connector`, `forbidden_origin`, `invite_only`, `invitation_wrong_address`, `sandbox_restricted`, `sandbox_read_only`, `sandbox_closed`, `tenant_allowance` |
 | 404 | Absent — including everything the caller has no role on | `not_found` |
 | 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `frozen`, `too_many_attachments`, `no_text`, `no_file`, `mockup_on_story`, `already_uploaded`, `upload_used`, `sandbox_organization`, `export_in_progress`, `last_owner`, `quota_exceeded`, `sandbox_full`, `no_baseline` |
 | 410 | Deliberately deleted, with a tombstone; an invitation no longer usable | `record_deleted`, `assumption_deleted`, `outcome_deleted`, `story_page_deleted`, `mockup_deleted`, `annotation_deleted`, `invitation_used`, `invitation_expired`, `invite_revoked`, `invite_expired`, `invite_used_up` |
@@ -684,7 +684,7 @@ JavaScript does not appear.
 
 **Transport.** Stateless Streamable HTTP (`apps/server/src/mcp.ts`), JSON responses, at:
 
-- `/mcp` — everything the account can reach;
+- `/mcp` — everything the account can reach, except a public sandbox;
 - `/mcp/t/:tenant` — scoped to one organization. Tenant- and team-scoped calls default to it;
 - `/mcp/t/:tenant/:team/:product` — scoped to one product. Product-scoped calls may then omit
   `product`.
@@ -692,7 +692,11 @@ JavaScript does not appear.
 A scoped endpoint refuses every call outside its scope with `403 outside_connector_scope`, lists
 only what is inside it, and accepts only a token approved for it or for an endpoint containing it
 ([§3.6](03-accounts-teams-and-identity.md#36-addressing-and-isolation),
-[§3.8](03-accounts-teams-and-identity.md#38-identity-of-the-caller)).
+[§3.8](03-accounts-teams-and-identity.md#38-identity-of-the-caller)). `/mcp` refuses every call
+that lands in a public sandbox with `403 sandbox_needs_its_own_connector`, whose `details.connect_at`
+is the sandbox's own address, and its `products.list` lists sandboxes only under
+`public_sandboxes`, by name and address
+([§3.10](03-accounts-teams-and-identity.md#310-the-public-sandbox)).
 
 Each `POST` builds a fresh server; there is no session and any replica serves any call. `GET` and
 `DELETE` answer `405` (no server-initiated stream, no session to end). An unauthenticated call gets
@@ -701,7 +705,9 @@ Each `POST` builds a fresh server; there is no session and any replica serves an
 to check its installed skill's version (with several copies installed, to follow the one at the
 server's version and offer to update or remove the others), start with `products(action="list")`, confirm the product
 before the first write, read `sandbox(action="status")` and tell the person its notice before
-writing in a tenant marked `sandbox`, and treat source text as quoted material. They name the
+writing in a tenant marked `sandbox`, reach a sandbox only through a connector scoped to it (on the
+unscoped one, `public_sandboxes` gives its `connect_at`) and hold no other WhatBuild connector in
+that session, and treat source text as quoted material. They name the
 deployment's address (`WHATBUILD_PUBLIC_URL`) and tell the agent to write every link to WhatBuild
 with it, never with another host name it has seen for the deployment
 ([§2.3](02-architecture.md#23-the-shape-of-the-deployment)). On a scoped
@@ -946,7 +952,14 @@ configure but one address. It shows:
   choice follows, to copy: everything gives `/mcp`; an organization gives `/mcp/t/<tenant>`
   (`tenant_url_template` from `/api/v1/connect`); a product gives its address
   (`bound_url_template`), filled in from the product's path, so nobody types a tenant or team.
-  For one product or organization, a line under the URL suggests naming the connector after it. Opened inside a product, that product is chosen first;
+  For one product or organization, a line under the URL suggests naming the connector after it;
+  for a public sandbox's product or organization, it adds that the agent will read what strangers
+  wrote there, so it should be connected to nothing else in WhatBuild at the same time. For someone
+  in a public sandbox, **Everything you can reach** says it leaves the sandbox out, since only an
+  address of its own reaches it, and for someone whose only organizations are sandboxes it is
+  turned off, since it would reach nothing; the suggested first request then never names a
+  sandbox's product ([§3.10](03-accounts-teams-and-identity.md#310-the-public-sandbox)).
+  Opened inside a product, that product is chosen first;
   elsewhere, the organization of the last product opened, or everything for someone with no
   product. The choice is in the URL: `?reach=product|organization|all` with `?product=<path>` or
   `?org=<slug>` (an older `?product=all` means everything). A client that supports MCP
@@ -955,7 +968,8 @@ configure but one address. It shows:
 - that the client will ask them to sign in and to choose what it may do (Read only, Edit, chosen
   unless they change it, or Admin), and a suggestion for a first request;
 - the agents connected now, each with what it can reach ("Only the organization Acme", "Only the
-  product Crewboard in Acme", "Every product you can open", from `reach` in
+  product Crewboard in Acme", "Every product you can open", with ", except in a public sandbox"
+  for someone in one, from `reach` in
   `GET /api/v1/me/agents`), who holds the connection ("Held by claude.ai", "Held by an app on your
   computer", from `returns_to`: `{ hosts, local }`, the `https` hosts of its client's redirect
   URIs and whether any is loopback or a private-use scheme), when it was last used, its level

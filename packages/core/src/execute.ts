@@ -1,7 +1,7 @@
 import { sql } from "kysely";
 import type { z } from "zod";
 import { json, type ActorSnapshot, type Db } from "./db.ts";
-import { checkConnectorScope, type ConnectorScope } from "./connector-scope.ts";
+import { checkConnectorScope, sandboxNeedsItsOwnConnector, type ConnectorScope } from "./connector-scope.ts";
 import { AppError, conflict, invalid } from "./errors.ts";
 import { resolveAliases, wrongFieldHint } from "./field-aliases.ts";
 import { resolveScope, type ScopeRef } from "./policy.ts";
@@ -168,7 +168,8 @@ export async function admitRead(env: Env, principal: Principal, scope: Scope, na
  * scope, apply a public sandbox's limits to a visitor, validate the input strictly, run any slow
  * `prepare` step outside a transaction, then run the handler in one transaction that is scoped to
  * the tenant (row-level security) and writes its activity event alongside the change. A call
- * through a scoped MCP connector also stays inside it.
+ * through a scoped MCP connector also stays inside it, and one through the unscoped connector stays
+ * out of every public sandbox.
  */
 export async function execute(
   env: Env,
@@ -214,6 +215,9 @@ async function run(
   const scope: Scope = principal.level ? { ...resolved, role: capRole(resolved.role, principal.level) } : resolved;
   reached.scope = scope;
   if (connector) checkConnectorScope(connector, op, scope);
+  // A public sandbox is reached only through a connector scoped to it, staff included: an agent
+  // there reads what strangers wrote, and on the unscoped one it would hold everything else too.
+  else if (principal.surface === "mcp" && scope.tenant?.sandbox) throw sandboxNeedsItsOwnConnector(env.ports.config.publicBaseUrl, scope.tenant);
   const sandbox = await sandboxOf(env, principal, scope);
   const visitor = sandbox?.visitor ? sandbox : null;
   if (visitor) await admitVisitor(env.db, visitor, principal, op, Boolean(scope.tenant));

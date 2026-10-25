@@ -2,6 +2,7 @@ import { MAX_PDF_PAGES, MAX_SEGMENTS } from "@whatbuild/parsers";
 import { sql } from "kysely";
 import { z } from "zod";
 import { checkEtag, recordActivity } from "../common.ts";
+import { SANDBOX_CONNECTOR_WHY, sandboxConnectorUrl } from "../connector-scope.ts";
 import { json } from "../db.ts";
 import { AppError, conflict, gone, invalid, notFound } from "../errors.ts";
 import { REST_BODY_MAX_BYTES, SIGN_IN_LINKS_PER_HOUR } from "../ports.ts";
@@ -68,6 +69,15 @@ async function seatsUsed(ctx: OpContext, tenantId: string): Promise<number> {
   return Number(r?.n ?? 0);
 }
 
+/**
+ * The connector an agent works here through, for whoever may bring one: staff always, anyone else
+ * while the sandbox lets visitors' agents in. The unscoped connector never reaches a sandbox.
+ */
+function connectorFor(ctx: OpContext, sb: SandboxState, slug: string, standing: SandboxStanding) {
+  if (standing !== "staff" && !sb.settings.visitor_agents) return {};
+  return { connect_at: sandboxConnectorUrl(ctx.ports.config.publicBaseUrl, slug), connect_why: SANDBOX_CONNECTOR_WHY };
+}
+
 function schedule(sb: SandboxState) {
   const s = sb.settings;
   return {
@@ -89,7 +99,7 @@ export const sandboxStatus = defineOperation({
   mutates: false,
   summary: "What a public sandbox is for the caller: the notice to show, when it resets, the name they write under, and what is left of each allowance.",
   description:
-    "Call it when products(action=\"list\") marks a tenant as a sandbox, before your first write there, and tell the person the notice. Name the sandbox with tenant, its slug or id; over MCP, any product in it given as product names it too. you.role is staff (an owner or admin, under their own name), visitor (came in by an invitation link) or member (given a role by its staff); a visitor or member writes under appears_as, sees no other person and meets the limits; a member who reads only the Story has you.story_only true and appears_as null, and writes nothing. allowances lists every limit with what is used today; a write over one is refused with 429 rate_limited or 409 quota_exceeded, one whose daily allowance is 0 is switched off and refused with 403 sandbox_restricted, and reads are never stopped by an allowance. Answers 404 in an organization that is not a sandbox.",
+    "Call it when products(action=\"list\") marks a tenant as a sandbox, before your first write there, and tell the person the notice. Name the sandbox with tenant, its slug or id; over MCP, any product in it given as product names it too. you.role is staff (an owner or admin, under their own name), visitor (came in by an invitation link) or member (given a role by its staff); a visitor or member writes under appears_as, sees no other person and meets the limits; a member who reads only the Story has you.story_only true and appears_as null, and writes nothing. allowances lists every limit with what is used today; a write over one is refused with 429 rate_limited or 409 quota_exceeded, one whose daily allowance is 0 is switched off and refused with 403 sandbox_restricted, and reads are never stopped by an allowance. connect_at is the address of the connector scoped to the sandbox, the only one that reaches it, with connect_why to tell the person; it is absent where the person's agent may not work here. Answers 404 in an organization that is not a sandbox.",
   input: z.strictObject({ tenant }),
   rest: { method: "GET", path: "/sandbox" },
   mcp: { tool: "sandbox", action: "status" },
@@ -110,6 +120,7 @@ export const sandboxStatus = defineOperation({
       notice: sandboxNotice(sb, standing, reader),
       visitor_access: s.visitor_access,
       agents_allowed: s.visitor_agents,
+      ...connectorFor(ctx, sb, ctx.scope.tenant!.slug, standing),
       resets: schedule(sb),
       you: {
         role: standing,
@@ -146,7 +157,7 @@ export const joinSandbox = defineOperation({
   mutates: true,
   summary: "Enter a public sandbox with an invitation code; you become a visitor there.",
   description:
-    "The code is the last part of an invitation link (…/join/<code>). An invitation admits a set number of people and the sandbox holds a set number of visitors, so either may be full. Someone already in the organization keeps the role they have and takes no seat. Returns the notice to show the person, the name they will write under, and the products to open.",
+    "The code is the last part of an invitation link (…/join/<code>). An invitation admits a set number of people and the sandbox holds a set number of visitors, so either may be full. Someone already in the organization keeps the role they have and takes no seat. Returns the notice to show the person, the name they will write under, and the products to open. The unscoped connector does not reach a sandbox: connect_at is the address of the connector that does, which the person adds in their agent to work there, and connect_why says why to tell them; it is absent when the sandbox lets no visitor's agent in.",
   input: z.strictObject({ code: z.string().trim().min(10).max(200) }),
   rest: { method: "POST", path: "/sandbox/join" },
   mcp: { tool: "sandbox", action: "join" },
@@ -179,7 +190,7 @@ export const joinSandbox = defineOperation({
     if (held.length) {
       const own = held.find((m) => m.scope_type === "tenant")?.role ?? "member";
       const standing = sandboxStanding(own);
-      return { ...entered, notice: sandboxNotice(sb, standing), already: true, role: own, appears_as: standing === "staff" ? null : visitorName(inv.tenant_id, ctx.principal.account_id) };
+      return { ...entered, ...connectorFor(ctx, sb, inv.slug, standing), notice: sandboxNotice(sb, standing), already: true, role: own, appears_as: standing === "staff" ? null : visitorName(inv.tenant_id, ctx.principal.account_id) };
     }
     if (inv.revoked_at) throw gone("invite_revoked", "This invitation was withdrawn. Ask whoever sent it for a new link.");
     if (inv.expires_at && Date.parse(inv.expires_at) < Date.parse(ctx.now)) throw gone("invite_expired", "This invitation has expired. Ask whoever sent it for a new link.");
@@ -195,7 +206,7 @@ export const joinSandbox = defineOperation({
       .execute();
     await ctx.db.updateTable("sandbox_invites").set({ used: current.used + 1 }).where("invite_id", "=", inv.invite_id).execute();
     // No activity event: a visitor's name is never written into the organization.
-    return { ...entered, notice: sandboxNotice(sb), already: false, role: "visitor", appears_as: visitorName(inv.tenant_id, ctx.principal.account_id) };
+    return { ...entered, ...connectorFor(ctx, sb, inv.slug, "visitor"), notice: sandboxNotice(sb), already: false, role: "visitor", appears_as: visitorName(inv.tenant_id, ctx.principal.account_id) };
   },
 });
 

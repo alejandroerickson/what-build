@@ -145,6 +145,9 @@ function NotASandbox() {
   );
 }
 
+/** Why a sandbox has an agent address of its own, said wherever the address is given. */
+const AGENT_HERE = "Connect your agent here with this address alone, and to nothing else in WhatBuild at the same time: here it reads what strangers wrote.";
+
 function VisitorView({ status: s }: { status: SandboxStatus }) {
   const counted = s.allowances.filter((a) => typeof a.limit === "number");
   const off = s.allowances.filter((a) => typeof a.limit === "boolean");
@@ -176,6 +179,15 @@ function VisitorView({ status: s }: { status: SandboxStatus }) {
               <dt>You can</dt>
               <dd>{s.you.can}</dd>
             </div>
+            {s.connect_at ? (
+              <div>
+                <dt>Your agent</dt>
+                <dd className="sandbox-connector">
+                  <CopyField label="The sandbox's MCP server URL" value={s.connect_at} />
+                  <span className="muted">{AGENT_HERE}</span>
+                </dd>
+              </div>
+            ) : null}
             <div>
               <dt>Erased</dt>
               <dd>
@@ -989,6 +1001,8 @@ interface InviteInfo {
   notice: string;
   resets: { time: string; timezone: string } | null;
   limits: { file_max_bytes: number; sources_per_day: number; writes_per_day: number; bytes_per_day: number };
+  /** Where a visitor's own agent connects; absent while visitors' agents are off. */
+  connect_at?: string;
 }
 
 const NOT_OPEN: Record<Exclude<InviteInfo["status"], "open">, { title: string; text: string }> = {
@@ -1040,7 +1054,7 @@ export function JoinSandbox() {
             <SheetHeader level={1} id="join-title" title="You’re invited to try WhatBuild" />
             <SheetBody className="entry-form">
               <p>
-                {i!.organization} is a worked example of a product discovery. You can change it by hand or with your own agent.
+                {i!.organization} is a worked example of a product discovery. You can change it by hand{i!.connect_at ? " or with your own agent" : ""}.
               </p>
               <Callout inset tone="attention" title="Public, and erased">
                 {i!.notice.replace(/^This is a public sandbox\.\s*/, "")}
@@ -1052,6 +1066,11 @@ export function JoinSandbox() {
                   Each day you can add {plural(i!.limits.sources_per_day, "source")} ({formatBytes(i!.limits.bytes_per_day)} in all, {formatBytes(i!.limits.file_max_bytes)} a file) and make {plural(i!.limits.writes_per_day, "change")}.
                 </li>
                 <li>Your account works only in the sandbox. It can&rsquo;t start an organization.</li>
+                {i!.connect_at ? (
+                  <li>
+                    Once you&rsquo;re in, your own agent connects at <code>{i!.connect_at}</code>. Connect it to nothing else in WhatBuild at the same time: here it reads what strangers wrote.
+                  </li>
+                ) : null}
               </ul>
               {i!.status !== "open" && !join.isSuccess ? (
                 <Callout inset tone="negative" title={NOT_OPEN[i!.status].title}>

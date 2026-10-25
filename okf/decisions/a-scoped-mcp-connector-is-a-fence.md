@@ -3,7 +3,7 @@ type: Decision
 title: A scoped MCP connector is a fence, not a default
 description: An MCP endpoint scoped to an organization or a product refuses every call outside it, and its token works on no wider endpoint, so a person can keep each organization's connector separate and turn one off.
 tags: [decision, mcp, oauth, tenancy, security]
-generated: {by: agent:claude, at: 2026-10-07}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -36,6 +36,8 @@ nothing else, and reaching everything takes the unscoped connector.
 - A product connector cannot manage people, create products or move a source to another product;
   that needs an organization connector or the web app.
 - A token cannot be reused on a wider endpoint, so the scope survives a misconfigured client.
+- The unscoped connector reaches everything except a public sandbox, which only a connector scoped
+  to it reaches ([decision](the-public-sandbox-is-reached-only-through-its-own-connector.md)).
 
 ## Constrains
 

@@ -1,4 +1,4 @@
-import { loadSandbox, lockSandbox, resetIsDue, resetToBaseline, sandboxNotice, sha256Hex, type ActorSnapshot, type Db, type Env } from "@whatbuild/core";
+import { loadSandbox, lockSandbox, resetIsDue, resetToBaseline, SANDBOX_CONNECTOR_WHY, sandboxConnectorUrl, sandboxNotice, sha256Hex, type ActorSnapshot, type Db, type Env } from "@whatbuild/core";
 import { Hono } from "hono";
 import { sql } from "kysely";
 
@@ -112,7 +112,7 @@ export async function inviteInfo(db: Db, code: string) {
   const inv = await db
     .selectFrom("sandbox_invites as i")
     .innerJoin("tenants as t", "t.tenant_id", "i.tenant_id")
-    .select(["i.tenant_id", "i.max_uses", "i.used", "i.expires_at", "i.revoked_at", "t.name", "t.sandbox"])
+    .select(["i.tenant_id", "i.max_uses", "i.used", "i.expires_at", "i.revoked_at", "t.name", "t.slug", "t.sandbox"])
     .where("i.code_hash", "=", sha256Hex(code))
     .executeTakeFirst();
   if (!inv || !inv.sandbox) return null;
@@ -135,7 +135,7 @@ export async function inviteInfo(db: Db, code: string) {
           : Number(seats?.n ?? 0) >= state.settings.max_visitors
             ? "full"
             : "open";
-  return { tenant_id: inv.tenant_id, status, organization: inv.name, notice: sandboxNotice(state), settings: state.settings, resets_enabled: state.settings.reset_enabled && Boolean(state.baseline_id) };
+  return { tenant_id: inv.tenant_id, slug: inv.slug, status, organization: inv.name, notice: sandboxNotice(state), settings: state.settings, resets_enabled: state.settings.reset_enabled && Boolean(state.baseline_id) };
 }
 
 /** The invitation code in a path the sign-in flow was asked to return to, if it is one. */
@@ -143,7 +143,7 @@ export function inviteCodeIn(next: string | null | undefined): string | null {
   return /^\/join\/([A-Za-z0-9_-]{10,200})$/.exec(next ?? "")?.[1] ?? null;
 }
 
-export function sandboxRoutes(deps: { db: Db; clock: SandboxClock }) {
+export function sandboxRoutes(deps: { db: Db; clock: SandboxClock; base: string }) {
   const app = new Hono();
   const noStore = { "Cache-Control": "no-store" };
 
@@ -165,6 +165,8 @@ export function sandboxRoutes(deps: { db: Db; clock: SandboxClock }) {
         organization: info.organization,
         notice: info.notice,
         resets: info.resets_enabled ? { time: s.reset_time, timezone: s.reset_timezone } : null,
+        // Where a visitor's own agent connects, the only connector that reaches the sandbox, while visitors' agents are let in.
+        ...(s.visitor_agents ? { connect_at: sandboxConnectorUrl(deps.base, info.slug), connect_why: SANDBOX_CONNECTOR_WHY } : {}),
         limits: { file_max_bytes: s.file_max_bytes, sources_per_day: s.sources_per_day, writes_per_day: s.writes_per_day, bytes_per_day: s.bytes_per_day },
       },
       200,

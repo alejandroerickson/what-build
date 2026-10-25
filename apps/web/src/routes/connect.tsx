@@ -20,7 +20,7 @@ interface ConnectInfo {
 
 /** What a connection may reach: names where the person can see them, else the address's path. */
 type Reach =
-  | { kind: "all" }
+  | { kind: "all"; except_sandboxes?: true }
   | { kind: "tenant"; path: string; name: string | null }
   | { kind: "product"; path: string; name: string | null; tenant_name: string | null };
 
@@ -49,7 +49,7 @@ interface ConnectedAgent {
 type ReachKind = "product" | "organization" | "all";
 
 function reachLabel(r: Reach): string {
-  if (r.kind === "all") return "Every product you can open";
+  if (r.kind === "all") return r.except_sandboxes ? "Every product you can open, except in a public sandbox" : "Every product you can open";
   if (r.kind === "tenant") return `Only the organization ${r.name ?? r.path}`;
   return `Only the product ${r.name ?? r.path}${r.name && r.tenant_name ? ` in ${r.tenant_name}` : ""}`;
 }
@@ -104,7 +104,11 @@ export function ConnectPage() {
   const productParam = params.get("product");
   const orgParam = params.get("org");
   const reachParam = params.get("reach");
-  const reach: ReachKind =
+  // A public sandbox is reached only through an address scoped to it, never through everything,
+  // so for someone in sandboxes alone everything reaches nothing.
+  const inSandbox = tenants.some((t) => t.sandbox);
+  const onlySandboxes = inSandbox && tenants.every((t) => t.sandbox);
+  const asked: ReachKind =
     reachParam === "product" || reachParam === "organization" || reachParam === "all"
       ? reachParam
       : productParam === "all"
@@ -114,6 +118,7 @@ export function ConnectPage() {
           : orgParam || last || items.length
             ? "organization"
             : "all";
+  const reach: ReachKind = asked === "all" && onlySandboxes ? "organization" : asked;
   const product = items.find((p) => p.path === (productParam && productParam !== "all" ? productParam : herePath)) ?? (herePath ? undefined : last) ?? items[0];
   const org = tenants.find((t) => t.slug === orgParam) ?? tenants.find((t) => t.tenant_id === (product ?? last)?.tenant.tenant_id) ?? tenants[0];
   const url = !c
@@ -135,7 +140,11 @@ export function ConnectPage() {
       { replace: true },
     );
   const scopedName = reach === "product" && product ? product.name : reach === "organization" && org ? org.name : null;
-  const named = (reach === "product" ? product : undefined) ?? (reach === "organization" ? items.find((p) => p.tenant.tenant_id === org?.tenant_id) : undefined) ?? product ?? last;
+  const sandboxChosen = (reach === "product" && product?.tenant.sandbox) || (reach === "organization" && org?.sandbox);
+  const named =
+    reach === "all"
+      ? items.find((p) => !p.tenant.sandbox)
+      : ((reach === "product" ? product : undefined) ?? (reach === "organization" ? items.find((p) => p.tenant.tenant_id === org?.tenant_id) : undefined) ?? product ?? last);
   return (
     <>
       <Sheet className="agents-sheet" labelledBy="agents-title">
@@ -179,9 +188,16 @@ export function ConnectPage() {
                   variant="boxed"
                   name="reach"
                   checked={reach === "all"}
+                  disabled={onlySandboxes}
                   onChange={() => pick({ reach: "all" })}
                   label="Everything you can reach"
-                  hint="Every product you can open, including in organizations you join later."
+                  hint={
+                    onlySandboxes
+                      ? "Reaches nothing for you: a public sandbox takes an address of its own."
+                      : inSandbox
+                        ? "Every product you can open, including in organizations you join later, except in a public sandbox, which takes an address of its own."
+                        : "Every product you can open, including in organizations you join later."
+                  }
                 />
               </fieldset>
               {reach === "product" && product ? (
@@ -228,6 +244,7 @@ export function ConnectPage() {
                     Name the connector after <strong>{scopedName}</strong>.
                   </>
                 ) : null}
+                {sandboxChosen ? " This is a public sandbox: your agent will read what strangers wrote there, so connect it to nothing else in WhatBuild at the same time." : null}
               </p>
             </Step>
             <Step n={3} title="Sign in when it asks, and choose what it may do">

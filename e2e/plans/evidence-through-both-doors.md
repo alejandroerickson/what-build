@@ -89,7 +89,8 @@ the same is tried in the sandbox, where the sandbox's limits apply.
     the second write is refused with `409 stale_etag`, and nothing changed.
 13. **Web, as Sam.** Archive the second source, then find it among archived sources and restore it.
     *Expect:* archiving is reversible, and the words used are archive and restore, never delete.
-14. **The sandbox organization, as Sam.** Repeat steps 2 to 4 in the same product there. Then
+14. **The sandbox organization, as Sam.** Repeat steps 2 to 4 in the same product there, over MCP
+    through the sandbox's own endpoint (`--endpoint /mcp/t/<sandbox org>`). Then
     check that nothing from steps 2 to 13 appears in the sandbox organization, nor anything from
     the sandbox in the standard one. *Expect:* the upload works within the sandbox's limits (read
     them with `sandbox(action="status")`), and the two organizations stay separate.

@@ -8,6 +8,9 @@ export interface SandboxStatus {
   notice: string;
   visitor_access: "write" | "read" | "closed";
   agents_allowed: boolean;
+  /** The only connector that reaches the sandbox; absent where the person's agent may not work here. */
+  connect_at?: string;
+  connect_why?: string;
   resets: SandboxResets;
   /** staff: an owner or admin. visitor: came in by an invitation link. member: given a role by its staff, and treated as a visitor is. */
   /** story_only: a member who reads only the Story there, writes nothing, and so has no appears_as. */

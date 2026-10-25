@@ -49,9 +49,13 @@ other plans will too.
    (`story` `list_pages`) in the product from step 2, and read the first window of one source's
    text with `derived(action="text")`. *Expect:* the same items the web showed in step 2, with the
    same titles and counts, and the same words the source's Text showed.
-10. **MCP, as Sam.** Read `sandbox(action="status")` for each organization. *Expect:* the sandbox
-    organization answers with its notice; for the standard one the call is refused with an error
-    that says it is not a public sandbox.
+10. **MCP, as Sam.** Read `sandbox(action="status")` for each organization through `/mcp`, then
+    for the sandbox organization through its own endpoint (`--endpoint /mcp/t/<sandbox org>`).
+    *Expect:* through `/mcp` the standard organization's call is refused with an error that says it
+    is not a public sandbox, and the sandbox's with `403 sandbox_needs_its_own_connector`, naming
+    the sandbox's own address; `products(action="list")` through `/mcp` lists none of the sandbox's
+    products, only the sandbox under `public_sandboxes`. Through its own endpoint the sandbox
+    answers with its notice and that address as `connect_at`.
 11. **MCP, as Jordan.** List products, then try to list sources in a product, and to search it.
     *Expect:* the products are listed with the role reader; both are refused with a clear error, not
     an empty result.
