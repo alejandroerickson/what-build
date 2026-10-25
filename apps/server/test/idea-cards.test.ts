@@ -231,6 +231,8 @@ describe("a card's preview", () => {
     expect(html).toContain(FRONT);
     expect(html).toContain('data-wb-theme="dark"');
     expect(html).toContain(`data-limit="${r.body.frame.max_height}"`);
+    // A phone has no height line, so there the note follows the card rather than lying over its last part.
+    expect(html).toMatch(/@media \(max-width:520px\)\{\.wb-limit\{position:static;/);
     // Without the grant, or with another preview's, nothing.
     expect((await fetch(url)).status).toBe(401);
     const concept = await eddie.api("POST", `${P}/idea/card-preview`, { kind: "concept", card_html: "<p class=\"wb-lede\">No pitch here.</p>" });

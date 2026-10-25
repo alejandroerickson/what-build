@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-10-18}
+generated: {by: agent:claude, at: 2026-10-24}
 status: stable
 ---
 
@@ -53,10 +53,15 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   height limit marked, before writing it. A write
   that touches a card may return `card_advice`, and `outcomes(action="list")` and
   `products(action="get")` say in `note` which cards have no front yet.
-- **The skill is 0.35.0.** Connected agents are asked to update their installed skill. It teaches
+- **The skill is 0.36.0.** Connected agents are asked to update their installed skill. It teaches
   the two sides of a card, the card kit, to preview a front before writing it, and to read
   `card_advice`. An agent whose client connected before the upgrade lacks `card_guidance`,
   `card_preview` and `update_concept` until it starts a new session.
+- **Agents see an upgrade in the next answer.** Every product-scoped MCP result's `scope`, and
+  `products(action="list")`, now gives `skill_version`, the skill version the server runs. An
+  agent connected before the upgrade sees there that its tool list is older and asks the person
+  for a new session, rather than taking an action its list lacks for one the server refuses.
+  Nothing to do; an integration that compares `scope` whole sees one more field.
 
 ## v0.16.0
 

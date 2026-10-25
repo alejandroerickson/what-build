@@ -455,14 +455,17 @@ const MEASURE_SCRIPT =
   "lim.firstChild.textContent=phone?h+'px tall: a phone shows the whole front.':o>0?h+'px tall: '+o+'px over the '+m+'px a desktop shows. It would scroll inside its card.':h+'px tall: fits the '+m+'px a desktop shows, with '+(-o)+'px to spare.';}}" +
   "new ResizeObserver(function(){requestAnimationFrame(send);}).observe(c);if(document.fonts)document.fonts.ready.then(send);send();})();";
 
-/** The line a preview draws where a desktop stops showing the card, and the words on it. */
+/**
+ * The line a preview draws where a desktop stops showing the card, and the words on it. A phone has
+ * no line, so there the words follow the card, below its last part rather than over it.
+ */
 const LIMIT_CSS =
   "body{position:relative}" +
   ".wb-limit{position:absolute;left:0;right:0;border-top:1.5px dashed var(--muted);pointer-events:none}" +
   ".wb-limit[data-over]{border-top-color:var(--rose-solid)}" +
   ".wb-limit>span{position:absolute;right:8px;top:4px;padding:2px 6px;border-radius:4px;background:var(--bg);color:var(--muted);font:500 11px/1.4 var(--font);box-shadow:0 0 0 1px var(--line-2)}" +
   ".wb-limit[data-over]>span{color:var(--rose-ink)}" +
-  "@media (max-width:520px){.wb-limit{top:auto!important;bottom:0;border-top:0}.wb-limit>span{top:auto;bottom:6px}}";
+  "@media (max-width:520px){.wb-limit{position:static;border-top:0;padding:0 var(--pad) var(--pad)}.wb-limit>span{position:static;display:inline-block}}";
 
 /**
  * A front as the app's frame shows it: a whole document around the stored markup, with the kit, the
