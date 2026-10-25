@@ -3,7 +3,7 @@ type: Specification
 title: Nothing is ever trapped - say what we promise, keep export open, and never let a limit block a read.
 description: What we tell people, limits and quotas (enforced and planned), backups and in-product versioning, export, archive and permanent delete of everything archivable and of an organization, the operator runbooks, the public sandbox with its limits, baseline and reset, and how retired insights and decisions became sources.
 tags: [spec, lifecycle, quotas, backups, export, archive, delete, sandbox]
-generated: {by: agent:claude, at: 2026-10-18}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -162,8 +162,6 @@ Rules:
    cannot drift. The layer exists, in `execute`, and today it serves the public sandbox only
    (§9.7).
 5. Archiving does not free storage; deleting does. The UI says so where it matters.
-6. ◆ Decision: **no billing code.** The tenant's `plan` field (always `free`) and the `owner` role
-   reserve the seam; nothing else anticipates it.
 
 **Abuse limits**, which are not quotas but belong beside them. Built: the sign-in link limit,
 the limits on OAuth client registration and on sign-in and OAuth request bodies

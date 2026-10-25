@@ -3,7 +3,7 @@ type: Roadmap
 title: Phases 0 to 5 are mostly built, and a public sandbox; durability, data rights and public sign-up come next.
 description: What is built and what is not, phase by phase, with acceptance criteria; the open questions that remain, the ones already settled, the risks, and problems seen that are not yet explained.
 tags: [roadmap, status, phases, open-questions, risks, problems]
-generated: {by: agent:claude, at: 2026-10-24}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -163,12 +163,6 @@ Relevance set and semantic/hybrid evaluation on `pgvector` ([§8.7](08-search.md
 stay out of search ([decision](../decisions/a-sources-words-are-one-derived-text-and-attachments-are-never-searched.md)).
 
 *Accept:* hybrid beats lexical on the measured relevance set — or it is not adopted.
-
-## Phase 8 — A paid plan (deferred)
-
-Billing, higher limits, and whatever the free tier turns out to be teaching us. ◆ Decision:
-explicitly **not scheduled**. No billing code is written before it; the `plan` field and the
-`owner` role are the only anticipation.
 
 Phases 6 and 7 are independent of each other.
 
