@@ -18,7 +18,7 @@ import {
 } from "../story-guidance.ts";
 import { HOUSE_STYLE_IDS, houseStyle, pageDocument, PLAIN_STYLESHEET } from "../story-styles.ts";
 import { newEtag, newId, randomToken, sha256Hex, uniq } from "../util.ts";
-import { DOWNLOAD_GRANT_HEADER } from "./attachments.ts";
+import { DOWNLOAD_GRANT_HEADER, requesterClaims } from "./attachments.ts";
 
 export const MAX_PAGES = 50;
 export const MAX_DEPTH = 6;
@@ -617,7 +617,7 @@ export const preview = defineOperation({
       .insertInto("story_previews")
       .values({ preview_id, tenant_id: tenantId(ctx), product_id: pid, page_id: input.page_id, html: shown, shows_mockup: Boolean(d.mockup), created_by: json(ctx.actor), expires_at: expiresAt.toISOString(), created_at: ctx.now })
       .execute();
-    const token = ctx.ports.grants.sign({ v: 1, purpose: STORY_PREVIEW_PURPOSE, t: tenantId(ctx), sp: preview_id, exp: Math.floor(expiresAt.getTime() / 1000) });
+    const token = ctx.ports.grants.sign({ v: 1, purpose: STORY_PREVIEW_PURPOSE, t: tenantId(ctx), sp: preview_id, ...requesterClaims(ctx.principal), exp: Math.floor(expiresAt.getTime() / 1000) });
     return {
       page_id: input.page_id,
       new_page: !d.existing,

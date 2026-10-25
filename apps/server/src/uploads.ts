@@ -1,6 +1,6 @@
 import {
-  AppError, CARD_FRAMES, CARD_PREVIEW_PURPOSE, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, ideaCardDocument, ideaCardResponseHeaders, effectiveRole, forbidden, membershipsFor, mockupBundle, json, lockSandbox, MOCKUP_UPLOAD_PURPOSE, notFound, roleAtLeast, sandboxForAccount, STORY_PREVIEW_PURPOSE,
-  toAppError, tooLarge, UPLOAD_GRANT_HEADER, type ActorSnapshot, type Env, type OpContext, type Tx,
+  admitRead, AppError, CARD_FRAMES, CARD_PREVIEW_PURPOSE, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, ideaCardDocument, ideaCardResponseHeaders, effectiveRole, forbidden, levelAllows, membershipsFor, mockupBundle, json, lockSandbox, MOCKUP_UPLOAD_PURPOSE, notFound,
+  OPERATIONS, resolveScope, roleAtLeast, sandboxForAccount, STORY_PREVIEW_PURPOSE, toAppError, tooLarge, UPLOAD_GRANT_HEADER, type ActorSnapshot, type ConnectionLevel, type Env, type OpContext, type Principal, type Tx,
 } from "@whatbuild/core";
 import { randomBytes } from "node:crypto";
 import { Hono, type Context } from "hono";
@@ -58,6 +58,57 @@ function relayed(body: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
       })().catch(() => {});
     },
   });
+}
+
+/** The operation each kind of download grant comes from: its requester must still be allowed what it needed. */
+const ISSUED_BY: Record<string, string> = {
+  download: "attachments.get_download",
+  mockup: "mockups.get_download",
+  [STORY_PREVIEW_PURPOSE]: "story.preview",
+  [CARD_PREVIEW_PURPOSE]: "outcomes.card_preview",
+  export: "products.exports",
+};
+
+const noLongerReads = () => forbidden("Whoever requested this grant can no longer read this product. Nothing was sent.");
+
+/**
+ * Checked before a download grant sends a byte, as the upload relay checks before it stores one:
+ * whoever requested the grant may still do, on the product it reads, what the operation that gave
+ * it needed. Their account still exists; their role there, capped by their connection's level, still
+ * allows it; an agent's connection is still connected; and a public sandbox still admits them.
+ */
+async function requesterMayRead(env: Env, claims: Record<string, unknown>, productId: string): Promise<void> {
+  const op = OPERATIONS.find((o) => o.name === ISSUED_BY[String(claims["purpose"])])!;
+  if (typeof claims["a"] !== "string") throw new AppError(401, "invalid_grant", "The grant is invalid or expired. Request a new one.");
+  const account = await env.db
+    .selectFrom("accounts")
+    .select(["account_id", "email", "display_name", "sandbox_only"])
+    .where("account_id", "=", claims["a"])
+    .where("deleted_at", "is", null)
+    .executeTakeFirst();
+  if (!account) throw noLongerReads();
+  let level: ConnectionLevel | undefined;
+  if (typeof claims["f"] === "string") {
+    const live = await env.db
+      .selectFrom("oauth_tokens")
+      .select("level")
+      .where("family_id", "=", claims["f"])
+      .where("account_id", "=", account.account_id)
+      .where("revoked_at", "is", null)
+      .where("expires_at", ">", new Date().toISOString())
+      .executeTakeFirst();
+    if (!live) throw forbidden("The agent connection that requested this grant is disconnected. Nothing was sent.");
+    level = live.level;
+  }
+  if (!levelAllows(level, op)) throw noLongerReads();
+  const principal: Principal = {
+    account_id: account.account_id, email: account.email, display_name: account.display_name, auth_kind: "upload_grant", surface: level ? "mcp" : "web", client: null,
+    ...(account.sandbox_only ? { sandbox_only: true } : {}), ...(level ? { level } : {}),
+  };
+  const scope = await resolveScope(env.db, principal, "product", op.access, { product: productId }, op.name).catch((e: unknown) => {
+    throw e instanceof AppError && (e.status === 403 || e.status === 404) ? noLongerReads() : e;
+  });
+  await admitRead(env, principal, scope, op.name);
 }
 
 /**
@@ -165,9 +216,11 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
         const v = await trx.selectFrom("file_versions").selectAll().where("file_version_id", "=", c.req.param("file_version_id")).executeTakeFirst();
         if (!v) return null;
         const f = await trx.selectFrom("files").select("path").where("file_id", "=", v.file_id).executeTakeFirst();
-        return { v, path: f?.path ?? "file" };
+        const r = await trx.selectFrom("records").select("product_id").where("record_id", "=", v.record_id).executeTakeFirst();
+        return r ? { v, path: f?.path ?? "file", product_id: r.product_id } : null;
       });
       if (!found) throw notFound("That file no longer exists.");
+      await requesterMayRead(env, claims, found.product_id);
       return streamFile(c, env, found.v, found.path, true);
     } catch (e) {
       return fail(c, e);
@@ -179,6 +232,9 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       const claims = env.ports.grants.verify(c.req.header(DOWNLOAD_GRANT_HEADER) ?? "");
       if (!claims || claims["purpose"] !== "mockup" || claims["xv"] !== c.req.param("version_id"))
         throw new AppError(401, "invalid_grant", "The download grant is missing, invalid or expired. Request a new one with mockups(action=\"get_download\").");
+      const version = await inTenant(env, String(claims["t"]), (trx) => trx.selectFrom("mockup_versions").select("product_id").where("version_id", "=", c.req.param("version_id")).executeTakeFirst());
+      if (!version) throw notFound("That mockup version no longer exists.");
+      await requesterMayRead(env, claims, version.product_id);
       const bundle = await inTenant(env, String(claims["t"]), (trx) => mockupBundle(trx, c.req.param("version_id"), env.ports.blobs));
       if (!bundle) throw notFound("That mockup version no longer exists.");
       return c.body(bundle.bytes as unknown as ArrayBuffer, 200, {
@@ -202,9 +258,10 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
         throw new AppError(401, "invalid_grant", "The preview grant is missing, invalid or expired. Preview again with story(action=\"preview\").");
       const theme = storyTheme(c.req.query("theme"));
       const p = await inTenant(env, String(claims["t"]), (trx) =>
-        trx.selectFrom("story_previews").select(["html", "shows_mockup", "expires_at"]).where("preview_id", "=", c.req.param("preview_id")).executeTakeFirst(),
+        trx.selectFrom("story_previews").select(["product_id", "html", "shows_mockup", "expires_at"]).where("preview_id", "=", c.req.param("preview_id")).executeTakeFirst(),
       );
       if (!p || Date.parse(p.expires_at) < Date.now()) throw notFound("That preview has expired or was replaced by newer ones. Preview again with story(action=\"preview\").");
+      await requesterMayRead(env, claims, p.product_id);
       // A Story page in the Story's sandbox (page-sandbox.ts). A mockup page carries its own look, so
       // it takes neither the theme nor the carried typefaces, and keeps a mockup page's sandbox.
       return storyHtml(c, p.html, p.shows_mockup ? undefined : theme, false, p.shows_mockup);
@@ -223,9 +280,10 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
         throw new AppError(401, "invalid_grant", "The preview grant is missing, invalid or expired. Preview again with outcomes(action=\"card_preview\").");
       const theme = storyTheme(c.req.query("theme"));
       const p = await inTenant(env, String(claims["t"]), (trx) =>
-        trx.selectFrom("card_previews").select(["kind", "title", "card_html", "expires_at"]).where("preview_id", "=", c.req.param("preview_id")).executeTakeFirst(),
+        trx.selectFrom("card_previews").select(["product_id", "kind", "title", "card_html", "expires_at"]).where("preview_id", "=", c.req.param("preview_id")).executeTakeFirst(),
       );
       if (!p || Date.parse(p.expires_at) < Date.now()) throw notFound("That preview has expired or was replaced by newer ones. Preview again with outcomes(action=\"card_preview\").");
+      await requesterMayRead(env, claims, p.product_id);
       const nonce = randomBytes(16).toString("base64");
       for (const [k, v] of Object.entries(ideaCardResponseHeaders(nonce))) c.header(k, v);
       return c.body(ideaCardDocument(p.card_html, { title: p.title, theme, nonce, limit: CARD_FRAMES[p.kind].max_height }));
@@ -238,6 +296,9 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
     try {
       const claims = env.ports.grants.verify(c.req.header(DOWNLOAD_GRANT_HEADER) ?? "");
       if (!claims || claims["purpose"] !== "export" || claims["e"] !== c.req.param("export_id")) throw new AppError(401, "invalid_grant", "The download grant is missing, invalid or expired. Call products(action=\"exports\") again for a fresh one.");
+      const ex = await inTenant(env, String(claims["t"]), (trx) => trx.selectFrom("exports").select("product_id").where("export_id", "=", c.req.param("export_id")).executeTakeFirst());
+      if (!ex) throw notFound("That export is not ready or no longer exists.");
+      await requesterMayRead(env, claims, ex.product_id);
       return await sendExport(c, env, String(claims["t"]), c.req.param("export_id"));
     } catch (e) {
       return fail(c, e);

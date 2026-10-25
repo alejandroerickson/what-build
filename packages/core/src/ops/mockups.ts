@@ -6,7 +6,7 @@ import { checkEtag, productId, recordActivity, tenantId } from "../common.ts";
 import { json, type Tx } from "../db.ts";
 import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
 import { AppError, conflict, forbidden, invalid, notFound, tooLarge } from "../errors.ts";
-import { DOWNLOAD_GRANT_HEADER, UPLOAD_GRANT_HEADER } from "./attachments.ts";
+import { DOWNLOAD_GRANT_HEADER, requesterClaims, UPLOAD_GRANT_HEADER } from "./attachments.ts";
 import { defineOperation, type OpContext, type PrepareContext } from "../registry.ts";
 import { expectedEtag, formatIssues, id } from "../schemas.ts";
 import { inspectMockupHtml, MOCKUP_PAGE_RULES } from "../html-rules.ts";
@@ -909,7 +909,7 @@ export const getMockupDownload = defineOperation({
     const vid = input.version ? await versionIdOf(ctx, e.mockup_id, input.version) : e.current_version_id;
     const n = input.version ?? e.version_count;
     const expiresAt = new Date(Date.parse(ctx.now) + ctx.ports.config.grantTtlSeconds * 1000);
-    const token = ctx.ports.grants.sign({ v: 1, purpose: "mockup", t: tenantId(ctx), xv: vid, exp: Math.floor(expiresAt.getTime() / 1000) });
+    const token = ctx.ports.grants.sign({ v: 1, purpose: "mockup", t: tenantId(ctx), xv: vid, ...requesterClaims(ctx.principal), exp: Math.floor(expiresAt.getTime() / 1000) });
     return {
       mockup_id: e.mockup_id,
       version: n,

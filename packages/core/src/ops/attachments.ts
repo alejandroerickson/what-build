@@ -4,7 +4,7 @@ import { productId, recordActivity, tenantId } from "../common.ts";
 import { json } from "../db.ts";
 import { AppError, conflict, invalid, notFound, rateLimited, tooLarge } from "../errors.ts";
 import { extensionForMediaType, extensionOf, mediaTypeFor, validFilePath } from "../media.ts";
-import { defineOperation, type OpContext } from "../registry.ts";
+import { defineOperation, type OpContext, type Principal } from "../registry.ts";
 import { countVisitorBytes, sandboxForAccount, visitorMayFetchUrl, visitorUploadLimit } from "../public-sandbox.ts";
 import { id } from "../schemas.ts";
 import { newEtag, newId, sha256OfStream } from "../util.ts";
@@ -12,6 +12,15 @@ import { attachmentEntries, duplicateWarnings, insertRecord, loadRecord, recordM
 
 export const UPLOAD_GRANT_HEADER = "X-WhatBuild-Upload-Grant";
 export const DOWNLOAD_GRANT_HEADER = "X-WhatBuild-Download-Grant";
+
+/**
+ * Who asked for a download grant, which its route checks again before it sends a byte: the account
+ * (`a`), and an agent's connection (`f`, its token family), so a grant stops working once its
+ * requester may no longer read what it names, or their agent is disconnected.
+ */
+export function requesterClaims(p: Pick<Principal, "account_id" | "connection">): { a: string; f?: string } {
+  return { a: p.account_id, ...(p.connection ? { f: p.connection } : {}) };
+}
 
 /** The most attachments one source holds. */
 export const MAX_ATTACHMENTS = 50;
@@ -400,7 +409,7 @@ export const getDownload = defineOperation({
     const v = vid ? await ctx.db.selectFrom("file_versions").selectAll().where("file_version_id", "=", vid).where("file_id", "=", f.file_id).executeTakeFirst() : undefined;
     if (!v) throw notFound("That file version doesn’t exist.");
     const expiresAt = new Date(Date.parse(ctx.now) + ctx.ports.config.grantTtlSeconds * 1000);
-    const token = ctx.ports.grants.sign({ v: 1, purpose: "download", t: tenantId(ctx), fv: v.file_version_id, exp: Math.floor(expiresAt.getTime() / 1000) });
+    const token = ctx.ports.grants.sign({ v: 1, purpose: "download", t: tenantId(ctx), fv: v.file_version_id, ...requesterClaims(ctx.principal), exp: Math.floor(expiresAt.getTime() / 1000) });
     return {
       path: f.path,
       file_version_id: v.file_version_id,

@@ -6,6 +6,7 @@ import { json, type RegisterEntriesTable, type Tx } from "../db.ts";
 import { conflict } from "../errors.ts";
 import type { Ports } from "../ports.ts";
 import { defineOperation } from "../registry.ts";
+import { requesterClaims } from "./attachments.ts";
 import { newId } from "../util.ts";
 
 export const EXPORT_FORMAT = "whatbuild-product-bundle";
@@ -103,7 +104,7 @@ export const listExports = defineOperation({
             ? {
                 method: "GET",
                 url: `${ctx.ports.config.publicBaseUrl}/api/v1/downloads/export/${r.export_id}`,
-                headers: { "X-WhatBuild-Download-Grant": ctx.ports.grants.sign({ v: 1, purpose: "export", t: tenantId(ctx), e: r.export_id, exp: Math.floor(Date.parse(ctx.now) / 1000) + ctx.ports.config.grantTtlSeconds }) },
+                headers: { "X-WhatBuild-Download-Grant": ctx.ports.grants.sign({ v: 1, purpose: "export", t: tenantId(ctx), e: r.export_id, ...requesterClaims(ctx.principal), exp: Math.floor(Date.parse(ctx.now) / 1000) + ctx.ports.config.grantTtlSeconds }) },
               }
             : null;
         return { export_id: r.export_id, status: r.status, size: r.size === null ? null : Number(r.size), file_count: r.file_count, error: r.error, created_at: r.created_at, created_by: r.created_by, completed_at: r.completed_at, expires_at: r.expires_at, download: grant };
