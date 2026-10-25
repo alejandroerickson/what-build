@@ -28,7 +28,7 @@ with Google Chrome installed. Building the golden master needs a pull of product
 | The golden master | The database `golden` in the instance's own embedded Postgres (`.what-build/e2e/pg`, port `54339`) and its files (`.what-build/e2e/golden-blobs`). It is built once and stays as it is until it is built again. `.what-build/e2e/golden.json` says which pull it was built from, when, at which commit and schema, the two organizations' slugs and every product's path. |
 | The instance | `pnpm dev:e2e`: the database `e2e`, made fresh from the golden master each time it starts, with its own files (`.what-build/e2e/blobs`), on `http://localhost:5283` (API `:8797`). It runs beside `pnpm dev`. Mail only prints. |
 | Plans | `e2e/plans/*.md`, Markdown steps in the product's vocabulary, each saying who acts, through which door, and what to expect. `e2e/plans/README.md` is the format. |
-| The browser driver | `pnpm e2e browser <command>`: a real Chrome kept open by a small daemon between commands, addressed by role, accessible name and label. |
+| The browser driver | `pnpm e2e browser <command>`: a real Chrome kept open by a small daemon between commands, addressed by role, accessible name and label. The daemon listens on 127.0.0.1 and takes a command only with the token it writes to `.what-build/e2e/browser.json`, which only its owner can read, so a web page cannot drive it. |
 | The MCP client | `pnpm e2e mcp <command>`: connects as a sample person through the full OAuth flow and calls tools. |
 | Runs | `.what-build/e2e/runs/<time>-<plan>/`: `run.json`, `log.jsonl` (every browser and MCP command, its result and any problems), `shots/`, and the agent's `report.md`. |
 

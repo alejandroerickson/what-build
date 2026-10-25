@@ -121,9 +121,18 @@ export interface ScopeRef {
 
 const ACCESS_ROLE: Record<"story" | "read" | "write" | "admin", ProductRole> = { story: "reader", read: "viewer", write: "editor", admin: "admin" };
 
+/** The text without slashes at either end. A loop, since /\/+$/ takes quadratic time on a long run of them. */
+function trimSlashes(s: string): string {
+  let a = 0;
+  let b = s.length;
+  while (a < b && s[a] === "/") a++;
+  while (b > a && s[b - 1] === "/") b--;
+  return s.slice(a, b);
+}
+
 /** Parse "tenant/team/product" or a bare product id. */
 export function parseProductRef(ref: string): ScopeRef {
-  const trimmed = ref.trim().replace(/^\/+|\/+$/g, "");
+  const trimmed = trimSlashes(ref.trim());
   if (ULID_PATTERN.test(trimmed)) return { product: trimmed };
   const parts = trimmed.split("/");
   if (parts.length === 3 && parts.every(Boolean)) return { tenant: parts[0]!, team: parts[1]!, product: parts[2]! };

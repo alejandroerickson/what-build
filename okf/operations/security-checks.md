@@ -126,6 +126,11 @@ pnpm security workflows   # zizmor over .github/; GH_TOKEN=$(gh auth token) adds
    it.
 5. **Dependabot** pull requests run the same CI. A grouped update that breaks something is split by
    closing it and updating the culprit alone.
+6. **A CodeQL alert** is fixed in the code when it is right, with a test that holds the fix; the
+   alert closes on the next analysis of `main`. One that is wrong, or that is in a test or in a
+   local tool doing what it is for, is dismissed in the Security tab or with
+   `gh api -X PATCH repos/<owner>/<repo>/code-scanning/alerts/<n> -f state=dismissed -f dismissed_reason=<false positive|used in tests|won't fix> -f dismissed_comment=<why>`.
+   The comment says why in terms of the code: what the value is, and where it goes.
 
 Never weaken a check to make it pass without saying so in the commit.
 

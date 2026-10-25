@@ -20,7 +20,8 @@ export function clock(ms: number): string {
 }
 
 const escapeName = (s: string) => s.replace(/[\\`*_[\]]/g, (c) => `\\${c}`);
-const cell = (s: string) => s.replace(/\s+/g, " ").trim().replace(/\|/g, "\\|");
+// A backslash is escaped too, or a cell ending in one would escape the pipe that closes it.
+const cell = (s: string) => s.replace(/\s+/g, " ").trim().replace(/[\\|]/g, (c) => `\\${c}`);
 
 /** A table in GitHub's pipe syntax, as wide as its widest row. Rows with nothing in them are left out. */
 export function tableMarkdown(t: TableRef): string {

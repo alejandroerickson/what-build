@@ -84,7 +84,7 @@ async function connect(email: string, endpoint: string, level: Level): Promise<S
   const t = (await token.json()) as { access_token: string; expires_in: number };
   const saved: Saved = { email, endpoint, level, client_id, access_token: t.access_token, expires_at: Date.now() + (t.expires_in - 60) * 1000 };
   mkdirSync(TOKENS, { recursive: true });
-  writeFileSync(tokenFile(email, endpoint, level), JSON.stringify(saved));
+  writeFileSync(tokenFile(email, endpoint, level), JSON.stringify(saved), { mode: 0o600 });
   return saved;
 }
 

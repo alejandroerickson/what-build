@@ -1,6 +1,7 @@
 import { strToU8, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
-import { clock, currentReading, derive, IMAGE_DETAIL, RECORDING_DETAIL, recordingDurationMs, SCAN_DETAIL, settledReading, sliceCodePoints, type ParseResult } from "../src/index.ts";
+import { cleanPayload } from "../src/cues.ts";
+import { clock, currentReading, derive, IMAGE_DETAIL, RECORDING_DETAIL, recordingDurationMs, SCAN_DETAIL, settledReading, sliceCodePoints, tableMarkdown, type ParseResult } from "../src/index.ts";
 import { bytesReader } from "../src/media.ts";
 import { splitLong } from "../src/text.ts";
 import { builtinFormat, formatNumber, formatText, readFormat } from "../src/numfmt.ts";
@@ -63,6 +64,16 @@ Priya: Because that's when the numbers close.
     const r = await derive(utf8("WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nsaid 00:00:03.000 --> 00:00:04.000 aloud\n"), "a.vtt");
     expect(r.segments).toHaveLength(1);
     expect(r.segments[0]!.text).toContain("aloud");
+  });
+});
+
+describe("entities and escapes", () => {
+  it("keeps a caption that reads &lt; as it reads, turning &amp; back last", () => {
+    expect(cleanPayload("Use &amp;lt;b&amp;gt; for bold &amp; more").text).toBe("Use &lt;b&gt; for bold & more");
+  });
+
+  it("escapes a backslash in a table cell, so it cannot escape the pipe that closes the cell", () => {
+    expect(tableMarkdown({ header: ["Path", "Note"], rows: [["C:\\", "a|b"]] }).split("\n")[2]).toBe("| C:\\\\ | a\\|b |");
   });
 });
 

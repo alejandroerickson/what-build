@@ -86,13 +86,14 @@ function AppLink({ href, className, title, children }: { href: string; className
   );
 }
 
+/** `&amp;` goes last, so that text which reads `&lt;` stays `&lt;` rather than becoming `<`. */
 function decode(s: string): string {
   return s
-    .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
 }
 
 function inline(tokens: Token[] | undefined, key = "i", cx: Cx = {}): ReactNode {
