@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.18.0
+
 - **An unexpected error is one log line, and every response names its request.** It concerns
   anyone who reads or filters a deployment's log. In production an unexpected error is now one
   JSON line with `"severity": "ERROR"`, its label and stack in `message`, and the request's
