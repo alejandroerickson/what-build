@@ -374,7 +374,7 @@ Each has a default so work is not blocked.
 
 | Risk | Mitigation |
 |---|---|
-| **We are a custodian.** Other people's research on rented infrastructure with no revenue. | Small limits, plain words at sign-in, complete export, a rehearsed restore, and asking people not to send anything we would be sorry to lose. |
+| **We are a custodian.** Other people's research on rented infrastructure. | Small limits, plain words at sign-in, complete export, a rehearsed restore, and asking people not to send anything we would be sorry to lose. |
 | **Hosting costs move.** A free tier changes or disappears. | Plain Postgres, a Postgres queue, the object store behind a port, no provider SDK outside its adapter — moving is a redeploy, not a rewrite. The service scales to zero when idle. |
 | **Sign-up is an attack surface.** Abuse, spam accounts, storage burned by strangers. | Invite-only until the Phase 6 abuse limits exist; sign-in link limits, bounded request bodies on sign-in and OAuth, and a limit on agent registrations today; only accounts an instance owner gives an allowance create organizations; per-member write limits, small caps and an operator usage view before public sign-up. |
 | **No zero-install demo.** A stranger cannot touch the product without an email address. | The [public sandbox](#the-public-sandbox) admits anyone holding an invitation, and still asks for an address to sign in with; the planned public read-only sample would ask for none. |
