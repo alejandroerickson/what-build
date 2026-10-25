@@ -3,7 +3,7 @@ type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
 description: The operation registry, the error model and bounds, the full catalogue of 121 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
-generated: {by: agent:claude, at: 2026-10-18}
+generated: {by: agent:claude, at: 2026-10-24}
 status: stable
 ---
 
@@ -556,7 +556,8 @@ Notes on recent actions:
   in, and a download grant to GET the front from `card_previews` in the document the Idea screen
   shows it in (the same sandbox, kit and `?theme`), with a dashed line at the most height a desktop
   shows and a note, written by the card's script, saying how tall the front is and whether it fits
-  (on a phone, that the whole front shows). A product keeps its 20 newest card previews; a grant
+  (on a phone, with no line, that the whole front shows, below the front rather than over its last
+  part). A product keeps its 20 newest card previews; a grant
   lasts as long as other download grants. Editors and admins.
 - `members.list` takes an optional `product` to list only the people who can reach it, each with
   `product_access { role, via }`. It answers `403` to someone who reads only the Story everywhere
@@ -712,7 +713,11 @@ keeps the tool list it got when it connected until a new session, and authorizin
 refresh it. ◆ Decision: say so rather than build sessions for it. The instructions tell the agent
 that a tool the skill describes but its list lacks, or a skill newer than the version they name,
 means an older list, and to ask the person to start a new session; `get_skill`'s description says
-the same of a newer version than the instructions named. `unknown_tool` and `unknown_action` name
+the same of a newer version than the instructions named. So that an upgrade made in the middle of
+a conversation shows without the agent thinking to call `get_skill`, every product-scoped result
+gives the skill version the server runs now as `skill_version` in its `scope`, and
+`products(action="list")`, the call an agent starts and resumes with, gives it as `skill_version`
+beside its products; the instructions say what a newer one means. `unknown_tool` and `unknown_action` name
 the server's version and the tools, or the tool's actions, the connection is offered, as its
 `tools/list` names them (also in `details`: `server_version`, `tools` or `actions`), so never
 `submit_feedback` where its person turned it off, and say the client may hold a list from another
@@ -784,7 +789,8 @@ Rules:
   `403 connection_level`, which says what it needs; it is never `unknown_action`.
 - **Results** are JSON in one text content block. Product-scoped results add `scope`
   (tenant, team, product with its path, `your_role` capped by the connection's level,
-  `connection_level`, and `public_sandbox: true` in the public sandbox). Tools whose actions are all reads carry read-only annotations.
+  `connection_level`, `public_sandbox: true` in the public sandbox, and `skill_version`, the
+  server's skill version now). Tools whose actions are all reads carry read-only annotations.
 - **Source text is data.** The server instructions, tool descriptions and the skill state that
   text returned from sources is quoted material, never instructions to the agent.
 - **Delete is on the MCP surface for an Admin connection, and guarded there.** An agent whose

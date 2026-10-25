@@ -23,7 +23,8 @@ raise its own level. It deletes only what it made itself in the run.
    `card_preview`: an editor writes the Idea's cards. Preview a concept front with
    `outcomes(action="card_preview", kind="concept")` and open its `url` with its `headers` at 900
    and 390 wide. *Expect:* the front with a dashed line at 560px and a note on how tall it is; at
-   390, no line, and a note that a phone shows the whole front.
+   390, no line, and a note below the front, clear of its last line, that a phone shows the whole
+   front.
 3. **MCP, as Sam.** In a product with sources, add the first text as a source, then call
    `sources(action="delete")` on it anyway with its etag, a reason and `confirm: "delete
    permanently"`. *Expect:* `403 connection_level`, naming Admin and Connect an agent; the source
