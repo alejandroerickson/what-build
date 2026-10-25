@@ -246,7 +246,7 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; cl
   app.route("/", prototypeRoutes(env));
   app.route("/", publicRoutes({ db: deps.db, config: deps.config, release }));
   app.route("/", sandboxRoutes({ db: deps.db, clock, base: deps.config.publicBaseUrl }));
-  app.route("/", oauthRoutes({ db: deps.db, config: deps.config }));
+  app.route("/", oauthRoutes({ db: deps.db, config: deps.config, notifyJobs: () => deps.ports.notifyJobs?.() }));
   app.route("/", authRoutes({ db: deps.db, config: deps.config, mailer: deps.ports.mailer ?? new ConsoleMailer() }));
   app.route("/", uploadRoutes(env));
   app.route("/", mcpRoutes(env));

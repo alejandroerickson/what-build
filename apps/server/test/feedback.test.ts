@@ -252,8 +252,11 @@ describe("the digest", () => {
     await client.close();
 
     await h.worker.drain();
-    expect(h.mailer.sent).toHaveLength(1);
-    const mail = h.mailer.sent[0]!;
+    // Each agent Ines connected sent her a notice of it; the digest goes to the deployment's address alone.
+    for (const m of h.mailer.sent.filter((m) => m.to !== DIGEST_TO)) expect(m).toMatchObject({ to: "ines@feedback.example", subject: "A new agent is connected to your WhatBuild account" });
+    const digests = h.mailer.sent.filter((m) => m.to === DIGEST_TO);
+    expect(digests).toHaveLength(1);
+    const mail = digests[0]!;
     expect(mail.to).toBe(DIGEST_TO);
     expect(mail.subject).toBe(`WhatBuild feedback: 3 reports from ${new URL(h.baseUrl).host}`);
     expect(mail.text).toContain("1. Bug, from the web app, on Search. Release ");

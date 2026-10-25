@@ -32,6 +32,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   products and teams, only its name and that address, under `public_sandboxes`. Download and upload
   grants an agent was given through `/mcp` before the release keep working until they expire. The
   skill is now at version 0.37.0; agents fetch it again as the server's instructions tell them.
+- **People are emailed when a new agent connects as them.** It concerns every deployment that
+  sends mail, and asks nothing of it. From this release the worker sends one message for each new
+  agent connection, to the account's address: what connected, where it is held, what it reaches,
+  and how to disconnect it or sign out everywhere. A refresh sends nothing, and neither does an
+  agent of the same name connecting again from the same place. A deployment without mail sends
+  nothing, and the consent page now warns before a first connection at a web address the person
+  has never connected an agent at.
 
 ## v0.17.2
 

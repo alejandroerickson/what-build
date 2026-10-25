@@ -3,6 +3,7 @@ import {
   blobsSafeToDelete, indexSources, lockSandbox, markExportFailed, pruneFeedbackCounts, pruneUsage, runDerivation, runEvidenceMove, runExport, sendFeedbackDigest, stagedPrototypeKeys, type Env,
 } from "@whatbuild/core";
 import { sql } from "kysely";
+import { CONNECTION_NOTICE_JOB, sendConnectionNotice, type ConnectionNoticeJob } from "./auth/connection-notice.ts";
 import { pruneOAuthClients } from "./auth/oauth.ts";
 import { migrationNames } from "./database.ts";
 
@@ -24,7 +25,7 @@ const STALE_LOCK_MINUTES = 10;
  * instance of the version before it leaves a kind a new migration queued for the new version,
  * instead of failing it and spending its attempts. A job no running version knows waits.
  */
-export const JOB_KINDS = ["derive", "export", "move_to_evidence", "delete_blobs", "index_texts"] as const;
+export const JOB_KINDS = ["derive", "export", "move_to_evidence", "delete_blobs", "index_texts", CONNECTION_NOTICE_JOB] as const;
 
 interface Job {
   job_id: number;
@@ -332,6 +333,10 @@ export class Worker {
         } else if (job.kind === "index_texts") {
           const n = await indexSources(trx, { product_id: String(job.payload["product_id"]) });
           this.log(`job ${job.job_id} index_texts ${job.payload["product_id"]}: ${n} sources in ${Date.now() - started} ms`);
+        } else if (job.kind === CONNECTION_NOTICE_JOB) {
+          // Sent from here so that a mailer that fails never fails the token exchange; it is retried like any job.
+          const sent = await sendConnectionNotice(trx, this.env.ports, job.payload as unknown as ConnectionNoticeJob);
+          this.log(`job ${job.job_id} ${CONNECTION_NOTICE_JOB}: ${sent ? "sent" : "nothing to send"}`);
         } else if (job.kind === "delete_blobs") {
           // A blob that a sandbox's baseline refers to stays: a reset would bring its source back.
           const safe = await blobsSafeToDelete(trx, job.tenant_id, (job.payload["keys"] as string[]) ?? [], (job.payload["prefixes"] as string[]) ?? []);

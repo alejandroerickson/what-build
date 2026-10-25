@@ -118,7 +118,11 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   HMAC, keyed with the server's secret, over the request the page showed and the account it showed
   it to: an Allow whose resource, code challenge, `state` or client differs, or that another
   account posts, is refused. The connected-agents list says who holds each connection the same
-  way.
+  way. Before a first connection at an `https` host the account has never connected an agent at,
+  the page says so above the buttons, Deny first and neither primary; and every new connection,
+  but an agent of the same name connecting again from the same place, is mailed to its person with
+  where it is held, what it reaches and how to end it (`connection-notice.ts`), so an Allow given
+  by mistake is noticed.
 - A connection has the level the person chose on the consent page (Read only, Edit by default,
   or Admin), stored on its tokens. It caps the person's role, never adds to it: `execute` refuses
   an operation above it (`403 connection_level`) before resolving any scope, and MCP lists only
