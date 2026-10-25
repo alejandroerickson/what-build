@@ -129,11 +129,12 @@ export function cleanPayload(raw: string): { text: string; speaker: string | nul
     // One pass collapses line breaks too; /\s*\n\s*/ took quadratic time on long runs of spaces.
     .replace(/\s+/g, " ")
     .trim();
+  // `&amp;` last, so that a caption which reads `&lt;` keeps it.
   text = text
-    .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
-    .replace(/&nbsp;/g, " ");
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&");
   if (!speaker) {
     const m = text.match(SPEAKER_PREFIX);
     if (m?.[1] && m[2]) {

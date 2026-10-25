@@ -242,7 +242,10 @@ const STATE_APIS: [string, RegExp][] = [
 type Node = { nodeName: string; tagName?: string; attrs?: { name: string; value: string }[]; childNodes?: Node[]; content?: Node; value?: string };
 
 const LENIENT_UTF8 = new TextDecoder("utf-8");
-const CSS_URL = /url\(\s*(['"]?)([^'")]*)\1\s*\)|@import\s+(['"])([^'"]+)\3/gi;
+// An address in url(…), quoted or not, or in @import "…". Unquoted, it is words with spaces between
+// them, never at either end, and without "(", which CSS requires escaped there. The spaces after it
+// belong to the address's own branch, so each character can match only one way: linear time.
+const CSS_URL = /url\(\s*(?:(['"])([^'")]*)\1\s*|([^'"()\s]+(?:\s+[^'"()\s]+)*)\s*)?\)|@import\s+(['"])([^'"]+)\4/gi;
 const RESOURCE_ATTRS = new Set(["src", "poster", "data"]);
 
 /**
@@ -285,7 +288,7 @@ export function prototypeWarnings(files: { path: string; media_type: string; dat
     if (!held.has(target)) add(`${file} names ${u.slice(0, 120)}, which the prototype does not hold.`);
   };
   const checkCss = (file: string, css: string) => {
-    for (const m of css.matchAll(CSS_URL)) checkAddress(file, m[2] ?? m[4] ?? "", "load");
+    for (const m of css.matchAll(CSS_URL)) checkAddress(file, m[2] ?? m[3] ?? m[5] ?? "", "load");
   };
   const checkScript = (text: string, found: Set<string>) => {
     for (const [name, re] of STATE_APIS) if (re.test(text)) found.add(name);

@@ -32,9 +32,9 @@ export function findWords(terms: readonly { text: string; phrase: boolean }[]): 
   return terms.map((t) => (t.phrase ? `"${t.text}"` : t.text)).join(" ");
 }
 
-/** The entities the web app's Markdown turns back into characters. */
+/** The entities the web app's Markdown turns back into characters, `&amp;` last as it does. */
 function decode(s: string): string {
-  return s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+  return s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
 }
 
 /**

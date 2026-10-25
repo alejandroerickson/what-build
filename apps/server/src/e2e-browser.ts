@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join, resolve } from "node:path";
@@ -77,7 +78,16 @@ async function daemon(headed: boolean) {
     return out;
   };
 
+  // Only the command line may drive the browser: it reads this token from the state file, which only
+  // its owner can read, and a web page cannot send the header without a preflight this never answers.
+  const token = randomBytes(24).toString("hex");
   const server = createServer((req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    if (req.headers["x-e2e-token"] !== token) {
+      res.statusCode = 403;
+      res.end();
+      return;
+    }
     let body = "";
     req.on("data", (d: Buffer) => (body += d.toString()));
     req.on("end", () => {
@@ -151,7 +161,7 @@ async function daemon(headed: boolean) {
         return `selected "${b}" in "${a}"`;
       case "check":
       case "uncheck":
-        await pick(page.getByLabel(need(a, "a label"), { exact: flags.exact }))[cmd]();
+        await pick(page.getByLabel(need(a, "a label"), { exact: flags.exact })).setChecked(cmd === "check");
         return `${cmd}ed "${a}"`;
       case "press":
         await page.keyboard.press(need(a, "a key"));
@@ -204,7 +214,7 @@ async function daemon(headed: boolean) {
 
   server.listen(0, "127.0.0.1", () => {
     const address = server.address();
-    writeFileSync(STATE, JSON.stringify({ port: typeof address === "object" && address ? address.port : 0, pid: process.pid, base }));
+    writeFileSync(STATE, JSON.stringify({ port: typeof address === "object" && address ? address.port : 0, token, pid: process.pid, base }), { mode: 0o600 });
   });
 }
 
@@ -236,10 +246,13 @@ const alive = (pid: number) => {
   }
 };
 
-async function ensureDaemon(headed: boolean) {
+type Daemon = { port: number; token: string };
+
+async function ensureDaemon(headed: boolean): Promise<Daemon> {
   if (existsSync(STATE)) {
-    const s = JSON.parse(readFileSync(STATE, "utf8")) as { port: number; pid: number };
-    if (alive(s.pid)) return s.port;
+    const s = JSON.parse(readFileSync(STATE, "utf8")) as Daemon & { pid: number };
+    // A daemon started before the token ignores the header, so it serves until it is stopped.
+    if (alive(s.pid)) return { port: s.port, token: s.token ?? "" };
     rmSync(STATE, { force: true });
   }
   mkdirSync(E2E_DIR, { recursive: true });
@@ -248,7 +261,7 @@ async function ensureDaemon(headed: boolean) {
   child.unref();
   for (let i = 0; i < 100; i++) {
     await new Promise((r) => setTimeout(r, 150));
-    if (existsSync(STATE)) return (JSON.parse(readFileSync(STATE, "utf8")) as { port: number }).port;
+    if (existsSync(STATE)) return JSON.parse(readFileSync(STATE, "utf8")) as Daemon;
     if (child.exitCode !== null) break;
   }
   throw new Error(`The browser did not start; see ${LOG}. It uses the installed Google Chrome, or the browser at $CHROME.`);
@@ -257,9 +270,9 @@ async function ensureDaemon(headed: boolean) {
 export async function browserCommand(args: string[]) {
   if (!args.length || args[0] === "help") return console.log(HELP);
   if (args[0] === "stop" && !existsSync(STATE)) return console.log("The browser is not running.");
-  const port = await ensureDaemon(args[0] === "start" && args.includes("--headed"));
+  const { port, token } = await ensureDaemon(args[0] === "start" && args.includes("--headed"));
   if (args[0] === "start") return console.log(`The browser is running, on ${e2eBaseUrl()}.`);
-  const res = await fetch(`http://127.0.0.1:${port}/`, { method: "POST", body: JSON.stringify({ args }) });
+  const res = await fetch(`http://127.0.0.1:${port}/`, { method: "POST", headers: { "x-e2e-token": token }, body: JSON.stringify({ args }) });
   const out = (await res.json()) as { ok: boolean; text: string; url?: string; problems?: Problem[] };
   record({ surface: "web", command: args, ok: out.ok, url: out.url, result: out.ok ? out.text.slice(0, 400) : out.text, problems: out.problems });
   console.log(out.text);

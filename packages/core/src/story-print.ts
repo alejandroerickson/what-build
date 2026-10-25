@@ -140,6 +140,48 @@ function splitTopLevel(s: string, sep: string): string[] {
 
 const HOST_QUALIFIERS = /:host((?:[.#][-\w]+|\u0000\d+\u0000|:(?!:)(?!host\b)[-\w]+(?:\u0001\d+\u0001)?)+)/g;
 
+/**
+ * Mask attribute selectors and strings, as /\[[^\]]*\]|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g would, in
+ * one pass: that pattern took quadratic time on many `[` or quotes that never close. Once a scan
+ * fails, every mark of its kind before where it stopped fails the same way, so none is scanned again.
+ */
+function maskQuoted(selector: string, masks: string[]): string {
+  const failsBefore: Record<string, number> = { "[": -1, '"': -1, "'": -1 };
+  let out = "";
+  let i = 0;
+  while (i < selector.length) {
+    const c = selector[i]!;
+    let end = -1;
+    if ((c === "[" || c === '"' || c === "'") && i >= failsBefore[c]!) {
+      if (c === "[") {
+        end = selector.indexOf("]", i + 1);
+        if (end < 0) failsBefore[c] = Infinity;
+      } else {
+        let j = i + 1;
+        while (j < selector.length && selector[j] !== c) {
+          // A backslash escapes the next character, unless that ends a line, as `\\.` in the pattern.
+          if (selector[j] === "\\") {
+            if (j + 1 >= selector.length || LINE_END.test(selector[j + 1]!)) break;
+            j += 2;
+          } else j += 1;
+        }
+        if (j < selector.length && selector[j] === c) end = j;
+        else failsBefore[c] = j;
+      }
+    }
+    if (end >= 0) {
+      out += `\u0000${masks.push(selector.slice(i, end + 1)) - 1}\u0000`;
+      i = end + 1;
+    } else {
+      out += c;
+      i += 1;
+    }
+  }
+  return out;
+}
+
+const LINE_END = /[\n\r\u2028\u2029]/;
+
 /** Rewrite one selector so what the page said of its document applies to its shadow host. */
 export function scopeSelector(selector: string): string {
   // Mask attribute selectors, strings and parenthesised arguments so only real type selectors change.
@@ -147,7 +189,7 @@ export function scopeSelector(selector: string): string {
   // scoped while its own masks are still in place, and everything is put back at the end.
   const masks: string[] = [];
   const parens: string[] = [];
-  const masked = selector.replace(/\[[^\]]*\]|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, (m) => `\u0000${masks.push(m) - 1}\u0000`);
+  const masked = maskQuoted(selector, masks);
   const scope = (sel: string): string => {
     let s = sel;
     let prev = "";

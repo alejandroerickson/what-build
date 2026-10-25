@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { closeSync, existsSync, fstatSync, openSync, readFileSync } from "node:fs";
 import { extname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { SKILL_NAME, SKILL_VERSION, skillMarkdown, unauthenticated, USAGE_PEOPLE_MONTHS, type Db } from "@whatbuild/core";
 import { strToU8, zipSync } from "fflate";
@@ -117,6 +117,19 @@ export function insideRoot(root: string, file: string): boolean {
  * are cached forever; index.html never. An unknown path without an extension is the app shell; an
  * unknown path with one is a 404, so a stale chunk after a deploy is never answered with HTML.
  */
+/** A file's bytes, or null when there is no file there. One open, so what is read is what was checked. */
+function readFileIfAny(file: string) {
+  let fd: number | undefined;
+  try {
+    fd = openSync(file, "r");
+    return fstatSync(fd).isFile() ? readFileSync(fd) : null;
+  } catch {
+    return null;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
 export function staticRoutes(dist: string, opts: { analytics?: boolean; contentUrl?: string | null } = {}) {
   const headers = pageHeaders(Boolean(opts.analytics), opts.contentUrl ?? null);
   const root = resolve(dist);
@@ -128,9 +141,10 @@ export function staticRoutes(dist: string, opts: { analytics?: boolean; contentU
     if (!hasIndex) return c.notFound();
     const rel = normalize(decodeURIComponent(c.req.path)).replace(/^([/\\])+/, "");
     const file = join(root, rel);
-    if (insideRoot(root, file) && existsSync(file) && statSync(file).isFile()) {
+    const body = insideRoot(root, file) ? readFileIfAny(file) : null;
+    if (body) {
       const immutable = rel.startsWith("assets/");
-      return c.body(readFileSync(file), 200, {
+      return c.body(body, 200, {
         ...headers,
         "Content-Type": TYPES[extname(file)] ?? "application/octet-stream",
         "Cache-Control": immutable ? "public, max-age=31536000, immutable" : "no-cache",

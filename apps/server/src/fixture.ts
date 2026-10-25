@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -235,8 +235,9 @@ function copyFiles(bucket: string, tenantIds: string[] | undefined, into: string
     const listing = JSON.parse(run("gcloud", ["storage", "objects", "list", `${bucket}/${p ? `${p}/` : ""}**`, "--format=json"])) as { name: string; content_type?: string }[];
     for (const o of listing) types.set(o.name, o.content_type);
   }
-  for (const path of readdirSync(into, { recursive: true, encoding: "utf8" }).map((p) => join(into, p))) {
-    if (!statSync(path).isFile()) continue;
+  for (const entry of readdirSync(into, { recursive: true, withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const path = join(entry.parentPath, entry.name);
     const data = readFileSync(path);
     const key = relative(into, path).split(sep).join("/");
     writeFileSync(`${path}.meta.json`, JSON.stringify({ contentType: types.get(key) ?? "application/octet-stream", sha256: createHash("sha256").update(data).digest("hex"), size: data.byteLength }));
