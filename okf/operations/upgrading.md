@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.17.1
+
 - **The Cloud Build configuration moved to `deploy/cloud-run/cloudbuild.yaml`.** It concerns a
   Cloud Run deployment whose trigger runs the build, production's `deploy-release` among them.
   Before publishing this release, point the trigger at the new path. A trigger still naming
