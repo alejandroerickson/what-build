@@ -158,6 +158,15 @@ const unreachable = () =>
 
 type Hop = { redirect?: string; headers: Record<string, string | string[] | undefined>; body?: Uint8Array };
 
+/** A file name as an address or a server's header gives it: decoded, or as it came when its escapes do not decode. */
+function decodedOrAsIs(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+}
+
 /**
  * HTTPS only, public addresses only — an address written in the URL checked before connecting, a
  * name checked on the address actually connected to, and both again on every redirect — with a
@@ -198,8 +207,8 @@ export class SafeUrlFetcher implements UrlFetcher {
       }
       const disposition = res.headers["content-disposition"];
       const fromHeader = typeof disposition === "string" ? /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition)?.[1] : undefined;
-      const fromPath = decodeURIComponent(current.pathname.split("/").filter(Boolean).pop() ?? "");
-      const fileName = (fromHeader ? decodeURIComponent(fromHeader) : fromPath || "download").replace(/[\\/]/g, "_").slice(0, 150);
+      const fromPath = decodedOrAsIs(current.pathname.split("/").filter(Boolean).pop() ?? "");
+      const fileName = (fromHeader ? decodedOrAsIs(fromHeader) : fromPath || "download").replace(/[\\/]/g, "_").slice(0, 150);
       const ct = res.headers["content-type"];
       return { bytes: res.body!, fileName, mediaType: typeof ct === "string" ? ct.split(";")[0]!.trim() : null };
     }

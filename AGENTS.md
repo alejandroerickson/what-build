@@ -95,7 +95,7 @@ conducts each one that changes something:
 
 | To | Read | Skill |
 |---|---|---|
-| set up or change the Cloud Run deployment: sign-in, domain, settings, the Cloudflare Worker | `cloud-run.md` | |
+| set up or change the Cloud Run deployment: sign-in, domain, settings, alerts and traces, the Cloudflare Worker | `cloud-run.md` | |
 | publish a release, move production | `releasing.md` | `make-a-release` |
 | know what a deployment must do when it takes a release; add a line for a change that asks something of one | `upgrading.md` | `make-a-release` |
 | run the end-to-end tests on the golden master | `end-to-end-tests.md` | `run-end-to-end-tests` |

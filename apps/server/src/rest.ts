@@ -8,6 +8,7 @@ import { sql } from "kysely";
 import { z } from "zod";
 import { isOwnOrigin, restPrincipal } from "./auth/identity.ts";
 import type { ServerConfig } from "./config.ts";
+import { logError } from "./telemetry.ts";
 
 /** Where each scope's routes live. The addressed tenant, team and product are always in the path. */
 export const SCOPE_PREFIX: Record<OperationDef["scope"], string> = {
@@ -128,7 +129,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
         return c.json(result as object, op.rest.method === "POST" && CREATES.test(op.name) ? 201 : 200);
       } catch (e) {
         const err = toAppError(e, WEB);
-        if (err.status === 500) console.error(`${op.name}:`, e);
+        if (err.status === 500) logError(op.name, e);
         return errorResponse(c, err);
       }
     });
@@ -344,7 +345,7 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       return c.body(html, 200, printResponseHeaders(nonce));
     } catch (e) {
       const err = toAppError(e, WEB);
-      if (err.status === 500) console.error("story print view:", e);
+      if (err.status === 500) logError("story print view", e);
       return errorResponse(c, err);
     }
   });

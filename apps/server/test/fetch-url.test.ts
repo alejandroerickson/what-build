@@ -79,6 +79,18 @@ describe("the URL fetcher", () => {
     server.close();
   });
 
+  it("keeps a file name whose escapes do not decode as it came, in the address or the server's header", async () => {
+    const server = createHttpServer((req, res) => {
+      if (req.url === "/named") res.writeHead(200, { "content-disposition": "attachment; filename*=UTF-8''crew%E0%A4%A.txt" });
+      res.end("Crews plan by the week.");
+    });
+    const port = await listen(server);
+    const fetcher = new SafeUrlFetcher({ lookup: toLocalServer, request: plainHttp });
+    expect((await fetcher.fetch(`https://docs.example:${port}/report%C0.txt`, 1024)).fileName).toBe("report%C0.txt");
+    expect((await fetcher.fetch(`https://docs.example:${port}/named`, 1024)).fileName).toBe("crew%E0%A4%A.txt");
+    server.close();
+  });
+
   it("gives up on the whole download at its deadline, however steadily a server trickles", async () => {
     const server = createHttpServer((_req, res) => {
       res.writeHead(200, { "content-type": "text/plain" });

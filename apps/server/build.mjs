@@ -13,8 +13,9 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const dist = join(here, "dist");
-// pdfjs loads its worker by relative path; the cloud clients and nodemailer are large and load lazily.
-const EXTERNAL = ["pdfjs-dist", "@google-cloud/storage", "nodemailer", "@azure/communication-email", "@azure/identity", "pg-native"];
+// pdfjs loads its worker by relative path; the cloud clients (and Google's sign-in for sending
+// traces) and nodemailer are large and load lazily.
+const EXTERNAL = ["pdfjs-dist", "@google-cloud/storage", "google-auth-library", "nodemailer", "@azure/communication-email", "@azure/identity", "pg-native"];
 
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
@@ -57,6 +58,7 @@ const versionOf = (name, r) => {
 const deps = {
   "pdfjs-dist": versionOf("pdfjs-dist", req),
   "@google-cloud/storage": versionOf("@google-cloud/storage", reqServer),
+  "google-auth-library": versionOf("google-auth-library", reqServer),
   nodemailer: versionOf("nodemailer", reqServer),
   "@azure/communication-email": versionOf("@azure/communication-email", reqServer),
   "@azure/identity": versionOf("@azure/identity", reqServer),

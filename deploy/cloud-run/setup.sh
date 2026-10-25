@@ -14,7 +14,10 @@
 #   - the first image (built by Cloud Build — no local Docker needed), the migration job, and the
 #     service itself, public on the internet with WhatBuild's own sign-in in front of everything;
 #   - a log exclusion, so Cloud Run's own request log keeps no address with a query or an
-#     invitation in it (the service logs those masked).
+#     invitation in it (the service logs those masked);
+#   - alerts on server errors, error lines, memory and failed jobs, mailed to one address
+#     (deploy/cloud-run/alerts.mjs);
+#   - with TRACES_PROJECT, the service's traces, sent to that project and no other.
 #
 # Settings (environment):
 #   PROJECT_ID          required. Deliberately not taken from gcloud's current project.
@@ -48,6 +51,11 @@
 #   SANDBOX_RESET_CRON, SANDBOX_RESET_TZ   when that job runs; default "1 2 * * *" in
 #                       America/Los_Angeles, a minute after the sandbox's default reset hour
 #   SCHEDULER_LOCATION  the job's region, where Cloud Scheduler is not offered in REGION
+#   ALERT_EMAIL         where alerts go; default: the gcloud account running this script
+#   TRACES_PROJECT      a project of its own for the service's traces, made and billed beforehand
+#                       (optional; okf/operations/cloud-run.md, Traces). Never PROJECT_ID: a project
+#                       with trace storage also keeps Cloud Run's own request spans, whole addresses
+#                       and all.
 set -euo pipefail
 
 : "${PROJECT_ID:?Set PROJECT_ID to the Google Cloud project for WhatBuild (it is never taken from the current gcloud project).}"
@@ -79,7 +87,7 @@ fi
 
 step "Services"
 $G services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com \
-  secretmanager.googleapis.com storage.googleapis.com iam.googleapis.com ${CLOUD_SQL:+sqladmin.googleapis.com}
+  secretmanager.googleapis.com storage.googleapis.com iam.googleapis.com monitoring.googleapis.com ${CLOUD_SQL:+sqladmin.googleapis.com}
 
 step "Image repository $REPO"
 if ! $G artifacts repositories describe "$REPO" --location "$REGION" >/dev/null 2>&1; then
@@ -184,6 +192,18 @@ ENV_VARS="WHATBUILD_GCS_BUCKET=$BUCKET,WHATBUILD_SIGNUP_ALLOWLIST=${ALLOW//,/;},
 [ -n "${SIGNED_URLS:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_GCS_SIGNED_URLS=1"
 [ -n "${SANDBOX_TENANT:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_SANDBOX_TENANT=$SANDBOX_TENANT"
 [ -n "${SITE_URL:-}" ] && ENV_VARS="$ENV_VARS,WHATBUILD_SITE_URL=$SITE_URL"
+if [ -n "${TRACES_PROJECT:-}" ]; then
+  step "Traces, in $TRACES_PROJECT"
+  if [ "$TRACES_PROJECT" = "$PROJECT_ID" ]; then
+    echo "TRACES_PROJECT must be another project than PROJECT_ID (okf/operations/cloud-run.md, Traces)." >&2
+    exit 1
+  fi
+  $G services enable telemetry.googleapis.com
+  gcloud --project "$TRACES_PROJECT" --quiet services enable telemetry.googleapis.com cloudtrace.googleapis.com observability.googleapis.com bigquery.googleapis.com
+  gcloud --project "$TRACES_PROJECT" --quiet projects add-iam-policy-binding "$TRACES_PROJECT" --member "serviceAccount:$RUNTIME_SA" \
+    --role roles/telemetry.tracesWriter --condition None >/dev/null
+  ENV_VARS="$ENV_VARS,OTEL_EXPORTER_OTLP_ENDPOINT=https://telemetry.googleapis.com,OTEL_RESOURCE_ATTRIBUTES=gcp.project_id=$TRACES_PROJECT"
+fi
 # A list inside a --set-env-vars value needs gcloud's alternate delimiter syntax. The delimiter is "|",
 # which no email, domain or sender name contains ("@" would split the allowlist).
 ENV_ARG="^|^${ENV_VARS//,/|}"
@@ -227,6 +247,13 @@ if [ -n "${SANDBOX_TENANT:-}" ]; then
   $G scheduler jobs "$verb" http whatbuild-sandbox-reset --location "$SCHEDULER_LOCATION" \
     --schedule "${SANDBOX_RESET_CRON:-1 2 * * *}" --time-zone "${SANDBOX_RESET_TZ:-America/Los_Angeles}" \
     --http-method POST --uri "$URL/api/v1/sandbox/reset-if-due"
+fi
+
+step "Alerts"
+if command -v node >/dev/null 2>&1; then
+  PROJECT_ID="$PROJECT_ID" SERVICE="$SERVICE" ALERT_EMAIL="${ALERT_EMAIL:-}" node deploy/cloud-run/alerts.mjs
+else
+  echo "Node is not installed here, so no alerts were made. Where it is: PROJECT_ID=$PROJECT_ID node deploy/cloud-run/alerts.mjs"
 fi
 
 cat <<EOF

@@ -9,6 +9,7 @@ import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { mcpPrincipal } from "./auth/identity.ts";
 import type { ServerConfig } from "./config.ts";
+import { logError } from "./telemetry.ts";
 
 const GROUP_SENTENCES: Record<string, string> = {
   products: "Find the products (discoveries) you can reach; create and manage products, tenants and teams; export a whole product as a ZIP; and, for whoever runs this WhatBuild, the allowances to start organizations and how it is used. Start with list; confirm the product with the person before writing.",
@@ -241,7 +242,7 @@ function textResult(value: unknown, isError = false) {
 /** A refusal as a tool error; an unexpected one says how this agent reports it. */
 function errorResult(e: unknown, principal: Principal) {
   const err = toAppError(e, principal);
-  if (err.status === 500) console.error("mcp:", e);
+  if (err.status === 500) logError("mcp", e);
   return { content: [{ type: "text" as const, text: `${err.status}: ${err.message}\n${JSON.stringify({ error: err.toJSON() })}` }], isError: true };
 }
 

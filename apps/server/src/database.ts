@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import type { DB } from "@whatbuild/core";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import pg from "pg";
+import { querySpan } from "./telemetry.ts";
 
 const TIMESTAMPTZ = 1184;
 const TIMESTAMP = 1114;
@@ -24,7 +25,19 @@ export function createDb(databaseUrl: string, max = 10): { db: Kysely<DB>; pool:
     types: { getTypeParser: typeParser as never },
     idleTimeoutMillis: 30_000,
   });
-  const db = new Kysely<DB>({ dialect: new PostgresDialect({ pool }) });
+  // A connection the database drops (a hosted Postgres restarting its compute, say) is an 'error'
+  // event on its client, and one nothing listens for stops the process with every request it was
+  // serving. The pool listens while a client is idle and re-emits on itself; while a client is
+  // checked out nothing does, so every client gets a listener of its own. A statement the connection
+  // was running fails as any other would, and the pool replaces the connection.
+  pool.on("connect", (client) =>
+    client.on("error", (e) => console.warn(JSON.stringify({ at: new Date().toISOString(), severity: "WARNING", event: "database_connection_lost", message: e.message.slice(0, 300) }))),
+  );
+  pool.on("error", () => {
+    // An idle client's error, which its own listener above has logged.
+  });
+  // Each statement inside a traced request or job is a span of its own (telemetry.ts).
+  const db = new Kysely<DB>({ dialect: new PostgresDialect({ pool }), log: querySpan });
   return { db, pool };
 }
 

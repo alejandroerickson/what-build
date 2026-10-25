@@ -1,3 +1,4 @@
+import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { sql } from "kysely";
 import type { z } from "zod";
 import { json, type ActorSnapshot, type Db } from "./db.ts";
@@ -10,7 +11,9 @@ import { capRole, connectionNeeds, LEVEL_NAMES, levelAllows, type OpContext, typ
 import { admitVisitor, checkVisitorInput, countVisitorWrite, isVisitor, loadSandbox, lockSandbox, visitorActor, visitorName, type SandboxContext } from "./public-sandbox.ts";
 import { formatIssues, nullCharacterPaths, nullCharacterSentence, wordList } from "./schemas.ts";
 import { feedbackOff } from "./feedback.ts";
-import { countCall } from "./usage.ts";
+import { clientFamily, countCall } from "./usage.ts";
+
+const tracer = trace.getTracer("whatbuild");
 
 export interface Env {
   db: Db;
@@ -178,18 +181,27 @@ export async function execute(
   ref: ScopeRef = {},
   connector: ConnectorScope | null = null,
 ): Promise<{ result: unknown; scope: Scope }> {
-  // Every call is counted, however it ends (`usage.ts`).
+  // Every call is counted, however it ends (`usage.ts`), and is a span of the request's trace,
+  // which names the operation, the door, the agent client's family and the outcome, and nobody.
   const reached: { scope?: Scope } = {};
-  const count = (outcome: string) =>
-    countCall(env, principal, { operation: op.name, feature: op.mcp.tool, outcome, sandbox: reached.scope?.tenant ? Boolean(reached.scope.tenant.sandbox) : Boolean(principal.sandbox_only) });
-  try {
-    const ran = await run(env, principal, op, rawInput, ref, connector, reached);
-    count("ok");
-    return ran;
-  } catch (e) {
-    count(toAppError(e).code);
-    throw e;
-  }
+  const sandbox = () => (reached.scope?.tenant ? Boolean(reached.scope.tenant.sandbox) : Boolean(principal.sandbox_only));
+  const count = (outcome: string) => countCall(env, principal, { operation: op.name, feature: op.mcp.tool, outcome, sandbox: sandbox() });
+  return tracer.startActiveSpan(op.name, { attributes: { "whatbuild.operation": op.name, ...(principal.surface ? { "whatbuild.door": principal.surface } : {}), ...(principal.surface === "mcp" ? { "whatbuild.client": clientFamily(principal) } : {}) } }, async (span) => {
+    try {
+      const ran = await run(env, principal, op, rawInput, ref, connector, reached);
+      count("ok");
+      span.setAttributes({ "whatbuild.outcome": "ok", "whatbuild.sandbox": sandbox() });
+      return ran;
+    } catch (e) {
+      const err = toAppError(e);
+      count(err.code);
+      span.setAttributes({ "whatbuild.outcome": err.code, "whatbuild.sandbox": sandbox() });
+      if (err.status >= 500) span.setStatus({ code: SpanStatusCode.ERROR });
+      throw e;
+    } finally {
+      span.end();
+    }
+  });
 }
 
 async function run(

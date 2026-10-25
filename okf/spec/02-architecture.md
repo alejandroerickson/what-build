@@ -336,9 +336,21 @@ deployment is involved
   new image serves traffic. An export bundle records its format version.
 - **Observability:** one structured log line per request with method, path (ids masked,
   organizations, teams and products named only by kind, and the invitation and sandbox invitation
-  links, `/invite/:token` and `/join/:code`), status and duration. **Never** log source content,
-  Markdown bodies, a source's text, email addresses, or tokens. Request ids are planned. How the service
-  is used is counted per call in the database, not in the logs (`packages/core/src/usage.ts`).
+  links, `/invite/:token` and `/join/:code`), status, duration and the request's ID, which the
+  response carries in `X-Request-Id`. **Never** log source content, Markdown bodies, a source's
+  text, email addresses, or tokens. An unexpected error is one line with severity ERROR that names
+  its request (`logError` in `apps/server/src/telemetry.ts`). When a deployment sets
+  OpenTelemetry's standard settings (`OTEL_EXPORTER_OTLP_ENDPOINT`, …), the service traces each
+  request but the app's assets, prototypes' files and the health check, the operation it runs, the
+  statements run inside them, and each job, and sends the spans over OTLP; a traced request's ID is
+  its trace's. A span holds what the log line may and less: a route's pattern, an operation's name,
+  a door, an agent client's family, an outcome or error code, a job's kind, a statement's verb and
+  first table, an error's type, never a statement's text or an error's message. Google's endpoint
+  is reached as the service's identity. How the service is used is counted per call in the database,
+  not in the logs (`packages/core/src/usage.ts`). The Cloud Run deployment's alerts watch the
+  platform's own metrics and log ([Cloud Run](../operations/cloud-run.md#alerts)).
+  ◆ Decision: alerts on Cloud Run's own signals, and traces in a project that runs nothing
+  ([decision](../decisions/alerts-watch-the-platform-and-traces-go-to-a-project-of-their-own.md)).
   ◆ Decision: operational telemetry about the *service* in the logs; usage counted on the server
   for everyone, by operation and under pseudonyms, naming nobody
   ([decision](../decisions/the-server-counts-how-whatbuild-is-used-naming-nobody.md)); browser

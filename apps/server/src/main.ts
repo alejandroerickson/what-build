@@ -1,10 +1,11 @@
 import { serve } from "@hono/node-server";
 import { usageSettled } from "@whatbuild/core";
-import { createApp, createBlobStore, createMailer, createPorts } from "./app.ts";
+import { createApp, createBlobStore, createMailer, createPorts, SERVER_VERSION } from "./app.ts";
 import { loadConfig } from "./config.ts";
 import { checkRowSecurity, createDb, migrate } from "./database.ts";
 import { SandboxClock, syncSandboxTenant } from "./public-sandbox.ts";
 import { seed } from "./seed.ts";
+import { startTracing } from "./telemetry.ts";
 import { Worker } from "./worker.ts";
 
 /**
@@ -43,6 +44,9 @@ async function main() {
 
   if (config.feedbackEmail && config.mailer === "none") console.warn("warning: WHATBUILD_FEEDBACK_EMAIL is set, but this deployment sends no mail, so feedback stays in the database. Configure the smtp or acs mailer to send the digest.");
 
+  // Traces go where the deployment says, if anywhere (telemetry.ts); the server runs the same without.
+  const tracing = command === "serve" || command === "worker" ? await startTracing(SERVER_VERSION) : null;
+
   const blobs = await createBlobStore(config);
   const mailer = createMailer(config);
   let worker: Worker | null = null;
@@ -74,7 +78,7 @@ async function main() {
   const shutdown = () => {
     worker?.stop();
     // The calls already answered are counted before the database goes.
-    server.close(() => void usageSettled().then(() => pool.end()).then(() => process.exit(0)));
+    server.close(() => void usageSettled().then(() => tracing?.shutdown()).then(() => pool.end()).then(() => process.exit(0)));
     setTimeout(() => process.exit(0), 8000).unref();
   };
   process.on("SIGTERM", shutdown);
