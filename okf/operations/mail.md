@@ -3,7 +3,7 @@ type: System Concept
 title: Mail - what WhatBuild sends, how each deployment sends it, and production's Cloudflare Email Sending
 description: The messages the server sends (three while a request waits, and the daily feedback digest), the settings that choose a mailer, which deployments send mail and which never do, production's setup on Cloudflare Email Sending over SMTP, checking it, rotating its token, changing provider, and what breaks it.
 tags: [operations, mail, smtp, cloudflare, invitations, sign-in, cloud-run, azure, runbook]
-generated: {by: agent:claude, at: 2026-10-24}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -26,7 +26,7 @@ The fourth is sent by the worker, not a request:
 
 | Message | Sent when | Code |
 |---|---|---|
-| The feedback digest | the deployment names `WHATBUILD_FEEDBACK_EMAIL`, there is feedback not yet sent, and no digest went out in the last 24 hours; looked at when an instance starts and every ten minutes while it runs | `packages/core/src/feedback.ts`, `apps/server/src/worker.ts` |
+| The feedback digest | the deployment names `WHATBUILD_FEEDBACK_EMAIL`, there is feedback not yet sent, and no digest went out in the last 24 hours; looked at when an instance starts, and at most every ten minutes while its worker is awake (it sleeps a minute after the last request, and wakes at the next) | `packages/core/src/feedback.ts`, `apps/server/src/worker.ts` |
 
 Nothing else sends mail: not the site's interest form. Sign-in links and invitations are
 specified in [§3](../spec/03-accounts-teams-and-identity.md), feedback in

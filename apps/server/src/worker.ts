@@ -17,6 +17,8 @@ const MAX_ATTEMPTS = 5;
 const READ_GIVEN_UP = `this file could not be read: reading it failed ${MAX_ATTEMPTS} times, so it was given up; the file is stored, and reading it again may help (Read it again in the web app, or derived(action="rederive"))`;
 /** How often an instance looks whether the feedback digest is due. */
 const DIGEST_CHECK_MS = 10 * 60_000;
+/** How long a lock outlives the worker that took it before another worker may take the job. */
+const STALE_LOCK_MINUTES = 10;
 /**
  * The kinds of job this version runs. A worker claims only these, so while a release rolls out, an
  * instance of the version before it leaves a kind a new migration queued for the new version,
@@ -39,12 +41,23 @@ interface Job {
  * memory and a time limit (parse-thread.ts). A job that stops the process anyway, or fails, is given
  * up after five attempts (an export at its first failure), and a read given up records a failed
  * reading of its attachment.
+ *
+ * Started with `idleMs`, as the service starts it, the worker sleeps once that long has passed
+ * without a request or a job: it stops looking at the queue, so a database that suspends when no
+ * query comes (Neon's after five minutes) can, while the instance stays up. It looks again at the
+ * next request (`nudge`), at a commit that enqueued work (`wake`), and when the next job it could
+ * take falls due: a retry's `run_after`, or a lock gone stale. Started without, as the `worker`
+ * command starts it, it looks every `pollMs` for good.
  */
 export class Worker {
   private timer: NodeJS.Timeout | null = null;
   private running = false;
   private again = false;
   private stopped = false;
+  /** How long the worker looks after the last request or job before it sleeps; null, it never sleeps. */
+  private idleMs: number | null = null;
+  private lastActive = 0;
+  private asleep = false;
   /** Whether the last look found a later version's migrations; the log says so once, when they appear. */
   private superseded = false;
   /** The migrations this version carries; a database that has any other was migrated by a later version. */
@@ -53,26 +66,76 @@ export class Worker {
 
   constructor(private readonly env: Env, private readonly pollMs = 2000, private readonly log: (m: string) => void = (m) => console.log(m)) {}
 
-  start() {
+  start(opts: { idleMs?: number } = {}) {
     this.stopped = false;
-    const tick = () => {
-      if (this.stopped) return;
-      void this.drain().finally(() => {
-        if (!this.stopped) this.timer = setTimeout(tick, this.pollMs);
-      });
-    };
-    tick();
+    this.idleMs = opts.idleMs ?? null;
+    this.lastActive = Date.now();
+    this.look(0);
   }
 
   stop() {
     this.stopped = true;
     if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+  }
+
+  /** Whether the worker has stopped looking at the queue until a request, a commit or a job due wakes it. */
+  get sleeping(): boolean {
+    return this.asleep;
   }
 
   /** Called after a commit that enqueued work. */
   wake() {
+    this.lastActive = Date.now();
+    if (this.asleep && !this.stopped) return this.look(0);
     if (this.running) this.again = true;
     else void this.drain();
+  }
+
+  /** Called for a request: a sleeping worker looks at the queue again, and a looking one keeps looking. */
+  nudge() {
+    this.lastActive = Date.now();
+    if (this.asleep && !this.stopped) this.look(0);
+  }
+
+  private look(delay: number) {
+    if (this.timer) clearTimeout(this.timer);
+    this.asleep = false;
+    this.timer = setTimeout(() => void this.tick(), delay);
+  }
+
+  private async tick() {
+    this.timer = null;
+    if (this.stopped) return;
+    if ((await this.drain()) > 0) this.lastActive = Date.now();
+    if (this.stopped || this.timer) return;
+    if (this.idleMs === null || Date.now() - this.lastActive < this.idleMs) return this.look(this.pollMs);
+    await this.sleep();
+  }
+
+  /**
+   * Stop looking at the queue, and look again when the next job this worker could take falls due.
+   * While the database has a later version's migrations, nothing here falls due: that version takes
+   * its work, and a request wakes this one.
+   */
+  private async sleep() {
+    this.asleep = true;
+    const due = this.superseded ? null : await this.nextDueMs().catch(() => this.pollMs);
+    // A request or a commit may have woken it while it asked.
+    if (this.stopped || !this.asleep || due === null) return;
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      this.wake();
+    }, Math.max(due, this.pollMs));
+  }
+
+  /** How long until a job of a kind this version runs may be taken (a retry's run_after, or a stale lock), or null when none waits. */
+  private async nextDueMs(): Promise<number | null> {
+    const r = await sql<{ ms: string | null }>`
+      select extract(epoch from min(greatest(run_after, coalesce(locked_at + make_interval(mins => ${STALE_LOCK_MINUTES}::int), run_after))) - now()) * 1000 as ms
+      from jobs where done_at is null and kind = any(${[...JOB_KINDS]}::text[])`.execute(this.env.db);
+    const ms = r.rows[0]?.ms;
+    return ms === null || ms === undefined ? null : Math.ceil(Number(ms));
   }
 
   async drain(): Promise<number> {
@@ -128,8 +191,8 @@ export class Worker {
   private lastDigestCheck = 0;
 
   /**
-   * The feedback digest, when the deployment names an address for it: looked at on start and every
-   * ten minutes while the instance is alive; `sendFeedbackDigest` decides whether one is due.
+   * The feedback digest, when the deployment names an address for it: looked at on start and at
+   * most every ten minutes while the worker is awake; `sendFeedbackDigest` decides whether one is due.
    */
   private async feedbackDigest() {
     if (!this.env.ports.config.feedbackEmail || Date.now() - this.lastDigestCheck < DIGEST_CHECK_MS) return;
@@ -197,7 +260,7 @@ export class Worker {
       update jobs set locked_at = now(), locked_by = ${this.id}, attempts = attempts + 1
       where job_id = (
         select job_id from jobs
-        where done_at is null and attempts < ${MAX_ATTEMPTS} and run_after <= now() and (locked_at is null or locked_at < now() - interval '10 minutes')
+        where done_at is null and attempts < ${MAX_ATTEMPTS} and run_after <= now() and (locked_at is null or locked_at < now() - make_interval(mins => ${STALE_LOCK_MINUTES}::int))
           and kind = any(${[...JOB_KINDS]}::text[])
           and not exists (select 1 from schema_migrations where name <> all(${this.migrations}::text[]))
         order by job_id for update skip locked limit 1)
@@ -218,7 +281,7 @@ export class Worker {
       update jobs set done_at = now(), locked_at = null, locked_by = null, error = ${reason}
       where job_id in (
         select job_id from jobs
-        where done_at is null and attempts >= ${MAX_ATTEMPTS} and (locked_at is null or locked_at < now() - interval '10 minutes')
+        where done_at is null and attempts >= ${MAX_ATTEMPTS} and (locked_at is null or locked_at < now() - make_interval(mins => ${STALE_LOCK_MINUTES}::int))
           and kind = any(${[...JOB_KINDS]}::text[])
           and not exists (select 1 from schema_migrations where name <> all(${this.migrations}::text[]))
         order by job_id for update skip locked limit 20)
