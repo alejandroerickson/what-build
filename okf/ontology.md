@@ -3,7 +3,7 @@ type: Ontology
 title: Concept types and editing rules
 description: The concept types this bundle uses, the frontmatter each concept carries, and the rules for editors.
 tags: [ontology, okf]
-generated: {by: agent:claude, at: 2026-09-26T00:00:00Z}
+generated: {by: agent:claude, at: 2026-10-24}
 status: stable
 ---
 
@@ -53,5 +53,6 @@ change that first uses it.
   `deprecated` and names what replaced it. Never leave two concepts silently disagreeing.
 - **Do not write a proposal as though it were decided.** Planned work belongs in the
   [roadmap](spec/10-roadmap.md).
-- **Link, do not copy.** Code, `PRODUCT.md` and `DESIGN.md` stay where they are; link to them.
+- **Link, do not copy.** Code, `apps/web/PRODUCT.md` and `apps/web/DESIGN.md` stay where they are;
+  link to them.
 - **Short beats complete.** Three accurate sentences beat a page nobody updates.

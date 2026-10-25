@@ -3,7 +3,7 @@ type: Index
 title: WhatBuild knowledge bundle
 description: The map of the documentation; start here.
 tags: [index, okf]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-24}
 status: stable
 okf_version: "0.2"
 ---
@@ -38,7 +38,7 @@ server with the same operations. There is no AI inside.
 ## Outside the bundle
 
 - `README.md`: the human-facing introduction.
-- `AGENTS.md`: agent orientation (`CLAUDE.md` links to it).
+- `AGENTS.md`: agent orientation (`.claude/CLAUDE.md` links to it).
 - `.agents/skills/`: skills for agents working on the repository: reading this bundle
   (`okf-orient`), keeping it true (`okf-update`), recording decisions (`okf-decision`),
   hosting a copy on Azure (`azure-self-host`), publishing a release (`make-a-release`),
@@ -48,8 +48,9 @@ server with the same operations. There is no AI inside.
   (`copy-an-organization`), running the end-to-end test plans
   (`run-end-to-end-tests`), reading how a deployment is used (`read-usage`), and setting up and
   repairing a deployment's mail (`set-up-mail`).
-- `PRODUCT.md`: users, purpose and principles. `DESIGN.md` and `.impeccable/design.json`: the
-  Studio design system. Both stay at the root because design tooling reads them there.
+- `apps/web/PRODUCT.md`: users, purpose and principles. `apps/web/DESIGN.md` and
+  `apps/web/.impeccable/design.json`: the Studio design system. They sit beside the web app, where
+  design tooling looks for them.
 - `packages/core/src/skill/SKILL.md`: the agent skill the product serves to connected agents.
 - `deploy/cloud-run/README.md`: a pointer next to `setup.sh`. `deploy/azure/README.md`: a pointer
   next to the container app's definition.

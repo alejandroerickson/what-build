@@ -3,7 +3,7 @@ type: Decision
 title: "Agent guidance is tool-neutral: AGENTS.md and .agents/skills"
 description: Orientation and the documentation procedures live in files any agent can read, with links for tools that look elsewhere.
 tags: [decision, agents, skills, okf, process]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-24}
 status: stable
 ---
 
@@ -17,7 +17,7 @@ after, whichever tool it runs in.
 
 ## Decision
 
-- `AGENTS.md` is the single orientation file. `CLAUDE.md` is a symlink to it.
+- `AGENTS.md` is the single orientation file. `.claude/CLAUDE.md` is a symlink to it.
 - Procedures for agents are skills in `.agents/skills/<name>/SKILL.md`, in the open Agent Skills
   format (a `name` and a `description` in frontmatter, with optional `references/`).
   `.claude/skills` is a symlink to `.agents/skills`.

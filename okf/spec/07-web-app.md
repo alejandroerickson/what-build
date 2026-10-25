@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-10-18}
+generated: {by: agent:claude, at: 2026-10-24}
 status: stable
 ---
 
@@ -11,7 +11,7 @@ status: stable
 
 This section specifies behavior and information architecture of `apps/web`. The visual design — the Studio
 design system: tokens, type, components and the rules for using them — is documented in
-[DESIGN.md](../../DESIGN.md).
+[DESIGN.md](../../apps/web/DESIGN.md).
 
 ## 7.1 Principles
 

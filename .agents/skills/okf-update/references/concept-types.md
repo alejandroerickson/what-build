@@ -88,7 +88,7 @@ For a term in the product's vocabulary that needs more than its line in `spec/01
 definition, its lifecycle and states, its relations to other objects, and the words the interface
 uses for it. The vocabulary is fixed (source, attachment, derived text, outcome, mockup, assumption, Story,
 archive). A new term is a product decision. Record it in `spec/01` and
-`PRODUCT.md` first.
+`apps/web/PRODUCT.md` first.
 
 ## Index (`index.md` in every directory)
 

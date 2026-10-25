@@ -1,7 +1,8 @@
 # WhatBuild: one image serving the web app, REST, MCP and the job worker.
 #
-# Built from the repository root (Cloud Build does this; see okf/operations/cloud-run.md). The same
-# image runs migrations as a Cloud Run Job (`node main.js migrate`) before a new revision serves.
+# Built from the repository root, `docker build -f deploy/Dockerfile .` (Cloud Build and the Release
+# workflow do this; see okf/operations/cloud-run.md). The same image runs migrations as a Cloud Run
+# Job (`node main.js migrate`) before a new revision serves.
 # .dockerignore is an allow-list: only source reaches the build, never local data.
 
 # ---- 1. Build: bundle the server, build the web app ---------------------------------------------

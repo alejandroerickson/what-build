@@ -2,7 +2,9 @@
 
 `setup.sh` creates a complete WhatBuild deployment on Google Cloud Run in the project you name with
 `PROJECT_ID` (image repository, runtime identity, bucket, secrets, database, migration job and
-service), and is safe to re-run; its header lists every setting. How the deployment works, sign-in,
+service), and is safe to re-run; its header lists every setting. `cloudbuild.yaml` is the build a
+release trigger or `gcloud builds submit` runs from the repository's root: it builds the image from
+`deploy/Dockerfile`, migrates, then deploys. How the deployment works, sign-in,
 continuous deployment and costs: [okf/operations/cloud-run.md](../../okf/operations/cloud-run.md).
 Backups and restoring them: [okf/operations/backups.md](../../okf/operations/backups.md).
 Rehearsing a release on a second deployment that holds a copy of production:

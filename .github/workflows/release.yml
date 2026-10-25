@@ -1,6 +1,6 @@
 name: Release
 
-# A tag v* on a commit of main is a release: the image is built from the Dockerfile and published
+# A tag v* on a commit of main is a release: the image is built from deploy/Dockerfile and published
 # to the GitHub container registry as ghcr.io/<owner>/what-build:<tag>, and the tag's GitHub
 # release gets the image and the migrations at the top of its notes. A release published on GitHub
 # (in the browser or with `gh release create`) makes its tag and so starts this workflow; a tag
@@ -40,6 +40,7 @@ jobs:
           DOCKER_BUILD_RECORD_UPLOAD: "false"
         with:
           context: .
+          file: deploy/Dockerfile
           platforms: linux/amd64
           push: true
           provenance: false

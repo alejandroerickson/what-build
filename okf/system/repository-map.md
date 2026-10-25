@@ -9,7 +9,11 @@ status: stable
 
 # Repository map
 
-A pnpm workspace: two apps and two libraries.
+A pnpm workspace: two apps and two libraries. The root holds only what a tool looks for there: the
+workspace's own files (`package.json`, the lockfile, `pnpm-workspace.yaml`, `tsconfig.base.json`,
+`vitest.config.ts`, `.nvmrc`), the ignore files git, Docker and `gcloud` read from the root,
+`README.md`, `AGENTS.md` and `LICENSE`. Everything else is in a folder
+([decision](../decisions/public-repository-reference-docs.md)).
 
 | Path | What it is |
 |---|---|
@@ -20,14 +24,15 @@ A pnpm workspace: two apps and two libraries.
 | `apps/web/src/` | The React app. `main.tsx` (routes), `routes/` (screens), `shell/` (panel, inspector, theme), `ui/` (primitives; `glyph.tsx` wraps the icons), `styles/` (`tokens.css`, `base.css`, `ui.css`, `shell.css`, `screens/*.css`), `lib/` (API client, session, formatting, Markdown), `system/` (a development-only specimen of every primitive at `/_system`), `site/` (the public site's page; its HTML entry is `apps/web/site/index.html`). |
 | `e2e/plans/` | The [end-to-end test plans](../operations/end-to-end-tests.md) an agent runs through the web app and MCP, and their format (`README.md`). |
 | `scripts/` | `e2e.mjs` and `shots.mjs` (Playwright scripts against a running `pnpm dev`), `gen-skill.mjs` (embeds `SKILL.md` into core), `check-publishable.mjs` (nothing private is published), `security.mjs` (`pnpm security`), `tools.mjs` (the pinned scanners), `attention.mjs` (`pnpm attention`: what is waiting) ([security checks](../operations/security-checks.md)), `hostile-files.mjs` (hostile uploads for rehearsing a release, [dev deployment](../operations/dev-deployment.md#rehearsing-a-release)). |
-| `.githooks/` | The git hooks `pnpm install` turns on: `pre-commit`, `commit-msg` and `pre-push` run the publishable check. |
+| `scripts/githooks/` | The git hooks `pnpm install` turns on: `pre-commit`, `commit-msg` and `pre-push` run the publishable check. |
 | `.github/` | Workflows (`ci.yml`, `pull-request-text.yml`, `security.yml`, `codeql.yml`, `release.yml`), `dependabot.yml`, and the scanners' settings: `gitleaks.toml`, `osv-scanner.toml` (accepted vulnerabilities), `zap-rules.tsv`. |
-| `deploy/cloud-run/` | `setup.sh` for the Cloud Run deployment ([guide](../operations/cloud-run.md)). |
+| `deploy/cloud-run/` | `setup.sh` for the Cloud Run deployment, and `cloudbuild.yaml`, the build a release trigger or `gcloud builds submit` runs ([guide](../operations/cloud-run.md)). |
 | `deploy/azure/` | `containerapp.yaml`, the container app's definition for a self-hosted deployment on Azure, which an agent sets up with the Azure CLI ([guide](../operations/azure.md)). |
 | `deploy/cloudflare/` | `worker.js` and `wrangler.toml`: on Cloudflare's free plan, the public site from the edge and the app's domain from the Cloud Run service. |
-| `Dockerfile`, `cloudbuild.yaml` | The production image and its build. |
+| `deploy/Dockerfile` | The production image, built from the repository's root. |
 | `okf/` | This bundle: all documentation. |
 | `.agents/skills/` | Skills for agents working on this repository: `okf-orient`, `okf-update`, `okf-decision` ([decision](../decisions/agent-guidance-is-tool-neutral.md)), `azure-self-host`, the procedure for [hosting on Azure](../operations/azure.md), `make-a-release`, for [releasing](../operations/releasing.md), `rehearse-on-the-dev-deployment`, for [the dev deployment](../operations/dev-deployment.md) and the restore drill in [backups](../operations/backups.md), `recover-a-deployment`, for [recovering from a bad release](../operations/recovering-from-a-bad-release.md), `test-on-a-copy-of-production`, for [a copy of production](../operations/a-copy-of-production.md), `copy-an-organization`, for [moving an organization into another deployment](../operations/copying-an-organization.md), and `audit-for-leaks` and `triage-security-findings`, for the [security checks](../operations/security-checks.md), `run-end-to-end-tests`, for the [end-to-end tests](../operations/end-to-end-tests.md), `read-usage`, for [how a deployment is used](../operations/analytics.md), and `set-up-mail`, for a deployment's [mail](../operations/mail.md). `.claude/skills` links here. |
-| `PRODUCT.md`, `DESIGN.md`, `.impeccable/design.json` | Product and design records, read by design tooling. |
-| `SECURITY.md` | How to report a vulnerability. |
+| `apps/web/PRODUCT.md`, `apps/web/DESIGN.md`, `apps/web/.impeccable/design.json` | Product and design records, read by design tooling, which looks for them from the web app upward. |
+| `.github/SECURITY.md` | How to report a vulnerability, which GitHub shows on the Security tab. |
+| `.claude/` | Two links for Claude Code: `skills` to `.agents/skills/`, and `CLAUDE.md` to `AGENTS.md`. Its local settings stay ignored. |
 | `_private/` (ignored) | A checkout's private working material: notes, logs, scratch. Never committed. |

@@ -24,7 +24,7 @@
     "security": "node scripts/security.mjs",
     "check:publishable": "node scripts/check-publishable.mjs",
     "attention": "node scripts/attention.mjs",
-    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true"
+    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath scripts/githooks || true"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

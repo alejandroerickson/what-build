@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild self-hosts on Azure Container Apps with Azure Database for PostgreSQL and a mounted file share, set up by an agent with the Azure CLI.
 description: What a self-hosted deployment on Azure is made of, how each resource is configured, the commands that create it, sign-in with a Microsoft work account, the variations between organizations, deploying a new version, cost and removal.
 tags: [operations, deployment, azure, self-hosting, container-apps, entra]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-24}
 status: draft
 ---
 
@@ -316,12 +316,13 @@ protecting.
 WB_IMAGE_TAG=$(git rev-parse --short=7 HEAD)
 SRC=$(mktemp -d); git archive HEAD | tar -x -C "$SRC"; rm "$SRC/.dockerignore"
 az acr build --subscription "$AZ_SUBSCRIPTION" -r "$AZ_ACR" -t "whatbuild:$WB_IMAGE_TAG" \
-  --build-arg "WHATBUILD_COMMIT=$(git rev-parse HEAD)" "$SRC"
+  -f deploy/Dockerfile --build-arg "WHATBUILD_COMMIT=$(git rev-parse HEAD)" "$SRC"
 rm -rf "$SRC"
 ```
 
-Where registry builds are not allowed on the subscription, build with Docker for `linux/amd64`,
-`az acr login -n "$AZ_ACR"`, and push the same tag.
+Where registry builds are not allowed on the subscription, build with Docker for `linux/amd64`
+(`docker build -f deploy/Dockerfile` from the export), `az acr login -n "$AZ_ACR"`, and push the
+same tag.
 
 ### 7. Migrations
 

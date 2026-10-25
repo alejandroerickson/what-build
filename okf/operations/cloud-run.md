@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
 description: What the production deployment is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, cost, names, and useful commands; backups and the dev deployment have guides of their own.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-24}
 status: stable
 ---
 
@@ -25,8 +25,8 @@ agent   ──▶ │  (one image, stateless; any instance serves any request)  
 
 Before each new revision serves traffic, the same image runs as the Cloud Run Job
 `whatbuild-migrate` (`node main.js migrate`), so the schema always leads the code. The image is
-built by the repository's [`Dockerfile`](../../Dockerfile); migrations are the forward-only SQL
-files in `apps/server/src/migrations/`.
+built by the repository's [`deploy/Dockerfile`](../../deploy/Dockerfile), from the repository's
+root; migrations are the forward-only SQL files in `apps/server/src/migrations/`.
 
 What a deployment keeps and how to restore it is in [Backups](backups.md). The maintainer also
 runs a second deployment laid out the same way, the [dev deployment](dev-deployment.md), which
@@ -208,15 +208,16 @@ gcloud builds repositories create what-build --connection github --project $P --
   --remote-uri https://github.com/<owner>/what-build.git
 gcloud builds triggers create github --name deploy-release --project $P --region $R \
   --repository projects/$P/locations/$R/connections/github/repositories/what-build \
-  --tag-pattern '^v\d+\.\d+\.\d+$' --build-config cloudbuild.yaml --require-approval \
+  --tag-pattern '^v\d+\.\d+\.\d+$' --build-config deploy/cloud-run/cloudbuild.yaml --require-approval \
   --service-account projects/$P/serviceAccounts/<build identity> \
   --substitutions _REGION=$R,_NEON_PROJECT=<neon-project>
 ```
 
 Publishing a release then starts a build that waits in Cloud Build's history until someone
-approves it ([releasing](releasing.md)). Each build ([`cloudbuild.yaml`](../../cloudbuild.yaml))
-builds and pushes the image, points the migration job at it, runs it, then deploys the service
-with `WHATBUILD_RELEASE` set to the tag and sends traffic to it. The build passes the commit to
+approves it ([releasing](releasing.md)). Each build
+([`deploy/cloud-run/cloudbuild.yaml`](../../deploy/cloud-run/cloudbuild.yaml)) builds and pushes
+the image, points the migration job at it, runs it, then deploys the service with
+`WHATBUILD_RELEASE` set to the tag and sends traffic to it. The build passes the commit to
 the image as `WHATBUILD_COMMIT`, and the image records it with the build time, so
 `/api/v1/meta` reports `release` (version, commit, `built_at`) and the account menu shows
 "Release v0.2.0", linked to the release's page on GitHub. The web app is built with the same
@@ -233,7 +234,7 @@ Without a trigger, deploy by hand from a clean checkout of the tag; the build is
 out `TAG_NAME` to deploy a commit that is not a release, which is then named by its hash:
 
 ```bash
-gcloud builds submit --project $P --region $R --config cloudbuild.yaml \
+gcloud builds submit --project $P --region $R --config deploy/cloud-run/cloudbuild.yaml \
   --substitutions TAG_NAME=v0.2.0,COMMIT_SHA=$(git rev-parse HEAD),SHORT_SHA=$(git rev-parse --short=7 HEAD) .
 ```
 

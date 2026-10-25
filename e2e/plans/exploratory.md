@@ -34,7 +34,7 @@ long on it as the person asked for; by default, cover every screen once.
 
 ## Look out for
 
-- Anything that contradicts `DESIGN.md` or the vocabulary in `okf/spec/01-product.md`
+- Anything that contradicts `apps/web/DESIGN.md` or the vocabulary in `okf/spec/01-product.md`
   (for example "delete" where the product archives).
 - Copy that is unclear, or an error that does not say what to do.
 - Differences between what the web and MCP say about the same thing.

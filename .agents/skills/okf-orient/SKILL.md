@@ -29,7 +29,7 @@ Run `corepack pnpm attention` once per session and tell the person what it print
 
 | You need | Read |
 |---|---|
-| What the product is for, and what it deliberately is not | `okf/project/charter.md`, then `PRODUCT.md` |
+| What the product is for, and what it deliberately is not | `okf/project/charter.md`, then `apps/web/PRODUCT.md` |
 | The product's vocabulary (source, attachment, derived text, mockup, Story…) | `okf/spec/01-product.md` |
 | Where a file or feature lives | `okf/system/repository-map.md` |
 | Why something is built the way it is | `okf/decisions/index.md`, then the record |
@@ -38,7 +38,7 @@ Run `corepack pnpm attention` once per session and tell the person what it print
 | Objects, fields, limits, invariants, assumptions, Story | `okf/spec/04-data-model.md` |
 | Reading attachments, the derived text, derived files, the job queue | `okf/spec/05-derived-layer.md` |
 | Every operation, REST and MCP shapes, errors | `okf/spec/06-operations-and-adapters.md` |
-| Screens, URLs, interface behavior | `okf/spec/07-web-app.md`, then `DESIGN.md` for visuals |
+| Screens, URLs, interface behavior | `okf/spec/07-web-app.md`, then `apps/web/DESIGN.md` for visuals |
 | Search modes and ranking | `okf/spec/08-search.md` |
 | Archive, delete, retention, export | `okf/spec/09-data-lifecycle.md` |
 | What is built, what is next, open questions, problems seen but not yet explained | `okf/spec/10-roadmap.md` |
@@ -69,8 +69,9 @@ grep -rn "^## " okf/spec/04-data-model.md # a spec file's headings
 
 ## Not in this bundle
 
-- `PRODUCT.md` and `DESIGN.md` hold the product and design records. They stay at the root because
-  design tooling reads them there.
+- `apps/web/PRODUCT.md` and `apps/web/DESIGN.md` hold the product and design records, with
+  `apps/web/.impeccable/design.json`. They sit beside the web app because design tooling looks
+  for them from the app upward.
 - `packages/core/src/skill/SKILL.md` is the skill the *product* serves to agents that use
   WhatBuild over MCP. It is not guidance for working on this repository. Those skills live in
   `.agents/skills/`.

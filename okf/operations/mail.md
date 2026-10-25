@@ -3,7 +3,7 @@ type: System Concept
 title: Mail - what WhatBuild sends, how each deployment sends it, and production's Cloudflare Email Sending
 description: The messages the server sends (three while a request waits, and the daily feedback digest), the settings that choose a mailer, which deployments send mail and which never do, production's setup on Cloudflare Email Sending over SMTP, checking it, rotating its token, changing provider, and what breaks it.
 tags: [operations, mail, smtp, cloudflare, invitations, sign-in, cloud-run, azure, runbook]
-generated: {by: agent:codex, at: 2026-10-15}
+generated: {by: agent:claude, at: 2026-10-24}
 status: stable
 ---
 
@@ -163,7 +163,7 @@ For production from nothing, or for another domain on another Cloudflare account
    ```
 
    This makes a revision of the image already running; it moves production to no other release.
-   Release deploys (`cloudbuild.yaml`) keep both settings.
+   Release deploys (`deploy/cloud-run/cloudbuild.yaml`) keep both settings.
 5. Check it (above), and add Cloudflare's mail to the privacy page's providers.
 
 ### Rotating the token

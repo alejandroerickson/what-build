@@ -33,21 +33,29 @@ const CI = Boolean(process.env.CI);
 
 /** Every top-level entry the repository keeps. A new one is added here, in the same commit. */
 const TOP_LEVEL = new Set([
-  ".agents", ".claude", ".dockerignore", ".gcloudignore", ".githooks", ".github", ".gitignore",
-  ".impeccable", ".nvmrc", "AGENTS.md", "CLAUDE.md", "DESIGN.md", "Dockerfile", "LICENSE",
-  "PRODUCT.md", "README.md", "SECURITY.md", "apps", "cloudbuild.yaml", "deploy", "e2e", "okf",
-  "package.json", "packages", "pnpm-lock.yaml", "pnpm-workspace.yaml", "scripts",
-  "tsconfig.base.json", "vitest.config.ts",
+  ".agents", ".claude", ".dockerignore", ".gcloudignore", ".github", ".gitignore", ".nvmrc",
+  "AGENTS.md", "LICENSE", "README.md", "apps", "deploy", "e2e", "okf", "package.json", "packages",
+  "pnpm-lock.yaml", "pnpm-workspace.yaml", "scripts", "tsconfig.base.json", "vitest.config.ts",
 ]);
 
-/** `.claude/` holds only the link to the skills; local settings stay ignored. */
-const CLAUDE_DIR = new Set([".claude/skills"]);
+/**
+ * What the root held until MOVED_ON, when each moved into a folder: `.claude/CLAUDE.md`,
+ * `.github/SECURITY.md`, `apps/web/` (DESIGN.md, PRODUCT.md, .impeccable), `deploy/` (Dockerfile,
+ * cloud-run/cloudbuild.yaml) and `scripts/githooks/`. A commit made before then may add them at the root.
+ */
+const MOVED_FROM_TOP_LEVEL = new Set([".githooks", ".impeccable", "CLAUDE.md", "DESIGN.md", "Dockerfile", "PRODUCT.md", "SECURITY.md", "cloudbuild.yaml"]);
+const MOVED_ON = Date.parse("2026-10-26T00:00:00Z");
+
+/** `.claude/` holds only the link to the skills and the link to AGENTS.md; local settings stay ignored. */
+const CLAUDE_DIR = new Set([".claude/skills", ".claude/CLAUDE.md"]);
 
 /** Documents live in okf/ and the few places the public-repository decision names. */
 const DOC_PLACES = [
   /^okf\//,
   /^\.agents\/skills\//,
-  /^(AGENTS|CLAUDE|DESIGN|PRODUCT|README|SECURITY)\.md$/,
+  /^(AGENTS|README)\.md$/,
+  /^\.claude\/CLAUDE\.md$/,
+  /^apps\/web\/(DESIGN|PRODUCT)\.md$/,
   /(^|\/)README\.md$/,
   /^packages\/core\/src\/skill\/SKILL\.md$/,
   /^\.github\//,
@@ -69,10 +77,12 @@ const NEVER = [
 
 /** Images, documents, recordings and archives only in the web app's public assets. */
 const MEDIA = /\.(png|jpe?g|gif|webp|avif|heic|bmp|tiff?|pdf|mp3|mp4|m4a|mov|webm|wav|zip|tar|tgz|gz|7z|docx?|xlsx?|pptx?|numbers|pages)$/i;
-const MEDIA_PLACES = [/^apps\/web\/public\//];
+/** The web app's public assets, and the README's pictures (`.github/assets/`). */
+const MEDIA_PLACES = [/^apps\/web\/public\//, /^\.github\/assets\//];
 
 const MAX_BYTES = 1_000_000;
-const BIG_OK = new Set(["pnpm-lock.yaml"]);
+/** The lockfile, and the README's animated tour of the app. */
+const BIG_OK = new Set(["pnpm-lock.yaml", ".github/assets/whatbuild.gif"]);
 
 // ---- What text may not say ---------------------------------------------------------------------
 
@@ -164,12 +174,14 @@ function report(where, rule, why, match) {
   findings.push({ where, rule, why, match });
 }
 
-function checkPath(path, where) {
+/** Where a file may be, for one added at `when` (a commit's time; now for the tree and a commit being made). */
+function checkPath(path, where, when = Date.now()) {
   const top = path.split("/")[0];
-  if (!TOP_LEVEL.has(top)) report(where, "top-level", `a new top-level entry \`${top}\`; the repository keeps a fixed set (TOP_LEVEL in ${SELF})`);
+  const moved = when < MOVED_ON && MOVED_FROM_TOP_LEVEL.has(top);
+  if (!TOP_LEVEL.has(top) && !moved) report(where, "top-level", `a new top-level entry \`${top}\`; the repository keeps a fixed set (TOP_LEVEL in ${SELF})`);
   if (top === ".claude" && ![...CLAUDE_DIR].some((p) => path === p || path.startsWith(`${p}/`)))
-    report(where, "agent-local", "a file in .claude/ besides the skills link; local agent settings stay out of the repository");
-  if (DOC_EXT.test(path) && !DOC_PLACES.some((re) => re.test(path)) && !TEST_DIR.test(path))
+    report(where, "agent-local", "a file in .claude/ besides the skills link and CLAUDE.md; local agent settings stay out of the repository");
+  if (DOC_EXT.test(path) && !moved && !DOC_PLACES.some((re) => re.test(path)) && !TEST_DIR.test(path))
     report(where, "stray-document", "a document outside okf/ and the places the public-repository decision allows; notes go in _private/");
   checkNever(path, where);
 }
@@ -177,7 +189,7 @@ function checkPath(path, where) {
 function checkNever(path, where) {
   for (const [re, what] of NEVER) if (re.test(path)) report(where, "never-commit", `${what}, which is never committed`);
   if (MEDIA.test(path) && !MEDIA_PLACES.some((re) => re.test(path)))
-    report(where, "media", "an image, document, recording or archive outside apps/web/public/; these can carry real data");
+    report(where, "media", "an image, document, recording or archive outside apps/web/public/ and .github/assets/; these can carry real data");
 }
 
 /** A line of a file, or of a message when `path` is empty, published at `when` (a commit's time, a comment's). */
@@ -233,11 +245,12 @@ const LOG_PATCH = ["log", "-p", "-U0", "--no-color", "--no-ext-diff", "--no-rena
 
 /** New files in each commit (added, copied, renamed to), with their sizes. */
 function newFiles(revs) {
-  const out = git("log", "--no-renames", "--diff-filter=AC", "--name-only", "--format=%x00%H", ...revs);
+  const out = git("log", "--no-renames", "--diff-filter=AC", "--name-only", "--format=%x00%H %ct", ...revs);
   const files = [];
   for (const block of out.split("\u0000").filter(Boolean)) {
-    const [sha, ...paths] = block.split("\n").filter(Boolean);
-    for (const p of paths) files.push({ sha, path: p });
+    const [head, ...paths] = block.split("\n").filter(Boolean);
+    const [sha, time] = head.split(" ");
+    for (const p of paths) files.push({ sha, path: p, when: Number(time) * 1000 });
   }
   return files;
 }
@@ -259,9 +272,9 @@ function checkNewFiles(revList) {
   const files = newFiles(revList);
   const ruled = underRules([...new Set(files.map((f) => f.sha))]);
   const sizes = blobSizes(files.map((f) => `${f.sha}:${f.path}`));
-  files.forEach(({ sha, path }, i) => {
+  files.forEach(({ sha, path, when }, i) => {
     const where = `${sha.slice(0, 12)} ${path}: `;
-    if (ruled.has(sha)) checkPath(path, where);
+    if (ruled.has(sha)) checkPath(path, where, when);
     else checkNever(path, where);
     if (!BIG_OK.has(path) && sizes[i] > MAX_BYTES) report(where, "large-file", "a file over 1 MB; large files are usually data");
   });

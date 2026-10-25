@@ -3,7 +3,7 @@ type: Decision
 title: Lists filter from the panel; a table's header only sorts or searches
 description: Exploration's lists are filtered from the panel, each with one set of filters, and no list puts filters above its rows.
 tags: [decision, web, design, navigation, exploration]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-24}
 status: stable
 ---
 
@@ -48,4 +48,4 @@ The maintainer chose these rules on 2026-09-28.
   filters in use show as removable chips (`FiltersInUse`, `apps/web/src/ui/layout.tsx`).
 - A new list screen follows the same split: filters in the panel, sort or search in its header.
 
-Specified in: [07-web-app §7.2, §7.3, §7.6 and §7.7](../spec/07-web-app.md), [DESIGN.md](../../DESIGN.md).
+Specified in: [07-web-app §7.2, §7.3, §7.6 and §7.7](../spec/07-web-app.md), [DESIGN.md](../../apps/web/DESIGN.md).

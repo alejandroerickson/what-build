@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-10-18}
+generated: {by: agent:claude, at: 2026-10-24}
 status: stable
 ---
 
@@ -30,7 +30,7 @@ keep in step forever, for no behavior a caller can see.
 
 ## 2.2 Stack
 
-Observed in the `package.json` files, the [`Dockerfile`](../../Dockerfile) and
+Observed in the `package.json` files, the [`deploy/Dockerfile`](../../deploy/Dockerfile) and
 [`apps/server/src`](../../apps/server/src).
 
 | Concern | Choice | Why |
@@ -52,7 +52,7 @@ Observed in the `package.json` files, the [`Dockerfile`](../../Dockerfile) and
 | Markdown rendering | `marked`'s lexer, with tokens mapped to React elements ([`apps/web/src/lib/markdown.tsx`](../../apps/web/src/lib/markdown.tsx)) | Markdown that agents write (briefs, notes, assumption bodies) is untrusted input: no HTML string from it ever reaches the DOM; raw HTML shows as text and images never load. |
 | Tooling | pnpm workspaces, `tsc` for type checks, Vitest, `tsx`, esbuild (server bundle), `playwright-core` for browser scripts | No linter or formatter is configured. |
 
-The design system and visual language are documented in [DESIGN.md](../../DESIGN.md).
+The design system and visual language are documented in [DESIGN.md](../../apps/web/DESIGN.md).
 
 **Dependency rule.** No provider SDK may appear outside its own adapter. Only
 [`blobs-gcs.ts`](../../apps/server/src/adapters/blobs-gcs.ts) imports the Cloud Storage client;
@@ -76,7 +76,8 @@ be a new adapter and a redeploy, not a rewrite.
 
 Production is Google Cloud Run: one image, migrations as a Cloud Run Job run from the new image
 before the service moves to it, Cloud Storage for blobs, Secret Manager for secrets
-([`cloudbuild.yaml`](../../cloudbuild.yaml), [deployment guide](../operations/cloud-run.md)).
+([`deploy/cloud-run/cloudbuild.yaml`](../../deploy/cloud-run/cloudbuild.yaml),
+[deployment guide](../operations/cloud-run.md)).
 
 - **Stateless.** Any replica serves any request. Storage clients are constructed at startup and
   carried on application context, never at module scope. No module-level mutable state and no
@@ -354,11 +355,11 @@ apps/
   server/           Hono app: static assets, REST, MCP, OAuth and identity, upload relay, worker,
                     adapters (fs, memory, GCS blobs; SMTP, ACS and console mail), SQL migrations, seed;
                     CLI commands serve, worker, migrate, seed
-  web/              React SPA
-scripts/            gen-skill (embeds SKILL.md), e2e and screenshot scripts
+  web/              React SPA, with PRODUCT.md and DESIGN.md
+scripts/            gen-skill (embeds SKILL.md), e2e and screenshot scripts, git hooks
 e2e/plans/          end-to-end test plans an agent runs through the web app and MCP
-deploy/cloud-run/   the setup script (the deployment guide is okf/operations/cloud-run.md)
-Dockerfile · cloudbuild.yaml
+deploy/             Dockerfile; cloud-run/: setup script and cloudbuild.yaml (guide:
+                    okf/operations/cloud-run.md)
 okf/                this knowledge bundle, including this specification (okf/spec/)
 ```
 

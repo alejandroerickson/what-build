@@ -24,7 +24,7 @@ const SENSITIVE = [
   "apps/server/src/uploads.ts", "apps/server/src/public-routes.ts", "apps/server/src/adapters/",
   "apps/server/src/parse-thread.ts", "apps/server/src/config.ts", "packages/core/src/policy.ts",
   "packages/core/src/execute.ts", "packages/core/src/connector-scope.ts", "packages/core/src/story-html.ts",
-  "packages/parsers/src/", "pnpm-lock.yaml", "Dockerfile",
+  "packages/parsers/src/", "pnpm-lock.yaml", "deploy/Dockerfile",
 ];
 
 const lines = [];
@@ -33,7 +33,8 @@ const say = (text, skill) => lines.push(`- ${text}${skill ? ` (${skill})` : ""}`
 // Local: the hooks that keep private material out.
 async function hooks() {
   const path = await out("git", ["config", "--get", "core.hooksPath"]).catch(() => "");
-  if (path !== ".githooks") say("the git hooks are off in this clone: run `corepack pnpm install`, which turns them on");
+  // A clone that has not run `pnpm install` since the hooks moved from .githooks/ points at nothing.
+  if (path !== "scripts/githooks") say("the git hooks are off in this clone: run `corepack pnpm install`, which turns them on");
 }
 
 // Local: accepted vulnerabilities whose time is up or nearly up.
