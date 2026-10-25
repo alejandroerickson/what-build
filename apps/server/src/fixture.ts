@@ -32,21 +32,26 @@ import { APP_ROLE, connectOrStartLocalPg, type LocalPg } from "./testing/pg.ts";
  *
  * pull reads WHATBUILD_FIXTURE_DATABASE_URL (a role that reads everything and bypasses row-level
  * security) and WHATBUILD_FIXTURE_BUCKET (gs://…); with GCP_PROJECT instead (from the environment
- * or .env), the Cloud Run deployment's backup role and files bucket.
+ * or .env), the Cloud Run deployment's backup role and files bucket. In a git worktree without a
+ * .env or pulls of its own, the main checkout's are used, so every checkout shares them.
  */
 const root = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 const FIXTURES = resolve(root, process.env["WHATBUILD_FIXTURE_DIR"] ?? ".what-build/fixtures");
 
-/** Where pulls are read from: this checkout's, or, in a git worktree that has none, the main checkout's. */
+/** A path in the main checkout, as seen from a git worktree (or the checkout itself), when it is there. */
+function inMainCheckout(path: string) {
+  try {
+    const main = resolve(root, run("git", ["-C", root, "rev-parse", "--git-common-dir"]), "..", path);
+    return existsSync(main) ? main : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Where pulls are kept: this checkout's, or, in a git worktree that has none, the main checkout's. */
 function pullsDir() {
   if (process.env["WHATBUILD_FIXTURE_DIR"] || existsSync(FIXTURES)) return FIXTURES;
-  try {
-    const common = resolve(root, run("git", ["-C", root, "rev-parse", "--git-common-dir"]));
-    const main = resolve(common, "..", ".what-build/fixtures");
-    return existsSync(main) ? main : FIXTURES;
-  } catch {
-    return FIXTURES;
-  }
+  return inMainCheckout(".what-build/fixtures") ?? FIXTURES;
 }
 const PG_PORT = Number(process.env["WHATBUILD_PG_PORT"] ?? 54329);
 export const FIXTURE_DATABASE = "fixture";
@@ -55,10 +60,11 @@ export const FIXTURE_BLOBS = resolve(root, ".what-build/fixture-blobs");
 const run = (cmd: string, args: string[]) => execFileSync(cmd, args, { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 }).trim();
 const show = (path: string) => (relative(root, path).startsWith("..") ? path : relative(root, path) || ".");
 
-/** One value from the root .env, where the maintainer's deployment names live; never the whole file. */
+/** One value from the root .env (the main checkout's, from a git worktree without one), where the maintainer's deployment names live; never the whole file. */
 function fromDotEnv(name: string) {
-  const file = resolve(root, ".env");
-  if (!existsSync(file)) return undefined;
+  const own = resolve(root, ".env");
+  const file = existsSync(own) ? own : inMainCheckout(".env");
+  if (!file) return undefined;
   const line = readFileSync(file, "utf8").split("\n").find((l) => l.startsWith(`${name}=`));
   return line?.slice(name.length + 1).trim().replace(/^["']|["']$/g, "") || undefined;
 }
@@ -130,7 +136,7 @@ async function pull(args: string[]) {
   if (filesInto && filesInto === bucket) throw new Error("--files-into names the deployment's own bucket, which a pull only reads.");
 
   const name = new Date().toISOString().slice(0, 16).replace(":", "") + "Z";
-  const dir = join(FIXTURES, name);
+  const dir = join(pullsDir(), name);
   if (existsSync(dir)) throw new Error(`There is already a pull named ${name}: wait a minute and pull again.`);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   let organizations: Organization[] | undefined;

@@ -3,7 +3,7 @@ type: System Concept
 title: A copy of production on your machine, for manual QA, agent-driven end-to-end tests and trying migrations on real data
 description: Pulling the public sandbox or other organizations of the deployment, with their files, loading them into the embedded Postgres, serving them with pending migrations applied, and keeping the copy private.
 tags: [development, testing, qa, production, fixture, migrations]
-generated: {by: agent:claude, at: 2026-10-18}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -34,7 +34,8 @@ conducts it.
 ## What you need
 
 - For the Cloud Run deployment: `gcloud` signed in with access to its project, and `GCP_PROJECT`
-  in `.env` or the environment.
+  in `.env` or the environment. A git worktree without a `.env` of its own reads the main
+  checkout's.
 - `pg_dump` and `pg_restore` of the production server's major version or newer.
 
 ## Pull
@@ -56,7 +57,9 @@ and every option, are in [copying an organization](copying-an-organization.md).
 
 Each pull is a new folder named for its UTC time, such as `.what-build/fixtures/2026-10-10T0411Z/`,
 holding `database.dump`, `files/` and `pulled.json`, which names the organizations. `pulled.json`
-is written last, so a pull that stopped part-way is never loaded.
+is written last, so a pull that stopped part-way is never loaded. A git worktree without
+`.what-build/fixtures` of its own writes its pulls to the main checkout's and reads them there, so
+every checkout shares them and `pnpm attention` sees each one.
 
 For another deployment, set `WHATBUILD_FIXTURE_DATABASE_URL` to a role that reads everything and
 bypasses row-level security, as the backup role does. Set `WHATBUILD_FIXTURE_BUCKET` to its

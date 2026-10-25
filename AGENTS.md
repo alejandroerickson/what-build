@@ -69,7 +69,7 @@ that folder. If your tool does not load skills, read the `SKILL.md` files direct
 | `make-a-release` | When asked to release a version or move production: publish the release, approve the deploy. |
 | `rehearse-on-the-dev-deployment` | Before production runs a release that migrates, or when asked to deploy to dev, refresh or reset dev's copy of production, change which organizations dev holds, set dev up, or rehearse a restore. |
 | `recover-a-deployment` | When a new version broke a deployment (Cloud Run or Azure): roll back, restore the database. |
-| `test-on-a-copy-of-production` | When asked to QA or test end to end on real data, to put the sandbox or an organization into the test database, or to try migrations on a copy of production. |
+| `test-on-a-copy-of-production` | When asked to pull the sandbox (or an organization) and run the app locally on it, to QA or test end to end on real data, or to try migrations on a copy of production. |
 | `copy-an-organization` | When asked to dump, export, extract or move an organization or the sandbox, to keep an organization out of a copy, or to give an organization a deployment of its own. |
 | `audit-for-leaks` | When asked to check the repository or its history for secrets or private material, when something may have leaked, or to make the repository public. |
 | `triage-security-findings` | When `pnpm security`, the Security or CodeQL workflow, or Dependabot reports something; when adding or upgrading a dependency; before a release. |
