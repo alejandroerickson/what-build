@@ -41,7 +41,10 @@ What the app itself defends against, and where, is in the [threat model](../syst
 | `pnpm attention` | at the start of every agent session (`AGENTS.md`): Dependabot's pull requests and alerts, code and secret scanning alerts, the last run of each workflow on `main`, accepted vulnerabilities within 30 days of expiry, unreleased changes to security-sensitive code, hooks that are off, pulls of every organization and a dev copy that names none ([copying an organization](copying-an-organization.md)) | tells the person |
 
 `pnpm install` installs the hooks: its `prepare` script points `core.hooksPath` at
-`scripts/githooks/`, which covers every worktree of the clone. The hooks need only Node. `scripts/tools.mjs` downloads
+`scripts/githooks/`. It sets that for the worktree it runs in (git's `extensions.worktreeConfig`),
+because the worktrees of a clone share the rest of its configuration: a worktree on a branch from
+before the hooks moved, which keeps them in `.githooks/`, sets the shared value and keeps its own
+hooks, and neither turns the other's off. The hooks need only Node. `scripts/tools.mjs` downloads
 each scanner once, checks it against the SHA-256 pinned there, and keeps it in
 `~/.cache/what-build/tools/` (or under `$XDG_CACHE_HOME`). If gitleaks cannot be fetched, a commit
 goes ahead with a warning; the push and CI check it again.
