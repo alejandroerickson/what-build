@@ -3,7 +3,7 @@ type: Specification
 title: Accounts belong to tenants, tenants hold teams, teams run products, and one role check decides every call.
 description: The account → tenant → team → product hierarchy, sign-in, roles and what they grant, addressing and isolation, moving sources between products, caller identity, attribution, and who is who in the public sandbox.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, sandbox]
-generated: {by: agent:claude, at: 2026-10-24}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -18,7 +18,7 @@ through; identity lives in [`apps/server/src/auth`](../../apps/server/src/auth).
 
 ```
 account              one person's sign-in; may belong to several tenants
-tenant               an organization: the isolation and (later) billing boundary
+tenant               an organization: the isolation boundary
 └── team             a group of people and the products they run
     └── product      one discovery
         ├── outcomes

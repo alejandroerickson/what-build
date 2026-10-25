@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild turns a team's discovery material into insight and a story, with agents as first-class contributors.
 description: Who the product is for, the core loop, the four screens, the vocabulary, the non-negotiable behaviors, and what the product is not.
 tags: [spec, product, vocabulary, principles]
-generated: {by: agent:claude, at: 2026-10-18}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -80,7 +80,7 @@ Idea screen's terms are a decision: [A product starts with its idea](../decision
 | Term | Meaning |
 |---|---|
 | **account** | One person's sign-in. May belong to several tenants. |
-| **tenant** | An organization: the isolation and billing boundary. Shown as "organization" in the UI. |
+| **tenant** | An organization: the isolation boundary. Shown as "organization" in the UI. |
 | **team** | A group inside a tenant and the products it runs. Roles granted on a team apply to its products. Never "workspace". |
 | **product** | One discovery. Owns all of the objects below. |
 | **role** | reader, viewer, editor or admin on a team or product; owner, admin or member of a tenant. A reader reads only the Story. |
