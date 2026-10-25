@@ -3,7 +3,7 @@ type: System Concept
 title: Where things are in the repository
 description: The workspace layout and the files an engineer or agent reaches for first.
 tags: [repository, layout, orientation]
-generated: {by: agent:claude, at: 2026-10-18}
+generated: {by: agent:claude, at: 2026-10-24}
 status: stable
 ---
 
@@ -21,7 +21,7 @@ A pnpm workspace: two apps and two libraries.
 | `e2e/plans/` | The [end-to-end test plans](../operations/end-to-end-tests.md) an agent runs through the web app and MCP, and their format (`README.md`). |
 | `scripts/` | `e2e.mjs` and `shots.mjs` (Playwright scripts against a running `pnpm dev`), `gen-skill.mjs` (embeds `SKILL.md` into core), `check-publishable.mjs` (nothing private is published), `security.mjs` (`pnpm security`), `tools.mjs` (the pinned scanners), `attention.mjs` (`pnpm attention`: what is waiting) ([security checks](../operations/security-checks.md)), `hostile-files.mjs` (hostile uploads for rehearsing a release, [dev deployment](../operations/dev-deployment.md#rehearsing-a-release)). |
 | `.githooks/` | The git hooks `pnpm install` turns on: `pre-commit`, `commit-msg` and `pre-push` run the publishable check. |
-| `.github/` | Workflows (`ci.yml`, `security.yml`, `codeql.yml`, `release.yml`), `dependabot.yml`, and the scanners' settings: `gitleaks.toml`, `osv-scanner.toml` (accepted vulnerabilities), `zap-rules.tsv`. |
+| `.github/` | Workflows (`ci.yml`, `pull-request-text.yml`, `security.yml`, `codeql.yml`, `release.yml`), `dependabot.yml`, and the scanners' settings: `gitleaks.toml`, `osv-scanner.toml` (accepted vulnerabilities), `zap-rules.tsv`. |
 | `deploy/cloud-run/` | `setup.sh` for the Cloud Run deployment ([guide](../operations/cloud-run.md)). |
 | `deploy/azure/` | `containerapp.yaml`, the container app's definition for a self-hosted deployment on Azure, which an agent sets up with the Azure CLI ([guide](../operations/azure.md)). |
 | `deploy/cloudflare/` | `worker.js` and `wrangler.toml`: on Cloudflare's free plan, the public site from the edge and the app's domain from the Cloud Run service. |

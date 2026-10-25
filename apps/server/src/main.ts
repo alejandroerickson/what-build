@@ -12,7 +12,7 @@ import { Worker } from "./worker.ts";
  *   serve     HTTP (web app, REST, MCP) plus the job worker unless WHATBUILD_WORKER=0
  *   worker    the job worker only
  *   migrate   apply database migrations, then exit
- *   seed      create the synthetic sample product and two accounts, then exit
+ *   seed      create the synthetic sample product and three accounts, then exit
  */
 async function main() {
   const command = process.argv[2] ?? "serve";

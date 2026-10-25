@@ -3,8 +3,10 @@ name: Security
 # Known vulnerabilities in the dependencies and weaknesses in the workflows, with the pinned scanners
 # a contributor runs as `pnpm security`, on every pull request and push to main and weekly, because
 # advisories appear for dependencies that have not changed. Weekly as well: every published commit
-# checked again for anything private, and a passive OWASP ZAP scan of the app running as it does in
-# production. A failure here reports; it does not block a merge (okf/operations/security-checks.md).
+# checked again for anything private, and so is what GitHub holds beside the code from the past
+# week (pull request and issue text, comments, reviews, release notes, Actions logs and artifacts);
+# and a passive OWASP ZAP scan of the app running as it does in production. A failure here
+# reports; it does not block a merge (okf/operations/security-checks.md).
 on:
   push:
     branches: [main]
@@ -45,6 +47,27 @@ jobs:
         with:
           node-version-file: .nvmrc
       - run: node scripts/check-publishable.mjs --all
+
+  beside-the-code:
+    name: Nothing private, what GitHub holds from the past week
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+      actions: read # the logs and artifacts
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - run: node scripts/check-publishable.mjs --github --since 8d # a day of overlap
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
 
   zap:
     name: The running app (OWASP ZAP baseline)

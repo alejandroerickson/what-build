@@ -6,3 +6,61 @@
 # ignoreUntil = 2026-12-31
 # reason = "Only reachable through …, which WhatBuild never calls."
 
+
+# nodemailer's address parser misreads quoted local parts, nested comments and groups. Every
+# recipient WhatBuild gives it has passed zod's email check, which refuses quotes, comments,
+# semicolons and angle brackets, or is the operator's own setting. Fixed in 10.1.4: upgrade once it
+# is a week old (2026-10-25).
+[[IgnoredVulns]]
+id = "GHSA-85x2-q946-cp5h"
+ignoreUntil = 2026-11-01
+reason = "nodemailer's address parser; every recipient has passed zod's email check or is the operator's setting. Upgrade to 10.1.4 once it is a week old."
+
+[[IgnoredVulns]]
+id = "GHSA-8c8m-p3m8-cjg8"
+ignoreUntil = 2026-11-01
+reason = "nodemailer's address parser; every recipient has passed zod's email check or is the operator's setting. Upgrade to 10.1.4 once it is a week old."
+
+[[IgnoredVulns]]
+id = "GHSA-m943-m63m-w62w"
+ignoreUntil = 2026-11-01
+reason = "nodemailer's address parser; every recipient has passed zod's email check or is the operator's setting. Upgrade to 10.1.4 once it is a week old."
+
+# fast-uri comes with ajv, under @modelcontextprotocol/sdk. Ajv resolves the $id and $ref of the
+# schemas it compiles with it; those come from WhatBuild and the SDK, never from a request. Fixed in
+# 3.1.9: upgrade once it is a week old (2026-10-26).
+[[IgnoredVulns]]
+id = "GHSA-333x-w4r6-6crp"
+ignoreUntil = 2026-11-01
+reason = "fast-uri under ajv, which resolves only the URIs of schemas WhatBuild and the MCP SDK define. Upgrade to 3.1.9 once it is a week old."
+
+[[IgnoredVulns]]
+id = "GHSA-w74x-v6f9-j3xg"
+ignoreUntil = 2026-11-01
+reason = "fast-uri under ajv, which resolves only the URIs of schemas WhatBuild and the MCP SDK define. Upgrade to 3.1.9 once it is a week old."
+
+[[IgnoredVulns]]
+id = "GHSA-wjr9-j795-jxcr"
+ignoreUntil = 2026-11-01
+reason = "fast-uri under ajv, which resolves only the URIs of schemas WhatBuild and the MCP SDK define. Upgrade to 3.1.9 once it is a week old."
+
+[[IgnoredVulns]]
+id = "GHSA-xhq7-xmqj-769h"
+ignoreUntil = 2026-11-01
+reason = "fast-uri under ajv, which resolves only the URIs of schemas WhatBuild and the MCP SDK define. Upgrade to 3.1.9 once it is a week old."
+
+# body-parser comes with express, which @modelcontextprotocol/sdk depends on. WhatBuild serves MCP
+# through the SDK's web-standard transport on Hono and never loads express. Fixed in 2.4.0: upgrade
+# once it is a week old (2026-10-29).
+[[IgnoredVulns]]
+id = "GHSA-27r3-jxmh-p828"
+ignoreUntil = 2026-11-01
+reason = "body-parser under express, which WhatBuild never loads: MCP is served on Hono. Upgrade to 2.4.0 once it is a week old."
+
+# @azure/msal-node 6, under @azure/identity, which does not yet allow 7, the fixed major. The flaw
+# is in MSAL's authorization code flow; WhatBuild uses @azure/identity only for a managed identity
+# that sends mail through Azure Communication Services (adapters/mail-acs.ts).
+[[IgnoredVulns]]
+id = "GHSA-xcx6-jx8p-x3h5"
+ignoreUntil = 2027-01-22
+reason = "MSAL's authorization code flow, which WhatBuild never uses: @azure/identity serves only a managed identity for mail. Upgrade when @azure/identity allows @azure/msal-node 7."
