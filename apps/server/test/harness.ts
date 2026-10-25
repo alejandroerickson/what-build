@@ -35,6 +35,8 @@ export interface Harness {
    * null sends the form without a choice).
    */
   connectAgent(browser: Browser, clientName?: string, resourcePath?: string, level?: "viewer" | "editor" | "admin" | null): Promise<string>;
+  /** As connectAgent, with the refresh token and the client it was issued to. */
+  connectAgentTokens(browser: Browser, clientName?: string, resourcePath?: string, level?: "viewer" | "editor" | "admin" | null): Promise<{ access_token: string; refresh_token: string; client_id: string }>;
   close(): Promise<void>;
 }
 
@@ -95,6 +97,34 @@ export async function startHarness(overrides: Partial<ServerConfig> | ((baseUrl:
     },
   });
 
+  const connectAgentTokens: Harness["connectAgentTokens"] = async (browser, clientName = "test-agent", resourcePath = "/mcp", level = "admin") => {
+    const redirect = "http://127.0.0.1:9999/callback";
+    const reg = (await (await fetch(`${baseUrl}/oauth/register`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ client_name: clientName, redirect_uris: [redirect] }) })).json()) as { client_id: string };
+    const verifier = randomBytes(32).toString("base64url");
+    const challenge = createHash("sha256").update(verifier).digest("base64url");
+    const authUrl = `${baseUrl}/oauth/authorize?response_type=code&client_id=${reg.client_id}&redirect_uri=${encodeURIComponent(redirect)}&code_challenge=${challenge}&code_challenge_method=S256&state=s&resource=${encodeURIComponent(`${baseUrl}${resourcePath}`)}`;
+    const page = await fetch(authUrl, { headers: { cookie: browser.cookie } });
+    const html = await page.text();
+    const consent = (page.headers.get("set-cookie") ?? "").split(";")[0]!;
+    const csrf = /name="csrf" value="([^"]+)"/.exec(html)![1]!;
+    const fields = Object.fromEntries([...html.matchAll(/type="hidden" name="([^"]+)" value="([^"]*)"/g)].map((m) => [m[1]!, m[2]!.replace(/&amp;/g, "&")]));
+    const decide = await fetch(`${baseUrl}/oauth/authorize`, {
+      method: "POST",
+      redirect: "manual",
+      headers: { cookie: `${browser.cookie}; ${consent}`, "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ ...fields, csrf, decision: "allow", ...(level ? { level } : {}) }),
+    });
+    const code = new URL(decide.headers.get("location")!).searchParams.get("code")!;
+    const tokens = (await (
+      await fetch(`${baseUrl}/oauth/token`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ grant_type: "authorization_code", code, client_id: reg.client_id, redirect_uri: redirect, code_verifier: verifier }),
+      })
+    ).json()) as { access_token: string; refresh_token: string };
+    return { access_token: tokens.access_token, refresh_token: tokens.refresh_token, client_id: reg.client_id };
+  };
+
   return {
     baseUrl,
     db,
@@ -127,33 +157,10 @@ export async function startHarness(overrides: Partial<ServerConfig> | ((baseUrl:
       const cookie = response.headers.getSetCookie().map((c) => c.split(";")[0]!).find((c) => /^(?:__Host-)?wb_session=./.test(c));
       return { response, cookie };
     },
-    async connectAgent(browser, clientName = "test-agent", resourcePath = "/mcp", level = "admin") {
-      const redirect = "http://127.0.0.1:9999/callback";
-      const reg = (await (await fetch(`${baseUrl}/oauth/register`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ client_name: clientName, redirect_uris: [redirect] }) })).json()) as { client_id: string };
-      const verifier = randomBytes(32).toString("base64url");
-      const challenge = createHash("sha256").update(verifier).digest("base64url");
-      const authUrl = `${baseUrl}/oauth/authorize?response_type=code&client_id=${reg.client_id}&redirect_uri=${encodeURIComponent(redirect)}&code_challenge=${challenge}&code_challenge_method=S256&state=s&resource=${encodeURIComponent(`${baseUrl}${resourcePath}`)}`;
-      const page = await fetch(authUrl, { headers: { cookie: browser.cookie } });
-      const html = await page.text();
-      const consent = (page.headers.get("set-cookie") ?? "").split(";")[0]!;
-      const csrf = /name="csrf" value="([^"]+)"/.exec(html)![1]!;
-      const fields = Object.fromEntries([...html.matchAll(/type="hidden" name="([^"]+)" value="([^"]*)"/g)].map((m) => [m[1]!, m[2]!.replace(/&amp;/g, "&")]));
-      const decide = await fetch(`${baseUrl}/oauth/authorize`, {
-        method: "POST",
-        redirect: "manual",
-        headers: { cookie: `${browser.cookie}; ${consent}`, "content-type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ ...fields, csrf, decision: "allow", ...(level ? { level } : {}) }),
-      });
-      const code = new URL(decide.headers.get("location")!).searchParams.get("code")!;
-      const tokens = (await (
-        await fetch(`${baseUrl}/oauth/token`, {
-          method: "POST",
-          headers: { "content-type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({ grant_type: "authorization_code", code, client_id: reg.client_id, redirect_uri: redirect, code_verifier: verifier }),
-        })
-      ).json()) as { access_token: string };
-      return tokens.access_token;
+    async connectAgent(browser, clientName, resourcePath, level) {
+      return (await connectAgentTokens(browser, clientName, resourcePath, level)).access_token;
     },
+    connectAgentTokens,
     async close() {
       worker?.stop();
       await new Promise<void>((r) => server.close(() => r()));

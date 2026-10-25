@@ -7,7 +7,7 @@ import { z } from "zod";
 import { microsoftSignIn, type ServerConfig } from "../config.ts";
 import { inviteCodeIn, inviteInfo } from "../public-sandbox.ts";
 import { connectorReach } from "./connector-reach.ts";
-import { acceptInvitation, acceptInvitationsForEmail, clearSessionCookies, createSession, findOrCreateAccount, isOwnOrigin, restPrincipal, sessionTokens, setSessionCookie } from "./identity.ts";
+import { acceptInvitation, acceptInvitationsForEmail, clearSessionCookies, createSession, endEverything, findOrCreateAccount, isOwnOrigin, restPrincipal, sessionTokens, setSessionCookie } from "./identity.ts";
 import { returnsTo } from "./oauth.ts";
 import { authPage, authPageHeaders } from "./page.ts";
 
@@ -425,6 +425,21 @@ export function authRoutes(deps: { db: Db; config: ServerConfig; mailer: Mailer 
     const p = await requirePrincipal(c);
     await db.updateTable("oauth_tokens").set({ revoked_at: new Date().toISOString() }).where("family_id", "=", c.req.param("family")).where("account_id", "=", p.account_id).execute();
     return c.json({ revoked: true });
+  });
+
+  /**
+   * Sign out everywhere: end every browser session, this one too unless kept, and disconnect every
+   * agent. Only a person in the web app can: REST takes no bearer token and no operation reaches
+   * this, so an agent cannot lock its person out of their own work.
+   */
+  app.post("/api/v1/me/sign-out-everywhere", async (c) => {
+    const p = await requirePrincipal(c);
+    const body = z.strictObject({ keep_this_session: z.boolean().default(false) }).safeParse(await c.req.json().catch(() => ({})));
+    if (!body.success) throw invalid("invalid_input", "Send keep_this_session, true or false, or nothing to end this session too.");
+    const keep = body.data.keep_this_session;
+    const ended = await endEverything(db, p.account_id, keep ? sessionTokens(c, secure).map(sha256Hex) : []);
+    if (!keep) clearSessionCookies(c, secure);
+    return c.json({ ...ended, kept_this_session: keep });
   });
 
   app.post("/api/v1/invitations/accept", async (c) => {

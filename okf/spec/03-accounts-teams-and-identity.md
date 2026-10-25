@@ -410,6 +410,18 @@ issued since is never taken under the old name. When both names arrive, the new 
 session. Signing in over HTTPS clears `wb_session`; signing out ends the session under either
 name and clears both ([`apps/server/src/auth/identity.ts`](../../apps/server/src/auth/identity.ts)).
 
+**Sign out everywhere.** Signing out ends one browser's session. To end everything at once, a
+person uses Sign out everywhere in their Settings (`POST /api/v1/me/sign-out-everywhere
+{ keep_this_session? }`, the session only, from the app's own origin). In one transaction
+(`endEverything`, `identity.ts`) it deletes every session of the account, the calling one too
+unless `keep_this_session` is true; revokes every agent connection, whose next call answers `401`
+and whose refresh token is refused; and expires every upload grant of the account's not yet used,
+so nothing more is stored under one, while the download grants its agents held stop with their
+connections ([§6.4](06-operations-and-adapters.md#64-rest)). It answers `{ sessions, connections,
+kept_this_session }`, and writes nothing into any organization: the account is the person's own.
+No operation reaches it, so an agent cannot sign its person out. Deleting an account, when it is
+built, ends everything the same way first.
+
 **OAuth for agents.** WhatBuild is its own authorization server: protected-resource metadata
 (RFC 9728) at `/.well-known/oauth-protected-resource/mcp`, authorization-server metadata (RFC 8414),
 dynamic client registration (RFC 7591), authorization code with PKCE S256, resource indicators

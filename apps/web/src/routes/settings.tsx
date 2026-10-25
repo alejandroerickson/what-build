@@ -2,9 +2,11 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { api } from "../lib/api.ts";
+import { plural } from "../lib/format.ts";
+import { forgetPersonalState } from "../lib/local-state.ts";
 import { useMe } from "../lib/session.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
-import { Button, ErrorCallout, FormGrid, Sheet, SheetHeader, TextField, useToast } from "../ui/index.tsx";
+import { Button, Dialog, ErrorCallout, FormGrid, Sheet, SheetBody, SheetHeader, TextField, useToast } from "../ui/index.tsx";
 import "../styles/screens/account.css";
 
 /** `/settings`: the person's own settings, reached from the account menu. */
@@ -60,9 +62,73 @@ export function SettingsPage() {
           </div>
         </form>
       </Sheet>
+      <SignOutEverywhere />
       <p className="agents-foot">
         <Link to="/cookies">Cookies and analytics</Link> · <Link to="/privacy">Privacy</Link>
       </p>
     </>
+  );
+}
+
+/**
+ * Sign out everywhere: every browser this person is signed in on, and every agent they connected,
+ * at once. This browser signs out too unless they keep it, since it may be the one at risk.
+ */
+function SignOutEverywhere() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const end = useMutation({
+    mutationFn: (keep: boolean) => api<{ sessions: number; connections: number; kept_this_session: boolean }>("POST", "/api/v1/me/sign-out-everywhere", { keep_this_session: keep }),
+    onSuccess: (r) => {
+      if (!r.kept_this_session) {
+        forgetPersonalState();
+        qc.clear();
+        window.location.assign("/signin");
+        return;
+      }
+      setOpen(false);
+      void qc.invalidateQueries({ queryKey: ["agents"] });
+      toast(`Signed out of every other browser${r.connections ? `, and disconnected ${plural(r.connections, "agent")}` : ""}.`);
+    },
+  });
+  const close = () => {
+    setOpen(false);
+    end.reset();
+  };
+  return (
+    <Sheet className="account-sheet" labelledBy="everywhere-title">
+      <SheetHeader id="everywhere-title" title="Sign out everywhere" />
+      <SheetBody className="account-everywhere">
+        <p className="muted">Sign out of every browser and disconnect every agent you connected, at once. Use it if a device is lost, or you aren&rsquo;t sure what you allowed.</p>
+        <div>
+          <Button onClick={() => setOpen(true)}>Sign out everywhere…</Button>
+        </div>
+      </SheetBody>
+      {open ? (
+        <Dialog
+          open
+          onClose={close}
+          dismissable={!end.isPending}
+          title="Sign out everywhere?"
+          description="Every agent you connected is disconnected, and every browser signed in as you is signed out: this one too, unless you choose everywhere else. You connect each agent again to use it."
+          footer={
+            <>
+              <Button onClick={close} disabled={end.isPending}>
+                Cancel
+              </Button>
+              <Button onClick={() => end.mutate(true)} disabled={end.isPending} busy={end.isPending && end.variables === true} busyLabel="Signing out…">
+                Everywhere else
+              </Button>
+              <Button variant="danger" onClick={() => end.mutate(false)} disabled={end.isPending} busy={end.isPending && end.variables === false} busyLabel="Signing out…">
+                Sign out everywhere
+              </Button>
+            </>
+          }
+        >
+          {end.isError ? <ErrorCallout inset error={end.error} /> : null}
+        </Dialog>
+      ) : null}
+    </Sheet>
   );
 }

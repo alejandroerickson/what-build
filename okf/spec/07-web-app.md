@@ -129,7 +129,9 @@ the browser's back button and "open in new tab" both work.
   where they read only the Story is left out, since its members are not shown to them); the theme
   (Light, Dark or System, which is the default; remembered per browser); **New organization**,
   while they may still create one; **Organization creators**, for an owner of the instance;
-  **Settings** (their own display name); **Submit feedback**; and Sign out. Last, under a hairline, is the release this
+  **Settings** (their own display name, and **Sign out everywhere**, which asks first and offers
+  Everywhere else to keep this browser signed in; signed out here too, the person lands on sign-in);
+  **Submit feedback**; and Sign out. Last, under a hairline, is the release this
   WhatBuild runs, from `/api/v1/meta`: "Release v0.3.1", or "Commit 1a2b3c4" for a
   build that is not a release, linking to the release notes or the commit on GitHub in a new tab;
   the commit and build time stay in `/api/v1/meta`. A development
@@ -225,7 +227,7 @@ person's organization role is in the account menu, and who has which role is on 
 /t/:tenant/members                            people and roles in an organization
 /t/:tenant/sandbox  ?visitor                  the public sandbox: its controls for staff, what it is for a visitor
 /connect            ?product                  Connect an agent: the MCP server URL for a product or all, and the agents connected now
-/settings                                     Settings: the person's display name
+/settings                                     Settings: the person's display name, and Sign out everywhere
 /instance                                     Organization creators: who may create organizations (instance owners)
 
 /t/:tenant/:team/:product                     → …/idea

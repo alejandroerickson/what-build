@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
-import { useParams, useSearchParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 import { api } from "../lib/api.ts";
 import { formatDate, relativeTime } from "../lib/format.ts";
 import { useProducts } from "../lib/session.tsx";
@@ -261,7 +261,8 @@ export function ConnectPage() {
       <ConnectedSheet />
       {c ? (
         <p className="agents-foot">
-          To install the {c.skill.name} skill (version {c.skill.version}) yourself, <a href={c.skill.zip_url}>download it</a>.
+          To install the {c.skill.name} skill (version {c.skill.version}) yourself, <a href={c.skill.zip_url}>download it</a>. To disconnect every agent at once, and sign out of every
+          browser, use <Link to="/settings">Sign out everywhere</Link> in Settings.
         </p>
       ) : null}
     </>

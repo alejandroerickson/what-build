@@ -607,7 +607,7 @@ GET  /api/v1/downloads/card-preview/:preview_id?theme=light|dark    a card previ
 GET  /prototypes/:grant/<path>                       a mockup prototype's file; the grant in the path is the credential (§4.12)
 GET  /api/v1/meta                                    server and skill version, release, sign-in methods (public)
 GET  /api/v1/connect                                 what the Connect page shows
-GET|PATCH /api/v1/me; GET /api/v1/me/agents; PATCH|DELETE /api/v1/me/agents/:family
+GET|PATCH /api/v1/me; GET /api/v1/me/agents; PATCH|DELETE /api/v1/me/agents/:family; POST /api/v1/me/sign-out-everywhere
 POST /api/v1/invitations/accept
 GET  /api/v1/sandbox/invite?code=                    what a sandbox invitation is, before sign-in (public)
 POST /api/v1/sandbox/reset-if-due                    runs a sandbox's reset if its hour has passed (public)
@@ -836,7 +836,9 @@ Rules:
 - **REST answers the browser session only.** There are no personal access tokens: a bearer token
   on REST is refused, and scripts connect as agents over MCP. Connected agents are listed, their
   level and feedback switch changed (`PATCH /api/v1/me/agents/:family { level?, feedback? }`, the
-  session only) and disconnected on the Connect an agent page. The session cookie is `__Host-wb_session` over HTTPS
+  session only) and disconnected on the Connect an agent page, one at a time, or all at once with
+  every session by `POST /api/v1/me/sign-out-everywhere { keep_this_session? }`
+  ([§3.8](03-accounts-teams-and-identity.md#38-identity-of-the-caller)). The session cookie is `__Host-wb_session` over HTTPS
   and `wb_session` over HTTP ([§3.8](03-accounts-teams-and-identity.md#38-identity-of-the-caller)).
 - **Sign-in endpoints** (`apps/server/src/auth/routes.ts`): `POST /auth/email` sends a link;
   `GET /auth/verify?token=` shows its page and changes nothing, and `POST /auth/verify` (form field
@@ -990,7 +992,8 @@ configure but one address. It shows:
 - **a plain statement about the agent's side of the trip**, above the steps: what the agent reads
   goes to whoever runs it, under their terms ([§9.1](09-data-lifecycle.md));
 - an optional ZIP download of the skill, with its version, for installing it by hand (the server
-  offers it to the agent anyway).
+  offers it to the agent anyway), and a line pointing to Sign out everywhere in Settings, which
+  disconnects every agent at once.
 
 ## 6.9 Feedback
 
