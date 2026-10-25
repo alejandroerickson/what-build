@@ -3,7 +3,7 @@ type: Decision
 title: The WhatBuild mark is one W in a rounded tile with a title-bar line, like one of the app's panels
 description: The mark keeps one monochrome W in a rounded tile and adds a hairline across the tile's top, so the tile reads as a panel with its header.
 tags: [decision, design, brand]
-generated: {by: agent:claude, at: 2026-10-11}
+generated: {by: agent:claude, at: 2026-10-24}
 status: stable
 ---
 
@@ -41,4 +41,4 @@ name. The maintainer chose the title-bar variation on 2026-10-11.
   changes with it.
 - The mark stays monochrome: no accent colour in it.
 
-Specified in: [DESIGN.md, The W Mark](../../DESIGN.md) and [the web app's panel](../spec/07-web-app.md).
+Specified in: [DESIGN.md, The W Mark](../../apps/web/DESIGN.md) and [the web app's panel](../spec/07-web-app.md).

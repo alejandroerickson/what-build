@@ -1,7 +1,7 @@
 # WhatBuild: agent orientation
 
-This file is for any agent working in this repository. `CLAUDE.md` is a symlink to it; keep one
-copy.
+This file is for any agent working in this repository. `.claude/CLAUDE.md` is a symlink to it; keep
+one copy.
 
 ## At the start of every session
 
@@ -52,9 +52,8 @@ The domain is **what-build.com**, with a hyphen: the public site at `what-build.
 | `packages/core` | Operations (defined once, served over REST and MCP), policy, domain rules, the agent skill. |
 | `packages/parsers` | Pure parsers from a file's bytes to readable Markdown. |
 | `apps/server` | Hono server: REST, MCP, identity and OAuth, uploads, worker, migrations, seed. |
-| `apps/web` | React app on the Studio design system. |
+| `apps/web` | React app on the Studio design system, with `PRODUCT.md` and `DESIGN.md`, the product and design records design tooling reads. |
 | `e2e/plans` | End-to-end test plans an agent runs through the web app and MCP (`okf/operations/end-to-end-tests.md`). |
-| `PRODUCT.md`, `DESIGN.md` | Product and design records, read by design tooling. |
 
 ## Skills
 
@@ -81,9 +80,9 @@ that folder. If your tool does not load skills, read the `SKILL.md` files direct
 ## Before you change anything
 
 Read `okf/process/working-in-this-repository.md`. In short: capabilities start as operations with
-server tests; migrations are new forward-only files with row-level security; UI follows `DESIGN.md`;
-the vocabulary is fixed; `pnpm typecheck`, `pnpm test` and `pnpm build` pass; and a dependency you
-add or upgrade leaves `pnpm security` clean.
+server tests; migrations are new forward-only files with row-level security; UI follows
+`apps/web/DESIGN.md`; the vocabulary is fixed; `pnpm typecheck`, `pnpm test` and `pnpm build` pass;
+and a dependency you add or upgrade leaves `pnpm security` clean.
 
 ```sh
 corepack pnpm install && corepack pnpm dev   # http://localhost:5273, one-click dev sign-in

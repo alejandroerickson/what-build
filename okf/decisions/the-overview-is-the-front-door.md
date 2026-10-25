@@ -3,7 +3,7 @@ type: Decision
 title: The overview is WhatBuild's front door, and the one screen with display type
 description: `/` and the WhatBuild mark open an overview that introduces the product and lists every product with a link to each section; only its intro is set above the 20px ceiling.
 tags: [decision, web, design, navigation]
-generated: {by: agent:claude, at: 2026-10-12}
+generated: {by: agent:claude, at: 2026-10-24}
 status: stable
 ---
 
@@ -54,4 +54,4 @@ what each stage holds instead.
   ([decision](the-public-site-is-one-page-built-with-the-app.md)).
 - Tokens live in `apps/web/src/styles/tokens.css`; the screen is `apps/web/src/routes/overview.tsx`.
 
-Specified in: [07-web-app §7.2 and §7.3](../spec/07-web-app.md), [DESIGN.md](../../DESIGN.md).
+Specified in: [07-web-app §7.2 and §7.3](../spec/07-web-app.md), [DESIGN.md](../../apps/web/DESIGN.md).

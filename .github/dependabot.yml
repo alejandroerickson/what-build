@@ -15,7 +15,7 @@ updates:
       minor-and-patch:
         update-types: [minor, patch]
     ignore:
-      # The types follow the Node the image runs (.nvmrc, Dockerfile), and move with it by hand.
+      # The types follow the Node the image runs (.nvmrc, deploy/Dockerfile), and move with it by hand.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
     open-pull-requests-limit: 5

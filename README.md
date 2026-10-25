@@ -1,111 +1,91 @@
-# WhatBuild
+<p align="center">
+  <img src="apps/web/public/favicon.svg" width="64" height="64" alt="">
+</p>
 
-**Turn a pile of discovery material into something you can act on.** Interviews, sales calls,
-research exports, documents and decks go in; outcomes, mockups, reviewed assumptions and a
-stakeholder-readable story come out, with the evidence behind them kept whole and searchable.
+<h1 align="center">WhatBuild</h1>
 
-A person works through a web application. An agent works through a Model Context Protocol (MCP)
-server exposing the same operations. The product is agent-first: the MCP surface is the most
-complete control panel, and the web UI is how a person does the same things.
+<h3 align="center">What to build?</h3>
 
-There is no AI inside WhatBuild and it needs no model API key. Intelligence arrives through
-whatever agent you connect.
+<p align="center"><strong>Product discovery at the speed of AI Engineering.</strong></p>
 
-> **Status: early build.** The whole loop works end to end — sign-in,
-> organizations and roles, intake with tags, reading attachments into each source's text, search, mockups, reviewed
-> assumptions, the Story, activity, and agents over MCP with OAuth. See the
-> [roadmap](okf/spec/10-roadmap.md) for exactly what is and is not done.
+<p align="center">
+  WhatBuild accelerates collaborative agentic discovery, facilitates alignment, and tells the story
+  of your build. At the finish line, WhatBuild provides context to your ticket-creation agent so
+  that your team can hit the ground running.
+</p>
 
-## Running it locally
+<p align="center">
+  <a href="https://what-build.com">Website</a> ·
+  <a href="#run-it-yourself">Run it yourself</a> ·
+  <a href="okf/index.md">Documentation</a>
+</p>
 
-Node 24.15 or later, or 22.22.2 or later on 22 (24 is what CI and the image run). Nothing else: no Docker, no accounts, no API keys.
+## From idea to story
+
+| | |
+|---|---|
+| **Idea** | Say who it’s for and the outcomes you want. |
+| **Evidence** | Gather user research, team discussions and documents. |
+| **Exploration** | Mock up directions and review the assumptions behind them. |
+| **Story** | Show stakeholders what to build, and why. |
+
+<p align="center">
+  <img src=".github/assets/whatbuild.gif" width="1000" alt="A walk through WhatBuild: a product's idea and outcomes, a canvas of wireframe mockups stepped through with the arrow keys, the Story stakeholders read, and connecting an agent by pasting the MCP server's address into it.">
+</p>
+
+## Bring your own agent
+
+There is no AI inside WhatBuild. Your team's own agents do the reading, drafting and drawing,
+through an MCP server that offers the same operations as the web app. In WhatBuild, open
+**Connect an agent**, choose what it may reach, and copy the server's address into any agent that
+speaks MCP. It asks you to sign in, and the server tells it which version of the WhatBuild skill
+to install. From then on it can do almost everything you can in the web app: 119 of the 121
+operations, all but deleting an organization.
+
+People and agents share one account, one set of permissions and one activity log, so you always
+see what an agent did, and an agent's guess never passes for a person's agreement.
+
+## Try it
+
+WhatBuild is in private preview. Leave your email at [what-build.com](https://what-build.com) to
+hear when your team can start. It is an early build; the [roadmap](okf/spec/10-roadmap.md) says
+what is done and what is not.
+
+## Run it yourself
+
+On your machine you need Node 24 (or 22.22.2 or later), and nothing else: no Docker, no accounts,
+no API keys.
 
 ```sh
-git clone https://github.com/<owner>/what-build.git
+git clone https://github.com/alejandroerickson/what-build.git
 cd what-build
 corepack pnpm install
 corepack pnpm dev
 ```
 
-`pnpm dev` starts Postgres from an npm package (in `.what-build/pg`), runs migrations, seeds a
-synthetic sample product with three people, and starts the API (with its job worker) and the web app.
-Open <http://localhost:5273> and sign in as any sample person with one click. Sign-in links and
-invitation emails are printed in the terminal.
+Open <http://localhost:5273> and sign in as one of the sample people with one click. The sample
+product is synthetic. Point your agent's MCP client at `http://localhost:5273/mcp` to try it with
+an agent. [Local development](okf/operations/local-development.md) has the rest.
 
-To connect an agent to your local copy:
+To host it, you need one container image, Postgres and object storage. The guides set it up on
+[Google Cloud Run](okf/operations/cloud-run.md) or [Azure](okf/operations/azure.md), and each
+operation after that (releasing, backups, recovering from a bad release, mail) has its own guide
+in [`okf/operations`](okf/index.md), with a skill an agent can follow.
 
-```sh
-claude mcp add --transport http whatbuild-dev http://localhost:5273/mcp
-```
+## Contributing
 
-| Command | |
-|---|---|
-| `pnpm test` | Parser tests, server tests against a throwaway Postgres (every operation, isolation, roles, MCP, OAuth), web unit tests |
-| `pnpm typecheck` | Strict TypeScript across the workspace |
-| `pnpm build` | The web app and the production server bundle |
-| `DATABASE_URL=… pnpm dev` | Use your own Postgres instead of the embedded one |
-| `node scripts/e2e.mjs` | Walk the web app through the loop in headless Chrome, against a running `pnpm dev` |
-| `pnpm security` | Known vulnerabilities in the dependencies and weaknesses in the CI workflows |
-| `pnpm e2e golden`, `pnpm dev:e2e` | Build the golden master from a pull of production and serve a fresh copy of it, for an agent to run the test plans in `e2e/plans/` through the browser and MCP ([guide](okf/operations/end-to-end-tests.md)) |
-
-`pnpm install` also turns on git hooks that refuse a commit or push carrying a secret, a path from
-your machine, a real email address or a stray file: the repository is public
-([security checks](okf/operations/security-checks.md)). To report a vulnerability, see
-[SECURITY.md](SECURITY.md).
-
-## Deploying
-
-One image on Google Cloud Run, Postgres, and a Cloud Storage bucket. The
-[deployment guide](okf/operations/cloud-run.md) and [`setup.sh`](deploy/cloud-run/setup.sh) set it
-up from nothing. Once you add the Cloud Build trigger the guide describes, publishing a release
-builds, migrates and deploys it after someone approves the build; without it, a deploy is one
-`gcloud builds submit`. A release is a version tag on `main` with its notes and image; an agent
-makes one with the `make-a-release` skill ([releasing](okf/operations/releasing.md)).
-
-To run your own copy on Azure (Container Apps, Azure Database for PostgreSQL, Key Vault and a file
-share), point an agent with a signed-in Azure CLI at this repository: the
-[Azure guide](okf/operations/azure.md) and the `azure-self-host` skill tell it what to create and
-how to adapt to your organization.
-
-Before production runs a release that changes the database, the maintainer rehearses it on a
-second deployment that holds a copy of production's public sandbox ([the dev deployment](okf/operations/dev-deployment.md),
-the `rehearse-on-the-dev-deployment` skill). An agent can also copy one organization out of a
-deployment into another's new database ([copying an organization](okf/operations/copying-an-organization.md),
-the `copy-an-organization` skill). What each deployment backs up, how to check it and
-how to restore a dump are in [backups](okf/operations/backups.md).
-
-If a new version breaks your deployment, wherever it runs, ask your agent to recover it: the
-`recover-a-deployment` skill and the runbook,
-[recovering from a bad release](okf/operations/recovering-from-a-bad-release.md), take it back to
-the last good release and, when the bad one changed the database, restore the database first. Each
-[release's notes](https://github.com/alejandroerickson/what-build/releases) say whether it changes
-the database.
-
-## Layout
-
-```
-packages/parsers   bytes → readable Markdown (text, Markdown, VTT, SRT, HTML, DOC, DOCX, PDF, XLSX, CSV)
-packages/core      every operation, defined once: schemas, access policy, handlers, the skill
-apps/server        Hono: REST and MCP generated from the operations, OAuth, uploads, worker, CLI
-apps/web           React: the web app, on the Studio design system (see DESIGN.md)
-deploy/cloud-run   Cloud Run setup script (the guide is in okf/operations)
-deploy/azure       the container app's definition for self-hosting on Azure (the guide is in okf/operations)
-okf                all documentation: overview, decisions, specification, operations
-.agents/skills     skills for agents working on this repository (.claude/skills links here)
-```
+Start with [working in this repository](okf/process/working-in-this-repository.md). Before a
+change goes in, `corepack pnpm typecheck`, `corepack pnpm test` and `corepack pnpm build` pass.
+The repository is public, and `pnpm install` turns on git hooks that keep secrets and private
+material out of it ([security checks](okf/operations/security-checks.md)). To report a
+vulnerability, see [SECURITY.md](.github/SECURITY.md).
 
 ## Documentation
 
-Everything lives in [`okf/`](okf/index.md), a small bundle of linked Markdown:
-
-- [WhatBuild at three altitudes](okf/system/overview.md): the system from the top down.
-- [Decisions](okf/decisions/index.md): the architectural decision records.
-- [Specification](okf/spec/index.md): product, architecture, identity and tenancy, data model,
-  derived layer, operations and MCP, web app, search, data lifecycle, and the roadmap.
-- [Working in this repository](okf/process/working-in-this-repository.md): how to change it.
-
-Agents start at [`AGENTS.md`](AGENTS.md) and use the skills in [`.agents/skills`](.agents/skills)
-to read and maintain the bundle.
+Everything else is in [`okf/`](okf/index.md), a small bundle of linked Markdown: the system
+[from the top down](okf/system/overview.md), [where things are](okf/system/repository-map.md),
+the [specification](okf/spec/index.md) and the [decisions](okf/decisions/index.md) behind it.
+Agents start at [`AGENTS.md`](AGENTS.md).
 
 ## Licence
 

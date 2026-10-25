@@ -17,6 +17,6 @@ release; the release notes say what it fixes once it is safe to say.
 
 ## How the repository is checked
 
-What the app defends against, and where, is in the [threat model](okf/system/security.md). The
+What the app defends against, and where, is in the [threat model](../okf/system/security.md). The
 checks that keep secrets out of the repository and find known vulnerabilities in its dependencies,
-workflows and running app are in [security checks](okf/operations/security-checks.md).
+workflows and running app are in [security checks](../okf/operations/security-checks.md).

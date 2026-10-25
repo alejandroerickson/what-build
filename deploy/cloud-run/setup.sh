@@ -235,7 +235,8 @@ WhatBuild is deployed at $URL
 
 Next:
   1. Continuous deployment: Cloud Build > Triggers > Connect repository (GitHub), then a trigger on
-     pushes to main with configuration file /cloudbuild.yaml and substitution _REGION=$REGION.
+     release tags with configuration file /deploy/cloud-run/cloudbuild.yaml and substitution
+     _REGION=$REGION.
      Pick the trigger's region once, before connecting; it runs builds for this service.
      Until the trigger exists, a push to main deploys nothing; deploy by hand with gcloud builds
      submit (see okf/operations/cloud-run.md).

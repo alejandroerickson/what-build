@@ -3,7 +3,7 @@ type: System Concept
 title: When a new version breaks a WhatBuild deployment, go back to the last good version, and restore the database first if the new one migrated it.
 description: For the operator of any WhatBuild deployment and the agent working for them; how to see what runs, tell whether the bad version changed the schema, go back on Cloud Run (Neon, Cloud SQL, another Postgres) or Azure, check it, and fix forward.
 tags: [operations, recovery, rollback, migrations, deployment, cloud-run, neon, azure, runbook]
-generated: {by: agent:claude, at: 2026-10-18}
+generated: {by: agent:claude, at: 2026-10-24}
 status: stable
 ---
 
@@ -98,8 +98,8 @@ anything was applied, take the path in step 5.
 gcloud run services update-traffic whatbuild --project $P --region $R --to-revisions <good revision>=100
 ```
 
-Traffic stays pinned there until it is moved again; each deploy through `cloudbuild.yaml` ends by
-sending traffic to its new revision, so the next deploy moves it.
+Traffic stays pinned there until it is moved again; each deploy through
+`deploy/cloud-run/cloudbuild.yaml` ends by sending traffic to its new revision, so the next deploy moves it.
 
 **Azure.** The app runs one revision at a time, so deploy the previous image again, with the
 commands in [Azure](azure.md) under "Deploying a new version" and the previous `WB_IMAGE_TAG`. Its

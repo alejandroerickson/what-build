@@ -27,6 +27,7 @@ coverage/
 # Private notes go in /_private/.
 /.claude/*
 !/.claude/skills
+!/.claude/CLAUDE.md
 *.local.md
 *.local.json
 .mcp.json

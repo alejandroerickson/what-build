@@ -3,7 +3,7 @@ type: System Concept
 title: A deployment's backups are its database's restore history, a restore point before each deploy, a nightly dump and a versioned files bucket; this guide says where each is, how to check it and how to restore one.
 description: For the operator and the agent working for them; what is kept, where and for how long on Cloud Run and Azure, setting up the nightly dump, checking that backups run, restoring a dump into an empty database, checking a restore, and the restore drill.
 tags: [operations, backups, restore, postgres, neon, cloud-run, azure, runbook]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-24}
 status: stable
 ---
 
@@ -21,7 +21,7 @@ says; the restore in the middle is the one here.
 | What | Kept by | For how long | Set up by |
 |---|---|---|---|
 | Postgres on Neon | the project's history: restore the branch to any moment in it | six hours on the free plan; longer on paid plans | Neon |
-| Postgres on Neon | a branch before each deploy migrates, `pre-migrate-<UTC time>-<commit>` | the newest three | `cloudbuild.yaml` with `_NEON_PROJECT` ([Cloud Run](cloud-run.md)) |
+| Postgres on Neon | a branch before each deploy migrates, `pre-migrate-<UTC time>-<commit>` | the newest three | `deploy/cloud-run/cloudbuild.yaml` with `_NEON_PROJECT` ([Cloud Run](cloud-run.md)) |
 | Postgres other than Cloud SQL | a nightly `pg_dump` in the bucket `<project>-backups` | 35 days | by hand, [below](#the-nightly-dump) |
 | Cloud SQL | daily backups and point-in-time recovery | seven backups | `setup.sh` with `CLOUD_SQL=1` |
 | Azure Database for PostgreSQL | point-in-time recovery | 14 days | [Azure](azure.md) |

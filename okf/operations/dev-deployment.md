@@ -3,7 +3,7 @@ type: System Concept
 title: The dev deployment is a second Cloud Run deployment, laid out like production and holding a copy of its public sandbox or other organizations named, where a release is rehearsed before production moves.
 description: For the maintainer and the agent working for them; what the dev deployment is and how it differs from production, where its values are, rehearsing a release on it, putting it back, refreshing its copy of production's organizations, setting one up from nothing, and keeping its data private.
 tags: [operations, deployment, dev, rehearsal, migrations, cloud-run, neon, production]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-24}
 status: stable
 ---
 
@@ -81,7 +81,7 @@ hash:
 ```bash
 REF=v0.5.0                                          # the tag, or a commit of main
 S=$(mktemp -d); git archive "$REF" | tar -x -C "$S"; SHA=$(git rev-parse "$REF^{commit}")
-gcloud builds submit "$S" --project $P --region $R --config "$S/cloudbuild.yaml" \
+gcloud builds submit "$S" --project $P --region $R --config "$S/deploy/cloud-run/cloudbuild.yaml" \
   --substitutions "TAG_NAME=$REF,COMMIT_SHA=$SHA,SHORT_SHA=${SHA:0:7},_NEON_PROJECT=$N,_NEON_BRANCH=main"
 rm -rf "$S"
 ```

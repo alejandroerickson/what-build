@@ -35,7 +35,7 @@ adding a near-duplicate.
 9. **Outside the bundle.** Update these if the change touches them:
    - `AGENTS.md`: its path table and summary.
    - `README.md`: what a person sees first.
-   - `PRODUCT.md` and `DESIGN.md`: the product and design records.
+   - `apps/web/PRODUCT.md` and `apps/web/DESIGN.md`: the product and design records.
    - `packages/core/src/skill/SKILL.md`: how connected agents use the operations. After editing
      it, run `pnpm gen:skill`.
    - `.agents/skills/`: these skills, when the bundle's layout or rules change.
@@ -59,7 +59,7 @@ adding a near-duplicate.
 | `html-rules.ts` (what a Story page and a mockup page may hold), `page-sandbox.ts` (the sandbox each is shown in) | `spec/04` §4.11 and §4.12, decisions `story-pages-are-sandboxed-agent-html` and `mockups-are-versioned-canvases-in-exploration`, `system/security.md`, the descriptions of `mockups.publish` and `mockups.request_upload`, the product `SKILL.md` |
 | `story-html.ts`, `story-guidance.ts`, `story-styles.ts`, `story-theme.ts`, `story-print.ts`, `ops/story.ts` | `spec/04` and `spec/07` (Story), decisions `story-pages-are-sandboxed-agent-html`, `story-pages-follow-the-teams-design-system`, `story-notes-are-agent-memory`, `pdf-export-uses-browser-print` and `evidence-is-searched-not-cited` (the guidance never asks an agent to cite, and sets no rule about quoting, attributing or linking) |
 | `evidence-move.ts`, migration `0015_…` | `spec/04` §4.7 and `spec/09` §9.8, decision `insights-and-decisions-are-retired-into-evidence` |
-| `ops/mockups.ts`, `apps/web/src/routes/mockups.tsx`, `mockups.css` | `spec/04` §4.12 and `spec/07` §7.7 (Mockups), decision `mockups-are-versioned-canvases-in-exploration`, the canvas in `DESIGN.md`; a change to the HTML rules or the sandbox also `story-pages-are-sandboxed-agent-html` |
+| `ops/mockups.ts`, `apps/web/src/routes/mockups.tsx`, `mockups.css` | `spec/04` §4.12 and `spec/07` §7.7 (Mockups), decision `mockups-are-versioned-canvases-in-exploration`, the canvas in `apps/web/DESIGN.md`; a change to the HTML rules or the sandbox also `story-pages-are-sandboxed-agent-html` |
 | `packages/parsers/**`, `media.ts`, `worker.ts`, `ops/derived.ts`, `ops/attachments.ts` | `spec/05`, decision `a-sources-words-are-one-derived-text-and-attachments-are-never-searched`, the parser list in `spec/10` |
 | `apps/server/src/parse-thread.ts`, `parse-worker.ts`, the `WHATBUILD_PARSE_*` variables | `spec/05` §5.1, `spec/09` §9.2, decision `each-file-is-parsed-in-a-thread-of-its-own-with-memory-and-time-limits`, `operations/cloud-run.md`, `operations/azure.md` (and `deploy/azure/containerapp.yaml`), `system/security.md` |
 | A source's fields or tags (`ops/sources.ts`, `sources.facets`, the filters of `sources.list` and `search`) | `spec/04` §4.3 and §4.4, `spec/07` §7.6, `spec/08` §8.1, decision `sources-are-described-by-tags`, the product `SKILL.md` |
@@ -74,21 +74,21 @@ adding a near-duplicate.
 | What a deployment backs up, the nightly dump, restoring a dump, the restore drill | `operations/backups.md`, `spec/09` §9.3 and §9.6, the Phase 6 row in `spec/10` |
 | `.github/workflows/**` | `operations/local-development.md` (CI), `operations/security-checks.md`, the phase 0 row in `spec/10` |
 | `.github/workflows/release.yml`, `.agents/skills/make-a-release/**`, how versions are numbered or how production is deployed | `operations/releasing.md`, decisions `releases-are-tags-with-a-published-image`, `production-runs-releases-after-approval` and `releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production` |
-| `Dockerfile`, `cloudbuild.yaml`, `deploy/cloud-run/**`, `deploy/cloudflare/**` | `operations/cloud-run.md`, decision `one-stateless-image`; `cloudbuild.yaml` and `deploy/cloud-run/**` also `operations/dev-deployment.md` (the dev deployment is built and deployed by them); a `Dockerfile` change also `operations/azure.md` (the image is built from it there too) |
+| `deploy/Dockerfile`, `deploy/cloud-run/**` (with `cloudbuild.yaml`), `deploy/cloudflare/**` | `operations/cloud-run.md`, decision `one-stateless-image`; `deploy/cloud-run/**` also `operations/dev-deployment.md` (the dev deployment is built and deployed by it); a `deploy/Dockerfile` change also `operations/azure.md` (the image is built from it there too) |
 | `apps/server/src/migrations/**`, `apps/server/src/database.ts`, `.github/workflows/release.yml`, `.agents/skills/recover-a-deployment/**`, or how a deployment migrates, backs up or rolls back | `operations/recovering-from-a-bad-release.md`, `operations/backups.md` |
 | `deploy/azure/**`, `.agents/skills/azure-self-host/**` | `operations/azure.md`, decision `self-hosting-on-azure-is-agent-led-and-shares-nothing-with-cloud-run` |
 | `apps/web/src/routes/**`, `main.tsx`, `shell/**` | `spec/07`, the phase 4 row in `spec/10` |
-| `apps/web/src/styles/tokens.css`, `ui/**` | `DESIGN.md`, `.impeccable/design.json`, decision `studio-design-system` (Story pages do not follow the app's tokens) |
+| `apps/web/src/styles/tokens.css`, `ui/**` | `apps/web/DESIGN.md`, `apps/web/.impeccable/design.json`, decision `studio-design-system` (Story pages do not follow the app's tokens) |
 | A cookie (`setCookie`), a `whatbuild.*` browser storage key, or analytics (`apps/web/src/lib/analytics.ts`, the Worker's analytics settings) | the kinds on `apps/web/src/routes/cookies.tsx`, `spec/09` §9.1, decision `analytics-only-for-people-who-accept-cookies`, `operations/analytics.md` |
 | What is kept about people, or for how long (a new table of personal data, a retention, a provider), or the privacy page (`apps/web/src/routes/privacy.tsx`, `WHATBUILD_OPERATOR`, `WHATBUILD_PRIVACY_CONTACT`, `WHATBUILD_PROVIDERS`) | the page's fixed text and `spec/09` §9.1 (The privacy page), `spec/07`, `operations/cloud-run.md`, `deploy/azure/containerapp.yaml` |
 | The mailer (`createMailer` in `apps/server/src/app.ts`, mail in `adapters/misc.ts`), a message the server sends, `WHATBUILD_MAILER`, `WHATBUILD_SMTP_URL`, `WHATBUILD_MAIL_FROM`, a deployment's mail provider, `.agents/skills/set-up-mail/**` | `operations/mail.md`, decision `production-sends-mail-through-cloudflare-email-sending`, `spec/02` (Mail, `Mailer`), `spec/03`, the mail paragraphs of `operations/cloud-run.md` and `operations/azure.md` |
 | What the server counts (`packages/core/src/usage.ts`, `ops/usage.ts`, `apps/server/src/usage-report.ts`, `.agents/skills/read-usage/**`) | `spec/09` §9.1 and Counting without cookies on `apps/web/src/routes/cookies.tsx`, `spec/04` §4.15, decision `the-server-counts-how-whatbuild-is-used-naming-nobody`, `operations/analytics.md` |
 | `seed.ts`, `seed-content.ts` | usually nothing; `process/working-in-this-repository.md` if the sample product changes |
 | A new top-level directory, package, or moved file | `system/repository-map.md`, the `AGENTS.md` path table |
-| Product scope or vocabulary | `project/charter.md`, `spec/01`, `PRODUCT.md` |
+| Product scope or vocabulary | `project/charter.md`, `spec/01`, `apps/web/PRODUCT.md` |
 | `config.ts` (a new or changed `WHATBUILD_*` variable), `apps/server/src/auth/**`, `deploy/**`, `.nvmrc` or `engines`, or anything else a deployment must act on to take the next release | a line under Unreleased in `operations/upgrading.md` |
 | How work is done, the checks, the public-repository rules | `process/working-in-this-repository.md`, `AGENTS.md` |
-| `scripts/check-publishable.mjs`, `scripts/security.mjs`, `scripts/tools.mjs`, `.githooks/**`, `.github/workflows/security.yml`, `codeql.yml`, `dependabot.yml`, `.github/*.toml`, `zap-rules.tsv`, `SECURITY.md`, `.agents/skills/audit-for-leaks/**`, `.agents/skills/triage-security-findings/**` | `operations/security-checks.md`, decision `privacy-and-security-checks-live-in-the-repository`, `system/repository-map.md` |
+| `scripts/check-publishable.mjs`, `scripts/security.mjs`, `scripts/tools.mjs`, `scripts/githooks/**`, `.github/workflows/security.yml`, `codeql.yml`, `dependabot.yml`, `.github/*.toml`, `zap-rules.tsv`, `.github/SECURITY.md`, `.agents/skills/audit-for-leaks/**`, `.agents/skills/triage-security-findings/**` | `operations/security-checks.md`, decision `privacy-and-security-checks-live-in-the-repository`, `system/repository-map.md` |
 | Authentication, tenancy, agent HTML, uploads, the URL fetcher, the sandbox's limits, headers | `system/security.md` (the threat model): keep each control it names true |
 
 Nothing in the map fits? Grep `okf/` for the file, function and feature names you touched, and
@@ -121,6 +121,6 @@ The repository is public. Never add:
 - names of private projects, clients or employers;
 - absolute local paths, secrets, tokens, or personal details;
 - a proposal written as though it were decided;
-- a copy of code, `PRODUCT.md` or `DESIGN.md`. Link to them instead.
+- a copy of code, `apps/web/PRODUCT.md` or `apps/web/DESIGN.md`. Link to them instead.
 
 `okf/log.md` is gitignored on purpose. Do not create logs under other names.

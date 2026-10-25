@@ -74,7 +74,7 @@ is judgement. An edited pull request description is checked again.
 3. **Agents learn from the skill.** If agents should use a new operation differently, update
    `packages/core/src/skill/SKILL.md` and run `pnpm gen:skill`.
 4. **Sample data.** Extend the seed so every feature has synthetic sample content.
-5. **Interface changes** follow [`DESIGN.md`](../../DESIGN.md) and the
+5. **Interface changes** follow [`DESIGN.md`](../../apps/web/DESIGN.md) and the
    [Studio decision](../decisions/studio-design-system.md): plain CSS on the tokens, primitives from
    `apps/web/src/ui/`, state in the URL, every state designed (loading, empty, error, archived, no
    permission), keyboard and screen-reader support, WCAG 2.2 AA, phone width, light and dark. Story pages

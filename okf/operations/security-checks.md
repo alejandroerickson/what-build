@@ -40,8 +40,8 @@ What the app itself defends against, and where, is in the [threat model](../syst
 | Dependabot | alerts and a security update as an advisory appears; grouped version updates weekly, for releases at least seven days old | pull requests |
 | `pnpm attention` | at the start of every agent session (`AGENTS.md`): Dependabot's pull requests and alerts, code and secret scanning alerts, the last run of each workflow on `main`, accepted vulnerabilities within 30 days of expiry, unreleased changes to security-sensitive code, hooks that are off, pulls of every organization and a dev copy that names none ([copying an organization](copying-an-organization.md)) | tells the person |
 
-`pnpm install` installs the hooks: its `prepare` script points `core.hooksPath` at `.githooks/`,
-which covers every worktree of the clone. The hooks need only Node. `scripts/tools.mjs` downloads
+`pnpm install` installs the hooks: its `prepare` script points `core.hooksPath` at
+`scripts/githooks/`, which covers every worktree of the clone. The hooks need only Node. `scripts/tools.mjs` downloads
 each scanner once, checks it against the SHA-256 pinned there, and keeps it in
 `~/.cache/what-build/tools/` (or under `$XDG_CACHE_HOME`). If gitleaks cannot be fetched, a commit
 goes ahead with a warning; the push and CI check it again.
@@ -62,15 +62,18 @@ hooks stop a leak before it leaves the machine; CI shows what got past them.
 | `session-link` | a link to an agent's session or to a chat: a `claude.ai/code/…` session, a `Claude-Session:` trailer, a shared chat. Some tools add these to commits and pull requests by themselves |
 | `narration` | in commit messages and the text beside the code only: an account of the work in the first person (*I* or *we* checked, tried, found…), a session as the work's context (*the next session*, *this agent session*), or the conversation (*as discussed*, *you asked*) |
 | `top-level` | a top-level file or directory not in `TOP_LEVEL` |
-| `agent-local` | anything in `.claude/` but the link to the skills |
-| `stray-document` | a document (`.md`, `.txt`, `.log`…) outside `okf/`, `.agents/skills/`, `.github/`, the root records (`AGENTS.md`, `README.md`, `SECURITY.md`…), a `README.md`, the product skill, the end-to-end test plans in `e2e/plans/` and test folders |
+| `agent-local` | anything in `.claude/` but the link to the skills and `CLAUDE.md`, the link to `AGENTS.md` |
+| `stray-document` | a document (`.md`, `.txt`, `.log`…) outside `okf/`, `.agents/skills/`, `.github/` (where `SECURITY.md` is), `AGENTS.md`, a `README.md`, the web app's `PRODUCT.md` and `DESIGN.md`, the product skill, the end-to-end test plans in `e2e/plans/` and test folders |
 | `never-commit` | `.env` files, `_private/`, `.what-build/`, keys, certificates, database files and dumps, wherever they are |
-| `media` | images, PDFs, office documents, recordings and archives outside `apps/web/public/`; these are how real data slips in |
-| `large-file` | a file over 1 MB other than `pnpm-lock.yaml` |
+| `media` | images, PDFs, office documents, recordings and archives outside `apps/web/public/` and `.github/assets/` (the README's pictures); these are how real data slips in |
+| `large-file` | a file over 1 MB other than `pnpm-lock.yaml` and the README's animated tour, `.github/assets/whatbuild.gif` |
 
 Content and secret rules hold for every commit ever published. The placement rules (`top-level`,
 `agent-local`, `stray-document`) hold for commits made under the check, which are those whose tree
-holds the script: earlier history kept documents in other places. `identity`, `session-link` and
+holds the script: earlier history kept documents in other places. The entries the root gave up for
+folders on 2026-10-24 (`SECURITY.md`, `CLAUDE.md`, `DESIGN.md`, `PRODUCT.md`, `.impeccable/`,
+`Dockerfile`, `cloudbuild.yaml`, `.githooks/`) are allowed at the root in commits made before
+2026-10-26 (`MOVED_FROM_TOP_LEVEL`). `identity`, `session-link` and
 `narration` hold for what was published from 2026-10-24, the day they were added. What came
 before was audited by hand that day, and what it found stays: a personal address as the author of
 commits up to 2026-10-01, one session link, and first-person lines in two pull requests. None of
@@ -222,5 +225,5 @@ node scripts/check-publishable.mjs --github
    **Change visibility**, then **Public**, and wait. Confirm it without credentials: a pull token
    comes back only for a public image,
    `curl -s "https://ghcr.io/token?scope=repository:<owner>/what-build:pull"`.
-7. Check: the Security tab offers **Report a vulnerability**, shows [`SECURITY.md`](../../SECURITY.md),
+7. Check: the Security tab offers **Report a vulnerability**, shows [`SECURITY.md`](../../.github/SECURITY.md),
    and lists secret scanning, push protection, Dependabot and code scanning as on.

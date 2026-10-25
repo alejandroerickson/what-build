@@ -12,8 +12,8 @@ first command. This file is how to conduct the work.
 
 ## What must stay untouched
 
-- **The Cloud Run deployment.** Never edit or run `deploy/cloud-run/`, `cloudbuild.yaml`,
-  `deploy/cloudflare/`, or `.env` (it holds another deployment's values). Never run `gcloud`.
+- **The Cloud Run deployment.** Never edit or run `deploy/cloud-run/` (its `cloudbuild.yaml`
+  included), `deploy/cloudflare/`, or `.env` (it holds another deployment's values). Never run `gcloud`.
   Azure's values go in `.env.azure`.
 - **The application.** Hosting needs no change to `apps/` or `packages/`. If something seems to
   need one, stop and say so. What the server lacks is already specified: an Azure Blob adapter

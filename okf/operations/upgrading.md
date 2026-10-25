@@ -23,7 +23,24 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **The Cloud Build configuration moved to `deploy/cloud-run/cloudbuild.yaml`.** It concerns a
+  Cloud Run deployment whose trigger runs the build, production's `deploy-release` among them.
+  Before publishing this release, point the trigger at the new path. A trigger still naming
+  `cloudbuild.yaml` fails at once on this release's tag and deploys nothing, and the release
+  running now keeps serving:
+
+  ```bash
+  gcloud builds triggers update github deploy-release --project $P --region $R \
+    --build-config deploy/cloud-run/cloudbuild.yaml
+  ```
+
+  A deploy by hand passes `--config deploy/cloud-run/cloudbuild.yaml` ([Cloud Run](cloud-run.md)).
+  Going back by running an earlier image ([recovering](recovering-from-a-bad-release.md)) needs
+  nothing; rebuilding an earlier tag needs that tag's own path, `cloudbuild.yaml`.
+- **The Dockerfile moved to `deploy/Dockerfile`.** Whoever builds the image themselves passes
+  `-f deploy/Dockerfile`, with the repository's root still the build context
+  (`docker build -f deploy/Dockerfile .`, or `az acr build … -f deploy/Dockerfile` as the
+  [Azure guide](azure.md) does). A deployment that pulls the released image has nothing to do.
 
 ## v0.17.0
 
