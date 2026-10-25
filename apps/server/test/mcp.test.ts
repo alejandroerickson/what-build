@@ -99,6 +99,20 @@ describe("MCP", () => {
     await client.close();
   });
 
+  it("says in products list and in every product's answer which skill version it runs now", async () => {
+    // A client keeps the tool list it connected with, so an upgrade made since shows only in answers.
+    const client = await connect(agentToken);
+    expect(client.getInstructions()).toContain("skill_version in its scope");
+    const listed = text(await client.callTool({ name: "products", arguments: { action: "list" } }));
+    expect(listed.skill_version).toBe(SKILL_VERSION);
+    const outcomes = text(await client.callTool({ name: "outcomes", arguments: { action: "list", product: path } }));
+    expect(outcomes.scope).toMatchObject({ product: { path }, skill_version: SKILL_VERSION });
+    // A refusal still names it as server_version, as before.
+    const bad = text(await client.callTool({ name: "outcomes", arguments: { action: "explode", product: path } }));
+    expect(bad.error.details.server_version).toBe(SKILL_VERSION);
+    await client.close();
+  });
+
   it("says an action is missing, and lists the tool's actions, when a grouped tool is called without one", async () => {
     const client = await connect(agentToken);
     for (const args of [{ params: {} }, { describe: true }, { action: "" }, { action: null }]) {

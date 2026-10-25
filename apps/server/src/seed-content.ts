@@ -8,22 +8,99 @@ export const SAMPLE = {
   tenant: "Harbor Labs",
   team: "Product team",
   product: "Crewboard",
-  concept:
-    "Crewboard helps small field-service crews — landscaping, cleaning, repair — plan their week without a spreadsheet. " +
-    "We think crew leads lose Friday afternoons rebuilding next week's schedule by hand, and that a planner built around jobs, " +
-    "not calendars, could give that time back.",
+  // The product concept's card: the back, which agents read, and the front, which people see.
+  concept: [
+    "Crewboard helps small field-service crews — landscaping, cleaning, repair — plan their week without a spreadsheet.",
+    "",
+    "**Who it is for.** The crew lead of a business running two to four crews, often its owner. They plan next week on Friday afternoon, mostly from repeat clients, and send each crew its jobs before Monday. Crews of two to six people work from those messages all week; clients book repeat visits, and sometimes a job at the last minute.",
+    "",
+    "**The problem.** We think crew leads lose Friday afternoons rebuilding next week's schedule by hand: copying repeat clients forward, matching each job to a crew from what they alone know about who can lead it, and typing every crew's jobs and addresses into texts. Because the knowledge lives in one person's head, nobody else can plan the week, and a mistake surfaces only when a client calls.",
+    "",
+    "**How Crewboard solves it.** A planner built around jobs, not calendars. Repeat jobs carry forward on their own; each job is matched to a crew that can do it; the week is checked for gaps and clashes before it goes out; and each crew's week is sent from the plan. A late booking is placed into the week from a phone, showing what it moves.",
+    "",
+    "**What it is not.** Not a calendar, not dispatch or route optimisation, and not invoicing.",
+  ].join("\n"),
+  concept_card: `<p class="wb-pitch">Crewboard gives crew leads their <em>Friday afternoon</em> back.</p>
+<p class="wb-lede">A week planner for small field-service crews (landscaping, cleaning, repair) that starts from the jobs, not the calendar.</p>
+<div class="wb-shift">
+  <div class="wb-before">
+    <h3>Today, every Friday</h3>
+    <ol class="wb-flow">
+      <li data-icon="sheet"><b>Spreadsheet</b>repeat clients copied forward</li>
+      <li data-icon="user" class="is-pain"><b>Memory</b>who can lead which job</li>
+      <li data-icon="message-square" class="is-pain"><b>Texts</b>typed one by one</li>
+    </ol>
+  </div>
+  <div class="wb-after">
+    <h3>With Crewboard</h3>
+    <ol class="wb-flow">
+      <li data-icon="repeat"><b>Jobs</b>carried forward</li>
+      <li data-icon="users"><b>Crews</b>matched to each job</li>
+      <li data-icon="send" class="is-new"><b>The week</b>sent to every crew</li>
+    </ol>
+  </div>
+</div>
+<ul class="wb-who">
+  <li data-icon="user-check"><b>Crew leads</b>plan next week for two to four crews</li>
+  <li data-icon="truck"><b>Crews</b>need their jobs and addresses by Monday</li>
+  <li data-icon="house"><b>Clients</b>book repeat visits, and late jobs</li>
+</ul>`,
   outcomes: [
     {
       title: "Plan next week in minutes, not an afternoon",
-      description: "A crew lead builds next week's schedule, repeat clients included, without rebuilding it by hand. Success is Friday planning that takes under half an hour.",
+      description: [
+        "A crew lead builds next week's schedule, repeat clients included, without rebuilding it by hand.",
+        "",
+        "**What success looks like.** Friday planning takes under half an hour. Repeat jobs are already in next week when the crew lead opens it; what is left is placing the new and changed jobs and checking each crew's load.",
+        "",
+        "**What it means for them.** The afternoon goes back to the work itself, and planning stops depending on one person's memory: someone else can plan the week when the crew lead is away.",
+      ].join("\n"),
+      card_html: `<figure class="wb-measure" style="--max:240">
+  <figcaption>Time to plan next week</figcaption>
+  <div class="wb-bar is-from" style="--v:240"><span>Today</span><b>an afternoon</b></div>
+  <div class="wb-bar" style="--v:30"><span>Success</span><b>under 30 min</b></div>
+</figure>
+<ol class="wb-flow">
+  <li data-icon="repeat"><b>Repeat jobs</b>already in place</li>
+  <li data-icon="users"><b>Crews</b>matched per job</li>
+  <li data-icon="calendar-check" class="is-new"><b>The week</b>ready to send</li>
+</ol>`,
     },
     {
       title: "Send every crew the right week, with no mix-ups",
-      description: "Each crew knows its jobs, times and addresses before Monday, and a mistake is caught before the client calls. Success is a week with no job missed or double-booked.",
+      description: [
+        "Each crew knows its jobs, times and addresses before Monday, and a mistake is caught before the client calls.",
+        "",
+        "**What success looks like.** A week with no job missed or double-booked. Every crew gets its own week from the plan, not from messages typed by hand, and a clash or a gap is flagged while there is still time to fix it.",
+        "",
+        "**What it means for them.** Crews start Monday knowing where to be; the crew lead stops hearing about mistakes from clients.",
+      ].join("\n"),
+      card_html: `<ol class="wb-timeline" data-hue="teal">
+  <li><time>Friday</time>The week is planned</li>
+  <li class="is-new"><time>Before Monday</time>Clashes and gaps flagged, then fixed</li>
+  <li class="is-us"><time>Monday, 7 am</time>Each crew has its jobs, times and addresses</li>
+</ol>
+<div class="wb-zone" data-hue="teal"><p>Success: a week with <b>no job missed or double-booked</b>.</p></div>`,
     },
     {
       title: "Fit a new job into the week without starting over",
-      description: "When a client books late, the crew lead places the job and sees what it moves. Success is a late booking handled in minutes, from a phone.",
+      description: [
+        "When a client books late, the crew lead places the job and sees what it moves.",
+        "",
+        "**What success looks like.** A late booking is handled in minutes, from a phone: the crew lead picks where the job goes, sees which jobs it pushes and which crews it touches, and the crews affected are told.",
+        "",
+        "**What it means for them.** Saying yes to a late job no longer means rebuilding the week, or a long evening at the desk.",
+      ].join("\n"),
+      card_html: `<ol class="wb-flow" data-hue="amber">
+  <li data-icon="bell"><b>A late booking</b>a client calls on Tuesday</li>
+  <li data-icon="smartphone"><b>Placed</b>from a phone</li>
+  <li data-icon="shuffle" class="is-new"><b>What moves</b>shown before it is saved</li>
+</ol>
+<ul class="wb-chips" data-hue="amber">
+  <li class="wb-chip" data-icon="timer">In minutes</li>
+  <li class="wb-chip" data-icon="smartphone">From a phone</li>
+  <li class="wb-chip" data-icon="undo-2">No rebuilding the week</li>
+</ul>`,
     },
   ],
 };

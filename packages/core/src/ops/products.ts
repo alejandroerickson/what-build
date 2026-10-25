@@ -9,6 +9,7 @@ import { visitorName } from "../public-sandbox.ts";
 import { requireTenantAllowance } from "../tenant-allowance.ts";
 import { expectedEtag, slug } from "../schemas.ts";
 import { newEtag, newId, oneLine, quotedName, randomToken, sha256Hex, slugify } from "../util.ts";
+import { adviseIdeaCard, CARD_HTML_MAX, checkCardSides, checkIdeaCard } from "../idea-card.ts";
 
 async function uniqueSlug(exists: (s: string) => Promise<boolean>, base: string): Promise<string> {
   const root = slugify(base, 40, "product").padEnd(3, "0");
@@ -24,21 +25,37 @@ export async function uniqueTenantSlug(db: Db, name: string): Promise<string> {
   return uniqueSlug(async (s) => Boolean(await db.selectFrom("tenants").select("tenant_id").where("slug", "=", s).executeTakeFirst()), name);
 }
 
+/** The most characters the product concept's back holds. */
+const CONCEPT_MAX = 8000;
+
+/** What a product concept is, said once for every operation that writes one. */
+const WHAT_A_CONCEPT_IS =
+  "The product concept is a card at the head of the Idea screen, with two sides you write together. card_html is the front, which people see first: a picture of the product's promise, to whom, and what changes for them, that someone new to the team takes in at a glance, drawn with the card kit; call outcomes(action=\"card_guidance\") before drawing one, and outcomes(action=\"card_preview\", kind=\"concept\") to look at it before writing it. " +
+  "concept is the back: who the product is for, the problem they have, and how the product solves it, in depth (Markdown, up to 8,000 characters), which agents read first and people open with More info. " +
+  "A call that changes one side sends the other too, unchanged if it still agrees; one that sends only one side is refused with card_sides_together.";
+
+/** Advice on the concept's card, when a write touched it. */
+function conceptAdvice(row: { concept: string; card_html: string }) {
+  const card_advice = adviseIdeaCard({ kind: "concept", front: row.card_html, back: row.concept });
+  return card_advice.length ? { card_advice } : {};
+}
+
 function productView(p: {
   product_id: string;
   slug: string;
   name: string;
   concept: string;
+  card_html: string;
   archived_at: string | null;
   etag: string;
   created_at: string;
   updated_at: string;
-}, ctx: OpContext) {
+}, ctx: OpContext, includeCard = false) {
   return {
     product_id: p.product_id,
     slug: p.slug,
     name: p.name,
-    ...(readsOnlyTheStory(ctx.scope.role) ? {} : { concept: p.concept }),
+    ...(readsOnlyTheStory(ctx.scope.role) ? {} : { concept: p.concept, card_chars: p.card_html.length, ...(includeCard ? { card_html: p.card_html } : {}) }),
     archived_at: p.archived_at,
     etag: p.etag,
     created_at: p.created_at,
@@ -294,17 +311,19 @@ export const createProduct = defineOperation({
   mutates: true,
   summary: "Create a product: one discovery, with its own outcomes, sources, mockups and Story (team admins).",
   description:
-    "A product holds one discovery. Give it a name and its product concept: who it is for, the problem they have, and how the product solves it (Markdown, up to 2,000 characters). The concept heads the Idea screen. Returns the product with its `path`.",
+    `A product holds one discovery. Give it a name and, when you know it, its product concept, which heads the Idea screen. ${WHAT_A_CONCEPT_IS} Returns the product with its \`path\`.`,
   input: z.strictObject({
     tenant: z.string().min(1).describe("Tenant slug or id."),
     team: z.string().min(1).describe("Team slug or id."),
     name: z.string().trim().min(1).max(100),
     slug: slug.optional(),
-    concept: z.string().max(2000).default(""),
+    concept: z.string().max(CONCEPT_MAX).default("").describe("The back of the concept's card, which agents read first: Markdown."),
+    card_html: z.string().max(CARD_HTML_MAX).default("").describe("The front of the concept's card, the picture people see first: HTML in the card kit (outcomes(action=\"card_guidance\"))."),
   }),
   rest: { method: "POST", path: "/products" },
   mcp: { tool: "products", action: "create" },
   async handler(ctx, input) {
+    checkIdeaCard(input.card_html, "The product concept");
     const teamId = ctx.scope.team!.team_id;
     const exists = async (x: string) =>
       Boolean(await ctx.db.selectFrom("products").select("product_id").where("team_id", "=", teamId).where("slug", "=", x).executeTakeFirst());
@@ -315,13 +334,13 @@ export const createProduct = defineOperation({
       .insertInto("products")
       .values({
         product_id, tenant_id: ctx.scope.tenant!.tenant_id, team_id: teamId, slug: s, name: input.name, concept: input.concept,
-        etag: newEtag(), created_by: json(ctx.actor), updated_by: json(ctx.actor),
+        card_html: input.card_html, etag: newEtag(), created_by: json(ctx.actor), updated_by: json(ctx.actor),
       })
       .execute();
     const row = await ctx.db.selectFrom("products").selectAll().where("product_id", "=", product_id).executeTakeFirstOrThrow();
     const scoped = { ...ctx, scope: { ...ctx.scope, product: { product_id, slug: s, name: input.name, archived_at: null } } };
     await recordActivity(scoped, { action: "created", entity_type: "product", entity_id: product_id, entity_title: input.name, summary: "Created the product" });
-    return productView(row, ctx);
+    return { ...productView(row, ctx), ...conceptAdvice(row) };
   },
 });
 
@@ -333,15 +352,23 @@ export const getProduct = defineOperation({
   access: "story",
   mutates: false,
   summary: "Read a product: its concept, etag, your role, and counts of what it holds.",
-  description: "Use the counts to decide where to look first. They leave out archived items, and assumptions count only current (unconfirmed or confirmed) ones, the ones assumptions(action=\"list\") returns by default. counts has one number per kind; stage_counts totals them per stage, as the web app shows them: idea (outcomes), evidence (sources), exploration (mockups and current assumptions) and story (Story pages, those in its tree and its Published mockups). The etag guards products(action=\"update\"). A reader (the Story-only role) gets no concept, and counts of Story pages only.",
-  input: z.strictObject({}),
+  description: "concept is the back of the product concept's card, the text agents read; include_card adds card_html, its front, the picture people see first (card_chars says how long it is, 0 when there is none). Read both before changing either. Use the counts to decide where to look first. They leave out archived items, and assumptions count only current (unconfirmed or confirmed) ones, the ones assumptions(action=\"list\") returns by default. counts has one number per kind; stage_counts totals them per stage, as the web app shows them: idea (outcomes), evidence (sources), exploration (mockups and current assumptions) and story (Story pages, those in its tree and its Published mockups). The etag guards products(action=\"update\") and (action=\"update_concept\"). A reader (the Story-only role) gets no concept, and counts of Story pages only.",
+  input: z.strictObject({
+    include_card: z.boolean().default(false).describe("Include card_html, the front of the concept's card."),
+  }),
   rest: { method: "GET", path: "" },
   mcp: { tool: "products", action: "get" },
-  async handler(ctx) {
+  async handler(ctx, input) {
     const pid = ctx.scope.product!.product_id;
     const row = await ctx.db.selectFrom("products").selectAll().where("product_id", "=", pid).executeTakeFirstOrThrow();
     const counts = (await countProducts(ctx.db, [pid])).get(pid)!;
-    return { ...productView(row, ctx), ...countsFor(ctx.scope.role, counts) };
+    // A concept with no front yet, for whoever can draw it.
+    const bare = roleAtLeast(ctx.scope.role, "editor") && !row.card_html && row.concept.trim();
+    return {
+      ...productView(row, ctx, input.include_card),
+      ...countsFor(ctx.scope.role, counts),
+      ...(bare ? { note: 'The product concept has no front yet, so people see its text and a request for a picture: offer the person to draw it (outcomes(action="card_guidance"), then products(action="update_concept") with concept and card_html).' } : {}),
+    };
   },
 });
 
@@ -350,14 +377,13 @@ export const updateProduct = defineOperation({
   scope: "product",
   access: "admin",
   mutates: true,
-  summary: "Rename a product, change its slug, or rewrite its product concept (product admins).",
+  summary: "Rename a product or change its slug (product admins).",
   description:
-    "Pass only the fields that change, plus expected_etag. The previous product concept is kept, and a product export includes it, but no action reads it back yet.",
+    'Pass only the fields that change, plus expected_etag. The product concept is a card on the Idea screen, written with products(action="update_concept"), which editors may call too.',
   input: z.strictObject({
     expected_etag: expectedEtag,
     name: z.string().trim().min(1).max(100).optional(),
     slug: slug.optional(),
-    concept: z.string().max(2000).optional(),
   }),
   rest: { method: "PATCH", path: "" },
   mcp: { tool: "products", action: "update" },
@@ -369,26 +395,53 @@ export const updateProduct = defineOperation({
       const taken = await ctx.db.selectFrom("products").select("product_id").where("team_id", "=", row.team_id).where("slug", "=", input.slug).executeTakeFirst();
       if (taken) throw conflict("slug_taken", `A product with slug "${input.slug}" exists in this team.`);
     }
-    if (input.concept !== undefined && input.concept !== row.concept) {
-      await keepRevision(ctx, "product", pid, { concept: row.concept }, row.updated_at, row.updated_by);
-    }
-    const changed = (["name", "slug", "concept"] as const).filter((k) => input[k] !== undefined && input[k] !== row[k]);
+    const changed = (["name", "slug"] as const).filter((k) => input[k] !== undefined && input[k] !== row[k]);
     if (!changed.length) return productView(row, ctx);
     await ctx.db
       .updateTable("products")
-      .set({
-        name: input.name ?? row.name,
-        slug: input.slug ?? row.slug,
-        concept: input.concept ?? row.concept,
-        etag: newEtag(),
-        updated_at: ctx.now,
-        updated_by: json(ctx.actor),
-      })
+      .set({ name: input.name ?? row.name, slug: input.slug ?? row.slug, etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) })
       .where("product_id", "=", pid)
       .execute();
     await recordActivity(ctx, { action: "updated", entity_type: "product", entity_id: pid, entity_title: input.name ?? row.name, summary: `Changed ${changed.join(", ")}` });
     const next = await ctx.db.selectFrom("products").selectAll().where("product_id", "=", pid).executeTakeFirstOrThrow();
     return productView(next, { ...ctx, scope: { ...ctx.scope } });
+  },
+});
+
+export const updateConcept = defineOperation({
+  name: "products.update_concept",
+  scope: "product",
+  access: "write",
+  mutates: true,
+  summary: "Write the product concept's card: its front and its back, together (editors and admins).",
+  description:
+    `Requires expected_etag from your latest products(action="get", include_card=true), which returns both sides; read both before changing either. ${WHAT_A_CONCEPT_IS} ` +
+    'Look at a new front first with outcomes(action="card_preview", kind="concept"). The previous concept and front are kept, and a product export includes them, but no action reads them back yet. A write that touches the card returns card_advice when it misses something the guidance asks.',
+  input: z.strictObject({
+    expected_etag: expectedEtag,
+    concept: z.string().max(CONCEPT_MAX).optional().describe("The back of the concept's card, which agents read first: Markdown. Send card_html with it."),
+    card_html: z.string().trim().min(1, "The concept's front cannot be emptied; send a new one.").max(CARD_HTML_MAX).optional().describe("The front of the concept's card, the picture people see first: HTML in the card kit. Send concept with it."),
+  }),
+  rest: { method: "PATCH", path: "/idea/concept" },
+  mcp: { tool: "products", action: "update_concept" },
+  async handler(ctx, input) {
+    const pid = ctx.scope.product!.product_id;
+    const row = await ctx.db.selectFrom("products").selectAll().where("product_id", "=", pid).forUpdate().executeTakeFirstOrThrow();
+    checkEtag(input.expected_etag, row.etag, "product");
+    checkCardSides({ back: row.concept, front: row.card_html }, { back: input.concept, front: input.card_html }, { what: "The product concept", back: "concept", read: 'products(action="get", include_card=true)' });
+    checkIdeaCard(input.card_html, "The product concept");
+    const changed = (["concept", "card_html"] as const).filter((k) => input[k] !== undefined && input[k] !== row[k]);
+    if (!changed.length) return productView(row, ctx);
+    await keepRevision(ctx, "product", pid, { concept: row.concept, card_html: row.card_html }, row.updated_at, row.updated_by);
+    await ctx.db
+      .updateTable("products")
+      .set({ concept: input.concept ?? row.concept, card_html: input.card_html ?? row.card_html, etag: newEtag(), updated_at: ctx.now, updated_by: json(ctx.actor) })
+      .where("product_id", "=", pid)
+      .execute();
+    const said = { concept: "concept", card_html: "concept's front" } as const;
+    await recordActivity(ctx, { action: "updated", entity_type: "product", entity_id: pid, entity_title: row.name, summary: `Changed ${changed.map((k) => said[k]).join(", ")}` });
+    const next = await ctx.db.selectFrom("products").selectAll().where("product_id", "=", pid).executeTakeFirstOrThrow();
+    return { ...productView(next, { ...ctx, scope: { ...ctx.scope } }), ...conceptAdvice(next) };
   },
 });
 
@@ -850,6 +903,6 @@ export const listAccessActivity = defineOperation({
 });
 
 export const productOps = [
-  listProducts, createTenant, createTeam, createProduct, getProduct, updateProduct, archiveProduct, restoreProduct,
+  listProducts, createTenant, createTeam, createProduct, getProduct, updateProduct, updateConcept, archiveProduct, restoreProduct,
   listMembers, grantMember, revokeMember, cancelInvitation, listAccessActivity,
 ];

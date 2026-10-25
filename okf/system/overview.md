@@ -62,7 +62,7 @@ Google Cloud Storage behind a storage port; the official MCP SDK (stateless Stre
 React 19, React Router 7, TanStack Query 5, Vite 8; Vitest. Details in
 [architecture](../spec/02-architecture.md).
 
-**Operations.** 118 operations, each defined once and exposed through both REST and MCP, but for
+**Operations.** 121 operations, each defined once and exposed through both REST and MCP, but for
 two: deleting an organization and previewing that delete, which only its owner does, in the web
 app. Agents are offered the other 116, as 14 tools
 ([decision](../decisions/one-registry-two-front-doors.md)).

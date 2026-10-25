@@ -1,7 +1,8 @@
 import {
-  AppError, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, effectiveRole, forbidden, membershipsFor, mockupBundle, json, lockSandbox, MOCKUP_UPLOAD_PURPOSE, notFound, roleAtLeast, sandboxForAccount, STORY_PREVIEW_PURPOSE,
+  AppError, CARD_FRAMES, CARD_PREVIEW_PURPOSE, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, ideaCardDocument, ideaCardResponseHeaders, effectiveRole, forbidden, membershipsFor, mockupBundle, json, lockSandbox, MOCKUP_UPLOAD_PURPOSE, notFound, roleAtLeast, sandboxForAccount, STORY_PREVIEW_PURPOSE,
   toAppError, tooLarge, UPLOAD_GRANT_HEADER, type ActorSnapshot, type Env, type OpContext, type Tx,
 } from "@whatbuild/core";
+import { randomBytes } from "node:crypto";
 import { Hono, type Context } from "hono";
 import { sql } from "kysely";
 import type { ServerConfig } from "./config.ts";
@@ -34,6 +35,29 @@ async function grantContext(env: Env, trx: Tx, productId: string, actor: ActorSn
       enqueued.value = true;
     },
   };
+}
+
+/**
+ * A request body for a blob store, which stops reading at the grant's limit. What the sender still
+ * sends is then read and dropped, so their connection can take their next request: the Node
+ * adapter drains an unread body itself, but not one a reader has begun, and resets the connection
+ * half a second after the response instead, under a client that may already be sending on it.
+ */
+function relayed(body: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
+  const reader = body.getReader();
+  return new ReadableStream({
+    async pull(c) {
+      const { done, value } = await reader.read();
+      if (done) c.close();
+      else c.enqueue(value);
+    },
+    cancel() {
+      // Not awaited: the refusal goes out at once, and the adapter's own limits on draining still apply.
+      void (async () => {
+        while (!(await reader.read()).done);
+      })().catch(() => {});
+    },
+  });
 }
 
 /**
@@ -88,7 +112,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
         throw tooLarge(`The file is ${bytes(Number(declared))} bytes; this upload route takes at most ${bytes(max)}.${env.ports.blobs.signedUploadUrl ? " Use the grant's `direct` URL for larger files." : ""}`, { limit: max });
       const body = c.req.raw.body;
       if (!body) throw new AppError(400, "empty_body", "Send the file's bytes as the request body.");
-      const stored = await env.ports.blobs.putStream(grant.blob_key!, body, { contentType: grant.media_type ?? "application/octet-stream", maxBytes: max });
+      const stored = await env.ports.blobs.putStream(grant.blob_key!, relayed(body), { contentType: grant.media_type ?? "application/octet-stream", maxBytes: max });
       const enqueued = { value: false };
       const entry = await inTenant(env, tenantId, async (trx) => {
         await lockSandbox(trx, tenantId, "shared");
@@ -125,7 +149,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       if (declared !== undefined && Number(declared) > max) throw tooLarge(`The ZIP is ${bytes(Number(declared))} bytes; a canvas's ZIP is at most ${bytes(max)}.`, { limit: max });
       const body = c.req.raw.body;
       if (!body) throw new AppError(400, "empty_body", "Send the ZIP's bytes as the request body.");
-      const stored = await env.ports.blobs.putStream(upload.blob_key, body, { contentType: "application/zip", maxBytes: max });
+      const stored = await env.ports.blobs.putStream(upload.blob_key, relayed(body), { contentType: "application/zip", maxBytes: max });
       await inTenant(env, tenantId, (trx) => trx.updateTable("mockup_uploads").set({ uploaded_at: new Date().toISOString(), size: stored.size, sha256: stored.sha256 }).where("upload_id", "=", upload.upload_id).execute());
       return c.json({ uploaded: true, upload_id: upload.upload_id, size: stored.size, sha256: stored.sha256, next: 'Received. Now call mockups(action="publish") with upload_id, and mockup_id with expected_etag for a later version. The ZIP is checked then; nothing is published until that call succeeds.' }, 201);
     } catch (e) {
@@ -184,6 +208,27 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       // A Story page in the Story's sandbox (page-sandbox.ts). A mockup page carries its own look, so
       // it takes neither the theme nor the carried typefaces, and keeps a mockup page's sandbox.
       return storyHtml(c, p.html, p.shows_mockup ? undefined : theme, false, p.shows_mockup);
+    } catch (e) {
+      return fail(c, e);
+    }
+  });
+
+  // The front outcomes.card_preview checked, in the document the Idea screen shows it in (the same
+  // sandbox, kit and ?theme), with a line where a desktop stops showing it, for an agent to look at
+  // before writing it.
+  app.get("/api/v1/downloads/card-preview/:preview_id", async (c) => {
+    try {
+      const claims = env.ports.grants.verify(c.req.header(DOWNLOAD_GRANT_HEADER) ?? "");
+      if (!claims || claims["purpose"] !== CARD_PREVIEW_PURPOSE || claims["cp"] !== c.req.param("preview_id"))
+        throw new AppError(401, "invalid_grant", "The preview grant is missing, invalid or expired. Preview again with outcomes(action=\"card_preview\").");
+      const theme = storyTheme(c.req.query("theme"));
+      const p = await inTenant(env, String(claims["t"]), (trx) =>
+        trx.selectFrom("card_previews").select(["kind", "title", "card_html", "expires_at"]).where("preview_id", "=", c.req.param("preview_id")).executeTakeFirst(),
+      );
+      if (!p || Date.parse(p.expires_at) < Date.now()) throw notFound("That preview has expired or was replaced by newer ones. Preview again with outcomes(action=\"card_preview\").");
+      const nonce = randomBytes(16).toString("base64");
+      for (const [k, v] of Object.entries(ideaCardResponseHeaders(nonce))) c.header(k, v);
+      return c.body(ideaCardDocument(p.card_html, { title: p.title, theme, nonce, limit: CARD_FRAMES[p.kind].max_height }));
     } catch (e) {
       return fail(c, e);
     }

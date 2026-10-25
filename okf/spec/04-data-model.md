@@ -110,16 +110,50 @@ the evidence, assumptions, mockups and Story are read against
 |---|---|
 | `outcome_id` | |
 | `title` | 1–200 chars. What the users achieve. |
-| `description` | Markdown, 0–2,000 chars. What success looks like for them. |
+| `description` | Markdown, 0–6,000 chars. The back of the outcome's card, which agents read first and people open with More info: what success looks like for the users, in depth. |
+| `card_html` | 0–40,000 chars, empty until an agent draws it. The front of the card, the picture people see first: the markup inside the card, in the card kit (§4.2.1). |
 | `archived_at` | Null while the outcome is current. An outcome is current or archived; it has no other state. |
 | `position` | Ordering key within the product. `create` takes one to place a new outcome (a value between two others' positions puts it between them); omitted, it goes last. Reorder is an update. |
 
 Assumptions point *to* outcomes (`outcome_ids`); an outcome points at nothing. Its
-title and description may not hold a record id: `create` and `update` refuse one with `422
+title, description and front may not hold a record id: `create` and `update` refuse one with `422
 outcome_cites_a_record`, naming the field and the id. Reads carry no count of what points at an
 outcome; `assumptions.list` with `outcome_id` lists the assumptions that serve one.
 `products.get` and `products.list` count only current (`unconfirmed` or `confirmed`) assumptions,
 the ones `assumptions.list` returns without a status.
+
+### 4.2.1 Cards
+
+The product concept and each outcome is a card with two sides
+([decision](../decisions/idea-cards-have-a-front-for-people-and-a-back-for-agents.md)). The front
+(`card_html`) is a picture of the idea that people see first: agent-written HTML, only the markup
+inside the card, drawn with the card kit (`packages/core/src/idea-card.ts`). The back is the text
+(the product's `concept`, the outcome's `description`), which agents read first and people open
+under the card's title with More info. Only agents write either side in practice; the web app
+offers no editor.
+
+- **The two sides change together.** An update that changes one side and does not send the other
+  is refused with `422 card_sides_together`; the other may be sent unchanged. The back of a card
+  with no front yet may change alone. A title may change alone: it heads the card, and a front
+  never repeats it.
+- **A front's rules** (`IDEA_CARD_RULES` in `html-rules.ts`), checked at write and listed at once
+  (`422 invalid_card`): at most 40,000 characters; only the card's markup (no doctype, `<html>`,
+  `<head>`, `<body>` or `<title>`); no `<script>`, event handler or `javascript:` URL, no `<a>`,
+  no `<form>`, nothing that frames or embeds another document, and nothing loaded from elsewhere
+  (images and fonts as `data:` URIs only); every `data-icon` names a pictogram the kit carries.
+- **How it is shown.** `GET P/idea/concept/card` and `GET P/outcomes/:outcome_id/card` (viewer and
+  above; `?theme=light|dark`) serve the front in a document with the kit, the pictograms it names,
+  the app's typeface and the theme, under `sandbox allow-scripts` and a policy that runs only
+  WhatBuild's one script by its nonce: it runs a timeline down instead of across where its times
+  would run into each other, and tells the app the card's height. The stored front is never
+  changed. A card with no front answers 404.
+- **Before it is written**, an agent previews a front with `outcomes.card_preview`: the same
+  document, from `card_previews`, with a dashed line where a desktop stops showing it
+  ([§6](06-operations-and-adapters.md)).
+- **Who writes it**: an outcome's card with `outcomes.create` and `outcomes.update`, the concept's
+  with `products.update_concept`, by editors and admins.
+- **Revisions** keep both sides: an outcome's `{ title, description, card_html }`, the product's
+  `{ concept, card_html }`.
 
 Product reads return `counts`, one number per kind (`sources`, `outcomes`, `assumptions`,
 `mockups`, `story_pages`, archived items left out), and `stage_counts`, the total of every item each
@@ -1037,6 +1071,11 @@ activity.jsonl
   `t/<tenant_id>/exports/<export_id>.zip` for exports. Keys never encode titles, tags or any other
   metadata, so no metadata change ever moves bytes, and a key names its tenant. A copied source shares its
   original's attachment blobs; delete frees a blob only when no file version still refers to it.
+- **Card previews** ([`0033_card_previews.sql`](../../apps/server/src/migrations/0033_card_previews.sql)):
+  `card_previews` holds each front `outcomes.card_preview` checked (`preview_id`, the product,
+  `kind`, `title`, `card_html`, `created_by`, `expires_at`), with the row-level security policy.
+  Nothing refers to a row; the grant names it, and it goes when the grant expires (§4.11), when its
+  product or organization is deleted, and at a sandbox reset.
 - **Story previews** ([`0024_story_previews.sql`](../../apps/server/src/migrations/0024_story_previews.sql)):
   `story_previews` holds each document `story.preview` made (`preview_id`, the product, `page_id`,
   `html`, `shows_mockup`, `created_by`, `expires_at`), with the row-level security policy. Nothing

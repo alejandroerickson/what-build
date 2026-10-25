@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-26T21:45:26+00:00",
+  "generatedAt": "2026-10-25T00:15:48+00:00",
   "title": "Design System: WhatBuild",
   "extensions": {
     "colorMeta": {
@@ -708,6 +708,1086 @@
           "oklch(82% 0.037 84.6)",
           "oklch(95% 0.032 84.6)"
         ]
+      },
+      "card-bg": {
+        "role": "neutral",
+        "displayName": "Card",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "card-ink": {
+        "role": "neutral",
+        "displayName": "Card Ink",
+        "canonical": "#1e1e1e",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "card-muted": {
+        "role": "neutral",
+        "displayName": "Card Muted",
+        "canonical": "#555555",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "card-faint": {
+        "role": "neutral",
+        "displayName": "Card Faint",
+        "canonical": "#666666",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "card-line": {
+        "role": "neutral",
+        "displayName": "Card Line",
+        "canonical": "#e6e6e6",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "card-line-2": {
+        "role": "neutral",
+        "displayName": "Card Line 2",
+        "canonical": "#d5d5d5",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "card-wash": {
+        "role": "neutral",
+        "displayName": "Card Wash",
+        "canonical": "#f4f4f4",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "card-on-solid": {
+        "role": "neutral",
+        "displayName": "On Card Solid",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "card-indigo-fill": {
+        "role": "secondary",
+        "displayName": "Card Indigo Fill",
+        "canonical": "#ecebfd",
+        "tonalRamp": [
+          "oklch(15% 0.024 288.5)",
+          "oklch(25% 0.024 288.5)",
+          "oklch(35% 0.024 288.5)",
+          "oklch(45% 0.024 288.5)",
+          "oklch(58% 0.024 288.5)",
+          "oklch(70% 0.024 288.5)",
+          "oklch(82% 0.024 288.5)",
+          "oklch(95% 0.024 288.5)"
+        ]
+      },
+      "card-indigo-ink": {
+        "role": "secondary",
+        "displayName": "Card Indigo Ink",
+        "canonical": "#3a33b8",
+        "tonalRamp": [
+          "oklch(15% 0.095 276.1)",
+          "oklch(25% 0.156 276.1)",
+          "oklch(35% 0.200 276.1)",
+          "oklch(45% 0.200 276.1)",
+          "oklch(58% 0.200 276.1)",
+          "oklch(70% 0.158 276.1)",
+          "oklch(82% 0.090 276.1)",
+          "oklch(95% 0.024 276.1)"
+        ]
+      },
+      "card-indigo-line": {
+        "role": "secondary",
+        "displayName": "Card Indigo Line",
+        "canonical": "#bdb9f7",
+        "tonalRamp": [
+          "oklch(15% 0.087 287.2)",
+          "oklch(25% 0.087 287.2)",
+          "oklch(35% 0.087 287.2)",
+          "oklch(45% 0.087 287.2)",
+          "oklch(58% 0.087 287.2)",
+          "oklch(70% 0.087 287.2)",
+          "oklch(82% 0.087 287.2)",
+          "oklch(95% 0.025 287.2)"
+        ]
+      },
+      "card-indigo-solid": {
+        "role": "secondary",
+        "displayName": "Card Indigo Solid",
+        "canonical": "#5a53e8",
+        "tonalRamp": [
+          "oklch(15% 0.093 278.3)",
+          "oklch(25% 0.153 278.3)",
+          "oklch(35% 0.214 278.3)",
+          "oklch(45% 0.217 278.3)",
+          "oklch(58% 0.217 278.3)",
+          "oklch(70% 0.159 278.3)",
+          "oklch(82% 0.090 278.3)",
+          "oklch(95% 0.023 278.3)"
+        ]
+      },
+      "card-teal-fill": {
+        "role": "secondary",
+        "displayName": "Card Teal Fill",
+        "canonical": "#dcf2ee",
+        "tonalRamp": [
+          "oklch(15% 0.024 183.7)",
+          "oklch(25% 0.024 183.7)",
+          "oklch(35% 0.024 183.7)",
+          "oklch(45% 0.024 183.7)",
+          "oklch(58% 0.024 183.7)",
+          "oklch(70% 0.024 183.7)",
+          "oklch(82% 0.024 183.7)",
+          "oklch(95% 0.024 183.7)"
+        ]
+      },
+      "card-teal-ink": {
+        "role": "secondary",
+        "displayName": "Card Teal Ink",
+        "canonical": "#0b5d54",
+        "tonalRamp": [
+          "oklch(15% 0.027 183.2)",
+          "oklch(25% 0.044 183.2)",
+          "oklch(35% 0.062 183.2)",
+          "oklch(45% 0.073 183.2)",
+          "oklch(58% 0.073 183.2)",
+          "oklch(70% 0.073 183.2)",
+          "oklch(82% 0.073 183.2)",
+          "oklch(95% 0.071 183.2)"
+        ]
+      },
+      "card-teal-line": {
+        "role": "secondary",
+        "displayName": "Card Teal Line",
+        "canonical": "#9fd7cd",
+        "tonalRamp": [
+          "oklch(15% 0.027 182.6)",
+          "oklch(25% 0.044 182.6)",
+          "oklch(35% 0.059 182.6)",
+          "oklch(45% 0.059 182.6)",
+          "oklch(58% 0.059 182.6)",
+          "oklch(70% 0.059 182.6)",
+          "oklch(82% 0.059 182.6)",
+          "oklch(95% 0.059 182.6)"
+        ]
+      },
+      "card-teal-solid": {
+        "role": "secondary",
+        "displayName": "Card Teal Solid",
+        "canonical": "#0d7f70",
+        "tonalRamp": [
+          "oklch(15% 0.027 180.5)",
+          "oklch(25% 0.045 180.5)",
+          "oklch(35% 0.063 180.5)",
+          "oklch(45% 0.081 180.5)",
+          "oklch(58% 0.094 180.5)",
+          "oklch(70% 0.094 180.5)",
+          "oklch(82% 0.094 180.5)",
+          "oklch(95% 0.071 180.5)"
+        ]
+      },
+      "card-amber-fill": {
+        "role": "secondary",
+        "displayName": "Card Amber Fill",
+        "canonical": "#fcefd8",
+        "tonalRamp": [
+          "oklch(15% 0.031 82.0)",
+          "oklch(25% 0.033 82.0)",
+          "oklch(35% 0.033 82.0)",
+          "oklch(45% 0.033 82.0)",
+          "oklch(58% 0.033 82.0)",
+          "oklch(70% 0.033 82.0)",
+          "oklch(82% 0.033 82.0)",
+          "oklch(95% 0.033 82.0)"
+        ]
+      },
+      "card-amber-ink": {
+        "role": "secondary",
+        "displayName": "Card Amber Ink",
+        "canonical": "#7a4700",
+        "tonalRamp": [
+          "oklch(15% 0.035 65.1)",
+          "oklch(25% 0.057 65.1)",
+          "oklch(35% 0.079 65.1)",
+          "oklch(45% 0.101 65.1)",
+          "oklch(58% 0.101 65.1)",
+          "oklch(70% 0.101 65.1)",
+          "oklch(82% 0.101 65.1)",
+          "oklch(95% 0.034 65.1)"
+        ]
+      },
+      "card-amber-line": {
+        "role": "secondary",
+        "displayName": "Card Amber Line",
+        "canonical": "#efcb8d",
+        "tonalRamp": [
+          "oklch(15% 0.032 80.7)",
+          "oklch(25% 0.052 80.7)",
+          "oklch(35% 0.072 80.7)",
+          "oklch(45% 0.089 80.7)",
+          "oklch(58% 0.089 80.7)",
+          "oklch(70% 0.089 80.7)",
+          "oklch(82% 0.089 80.7)",
+          "oklch(95% 0.046 80.7)"
+        ]
+      },
+      "card-amber-solid": {
+        "role": "secondary",
+        "displayName": "Card Amber Solid",
+        "canonical": "#9a6100",
+        "tonalRamp": [
+          "oklch(15% 0.034 69.6)",
+          "oklch(25% 0.055 69.6)",
+          "oklch(35% 0.076 69.6)",
+          "oklch(45% 0.098 69.6)",
+          "oklch(58% 0.126 69.6)",
+          "oklch(70% 0.130 69.6)",
+          "oklch(82% 0.130 69.6)",
+          "oklch(95% 0.036 69.6)"
+        ]
+      },
+      "card-rose-fill": {
+        "role": "secondary",
+        "displayName": "Card Rose Fill",
+        "canonical": "#fce6e8",
+        "tonalRamp": [
+          "oklch(15% 0.024 11.3)",
+          "oklch(25% 0.024 11.3)",
+          "oklch(35% 0.024 11.3)",
+          "oklch(45% 0.024 11.3)",
+          "oklch(58% 0.024 11.3)",
+          "oklch(70% 0.024 11.3)",
+          "oklch(82% 0.024 11.3)",
+          "oklch(95% 0.024 11.3)"
+        ]
+      },
+      "card-rose-ink": {
+        "role": "secondary",
+        "displayName": "Card Rose Ink",
+        "canonical": "#9a2234",
+        "tonalRamp": [
+          "oklch(15% 0.061 18.1)",
+          "oklch(25% 0.100 18.1)",
+          "oklch(35% 0.140 18.1)",
+          "oklch(45% 0.155 18.1)",
+          "oklch(58% 0.155 18.1)",
+          "oklch(70% 0.155 18.1)",
+          "oklch(82% 0.101 18.1)",
+          "oklch(95% 0.025 18.1)"
+        ]
+      },
+      "card-rose-line": {
+        "role": "secondary",
+        "displayName": "Card Rose Line",
+        "canonical": "#f2b6be",
+        "tonalRamp": [
+          "oklch(15% 0.061 9.8)",
+          "oklch(25% 0.070 9.8)",
+          "oklch(35% 0.070 9.8)",
+          "oklch(45% 0.070 9.8)",
+          "oklch(58% 0.070 9.8)",
+          "oklch(70% 0.070 9.8)",
+          "oklch(82% 0.070 9.8)",
+          "oklch(95% 0.025 9.8)"
+        ]
+      },
+      "card-rose-solid": {
+        "role": "secondary",
+        "displayName": "Card Rose Solid",
+        "canonical": "#c93d52",
+        "tonalRamp": [
+          "oklch(15% 0.061 16.3)",
+          "oklch(25% 0.100 16.3)",
+          "oklch(35% 0.140 16.3)",
+          "oklch(45% 0.176 16.3)",
+          "oklch(58% 0.176 16.3)",
+          "oklch(70% 0.176 16.3)",
+          "oklch(82% 0.101 16.3)",
+          "oklch(95% 0.025 16.3)"
+        ]
+      },
+      "card-green-fill": {
+        "role": "secondary",
+        "displayName": "Card Green Fill",
+        "canonical": "#e1f3e6",
+        "tonalRamp": [
+          "oklch(15% 0.026 154.5)",
+          "oklch(25% 0.026 154.5)",
+          "oklch(35% 0.026 154.5)",
+          "oklch(45% 0.026 154.5)",
+          "oklch(58% 0.026 154.5)",
+          "oklch(70% 0.026 154.5)",
+          "oklch(82% 0.026 154.5)",
+          "oklch(95% 0.026 154.5)"
+        ]
+      },
+      "card-green-ink": {
+        "role": "secondary",
+        "displayName": "Card Green Ink",
+        "canonical": "#0f6a3a",
+        "tonalRamp": [
+          "oklch(15% 0.038 153.7)",
+          "oklch(25% 0.063 153.7)",
+          "oklch(35% 0.088 153.7)",
+          "oklch(45% 0.111 153.7)",
+          "oklch(58% 0.111 153.7)",
+          "oklch(70% 0.111 153.7)",
+          "oklch(82% 0.111 153.7)",
+          "oklch(95% 0.079 153.7)"
+        ]
+      },
+      "card-green-line": {
+        "role": "secondary",
+        "displayName": "Card Green Line",
+        "canonical": "#a9dab8",
+        "tonalRamp": [
+          "oklch(15% 0.038 154.4)",
+          "oklch(25% 0.062 154.4)",
+          "oklch(35% 0.069 154.4)",
+          "oklch(45% 0.069 154.4)",
+          "oklch(58% 0.069 154.4)",
+          "oklch(70% 0.069 154.4)",
+          "oklch(82% 0.069 154.4)",
+          "oklch(95% 0.069 154.4)"
+        ]
+      },
+      "card-green-solid": {
+        "role": "secondary",
+        "displayName": "Card Green Solid",
+        "canonical": "#167c44",
+        "tonalRamp": [
+          "oklch(15% 0.039 153.1)",
+          "oklch(25% 0.064 153.1)",
+          "oklch(35% 0.090 153.1)",
+          "oklch(45% 0.115 153.1)",
+          "oklch(58% 0.135 153.1)",
+          "oklch(70% 0.135 153.1)",
+          "oklch(82% 0.135 153.1)",
+          "oklch(95% 0.080 153.1)"
+        ]
+      },
+      "card-sky-fill": {
+        "role": "secondary",
+        "displayName": "Card Sky Fill",
+        "canonical": "#e1eefb",
+        "tonalRamp": [
+          "oklch(15% 0.022 248.1)",
+          "oklch(25% 0.022 248.1)",
+          "oklch(35% 0.022 248.1)",
+          "oklch(45% 0.022 248.1)",
+          "oklch(58% 0.022 248.1)",
+          "oklch(70% 0.022 248.1)",
+          "oklch(82% 0.022 248.1)",
+          "oklch(95% 0.022 248.1)"
+        ]
+      },
+      "card-sky-ink": {
+        "role": "secondary",
+        "displayName": "Card Sky Ink",
+        "canonical": "#164f86",
+        "tonalRamp": [
+          "oklch(15% 0.045 251.5)",
+          "oklch(25% 0.074 251.5)",
+          "oklch(35% 0.103 251.5)",
+          "oklch(45% 0.108 251.5)",
+          "oklch(58% 0.108 251.5)",
+          "oklch(70% 0.108 251.5)",
+          "oklch(82% 0.092 251.5)",
+          "oklch(95% 0.024 251.5)"
+        ]
+      },
+      "card-sky-line": {
+        "role": "secondary",
+        "displayName": "Card Sky Line",
+        "canonical": "#abcef0",
+        "tonalRamp": [
+          "oklch(15% 0.041 247.8)",
+          "oklch(25% 0.061 247.8)",
+          "oklch(35% 0.061 247.8)",
+          "oklch(45% 0.061 247.8)",
+          "oklch(58% 0.061 247.8)",
+          "oklch(70% 0.061 247.8)",
+          "oklch(82% 0.061 247.8)",
+          "oklch(95% 0.025 247.8)"
+        ]
+      },
+      "card-sky-solid": {
+        "role": "secondary",
+        "displayName": "Card Sky Solid",
+        "canonical": "#2470bd",
+        "tonalRamp": [
+          "oklch(15% 0.047 252.4)",
+          "oklch(25% 0.076 252.4)",
+          "oklch(35% 0.106 252.4)",
+          "oklch(45% 0.136 252.4)",
+          "oklch(58% 0.141 252.4)",
+          "oklch(70% 0.141 252.4)",
+          "oklch(82% 0.092 252.4)",
+          "oklch(95% 0.024 252.4)"
+        ]
+      },
+      "card-slate-fill": {
+        "role": "neutral",
+        "displayName": "Card Slate Fill",
+        "canonical": "#f0f0f0",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "card-slate-ink": {
+        "role": "neutral",
+        "displayName": "Card Slate Ink",
+        "canonical": "#3b3b3b",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "card-slate-line": {
+        "role": "neutral",
+        "displayName": "Card Slate Line",
+        "canonical": "#cfcfcf",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "card-slate-solid": {
+        "role": "neutral",
+        "displayName": "Card Slate Solid",
+        "canonical": "#5f5f5f",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "card-bg-dark": {
+        "role": "neutral",
+        "displayName": "Card (dark)",
+        "canonical": "#2a2a2a",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "card-ink-dark": {
+        "role": "neutral",
+        "displayName": "Card Ink (dark)",
+        "canonical": "#ededed",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "card-muted-dark": {
+        "role": "neutral",
+        "displayName": "Card Muted (dark)",
+        "canonical": "#bdbdbd",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "card-faint-dark": {
+        "role": "neutral",
+        "displayName": "Card Faint (dark)",
+        "canonical": "#adadad",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "card-line-dark": {
+        "role": "neutral",
+        "displayName": "Card Line (dark)",
+        "canonical": "#383838",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "card-line-2-dark": {
+        "role": "neutral",
+        "displayName": "Card Line 2 (dark)",
+        "canonical": "#474747",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "card-wash-dark": {
+        "role": "neutral",
+        "displayName": "Card Wash (dark)",
+        "canonical": "#323232",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "card-on-solid-dark": {
+        "role": "neutral",
+        "displayName": "On Card Solid (dark)",
+        "canonical": "#1b1b1b",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "card-indigo-fill-dark": {
+        "role": "secondary",
+        "displayName": "Card Indigo Fill (dark)",
+        "canonical": "#2e2d47",
+        "tonalRamp": [
+          "oklch(15% 0.046 285.1)",
+          "oklch(25% 0.046 285.1)",
+          "oklch(35% 0.046 285.1)",
+          "oklch(45% 0.046 285.1)",
+          "oklch(58% 0.046 285.1)",
+          "oklch(70% 0.046 285.1)",
+          "oklch(82% 0.046 285.1)",
+          "oklch(95% 0.024 285.1)"
+        ]
+      },
+      "card-indigo-ink-dark": {
+        "role": "secondary",
+        "displayName": "Card Indigo Ink (dark)",
+        "canonical": "#c9c6ff",
+        "tonalRamp": [
+          "oklch(15% 0.079 287.0)",
+          "oklch(25% 0.079 287.0)",
+          "oklch(35% 0.079 287.0)",
+          "oklch(45% 0.079 287.0)",
+          "oklch(58% 0.079 287.0)",
+          "oklch(70% 0.079 287.0)",
+          "oklch(82% 0.079 287.0)",
+          "oklch(95% 0.024 287.0)"
+        ]
+      },
+      "card-indigo-line-dark": {
+        "role": "secondary",
+        "displayName": "Card Indigo Line (dark)",
+        "canonical": "#4a4790",
+        "tonalRamp": [
+          "oklch(15% 0.090 282.3)",
+          "oklch(25% 0.117 282.3)",
+          "oklch(35% 0.117 282.3)",
+          "oklch(45% 0.117 282.3)",
+          "oklch(58% 0.117 282.3)",
+          "oklch(70% 0.117 282.3)",
+          "oklch(82% 0.092 282.3)",
+          "oklch(95% 0.024 282.3)"
+        ]
+      },
+      "card-indigo-solid-dark": {
+        "role": "secondary",
+        "displayName": "Card Indigo Solid (dark)",
+        "canonical": "#8b85ff",
+        "tonalRamp": [
+          "oklch(15% 0.089 282.9)",
+          "oklch(25% 0.148 282.9)",
+          "oklch(35% 0.175 282.9)",
+          "oklch(45% 0.175 282.9)",
+          "oklch(58% 0.175 282.9)",
+          "oklch(70% 0.161 282.9)",
+          "oklch(82% 0.092 282.9)",
+          "oklch(95% 0.024 282.9)"
+        ]
+      },
+      "card-teal-fill-dark": {
+        "role": "secondary",
+        "displayName": "Card Teal Fill (dark)",
+        "canonical": "#1d3b37",
+        "tonalRamp": [
+          "oklch(15% 0.027 184.5)",
+          "oklch(25% 0.037 184.5)",
+          "oklch(35% 0.037 184.5)",
+          "oklch(45% 0.037 184.5)",
+          "oklch(58% 0.037 184.5)",
+          "oklch(70% 0.037 184.5)",
+          "oklch(82% 0.037 184.5)",
+          "oklch(95% 0.037 184.5)"
+        ]
+      },
+      "card-teal-ink-dark": {
+        "role": "secondary",
+        "displayName": "Card Teal Ink (dark)",
+        "canonical": "#8fe0d2",
+        "tonalRamp": [
+          "oklch(15% 0.027 182.1)",
+          "oklch(25% 0.044 182.1)",
+          "oklch(35% 0.062 182.1)",
+          "oklch(45% 0.080 182.1)",
+          "oklch(58% 0.082 182.1)",
+          "oklch(70% 0.082 182.1)",
+          "oklch(82% 0.082 182.1)",
+          "oklch(95% 0.071 182.1)"
+        ]
+      },
+      "card-teal-line-dark": {
+        "role": "secondary",
+        "displayName": "Card Teal Line (dark)",
+        "canonical": "#2f6b62",
+        "tonalRamp": [
+          "oklch(15% 0.027 182.4)",
+          "oklch(25% 0.044 182.4)",
+          "oklch(35% 0.062 182.4)",
+          "oklch(45% 0.064 182.4)",
+          "oklch(58% 0.064 182.4)",
+          "oklch(70% 0.064 182.4)",
+          "oklch(82% 0.064 182.4)",
+          "oklch(95% 0.064 182.4)"
+        ]
+      },
+      "card-teal-solid-dark": {
+        "role": "secondary",
+        "displayName": "Card Teal Solid (dark)",
+        "canonical": "#4fc8b6",
+        "tonalRamp": [
+          "oklch(15% 0.027 181.8)",
+          "oklch(25% 0.045 181.8)",
+          "oklch(35% 0.063 181.8)",
+          "oklch(45% 0.080 181.8)",
+          "oklch(58% 0.104 181.8)",
+          "oklch(70% 0.111 181.8)",
+          "oklch(82% 0.111 181.8)",
+          "oklch(95% 0.071 181.8)"
+        ]
+      },
+      "card-amber-fill-dark": {
+        "role": "secondary",
+        "displayName": "Card Amber Fill (dark)",
+        "canonical": "#3d3120",
+        "tonalRamp": [
+          "oklch(15% 0.033 75.8)",
+          "oklch(25% 0.033 75.8)",
+          "oklch(35% 0.033 75.8)",
+          "oklch(45% 0.033 75.8)",
+          "oklch(58% 0.033 75.8)",
+          "oklch(70% 0.033 75.8)",
+          "oklch(82% 0.033 75.8)",
+          "oklch(95% 0.033 75.8)"
+        ]
+      },
+      "card-amber-ink-dark": {
+        "role": "secondary",
+        "displayName": "Card Amber Ink (dark)",
+        "canonical": "#f0c87e",
+        "tonalRamp": [
+          "oklch(15% 0.032 82.0)",
+          "oklch(25% 0.052 82.0)",
+          "oklch(35% 0.072 82.0)",
+          "oklch(45% 0.092 82.0)",
+          "oklch(58% 0.103 82.0)",
+          "oklch(70% 0.103 82.0)",
+          "oklch(82% 0.103 82.0)",
+          "oklch(95% 0.048 82.0)"
+        ]
+      },
+      "card-amber-line-dark": {
+        "role": "secondary",
+        "displayName": "Card Amber Line (dark)",
+        "canonical": "#6e5530",
+        "tonalRamp": [
+          "oklch(15% 0.032 76.0)",
+          "oklch(25% 0.052 76.0)",
+          "oklch(35% 0.062 76.0)",
+          "oklch(45% 0.062 76.0)",
+          "oklch(58% 0.062 76.0)",
+          "oklch(70% 0.062 76.0)",
+          "oklch(82% 0.062 76.0)",
+          "oklch(95% 0.041 76.0)"
+        ]
+      },
+      "card-amber-solid-dark": {
+        "role": "secondary",
+        "displayName": "Card Amber Solid (dark)",
+        "canonical": "#f0b95e",
+        "tonalRamp": [
+          "oklch(15% 0.032 78.0)",
+          "oklch(25% 0.052 78.0)",
+          "oklch(35% 0.072 78.0)",
+          "oklch(45% 0.093 78.0)",
+          "oklch(58% 0.120 78.0)",
+          "oklch(70% 0.125 78.0)",
+          "oklch(82% 0.125 78.0)",
+          "oklch(95% 0.043 78.0)"
+        ]
+      },
+      "card-rose-fill-dark": {
+        "role": "secondary",
+        "displayName": "Card Rose Fill (dark)",
+        "canonical": "#45262b",
+        "tonalRamp": [
+          "oklch(15% 0.047 9.8)",
+          "oklch(25% 0.047 9.8)",
+          "oklch(35% 0.047 9.8)",
+          "oklch(45% 0.047 9.8)",
+          "oklch(58% 0.047 9.8)",
+          "oklch(70% 0.047 9.8)",
+          "oklch(82% 0.047 9.8)",
+          "oklch(95% 0.025 9.8)"
+        ]
+      },
+      "card-rose-ink-dark": {
+        "role": "secondary",
+        "displayName": "Card Rose Ink (dark)",
+        "canonical": "#ffadb8",
+        "tonalRamp": [
+          "oklch(15% 0.061 10.6)",
+          "oklch(25% 0.097 10.6)",
+          "oklch(35% 0.097 10.6)",
+          "oklch(45% 0.097 10.6)",
+          "oklch(58% 0.097 10.6)",
+          "oklch(70% 0.097 10.6)",
+          "oklch(82% 0.097 10.6)",
+          "oklch(95% 0.025 10.6)"
+        ]
+      },
+      "card-rose-line-dark": {
+        "role": "secondary",
+        "displayName": "Card Rose Line (dark)",
+        "canonical": "#7a3f48",
+        "tonalRamp": [
+          "oklch(15% 0.061 11.3)",
+          "oklch(25% 0.082 11.3)",
+          "oklch(35% 0.082 11.3)",
+          "oklch(45% 0.082 11.3)",
+          "oklch(58% 0.082 11.3)",
+          "oklch(70% 0.082 11.3)",
+          "oklch(82% 0.082 11.3)",
+          "oklch(95% 0.025 11.3)"
+        ]
+      },
+      "card-rose-solid-dark": {
+        "role": "secondary",
+        "displayName": "Card Rose Solid (dark)",
+        "canonical": "#ff8b9a",
+        "tonalRamp": [
+          "oklch(15% 0.061 12.7)",
+          "oklch(25% 0.100 12.7)",
+          "oklch(35% 0.140 12.7)",
+          "oklch(45% 0.141 12.7)",
+          "oklch(58% 0.141 12.7)",
+          "oklch(70% 0.141 12.7)",
+          "oklch(82% 0.102 12.7)",
+          "oklch(95% 0.025 12.7)"
+        ]
+      },
+      "card-green-fill-dark": {
+        "role": "secondary",
+        "displayName": "Card Green Fill (dark)",
+        "canonical": "#1f3a29",
+        "tonalRamp": [
+          "oklch(15% 0.037 155.3)",
+          "oklch(25% 0.045 155.3)",
+          "oklch(35% 0.045 155.3)",
+          "oklch(45% 0.045 155.3)",
+          "oklch(58% 0.045 155.3)",
+          "oklch(70% 0.045 155.3)",
+          "oklch(82% 0.045 155.3)",
+          "oklch(95% 0.045 155.3)"
+        ]
+      },
+      "card-green-ink-dark": {
+        "role": "secondary",
+        "displayName": "Card Green Ink (dark)",
+        "canonical": "#8ddcaa",
+        "tonalRamp": [
+          "oklch(15% 0.037 155.6)",
+          "oklch(25% 0.061 155.6)",
+          "oklch(35% 0.085 155.6)",
+          "oklch(45% 0.105 155.6)",
+          "oklch(58% 0.105 155.6)",
+          "oklch(70% 0.105 155.6)",
+          "oklch(82% 0.105 155.6)",
+          "oklch(95% 0.078 155.6)"
+        ]
+      },
+      "card-green-line-dark": {
+        "role": "secondary",
+        "displayName": "Card Green Line (dark)",
+        "canonical": "#33664a",
+        "tonalRamp": [
+          "oklch(15% 0.036 157.9)",
+          "oklch(25% 0.058 157.9)",
+          "oklch(35% 0.072 157.9)",
+          "oklch(45% 0.072 157.9)",
+          "oklch(58% 0.072 157.9)",
+          "oklch(70% 0.072 157.9)",
+          "oklch(82% 0.072 157.9)",
+          "oklch(95% 0.072 157.9)"
+        ]
+      },
+      "card-green-solid-dark": {
+        "role": "secondary",
+        "displayName": "Card Green Solid (dark)",
+        "canonical": "#62d394",
+        "tonalRamp": [
+          "oklch(15% 0.036 156.6)",
+          "oklch(25% 0.059 156.6)",
+          "oklch(35% 0.083 156.6)",
+          "oklch(45% 0.107 156.6)",
+          "oklch(58% 0.138 156.6)",
+          "oklch(70% 0.138 156.6)",
+          "oklch(82% 0.138 156.6)",
+          "oklch(95% 0.077 156.6)"
+        ]
+      },
+      "card-sky-fill-dark": {
+        "role": "secondary",
+        "displayName": "Card Sky Fill (dark)",
+        "canonical": "#1f3347",
+        "tonalRamp": [
+          "oklch(15% 0.042 249.4)",
+          "oklch(25% 0.044 249.4)",
+          "oklch(35% 0.044 249.4)",
+          "oklch(45% 0.044 249.4)",
+          "oklch(58% 0.044 249.4)",
+          "oklch(70% 0.044 249.4)",
+          "oklch(82% 0.044 249.4)",
+          "oklch(95% 0.024 249.4)"
+        ]
+      },
+      "card-sky-ink-dark": {
+        "role": "secondary",
+        "displayName": "Card Sky Ink (dark)",
+        "canonical": "#9cc9f3",
+        "tonalRamp": [
+          "oklch(15% 0.040 247.0)",
+          "oklch(25% 0.066 247.0)",
+          "oklch(35% 0.076 247.0)",
+          "oklch(45% 0.076 247.0)",
+          "oklch(58% 0.076 247.0)",
+          "oklch(70% 0.076 247.0)",
+          "oklch(82% 0.076 247.0)",
+          "oklch(95% 0.025 247.0)"
+        ]
+      },
+      "card-sky-line-dark": {
+        "role": "secondary",
+        "displayName": "Card Sky Line (dark)",
+        "canonical": "#345a80",
+        "tonalRamp": [
+          "oklch(15% 0.043 249.8)",
+          "oklch(25% 0.070 249.8)",
+          "oklch(35% 0.076 249.8)",
+          "oklch(45% 0.076 249.8)",
+          "oklch(58% 0.076 249.8)",
+          "oklch(70% 0.076 249.8)",
+          "oklch(82% 0.076 249.8)",
+          "oklch(95% 0.024 249.8)"
+        ]
+      },
+      "card-sky-solid-dark": {
+        "role": "secondary",
+        "displayName": "Card Sky Solid (dark)",
+        "canonical": "#7db8f0",
+        "tonalRamp": [
+          "oklch(15% 0.042 248.0)",
+          "oklch(25% 0.068 248.0)",
+          "oklch(35% 0.094 248.0)",
+          "oklch(45% 0.102 248.0)",
+          "oklch(58% 0.102 248.0)",
+          "oklch(70% 0.102 248.0)",
+          "oklch(82% 0.095 248.0)",
+          "oklch(95% 0.025 248.0)"
+        ]
+      },
+      "card-slate-fill-dark": {
+        "role": "neutral",
+        "displayName": "Card Slate Fill (dark)",
+        "canonical": "#363636",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "card-slate-ink-dark": {
+        "role": "neutral",
+        "displayName": "Card Slate Ink (dark)",
+        "canonical": "#dedede",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "card-slate-line-dark": {
+        "role": "neutral",
+        "displayName": "Card Slate Line (dark)",
+        "canonical": "#555555",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "card-slate-solid-dark": {
+        "role": "neutral",
+        "displayName": "Card Slate Solid (dark)",
+        "canonical": "#9a9a9a",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(25% 0.000 89.9)",
+          "oklch(35% 0.000 89.9)",
+          "oklch(45% 0.000 89.9)",
+          "oklch(58% 0.000 89.9)",
+          "oklch(70% 0.000 89.9)",
+          "oklch(82% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
       }
     },
     "typographyMeta": {
@@ -750,6 +1830,46 @@
       "mono": {
         "displayName": "Mono",
         "purpose": "Codes, token prefixes, commands."
+      },
+      "card-pitch": {
+        "displayName": "Card Pitch",
+        "purpose": "Card kit only: the promise in one line on the concept's front, 19 to 28px with the card's width, its key phrase on a marker band."
+      },
+      "card-heading": {
+        "displayName": "Card Heading",
+        "purpose": "Card kit only: h1 and h2 on a front."
+      },
+      "card-voice": {
+        "displayName": "Card Voice",
+        "purpose": "Card kit only: a quote in the users' words, unattributed."
+      },
+      "card-lede": {
+        "displayName": "Card Lede",
+        "purpose": "Card kit only: the line under the pitch, muted; a measure's values."
+      },
+      "card-name": {
+        "displayName": "Card Name",
+        "purpose": "Card kit only: a person's or a step's name."
+      },
+      "card-subheading": {
+        "displayName": "Card Subheading",
+        "purpose": "Card kit only: h3 and h4, a measure's caption, a timeline's time."
+      },
+      "card-body": {
+        "displayName": "Card Body",
+        "purpose": "Card kit only: running text, a shift's lists, a comparison."
+      },
+      "card-detail": {
+        "displayName": "Card Detail",
+        "purpose": "Card kit only: what a person needs, a step's line, a spectrum's ends, a note."
+      },
+      "card-chip": {
+        "displayName": "Card Chip",
+        "purpose": "Card kit only: a chip's label."
+      },
+      "card-label": {
+        "displayName": "Card Label",
+        "purpose": "Card kit only: a small faint caption."
       }
     },
     "shadows": [
@@ -794,6 +1914,26 @@
         "name": "dur-3",
         "value": "200ms",
         "purpose": "Panels, the inspector, the canvas and the pill."
+      },
+      {
+        "name": "dur-4",
+        "value": "320ms",
+        "purpose": "Layout that moves what is below it: an Idea card's text unfolding, the picture moving down in step. It folds back in dur-3 (200ms)."
+      },
+      {
+        "name": "ease-fold",
+        "value": "cubic-bezier(0.2, 0, 0, 1)",
+        "purpose": "The fold's ease: a gentle start so a layout move reads rather than jumps, then a long settle. The app animates the measured height with it, so a reversal runs from wherever the fold is. None with reduced motion."
+      },
+      {
+        "name": "idea-text-words",
+        "value": "opacity 200ms after 80ms, 8px drop over dur-4",
+        "purpose": "The words in an Idea card's text arriving a beat behind their room; on closing they fade in 120ms first. With reduced motion only the fade remains."
+      },
+      {
+        "name": "idea-reorder",
+        "value": "others glide 240ms, the released card 200ms, shared ease; the held card follows the pointer at 102% on the Lifted shadow",
+        "purpose": "Dragging outcomes into order, or moving a picked-up card with the keyboard. None with reduced motion, except the held card following the pointer."
       }
     ],
     "breakpoints": [
@@ -879,19 +2019,36 @@
       "description": "Stands in for the hidden panel: the mark and the show glyph, the same size whatever the product is called.",
       "html": "<button class=\"ds-pill\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\"><rect width=\"24\" height=\"24\" rx=\"5\" fill=\"currentColor\"/><path d=\"M5.5 7.5l3 9 3.5-7 3.5 7 3-9\" fill=\"none\" stroke=\"#fff\" stroke-width=\"2.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M9 3v18\"/><path d=\"m14 9 3 3-3 3\"/></svg><span class=\"ds-visually-hidden\">Show panel: Crewboard, Exploration</span></button>",
       "css": ".ds-pill { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 58px; height: 32px; padding: 0; border: 0; border-radius: 8px; background: var(--panel, #fff); color: var(--muted, #555); box-shadow: 0 2px 5px rgb(0 0 0 / 0.08), 0 0 0 0.5px rgb(0 0 0 / 0.12); cursor: pointer; } .ds-pill > svg:first-child { color: var(--text, #1e1e1e); } .ds-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } .ds-pill:hover { background: var(--hover, #f2f2f2); color: var(--text, #1e1e1e); } .ds-pill:focus-visible { outline: 2px solid var(--accent, #5a53e8); outline-offset: 1px; }"
+    },
+    {
+      "name": "Idea Card (text open)",
+      "kind": "card",
+      "refersTo": "idea-card",
+      "description": "A card with its text open: the head with index chip, title, More info (expanded) and the menu, then the recessed text agents read, scrolling within its room, above the picture, which stays in view.",
+      "html": "<article class=\"ds-idea\"><header class=\"ds-idea-head\"><span class=\"ds-idea-index\">1</span><h3>Crew leads plan the week in under 30 minutes</h3><div class=\"ds-idea-tools\"><button class=\"ds-idea-more\" aria-expanded=\"true\" aria-controls=\"ds-idea-text\">More info<svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m6 9 6 6 6-6\"/></svg></button><button class=\"ds-idea-menu\" aria-label=\"Actions\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"1\"/><circle cx=\"19\" cy=\"12\" r=\"1\"/><circle cx=\"5\" cy=\"12\" r=\"1\"/></svg></button></div></header><div class=\"ds-idea-back\" id=\"ds-idea-text\" tabindex=\"0\" role=\"region\" aria-label=\"More about Crew leads plan the week in under 30 minutes\"><p>A crew lead starts next week from the jobs already booked. Repeat clients carry forward, each job is matched to a crew that can run it, and each crew gets its week from the plan.</p><p>Success: Friday planning takes under 30 minutes, down from an afternoon.</p><p class=\"ds-idea-meta\">Updated by Riley Chen · via Claude, 2 h ago</p></div><div class=\"ds-idea-picture\" role=\"img\" aria-label=\"The picture: today an afternoon, success under 30 minutes\"><span class=\"ds-idea-bar is-from\"></span><span class=\"ds-idea-bar\"></span></div></article>",
+      "css": ".ds-idea { max-width: 430px; background: var(--panel, #fff); border-radius: 12px; box-shadow: 0 2px 5px rgb(0 0 0 / 0.08), 0 0 0 0.5px rgb(0 0 0 / 0.12); overflow: hidden; color: var(--text, #1e1e1e); font: 400 12px/1.4 var(--font, 'Inter Variable', Inter, system-ui, sans-serif); } .ds-idea-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 10px; min-height: 48px; padding: 10px 10px 10px 18px; border-bottom: 1px solid var(--line, #e6e6e6); } .ds-idea-index { min-width: 18px; height: 18px; margin-top: 5px; padding: 0 5px; border-radius: 4px; background: var(--hover, #f2f2f2); color: var(--muted, #555); font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; } .ds-idea-head h3 { flex: 1 1 180px; margin: 0; padding-top: 5px; font-size: 12.5px; font-weight: 600; line-height: 1.35; } .ds-idea-tools { display: flex; align-items: center; gap: 6px; margin-left: auto; } .ds-idea-more { display: inline-flex; align-items: center; gap: 3px; height: 24px; padding: 0 4px 0 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted, #555); font: 500 12px/1 var(--font, 'Inter Variable', Inter, system-ui, sans-serif); cursor: pointer; } .ds-idea-more svg { color: var(--faint, #666); transition: transform 200ms cubic-bezier(0.2, 0, 0, 1); } .ds-idea-more:hover { color: var(--text, #1e1e1e); } .ds-idea-more[aria-expanded=true] { background: var(--hover, #f2f2f2); color: var(--text, #1e1e1e); } .ds-idea-more[aria-expanded=true] svg { color: var(--muted, #555); transform: rotate(180deg); } .ds-idea-more:focus-visible, .ds-idea-menu:focus-visible { outline: 2px solid var(--accent, #5a53e8); outline-offset: 1px; } .ds-idea-menu { display: inline-grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 4px; background: transparent; color: var(--muted, #555); cursor: pointer; } .ds-idea-menu:hover { background: var(--hover, #f2f2f2); color: var(--text, #1e1e1e); } .ds-idea-back { --back: color-mix(in srgb, var(--hover, #f2f2f2) 60%, var(--panel, #fff)); max-height: 200px; overflow-y: auto; overscroll-behavior: contain; padding: 16px 18px 14px; border-bottom: 1px solid var(--line, #e6e6e6); font-size: 13px; line-height: 1.55; background: linear-gradient(var(--back) 40%, transparent) top / 100% 28px no-repeat local, linear-gradient(transparent, var(--back) 60%) bottom / 100% 28px no-repeat local, linear-gradient(color-mix(in srgb, var(--line-strong, #8a8a8a) 22%, transparent), transparent) top / 100% 12px no-repeat scroll, linear-gradient(transparent, color-mix(in srgb, var(--line-strong, #8a8a8a) 22%, transparent)) bottom / 100% 12px no-repeat scroll, var(--back); } .ds-idea-back p { margin: 0 0 10px; max-width: 68ch; } .ds-idea-back:focus-visible { outline: 2px solid var(--accent, #5a53e8); outline-offset: -2px; } .ds-idea-meta { margin-top: 16px !important; padding-top: 10px; border-top: 1px solid var(--line, #e6e6e6); color: var(--faint, #666); font-size: 11.5px; line-height: 1.4; } .ds-idea-picture { display: grid; gap: 10px; padding: 22px; } .ds-idea-bar { display: block; height: 14px; border-radius: 4px; background: var(--accent, #5a53e8); width: 14%; } .ds-idea-bar.is-from { width: 100%; background: repeating-linear-gradient(135deg, var(--line-2, #d5d5d5) 0 2px, transparent 2px 6px); box-shadow: inset 0 0 0 1px var(--line-2, #d5d5d5); }"
+    },
+    {
+      "name": "Card Kit Shift",
+      "kind": "custom",
+      "refersTo": "card-kit-before",
+      "description": "Card kit only, inside an Idea card's front: today hatched in slate, an arrow, and the product's way in the card's hue. Shown in the light set.",
+      "html": "<div class=\"ds-shift\"><div class=\"ds-before\"><h3>Today</h3><ul><li>Next week rebuilt by hand in a spreadsheet</li><li>Every crew's texts typed one by one</li></ul></div><svg class=\"ds-shift-arrow\" width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 12h14\"/><path d=\"m12 5 7 7-7 7\"/></svg><div class=\"ds-after\"><h3>With Crewboard</h3><ul><li>Jobs carried forward, matched to crews</li><li>Each crew's week sent from the plan</li></ul></div></div>",
+      "css": ".ds-shift { display: grid; grid-template-columns: minmax(0,1fr) 22px minmax(0,1fr); gap: 10px; max-width: 840px; font: 400 13.5px/1.4 Inter, system-ui, sans-serif; color: #1e1e1e; } .ds-shift-arrow { align-self: center; color: #3a33b8; } .ds-before, .ds-after { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 6px; } .ds-before { color: #555555; background: repeating-linear-gradient(-45deg, transparent 0 6px, color-mix(in srgb, #e6e6e6 70%, transparent) 6px 7px), #f4f4f4; } .ds-after { background: #ecebfd; } .ds-before h3, .ds-after h3 { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.3; } .ds-after h3 { color: #3a33b8; } .ds-shift ul { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; } .ds-shift li { display: flex; gap: 7px; } .ds-before li::before { content: ''; flex: none; width: 14px; height: 1.5px; margin-top: 9px; background: currentColor; opacity: .75; } .ds-after li::before { content: '\\2713'; flex: none; width: 14px; color: #3a33b8; font-weight: 600; } @media (max-width: 560px) { .ds-shift { grid-template-columns: 1fr; } .ds-shift-arrow { justify-self: center; transform: rotate(90deg); } }"
     }
   ],
   "narrative": {
     "northStar": "The Studio",
-    "overview": "One floating panel carries the product's whole story, Idea, Evidence, Exploration and Story in that order, and the content takes the rest of the canvas. Studio is a tool-maker's workspace: a light grey canvas (near-black in dark), white panels with 12px corners floating 10px in from the window edge, hairline rules, and a soft two-layer shadow. There is no top bar, no persistent rail beside the panel, and no app-level tab strip. One screen shows at a time, links are real links, and the browser owns tabs.\n\nThe system is dense and quiet. The UI runs at 12px in Inter; text people actually read (passages, quotes, Markdown) steps up to 13 to 13.5px. Hierarchy comes from weight (600) and grey steps rather than size, and nothing in the app is larger than 20px except the overview's intro. Indigo is the only chromatic voice in the chrome, reserved for selection, focus, primary commits and pointing at evidence. Status always pairs a small shaped mark with a word.\n\nThe panel can hide (a button or Ctrl/Cmd+\\). The canvas widens in a single 200ms motion and a small floating pill with the mark takes its place. Item screens (a Story, a source) add a 272px inspector floating on the right, which hides and returns the same way: a button in its head or Shift+Ctrl/Cmd+\\, and a square at the top-right inset in its place. A Story page is not part of Studio: it follows the product's own Story style (the company's design system or a house style) inside a sandboxed frame. On the Story, focus mode (F) hides both panels so the page has the window, and Esc or F brings them back.",
+    "overview": "\n**Creative North Star: \"The Studio\"**\n\nOne floating panel carries the product's whole story, Idea, Evidence, Exploration and Story in that order, and the content takes the rest of the canvas. Studio is a tool-maker's workspace: a light grey canvas (near-black in dark), white panels with 12px corners floating 10px in from the window edge, hairline rules, and a soft two-layer shadow. There is no top bar, no persistent rail beside the panel, and no app-level tab strip. One screen shows at a time, links are real links, and the browser owns tabs.\n\nThe system is dense and quiet. The UI runs at 12px in Inter; text people actually read (a source's text, quotes, Markdown) steps up to 13 to 13.5px. Hierarchy comes from weight (600) and grey steps rather than size, and nothing in the app is larger than 20px except the overview's intro. Indigo is the only chromatic voice in the chrome, reserved for selection, focus, primary commits and pointing at evidence. Status always pairs a small shaped mark with a word.\n\nThe panel can hide (a button or Ctrl/Cmd+\\). The canvas widens in a single 200ms motion and a small floating pill with the mark takes its place. Item screens (a Story page, a mockup, a source) add a 272px inspector floating on the right, which hides and returns the same way: a button in its head or Shift+Ctrl/Cmd+\\, and a square at the top-right inset in its place. A Story page is not part of Studio: it follows the product's own Story style (the company's design system or a house style) inside a sandboxed frame. Neither is a mockup's page, which carries its own look in the same kind of frame, nor an Idea card's front, a picture drawn in the card kit (its own section below) inside a sandboxed frame, in a card whose chrome is Studio. On the Story and on a mockup (on a phone too), focus mode (F) hides both panels so the app falls away around the work; a Story page keeps its measure rather than widening, and Esc or F brings the panels back.",
     "keyCharacteristics": [
-      "A 264px floating left panel and 272px floating inspector around one scrolling canvas (content max 900px).",
+      "A 264px floating left panel and 272px floating inspector around one scrolling canvas (content max 900px; a mockup's canvas takes the full width).",
       "White-on-grey tonal layering; the shadow's 0.5px ring stands in for a panel border.",
       "Inter at 11 to 15px for the UI, 20px as the ceiling outside the overview's intro; 600 is the heading weight.",
       "24px and 28px controls; radius steps 4, 6, 8, 12.",
       "Indigo for selection, focus, primary commits and evidence only.",
       "Lucide icons at 12 or 14px with a 1.75 stroke, through one glyph map.",
-      "Light and dark are both first-class and resolved before first paint."
+      "Light and dark are both first-class and resolved before first paint.",
+      "Idea cards with two sides: an agent-drawn picture on the front, always in view, and the text agents read on the back, which More info opens between the card's title and its picture."
     ],
     "rules": [
       {
@@ -911,7 +2068,7 @@
       },
       {
         "name": "The Twenty Pixel Ceiling Rule",
-        "body": "Nothing in the app exceeds 20px. When something needs more emphasis, raise its weight or darken its grey.",
+        "body": "Nothing in the app exceeds 20px. When something needs more emphasis, raise its weight or darken its grey. The one exception is the overview's intro (Brand and Display above, tokens `--fs-brand`, `--fs-display` and their `-sm` narrow sizes, `--tracking-brand`, `--tracking-display`), the page people share as a screenshot of WhatBuild; no other screen earns it ([decision](okf/decisions/the-overview-is-the-front-door.md)). An Idea card's front is not app type: it is a picture in the card kit, which may run its pitch to 28px, as a Story page has its own type. The card's head, More info and text stay under the ceiling.",
         "section": "typography"
       },
       {
@@ -921,7 +2078,7 @@
       },
       {
         "name": "The One Scroller Rule",
-        "body": "The canvas scrolls the page. Only the panel's context slot, the inspector body, menus and dialogs scroll on their own.",
+        "body": "The canvas scrolls the page. Only the panel's context slot, the inspector body, menus, dialogs and an Idea card's back (and a front taller than its frame) scroll on their own.",
         "section": "layout"
       },
       {
@@ -933,6 +2090,21 @@
         "name": "The Two Heights Rule",
         "body": "A surface either rests in the layout or lifts above it. Use no other shadow values, and use no offset or coloured shadows. The one exception is the search palette's passing flash.",
         "section": "elevation"
+      },
+      {
+        "name": "The One Hue Rule",
+        "body": "A card keeps to one hue for the product's way, chosen with `data-hue`. Slate, hatched, is how things are today. Rose is only for what hurts, a step or a moment marked as pain, and sparingly. Otherwise green, amber and rose appear only as a comparison's yes, partly and no, each with its own shape. Never a rainbow.",
+        "section": "colors"
+      },
+      {
+        "name": "The Picture Not Chrome Rule",
+        "body": "The kit's hues and sizes stay inside a front. The Earned Accent Rule governs Studio's chrome and is unchanged: the kit's indigo is the default hue of a sandboxed picture, not chrome, and never counts as a view's accent. No Studio surface borrows a kit hue.",
+        "section": "colors"
+      },
+      {
+        "name": "The Marker Band Rule",
+        "body": "Emphasis in a pitch (`em`, or `wb-mark` elsewhere) is a band of the hue's solid, about 30%, across the lower part of the words; the text stays in ink. A pitch never turns its key phrase a colour.",
+        "section": "typography"
       }
     ],
     "dos": [
@@ -940,18 +2112,21 @@
       "**Do** keep controls at 24px or 28px, and reserve 32px for the floating pill and its square.",
       "**Do** draw icons through the glyph map: lucide at 12px or 14px, 1.75 stroke, faint or muted at rest.",
       "**Do** pair every status with its shaped 7px mark and a word.",
-      "**Do** animate with the one ease (`cubic-bezier(0.2, 0.8, 0.2, 1)`) at 120ms for small state changes, 160ms for toasts and dialogs, and 200ms for panels, the inspector and the canvas. Honour reduced motion.",
+      "**Do** animate with the one ease (`cubic-bezier(0.2, 0.8, 0.2, 1)`) at 120ms for small state changes, 160ms for toasts and dialogs, 200ms for panels, the inspector and the canvas. Layout that moves what is below it (an Idea card's text unfolding) takes 320ms (`--dur-4`) on the fold ease (`--ease-fold`, `cubic-bezier(0.2, 0, 0, 1)`), which starts gently so the move reads rather than jumps, and folds back in 200ms. Honour reduced motion.",
       "**Do** show focus with the 2px accent outline at 1px offset. Rows inside sheets inset it (-2px).",
-      "**Do** keep Story pages out of Studio: the Story guidance and house styles never copy the app's tokens."
+      "**Do** keep Story pages out of Studio: the Story guidance and house styles never copy the app's tokens.",
+      "**Do** give every card kit colour in both themes. A diagram the kit lacks is drawn with the kit's variables (`currentColor`, the hue's ink and line, muted), never fixed colours."
     ],
     "donts": [
       "**Don't** add a top bar, a second rail, an app-level tab strip or extra drawers beside the panel. On phones the panel itself is the drawer.",
-      "**Don't** set app type above 20px, and don't add a display face to the app.",
+      "**Don't** set app type above 20px outside the overview's intro, and don't add a display face to the app: the display step is Inter at 600. An Idea card's front is a picture in the card kit, not app type.",
       "**Don't** use the accent for decoration, category colour, large fills or more than one filled button in a view.",
       "**Don't** use shadows outside the resting, lifted and paper set, including hard offset, coloured or glow shadows.",
       "**Don't** add small uppercase labels above titles. Section labels are 11px sentence case in faint 500.",
       "**Don't** use text characters or emoji as icons. Every icon is a lucide glyph.",
-      "**Don't** signal state with colour alone."
+      "**Don't** signal state with colour alone.",
+      "**Don't** add editing controls to an Idea card, a label saying who a side is for, or a reminder to ask an agent. Agents write both sides, together; people read the picture, open More info for the text, drag outcomes into order, and the menu only archives and deletes.",
+      "**Don't** put text-heavy content on a front: about 60 words of running text on the concept's, 40 on an outcome's, and labels of two to five words. Depth belongs on the back."
     ]
   }
 }

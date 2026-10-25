@@ -3,7 +3,7 @@ type: Specification
 title: Accounts belong to tenants, tenants hold teams, teams run products, and one role check decides every call.
 description: The account → tenant → team → product hierarchy, sign-in, roles and what they grant, addressing and isolation, moving sources between products, caller identity, attribution, and who is who in the public sandbox.
 tags: [spec, accounts, tenancy, roles, identity, oauth, isolation, sandbox]
-generated: {by: agent:claude, at: 2026-10-18}
+generated: {by: agent:claude, at: 2026-10-24}
 status: stable
 ---
 
@@ -247,7 +247,8 @@ and its product concept.
 | `product_id` | ULID, immutable. |
 | `slug` | 3–50 chars, unique in the team. Mutable. |
 | `name` | 1–100 chars. |
-| `concept` | The product concept: Markdown, ≤ 2,000 chars, heads the Idea screen; overwrites keep revisions. |
+| `concept` | The back of the product concept's card, for agents: Markdown, ≤ 8,000 chars, on who the product is for, their problem and how it solves it; written with `products.update_concept` by editors and admins; overwrites keep revisions ([§4.2.1](04-data-model.md)). |
+| `card_html` | The front of the product concept's card, for people: agent-written HTML in the card kit, ≤ 40,000 chars, empty until drawn; heads the Idea screen ([§4.2.1](04-data-model.md)). |
 | `archived_at` | Archived products are hidden from lists and read-only (`409 product_archived`) until restored. |
 
 A product is addressed as `tenant/team/product` (slugs or ids at each level) or by `product_id`.
@@ -328,9 +329,9 @@ products ([`apps/server/src/mcp.ts`](../../apps/server/src/mcp.ts)). An organiza
 call takes `tenant` (and `team`) from its params or the endpoint, and otherwise the organization
 and team of a `product` it names that the caller can see, unless it takes a product of its own
 ([§6.5](06-operations-and-adapters.md)). Every product-scoped MCP
-result echoes `scope` (tenant, team, product, `your_role` capped by the connection's level, and
-`connection_level`) so an agent and the person reading its transcript can see where a write landed
-and what it may do there.
+result echoes `scope` (tenant, team, product, `your_role` capped by the connection's level,
+`connection_level`, and the server's `skill_version`) so an agent and the person reading its
+transcript can see where a write landed and what it may do there.
 
 **A scoped endpoint is a fence, not a default**
 (◆ [decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). Whatever roles the person holds

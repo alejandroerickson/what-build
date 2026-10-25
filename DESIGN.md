@@ -49,6 +49,78 @@ colors:
   bad-text-dark: "#2a0d09"
   avatar-bg-dark: "#5a4a30"
   avatar-text-dark: "#f3e6cc"
+  card-bg: "#ffffff"
+  card-ink: "#1e1e1e"
+  card-muted: "#555555"
+  card-faint: "#666666"
+  card-line: "#e6e6e6"
+  card-line-2: "#d5d5d5"
+  card-wash: "#f4f4f4"
+  card-on-solid: "#ffffff"
+  card-indigo-fill: "#ecebfd"
+  card-indigo-ink: "#3a33b8"
+  card-indigo-line: "#bdb9f7"
+  card-indigo-solid: "#5a53e8"
+  card-teal-fill: "#dcf2ee"
+  card-teal-ink: "#0b5d54"
+  card-teal-line: "#9fd7cd"
+  card-teal-solid: "#0d7f70"
+  card-amber-fill: "#fcefd8"
+  card-amber-ink: "#7a4700"
+  card-amber-line: "#efcb8d"
+  card-amber-solid: "#9a6100"
+  card-rose-fill: "#fce6e8"
+  card-rose-ink: "#9a2234"
+  card-rose-line: "#f2b6be"
+  card-rose-solid: "#c93d52"
+  card-green-fill: "#e1f3e6"
+  card-green-ink: "#0f6a3a"
+  card-green-line: "#a9dab8"
+  card-green-solid: "#167c44"
+  card-sky-fill: "#e1eefb"
+  card-sky-ink: "#164f86"
+  card-sky-line: "#abcef0"
+  card-sky-solid: "#2470bd"
+  card-slate-fill: "#f0f0f0"
+  card-slate-ink: "#3b3b3b"
+  card-slate-line: "#cfcfcf"
+  card-slate-solid: "#5f5f5f"
+  card-bg-dark: "#2a2a2a"
+  card-ink-dark: "#ededed"
+  card-muted-dark: "#bdbdbd"
+  card-faint-dark: "#adadad"
+  card-line-dark: "#383838"
+  card-line-2-dark: "#474747"
+  card-wash-dark: "#323232"
+  card-on-solid-dark: "#1b1b1b"
+  card-indigo-fill-dark: "#2e2d47"
+  card-indigo-ink-dark: "#c9c6ff"
+  card-indigo-line-dark: "#4a4790"
+  card-indigo-solid-dark: "#8b85ff"
+  card-teal-fill-dark: "#1d3b37"
+  card-teal-ink-dark: "#8fe0d2"
+  card-teal-line-dark: "#2f6b62"
+  card-teal-solid-dark: "#4fc8b6"
+  card-amber-fill-dark: "#3d3120"
+  card-amber-ink-dark: "#f0c87e"
+  card-amber-line-dark: "#6e5530"
+  card-amber-solid-dark: "#f0b95e"
+  card-rose-fill-dark: "#45262b"
+  card-rose-ink-dark: "#ffadb8"
+  card-rose-line-dark: "#7a3f48"
+  card-rose-solid-dark: "#ff8b9a"
+  card-green-fill-dark: "#1f3a29"
+  card-green-ink-dark: "#8ddcaa"
+  card-green-line-dark: "#33664a"
+  card-green-solid-dark: "#62d394"
+  card-sky-fill-dark: "#1f3347"
+  card-sky-ink-dark: "#9cc9f3"
+  card-sky-line-dark: "#345a80"
+  card-sky-solid-dark: "#7db8f0"
+  card-slate-fill-dark: "#363636"
+  card-slate-ink-dark: "#dedede"
+  card-slate-line-dark: "#555555"
+  card-slate-solid-dark: "#9a9a9a"
 typography:
   display:
     fontFamily: "Inter Variable, Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
@@ -113,6 +185,59 @@ typography:
     fontSize: "11.5px"
     fontWeight: 400
     lineHeight: 1.5
+  card-pitch:
+    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "clamp(19px, 4vw, 28px)"
+    fontWeight: 600
+    lineHeight: 1.16
+    letterSpacing: "-0.024em"
+  card-heading:
+    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "17px"
+    fontWeight: 600
+    lineHeight: 1.3
+    letterSpacing: "-0.012em"
+  card-voice:
+    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "16px"
+    fontWeight: 500
+    lineHeight: 1.45
+    letterSpacing: "-0.005em"
+  card-lede:
+    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "15px"
+    fontWeight: 400
+    lineHeight: 1.5
+  card-name:
+    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "14.5px"
+    fontWeight: 600
+    lineHeight: 1.3
+  card-subheading:
+    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "14px"
+    fontWeight: 600
+    lineHeight: 1.3
+  card-body:
+    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "13.5px"
+    fontWeight: 400
+    lineHeight: 1.5
+  card-detail:
+    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "13px"
+    fontWeight: 400
+    lineHeight: 1.4
+  card-chip:
+    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "12.5px"
+    fontWeight: 500
+    lineHeight: 1.3
+  card-label:
+    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+    fontSize: "12px"
+    fontWeight: 500
+    lineHeight: 1.3
 rounded:
   xs: "4px"
   sm: "6px"
@@ -269,6 +394,48 @@ components:
     textColor: "{colors.avatar-text}"
     rounded: "{rounded.full}"
     size: "22px"
+  idea-card:
+    backgroundColor: "{colors.panel}"
+    rounded: "{rounded.lg}"
+  idea-card-head:
+    padding: "10px 10px 10px 18px"
+    height: "48px"
+  idea-card-index:
+    backgroundColor: "{colors.hover}"
+    textColor: "{colors.muted}"
+    rounded: "{rounded.xs}"
+    padding: "0 5px"
+    height: "18px"
+  idea-card-back:
+    textColor: "{colors.text}"
+    typography: "{typography.reading}"
+    padding: "16px 18px 14px"
+  idea-no-front:
+    textColor: "{colors.muted}"
+    rounded: "{rounded.md}"
+    padding: "16px 20px"
+  card-kit-zone:
+    backgroundColor: "{colors.card-indigo-fill}"
+    textColor: "{colors.card-indigo-ink}"
+    rounded: "{rounded.md}"
+    padding: "14px 16px"
+  card-kit-chip:
+    backgroundColor: "{colors.card-indigo-fill}"
+    textColor: "{colors.card-indigo-ink}"
+    typography: "{typography.card-chip}"
+    rounded: "{rounded.full}"
+    padding: "3px 10px"
+    height: "24px"
+  card-kit-before:
+    backgroundColor: "{colors.card-wash}"
+    textColor: "{colors.card-muted}"
+    rounded: "{rounded.sm}"
+    padding: "14px 16px"
+  card-kit-after:
+    backgroundColor: "{colors.card-indigo-fill}"
+    textColor: "{colors.card-ink}"
+    rounded: "{rounded.sm}"
+    padding: "14px 16px"
 ---
 
 # Design System: WhatBuild
@@ -281,7 +448,7 @@ One floating panel carries the product's whole story, Idea, Evidence, Exploratio
 
 The system is dense and quiet. The UI runs at 12px in Inter; text people actually read (a source's text, quotes, Markdown) steps up to 13 to 13.5px. Hierarchy comes from weight (600) and grey steps rather than size, and nothing in the app is larger than 20px except the overview's intro. Indigo is the only chromatic voice in the chrome, reserved for selection, focus, primary commits and pointing at evidence. Status always pairs a small shaped mark with a word.
 
-The panel can hide (a button or Ctrl/Cmd+\). The canvas widens in a single 200ms motion and a small floating pill with the mark takes its place. Item screens (a Story page, a mockup, a source) add a 272px inspector floating on the right, which hides and returns the same way: a button in its head or Shift+Ctrl/Cmd+\, and a square at the top-right inset in its place. A Story page is not part of Studio: it follows the product's own Story style (the company's design system or a house style) inside a sandboxed frame. Neither is a mockup's page, which carries its own look in the same kind of frame. On the Story and on a mockup (on a phone too), focus mode (F) hides both panels so the app falls away around the work; a Story page keeps its measure rather than widening, and Esc or F brings the panels back.
+The panel can hide (a button or Ctrl/Cmd+\). The canvas widens in a single 200ms motion and a small floating pill with the mark takes its place. Item screens (a Story page, a mockup, a source) add a 272px inspector floating on the right, which hides and returns the same way: a button in its head or Shift+Ctrl/Cmd+\, and a square at the top-right inset in its place. A Story page is not part of Studio: it follows the product's own Story style (the company's design system or a house style) inside a sandboxed frame. Neither is a mockup's page, which carries its own look in the same kind of frame, nor an Idea card's front, a picture drawn in the card kit (its own section below) inside a sandboxed frame, in a card whose chrome is Studio. On the Story and on a mockup (on a phone too), focus mode (F) hides both panels so the app falls away around the work; a Story page keeps its measure rather than widening, and Esc or F brings the panels back.
 
 **Key Characteristics:**
 - A 264px floating left panel and 272px floating inspector around one scrolling canvas (content max 900px; a mockup's canvas takes the full width).
@@ -291,6 +458,7 @@ The panel can hide (a button or Ctrl/Cmd+\). The canvas widens in a single 200ms
 - Indigo for selection, focus, primary commits and evidence only.
 - Lucide icons at 12 or 14px with a 1.75 stroke, through one glyph map.
 - Light and dark are both first-class and resolved before first paint.
+- Idea cards with two sides: an agent-drawn picture on the front, always in view, and the text agents read on the back, which More info opens between the card's title and its picture.
 
 ## Colors
 
@@ -326,6 +494,7 @@ A neutral grey studio with a single indigo accent and three status hues; every v
 **UI Font:** Inter Variable (falling back to Inter, then system-ui)
 **Mono Font:** the system monospace stack (ui-monospace, SF Mono, Menlo), used for codes, token prefixes and commands
 **Story pages** carry their own type from their Story style; no Story face appears in the app.
+**Idea card fronts** carry the card kit's type (The Card Kit, below); the card around them uses the steps here.
 
 **Character:** One humanist sans at small, exact sizes, in the manner of a design tool rather than a website. There is no display face, and one display line: the overview's question, in the same Inter. Titles earn their place with weight 600 and slight negative tracking.
 
@@ -343,7 +512,7 @@ A neutral grey studio with a single indigo accent and three status hues; every v
 - **Label** (500, 11px): counts, captions, keyboard hints.
 
 ### Named Rules
-**The Twenty Pixel Ceiling Rule.** Nothing in the app exceeds 20px. When something needs more emphasis, raise its weight or darken its grey. The one exception is the overview's intro (Brand and Display above, tokens `--fs-brand`, `--fs-display` and their `-sm` narrow sizes, `--tracking-brand`, `--tracking-display`), the page people share as a screenshot of WhatBuild; no other screen earns it ([decision](okf/decisions/the-overview-is-the-front-door.md)).
+**The Twenty Pixel Ceiling Rule.** Nothing in the app exceeds 20px. When something needs more emphasis, raise its weight or darken its grey. The one exception is the overview's intro (Brand and Display above, tokens `--fs-brand`, `--fs-display` and their `-sm` narrow sizes, `--tracking-brand`, `--tracking-display`), the page people share as a screenshot of WhatBuild; no other screen earns it ([decision](okf/decisions/the-overview-is-the-front-door.md)). An Idea card's front is not app type: it is a picture in the card kit, which may run its pitch to 28px, as a Story page has its own type. The card's head, More info and text stay under the ceiling.
 
 **The Read Up Rule.** Chrome stays at 12px. Anything a person reads as content (a source's text, quotes, prose) steps up to 13 to 13.5px with a looser line height and a 68ch measure.
 
@@ -357,10 +526,10 @@ Screens are built from sheets. A sheet head (min 52px) holds the title and count
 
 Responsive behaviour:
 - **1100px and below:** the inspector starts hidden, and hides again whenever the window crosses 1100px. Shown, it still docks beside the canvas; it never overlays content. The canvas gutters tighten to 24px.
-- **760px and below:** the panel becomes a flush overlay drawer (min(320px, 86vw)) with square corners over a dimmed scrim. The inspector becomes the same kind of drawer, flush on the right; only one drawer is open at a time. Sheets run edge to edge with square corners, and the canvas pads 56px top, 12px sides and 60px bottom.
+- **760px and below:** the panel becomes a flush overlay drawer (min(320px, 86vw)) with square corners over a dimmed scrim. The inspector becomes the same kind of drawer, flush on the right; only one drawer is open at a time. Sheets and Idea cards run edge to edge with square corners, and the canvas pads 56px top, 12px sides and 60px bottom.
 
 ### Named Rules
-**The One Scroller Rule.** The canvas scrolls the page. Only the panel's context slot, the inspector body, menus and dialogs scroll on their own.
+**The One Scroller Rule.** The canvas scrolls the page. Only the panel's context slot, the inspector body, menus, dialogs and an Idea card's back (and a front taller than its frame) scroll on their own.
 
 **The Float Inset Rule.** Floating surfaces sit exactly 10px from the window edge. On phones they go flush, never partially inset.
 
@@ -370,7 +539,7 @@ Depth is tonal layering plus two shadows. White surfaces lift off the grey canva
 
 ### Shadow Vocabulary
 - **Resting** (`--shadow`: `0 2px 5px rgb(0 0 0 / 0.08), 0 0 0 0.5px rgb(0 0 0 / 0.12)`): panels, sheets, the pill, callouts, and the current segmented item.
-- **Lifted** (`--shadow-2`: `0 10px 28px rgb(0 0 0 / 0.16), 0 0 0 0.5px rgb(0 0 0 / 0.14)`): menus, dialogs, toasts, the skip link, and the panel or inspector once it becomes a phone drawer.
+- **Lifted** (`--shadow-2`: `0 10px 28px rgb(0 0 0 / 0.16), 0 0 0 0.5px rgb(0 0 0 / 0.14)`): menus, dialogs, toasts, the skip link, the panel or inspector once it becomes a phone drawer, and an outcome's card while it is dragged or picked up.
 - **Flash** (`--shadow-flash`: `0 0 0 1px rgb(255 255 255 / 0.9), 0 0 0 7px rgb(255 255 255 / 0.45), 0 0 90px 28px rgb(255 255 255 / 0.6)`): the search palette alone, for a moment, when it has been left untouched for three seconds; it fades back to Lifted.
 - **Paper** (`--shadow-paper`: `0 0 0 1px rgb(0 0 0 / 0.06), 0 1px 3px rgb(0 0 0 / 0.06)`): the preview frame for an attachment, which draws as light paper in both themes.
 
@@ -379,7 +548,7 @@ Depth is tonal layering plus two shadows. White surfaces lift off the grey canva
 
 ## Shapes
 
-Corners nest by size: 12px for panels, sheets, the inspector, dialogs and empty blocks; 8px for popovers, menus, toasts, the pill and callouts; 6px for controls (buttons, inputs, nav items, icon buttons, inset callouts); 4px for inline tokens (chips, tags, segmented items, crumbs, small icon buttons, evidence links). Circles are reserved for avatars and status dots. An agent's face is a 6px-rounded square with a hairline border, so agents read differently from people at a glance. On phones, the panel, inspector and sheets drop their radius to 0 as they go flush.
+Corners nest by size: 12px for panels, sheets, the inspector, dialogs and empty blocks; 8px for popovers, menus, toasts, the pill and callouts; 6px for controls (buttons, inputs, nav items, icon buttons, inset callouts); 4px for inline tokens (chips, tags, segmented items, crumbs, small icon buttons, evidence links). Circles are reserved for avatars and status dots. An agent's face is a 6px-rounded square with a hairline border, so agents read differently from people at a glance. On phones, the panel, inspector and sheets drop their radius to 0 as they go flush. An Idea card takes a sheet's 12px (0 on phones), and its no-picture well 8px with a dashed Line 2 border. Inside a front the card kit has its own corners: 8px zones, 6px sides of a shift, 4px bars, and fully rounded chips, stages and nodes.
 
 ## Components
 
@@ -431,6 +600,82 @@ A mockup opens on a board that fills the canvas's width and the window's height 
 ### The W Mark
 A rounded square filled with ink, read as one of the app's panels: a hairline title bar across its top (0.9 stroke at a fifth of its height), and below it a W with a middle peak lower than its arms (2.6 stroke, round caps and joins), both in the panel colour. It sits beside the "WhatBuild" wordmark in 13px semibold. The mark is monochrome and inverts automatically with the theme ([decision](okf/decisions/the-mark-is-a-w-in-a-panel-with-a-title-bar.md)).
 
+### The Idea Card (signature)
+The Idea screen shows the product concept and each outcome as a card with two sides. The front is a picture an agent draws in the card kit, shown in a sandboxed frame, and always in view. The back is the Markdown text agents read in depth, which **More info** opens between the card's head and its picture, so a person reads the two together. Nothing on the card names who a side is for. Agents write both sides together; people read them.
+- **Placement:** the concept's card spans the content width. Under it, "Outcomes" in Title with its faint count, on the sheet gutter, heads the outcome cards in one column, 16px apart, with 24px between the concept and the outcomes (20px on phones). Every card is the content's width, as the concept's is, and as tall as its own picture and text: side by side, cards of different heights left gaps beside the shorter one, so they never stand side by side.
+- **Card:** panel fill, 12px corners, the resting shadow, content clipped: the head, then the text while it is open, then the picture.
+- **Head:** at least 48px, padded 10px with the sheet gutter on the left (14px on phones), a hairline below. On an outcome it starts with an index chip: 18px, 4px corners, Hover fill, a muted 11px semibold numeral, which is also the outcome's handle (below). Then the title (Title on the concept; 12.5px semibold on an outcome), and at the right More info and the outcome's menu, a small icon button with an ellipsis.
+- **More info:** a small quiet button (24px, 8px padding on the left, 4px on the right), its label followed by a faint 12px chevron-down with a 3px gap. Open, it takes the Hover fill and ink text, and the chevron turns to point up (120ms on the shared ease). It carries `aria-expanded` and controls the text below. A card with no picture opens with its text showing. The chevron turns over 200ms on the fold ease.
+- **Picture:** the front sets its own height, which its frame reports: 200 to 560px on the concept, 160 to 560px on an outcome; a taller front scrolls inside its frame. On phones the front has no cap.
+- **Text:** a recessed well under the head, in Hover mixed 60% into the panel, padded 16px by the sheet gutter, with a hairline below it before the picture. It shows up to 420px of text on the concept and 300px on an outcome (never more than 56% of the window), scrolling within beyond that and keeping its overscroll; on phones it runs its full length, since the page is the one scroller there. The concept's text is in Prose, an outcome's at 13px with a 1.55 line height, ending, on an outcome, on a faint 11.5px meta line under a hairline: who changed the outcome last and when ("Updated by Riley Chen · via Claude, 2 h ago"), nothing more. Soft scroll-edge cues show where the text runs on past either end: a 12px Line Strong tint at 22% fading inward, covered by a 28px fade in the well's colour that scrolls with the text, so each cue is gone once that end is reached. Focus insets (-2px), as rows do. **The fold:** opened by hand, the well grows from under the head to its full height over 320ms (`--dur-4`) on the fold ease, its fill and hairline coming with it and the picture moving down in step; the app animates the measured height, so a reversal mid-way runs from wherever the fold is. The words inside fade in over 200ms, 80ms behind, and drop 8px into place. Closing takes 200ms, the words fading in 120ms first; once shut, the well is hidden and inert. A card that opens on its text shows it at once. With reduced motion the well appears and goes at once and only the words fade.
+- **No picture yet:** a dashed Line 2 well with 8px corners, set 12px inside the card under the text and padded 12px by 16px: "No picture yet" in 12px ink at 500, and, for anyone who can write, the request for an agent in a 6px Hover-filled well at 12px with a small Copy button. No line explains who draws it; the request says so.
+- **Dragging into order:** for anyone who can write, while archived outcomes are hidden. With a fine pointer the head shows a grab cursor (the tools keep theirs) and, while the pointer is over it, the index chip swaps its numeral for a 12px grip in ink on Hover Strong. On a coarse pointer the chip always shows the grip before the numeral, 24px tall and at least 32px wide, and only the chip drags (`touch-action: none`), so the head still scrolls the page. Dragged, the card lifts to the Lifted shadow at 102% and follows the pointer; its landing place keeps a 1.5px dashed Line 2 outline with 12px corners; the others glide aside over 240ms on the shared ease once the pointer passes their middle, so cards of different heights never trade back and forth; near the scroller's top or bottom 64px the page scrolls, faster the closer it gets. Released, the card glides into place over 200ms and the order is saved once. The cursor is grabbing everywhere while a card is held, and text does not select.
+- **Picked up without dragging:** the chip is a button. Pressed (click, Space or Enter), the card lifts to the Lifted shadow with a 2px accent ring, the chip shows its grip on Hover Strong, other cards' heads show a pointer cursor, and a muted 11.5px line under "Outcomes" says how to move it. The arrow keys, Home and End, or a click on another card's head move it, the others gliding as in a drag; Enter or another press places it; Escape puts it back; clicking or tabbing away places it. A polite live region announces each step. With reduced motion nothing glides.
+- **Menu:** Archive or Restore, then, for admins, a hairline and Delete permanently. A viewer has no menu, and the screen offers no earlier versions.
+- **States:** an archived card trades the resting shadow for a Line 2 hairline ring; its title goes muted at 500 and its picture drops to 60% opacity. The card a search opened keeps the resting shadow and adds a 2px accent ring.
+- **Phones:** cards run edge to edge with square corners, as sheets do.
+
+## The Card Kit
+
+The card kit is a sibling of Studio, used only inside the front of an Idea card. A front is agent-written markup; WhatBuild wraps it in a document carrying the kit's stylesheet, the pictograms the front names, Inter itself (so a card makes no network request) and the reader's theme, and shows it in a sandboxed frame. The card around the frame (its head, More info, text and menu) is Studio chrome and follows the rest of this file. The kit's palette, sizes and parts, and the reference agents draw from, live together in one module of the core package, so the stylesheet and what agents are told about it never drift apart.
+
+A front is a picture, not chrome: a newcomer takes in the concept's pitch, its before and after, and who it is for at a glance. So, as a Story page has its own type, the kit runs at a larger content scale than Studio and may exceed the Twenty Pixel Ceiling, up to a 28px pitch. The chrome around it stays at Studio's sizes.
+
+The concept's front is drawn 900px wide and shows up to 560px tall; an outcome's as wide, one under another, and as tall. Both also read on a phone, about 340px wide. Widths answer to the card's frame, not the window, so a part restacks when its card is narrow. The card pads its parts 22px and stacks them 16px apart (16px and 14px when the card is 520px wide or less).
+
+### Palette
+Seven hues, each in four roles, over a base of greys. Every value has a light and a dark token (`card-*` and `card-*-dark` in the frontmatter).
+- **Hues:** indigo (the default, the app's accent), teal, amber, rose, green, sky, and slate, the neutral one. `data-hue` on any element sets the hue it and what it holds are drawn in.
+- **Fill** (`card-<hue>-fill`): the soft area of a zone, a chip, the product's side of a shift, a person's node and the product's column in a comparison.
+- **Ink** (`card-<hue>-ink`): text and pictograms on the fill and on the card. Every ink holds 4.5:1 or more on its own fill and on the card, in both themes.
+- **Line** (`card-<hue>-line`): node rings, a flow's connector and arrowheads, a loop's ring and a stage's outline.
+- **Solid** (`card-<hue>-solid`): marks, bars, filled nodes and stages, the voice's quote mark, and the pitch's marker band (mixed to about 30%). Text and pictograms on a solid take `card-on-solid`, at 4.5:1 or more in both themes.
+- **Base:** the card (`card-bg`), ink, muted and faint text and two lines, matching Studio's panel, text, muted, faint, line and line 2 value for value; a wash (`card-wash`) under the hatched "today" side; and `card-on-solid` for text and pictograms on a solid (white in light, near-black in dark).
+
+Today is drawn in slate: a shift's before side is the wash with a 1px diagonal hatch every 7px, and a measure's today bar is hatched in slate's line on the wash.
+
+**The One Hue Rule.** A card keeps to one hue for the product's way, chosen with `data-hue`. Slate, hatched, is how things are today. Rose is only for what hurts, a step or a moment marked as pain, and sparingly. Otherwise green, amber and rose appear only as a comparison's yes, partly and no, each with its own shape. Never a rainbow.
+
+**The Picture Not Chrome Rule.** The kit's hues and sizes stay inside a front. The Earned Accent Rule governs Studio's chrome and is unchanged: the kit's indigo is the default hue of a sandboxed picture, not chrome, and never counts as a view's accent. No Studio surface borrows a kit hue.
+
+### Type
+Inter throughout, the app's own face carried inside the card, at a content scale. Weight 600 carries headings and names; the text people read inside parts is 13 to 13.5px.
+- **Pitch** (600, 19 to 28px with the card's width, 1.16, -0.024em, 26ch at most): the promise in one line, at the top of the concept's front.
+- **Heading** (600, 17px, 1.3, -0.012em): h1 and h2.
+- **Voice** (500, 16px, 1.45, 58ch at most): a quote in the users' words.
+- **Lede** (400, 15px, 1.5, muted, 62ch at most): the line under the pitch, 8px below it. A measure's values take 15px too.
+- **Name** (600, 14.5px): a person's or a step's name.
+- **Subheading** (600, 14px, 1.3): h3 and h4, a measure's caption, a timeline's time.
+- **Body** (400, 13.5px, 1.5, 68ch at most): running text, a shift's lists, a comparison.
+- **Detail** (400, 13px, muted): what a person needs, a step's line, a spectrum's ends, a note; a loop's stages at 600.
+- **Chip** (500, 12.5px): a chip's label.
+- **Label** (500, 12px, faint): a small caption. `small` is 12px muted.
+
+**The Marker Band Rule.** Emphasis in a pitch (`em`, or `wb-mark` elsewhere) is a band of the hue's solid, about 30%, across the lower part of the words; the text stays in ink. A pitch never turns its key phrase a colour.
+
+### Parts
+Each part is a class on ordinary elements.
+- **Card:** the front's column of parts, evenly spaced.
+- **Pitch and lede:** the promise, and the line under it.
+- **Label, mark and num:** a small caption; a marker band on inline words; a number in the hue's ink with tabular figures.
+- **Row and split:** parts that wrap, each at least 200px; columns, each at least 230px, that fall to one when the card is narrow.
+- **Zone:** a quiet area in the hue's fill and ink, 8px corners, padded 14px by 16px.
+- **Icon:** a pictogram inline, sized to the text around it.
+- **Chips:** short labels in the hue, fully rounded and 24px tall, with an optional 13px pictogram.
+- **Who:** the people it is for, each a pictogram in a 40px fill circle, a name and what they need.
+- **Flow:** three to five steps, each a 40px ringed node holding a numeral or a pictogram, on a line with an arrow to the next. A new step fills with the solid; a painful one turns rose. Below 400px it runs down instead of across.
+- **Shift:** today and with the product, an arrow between: the before side hatched slate, the after side in the hue's fill, each with 6px corners, a heading and a list (a check marks each item on the product's side). Below 560px the sides stack with a down arrow.
+- **Measure:** where a number stands and where success puts it, as 14px bars with 4px corners on one scale; today's bar is hatched.
+- **Spectrum:** two ends of a choice on a line, the alternatives as ringed dots and the product as a filled dot in its hue.
+- **Loop:** three to six stages as pills on a dashed ring with clockwise heads, the product's stage filled, an optional label at its core.
+- **Timeline:** moments in order, a time over each, on a line of dots; pain and new as in a flow. Below 400px it runs down.
+- **Compare:** alternatives against what matters, in a hairline table. Yes, no and partly draw as a check, a cross and a dash in green, rose and amber ink, and are still read aloud; the product's column is in the fill.
+- **Quote:** the users' problem in their words, unattributed, after a quote mark in the solid, with a role under it.
+- **Note:** a small aside under a part, after a faint corner arrow.
+
+### Pictograms
+The kit's pictograms are Lucide, a fixed set generated from lucide-react. A front names one with `data-icon`; a name outside the set is refused at write, and only the pictograms a front names travel with it. They draw as masks at a 1.9 stroke in the hue's ink or the text colour: 18px inside a 40px node, 13px in a chip, 14px before a list item, 1.15em inline. The kit's own marks (arrows, yes, no, quote, note) come from the same set, with a plain dash for partly. The glyph map and its 12 and 14px sizes govern Studio's chrome; this set lives only in fronts.
+
 ## Do's and Don'ts
 
 ### Do:
@@ -438,15 +683,18 @@ A rounded square filled with ink, read as one of the app's panels: a hairline ti
 - **Do** keep controls at 24px or 28px, and reserve 32px for the floating pill and its square.
 - **Do** draw icons through the glyph map: lucide at 12px or 14px, 1.75 stroke, faint or muted at rest.
 - **Do** pair every status with its shaped 7px mark and a word.
-- **Do** animate with the one ease (`cubic-bezier(0.2, 0.8, 0.2, 1)`) at 120ms for small state changes, 160ms for toasts and dialogs, and 200ms for panels, the inspector and the canvas. Honour reduced motion.
+- **Do** animate with the one ease (`cubic-bezier(0.2, 0.8, 0.2, 1)`) at 120ms for small state changes, 160ms for toasts and dialogs, 200ms for panels, the inspector and the canvas. Layout that moves what is below it (an Idea card's text unfolding) takes 320ms (`--dur-4`) on the fold ease (`--ease-fold`, `cubic-bezier(0.2, 0, 0, 1)`), which starts gently so the move reads rather than jumps, and folds back in 200ms. Honour reduced motion.
 - **Do** show focus with the 2px accent outline at 1px offset. Rows inside sheets inset it (-2px).
 - **Do** keep Story pages out of Studio: the Story guidance and house styles never copy the app's tokens.
+- **Do** give every card kit colour in both themes. A diagram the kit lacks is drawn with the kit's variables (`currentColor`, the hue's ink and line, muted), never fixed colours.
 
 ### Don't:
 - **Don't** add a top bar, a second rail, an app-level tab strip or extra drawers beside the panel. On phones the panel itself is the drawer.
-- **Don't** set app type above 20px outside the overview's intro, and don't add a display face to the app: the display step is Inter at 600.
+- **Don't** set app type above 20px outside the overview's intro, and don't add a display face to the app: the display step is Inter at 600. An Idea card's front is a picture in the card kit, not app type.
 - **Don't** use the accent for decoration, category colour, large fills or more than one filled button in a view.
 - **Don't** use shadows outside the resting, lifted and paper set, including hard offset, coloured or glow shadows. The search palette's passing flash is the one exception.
 - **Don't** add small uppercase labels above titles. Section labels are 11px sentence case in faint 500; a panel section's heading is Subtitle, in ink.
 - **Don't** use text characters or emoji as icons. Every icon is a lucide glyph.
 - **Don't** signal state with colour alone.
+- **Don't** add editing controls to an Idea card, a label saying who a side is for, or a reminder to ask an agent. Agents write both sides, together; people read the picture, open More info for the text, drag outcomes into order, and the menu only archives and deletes.
+- **Don't** put text-heavy content on a front: about 60 words of running text on the concept's, 40 on an outcome's, and labels of two to five words. Depth belongs on the back.

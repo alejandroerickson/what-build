@@ -3,7 +3,7 @@ type: Process
 title: How to change this repository
 description: The rules every change follows, for people and agents, including what may never be committed.
 tags: [process, agents, contributing, public]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-24}
 status: stable
 ---
 
@@ -23,7 +23,7 @@ Everything committed, including history, commit messages and pull requests' text
 - No secrets, tokens, absolute local paths, or personal details. No names of private projects,
   clients or employers, even when they shaped a change.
 - Commit messages and pull request descriptions describe the change, never the conversation that
-  produced it.
+  produced it ([below](#commit-messages-and-pull-request-descriptions)).
 - `pnpm install` turns on git hooks that refuse a commit or push carrying any of this, and CI
   checks again ([security checks](../operations/security-checks.md),
   [decision](../decisions/privacy-and-security-checks-live-in-the-repository.md)). When a hook
@@ -31,6 +31,31 @@ Everything committed, including history, commit messages and pull requests' text
   fixed in `scripts/check-publishable.mjs` in the same commit.
 - Sample content is synthetic (the Crewboard product in `apps/server/src/seed-content.ts`). Never
   add real customer material, and never present invented material as real.
+
+## Commit messages and pull request descriptions
+
+Both are published with the code, to readers who were not there. Write them so they stand alone:
+
+- **What changes**, for whom, and why it is right.
+- **What a deployment must do**, if anything: the line the change adds to
+  [upgrading](../operations/upgrading.md).
+- **What was checked**, as results: "`pnpm test` passes (572 tests); a page dragged in the tree
+  keeps its place after a reload."
+
+Never:
+
+- **An account of the work.** No *I* or *we*, no order in which things were tried, no record of
+  what was asked, by whom, or of what an agent was told.
+- **References to material outside the repository**: a findings list, notes in `_private/`, labels
+  such as *N3* from a report the reader cannot open, *the next session*.
+- **A link to an agent's session or a chat.** Some tools add one, or a `Claude-Session:` trailer,
+  by themselves; take it out.
+- **Private names or real data**: private projects, clients, employers, machines; names, counts or
+  quotes from a copy of production.
+
+The hooks and CI refuse much of this (`identity`, `session-link`, `narration` in the
+[security checks](../operations/security-checks.md#what-the-publishable-check-refuses)); the rest
+is judgement. An edited pull request description is checked again.
 
 ## Changing behavior
 

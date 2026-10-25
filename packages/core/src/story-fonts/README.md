@@ -18,6 +18,11 @@ text follows the list; none carries a Reserved Font Name.
 | `red-hat-display.woff2` | Red Hat Display | Copyright 2024 The Red Hat Project Authors (https://github.com/RedHatOfficial/RedHatFont) |
 | `red-hat-text.woff2` | Red Hat Text | Copyright 2024 The Red Hat Project Authors (https://github.com/RedHatOfficial/RedHatFont) |
 | `signika.woff2` | Signika | Copyright 2018 The Signika Project Authors (https://github.com/googlefonts/Signika) |
+| `inter.woff2` | Inter | Copyright 2020 The Inter Project Authors (https://github.com/rsms/inter) |
+
+`inter.woff2` is not one of the Story's faces: it is the app's own typeface, which every Idea card's
+front carries (`idea-card.ts`), so a card reads in the app's type. Story pages never use it, since
+they never take WhatBuild's look.
 
 To add a family: take its Latin variable file from Fontsource, check that its licence is the OFL
 without a Reserved Font Name, add it to the table above and to `STORY_FONTS`.

@@ -1,8 +1,9 @@
 import {
-  AppError, admitRead, execute, MOCKUP_RESPONSE_HEADERS, OPERATIONS, prototypeNotice, printDocument, printResponseHeaders, readsOnlyTheStory, resolveScope, STORY_RESPONSE_HEADERS, toAppError, unauthenticated, withStoryFonts, withStoryFrame, withStoryTheme, houseSpecimen, houseStyle, HOUSE_STYLE_IDS, shownHtml, styleSpecimen,
+  AppError, admitRead, execute, ideaCardDocument, ideaCardResponseHeaders, MOCKUP_RESPONSE_HEADERS, OPERATIONS, prototypeNotice, printDocument, printResponseHeaders, readsOnlyTheStory, resolveScope, STORY_RESPONSE_HEADERS, toAppError, unauthenticated, withStoryFonts, withStoryFrame, withStoryTheme, houseSpecimen, houseStyle, HOUSE_STYLE_IDS, shownHtml, styleSpecimen,
   type Env, type OperationDef, type Principal, type ScopeRef,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
+import { randomBytes } from "node:crypto";
 import { sql } from "kysely";
 import { z } from "zod";
 import { isOwnOrigin, restPrincipal } from "./auth/identity.ts";
@@ -261,6 +262,44 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       if (!p) throw new AppError(404, "not_found", "No such mockup page.");
       // A page that enters the prototype has no HTML of its own: its frame opens the entry (prototype_url).
       return storyHtml(c, p.html ?? prototypeNotice(), undefined, c.req.query("frame") === "1", true);
+    } catch (e) {
+      return errorResponse(c, toAppError(e, WEB));
+    }
+  });
+
+  // An Idea card's front, the product concept's or an outcome's, as the app's frame shows it: the
+  // stored markup in a document with the card kit, the theme the app gives, and WhatBuild's one
+  // measuring script, which only its nonce lets run.
+  const cardFront = (c: Context, front: string, title: string) => {
+    const nonce = randomBytes(16).toString("base64");
+    for (const [k, val] of Object.entries(ideaCardResponseHeaders(nonce))) c.header(k, val);
+    return c.body(ideaCardDocument(front, { title, theme: storyTheme(c.req.query("theme")), nonce }));
+  };
+  app.get(`${SCOPE_PREFIX.product}/idea/concept/card`, async (c) => {
+    try {
+      const scope = await scoped(c);
+      const p = await inTenant(scope.tenant!.tenant_id, (trx) =>
+        trx.selectFrom("products").select(["name", "card_html"]).where("product_id", "=", scope.product!.product_id).executeTakeFirst(),
+      );
+      if (!p?.card_html) throw new AppError(404, "not_found", "The product concept has no front yet.");
+      return cardFront(c, p.card_html, `${p.name}: product concept`);
+    } catch (e) {
+      return errorResponse(c, toAppError(e, WEB));
+    }
+  });
+  app.get(`${SCOPE_PREFIX.product}/outcomes/:outcome_id/card`, async (c) => {
+    try {
+      const scope = await scoped(c);
+      const o = await inTenant(scope.tenant!.tenant_id, (trx) =>
+        trx
+          .selectFrom("outcomes")
+          .select(["title", "card_html"])
+          .where("product_id", "=", scope.product!.product_id)
+          .where("outcome_id", "=", c.req.param("outcome_id")!)
+          .executeTakeFirst(),
+      );
+      if (!o?.card_html) throw new AppError(404, "not_found", "This outcome has no front yet.");
+      return cardFront(c, o.card_html, o.title);
     } catch (e) {
       return errorResponse(c, toAppError(e, WEB));
     }

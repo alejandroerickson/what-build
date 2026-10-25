@@ -230,7 +230,10 @@ describe("a mockup's prototype", () => {
     expect(top.headers.get("content-security-policy")).toContain("sandbox allow-scripts");
     expect((await fetch(`${base}js/app.mjs`, { headers: { "service-worker": "script" } })).status).toBe(403);
     const grant = base.split("/")[4]!;
-    const tampered = base.replace(grant, `${grant.slice(0, -2)}xx`);
+    // The signature's first character, whose six bits are all signature; the last one's low bits
+    // are padding, so a change there can leave the signature as it was.
+    const [payload, mac] = grant.split(".") as [string, string];
+    const tampered = base.replace(grant, `${payload}.${mac[0] === "A" ? "B" : "A"}${mac.slice(1)}`);
     expect((await fetch(`${tampered}index.html`)).status).toBe(401);
     const signer = new HmacGrantSigner(h.config.grantKey);
     const claims = JSON.parse(Buffer.from(grant.split(".")[0]!, "base64url").toString());

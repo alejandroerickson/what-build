@@ -188,8 +188,8 @@ place.
 6. Archived products appear only on the overview, behind "Show archived products" under each
    organization that has any, which opens that organization's alone (`?archived=<organization
    slug>`, repeated for each organization opened), read-only, and an admin restores them from the product's
-   Settings. Inside one, no control offers a change the server would refuse: an outcome's actions
-   menu becomes its Earlier versions button, as for a viewer. Roles are access, not content, and
+   Settings. Inside one, no control offers a change the server would refuse: outcomes are not
+   dragged and have no actions menu, as for a viewer. Roles are access, not content, and
    `members.grant` and `members.revoke` still work on an archived product, so its Settings keep
    People on this product for admins and say so above the list.
 7. On the overview, an organization where the person has no team or product role says so, and that
@@ -306,24 +306,60 @@ seeded accounts.
 
 The screen's model and names are a decision: [A product starts with its idea](../decisions/a-product-starts-with-an-idea-concept-and-outcomes.md).
 
-The landing screen. The product concept first; then outcomes as aligned cards in a centered
-content band that adapts to narrow screens. Create, edit inline, reorder, archive and restore. A
-card holds the outcome's title and what success means, and nothing that points away from it: no
-links or counts of the assumptions, mockups or Story pages that serve it
-([§4.2](04-data-model.md)). The form's help says the evidence belongs in sources and assumptions.
+The landing screen, built of cards
+([decision](../decisions/idea-cards-have-a-front-for-people-and-a-back-for-agents.md)). The
+product concept's card first, across the content band; then **Outcomes** with their count, and the
+outcomes' cards one under another, in order, each as wide as the concept's and as tall as what it
+shows.
+
+- **A card.** Its head holds the title (the outcome's, with its place in the order, or "Product
+  concept"), **More info**, and on an outcome its menu. Under the head is the front: the
+  agent-drawn picture, in a sandboxed frame ([§4.2.1](04-data-model.md)), as tall as it is up to
+  560px, the concept's and an outcome's alike, scrolling within beyond that (on a phone the
+  card is as tall as its front, so no scroller sits inside the page's). More info opens the back,
+  the Markdown agents read, between the head and the front, so both are in view: up to 420px tall
+  on the concept and 300px on an outcome (and at most 56% of the window), scrolling within beyond
+  that (on a phone it runs its full length), and closed, on an outcome, by who changed it last and
+  when ("Updated by Riley Chen · via Claude, 2 h ago"), a move included. The button says whether it is open (`aria-expanded`). The text
+  unfolds: its well grows from under the head over 320ms, the picture moving down with it, and
+  its words fade in a beat behind; it folds back in 200ms, from wherever it is if reversed mid-way.
+  With reduced motion the well appears and goes at once and only the words fade. Nothing on the screen names who a side is
+  for.
+- **No editing.** Agents write both sides of every card; the screen has no create or edit control
+  for the concept or an outcome, and product Settings has no concept field. A card with no front
+  yet opens on its text, over "No picture yet" and, for someone who can write, the request to copy
+  for an agent.
+- **Dragging outcomes into order**, as photos are ordered in a listing, for anyone who can write,
+  while archived ones are hidden. With a mouse the whole head drags a card (the outcome's number
+  turns into a grip while the pointer is over it); on touch the number, which always shows its
+  grip, drags it, since the head scrolls the page there. The card lifts and follows the pointer,
+  its landing place stays marked with a dashed outline, the other cards glide aside (240ms) once
+  the pointer passes their middle, and the page scrolls near its top and bottom edges. Released,
+  the card glides into its place and the new order is saved once; Escape puts it back. Without
+  dragging, the number is a button: pressed, it picks the card up (ringed in the accent, with a
+  line under **Outcomes** saying how to move it); the arrow keys, Home and End, or a click on
+  another card's head move it there; Enter or another press places it; Escape, wherever the
+  focus is, puts it back; clicking or tabbing away from the cards places it where it is. Each step
+  is announced. Nothing is saved until the card is placed. With reduced motion nothing glides.
+- **An outcome's menu:** Archive or Restore, and Delete permanently for admins. A viewer has no
+  menu. Earlier versions are kept, and agents read and restore them (`outcomes(action="revisions")`);
+  the screen does not offer them.
+- A card holds nothing that points away from it: no links or counts of the assumptions, mockups
+  or Story pages that serve it ([§4.2](04-data-model.md)).
+
 The panel's **Archived** section offers Hide archived (the default) and Include archived
 (`?include_archived=1`), as Evidence does for sources; an archived outcome shows an Archived badge
-and offers Restore, and the list is reordered only while archived ones are hidden. With no
-current outcomes but archived ones, the list offers to include them. With no outcomes, the list
-says what an outcome is and gives the request to copy for an agent (interview the person, then
-write the concept and outcomes); New outcome and Write the product concept stay in their
-headers. Nothing on the screen prescribes an order of steps.
+and a quieter card, and offers Restore. With no current outcomes but archived ones, the list
+offers to include them. With no outcomes, the list says what an outcome is and gives the request to
+copy for an agent (interview the person, then write the concept and outcomes, each a card with its
+picture and text). Nothing on the screen prescribes an order of steps.
 
 **Empty lists** ([decision](../decisions/empty-lists-lead-with-the-agent.md)). Outcomes, Sources,
 Mockups, Assumptions and the Story share one first-use state: "No … yet", what belongs
 there, and a request naming the product for the person to copy to their agent, with Connect an
-agent (opening Connect an agent for this product) until they have one connected. Adding by hand is
-the header's create action, a default button, as when the list has items. A filter over a list
+agent (opening Connect an agent for this product) until they have one connected. Where people add by hand, that
+is the header's create action, a default button, as when the list has items; outcomes have none,
+since agents write them. A filter over a list
 with nothing in it shows the same state. Viewers see the words without the request.
 
 ## 7.6 Evidence
@@ -750,7 +786,7 @@ a product that isn't archived (`canDelete`). One dialog serves every delete
 | Source | its actions menu | its actions menu |
 | Comment | its menu, with an optional reason, and in its delete dialog | its menu |
 | Assumption | its actions menu | its actions menu |
-| Outcome | its row's menu on Idea | its row's menu |
+| Outcome | its card's menu on Idea | its card's menu |
 | Story page | its row's menu in the tree, and the inspector's About | its row's menu, and the inspector's About |
 | Mockup | in its delete dialog, as the alternative | the inspector's Version, under Download |
 | Product | Settings, Archive this product, and in its delete dialog | Settings, Delete this product |

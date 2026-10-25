@@ -134,7 +134,9 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
 
   It searches sources (their title and tags, and the pieces of their summary, derived text, notes
   and comments, archived sources and comments left out), assumptions, outcomes (not archived),
-  mockups (each page's text at the current version), Story pages and the product concept. A source holds every word
+  mockups (each page's text at the current version), Story pages and the product concept. Of
+  an outcome's card and the concept's, it reads the back, the text; a card's front, a picture in
+  HTML, is not searched. A source holds every word
   when its title, tags and pieces hold them between them, and is returned once, with the best
   three places it says the words in `hits` (all of them with `record_id`), how many pieces
   matched in `hit_count`, and in `match_count` how many times its derived text says them, counted

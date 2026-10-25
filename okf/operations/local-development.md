@@ -3,7 +3,7 @@ type: System Concept
 title: Running WhatBuild locally, testing it, and checking the interface
 description: The one-command development setup, the test and build commands, and the browser scripts.
 tags: [development, testing, local]
-generated: {by: agent:claude, at: 2026-10-18}
+generated: {by: agent:claude, at: 2026-10-24}
 status: stable
 ---
 
@@ -125,9 +125,11 @@ plans in `e2e/plans/` there through the browser and MCP and reports what it find
 | `pnpm check:publishable --all` | Nothing private in the tree or the history. The git hooks `pnpm install` turns on run it on every commit and push. |
 
 CI (`.github/workflows/ci.yml`) runs the documentation check, the skill check, typecheck, test and build on every push to
-`main` and every pull request, and beside them the check that nothing private is published. The
-Security workflow runs `pnpm security` on the same events and weekly, with a weekly OWASP ZAP scan
-of the app and a weekly check of the whole history; CodeQL runs once the repository is public; and
+`main` and every pull request, and beside them the check that nothing private is published; a
+pull request's title and description are checked when it is opened and whenever they are edited
+(`pull-request-text.yml`). The Security workflow runs `pnpm security` on the same events and
+weekly, with a weekly OWASP ZAP scan of the app, a weekly check of the whole history, and a weekly
+check of what GitHub holds beside the code; CodeQL runs once the repository is public; and
 Dependabot opens updates ([security checks](security-checks.md)). A tag `v*` runs the Release workflow (`.github/workflows/release.yml`),
 which publishes the image as `ghcr.io/<owner>/what-build:<tag>` and makes a GitHub release
 ([decision](../decisions/releases-are-tags-with-a-published-image.md)) whose notes list the

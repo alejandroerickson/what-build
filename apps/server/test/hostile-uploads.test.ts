@@ -1,4 +1,5 @@
 import { request } from "node:http";
+import { connect, type Socket } from "node:net";
 import { constants, deflateRawSync, deflateSync } from "node:zlib";
 import { MAX_PDF_PAGES, MAX_SEGMENTS } from "@whatbuild/parsers";
 import { sql } from "kysely";
@@ -48,6 +49,40 @@ function docxBomb(mib: number, declared: number): Uint8Array {
   const local = Buffer.concat([u32(0x04034b50), ...head, name, data]);
   const central = Buffer.concat([u32(0x02014b50), u16(20), ...head, u16(0), u16(0), u16(0), u32(0), u32(0), name]);
   return new Uint8Array(Buffer.concat([local, central, u32(0x06054b50), u16(0), u16(0), u16(1), u16(1), u32(central.length), u32(local.length), u16(0)]));
+}
+
+/** The status of each whole HTTP response to arrive on a raw connection, in order; `nth` rejects if the connection closes first. */
+function statuses(socket: Socket) {
+  let pending = Buffer.alloc(0);
+  const seen: number[] = [];
+  let closed = false;
+  const waiters: (() => void)[] = [];
+  const wake = () => waiters.splice(0).forEach((w) => w());
+  socket.on("data", (d: Buffer) => {
+    pending = Buffer.concat([pending, d]);
+    for (let end = pending.indexOf("\r\n\r\n"); end >= 0; end = pending.indexOf("\r\n\r\n")) {
+      const head = pending.subarray(0, end).toString();
+      const length = Number(/^content-length: *(\d+)/im.exec(head)?.[1] ?? 0);
+      if (pending.length < end + 4 + length) break;
+      seen.push(Number(head.slice(9, 12)));
+      pending = pending.subarray(end + 4 + length);
+    }
+    wake();
+  });
+  socket.on("error", () => {});
+  socket.on("close", () => {
+    closed = true;
+    wake();
+  });
+  return {
+    async nth(n: number) {
+      while (seen.length <= n) {
+        if (closed) throw new Error(`The connection closed after ${seen.length} responses.`);
+        await new Promise<void>((resolve) => waiters.push(resolve));
+      }
+      return seen[n];
+    },
+  };
 }
 
 async function derivation(recordId: string, as = alice, product = P) {
@@ -127,6 +162,22 @@ describe("the upload relay", () => {
     // The grant was not spent: the right bytes still go through it.
     const fine = await fetch(upload.url, { method: "PUT", headers: upload.headers, body: "Small enough.\n" });
     expect(fine.status).toBe(201);
+  });
+
+  it("reads and drops the rest of a body it refused partway, so the sender's connection takes the next request", async () => {
+    const { upload } = await grant("long.txt");
+    const url = new URL(upload.url);
+    const socket = connect(Number(url.port), url.hostname);
+    const seen = statuses(socket);
+    const put = (fields: string) => `PUT ${url.pathname}${url.search} HTTP/1.1\r\nHost: ${url.host}\r\n${Object.entries(upload.headers).map(([k, v]) => `${k}: ${v}\r\n`).join("")}${fields}\r\n`;
+    // Chunked, so the relay counts what arrives: 2 MiB against a limit of 1 MiB, all sent before the answer is read.
+    socket.write(put("Transfer-Encoding: chunked\r\n"));
+    for (let sent = 0; sent < 2 * MiB; sent += 64 * 1024) socket.write(Buffer.concat([Buffer.from("10000\r\n"), Buffer.alloc(64 * 1024), Buffer.from("\r\n")]));
+    socket.write("0\r\n\r\n");
+    expect(await seen.nth(0)).toBe(413);
+    socket.write(`${put("Content-Length: 14\r\n")}Small enough.\n`);
+    expect(await seen.nth(1)).toBe(201);
+    socket.destroy();
   });
 
   it("refuses a length that is not a number", async () => {

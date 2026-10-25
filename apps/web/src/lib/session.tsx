@@ -97,8 +97,10 @@ export interface Product {
   product_id: string;
   slug: string;
   name: string;
-  /** Absent for a reader. */
+  /** The back of the product concept's card, the text agents read. Absent for a reader. */
   concept?: string;
+  /** How long the concept card's front is, 0 when it has none. Absent for a reader. */
+  card_chars?: number;
   archived_at: string | null;
   etag: string;
   path: string;

@@ -1,90 +1,416 @@
-/* Idea: the product concept first, then the ordered list of outcomes. */
+/* Idea: the product concept's card, then the outcomes' cards. Each card is a picture of the idea
+   (agent-written HTML in the card kit, in a sandboxed frame) and, under More info, the text it is
+   drawn from, which opens between the card's head and its picture so both stay in view. */
 
-.outcome-list {
+.idea {
+  display: grid;
+  gap: var(--s-6);
+}
+
+/* ---- A card ------------------------------------------------------------------------------------ */
+
+.idea-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--panel);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.idea-card-outcome {
+  --text-room: 300px;
+}
+.idea-card-concept {
+  --text-room: 420px;
+}
+
+.idea-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--s-2) var(--s-2h);
+  min-height: 48px;
+  padding: var(--s-2h) var(--s-2h) var(--s-2h) var(--sheet-px);
+  border-bottom: 1px solid var(--line);
+}
+.idea-card-index,
+.idea-card-grip {
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  margin-top: 5px;
+  padding: 0 5px;
+  border-radius: var(--r-xs);
+  background: var(--hover);
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  line-height: 18px;
+  text-align: center;
+}
+
+/* An outcome's number is also its handle. With a mouse, the whole head drags the card and the
+   number turns into a grip while the pointer is over the head; on touch, where the head scrolls the
+   page, the number drags it and always shows its grip. Pressed, it picks the card up. */
+.idea-card-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  border: 0;
+  font-family: inherit;
+  cursor: grab;
+  touch-action: none;
+  transition:
+    background var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease);
+}
+.idea-card-grip .glyph {
+  display: none;
+}
+.idea-card-grip:hover,
+.idea-card-grip:focus-visible,
+.idea-card-grip[aria-pressed="true"] {
+  background: var(--hover-strong);
+  color: var(--text);
+}
+.idea-card-grip:focus-visible .idea-card-grip-n,
+.idea-card-grip[aria-pressed="true"] .idea-card-grip-n {
+  display: none;
+}
+.idea-card-grip:focus-visible .glyph,
+.idea-card-grip[aria-pressed="true"] .glyph {
+  display: block;
+}
+@media (hover: hover) and (pointer: fine) {
+  .idea-grid[data-reorderable] .idea-card-head {
+    cursor: grab;
+  }
+  .idea-grid[data-reorderable] .idea-card-tools {
+    cursor: auto;
+  }
+  .idea-card-head:hover .idea-card-grip .idea-card-grip-n {
+    display: none;
+  }
+  .idea-card-head:hover .idea-card-grip .glyph {
+    display: block;
+  }
+}
+@media (pointer: coarse) {
+  .idea-card-grip {
+    min-width: 32px;
+    height: 24px;
+    margin-top: 2px;
+    padding: 0 4px 0 2px;
+  }
+  .idea-card-grip .glyph {
+    display: block;
+  }
+}
+.idea-card-heading {
+  flex: 1 1 180px;
+  min-width: 0;
+  /* Line the title's first line up with the 28px-tall controls beside it. */
+  padding-top: 5px;
+}
+.idea-card-title {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  letter-spacing: 0;
+  text-wrap: pretty;
+}
+.idea-card-outcome .idea-card-title {
+  font-size: var(--fs-md);
+  line-height: 1.35;
+}
+.idea-card-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1h);
+  margin-left: auto;
+}
+
+/* More info: a quiet button that opens the card's text, its chevron turning to say which way it goes. */
+.idea-more {
+  gap: 3px;
+  padding: 0 var(--s-1) 0 var(--s-2);
+}
+.idea-more .glyph {
+  color: var(--faint);
+  transition: transform var(--dur-3) var(--ease-fold);
+}
+.idea-more[aria-expanded="true"] {
+  background: var(--hover);
+  color: var(--text);
+}
+.idea-more[aria-expanded="true"] .glyph {
+  color: var(--muted);
+  transform: rotate(180deg);
+}
+
+/* The picture, as tall as the frame reports, within the card's room. */
+.idea-card-body {
+  position: relative;
+  flex: none;
+}
+.idea-card-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--panel);
+}
+.idea-card-status {
+  position: absolute;
+  inset: 0;
+  padding: var(--s-5) var(--s-6);
+  background: var(--panel);
+}
+
+/* The text, under More info: a recessed well between the head and the picture that scrolls within
+   its room, so opening it never pushes the picture far away. */
+.idea-card-text {
+  --back: color-mix(in srgb, var(--hover) 60%, var(--panel));
+  max-height: min(var(--text-room), 56vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s-4) var(--sheet-px) var(--s-3h);
+  border-bottom: 1px solid var(--line);
+  /* A soft edge where the text runs on past the top or the bottom, gone once scrolled to that end. */
+  background:
+    linear-gradient(var(--back) 40%, transparent) top / 100% 28px no-repeat local,
+    linear-gradient(transparent, var(--back) 60%) bottom / 100% 28px no-repeat local,
+    linear-gradient(color-mix(in srgb, var(--line-strong) 22%, transparent), transparent) top / 100% 12px no-repeat scroll,
+    linear-gradient(transparent, color-mix(in srgb, var(--line-strong) 22%, transparent)) bottom / 100% 12px no-repeat scroll,
+    var(--back);
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
+}
+/* The fold: the text's room, which the app animates from the height it has to the height it gets
+   (opening in --dur-4, closing in --dur-3, on --ease-fold), so the text unfolds from under the head
+   and the picture glides down with it rather than jumping. The words arrive a beat behind their
+   room and drop into place, and leave first. Shut, the fold is hidden once it has closed, so nothing
+   in it can be reached. A fold rendered open (a card with no picture) shows at once. */
+.idea-card-more {
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  transition: visibility 0s linear var(--dur-3);
+}
+.idea-card-more[data-open] {
+  height: auto;
+  visibility: visible;
+  transition: visibility 0s;
+}
+/* The well's own fill unfolds with its room; the words in it fade in after. */
+.idea-card-more .idea-card-text > * {
+  opacity: 0;
+  transform: translateY(-8px);
+  transition:
+    opacity var(--dur-1) var(--ease),
+    transform var(--dur-3) var(--ease-fold);
+}
+.idea-card-more[data-open] .idea-card-text > * {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--dur-3) var(--ease) 80ms,
+    transform var(--dur-4) var(--ease-fold);
+}
+.idea-card-text:focus-visible {
+  outline-offset: -2px;
+}
+.idea-card-prose {
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.idea-card-concept .idea-card-prose {
+  font-size: var(--fs-prose);
+  line-height: 1.62;
+}
+.idea-card-meta {
+  margin: var(--s-4) 0 0;
+  padding-top: var(--s-2h);
+  border-top: 1px solid var(--line);
+  color: var(--faint);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-ui);
+  text-wrap: pretty;
+}
+
+/* A card with no picture yet: one line, and for a writer the request that gets one drawn. */
+.idea-no-front {
+  display: grid;
+  gap: var(--s-2);
+  margin: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-md);
+}
+.idea-no-front-title {
+  margin: 0;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-body);
+}
+.idea-no-front-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+.idea-no-front-request {
+  flex: 1 1 220px;
+  padding: var(--s-1h) var(--s-2h);
+  border-radius: var(--r-sm);
+  background: var(--hover);
+  font-size: var(--fs-base);
+  quotes: none;
+}
+
+/* An archived outcome, listed with Include archived, and the one a search result opened. */
+.idea-card.is-archived {
+  box-shadow: 0 0 0 1px var(--line-2);
+}
+.idea-card.is-archived .idea-card-title {
+  color: var(--muted);
+  font-weight: var(--fw-medium);
+}
+.idea-card.is-archived .idea-card-body,
+.idea-card.is-archived .idea-no-front {
+  opacity: 0.6;
+}
+.idea-card.is-found {
+  box-shadow: var(--shadow), 0 0 0 2px var(--accent);
+}
+
+/* ---- The outcomes ------------------------------------------------------------------------------ */
+
+.idea-outcomes {
+  display: grid;
+  gap: var(--s-3);
+}
+.idea-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  margin: 0;
+  padding-left: var(--sheet-px);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-semibold);
+}
+.idea-section-count {
+  color: var(--faint);
+  font-weight: var(--fw-regular);
+}
+/* The outcomes' cards stack in one column, in order, each as wide as the concept's and as tall as
+   its own picture and text, so cards of different heights never leave a gap beside each other. */
+.idea-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-4);
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.outcome-row {
-  grid-template-columns: minmax(0, 1fr) auto;
+.idea-grid-item {
+  position: relative;
+  min-width: 0;
 }
-/* The outcome a search result opened. */
-.outcome-found {
-  background: var(--select);
+
+/* A card being dragged lifts off the page and follows the pointer; the place it will land stays
+   marked, dashed, and the others glide aside as it passes them. */
+.idea-grid-item[data-dragging] {
+  z-index: 2;
 }
-.outcome-title {
+.idea-grid-item[data-dragging]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1.5px dashed var(--line-2);
+  border-radius: var(--r-lg);
+}
+.idea-card.is-dragging {
+  position: relative;
+  box-shadow: var(--shadow-2);
+  will-change: transform;
+}
+.idea-card.is-dragging .idea-card-head,
+.idea-card.is-dragging .idea-card-grip {
+  cursor: grabbing;
+}
+/* While a card is held, its picture and the others' let the pointer through: a frame would take
+   the pointer's moves while over it, and the drag would stall. */
+:root.is-holding-card .idea-card-frame {
+  pointer-events: none;
+}
+:root.is-dragging-card,
+:root.is-dragging-card * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+/* A card picked up without dragging: lifted and ringed until it is placed. */
+.idea-card.is-lifted {
+  box-shadow: var(--shadow-2), 0 0 0 2px var(--accent);
+}
+.idea-grid:has(.is-lifted) .idea-card:not(.is-lifted) .idea-card-head {
+  cursor: pointer;
+}
+.idea-move-hint {
   margin: 0;
-  font-size: var(--fs-base);
-  font-weight: var(--fw-medium);
+  padding-left: var(--sheet-px);
+  color: var(--muted);
+  font-size: var(--fs-sm);
   line-height: var(--lh-ui);
-  letter-spacing: 0;
 }
-.outcome-row.is-archived .outcome-title {
-  color: var(--muted);
-  font-weight: var(--fw-regular);
+.idea-card-skeleton {
+  height: 300px;
+  padding: var(--s-5) var(--sheet-px);
+  border-radius: var(--r-lg);
+  background: var(--panel);
+  box-shadow: var(--shadow);
 }
-.outcome-description {
-  margin-top: 3px;
-  color: var(--muted);
-  line-height: 1.5;
-}
-.outcome-description > * {
-  max-width: 64ch;
-}
-.outcome-description > * + * {
-  margin-top: var(--s-1h);
-}
-.outcome-description ul,
-.outcome-description ol {
-  padding-left: 1.4em;
-}
-.outcome-side {
-  display: flex;
-  align-items: center;
-  gap: var(--s-1h);
-  align-self: start;
-  /* Line the menu, and an archived outcome's badge, up with the title's first line. */
-  margin-top: -3px;
-}
-.outcome-editing {
-  border-bottom: 1px solid var(--line);
-}
-.outcome-editing:last-child {
-  border-bottom: 0;
+.idea-empty {
+  padding-inline: var(--s-1);
 }
 
-/* The inline create/edit form inside the sheet. */
-.outcome-form {
-  display: grid;
-  gap: var(--s-3);
-  padding: var(--s-3h) var(--sheet-px) var(--s-4);
-  border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--hover) 45%, var(--panel));
-}
-.idea-concept .outcome-form {
-  border-bottom: 0;
-}
-.outcome-form-title {
-  margin: 0;
-  font-size: var(--fs-base);
-  font-weight: var(--fw-semibold);
-}
-.outcome-form .input {
-  max-width: 560px;
-}
-.outcome-form-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-1h);
-  padding-left: calc(var(--col-label) + var(--s-4));
-}
-
-.idea-concept-text {
-  font-size: var(--fs-prose);
+@media (prefers-reduced-motion: reduce) {
+  /* The text appears and goes in place, fading, without the fold moving the picture (the app does
+     not animate the fold's height either). */
+  .idea-card-more,
+  .idea-card-more[data-open] {
+    transition: visibility 0s;
+  }
+  .idea-card-more .idea-card-text > *,
+  .idea-card-more[data-open] .idea-card-text > * {
+    transform: none;
+  }
+  .idea-more .glyph {
+    transition: none;
+  }
 }
 
 @media (max-width: 760px) {
-  .outcome-form-actions {
-    padding-left: 0;
+  .idea {
+    gap: var(--s-5);
+  }
+  /* Cards run edge to edge on a phone, as sheets do, and their text runs its full length: the page
+     is the one scroller. */
+  .idea-card {
+    margin-inline: calc(-1 * var(--s-3));
+    border-radius: 0;
+  }
+  .idea-card-text {
+    max-height: none;
+  }
+  .idea-card-head {
+    padding-left: 14px;
+  }
+  .idea-section-title {
+    padding-left: 14px;
   }
 }

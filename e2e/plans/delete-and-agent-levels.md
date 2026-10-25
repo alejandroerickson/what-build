@@ -19,7 +19,12 @@ raise its own level. It deletes only what it made itself in the run.
 2. **MCP, as Sam, in the standard organization, at the default level.** Connect with no `--level`,
    then list the tools. *Expect:* no delete action anywhere (`sources`, `assumptions`, `outcomes`,
    `story`, `mockups`, `products`), and no `members` write. `products(action="list")` says
-   `connection_level: "editor"`.
+   `connection_level: "editor"`. `products` offers `update_concept` and `outcomes` offers
+   `card_preview`: an editor writes the Idea's cards. Preview a concept front with
+   `outcomes(action="card_preview", kind="concept")` and open its `url` with its `headers` at 900
+   and 390 wide. *Expect:* the front with a dashed line at 560px and a note on how tall it is; at
+   390, no line, and a note below the front, clear of its last line, that a phone shows the whole
+   front.
 3. **MCP, as Sam.** In a product with sources, add the first text as a source, then call
    `sources(action="delete")` on it anyway with its etag, a reason and `confirm: "delete
    permanently"`. *Expect:* `403 connection_level`, naming Admin and Connect an agent; the source
@@ -39,7 +44,7 @@ raise its own level. It deletes only what it made itself in the run.
    `deleted: true`; reading the source answers `410 record_deleted` with the reason; Activity on
    the web shows the delete, attributed to Riley through the agent.
 8. **Web, as Riley.** Add the third text as a source, comment on it, and
-   create an assumption and an outcome. Delete each from its own screen: the comment from its
+   create an assumption; have the agent create an outcome (the web app adds none). Delete each from its own screen: the comment from its
    menu, the assumption and the outcome from their menus, the source from its menu.
    *Expect:* every dialog asks "Delete this … permanently?", says it can't be undone, shows what
    goes, needs a reason, has Cancel and Archive instead (each of these can be archived, the
