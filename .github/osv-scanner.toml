@@ -7,25 +7,6 @@
 # reason = "Only reachable through …, which WhatBuild never calls."
 
 
-# nodemailer's address parser misreads quoted local parts, nested comments and groups. Every
-# recipient WhatBuild gives it has passed zod's email check, which refuses quotes, comments,
-# semicolons and angle brackets, or is the operator's own setting. Fixed in 10.1.4: upgrade once it
-# is a week old (2026-10-25).
-[[IgnoredVulns]]
-id = "GHSA-85x2-q946-cp5h"
-ignoreUntil = 2026-11-01
-reason = "nodemailer's address parser; every recipient has passed zod's email check or is the operator's setting. Upgrade to 10.1.4 once it is a week old."
-
-[[IgnoredVulns]]
-id = "GHSA-8c8m-p3m8-cjg8"
-ignoreUntil = 2026-11-01
-reason = "nodemailer's address parser; every recipient has passed zod's email check or is the operator's setting. Upgrade to 10.1.4 once it is a week old."
-
-[[IgnoredVulns]]
-id = "GHSA-m943-m63m-w62w"
-ignoreUntil = 2026-11-01
-reason = "nodemailer's address parser; every recipient has passed zod's email check or is the operator's setting. Upgrade to 10.1.4 once it is a week old."
-
 # fast-uri comes with ajv, under @modelcontextprotocol/sdk. Ajv resolves the $id and $ref of the
 # schemas it compiles with it; those come from WhatBuild and the SDK, never from a request. Fixed in
 # 3.1.9: upgrade once it is a week old (2026-10-26).
