@@ -329,8 +329,11 @@ connected before (`401`) until it is connected again with the new address. Add
 (`https://usercontent.example.net`; a subdomain of `example.com` would be the same site and get its
 cookies). With the Worker in front, move that domain's DNS to the same Cloudflare account, give the
 Worker the domain as one more custom domain, and in its zone turn off Email Address Obfuscation and
-Rocket Loader, which would rewrite a prototype's HTML. Behind another front, point the host at the
-service as the app's is. Then:
+Rocket Loader, which would rewrite a prototype's HTML, and Web Analytics' automatic beacon (RUM),
+which Cloudflare may switch on for a new zone and which adds a script to every page. A
+Configuration Rule on every request with Disable RUM and Disable Zaraz on, and both of the others
+off, settles all of them. Behind another front, point the host at the service as the app's is.
+Then:
 
 ```bash
 gcloud run services update whatbuild --region $R --update-env-vars WHATBUILD_CONTENT_URL=https://usercontent.example.net
