@@ -22,10 +22,11 @@ Plain text, one message at a time. Three are sent while the request that causes 
 | An invitation | someone gives a role to an address that has no account | `packages/core/src/ops/products.ts` |
 | An allowance notice | an instance owner lets an address start organizations, and asks to tell them | `packages/core/src/ops/tenant-allowances.ts` |
 
-The fourth is sent by the worker, not a request:
+Two are sent by the worker, not a request:
 
 | Message | Sent when | Code |
 |---|---|---|
+| A new agent connection | an agent connects as someone for the first time: a code is exchanged for a connection's first tokens, and the account has had no connection from a client of that name held at the same place; queued with the tokens, sent to the account's address when the worker runs it | `apps/server/src/auth/connection-notice.ts`, `apps/server/src/worker.ts` |
 | The feedback digest | the deployment names `WHATBUILD_FEEDBACK_EMAIL`, there is feedback not yet sent, and no digest went out in the last 24 hours; looked at when an instance starts, and at most every ten minutes while its worker is awake (it sleeps a minute after the last request, and wakes at the next) | `packages/core/src/feedback.ts`, `apps/server/src/worker.ts` |
 
 Nothing else sends mail: not the site's interest form. Sign-in links and invitations are
@@ -37,6 +38,10 @@ transaction with its message, so a failed send leaves nothing behind and the per
 internal error; a failed sign-in link answers `500`. A deployment whose mail is broken therefore
 cannot invite anyone new, while one with no mail at all can: the person inviting is shown the link
 to pass on, and the sign-in page offers no email link.
+
+**A connection's notice that cannot be sent is tried again**, as any job is, a few times with
+growing waits; the agent's connection is made either way. With no mailer none is queued, and the
+connection still shows under Connect an agent.
 
 **A digest that cannot be sent waits.** Its reports are marked sent in the same transaction as the
 message, so a failed send leaves them unsent, the service logs `feedback digest:` with the provider

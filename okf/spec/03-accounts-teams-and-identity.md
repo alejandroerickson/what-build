@@ -448,6 +448,11 @@ MCP client registers itself, so no client is configured in advance, and any clie
 itself anything: the consent page shows the name in quotation marks as the name the agent gave
 itself, which WhatBuild has not verified, and says where Allow hands the connection, the redirect
 URI's host for `https`, or "an app on this computer" for loopback `http` and private-use schemes.
+When that host is one this account has never handed a connection to, under any client's name, the
+page says so above the buttons ("You have never connected an agent at <host> before"), puts Deny
+first and makes neither button the primary one, the case that most often means someone else sent
+the link. An app on this computer, and a host connected to before, keep the usual page
+([`connection-notice.ts`](../../apps/server/src/auth/connection-notice.ts)).
 The consent page's security policy
 allows its form to reach only WhatBuild and that client's registered callback, the one place Allow
 and Deny redirect to. Nothing reaches that callback before the person chooses: an authorization
@@ -471,6 +476,17 @@ Acme's product endpoints, and answers `401` on `/mcp` and on any other organizat
 keeps the resource. Connected agents are listed, each with what it can reach, its level and who
 holds the connection (the hosts of its client's redirect URIs, or an app on the person's
 computer), and changed or disconnected on the Connect an agent page.
+
+**A new connection is mailed to its person.** When a code is exchanged for a connection's first
+tokens, the exchange queues one email to the account, which the worker sends to its address then:
+the agent's self-given name, in quotation marks, as unverified; where it is held; what it reaches
+and its level, in the consent page's words; the time in UTC; and links to Connect an agent, to
+disconnect it, and to Settings, to sign out everywhere. A refresh makes no connection and sends
+nothing. ◆ Decision: an agent connecting again sends nothing either, where again means the account
+had another connection, live or ended, from a client of the same name held at the same place (the
+same `https` host, or an app on the computer), since some clients register afresh each time they
+connect. A failing mailer never fails the exchange: the job is retried as any job is. A deployment
+with no mailer queues nothing ([mail](../operations/mail.md)).
 
 **A connection's level.** The person chooses on the consent page what the agent may do: **Read
 only** (`viewer`), **Edit** (`editor`, chosen unless they change it) or **Admin** (`admin`)

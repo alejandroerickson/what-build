@@ -4,6 +4,7 @@ import { Hono, type Context } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { sql } from "kysely";
 import type { ServerConfig } from "../config.ts";
+import { connectedAtBefore, heldAt, queueConnectionNotice } from "./connection-notice.ts";
 import { connectorBound, connectorReach, type ConnectorReach } from "./connector-reach.ts";
 import { ACCESS_PREFIX, REFRESH_PREFIX, sessionAccount } from "./identity.ts";
 import { authPage, authPageHeaders } from "./page.ts";
@@ -125,7 +126,16 @@ function destinationSentence(redirect: string): string {
     : "Allow hands this connection to <strong>an app on this computer</strong>. Allow only if you’re connecting an agent on this computer right now.";
 }
 
-function consentPage(p: { client: string; redirect: string; account: string; email: string; reach: ConnectorReach; hidden: ConsentFields; csrf: string }) {
+/**
+ * Said above the buttons when Allow would hand a connection to a web address this account has never
+ * connected an agent at, the case that most often means someone else sent the link. Deny comes
+ * first then, and neither button is the one Enter presses for the person.
+ */
+function firstTimeCallout(host: string): string {
+  return `<p class="attention"><strong>You have never connected an agent at ${escapeHtml(host)} before.</strong> If you didn’t start this connection yourself, just now, choose Deny.</p>`;
+}
+
+function consentPage(p: { client: string; redirect: string; account: string; email: string; reach: ConnectorReach; hidden: ConsentFields; csrf: string; firstTimeAt: string | null }) {
   const inputs = Object.entries(p.hidden)
     .map(([k, v]) => `<input type="hidden" name="${escapeHtml(k)}" value="${escapeHtml(v)}">`)
     .join("");
@@ -141,7 +151,11 @@ function consentPage(p: { client: string; redirect: string; account: string; ema
 <p class="muted">You can change or disconnect it later under Connect an agent in WhatBuild.</p>
 <form method="post" action="/oauth/authorize">${inputs}<input type="hidden" name="csrf" value="${escapeHtml(p.csrf)}">
 ${levelChoice()}
-<div class="row"><button type="submit" name="decision" value="allow" class="primary">Allow</button><button type="submit" name="decision" value="deny">Deny</button></div>
+${
+  p.firstTimeAt
+    ? `${firstTimeCallout(p.firstTimeAt)}<div class="row"><button type="submit" name="decision" value="deny">Deny</button><button type="submit" name="decision" value="allow">Allow</button></div>`
+    : `<div class="row"><button type="submit" name="decision" value="allow" class="primary">Allow</button><button type="submit" name="decision" value="deny">Deny</button></div>`
+}
 </form>`,
   );
 }
@@ -171,7 +185,7 @@ function same(a: string, b: string): boolean {
   return a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 }
 
-export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
+export function oauthRoutes(deps: { db: Db; config: ServerConfig; notifyJobs?: () => void }) {
   const { db, config } = deps;
   const base = config.publicBaseUrl;
   const app = new Hono();
@@ -275,6 +289,7 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
     // Browsers apply form-action to the redirect that answers the form too, so the client's own
     // registered callback must be allowed here, or Allow silently goes nowhere.
     authPageHeaders(c, formTarget(redirect));
+    const host = heldAt(redirect);
     return c.html(
       consentPage({
         client: client.client_name,
@@ -284,6 +299,7 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
         reach: await connectorReach(db, account.account_id, resource),
         csrf,
         hidden: shown,
+        firstTimeAt: host && !(await connectedAtBefore(db, account.account_id, host)) ? host : null,
       }),
     );
   });
@@ -351,7 +367,7 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
       // Once: of requests that arrive together, only the one that marks the code used goes on. The
       // exchange is one transaction, so a second use waits on the row, then finds it spent after
       // the first use's tokens exist.
-      type Exchanged = { tokens: Awaited<ReturnType<typeof issue>> } | { error: string; description: string } | null;
+      type Exchanged = { tokens: Awaited<ReturnType<typeof issue>>; noticed: boolean } | { error: string; description: string } | null;
       const exchanged = await db.transaction().execute(async (trx): Promise<Exchanged> => {
         const row = await trx
           .updateTable("oauth_codes")
@@ -367,7 +383,12 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
         const challenge = createHash("sha256").update(f["code_verifier"] ?? "").digest("base64url");
         if (challenge !== row.code_challenge) return { error: "invalid_grant", description: "PKCE verification failed." };
         if (f["resource"] && f["resource"] !== row.resource) return { error: "invalid_target", description: "resource does not match the authorization request." };
-        return { tokens: await issue(trx, client.client_id, row.account_id, row.resource, row.family_id!, row.level) };
+        const tokens = await issue(trx, client.client_id, row.account_id, row.resource, row.family_id!, row.level);
+        // A new connection is mailed to the person, from the worker; an agent connecting again is not.
+        const noticed =
+          config.mailer !== "none" &&
+          (await queueConnectionNotice(trx, row.family_id!, { account_id: row.account_id, client_name: client.client_name, redirect_uri: row.redirect_uri, resource: row.resource, level: row.level, at: now }));
+        return { tokens, noticed };
       });
       if (!exchanged) {
         // A code presented again has leaked: the connection it made is revoked (RFC 6749, section 4.1.2).
@@ -376,6 +397,7 @@ export function oauthRoutes(deps: { db: Db; config: ServerConfig }) {
         return oauthError(c, 400, "invalid_grant", "The authorization code is invalid, expired, or already used.");
       }
       if ("error" in exchanged) return oauthError(c, 400, exchanged.error, exchanged.description);
+      if (exchanged.noticed) deps.notifyJobs?.();
       return c.json(exchanged.tokens);
     }
     if (f["grant_type"] === "refresh_token") {

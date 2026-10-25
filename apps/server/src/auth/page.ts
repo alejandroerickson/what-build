@@ -5,13 +5,14 @@ import type { Context } from "hono";
  * The few pages sign-in and OAuth render on the server, outside the web app: one panel on the
  * canvas, in Studio's tokens for light and dark, with no script and nothing loaded from anywhere.
  */
-const STYLE = `:root{color-scheme:light dark;--canvas:#f0f0f0;--panel:#ffffff;--text:#1e1e1e;--muted:#555555;--line:#e6e6e6;--line-2:#d5d5d5;--hover:#f2f2f2;--accent:#5a53e8;--accent-hover:#4a43d6;--accent-text:#ffffff;--shadow:0 2px 5px rgb(0 0 0 / .08),0 0 0 .5px rgb(0 0 0 / .12)}
-@media (prefers-color-scheme:dark){:root{--canvas:#1b1b1b;--panel:#2a2a2a;--text:#ededed;--muted:#bdbdbd;--line:#383838;--line-2:#474747;--hover:#353535;--accent:#8b85ff;--accent-hover:#a09bff;--accent-text:#15142b;--shadow:0 2px 5px rgb(0 0 0 / .4),0 0 0 .5px rgb(255 255 255 / .08)}}
+const STYLE = `:root{color-scheme:light dark;--warn:#9a5b00;--canvas:#f0f0f0;--panel:#ffffff;--text:#1e1e1e;--muted:#555555;--line:#e6e6e6;--line-2:#d5d5d5;--hover:#f2f2f2;--accent:#5a53e8;--accent-hover:#4a43d6;--accent-text:#ffffff;--shadow:0 2px 5px rgb(0 0 0 / .08),0 0 0 .5px rgb(0 0 0 / .12)}
+@media (prefers-color-scheme:dark){:root{--warn:#f0b95e;--canvas:#1b1b1b;--panel:#2a2a2a;--text:#ededed;--muted:#bdbdbd;--line:#383838;--line-2:#474747;--hover:#353535;--accent:#8b85ff;--accent-hover:#a09bff;--accent-text:#15142b;--shadow:0 2px 5px rgb(0 0 0 / .4),0 0 0 .5px rgb(255 255 255 / .08)}}
 body{margin:0;background:var(--canvas);color:var(--text);font:13px/1.55 "Inter Variable","Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 main{max-width:30rem;margin:12vh auto;padding:24px;background:var(--panel);border-radius:12px;box-shadow:var(--shadow)}
 @media (max-width:32rem){main{margin:16px 10px}}
 h1{font-size:20px;font-weight:600;line-height:1.25;letter-spacing:-.01em;margin:0 0 16px}
 p{margin:0 0 12px}.muted{color:var(--muted);font-size:12px}
+.attention{margin:16px 0 0;padding:10px 12px;border-radius:8px;background:var(--hover);color:var(--muted)}.attention strong{display:block;color:var(--warn);font-weight:600}
 .row{display:flex;gap:8px;margin-top:20px;flex-wrap:wrap}
 button{font:inherit;font-weight:500;height:28px;padding:0 12px;border-radius:6px;border:1px solid var(--line-2);background:var(--panel);color:var(--text);cursor:pointer}
 button:hover{background:var(--hover)}

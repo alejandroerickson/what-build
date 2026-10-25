@@ -35,8 +35,8 @@ export interface Harness {
    * null sends the form without a choice).
    */
   connectAgent(browser: Browser, clientName?: string, resourcePath?: string, level?: "viewer" | "editor" | "admin" | null): Promise<string>;
-  /** As connectAgent, with the refresh token and the client it was issued to. */
-  connectAgentTokens(browser: Browser, clientName?: string, resourcePath?: string, level?: "viewer" | "editor" | "admin" | null): Promise<{ access_token: string; refresh_token: string; client_id: string }>;
+  /** As connectAgent, with the refresh token and the client it was issued to; `redirect` is where the client receives the code (a loopback address unless given). */
+  connectAgentTokens(browser: Browser, clientName?: string, resourcePath?: string, level?: "viewer" | "editor" | "admin" | null, redirect?: string): Promise<{ access_token: string; refresh_token: string; client_id: string }>;
   close(): Promise<void>;
 }
 
@@ -97,8 +97,7 @@ export async function startHarness(overrides: Partial<ServerConfig> | ((baseUrl:
     },
   });
 
-  const connectAgentTokens: Harness["connectAgentTokens"] = async (browser, clientName = "test-agent", resourcePath = "/mcp", level = "admin") => {
-    const redirect = "http://127.0.0.1:9999/callback";
+  const connectAgentTokens: Harness["connectAgentTokens"] = async (browser, clientName = "test-agent", resourcePath = "/mcp", level = "admin", redirect = "http://127.0.0.1:9999/callback") => {
     const reg = (await (await fetch(`${baseUrl}/oauth/register`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ client_name: clientName, redirect_uris: [redirect] }) })).json()) as { client_id: string };
     const verifier = randomBytes(32).toString("base64url");
     const challenge = createHash("sha256").update(verifier).digest("base64url");
