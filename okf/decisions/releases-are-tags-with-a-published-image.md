@@ -3,7 +3,7 @@ type: Decision
 title: A release is a tag on main with its image published; deploying it is the deployment's own pipeline
 description: A tag v* publishes the image to the GitHub container registry and a GitHub release, so any deployment can pull a released version; the repository ships no deployment pipeline for a platform it does not run on.
 tags: [decision, deployment, releases, operations, self-hosting]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-24}
 status: stable
 ---
 
@@ -22,8 +22,10 @@ hash. The maintainer chose this shape on 2026-10-02.
 
 - **A release is a tag `v<major>.<minor>.<patch>` on a commit of `main` that CI has passed.** The
   Release workflow (`.github/workflows/release.yml`) builds the Dockerfile for `linux/amd64`,
-  publishes it as `ghcr.io/<owner>/what-build:<tag>` with the commit in its labels, and makes a
-  GitHub release with generated notes. Nothing else happens on a tag.
+  publishes it as `ghcr.io/<owner>/what-build:<tag>` with the commit in its labels and no
+  provenance (it holds the event that started the build, the pusher's address with it, which the
+  build would print in its public log and keep as an artifact), and makes a GitHub release with
+  generated notes. Nothing else happens on a tag.
 - **Deploying is the deployment's own business.** The repository documents the contract a
   deployment needs (one image, `node main.js migrate` before the new version serves, the
   settings, `/api/v1/meta` reporting `server_version`) and, for each cloud it describes, the

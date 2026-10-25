@@ -31,10 +31,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        # No provenance and no build record: the provenance holds the event that started the build,
+        # the pusher's address with it, which the action prints in this log and keeps as a build
+        # record artifact. The labels say which commit and release an image is.
+        env:
+          BUILDX_METADATA_PROVENANCE: disabled
+          DOCKER_BUILD_SUMMARY: "false"
+          DOCKER_BUILD_RECORD_UPLOAD: "false"
         with:
           context: .
           platforms: linux/amd64
           push: true
+          provenance: false
           build-args: WHATBUILD_COMMIT=${{ github.sha }}
           tags: ghcr.io/${{ github.repository }}:${{ github.ref_name }}
           labels: |

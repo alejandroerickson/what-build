@@ -3,7 +3,7 @@ type: Decision
 title: Checks that keep private material out and find known vulnerabilities live in the repository, with pinned tools, and no separate service
 description: Git hooks and CI run one publishable check; pinned scanners and GitHub's own features find vulnerabilities; nothing else is hosted or installed.
 tags: [decision, security, public, privacy, ci, agents, process]
-generated: {by: agent:claude, at: 2026-10-10}
+generated: {by: agent:claude, at: 2026-10-24}
 status: stable
 ---
 
@@ -22,8 +22,16 @@ install, and so that it runs well before the repository becomes public.
 
 - **One publishable check**, `scripts/check-publishable.mjs`, runs in git hooks (`pre-commit`,
   `commit-msg`, `pre-push`) that `pnpm install` installs through `core.hooksPath`, and in CI on
-  every pull request and push. It refuses secrets (gitleaks), home-directory paths, real email
-  addresses, talk about a session, and any file outside the places the repository keeps files.
+  every pull request and push, and on a pull request's text whenever it is edited. It refuses
+  secrets (gitleaks), home-directory paths, real email addresses in text and as a commit's author,
+  talk about a session and links to one, first-person accounts of the work in commit messages and
+  pull request text, and any file outside the places the repository keeps files.
+- **What GitHub holds beside the code is checked too**: weekly, the past week's pull request and
+  issue text, comments, reviews, release notes, Actions logs and artifacts, with the same rules;
+  all of it in an audit.
+- **A rule added later holds from the day it is added.** What was published before is audited by
+  hand that day, and what is kept is named in the guide; history is not rewritten for what is no
+  secret.
 - **Private working material has a place**: `_private/` at the root of a checkout, which is
   ignored, so an agent that wants to keep notes has somewhere to keep them.
 - **Scanners are pinned** by version and SHA-256 in `scripts/tools.mjs`, downloaded on first use
@@ -39,7 +47,9 @@ install, and so that it runs well before the repository becomes public.
   it found. The maintainer chose this on 2026-10-10, so that nothing depends on anyone
   remembering a project's chores.
 - Rejected: a hosted scanning service or a dependency-tracking server, which would be another
-  account and another thing to run; and a git-hook framework, which `core.hooksPath` makes needless.
+  account and another thing to run; a git-hook framework, which `core.hooksPath` makes needless;
+  and rewriting published history for what is no secret (an author's address, a session link),
+  which would change every commit since and leave the old ones in pull request refs anyway.
 
 ## Consequences
 

@@ -1,0 +1,31 @@
+name: Pull request text
+
+# Nothing private in a pull request's title and description: checked when it is opened and again
+# whenever either is edited, since an edit publishes text with no commit for CI to check
+# (okf/operations/security-checks.md).
+on:
+  pull_request:
+    types: [opened, edited, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  text:
+    name: Nothing private in the pull request's text
+    # Dependabot's text quotes its dependencies' public release notes, addresses and all.
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          printf '%s\n\n%s\n' "$TITLE" "$BODY" > "$RUNNER_TEMP/pull-request.txt"
+          node scripts/check-publishable.mjs --text "$RUNNER_TEMP/pull-request.txt"

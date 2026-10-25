@@ -28,8 +28,8 @@ corepack pnpm dev
 ```
 
 `pnpm dev` starts Postgres from an npm package (in `.what-build/pg`), runs migrations, seeds a
-synthetic sample product with two people, and starts the API (with its job worker) and the web app.
-Open <http://localhost:5273> and sign in as either sample person with one click. Sign-in links and
+synthetic sample product with three people, and starts the API (with its job worker) and the web app.
+Open <http://localhost:5273> and sign in as any sample person with one click. Sign-in links and
 invitation emails are printed in the terminal.
 
 To connect an agent to your local copy:
