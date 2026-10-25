@@ -3,12 +3,14 @@ import { z } from "zod";
 import { checkEtag, keepRevision, productId, recordActivity, tenantId } from "../common.ts";
 import { json, type OutcomesTable } from "../db.ts";
 import { checkConfirmation, DELETE_GUIDANCE, deleteGuards, dropRevisions, leaveTombstone, refuseIfDeleted } from "../deletion.ts";
-import { invalid, notFound } from "../errors.ts";
+import { conflict, invalid, notFound } from "../errors.ts";
 import { roleAtLeast } from "../policy.ts";
+import { refuseVisitorWrite } from "../public-sandbox.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag, id } from "../schemas.ts";
 import { likeContaining, newEtag, newId } from "../util.ts";
 import { adviseIdeaCard, CARD_FRAMES, CARD_GUIDANCE, CARD_HTML_MAX, CARD_ICON_NAMES, checkCardSides, checkIdeaCard } from "../idea-card.ts";
+import { DOWNLOAD_GRANT_HEADER } from "./attachments.ts";
 
 type Row = Selectable<OutcomesTable>;
 
@@ -22,7 +24,7 @@ const outcomeId = id("outcome").describe("The outcome id. id is accepted as anot
 const WHAT_AN_OUTCOME_IS =
   "An outcome is what the product's users should be able to achieve with it: the compass the evidence, assumptions, mockups and Story are read against, so write it to last. " +
   "Each outcome is a card on the Idea screen. Title: what the user achieves, from their side (\"The crew lead plans next week in minutes\"), shown in the card's head. " +
-  "card_html is the front, which people see first: a picture of the outcome that someone new to the team takes in at a glance, drawn with the card kit; call outcomes(action=\"card_guidance\") before drawing one. " +
+  "card_html is the front, which people see first: a picture of the outcome that someone new to the team takes in at a glance, drawn with the card kit; call outcomes(action=\"card_guidance\") before drawing one, and outcomes(action=\"card_preview\") to look at it before writing it. " +
   "description is the back: what success looks like for the users and what it means, in depth (Markdown, up to 6,000 characters), which agents read first and people open with More info. " +
   "The two sides say the same thing and change together: a call that changes one sends the other too, unchanged if it still agrees, and one that sends only one side is refused with card_sides_together. " +
   "Neither side cites or retells evidence: no sources, quotes, calls, emails, dates, named customers or people who asked, journeys, assumptions or mockups. " +
@@ -238,7 +240,7 @@ export const outcomeCardGuidance = defineOperation({
   mutates: false,
   summary: "How to draw an Idea card, an outcome's or the product concept's: how to choose what the front shows, the card kit's parts with examples, its pictograms, the room a front has, how to write the back, and a check before sending.",
   description:
-    "Read it before writing card_html with outcomes(action=\"create\") or (action=\"update\"), or products(action=\"create\") or (action=\"update\"). The same for every product: guidance is the reference as Markdown, icons the pictogram names data-icon accepts, frames the widths and most height each front is shown at, and max_chars the longest front. A write that touches a card returns card_advice when the card misses something this guidance asks.",
+    "Read it before writing card_html with outcomes(action=\"create\") or (action=\"update\"), or products(action=\"create\") or (action=\"update_concept\"). The same for every product: guidance is the reference as Markdown, icons the pictogram names data-icon accepts, frames the widths and most height each front is shown at, and max_chars the longest front. outcomes(action=\"card_preview\") shows a front as the Idea screen will, with its height limit marked, before you write it. A write that touches a card returns card_advice when the card misses something this guidance asks.",
   input: z.strictObject({}),
   rest: { method: "GET", path: "/idea/card-guidance" },
   mcp: { tool: "outcomes", action: "card_guidance" },
@@ -369,4 +371,69 @@ export const deleteOutcome = defineOperation({
   },
 });
 
-export const outcomeOps = [listOutcomes, getOutcome, createOutcome, updateOutcome, archiveOutcome, restoreOutcome, outcomeDeleteImpact, deleteOutcome, outcomeCardGuidance];
+/** The grant purpose that GETs a card preview's document. */
+export const CARD_PREVIEW_PURPOSE = "card_preview";
+/** The card previews a product keeps at once; a new one beyond them drops the oldest. */
+const CARD_PREVIEWS_KEPT = 20;
+
+export const outcomeCardPreview = defineOperation({
+  name: "outcomes.card_preview",
+  scope: "product",
+  access: "write",
+  mutates: false,
+  summary: "Look at a card's front before writing it: every check a write makes, its advice, and a short-lived grant to GET the front as the Idea screen shows it, with the height it may take marked.",
+  description:
+    "Send the front you mean to write (card_html), for an outcome or the product concept (kind), with the title and the back it goes with when you have them, for their advice. " +
+    "preview refuses what a write would refuse (422 invalid_card, listing every problem; outcome_cites_a_record) and writes nothing anyone sees. Otherwise it returns card_advice, frame (the widths the front is shown at and the most height a desktop shows) and a grant: " +
+    "GET url with exactly the headers given to receive the front in the document the Idea screen shows it in, with a dashed line where a desktop stops showing it and a note on it saying how tall the front is and whether it fits. " +
+    "Open it in a browser or a headless one (Playwright: new_context(extra_http_headers=headers, viewport=…)) at the frame's width and at 390 wide, adding ?theme=light and ?theme=dark, and look at each: nothing below the line, nothing running into anything else. A phone shows the whole front, so the line applies to the desktop width only. " +
+    `The grant expires (expires_at) and a product keeps its ${CARD_PREVIEWS_KEPT} newest card previews; preview again for a new one. Keep the grant header out of reports and logs.`,
+  input: z.strictObject({
+    kind: z.enum(["outcome", "concept"]).default("outcome").describe("Whose front: an outcome's, or the product concept's."),
+    card_html: z.string().trim().min(1).max(CARD_HTML_MAX).describe("The front, as you would write it."),
+    title: z.string().trim().max(200).optional().describe("An outcome's title, for advice on a front that repeats it."),
+    back: z.string().max(8000).optional().describe("The back the front goes with (description or concept), for advice on it."),
+  }),
+  rest: { method: "POST", path: "/idea/card-preview" },
+  mcp: { tool: "outcomes", action: "card_preview" },
+  async handler(ctx, input) {
+    // A preview answers whether the write would land, so it is refused wherever the write would be.
+    if (ctx.scope.product!.archived_at) throw conflict("product_archived", `Product ${ctx.scope.product!.name} is archived and read-only. Restore it first.`);
+    if (ctx.sandbox?.visitor) refuseVisitorWrite(ctx.sandbox, { name: "outcomes.card_preview", mutates: true });
+    const what = input.kind === "concept" ? "The product concept" : "The outcome";
+    if (input.kind === "outcome") refuseReferences({ card_html: input.card_html });
+    checkIdeaCard(input.card_html, what);
+    const pid = productId(ctx);
+    // A preview lives as long as its grant, and a product keeps only its newest ones.
+    const kept = await ctx.db.selectFrom("card_previews").select("preview_id").where("product_id", "=", pid).where("expires_at", ">", ctx.now).orderBy("created_at", "desc").orderBy("preview_id", "desc").limit(CARD_PREVIEWS_KEPT - 1).execute();
+    let drop = ctx.db.deleteFrom("card_previews").where("product_id", "=", pid);
+    if (kept.length) drop = drop.where("preview_id", "not in", kept.map((k) => k.preview_id));
+    await drop.execute();
+    const preview_id = newId();
+    const expiresAt = new Date(Date.parse(ctx.now) + ctx.ports.config.grantTtlSeconds * 1000);
+    const title = input.kind === "concept" ? `${ctx.scope.product!.name}: product concept` : input.title || "Outcome";
+    await ctx.db
+      .insertInto("card_previews")
+      .values({ preview_id, tenant_id: tenantId(ctx), product_id: pid, kind: input.kind, title, card_html: input.card_html, created_by: json(ctx.actor), expires_at: expiresAt.toISOString(), created_at: ctx.now })
+      .execute();
+    const token = ctx.ports.grants.sign({ v: 1, purpose: CARD_PREVIEW_PURPOSE, t: tenantId(ctx), cp: preview_id, exp: Math.floor(expiresAt.getTime() / 1000) });
+    const frame = CARD_FRAMES[input.kind];
+    return {
+      kind: input.kind,
+      card_chars: input.card_html.length,
+      card_advice: adviseIdeaCard({ kind: input.kind, front: input.card_html, back: input.back, title: input.title }),
+      frame,
+      written: false,
+      preview: {
+        preview_id,
+        method: "GET",
+        url: `${ctx.ports.config.publicBaseUrl}/api/v1/downloads/card-preview/${preview_id}`,
+        headers: { [DOWNLOAD_GRANT_HEADER]: token },
+        expires_at: expiresAt.toISOString(),
+      },
+      next: `GET url with these headers in a browser ${frame.width} and 390 wide, adding ?theme=light and ?theme=dark: at ${frame.width} the front ends above the dashed line, and nothing runs into anything else at either width. Then write it, with its back. Keep the grant header out of reports and logs.`,
+    };
+  },
+});
+
+export const outcomeOps = [listOutcomes, getOutcome, createOutcome, updateOutcome, archiveOutcome, restoreOutcome, outcomeDeleteImpact, deleteOutcome, outcomeCardGuidance, outcomeCardPreview];

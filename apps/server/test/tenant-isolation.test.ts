@@ -40,6 +40,7 @@ const SCOPED: Record<string, Probe> = {
   "products.create": { input: () => ({ name: "Planted product" }) },
   "products.get": { input: () => ({}) },
   "products.update": { input: (a) => ({ expected_etag: a.product.etag, name: "Renamed by an outsider" }) },
+  "products.update_concept": { input: (a) => ({ expected_etag: a.product.etag, concept: "Rewritten by an outsider" }) },
   "products.archive": { input: (a) => ({ expected_etag: a.product.etag }) },
   "products.restore": { input: (a) => ({ expected_etag: a.product.etag }) },
   "products.delete_impact": { input: () => ({}) },
@@ -85,6 +86,7 @@ const SCOPED: Record<string, Probe> = {
   "outcomes.get_revision": { input: (a) => ({ outcome_id: a.outcome.id, n: 1 }) },
   "outcomes.restore_revision": { input: (a) => ({ outcome_id: a.outcome.id, n: 1, expected_etag: a.outcome.etag }) },
   "outcomes.card_guidance": { input: () => ({}) },
+  "outcomes.card_preview": { input: () => ({ card_html: "<p class=\"wb-pitch\">Planted.</p>" }) },
   "sources.facets": { input: () => ({ include_archived: true }) },
   "sources.list": {
     input: () => ({ include_archived: true }),

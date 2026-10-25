@@ -48,7 +48,12 @@ person's edit skips. The maintainer chose this model on 2026-10-24.
   gives agents how to choose what a front shows, the kit's reference with examples, the
   pictograms, the room a front has, how to write the back, and a check before sending; a write
   that touches a card returns `card_advice` on what WhatBuild can check of that guidance, without
-  refusing the write.
+  refusing the write. WhatBuild cannot measure a front itself, so `outcomes(action="card_preview")`
+  gives an agent the front as the Idea screen shows it, with the height a desktop shows marked, to
+  look at in a browser before writing it, as `story(action="preview")` does for a Story page.
+- **Editors write both cards.** The concept's card is written with `products(action="update_concept")`
+  by editors as well as admins, as an outcome's is, since agents connected at Edit write the Idea;
+  renaming a product and changing its slug stay with admins.
 - **A front is agent HTML in a sandbox**, as a Story page is
   ([decision](story-pages-are-sandboxed-agent-html.md)), but stricter: only the card's markup, which
   WhatBuild wraps in a document with the kit; no scripts, links or forms; nothing loaded from
@@ -67,8 +72,9 @@ person's edit skips. The maintainer chose this model on 2026-10-24.
 - The Idea screen reads as pictures first. A card with no front yet opens on its text and asks
   for an agent to draw the picture, so products made before fronts existed stay readable until one
   does; `outcomes(action="list")` and `products(action="get")` tell agents which cards have none.
-- Opening a card's text makes that card taller, so outcome cards in a row keep their own heights
-  rather than matching, and an outcome's card is always one column wide: width says nothing about
+- Cards differ in height, by their pictures and by whether their text is open, so the outcomes
+  stand one under another, each as wide as the concept: side by side, a shorter card left a gap
+  beside it. Every card has the same width and the same most height, so neither says anything about
   an outcome's weight.
 - Every card's front carries the app's typeface (about 64 KB) in its response, since a sandboxed
   card loads nothing from elsewhere.
@@ -76,7 +82,7 @@ person's edit skips. The maintainer chose this model on 2026-10-24.
 
 ## Constrains
 
-- `outcomes.create`, `outcomes.update`, `products.create` and `products.update` check a front
+- `outcomes.create`, `outcomes.update`, `products.create` and `products.update_concept` check a front
   against `IDEA_CARD_RULES` (`packages/core/src/html-rules.ts`) and the two-sides rule
   (`checkCardSides` in `packages/core/src/idea-card.ts`); the card kit, its guidance and the
   document a front is served in live together in `idea-card.ts`, so they never drift apart.

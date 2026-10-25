@@ -1,7 +1,8 @@
 import {
-  AppError, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, effectiveRole, forbidden, membershipsFor, mockupBundle, json, lockSandbox, MOCKUP_UPLOAD_PURPOSE, notFound, roleAtLeast, sandboxForAccount, STORY_PREVIEW_PURPOSE,
+  AppError, CARD_FRAMES, CARD_PREVIEW_PURPOSE, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, ideaCardDocument, ideaCardResponseHeaders, effectiveRole, forbidden, membershipsFor, mockupBundle, json, lockSandbox, MOCKUP_UPLOAD_PURPOSE, notFound, roleAtLeast, sandboxForAccount, STORY_PREVIEW_PURPOSE,
   toAppError, tooLarge, UPLOAD_GRANT_HEADER, type ActorSnapshot, type Env, type OpContext, type Tx,
 } from "@whatbuild/core";
+import { randomBytes } from "node:crypto";
 import { Hono, type Context } from "hono";
 import { sql } from "kysely";
 import type { ServerConfig } from "./config.ts";
@@ -207,6 +208,27 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       // A Story page in the Story's sandbox (page-sandbox.ts). A mockup page carries its own look, so
       // it takes neither the theme nor the carried typefaces, and keeps a mockup page's sandbox.
       return storyHtml(c, p.html, p.shows_mockup ? undefined : theme, false, p.shows_mockup);
+    } catch (e) {
+      return fail(c, e);
+    }
+  });
+
+  // The front outcomes.card_preview checked, in the document the Idea screen shows it in (the same
+  // sandbox, kit and ?theme), with a line where a desktop stops showing it, for an agent to look at
+  // before writing it.
+  app.get("/api/v1/downloads/card-preview/:preview_id", async (c) => {
+    try {
+      const claims = env.ports.grants.verify(c.req.header(DOWNLOAD_GRANT_HEADER) ?? "");
+      if (!claims || claims["purpose"] !== CARD_PREVIEW_PURPOSE || claims["cp"] !== c.req.param("preview_id"))
+        throw new AppError(401, "invalid_grant", "The preview grant is missing, invalid or expired. Preview again with outcomes(action=\"card_preview\").");
+      const theme = storyTheme(c.req.query("theme"));
+      const p = await inTenant(env, String(claims["t"]), (trx) =>
+        trx.selectFrom("card_previews").select(["kind", "title", "card_html", "expires_at"]).where("preview_id", "=", c.req.param("preview_id")).executeTakeFirst(),
+      );
+      if (!p || Date.parse(p.expires_at) < Date.now()) throw notFound("That preview has expired or was replaced by newer ones. Preview again with outcomes(action=\"card_preview\").");
+      const nonce = randomBytes(16).toString("base64");
+      for (const [k, v] of Object.entries(ideaCardResponseHeaders(nonce))) c.header(k, v);
+      return c.body(ideaCardDocument(p.card_html, { title: p.title, theme, nonce, limit: CARD_FRAMES[p.kind].max_height }));
     } catch (e) {
       return fail(c, e);
     }

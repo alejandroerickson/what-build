@@ -110,7 +110,7 @@ again before you move on.
   (`copy_to_product`), a mockup (`publish` without `mockup_id` or `upload_id`), a Story page from a
   mockup (`promote_mockup` without `page_id`), a product, team or organization without a `slug`,
   and a sandbox invitation. `activity(action="list")` and the item's list show what landed.
-- `story(action="preview")` and every read change nothing, and are always safe to repeat.
+- `story(action="preview")`, `outcomes(action="card_preview")` and every read change nothing, and are always safe to repeat.
 
 **When a tool or action is missing.** This server keeps no session, so it cannot tell your client
 when an upgrade adds tools or actions; the client keeps the tool list it got when it connected,
@@ -289,6 +289,13 @@ restore earlier versions, but change neither side.
   before drawing one: it says how to choose what the front shows, gives the kit's parts with
   examples, the pictogram names and the room a front has, how to write the back, and a check to
   run before sending.
+- **Look at a front before you write it.** `outcomes(action="card_preview")` (with
+  `kind="concept"` for the concept) makes every check the write makes and returns a short-lived
+  grant to GET the front exactly as the Idea screen shows it, with a dashed line where a desktop
+  stops showing it and a note saying how tall it is. Open its `url` with its `headers` in a browser
+  tool or a headless browser at the frame's width (900) and at 390, light and dark, and fix what
+  you see: nothing below the line at 900, nothing running into anything else. A phone shows the
+  whole front, so the line does not apply there. Keep the grant header out of reports.
 - **The back** (the product's `concept`, an outcome's `description`; Markdown) is the same idea in
   depth: what every agent reads before working in the product, and what a person opens More info
   to understand. Open with the whole idea in a sentence or two. It may say more than the front,
@@ -297,7 +304,8 @@ restore earlier versions, but change neither side.
   `outcomes(action="get")`; a list gives only `card_chars`, the front's length). A call that
   changes one side sends the other in the same call, unchanged if it still agrees; sending one
   alone is refused (`card_sides_together`). A rename alone needs no new front: the front never
-  repeats the title.
+  repeats the title. The concept's card is written with `products(action="update_concept")` and
+  an outcome's with `outcomes(action="create")` or `update`; an editor may make either.
 - **Read what a write says back.** A write that touches a card returns `card_advice` when the card
   misses something the guidance asks (too many words, the title repeated, more than one hue, fixed
   colours, an empty back): fix it with an update. A card with no front yet shows people its text
@@ -305,7 +313,7 @@ restore earlier versions, but change neither side.
   write itself say so in `note`: offer the person to draw it, and draw it once they agree.
 
 The product concept says who the product is for, the problem they have, and how the product
-solves it (`products(action="get")`; admins change it with `update`).
+solves it (`products(action="get")`; `products(action="update_concept")` changes it).
 
 The **outcomes** are the product's compass. Each is what the product's users should be able to
 achieve with it, written from their side: "The crew lead plans next week in minutes", not a

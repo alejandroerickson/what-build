@@ -108,7 +108,7 @@ describe("descriptions that say only what is true", () => {
       if (!/kept as a revision/.test(o.description)) continue;
       expect(OPERATIONS.some((x) => x.name === `${o.mcp.tool}.revisions`), o.name).toBe(true);
     }
-    for (const name of ["products.update", "assumptions.update", "sources.update_annotation"])
+    for (const name of ["products.update_concept", "assumptions.update", "sources.update_annotation"])
       expect(op(name).description, name).toMatch(/is kept, and a product export includes it, but no action reads it back yet|are kept, and a product export includes them, but no action reads them back yet/);
   });
 

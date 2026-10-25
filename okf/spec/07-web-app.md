@@ -309,13 +309,13 @@ The screen's model and names are a decision: [A product starts with its idea](..
 The landing screen, built of cards
 ([decision](../decisions/idea-cards-have-a-front-for-people-and-a-back-for-agents.md)). The
 product concept's card first, across the content band; then **Outcomes** with their count, and the
-outcomes' cards in a grid of two columns (one on a phone), in order, each card one column wide and
-as tall as what it shows, so opening one never stretches its neighbour.
+outcomes' cards one under another, in order, each as wide as the concept's and as tall as what it
+shows.
 
 - **A card.** Its head holds the title (the outcome's, with its place in the order, or "Product
   concept"), **More info**, and on an outcome its menu. Under the head is the front: the
   agent-drawn picture, in a sandboxed frame ([§4.2.1](04-data-model.md)), as tall as it is up to
-  560px for the concept and 380px for an outcome, scrolling within beyond that (on a phone the
+  560px, the concept's and an outcome's alike, scrolling within beyond that (on a phone the
   card is as tall as its front, so no scroller sits inside the page's). More info opens the back,
   the Markdown agents read, between the head and the front, so both are in view: up to 420px tall
   on the concept and 300px on an outcome (and at most 56% of the window), scrolling within beyond

@@ -354,6 +354,19 @@ export interface StoryPreviewsTable {
   created_at: Ts;
 }
 
+/** A front outcomes.card_preview checked, held for its grant (0033). */
+export interface CardPreviewsTable {
+  preview_id: string;
+  tenant_id: string;
+  product_id: string;
+  kind: "concept" | "outcome";
+  title: string;
+  card_html: string;
+  created_by: Json<ActorSnapshot>;
+  expires_at: Ts;
+  created_at: Ts;
+}
+
 export interface DerivationsTable {
   derivation_id: string;
   tenant_id: string;
@@ -815,6 +828,7 @@ export interface DB {
   story_hierarchies: StoryHierarchiesTable;
   story_styles: StoryStylesTable;
   story_previews: StoryPreviewsTable;
+  card_previews: CardPreviewsTable;
   mockups: MockupsTable;
   mockup_versions: MockupVersionsTable;
   mockup_pages: MockupPagesTable;

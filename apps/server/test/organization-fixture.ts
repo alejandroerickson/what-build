@@ -5,7 +5,7 @@ import type { Browser, Harness } from "./harness.ts";
 /**
  * An organization with something in every kind of row a product holds: outcomes and their
  * revisions, tagged sources with attachments, readings, derived texts and their search index, annotations and agent notes, a view,
- * assumptions with links and reviews, a Story with a style, a hierarchy, notes, a preview and a promoted
+ * assumptions with links and reviews, a Story with a style, a hierarchy, notes, a preview, a card preview and a promoted
  * mockup page, a mockup with files and a canvas upload, a mockup whose page enters a prototype, an export, an invitation and a second member. Every text it
  * writes carries `marker`, so a test can tell whether any of it reached someone else.
  */
@@ -91,6 +91,8 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
   const tree = ok(await owner.api("PUT", `${P}/story/hierarchy`, { items: [{ page_id: page.page_id, children: [] }], expected_etag: null }), 200);
   // A preview of the page's next version, held for its grant.
   ok(await owner.api("POST", `${P}/story/pages/${page.page_id}/preview`, { body: `<p>${marker} a draft of the next version.</p>`, expected_etag: page.etag }), 200);
+  // A preview of an outcome card's front, held for its grant.
+  ok(await owner.api("POST", `${P}/idea/card-preview`, { card_html: `<p class="wb-pitch">${marker} a draft front.</p>` }), 200);
 
   const html = (title: string) => `<!doctype html><html lang="en"><head><title>${title}</title></head><body><p>${title}</p></body></html>`;
   const m = ok(await owner.api("POST", `${P}/mockups`, {

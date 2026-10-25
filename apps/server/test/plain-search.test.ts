@@ -315,7 +315,7 @@ describe("plain search's excerpts", () => {
     L = `/api/v1/p/${p.body.path}`;
     const product = await lee.api("GET", L);
     const concept = "## Who it is for\n\n- **Crew leads** who send the morning dispatch\n- > Owners who read it later";
-    expect((await lee.api("PATCH", L, { expected_etag: product.body.etag, concept })).status).toBe(200);
+    expect((await lee.api("PATCH", `${L}/idea/concept`, { expected_etag: product.body.etag, concept })).status).toBe(200);
     const a = await lee.api("POST", `${L}/assumptions`, { statement: "Leads read the board first.", body: "## Why\n\n- The **dispatch** board is by the door.\n- > Quoted: every lead checks it." });
     expect(a.status, JSON.stringify(a.body)).toBe(201);
     const r = await lee.api("POST", `${L}/sources`, { title: "Yard notes — Example Co", tags: [] });

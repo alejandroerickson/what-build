@@ -66,13 +66,14 @@ export function checkCardSides(
 }
 
 /**
- * The room a front has: the width it usually shows at on a desktop, the narrowest and widest it
- * shows at (a phone; a window too narrow for two outcomes side by side), and the most height it
- * shows before it scrolls inside its card. The web app's Idea screen keeps to the same heights.
+ * The room a front has: the width it shows at on a desktop, the narrowest and widest it shows at
+ * (a phone; a narrow window), and the most height it shows before it scrolls inside its card. Every
+ * card on the Idea screen is the content's width, one under another. The web app's Idea screen
+ * keeps to the same heights.
  */
 export const CARD_FRAMES = {
   concept: { width: 900, min_width: 340, max_width: 900, max_height: 560 },
-  outcome: { width: 440, min_width: 340, max_width: 700, max_height: 380 },
+  outcome: { width: 900, min_width: 340, max_width: 900, max_height: 560 },
 } as const;
 
 /** About how many words of text a front holds before it reads as a paragraph rather than a picture. */
@@ -107,7 +108,7 @@ function loose(text: string): string {
  * misses. It never refuses a write; the response carries it as card_advice, for the agent to fix
  * with an update.
  */
-export function adviseIdeaCard(card: { kind: "concept" | "outcome"; front: string; back: string; title?: string }): string[] {
+export function adviseIdeaCard(card: { kind: "concept" | "outcome"; front: string; back?: string; title?: string }): string[] {
   const { kind, front, back } = card;
   if (!front.trim()) return [];
   const advice: string[] = [];
@@ -125,7 +126,7 @@ export function adviseIdeaCard(card: { kind: "concept" | "outcome"; front: strin
     advice.push(`The front uses ${hues.size} hues (${[...hues].join(", ")}). Keep to one for the product's way, with slate for today and rose only for what hurts.`);
   if (/#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|oklch|oklab|lab|lch)\(/i.test(styling(front)))
     advice.push("The front sets fixed colours, which do not follow the reader's light or dark theme. Use data-hue and the kit's variables (var(--hue-ink), var(--hue-fill), var(--hue-line), var(--muted)).");
-  if (!back.trim())
+  if (back !== undefined && !back.trim())
     advice.push(`The back is empty, so agents have nothing to work from and More info shows nothing. Write the ${kind === "concept" ? "concept" : "outcome"} in depth in ${kind === "concept" ? "concept" : "description"}.`);
   return advice;
 }
@@ -387,6 +388,12 @@ background-repeat:no-repeat;background-size:7px 10px,100% 1.5px;background-posit
 .wb-timeline>li.is-pain::before{box-shadow:inset 0 0 0 2px var(--rose-solid),0 0 0 3px var(--bg)}
 .wb-timeline>li.is-new>time,.wb-timeline>li.is-us>time{color:var(--hue-ink)}
 .wb-timeline>li.is-new::before,.wb-timeline>li.is-us::before{background:var(--hue-solid);box-shadow:0 0 0 3px var(--bg)}
+/* A timeline runs down instead of across on a narrow card, and wherever a time is wider than its
+   column (the card's script marks it is-stacked), so times never run into each other. */
+.wb-timeline.is-stacked{grid-auto-flow:row;background:linear-gradient(var(--line-2),var(--line-2)) 4.25px 6px/1.5px calc(100% - 12px) no-repeat;gap:12px}
+.wb-timeline.is-stacked>li{padding:0 0 0 22px}
+.wb-timeline.is-stacked>li>time{position:static;display:block}
+.wb-timeline.is-stacked>li::before{top:4px}
 @media (max-width:400px){
   .wb-timeline{grid-auto-flow:row;background:linear-gradient(var(--line-2),var(--line-2)) 4.25px 6px/1.5px calc(100% - 12px) no-repeat;gap:12px}
   .wb-timeline>li{padding:0 0 0 22px}
@@ -433,22 +440,45 @@ function interFace(): string {
  * changes, so the app can size the card to it. It sends only a number; the app checks the message
  * came from the card's own frame.
  */
+/**
+ * WhatBuild's one script in a card: it stacks a timeline whose times would run into each other,
+ * tells the app how tall the card is, and, in a preview opened on its own, says on the height line
+ * whether the card fits.
+ */
 const MEASURE_SCRIPT =
-  "(function(){var c=document.querySelector('.wb-card'),last=-1;" +
-  "function send(){var h=Math.ceil(c.getBoundingClientRect().height);if(h!==last){last=h;parent.postMessage({whatbuild:'card-height',height:h},'*');}}" +
-  "new ResizeObserver(send).observe(c);if(document.fonts)document.fonts.ready.then(send);send();})();";
+  "(function(){var c=document.querySelector('.wb-card'),lim=document.querySelector('.wb-limit'),last=-1;" +
+  "function stack(){document.querySelectorAll('.wb-timeline').forEach(function(t){t.classList.remove('is-stacked');" +
+  "if([].some.call(t.querySelectorAll(':scope>li>time'),function(x){return x.scrollWidth>x.parentElement.clientWidth-8;}))t.classList.add('is-stacked');});}" +
+  "function send(){stack();var h=Math.ceil(c.getBoundingClientRect().height);if(h===last)return;last=h;" +
+  "if(parent!==window)parent.postMessage({whatbuild:'card-height',height:h},'*');" +
+  "if(lim){var m=+lim.getAttribute('data-limit'),o=h-m,phone=innerWidth<=520;lim.toggleAttribute('data-over',o>0&&!phone);" +
+  "lim.firstChild.textContent=phone?h+'px tall: a phone shows the whole front.':o>0?h+'px tall: '+o+'px over the '+m+'px a desktop shows. It would scroll inside its card.':h+'px tall: fits the '+m+'px a desktop shows, with '+(-o)+'px to spare.';}}" +
+  "new ResizeObserver(function(){requestAnimationFrame(send);}).observe(c);if(document.fonts)document.fonts.ready.then(send);send();})();";
+
+/** The line a preview draws where a desktop stops showing the card, and the words on it. */
+const LIMIT_CSS =
+  "body{position:relative}" +
+  ".wb-limit{position:absolute;left:0;right:0;border-top:1.5px dashed var(--muted);pointer-events:none}" +
+  ".wb-limit[data-over]{border-top-color:var(--rose-solid)}" +
+  ".wb-limit>span{position:absolute;right:8px;top:4px;padding:2px 6px;border-radius:4px;background:var(--bg);color:var(--muted);font:500 11px/1.4 var(--font);box-shadow:0 0 0 1px var(--line-2)}" +
+  ".wb-limit[data-over]>span{color:var(--rose-ink)}" +
+  "@media (max-width:520px){.wb-limit{top:auto!important;bottom:0;border-top:0}.wb-limit>span{top:auto;bottom:6px}}";
 
 /**
  * A front as the app's frame shows it: a whole document around the stored markup, with the kit, the
  * pictograms it names, the theme when the app gives one, and the measuring script under its nonce.
  * The stored front is never changed.
  */
-export function ideaCardDocument(front: string, opts: { title: string; theme?: "light" | "dark"; nonce: string }): string {
+export function ideaCardDocument(
+  front: string,
+  opts: { title: string; theme?: "light" | "dark"; nonce: string; /** A preview's height line: the most a desktop shows. */ limit?: number },
+): string {
   const theme = opts.theme ? ` ${THEME_ATTRIBUTE}="${opts.theme}"` : "";
+  const limit = opts.limit ? `<div class="wb-limit" aria-hidden="true" data-limit="${opts.limit}" style="top:${opts.limit}px"><span></span></div>` : "";
   return (
     `<!doctype html><html lang="en"${theme}><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">` +
-    `<title>${escapeHtml(opts.title)}</title><style>${interFace()}\n${CARD_KIT_CSS}\n${iconRules(cardIconsNamed(front))}</style></head>` +
-    `<body><main class="wb-card">\n${front}\n</main><script nonce="${opts.nonce}">${MEASURE_SCRIPT}</script></body></html>`
+    `<title>${escapeHtml(opts.title)}</title><style>${interFace()}\n${CARD_KIT_CSS}\n${iconRules(cardIconsNamed(front))}${opts.limit ? `\n${LIMIT_CSS}` : ""}</style></head>` +
+    `<body><main class="wb-card">\n${front}\n</main>${limit}<script nonce="${opts.nonce}">${MEASURE_SCRIPT}</script></body></html>`
   );
 }
 
@@ -479,7 +509,7 @@ The product concept and each outcome is a card. On the Idea screen people see it
 - **The front** (\`card_html\`) is what someone new to the team takes in within five seconds: for the concept, what the product promises, to whom, and what changes for them; for an outcome, what the users can do afterwards and the sign that they can. People do not read paragraphs here. Show it.
 - **The back** (the concept's \`concept\`, an outcome's \`description\`; Markdown) is the same idea in depth: what every agent working in the product reads first, and what a person opens More info to understand. It may say more than the front; it never says something different.
 
-The two sides change together. A call that changes one sends the other too, unchanged if it still agrees, and is refused otherwise (\`card_sides_together\`). Read both before you change either: \`products(action="get", include_card=true)\`, \`outcomes(action="get")\`. The concept's card changes with \`products(action="update")\`, which needs a product admin; an outcome's with \`outcomes(action="create")\` or \`(action="update")\`.
+The two sides change together. A call that changes one sends the other too, unchanged if it still agrees, and is refused otherwise (\`card_sides_together\`). Read both before you change either: \`products(action="get", include_card=true)\`, \`outcomes(action="get")\`. The concept's card changes with \`products(action="update_concept")\`, an outcome's with \`outcomes(action="create")\` or \`(action="update")\`; an editor may make either.
 
 ## How to draw a card
 
@@ -488,7 +518,8 @@ The two sides change together. A call that changes one sends the other too, unch
 3. **Pick one main part that shows that sentence** (the table below), and at most one or two that support it: a lede, a note, chips, a zone stating the success.
 4. **Pick one hue** for the card with \`data-hue\`; slate is for how things are today.
 5. **Write the words last, and few:** labels of two to five words, and no sentence that says what the picture already shows.
-6. **Check it against the list at the end,** and send both sides. If the response carries \`card_advice\`, fix what it names with an update.
+6. **Look at it before you write it.** \`outcomes(action="card_preview")\` (with \`kind="concept"\` for the concept) makes every check the write makes and gives you a short-lived link to the front exactly as the Idea screen shows it, with a dashed line where a desktop stops showing it and a note saying how tall it is. Open it at ${CARD_FRAMES.outcome.width} and 390 wide, light and dark: nothing below the line at ${CARD_FRAMES.outcome.width}, nothing running into anything else at either width. Fix and preview again until it fits.
+7. **Check it against the list at the end,** and send both sides. If the response carries \`card_advice\`, fix what it names with an update.
 
 ## Choose the main part from what the card says
 
@@ -506,8 +537,8 @@ The two sides change together. A call that changes one sends the other too, unch
 
 ## The room a front has
 
-- The concept's front is ${CARD_FRAMES.concept.width}px wide on a desktop and shows up to ${CARD_FRAMES.concept.max_height}px tall. An outcome's is about ${CARD_FRAMES.outcome.width}px wide beside another (${CARD_FRAMES.outcome.min_width} to ${CARD_FRAMES.outcome.max_width}px as the window allows) and shows up to ${CARD_FRAMES.outcome.max_height}px tall. A taller front scrolls inside its card, which a picture should never need: fit it.
-- On a phone both are about ${CARD_FRAMES.outcome.min_width}px wide, and the parts restack (a flow, a shift and a timeline turn vertical). Widths answer to the card, not the window, so a media query in a \`<style>\` block sees the card's width.
+- The cards stand one under another, each as wide as the page's content: ${CARD_FRAMES.concept.width}px on a desktop. Every front, the concept's and each outcome's, shows up to ${CARD_FRAMES.outcome.max_height}px tall. Take only the room the idea needs: a picture reads faster short, and a card that is mostly empty space reads as unfinished. A taller front scrolls inside its card on a desktop, which a picture should never need: fit it at ${CARD_FRAMES.outcome.width}px, and check with a preview.
+- On a phone a card is about ${CARD_FRAMES.outcome.min_width}px wide and shows its whole front, with no height limit: the parts restack (a flow, a shift and a timeline turn vertical), and the front only has to read well. Widths answer to the card, not the window, so a media query in a \`<style>\` block sees the card's width. A timeline whose times would run into each other at some width runs down instead, by itself.
 - As a rule of thumb, an outcome's front holds one main part and one supporting part; the concept's a pitch, a lede, one main part and \`wb-who\`.
 
 ## What a front is
@@ -671,7 +702,7 @@ Markdown, read by every agent that works in the product and by anyone who opens 
 - About ${FRONT_WORDS.outcome} words of text on an outcome's front, ${FRONT_WORDS.concept} on the concept's; labels of two to five words.
 - One hue, with slate for today; rose only for what hurts.
 - Every number on the front is one the back states.
-- It fits its height, and still reads at ${CARD_FRAMES.outcome.min_width}px wide.
+- Its preview at ${CARD_FRAMES.outcome.width}px ends above the dashed line, and at 390px nothing runs into anything else.
 - The back says everything the front shows, and more.
 
 A write that succeeds carries \`card_advice\` when one of these that WhatBuild can check fails: too many words, the title repeated, no kit parts, more than one hue, fixed colours, no pitch on the concept, an empty back. It is advice, not a refusal: fix what it names with an update.

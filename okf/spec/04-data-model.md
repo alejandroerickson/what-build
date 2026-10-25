@@ -144,8 +144,14 @@ offers no editor.
 - **How it is shown.** `GET P/idea/concept/card` and `GET P/outcomes/:outcome_id/card` (viewer and
   above; `?theme=light|dark`) serve the front in a document with the kit, the pictograms it names,
   the app's typeface and the theme, under `sandbox allow-scripts` and a policy that runs only
-  WhatBuild's one script by its nonce: it tells the app the card's height. The stored front is
-  never changed. A card with no front answers 404.
+  WhatBuild's one script by its nonce: it runs a timeline down instead of across where its times
+  would run into each other, and tells the app the card's height. The stored front is never
+  changed. A card with no front answers 404.
+- **Before it is written**, an agent previews a front with `outcomes.card_preview`: the same
+  document, from `card_previews`, with a dashed line where a desktop stops showing it
+  ([§6](06-operations-and-adapters.md)).
+- **Who writes it**: an outcome's card with `outcomes.create` and `outcomes.update`, the concept's
+  with `products.update_concept`, by editors and admins.
 - **Revisions** keep both sides: an outcome's `{ title, description, card_html }`, the product's
   `{ concept, card_html }`.
 
@@ -1065,6 +1071,11 @@ activity.jsonl
   `t/<tenant_id>/exports/<export_id>.zip` for exports. Keys never encode titles, tags or any other
   metadata, so no metadata change ever moves bytes, and a key names its tenant. A copied source shares its
   original's attachment blobs; delete frees a blob only when no file version still refers to it.
+- **Card previews** ([`0033_card_previews.sql`](../../apps/server/src/migrations/0033_card_previews.sql)):
+  `card_previews` holds each front `outcomes.card_preview` checked (`preview_id`, the product,
+  `kind`, `title`, `card_html`, `created_by`, `expires_at`), with the row-level security policy.
+  Nothing refers to a row; the grant names it, and it goes when the grant expires (§4.11), when its
+  product or organization is deleted, and at a sandbox reset.
 - **Story previews** ([`0024_story_previews.sql`](../../apps/server/src/migrations/0024_story_previews.sql)):
   `story_previews` holds each document `story.preview` made (`preview_id`, the product, `page_id`,
   `html`, `shows_mockup`, `created_by`, `expires_at`), with the row-level security policy. Nothing
