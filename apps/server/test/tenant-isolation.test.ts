@@ -84,6 +84,7 @@ const SCOPED: Record<string, Probe> = {
   "outcomes.revisions": { input: (a) => ({ outcome_id: a.outcome.id }) },
   "outcomes.get_revision": { input: (a) => ({ outcome_id: a.outcome.id, n: 1 }) },
   "outcomes.restore_revision": { input: (a) => ({ outcome_id: a.outcome.id, n: 1, expected_etag: a.outcome.etag }) },
+  "outcomes.card_guidance": { input: () => ({}) },
   "sources.facets": { input: () => ({ include_archived: true }) },
   "sources.list": {
     input: () => ({ include_archived: true }),

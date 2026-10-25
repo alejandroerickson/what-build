@@ -14,3 +14,10 @@ export const STORY_PAGE_SANDBOX = "allow-scripts allow-popups allow-popups-to-es
  * `form-action 'none'`.
  */
 export const MOCKUP_PAGE_SANDBOX = "allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox";
+
+/**
+ * An Idea card's front: scripts, for the one script WhatBuild adds (it tells the app how tall the
+ * card is). The card's own HTML holds none, and every response that serves a card runs only that
+ * script, by its nonce. No popups and no forms: a card is a picture.
+ */
+export const IDEA_CARD_SANDBOX = "allow-scripts";

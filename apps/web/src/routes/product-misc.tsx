@@ -9,7 +9,7 @@ import { ActivityFeed, ENTITY_LABEL, useActivity, type ActivityFilter } from "..
 import { usePageTitle } from "../shell/slots.tsx";
 import {
   Avatar, Button, Callout, CopyField, Dialog, ErrorCallout, FormGrid, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio,
-  MenuSeparator, Segmented, SelectField, Sheet, SheetBody, SheetHeader, StatusBadge, TextArea, TextField, useToast,
+  MenuSeparator, Segmented, SelectField, Sheet, SheetBody, SheetHeader, StatusBadge, TextField, useToast,
 } from "../ui/index.tsx";
 import { DeleteDialog, listed } from "./delete-dialog.tsx";
 import "../styles/screens/activity.css";
@@ -133,17 +133,15 @@ function ProductDetails() {
   const navigate = useNavigate();
   const [name, setName] = useState(product.name);
   const [slug, setSlug] = useState(product.slug);
-  const [concept, setConcept] = useState(product.concept ?? "");
   const archived = Boolean(product.archived_at);
   const editable = isAdmin && !archived;
-  const dirty = name !== product.name || slug !== product.slug || concept !== (product.concept ?? "");
+  const dirty = name !== product.name || slug !== product.slug;
   const save = useMutation({
     mutationFn: () =>
       api<{ path: string }>("PATCH", base, {
         expected_etag: product.etag,
         ...(name !== product.name ? { name } : {}),
         ...(slug !== product.slug ? { slug } : {}),
-        ...(concept !== (product.concept ?? "") ? { concept } : {}),
       }),
     onSuccess: (p) => {
       toast("Saved.");
@@ -185,15 +183,6 @@ function ProductDetails() {
           spellCheck={false}
         />
         <TextField label="Team" value={`${product.team.name} · ${product.tenant.name}`} readOnly />
-        <TextArea
-          label="Product concept"
-          hint={editable ? "Who it’s for, their problem, and how the product solves it." : undefined}
-          value={concept}
-          onChange={(e) => setConcept(e.target.value)}
-          readOnly={!editable}
-          maxLength={2000}
-          rows={3}
-        />
       </FormGrid>
       {save.isError ? (
         <div className="settings-note">
@@ -217,7 +206,6 @@ function ProductDetails() {
               onClick={() => {
                 setName(product.name);
                 setSlug(product.slug);
-                setConcept(product.concept ?? "");
                 save.reset();
               }}
             >

@@ -4,9 +4,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { Navigate, useNavigate, useParams, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
 import { useProduct } from "../lib/session.tsx";
-import { useTheme } from "../shell/theme.ts";
+import { useScheme } from "../shell/theme.ts";
 import { Inspector, usePageTitle } from "../shell/slots.tsx";
-import { useMediaQuery } from "../ui/media.ts";
 import { Button, ButtonLink, Callout, Crumbs, EmptyState, ErrorCallout, Loading, Sheet } from "../ui/index.tsx";
 import { FirstUse } from "./first-use.tsx";
 import { DeletePage, useArchiveActions, type PageActions, type PageRef } from "./story-actions.tsx";
@@ -19,16 +18,8 @@ import { StyleDialog, styleLine, useStoryStyle } from "./story-style.tsx";
 import { StoryTree, useArrange } from "./story-tree.tsx";
 import "../styles/screens/story.css";
 
-/**
- * The app's resolved theme. The frame asks the server for the page with ?theme=, which marks the
- * page's <html> so the guidance stylesheet follows the app, not only the system (browsers ignore an
- * iframe's color-scheme for a page's prefers-color-scheme). Pages with older stylesheets follow the system.
- */
-function useScheme(): "light" | "dark" {
-  const [choice] = useTheme();
-  const systemDark = useMediaQuery("(prefers-color-scheme: dark)");
-  return choice === "system" ? (systemDark ? "dark" : "light") : choice;
-}
+// The frame asks the server for the page with ?theme= (useScheme), which marks the page's <html> so
+// the guidance stylesheet follows the app, not only the system. Pages with older stylesheets follow the system.
 
 /**
  * The page in its sandbox. Until the frame has its document, skeleton lines stand in for the page,

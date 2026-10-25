@@ -23,7 +23,30 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **Migration `0032_idea_cards`.** It adds an empty `card_html` to every product and outcome, the
+  front of its card. Nothing is dropped and no text changes, and an earlier release runs on the new
+  schema (the columns have a default), so going back needs no restore; fronts drawn in between are
+  kept and shown again on going forward. Rehearse on the dev deployment first, as for every release
+  that migrates ([dev-deployment](dev-deployment.md)).
+- **People will notice that Idea changed, and no longer edits.** The product concept and each
+  outcome is a card: a picture, which agents draw, under the card's title, and the text agents
+  read, which More info opens above the picture. The New outcome button, editing an outcome or the
+  concept on Idea, and the concept field in product Settings are gone; agents write both sides.
+  Outcomes are put in order by dragging them (or with the keyboard), and Earlier versions is no
+  longer in an outcome's menu; agents still read and restore them.
+  Until an agent draws a picture, each card opens on its text, with a request to copy for an
+  agent, so every product reads as before. Tell the teams on a deployment, and ask each team's agent to draw
+  its cards ([decision](../decisions/idea-cards-have-a-front-for-people-and-a-back-for-agents.md)).
+- **Agents and integrations must send both sides of a card.** `outcomes(action="update")` or
+  `products(action="update")` that changes an outcome's `description` or the `concept` without
+  sending `card_html`, once the card has a front, is refused (`422 card_sides_together`), and so is
+  one that changes `card_html` alone. `outcomes(action="list")` now gives `card_chars` in place of
+  the front. A new action, `outcomes(action="card_guidance")`, teaches how to draw a card. A write
+  that touches a card may return `card_advice`, and `outcomes(action="list")` and
+  `products(action="get")` say in `note` which cards have no front yet.
+- **The skill is 0.34.0.** Connected agents are asked to update their installed skill. It teaches
+  the two sides of a card, the card kit, and to read `card_advice`. An agent whose client connected before the upgrade
+  lacks `card_guidance` until it starts a new session.
 
 ## v0.16.0
 

@@ -247,7 +247,8 @@ and its product concept.
 | `product_id` | ULID, immutable. |
 | `slug` | 3–50 chars, unique in the team. Mutable. |
 | `name` | 1–100 chars. |
-| `concept` | The product concept: Markdown, ≤ 2,000 chars, heads the Idea screen; overwrites keep revisions. |
+| `concept` | The back of the product concept's card, for agents: Markdown, ≤ 8,000 chars, on who the product is for, their problem and how it solves it; overwrites keep revisions ([§4.2.1](04-data-model.md)). |
+| `card_html` | The front of the product concept's card, for people: agent-written HTML in the card kit, ≤ 40,000 chars, empty until drawn; heads the Idea screen ([§4.2.1](04-data-model.md)). |
 | `archived_at` | Archived products are hidden from lists and read-only (`409 product_archived`) until restored. |
 
 A product is addressed as `tenant/team/product` (slugs or ids at each level) or by `product_id`.

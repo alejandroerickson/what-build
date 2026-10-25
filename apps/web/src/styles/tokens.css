@@ -101,6 +101,10 @@
   --dur-1: 120ms; /* small state changes: carets, hovers, menus */
   --dur-2: 160ms; /* toasts, dialogs */
   --dur-3: 200ms; /* panels, the inspector, the canvas */
+  --dur-4: 320ms; /* layout that moves what is below it: an Idea card's text unfolding */
+  /* For layout that moves what is below it: a gentle start, so the move reads instead of jumping,
+     then the long settle of the shared ease. */
+  --ease-fold: cubic-bezier(0.2, 0, 0, 1);
 }
 
 /* Light (default) */

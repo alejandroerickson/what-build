@@ -26,7 +26,9 @@ how it ends: outcomes are the compass, they cite nothing, and they are current o
 
 - The first L1 destination is **Idea**. It holds the **product concept** and the **outcomes**.
 - The **product concept** is a product's `concept` field: who the product is for, the problem they
-  have, and how the product solves it.
+  have, and how the product solves it. Since 2026-10-24 the concept and each outcome is a card whose
+  front is a picture for people and whose back is this text, for agents
+  ([decision](idea-cards-have-a-front-for-people-and-a-back-for-agents.md)).
 - An **outcome** is what the product's users should be able to achieve with it, written from their
   side ("The crew lead plans next week in minutes"). It is not a feature, a task, a business metric
   or a goal of the discovery itself. Questions the discovery must answer belong in assumptions.
@@ -34,8 +36,8 @@ how it ends: outcomes are the compass, they cite nothing, and they are current o
   them and are read against them. Agents read them first, at the start of any work in a product.
   They change when the person changes what the product is for, not when evidence arrives; an
   agent whose evidence challenges one proposes new wording to the person.
-- **An outcome cites nothing.** Its title says what the users achieve; its description, what
-  success looks like for them. Neither retells evidence or names sources, calls, dates, people
+- **An outcome cites nothing.** Its title says what the users achieve; its description and its
+  card's front, what success looks like for them. None retells evidence or names sources, calls, dates, people
   who asked, assumptions or mockups, and the server refuses an outcome whose text holds a record
   id. References run one way: assumptions point at outcomes (`outcome_ids`). The Idea screen shows no links or counts from an outcome to
   what serves it; the assumptions list filters by outcome.

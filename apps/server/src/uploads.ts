@@ -37,6 +37,29 @@ async function grantContext(env: Env, trx: Tx, productId: string, actor: ActorSn
 }
 
 /**
+ * A request body for a blob store, which stops reading at the grant's limit. What the sender still
+ * sends is then read and dropped, so their connection can take their next request: the Node
+ * adapter drains an unread body itself, but not one a reader has begun, and resets the connection
+ * half a second after the response instead, under a client that may already be sending on it.
+ */
+function relayed(body: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
+  const reader = body.getReader();
+  return new ReadableStream({
+    async pull(c) {
+      const { done, value } = await reader.read();
+      if (done) c.close();
+      else c.enqueue(value);
+    },
+    cancel() {
+      // Not awaited: the refusal goes out at once, and the adapter's own limits on draining still apply.
+      void (async () => {
+        while (!(await reader.read()).done);
+      })().catch(() => {});
+    },
+  });
+}
+
+/**
  * The upload relay: agents' bytes arrive on the service's own host, because an agent's sandbox can
  * often reach the service but not the object store. The grant in the header is the only credential
  * here; identity headers and cookies are ignored. The file is attributed to whoever requested the
@@ -88,7 +111,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
         throw tooLarge(`The file is ${bytes(Number(declared))} bytes; this upload route takes at most ${bytes(max)}.${env.ports.blobs.signedUploadUrl ? " Use the grant's `direct` URL for larger files." : ""}`, { limit: max });
       const body = c.req.raw.body;
       if (!body) throw new AppError(400, "empty_body", "Send the file's bytes as the request body.");
-      const stored = await env.ports.blobs.putStream(grant.blob_key!, body, { contentType: grant.media_type ?? "application/octet-stream", maxBytes: max });
+      const stored = await env.ports.blobs.putStream(grant.blob_key!, relayed(body), { contentType: grant.media_type ?? "application/octet-stream", maxBytes: max });
       const enqueued = { value: false };
       const entry = await inTenant(env, tenantId, async (trx) => {
         await lockSandbox(trx, tenantId, "shared");
@@ -125,7 +148,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       if (declared !== undefined && Number(declared) > max) throw tooLarge(`The ZIP is ${bytes(Number(declared))} bytes; a canvas's ZIP is at most ${bytes(max)}.`, { limit: max });
       const body = c.req.raw.body;
       if (!body) throw new AppError(400, "empty_body", "Send the ZIP's bytes as the request body.");
-      const stored = await env.ports.blobs.putStream(upload.blob_key, body, { contentType: "application/zip", maxBytes: max });
+      const stored = await env.ports.blobs.putStream(upload.blob_key, relayed(body), { contentType: "application/zip", maxBytes: max });
       await inTenant(env, tenantId, (trx) => trx.updateTable("mockup_uploads").set({ uploaded_at: new Date().toISOString(), size: stored.size, sha256: stored.sha256 }).where("upload_id", "=", upload.upload_id).execute());
       return c.json({ uploaded: true, upload_id: upload.upload_id, size: stored.size, sha256: stored.sha256, next: 'Received. Now call mockups(action="publish") with upload_id, and mockup_id with expected_etag for a later version. The ZIP is checked then; nothing is published until that call succeeds.' }, 201);
     } catch (e) {
