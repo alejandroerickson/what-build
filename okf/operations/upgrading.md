@@ -29,8 +29,9 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   refused with `403 sandbox_needs_its_own_connector`, which changes nothing and names the address
   to add instead, `/mcp/t/<sandbox>`; the sandbox's page, Connect an agent and the page behind an
   invitation give it too. Through `/mcp`, `products(action="list")` no longer lists the sandbox's
-  products and teams, only its name and that address, under `public_sandboxes`. Download and upload
-  grants an agent was given through `/mcp` before the release keep working until they expire. The
+  products and teams, only its name and that address, under `public_sandboxes`. Upload grants an
+  agent was given through `/mcp` before the release keep working until they expire; download grants
+  given before the release stop at once, since every download grant now names its requester. The
   skill is now at version 0.37.0; agents fetch it again as the server's instructions tell them.
 - **People are emailed when a new agent connects as them.** It concerns every deployment that
   sends mail, and asks nothing of it. From this release the worker sends one message for each new
