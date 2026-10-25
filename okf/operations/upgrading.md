@@ -25,6 +25,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 Nothing yet.
 
+## v0.18.1
+
+- **A request's log line names its request.** v0.18.0 put `request_id` on an unexpected error's
+  line but not on the request's own line, so a search for `jsonPayload.request_id` found only the
+  error. Both carry it now. Nothing to do.
+
 ## v0.18.0
 
 - **An unexpected error is one log line, and every response names its request.** It concerns

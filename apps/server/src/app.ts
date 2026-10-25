@@ -192,7 +192,7 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; cl
         if (c.res.status >= 500) span.setStatus({ code: SpanStatusCode.ERROR });
       }
       if (deps.config.env !== "test" && !c.req.path.startsWith("/assets/") && !(c.req.path.startsWith("/prototypes/") && c.res.status < 400))
-        console.log(JSON.stringify({ at: new Date().toISOString(), method: c.req.method, path, status: c.res.status, ms: Date.now() - started, ...requestFields(span) }));
+        console.log(JSON.stringify({ at: new Date().toISOString(), method: c.req.method, path, status: c.res.status, ms: Date.now() - started, ...requestFields(span, id) }));
     };
     if (quiet) return respond();
     return tracer.startActiveSpan(c.req.method, { kind: SpanKind.SERVER, root: true, attributes: { "http.request.method": c.req.method } }, (span) => respond(span).finally(() => span.end()));

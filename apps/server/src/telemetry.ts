@@ -103,9 +103,11 @@ export function withRequestId<T>(id: string, fn: () => Promise<T>): Promise<T> {
   return request.run({ id }, fn);
 }
 
-/** What a log line adds to name its request and, when traces go to Google, its trace, which Cloud Logging links to. */
-export function requestFields(span: Span | undefined = trace.getActiveSpan()): Record<string, string | boolean> {
-  const id = request.getStore()?.id;
+/**
+ * What a log line adds to name its request and, when traces go to Google, its trace, which Cloud
+ * Logging links to. The request's own line, written once its handlers are done, passes its ID.
+ */
+export function requestFields(span: Span | undefined = trace.getActiveSpan(), id: string | undefined = request.getStore()?.id): Record<string, string | boolean> {
   const ctx = span?.spanContext();
   const traced = ctx && isSpanContextValid(ctx) && span!.isRecording();
   return {
