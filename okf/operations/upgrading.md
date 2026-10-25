@@ -29,10 +29,18 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   `cloudbuild.yaml` fails at once on this release's tag and deploys nothing, and the release
   running now keeps serving:
 
+  A trigger on a GitHub connection, as production's is, refuses
+  `gcloud builds triggers update github … --build-config` with `INVALID_ARGUMENT`. Rewrite its
+  definition instead, which keeps every other setting, and check that only `filename` changed:
+
   ```bash
-  gcloud builds triggers update github deploy-release --project $P --region $R \
-    --build-config deploy/cloud-run/cloudbuild.yaml
+  gcloud builds triggers describe deploy-release --project $P --region $R --format=yaml > before.yaml
+  sed 's#^filename: cloudbuild.yaml$#filename: deploy/cloud-run/cloudbuild.yaml#' before.yaml > after.yaml
+  gcloud builds triggers import --project $P --region $R --source after.yaml
+  gcloud builds triggers describe deploy-release --project $P --region $R --format=yaml | diff before.yaml -
   ```
+
+  `--format='value(filename)'` on the same `describe` says which path a trigger runs now.
 
   A deploy by hand passes `--config deploy/cloud-run/cloudbuild.yaml` ([Cloud Run](cloud-run.md)).
   Going back by running an earlier image ([recovering](recovering-from-a-bad-release.md)) needs
