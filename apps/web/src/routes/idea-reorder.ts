@@ -195,7 +195,7 @@ export function useReorder({ ids, version, enabled, titleOf, onPlace }: ReorderO
     d.el.removeEventListener("pointercancel", listen.cancel);
     window.removeEventListener("keydown", listen.escape, true);
     if (d.el.hasPointerCapture(d.pointerId)) d.el.releasePointerCapture(d.pointerId);
-    document.documentElement.classList.remove("is-dragging-card");
+    document.documentElement.classList.remove("is-holding-card", "is-dragging-card");
     if (!d.active) return;
     suppressClick.current = true;
     setTimeout(() => (suppressClick.current = false), 0);
@@ -288,6 +288,9 @@ export function useReorder({ ids, version, enabled, titleOf, onPlace }: ReorderO
     const r = card.getBoundingClientRect();
     const el = e.currentTarget;
     el.setPointerCapture(e.pointerId);
+    // A card's picture is a frame of its own, which takes the pointer's moves while over it,
+    // captured or not: while a card is held, no frame does.
+    document.documentElement.classList.add("is-holding-card");
     drag.current = { id, el, pointerId: e.pointerId, x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, grabX: e.clientX - r.left, grabY: e.clientY - r.top, active: false, start: orderRef.current };
     el.addEventListener("pointermove", listen.move);
     el.addEventListener("pointerup", listen.up);

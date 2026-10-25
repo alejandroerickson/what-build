@@ -41,7 +41,7 @@ interface Outcome {
  */
 const ROOM = {
   concept: { min: 200, max: 560, start: 340 },
-  outcome: { min: 160, max: 380, start: 260 },
+  outcome: { min: 160, max: 560, start: 260 },
 } as const;
 
 /**

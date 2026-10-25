@@ -43,7 +43,7 @@ beforeAll(async () => {
 
   // Something of every kind a bundle holds, and an earlier text of each kind that keeps one.
   const product = await alice.api("GET", P);
-  expect((await alice.api("PATCH", P, { expected_etag: product.body.etag, concept: "Plan the week in ten minutes." })).status).toBe(200);
+  expect((await alice.api("PATCH", `${P}/idea/concept`, { expected_etag: product.body.etag, concept: "Plan the week in ten minutes." })).status).toBe(200);
   const o = await alice.api("POST", `${P}/outcomes`, { title: "Plan the week" });
   expect((await alice.api("PATCH", `${P}/outcomes/${o.body.outcome_id}`, { expected_etag: o.body.etag, title: "Plan the week in ten minutes" })).status).toBe(200);
   const created = await alice.api("POST", `${P}/sources/with-upload`, { title: "Sample crew call", tags: ["call"], path: "call.md" });

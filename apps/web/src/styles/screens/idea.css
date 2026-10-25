@@ -306,13 +306,12 @@
   color: var(--faint);
   font-weight: var(--fw-regular);
 }
-/* Every outcome's card is one column wide, in the outcomes' order, and as tall as its own picture
-   and text: opening one never stretches its neighbour. */
+/* The outcomes' cards stack in one column, in order, each as wide as the concept's and as tall as
+   its own picture and text, so cards of different heights never leave a gap beside each other. */
 .idea-grid {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--s-4);
   margin: 0;
   padding: 0;
@@ -343,6 +342,11 @@
 .idea-card.is-dragging .idea-card-head,
 .idea-card.is-dragging .idea-card-grip {
   cursor: grabbing;
+}
+/* While a card is held, its picture and the others' let the pointer through: a frame would take
+   the pointer's moves while over it, and the drag would stall. */
+:root.is-holding-card .idea-card-frame {
+  pointer-events: none;
 }
 :root.is-dragging-card,
 :root.is-dragging-card * {

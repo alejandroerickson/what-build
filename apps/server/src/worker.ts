@@ -183,10 +183,11 @@ export class Worker {
         if (zip) for (const key of stagedPrototypeKeys(tenant_id, u.product_id, u.upload_id, zip)) await this.env.ports.blobs.delete(key).catch(() => undefined);
         await this.env.ports.blobs.delete(u.blob_key).catch(() => undefined);
       }
-      // A Story preview goes once its grant has expired.
+      // A Story or card preview goes once its grant has expired.
       await this.env.db.transaction().execute(async (trx) => {
         await sql`select set_config('app.tenant_id', ${tenant_id}, true)`.execute(trx);
         await trx.deleteFrom("story_previews").where("expires_at", "<", new Date().toISOString()).execute();
+        await trx.deleteFrom("card_previews").where("expires_at", "<", new Date().toISOString()).execute();
       });
     }
   }
