@@ -181,3 +181,77 @@ describe("a job whose last attempt fails as a later version's migration is recor
     expect(await exported()).toMatchObject({ status: "failed", error: "the store refused the bundle" });
   });
 });
+
+describe("a worker started to sleep when idle", () => {
+  const until = async (done: () => Promise<boolean> | boolean, ms = 5000) => {
+    for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 20))) if (await done()) return;
+    throw new Error("timed out");
+  };
+  const queue = async (runAfter = "now()") =>
+    (
+      await sql<{ job_id: number }>`
+        insert into jobs (tenant_id, kind, payload, run_after) values (${tenantId}, 'delete_blobs', '{"keys":[],"prefixes":[]}'::jsonb, ${sql.raw(runAfter)})
+        returning job_id`.execute(h.db)
+    ).rows[0]!.job_id;
+  const isDone = async (id: number) => (await sql<{ done: boolean }>`select done_at is not null as done from jobs where job_id = ${id}`.execute(h.db)).rows[0]!.done;
+  const worker = () => new Worker({ db: h.db, ports: createPorts(h.config, h.blobs, h.mailer, () => undefined) }, 20, () => {});
+
+  it("stops looking at the queue once idle, and looks again at the next request", async () => {
+    const w = worker();
+    w.start({ idleMs: 100 });
+    try {
+      await until(() => w.sleeping);
+      // A job nothing announced, as one an instance left when it stopped: a sleeping worker does not see it.
+      const id = await queue();
+      await new Promise((r) => setTimeout(r, 300));
+      expect(await isDone(id)).toBe(false);
+      expect(w.sleeping).toBe(true);
+      w.nudge();
+      expect(w.sleeping).toBe(false);
+      await until(() => isDone(id));
+      // And sleeps again once that is idle too.
+      await until(() => w.sleeping);
+    } finally {
+      w.stop();
+    }
+  });
+
+  it("wakes by itself when a job it could take falls due, such as a retry", async () => {
+    const id = await queue("now() + interval '700 milliseconds'");
+    const w = worker();
+    w.start({ idleMs: 50 });
+    try {
+      await until(() => w.sleeping, 600);
+      expect(await isDone(id)).toBe(false);
+      await until(() => isDone(id));
+    } finally {
+      w.stop();
+    }
+  });
+
+  it("runs a job a commit announces at once, sleeping or not", async () => {
+    const w = worker();
+    w.start({ idleMs: 50 });
+    try {
+      await until(() => w.sleeping);
+      const id = await queue();
+      w.wake();
+      await until(() => isDone(id), 1000);
+    } finally {
+      w.stop();
+    }
+  });
+
+  it("never sleeps when started without, as the worker command starts it", async () => {
+    const w = worker();
+    w.start();
+    try {
+      await new Promise((r) => setTimeout(r, 300));
+      expect(w.sleeping).toBe(false);
+      const id = await queue();
+      await until(() => isDone(id), 1000);
+    } finally {
+      w.stop();
+    }
+  });
+});

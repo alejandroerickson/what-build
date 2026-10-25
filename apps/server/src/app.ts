@@ -159,7 +159,11 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
 }
 
 /** One application: static web app, REST, MCP, OAuth and the upload relay on one origin, and the public site on its own host. */
-export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; clock?: SandboxClock; release?: Release }) {
+/**
+ * `onRequest` is called for every request to the API, MCP or sign-in, before it is served: the
+ * service passes its worker's `nudge`, so a sleeping worker looks at the queue again.
+ */
+export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; clock?: SandboxClock; release?: Release; onRequest?: () => void }) {
   const env: Env & { config: ServerConfig } = { db: deps.db, ports: deps.ports, config: deps.config };
   const clock = deps.clock ?? new SandboxClock(env, deps.config.env === "test" ? () => {} : undefined);
   const release = deps.release ?? RELEASE;
@@ -215,10 +219,14 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; cl
   app.use("*", refuseNullCharacters());
 
   // A public sandbox's overdue reset runs before the request that finds it, so nobody is served
-  // what its hour should have erased.
+  // what its hour should have erased. The same requests wake a sleeping worker; the app's pages and
+  // static files do not.
   app.use("*", async (c, next) => {
     const p = c.req.path;
-    if (p.startsWith("/api/") || p.startsWith("/mcp") || p.startsWith("/auth/")) await clock.resetIfDue().catch((e) => console.error("sandbox reset:", e));
+    if (p.startsWith("/api/") || p.startsWith("/mcp") || p.startsWith("/auth/")) {
+      deps.onRequest?.();
+      await clock.resetIfDue().catch((e) => console.error("sandbox reset:", e));
+    }
     return next();
   });
 

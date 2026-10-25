@@ -8,6 +8,13 @@ import { seed } from "./seed.ts";
 import { Worker } from "./worker.ts";
 
 /**
+ * How long the service's worker keeps looking at the queue after the last request or job before it
+ * sleeps: longer than a failed job's first three waits before it is tried again (10, 20 and 40
+ * seconds), and far shorter than the five idle minutes after which Neon suspends the database.
+ */
+const WORKER_IDLE_MS = 60_000;
+
+/**
  * whatbuild <command>
  *   serve     HTTP (web app, REST, MCP) plus the job worker unless WHATBUILD_WORKER=0
  *   worker    the job worker only
@@ -55,19 +62,17 @@ async function main() {
   if (command !== "serve") throw new Error(`Unknown command ${command}. Use serve, worker, migrate or seed.`);
 
   await syncSandboxTenant(db, config.sandboxTenant);
+  // A reset that is due runs before the request that finds it, and a scheduler may wake the service
+  // at the hour; no timer looks between requests, so the database can sleep while the instance is up.
   const clock = new SandboxClock({ db, ports });
-  // While an instance is alive it looks every minute; a request looks too, so a sleeping service loses nothing.
-  const ticking = setInterval(() => void clock.resetIfDue().catch((e) => console.error("sandbox reset:", e)), 60_000);
-  ticking.unref();
 
-  if (config.runWorker) worker.start();
-  const app = createApp({ db, ports, config, clock });
+  if (config.runWorker) worker.start({ idleMs: WORKER_IDLE_MS });
+  const app = createApp({ db, ports, config, clock, onRequest: config.runWorker ? () => worker?.nudge() : undefined });
   const server = serve({ fetch: app.fetch, port: config.port, hostname: "0.0.0.0" }, (info) => {
     console.log(`WhatBuild listening on :${info.port} (public URL ${config.publicBaseUrl})`);
   });
   const shutdown = () => {
     worker?.stop();
-    clearInterval(ticking);
     // The calls already answered are counted before the database goes.
     server.close(() => void usageSettled().then(() => pool.end()).then(() => process.exit(0)));
     setTimeout(() => process.exit(0), 8000).unref();

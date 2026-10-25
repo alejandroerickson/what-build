@@ -596,11 +596,11 @@ service scales to nothing, so no timer can promise the hour. Instead:
 
 - every request to the API, MCP or sign-in first runs a reset that is due, so nobody is served what
   the hour should have erased;
-- an instance that is awake looks every minute;
 - a scheduler may call `POST /api/v1/sandbox/reset-if-due` at the hour, so that what visitors
   added does not sit until the next visit ([Cloud Run](../operations/cloud-run.md)).
 
-An instance trusts what it last read about the schedule for at most 30 seconds. A reset that fails
+Nothing looks between requests, so the database can sleep while an instance is up. An instance
+trusts what it last read about the schedule for at most 30 seconds. A reset that fails
 is logged and tried again at the next request; it never stops the request.
 
 **Deleting in a sandbox.** A visitor cannot delete permanently: deleting needs admin, which a

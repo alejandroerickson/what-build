@@ -3,7 +3,7 @@ type: Process
 title: What a deployment must do when it takes a release
 description: The changes a release asks of the people who run a deployment (settings, app registrations, behaviour they will notice), kept per release, with the unreleased ones on top until the next release carries them into its notes.
 tags: [operations, releases, upgrading, self-hosting, configuration]
-generated: {by: agent:claude, at: 2026-10-24}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -24,6 +24,23 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 ## Unreleased
 
 Nothing yet.
+
+## v0.17.2
+
+- **The worker sleeps between requests, so the database can too.** It concerns every deployment
+  that runs `serve` with its worker, and asks nothing of it. A minute after the last request to the
+  API, MCP or sign-in, or the last job, the worker stops polling the job queue, and nothing else
+  queries the database until the next such request, a commit that queues work, or a retry falling
+  due. A database that suspends when idle, as Neon's does after five minutes, then sleeps while
+  the instance stays up. A job an instance left when it stopped is still taken once its lock is
+  ten minutes old if an instance is up then, and otherwise at the next request. A public sandbox's scheduled reset runs at the first request after its hour, or when
+  a scheduler calls `POST /api/v1/sandbox/reset-if-due` (Cloud Run's `setup.sh` creates one), but
+  no longer at a minute's tick while an instance is up. A deployment that runs `worker` on its own
+  keeps polling.
+- **Behind Cloudflare, deploy the Worker again** (`deploy/cloudflare/`, as
+  [Cloud Run](cloud-run.md) says). It now answers 404 itself for paths the app never serves, which
+  scanners ask for (`/.env`, `/.git/config`, `/xmlrpc.php` and the like), so they no longer wake
+  the service and its database. Until it is deployed, those paths reach the service as before.
 
 ## v0.17.1
 

@@ -31,8 +31,8 @@ export async function syncSandboxTenant(db: Db, slug: string | null, log: (m: st
 /**
  * Runs a sandbox's scheduled reset once its hour has passed. The service scales to nothing, so no
  * timer can promise the hour: instead the first request after it runs the reset before it is
- * served, the worker's instance checks every minute while it is alive, and a scheduler may call
- * `POST /api/v1/sandbox/reset-if-due` to wake an instance at the hour.
+ * served, and a scheduler may call `POST /api/v1/sandbox/reset-if-due` to wake an instance at the
+ * hour. Nothing looks between requests, so the database can sleep while an instance is up.
  */
 export class SandboxClock {
   private nextCheck = 0;

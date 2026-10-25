@@ -2,7 +2,8 @@
 //
 // The public site is served here, from the built web app (apps/web/dist), so nothing that visits
 // it, crawlers included, wakes the service; only a request to hear from us is passed on. The app's
-// own domain is passed on whole. Cloud Run picks the service by the Host header, which only
+// own domain is passed on whole, but for paths it never serves, which scanners probe and which are
+// answered here. Cloud Run picks the service by the Host header, which only
 // Cloudflare Enterprise can rewrite, so each request goes to the service's run.app name and the
 // domain the browser asked for travels in X-Forwarded-Host. Cookies, redirects and streamed
 // responses pass through untouched. See okf/operations/cloud-run.md, "A custom domain".
@@ -15,6 +16,15 @@
 
 /** The site's own paths. Every other path on its domain belongs to the app. */
 const SITE_FILES = /^\/(assets\/.+|favicon\.svg|theme-boot\.js)$/;
+
+/**
+ * Paths the app never serves, which scanners ask for by the hundred: a first part that is a dotfile
+ * (/.env, /.git/config) other than /.well-known, or a file of a type no WhatBuild has at its root
+ * (/xmlrpc.php, /info.php.bak, /service-account.json). An organization's name, the only other first
+ * part, has no dot, and the app's own root files are .svg, .js, .md and .zip. Answered here, they
+ * never wake the service or its database.
+ */
+const NOT_THE_APPS = /^\/(?:\.(?!well-known(?:\/|$))|[^/]*\.(?:php\d*|phtml|aspx?|jsp|cgi|env|ini|bak|old|save|orig|swp|sql|json|ya?ml|log|conf|config)(?:[.~][^/]*)?(?:\/|$))/i;
 
 /**
  * The server's headers for its pages (PAGE_SECURITY_HEADERS in apps/server/src/public-routes.ts,
@@ -91,8 +101,10 @@ export default {
       return Response.redirect(`${env.APP_URL}${url.pathname}${url.search}`, 302);
     }
 
-    // The app. Its hashed files are the same wherever they are served, so take them from here when
-    // this deployment has them, and from the service when it does not (a newer build).
+    // The app.
+    if (NOT_THE_APPS.test(url.pathname)) return new Response("Not found", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8", ...PAGE_HEADERS } });
+    // Its hashed files are the same wherever they are served, so take them from here when this
+    // deployment has them, and from the service when it does not (a newer build).
     if (url.pathname.startsWith("/assets/") && read) {
       const file = await env.ASSETS.fetch(request);
       if (file.status === 200) return file;

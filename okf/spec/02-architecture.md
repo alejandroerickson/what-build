@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-10-24}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -84,7 +84,12 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
   in-process caches of tenant data. MCP runs in stateless mode with no session affinity.
 - **The worker ships in the same image** and polls the Postgres queue; a commit that enqueues work
   also wakes it. `serve` runs HTTP and the worker in one process unless `WHATBUILD_WORKER=0`;
-  `worker` runs the worker alone. Splitting them is a configuration change, not a code change.
+  `worker` runs the worker alone. Under `serve` the worker sleeps a minute after the last request
+  to the API, MCP or sign-in, or the last job: it stops polling, so a database that suspends when
+  no query comes can while the instance stays up, and looks again at the next such request, at a
+  commit that enqueues work, and when the next job it could take falls due (a retry's `run_after`,
+  or a lock gone stale), or, if no instance is up then, at the next request.
+  `worker` polls for good. Splitting them is a configuration change, not a code change.
   A worker claims only the kinds of job its version runs (`JOB_KINDS` in
   `apps/server/src/worker.ts`), so while a release rolls out, an instance of the version before it
   leaves a kind the new version's migration queued, without spending its attempts. Nor does it take

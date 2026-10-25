@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
 description: What the production deployment is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, cost, names, and useful commands; backups and the dev deployment have guides of their own.
 tags: [operations, deployment, cloud-run, gcp]
-generated: {by: agent:claude, at: 2026-10-24}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -292,7 +292,7 @@ tells them apart by Host. Put them in front of the service one of three ways:
   custom domains `example.com`, `www.example.com` and `app.example.com`. Cloudflare issues the
   certificates. The Worker serves the public site from the build it was deployed with, so
   visitors never wake the service, and passes on only the site's form; deploy it again with each
-  release production takes ([releasing](releasing.md)), or the site keeps an older page. Everything for the app goes to the service: Cloud Run picks a service by Host and the
+  release production takes ([releasing](releasing.md)), or the site keeps an older page. Everything for the app goes to the service but for paths the app never serves, which scanners ask for by the hundred (a dotfile such as `/.env` or `/.git/config` other than `/.well-known`, or a root file such as `/xmlrpc.php` or `/service-account.json`): the Worker answers those 404 itself, so they never wake the service or its database. Cloud Run picks a service by Host and the
   free plan cannot rewrite it, so the Worker sends each request to the `run.app` name and passes
   the browser's domain in `X-Forwarded-Host`. The free plan allows 100,000 Worker requests a day;
   the `run.app` address keeps serving. Most of WhatBuild's callers are agents, which Cloudflare's bot defences take for
@@ -335,10 +335,18 @@ stays allocated while an instance is alive (`--no-cpu-throttling`) so the worker
 after the response returns, and `--min-instances 0` lets it scale to nothing when idle; the first
 request after a quiet spell waits a few seconds. An instance stays alive for up to about 15 minutes
 after its last request and is billed for all of it, so anything that calls every few minutes,
-crawlers included, keeps one running: roughly US$45 a month for each instance kept busy. One
+crawlers included, keeps one running: roughly US$45 a month for each instance kept busy. The
+database need not stay up with it. The worker looks at the job queue every two seconds only for a
+minute after the last request to the API, MCP or sign-in, or the last job, then sleeps until the
+next such request, a commit that queues work, or a retry falling due, and nothing else queries the
+database between requests. A Postgres that suspends when idle (Neon's free plan, after five
+minutes with no query) therefore sleeps about six minutes after the last request, while the
+instance may stay up. On Neon's free plan a project has 100 CU-hours a month, 400 hours at its
+smallest size, and its compute is suspended until the month ends once they are used up: a
+deployment people use through much of the day needs the Launch plan. One
 instance runs at most (`MAX_INSTANCES`, default 1), which is ample for a few teams and makes that
 the ceiling. Builds deploy a new image and keep the setting. The smallest Cloud SQL instance is roughly
-US$10 a month; a free-tier Postgres elsewhere costs nothing, but holds about 0.5 GB, so lower a
+US$10 a month; a free-tier Postgres elsewhere costs nothing, but holds little (1 GB a project on Neon's), so lower a
 public sandbox's upload allowances to match (`bytes_per_day`, `org_bytes_per_day`;
 [§9.7](../spec/09-data-lifecycle.md)): visitors' text and its search index land in Postgres. Storage is cents; data the service
 sends out costs about US$0.12 a GB, and is the one cost that grows with downloads. Mail through
