@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.19.0
+
 - **An agent reaches a public sandbox only through the sandbox's own connector.** It concerns
   anyone, staff included, whose agent works in a deployment's public sandbox through the unscoped
   connector (`/mcp`), and asks nothing of the deployment. From this release every such call is
