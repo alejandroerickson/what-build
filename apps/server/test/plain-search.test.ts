@@ -196,7 +196,7 @@ describe("plain search over the sample product", () => {
   it("finds every kind of thing in one search, a matching title first", async () => {
     const r = await find("crew message");
     expect(titles(r)[0]).toBe("story: Crew message");
-    expect(new Set(r.results.map((x: { kind: string }) => x.kind))).toEqual(new Set(["story", "source", "mockup"]));
+    expect(new Set(r.results.map((x: { kind: string }) => x.kind))).toEqual(new Set(["story", "source", "mockup", "outcome", "idea"]));
     // A source appears once, with the best places it says the words: each names its field and where its piece starts.
     const greenline = r.results.find((x: { title: string }) => x.title.startsWith("Crew lead interview"));
     expect(greenline.hit_count).toBe(4);

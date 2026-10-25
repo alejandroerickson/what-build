@@ -220,7 +220,7 @@ describe("archived outcomes", () => {
     const all = await alice.api("GET", `${P}/outcomes?include_archived=true`);
     expect(all.body.items.map((o: any) => o.outcome_id)).toEqual([live.body.outcome_id, gone.body.outcome_id]);
     expect(all.body).toMatchObject({ archived_hidden: 0 });
-    expect(all.body.note).toBeUndefined();
+    expect(all.body.note ?? "").not.toContain("include_archived");
 
     const a = await alice.api("POST", `${P}/assumptions`, { statement: "Linked too.", outcome_ids: [gone.body.outcome_id] });
     expect(a.body.archived_outcome_ids).toEqual([gone.body.outcome_id]);

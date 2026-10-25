@@ -18,8 +18,8 @@ function revisionOps(cfg: {
   exists: (ctx: OpContext, objectId: string) => Promise<boolean>;
   /** The update operation to call on restore. */
   update: OperationDef;
-  /** Maps kept content to update fields. */
-  toUpdate: (content: Record<string, unknown>) => Record<string, unknown>;
+  /** Maps kept content to update fields; it may read what the object holds now. */
+  toUpdate: (content: Record<string, unknown>, ctx: OpContext, objectId: string) => Promise<Record<string, unknown>>;
 }) {
   const idSchema = id(cfg.label);
   const aLabel = withArticle(cfg.label);
@@ -92,7 +92,7 @@ function revisionOps(cfg: {
         .where("n", "=", i["n"] as number)
         .executeTakeFirst();
       if (!row) throw notFound("No such revision.");
-      return cfg.update.handler(ctx, { [cfg.idField]: oid, expected_etag: i["expected_etag"], ...cfg.toUpdate(row.content) } as never);
+      return cfg.update.handler(ctx, { [cfg.idField]: oid, expected_etag: i["expected_etag"], ...(await cfg.toUpdate(row.content, ctx, oid)) } as never);
     },
   });
   return [list, get, restore];
@@ -108,6 +108,13 @@ export const revisionOpsList = [
     label: "outcome",
     exists: async (ctx, oid) => Boolean(await ctx.db.selectFrom("outcomes").select("outcome_id").where("outcome_id", "=", oid).where("product_id", "=", productId(ctx)).executeTakeFirst()),
     update: updateOutcome as unknown as OperationDef,
-    toUpdate: (c) => ({ title: c["title"], description: c["description"] }),
+    // Both sides of the card come back together. A version kept before outcomes had fronts brings
+    // back its title and back, and the card keeps the front it has now.
+    toUpdate: async (c, ctx, oid) => {
+      const kept = typeof c["card_html"] === "string" && c["card_html"] ? (c["card_html"] as string) : undefined;
+      const now = kept ? undefined : await ctx.db.selectFrom("outcomes").select("card_html").where("outcome_id", "=", oid).where("product_id", "=", productId(ctx)).executeTakeFirst();
+      const front = kept ?? now?.card_html;
+      return { title: c["title"], description: c["description"], ...(front ? { card_html: front } : {}) };
+    },
   }),
 ];

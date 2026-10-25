@@ -126,7 +126,8 @@ describe("the bundle", () => {
   it("holds the earlier texts of the product concept, an outcome, a comment and an assumption", () => {
     const revisions = JSON.parse(strFromU8(files["revisions.json"]!)) as { object_type: string; content: Record<string, string> }[];
     expect(revisions.map((r) => r.object_type).sort()).toEqual(["annotation", "assumption", "outcome", "product"]);
-    expect(revisions.find((r) => r.object_type === "product")!.content).toEqual({ concept: "Plan the week." });
+    // The concept's card, both sides: it had no front yet.
+    expect(revisions.find((r) => r.object_type === "product")!.content).toEqual({ concept: "Plan the week.", card_html: "" });
     expect(revisions.find((r) => r.object_type === "annotation")!.content).toEqual({ note: "Texts first." });
   });
 });

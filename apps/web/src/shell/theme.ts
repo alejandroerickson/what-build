@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { useMediaQuery } from "../ui/media.ts";
 
 /**
  * The theme choice. /theme-boot.js applies it before first paint; this keeps html[data-theme] in step
@@ -60,4 +61,15 @@ export function useTheme(): [ThemeChoice, (next: ThemeChoice) => void] {
     () => "system" as ThemeChoice,
   );
   return [value, setTheme];
+}
+
+/**
+ * The app's resolved theme, light or dark. A sandboxed frame (a Story page, an Idea card's front) is
+ * asked for with ?theme= set to it, since browsers ignore an iframe's color-scheme for the
+ * prefers-color-scheme of the page inside.
+ */
+export function useScheme(): "light" | "dark" {
+  const [choice] = useTheme();
+  const systemDark = useMediaQuery(DARK);
+  return choice === "system" ? (systemDark ? "dark" : "light") : choice;
 }
