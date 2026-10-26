@@ -68,6 +68,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   out` (more than 1 GB to the internet in an hour) and `whatbuild: logs written` (more than 100 MB
   in an hour), the costs that have no ceiling. Without the step, a flood mails nothing until a
   budget notices, hours later.
+- **Cloud Run: a kill switch at a spending cap, if wanted.** It concerns Cloud Run deployments,
+  and asks nothing unless they want one. `deploy/cloud-run/kill-switch.sh` (`PROJECT_ID`, `CAP` in
+  the billing account's currency, `SERVICES`) makes a budget of that amount on the billing account
+  and a small private service that, when the month's spending reaches it or a flood runs away, takes
+  the public off the invoker role of each service named: closed to the internet (`403`), with its
+  data kept, until it is opened again ([A hard limit on the bill](cloud-run.md#a-hard-limit-on-the-bill)).
+  Re-running `setup.sh` opens a closed service.
 
 ## v0.20.0
 

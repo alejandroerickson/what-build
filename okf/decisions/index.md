@@ -38,6 +38,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [WhatBuild asks once whether a person accepts cookies, and runs Google Analytics only for those who do](analytics-only-for-people-who-accept-cookies.md)
 - [The server counts how WhatBuild is used, for everyone and through both doors, naming nobody](the-server-counts-how-whatbuild-is-used-naming-nobody.md)
 - [Alerts watch Cloud Run's own signals, and the service's traces go over OpenTelemetry to a Google Cloud project that runs nothing](alerts-watch-the-platform-and-traces-go-to-a-project-of-their-own.md)
+- [At its spending cap, a Cloud Run deployment closes itself to the internet](at-its-spending-cap-a-deployment-closes-itself-to-the-internet.md)
 - [WhatBuild stores only what it needs, says so once, and keeps anything optional off until a person agrees](only-necessary-cookies-and-optional-ones-wait-for-consent.md) (superseded)
 - [Every write is attributed, and human or agent authorship is declared](attribution-and-declared-authorship.md)
 - [Sources are described by a title, a date and tags; there are no kinds, folders, organization field, dimensions, participants, source system or provenance](sources-are-described-by-tags.md)

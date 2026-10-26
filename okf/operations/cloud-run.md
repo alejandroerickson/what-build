@@ -394,7 +394,7 @@ answer. Cloud Run's own request log line for it is dropped (`whatbuild-refused-r
 
 ## Alerts
 
-[`deploy/cloud-run/alerts.mjs`](../../deploy/cloud-run/alerts.mjs) creates seven alert policies in
+[`deploy/cloud-run/alerts.mjs`](../../deploy/cloud-run/alerts.mjs) creates seven alert policies, and three more with the kill switch ([A hard limit on the bill](#a-hard-limit-on-the-bill)), in
 Cloud Monitoring, or brings them up to date, each mailed to `ALERT_EMAIL` (by default the `gcloud`
 account running it); `setup.sh` runs it. They read only what Cloud Run measures and logs
 ([decision](../decisions/alerts-watch-the-platform-and-traces-go-to-a-project-of-their-own.md)):
@@ -408,10 +408,13 @@ account running it); `setup.sh` runs it. They read only what Cloud Run measures 
 | `whatbuild: a flood of requests` | more than 3,000 requests in five minutes, however they were answered | Cloud Run's request log, for the paths asked for and the addresses asking |
 | `whatbuild: data sent out` | more than 1 GB sent to the internet in an hour | the request log for large responses asked for again and again |
 | `whatbuild: logs written` | more than 100 MB of logs written in the project in an hour | Logs Explorer's histogram by log name; most often a flood of requests |
+| `whatbuild: kill switch, data sent out` | more than 20 GB sent to the internet in an hour; also closes the service | [A hard limit on the bill](#a-hard-limit-on-the-bill) |
+| `whatbuild: kill switch, logs` | more than 2 GB of logs written in the project in an hour; also closes the service | [A hard limit on the bill](#a-hard-limit-on-the-bill) |
+| `whatbuild: the kill switch acted` | the kill switch closed services, or could not | its log line, which names each service and why |
 
-The last three watch the costs that have no ceiling ([What it costs](#what-it-costs)), each set far
-past what a few teams and their agents send, and mail within minutes, where a budget's figures
-arrive hours late. An unexpected error behind a 500 mails twice, once from each of the first two. Nothing calls the
+The three before the kill switch's watch the costs that have no ceiling ([What it costs](#what-it-costs)),
+each set far past what a few teams and their agents send, and mail within minutes, where a budget's
+figures arrive hours late. An unexpected error behind a 500 mails twice, once from each of the first two. Nothing calls the
 service: an uptime check every few minutes would keep an instance alive, and billed, all month. So
 an outage that keeps requests from reaching Cloud Run (the domain, DNS, Cloudflare) mails nothing.
 
@@ -512,13 +515,64 @@ organizations upload, and its search index, land in Postgres. Storage is cents. 
 sends to the internet costs US$0.105 a GB within North America after a free first GB a month (more
 to other continents). It, the logs (US$0.50 a GB past 50 GB a project each month) and traces are
 the costs with no ceiling: each grows with requests, whoever sends them, so only a flood could make
-the bill large. Three alerts mail within minutes of one ([Alerts](#alerts)); a budget on the
-billing account mails too, at the shares of it it is given, but its figures arrive hours late. Mail
-through
+the bill large. Three alerts mail within minutes of one ([Alerts](#alerts)). With the kill switch, a
+budget on the billing account mails at 75%, 100%, 200% and 500% of it and when the month's forecast
+passes it, and is the kill switch's cap, which closes the service once it is reached ([A hard limit
+on the bill](#a-hard-limit-on-the-bill)). Mail through
 Cloudflare Email Sending needs the Workers Paid plan, which includes 3,000 messages a month
-([Mail](mail.md)). The seven alert policies cost about US$0.10 each a month; their mail costs
+([Mail](mail.md)). The alert policies cost about US$0.10 each a month; their mail costs
 nothing. Traces are billed by the million spans ingested, and production's few thousand requests a
 day make well under a million a month.
+
+## A hard limit on the bill
+
+Google Cloud caps nothing by itself: a budget only mails, hours late, and Google's own way to stop
+spending, disabling billing, stops everything and may delete what the project holds. The kill
+switch is a cap that keeps everything
+([decision](../decisions/at-its-spending-cap-a-deployment-closes-itself-to-the-internet.md)).
+
+**What it does.** When the month's spending on the billing account reaches the cap, or when one of
+two alerts says a flood is running away (more than 20 GB sent to the internet, or 2 GB of logs
+written, in an hour: about US$1 to US$2 an hour, far past anything people do), it takes the public
+(`allUsers`, `allAuthenticatedUsers`) off the invoker role of every service it was given. Google's
+front end then answers every request `403` before an instance starts, so nothing is billed for them
+but a few hundred bytes each, and the log exclusion drops Cloud Run's line for each. Every row,
+file, setting, revision and secret is kept, the nightly backup still runs, and behind Cloudflare
+the public site is still served by the Worker. The change takes a minute or two to apply.
+`whatbuild: the kill switch acted` mails when it closes something, and when it cannot; Pub/Sub then
+tries again.
+
+**How.** The budget and the two alerts publish to the topic `whatbuild-kill-switch`, and a push
+subscription calls the service of that name ([`deploy/cloud-run/kill-switch/`](../../deploy/cloud-run/kill-switch/kill-switch.mjs)).
+It compares a budget's message with the budget's own amount, acts on an alert that opens, and
+ignores anything else. It is private, reachable from inside the project only, and runs only while
+a message is handled. Its identity may change who calls the services it closes (the role
+`whatbuildKillSwitch`, two permissions) and nothing else: changing their ingress or their revision
+would need the right to act as their runtime identity, which reads the database and the files.
+
+```bash
+PROJECT_ID=$P CAP=<amount> SERVICES=$P/$R/whatbuild[,<another project>/$R/whatbuild] deploy/cloud-run/kill-switch.sh  # create or update
+gcloud pubsub topics publish whatbuild-kill-switch --project $P \
+  --message '{"costAmount":0,"budgetAmount":1}'                             # under the cap: nothing closes
+gcloud logging read 'resource.labels.service_name="whatbuild-kill-switch"' --project $P --freshness 1d --limit 20
+```
+
+`CAP` is a whole amount in the billing account's currency, and every project billed to the account
+counts towards it, so `SERVICES` names every deployment billed there. A message over the cap, or a
+test notification sent from the console to the kill switch's Pub/Sub channel, closes every service
+named: send one only to close them.
+
+**Opening again.** A budget's message comes several times a day and closes the services again while
+the month's spending is over the cap, so first raise the cap (re-run with a higher `CAP`) or wait
+for the next month, then:
+
+```bash
+gcloud run services add-iam-policy-binding whatbuild --project $P --region $R --member allUsers --role roles/run.invoker
+```
+
+Re-running `setup.sh` opens the service too (`--allow-unauthenticated`); a release's build does not.
+The kill switch does not reach Cloudflare: the requests the Worker passes on while the service is
+closed are still billed on Workers Paid, and the zone's rate limit is what bounds them.
 
 ## What is where
 
@@ -534,7 +588,8 @@ day make well under a million a month.
 | Images | Artifact Registry `whatbuild` | the ten most recent always kept; others deleted after 30 days |
 | Log exclusions | `whatbuild-request-addresses` and `whatbuild-refused-requests` on the `_Default` sink | Cloud Run logs every request itself, with its whole address, the client's IP and its browser, for 30 days. The first drops its line for an address with a query (a search's words, a sign-in link's token) or an invitation link; the service's own line for it, masked, stays. The second drops its line for a `403` or a `429`: a request without the edge key, refused before the service logs anything, or one Cloud Run refused for want of an instance, so a flood of them writes no logs to pay for. The request metrics count them all, and the service's own line stays for each `403` it gives |
 | Restore points (Neon, optional) | branches `pre-migrate-<time>-<commit>`, secret `whatbuild-neon-api-key` | one per deploy before migrating, the newest three kept; the key reaches only the Neon project and is read by the build identity |
-| Alerts | seven policies named `whatbuild: …`, one email channel | made by `deploy/cloud-run/alerts.mjs` ([Alerts](#alerts)) |
+| Alerts | seven policies named `whatbuild: …` (ten with the kill switch), one email channel, and with the kill switch a Pub/Sub channel to its topic | made by `deploy/cloud-run/alerts.mjs` ([Alerts](#alerts)) |
+| Kill switch (optional) | service, identity, Pub/Sub topic and push subscription `whatbuild-kill-switch`; role `whatbuildKillSwitch` in each project whose service it closes; budget `WhatBuild: every project` on the billing account | made by `deploy/cloud-run/kill-switch.sh`; the service is private and reachable from inside the project only, and its identity may change who calls the services it closes, nothing else ([A hard limit on the bill](#a-hard-limit-on-the-bill)) |
 | Traces | a project of their own (`TRACES_PROJECT`; production's is `GCP_TRACES_PROJECT` in `.env`): trace storage `_Trace` in `us`, BigQuery dataset `whatbuild_traces` | runs nothing; the runtime identity has Cloud Telemetry Traces Writer there, and nothing else ([Traces](#traces)) |
 | Backup (another Postgres, set up by hand) | job `whatbuild-backup`, scheduler job `whatbuild-backup-nightly`, identity `whatbuild-backup`, bucket `<project>-backups`, secret `whatbuild-backup-database-url` | a `pg_dump` each night as a read-only role that bypasses row-level security; the identity adds and reads dumps, never deletes; dumps expire after 35 days ([Backups](backups.md)) |
 
