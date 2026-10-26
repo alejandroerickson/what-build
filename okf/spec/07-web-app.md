@@ -3,7 +3,7 @@ type: Specification
 title: The web app is a person's way to run the same operations an agent runs, one screen at a time.
 description: Principles, the shell and product switching, the overview, routes, first run, and the behavior of every screen (Idea, Evidence, Exploration, Story, Activity, archive and delete, organization and account screens).
 tags: [spec, web, ui, routes, shell]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -361,9 +361,10 @@ shows.
   another card's head move it there; Enter or another press places it; Escape, wherever the
   focus is, puts it back; clicking or tabbing away from the cards places it where it is. Each step
   is announced. Nothing is saved until the card is placed. With reduced motion nothing glides.
-- **An outcome's menu:** Archive or Restore, and Delete permanently for admins. A viewer has no
-  menu. Earlier versions are kept, and agents read and restore them (`outcomes(action="revisions")`);
-  the screen does not offer them.
+- **An outcome's menu:** Archive or Restore, and Delete permanently for admins, whose dialog
+  names what goes with the outcome, its picture and its text, only those it has, and the
+  assumptions that serve it. A viewer has no menu. Earlier versions are kept, and agents read and
+  restore them (`outcomes(action="revisions")`); the screen does not offer them.
 - A card holds nothing that points away from it: no links or counts of the assumptions, mockups
   or Story pages that serve it ([§4.2](04-data-model.md)).
 
