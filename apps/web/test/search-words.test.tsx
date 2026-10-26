@@ -14,6 +14,7 @@ const APP = "/t/acme/core/crew";
 const product = { name: "Crewboard", path: "acme/core/crew", your_role: "editor" };
 
 const SOURCE = "01K8A2B3C4D5E6F7G8H9J0K1M2";
+const LATE = "…the crews meet at the yard before seven, load the vans from the list on the board, check the mowers and the trimmers, and then the lead takes the pallet of mulch to the first job of the day.";
 /** What plain search answers for a query, when it finds anything: a source whose title holds the words too, or an assumption. */
 const found: Record<string, unknown> = {
   "two crews": {
@@ -22,6 +23,19 @@ const found: Record<string, unknown> = {
     ignored: [], kind_hint: null, corrections: [], partial: false, counts: { assumption: 1 },
     results: [
       { kind: "assumption", id: "a1", title: "Two crews share one van on Mondays.", title_marks: [[0, 9]], snippet: null, snippet_marks: [], missing: [], score: 1, meta: { status: "confirmed" } },
+    ],
+  },
+  // A piece whose words come late in its excerpt, past what two lines hold on a phone.
+  "pallet": {
+    query: "pallet",
+    terms: [{ text: "pallet", phrase: false }],
+    ignored: [], kind_hint: null, corrections: [], partial: false, counts: { source: 1 },
+    results: [
+      {
+        kind: "source", id: SOURCE, title: "Yard visit notes", title_marks: [], snippet: null, snippet_marks: [], missing: [], score: 1,
+        meta: { date: "2026-09-12", tags: [] }, hit_count: 1,
+        hits: [{ field: "text", annotation_id: null, char_start: 0, text: LATE, marks: [[LATE.indexOf("pallet"), LATE.indexOf("pallet") + 6]] }],
+      },
     ],
   },
   "gate codes": {
@@ -54,9 +68,15 @@ vi.mock("../src/lib/session.tsx", async (original) => ({
 }));
 
 const { SearchPage } = await import("../src/routes/search.tsx");
+const { PHONE_QUERY } = await import("../src/ui/media.ts");
 const { FindProvider, FindLauncher } = await import("../src/shell/find-palette.tsx");
 
+/** Whether the window is phone width, as matchMedia answers it here. */
+let phone = false;
+
 beforeAll(() => {
+  window.matchMedia ??= (query: string) =>
+    ({ matches: phone && query === PHONE_QUERY, media: query, addEventListener() {}, removeEventListener() {} }) as unknown as MediaQueryList;
   HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) {
     this.setAttribute("open", "");
   };
@@ -67,6 +87,7 @@ beforeAll(() => {
 
 let unmount: (() => void) | null = null;
 afterEach(() => {
+  phone = false;
   unmount?.();
   unmount = null;
   document.body.innerHTML = "";
@@ -144,6 +165,35 @@ describe("the palette", () => {
     expect(dialog.getAttribute("aria-label")).toBe("Search Crewboard");
     expect(field.getAttribute("aria-label")).toBe("Words to search for");
     expect(field.placeholder).toBe("Search Crewboard");
+  });
+});
+
+describe("a palette line on a phone", () => {
+  async function line(query: string) {
+    await render(
+      <FindProvider app={APP} base={BASE} product={product as never}>
+        <FindLauncher product={product as never} />
+      </FindProvider>,
+      `${APP}/evidence`,
+    );
+    await act(async () => document.querySelector<HTMLButtonElement>(".find-launch")!.click());
+    await act(async () => type(document.querySelector<HTMLInputElement>("dialog.find-pal input")!, query));
+    await act(async () => new Promise((r) => setTimeout(r, 150)));
+    await settle();
+    return document.querySelector(".find-pal-line")!;
+  }
+
+  it("starts a few words before the word it matched, so its two lines show it", async () => {
+    phone = true;
+    const shown = (await line("pallet")).textContent!.replace(/^In its text /, "");
+    expect(shown.startsWith("…")).toBe(true);
+    expect(shown.indexOf("pallet")).toBeLessThanOrEqual(41);
+    expect(shown).toMatch(/^…\S/);
+    expect(LATE.endsWith(shown.slice(1))).toBe(true);
+  });
+
+  it("keeps the excerpt as it came on a wider screen", async () => {
+    expect((await line("pallet")).textContent).toBe(`In its text ${LATE}`);
   });
 });
 

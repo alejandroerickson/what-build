@@ -68,7 +68,8 @@ that what one door writes the other finds at once, and that a reader has no sear
      “<word>”. Try another word.", and the Search screen "Nothing matches “<word>”" over "Try
      another word, or fewer words."; searched again in straight quotes, `"<word>"`, it shows in
      one pair of quotation marks in both, never two;
-   - "mockups" and a word from a mockup; *Expect:* "Mockups first.", and the mockup leads;
+   - "mockups" and a word from a mockup that sources say too; *Expect:* "Mockups first.", and the
+     mockup leads in both, ahead of sources that say the word more often;
    - two words side by side in one source's text, in quotes, then the same two in the other order
      in quotes; *Expect:* the first finds that source, the second does not;
    - a word you can see in a source's summary, then one from one of its comments; *Expect:* the
@@ -124,6 +125,7 @@ that what one door writes the other finds at once, and that a reader has no sear
     error. Over MCP, `search` in plain mode is refused with a clear error, not an empty result.
 14. **Web, as Sam.** At phone width (390 × 844) and in the dark theme, open the palette, search, and
     open the Search screen. *Expect:* the palette fits the screen and its results are readable;
+    every line of matching text under a result shows a marked word within its two lines, and
     marked words stand out in both themes; nothing overflows or overlaps.
 
 ## Look out for

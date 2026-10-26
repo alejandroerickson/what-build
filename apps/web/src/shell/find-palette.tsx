@@ -2,10 +2,10 @@ import { createContext, useCallback, useContext, useEffect, useId, useMemo, useR
 import { useLocation, useNavigate } from "react-router";
 import { track } from "../lib/analytics.ts";
 import { nestQuotes } from "../lib/format.ts";
-import { findWords, hitHref, hitMeta, kindOf, Marked, matchedCount, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse } from "../lib/find.tsx";
+import { findWords, hitHref, hitMeta, kindOf, leadTo, Marked, matchedCount, resultHref, resultMeta, useDebounced, useFind, useRecentSearches, type FindResponse, type Marks } from "../lib/find.tsx";
 import type { Product } from "../lib/session.tsx";
 import { Glyph, type GlyphName } from "../ui/index.tsx";
-import { isTypingTarget, shortcutLabel } from "../ui/media.ts";
+import { isTypingTarget, PHONE_QUERY, shortcutLabel, useMediaQuery } from "../ui/media.ts";
 
 /**
  * Find anything in a product from anywhere in it: ⌘K / Ctrl+K, or / when not typing, or the Search
@@ -36,7 +36,18 @@ interface Option {
 
 const SHOWN = 8;
 
-function options(app: string, d: FindResponse | undefined): Option[] {
+/**
+ * On a phone a line of the palette holds about fifty characters, so the two it shows of an excerpt
+ * centred on its best place often end before the words it matched. There each line starts about a
+ * line's worth before its first marked word, which then sits in the middle of the two.
+ */
+const PHONE_LEAD = 40;
+
+function options(app: string, d: FindResponse | undefined, phone: boolean): Option[] {
+  const line = (text: string, marks: Marks) => {
+    const shown = phone ? leadTo(text, marks, PHONE_LEAD) : { text, marks };
+    return <Marked text={shown.text} marks={shown.marks} />;
+  };
   return (d?.results ?? []).slice(0, SHOWN).map((r) => {
     const hit = r.hits?.[0];
     // A source found by what it says opens where it says it, the place its line shows, whether or
@@ -51,10 +62,10 @@ function options(app: string, d: FindResponse | undefined): Option[] {
       meta: resultMeta(r),
       line: hit ? (
         <>
-          <span className="find-pal-addr">{hitMeta(hit)}</span> <Marked text={hit.text} marks={hit.marks} />
+          <span className="find-pal-addr">{hitMeta(hit)}</span> {line(hit.text, hit.marks)}
         </>
       ) : r.snippet ? (
-        <Marked text={r.snippet} marks={r.snippet_marks} />
+        line(r.snippet, r.snippet_marks)
       ) : null,
     };
   });
@@ -74,9 +85,10 @@ function Palette({ app, base, product, text, setText, via, onClose }: { app: str
   const res = useFind(base, q);
   const typed = Boolean(text.trim());
   const d = typed ? res.data : undefined;
+  const phone = useMediaQuery(PHONE_QUERY);
   const opts = useMemo<Option[]>(
-    () => (typed ? options(app, d) : recent.map((r) => ({ key: `recent:${r}`, fill: r, glyph: "clock", title: r }))),
-    [app, typed, d, recent],
+    () => (typed ? options(app, d, phone) : recent.map((r) => ({ key: `recent:${r}`, fill: r, glyph: "clock", title: r }))),
+    [app, typed, d, phone, recent],
   );
   useEffect(() => {
     ref.current?.showModal();

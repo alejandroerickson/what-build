@@ -23,6 +23,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+- **A kind named in a search comes first everywhere.** It concerns every deployment and asks
+  nothing of one. A search such as "mockups crew" now lists the mockups first in the search palette
+  and in MCP's `search` plain mode, as the Search screen already did, rather than only nudging their
+  score; a result's `score` no longer counts the hint, so the first results may score lower than
+  the ones after them. On a phone, the palette's lines start a few words before the word they
+  matched, so it shows. The skill is now at version 0.40.0; agents fetch it again as the server's
+  instructions tell them.
 - **A day's use is counted on every plan.** It concerns every deployment and asks nothing of one.
   Writes, sources added, exports and attached files are counted in an organization on the
   unlimited plan too, though nobody there is refused, so an organization an instance owner moves
