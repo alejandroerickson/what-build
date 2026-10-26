@@ -43,6 +43,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   `style-src 'unsafe-inline'`, and the weekly ZAP scan now fails on rule 10055. Behind the
   Cloudflare Worker, deploy it again (`deploy/cloudflare/worker.js`), so the public site's page
   carries the same policy. Sign-in's own pages allow their one stylesheet by its hash.
+- **Only a signed-in request wakes the worker.** It concerns every deployment that runs `serve`
+  with its worker, and asks nothing of it. A request to the API, MCP or sign-in wakes a sleeping
+  worker only when it comes with a good session or access token, and only once it has been served.
+  A scanner's or a stranger's requests no longer start the worker's minute of polling the job
+  queue, so they cannot keep a database that suspends when idle awake. Uploads and other commits
+  that queue work wake it as before.
 
 ## v0.20.0
 

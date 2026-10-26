@@ -445,9 +445,10 @@ request after a quiet spell waits a few seconds. An instance stays alive for up 
 after its last request and is billed for all of it, so anything that calls every few minutes,
 crawlers included, keeps one running: roughly US$45 a month for each instance kept busy. The
 database need not stay up with it. The worker looks at the job queue every two seconds only for a
-minute after the last request to the API, MCP or sign-in, or the last job, then sleeps until the
-next such request, a commit that queues work, or a retry falling due, and nothing else queries the
-database between requests. A Postgres that suspends when idle (Neon's free plan, after five
+minute after the last request someone signed in made to the API, MCP or sign-in, or the last job,
+then sleeps until the next such request, a commit that queues work, or a retry falling due, and
+nothing else queries the database between requests. A request from nobody signed in (a scanner's,
+a stranger's) never wakes it, so it cannot keep the database awake. A Postgres that suspends when idle (Neon's free plan, after five
 minutes with no query) therefore sleeps about six minutes after the last request, while the
 instance may stay up. On Neon's free plan a project has 100 CU-hours a month, 400 hours at its
 smallest size, and its compute is suspended until the month ends once they are used up: a

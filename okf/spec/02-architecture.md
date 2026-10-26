@@ -85,10 +85,11 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
 - **The worker ships in the same image** and polls the Postgres queue; a commit that enqueues work
   also wakes it. `serve` runs HTTP and the worker in one process unless `WHATBUILD_WORKER=0`;
   `worker` runs the worker alone. Under `serve` the worker sleeps a minute after the last request
-  to the API, MCP or sign-in, or the last job: it stops polling, so a database that suspends when
-  no query comes can while the instance stays up, and looks again at the next such request, at a
-  commit that enqueues work, and when the next job it could take falls due (a retry's `run_after`,
-  or a lock gone stale), or, if no instance is up then, at the next request.
+  someone signed in made to the API, MCP or sign-in (one with a good session or access token), or
+  the last job: it stops polling, so a database that suspends when no query comes can while the
+  instance stays up, and looks again at the next such request, at a commit that enqueues work, and
+  when the next job it could take falls due (a retry's `run_after`, or a lock gone stale), or, if no
+  instance is up then, at the next request. A request from nobody signed in never wakes it.
   `worker` polls for good. Splitting them is a configuration change, not a code change.
   A worker claims only the kinds of job its version runs (`JOB_KINDS` in
   `apps/server/src/worker.ts`), so while a release rolls out, an instance of the version before it
