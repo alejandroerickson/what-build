@@ -1,0 +1,64 @@
+# WhatBuild's end-to-end instance on a Docker host: the release image, served as a development
+# server (the development sign-in the test tools use), on a fresh copy of the golden master that
+# `whatbuild-e2e.sh reset` makes before each run. okf/operations/end-to-end-on-a-docker-host.md.
+#
+# Every path comes from .env (see env.example) and is absolute, so the updater, which mounts this
+# folder at the same path, resolves them as the host does. The app answers on the host's loopback
+# only: it holds real people's data and lets anyone sign in as anyone, so it is reached through an
+# SSH tunnel, never published on the network.
+
+name: whatbuild-e2e
+
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${WHATBUILD_E2E_PG_PASSWORD:?set it in .env}
+    volumes:
+      - ${WHATBUILD_E2E_DIR:?set it in .env}/data/pg:/var/lib/postgresql/data
+      - ${WHATBUILD_E2E_DIR}/data/golden:/golden:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      retries: 20
+
+  whatbuild:
+    image: ${WHATBUILD_IMAGE:?set it in .env}:${WHATBUILD_TAG:?run whatbuild-e2e.sh update}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${WHATBUILD_E2E_PORT:-5283}:8080"
+    volumes:
+      - ${WHATBUILD_E2E_DIR}/data/blobs:/data/blobs
+      - ${WHATBUILD_E2E_DIR}/data/golden:/golden:ro
+    environment:
+      # Exactly `development`: the development sign-in, printed mail, the fixed grant key.
+      NODE_ENV: development
+      DATABASE_URL: postgres://whatbuild:${WHATBUILD_E2E_PG_PASSWORD}@postgres:5432/e2e
+      # The address the tests use: the tunnel's end on the machine that runs them.
+      WHATBUILD_PUBLIC_URL: ${WHATBUILD_E2E_PUBLIC_URL:-http://localhost:5283}
+      WHATBUILD_RELEASE: ${WHATBUILD_TAG}
+      WHATBUILD_BLOB_STORE: fs
+      WHATBUILD_BLOB_DIR: /data/blobs
+      WHATBUILD_MAILER: console
+      WHATBUILD_EXAMPLE_TENANT: ${WHATBUILD_EXAMPLE_TENANT:-}
+      WHATBUILD_INSTANCE_OWNERS: riley@example.com
+      WHATBUILD_NEW_ORGANIZATION_PLAN: free
+
+  # Each night, whatbuild-e2e.sh nightly: the newest release, if it is newer, on a fresh copy.
+  updater:
+    image: docker:27-cli
+    restart: unless-stopped
+    profiles: [updater]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${WHATBUILD_E2E_DIR}:${WHATBUILD_E2E_DIR}
+      # The host's registry login, for a private image.
+      - ${WHATBUILD_E2E_DOCKER_CONFIG:-/root/.docker}:/root/.docker:ro
+    entrypoint:
+      - /bin/sh
+      - -c
+      - echo "${WHATBUILD_E2E_UPDATE_CRON:-0 11 * * *} /bin/sh ${WHATBUILD_E2E_DIR}/whatbuild-e2e.sh nightly >> ${WHATBUILD_E2E_DIR}/update.log 2>&1" | crontab - && exec crond -f -l 6

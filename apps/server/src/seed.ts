@@ -12,6 +12,9 @@ export const SEED_ACCOUNTS = [
   { email: "jordan@example.com", display_name: "Jordan Ellis" },
 ] as const;
 
+/** The three people the sample is made with: its owner, the editor whose agent does most of the work, and the Story's reader. */
+export type SeedPeople = readonly [{ email: string; display_name: string }, { email: string; display_name: string }, { email: string; display_name: string }];
+
 async function call(env: Env, who: Principal, name: string, input: Record<string, unknown>, ref: ScopeRef = {}) {
   const op = OPERATIONS_BY_NAME.get(name);
   if (!op) throw new Error(`no operation ${name}`);
@@ -31,16 +34,16 @@ async function upload(env: Env, who: Principal, ref: ScopeRef, tenantId: string,
 /**
  * Seed three accounts (an owner, an editor and a Story reader) and a fully derived sample product, through the same operations the adapters
  * use, so paths, attribution and activity match production. Idempotent: it does nothing if the
- * sample tenant already exists.
+ * sample tenant already exists. The end-to-end golden master makes it with people of its own.
  */
-export async function seed(env: Env, worker: Worker, log: (m: string) => void = console.log) {
+export async function seed(env: Env, worker: Worker, log: (m: string) => void = console.log, people: SeedPeople = SEED_ACCOUNTS) {
   const existing = await env.db.selectFrom("tenants").select("tenant_id").where("slug", "=", "harbor-labs").executeTakeFirst();
   if (existing) {
     log("seed: the sample tenant already exists; nothing to do.");
     return;
   }
   const accounts = [];
-  for (const a of SEED_ACCOUNTS) accounts.push((await findOrCreateAccount(env.db, a.email, a.display_name)).account);
+  for (const a of people) accounts.push((await findOrCreateAccount(env.db, a.email, a.display_name)).account);
   const riley: Principal = { ...accounts[0]!, auth_kind: "dev", surface: "web", client: null };
   const samAgent: Principal = { ...accounts[1]!, auth_kind: "dev", surface: "mcp", client: "claude-code" };
 
@@ -172,12 +175,12 @@ export async function seed(env: Env, worker: Worker, log: (m: string) => void = 
   // Each page of the mockup on the Story, under Published mockups, for stakeholders to flip through.
   for (const page of ["jobs-board", "day-planner", "crew-message"]) await call(env, samAgent, "story.promote_mockup", { mockup_id: mockup["mockup_id"], mockup_page_id: page }, ref);
   await call(env, riley, "sources.annotate", { record_id: vtt, note: "The moment to design for is the typed hand-off message, not the spreadsheet.", tags: ["hand-off"] }, ref);
-  // Sam may start one organization of their own; Riley, the instance's owner in development, gave it.
-  const sam = SEED_ACCOUNTS[1].email;
+  // The editor (Sam) may start one organization of their own; the owner (Riley, the instance's owner in development) gave it.
+  const sam = people[1].email;
   await env.db
     .insertInto("tenant_allowances")
     .values({ email: sam, allowed: 1, note: "Sample: may start one organization", etag: newEtag(), created_by: json(actorOf(riley)), updated_by: json(actorOf(riley)) })
     .onConflict((oc) => oc.column("email").doNothing())
     .execute();
-  log(`seed: created ${SAMPLE.tenant} / ${SAMPLE.team} / ${SAMPLE.product} with ${SEED_ACCOUNTS.map((a) => a.email).join(" and ")}.`);
+  log(`seed: created ${SAMPLE.tenant} / ${SAMPLE.team} / ${SAMPLE.product} with ${people.map((a) => a.email).join(" and ")}.`);
 }

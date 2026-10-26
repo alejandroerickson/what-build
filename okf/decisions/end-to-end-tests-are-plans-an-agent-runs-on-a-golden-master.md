@@ -1,9 +1,9 @@
 ---
 type: Decision
 title: End-to-end tests are written plans that an agent runs through the web app and MCP, on a local instance reset to a golden master made from production's example organization
-description: Plans in the product's vocabulary, run by any agent with a shell through tools in the repository, against an instance that starts each time from the example organization and a copy of it that is not the example, taken from a private pull of production; no separate test service.
+description: Plans in the product's vocabulary, run by any agent with a shell through tools in the repository, against an instance that starts each time from the example organization and a copy of it that is not the example, taken from a private pull of production, beside a synthetic organization whose people belong to it alone; no separate test service.
 tags: [decision, development, testing, qa, e2e, agents, example]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -29,7 +29,11 @@ synthetic sample does. The example organization is that organization now
 - It runs on its own local instance (`pnpm dev:e2e`), which starts every time from a golden master
   built by `pnpm e2e golden` from a pull of production: the example organization as pulled, every
   other organization removed, migrated to the code's schema, and a copy of it under new ids that is
-  not the example, where accounts that are members write as in any organization. Once built it does not change; migrations added later run on each fresh
+  not the example, where accounts that are members write as in any organization. Beside them it
+  holds a synthetic organization, the development sample, whose own people belong to no other
+  organization, and where Sam, who edits in the other two, only reads the Story: the realistic way
+  to check that organizations are kept apart and that a person's role follows the organization,
+  which two organizations with the same people cannot. Once built it does not change; migrations added later run on each fresh
   copy.
 - The agent drives the web app with `pnpm e2e browser` and MCP with `pnpm e2e mcp`, both in the
   repository, so any agent with a shell can run a plan. The MCP client connects through the real
@@ -37,7 +41,8 @@ synthetic sample does. The example organization is that organization now
 - The skill `run-end-to-end-tests` conducts a run and sets the report's format.
 - Rejected:
   - **The synthetic sample as the golden master.** It is small and tidy, and shows nothing of how
-    months of real work look.
+    months of real work look. It is the third organization instead, for what it is good at: people
+    of their own.
   - **A test service or a hosted runner.** One more system to keep, for work the agent in the
     repository can do on request.
   - **A golden master committed to the repository.** It is real people's data.
@@ -53,6 +58,8 @@ synthetic sample does. The example organization is that organization now
 
 - The standard organization holds the same content as the example organization: whatever the copy
   rewrites (every id, in any column or JSON), it rewrites consistently.
+- The development sign-in's people (Riley, Sam, Jordan) are given roles everywhere but the
+  synthetic organization, which keeps the people it was built with.
 - `apps/server/src/e2e.ts`, `e2e-golden.ts`, `e2e-browser.ts`, `e2e-mcp.ts` and the `--e2e` mode of
   `dev.ts`: the instance keeps its own Postgres, files and ports, prints mail, and never changes the
   golden master.

@@ -3,7 +3,7 @@ type: Index
 title: Operations
 description: Running WhatBuild locally and in production.
 tags: [index, operations]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -11,6 +11,7 @@ status: stable
 
 - [Local development](local-development.md): one command, the checks, and the browser scripts.
 - [End-to-end tests](end-to-end-tests.md): an agent follows a written plan through the web app and MCP on a local instance reset to a golden master, and reports failures and anomalies.
+- [The end-to-end instance on a Docker host](end-to-end-on-a-docker-host.md): the release image serving a fresh copy of the golden master on any machine that runs Docker, following releases; loading an export, resetting before each run, testing through an SSH tunnel.
 - [A copy of production](a-copy-of-production.md): pulling the deployment's example organization or other organizations named, with their files, loading them locally, serving them with pending migrations applied, for manual QA and agent-driven end-to-end tests; it stays private.
 - [Copying an organization](copying-an-organization.md): what a copy of one or more organizations holds and leaves behind, taking one, where each copy goes, and moving an organization into another deployment's new database.
 - [Cloud Run](cloud-run.md): the production deployment, its setup and its routines.

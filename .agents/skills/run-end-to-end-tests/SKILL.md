@@ -14,7 +14,10 @@ what the plan expects, and report. The system, with every command, is described 
 
 - **Each run starts from the golden master.** Never repair the instance's database by hand. To
   start again, stop `pnpm dev:e2e` and start it again.
-- **Work only on the end-to-end instance**, at `http://localhost:5283`. Never point the browser or
+- **Work only on the end-to-end instance**, at `http://localhost:5283`, or, when the person asks
+  to test on the Docker host, on its instance through the tunnel
+  (`okf/operations/end-to-end-on-a-docker-host.md`), with `WHATBUILD_E2E_URL` on every command and
+  `whatbuild-e2e.sh reset` over SSH in place of stopping and serving. Never point the browser or
   the MCP client at `pnpm dev`, the dev deployment or production.
 - **Report; do not fix.** Note every finding with its evidence and carry on with the plan. Change
   code only if the person asked you to fix what you find, and then after the report.
@@ -78,7 +81,7 @@ what the plan expects, and report. The system, with every command, is described 
 - **Failure:** an expectation in the plan did not hold.
 - **Error:** anything `!` reported, a server error in the `pnpm dev:e2e` log, or a job that failed.
 - **Disagreement:** the web and MCP say different things about the same object (titles, counts,
-  status, attribution), or the two organizations behave differently where the example's being
+  status, attribution), or the example and the standard organization behave differently where the example's being
   read-only to guests does not explain it.
 - **Permission:** someone saw or did something their role should not allow, or was refused
   something it should allow.

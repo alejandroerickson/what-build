@@ -8,16 +8,22 @@ and reports what failed and anything else that looked wrong. The procedure is th
 
 ## What a plan runs on
 
-The golden master is built from a private copy of production. It holds two organizations with the
-same products:
+The golden master is built from a private copy of production, and one organization made up for
+the tests. It holds three organizations:
 
 - **the example organization**, the one the deployment names as its example, which every account
   reads;
-- **the standard organization**, a copy of the same content that is not the example.
+- **the standard organization**, a copy of the example's content that is not the example;
+- **the synthetic organization** (Harbor Labs, with the product Crewboard), the development sample,
+  whose content is made up and whose people belong to it alone.
 
 `pnpm e2e run <plan>` prints their slugs and every product's path. The same three people are in
-both: Riley owns each organization, Sam edits every team, and Jordan reads every product's Story.
-Because they are members of the example, they work there as anywhere. **A guest** of the example is
+the example and the standard organization: Riley owns each, Sam edits every team, and Jordan reads
+every product's Story. Because they are members of the example, they work there as anywhere. The
+synthetic organization has its own: Morgan owns it, Casey edits its team and Avery reads its Story.
+None of them is a member of the other two, so each is a guest of the example and has nothing to do
+with the standard organization. Sam reads its Story, and nothing more there: one person with a
+different role in each organization. **A guest** of the example is
 anyone else: sign in with any address that is not one of theirs, such as `guest@example.com`
 (`pnpm e2e browser signin guest@example.com`, `pnpm e2e mcp --as guest@example.com …`). A guest
 reads every product of the example and is refused every write with `403 example_read_only`, and
@@ -36,8 +42,8 @@ redesigned, and the agent's trouble finding the way is itself a finding.
 ```markdown
 ---
 title: One line saying what the plan covers
-organizations: [standard, example]  # where it runs
-people: [sam, jordan, guest]        # who it signs in as, on the web and over MCP
+organizations: [standard, example]  # where it runs: standard, example, synthetic
+people: [sam, jordan, guest]        # riley, sam, jordan, morgan, casey, avery, guest
 surfaces: [web, mcp]
 ---
 
@@ -56,7 +62,7 @@ What is easy to get wrong here, and worth a closer look.
 ```
 
 - Number the steps; the report refers to them.
-- Say who acts, through which door and in which organization. A step that writes through one door
+- Say who acts, through which door and in which organization (standard, example or synthetic). A step that writes through one door
   and reads through the other is the most valuable kind; so is doing the same thing in both
   organizations and comparing.
 - Expectations are things a person could check: what a screen shows, what a call returns, what

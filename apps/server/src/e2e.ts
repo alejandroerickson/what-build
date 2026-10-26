@@ -2,12 +2,15 @@ import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { actorOf, execute, OPERATIONS_BY_NAME } from "@whatbuild/core";
 import pg from "pg";
 import { createBlobStore, createMailer, createPorts } from "./app.ts";
+import { findOrCreateAccount } from "./auth/identity.ts";
 import { loadConfig } from "./config.ts";
 import { createDb, migrate } from "./database.ts";
 import { copyTenant, keepOnlyTenant } from "./e2e-golden.ts";
-import { restorePull } from "./fixture.ts";
+import { addSamplePeople, restorePull } from "./fixture.ts";
+import { SEED_ACCOUNTS, seed, type SeedPeople } from "./seed.ts";
 import { APP_ROLE, connectOrStartLocalPg, type LocalPg } from "./testing/pg.ts";
 import { Worker } from "./worker.ts";
 
@@ -17,7 +20,11 @@ import { Worker } from "./worker.ts";
  * on an instance of its own that starts every time from the same golden master.
  *
  *   pnpm e2e golden [pull] [--org s] build the golden master from a pulled copy of production: its
- *                                    example organization, and a copy that is not the example
+ *                                    example organization, a copy that is not the example, and a
+ *                                    synthetic organization with people of its own
+ *   pnpm e2e export [dir]            the golden master as a dump and its files, with the sample
+ *                                    people given their roles, for an instance on a Docker host
+ *                                    (deploy/docker/, okf/operations/end-to-end-on-a-docker-host.md)
  *   pnpm dev:e2e                     reset the instance's database and files to the golden master
  *                                    and serve them on :5283, beside any pnpm dev
  *   pnpm e2e plans                   list the plans
@@ -50,8 +57,20 @@ export const e2eBaseUrl = () => process.env["WHATBUILD_E2E_URL"] ?? `http://loca
 export const PLANS = resolve(root, "e2e/plans");
 
 /** What golden.json says: the pull it came from, the two organizations, and their products' paths. */
-/** `sandbox` names the example organization in a golden master built before it replaced the public sandbox. */
-export type GoldenRecord = { built_at: string; pull: string; migration: string; commit: string; example?: string; sandbox?: string; standard: string; products: string[] };
+/** `sandbox` names the example organization in a golden master built before it replaced the public sandbox; `synthetic` is absent from one built before it had a synthetic organization. */
+export type GoldenRecord = { built_at: string; pull: string; migration: string; commit: string; example?: string; sandbox?: string; standard: string; synthetic?: string; products: string[] };
+
+/**
+ * The synthetic organization: the development sample (`seed.ts`), made by people who belong to it
+ * alone, so plans can check that one organization's people see nothing of another's. Sam, who
+ * edits the other two, only reads its Story: one person with a different role in each.
+ */
+export const SYNTHETIC = "harbor-labs";
+export const SYNTHETIC_PEOPLE: SeedPeople = [
+  { email: "morgan@example.com", display_name: "Morgan Reyes" },
+  { email: "casey@example.com", display_name: "Casey Lindqvist" },
+  { email: "avery@example.com", display_name: "Avery Nakamura" },
+];
 
 export function readGolden(): GoldenRecord | null {
   return existsSync(E2E.goldenRecord) ? (JSON.parse(readFileSync(E2E.goldenRecord, "utf8")) as GoldenRecord) : null;
@@ -120,12 +139,34 @@ async function buildGolden(args: string[]) {
       }
       const standard = { slug: `${keep.slug}-standard`, name: `${keep.name} (standard)` };
       await copyTenant(c, keep.tenant_id, standard.slug, standard.name);
+      // Made through the operations, as an organization's people would: the sample, then Sam made a
+      // reader of its Story by its owner, so the grant is in its access changes as any other.
+      const made = createDb(local.appUrl(E2E.golden), 3);
+      try {
+        const ports = createPorts(config, await createBlobStore(config), createMailer(config));
+        const worker = new Worker({ db: made.db, ports }, 60_000, console.log);
+        await seed({ db: made.db, ports }, worker, console.log, SYNTHETIC_PEOPLE);
+        while ((await worker.drain()) > 0);
+        const [riley, sam] = SEED_ACCOUNTS;
+        const owner = (await findOrCreateAccount(made.db, SYNTHETIC_PEOPLE[0].email, SYNTHETIC_PEOPLE[0].display_name)).account;
+        await findOrCreateAccount(made.db, sam.email, sam.display_name);
+        const team = (await c.query<{ slug: string }>("select m.slug from teams m join tenants t using (tenant_id) where t.slug = $1", [SYNTHETIC])).rows[0]!.slug;
+        const grant = OPERATIONS_BY_NAME.get("members.grant")!;
+        await execute({ db: made.db, ports }, { ...owner, auth_kind: "dev", surface: "web", client: null }, grant, { tenant: SYNTHETIC, team, product: "crewboard", email: sam.email, role: "reader" }, {});
+        // The editor's allowance to start an organization comes from the instance's owner, Riley, as
+        // in development, not from the organization's owner.
+        const instanceOwner = (await findOrCreateAccount(made.db, riley.email, riley.display_name)).account;
+        const by = JSON.stringify(actorOf({ ...instanceOwner, auth_kind: "dev", surface: "web", client: null }));
+        await c.query("update tenant_allowances set created_by = $1, updated_by = $1 where lower(email) = $2", [by, SYNTHETIC_PEOPLE[1].email]);
+      } finally {
+        await made.pool.end();
+      }
       const migration = (await c.query<{ name: string }>("select max(name) as name from schema_migrations")).rows[0]!.name;
       const products = (
         await c.query<{ path: string }>("select t.slug || '/' || m.slug || '/' || p.slug as path from products p join teams m using (team_id) join tenants t on t.tenant_id = p.tenant_id order by 1")
       ).rows.map((r) => r.path);
-      record = { built_at: new Date().toISOString(), pull: s.name, migration, commit: gitCommit(), example: keep.slug, standard: standard.slug, products };
-      console.log(`The golden master is ${keep.slug}, the example organization in the copy ${s.name}, and ${standard.slug}, a copy of it that is not the example:
+      record = { built_at: new Date().toISOString(), pull: s.name, migration, commit: gitCommit(), example: keep.slug, standard: standard.slug, synthetic: SYNTHETIC, products };
+      console.log(`The golden master is ${keep.slug}, the example organization in the copy ${s.name}, ${standard.slug}, a copy of it that is not the example, and ${SYNTHETIC}, a synthetic organization with people of its own:
   ${products.join("\n  ")}`);
     } finally {
       await c.end();
@@ -148,6 +189,47 @@ function gitCommit() {
 function option(args: string[], flag: string) {
   const i = args.indexOf(flag);
   return i >= 0 ? args[i + 1] : undefined;
+}
+
+/**
+ * The golden master as another host loads it (deploy/docker/whatbuild-e2e.sh load): `database.dump`,
+ * made from a copy of it in which the development sign-in's people hold the roles `pnpm dev:e2e`
+ * gives them each time it serves, `files/` and `golden.json`. The golden master itself is
+ * untouched. The export is real people's data, as the golden master is.
+ */
+async function exportGolden(args: string[]) {
+  const golden = readGolden();
+  const dir = resolve(args[0] ?? join(E2E_DIR, "export", golden?.built_at.replace(/[:.]/g, "").slice(0, 15) + "Z"));
+  const local = await connectOrStartLocalPg(E2E.pgDir, E2E.pgPort, { portVariable: "WHATBUILD_E2E_PG_PORT" });
+  const scratch = "golden_export";
+  try {
+    if (!golden || !(await local.hasDatabase(E2E.golden))) throw new Error("There is no golden master yet: run pnpm e2e golden first.");
+    await admin(local, async (c) => {
+      await c.query(`drop database if exists ${scratch}`);
+      await c.query(`create database ${scratch} template ${E2E.golden} owner ${APP_ROLE}`);
+    });
+    try {
+      const made = createDb(local.appUrl(scratch), 2);
+      try {
+        await addSamplePeople(made.db, golden.synthetic ? [golden.synthetic] : []);
+      } finally {
+        await made.pool.end();
+      }
+      rmSync(dir, { recursive: true, force: true });
+      mkdirSync(dir, { recursive: true });
+      // As the cluster's superuser: row-level security is forced, so the application's role reads no rows without a tenant.
+      execFileSync("pg_dump", ["--format=custom", "--no-owner", "--no-privileges", `--file=${join(dir, "database.dump")}`, local.adminUrl.replace(/\/postgres$/, `/${scratch}`)], { stdio: "inherit" });
+    } finally {
+      await admin(local, (c) => c.query(`drop database if exists ${scratch}`));
+    }
+    if (existsSync(E2E.goldenBlobs)) cpSync(E2E.goldenBlobs, join(dir, "files"), { recursive: true });
+    else mkdirSync(join(dir, "files"));
+    writeFileSync(join(dir, "golden.json"), JSON.stringify(golden, null, 2) + "\n");
+    console.log(`Exported the golden master built ${golden.built_at} (from the pull ${golden.pull}, schema at ${golden.migration}) to ${show(dir)}.
+It is real people's data: copy it only to a host of your own, then load it there with deploy/docker/whatbuild-e2e.sh load.`);
+  } finally {
+    await local.stop();
+  }
 }
 
 /** Put the instance's database and files back to the golden master. Called by `pnpm dev:e2e` before it serves. */
@@ -205,6 +287,7 @@ function startRun(plan: string | undefined) {
   Golden      ${golden ? `from the pull ${golden.pull}, built ${golden.built_at} at ${golden.commit}` : "none yet: run pnpm e2e golden"}
   Example     ${golden?.example ?? golden?.sandbox ?? "?"}   (the example organization)
   Standard    ${golden?.standard ?? "?"}   (the same products, not the example)
+  Synthetic   ${golden?.synthetic ?? "none: build the golden master again"}   (its own people: morgan, casey, avery; sam reads its Story)
   Products    ${golden?.products.join("\n              ") ?? "?"}
   Folder      ${dir}
   Recording   log.jsonl, and screenshots in shots/
@@ -278,6 +361,7 @@ async function stopAll() {
 async function main() {
   const [command, ...rest] = process.argv.slice(2);
   if (command === "golden") return buildGolden(rest);
+  if (command === "export") return exportGolden(rest);
   if (command === "plans") return listPlans();
   if (command === "run") return startRun(rest[0]);
   if (command === "stop") return stopAll();
@@ -286,6 +370,7 @@ async function main() {
   if (command && command !== "help") process.exitCode = 1;
   console.log(`Usage:
   pnpm e2e golden [pull] [--org s]  build the golden master from a pulled copy of production
+  pnpm e2e export [dir]             the golden master as a dump and files, for a Docker host
   pnpm dev:e2e                      reset to the golden master and serve on ${e2eBaseUrl()}
   pnpm e2e plans                    list the plans in e2e/plans
   pnpm e2e run [plan]               start a run of a plan (with none, print the current run)

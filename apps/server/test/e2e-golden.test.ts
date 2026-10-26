@@ -3,6 +3,8 @@ import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it, inject } from "vitest";
 import { copyTenant } from "../src/e2e-golden.ts";
 import { syncExampleTenant } from "../src/example-organization.ts";
+import { addSamplePeople } from "../src/fixture.ts";
+import { SEED_ACCOUNTS } from "../src/seed.ts";
 import { startHarness, type Harness } from "./harness.ts";
 
 let h: Harness;
@@ -84,5 +86,26 @@ describe("the golden master's standard organization", () => {
         expect(r.status, `${base} ${word}`).toBe(200);
         expect(r.body.results.map((x: { kind: string; title: string }) => [x.kind, x.title]), `${base} ${word}`).toEqual([["source", "Yard walk — Example Co"]]);
       }
+  });
+});
+
+describe("the golden master's synthetic organization", () => {
+  it("is left out when the sample people are given their roles, which every other organization gets", async () => {
+    const owner = await h.signIn("own-owner@sample.example", "Own Owner");
+    const own = (await owner.api("POST", "/api/v1/tenants", { name: "Own People" })).body.tenant;
+    const shared = (await owner.api("POST", "/api/v1/tenants", { name: "Shared People" })).body;
+    const other = shared.tenant;
+    // Jordan's place is on a product: a reader of its Story.
+    expect((await owner.api("POST", `/api/v1/teams/${other.slug}/${shared.team.slug}/products`, { name: "Shared" })).status).toBe(201);
+    await addSamplePeople(h.db, [own.slug]);
+    const held = async (tenantId: string) =>
+      (
+        await admin.query<{ email: string }>(
+          "select distinct a.email from memberships m join accounts a using (account_id) where m.tenant_id = $1 and a.email = any($2) order by 1",
+          [tenantId, SEED_ACCOUNTS.map((a) => a.email)],
+        )
+      ).rows.map((r) => r.email);
+    expect(await held(own.tenant_id)).toEqual([]);
+    expect(await held(other.tenant_id)).toEqual(SEED_ACCOUNTS.map((a) => a.email).sort());
   });
 });

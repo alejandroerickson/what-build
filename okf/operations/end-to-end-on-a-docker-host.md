@@ -1,0 +1,110 @@
+---
+type: System Concept
+title: The end-to-end instance on a Docker host, serving each release's image on a fresh copy of the golden master
+description: An always-on end-to-end instance on any machine that runs Docker, such as a home server or a NAS; the release image as a development server, its Postgres, loading a golden master exported from a checkout, resetting before each run, following releases, and running the plans against it through an SSH tunnel.
+tags: [operations, testing, e2e, docker, golden-master, releases]
+generated: {by: agent:claude, at: 2026-10-26}
+status: draft
+---
+
+# The end-to-end instance on a Docker host
+
+The [end-to-end tests](end-to-end-tests.md) run on `pnpm dev:e2e`, which serves the checkout's
+source through Vite. The same golden master can also be served by **the release image**, on any
+machine that runs Docker and stays on, such as a NAS. A plan run there tests what a deployment
+actually runs: the built server and web app, the image's Node, a Postgres server of its own, and
+the migrations a release brings, taken as a deployment takes them. The agent that runs the plans
+stays where it is; only the address it tests changes.
+
+It is not a deployment for people. It runs the image as a **development server**
+(`NODE_ENV=development`), because the test tools sign in through the development sign-in, where
+anyone signs in as anyone; mail only prints. So it answers on the host's loopback only and is
+reached through an SSH tunnel. It holds real people's data, as the golden master does
+([a copy of production](a-copy-of-production.md)): the host must be the maintainer's own, and its
+folder is never shared or backed up anywhere public.
+
+## The pieces
+
+Everything is in [`deploy/docker/`](../../deploy/docker/):
+
+| File | What it is |
+|---|---|
+| `compose.yaml` | Postgres 17, the app (`<image>:<tag>`, on `127.0.0.1:<port>`), and an optional updater. |
+| `whatbuild-e2e.sh` | `load`, `reset`, `update`, `nightly`, `status`, run on the host. |
+| `env.example` | The settings, copied to `.env` beside them on the host, where it stays. |
+
+On the host, the folder holds those three files, `.env`, and `data/`: `data/pg` (the cluster),
+`data/golden` (the export: `database.dump`, `files/`, `golden.json`) and `data/blobs` (the served
+copy's files). The cluster holds two databases: `golden`, loaded from the export and never served,
+and `e2e`, a template copy of it that the app serves and that `reset` makes again. The
+application's role (`whatbuild`) owns both and is not a superuser, so row-level security holds as
+on a deployment.
+
+## Setting it up
+
+1. On the host, make a folder for it and put `compose.yaml`, `whatbuild-e2e.sh` and `env.example`
+   in it. Copy `env.example` to `.env` and fill it in: the folder's absolute path, the image and
+   repository, a password (`openssl rand -hex 24`), the port, and the tunnel's address.
+2. Where Docker needs root, as on a NAS whose socket only root may open, give the SSH user a sudo
+   rule for this script alone, without a password, so an agent can reset over SSH and nothing
+   else: `<user> ALL=(root) NOPASSWD: <folder>/whatbuild-e2e.sh` in a file under `/etc/sudoers.d/`
+   (checked with `visudo -c`), and run it as `sudo <folder>/whatbuild-e2e.sh …`. Make the script
+   and its folder writable by root alone, or the rule gives root to whoever can edit it.
+3. If the image is private, sign the host in to the registry with a token that only reads
+   packages: `docker login ghcr.io -u <user>`. Keep that token out of `.env`.
+4. In the checkout, export the golden master and copy it over:
+
+   ```sh
+   corepack pnpm e2e export                                  # .what-build/e2e/export/<built>/
+   rsync -a .what-build/e2e/export/<built>/ <host>:<folder>/incoming/
+   ```
+
+5. On the host: `./whatbuild-e2e.sh load incoming`. It takes the export into `data/golden`, makes
+   the role and the `golden` database, restores the dump as the role, takes the newest release if
+   `.env` names none, and resets. Then delete `incoming/`.
+6. To follow releases, start the updater: `docker compose --profile updater up -d`. Each night it
+   runs `whatbuild-e2e.sh nightly`, which takes a newer release if there is one, on a fresh copy,
+   and logs to `update.log`.
+
+A new golden master (after `pnpm e2e golden` from a newer pull) goes the same way: export, copy,
+`load`.
+
+## What `reset` does
+
+It is what `pnpm dev:e2e` does before serving, and what each run starts from:
+
+1. stops the app, drops `e2e` and makes it again from `golden`;
+2. copies `data/golden/files` into `data/blobs`, owned by the image's user;
+3. runs the image's migrations (`node main.js migrate`), so a release's migrations run on the copy
+   as they would on a deployment taking it, and a failed migration stops the reset;
+4. starts the app and waits for `/health`.
+
+The export already gives the development sign-in's people their roles (Riley, Sam and Jordan in the
+example and the standard organization; the synthetic organization's own people in theirs), which
+`pnpm dev:e2e` gives each time it serves. The example organization is the one `golden.json` names.
+
+`update [tag]` takes a release (the newest by default), records it in `.env` as `WHATBUILD_TAG`,
+pulls the image and resets. `status` says which release is served and which golden master.
+
+## Running the plans against it
+
+From the checkout, open a tunnel and point the tools at its end:
+
+```sh
+ssh -N -L 5293:127.0.0.1:5283 <host> &                     # the port in .env, to a free local one
+ssh <host> 'sudo <folder>/whatbuild-e2e.sh reset'          # a fresh copy for this plan (sudo where Docker needs root)
+WHATBUILD_E2E_URL=http://localhost:5293 corepack pnpm e2e run smoke
+WHATBUILD_E2E_URL=http://localhost:5293 corepack pnpm e2e browser signin sam
+```
+
+`WHATBUILD_E2E_PUBLIC_URL` in `.env` must be the tunnel's local end, since the app writes its own
+address into sign-in redirects and links. Reset between plans as `pnpm e2e stop` and `pnpm dev:e2e`
+do locally. The run's folder, log and report stay in the checkout, as for a local run. The
+`run-end-to-end-tests` skill runs a plan here when asked to test on the Docker host.
+
+## What differs from a local run
+
+- The code is a release's, not the checkout's: a change not yet released is tested locally.
+- The server log is `docker compose logs whatbuild` on the host.
+- The image serves the built web app itself, on one port, where `pnpm dev:e2e` has Vite in front of
+  the API; the development sign-in is offered the same way, since the server says whether it is.
