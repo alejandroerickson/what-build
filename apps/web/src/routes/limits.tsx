@@ -88,7 +88,10 @@ function PersonLimits({ l }: { l: OrganizationLimits }) {
               <p className="muted">Only whoever runs this WhatBuild can change the plan.</p>
             </>
           ) : (
-            <p>{l.organization.name} has no daily allowances: nothing anyone does here is counted.</p>
+            <>
+              <p>{l.organization.name} has no daily allowances.</p>
+              <p className="muted">What everyone does is still counted, day by day, so that if {l.organization.name} moves to the free plan, that day's allowances start from what was already done.</p>
+            </>
           )}
         </SheetBody>
       </Sheet>
@@ -180,8 +183,8 @@ function WhatYouAdd({ l }: { l: OrganizationLimits }) {
 
 /**
  * For an owner of this WhatBuild: who in the organization meets its limits, every limit with the
- * refusal a call over it gets, and what sets each of the deployment's. What they used today shows only
- * where they meet the limits themselves, the only place it is counted.
+ * refusal a call over it gets, and what sets each of the deployment's. What they used today is counted
+ * on every plan, so it shows on every plan but to a guest of the example organization.
  */
 function InstanceOwnerLimits({ l }: { l: OrganizationLimits }) {
   const free = l.plan === "free";
@@ -211,14 +214,12 @@ function InstanceOwnerLimits({ l }: { l: OrganizationLimits }) {
                 {l.organization.example ? " Its guests meet only the limit on calls a minute." : ""}
               </dd>
             </div>
-            {free ? (
-              <div>
-                <dt>Daily counts</dt>
-                <dd>
-                  Start over at midnight UTC, <span title={formatDateTime(l.allowances_restart_at)}>{untilTime(l.allowances_restart_at)}</span>.
-                </dd>
-              </div>
-            ) : null}
+            <div>
+              <dt>Daily counts</dt>
+              <dd>
+                Start over at midnight UTC, <span title={formatDateTime(l.allowances_restart_at)}>{untilTime(l.allowances_restart_at)}</span>.
+              </dd>
+            </div>
           </dl>
         </SheetBody>
       </Sheet>

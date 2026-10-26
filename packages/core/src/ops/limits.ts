@@ -58,7 +58,7 @@ function deploymentLimits(cfg: CoreConfig) {
   ];
 }
 
-/** Each limit with its value, the free plan's, and, for someone who meets it, what they used today. */
+/** Each limit with its value, the free plan's, and, for a member, what they used today: counted on every plan. */
 async function limitsView(db: Db, state: LimitState, accountId: string | null) {
   const used = accountId ? await usageToday(db, state, accountId) : null;
   const usedOf: Partial<Record<LimitKey, number>> = used
@@ -81,7 +81,7 @@ export const organizationLimits = defineOperation({
   mutates: false,
   summary: "An organization's plan, the limits on how often and how much people work in it, and what you have used of each today.",
   description:
-    "plan is free or unlimited. On the free plan everyone in the organization meets every limit, its owners included: limits lists each with its value, the free plan's, what it is counted over, the error a call over it receives and, for the daily ones, what you and everyone together have used today; a day is a UTC day and the allowances start again at allowances_restart_at. On the unlimited plan nobody meets them, and you_meet_them is false. In the example organization a guest meets only the limit on calls a minute. deployment_limits are the ones every organization has, whatever its plan, each with a key that stays the same. Only an instance owner changes a plan or a limit; tell the person to ask whoever runs this WhatBuild.",
+    "plan is free or unlimited. On the free plan everyone in the organization meets every limit, its owners included: limits lists each with its value, the free plan's, what it is counted over, the error a call over it receives and, for the daily ones, what you and everyone together have used today (used); a day is a UTC day and the allowances start again at allowances_restart_at. On the unlimited plan nobody meets them, and you_meet_them is false, but a day's use is counted all the same and given as used: an organization moved to the free plan during a day starts from what that day already used. In the example organization a guest meets only the limit on calls a minute. deployment_limits are the ones every organization has, whatever its plan, each with a key that stays the same. Only an instance owner changes a plan or a limit; tell the person to ask whoever runs this WhatBuild.",
   input: z.strictObject({ tenant }),
   rest: { method: "GET", path: "/limits" },
   mcp: { tool: "products", action: "limits" },
@@ -94,7 +94,7 @@ export const organizationLimits = defineOperation({
       plan: state.plan,
       plan_name: PLAN_NAMES[state.plan],
       you_meet_them: meets ? (guest ? "calls_per_minute_only" : true) : false,
-      limits: await limitsView(ctx.db, state, meets && !guest ? ctx.principal.account_id : null),
+      limits: await limitsView(ctx.db, state, guest ? null : ctx.principal.account_id),
       allowances_restart_at: state.day_end,
       deployment_limits: deploymentLimits(ctx.ports.config),
     };
@@ -119,7 +119,7 @@ export const listOrganizations = defineOperation({
   mutates: false,
   summary: "Every organization on this instance, with its plan, who created it and what it used today (instance owners).",
   description:
-    "For the instance's owners: new_organization_plan, the plan an organization someone else creates gets on this deployment (WHATBUILD_NEW_ORGANIZATION_PLAN), and each organization with its slug (and former_slugs, the ones it had before), name, plan, whether it is the example organization, who created it and when, how many people hold a role in it, the limits an instance owner changed from the free plan's (changed_limits), and what everyone in it used today. It names no product and holds none of an organization's content. Change a plan or a limit with products(action=\"set_limits\"), whose expected_etag is etag; rename an organization with products(action=\"rename_tenant\"), whose expected_etag is name_etag.",
+    "For the instance's owners: new_organization_plan, the plan an organization someone else creates gets on this deployment (WHATBUILD_NEW_ORGANIZATION_PLAN), and each organization with its slug (and former_slugs, the ones it had before), name, plan, whether it is the example organization, who created it and when, how many people hold a role in it, the limits an instance owner changed from the free plan's (changed_limits), and what everyone in it used today, whatever its plan. It names no product and holds none of an organization's content. Change a plan or a limit with products(action=\"set_limits\"), whose expected_etag is etag; rename an organization with products(action=\"rename_tenant\"), whose expected_etag is name_etag.",
   input: z.strictObject({}),
   rest: { method: "GET", path: "/organizations" },
   mcp: { tool: "products", action: "organizations" },

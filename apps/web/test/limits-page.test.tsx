@@ -15,7 +15,8 @@ const state = { ...FRESH };
 
 const limit = (key: string, group: string, label: string, unit: string, value: number | boolean, used?: number) => ({
   key, group, label, unit, value: state.values[key] ?? value, free_plan: value, per: "Each person, each day", refusal: key === "requests_per_minute" ? "429 rate_limited" : "409 quota_exceeded", help: "",
-  ...(used === undefined || state.meets !== true ? {} : { used }),
+  // Counted on every plan; a guest of the example organization has nothing to count.
+  ...(used === undefined || state.meets === "calls_per_minute_only" ? {} : { used }),
 });
 
 vi.mock("../src/lib/api.ts", async (original) => ({
@@ -121,8 +122,11 @@ describe("Plan and limits", () => {
   it("gives a member of an unlimited organization the size the web app takes, which the relay limits", async () => {
     Object.assign(state, { plan: "unlimited", meets: false });
     const text = (await page()).textContent ?? "";
-    expect(text).toContain("Acme has no daily allowances");
+    expect(text).toContain("Acme has no daily allowances.");
+    // What is done there still counts, which a move to the free plan during a day starts from.
+    expect(text).toContain("What everyone does is still counted, day by day, so that if Acme moves to the free plan, that day's allowances start from what was already done.");
     expect(text).not.toContain("Today");
+    expect(text).not.toContain("12 of 500");
     expect(text).toContain("Files up to 25 MB each.");
     // The deployment reads less of a file than it takes.
     expect(text).toContain("Text is read from files up to 20 MB; a larger file is kept but not read.");
@@ -149,12 +153,13 @@ describe("Plan and limits", () => {
     expect([...host.querySelectorAll("th[role=columnheader]")].map((th) => th.textContent)).toContain("Used today");
   });
 
-  it("leaves out what the instance owner used today where nothing is counted", async () => {
+  it("shows the instance owner what they used today in an unlimited organization too, where it is counted all the same", async () => {
     Object.assign(state, { instanceOwner: true, plan: "unlimited", meets: false });
     const host = await page();
     expect(host.textContent).toContain("Limits on the free plan");
     expect(host.textContent).toContain("Nobody in it meets these limits.");
-    expect([...host.querySelectorAll("th[role=columnheader]")].map((th) => th.textContent)).not.toContain("Used today");
-    expect(host.textContent).not.toContain("Not a daily limit");
+    expect(host.textContent).toContain("Start over at midnight UTC");
+    expect([...host.querySelectorAll("th[role=columnheader]")].map((th) => th.textContent)).toContain("Used today");
+    expect(host.textContent).toContain("Not a daily limit");
   });
 });

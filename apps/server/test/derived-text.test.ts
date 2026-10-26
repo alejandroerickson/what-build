@@ -1,4 +1,7 @@
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { EDIT_MAX_CHANGED_WORDS, rewrites } from "../../../packages/core/src/text-edits.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 // A source's words are one derived text: Markdown taken from the first attachment read, following
@@ -10,6 +13,7 @@ let h: Harness;
 let alice: Browser;
 let vic: Browser;
 let P: string;
+let productPath: string;
 let annex: string;
 
 beforeAll(async () => {
@@ -18,7 +22,8 @@ beforeAll(async () => {
   vic = await h.signIn("vic@example.com", "Vic Viewer");
   const t = await alice.api("POST", "/api/v1/tenants", { name: "Text Co" });
   const p = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Planner" });
-  P = `/api/v1/p/${p.body.path}`;
+  productPath = p.body.path;
+  P = `/api/v1/p/${productPath}`;
   const a = await alice.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Annex" });
   annex = `/api/v1/p/${a.body.path}`;
   await alice.api("POST", `/api/v1/tenants/${t.body.tenant.slug}/members`, { team: t.body.team.slug, product: "planner", email: "vic@example.com", role: "viewer" });
@@ -287,6 +292,57 @@ describe("a source's derived text", () => {
     expect((await alice.api("GET", `${P}/sources/${one}/derived/manifest`)).body).toMatchObject({ path: "only.md", status: "ready" });
   });
 
+  it("is logged as edited after a small correction and as rewritten after a rewrite, whichever door and way it is written", async () => {
+    const s = await source("Depot walkthrough — Example Co");
+    const said = "# Walkthrough\n\nRiley: The crews pick up their vans at six, load the parts the dispatcher listed the night before, and leave by half past.\n\nSam: And when a part is missing?\n\nRiley: They call the depot, and someone drives it out to the first job.\n";
+    expect((await write(s, { content: said })).status).toBe(200);
+    // One word corrected, the whole text sent back as the web app's editor sends it.
+    const corrected = said.replace("half past", "quarter past");
+    expect((await write(s, { content: corrected, expected_etag: await etagOf(s) })).status).toBe(200);
+    // Two words corrected far apart: still a correction.
+    const twice = corrected.replace("six", "seven").replace("first job", "next job");
+    expect((await write(s, { content: twice, expected_etag: await etagOf(s) })).status).toBe(200);
+    // Only the line breaks changed: no word did.
+    expect((await write(s, { content: twice.replace(/\n\n/g, "\n"), expected_etag: await etagOf(s) })).status).toBe(200);
+    // Most of it replaced through an exact edit is a rewrite, as it would be sent whole.
+    const was = (await text(s)).body.text as string;
+    const replaced = was.slice(was.indexOf("Riley:"));
+    expect((await write(s, { edits: [{ old_text: replaced, new_text: "Jordan: The depot opens at seven and nobody loads anything before the dispatcher arrives.\n" }], expected_etag: await etagOf(s) })).status).toBe(200);
+    // And an unrelated text sent whole is a rewrite.
+    expect((await write(s, { content: "# Notes\n\nA list of parts, nothing more.\n", expected_etag: await etagOf(s) })).status).toBe(200);
+    // Edits that leave nothing remove it, as empty content does.
+    expect((await write(s, { edits: [{ old_text: "# Notes\n\nA list of parts, nothing more.\n", new_text: "" }], expected_etag: await etagOf(s) })).body).toMatchObject({ chars: 0, etag: null });
+    expect((await logOf(s, "text_written")).reverse()).toEqual([
+      "Wrote the derived text",
+      "Edited the derived text",
+      "Edited the derived text",
+      "Edited the derived text",
+      "Rewrote the derived text",
+      "Rewrote the derived text",
+      "Removed the derived text",
+    ]);
+  });
+
+  it("is logged the same way when an agent writes it", async () => {
+    const s = await source("Dispatcher call — Example Co");
+    const said = "# Call\n\nThe dispatcher reads the list of jobs aloud at seven, and the crews write down the ones that are theirs.\n";
+    expect((await write(s, { content: said })).status).toBe(200);
+    const client = new Client({ name: "derived-text-agent", version: "1.0.0" });
+    await client.connect(new StreamableHTTPClientTransport(new URL(`${h.baseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${await h.connectAgent(alice, "Text agent", "/mcp", "editor")}` } } }));
+    try {
+      const writeText = async (params: Record<string, unknown>) => {
+        const r = (await client.callTool({ name: "derived", arguments: { action: "write_text", product: productPath, params: { record_id: s, expected_etag: await etagOf(s), ...params } } })) as { isError?: boolean; content: { text: string }[] };
+        expect(r.isError, r.content[0]!.text).toBeFalsy();
+      };
+      await writeText({ content: said.replace("aloud", "out") });
+      await writeText({ edits: [{ old_text: "at seven", new_text: "at half past six" }] });
+      await writeText({ content: "# Call\n\nNobody answered.\n" });
+    } finally {
+      await client.close();
+    }
+    expect((await logOf(s, "text_written")).reverse()).toEqual(["Wrote the derived text", "Edited the derived text", "Edited the derived text", "Rewrote the derived text"]);
+  });
+
   it("reads a text file that holds null characters, which a Postgres text value cannot, and keeps its text without them", async () => {
     const s = await source("Radio log export — Example Co");
     await attach(s, "radio-log.txt", "Crews call in\u0000 before seven.\u0000\n");
@@ -294,6 +350,39 @@ describe("a source's derived text", () => {
     expect((await text(s)).body).toMatchObject({ text: "Crews call in before seven.\n", taken_from: { path: "radio-log.txt" } });
     expect((await alice.api("GET", `${P}/sources/${s}/derived/manifest`)).body).toMatchObject({ status: "ready", facts: { null_characters_dropped: 2 } });
     expect(await hits("call in before seven")).toContainEqual(expect.objectContaining({ record_id: s, field: "text" }));
+  });
+});
+
+describe("telling a rewrite from an edit", () => {
+  const words = (n: number, w = (i: number) => `w${i}`) => Array.from({ length: n }, (_, i) => w(i)).join(" ");
+
+  it("counts the words removed and added, in order, against half of the two texts' words", () => {
+    // Ten words each: up to ten removed and added, five replaced, is an edit.
+    const ten = words(10);
+    expect(rewrites(ten, ten)).toBe(false);
+    expect(rewrites(ten, words(10, (i) => (i < 5 ? `x${i}` : `w${i}`)))).toBe(false);
+    expect(rewrites(ten, words(10, (i) => (i < 6 ? `x${i}` : `w${i}`)))).toBe(true);
+    // Scattered corrections count word by word, not as the stretch between them.
+    expect(rewrites(ten, words(10, (i) => (i === 0 || i === 9 ? `x${i}` : `w${i}`)))).toBe(false);
+    // Spacing and line breaks change no word; case does.
+    expect(rewrites("Crews plan\n\nby the week.", "Crews  plan by\nthe week.")).toBe(false);
+    expect(rewrites("Hi", "hi")).toBe(true);
+    // Adding to a text edits it until what is added outweighs what was there.
+    expect(rewrites(ten, `${ten} ${words(20, (i) => `x${i}`)}`)).toBe(false);
+    expect(rewrites(ten, `${ten} ${words(21, (i) => `x${i}`)}`)).toBe(true);
+    expect(rewrites(ten, "")).toBe(true);
+    // Moving a passage removes and adds its words.
+    expect(rewrites(words(8), `${words(4, (i) => `w${i + 4}`)} ${words(4)}`)).toBe(false);
+  });
+
+  it("calls a change of more than the most words an edit may change a rewrite, however long the text, and tells it quickly", () => {
+    const long = words(60_000);
+    const changed = (n: number) => words(60_000, (i) => (i % 20 === 0 && i / 20 < n ? `x${i}` : `w${i}`));
+    expect(rewrites(long, changed(EDIT_MAX_CHANGED_WORDS / 2))).toBe(false);
+    expect(rewrites(long, changed(EDIT_MAX_CHANGED_WORDS / 2 + 1))).toBe(true);
+    const started = performance.now();
+    expect(rewrites(long, words(60_000, (i) => `x${i}`))).toBe(true);
+    expect(performance.now() - started).toBeLessThan(2_000);
   });
 });
 

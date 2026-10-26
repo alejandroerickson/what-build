@@ -6,7 +6,7 @@ import { conflict, invalid, notFound } from "../errors.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import type { Ports } from "../ports.ts";
 import { expectedEtag, id } from "../schemas.ts";
-import { applyEdits, editsInput, textDiff } from "../text-edits.ts";
+import { applyEdits, editsInput, rewrites, textDiff } from "../text-edits.ts";
 import { indexText } from "../text-index.ts";
 import { newEtag, newId, sameEtag } from "../util.ts";
 import { attachmentReadings, attachmentText, loadRecord, takenFrom, textFileId } from "./sources.ts";
@@ -225,7 +225,7 @@ export const writeText = defineOperation({
     await checkPartEtag(ctx, r, "text", cur?.etag ?? null, input.expected_etag);
     let content: string;
     let from: string | null = null;
-    let summary: string;
+    let summary: string | undefined;
     if (input.from_attachment !== undefined) {
       const reading = (await attachmentReadings(ctx.db, [r.record_id])).find((x) => x.path === input.from_attachment);
       if (!reading) throw notFound(`No attachment ${input.from_attachment} on this source.`);
@@ -245,11 +245,9 @@ export const writeText = defineOperation({
     } else if (input.edits !== undefined) {
       if (!cur) throw notFound("This source has no derived text to edit. Send content, or from_attachment, instead.");
       content = applyEdits({ text: cur.content }, input.edits, {}).text ?? cur.content;
-      summary = "Edited the derived text";
-    } else {
-      content = input.content!;
-      summary = content.trim() ? (cur ? "Rewrote the derived text" : "Wrote the derived text") : "Removed the derived text";
-    }
+    } else content = input.content!;
+    // Sent whole, as the web app's editor sends it, or by exact edits, the log says what the words became.
+    summary ??= !content.trim() ? "Removed the derived text" : !cur ? "Wrote the derived text" : rewrites(cur.content, content) ? "Rewrote the derived text" : "Edited the derived text";
     const chars = codePointLength(content);
     if (input.from_attachment === undefined && chars > TEXT_WRITE_MAX)
       throw invalid("too_long", `A derived text written here holds at most ${count(TEXT_WRITE_MAX)} characters; this one has ${count(chars)}. Upload it as an attachment and take its text with from_attachment.`);

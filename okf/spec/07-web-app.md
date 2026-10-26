@@ -984,12 +984,14 @@ never described as deleting. A list row showing an archived object says *Archive
   reads or that adding a file from a link is off. The limit on calls a minute, the refusal a call
   over a limit gets, the deployment's other limits and what sets them are not shown to them: agents
   read them all from `products.limits`, and a call over one says so. An unlimited organization's
-  page says nothing there is counted, over What you can add; a guest of the example reaching the
+  page says it has no daily allowances, and that what everyone does is still counted, day by day,
+  so that a move to the free plan during a day starts from what was already done
+  ([§9.7](09-data-lifecycle.md)), over What you can add; a guest of the example reaching the
   address is told they have no allowances there. An owner of the instance sees instead the plan and
   who in the organization meets the limits (on the free plan everyone, owners included; in the
-  example, its guests only the limit on calls a minute), and when the day's allowances start over;
+  example, its guests only the limit on calls a minute), and when the day's counts start over;
   **Limits** (on an unlimited organization, **Limits on the free plan**), one row for each: what it
-  counts and over what, what it allows, what they used today where they meet it themselves, and the
+  counts and over what, what it allows, what they used today (counted on every plan), and the
   refusal a call over it gets; and **Limits of this deployment**, the ones every organization has,
   with what sets each. Nobody changes anything here; an owner of the instance has **Change plan and
   limits**, which opens the organization's dialog on the instance's page (`/instance?org=<slug>`).

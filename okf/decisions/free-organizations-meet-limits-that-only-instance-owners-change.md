@@ -3,7 +3,7 @@ type: Decision
 title: Free organizations meet limits on how often and how much, and only instance owners change an organization's plan or limits
 description: An organization someone other than an instance owner creates gets the plan the deployment names, unlimited unless it names free; the free plan's limits are enforced in one layer for everyone in it.
 tags: [decision, limits, tenancy, sign-up, cost]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -52,6 +52,8 @@ and that paid organizations will have limits too.
 - Every limit is a field in `packages/core/src/limits.ts`, listed with its unit, what it is counted
   over and its refusal; the control panel and `products.limits` are built from that list.
 - Counters live in `limit_counters`, keyed by tenant, person, minute or UTC day; nothing else
-  counts against a limit, and the worker drops counters past their day.
+  counts against a limit, and the worker drops counters past their day. A day's are kept on every
+  plan, so an organization moved to the free plan during a day meets what that day already used
+  ([§9.7](../spec/09-data-lifecycle.md) rule 10).
 
 Specified in: [§3.3](../spec/03-accounts-teams-and-identity.md#33-tenants-and-teams), [§9.7](../spec/09-data-lifecycle.md).
