@@ -82,6 +82,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [An empty list says what belongs in it and what to ask an agent; adding by hand stays in the header](empty-lists-lead-with-the-agent.md)
 - [An assumption may be recorded before any evidence cites it](register-entries-may-start-uncited.md) (superseded)
 - [The repository is public; okf/ is the single source of documentation](public-repository-reference-docs.md)
+- [WhatBuild is MIT-licensed, all of it, and stays so](whatbuild-is-mit-licensed.md)
 - [Checks that keep private material out and find known vulnerabilities live in the repository, with pinned tools, and no separate service](privacy-and-security-checks-live-in-the-repository.md)
 - [Agent guidance is tool-neutral: AGENTS.md and .agents/skills](agent-guidance-is-tool-neutral.md)
 - [A release is a tag on main with its image published; deploying it is the deployment's own pipeline](releases-are-tags-with-a-published-image.md)

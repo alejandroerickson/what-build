@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: A vulnerability
+    url: https://github.com/alejandroerickson/what-build/security/advisories/new
+    about: Report it privately, never in an issue (the security policy says how).
+  - name: Contributing
+    url: https://github.com/alejandroerickson/what-build/blob/main/.github/CONTRIBUTING.md
+    about: How to run WhatBuild, make a change and open a pull request.

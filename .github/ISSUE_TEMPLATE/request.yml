@@ -1,0 +1,24 @@
+name: Request
+description: Something WhatBuild doesn't do yet, or should do differently.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This issue is public. Leave out anything private: real names, addresses, your organization's content.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you are trying to do
+      description: The work, and where WhatBuild gets in the way today. Who is doing it (a person in the web app, an agent over MCP, whoever runs a deployment)?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: What you have in mind, if anything. A sketch of a screen or an operation is welcome.
+  - type: textarea
+    id: meanwhile
+    attributes:
+      label: What you do meanwhile
+      description: The workaround you use now, if any.

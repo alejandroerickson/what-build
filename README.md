@@ -74,11 +74,8 @@ in [`okf/operations`](okf/index.md), with a skill an agent can follow.
 
 ## Contributing
 
-Start with [working in this repository](okf/process/working-in-this-repository.md). Before a
-change goes in, `corepack pnpm typecheck`, `corepack pnpm test` and `corepack pnpm build` pass.
-The repository is public, and `pnpm install` turns on git hooks that keep secrets and private
-material out of it ([security checks](okf/operations/security-checks.md)). To report a
-vulnerability, see [SECURITY.md](.github/SECURITY.md).
+See [CONTRIBUTING.md](.github/CONTRIBUTING.md): how to run it, the checks a change passes, and
+what a public repository refuses. To report a vulnerability, see [SECURITY.md](.github/SECURITY.md).
 
 ## Documentation
 
