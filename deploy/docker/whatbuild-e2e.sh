@@ -2,16 +2,20 @@
 # WhatBuild's end-to-end instance on a Docker host (okf/operations/end-to-end-on-a-docker-host.md).
 # Run on the host, from the folder holding this script, compose.yaml and .env.
 #
-#   whatbuild-e2e.sh load <export>   take a golden master that `pnpm e2e export` made and copied here,
+#   whatbuild-e2e.sh load <export>   take a golden master `pnpm e2e export` made, from its folder on the host,
 #                                    then reset
 #   whatbuild-e2e.sh reset           serve a fresh copy of the golden master: what each run starts from
 #   whatbuild-e2e.sh update [tag]    serve a release (the newest by default) on a fresh copy
 #   whatbuild-e2e.sh nightly         update only when a newer release is out (the updater runs this)
 #   whatbuild-e2e.sh status          the release served, the golden master, and whether it answers
+#   whatbuild-e2e.sh logs [lines]    the app's last lines of log (200 by default), and the updater's
 #
 # The golden master is the database `golden`, never served; the app serves `e2e`, a template copy of
 # it, with its files copied from data/golden/files. Both are real people's data.
 set -eu
+# Where Docker needs root, this runs under sudo, whose PATH leaves out /usr/local/bin, where a NAS
+# may keep docker.
+PATH=$PATH:/usr/local/bin
 here=$(cd "$(dirname "$0")" && pwd)
 cd "$here"
 [ -f .env ] || { echo "No .env here: copy env.example to .env and fill it in." >&2; exit 1; }
@@ -126,8 +130,16 @@ case "${1:-}" in
   status)
     echo "release   ${WHATBUILD_TAG:-none}"
     echo "golden    built $(field built_at) from the pull $(field pull), schema at $(field migration), commit $(field commit)"
-    echo "example   ${WHATBUILD_EXAMPLE_TENANT:-?}; synthetic $(field synthetic)"
+    echo "example   ${WHATBUILD_EXAMPLE_TENANT:-?}; standard $(field standard); synthetic $(field synthetic)"
+    # Every product's path, as pnpm e2e run prints them from a checkout's own golden master.
+    if [ -f "$golden_json" ]; then
+      sed -n '/"products"/,/]/s/^ *"\([^"]*\)",\{0,1\}$/product   \1/p' "$golden_json"
+    fi
     compose ps
     ;;
-  *) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  logs)
+    compose logs --no-color --tail "${2:-200}" whatbuild
+    if [ -f update.log ]; then echo "--- update.log"; tail -n 20 update.log; fi
+    ;;
+  *) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac

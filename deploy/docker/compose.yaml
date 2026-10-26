@@ -49,6 +49,8 @@ services:
       WHATBUILD_NEW_ORGANIZATION_PLAN: free
 
   # Each night, whatbuild-e2e.sh nightly: the newest release, if it is newer, on a fresh copy.
+  # Start it alone (docker compose --profile updater up -d updater): a bare `up` would recreate the
+  # app without the example organization, which only the script reads from golden.json.
   updater:
     image: docker:27-cli
     restart: unless-stopped
