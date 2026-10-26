@@ -25,6 +25,13 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 Nothing yet.
 
+## v0.23.2
+
+- **Nothing to change.** The privacy page now names the counts held against an organization's
+  limits, which it left out: what each person changes, adds, exports and uploads there each day
+  and, where the plan limits them, their calls each minute. A day's counts are deleted after three
+  days, a minute's after an hour.
+
 ## v0.23.1
 
 - **A kind named in a search comes first everywhere.** It concerns every deployment and asks
