@@ -23,7 +23,26 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **With a content site, every page and inline file is served from it.** It concerns deployments
+  that set `WHATBUILD_CONTENT_URL`. From this release the content site serves, besides prototypes,
+  every Story page, mockup page, Idea card, style specimen and print view, agents' previews, and a
+  PDF or an uploaded HTML page shown in the app; the app's own addresses for them check the session
+  and hand the browser there (`302`) under an address that lasts the grant lifetime. A proxy in
+  front that routes by path must pass `/documents/` and `/api/v1/downloads/story-preview/` and
+  `…/card-preview/` on the content site's host, as it passes `/prototypes/`. Behind Cloudflare,
+  Email Address Obfuscation, Rocket Loader and Web Analytics' automatic beacon must be off on the
+  content site's zone, since they rewrite HTML and would put scripts in pages that the pages'
+  policy then blocks. A tab opened before the release keeps working; a tab opened before the
+  setting was first turned on frames none of these until it is reloaded, so ask people to reload
+  after turning it on. Turning it off stops addresses already given (`404`) until the app is
+  reloaded. A deployment without a content site serves everything as before.
+- **An uploaded HTML page is previewed from a route of its own, and the app allows no inline
+  style.** It concerns every deployment, and asks nothing of it but one thing below. The preview
+  of an HTML attachment is now framed from `…/sources/<id>/attachment/view` in a sandbox that runs
+  no script, rather than made inside the app's page, so the app's policy drops
+  `style-src 'unsafe-inline'`, and the weekly ZAP scan now fails on rule 10055. Behind the
+  Cloudflare Worker, deploy it again (`deploy/cloudflare/worker.js`), so the public site's page
+  carries the same policy. Sign-in's own pages allow their one stylesheet by its hash.
 
 ## v0.20.0
 

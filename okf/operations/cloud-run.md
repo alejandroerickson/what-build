@@ -322,12 +322,15 @@ agent's access is for the address it connected to, so changing the public URL re
 connected before (`401`) until it is connected again with the new address. Add
 `https://app.example.com/auth/google/callback` to the Google sign-in client's redirect URIs.
 
-**A content site for prototypes.** A mockup's prototype is served from the app's origin until
-`WHATBUILD_CONTENT_URL` names an origin of its own, on a registrable domain apart from the app's
-(`https://usercontent.example.net`; a subdomain of `example.com` would be the same site and get its
-cookies). With the Worker in front, move that domain's DNS to the same Cloudflare account, give the
+**A content site.** Mockups' prototypes, Story and mockup pages, Idea cards, style specimens, the
+print view, agents' previews and the PDFs and HTML files the app shows inline are served from the
+app's origin until `WHATBUILD_CONTENT_URL` names an origin of their own, on a registrable domain
+apart from the app's (`https://usercontent.example.net`; a subdomain of `example.com` would be the
+same site and get its cookies), so a browser bug that escapes a page's sandbox lands away from the
+session and the API ([decision](../decisions/with-a-content-site-every-page-and-inline-file-is-served-from-it.md)).
+With the Worker in front, move that domain's DNS to the same Cloudflare account, give the
 Worker the domain as one more custom domain, and in its zone turn off Email Address Obfuscation and
-Rocket Loader, which would rewrite a prototype's HTML, and Web Analytics' automatic beacon (RUM),
+Rocket Loader, which would rewrite the pages' HTML, and Web Analytics' automatic beacon (RUM),
 which Cloudflare may switch on for a new zone and which adds a script to every page. A
 Configuration Rule on every request with Disable RUM and Disable Zaraz on, and both of the others
 off, settles all of them. Behind another front, point the host at the service as the app's is.
@@ -337,9 +340,11 @@ Then:
 gcloud run services update whatbuild --region $R --update-env-vars WHATBUILD_CONTENT_URL=https://usercontent.example.net
 ```
 
-On that host the service answers `/prototypes/` and `/health` and nothing else, and the app's
-`frame-src` names it. Deploys keep the setting; removing it puts prototypes back on the app's
-origin.
+On that host the service answers `/prototypes/`, `/documents/`, the two preview paths
+(`/api/v1/downloads/story-preview/` and `…/card-preview/`) and `/health`, and nothing else; the
+Worker passes them all, since none has a dot in its first part. The app's `frame-src` names its
+`/prototypes/` and `/documents/`. Ask people to reload WhatBuild's open tabs once it is first set.
+Deploys keep the setting; removing it puts everything back on the app's origin.
 
 **Who asked to hear from us.** The site's form writes to the `interest` table
 ([§4.13](../spec/04-data-model.md)); nothing sends mail yet. Read it with Cloud SQL Studio or

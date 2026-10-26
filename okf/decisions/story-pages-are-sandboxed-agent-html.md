@@ -3,7 +3,7 @@ type: Decision
 title: Story pages are agent-authored HTML shown only in a sandbox
 description: Agents publish self-contained HTML pages; the server validates them and serves them into an isolated frame.
 tags: [decision, story, security]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -16,7 +16,7 @@ Stakeholder pages benefit from rich layout that agents can write, but that HTML 
 ## Decision
 
 - Pages are one self-contained document: no external resources, forms or frames, bounded inline scripts, at most 1 MB, validated at publish.
-- They are served with a sandbox CSP (opaque origin, no network) into an `<iframe sandbox>`.
+- They are served with a sandbox CSP (opaque origin, no network) into an `<iframe sandbox>`: from the app's origin, or, on a deployment with a content site, from there, under a short-lived address the app's own route hands off to ([decision](with-a-content-site-every-page-and-inline-file-is-served-from-it.md)).
 - Pages follow the product's Story style, never the app's look ([decision](story-pages-follow-the-teams-design-system.md)).
 - The app's frame asks for a page with a small script added inside the sandbox: it passes the focus-mode keys to the app, hands a link to another page of the same Story to the app, and opens every other link in a new tab. If a page still loads another address in its place, the app puts the page back and says so.
 - The frame sends the app a key's name or a page's slug and nothing else, and the app checks both. A page can therefore ask the app to show another page of its own Story, and cannot send the app anywhere else.

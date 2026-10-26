@@ -20,6 +20,8 @@ const attachment = { path: "interview.txt", media_type: "text/plain", size: 120,
 let reading: Record<string, unknown> = read;
 /** Who added the attachment, which a test may change. */
 let addedBy: Record<string, unknown> = by;
+/** The attachment's name and type, which a test may change. */
+let file: Record<string, unknown> = {};
 
 vi.mock("../src/lib/api.ts", async (original) => ({
   ...(await original<typeof import("../src/lib/api.ts")>()),
@@ -28,7 +30,7 @@ vi.mock("../src/lib/api.ts", async (original) => ({
       return {
         record_id: ID, title: "Crew lead interview — Example Co", date: null, tags: [], uploaded_by: by, uploaded_at: "2026-10-01T09:00:00.000Z",
         updated_at: "2026-10-01T09:00:00.000Z", updated_by: by, archived_at: null, derived_status: "ready", text_chars: 30, attachment_count: 1,
-        etag: "source-etag", duration_ms: null, status_detail: null, warnings: [], annotation_count: 0, pending_upload_path: null, attachments: [{ ...attachment, text: reading, added_by: addedBy }],
+        etag: "source-etag", duration_ms: null, status_detail: null, warnings: [], annotation_count: 0, pending_upload_path: null, attachments: [{ ...attachment, ...file, text: reading, added_by: addedBy }],
         annotations: [], agent_notes: [],
         // Written by hand: it follows no attachment.
         text: { chars: 30, etag: "text-1", updated_at: "2026-10-02T09:00:00.000Z", updated_by: by, taken_from: null },
@@ -46,6 +48,13 @@ const { attachmentsNote } = await import("../src/routes/source-attachments.tsx")
 const { SourceDetailPage } = await import("../src/routes/source-detail.tsx");
 
 beforeAll(() => {
+  // jsdom draws no modal layer; a dialog that opens is enough here.
+  HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) {
+    this.setAttribute("open", "");
+  };
+  HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) {
+    this.removeAttribute("open");
+  };
   // A menu asks whether motion is reduced; jsdom has no media queries.
   window.matchMedia ??= (query: string) => ({ matches: false, media: query, onchange: null, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {}, dispatchEvent: () => false });
 });
@@ -57,7 +66,9 @@ afterEach(() => {
   document.body.innerHTML = "";
   reading = read;
   addedBy = by;
+  file = {};
   vi.mocked(api).mockClear();
+  vi.restoreAllMocks();
 });
 
 /** The source's Attachments, as its page shows them. */
@@ -138,5 +149,21 @@ describe("an attachment's row", () => {
 
   it("says only who added it on the web", async () => {
     expect(await facts()).toMatch(/ · added .+ by Riley Chen$/);
+  });
+});
+
+describe("an uploaded HTML page's preview", () => {
+  it("frames the page from its own route, in a sandbox that runs nothing, and never fetches its bytes into the app's page", async () => {
+    file = { path: "brief.html", media_type: "text/html" };
+    const fetched = vi.spyOn(globalThis, "fetch");
+    const host = await openAttachments();
+    await act(async () => host.querySelector<HTMLButtonElement>('button[title="Show brief.html"]')!.click());
+    const frame = document.querySelector<HTMLIFrameElement>('iframe[title="brief.html"]')!;
+    expect(frame).toBeTruthy();
+    expect(frame.getAttribute("sandbox")).toBe("");
+    expect(frame.getAttribute("referrerpolicy")).toBe("no-referrer");
+    expect(frame.getAttribute("src")).toBe(`${BASE}/sources/${ID}/attachment/view?path=brief.html`);
+    expect(frame.hasAttribute("srcdoc")).toBe(false);
+    expect(fetched).not.toHaveBeenCalled();
   });
 });

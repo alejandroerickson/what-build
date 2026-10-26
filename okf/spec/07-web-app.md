@@ -499,7 +499,8 @@ The sources, and everything for reading them.
     from, its type in words (such as "Word document", not its media type), size, versions, and who
     added it when, adding "via <surface>" when it was not the web, as About does, with Download,
     and a menu with **Show it** (a PDF, an image, a recording, Markdown, HTML in a sandbox, or
-    plain text, in a dialog; a recording with its length), **Use
+    plain text, in a dialog; a recording with its length; an HTML page framed from its own route,
+    `…/attachment/view`, in `<iframe sandbox="">`, never fetched into the app's page), **Use
     its text…** and **Read it again** for editors, the last not for pictures, which no reading
     finds words in. An image opens in a viewer with zoom (buttons, `+` `-`, `0` to fit, `1` for actual
     size, double-click, a pinch or Ctrl/Cmd and the wheel), drag to pan, full screen (`F`), and,
@@ -663,6 +664,12 @@ page of a mockup reaches it by promotion, from the mockup (§7.7).
   pinned at the top. Opens
   the last page this browser read in this product, otherwise the first root page. Pages render
   only in the sandboxed frame ([§4.11](04-data-model.md)); the frame follows the app's theme.
+  The frame's address is always the app's own route for the version; on a deployment with a
+  content site that route hands the frame to the content site
+  ([§6.4](06-operations-and-adapters.md)), which counts as the frame's own load, not a page that
+  replaced itself. The same holds for a mockup page on its canvas, an Idea card's front, a style's
+  specimen, a PDF, an uploaded HTML page and the print view's tab, so the app keeps and refreshes
+  no address of the content site's but a prototype's.
   Until the frame has its document, skeleton lines stand in for the page, and the inspector stays
   in place with skeleton lines of its own, so moving between pages never slides it away and back.
   A callout appears above

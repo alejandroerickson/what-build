@@ -194,13 +194,18 @@ lets a defect through, when it writes a Story of many pages over MCP.
 
 ## Planned — Hosting the content people upload and agents write
 
-**Planned; not built.** These keep HTML and files that WhatBuild serves away from the app, and come
-from the [security checks](../operations/security-checks.md).
+**Planned; not built.** With a content site, every document of people's and agents' HTML and
+every file the app shows inline is served from it, under a short-lived address the app's own
+route hands off to ([decision](../decisions/with-a-content-site-every-page-and-inline-file-is-served-from-it.md));
+uploaded HTML is previewed from a sandboxed route of its own, so the app's policy allows no inline
+style. These follow.
 
 | Item | What it answers |
 |---|---|
-| Uploaded HTML previewed from a sandboxed route | The uploaded-HTML preview inherits the app's content security policy, so the app keeps `style-src 'unsafe-inline'` for it. Serving the preview from its own sandboxed route, as Story pages are, would let the app's policy drop it, and the ZAP rule for directives without a fallback (10055) become a failure. |
-| Story and mockup HTML, and uploaded files, from a separate origin | The sandbox gives each page an opaque origin and no network. Serving page HTML from its own origin through short-lived signed addresses would keep a page that escaped the sandbox away from the app's origin too, and would let PDFs, which browsers will not render sandboxed, open away from it as well. It needs a second host name and a domain mapping. A mockup's prototype is already served from a capability path, and moves to a content site by a setting ([below](#planned--mockups-prototypes-next)). |
+| A document's address ends with its session | A document's address on the content site is checked again when it is used, but outlives a sign-out by up to its lifetime (30 minutes) for whoever holds it. Naming the session in the grant, by an HMAC of its hash under the grant key, would end it with the session ("sign out everywhere" included). |
+| Stable addresses for immutable versions | Every load mints a new address, and every document is `no-store`, so a browser keeps nothing between loads. A Story page's or a mockup page's version never changes: an address whose expiry is rounded up, as a prototype's is, with `private, max-age`, would make flipping through the Story faster. |
+| Images, audio and video from the content site | They are subresources of the app's pages, not documents, and SVG is never served inline, so they stay on the app's origin. Moving them would need `img-src` and `media-src` to name the content site and a grant for each file. |
+| The print view's address | The print view's grant names each page's version, up to 50, so its address is long. Holding the composed document in a short-lived row, as a Story preview is, would shorten it. |
 
 ## Planned — Mockups' prototypes, next
 
@@ -210,7 +215,6 @@ from a capability path on the app's origin ([§4.12](04-data-model.md#412-mockup
 
 | Item | What it answers |
 |---|---|
-| A content site on Azure | `WHATBUILD_CONTENT_URL` serves prototypes from a host of their own, so that a prototype's document may open in a tab of its own and show `alert`, `confirm` and `prompt`, and a browser bug that escapes the sandbox lands on a host with nothing of the app's. [cloud-run.md](../operations/cloud-run.md) sets one up behind the Cloudflare Worker, and production has one. [azure.md](../operations/azure.md) has no line for it yet. |
 | One subdomain of the content site per view, with `allow-same-origin` | A prototype runs in an opaque origin: no browser storage or cookies, root-relative addresses that point outside it, and nothing a browser caches between its frames. An origin of its own per view (`<id>.usercontent.example.net`) would give it all three while keeping it from the app and from other prototypes. It needs wildcard DNS and a wildcard certificate, which a Cloud Run domain mapping does not take (a load balancer or the Worker would), and a revisited stateless rule. |
 | Posters in place of frames at a small zoom | A canvas of many entries loads every one of them in a frame, each fetching every file it uses. Showing a page's poster until the person zooms in, or selects it, would load only what is looked at. |
 | The bytes of an unpublished upload, on a product's delete | A publish that failed after storing a prototype's new bytes leaves them under the upload, which the worker removes with the upload a day after its grant expires. A product's delete drops the upload's row first, and those bytes then stay. |

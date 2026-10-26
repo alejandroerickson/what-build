@@ -56,7 +56,9 @@ sees the promoted page and nothing else of the mockup ([decision](a-reader-reads
   document at the top level (`Sec-Fetch-Dest: document`) and `alert`, `confirm` and `prompt`.
   `WHATBUILD_CONTENT_URL` moves the route to a content site of its own (another registrable domain,
   never a subdomain), lifting both refusals and keeping a sandbox escape away from the app. The
-  maintainer chose on 2026-10-14 to register that domain later.
+  maintainer chose on 2026-10-14 to register that domain later. The content site now serves every
+  page and inline file as well, never anything of the app's
+  ([decision](with-a-content-site-every-page-and-inline-file-is-served-from-it.md)).
 - **Frames.** `mockups.get` and the Story's read give a frame its address; the route adds the
   frame script to every HTML document. Links within the prototype move in place; a load that does
   not announce itself as one of its documents is put back.

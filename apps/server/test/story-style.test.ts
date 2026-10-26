@@ -380,6 +380,35 @@ describe("the app's frame", () => {
     expect(run("https://app.example/t/acme/core/planner/idea", false)).toBe("https://app.example/t/acme/core/planner/idea");
   });
 
+  it("opens a root-relative link in the app, not on the content site the page is served from", () => {
+    const home = "https://app.example/t/acme/core/planner";
+    const run = (raw: string, story = false) => {
+      const listeners: Record<string, (e: unknown) => void> = {};
+      const sent: unknown[] = [];
+      const parent = { postMessage: (m: unknown) => sent.push(m) };
+      // A browser resolves the attribute against the page's own address, on the content site.
+      const attrs: Record<string, string> = { href: raw };
+      const a = {
+        href: new URL(raw, "https://usercontent.example.net/documents/grant/page.html").href,
+        getAttribute: (n: string) => attrs[n] ?? null,
+        setAttribute: (n: string, v: string) => void (attrs[n] = v),
+        hasAttribute: (n: string) => n in attrs,
+      };
+      new Function("addEventListener", "parent", FRAME_SCRIPT)((type: string, fn: (e: unknown) => void) => void (listeners[type] = fn), parent);
+      listeners["message"]!({ source: parent, data: { whatbuild: "app-home", home } });
+      if (story) listeners["message"]!({ source: parent, data: { whatbuild: "story-base", base: `${home}/story/` } });
+      listeners["click"]!({ target: { closest: () => a }, button: 0, defaultPrevented: false, preventDefault: () => undefined });
+      return { href: a.href, sent };
+    };
+    expect(run("/t/acme/core/planner/evidence/01ABC").href).toBe("https://app.example/t/acme/core/planner/evidence/01ABC");
+    expect(run("/t/acme/core/other/idea").href).toBe("https://app.example/t/acme/core/other/idea");
+    // A link to another page of the Story is still shown in place.
+    expect(run("/t/acme/core/planner/story/release-plan", true).sent).toEqual([{ whatbuild: "story-page", page: "release-plan" }]);
+    // A protocol-relative or absolute link names its own host, and keeps it.
+    expect(run("//example.com/story").href).toBe("https://example.com/story");
+    expect(run("https://example.com/story").href).toBe("https://example.com/story");
+  });
+
   it("passes the canvas's keys, Space, a pinch and a press on, only once the app says the page is on a canvas", () => {
     const run = (canvas: boolean) => {
       const listeners: Record<string, (e: unknown) => void> = {};

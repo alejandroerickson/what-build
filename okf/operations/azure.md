@@ -779,6 +779,27 @@ Behind a proxy of the organization's (Application Gateway, Front Door) that send
 as `Host` and does not pass the browser's host in `X-Forwarded-Host`, every page would redirect to
 itself: set `WHATBUILD_REDIRECT_TO_PUBLIC_URL=0` there, or have the proxy forward the host.
 
+### A content site
+
+A content site keeps people's and agents' HTML (Story and mockup pages, Idea cards, the print view,
+mockups' prototypes) and the PDFs and HTML files people upload away from the app's origin, so a
+browser bug that escapes a page's sandbox lands on a site that holds no session and serves no API
+([decision](../decisions/with-a-content-site-every-page-and-inline-file-is-served-from-it.md)).
+Without one, all of it is served from the app's origin, in its sandbox, as before. It needs a
+second host on another registrable domain than the app's (a subdomain of the app's domain is the
+same site), bound to the same app as the custom domain above:
+
+```bash
+az containerapp hostname add --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP" --hostname usercontent.example.net
+az containerapp hostname bind --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP" --hostname usercontent.example.net \
+  --environment "$AZ_ENV" --validation-method CNAME
+az containerapp update --subscription "$AZ_SUBSCRIPTION" -g "$AZ_RG" -n "$AZ_APP" --set-env-vars WHATBUILD_CONTENT_URL=https://usercontent.example.net -o none
+```
+
+The app answers that host by itself (`/prototypes/`, `/documents/`, agents' previews and
+`/health`, nothing else), so nothing routes by path. A proxy in front that does must pass those
+paths on that host. Ask people to reload WhatBuild's open tabs once it is set.
+
 ### Who can reach it
 
 By default the app is on the internet and WhatBuild's own sign-in guards it, as on Cloud Run. To
