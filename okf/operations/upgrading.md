@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.23.0
+
 - **An agent is offered only what its person could do.** It concerns every deployment and asks
   nothing of one. The MCP tool list offers the instance owners' actions (`usage`, `organizations`,
   `set_limits`, `accounts` and the allowances to start organizations) only to an owner named in
