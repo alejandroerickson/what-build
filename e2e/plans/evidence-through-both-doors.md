@@ -1,7 +1,7 @@
 ---
 title: A source added by an agent is read, corrected and commented on by a person, and the reverse
-organizations: [standard, sandbox]
-people: [sam]
+organizations: [standard, example]
+people: [sam, riley, guest]
 surfaces: [web, mcp]
 ---
 
@@ -11,7 +11,8 @@ An agent and a person share one product. What the agent adds over MCP must appea
 on the web, its attachment read into the source's text and that text searchable; what the person
 writes on the web, the text included, must be what the agent reads; an attachment beside the text
 is kept and never searched; and the activity log must say who did what, through which door. Then
-the same is tried in the sandbox, where the sandbox's limits apply.
+a guest of the example organization reads it and changes nothing, and the free plan's limits are
+tried.
 
 ## Steps
 
@@ -89,15 +90,18 @@ the same is tried in the sandbox, where the sandbox's limits apply.
     the second write is refused with `409 stale_etag`, and nothing changed.
 13. **Web, as Sam.** Archive the second source, then find it among archived sources and restore it.
     *Expect:* archiving is reversible, and the words used are archive and restore, never delete.
-14. **The sandbox organization, as Sam.** Repeat steps 2 to 4 in the same product there, over MCP
-    through the sandbox's own endpoint (`--endpoint /mcp/t/<sandbox org>`). Then
-    check that nothing from steps 2 to 13 appears in the sandbox organization, nor anything from
-    the sandbox in the standard one. *Expect:* the upload works within the sandbox's limits (read
-    them with `sandbox(action="status")`), and the two organizations stay separate.
-15. **The sandbox organization, as Sam.** Try what the sandbox's settings forbid, for example
-    exporting the product or fetching a URL into a source, if the status says they are off.
-    *Expect:* refused with an error that names the sandbox's limit; the same action is allowed in
-    the standard organization.
+14. **The example organization, as a guest.** Over MCP as `guest@example.com`, find the same
+    product in the example organization, read a source and search it; then try steps 2 and 3 there
+    (create a source, request an upload) and an export. Check that nothing from steps 2 to 13
+    appears in the example organization. *Expect:* reads and search work; every write and the
+    export are refused with `403 example_read_only`, naming how to create an organization of one's
+    own, and nothing changed; the two organizations stay separate.
+15. **The free plan, as Riley and then Sam.** As Riley, on Organizations, put the standard
+    organization on the free plan with Exports set to 0, and save. As Sam, read
+    `products(action="limits")` for it over MCP, then export the product. *Expect:* the limits say
+    the plan is free and that Sam meets them, with what Sam used today; the export is refused with
+    `403 plan_restricted`, saying exporting is off on the plan; reading and search still work. As
+    Riley, put the organization back on the unlimited plan with the free plan's limits.
 
 ## Look out for
 

@@ -30,7 +30,7 @@ sees the promoted page and nothing else of the mockup ([decision](a-reader-reads
   back byte for byte (the same SHA-256). A canvas page is self-contained HTML or an **entry**: the
   path of one of the prototype's HTML documents, with a query and a fragment if wanted. Several
   pages may enter one prototype; it carries forward like pages and files. It arrives only under
-  `prototype/` in the canvas ZIP, so a public sandbox's visitors, who cannot upload, cannot add one.
+  `prototype/` in the canvas ZIP, so an organization on the free plan, which uploads no canvas, cannot add one.
 - **Confined, not checked.** Its files are not held to a page's HTML rules: publish warns, naming
   each file, about what will not work there, and refuses only unsafe archives. The policy holds.
 - **Stateless.** `localStorage`, `sessionStorage`, IndexedDB and `document.cookie` behave as the

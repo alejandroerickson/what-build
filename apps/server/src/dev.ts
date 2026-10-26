@@ -7,7 +7,7 @@ import { loadConfig } from "./config.ts";
 import { createDb, migrate } from "./database.ts";
 import { E2E, holdInstancePid, instancePid, resetToGolden } from "./e2e.ts";
 import { addSamplePeople, FIXTURE_BLOBS, FIXTURE_DATABASE } from "./fixture.ts";
-import { SEED_ACCOUNTS, seed, seedSandbox } from "./seed.ts";
+import { SEED_ACCOUNTS, seed } from "./seed.ts";
 import { connectOrStartLocalPg, startLocalPg, type LocalPg } from "./testing/pg.ts";
 import { Worker } from "./worker.ts";
 
@@ -18,9 +18,9 @@ import { Worker } from "./worker.ts";
  *
  *   pnpm dev                 embedded Postgres on :54329, API on :8787, web app on :5273
  *   DATABASE_URL=… pnpm dev  use your own Postgres instead
- *   WHATBUILD_SANDBOX_TENANT=harbor-labs pnpm dev
- *                            the sample organization as the public sandbox, with a baseline saved
- *                            and an invitation link printed
+ *   WHATBUILD_EXAMPLE_TENANT=<slug> pnpm dev
+ *                            another organization as the example every account reads; by default
+ *                            the sample organization is, and an empty value turns it off
  *   pnpm dev:fixture         the copy of a deployment that `pnpm fixture load` put in place, with the
  *                            sample people added to it and no sample data; mail only prints here
  *                            (okf/operations/a-copy-of-production.md)
@@ -46,7 +46,7 @@ const WEB_PORT = END_TO_END ? E2E.webPort : Number(process.env["WHATBUILD_WEB_PO
 async function main() {
   let pg: LocalPg | null = null;
   let databaseUrl = END_TO_END ? undefined : process.env["DATABASE_URL"];
-  let sandboxTenant: string | undefined;
+  let exampleTenant: string | undefined;
   if (END_TO_END) {
     const running = instancePid();
     if (running !== null) throw new Error(`This checkout's end-to-end instance is already running (process ${running}). Stop it with pnpm e2e stop first.`);
@@ -63,7 +63,7 @@ async function main() {
       throw e;
     });
     databaseUrl = reset.url;
-    sandboxTenant = reset.golden.sandbox;
+    exampleTenant = reset.golden.example ?? reset.golden.sandbox;
     console.log(`Reset to the golden master (from the pull ${reset.golden.pull}, built ${reset.golden.built_at}).`);
   } else if (!databaseUrl) {
     console.log("Starting Postgres (embedded, in .what-build/pg)…");
@@ -90,9 +90,11 @@ async function main() {
     ...(FIXTURE || END_TO_END ? { WHATBUILD_MAILER: "console", WHATBUILD_BLOB_STORE: "fs" } : {}),
     // The sample owner runs this instance, so the instance owner's page has someone to show it to.
     WHATBUILD_INSTANCE_OWNERS: process.env["WHATBUILD_INSTANCE_OWNERS"] ?? SEED_ACCOUNTS[0].email,
-    // The golden master's sandbox stays the public sandbox; the server reads this at start-up.
-    ...(sandboxTenant ? { WHATBUILD_SANDBOX_TENANT: sandboxTenant } : {}),
-  };
+    // As on the deployment that offers organizations to the public: someone else's new organization is free.
+    WHATBUILD_NEW_ORGANIZATION_PLAN: process.env["WHATBUILD_NEW_ORGANIZATION_PLAN"] ?? "free",
+    // The golden master's example stays the example; the server reads this at start-up.
+    ...(exampleTenant ? { WHATBUILD_EXAMPLE_TENANT: exampleTenant } : {}),
+  } as Record<string, string | undefined>;
   const config = loadConfig(env);
   const { db, pool } = createDb(databaseUrl, 3);
   await migrate(db);
@@ -101,7 +103,12 @@ async function main() {
   else if (!END_TO_END) {
     const worker = new Worker({ db, ports }, 60_000, () => {});
     await seed({ db, ports }, worker);
-    if (config.sandboxTenant) await seedSandbox({ db, ports }, config.sandboxTenant);
+  }
+  // As on a deployment, every account reads an example organization: by default the sample one, and
+  // in a copy of a deployment the one it was copied with.
+  if (env["WHATBUILD_EXAMPLE_TENANT"] === undefined) {
+    const copied = await db.selectFrom("tenants").select("slug").where("example", "=", true).executeTakeFirst();
+    env["WHATBUILD_EXAMPLE_TENANT"] = copied?.slug ?? (FIXTURE || END_TO_END ? "" : "harbor-labs");
   }
   await pool.end();
 

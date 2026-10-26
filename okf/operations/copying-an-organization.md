@@ -3,7 +3,7 @@ type: System Concept
 title: Copying an organization out of a deployment, into a local copy, the golden master, the dev deployment or another deployment's new database
 description: What a copy of one or more organizations holds and leaves behind, taking one with pnpm fixture pull, where each kind of copy goes, moving an organization into another deployment, and what a copy cannot do.
 tags: [operations, production, privacy, tenancy, fixture, dev, migrations]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:claude, at: 2026-10-25}
 status: draft
 ---
 
@@ -11,8 +11,8 @@ status: draft
 
 A deployment's organizations share one database
 ([decision](../decisions/shared-schema-tenancy-with-row-level-security.md)). A copy takes one or
-more of them out of it and nothing of the rest: the public sandbox, unless other organizations are
-named ([decision](../decisions/a-copy-of-production-holds-only-the-organizations-it-is-for.md)).
+more of them out of it and nothing of the rest: the example organization, unless other
+organizations are named ([decision](../decisions/a-copy-of-production-holds-only-the-organizations-it-is-for.md)).
 Every copy of production is one: the [local copy](a-copy-of-production.md), the
 [golden master](end-to-end-tests.md) built from it, and the [dev deployment](dev-deployment.md)'s.
 The skill `copy-an-organization` conducts moving one into another deployment.
@@ -21,7 +21,7 @@ The skill `copy-an-organization` conducts moving one into another deployment.
 
 | Holds | Leaves behind |
 |---|---|
-| the organizations: settings, teams, products and everything in them, invitations, activity, a sandbox's baselines, queued jobs | every other organization |
+| the organizations: settings, teams, products and everything in them, invitations, activity, queued jobs | every other organization |
 | the accounts their rows refer to, chiefly their members, with addresses and names | every other account |
 | the record of migrations, so the database it lands in knows its schema | sessions, agents' connections and tokens, sign-in links |
 | their files: everything under `t/<tenant_id>/` in the bucket | allowances to create organizations, the public site's interest list, usage counts, feedback and its daily counts |
@@ -38,7 +38,7 @@ The copy refuses a table it has no rule for. A table either carries `tenant_id` 
 ## Taking one
 
 ```sh
-corepack pnpm fixture pull                            # the public sandbox
+corepack pnpm fixture pull                            # the example organization
 corepack pnpm fixture pull --org <slug> --org <slug>  # the organizations named
 corepack pnpm fixture pull --all                      # everything, as pg_dump takes it
 corepack pnpm fixture list                            # the pulls, and what each holds
@@ -95,8 +95,9 @@ replaced. A copy cannot join a database that already holds organizations.
    the copy's or newer.
 5. **People** sign in by the same address and find their places. Sessions and agents'
    connections stay behind, so each agent connects again. Instance owners and the sign-up allowlist
-   are the target's own settings. If the copy is a public sandbox, name it with
-   `WHATBUILD_SANDBOX_TENANT` ([Cloud Run](cloud-run.md)).
+   are the target's own settings. A copied organization keeps its plan; an instance owner of the
+   target changes it on `/instance`. The target names no example organization unless it is the
+   maintainer's public deployment ([Cloud Run](cloud-run.md)).
 6. **Delete the copy:** `rm -r $D`.
 
 Production is never a target. It is only read.

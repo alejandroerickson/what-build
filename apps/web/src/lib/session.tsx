@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, useContext, type ReactNode } from "react";
 import { Navigate, useLocation, useParams } from "react-router";
 import { Loading } from "../ui/index.tsx";
@@ -9,10 +9,12 @@ export interface Me {
   account_id: string;
   email: string;
   display_name: string;
-  /** The account was made on an invitation to the public sandbox alone. */
-  sandbox_only?: boolean;
   /** How many organizations this account may still create; null means no limit (an owner of this instance). */
   tenant_allowance: { instance_owner: boolean; allowed: number | null; created: number; remaining: number | null; source: "instance_owner" | "given" | "default" };
+  /** The plan an organization this account starts gets. */
+  new_organization_plan: "free" | "unlimited";
+  /** The person hid the example organization from the panel; the overview still shows it. */
+  hide_example: boolean;
 }
 
 /** `reader` reads only the Story: the server sends it no concept, and counts of Story pages only. */
@@ -30,7 +32,7 @@ export interface ProductSummary {
   concept?: string;
   archived_at: string | null;
   updated_at: string;
-  tenant: { tenant_id: string; slug: string; name: string; sandbox?: boolean };
+  tenant: { tenant_id: string; slug: string; name: string; example?: boolean };
   team: { team_id: string; slug: string; name: string };
   your_role: ProductRole;
   counts: Product["counts"];
@@ -39,9 +41,12 @@ export interface ProductSummary {
 
 export interface ProductsResponse {
   items: ProductSummary[];
-  /** `sandbox` marks a public sandbox; `your_role` is then "visitor" for everyone but its owners and admins. */
-  /** story_only: the person reads only the Story everywhere in the organization, so its members are not shown to them. */
-  tenants: { tenant_id: string; slug: string; name: string; sandbox?: boolean; story_only?: boolean; your_role: string | null; teams: { team_id: string; slug: string; name: string; your_role: string | null }[] }[];
+  /**
+   * `example` marks the example organization, where `your_role` is "guest" for everyone it gave no
+   * role. story_only: the person reads only the Story everywhere in the organization, so its members
+   * are not shown to them. `plan` is free or unlimited.
+   */
+  tenants: { tenant_id: string; slug: string; name: string; example?: boolean; plan: "free" | "unlimited"; story_only?: boolean; your_role: string | null; teams: { team_id: string; slug: string; name: string; your_role: string | null }[] }[];
 }
 
 /**
@@ -69,6 +74,20 @@ export function useMe() {
 
 export function useProducts(includeArchived = false) {
   return useQuery({ queryKey: ["products", includeArchived], queryFn: () => api<ProductsResponse>("GET", `/api/v1/me/products${includeArchived ? "?include_archived=true" : ""}`) });
+}
+
+/** Hide the example organization from the panel, or show it again: the account's own choice. */
+export function useHideExample() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (hide: boolean) => api<Me>("PATCH", "/api/v1/me", { hide_example: hide }),
+    onSuccess: (me) => qc.setQueryData(["me"], (old: Me | undefined) => (old ? { ...old, hide_example: me.hide_example } : old)),
+  });
+}
+
+/** The organizations in the order the app lists them: the person's own first, the example organization last. */
+export function ownFirst<T extends { example?: boolean }>(tenants: T[]): T[] {
+  return [...tenants].sort((a, b) => Number(Boolean(a.example)) - Number(Boolean(b.example)));
 }
 
 export function useSignOut() {
@@ -104,7 +123,7 @@ export interface Product {
   archived_at: string | null;
   etag: string;
   path: string;
-  tenant: { tenant_id: string; slug: string; name: string; sandbox?: boolean };
+  tenant: { tenant_id: string; slug: string; name: string; example?: boolean; plan?: "free" | "unlimited" };
   team: { team_id: string; slug: string; name: string };
   your_role: ProductRole;
   /** A reader gets story_pages only. */

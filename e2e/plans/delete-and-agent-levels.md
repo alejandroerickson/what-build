@@ -1,6 +1,6 @@
 ---
 title: Admins delete permanently, editors archive, and an agent does only what its connection's level allows
-organizations: [standard, sandbox]
+organizations: [standard, example]
 people: [riley, sam]
 surfaces: [web, mcp]
 ---
@@ -59,8 +59,9 @@ raise its own level. It deletes only what it made itself in the run.
     name to be typed; open each dialog, check the counts look right, and cancel. The product's
     dialog, the product being live, has Archive instead beside Cancel; the organization's, which
     can't be archived, has Cancel alone. Do not delete or archive.
-11. **The sandbox organization, as Riley.** Open its Members page. *Expect:* no Delete this
-    organization. As Sam there, nothing offers a permanent delete.
+11. **The example organization, as Riley.** Open its Members page. *Expect:* no Delete this
+    organization, since it is the example. As a guest (`guest@example.com`) there, nothing offers
+    an archive or a permanent delete.
 12. **Web, as Riley, then MCP on the same connection.** On Connect an agent, untick Can submit
     feedback on the connection from step 6, then list the tools and call `submit_feedback` anyway.
     *Expect:* the change is confirmed with Undo; `submit_feedback` is not listed, the call answers

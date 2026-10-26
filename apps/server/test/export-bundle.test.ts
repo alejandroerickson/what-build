@@ -89,7 +89,8 @@ describe("who may export", () => {
     const op = OPERATIONS.find((o) => o.name === "products.export")!;
     expect(op.description).toMatch(/A viewer, editor or admin may export/);
     expect(op.description).toMatch(/A reader, who reads only the Story, is refused \(403\)/);
-    expect(op.description).toMatch(/exports_per_day, which is 0 unless its staff raise it/);
+    expect(op.description).toMatch(/On the free plan each person's exports are limited by exports_per_day/);
+    expect(op.description).toMatch(/A guest of the example organization exports nothing \(403 example_read_only\)/);
     expect(op.description).not.toMatch(/Any role/);
     expect(op.summary).not.toMatch(/\bparse\b/);
   });

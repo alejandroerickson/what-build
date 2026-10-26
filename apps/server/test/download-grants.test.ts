@@ -1,7 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { syncSandboxTenant } from "../src/public-sandbox.ts";
+import { syncExampleTenant } from "../src/example-organization.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 import { buildOrganization, type Organization } from "./organization-fixture.ts";
 
@@ -150,26 +150,24 @@ describe("a download grant", () => {
   });
 });
 
-describe("a download grant in a public sandbox", () => {
-  it("stops when the sandbox closes to visitors", async () => {
-    expect(await syncSandboxTenant(h.db, org.tenant.slug, () => {})).toBe(org.tenant.id);
-    const T = `/api/v1/tenants/${org.tenant.slug}`;
-    const set = async (patch: Record<string, unknown>) => {
-      const etag = (await org.owner.api("GET", `${T}/sandbox/settings`)).body.etag;
-      const r = await org.owner.api("PATCH", `${T}/sandbox/settings`, { expected_etag: etag, ...patch });
-      expect(r.status, JSON.stringify(r.body)).toBe(200);
-    };
-    await set({ visitor_access: "write", reset_enabled: false });
-    const invite = await org.owner.api("POST", `${T}/sandbox/invites`, { label: "Grants", places: 2 });
-    const vic = await h.signIn("vic@grants.example", "Vic Grants");
-    expect((await vic.api("POST", "/api/v1/sandbox/join", { code: String(invite.body.invite_link).split("/join/")[1] })).status).toBe(200);
-    const { c } = await agent(vic, `/mcp/t/${org.tenant.slug}`);
-    const g = await grant(c, "download");
-    await c.close();
-    expect((await use(g)).status).toBe(200);
-    await set({ visitor_access: "closed" });
-    const r = await use(g);
-    expect(r.status).toBe(403);
-    expect(JSON.parse(r.text).error.code).toBe("sandbox_closed");
+describe("a download grant in the example organization", () => {
+  it("serves a guest's download, and stops when the deployment no longer names the example", async () => {
+    expect(await syncExampleTenant(h.db, org.tenant.slug, () => {})).toBe(org.tenant.id);
+    try {
+      const gus = await h.signIn("gus@grants.example", "Gus Guest");
+      const { c } = await agent(gus, `/mcp/t/${org.tenant.slug}`);
+      const g = await grant(c, "download");
+      // A guest reads, and writes nothing: a preview asks as a write would.
+      const preview = body(await c.callTool({ name: "story", arguments: { action: "preview", product: org.product.path, params: { page_id: "guest-check", title: "Guest check", body: "<main class=\"page\"><p>No.</p></main>" } } }));
+      expect(preview.error.code).toBe("example_read_only");
+      await c.close();
+      expect((await use(g)).status).toBe(200);
+      await syncExampleTenant(h.db, null, () => {});
+      const r = await use(g);
+      expect(r.status).toBe(403);
+      expect(r.text).not.toContain(org.source.path);
+    } finally {
+      await syncExampleTenant(h.db, null, () => {});
+    }
   });
 });

@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { HmacGrantSigner } from "../src/adapters/misc.ts";
 import { createApp, createPorts } from "../src/app.ts";
 import { addressInstruction } from "../src/mcp.ts";
-import { syncSandboxTenant } from "../src/public-sandbox.ts";
+import { syncExampleTenant } from "../src/example-organization.ts";
 import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 // With a content site (WHATBUILD_CONTENT_URL), no route on the app's origin answers with a document
@@ -87,7 +87,7 @@ beforeAll(async () => {
   h = await startHarness((app) => ({ contentUrl: app.replace("localhost", "127.0.0.1") }));
   content = h.config.contentUrl!;
   const config = { ...h.config, contentUrl: null };
-  plain = createApp({ db: h.db, ports: createPorts(config, h.blobs, h.mailer), config, clock: h.clock });
+  plain = createApp({ db: h.db, ports: createPorts(config, h.blobs, h.mailer), config });
   alice = await h.signIn("alice@example.com", "Alice Admin");
   bob = await h.signIn("bob@example.com", "Bob Editor");
   rita = await h.signIn("rita@example.com", "Rita Reader");
@@ -378,29 +378,38 @@ describe("the app's pages", () => {
   });
 });
 
-describe("a document in a public sandbox", () => {
-  it("stops when the sandbox closes to visitors", async () => {
+describe("a document in the example organization", () => {
+  it("reaches a guest through the hand-off, and stops once the organization is no longer the example", async () => {
     const owner = await h.signIn("owen@example.com", "Owen Owner");
-    const t = await owner.api("POST", "/api/v1/tenants", { name: "Sandbox Co" });
-    const S = `/api/v1/tenants/${t.body.tenant.slug}`;
+    const t = await owner.api("POST", "/api/v1/tenants", { name: "Example Co" });
     const p = await owner.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Open" });
     const Q = `/api/v1/p/${p.body.path}`;
     expect((await owner.api("POST", `${Q}/story/pages/welcome/versions`, { title: "Welcome", html: page("Welcome", "<h1>Welcome</h1>") })).status).toBe(201);
-    expect(await syncSandboxTenant(h.db, t.body.tenant.slug, () => {})).toBeTruthy();
-    const set = async (patch: Record<string, unknown>) => {
-      const etag = (await owner.api("GET", `${S}/sandbox/settings`)).body.etag;
-      const r = await owner.api("PATCH", `${S}/sandbox/settings`, { expected_etag: etag, ...patch });
-      expect(r.status, JSON.stringify(r.body)).toBe(200);
-    };
-    await set({ visitor_access: "write", reset_enabled: false });
-    const invite = await owner.api("POST", `${S}/sandbox/invites`, { label: "Docs", places: 2 });
-    const vic = await h.signIn("vic@example.com", "Vic Visitor");
-    expect((await vic.api("POST", "/api/v1/sandbox/join", { code: String(invite.body.invite_link).split("/join/")[1] })).status).toBe(200);
-    const address = await addressFor(vic, `${Q}/story/pages/welcome/versions/1/html`);
-    expect((await open(address)).status).toBe(200);
-    await set({ visitor_access: "closed" });
-    const r = await open(address);
-    expect(r.status).toBe(403);
-    expect(await r.text()).toContain("closed");
+    expect(await syncExampleTenant(h.db, t.body.tenant.slug, () => {})).toBeTruthy();
+    const guest = await h.signIn("gus@example.com", "Gus Guest");
+    try {
+      const address = await addressFor(guest, `${Q}/story/pages/welcome/versions/1/html`);
+      const r = await open(address);
+      expect(r.status).toBe(200);
+      expect(await r.text()).toContain("<h1>Welcome</h1>");
+      await syncExampleTenant(h.db, null, () => {});
+      expect((await open(address)).status).toBe(403);
+    } finally {
+      await syncExampleTenant(h.db, null, () => {});
+    }
+  });
+});
+
+describe("a document in a free organization", () => {
+  it("counts against its limits once, at the app's address, and not again on the content site", async () => {
+    const tenantId = claimsOf(await addressFor(alice, `${P}/story/pages/overview/versions/1/html`))["t"] as string;
+    const address = await addressFor(alice, `${P}/story/pages/overview/versions/1/html`);
+    await h.db.updateTable("tenants").set({ plan: "free", limits: JSON.stringify({ requests_per_minute: 0 }) }).where("tenant_id", "=", tenantId).execute();
+    try {
+      expect((await atApp(alice, `${P}/story/pages/overview/versions/1/html`)).status).toBe(429);
+      expect((await open(address)).status).toBe(200);
+    } finally {
+      await h.db.updateTable("tenants").set({ plan: "unlimited", limits: "{}" }).where("tenant_id", "=", tenantId).execute();
+    }
   });
 });

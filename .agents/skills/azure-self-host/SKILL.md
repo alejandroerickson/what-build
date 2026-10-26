@@ -21,6 +21,9 @@ first command. This file is how to conduct the work.
 - **The repository.** It is public. Subscription, tenant and client IDs, resource names, addresses
   and anything about the organization stay in `.env.azure` (gitignored) and in your own notes.
   Never commit them, and never write them into `okf/` or `deploy/azure/`.
+- **What a public deployment has.** A self-hosted deployment has no example organization and no
+  free plan: never set `WHATBUILD_EXAMPLE_TENANT` or `WHATBUILD_NEW_ORGANIZATION_PLAN`. Every
+  organization in it is unlimited.
 - **Everything else in the subscription.** Work only inside the resource group for this
   deployment and on the one app registration. Never change or delete a resource you did not
   create in this work without the person saying so by name.

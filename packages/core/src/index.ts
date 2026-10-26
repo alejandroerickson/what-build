@@ -9,7 +9,8 @@ import { outcomeOps } from "./ops/outcomes.ts";
 import { productOps } from "./ops/products.ts";
 import { registerOpsList } from "./ops/registers.ts";
 import { revisionOpsList } from "./ops/revisions.ts";
-import { sandboxOps } from "./ops/public-sandbox.ts";
+import { limitOps } from "./ops/limits.ts";
+import { accountOps } from "./ops/accounts.ts";
 import { searchOps } from "./ops/search.ts";
 import { sourceOps } from "./ops/sources.ts";
 import { storyOps } from "./ops/story.ts";
@@ -29,8 +30,9 @@ export * from "./policy.ts";
 export * from "./ports.ts";
 export * from "./registry.ts";
 export { safeNext } from "./safe-next.ts";
-export * from "./public-sandbox.ts";
-export * from "./public-sandbox-baseline.ts";
+export * from "./limits.ts";
+export { endSignIns } from "./accounts.ts";
+export { CONTENT_TABLES, OTHER_TENANT_TABLES } from "./tenant-tables.ts";
 export * from "./schemas.ts";
 export * from "./story-html.ts";
 export { CARD_FRAMES, CARD_GUIDANCE, CARD_KIT_CSS, ideaCardDocument, ideaCardResponseHeaders, inspectIdeaCard } from "./idea-card.ts";
@@ -46,7 +48,6 @@ export { markExportFailed, runExport } from "./ops/export.ts";
 export { completeGrant, DOWNLOAD_GRANT_HEADER, UPLOAD_GRANT_HEADER, blobKeyFor, requesterClaims } from "./ops/attachments.ts";
 export { createTenantWithTeam, uniqueTenantSlug } from "./ops/products.ts";
 export { isInstanceOwner, tenantAllowanceOf, type TenantAllowance } from "./tenant-allowance.ts";
-export { RESET_CONFIRMATION, sandboxNotice } from "./ops/public-sandbox.ts";
 export { PREVIEWS_KEPT, printDocument, printDocumentAt, printSelection, shownHtml, STORY_PREVIEW_PURPOSE } from "./ops/story.ts";
 export { CARD_PREVIEW_PURPOSE } from "./ops/outcomes.ts";
 export { MAX_MOCKUP_PAGES, MOCKUP_UPLOAD_PURPOSE, mockupBundle, readCanvasZip, stagedPrototypeKey, stagedPrototypeKeys } from "./ops/mockups.ts";
@@ -62,7 +63,8 @@ export const OPERATIONS: OperationDef[] = [
   ...deleteOps,
   ...tenantAllowanceOps,
   ...usageOps,
-  ...sandboxOps,
+  ...limitOps,
+  ...accountOps,
   ...exportOps,
   ...outcomeOps,
   ...sourceOps,

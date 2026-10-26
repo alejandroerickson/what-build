@@ -183,6 +183,42 @@ h1[tabindex="-1"]:focus {
   color: var(--faint);
   font-size: var(--fs-xs);
 }
+/* The example organization: set apart on a Hover wash (a neutral, never the accent), headed as the
+   example over its own name, with a guest's way to hide it. */
+.nav-products.nav-example {
+  margin: var(--s-2) var(--s-1h) 0;
+  padding: var(--s-2) 0 var(--s-1);
+  border-top: 0;
+  border-radius: var(--r-md);
+  background: var(--hover);
+}
+.nav-example .nav-org {
+  position: relative;
+  padding-right: calc(var(--s-2) + var(--h-sm));
+}
+.nav-example .nav-org-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1h);
+}
+.nav-example .nav-org-name .glyph {
+  color: var(--muted);
+}
+/* Rows on the wash take the stronger fill, so hovering one still shows. */
+.nav-example .nav-node:not([aria-current="page"]):hover {
+  background: var(--hover-strong);
+}
+.nav-org-hide {
+  position: absolute;
+  top: calc(-1 * var(--s-0));
+  right: var(--s-1);
+  color: var(--muted);
+}
+.nav-example .nav-org-hide:hover:not(:disabled),
+.nav-example .nav-org-hide:focus-visible {
+  color: var(--text);
+  background: var(--hover-strong);
+}
 .nav-products + .nav-quiet {
   padding-top: var(--s-2);
 }

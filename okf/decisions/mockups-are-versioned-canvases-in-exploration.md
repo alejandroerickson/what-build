@@ -3,7 +3,7 @@ type: Decision
 title: Mockups are versioned canvases of agent-made HTML, in a stage called Exploration
 description: Agents build directions as sandboxed HTML pages on a canvas under a brief, versioned as a whole and downloadable to build the next one; the third stage is named Exploration.
 tags: [decision, mockups, exploration, story, security, web, agents]
-generated: {by: agent:claude, at: 2026-10-16}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -38,8 +38,8 @@ the names Mockups and Exploration on 2026-10-09.
   Story page it is self-contained (nothing loaded from elsewhere, no frames, `<base>`, `<link>` or
   `<meta http-equiv>`) and holds at most 1,000,000 characters, and a version 8,000,000. A Story
   page keeps its own rules, a script budget and no forms, since the Story is for reading. Every
-  refusal names the surface it belongs to. A visitor to a public sandbox has the same rules, under
-  its cap on what one field holds. The maintainer chose this on 2026-10-14, replacing the Story's
+  refusal names the surface it belongs to. An organization on the free plan has the same rules,
+  under its cap on what one field holds. The maintainer chose this on 2026-10-14, replacing the Story's
   rules for mockup pages: a budget on script length bounds nothing the sandbox does not, and kept
   interactive prototypes off the canvas.
 - A version downloads as a ZIP (brief, manifest, each page's HTML and notes) through a short-lived

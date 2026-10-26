@@ -1,9 +1,9 @@
 ---
 type: System Concept
-title: The dev deployment is a second Cloud Run deployment, laid out like production and holding a copy of its public sandbox or other organizations named, where a release is rehearsed before production moves.
+title: The dev deployment is a second Cloud Run deployment, laid out like production and holding a copy of its example organization or other organizations named, where a release is rehearsed before production moves.
 description: For the maintainer and the agent working for them; what the dev deployment is and how it differs from production, where its values are, rehearsing a release on it, putting it back, refreshing its copy of production's organizations, setting one up from nothing, and keeping its data private.
 tags: [operations, deployment, dev, rehearsal, migrations, cloud-run, neon, production]
-generated: {by: agent:claude, at: 2026-10-24}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -13,7 +13,7 @@ Production moves only when a release's build is approved ([releasing](releasing.
 release that migrates can be undone only by restoring the database
 ([recovering from a bad release](recovering-from-a-bad-release.md)). So before production's build
 of a release that adds a migration is approved, the release is deployed to the **dev deployment**,
-which holds a recent copy of production's public sandbox, or of the organizations named, and its
+which holds a recent copy of production's example organization, or of the organizations named, and its
 migrations and the jobs they queue are watched there ([decision](../decisions/releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production.md)).
 The skill `rehearse-on-the-dev-deployment` conducts the work in this guide.
 
@@ -32,7 +32,7 @@ service that production's build runs, on production's data.
 | Deploys | a trigger on release tags, after approval | by hand, any tag or commit of `main`; no trigger |
 | Sign-in | Google, with its own OAuth client | Google, with an OAuth client of its own in the same Google Auth Platform project as production's |
 | Instance owners, sign-up allowlist | the maintainer | the same |
-| Public sandbox | the organization production names | the same organization, from the copy; no scheduler job, so its reset runs on the first request after its hour |
+| Example organization, plan of a new organization | the organization production names; `free` | the same organization, from the copy; `free` |
 | Address | a custom domain through Cloudflare | the service's `run.app` address only |
 | Analytics, public site, Worker, nightly backup | yes | none |
 | Mail | Cloudflare Email Sending ([Mail](mail.md)) | none, ever: its accounts and invitations are real people's addresses |
@@ -52,7 +52,7 @@ In `.env` in the maintainer's clone, beside production's:
 | `NEON_DEV_BRANCH` | `main`, the branch the service uses |
 | `NEON_DEV_COPY_BRANCH` | `prod-copy`, the copy as it was loaded |
 | `NEON_DEV_COPY_TAKEN` | when the copy was taken from production, in UTC |
-| `NEON_DEV_COPY_ORGANIZATIONS` | the organizations the copy holds, by slug, comma-separated: production's public sandbox unless the maintainer names others, or `all`. `pnpm attention` reports a dev deployment whose `.env` has no such line. |
+| `NEON_DEV_COPY_ORGANIZATIONS` | the organizations the copy holds, by slug, comma-separated: production's example organization unless the maintainer names others, or `all`. `pnpm attention` reports a dev deployment whose `.env` has no such line. |
 
 The secrets are in the dev project's Secret Manager: `whatbuild-database-url`,
 `whatbuild-grant-key`, `whatbuild-google-client-secret` and `whatbuild-neon-api-key`, a Neon key
@@ -121,8 +121,8 @@ H=$(mktemp -d); node scripts/hostile-files.mjs "$H"
 
 The script prints what each file is and what WhatBuild should record for it at the default
 limits: too large, failed for memory, or ready. Signed in to dev, upload each through the app as
-the one attachment of a source of its own, in a product of your own made for the rehearsal; the
-public sandbox refuses files over 5 MB. Then check:
+the one attachment of a source of its own, in a product of an organization on the unlimited plan
+made for the rehearsal; the free plan refuses files over 10 MB. Then check:
 
 - Each source ends in the status the script printed (its Text and Attachments say it), within a
   couple of minutes, and no job is left waiting.
@@ -191,7 +191,7 @@ maintainer, and record the new list in step 5.
 **1. The copy.** Pull the organizations from production into a directory only you can read, with
 their files sent straight into dev's bucket, which is left holding theirs alone. It reads
 production and changes nothing there. Pass `--org` with `NEON_DEV_COPY_ORGANIZATIONS`, nothing for
-production's public sandbox, or `--all` if it says `all`:
+production's example organization, or `--all` if it says `all`:
 
 ```bash
 umask 077; D=$(mktemp -d)
@@ -319,10 +319,10 @@ rm "$F"
 **6. Production's organizations**, by [refreshing the copy](#refreshing-the-copy). Its last step deploys
 the release, which names the service by it and makes the first restore point.
 
-**7. Production's sandbox**, if production names one:
+**7. Production's example organization and plan**, as production names them:
 
 ```bash
-gcloud run services update whatbuild --project $P --region $R --update-env-vars WHATBUILD_SANDBOX_TENANT=<the same slug>
+gcloud run services update whatbuild --project $P --region $R --update-env-vars WHATBUILD_EXAMPLE_TENANT=<the same slug>,WHATBUILD_NEW_ORGANIZATION_PLAN=free
 ```
 
 **8. Record** the values in `.env` ([above](#its-values)). `$DEV_URL/api/v1/meta` names the

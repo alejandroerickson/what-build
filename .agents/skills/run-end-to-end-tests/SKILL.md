@@ -1,6 +1,6 @@
 ---
 name: run-end-to-end-tests
-description: Run WhatBuild's agent-driven end-to-end tests. You follow a test plan from e2e/plans/ against a local instance reset to a fixed golden master (production's public sandbox organization and a non-sandbox copy of it), drive the web app in a real browser and call the MCP server as an agent, then report failures and anything else that looks wrong. Use when asked to run the end-to-end, e2e, acceptance or smoke tests, to run or write a test plan, to QA or exploratory-test the app with the browser and MCP, to check a change end to end before merging or releasing, or to build or rebuild the golden master.
+description: Run WhatBuild's agent-driven end-to-end tests. You follow a test plan from e2e/plans/ against a local instance reset to a fixed golden master (production's example organization and a copy of it that is not the example), drive the web app in a real browser and call the MCP server as an agent, then report failures and anything else that looks wrong. Use when asked to run the end-to-end, e2e, acceptance or smoke tests, to run or write a test plan, to QA or exploratory-test the app with the browser and MCP, to check a change end to end before merging or releasing, or to build or rebuild the golden master.
 ---
 
 # Run the end-to-end tests
@@ -32,13 +32,13 @@ what the plan expects, and report. The system, with every command, is described 
    asked for a fresh one or for newer data, build it with `pnpm e2e golden` from the newest pull
    (`ls .what-build/fixtures`, or the main checkout's in a worktree). To take a new pull, use
    `pnpm fixture pull` only when the person asks for one, following the
-   `test-on-a-copy-of-production` skill; it takes the public sandbox, which is all the golden
+   `test-on-a-copy-of-production` skill; it takes the example organization, which is all the golden
    master keeps. Stop the instance (`pnpm e2e stop`) before building.
 3. **Serve.** Run `pnpm dev:e2e > .what-build/e2e/server.log 2>&1` in the background with a long
    time limit, and wait until `curl -sf http://localhost:5283/health` answers. It runs beside
    `pnpm dev`. A failed migration or job, or a 5xx, in `server.log` is a finding; `GET /mcp 405`
    lines are not (MCP clients probe for a stream the server does not offer).
-4. **Start the run.** `pnpm e2e run <plan>` prints the run's folder, the slugs of the sandbox and
+4. **Start the run.** `pnpm e2e run <plan>` prints the run's folder, the slugs of the example and
    standard organizations and every product's path; `pnpm e2e run` prints the folder again. Every
    browser and MCP command from now on is logged there, and screenshots go into it.
 5. **Follow the plan, step by step.**
@@ -68,17 +68,18 @@ what the plan expects, and report. The system, with every command, is described 
    not let you write it, give it in full as your answer instead. Then `pnpm e2e stop`, unless the
    person wants to look around.
 8. **Tell the person** the result of each plan, each finding in one or two lines with its
-   severity, and where the report and screenshots are. Offer to open issues for findings; open
-   them only when they agree, and describe each in general terms, quoting nothing from the golden
-   master (the repository and its issues are public).
+   severity, and where the report and screenshots are. Open no issue for a finding: the
+   repository's issues are for reports from others (`AGENTS.md`). Wherever a finding is written
+   down outside the run's folder, describe it in general terms, quoting nothing from the golden
+   master.
 
 ## What counts as a finding
 
 - **Failure:** an expectation in the plan did not hold.
 - **Error:** anything `!` reported, a server error in the `pnpm dev:e2e` log, or a job that failed.
 - **Disagreement:** the web and MCP say different things about the same object (titles, counts,
-  status, attribution), or the two organizations behave differently where the sandbox's settings
-  do not explain it.
+  status, attribution), or the two organizations behave differently where the example's being
+  read-only to guests does not explain it.
 - **Permission:** someone saw or did something their role should not allow, or was refused
   something it should allow.
 - **Anomaly:** anything else wrong or doubtful: confusing copy, a wrong word for the product's

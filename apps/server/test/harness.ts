@@ -9,15 +9,12 @@ import { MemoryMailer } from "../src/adapters/misc.ts";
 import { createApp, createPorts } from "../src/app.ts";
 import { loadConfig, type ServerConfig } from "../src/config.ts";
 import { createDb, migrate } from "../src/database.ts";
-import { SandboxClock } from "../src/public-sandbox.ts";
 import { Worker } from "../src/worker.ts";
 
 export interface Harness {
   baseUrl: string;
   db: ReturnType<typeof createDb>["db"];
   worker: Worker;
-  /** The server's own clock for sandbox resets. `touch()` makes it look again at once. */
-  clock: SandboxClock;
   mailer: MemoryMailer;
   blobs: MemoryBlobStore;
   config: ServerConfig;
@@ -87,8 +84,7 @@ export async function startHarness(overrides: Partial<ServerConfig> | ((baseUrl:
   // A test that fetches URLs stands in for the network.
   if (opts.fetcher) ports.fetcher = opts.fetcher;
   worker = new Worker({ db, ports }, 60_000, () => {});
-  const clock = new SandboxClock({ db, ports }, () => {});
-  app = createApp({ db, ports, config, clock });
+  app = createApp({ db, ports, config });
 
   const makeBrowser = (email: string, cookie: string): Browser => ({
     email,
@@ -141,7 +137,6 @@ export async function startHarness(overrides: Partial<ServerConfig> | ((baseUrl:
     baseUrl,
     db,
     worker: worker!,
-    clock,
     mailer,
     blobs,
     config,

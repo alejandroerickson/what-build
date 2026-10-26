@@ -11,16 +11,17 @@ and reports what failed and anything else that looked wrong. The procedure is th
 The golden master is built from a private copy of production. It holds two organizations with the
 same products:
 
-- **the sandbox organization**, the deployment's public sandbox, with its settings, limits,
-  baseline and invitations;
-- **the standard organization**, a copy of the same content that is not a sandbox.
+- **the example organization**, the one the deployment names as its example, which every account
+  reads;
+- **the standard organization**, a copy of the same content that is not the example.
 
 `pnpm e2e run <plan>` prints their slugs and every product's path. The same three people are in
 both: Riley owns each organization, Sam edits every team, and Jordan reads every product's Story.
-
-Over MCP the sandbox organization is reached only through its own endpoint: pass
-`--endpoint /mcp/t/<sandbox org>` to `pnpm e2e mcp`. Through `/mcp`, the default, every call there
-is refused with `403 sandbox_needs_its_own_connector`.
+Because they are members of the example, they work there as anywhere. **A guest** of the example is
+anyone else: sign in with any address that is not one of theirs, such as `guest@example.com`
+(`pnpm e2e browser signin guest@example.com`, `pnpm e2e mcp --as guest@example.com …`). A guest
+reads every product of the example and is refused every write with `403 example_read_only`, and
+holds no organization of their own.
 
 The content is real people's data. A plan never names or quotes it: it says "a product with
 sources", "a word you can see in a source's text", "the archived product", and the agent finds one
@@ -35,8 +36,8 @@ redesigned, and the agent's trouble finding the way is itself a finding.
 ```markdown
 ---
 title: One line saying what the plan covers
-organizations: [standard, sandbox]  # where it runs
-people: [sam, jordan]               # who it signs in as, on the web and over MCP
+organizations: [standard, example]  # where it runs
+people: [sam, jordan, guest]        # who it signs in as, on the web and over MCP
 surfaces: [web, mcp]
 ---
 

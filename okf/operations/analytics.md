@@ -3,7 +3,7 @@ type: System Concept
 title: Analytics in production - the server's own counts, Google Analytics behind the cookie choice, Cloudflare Web Analytics on the site
 description: What each source measures and for whom, where every setting lives, how an agent reads them all (pnpm usage, products.usage), how a deployment connects its own analytics, the Google Analytics settings to keep, and how a person's counted days are found and removed.
 tags: [operations, analytics, usage, google-analytics, cloudflare, privacy]
-generated: {by: agent:claude, at: 2026-10-17}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -29,7 +29,7 @@ on every screen, and its search box searches as a person types.
 ## Reading it all
 
 ```bash
-corepack pnpm usage                 # the last 28 days; --days N, --sandbox exclude|only, --include-owners, --json
+corepack pnpm usage                 # the last 28 days; --days N, --example exclude|only, --include-owners, --json
 ```
 
 `apps/server/src/usage-report.ts` reads its settings from the environment, then from `.env` at the
@@ -45,14 +45,14 @@ skipped one:
 An agent connected to WhatBuild as an instance owner reads the server's counts with
 `products(action="usage")`, on the unscoped connection (`/mcp`; a connector scoped to an
 organization or a product refuses it), and a person with
-`GET /api/v1/usage`. Each takes `days` (1–400), `include_owners` and `sandbox`.
+`GET /api/v1/usage`. Each takes `days` (1–400), `include_owners` and `example`.
 
 ## The server's counts
 
 Every call that reaches `execute` (`packages/core/src/execute.ts`), from either door, is counted
 when it ends: the operation, the door (`web` or `mcp`), the agent client's family (from the name it
-registered with: Claude, Claude Code, Cursor, … or `other`), whether it is in the public sandbox,
-whether the caller is an instance owner, and `ok` or the error's code. An MCP call refused before
+registered with: Claude, Claude Code, Cursor, … or `other`), whether it is in the example
+organization (before migration `0034`, the public sandbox), whether the caller is an instance owner, and `ok` or the error's code. An MCP call refused before
 it reaches `execute` is counted too: under its operation when the tool and action exist (a product
 that cannot be found, say), as `<tool>.(unknown)` for an action that does not, and as
 `(unknown tool)` for a tool that does not. Counts are added up in memory and written every ten
@@ -76,8 +76,9 @@ week's newcomers followed through the weeks after), features, operations, agent 
 by code, and every operation nobody called. `counting_since` is the first day counted; everyone
 seen before that day shows as new.
 
-**When someone asks to be removed.** There is no account deletion yet. To remove a person's counted
-days, compute their pseudonym with the deployment's grant key and delete those rows:
+**When someone asks to be removed.** Removing their account (People, for an instance owner) leaves
+their counted days, which name nobody. To remove those too, compute their pseudonym with the
+deployment's grant key and delete those rows:
 
 ```bash
 node -e 'const c=require("node:crypto"); const k=c.createHmac("sha256", process.argv[1]).update("whatbuild usage people").digest("base64url");

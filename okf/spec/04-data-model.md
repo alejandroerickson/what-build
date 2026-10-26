@@ -32,8 +32,7 @@ current etag (`expected_etag` in the input, or `If-Match` in REST). Missing → 
 `409 stale_etag`, with the current etag in `details.current_etag` so a caller can re-read and retry
 deliberately. Creates take no etag; neither do the batch `sources.archive` / `sources.restore`,
 adding an attachment or a new version of one (each is kept beside the others), asking for one to
-be read again (`derived.rederive`), and changes to access (`members`, a sandbox's invitations and
-visitors).
+be read again (`derived.rederive`), and changes to access (`members`).
 
 **A write that may create what it writes** takes no etag the first time, and the current one
 once the object exists
@@ -255,8 +254,8 @@ without repeats, keeping at most 50: its kind (`interview_transcript`, `intervie
 `user_research_export` → `research`; `usability_session_notes` → `usability`; `wiki_export` →
 `wiki`; `contract_sow` → `contract`; `design_insight` → `design`; `prd`, `deck`, `rfp`,
 `analysis`, `digest` and `view` as they are; `other` adds none), then its organization, normalized
-as every tag is. It rewrote saved sandbox baselines the same way
-([§9.7](09-data-lifecycle.md)), then dropped the `kind`, `organization` and `folder` columns.
+as every tag is. It rewrote the public sandbox's saved baselines the same way, then dropped the
+`kind`, `organization` and `folder` columns.
 
 ## 4.5 Attachments
 
@@ -339,8 +338,7 @@ Both are someone's reading of the source; its words are its derived text
 `0029_simplify_source_details.sql` deleted the agent outlines a product held, and dropped the
 comments' segment ranges and anchors, keeping their text; `note_kind` `outline` is refused
 (`422 invalid_input`) with a hint naming the summary and notes. Migration
-`0031_summaries_and_notes_have_etags.sql` gave every summary and note an etag, live and in saved
-sandbox baselines, so a reset puts each back with the etag it was saved with.
+`0031_summaries_and_notes_have_etags.sql` gave every summary and note an etag.
 
 ## 4.7 Evidence links
 
@@ -468,12 +466,10 @@ An append-only event log, written in the same transaction as the mutation that c
   insight or a decision became a source (§4.7), its events were relabelled as the source's. They
   are included in a product export.
 - An event about the organization's people and access (a role given, changed or removed, an
-  invitation sent, accepted or cancelled, and the sandbox's invitation links, visitors and
-  settings) is read by the organization's owners and admins with `members.activity`; a product's
-  `activity.list` leaves out the ones that belong to no product.
-- In a public sandbox an event about a product is content: a reset puts the baseline's back
-  ([§9.7](09-data-lifecycle.md)). An event about the organization (people, access, the sandbox's
-  settings, baselines and resets) has no product, and stays through every reset.
+  invitation sent, accepted or cancelled) is read by the organization's owners and admins with
+  `members.activity`; a product's `activity.list` leaves out the ones that belong to no product.
+  Events the public sandbox wrote about its invitation links, visitors and settings stay in its
+  organization's log, and `members.activity` no longer lists them.
 - Several people and several agents write into one product, and "what did that agent just do" is a
   question the product must be able to answer.
 
@@ -603,8 +599,8 @@ served exactly as a version's HTML is: the same sandbox headers, the carried typ
 and `?theme=light|dark`. Publishing the same call then stores a version whose `html_sha256` is the
 preview's, unless the page or the Story style changed in between. A preview lasts as long as its
 grant (30 minutes by default) and a product keeps its 20 newest; it is refused where publish would
-be (a viewer, an archived product, a public sandbox not taking visitors' writes) and is never a
-write in a sandbox's allowances ([§9.7](09-data-lifecycle.md),
+be (a viewer, a guest of the example organization, an archived product, a plan that switched
+writing off) and takes nothing from a free organization's daily allowances ([§9.7](09-data-lifecycle.md),
 [decision](../decisions/a-story-preview-is-the-document-publish-would-store.md)).
 
 **Notes for agents.** Each page has one Markdown note, `agent_notes` (≤ 20,000 chars), that agents
@@ -796,8 +792,8 @@ working prototypes needs and a Story page does not have (§4.11):
 - No `<iframe>`, `<frame>`, `<frameset>`, `<object>`, `<embed>`, `<portal>`, `<link>`, `<base>`,
   or `<meta http-equiv>`.
 
-A visitor to a public sandbox has the same rules, and the sandbox's cap on what one field holds
-([§3.10](03-accounts-teams-and-identity.md)). Every refusal names the mockup page, never the Story.
+An organization on the free plan has the same rules, and its plan's cap on what one field holds
+([§9.7](09-data-lifecycle.md)). Every refusal names the mockup page, never the Story.
 ◆ Decision: a version is the whole canvas, not one page. The pages of a canvas are read and
 compared together, so they are published, numbered and downloaded together.
 
@@ -805,8 +801,8 @@ compared together, so they are published, numbered and downloaded together.
 the call. `mockups.request_upload { size? }` returns a grant, `{ upload_id, method: "PUT", url,
 headers, max_bytes, expires_at, next }`, for one PUT of the ZIP to the upload relay (§6.7); a
 `size` over `max_bytes` is refused at once (`413 too_large`). `max_bytes` is 25 MB, or the relay's
-limit when that is lower. A visitor to a public sandbox is refused (`403`): a visitor's text is
-capped field by field, so a visitor publishes pages in the call. `mockups.publish { upload_id }`
+limit when that is lower. An organization on the free plan is refused (`403 plan_restricted`): its
+text is capped field by field, so it publishes pages in the call. `mockups.publish { upload_id }`
 then reads the ZIP, in `get_download`'s layout, so a downloaded version round-trips:
 
 - `manifest.json` lists the canvas's pages in order, `[{ page_id, title?, width?, height?,
@@ -973,8 +969,8 @@ write-only like feedback
 ## 4.14 The product bundle
 
 A product exports to a single ZIP (`products.export`, open to every role on the product but a
-reader, who reads only the Story; a public sandbox limits what its visitors export,
-[§9.7](09-data-lifecycle.md)).
+reader, who reads only the Story; the free plan limits how many exports each person makes a day,
+and a guest of the example organization exports nothing, [§9.7](09-data-lifecycle.md)).
 A worker job builds it; it can be downloaded for seven days ([`export.ts`](../../packages/core/src/ops/export.ts)).
 Its README.txt names every kind of file below and what each holds, and `bundle.json`'s `layout`
 lists their paths; both are made from one list (`BUNDLE_LAYOUT`), which a test holds to what an
@@ -1024,20 +1020,27 @@ activity.jsonl
   lives in its own tables and is never updated. Every content table has a row-level security
   policy keyed on the transaction-local `app.tenant_id`. Directory tables (accounts, sessions,
   tokens, OAuth clients, tenants, teams, products, memberships, invitations) and the job queue,
-  feedback and its daily counts, the public site's interest form, the usage counts and `schema_migrations` have no
+  feedback and its daily counts, the public site's interest form, the usage counts, the limits'
+  counters and `schema_migrations` have no
   row-level security and
   are reached only through the authorization layer. Policies are forced, because the app's role owns
   the tables. [`apps/server/test/row-level-security.test.ts`](../../apps/server/test/row-level-security.test.ts)
   lists each table without the policy with its reason, and fails on any other.
-- **The public sandbox** ([§9.7](09-data-lifecycle.md),
-  [`0009_public_sandbox.sql`](../../apps/server/src/migrations/0009_public_sandbox.sql)) adds
-  `tenants.sandbox` and `accounts.sandbox_only`, and five tables. Three sit beside the directory
-  tables, without row-level security: `sandbox_settings` (one row per sandbox: `settings` as
-  JSONB, `baseline_id`, `last_reset_at`, `last_reset`, `etag`), `sandbox_invites` (`code_hash`,
-  `label`, `max_uses`, `used`, `expires_at`, `revoked_at`) and `sandbox_usage` (the counters
-  behind the limits, keyed by tenant, account, `minute` or `day` bucket, its start, and counter).
-  Two hold content and have the policy: `sandbox_baselines` and `sandbox_baseline_rows`, which
-  keeps each row of a baseline as JSONB beside its table's name.
+- **The example organization, plans and limits** ([§3.3](03-accounts-teams-and-identity.md),
+  [§3.10](03-accounts-teams-and-identity.md), [§9.7](09-data-lifecycle.md),
+  [`0034_example_organization.sql`](../../apps/server/src/migrations/0034_example_organization.sql)):
+  `tenants.example` (set by the server at start-up), `tenants.plan` (`free` or `unlimited`,
+  checked; every tenant that existed when it was first read became `unlimited`), `tenants.limits`
+  (JSONB, only the limits an instance owner changed from the free plan's), `limits_etag`,
+  `limits_updated_at` and `limits_updated_by`. `limit_counters` sits beside the directory tables,
+  without row-level security: the counters behind the limits, keyed by tenant, account (`''` for
+  the whole organization), `minute` or `day` bucket, its start (a minute, or midnight UTC), and
+  counter. The public sandbox's own tables (`sandbox_settings`, `sandbox_invites`,
+  `sandbox_baselines`, `sandbox_baseline_rows`) and `accounts.sandbox_only` were dropped, and
+  every `visitor` grant deleted, by the same migration; `sandbox_usage` became `limit_counters`.
+  `accounts.hide_example`
+  ([`0035_accounts_hide_example.sql`](../../apps/server/src/migrations/0035_accounts_hide_example.sql))
+  is the person's choice to leave the example out of the app's panel.
 - **Allowances to create organizations** ([§3.3](03-accounts-teams-and-identity.md),
   [`0010_tenant_allowances.sql`](../../apps/server/src/migrations/0010_tenant_allowances.sql)):
   `tenant_allowances`, a directory table without row-level security keyed by the lower-cased
@@ -1060,8 +1063,9 @@ activity.jsonl
   [`0019_usage.sql`](../../apps/server/src/migrations/0019_usage.sql),
   [`usage.ts`](../../packages/core/src/usage.ts)): two tables without row-level security that name
   no organization, product, record or account. `usage_calls` counts calls per UTC day, operation,
-  door (`web`, `mcp`), agent client family, sandbox or not, owner or not, and outcome (`ok` or the
-  error's code). `usage_people` keeps a row for each day a person used a part of WhatBuild (an MCP
+  door (`web`, `mcp`), agent client family, in the example organization or not (`example`; before
+  `0034`, in the public sandbox or not), owner or not, and outcome (`ok` or the error's code).
+  `usage_people` keeps a row for each day a person used a part of WhatBuild (an MCP
   tool's name) through a door and client, the person named by `personOf`, an HMAC of the account id
   under a key derived from the grant key. The worker deletes its rows after 14 months.
 - **A source's text and the search index**
@@ -1082,7 +1086,7 @@ activity.jsonl
   `card_previews` holds each front `outcomes.card_preview` checked (`preview_id`, the product,
   `kind`, `title`, `card_html`, `created_by`, `expires_at`), with the row-level security policy.
   Nothing refers to a row; the grant names it, and it goes when the grant expires (§4.11), when its
-  product or organization is deleted, and at a sandbox reset.
+  product or organization is deleted.
 - **Story previews** ([`0024_story_previews.sql`](../../apps/server/src/migrations/0024_story_previews.sql)):
   `story_previews` holds each document `story.preview` made (`preview_id`, the product, `page_id`,
   `html`, `shows_mockup`, `created_by`, `expires_at`), with the row-level security policy. Nothing

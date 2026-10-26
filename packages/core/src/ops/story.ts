@@ -7,7 +7,7 @@ import { conflict, invalid, notFound } from "../errors.ts";
 import { readsOnlyTheStory } from "../policy.ts";
 import type { BlobStore } from "../ports.ts";
 import { entryAddress, prototypeAddress, prototypeNotice } from "../prototype.ts";
-import { refuseVisitorWrite } from "../public-sandbox.ts";
+import { refuseSwitchedOff } from "../limits.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 import { expectedEtag, id } from "../schemas.ts";
 import { escapeHtml, inspectStoryCss, inspectStoryHtml, STORY_CSS_MAX, STORY_HTML_MAX, STORY_MAX_SCRIPTS, STORY_SCRIPT_BUDGET } from "../story-html.ts";
@@ -602,7 +602,7 @@ export const preview = defineOperation({
   async handler(ctx, input) {
     // A preview answers whether publish would, so it is refused wherever publish would be.
     if (ctx.scope.product!.archived_at) throw conflict("product_archived", `Product ${ctx.scope.product!.name} is archived and read-only. Restore it first.`);
-    if (ctx.sandbox?.visitor) refuseVisitorWrite(ctx.sandbox, { name: "story.preview", mutates: true });
+    if (ctx.limits) refuseSwitchedOff(ctx.limits, { name: "story.preview", mutates: true });
     const d = await draftVersion(ctx, input, { lock: false, refused: "The page would not be published" });
     const shown = await shownHtml(ctx.db, d);
     const pid = productId(ctx);

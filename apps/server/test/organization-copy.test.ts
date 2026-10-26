@@ -5,7 +5,7 @@ import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it, inject } from "vitest";
 import { createDb, migrate } from "../src/database.ts";
 import { chooseOrganizations, copyOrganizations, DEPLOYMENT_TABLES } from "../src/organization-copy.ts";
-import { syncSandboxTenant } from "../src/public-sandbox.ts";
+import { syncExampleTenant } from "../src/example-organization.ts";
 import { startHarness, type Harness } from "./harness.ts";
 import { buildOrganization, type Organization } from "./organization-fixture.ts";
 
@@ -33,9 +33,9 @@ async function everything(c: pg.Client) {
 beforeAll(async () => {
   h = await startHarness();
   const owner = await h.signIn("owner@sample.example", "Sample Owner");
-  kept = await buildOrganization(h, owner, "Sample Sandbox", "Kept7Q");
+  kept = await buildOrganization(h, owner, "Sample Example", "Kept7Q");
   left = await buildOrganization(h, owner, "Private Ideas", "Left9Z");
-  expect(await syncSandboxTenant(h.db, kept.tenant.slug, () => {})).toBe(kept.tenant.id);
+  expect(await syncExampleTenant(h.db, kept.tenant.slug, () => {})).toBe(kept.tenant.id);
   // Someone who belongs only to the organization left behind, signed in, with an agent connected.
   const other = await h.signIn("ideas@sample.example", "Left9Z Ideas Person");
   expect((await owner.api("POST", `/api/v1/tenants/${left.tenant.slug}/members`, { email: "ideas@sample.example", role: "editor", team: left.team.slug })).status).toBe(201);
@@ -71,10 +71,17 @@ afterAll(async () => {
 });
 
 describe("copying an organization out of a deployment", () => {
-  it("chooses the public sandbox unless organizations are named, and refuses one the deployment does not have", async () => {
+  it("chooses the example organization unless organizations are named, and refuses one the deployment does not have", async () => {
     expect((await chooseOrganizations(source, [])).map((o) => o.slug)).toEqual([kept.tenant.slug]);
     expect((await chooseOrganizations(source, [left.tenant.slug])).map((o) => o.slug)).toEqual([left.tenant.slug]);
     await expect(chooseOrganizations(source, ["no-such-org"])).rejects.toThrow(/no organization no-such-org/);
+    // A deployment that has not yet taken the release that replaced the public sandbox marks its sandbox instead.
+    await source.query("alter table tenants rename column example to sandbox");
+    try {
+      expect(await chooseOrganizations(source, [])).toEqual([expect.objectContaining({ slug: kept.tenant.slug, example: true })]);
+    } finally {
+      await source.query("alter table tenants rename column sandbox to example");
+    }
   });
 
   it("refuses a table it has no rule for", async () => {

@@ -21,7 +21,6 @@ import { threadParser } from "./parse-thread.ts";
 import { prototypeRoutes } from "./prototype.ts";
 import { publicRoutes, staticRoutes } from "./public-routes.ts";
 import { OPERATION_HEADER, restRoutes } from "./rest.ts";
-import { SandboxClock, sandboxRoutes } from "./public-sandbox.ts";
 import { siteRoutes } from "./site.ts";
 import { logError, requestFields, requestIdOf, tracer, withRequestId } from "./telemetry.ts";
 import { uploadRoutes } from "./uploads.ts";
@@ -59,16 +58,17 @@ const SCOPED_PATH = /^(\/api\/v1\/p|\/api\/v1\/teams|\/api\/v1\/tenants|(?:\/\.w
  * The first words of the server's and the app's own paths. Any other path of three or more parts is
  * a product's path typed without /t/ (the app sends it on), so its first three are names.
  */
-const OWN_FIRST = new Set(["api", "mcp", "auth", "oauth", "t", ".well-known", "assets", "invite", "join", "signin", "cookies", "privacy", "settings", "connect", "instance", "welcome", "products", "health", "_system", "prototypes", "documents"]);
+const OWN_FIRST = new Set(["api", "mcp", "auth", "oauth", "t", ".well-known", "assets", "invite", "join", "signin", "cookies", "privacy", "settings", "connect", "instance", "people", "welcome", "products", "health", "_system", "prototypes", "documents"]);
 const BY_KIND = ["", ":org", ":team", ":product"];
-/** The app's screens directly under an organization: /t/<org>/members and /t/<org>/sandbox. */
-const ORG_SCREENS = new Set(["members", "sandbox"]);
+/** The app's screens directly under an organization: /t/<org>/members and /t/<org>/limits. */
+const ORG_SCREENS = new Set(["members", "limits"]);
 
 /**
  * A request's path as its log line holds it: ids masked; organizations, teams and products named
  * only by kind; and the links that are credentials themselves, an invitation's (/invite/<token>), a
- * sandbox invitation's (/join/<code>), a prototype's (/prototypes/<grant>/…, whose file names are a
- * team's too) and a document's on the content site (/documents/<grant>/…, which names a file too).
+ * retired sandbox invitation's (/join/<code>), a prototype's (/prototypes/<grant>/…, whose file
+ * names are a team's too) and a document's on the content site (/documents/<grant>/…, which names a
+ * file too).
  */
 export function loggedPath(path: string): string {
   if (/^\/prototypes(\/|$)/.test(path)) return "/prototypes/:grant/…";
@@ -158,6 +158,7 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
       signupAllowlist: config.signupAllowlist,
       instanceOwners: config.instanceOwners,
       defaultTenantAllowance: config.defaultTenantAllowance,
+      newOrganizationPlan: config.newOrganizationPlan,
       // Derived from the grant key, so a deployment sets nothing new and its pseudonyms are its own.
       usageKey: createHmac("sha256", config.grantKey).update("whatbuild usage people").digest("base64url"),
       // A deployment that sends no mail keeps its feedback in the database.
@@ -171,9 +172,8 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
  * `onRequest` is called for every request to the API, MCP or sign-in, before it is served: the
  * service passes its worker's `nudge`, so a sleeping worker looks at the queue again.
  */
-export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; clock?: SandboxClock; release?: Release; onRequest?: () => void }) {
+export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; release?: Release; onRequest?: () => void }) {
   const env: Env & { config: ServerConfig } = { db: deps.db, ports: deps.ports, config: deps.config };
-  const clock = deps.clock ?? new SandboxClock(env, deps.config.env === "test" ? () => {} : undefined);
   const release = deps.release ?? RELEASE;
   const app = new Hono();
 
@@ -244,15 +244,10 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; cl
   // it, naming the field; an operation's JSON is checked with its input (null-characters.ts).
   app.use("*", refuseNullCharacters());
 
-  // A public sandbox's overdue reset runs before the request that finds it, so nobody is served
-  // what its hour should have erased. The same requests wake a sleeping worker; the app's pages and
-  // static files do not.
+  // Requests to the API, MCP and sign-in wake a sleeping worker; the app's pages and static files do not.
   app.use("*", async (c, next) => {
     const p = c.req.path;
-    if (p.startsWith("/api/") || p.startsWith("/mcp") || p.startsWith("/auth/")) {
-      deps.onRequest?.();
-      await clock.resetIfDue().catch((e) => logError("sandbox reset", e));
-    }
+    if (p.startsWith("/api/") || p.startsWith("/mcp") || p.startsWith("/auth/")) deps.onRequest?.();
     return next();
   });
 
@@ -274,7 +269,6 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; cl
   app.route("/", prototypeRoutes(env));
   app.route("/", contentDocumentRoutes(env));
   app.route("/", publicRoutes({ db: deps.db, config: deps.config, release }));
-  app.route("/", sandboxRoutes({ db: deps.db, clock, base: deps.config.publicBaseUrl }));
   app.route("/", oauthRoutes({ db: deps.db, config: deps.config, notifyJobs: () => deps.ports.notifyJobs?.() }));
   app.route("/", authRoutes({ db: deps.db, config: deps.config, mailer: deps.ports.mailer ?? new ConsoleMailer() }));
   app.route("/", uploadRoutes(env));

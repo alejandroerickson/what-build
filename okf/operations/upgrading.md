@@ -44,6 +44,48 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   Cloudflare Worker, deploy it again (`deploy/cloudflare/worker.js`), so the public site's page
   carries the same policy. Sign-in's own pages allow their one stylesheet by its hash.
 
+## v0.20.0
+
+- **The public sandbox is gone; a deployment may name an example organization instead.** It
+  concerns a deployment that set `WHATBUILD_SANDBOX_TENANT`. The setting is no longer read (the
+  server warns at start-up while it is set without the new one), and migration `0034` drops the
+  sandbox's invitation links, baselines and settings and every visitor's seat. Before taking this
+  release, reset the sandbox to its baseline (`sandbox(action="reset")`, or Reset to this one on
+  its page) so that what the organization holds afterwards is its staff's content, not what
+  visitors added; the reset is not offered after it. Then, on the maintainer's public deployment
+  only, set `WHATBUILD_EXAMPLE_TENANT` to the same slug: every signed-in account reads that
+  organization and only its members change it. A self-hosted deployment leaves it unset and has no
+  example. Without it there is no example organization, and the former sandbox is an ordinary
+  organization of its owners and admins. The sandbox's invitation links (`/join/<code>`) now open
+  the app; nothing they promised is kept.
+- **Delete the sandbox's reset job.** It concerns a Cloud Run deployment whose `setup.sh` ran with
+  `SANDBOX_TENANT`: the route the job calls, `POST /api/v1/sandbox/reset-if-due`, is gone, and the
+  job fails every day until it is deleted:
+  `gcloud scheduler jobs delete whatbuild-sandbox-reset --location <its region>`.
+- **Organizations have a plan, and new ones may start on the free plan.** It concerns every
+  deployment. Every organization that exists before migration `0034` is unlimited, and so is every
+  one an instance owner creates. One someone else creates gets the plan in
+  `WHATBUILD_NEW_ORGANIZATION_PLAN`, unlimited unless it says `free`; on the free plan everyone in
+  the organization meets daily limits (by default 500 writes, 25 sources, 5 exports and 100 MB of
+  uploads for each person; 2,000 writes and 250 MB for the whole organization; 120 calls and 30
+  writes a minute; files of at most 10 MB, documents only), which only instance owners change, on
+  `/instance` or with `products(action="set_limits")`. On the maintainer's Cloud Run production, set
+  `WHATBUILD_NEW_ORGANIZATION_PLAN=free` before or with this release
+  ([cloud-run.md](cloud-run.md)); a self-hosted deployment leaves it out. Changing it changes only
+  organizations created afterwards.
+- **A person can hide the example organization from the panel.** Migration `0035` adds
+  `accounts.hide_example`; nothing to do. The overview and Settings show it again.
+- **The instance's owners see every account and may remove one.** It concerns every deployment and
+  asks nothing of it. **People** (`/people`, in the panel and the account menu for an owner of the
+  instance) lists every account with its organizations and when it was last seen; Remove, in the web
+  app only, signs the account out everywhere, takes its roles, cancels its invitations and
+  allowance, and forgets its address. `products(action="accounts")` lists them for an instance
+  owner's agent; removing is never offered to an agent.
+- **The MCP tool list changes.** The `sandbox` tool is gone (13 tools), and `products` gains
+  `limits`, `organizations`, `set_limits` and `accounts`. A connected client sees the change in a new session.
+  `products.usage` takes `example` in place of `sandbox`, and `pnpm usage` takes `--example`. The
+  skill is now at version 0.38.0; agents fetch it again as the server's instructions tell them.
+
 ## v0.19.0
 
 - **An agent reaches a public sandbox only through the sandbox's own connector.** It concerns

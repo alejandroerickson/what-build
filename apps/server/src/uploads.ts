@@ -1,6 +1,6 @@
 import {
-  admitRead, AppError, capRole, CARD_FRAMES, CARD_PREVIEW_PURPOSE, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, effectiveRole, forbidden, levelAllows, membershipsFor, mockupBundle, json, lockSandbox, MOCKUP_UPLOAD_PURPOSE, notFound,
-  OPERATIONS, resolveScope, roleAtLeast, sandboxForAccount, STORY_PREVIEW_PURPOSE, toAppError, tooLarge, UPLOAD_GRANT_HEADER, type ActorSnapshot, type ConnectionLevel, type Env, type OpContext, type Principal, type Scope, type Tx,
+  admitRead, AppError, capRole, CARD_FRAMES, CARD_PREVIEW_PURPOSE, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, effectiveRole, forbidden, isDocumentPurpose, levelAllows, membershipsFor, mockupBundle, json, MOCKUP_UPLOAD_PURPOSE, notFound,
+  OPERATIONS, resolveScope, roleAtLeast, STORY_PREVIEW_PURPOSE, toAppError, tooLarge, UPLOAD_GRANT_HEADER, type ActorSnapshot, type ConnectionLevel, type Env, type OpContext, type Principal, type Scope, type Tx,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { sql } from "kysely";
@@ -86,16 +86,17 @@ const noLongerReads = () => forbidden("Whoever requested this grant can no longe
  * Checked before a download grant, or a document's address on the content site, sends a byte, as
  * the upload relay checks before it stores one: whoever requested the grant may still do, on the
  * product it reads, what the operation that gave it needed. Their account still exists; their role
- * there, capped by their connection's level, still allows it; an agent's connection is still
- * connected; and a public sandbox still admits them. Returns them, and the product as they reach it
- * now, whose role decides what a reader is given.
+ * there, capped by their connection's level, still allows it; and an agent's connection is still
+ * connected. A download counts as a call against the limits their organization's plan sets; a
+ * document does not, since the app's own route counted it when it handed the document off.
+ * Returns them, and the product as they reach it now, whose role decides what a reader is given.
  */
 export async function requesterMayRead(env: Env, claims: Record<string, unknown>, productId: string): Promise<{ principal: Principal; scope: Scope }> {
   const op = OPERATIONS.find((o) => o.name === ISSUED_BY[String(claims["purpose"])])!;
   if (typeof claims["a"] !== "string") throw new AppError(401, "invalid_grant", "The grant is invalid or expired. Request a new one.");
   const account = await env.db
     .selectFrom("accounts")
-    .select(["account_id", "email", "display_name", "sandbox_only"])
+    .select(["account_id", "email", "display_name"])
     .where("account_id", "=", claims["a"])
     .where("deleted_at", "is", null)
     .executeTakeFirst();
@@ -116,12 +117,12 @@ export async function requesterMayRead(env: Env, claims: Record<string, unknown>
   if (!levelAllows(level, op)) throw noLongerReads();
   const principal: Principal = {
     account_id: account.account_id, email: account.email, display_name: account.display_name, auth_kind: "upload_grant", surface: level ? "mcp" : "web", client: null,
-    ...(account.sandbox_only ? { sandbox_only: true } : {}), ...(level ? { level } : {}),
+    ...(level ? { level } : {}),
   };
   const resolved = await resolveScope(env.db, principal, "product", op.access, { product: productId }, op.name).catch((e: unknown) => {
     throw e instanceof AppError && (e.status === 403 || e.status === 404) ? noLongerReads() : e;
   });
-  await admitRead(env, principal, resolved, op.name);
+  if (!isDocumentPurpose(claims["purpose"])) await admitRead(env, principal, resolved, op.name);
   return { principal, scope: level ? { ...resolved, role: capRole(resolved.role, level) } : resolved };
 }
 
@@ -160,14 +161,6 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
             : `Bytes for ${grant.path} already arrived under this grant. Call attachments(action="complete_upload") with record_id ${grant.record_id} and path ${grant.path} to attach them.`,
         );
       if (Date.parse(grant.expires_at) < Date.now()) throw new AppError(401, "invalid_grant", "The upload grant has expired. Request a new one.");
-      // A grant given to a visitor before the public sandbox stopped their writes takes no bytes after.
-      const sandbox = await sandboxForAccount(env.db, tenantId, grant.principal.account_id);
-      if (sandbox?.visitor && sandbox.settings.visitor_access !== "write")
-        throw new AppError(
-          403,
-          sandbox.settings.visitor_access === "closed" ? "sandbox_closed" : "sandbox_read_only",
-          `This public sandbox is not taking ${sandbox.member ? "uploads for now, except from its owners and admins" : "visitors' uploads for now"}. Nothing was stored; try again later with a new grant.`,
-        );
       // A grant carries its requester's authority only while they may still write here: someone made a reader or viewer, or removed, since it was given stores nothing.
       const role = await inTenant(env, tenantId, async (trx) => {
         const product = await trx.selectFrom("products").select("team_id").where("product_id", "=", grant.product_id).executeTakeFirst();
@@ -184,7 +177,6 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       const stored = await env.ports.blobs.putStream(grant.blob_key!, relayed(body), { contentType: grant.media_type ?? "application/octet-stream", maxBytes: max });
       const enqueued = { value: false };
       const entry = await inTenant(env, tenantId, async (trx) => {
-        await lockSandbox(trx, tenantId, "shared");
         await trx.updateTable("upload_grants").set({ uploaded_at: new Date().toISOString(), size: stored.size, sha256: stored.sha256 }).where("grant_id", "=", grant.grant_id).execute();
         const ctx = await grantContext(env, trx, grant.product_id, grant.principal, enqueued);
         return completeGrant(ctx, grant.grant_id);

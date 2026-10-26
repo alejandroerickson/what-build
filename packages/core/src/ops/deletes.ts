@@ -3,7 +3,7 @@ import { z } from "zod";
 import { checkEtag, productId, recordActivity, tenantId } from "../common.ts";
 import { checkConfirmation, DELETE_CONFIRMATION, DELETE_GUIDANCE, deleteGuards, leaveTombstone } from "../deletion.ts";
 import { conflict, invalid } from "../errors.ts";
-import { BASELINE_TABLES } from "../public-sandbox-baseline.ts";
+import { CONTENT_TABLES } from "../tenant-tables.ts";
 import { defineOperation, type OpContext } from "../registry.ts";
 
 /**
@@ -161,13 +161,13 @@ export const deleteProduct = defineOperation({
 
 // ---- An organization ----------------------------------------------------------------------------
 
-/** Every table that holds an organization's rows and is not content a baseline holds, children first. */
-const ORGANIZATION_TABLES = ["jobs", "sandbox_baseline_rows", "sandbox_baselines", "sandbox_usage", "sandbox_invites", "sandbox_settings", "exports", "upload_grants", "mockup_uploads", "story_previews", "card_previews"] as const;
+/** Every table that holds an organization's rows and is not its content, children first. */
+const ORGANIZATION_TABLES = ["jobs", "limit_counters", "exports", "upload_grants", "mockup_uploads", "story_previews", "card_previews"] as const;
 
 async function organizationDeletion(ctx: OpContext) {
   const tid = tenantId(ctx);
   const db = ctx.db;
-  const t = await db.selectFrom("tenants").select(["tenant_id", "slug", "name", "sandbox"]).where("tenant_id", "=", tid).executeTakeFirstOrThrow();
+  const t = await db.selectFrom("tenants").select(["tenant_id", "slug", "name", "example"]).where("tenant_id", "=", tid).executeTakeFirstOrThrow();
   const products = await db.selectFrom("products").select(["product_id", "name", "archived_at"]).where("tenant_id", "=", tid).orderBy("name").execute();
   const files = await db
     .selectFrom("file_versions")
@@ -179,7 +179,7 @@ async function organizationDeletion(ctx: OpContext) {
     tenant_id: t.tenant_id,
     slug: t.slug,
     name: t.name,
-    sandbox: t.sandbox,
+    example: t.example,
     contents: {
       teams: await count(db.selectFrom("teams").select((eb) => eb.fn.countAll<number>().as("n")).where("tenant_id", "=", tid).executeTakeFirst()),
       products: products.map((p) => ({ product_id: p.product_id, name: p.name, archived: Boolean(p.archived_at) })),
@@ -196,8 +196,8 @@ async function organizationDeletion(ctx: OpContext) {
   };
 }
 
-function refuseSandbox(d: { sandbox: boolean; name: string }): void {
-  if (d.sandbox) throw conflict("sandbox_organization", `${d.name} is this deployment's public sandbox, which can't be deleted. Close it to visitors in its settings instead. Nothing was changed.`);
+function refuseExample(d: { example: boolean; name: string }): void {
+  if (d.example) throw conflict("example_organization", `${d.name} is this deployment's example organization, which every account reads, so it can't be deleted. Name another one where the service is deployed (WHATBUILD_EXAMPLE_TENANT) first. Nothing was changed.`);
 }
 
 export const organizationDeleteImpact = defineOperation({
@@ -225,7 +225,7 @@ export const deleteOrganization = defineOperation({
   summary: "DELETE PERMANENTLY — cannot be undone. Destroys an organization and everything in it (owners, in the web app).",
   description:
     `An owner's act in the web app, never an agent's. Needs the organization's name typed exactly, a reason, and confirm set to exactly "${DELETE_CONFIRMATION}". ` +
-    "Everything goes at once, from the product and from the file store shortly after; a public sandbox can't be deleted.",
+    "Everything goes at once, from the product and from the file store shortly after; the example organization can't be deleted.",
   input: z.strictObject({ tenant: z.string().min(1), reason: deleteGuards.reason, confirm: deleteGuards.confirm, name: typedName("organization") }),
   rest: { method: "DELETE", path: "" },
   mcp: { tool: "products", action: "delete_tenant" },
@@ -233,9 +233,9 @@ export const deleteOrganization = defineOperation({
     checkConfirmation(input.confirm, "leave it");
     const tid = tenantId(ctx);
     const db = ctx.db;
-    const t = await db.selectFrom("tenants").select(["tenant_id", "name", "sandbox"]).where("tenant_id", "=", tid).forUpdate().executeTakeFirstOrThrow();
+    const t = await db.selectFrom("tenants").select(["tenant_id", "name", "example"]).where("tenant_id", "=", tid).forUpdate().executeTakeFirstOrThrow();
     checkTypedName(input.name, t.name, "organization");
-    refuseSandbox(t);
+    refuseExample(t);
     const impact = await organizationDeletion(ctx);
 
     const versions = await db.selectFrom("file_versions").select("blob_key").where("tenant_id", "=", tid).execute();
@@ -247,8 +247,8 @@ export const deleteOrganization = defineOperation({
     const keys = [...new Set([...versions, ...grants, ...exports, ...canvases, ...prototypes].map((r) => r.blob_key).filter((k): k is string => Boolean(k)))];
 
     for (const table of ORGANIZATION_TABLES) await sql`delete from ${sql.table(table)} where tenant_id = ${tid}`.execute(db);
-    // Content, children before what they refer to: the order a sandbox's reset deletes in.
-    for (const table of [...BASELINE_TABLES].reverse()) await sql`delete from ${sql.table(table)} where tenant_id = ${tid}`.execute(db);
+    // Content, children before what they refer to.
+    for (const table of [...CONTENT_TABLES].reverse()) await sql`delete from ${sql.table(table)} where tenant_id = ${tid}`.execute(db);
     await db.deleteFrom("invitations").where("tenant_id", "=", tid).execute();
     await db.deleteFrom("memberships").where("tenant_id", "=", tid).execute();
     await db.deleteFrom("tenants").where("tenant_id", "=", tid).execute();

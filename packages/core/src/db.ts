@@ -46,8 +46,8 @@ export interface AccountsTable {
   email_verified_at: TsNull;
   created_at: Ts;
   deleted_at: TsNull;
-  /** Created on the strength of a sandbox invitation alone; see the public sandbox. */
-  sandbox_only: Def<boolean>;
+  /** The person hid the example organization from the app's panel. */
+  hide_example: Def<boolean>;
 }
 
 export interface SessionsTable {
@@ -116,10 +116,16 @@ export interface TenantsTable {
   tenant_id: string;
   slug: string;
   name: string;
+  /** `free` or `unlimited` (`limits.ts`). */
   plan: Def<string>;
   status: Def<string>;
-  /** A public sandbox, as the deployment's configuration says. Set by the server at start-up. */
-  sandbox: Def<boolean>;
+  /** The example organization, as the deployment's configuration says. Set by the server at start-up. */
+  example: Def<boolean>;
+  /** The limits an instance owner changed from the free plan's; read through `readLimits`, which supplies the rest. */
+  limits: ColumnType<Record<string, unknown>, string | undefined, string>;
+  limits_etag: string | null;
+  limits_updated_at: TsNull;
+  limits_updated_by: JsonNull<ActorSnapshot>;
   created_at: Ts;
   created_by: Json<ActorSnapshot>;
 }
@@ -242,7 +248,8 @@ export interface UsageCallsTable {
   operation: string;
   surface: string;
   client: string;
-  sandbox: boolean;
+  /** The call was in the example organization (before 0034, in the public sandbox). */
+  example: boolean;
   owner: boolean;
   outcome: string;
   calls: Generated<number>;
@@ -255,7 +262,8 @@ export interface UsagePeopleTable {
   feature: string;
   surface: string;
   client: string;
-  sandbox: boolean;
+  /** The call was in the example organization (before 0034, in the public sandbox). */
+  example: boolean;
   owner: boolean;
 }
 
@@ -439,8 +447,8 @@ export interface AgentNotesTable {
   updated_at: Ts;
   updated_by: Json<ActorSnapshot>;
   /**
-   * Changes on every write. The column has a default only for rows written before it existed (a
-   * saved sandbox baseline); code names a new one on every insert and update.
+   * Changes on every write. The column has a default only for rows written before it existed; code
+   * names a new one on every insert and update.
    */
   etag: string;
 }
@@ -727,19 +735,7 @@ export interface ExportsTable {
   expires_at: Ts;
 }
 
-// ---- The public sandbox -------------------------------------------------------------------------
-
-export interface SandboxSettingsTable {
-  tenant_id: string;
-  /** Stored as written; read through the settings schema, which supplies every default. */
-  settings: Json<Record<string, unknown>>;
-  baseline_id: string | null;
-  last_reset_at: TsNull;
-  last_reset: JsonNull<Record<string, unknown>>;
-  etag: string;
-  updated_at: Ts;
-  updated_by: JsonNull<ActorSnapshot>;
-}
+// ---- Instance ----------------------------------------------------------------------------------
 
 /** How many organizations an address may create, given by an instance owner. Keyed by the lower-cased address. */
 export interface TenantAllowancesTable {
@@ -753,43 +749,15 @@ export interface TenantAllowancesTable {
   updated_by: Json<ActorSnapshot>;
 }
 
-export interface SandboxInvitesTable {
-  invite_id: string;
+/** Counters behind the limits of a free organization (`limits.ts`). */
+export interface LimitCountersTable {
   tenant_id: string;
-  code_hash: string;
-  label: string;
-  max_uses: number;
-  used: Def<number>;
-  expires_at: TsNull;
-  revoked_at: TsNull;
-  created_at: Ts;
-  created_by: Json<ActorSnapshot>;
-}
-
-export interface SandboxUsageTable {
-  tenant_id: string;
-  /** The visitor, or "" for the whole organization. */
+  /** The person, or "" for the whole organization. */
   account_id: string;
   bucket: "minute" | "day";
   starts_at: string;
   counter: string;
   n: number;
-}
-
-export interface SandboxBaselinesTable {
-  baseline_id: string;
-  tenant_id: string;
-  note: string;
-  counts: Json<Record<string, number>>;
-  created_at: Ts;
-  created_by: Json<ActorSnapshot>;
-}
-
-export interface SandboxBaselineRowsTable {
-  baseline_id: string;
-  tenant_id: string;
-  table_name: string;
-  row: Json<Record<string, unknown>>;
 }
 
 export interface DB {
@@ -837,11 +805,7 @@ export interface DB {
   activity: ActivityTable;
   tombstones: TombstonesTable;
   exports: ExportsTable;
-  sandbox_settings: SandboxSettingsTable;
-  sandbox_invites: SandboxInvitesTable;
-  sandbox_usage: SandboxUsageTable;
-  sandbox_baselines: SandboxBaselinesTable;
-  sandbox_baseline_rows: SandboxBaselineRowsTable;
+  limit_counters: LimitCountersTable;
   tenant_allowances: TenantAllowancesTable;
   usage_calls: UsageCallsTable;
   usage_people: UsagePeopleTable;

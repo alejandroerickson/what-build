@@ -2,7 +2,7 @@
 type: System Concept
 title: WhatBuild keeps each organization's material to its own people, and treats agent-written HTML, uploads and source text as hostile
 description: The threat model: what is protected, who the attackers are, the trust boundaries, and each control with where it lives in code and the decision that governs it.
-tags: [security, threat-model, tenancy, identity, oauth, sandbox, uploads]
+tags: [security, threat-model, tenancy, identity, oauth, example, limits, uploads]
 generated: {by: agent:claude, at: 2026-10-25}
 status: draft
 ---
@@ -18,7 +18,7 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 - **Discovery material and what is built from it**: sources, their attachments and text, outcomes,
   assumptions, mockups and the Story. Transcripts carry customers' words and personal data.
 - **The boundaries** between organizations, between products in one, and between roles.
-- **Who people are** (in the public sandbox, which visitor is which), and **credentials**:
+- **Who people are** (to a guest of the example organization, who its people are), and **credentials**:
   sessions, OAuth tokens, grants, invitation links.
 - **The record of who did what**, and whether an agent did it; and the service's availability.
 
@@ -26,11 +26,11 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 
 | Attacker | Holds | Wants |
 |---|---|---|
-| Anyone on the internet | The public endpoints: sign-in, OAuth discovery and registration, the site, a sandbox invitation's page | An account, a foothold, the service down |
+| Anyone on the internet | The public endpoints: sign-in, OAuth discovery and registration, the site | An account, a foothold, the service down |
 | A member of another organization | An account, a session or an agent's token | Another organization's material |
 | A member with a lower role | A reader, viewer or product-only grant | More than the role allows; another product |
-| A sandbox visitor | A sandbox invitation link | Other visitors' identities, staff powers, resources |
-| A misled or malicious agent | Its person's token; instructions possibly planted in a source, by a stranger in the public sandbox | What its person can reach, used against them; from the sandbox, only the sandbox |
+| Any signed-in account | A session or an agent's token, and with it a guest's read of the example organization | To change the example, see who is in it, or spend more than its share of a free plan |
+| A misled or malicious agent | Its person's token; instructions possibly planted in a source by someone in an organization its person belongs to | What its person can reach, used against them |
 | An author of hostile content | A Story or mockup page, an uploaded or fetched file | Script in the app's origin; the parsers; the network behind the server |
 | An MCP client passing as another | A registration of its own | A person's consent |
 
@@ -94,6 +94,11 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 - Invitations are 256-bit links stored as hashes, for 7 days, accepted only by the account with the
   invited address. Only instance owners, and addresses they give an allowance, create organizations
   ([decision](../decisions/only-instance-owners-decide-who-creates-organizations.md)).
+- Only an instance owner lists every account or removes one, and removing is a person's act in the
+  web app (`products.remove_account` is web only, with the address typed); an instance owner's
+  account cannot be removed there. Removing signs the account out everywhere (`endSignIns`), takes
+  its roles with a record in each organization, cancels what let its address in, and forgets the
+  address ([decision](../decisions/instance-owners-see-every-account-and-remove-any-but-their-own.md)).
 
 **Agents and OAuth** ([decision](../decisions/built-in-identity-and-oauth.md),
 [decision](../decisions/a-scoped-mcp-connector-is-a-fence.md)). `apps/server/src/auth/oauth.ts`.
@@ -143,20 +148,18 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   handler runs (`packages/core/src/connector-scope.ts`). Over MCP the fence and the caller's role
   are checked before the tool's input is validated; only a call that names no product, team or
   tenant is told first that its input is malformed.
-- The unscoped connector reaches no public sandbox, where strangers write the content: a call
-  through `/mcp` that lands in one is refused with `403 sandbox_needs_its_own_connector` before any
-  handler runs, staff's included, and `products.list` there names a sandbox only by its name and
-  its own address ([decision](../decisions/the-public-sandbox-is-reached-only-through-its-own-connector.md)).
-  So a connection that reads what a stranger planted in the sandbox holds nothing else of
-  WhatBuild. An agent may still hold a second connector in the same session; the skill and the
-  server's instructions tell it not to, and that is a request, not a boundary.
+- No organization lets strangers write where others' agents read. The example organization, which
+  every account reads, is written by its own members alone; a guest's every write is refused
+  ([decision](../decisions/every-account-reads-the-example-organization-which-only-its-staff-write.md)).
+  So the unscoped connector reaches it beside the person's own organizations, and what an agent
+  reads there is what the example's staff wrote.
 
 **Tenancy and access** ([decision](../decisions/shared-schema-tenancy-with-row-level-security.md),
 [decision](../decisions/access-is-per-product-roles.md), [decision](../decisions/a-reader-reads-only-the-story.md)).
 
 - Every operation, REST or MCP, goes through `execute` (`packages/core/src/execute.ts`): authorize
   the scope (`404` without a role, before validation, on both doors, so a non-member's malformed
-  MCP call gets `404` as over REST), apply a connector's fence and a sandbox's limits, validate
+  MCP call gets `404` as over REST), apply a connector's fence, refuse a guest's write and apply a free plan's limits, validate
   strictly, then run in a transaction with `app.tenant_id` set. Roles are in
   `packages/core/src/policy.ts`; a reader's Story reads are trimmed by `readsOnlyTheStory`.
   `apps/server/test/access.test.ts` requires `404` from every operation for a non-member, and
@@ -216,10 +219,11 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   that changes in place, and the requester, for the grant lifetime (30 minutes); every load of
   the app's address mints a new one. The content route reads no cookie or `Authorization` header,
   sets no cookie, never redirects and answers on the content host alone. It checks the requester
-  again before the first byte (`requesterMayRead`), so someone removed, lowered to reader or shut
-  out of a public sandbox stops loading at once, finds the document with the same function as the
-  app's route (`apps/server/src/documents.ts`), and serves it with the same headers, framed by the
-  app's origin alone, with CORP `cross-origin` and `private, no-store`.
+  again before the first byte (`requesterMayRead`), so someone removed or lowered to reader stops
+  loading at once, finds the document with the same function as the app's route
+  (`apps/server/src/documents.ts`), and serves it with the same headers, framed by the app's
+  origin alone, with CORP `cross-origin` and `private, no-store`. A document's load counts once
+  against a free organization's limits, at the app's route, not again at the content site's.
 - A Story preview (`story.preview`) is checked by the same code as a publish and served by the
   same function as a version's HTML (`storyHtml` in `apps/server/src/documents.ts`), in the same
   sandbox, so nothing reaches a browser through a preview that publishing would refuse. Its
@@ -269,14 +273,13 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   size and hash decide the attachment's entry. A download grant (an attachment, a mockup version's
   ZIP, a Story or card preview, an export) names its requester and an agent's connection, and its
   route checks before the first byte that they may still read it there, at their connection's
-  level, that the connection is still connected, and that a public sandbox still admits them
-  (`requesterMayRead` in `apps/server/src/uploads.ts`). A direct-to-bucket URL is signed for at most the grant's
+  level, and that the connection is still connected; the download counts against their limit on
+  calls a minute where they meet one (`requesterMayRead` in `apps/server/src/uploads.ts`). A direct-to-bucket URL is signed for at most the grant's
   size (`x-goog-content-length-range`, `directUploadSigning` in `blobs-gcs.ts`), and
   `attachments.complete_upload` reads the object's size before its bytes, discards one over the grant
   with `413`, and hashes the bytes as it streams them.
 - A mockup canvas uploaded as a ZIP comes through the relay only, under a grant of its own purpose
-  (`mockup_upload`), and is refused to a visitor to the public sandbox, whose text is capped field
-  by field. Publish unpacks it with the parsers' `zipEntries`, which stops at 96 MB unpacked
+  (`mockup_upload`), and is refused on the free plan, whose text is capped field by field. Publish unpacks it with the parsers' `zipEntries`, which stops at 96 MB unpacked
   however the archive claims its sizes and refuses more than 2,148 entries before inflating any;
   publish takes only the canvas's own entries, refuses a name used twice and a symbolic link, and
   checks every page by a mockup page's rules as if it had been sent in the call
@@ -344,21 +347,24 @@ address; both again on every redirect. Public means outside every special-purpos
 for IPv6, inside global unicast outside its special parts (`isPublicAddress`). It verifies
 certificates, caps size, waits at most 30 seconds between bytes and 60 for the whole fetch, runs
 three at once per person, downloads before the operation's transaction (the registry's `prepare`
-step), and answers every network failure with one plain `fetch_failed`. Sandbox visitors cannot
-use it unless staff turn it on.
+step), and answers every network failure with one plain `fetch_failed`. An instance owner can switch it off
+for an organization on the free plan (`fetch_url`).
 
-**The public sandbox** ([decision](../decisions/the-public-sandbox-is-one-organization-with-pseudonymous-visitors.md),
+**The example organization and the free plan**
+([decision](../decisions/every-account-reads-the-example-organization-which-only-its-staff-write.md),
+[decision](../decisions/free-organizations-meet-limits-that-only-instance-owners-change.md),
 [§3.10](../spec/03-accounts-teams-and-identity.md), [§9.7](../spec/09-data-lifecycle.md)).
-In a sandbox every role stops at editor except its owners' and admins', and a visitor's grant counts
-only while the deployment names the sandbox (`effectiveRole`, `membershipsFor`). A visitor writes
-under a made-up name `execute` puts in the actor snapshot, sees only themselves in `members.list`,
-and cannot delete permanently, which needs admin. Admission is by 144-bit codes stored as hashes, with places and a
-cap on seats. Limits on calls, writes, sources, bytes, sizes, formats and exports are settings
-enforced in `execute` and the upload path (`packages/core/src/public-sandbox.ts`). The daily reset
-holds the sandbox's lock alone, drops its pending jobs and puts the baseline back. A visitor's
-mockup page has a mockup page's rules, with no script budget: the budget is no control (above),
-and the cap on what one field holds (200,000 characters by default) already bounds a page, and
-the daily writes bound how many.
+A guest's grant is made in `membershipsFor` alone, never stored, and only while the deployment
+names the example; it gives viewer, and `execute` refuses a guest every write before reading the
+input, as `resolveScope` refuses one an operation above viewer (`403 example_read_only`). A guest
+sees no member of the example. Limits on calls, writes, sources, bytes, sizes, formats and exports
+are enforced in `execute` and the upload path (`packages/core/src/limits.ts`) for everyone in an
+organization on the free plan, its owners included. A new organization's plan comes from the
+deployment (`WHATBUILD_NEW_ORGANIZATION_PLAN`) and only an instance owner changes a plan or a
+limit, so nobody raises their own; a guest meets the limit on calls a minute. A mockup page on the free plan has a mockup
+page's rules, with no script budget: the budget is no control (above), and the cap on what one
+field holds (200,000 characters by default) already bounds a page, and the daily writes bound how
+many.
 
 **Secrets, logs and delivery.** Configuration comes from the environment (`config.ts`); secrets
 live in Secret Manager or Key Vault (`deploy/cloud-run/setup.sh`, `deploy/azure/containerapp.yaml`),
@@ -367,7 +373,7 @@ provider, email links are off rather than logged, and production refuses to star
 that would print them or deliver nothing (`WHATBUILD_MAILER` other than `smtp` or `none`), or with
 one it does not know (`config.ts`). Log lines hold method, masked path, status and time, never
 bodies, query strings or headers: the path's ids are masked, and so are the links that are
-credentials themselves, `/invite/:token`, `/join/:code`, `/prototypes/:grant/…` and
+credentials themselves, `/invite/:token`, the retired `/join/:code`, `/prototypes/:grant/…` and
 `/documents/:grant/…`. Spans, when a deployment sends traces,
 hold less: a route's pattern or the masked path, names of operations, kinds and codes, never a
 statement's text or an error's message (`telemetry.ts`); and they go to a project that runs nothing,
@@ -382,10 +388,8 @@ approved release ([decision](../decisions/production-runs-releases-after-approva
 
 **Accepted, by decision.** An agent acts with its person's full role, made visible by attribution
 and declared authorship ([decision](../decisions/attribution-and-declared-authorship.md)). A page
-may link anywhere, open new tabs and navigate its own frame. Sandbox visitors see and change each
-other's work until the reset, and each visitor's agent reads what the others wrote, through a
-connector that reaches the sandbox alone; a private copy of the sandbox for each visitor is
-planned ([roadmap](../spec/10-roadmap.md)). These trade-offs are deliberate; each names what would change it:
+may link anywhere, open new tabs and navigate its own frame. Every account sees the names of the
+example organization's staff on what they wrote and in its activity log. These trade-offs are deliberate; each names what would change it:
 
 - In invite-only mode the sign-in form tells an address that it may not sign up (`403
   invite_only`, [§6.2](../spec/06-operations-and-adapters.md)), and adding someone grants an
@@ -415,4 +419,4 @@ planned ([roadmap](../spec/10-roadmap.md)). These trade-offs are deliberate; eac
   files are served from the app's origin: a browser bug that escapes the sandbox would land there
   ([decision](../decisions/with-a-content-site-every-page-and-inline-file-is-served-from-it.md)).
 - Files are parsed one at a time, each for at most the parse time limit, so one person's uploads
-  can delay another's parsing; a budget per sandbox visitor is planned ([roadmap](../spec/10-roadmap.md)).
+  can delay another's parsing; a budget per organization is planned ([roadmap](../spec/10-roadmap.md)).

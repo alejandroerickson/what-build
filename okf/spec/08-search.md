@@ -3,7 +3,7 @@ type: Specification
 title: Search reads what a source says, its title, tags, summary, derived text, notes and comments, and never its attachments; it is lexical, bounded, and says exactly what it examined.
 description: The search operation as built (substring, ranked and plain modes, scopes, filters, hits with their field and offsets, every place in substring mode, coverage), the search index of a source's texts, earlier readings, and the planned semantic retrieval.
 tags: [spec, search, retrieval, coverage, index]
-generated: {by: agent:claude, at: 2026-10-18}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -86,8 +86,7 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
 - **`substring`** (the default): exact, case-insensitive substring match (`ILIKE`), indexed with
   `pg_trgm`. Right for identifiers, part numbers, and quotes where tokenization gets in the way.
   The query is matched as typed: `%`, `_` and `\` in it are characters, never wildcards or an
-  escape. So is the `query` of every list that takes one (sources, assumptions, outcomes, a
-  sandbox's visitors), through one helper, `likeContaining` in `packages/core/src/util.ts`.
+  escape. So is the `query` of every list that takes one (sources, assumptions, outcomes), through one helper, `likeContaining` in `packages/core/src/util.ts`.
 - **`ranked`:** a small boolean grammar — terms, `"quoted phrases"`, `prefix*`, `AND`, `OR`, `NOT`
   and parentheses, adjacent terms implying AND, at most 64 tokens — compiled to a Postgres
   `tsquery` over the language-neutral `simple` configuration (no stemming), matched against a
@@ -204,9 +203,7 @@ every content table does.
   and delete, a copy to another product, and a source made from a retired insight or decision. A
   source's pieces are deleted with it.
 - **Built whole** by the worker's `index_texts` job, one product at a time, which migration
-  `0030_one_derived_text_per_source.sql` queues for every product; and, for every source it put
-  back, by a public sandbox's reset, since a baseline does not hold the index
-  ([§9.7](09-data-lifecycle.md)).
+  `0030_one_derived_text_per_source.sql` queues for every product.
 - An archived source's pieces, and an archived comment's, stay in the index; search leaves them
   out unless asked.
 - **Attachments are never in it.** What was read from an attachment is kept with the attachment

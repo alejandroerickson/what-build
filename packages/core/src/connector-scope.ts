@@ -1,7 +1,7 @@
 import { AppError } from "./errors.ts";
 import { resolveScope, type ScopeRef } from "./policy.ts";
 import type { Db } from "./db.ts";
-import type { OperationDef, Principal, Scope, TenantRef } from "./registry.ts";
+import type { OperationDef, Principal, Scope } from "./registry.ts";
 
 /**
  * What a scoped MCP connector may reach: one organization, or one product in it. A scoped connector
@@ -16,7 +16,7 @@ export interface ConnectorScope {
 /** Account-level operations a scoped connector still answers: they reach no organization's content. */
 const ACCOUNT_OPS_ALLOWED = new Set(["products.list", "get_skill", "submit_feedback"]);
 /** Organization-level operations a product connector still answers: the caller's own standing there. */
-const TENANT_OPS_FOR_PRODUCT = new Set(["sandbox.status"]);
+const TENANT_OPS_FOR_PRODUCT = new Set(["products.limits"]);
 /** Product operations that reach a second product, which a product connector never can. */
 const CROSS_PRODUCT_OPS = new Set(["sources.move_to_product", "sources.copy_to_product"]);
 
@@ -32,30 +32,6 @@ export function outsideConnectorScope(c: ConnectorScope, what: string): AppError
     `This connector is scoped to ${describeConnectorScope(c)}, and ${what} is outside it. Nothing was changed. ` +
       "To work there, the person adds a connector scoped to it, or the unscoped one, in their agent.",
     { connector_scope: c.product ? { product: c.product.path } : { tenant: c.tenant.slug } },
-  );
-}
-
-/**
- * The address of the connector scoped to a public sandbox. It is the only one that reaches the
- * sandbox: there an agent reads what strangers wrote, so it should hold nothing else of WhatBuild.
- */
-export function sandboxConnectorUrl(base: string, slug: string): string {
-  return `${base}/mcp/t/${encodeURIComponent(slug)}`;
-}
-
-/** Why a public sandbox takes a connector of its own, as every answer that gives its address says it. */
-export const SANDBOX_CONNECTOR_WHY =
-  "An agent in a public sandbox reads what strangers wrote, so connect it there with this address alone, and keep no other WhatBuild connector in the same session.";
-
-/** The refusal of a call through the unscoped connector (`/mcp`) that lands in a public sandbox. */
-export function sandboxNeedsItsOwnConnector(base: string, tenant: Pick<TenantRef, "slug" | "name">): AppError {
-  const connectAt = sandboxConnectorUrl(base, tenant.slug);
-  return new AppError(
-    403,
-    "sandbox_needs_its_own_connector",
-    `${tenant.name} (${tenant.slug}) is a public sandbox, which this connector, the unscoped one, does not reach. Nothing was changed. ` +
-      `An agent there reads what strangers wrote, so the sandbox has a connector of its own: to work there, the person adds ${connectAt} in their agent, and keeps no other WhatBuild connector in the same session.`,
-    { connect_at: connectAt, tenant: tenant.slug },
   );
 }
 
@@ -106,23 +82,4 @@ export function narrowProductList<T extends { items: { product_id: string; tenan
     .filter((t) => t.tenant_id === c.tenant.tenant_id)
     .map((t) => (c.product ? { ...t, teams: t.teams.filter((tm) => teams.has(tm.team_id)) } : t));
   return { ...list, items, tenants };
-}
-
-/**
- * `products.list` as the unscoped connector sees it: no public sandbox's products or teams, and in
- * their place each sandbox's name and the address of the connector that reaches it.
- */
-export function listWithoutSandboxes<T extends { items: { tenant: { tenant_id: string } }[]; tenants: { tenant_id: string; slug: string; name: string; sandbox?: boolean }[] }>(
-  base: string,
-  list: T,
-): T & { public_sandboxes?: { organization: { slug: string; name: string }; connect_at: string; connect_why: string }[] } {
-  const sandboxes = list.tenants.filter((t) => t.sandbox);
-  if (!sandboxes.length) return list;
-  const ids = new Set(sandboxes.map((t) => t.tenant_id));
-  return {
-    ...list,
-    items: list.items.filter((i) => !ids.has(i.tenant.tenant_id)),
-    tenants: list.tenants.filter((t) => !ids.has(t.tenant_id)),
-    public_sandboxes: sandboxes.map((t) => ({ organization: { slug: t.slug, name: t.name }, connect_at: sandboxConnectorUrl(base, t.slug), connect_why: SANDBOX_CONNECTOR_WHY })),
-  };
 }

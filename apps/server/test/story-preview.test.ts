@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
-import { DOWNLOAD_GRANT_HEADER, MOCKUP_RESPONSE_HEADERS, PREVIEWS_KEPT, RESET_CONFIRMATION, STORY_RESPONSE_HEADERS } from "@whatbuild/core";
+import { DOWNLOAD_GRANT_HEADER, MOCKUP_RESPONSE_HEADERS, PREVIEWS_KEPT, STORY_RESPONSE_HEADERS } from "@whatbuild/core";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { syncSandboxTenant } from "../src/public-sandbox.ts";
+import { syncExampleTenant } from "../src/example-organization.ts";
 import { asServed, startHarness, type Browser, type Harness } from "./harness.ts";
 
 // story.preview: the same call as story.publish, checked as publish checks it, with nothing
@@ -211,59 +211,57 @@ describe("the preview's grant", () => {
   });
 });
 
-describe("in a public sandbox", () => {
-  let V: Browser;
+describe("on the free plan, and in the example organization", () => {
   let S: string;
-  let T: string;
-  let sandboxId: string;
+  let slug: string;
+  let freeId: string;
   let olive: Browser;
 
   beforeAll(async () => {
     olive = await h.signIn("olive@example.com", "Olive Owner");
-    const t = await olive.api("POST", "/api/v1/tenants", { name: "Sample Sandbox" });
-    sandboxId = t.body.tenant.tenant_id;
-    const p = await olive.api("POST", `/api/v1/teams/${t.body.tenant.slug}/${t.body.team.slug}/products`, { name: "Showcase" });
+    const t = await olive.api("POST", "/api/v1/tenants", { name: "Sample Free" });
+    freeId = t.body.tenant.tenant_id;
+    slug = t.body.tenant.slug;
+    const p = await olive.api("POST", `/api/v1/teams/${slug}/${t.body.team.slug}/products`, { name: "Showcase" });
     S = `/api/v1/p/${p.body.path}`;
-    T = `/api/v1/tenants/${t.body.tenant.slug}`;
-    expect(await syncSandboxTenant(h.db, t.body.tenant.slug, () => {})).toBe(sandboxId);
-    const settings = (await olive.api("GET", `${T}/sandbox/settings`)).body;
-    expect((await olive.api("PATCH", `${T}/sandbox/settings`, { expected_etag: settings.etag, visitor_access: "write", reset_enabled: false })).status).toBe(200);
-    const invite = await olive.api("POST", `${T}/sandbox/invites`, { label: "Preview test", places: 2 });
-    V = await h.signIn("vera@example.com", "Vera Visitor");
-    expect((await V.api("POST", "/api/v1/sandbox/join", { code: String(invite.body.invite_link).split("/join/")[1] })).status).toBe(200);
+    await h.db.updateTable("tenants").set({ plan: "free" }).where("tenant_id", "=", freeId).execute();
   });
 
-  const writesToday = async (accountId: string) =>
-    h.db.transaction().execute(async (trx) => {
-      const r = await trx.selectFrom("sandbox_usage").select("n").where("tenant_id", "=", sandboxId).where("account_id", "=", accountId).where("bucket", "=", "day").where("counter", "=", "writes").executeTakeFirst();
-      return Number(r?.n ?? 0);
-    });
+  const writesToday = async (accountId: string) => {
+    const r = await h.db.selectFrom("limit_counters").select("n").where("tenant_id", "=", freeId).where("account_id", "=", accountId).where("bucket", "=", "day").where("counter", "=", "writes").executeTakeFirst();
+    return Number(r?.n ?? 0);
+  };
 
-  it("lets a visitor preview whenever they may publish, as a call and not a write", async () => {
-    const me = (await V.api("GET", "/api/v1/me")).body.account_id as string;
+  it("previews whenever publish would be allowed, as a call and not a write", async () => {
+    const me = (await olive.api("GET", "/api/v1/me")).body.account_id as string;
     const before = await writesToday(me);
-    const r = await V.api("POST", `${S}/story/pages/visit/preview`, { title: "A visit", body });
+    const r = await olive.api("POST", `${S}/story/pages/visit/preview`, { title: "A visit", body });
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     expect((await open(r.body.preview)).status).toBe(200);
     expect(await writesToday(me)).toBe(before);
 
-    const settings = (await olive.api("GET", `${T}/sandbox/settings`)).body;
-    expect((await olive.api("PATCH", `${T}/sandbox/settings`, { expected_etag: settings.etag, visitor_access: "read" })).status).toBe(200);
-    const paused = await V.api("POST", `${S}/story/pages/visit/preview`, { title: "A visit", body });
-    expect(paused.status).toBe(403);
-    expect(paused.body.error.code).toBe("sandbox_read_only");
-    expect((await V.api("POST", `${S}/story/pages/visit/versions`, { title: "A visit", body })).body.error.code).toBe("sandbox_read_only");
+    // With writing switched off on the plan, a preview is refused where publish is.
+    await h.db.updateTable("tenants").set({ limits: JSON.stringify({ writes_per_day: 0 }) }).where("tenant_id", "=", freeId).execute();
+    try {
+      const paused = await olive.api("POST", `${S}/story/pages/visit/preview`, { title: "A visit", body });
+      expect(paused.status).toBe(403);
+      expect(paused.body.error).toMatchObject({ code: "plan_restricted", details: { setting: "writes_per_day" } });
+      expect((await olive.api("POST", `${S}/story/pages/visit/versions`, { title: "A visit", body })).body.error.code).toBe("plan_restricted");
+    } finally {
+      await h.db.updateTable("tenants").set({ limits: "{}" }).where("tenant_id", "=", freeId).execute();
+    }
   });
 
-  it("drops previews with the rest when the sandbox is reset", async () => {
-    const settings = (await olive.api("GET", `${T}/sandbox/settings`)).body;
-    expect((await olive.api("PATCH", `${T}/sandbox/settings`, { expected_etag: settings.etag, visitor_access: "write" })).status).toBe(200);
-    const baseline = await olive.api("POST", `${T}/sandbox/baselines`, { note: "Empty" });
-    expect(baseline.status, JSON.stringify(baseline.body)).toBe(200);
-    const r = await V.api("POST", `${S}/story/pages/visit/preview`, { title: "A visit", body });
-    expect(r.status).toBe(200);
-    const reset = await olive.api("POST", `${T}/sandbox/reset`, { baseline_id: baseline.body.baseline_id, confirm: RESET_CONFIRMATION });
-    expect(reset.status, JSON.stringify(reset.body)).toBe(200);
-    expect((await open(r.body.preview)).status).toBe(404);
+  it("refuses a guest's preview in the example organization, as it refuses their publish", async () => {
+    expect(await syncExampleTenant(h.db, slug, () => {})).toBe(freeId);
+    try {
+      const guest = await h.signIn("gus@example.com", "Gus Guest");
+      const r = await guest.api("POST", `${S}/story/pages/visit/preview`, { title: "A visit", body });
+      expect(r.status).toBe(403);
+      expect(r.body.error.code).toBe("example_read_only");
+      expect((await guest.api("POST", `${S}/story/pages/visit/versions`, { title: "A visit", body })).body.error.code).toBe("example_read_only");
+    } finally {
+      await syncExampleTenant(h.db, null, () => {});
+    }
   });
 });

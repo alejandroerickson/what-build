@@ -30,7 +30,7 @@ export function screenOf(pathname: string): string | null {
   const parts = pathname.split("/").filter(Boolean);
   if (!parts.length) return "Overview";
   if (parts[0] === "t" && parts.length === 3 && parts[2] === "members") return "Members";
-  if (parts[0] === "t" && parts.length === 3 && parts[2] === "sandbox") return "Sandbox";
+  if (parts[0] === "t" && parts.length === 3 && parts[2] === "limits") return "Plan and limits";
   if (parts[0] === "t" && parts.length >= 4) {
     const [segment, sub, item] = parts.slice(4);
     if (segment === "search") return "Search";
@@ -40,7 +40,7 @@ export function screenOf(pathname: string): string | null {
     if (segment === "story" && sub) return "Story, a page";
     return productSection(segment).label;
   }
-  const top: Record<string, string> = { connect: "Connect an agent", settings: "Settings", instance: "Organization creators", welcome: "Welcome" };
+  const top: Record<string, string> = { connect: "Connect an agent", settings: "Settings", instance: "Organizations", people: "People", welcome: "Welcome" };
   return top[parts[0]!] ?? null;
 }
 

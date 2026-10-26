@@ -1,11 +1,11 @@
-import { BASELINE_TABLES, newId } from "@whatbuild/core";
+import { CONTENT_TABLES, newId } from "@whatbuild/core";
 import type pg from "pg";
 import { checkReferences, storedColumns } from "./organization-copy.ts";
 
 /**
  * Shaping a restored copy of production into the end-to-end golden master
- * (okf/operations/end-to-end-tests.md): only the public sandbox's organization stays, and a second
- * organization, not a sandbox, gets a copy of its content under new ids, so every plan can run the
+ * (okf/operations/end-to-end-tests.md): only the example organization stays, and a second
+ * organization, not the example, gets a copy of its content under new ids, so every plan can run the
  * same products both ways. Run as the embedded server's superuser, which row-level security does
  * not restrict.
  */
@@ -46,9 +46,9 @@ export async function keepOnlyTenant(c: pg.Client, tenantId: string) {
 }
 
 /**
- * Copy one organization's content into a new organization that is not a sandbox: its teams,
- * products and everything in them, the search index of their sources, the activity log and the
- * memberships of everyone but its visitors, with every id made new and every reference to an old
+ * Copy one organization's content into a new organization that is not the example: its teams,
+ * products and everything in them, the search index of their sources, the activity log and its
+ * memberships, with every id made new and every reference to an old
  * id, in any column or JSON, pointing at the new one. Files are shared.
  */
 export async function copyTenant(c: pg.Client, fromTenantId: string, slug: string, name: string) {
@@ -56,15 +56,11 @@ export async function copyTenant(c: pg.Client, fromTenantId: string, slug: strin
   const present = new Set(await tablesWith(c, "tenant_id"));
   // The index is copied with what it indexes, as it stands once the build's jobs are done, so the
   // copy finds what the original finds. A piece's offsets hold, since a new id is as long as the old.
-  const tables = [...BASELINE_TABLES, "text_chunks", "memberships"].filter((t) => present.has(t));
-  const people = (await c.query<{ account_id: string; sandbox_only: boolean }>("select account_id, sandbox_only from accounts")).rows;
+  const tables = [...CONTENT_TABLES, "text_chunks", "memberships"].filter((t) => present.has(t));
+  const people = (await c.query<{ account_id: string }>("select account_id from accounts")).rows;
   const accounts = new Set(people.map((p) => p.account_id));
   const rows = new Map<string, Record<string, unknown>[]>();
   for (const t of tables) rows.set(t, (await c.query<{ row: Record<string, unknown> }>(`select to_jsonb(x) as row from ${t} x where tenant_id = $1`, [fromTenantId])).rows.map((r) => r.row));
-  // A visitor belongs to the sandbox alone: an account an invitation made, or anyone holding a
-  // visitor's seat there. None of their grants is copied, the seat or a role on a team or product.
-  const visitors = new Set(people.filter((p) => p.sandbox_only).map((p) => p.account_id));
-  for (const m of rows.get("memberships") ?? []) if (m["scope_type"] === "tenant" && m["role"] === "visitor") visitors.add(m["account_id"] as string);
 
   // Every id the organization's rows name, other than people's: those are the ones made new. A new
   // id keeps the old one's time (a ULID's first ten characters), so lists ordered by id, such as
@@ -81,13 +77,12 @@ export async function copyTenant(c: pg.Client, fromTenantId: string, slug: strin
   await c.query("begin");
   try {
     const t = (await c.query<{ row: Record<string, unknown> }>("select to_jsonb(t) as row from tenants t where tenant_id = $1", [fromTenantId])).rows[0]!.row;
-    await c.query("insert into tenants select * from jsonb_populate_record(null::tenants, $1)", [{ ...t, tenant_id: ids.get(fromTenantId), slug, name, sandbox: false }]);
+    await c.query("insert into tenants select * from jsonb_populate_record(null::tenants, $1)", [{ ...t, tenant_id: ids.get(fromTenantId), slug, name, example: false }]);
     for (const table of tables) {
       const cols = await storedColumns(c, table);
       const list = rows
         .get(table)!
-        .map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, SHARED(k) ? v : remap(v)])))
-        .filter((row) => table !== "memberships" || !visitors.has(row["account_id"] as string));
+        .map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, SHARED(k) ? v : remap(v)])));
       for (let i = 0; i < list.length; i += 500)
         await c.query(`insert into ${table} (${cols.join(", ")}) select ${cols.join(", ")} from jsonb_populate_recordset(null::${table}, $1)`, [JSON.stringify(list.slice(i, i + 500))]);
     }

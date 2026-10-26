@@ -3,7 +3,7 @@ type: Decision
 title: The repository is public; okf/ is the single source of documentation
 description: Documentation describes the system as it is; session history and private context stay out of the repository.
 tags: [decision, okf, process, agents]
-generated: {by: agent:claude, at: 2026-10-24}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -11,7 +11,7 @@ status: stable
 
 ## Context
 
-The repository is public and MIT-licensed. Agents and people need one accurate place to orient, and nothing private may leak into it or its history. Its GitHub page is also where most people first meet WhatBuild, so since 2026-10-24 its root is kept short and its README is written for people, with the detail in `okf/`.
+The repository is public and MIT-licensed. Agents and people need one accurate place to orient, and nothing private may leak into it or its history. Its GitHub page is also where most people first meet WhatBuild, so since 2026-10-24 its root is kept short and its README is written for people, with the detail in `okf/`. Its issues are published as well, and an issue opened for the maintainer's own work carried that work's context to every reader; the maintainer chose on 2026-10-25 that the issues are for reports from others only.
 
 ## Decision
 
@@ -20,6 +20,7 @@ The repository is public and MIT-licensed. Agents and people need one accurate p
 - `README.md` is the landing page for people. It says what WhatBuild is and how to try, run and host it, and links into `okf/` for everything longer; it does not repeat the operations guides.
 - The root holds only what a tool looks for there: the workspace's own files, the ignore files git, Docker and `gcloud` read from the root, `README.md`, `AGENTS.md` and `LICENSE`. Everything else is in a folder: the image and its build in `deploy/`, the git hooks in `scripts/githooks/`, the design records with the web app, `SECURITY.md` in `.github/`. GitHub lists the root above the README, so every entry there pushes the README down.
 - No logs, session notes, requests or to-do lists. Planned work goes in the [roadmap](../spec/10-roadmap.md). Private working material goes in `_private/` at the root of a checkout, which is ignored.
+- The repository's issues are for reports from people who use, run or contribute to WhatBuild, which agents triage when asked. The maintainer's own work is never an issue there, and an agent working for the maintainer opens none; such work arrives as a pull request ([working in this repository](../process/working-in-this-repository.md#issues)).
 - No private names, local paths, secrets or references to other private work, in files, commit messages or pull requests.
 
 ## Consequences
