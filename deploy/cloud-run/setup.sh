@@ -15,7 +15,8 @@
 #     service itself, public on the internet with WhatBuild's own sign-in in front of everything;
 #   - log exclusions, so Cloud Run's own request log keeps no address with a query or an
 #     invitation in it (the service logs those masked), and no line for a request refused unread;
-#   - alerts on server errors, error lines, memory and failed jobs, mailed to one address
+#   - alerts on server errors, error lines, memory, failed jobs, and floods of requests, data
+#     sent out and logs, mailed to one address
 #     (deploy/cloud-run/alerts.mjs);
 #   - with TRACES_PROJECT, the service's traces, sent to that project and no other.
 #
@@ -44,7 +45,8 @@
 #                       whatbuild-google-client-secret, and only GOOGLE_CLIENT_ID passed.
 #   SIGNED_URLS=1       also hand agents direct-to-bucket upload URLs for files over 25 MB
 #   MAX_INSTANCES       the most instances that run at once, default 1; each one kept busy all month
-#                       costs roughly US$45, so this is also the ceiling on the service's bill
+#                       costs roughly US$62 in northamerica-northeast2, so this is also the
+#                       ceiling on the service's instance time
 #   NEW_ORGANIZATION_PLAN   free or unlimited: the plan of an organization someone other than an
 #                       instance owner creates (optional; unlimited when left out). The public
 #                       deployment sets free; a deployment for one organization's own people leaves

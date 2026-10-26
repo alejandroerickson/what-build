@@ -394,7 +394,7 @@ answer. Cloud Run's own request log line for it is dropped (`whatbuild-refused-r
 
 ## Alerts
 
-[`deploy/cloud-run/alerts.mjs`](../../deploy/cloud-run/alerts.mjs) creates four alert policies in
+[`deploy/cloud-run/alerts.mjs`](../../deploy/cloud-run/alerts.mjs) creates seven alert policies in
 Cloud Monitoring, or brings them up to date, each mailed to `ALERT_EMAIL` (by default the `gcloud`
 account running it); `setup.sh` runs it. They read only what Cloud Run measures and logs
 ([decision](../decisions/alerts-watch-the-platform-and-traces-go-to-a-project-of-their-own.md)):
@@ -405,8 +405,13 @@ account running it); `setup.sh` runs it. They read only what Cloud Run measures 
 | `whatbuild: errors in the log` | a line of severity ERROR from the service (Cloud Run's request log aside), at most one mail an hour | the line itself: an unexpected error names its request, `request_id`; `Memory limit … exceeded` |
 | `whatbuild: memory` | an instance above 85% of its memory for five minutes | the worker's log lines for the file being read; [Parsing](#setting-it-up) for the limits and the service's memory |
 | `whatbuild: a job failed` | a failed run of `whatbuild-backup` or `whatbuild-migrate` | `gcloud run jobs executions list --job <job>`; [Backups](backups.md) or [Recovering](recovering-from-a-bad-release.md) |
+| `whatbuild: a flood of requests` | more than 3,000 requests in five minutes, however they were answered | Cloud Run's request log, for the paths asked for and the addresses asking |
+| `whatbuild: data sent out` | more than 1 GB sent to the internet in an hour | the request log for large responses asked for again and again |
+| `whatbuild: logs written` | more than 100 MB of logs written in the project in an hour | Logs Explorer's histogram by log name; most often a flood of requests |
 
-An unexpected error behind a 500 mails twice, once from each of the first two. Nothing calls the
+The last three watch the costs that have no ceiling ([What it costs](#what-it-costs)), each set far
+past what a few teams and their agents send, and mail within minutes, where a budget's figures
+arrive hours late. An unexpected error behind a 500 mails twice, once from each of the first two. Nothing calls the
 service: an uptime check every few minutes would keep an instance alive, and billed, all month. So
 an outage that keeps requests from reaching Cloud Run (the domain, DNS, Cloudflare) mails nothing.
 
@@ -485,7 +490,9 @@ stays allocated while an instance is alive (`--no-cpu-throttling`) so the worker
 after the response returns, and `--min-instances 0` lets it scale to nothing when idle; the first
 request after a quiet spell waits a few seconds. An instance stays alive for up to about 15 minutes
 after its last request and is billed for all of it, so anything that calls every few minutes,
-crawlers included, keeps one running: roughly US$45 a month for each instance kept busy. The
+crawlers included, keeps one running: roughly US$62 a month for each instance kept busy in
+`northamerica-northeast2` (US$0.0864 an hour for 1 vCPU and 1 GiB; less in Google's cheaper
+regions). The
 database need not stay up with it. The worker looks at the job queue every two seconds only for a
 minute after the last request someone signed in made to the API, MCP or sign-in, or the last job,
 then sleeps until the next such request, a commit that queues work, or a retry falling due, and
@@ -496,14 +503,20 @@ instance may stay up. On Neon's free plan a project has 100 CU-hours a month, 40
 smallest size, and its compute is suspended until the month ends once they are used up: a
 deployment people use through much of the day needs the Launch plan. One
 instance runs at most (`MAX_INSTANCES`, default 1), which is ample for a few teams and makes that
-the ceiling. Builds deploy a new image and keep the setting. The smallest Cloud SQL instance is roughly
+the ceiling, give or take: Google may run a second for a few minutes in a sudden spike, or while a
+deploy replaces a revision. Builds deploy a new image and keep the setting. The smallest Cloud SQL instance is roughly
 US$10 a month; a free-tier Postgres elsewhere costs nothing, but holds little (1 GB a project on Neon's), so keep
 the free plan's upload allowances to match (`bytes_per_day`, `org_bytes_per_day`, changed per
 organization on `/instance`; [§9.7](../spec/09-data-lifecycle.md)): the text of what free
-organizations upload, and its search index, land in Postgres. Storage is cents; data the service
-sends out costs about US$0.12 a GB, and is the one cost that grows with downloads. Mail through
+organizations upload, and its search index, land in Postgres. Storage is cents. Data the service
+sends to the internet costs US$0.105 a GB within North America after a free first GB a month (more
+to other continents). It, the logs (US$0.50 a GB past 50 GB a project each month) and traces are
+the costs with no ceiling: each grows with requests, whoever sends them, so only a flood could make
+the bill large. Three alerts mail within minutes of one ([Alerts](#alerts)); a budget on the
+billing account mails too, at the shares of it it is given, but its figures arrive hours late. Mail
+through
 Cloudflare Email Sending needs the Workers Paid plan, which includes 3,000 messages a month
-([Mail](mail.md)). The four alert policies cost about US$0.10 each a month; their mail costs
+([Mail](mail.md)). The seven alert policies cost about US$0.10 each a month; their mail costs
 nothing. Traces are billed by the million spans ingested, and production's few thousand requests a
 day make well under a million a month.
 
@@ -521,7 +534,7 @@ day make well under a million a month.
 | Images | Artifact Registry `whatbuild` | the ten most recent always kept; others deleted after 30 days |
 | Log exclusions | `whatbuild-request-addresses` and `whatbuild-refused-requests` on the `_Default` sink | Cloud Run logs every request itself, with its whole address, the client's IP and its browser, for 30 days. The first drops its line for an address with a query (a search's words, a sign-in link's token) or an invitation link; the service's own line for it, masked, stays. The second drops its line for a `403` or a `429`: a request without the edge key, refused before the service logs anything, or one Cloud Run refused for want of an instance, so a flood of them writes no logs to pay for. The request metrics count them all, and the service's own line stays for each `403` it gives |
 | Restore points (Neon, optional) | branches `pre-migrate-<time>-<commit>`, secret `whatbuild-neon-api-key` | one per deploy before migrating, the newest three kept; the key reaches only the Neon project and is read by the build identity |
-| Alerts | four policies named `whatbuild: …`, one email channel | made by `deploy/cloud-run/alerts.mjs` ([Alerts](#alerts)) |
+| Alerts | seven policies named `whatbuild: …`, one email channel | made by `deploy/cloud-run/alerts.mjs` ([Alerts](#alerts)) |
 | Traces | a project of their own (`TRACES_PROJECT`; production's is `GCP_TRACES_PROJECT` in `.env`): trace storage `_Trace` in `us`, BigQuery dataset `whatbuild_traces` | runs nothing; the runtime identity has Cloud Telemetry Traces Writer there, and nothing else ([Traces](#traces)) |
 | Backup (another Postgres, set up by hand) | job `whatbuild-backup`, scheduler job `whatbuild-backup-nightly`, identity `whatbuild-backup`, bucket `<project>-backups`, secret `whatbuild-backup-database-url` | a `pg_dump` each night as a read-only role that bypasses row-level security; the identity adds and reads dumps, never deletes; dumps expire after 35 days ([Backups](backups.md)) |
 

@@ -32,9 +32,9 @@ const api = `https://monitoring.googleapis.com/v3/projects/${project}`;
 const guide = "okf/operations/cloud-run.md, Alerts, in the WhatBuild repository";
 
 const revision = `resource.type = "cloud_run_revision" AND resource.labels.service_name = "${service}"`;
-const threshold = (filter, aggregation, value, duration) => ({
+const threshold = (filter, aggregation, value, duration, period = "300s") => ({
   filter,
-  aggregations: [{ alignmentPeriod: "300s", ...aggregation }],
+  aggregations: [{ alignmentPeriod: period, ...aggregation }],
   comparison: "COMPARISON_GT",
   thresholdValue: value,
   duration,
@@ -58,7 +58,7 @@ const POLICIES = [
   },
   {
     displayName: `${service}: errors in the log`,
-    documentation: doc(`The service logged a line with severity ERROR: an unexpected error behind a 500, a public sandbox's reset that failed, or the instance stopped for lack of memory. One mail an hour at most, however many lines follow.`),
+    documentation: doc(`The service logged a line with severity ERROR: an unexpected error behind a 500 (in an operation, an upload or sign-in), a failure at start-up, or the instance stopped for lack of memory. One mail an hour at most, however many lines follow.`),
     conditions: [
       {
         displayName: "an error line",
@@ -97,6 +97,51 @@ const POLICIES = [
     ],
     alertStrategy: { autoClose: "86400s" },
     severity: "ERROR",
+  },
+  // A flood: nothing caps what logs, data sent out and the requests behind them cost, so these
+  // mail within minutes, where a budget's mail comes hours later. Each is set far past what a
+  // few teams and their agents send.
+  {
+    displayName: `${service}: a flood of requests`,
+    documentation: doc(`More than 3,000 requests reached the service in five minutes, whatever they were answered, refusals included: someone is sending far more than people and agents do. Each is billed in instance time, log lines and data sent out.`),
+    conditions: [
+      {
+        displayName: "over 3,000 requests in five minutes",
+        conditionThreshold: threshold(`${revision} AND metric.type = "run.googleapis.com/request_count"`, { perSeriesAligner: "ALIGN_SUM", crossSeriesReducer: "REDUCE_SUM" }, 3000, "0s"),
+      },
+    ],
+    alertStrategy: { autoClose: "3600s" },
+    severity: "WARNING",
+  },
+  {
+    displayName: `${service}: data sent out`,
+    documentation: doc(`The service sent more than 1 GB to the internet in an hour, about US$0.10 a GB and with no ceiling: downloads repeated by someone, or a flood of requests.`),
+    conditions: [
+      {
+        displayName: "over 1 GB to the internet in an hour",
+        conditionThreshold: threshold(
+          `${revision} AND metric.type = "run.googleapis.com/container/network/sent_bytes_count" AND metric.labels.kind = "internet"`,
+          { perSeriesAligner: "ALIGN_SUM", crossSeriesReducer: "REDUCE_SUM" },
+          1e9,
+          "0s",
+          "3600s",
+        ),
+      },
+    ],
+    alertStrategy: { autoClose: "3600s" },
+    severity: "WARNING",
+  },
+  {
+    displayName: `${service}: logs written`,
+    documentation: doc(`The project wrote more than 100 MB of logs in an hour. Past 50 GB in a month each GB costs US$0.50, with no ceiling: most often a flood of requests, each logged by Cloud Run and by the service.`),
+    conditions: [
+      {
+        displayName: "over 100 MB of logs in an hour",
+        conditionThreshold: threshold(`resource.type = "global" AND metric.type = "logging.googleapis.com/billing/bytes_ingested"`, { perSeriesAligner: "ALIGN_SUM", crossSeriesReducer: "REDUCE_SUM" }, 1e8, "0s", "3600s"),
+      },
+    ],
+    alertStrategy: { autoClose: "3600s" },
+    severity: "WARNING",
   },
 ];
 
