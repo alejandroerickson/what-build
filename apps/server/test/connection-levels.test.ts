@@ -111,14 +111,18 @@ describe("what each level may do", () => {
       }
       await client.close();
     }
-    // An Edit connection is told of no permanent delete, and of no change to an organization's plan.
+    // An Edit connection is told of no permanent delete, and of no new organization.
     expect(named["editor"]!["sources"]).toContain("archive");
     for (const a of ["delete", "delete_annotation"]) {
       expect(named["editor"]!["sources"]).not.toContain(a);
       expect(named["admin"]!["sources"]).toContain(a);
     }
-    for (const level of levels) expect(named[level]!["products"]).toEqual(expect.arrayContaining(["list", "limits", "organizations"]));
-    for (const a of ["set_limits", "create_tenant"]) {
+    // Olga owns her organization, not this WhatBuild: every organization's plan is not hers to see.
+    for (const level of levels) {
+      expect(named[level]!["products"]).toEqual(expect.arrayContaining(["list", "limits"]));
+      expect(named[level]!["products"]).not.toContain("organizations");
+    }
+    for (const a of ["create_tenant"]) {
       expect(named["viewer"]!["products"]).not.toContain(a);
       expect(named["editor"]!["products"]).not.toContain(a);
       expect(named["admin"]!["products"]).toContain(a);

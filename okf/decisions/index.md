@@ -28,6 +28,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [A reader reads only the Story, never the evidence behind it](a-reader-reads-only-the-story.md)
 - [WhatBuild runs its own sign-in and its own OAuth 2.1 server for agents](built-in-identity-and-oauth.md)
 - [A scoped MCP connector is a fence, not a default](a-scoped-mcp-connector-is-a-fence.md)
+- [An agent is offered only what its person could do](an-agent-is-offered-only-what-its-person-could-do.md)
 - [The public sandbox is reached only through a connector scoped to it](the-public-sandbox-is-reached-only-through-its-own-connector.md) (superseded)
 - [An invitation is accepted only by the account with the address it was sent to](invitations-belong-to-their-address.md)
 - [The public sandbox is one organization the deployment names, where invited visitors edit under made-up names and a daily reset puts a saved baseline back](the-public-sandbox-is-one-organization-with-pseudonymous-visitors.md) (superseded)

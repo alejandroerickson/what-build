@@ -10,6 +10,7 @@ export const readUsage = defineOperation({
   name: "products.usage",
   scope: "account",
   access: "any",
+  instanceOwnersOnly: true,
   mutates: false,
   summary: "How this instance is used: operations, features, agent clients, failures, and people coming back (instance owners).",
   description:

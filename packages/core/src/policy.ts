@@ -2,7 +2,7 @@ import { sql } from "kysely";
 import type { Db } from "./db.ts";
 import { AppError, forbidden, invalid, notFound } from "./errors.ts";
 import type { Plan } from "./limits.ts";
-import type { OpAccess, OpScope, Principal, ProductRole, Scope, TenantRole } from "./registry.ts";
+import type { OpAccess, OperationDef, OpScope, Principal, ProductRole, Scope, TenantRole } from "./registry.ts";
 import { refuseNullCharacters, withArticle } from "./schemas.ts";
 import { ULID_PATTERN } from "./util.ts";
 
@@ -91,6 +91,40 @@ export function effectiveRole(
     }
   }
   return { role, tenantRole };
+}
+
+/**
+ * The highest role someone holds anywhere in an organization, from its grants there: what a
+ * connector scoped to it offers. A tenant owner or admin is an admin and a guest a viewer, as
+ * `effectiveRole` reads them, and a team or product grant counts wherever it is.
+ */
+export function highestRoleIn(memberships: MembershipRow[], tenantId: string): { role: ProductRole | null; tenantRole: TenantRole | null } {
+  let role: ProductRole | null = null;
+  let tenantRole: TenantRole | null = null;
+  for (const m of memberships) {
+    if (m.tenant_id !== tenantId) continue;
+    if (m.scope_type === "tenant") {
+      tenantRole = m.role as TenantRole;
+      if (m.role === "owner" || m.role === "admin") role = maxRole(role, "admin");
+      else if (m.role === "guest") role = maxRole(role, "viewer");
+    } else role = maxRole(role, m.role as ProductRole);
+  }
+  return { role, tenantRole };
+}
+
+/**
+ * Whether someone holding `role` and `tenantRole` where an operation lands may call it, as
+ * `resolveScope` and `execute` decide: a guest writes nothing, a reader reads only the Story, and
+ * an organization's owner and admin actions need that role there. What an operation's handler
+ * checks besides is not read here.
+ */
+export function roleReaches(op: Pick<OperationDef, "scope" | "access" | "mutates">, role: ProductRole | null, tenantRole: TenantRole | null): boolean {
+  if (op.scope === "account") return true;
+  if (op.mutates && tenantRole === "guest") return false;
+  if (op.access === "owner") return tenantRoleAtLeast(tenantRole, "owner");
+  if (op.scope === "tenant") return op.access === "admin" ? tenantRoleAtLeast(tenantRole, "admin") : true;
+  if (!role) return false;
+  return op.access === "any" || roleAtLeast(role, ACCESS_ROLE[op.access]);
 }
 
 /**

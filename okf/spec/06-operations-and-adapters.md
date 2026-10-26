@@ -776,7 +776,13 @@ version.
 **Tools.** Thirteen tools over the 112 operations an agent may be offered (all 115 but deleting an
 organization and its preview, and removing an account): ten grouped by noun, three standalone
 ([decision](../decisions/mcp-tools-grouped-by-noun.md)). A connection is listed
-only the actions its level allows (below).
+only the actions its level allows (below) and its person could do: the instance owners' actions
+(`tenant_allowances`, `set_tenant_allowance`, `remove_tenant_allowance`, `usage`,
+`organizations`, `set_limits`, `accounts`) to an owner of the instance alone, and anyone else
+calling one is answered `unknown_action`; a scoped connector, besides, only what its fence
+answers and the person's role inside it reaches, capped by the level
+([decision](../decisions/an-agent-is-offered-only-what-its-person-could-do.md)). The table names
+every action any connection may be offered.
 
 | Tool | Actions |
 |---|---|
@@ -809,7 +815,7 @@ Rules:
   A grouped tool called without `action` is `422 invalid_input` saying `action` is missing and
   listing the tool's actions (also in `details.actions`). It, and `unknown_action`, list only the
   actions the connection is offered, as its `tools/list` does (below): never a permanent delete or
-  an instance owner's change to an organization's limits to an Edit connection.
+  an instance owner's action to anyone but an instance owner.
 - **Aliases for names a caller reads.** The id is `outcome_id` on `outcomes` but `id` on
   `assumptions`. Each tool also accepts the other convention for its own entity: `id` on
   `outcomes`, `assumption_id` on `assumptions`. A field may also be accepted under the name it is

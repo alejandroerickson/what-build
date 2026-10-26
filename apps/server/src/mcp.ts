@@ -2,7 +2,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import {
-  AppError, countCall, effectiveRole, execute, invalid, levelAllows, membershipsFor, narrowProductList, OPERATIONS, parseInput, parseProductRef, resolveConnectorScope, resolveScope, REST_BODY_MAX_BYTES, SKILL_NAME, SKILL_VERSION, toAppError,
+  AppError, capRole, connectorOffers, countCall, effectiveRole, execute, invalid, isInstanceOwner, levelAllows, membershipsFor, narrowProductList, OPERATIONS, parseInput, parseProductRef, resolveConnectorScope, resolveScope, REST_BODY_MAX_BYTES, roleReaches, SKILL_NAME, SKILL_VERSION, toAppError,
   type ConnectionLevel, type ConnectorScope, type Env, type OperationDef, type Principal, type Scope, type ScopeRef,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
@@ -12,7 +12,7 @@ import type { ServerConfig } from "./config.ts";
 import { logError } from "./telemetry.ts";
 
 const GROUP_SENTENCES: Record<string, string> = {
-  products: "Find the products (discoveries) you can reach, the example organization's among them; create and manage products, tenants and teams; read an organization's plan and limits; export a whole product as a ZIP; and, for whoever runs this WhatBuild, the allowances to start organizations, every organization's plan and limits, and how it is used. Start with list; confirm the product with the person before writing.",
+  products: "Find the products (discoveries) you can reach, the example organization's among them; create and manage products, tenants and teams; read an organization's plan and limits; and export a whole product as a ZIP. Start with list; confirm the product with the person before writing.",
   members: "See who belongs to a tenant and grant or revoke roles on the tenant, a team or a product; invites people by email.",
   sources: "Find, read, create and correct sources — the discovery evidence — and comment on them. Metadata only: use search for what sources say, and derived for their text.",
   attachments: "Add files to sources as attachments through short-lived grants (never pass bytes through a tool), and get download grants. Each attachment's text is read and kept, never searched; a source's derived text is taken from one of them.",
@@ -23,6 +23,10 @@ const GROUP_SENTENCES: Record<string, string> = {
   mockups: "Read and publish mockups: canvases of agent-made HTML pages (screens, flows, alternatives) in Exploration, each with design notes per page and a Markdown brief that says what the canvas explores. A version is the whole canvas. Download a version as a ZIP to build the next one elsewhere, then publish the pages that changed.",
   activity: "What changed in the product, who changed it, and whether an agent did it.",
 };
+
+/** What the products sentence says instead to an owner of this WhatBuild instance, who alone is offered its actions. */
+const PRODUCTS_FOR_INSTANCE_OWNERS =
+  "Find the products (discoveries) you can reach, the example organization's among them; create and manage products, tenants and teams; read an organization's plan and limits; export a whole product as a ZIP; and, as an owner of this WhatBuild, the allowances to start organizations, every organization's plan and limits, every account, and how it is used. Start with list; confirm the product with the person before writing.";
 
 const GROUP_SUFFIX =
   " Pick an action; call it with describe=true (and no params) to get its exact schema and guidance without running it. Otherwise put its fields in params.";
@@ -40,16 +44,14 @@ function jsonSchema(op: OperationDef): Record<string, unknown> {
 }
 
 /**
- * The tools an agent is offered: every operation but those a person does only in the web app, and,
- * for a connection at `level`, only the actions that level allows. Without a level, every action
- * any connection may be offered, which is what a call is looked up in, so a call above the
- * connection's level is answered with what it needs rather than as unknown.
+ * The tools an agent is offered: every operation but those a person does only in the web app, and
+ * of those, the ones `offered` keeps.
  */
-export function toolDefinitions(level?: ConnectionLevel) {
+export function toolDefinitions(offered: (op: OperationDef) => boolean = () => true) {
   const groups = new Map<string, OperationDef[]>();
   const standalone: OperationDef[] = [];
   for (const op of OPERATIONS) {
-    if (op.webOnly || !levelAllows(level, op)) continue;
+    if (op.webOnly || !offered(op)) continue;
     if (op.mcp.action) groups.set(op.mcp.tool, [...(groups.get(op.mcp.tool) ?? []), op]);
     else standalone.push(op);
   }
@@ -57,9 +59,10 @@ export function toolDefinitions(level?: ConnectionLevel) {
   for (const [tool, ops] of groups) {
     const lines = ops.map((o) => `- ${o.mcp.action}: ${o.summary}`).join("\n");
     const readOnly = ops.every((o) => !o.mutates);
+    const sentence = tool === "products" && ops.some((o) => o.instanceOwnersOnly) ? PRODUCTS_FOR_INSTANCE_OWNERS : GROUP_SENTENCES[tool];
     tools.push({
       name: tool,
-      description: `${GROUP_SENTENCES[tool] ?? ""}${GROUP_SUFFIX}\nActions:\n${lines}`,
+      description: `${sentence ?? ""}${GROUP_SUFFIX}\nActions:\n${lines}`,
       inputSchema: {
         type: "object",
         properties: {
@@ -91,23 +94,41 @@ export function toolDefinitions(level?: ConnectionLevel) {
   return { tools, groups, standalone: new Map(standalone.map((o) => [o.mcp.tool, o])) };
 }
 
-const DEFINITIONS = toolDefinitions();
-/** What each connection level is offered: an Edit connection is never shown a permanent delete. */
-const OFFERED: Record<ConnectionLevel, ReturnType<typeof toolDefinitions>> = {
-  viewer: toolDefinitions("viewer"),
-  editor: toolDefinitions("editor"),
-  admin: toolDefinitions("admin"),
+type Definitions = ReturnType<typeof toolDefinitions>;
+
+/**
+ * What a call is looked up in: every action an owner of this instance may be offered, and for
+ * anyone else every action but the instance owners' own. A call above the connection's level, or
+ * the person's role, is answered with what it needs rather than as unknown; an instance owner's
+ * action called by anyone else is unknown, as their tool list never named it.
+ */
+const CALLABLE: Record<"owner" | "other", Definitions> = {
+  owner: toolDefinitions(),
+  other: toolDefinitions((op) => !op.instanceOwnersOnly),
 };
 
-/** What a connection lists: its level's tools, without submit_feedback where the person turned it off. */
-function listedFor(principal: Principal) {
-  const tools = principal.level ? OFFERED[principal.level].tools : DEFINITIONS.tools;
-  return principal.feedback === false ? tools.filter((t) => t.name !== "submit_feedback") : tools;
+/** Whether a connection is offered `op`: its level allows it, and it is not the instance owners' alone unless the person is one. */
+const levelOffers = (level: ConnectionLevel | undefined, owner: boolean) => (op: OperationDef) => levelAllows(level, op) && (owner || !op.instanceOwnersOnly);
+
+/** What an unscoped connection is offered, by level and by whether the person owns this instance: an Edit connection is never shown a permanent delete. */
+const OFFERED = new Map<string, Definitions>();
+for (const level of ["viewer", "editor", "admin", undefined] as const)
+  for (const owner of [true, false]) OFFERED.set(`${level}:${owner}`, toolDefinitions(levelOffers(level, owner)));
+
+/**
+ * What a connection is offered. An unscoped one is offered what its level allows; a scoped one,
+ * besides, only what its fence answers and what the person's role inside it reaches, capped by
+ * the level. Where the scope cannot be resolved, the call that follows says why.
+ */
+function offeredTo(principal: Principal, owner: boolean, fence: ConnectorScope | null): Definitions {
+  if (!fence) return OFFERED.get(`${principal.level}:${owner}`)!;
+  const role = capRole(fence.role, principal.level);
+  return toolDefinitions((op) => levelOffers(principal.level, owner)(op) && connectorOffers(fence, op) && roleReaches(op, role, fence.tenantRole));
 }
 
-/** A grouped tool's actions as the connection's tool list names them: those its level allows. */
-function actionsFor(principal: Principal, tool: string): string[] {
-  return ((principal.level ? OFFERED[principal.level] : DEFINITIONS).groups.get(tool) ?? []).map((o) => o.mcp.action!);
+/** What a connection lists: the tools it is offered, without submit_feedback where the person turned it off. */
+function listedTools(principal: Principal, offered: Definitions) {
+  return principal.feedback === false ? offered.tools.filter((t) => t.name !== "submit_feedback") : offered.tools;
 }
 
 /** Said when the person turned feedback off, so the agent doesn't take the missing tool for an old tool list. */
@@ -269,10 +290,14 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
       instructions: SERVER_INSTRUCTIONS + addressInstruction(env.ports.config.publicBaseUrl, env.ports.config.contentBaseUrl ?? null) + (bound ? scopeInstruction(bound) : "") + (principal.feedback === false ? FEEDBACK_OFF : ""),
     },
   );
-  // Resolved on the first tool call, so listing tools costs no lookup.
+  // Resolved when first needed: an unscoped connection lists its tools without a lookup.
   let connector: Promise<ConnectorScope> | null = null;
   const connectorScope = () => (bound ? (connector ??= resolveConnectorScope(env.db, principal, bound)) : Promise.resolve(null));
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: listedFor(principal) }));
+  const owner = isInstanceOwner(env.ports.config, principal.email);
+  const callable = CALLABLE[owner ? "owner" : "other"];
+  let offering: Promise<Definitions> | null = null;
+  const offered = () => (offering ??= connectorScope().catch(() => null).then((fence) => offeredTo(principal, owner, fence)));
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: listedTools(principal, await offered()) }));
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const name = req.params.name;
     const args = (req.params.arguments ?? {}) as Record<string, unknown>;
@@ -282,15 +307,15 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
     try {
       let rawInput: unknown;
       let productArg: unknown;
-      const group = DEFINITIONS.groups.get(name);
+      const group = callable.groups.get(name);
       if (group) {
         // The action first, so a call with a stray argument is counted under the operation it meant.
         op = group.find((o) => o.mcp.action === args["action"]);
         const extra = Object.keys(args).filter((k) => !["action", "params", "describe", "product"].includes(k));
         if (extra.length) throw invalid("unknown_field", `Unknown argument(s) ${extra.join(", ")}. Grouped tools take action, params, describe and product.`);
         // The actions a refusal names are the ones this connection is offered. A call is still looked
-        // up among all of them, so one above the connection's level is told what it needs.
-        const actions = actionsFor(principal, name);
+        // up among all it may call, so one above the connection's level or the person's role is told what it needs.
+        const actions = ((await offered()).groups.get(name) ?? []).map((o) => o.mcp.action!);
         if (args["action"] === undefined || args["action"] === null || args["action"] === "")
           throw invalid(
             "invalid_input",
@@ -310,10 +335,10 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
         rawInput = args["params"] ?? {};
         productArg = args["product"];
       } else {
-        op = DEFINITIONS.standalone.get(name);
+        op = callable.standalone.get(name);
         if (!op) {
           // The tools a refusal names are the ones this connection is offered, as its tool list names them.
-          const tools = listedFor(principal).map((t) => t.name);
+          const tools = listedTools(principal, await offered()).map((t) => t.name);
           throw invalid("unknown_tool", `Unknown tool ${name}. This server, version ${SKILL_VERSION}, offers this connection these tools: ${tools.join(", ")}.${STALE_LIST}`, { server_version: SKILL_VERSION, tools });
         }
         const { product, ...rest } = args;
@@ -362,7 +387,7 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
     } catch (e) {
       // A call that never reached execute is counted here: a tool, an action or a product that is not there.
       if (!reached) {
-        const operation = op?.name ?? (DEFINITIONS.groups.has(name) ? `${name}.(unknown)` : "(unknown tool)");
+        const operation = op?.name ?? (callable.groups.has(name) ? `${name}.(unknown)` : "(unknown tool)");
         countCall(env, principal, { operation, feature: op?.mcp.tool ?? null, outcome: toAppError(e).code, example: false });
       }
       return errorResult(e, principal);

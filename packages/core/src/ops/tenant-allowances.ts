@@ -65,6 +65,7 @@ export const listTenantAllowances = defineOperation({
   name: "products.tenant_allowances",
   scope: "account",
   access: "any",
+  instanceOwnersOnly: true,
   mutates: false,
   summary: "Who may create organizations, and how many (instance owners).",
   description:
@@ -87,6 +88,7 @@ export const setTenantAllowance = defineOperation({
   name: "products.set_tenant_allowance",
   scope: "account",
   access: "any",
+  instanceOwnersOnly: true,
   mutates: true,
   connection: "admin",
   summary: "Let an address create a number of organizations, or change how many (instance owners).",
@@ -148,6 +150,7 @@ export const removeTenantAllowance = defineOperation({
   name: "products.remove_tenant_allowance",
   scope: "account",
   access: "any",
+  instanceOwnersOnly: true,
   mutates: true,
   connection: "admin",
   summary: "Return an address to the default allowance (instance owners).",
