@@ -192,7 +192,9 @@ gcloud run services update whatbuild --region $R --update-env-vars WHATBUILD_EXA
 
 Its owners and admins then write the worked example there as in any organization. Removing the
 variable takes every guest's access away at the next start, and leaves the organization and its
-members as they were.
+members as they were. After its slug changes (Organization name on its Members page, or Rename on
+`/instance`), set the variable to the new slug: until then the server still finds the example by
+the old one and warns at start-up.
 
 **Deploying releases.** A deployment that follows releases has a Cloud Build trigger, which
 `setup.sh` does not create; until one exists, **nothing deploys on its own**, and a merge to `main`

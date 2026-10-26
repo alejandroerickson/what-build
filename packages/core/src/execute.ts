@@ -11,6 +11,7 @@ import { capRole, connectionNeeds, LEVEL_NAMES, levelAllows, type OpContext, typ
 import { admitCall, checkInput, countWrite, limitsFor } from "./limits.ts";
 import { formatIssues, nullCharacterPaths, nullCharacterSentence, wordList } from "./schemas.ts";
 import { feedbackOff } from "./feedback.ts";
+import { isInstanceOwner } from "./tenant-allowance.ts";
 import { clientFamily, countCall } from "./usage.ts";
 
 const tracer = trace.getTracer("whatbuild");
@@ -197,7 +198,8 @@ async function run(
   if (op.name === "submit_feedback" && principal.feedback === false) throw feedbackOff();
   // Scope first: a caller who cannot see the product learns nothing, not even whether their input was valid.
   const raw = (rawInput && typeof rawInput === "object" ? rawInput : {}) as Record<string, unknown>;
-  const resolved = await resolveScope(env.db, principal, op.scope, op.access, refFromInput(op, raw, ref), op.name);
+  const asInstanceOwner = Boolean(op.allowInstanceOwners) && isInstanceOwner(env.ports.config, principal.email);
+  const resolved = await resolveScope(env.db, principal, op.scope, op.access, refFromInput(op, raw, ref), op.name, asInstanceOwner);
   // An agent acts with the lower of the person's role and its connection's level.
   const scope: Scope = principal.level ? { ...resolved, role: capRole(resolved.role, principal.level) } : resolved;
   reached.scope = scope;

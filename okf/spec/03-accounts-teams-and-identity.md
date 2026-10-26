@@ -208,13 +208,34 @@ GUID and a listed domain that is not a domain; and `microsoft` reported by both 
 
 | Object | Fields |
 |---|---|
-| Tenant | `tenant_id`, `slug` (3–50, `[a-z0-9-]`, globally unique), `name`, `plan` (`free` or `unlimited`), `limits` (what an instance owner changed from the free plan's), `example`, `status` |
+| Tenant | `tenant_id`, `slug` (3–50, `[a-z0-9-]`, starting and ending with a letter or digit, unique across every slug any tenant has or had), its former slugs, `name` (1–100 chars), `name_etag`, `plan` (`free` or `unlimited`), `limits` (what an instance owner changed from the free plan's), `example`, `status` |
 | Team | `team_id`, `tenant_id`, `slug` (unique in the tenant), `name`, `archived_at` |
 
 Creating a tenant (`products.create_tenant`) creates its first team and makes the creator the
 tenant's **owner**. A new account lands in the example organization ([§3.10](#310-the-example-organization)),
 and creates its own when ready: name the organization, then name the first product and its product
 concept.
+
+**Renaming a tenant** (◆ [decision](../decisions/an-organizations-owners-rename-it-and-its-former-slugs-still-reach-it.md)).
+`products.rename_tenant` (`PATCH /api/v1/tenants/:tenant`) changes the name, the slug, or both.
+Its owners change them, the example organization's included; an admin or a member is refused
+`403`, and an agent needs an admin connection. An instance owner changes them in any tenant, as one
+of its owners, member or not: the operation sets `allowInstanceOwners`, which lets them in to that
+operation alone and gives them no grant. Name and slug share one etag, `name_etag`, which
+`products.list` gives every tenant the caller is in and `products.organizations` every tenant; a
+change without the current one is refused `409 stale_etag`, a call that names neither `422`, and
+one to what the tenant already has writes nothing. A change is recorded in the tenant's access log,
+`members.activity` (`renamed`, or `slug_changed` when only the slug changed), with what it was.
+
+- **A slug it had before still reaches it.** The old slug is kept as a former slug
+  (`tenant_slugs`), and every address that names a tenant by slug accepts it
+  ([§3.6](#36-addressing-and-isolation)). `products.list` and `products.organizations` list a
+  tenant's `former_slugs`.
+- **No tenant takes a slug another has or had**, by a new slug or at creation, so an old link never
+  leads into another organization: `409 slug_taken`. A slug made from a name skips them too. A
+  tenant may take back one of its own former slugs, which is then its current one. Slugs change
+  under one lock, so two changes at once cannot take the same one.
+- **Deleting a tenant frees its slugs**, current and former.
 
 **Who may create a tenant** (◆ [decision](../decisions/only-instance-owners-decide-who-creates-organizations.md)):
 
@@ -275,7 +296,7 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
 
 | Level | Roles | What the role grants |
 |---|---|---|
-| Tenant | `owner`, `admin`, `member`, `guest` | owner and admin: admin of every team and product in the tenant; owner: tenant lifecycle (deleting the organization). member: nothing by itself. guest: viewer of every product, in the example organization only, never stored and refused every write ([§3.10](#310-the-example-organization)) |
+| Tenant | `owner`, `admin`, `member`, `guest` | owner and admin: admin of every team and product in the tenant; owner: tenant lifecycle (renaming the organization, deleting it). member: nothing by itself. guest: viewer of every product, in the example organization only, never stored and refused every write ([§3.10](#310-the-example-organization)) |
 | Team | `admin`, `editor`, `viewer`, `reader` | the same role on every product in the team |
 | Product | `admin`, `editor`, `viewer`, `reader` | that product only |
 
@@ -300,7 +321,8 @@ A product is addressed as `tenant/team/product` (slugs or ids at each level) or 
   deletes permanently, anything that can be archived and the product itself (guarded,
   [§9.5](09-data-lifecycle.md)), and manages the product (rename, archive) and its people.
   Creating a product needs admin of its team (tenant owners and admins are admins of every team);
-  creating a team needs tenant admin. Deleting the organization needs its owner, in the web app.
+  creating a team needs tenant admin. Renaming the organization needs its owner, or an instance
+  owner ([§3.3](#33-tenants-and-teams)); deleting it needs its owner, in the web app.
 - **The effective role is the highest that applies.** A product grant can raise access but never
   lower an inherited one. ◆ Decision: no negative overrides — they make "who can see this?"
   unanswerable at a glance.
@@ -340,6 +362,14 @@ The addressed tenant, team and product are always explicit. Nothing on the serve
 | REST | `/api/v1/p/<tenant>/<team>/<product>/…` for product operations; `/api/v1/teams/<tenant>/<team>/…`, `/api/v1/tenants/<tenant>/…` and `/api/v1/…` for the rest |
 | MCP | `/mcp` for everything the account can reach; `/mcp/t/<tenant>` scoped to one organization; `/mcp/t/<tenant>/<team>/<product>` scoped to one product |
 
+A tenant is named by its id, its slug, or a slug it had before ([§3.3](#33-tenants-and-teams)),
+everywhere: a REST path, MCP's `product` and `tenant`, a scoped endpoint's address and its OAuth
+resource, and the web app's addresses. Its current slug outranks a slug another tenant had, though
+none may take one. Answers give the current slug. The web app takes an address with a former slug
+to the same one with the current slug (`CurrentTenantAddress`), once `products.list` shows the
+person that slug among the tenant's `former_slugs`; to anyone who cannot see the tenant, a former
+slug answers `404` as an unknown one does.
+
 On MCP a product-scoped call resolves its product in this order: the `product` argument (an id or
 `tenant/team/product`); the product the endpoint is scoped to; the only unarchived product the
 caller can reach inside the endpoint's scope, where the unscoped endpoint leaves the example
@@ -369,7 +399,9 @@ agent and turns off the ones they are not using; for everything at once there is
 | `/mcp`, unscoped | every operation in every organization the person reaches, the example organization included; every account-level operation | nothing for being unscoped; the example organization refuses its guests' writes on every endpoint |
 
 The scope is resolved for the caller on the first tool call; an endpoint naming an organization or
-product they cannot reach answers `404` to every call, saying so.
+product they cannot reach answers `404` to every call, saying so. An endpoint whose address names
+the organization by a former slug keeps working, and every answer through it carries
+`connector_address`: the current address, for the agent to tell the person once.
 
 Isolation is enforced three times:
 
@@ -573,7 +605,9 @@ It shows what a discovery in WhatBuild looks like, and a person can always go ba
 **Which organization.** `WHATBUILD_EXAMPLE_TENANT` holds its slug. At start-up the server sets
 `tenants.example` on that organization and clears it on every other (`syncExampleTenant`,
 [`apps/server/src/example-organization.ts`](../../apps/server/src/example-organization.ts)). A slug
-that matches no organization makes none the example, and the server says so in its log. A
+that matches no organization makes none the example, and the server says so in its log. A slug
+the example had before its current one still names it, and the server warns to set the current
+one ([§3.3](#33-tenants-and-teams)). A
 deployment that still sets the retired `WHATBUILD_SANDBOX_TENANT` and not the new name is warned
 at start-up.
 
@@ -604,4 +638,6 @@ stranger wrote. A call that names no product never defaults to one of its produc
 connector is scoped to the example ([§3.6](#36-addressing-and-isolation)).
 
 **It cannot be deleted** while the deployment names it: `products.delete_tenant` answers
-`409 example_organization`.
+`409 example_organization`. Its owners rename it and change its slug as any owners do, and so does
+an instance owner ([§3.3](#33-tenants-and-teams)); its former slug still names it in
+`WHATBUILD_EXAMPLE_TENANT` until the deployment is told the new one.

@@ -33,6 +33,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [The public sandbox is one organization the deployment names, where invited visitors edit under made-up names and a daily reset puts a saved baseline back](the-public-sandbox-is-one-organization-with-pseudonymous-visitors.md) (superseded)
 - [Every account reads the example organization, which only its staff write](every-account-reads-the-example-organization-which-only-its-staff-write.md)
 - [Only the instance's owners decide who may create organizations, and how many](only-instance-owners-decide-who-creates-organizations.md)
+- [An organization's owners, and the instance's owners, rename it and change its slug; a slug it had before still reaches it](an-organizations-owners-rename-it-and-its-former-slugs-still-reach-it.md)
 - [Free organizations meet limits on how often and how much, and only instance owners change an organization's plan or limits](free-organizations-meet-limits-that-only-instance-owners-change.md)
 - [An instance's owners see every account and may remove any but an instance owner's, which forgets the address and keeps the name on what it wrote](instance-owners-see-every-account-and-remove-any-but-their-own.md)
 - [WhatBuild asks once whether a person accepts cookies, and runs Google Analytics only for those who do](analytics-only-for-people-who-accept-cookies.md)

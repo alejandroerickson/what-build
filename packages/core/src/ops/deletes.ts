@@ -162,7 +162,7 @@ export const deleteProduct = defineOperation({
 // ---- An organization ----------------------------------------------------------------------------
 
 /** Every table that holds an organization's rows and is not its content, children first. */
-const ORGANIZATION_TABLES = ["jobs", "limit_counters", "exports", "upload_grants", "mockup_uploads", "story_previews", "card_previews"] as const;
+const ORGANIZATION_TABLES = ["jobs", "limit_counters", "exports", "upload_grants", "mockup_uploads", "story_previews", "card_previews", "tenant_slugs"] as const;
 
 async function organizationDeletion(ctx: OpContext) {
   const tid = tenantId(ctx);
@@ -192,7 +192,7 @@ async function organizationDeletion(ctx: OpContext) {
       ),
     },
     after_delete:
-      "Everything in the organization goes at once: every team and product with all they hold, archived or not, its activity, and every role and invitation in it. Its people keep their accounts and their roles in other organizations.",
+      "Everything in the organization goes at once: every team and product with all they hold, archived or not, its activity, and every role and invitation in it. Its people keep their accounts and their roles in other organizations. Its slug, and any it had before, are free for another organization to take.",
   };
 }
 

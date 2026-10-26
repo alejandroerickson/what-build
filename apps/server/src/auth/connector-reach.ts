@@ -1,4 +1,4 @@
-import { effectiveRole, membershipsFor, type Db, type ScopeRef } from "@whatbuild/core";
+import { effectiveRole, membershipsFor, tenantNamed, type Db, type ScopeRef } from "@whatbuild/core";
 import { sql } from "kysely";
 
 /**
@@ -57,7 +57,7 @@ export async function connectorReach(db: Db, accountId: string, resource: string
   const tenant = await db
     .selectFrom("tenants")
     .select(["tenant_id", "name"])
-    .where(sql<boolean>`(slug = ${bound.tenant} or tenant_id = ${bound.tenant})`)
+    .where("tenant_id", "=", tenantNamed(bound.tenant ?? ""))
     .executeTakeFirst();
   const memberships = tenant ? await membershipsFor(db, accountId, tenant.tenant_id) : [];
   const tenantName = tenant && memberships.length ? tenant.name : null;

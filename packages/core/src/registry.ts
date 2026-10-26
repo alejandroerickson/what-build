@@ -122,6 +122,11 @@ export interface OperationDef<I extends z.ZodType = z.ZodType, O = unknown, P = 
   /** Offered only to a person in the web app, never to an agent: closing an organization. */
   webOnly?: boolean;
   /**
+   * A tenant operation an owner of this WhatBuild instance may call in any organization, as one of
+   * its owners, whether or not they belong to it: renaming an organization.
+   */
+  allowInstanceOwners?: boolean;
+  /**
    * Slow work that must hold no database connection, such as a download. It runs once the call is
    * authorized and its input valid, outside any transaction, and what it returns reaches the
    * handler as `prepared`.

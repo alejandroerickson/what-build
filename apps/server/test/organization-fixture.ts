@@ -14,7 +14,8 @@ export interface Organization {
   marker: string;
   owner: Browser;
   ownerAccountId: string;
-  tenant: { id: string; slug: string };
+  /** Its tenant, with the etag that guards its name. */
+  tenant: { id: string; slug: string; nameEtag: string };
   team: { id: string; slug: string };
   /** Its main product, and a second one in the same team (a target for moving and copying sources). */
   product: { id: string; slug: string; path: string; etag: string };
@@ -48,7 +49,7 @@ const ok = (r: { status: number; body: unknown }, status = 201) => {
 export async function buildOrganization(h: Harness, owner: Browser, name: string, marker: string): Promise<Organization> {
   const me = ok(await owner.api("GET", "/api/v1/me"), 200);
   const t = ok(await owner.api("POST", "/api/v1/tenants", { name }));
-  const tenant = { id: t.tenant.tenant_id as string, slug: t.tenant.slug as string };
+  const tenant = { id: t.tenant.tenant_id as string, slug: t.tenant.slug as string, nameEtag: t.tenant.name_etag as string };
   const team = { id: t.team.team_id as string, slug: t.team.slug as string };
   const p = ok(await owner.api("POST", `/api/v1/teams/${tenant.slug}/${team.slug}/products`, { name: `${marker} Atlas`, concept: `${marker} concept: what the product is for.` }));
   const a = ok(await owner.api("POST", `/api/v1/teams/${tenant.slug}/${team.slug}/products`, { name: `${marker} Annex` }));
@@ -165,6 +166,7 @@ export async function buildOrganization(h: Harness, owner: Browser, name: string
     memberEmail,
     tenant.id,
     tenant.slug,
+    tenant.nameEtag,
     team.id,
     org.product.id,
     org.product.slug,

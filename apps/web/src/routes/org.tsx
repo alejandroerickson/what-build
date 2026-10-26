@@ -2,12 +2,12 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
-import { aRole, formatBytes, formatDate, plural, ROLE_WORD, scopeWords } from "../lib/format.ts";
+import { aRole, formatBytes, formatDate, plural, ROLE_WORD, scopeWords, slugProblem } from "../lib/format.ts";
 import { useMe, useProducts } from "../lib/session.tsx";
 import { ActivityLog, type ActivityItem } from "../shell/ActivityFeed.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
 import {
-  Avatar, Button, ButtonLink, Callout, CopyField, Dialog, EmptyState, ErrorCallout, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio, MenuSeparator,
+  Avatar, Button, ButtonLink, Callout, CopyField, Dialog, EmptyState, ErrorCallout, FormGrid, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio, MenuSeparator,
   SelectField, Sheet, SheetBody, SheetHeader, StatusBadge, TextArea, TextField, useToast,
 } from "../ui/index.tsx";
 import { EntryPage } from "./auth.tsx";
@@ -15,6 +15,7 @@ import { DeleteDialog, listed } from "./delete-dialog.tsx";
 import "../styles/screens/account.css";
 import "../styles/screens/activity.css";
 import "../styles/screens/org.css";
+import "../styles/screens/settings.css";
 
 
 
@@ -396,12 +397,94 @@ export function MembersPage() {
         </Sheet>
       ) : null}
       {tenantAdmin ? <AccessChanges tenant={tenant} /> : null}
+      {t && tenantAdmin ? <OrganizationNameSheet key={t.name_etag} slug={t.slug} name={t.name} etag={t.name_etag} owner={t.your_role === "owner"} /> : null}
       {t?.your_role === "owner" && !t.example ? <DeleteOrganizationSheet tenant={tenant} orgName={orgName} /> : null}
       {giving ? (
         <GiveAccessDialog tenant={tenant} orgName={orgName} initialEmail={giving.email} onClose={() => setGiving(null)} canManage={canManage} tenantAdmin={tenantAdmin} ownerHere={t?.your_role === "owner"} />
       ) : null}
       {removing ? <RemoveMemberDialog tenant={tenant} orgName={orgName} member={removing.m} lastGrant={removing.g} tenantAdmin={tenantAdmin} onClose={() => setRemoving(null)} /> : null}
     </>
+  );
+}
+
+/**
+ * The organization's name and its short name in links, which its owners change here and its admins
+ * read. Links with a short name it had before still lead to it: once the person's organizations
+ * reload, this page's own address moves to the new one (`CurrentTenantAddress`). Keyed by the
+ * name's etag, so a change made elsewhere starts the form again from what it is now.
+ */
+function OrganizationNameSheet({ slug, name, etag, owner }: { slug: string; name: string; etag: string; owner: boolean }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [draft, setDraft] = useState(name);
+  const [draftSlug, setDraftSlug] = useState(slug);
+  const renamed = draft.trim() !== name;
+  const moved = draftSlug !== slug;
+  const slugError = moved ? slugProblem(draftSlug) : null;
+  const valid = (renamed || moved) && Boolean(draft.trim()) && !slugError;
+  const save = useMutation({
+    mutationFn: () =>
+      api<{ name: string; slug: string }>("PATCH", `/api/v1/tenants/${slug}`, { ...(renamed ? { name: draft.trim() } : {}), ...(moved ? { slug: draftSlug } : {}), expected_etag: etag }),
+    onSuccess: (r) => {
+      toast(moved ? `Saved. Links now begin /t/${r.slug}/, and links with ${slug} still lead here.` : `Renamed to ${r.name}.`);
+      void qc.invalidateQueries({ queryKey: ["products"] });
+      void qc.invalidateQueries({ queryKey: ["product"] });
+      void qc.invalidateQueries({ queryKey: ["members"] });
+      void qc.invalidateQueries({ queryKey: ["limits"] });
+    },
+  });
+  const reset = () => {
+    setDraft(name);
+    setDraftSlug(slug);
+    save.reset();
+  };
+  return (
+    <Sheet className="settings-sheet" labelledBy="org-name-title">
+      <SheetHeader id="org-name-title" title="Organization name" />
+      {owner ? null : (
+        <div className="settings-note">
+          <Callout inset tone="info">Only its owners can change these.</Callout>
+        </div>
+      )}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (owner && valid) save.mutate();
+        }}
+      >
+        <FormGrid className="settings-form">
+          <TextField label="Name" value={draft} onChange={(e) => setDraft(e.target.value)} readOnly={!owner} maxLength={100} required />
+          <TextField
+            label="Short name in links"
+            value={draftSlug}
+            onChange={(e) => setDraftSlug(e.target.value.toLowerCase())}
+            readOnly={!owner}
+            maxLength={50}
+            spellCheck={false}
+            autoComplete="off"
+            error={slugError}
+            hint={owner ? "Every product’s address begins with it. Links with the old one still lead here, and connected agents keep working." : undefined}
+          />
+        </FormGrid>
+        {save.isError ? (
+          <div className="settings-note">
+            <ErrorCallout inset error={save.error} onRetry={save.error instanceof ApiError && save.error.code === "stale_etag" ? () => void qc.invalidateQueries({ queryKey: ["products"] }) : undefined} />
+          </div>
+        ) : null}
+        {owner ? (
+          <div className="settings-actions">
+            <Button type="submit" variant="primary" busy={save.isPending} busyLabel="Saving…" disabled={!valid}>
+              Save changes
+            </Button>
+            {renamed || moved ? (
+              <Button variant="quiet" onClick={reset}>
+                Discard changes
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+      </form>
+    </Sheet>
   );
 }
 

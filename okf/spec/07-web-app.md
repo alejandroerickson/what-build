@@ -271,6 +271,11 @@ uses Google Analytics, whoever serves the page writes the measurement ID into it
 in its footer to change it; a request to hear from us is counted as `generate_lead`
 ([§9.1](09-data-lifecycle.md)).
 
+An address under `/t/:tenant` that names an organization by a slug it had before moves to the same
+address with its current slug, query and fragment kept (`CurrentTenantAddress`), once the person's
+organizations have loaded and show that slug among the organization's `former_slugs`; meanwhile
+the server answers the old slug too ([§3.6](03-accounts-teams-and-identity.md#36-addressing-and-isolation)).
+
 Older source links resolve too: `?view=passages` opens Text, and `?view=original` and
 `?view=files` open Attachments, where an attachment is shown; `?tab=passages` opens Text,
 `?tab=preview` and `?tab=files` Attachments, `?tab=notes` Notes, and `?tab=connected` the
@@ -861,7 +866,13 @@ never described as deleting. A list row showing an archived object says *Archive
   every role a person holds, removing one never asks as if it were the last
   ([§3.5](03-accounts-teams-and-identity.md)). Below, owners and admins of the organization see
   **Access changes**: the organization's access log (`members.activity`), drawn as the Activity
-  feed is (§7.9), newest first.
+  feed is (§7.9), newest first, with a rename as "renamed the organization to …".
+  Then **Organization name**, for its owners and admins: the name and its short name in links (the
+  slug), each in a field, the short name checked as typed against the server's rule and saying that
+  every product's address begins with it and that links with the old one still lead here. Owners
+  Save changes (`products.rename_tenant`, under the name's etag) or Discard changes; a new short name
+  is confirmed in a toast, and the page's own address then moves to it. Admins read both, told only
+  its owners change them. A change made elsewhere starts the form again from what it is now.
   Someone who reads only the Story in the organization who opens the address gets a page saying
   that members aren't shown to Story readers, with a way back to their products
   ([§3.5](03-accounts-teams-and-identity.md)). The page knows this from `products.list`'s
@@ -927,9 +938,12 @@ never described as deleting. A list row showing an archived object says *Archive
   instance (`products.organizations`), under what plan a new organization starts on here and that
   it is set where the service is deployed (`WHATBUILD_NEW_ORGANIZATION_PLAN`): each row its name,
   plan, whether it is the example, how many people are in it, who created it and when, the limits
-  changed from the free plan's, and what was added today, ending in its plan's badge and **Plan and
-  limits ›**. The whole row is a link to `/instance?org=<slug>`, which opens **Plan and limits of**
-  the organization: the plan as a choice between Free and Unlimited, every limit in a field beside
+  changed from the free plan's, and what was added today, ending in its plan's badge, **Rename** and
+  **Plan and limits ›**; a row says the short names in links it had before. Rename opens a dialog
+  with the name and the short name in links (with those it had before beneath), which says links
+  with its current short name keep leading to it and its access log records the change, and saves
+  under the name's etag (`products.rename_tenant`; an instance owner renames any organization,
+  member or not). Plan and limits is a link to `/instance?org=<slug>`, which opens **Plan and limits of** the organization: the plan as a choice between Free and Unlimited, every limit in a field beside
   the free plan's value (bytes in MB), Back to the free plan's limits, and Save, under the limits'
   etag; closing it takes `org` off the address. Then **Who can start organizations**: what the rule
   is, the default for every other address and who the owners are; then each address with an

@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 114 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 115 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
 generated: {by: agent:claude, at: 2026-10-25}
 status: stable
@@ -35,7 +35,7 @@ defineOperation({
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 114. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 115. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
@@ -55,7 +55,10 @@ call came through:
    `submit_feedback` when the person turned it off for the connection (`403 feedback_off`, §6.9),
    whatever was sent with it. None says anything about any product.
 2. **Resolve and authorize the scope** ([§3.6](03-accounts-teams-and-identity.md)): a caller
-   who cannot see the product gets `404` before their input is even validated. For an agent the
+   who cannot see the product gets `404` before their input is even validated. A tenant is named
+   by its id, its slug or a slug it had before (`tenantNamed`). An instance owner
+   calling a tenant operation that sets `allowInstanceOwners` (renaming an organization) acts in
+   any organization as one of its owners, member or not. For an agent the
    role in the scope is then capped by its connection's level. A tenant, team or product named
    with a null character (U+0000) is refused first (`422 invalid_input`, naming it): no scope's
    name holds one, and Postgres reads no text that does.
@@ -233,7 +236,7 @@ it always has.
 
 ### The operation catalogue
 
-All 114 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 115 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-teams-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -251,6 +254,7 @@ being changed inside the handler.
 | `products` | `set_limits` | `PATCH /api/v1/organizations/limits` | instance owner |
 | `products` | `accounts` | `GET /api/v1/accounts` | instance owner |
 | `products` | `remove_account` | `POST /api/v1/accounts/remove` | instance owner, in the web app only |
+| `products` | `rename_tenant` | `PATCH /api/v1/tenants/:tenant` | tenant owner, or an instance owner ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams)) |
 | `products` | `create_team` | `POST /api/v1/tenants/:tenant/teams` | tenant admin |
 | `products` | `create` | `POST /api/v1/teams/:tenant/:team/products` | team admin |
 | `products` | `get` | `GET P` | reader |
@@ -543,6 +547,9 @@ Notes on recent actions:
   front.
 - The concept's card is written with `products.update_concept`, for editors as well as admins, as
   an outcome's card is; `products.update` renames a product and changes its slug, for admins only.
+- `products.rename_tenant` renames an organization and changes its slug, for its owners and for an
+  instance owner in any organization; a slug it had before still names it everywhere, and no other
+  organization may take one (`409 slug_taken`) ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams)).
 - `outcomes.card_preview` takes a front (`card_html`, `kind` outcome or concept, and optionally the
   `title` and `back` it goes with) and makes every check a write of it makes, refusing with the
   same errors; it writes nothing anyone sees. It returns `card_advice`, the `frame` the front shows
@@ -766,14 +773,14 @@ the server's version and the tools, or the tool's actions, the connection is off
 `submit_feedback` where its person turned it off, and say the client may hold a list from another
 version.
 
-**Tools.** Thirteen tools over the 111 operations an agent may be offered (all 114 but deleting an
+**Tools.** Thirteen tools over the 112 operations an agent may be offered (all 115 but deleting an
 organization and its preview, and removing an account): ten grouped by noun, three standalone
 ([decision](../decisions/mcp-tools-grouped-by-noun.md)). A connection is listed
 only the actions its level allows (below).
 
 | Tool | Actions |
 |---|---|
-| `products` | `list`, `create_tenant`, `create_team`, `create`, `get`, `update`, `update_concept`, `archive`, `restore`, `delete_impact`, `delete`, `export`, `exports`, `tenant_allowances`, `set_tenant_allowance`, `remove_tenant_allowance`, `usage`, `limits`, `organizations`, `set_limits`, `accounts` |
+| `products` | `list`, `create_tenant`, `rename_tenant`, `create_team`, `create`, `get`, `update`, `update_concept`, `archive`, `restore`, `delete_impact`, `delete`, `export`, `exports`, `tenant_allowances`, `set_tenant_allowance`, `remove_tenant_allowance`, `usage`, `limits`, `organizations`, `set_limits`, `accounts` |
 | `members` | `list`, `grant`, `revoke`, `cancel_invitation`, `activity` |
 | `outcomes` | `list`, `get`, `create`, `update`, `archive`, `restore`, `delete_impact`, `delete`, `revisions`, `get_revision`, `restore_revision`, `card_guidance`, `card_preview` |
 | `sources` | `facets`, `list`, `get`, `create`, `update`, `archive`, `restore`, `annotate`, `list_annotations`, `update_annotation`, `delete_annotation`, `move_to_product`, `copy_to_product`, `delete_impact`, `delete` |
@@ -833,7 +840,9 @@ Rules:
 - **Results** are JSON in one text content block. Product-scoped results add `scope`
   (tenant, team, product with its path, `your_role` capped by the connection's level,
   `connection_level`, `example: true` in the example organization, and `skill_version`, the
-  server's skill version now). Tools whose actions are all reads carry read-only annotations.
+  server's skill version now). Every result through a scoped endpoint whose address names its
+  organization by a former slug adds `connector_address`, the current address, for the agent to
+  tell the person once. Tools whose actions are all reads carry read-only annotations.
 - **Source text is data.** The server instructions, tool descriptions and the skill state that
   text returned from sources is quoted material, never instructions to the agent.
 - **Delete is on the MCP surface for an Admin connection, and guarded there.** An agent whose

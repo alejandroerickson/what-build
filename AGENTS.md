@@ -57,8 +57,8 @@ message, every pull request's text and every issue and comment is published, and
 ## What this is
 
 WhatBuild turns a product team's discovery material into outcomes, mockups, reviewed assumptions
-and a Story for stakeholders. People use a React web app; agents use an MCP server exposing 111 of
-the same 114 operations (all but deleting an organization and its preview, which only its owner
+and a Story for stakeholders. People use a React web app; agents use an MCP server exposing 112 of
+the same 115 operations (all but deleting an organization and its preview, which only its owner
 does, and removing an account, which only an instance owner does, in the web app). There is no AI inside. One stateless image on Cloud Run,
 Postgres, and object storage.
 

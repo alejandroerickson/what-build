@@ -35,8 +35,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 });
 
 /** A link that looks like a button. For navigation only; actions use Button. */
-export function ButtonLink({ to, variant = "secondary", size = "md", icon, wide, children, className = "", target, rel }: {
+export function ButtonLink({ to, variant = "secondary", size = "md", icon, wide, children, className = "", target, rel, "aria-label": label }: {
   to: string;
+  /** The accessible name, when the visible words alone do not say which of several it is. */
+  "aria-label"?: string;
   variant?: ButtonVariant;
   size?: ControlSize;
   icon?: GlyphName;
@@ -47,7 +49,7 @@ export function ButtonLink({ to, variant = "secondary", size = "md", icon, wide,
   rel?: string;
 }) {
   return (
-    <Link to={to} className={buttonClass(variant, size, wide, className)} target={target} rel={rel}>
+    <Link to={to} className={buttonClass(variant, size, wide, className)} target={target} rel={rel} aria-label={label}>
       {icon ? <Glyph name={icon} /> : null}
       {children}
     </Link>

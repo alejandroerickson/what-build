@@ -23,11 +23,3 @@
   padding-left: 1.2em;
   line-height: var(--lh-body);
 }
-.instance-row-open {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-0);
-  color: var(--muted);
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-medium);
-}

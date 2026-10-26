@@ -466,8 +466,10 @@ An append-only event log, written in the same transaction as the mutation that c
   insight or a decision became a source (§4.7), its events were relabelled as the source's. They
   are included in a product export.
 - An event about the organization's people and access (a role given, changed or removed, an
-  invitation sent, accepted or cancelled) is read by the organization's owners and admins with
-  `members.activity`; a product's `activity.list` leaves out the ones that belong to no product.
+  invitation sent, accepted or cancelled), and the organization's renaming (`tenant`, `renamed` or
+  `slug_changed`, with its name as its title and what it was as its summary), is read by the organization's
+  owners and admins with `members.activity`; a product's `activity.list` leaves out the ones that
+  belong to no product.
   Events the public sandbox wrote about its invitation links, visitors and settings stay in its
   organization's log, and `members.activity` no longer lists them.
 - Several people and several agents write into one product, and "what did that agent just do" is a
@@ -1019,7 +1021,7 @@ activity.jsonl
   revisions, activity events, tombstones)
   lives in its own tables and is never updated. Every content table has a row-level security
   policy keyed on the transaction-local `app.tenant_id`. Directory tables (accounts, sessions,
-  tokens, OAuth clients, tenants, teams, products, memberships, invitations) and the job queue,
+  tokens, OAuth clients, tenants and their former slugs, teams, products, memberships, invitations) and the job queue,
   feedback and its daily counts, the public site's interest form, the usage counts, the limits'
   counters and `schema_migrations` have no
   row-level security and
@@ -1041,6 +1043,13 @@ activity.jsonl
   `accounts.hide_example`
   ([`0035_accounts_hide_example.sql`](../../apps/server/src/migrations/0035_accounts_hide_example.sql))
   is the person's choice to leave the example out of the app's panel.
+- **An organization's name and slug** ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams),
+  [`0036_organization_names.sql`](../../apps/server/src/migrations/0036_organization_names.sql)):
+  `tenants.name_etag`, which guards the name and slug its owners and the instance's owners change;
+  every tenant got one when the column was added, and its default gives one to any row written
+  without it. `tenant_slugs` holds the slugs a tenant had before its current one (`slug` as its
+  key, `tenant_id`, when and by whom it was left): a directory table without row-level security,
+  read with `tenants` before a transaction is scoped, deleted with its tenant.
 - **Allowances to create organizations** ([§3.3](03-accounts-teams-and-identity.md),
   [`0010_tenant_allowances.sql`](../../apps/server/src/migrations/0010_tenant_allowances.sql)):
   `tenant_allowances`, a directory table without row-level security keyed by the lower-cased

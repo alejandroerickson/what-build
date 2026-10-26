@@ -9,7 +9,7 @@ import { createRoot } from "react-dom/client";
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, useLocation, useNavigate, useParams, useRouteError } from "react-router";
 import { ApiError, setUnauthenticatedHandler } from "./lib/api.ts";
 import { loadNewRelease, releasedSinceLoad } from "./lib/new-release.ts";
-import { productHome, ProductProvider, RequireSession, useProduct } from "./lib/session.tsx";
+import { CurrentTenantAddress, productHome, ProductProvider, RequireSession, useProduct } from "./lib/session.tsx";
 import { ConnectPage } from "./routes/connect.tsx";
 import { CookiesPage } from "./routes/cookies.tsx";
 import { PrivacyPage } from "./routes/privacy.tsx";
@@ -186,20 +186,22 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
         { path: "/settings", element: <SettingsPage /> },
         { path: "/instance", element: <InstancePage /> },
         { path: "/people", element: <PeoplePage /> },
-        { path: "/t/:tenant/members", element: <MembersPage /> },
-        { path: "/t/:tenant/limits", element: <LimitsPage /> },
+        { path: "/t/:tenant/members", element: <CurrentTenantAddress><MembersPage /></CurrentTenantAddress> },
+        { path: "/t/:tenant/limits", element: <CurrentTenantAddress><LimitsPage /></CurrentTenantAddress> },
       ] },
       ...devRoutes,
       {
         path: "/t/:tenant/:team/:product",
         element: (
-          <ProductProvider fallback={(e) => <ProductNotFound error={e} />}>
-            {(ctx) => (
-              <ProductShell product={ctx.product} app={ctx.app}>
-                <Outlet />
-              </ProductShell>
-            )}
-          </ProductProvider>
+          <CurrentTenantAddress>
+            <ProductProvider fallback={(e) => <ProductNotFound error={e} />}>
+              {(ctx) => (
+                <ProductShell product={ctx.product} app={ctx.app}>
+                  <Outlet />
+                </ProductShell>
+              )}
+            </ProductProvider>
+          </CurrentTenantAddress>
         ),
         children: [
           { index: true, element: <ProductHome /> },

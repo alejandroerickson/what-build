@@ -124,6 +124,15 @@ export function exampleReadOnly(tenantName: string, what: string): AppError {
   );
 }
 
+/**
+ * The id of the tenant a caller names: by its id, its slug, or a slug it had before
+ * (`tenant_slugs`), so an address written before its slug changed still reaches it. Nobody else
+ * holds a slug it had, and its current slug outranks one another tenant held before.
+ */
+export function tenantNamed(ref: string) {
+  return sql<string>`(select n.tenant_id from (select tenant_id, 0 as rank from tenants where slug = ${ref} or tenant_id = ${ref} union all select tenant_id, 1 from tenant_slugs where slug = ${ref}) n order by n.rank limit 1)`;
+}
+
 /** How a caller names a product: its id, or `tenant/team/product` slugs. */
 export interface ScopeRef {
   tenant?: string;
@@ -157,6 +166,8 @@ export function parseProductRef(ref: string): ScopeRef {
 /**
  * Resolve and authorize the scope of a call. Returns 404 for anything the caller cannot see
  * (including everything in other tenants) and 403 only when they can see it but lack the role.
+ * With `asInstanceOwner`, which `execute` sets only for an owner of this WhatBuild calling a tenant
+ * operation that allows them, the caller acts as one of the tenant's owners, member or not.
  */
 export async function resolveScope(
   db: Db,
@@ -165,6 +176,7 @@ export async function resolveScope(
   access: OpAccess,
   ref: ScopeRef,
   opName: string,
+  asInstanceOwner = false,
 ): Promise<Scope> {
   const empty: Scope = { tenant: null, team: null, product: null, role: null, tenantRole: null };
   if (opScope === "account") return empty;
@@ -194,7 +206,7 @@ export async function resolveScope(
         .innerJoin("teams as tm", "tm.team_id", "p.team_id")
         .innerJoin("tenants as tn", "tn.tenant_id", "p.tenant_id")
         .select(["p.product_id", "p.slug", "p.name", "p.archived_at", "p.team_id", "p.tenant_id"])
-        .where(sql<boolean>`(tn.slug = ${ref.tenant} or tn.tenant_id = ${ref.tenant})`)
+        .where("tn.tenant_id", "=", tenantNamed(ref.tenant))
         .where(sql<boolean>`(tm.slug = ${ref.team} or tm.team_id = ${ref.team})`)
         .where(sql<boolean>`(p.slug = ${ref.product} or p.product_id = ${ref.product})`)
         .executeTakeFirst();
@@ -208,7 +220,7 @@ export async function resolveScope(
       .selectFrom("teams as tm")
       .innerJoin("tenants as tn", "tn.tenant_id", "tm.tenant_id")
       .select(["tm.team_id", "tm.slug", "tm.name", "tm.tenant_id"])
-      .where(sql<boolean>`(tn.slug = ${ref.tenant} or tn.tenant_id = ${ref.tenant})`)
+      .where("tn.tenant_id", "=", tenantNamed(ref.tenant))
       .where(sql<boolean>`(tm.slug = ${ref.team} or tm.team_id = ${ref.team})`)
       .executeTakeFirst();
     if (!team) throw hidden();
@@ -218,17 +230,20 @@ export async function resolveScope(
     tenant = await db
       .selectFrom("tenants")
       .select(["tenant_id", "slug", "name", "status", "example", "plan"])
-      .where(sql<boolean>`(slug = ${ref.tenant} or tenant_id = ${ref.tenant})`)
+      .where("tenant_id", "=", tenantNamed(ref.tenant))
       .executeTakeFirst();
   }
   if (!tenant) throw hidden();
+  const tenantRef = { tenant_id: tenant.tenant_id, slug: tenant.slug, name: tenant.name, plan: tenant.plan as Plan, ...(tenant.example ? { example: true } : {}) };
+  // The instance's owners see every organization already (products.organizations).
+  if (asInstanceOwner && opScope === "tenant") return { tenant: tenantRef, team: null, product: null, role: null, tenantRole: "owner" };
 
   const memberships = await membershipsFor(db, principal.account_id, tenant.tenant_id);
   if (!memberships.length) throw hidden();
   const { role, tenantRole } = effectiveRole(memberships, { tenant_id: tenant.tenant_id, team_id: team?.team_id ?? null, product_id: product?.product_id ?? null });
 
   const scope: Scope = {
-    tenant: { tenant_id: tenant.tenant_id, slug: tenant.slug, name: tenant.name, plan: tenant.plan as Plan, ...(tenant.example ? { example: true } : {}) },
+    tenant: tenantRef,
     team: team ? { team_id: team.team_id, slug: team.slug, name: team.name } : null,
     product: product
       ? { product_id: product.product_id, slug: product.slug, name: product.name, archived_at: product.archived_at }
