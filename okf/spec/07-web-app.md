@@ -41,6 +41,10 @@ design system: tokens, type, components and the rules for using them — is docu
   for its people, an address whose id is not an id at all), it says so without asking. Where it cannot, it asks, and
   REST answers honestly: a source, assumption or other object that does not exist answers `404`,
   and its page says it was not found while the browser's console reports the `404` of the request.
+  A `404` is final, so the app never asks for it again (a request that did not reach WhatBuild,
+  or a `5xx`, is asked again twice). A product, or an organization's Members or Plan and limits,
+  that answers `404` says at once that it doesn't exist or the person can't see it, as the server
+  does of both, with a way back to their products.
   ◆ Decision: that console line is by design; the API is not bent to hide it.
 - **Times are shown in the viewer's own time zone**, though the API gives them in UTC
   ([decision](../decisions/times-are-utc-in-data-and-local-where-shown.md)).
@@ -284,7 +288,11 @@ inspector. A product path without the `/t/` prefix (`/<tenant>/<team>/<product>[
 or paste it) redirects to the same path under `/t/`.
 
 The document title is "<screen> · <section> · <product> · WhatBuild", with a screen named after
-its section ("Evidence") said once.
+its section ("Evidence") said once. A screen shown in place of another names itself, never the one
+it stands in for: an address the app doesn't know is "Not found · WhatBuild", a product that
+answers `404` "Product not found · WhatBuild", an organization that does "Organization not found"
+with its section (Members, Plan and limits), and an error no screen handles "Something went
+wrong · WhatBuild".
 
 The Story print view is served by the API, not the app: `GET
 /api/v1/p/<tenant>/<team>/<product>/story/print?page_ids=…` returns one HTML document, opened in a
@@ -879,6 +887,9 @@ never described as deleting. A list row showing an archived object says *Archive
   that members aren't shown to Story readers, with a way back to their products
   ([§3.5](03-accounts-teams-and-identity.md)). The page knows this from `products.list`'s
   `story_only` and asks for the members only once that has loaded, so it is never refused.
+  Someone outside the organization, or at an address that names none, is told at once that it
+  doesn't exist or they can't see it (§7.1); until the members answer, the page for an
+  organization that isn't theirs shows only that it is loading, not the key to the roles.
   A guest of the example organization sees a callout that it is the example organization and that
   its people aren't shown to its readers, and no list.
   Last, an organization's owners see **Delete this organization** (never the example organization):

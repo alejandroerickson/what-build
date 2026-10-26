@@ -29,6 +29,11 @@ const DEFAULT_MESSAGES: Record<number, string> = {
   500: "WhatBuild ran into a problem. Try again in a moment.",
 };
 
+/** Whether a read asks again after failing: twice at most, and never after an answer that won't change (a 4xx). */
+export function retryRead(failures: number, error: unknown): boolean {
+  return failures < 2 && !(error instanceof ApiError && error.status < 500 && error.status !== 0);
+}
+
 let onUnauthenticated: (() => void) | null = null;
 export function setUnauthenticatedHandler(fn: () => void) {
   onUnauthenticated = fn;

@@ -255,3 +255,19 @@ export function NotFound() {
     </Sheet>
   );
 }
+
+/**
+ * An organization or product the server answered `404` for. It answers the same whether the thing
+ * doesn't exist or the person can't see it, so this says both, inside the plain shell.
+ */
+export function NotVisible({ what }: { what: "organization" | "product" }) {
+  usePageTitle(what === "organization" ? "Organization not found" : "Product not found");
+  return (
+    <Sheet labelledBy="not-visible-title">
+      <SheetHeader level={1} id="not-visible-title" title={`This ${what} doesn’t exist, or you can’t see it`} />
+      <EmptyState size="inline" action={<ButtonLink to="/">Your products</ButtonLink>}>
+        To see it, ask one of its admins for a role.
+      </EmptyState>
+    </Sheet>
+  );
+}
