@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.22.0
+
 - **An organization's owners, and the instance's owners, rename it and change its slug.** It
   concerns every deployment, and asks nothing of one but this: if you change the slug of the
   organization `WHATBUILD_EXAMPLE_TENANT` names, set the variable to the new slug. Until then the
