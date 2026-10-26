@@ -96,6 +96,10 @@ describe("an organization's plan", () => {
     expect(mine.limits.find((l: { key: string }) => l.key === "file_max_bytes").used).toBeUndefined();
     expect(Date.parse(mine.allowances_restart_at)).toBe(Date.parse(dayOf(new Date()).day_end));
     expect(mine.deployment_limits.length).toBeGreaterThan(0);
+    // The web app picks out the few a person can run into by key.
+    const keys = mine.deployment_limits.map((l: { key: string }) => l.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(keys).toEqual(expect.arrayContaining(["file_max_bytes", "parse_cap_bytes", "attachments_per_source", "mockups_per_product", "story_pages_per_product"]));
     expect(await limitsOf(root, unlimited.slug)).toMatchObject({ plan: "unlimited", you_meet_them: false });
   });
 
