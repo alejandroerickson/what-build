@@ -135,7 +135,9 @@ Reset between plans as `pnpm e2e stop` and `pnpm dev:e2e` do locally. The run's 
 
 ## What differs from a local run
 
-- The code is a release's, not the checkout's: a change not yet released is tested locally.
+- The code is a release's, not the checkout's: a change not yet released is tested locally. The
+  app names that release (the account menu, the feedback dialog), where `pnpm dev:e2e` says it is
+  a development server.
 - The server log is `whatbuild-e2e.sh logs` on the host (under sudo where Docker needs root).
 - The image serves the built web app itself, on one port, where `pnpm dev:e2e` has Vite in front of
   the API; the development sign-in is offered the same way, since the server says whether it is.
