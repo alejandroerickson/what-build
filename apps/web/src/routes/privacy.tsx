@@ -96,6 +96,10 @@ export function PrivacyPage() {
                   Your sessions, with the browser each began in, and the agents you connect, by the name each gives itself. To keep you signed in and let your agents work. A session
                   lasts {p.session_days} days; an agent stays connected while it is used at least every {p.agent_access_days} days, or until you disconnect it.
                 </Kept>
+                <Kept lead="Counts against limits.">
+                  How many changes you make, sources you add, exports you take and bytes you upload in each organization each day and, where its plan limits them, how many
+                  calls you make each minute. To hold the organization to its plan’s limits. A day’s counts are deleted after three days, a minute’s after an hour.
+                </Kept>
                 <Kept lead="Request logs.">
                   For each request: what was asked, its address with names and ids taken out, the answer and how long it took. The host may also record the internet address the
                   request came from and the browser (on Google Cloud, not for a search or a sign-in link). To keep WhatBuild running and secure. Deleted after a short time (30 days
@@ -119,7 +123,7 @@ export function PrivacyPage() {
                 <Kept lead="Backups.">Copies of the database, to recover from a failure. Kept for a limited time, then deleted.</Kept>
               </ul>
               <p className="cookie-kind privacy-grounds">
-                Your account, what you add, your sessions and your agents are kept because you use WhatBuild. Request logs and the counts of use are kept because running WhatBuild
+                Your account, what you add, your sessions, your agents and the counts against limits are kept because you use WhatBuild. Request logs and the counts of use are kept because running WhatBuild
                 safely and making it better needs them; you may object to them. Analytics runs only if you accept it.
               </p>
             </SheetBody>
