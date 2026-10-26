@@ -341,8 +341,8 @@ async function main() {
   console.log(`
 Added ${added.waitlist} to the waitlist (asked again when already there), ${added.allowances} allowances, ${added.organizations} organizations, ${added.grants} roles and ${added.invitations} invitations; the rest was there already.
 Sign in as any of them with development sign-in: type the address, then "As the email above".
-To try admission as a stranger would, the instance runs with WHATBUILD_SIGNUP_ALLOWLIST=${plan.allowlist} (pnpm dev:people does):
-an address at ${plan.allowlist.slice(1)} or with an invitation or an allowance gets a sign-in link; any other is refused.`);
+To try admission as a stranger would, run the instance with WHATBUILD_SIGNUP_ALLOWLIST=${plan.allowlist}, as pnpm dev:people does:
+then an address at ${plan.allowlist.slice(1)}, an invited one or one with an allowance gets a sign-in link, and any other is refused.`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
