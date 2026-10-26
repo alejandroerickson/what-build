@@ -3,7 +3,7 @@ type: Specification
 title: Search reads what a source says, its title, tags, summary, derived text, notes and comments, and never its attachments; it is lexical, bounded, and says exactly what it examined.
 description: The search operation as built (substring, ranked and plain modes, scopes, filters, hits with their field and offsets, every place in substring mode, coverage), the search index of a source's texts, earlier readings, and the planned semantic retrieval.
 tags: [spec, search, retrieval, coverage, index]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -123,8 +123,11 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
     as written. A hyphenated word without a digit ("follow-up") is its words;
   - `"quoted words"` match as a phrase; accents are folded; small words (the, of, how) are left out
     and listed in `ignored`, unless nothing else is left;
-  - a kind word (`mockups`, `assumptions`, …) brings that kind first and is returned as
-    `kind_hint`; "passage", "passages", "quote" and "quotes" hint `source`;
+  - a kind word (`mockups`, `assumptions`, …) beside other words is not searched for: it lists
+    that kind's results first, ahead of any that score higher, then the rest, each best first,
+    and is returned as `kind_hint`; "passage", "passages", "quote" and "quotes" hint `source`. The order
+    is the operation's, so the palette, the Search screen and an agent see the hinted kind first
+    alike, and a result's `score` does not count the hint;
   - a word that matches nothing is replaced by the closest word the product holds (at most one
     edit, two for words of six letters or more, a transposition counting as one), taken from
     titles and from what the product's live sources say alike, by trigram; `corrections` lists
@@ -166,7 +169,7 @@ with it (dates, tags, a cursor, `include_archived`, a `scope` other than `source
   above the body, with exact words, words side by side and a title equal to the query ranked
   higher. When anything holds every word, only those are returned; otherwise the ones holding the
   most, with `partial: true` and each result's `missing` words. At most `limit` results (60 unless
-  the call says, at most 200), the best first; `counts` counts every match, so a caller can say
+  the call says, at most 200), the best first after a hinted kind's; `counts` counts every match, so a caller can say
   when more matched than came back. Sources are built from the 400 best pieces that hold any of
   the words (200 with `record_id`) and from their titles and tags; a source whose matching pieces
   all lie beyond those is still counted, by what its pieces hold, in the database. The response

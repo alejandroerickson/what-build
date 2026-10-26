@@ -131,7 +131,7 @@ interface Doc {
   body: string[];
 }
 
-function scoreDoc(doc: Doc, p: ParsedFind, kind: FindKind) {
+function scoreDoc(doc: Doc, p: ParsedFind) {
   const n = p.terms.length;
   const t = matchText(doc.title, p.terms);
   const bodies = doc.body.filter(Boolean).map((b) => ({ text: b, m: matchText(b, p.terms) }));
@@ -145,7 +145,6 @@ function scoreDoc(doc: Doc, p: ParsedFind, kind: FindKind) {
   else if (bodies.some((b) => adjacent(b.text, p.terms))) score += 10;
   if (ft === q) score += 30;
   else if (ft.startsWith(q)) score += 12;
-  if (p.kind === kind) score += 60;
   // The excerpt comes from the body that holds the most terms, when the title does not hold them all.
   let snippet: string | null = null;
   let snippet_marks: Marks = [];
@@ -219,7 +218,7 @@ async function sources(ctx: OpContext, p: ParsedFind, i: Input, q: string): Prom
   const order: Record<Hit["field"], number> = { text: 0, summary: 1, notes: 2, comment: 3 };
   const results: FindResult[] = meta.map((r) => {
     const own = byRecord.get(r.record_id) ?? [];
-    const s = scoreDoc({ title: r.title, body: [r.tags.join(" ")] }, p, "source");
+    const s = scoreDoc({ title: r.title, body: [r.tags.join(" ")] }, p);
     // A source holds a word if its title, its tags or anything it says does.
     const found = p.terms.map((_, k) => s.found[k] || own.some((o) => o.m.found[k]));
     const best = own.reduce((a, o) => Math.max(a, o.hit.found), 0);
@@ -305,7 +304,7 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
   ]);
   const out: FindResult[] = [];
   const push = (kind: FindResult["kind"], idv: string, doc: Doc, meta: Record<string, unknown>) => {
-    const s = scoreDoc(doc, p, kind);
+    const s = scoreDoc(doc, p);
     if (!s.found.some(Boolean)) return;
     out.push({ kind, id: idv, title: doc.title, title_marks: s.title.ranges, snippet: s.snippet, snippet_marks: s.snippet_marks, missing: missingWords(p, s.found), score: round(s.score), meta });
   };
@@ -317,7 +316,7 @@ async function smallKinds(ctx: OpContext, p: ParsedFind, i: Input, q: string): P
   for (const m of mockups?.rows ?? []) byMockup.set(m.mockup_id, [...(byMockup.get(m.mockup_id) ?? []), m]);
   for (const [mid, pages] of byMockup) {
     const first = pages[0]!;
-    const scored = pages.map((pg) => ({ pg, s: scoreDoc({ title: first.title, body: [first.summary, pg.page_title ?? "", shownWords(pg.notes ?? ""), pg.text ?? "", shownWords(first.brief)] }, p, "mockup") }));
+    const scored = pages.map((pg) => ({ pg, s: scoreDoc({ title: first.title, body: [first.summary, pg.page_title ?? "", shownWords(pg.notes ?? ""), pg.text ?? "", shownWords(first.brief)] }, p) }));
     scored.sort((a, b) => b.s.score - a.s.score);
     const top = scored[0]!;
     const found = p.terms.map((_, k) => scored.some((x) => x.s.found[k]));
@@ -379,7 +378,7 @@ async function run(ctx: OpContext, p: ParsedFind, i: Input) {
 }
 
 export const PLAIN_DESCRIPTION =
-  "mode \"plain\" searches everything in the product the way a person types into a search box, ranked: sources, each with the best places it says the words (its derived text, summary, notes or comments; hits give the field and where the piece starts), how many places in hit_count, and in match_count how many times its derived text says them, as the source's Find in the text in the web app counts them, assumptions, outcomes, mockups, Story pages and the product concept. Words match in any order, each at the start of a word; endings are forgiven (\"pricing\" finds price and priced); the last word is taken as still being typed and matches as a prefix even when short, unless the query ends with a space; \"quoted words\" match as a phrase; an id or a number (CB26-20734, 2026-05-01, 2026) is one word, hyphens and all, matched as written, and one with a letter in it also as its words side by side (q3-planning finds \"Q3 planning\"); small words (the, of, how) are skipped; a word that matches nothing is replaced by the closest word the product holds, and `corrections` says so (`strict: true` turns that off), but an id or a number is never corrected. When nothing holds every word, results hold most of them and list the `missing` ones. At most `limit` results come back (60 unless you say), best first; `counts` says how many of each kind matched in all, so say so when more matched than came back. It takes `kind`, `record_id`, `strict` and `limit`, not the date or tag filters or a cursor.";
+  "mode \"plain\" searches everything in the product the way a person types into a search box, ranked: sources, each with the best places it says the words (its derived text, summary, notes or comments; hits give the field and where the piece starts), how many places in hit_count, and in match_count how many times its derived text says them, as the source's Find in the text in the web app counts them, assumptions, outcomes, mockups, Story pages and the product concept. Words match in any order, each at the start of a word; endings are forgiven (\"pricing\" finds price and priced); the last word is taken as still being typed and matches as a prefix even when short, unless the query ends with a space; \"quoted words\" match as a phrase; an id or a number (CB26-20734, 2026-05-01, 2026) is one word, hyphens and all, matched as written, and one with a letter in it also as its words side by side (q3-planning finds \"Q3 planning\"); small words (the, of, how) are skipped; a word naming a kind (mockups, assumptions, sources, outcomes, story, idea), beside other words, is not searched for but lists that kind's results first, ahead of any that score higher, and `kind_hint` names it; a word that matches nothing is replaced by the closest word the product holds, and `corrections` says so (`strict: true` turns that off), but an id or a number is never corrected. When nothing holds every word, results hold most of them and list the `missing` ones. At most `limit` results come back (60 unless you say), best first; `counts` says how many of each kind matched in all, so say so when more matched than came back. It takes `kind`, `record_id`, `strict` and `limit`, not the date or tag filters or a cursor.";
 
 /** At most this many pieces of derived text are read to count matches, so a search for a common word stays quick. */
 const COUNT_PIECES_MAX = 2000;
@@ -433,7 +432,10 @@ export async function plainSearch(ctx: OpContext, i: PlainInput) {
   // When something holds every word, show only those; otherwise the ones holding the most.
   const complete = r.all.filter((x) => !x.missing.length);
   const partial = !complete.length && r.all.length > 0;
-  const shown = (partial ? r.all : complete).sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
+  // A kind the query names ("mockups jobs") comes first, whatever the others score, so every door
+  // lists it first: the palette, the Search screen's areas and an agent alike.
+  const named = (x: FindResult) => (x.kind === p.kind ? 0 : 1);
+  const shown = (partial ? r.all : complete).sort((a, b) => named(a) - named(b) || b.score - a.score || a.title.localeCompare(b.title));
   const counts: Partial<Record<FindKind, number>> = {};
   for (const x of shown) counts[x.kind] = (counts[x.kind] ?? 0) + 1;
   // Sources matched beyond the pieces results come from count too: all of them for a partial

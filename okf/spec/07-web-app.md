@@ -91,13 +91,15 @@ the browser's back button and "open in new tab" both work.
   to the lifted shadow. It opens as the field alone, with up to six **recent searches** under it
   when it is empty: searches followed through in that product (a result opened, or every result),
   newest first, kept in the browser and cleared at sign-out (§9.1); picking one fills the field, and
-  Clear empties the list. Results come as you type, best match first, at most eight: each with its
+  Clear empties the list. Results come as you type, best match first (a kind named in the query
+  before the rest), at most eight: each with its
   kind's glyph, its title with the words marked, what it is (Source with its date and its number
   of matches, counted as its Find in the text counts them for the same words, so opening it in its
   text shows "… of" that number; Assumption with its status, Mockup with the page), and a source's
   best place,
   saying where it is ("In its text", "In its summary", "In its notes", "In a comment"), or another
-  result's matching text. Arrows (or Ctrl+N and Ctrl+P) move; Enter opens the selected result (a
+  result's matching text, in two lines; at phone width that text starts a few words before its
+  first marked word, so the words it matched stay in view. Arrows (or Ctrl+N and Ctrl+P) move; Enter opens the selected result (a
   source matched in what it says opens at the place its line shows, even when its title holds the
   words too: its Text, which the summary heads, with the words marked when they are in the text;
   its Notes; or its Comments). The **All N results**
