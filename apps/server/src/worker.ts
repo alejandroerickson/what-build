@@ -61,6 +61,8 @@ export class Worker {
   private idleMs: number | null = null;
   private lastActive = 0;
   private asleep = false;
+  /** Whether a worker going to sleep is still asking when the next job falls due, which a job queued meanwhile can bring forward. */
+  private settling = false;
   /** Whether the last look found a later version's migrations; the log says so once, when they appear. */
   private superseded = false;
   /** The migrations this version carries; a database that has any other was migrated by a later version. */
@@ -82,9 +84,12 @@ export class Worker {
     this.timer = null;
   }
 
-  /** Whether the worker has stopped looking at the queue until a request, a commit or a job due wakes it. */
+  /**
+   * Whether the worker has stopped looking at the queue until a request, a commit or a job due wakes
+   * it: asleep, and done asking when the next job falls due.
+   */
   get sleeping(): boolean {
-    return this.asleep;
+    return this.asleep && !this.settling;
   }
 
   /** Called after a commit that enqueued work. */
@@ -123,7 +128,9 @@ export class Worker {
    */
   private async sleep() {
     this.asleep = true;
+    this.settling = true;
     const due = this.superseded ? null : await this.nextDueMs().catch(() => this.pollMs);
+    this.settling = false;
     // A request or a commit may have woken it while it asked.
     if (this.stopped || !this.asleep || due === null) return;
     this.timer = setTimeout(() => {
