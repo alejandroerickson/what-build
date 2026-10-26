@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { inspectMockupHtml, inspectStoryHtml, MOCKUP_PAGE_RULES, MOCKUP_PAGE_SANDBOX, MOCKUP_RESPONSE_HEADERS, prototypeSandbox, STORY_PAGE_RULES, STORY_PAGE_SANDBOX, STORY_RESPONSE_HEADERS } from "@whatbuild/core";
+import { inspectMockupHtml, inspectStoryHtml, MOCKUP_PAGE_RULES, MOCKUP_PAGE_SANDBOX, MOCKUP_RESPONSE_HEADERS, pageResponseHeaders, prototypeSandbox, STORY_PAGE_RULES, STORY_PAGE_SANDBOX, STORY_RESPONSE_HEADERS } from "@whatbuild/core";
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import { sql } from "kysely";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -757,6 +757,9 @@ describe("a working prototype on a canvas", () => {
     expect(STORY_PAGE_SANDBOX).toBe("allow-scripts allow-popups allow-popups-to-escape-sandbox");
     expect(MOCKUP_PAGE_SANDBOX).toBe("allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox");
     expect(MOCKUP_RESPONSE_HEADERS["Content-Security-Policy"]).toBe(STORY_RESPONSE_HEADERS["Content-Security-Policy"]!.replace(STORY_PAGE_SANDBOX, MOCKUP_PAGE_SANDBOX));
+    // Served from a content site, a page keeps its sandbox, and only the app's origin, by name, may frame it.
+    for (const [rules, own] of [[STORY_PAGE_RULES, STORY_RESPONSE_HEADERS], [MOCKUP_PAGE_RULES, MOCKUP_RESPONSE_HEADERS]] as const)
+      expect(pageResponseHeaders(rules, "https://app.example.com")["Content-Security-Policy"]).toBe(own["Content-Security-Policy"]!.replace("frame-ancestors 'self'", "frame-ancestors https://app.example.com"));
     // The app's frames take the same constants, never a sandbox written out; a frame that enters a
     // prototype takes the sandbox the server names for it (prototypeSandbox), which its responses carry.
     expect(prototypeSandbox(false)).toBe(MOCKUP_PAGE_SANDBOX);

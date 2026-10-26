@@ -247,6 +247,34 @@ describe("downloads", () => {
   });
 });
 
+describe("an uploaded HTML page", () => {
+  it("is shown only by its view route, as a page in a sandbox that runs no script, and its bytes are only ever an attachment", async () => {
+    const html = '<!doctype html><title>Upload</title><p style="color:red">Hi</p><img src="/api/v1/me"><script>parent.postMessage(document.cookie, "*")</script>';
+    const { recordId, upload } = await grant("page.html");
+    expect((await fetch(upload.url, { method: "PUT", headers: upload.headers, body: html })).status).toBe(201);
+    const view = await fetch(`${h.baseUrl}${P}/sources/${recordId}/attachment/view?path=page.html`, { headers: { cookie: alice.cookie } });
+    expect(view.status).toBe(200);
+    expect(view.headers.get("content-type")).toMatch(/^text\/html/);
+    const csp = view.headers.get("content-security-policy")!;
+    expect(csp).toBe("sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'");
+    expect(csp).not.toContain("allow-scripts");
+    expect(view.headers.get("cache-control")).toBe("private, no-store");
+    expect(await view.text()).toBe(html);
+    // Its bytes, through the attachment route, are a file to save, never a page.
+    const bytes = await fetch(`${h.baseUrl}${P}/sources/${recordId}/attachment?path=page.html`, { headers: { cookie: alice.cookie } });
+    expect(bytes.headers.get("content-type")).toBe("application/octet-stream");
+    expect(bytes.headers.get("content-disposition")).toMatch(/^attachment;/);
+    // Any other attachment is refused by the view route, and so is a session that is not one.
+    const other = await grant("notes.txt");
+    expect((await fetch(other.upload.url, { method: "PUT", headers: other.upload.headers, body: "<p>Text, not a page.</p>" })).status).toBe(201);
+    const refused = await fetch(`${h.baseUrl}${P}/sources/${other.recordId}/attachment/view?path=notes.txt`, { headers: { cookie: alice.cookie } });
+    expect(refused.status).toBe(415);
+    expect(((await refused.json()) as { error: { code: string } }).error.code).toBe("not_html");
+    expect((await fetch(`${h.baseUrl}${P}/sources/${recordId}/attachment/view?path=page.html`)).status).toBe(401);
+    expect((await fetch(`${h.baseUrl}${P}/sources/${recordId}/attachment/view?path=missing.html`, { headers: { cookie: alice.cookie } })).status).toBe(404);
+  });
+});
+
 describe("hostile files through the relay and the worker", () => {
   it("records a zip bomb as too large, in bounded time, and keeps answering", async () => {
     // Under 1 MB on the wire, 900 MiB unpacked, declaring a harmless size.

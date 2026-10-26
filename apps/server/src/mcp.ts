@@ -141,10 +141,11 @@ const STALE_LIST =
  * (Cloud Run's run.app address, Container Apps' default host, an earlier domain), and links written
  * with one of those lead people away from their session, so agents write the public URL.
  */
-export function addressInstruction(base: string): string {
+export function addressInstruction(base: string, content: string | null = null): string {
   return (
     ` This deployment's address is ${base}. Write every link to WhatBuild with it (the links story(action="guidance") gives already are), ` +
-    "never with another host name you have seen for this deployment."
+    "never with another host name you have seen for this deployment." +
+    (content ? ` Its content site, ${content}, serves previews and prototypes: fetch an address the server gives there (a preview's url, a prototype_url) exactly as given, and never write a link with it.` : "")
   );
 }
 
@@ -257,7 +258,7 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
     { name: SKILL_NAME, version: SKILL_VERSION, title: "WhatBuild" },
     {
       capabilities: { tools: {} },
-      instructions: SERVER_INSTRUCTIONS + addressInstruction(env.ports.config.publicBaseUrl) + (bound ? scopeInstruction(bound) : "") + (principal.feedback === false ? FEEDBACK_OFF : ""),
+      instructions: SERVER_INSTRUCTIONS + addressInstruction(env.ports.config.publicBaseUrl, env.ports.config.contentBaseUrl ?? null) + (bound ? scopeInstruction(bound) : "") + (principal.feedback === false ? FEEDBACK_OFF : ""),
     },
   );
   // Resolved on the first tool call, so listing tools costs no lookup.

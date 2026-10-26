@@ -151,6 +151,24 @@ its tag and so starts the same workflow; [releasing](releasing.md) is how to mak
   it in a real Chrome on the canvas and the Story: everything loads inside the sandbox, no load
   carries the session cookie, a top-level open is refused, and a canvas of 25 entries is timed. It
   creates data, as `e2e.mjs` does.
+- `node scripts/content-site-check.mjs [appUrl] [siteUrl]` checks a content site in a real Chrome,
+  against the server serving the built web app itself, so the app's pages carry its own policy
+  (Vite sends none). After `pnpm build`, start it with a content site on the same server under
+  another host name, analytics on, and other ports than a running `pnpm dev`:
+
+  ```sh
+  PORT=8811 WHATBUILD_PG_PORT=54361 WHATBUILD_WEB_PORT=5311 WHATBUILD_PUBLIC_URL=http://localhost:8811 \
+    WHATBUILD_CONTENT_URL=http://127.0.0.1:8811 WHATBUILD_WEB_DIST="$PWD/apps/web/dist" \
+    WHATBUILD_SITE_URL=http://site.localhost:8811 WHATBUILD_ANALYTICS_ID=G-TEST1234 pnpm dev
+  node scripts/content-site-check.mjs http://localhost:8811 http://site.localhost:8811
+  ```
+
+  It opens a Story page, the Story style dialog, a canvas, the Idea screen, the print view, a PDF
+  and an uploaded HTML page, and checks that each renders from the content site in an opaque
+  origin, that a root-relative link opens the app, that no request there carries a cookie, and
+  that no page, the public site's included, reports a policy violation; it times a canvas of 25
+  pages. It creates data, as `e2e.mjs` does. A PDF's rendering in Firefox and Safari is checked by
+  hand.
 - `pnpm e2e browser <command>` drives a Chrome kept open between commands, for an agent running an
   [end-to-end test plan](end-to-end-tests.md); `pnpm e2e mcp <command>` calls the MCP server as a
   connected agent.

@@ -54,6 +54,7 @@ name what replaced it, and date the change. Smaller decisions are marked
 - [Story PDF export is a composed print view saved by the browser](pdf-export-uses-browser-print.md)
 - [Mockups are versioned canvases of agent-made HTML, in a stage called Exploration](mockups-are-versioned-canvases-in-exploration.md)
 - [A mockup version may carry a team's prototype as it is, served in the sandbox from a short-lived capability path](mockups-carry-prototypes-served-from-a-capability-path.md)
+- [With a content site, every page and inline file is served from it under a short-lived address the app's own route hands off to](with-a-content-site-every-page-and-inline-file-is-served-from-it.md)
 - [Each stage's count is the total of every item the stage holds](each-stage-counts-every-item-it-holds.md)
 - [Insights and decisions are retired, and what a product held of them becomes sources in Evidence](insights-and-decisions-are-retired-into-evidence.md)
 - [Archive is the reversible default; delete is permanent, guarded, and an admin's](archive-by-default-delete-guarded.md)

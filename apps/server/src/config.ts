@@ -15,9 +15,10 @@ export interface ServerConfig {
   /** The public site's origin (e.g. https://what-build.com), served by host beside the app; null for none. */
   siteUrl: string | null;
   /**
-   * A content site of its own for mockups' prototypes (WHATBUILD_CONTENT_URL): an origin on another
-   * registrable domain than the app's, served by this image by host. Null serves prototypes from the
-   * app's own origin (prototype.ts).
+   * A content site of its own (WHATBUILD_CONTENT_URL): an origin on another registrable domain than
+   * the app's, served by this image by host. It serves mockups' prototypes (prototype.ts), every
+   * document of people's and agents' HTML and the uploaded files the app shows inline
+   * (content-documents.ts), and agents' previews. Null serves them all from the app's own origin.
    */
   contentUrl: string | null;
   /** How long a prototype's address lasts, in seconds (WHATBUILD_PROTOTYPE_GRANT_HOURS, 8 by default). */
@@ -150,7 +151,7 @@ function contentOrigin(v: string | undefined, publicBaseUrl: string, mode: Serve
   if (!/^https?:$/.test(url.protocol) || url.pathname.replace(/\/+$/, "") !== "" || url.search || url.hash || url.username)
     throw new Error("WHATBUILD_CONTENT_URL must be an origin, a scheme and a host with no path, such as https://usercontent.example.net.");
   if (mode === "production" && url.protocol !== "https:") throw new Error("WHATBUILD_CONTENT_URL must use https in production.");
-  if (url.host.toLowerCase() === new URL(publicBaseUrl).host.toLowerCase()) throw new Error("WHATBUILD_CONTENT_URL must name another host than WHATBUILD_PUBLIC_URL; leave it unset to serve prototypes from the app's own origin.");
+  if (url.host.toLowerCase() === new URL(publicBaseUrl).host.toLowerCase()) throw new Error("WHATBUILD_CONTENT_URL must name another host than WHATBUILD_PUBLIC_URL; leave it unset to serve prototypes, pages and attachments from the app's own origin.");
   return url.origin;
 }
 

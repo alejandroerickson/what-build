@@ -74,9 +74,13 @@ export interface CoreConfig {
   parseMemoryMb: number;
   /** How long one parse may run, in seconds. */
   parseTimeoutSeconds: number;
-  /** Lifetime of upload and download grants, in seconds. */
+  /** Lifetime of upload and download grants, and of a document's address on the content site, in seconds. */
   grantTtlSeconds: number;
-  /** The origin a content site of its own serves prototypes from, without a trailing slash; null or absent serves them from publicBaseUrl. */
+  /**
+   * The origin of a content site of its own, without a trailing slash, which serves prototypes,
+   * every document of people's HTML and the uploaded files shown inline (content-address.ts); null
+   * or absent serves them all from publicBaseUrl.
+   */
   contentBaseUrl?: string | null;
   /** Lifetime of a prototype's address, in seconds; 8 hours when absent. */
   prototypeGrantSeconds?: number;

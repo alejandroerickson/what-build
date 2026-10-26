@@ -427,7 +427,8 @@ export const outcomeCardPreview = defineOperation({
       preview: {
         preview_id,
         method: "GET",
-        url: `${ctx.ports.config.publicBaseUrl}/api/v1/downloads/card-preview/${preview_id}`,
+        // On the content site when the deployment has one, as every document of people's HTML is.
+        url: `${ctx.ports.config.contentBaseUrl ?? ctx.ports.config.publicBaseUrl}/api/v1/downloads/card-preview/${preview_id}`,
         headers: { [DOWNLOAD_GRANT_HEADER]: token },
         expires_at: expiresAt.toISOString(),
       },

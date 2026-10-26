@@ -46,6 +46,16 @@ export interface Browser {
   api<T = any>(method: string, path: string, body?: unknown, headers?: Record<string, string>): Promise<{ status: number; body: T; headers: Headers }>;
 }
 
+/**
+ * A document's headers as `h` serves them: from the app's own origin, as given; from a content
+ * site, framed by the app's origin by name, readable by it (CORP), and kept by nothing.
+ */
+export function asServed(h: Pick<Harness, "baseUrl" | "config">, headers: Record<string, string>): Record<string, string> {
+  if (!h.config.contentUrl) return headers;
+  const csp = headers["Content-Security-Policy"]!.replace("frame-ancestors 'self'", `frame-ancestors ${h.baseUrl}`);
+  return { ...headers, "Content-Security-Policy": csp, "Cache-Control": "private, no-store", "Cross-Origin-Resource-Policy": "cross-origin" };
+}
+
 /** A fresh database, migrated, behind a real HTTP server on a random port. `overrides` may be a function of the server's address, for settings that name it. */
 export async function startHarness(overrides: Partial<ServerConfig> | ((baseUrl: string) => Partial<ServerConfig>) = {}, opts: { fetcher?: UrlFetcher } = {}): Promise<Harness> {
   const name = `t_${randomBytes(6).toString("hex")}`;
@@ -66,7 +76,10 @@ export async function startHarness(overrides: Partial<ServerConfig> | ((baseUrl:
     );
   });
   const baseUrl = `http://localhost:${port}`;
-  const config: ServerConfig = { ...loadConfig({ NODE_ENV: "test", WHATBUILD_PUBLIC_URL: baseUrl, DATABASE_URL: url }), mailer: "memory", blobStore: "memory", defaultTenantAllowance: 100, ...(typeof overrides === "function" ? overrides(baseUrl) : overrides) };
+  // The server's tests for the documents the app shows run again with a content site
+  // (vitest.config.ts, project server-content-site), which names the server by another host.
+  const site = process.env["WHATBUILD_TEST_CONTENT_SITE"] === "1" ? { contentUrl: baseUrl.replace("localhost", "127.0.0.1") } : {};
+  const config: ServerConfig = { ...loadConfig({ NODE_ENV: "test", WHATBUILD_PUBLIC_URL: baseUrl, DATABASE_URL: url }), mailer: "memory", blobStore: "memory", defaultTenantAllowance: 100, ...site, ...(typeof overrides === "function" ? overrides(baseUrl) : overrides) };
   const blobs = new MemoryBlobStore();
   const mailer = new MemoryMailer();
   let worker: Worker | null = null;

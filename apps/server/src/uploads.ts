@@ -1,12 +1,12 @@
 import {
-  admitRead, AppError, CARD_FRAMES, CARD_PREVIEW_PURPOSE, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, ideaCardDocument, ideaCardResponseHeaders, effectiveRole, forbidden, levelAllows, membershipsFor, mockupBundle, json, lockSandbox, MOCKUP_UPLOAD_PURPOSE, notFound,
-  OPERATIONS, resolveScope, roleAtLeast, sandboxForAccount, STORY_PREVIEW_PURPOSE, toAppError, tooLarge, UPLOAD_GRANT_HEADER, type ActorSnapshot, type ConnectionLevel, type Env, type OpContext, type Principal, type Tx,
+  admitRead, AppError, capRole, CARD_FRAMES, CARD_PREVIEW_PURPOSE, completeGrant, conflict, DOWNLOAD_GRANT_HEADER, effectiveRole, forbidden, levelAllows, membershipsFor, mockupBundle, json, lockSandbox, MOCKUP_UPLOAD_PURPOSE, notFound,
+  OPERATIONS, resolveScope, roleAtLeast, sandboxForAccount, STORY_PREVIEW_PURPOSE, toAppError, tooLarge, UPLOAD_GRANT_HEADER, type ActorSnapshot, type ConnectionLevel, type Env, type OpContext, type Principal, type Scope, type Tx,
 } from "@whatbuild/core";
-import { randomBytes } from "node:crypto";
 import { Hono, type Context } from "hono";
 import { sql } from "kysely";
 import type { ServerConfig } from "./config.ts";
-import { storyHtml, storyTheme, streamFile } from "./rest.ts";
+import { requestedHost } from "./canonical-host.ts";
+import { cardFront, storyHtml, storyTheme, streamFile } from "./documents.ts";
 
 /** A count of bytes as people read it: 10,485,760. */
 const bytes = (n: number) => n.toLocaleString("en-US");
@@ -60,24 +60,37 @@ function relayed(body: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
   });
 }
 
-/** The operation each kind of download grant comes from: its requester must still be allowed what it needed. */
+/**
+ * The operation each kind of grant to read comes from, or, for a document on the content site
+ * (content-address.ts), the operation that needs what the app's own route for it needs: its
+ * requester must still be allowed that. A card is outcomes.get, never products.get, which a reader
+ * may call and the card's own route refuses.
+ */
 const ISSUED_BY: Record<string, string> = {
   download: "attachments.get_download",
   mockup: "mockups.get_download",
   [STORY_PREVIEW_PURPOSE]: "story.preview",
   [CARD_PREVIEW_PURPOSE]: "outcomes.card_preview",
   export: "products.exports",
+  story_page: "story.get_version",
+  print: "story.get_version",
+  mockup_page: "mockups.get_version",
+  specimen: "story.get_style",
+  card: "outcomes.get",
+  attachment: "attachments.get_download",
 };
 
 const noLongerReads = () => forbidden("Whoever requested this grant can no longer read this product. Nothing was sent.");
 
 /**
- * Checked before a download grant sends a byte, as the upload relay checks before it stores one:
- * whoever requested the grant may still do, on the product it reads, what the operation that gave
- * it needed. Their account still exists; their role there, capped by their connection's level, still
- * allows it; an agent's connection is still connected; and a public sandbox still admits them.
+ * Checked before a download grant, or a document's address on the content site, sends a byte, as
+ * the upload relay checks before it stores one: whoever requested the grant may still do, on the
+ * product it reads, what the operation that gave it needed. Their account still exists; their role
+ * there, capped by their connection's level, still allows it; an agent's connection is still
+ * connected; and a public sandbox still admits them. Returns them, and the product as they reach it
+ * now, whose role decides what a reader is given.
  */
-async function requesterMayRead(env: Env, claims: Record<string, unknown>, productId: string): Promise<void> {
+export async function requesterMayRead(env: Env, claims: Record<string, unknown>, productId: string): Promise<{ principal: Principal; scope: Scope }> {
   const op = OPERATIONS.find((o) => o.name === ISSUED_BY[String(claims["purpose"])])!;
   if (typeof claims["a"] !== "string") throw new AppError(401, "invalid_grant", "The grant is invalid or expired. Request a new one.");
   const account = await env.db
@@ -105,10 +118,11 @@ async function requesterMayRead(env: Env, claims: Record<string, unknown>, produ
     account_id: account.account_id, email: account.email, display_name: account.display_name, auth_kind: "upload_grant", surface: level ? "mcp" : "web", client: null,
     ...(account.sandbox_only ? { sandbox_only: true } : {}), ...(level ? { level } : {}),
   };
-  const scope = await resolveScope(env.db, principal, "product", op.access, { product: productId }, op.name).catch((e: unknown) => {
+  const resolved = await resolveScope(env.db, principal, "product", op.access, { product: productId }, op.name).catch((e: unknown) => {
     throw e instanceof AppError && (e.status === 403 || e.status === 404) ? noLongerReads() : e;
   });
-  await admitRead(env, principal, scope, op.name);
+  await admitRead(env, principal, resolved, op.name);
+  return { principal, scope: level ? { ...resolved, role: capRole(resolved.role, level) } : resolved };
 }
 
 /**
@@ -119,6 +133,10 @@ async function requesterMayRead(env: Env, claims: Record<string, unknown>, produ
  */
 export function uploadRoutes(env: Env & { config: ServerConfig }) {
   const app = new Hono();
+  // With a content site, agents' previews are served there, as every document of people's HTML is.
+  const contentHost = env.config.contentUrl ? new URL(env.config.contentUrl).host.toLowerCase() : null;
+  const site = contentHost ? new URL(env.config.publicBaseUrl).origin : null;
+  const previewsElsewhere = (c: Context) => contentHost !== null && requestedHost((name) => c.req.header(name)) !== contentHost;
   const fail = (c: Context, e: unknown) => {
     const err = toAppError(e);
     if (err.status === 500) console.error("upload relay:", e);
@@ -253,6 +271,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
   // version is (the same sandbox, typefaces and ?theme), for an agent to look at before publishing.
   app.get("/api/v1/downloads/story-preview/:preview_id", async (c) => {
     try {
+      if (previewsElsewhere(c)) throw notFound(`This deployment serves previews from its content site, ${env.config.contentUrl}: GET the url the preview gave.`);
       const claims = env.ports.grants.verify(c.req.header(DOWNLOAD_GRANT_HEADER) ?? "");
       if (!claims || claims["purpose"] !== STORY_PREVIEW_PURPOSE || claims["sp"] !== c.req.param("preview_id"))
         throw new AppError(401, "invalid_grant", "The preview grant is missing, invalid or expired. Preview again with story(action=\"preview\").");
@@ -264,7 +283,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       await requesterMayRead(env, claims, p.product_id);
       // A Story page in the Story's sandbox (page-sandbox.ts). A mockup page carries its own look, so
       // it takes neither the theme nor the carried typefaces, and keeps a mockup page's sandbox.
-      return storyHtml(c, p.html, p.shows_mockup ? undefined : theme, false, p.shows_mockup);
+      return storyHtml(c, p.html, p.shows_mockup ? undefined : theme, false, p.shows_mockup, site);
     } catch (e) {
       return fail(c, e);
     }
@@ -275,6 +294,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
   // before writing it.
   app.get("/api/v1/downloads/card-preview/:preview_id", async (c) => {
     try {
+      if (previewsElsewhere(c)) throw notFound(`This deployment serves previews from its content site, ${env.config.contentUrl}: GET the url the preview gave.`);
       const claims = env.ports.grants.verify(c.req.header(DOWNLOAD_GRANT_HEADER) ?? "");
       if (!claims || claims["purpose"] !== CARD_PREVIEW_PURPOSE || claims["cp"] !== c.req.param("preview_id"))
         throw new AppError(401, "invalid_grant", "The preview grant is missing, invalid or expired. Preview again with outcomes(action=\"card_preview\").");
@@ -284,9 +304,7 @@ export function uploadRoutes(env: Env & { config: ServerConfig }) {
       );
       if (!p || Date.parse(p.expires_at) < Date.now()) throw notFound("That preview has expired or was replaced by newer ones. Preview again with outcomes(action=\"card_preview\").");
       await requesterMayRead(env, claims, p.product_id);
-      const nonce = randomBytes(16).toString("base64");
-      for (const [k, v] of Object.entries(ideaCardResponseHeaders(nonce))) c.header(k, v);
-      return c.body(ideaCardDocument(p.card_html, { title: p.title, theme, nonce, limit: CARD_FRAMES[p.kind].max_height }));
+      return cardFront(c, p.card_html, p.title, theme, site, CARD_FRAMES[p.kind].max_height);
     } catch (e) {
       return fail(c, e);
     }

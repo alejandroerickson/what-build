@@ -596,15 +596,19 @@ PUT  /api/v1/uploads/mockup/:upload_id               a mockup canvas's ZIP, unde
 GET  /api/v1/downloads/:file_version_id              an attachment's bytes under a download grant
 GET  /api/v1/downloads/export/:export_id             an export ZIP under a download grant
 GET  P/sources/:record_id/attachment?path=&version=&download=1   an attachment's bytes for the web app (ranged)
+GET  P/sources/:record_id/attachment/view?path=&version=   an uploaded HTML page, as its preview shows it
 GET  P/sources/:record_id/text                       a source's whole derived text for the web app (text/markdown)
 GET  P/exports/:export_id/file                       an export ZIP for the web app
 GET  P/story/pages/:page_id/versions/:version/html?theme=light|dark   Story page HTML
 GET  P/story/print?page_ids=…                        the Story print view (HTML)
 GET  P/mockups/:mockup_id/versions/:version/pages/:page_id/html   a mockup page's HTML
+GET  P/idea/concept/card, P/outcomes/:outcome_id/card?theme=   an Idea card's front
+GET  P/story/style/specimen, P/story/house-styles/:style/specimen?theme=   a style's specimen
 GET  /api/v1/downloads/mockup/:version_id            a mockup version's ZIP under a download grant
 GET  /api/v1/downloads/story-preview/:preview_id?theme=light|dark   a Story preview's HTML under its grant
 GET  /api/v1/downloads/card-preview/:preview_id?theme=light|dark    a card preview's front under its grant
 GET  /prototypes/:grant/<path>                       a mockup prototype's file; the grant in the path is the credential (§4.12)
+GET  /documents/:grant/<name>?theme=&frame=          on a content site: a document the app's route handed off (below)
 GET  /api/v1/meta                                    server and skill version, release, sign-in methods (public)
 GET  /api/v1/connect                                 what the Connect page shows
 GET|PATCH /api/v1/me; GET /api/v1/me/agents; PATCH|DELETE /api/v1/me/agents/:family; POST /api/v1/me/sign-out-everywhere
@@ -622,15 +626,52 @@ allows what the operation that gave the grant needed (viewer for an attachment, 
 ZIP or an export; editor for a Story or card preview), that the connection is still connected, and
 that a public sandbox still admits them. Otherwise it answers `403`, "Whoever requested this grant
 can no longer read this product", or that the connection is disconnected, and sends nothing; a
-grant that names nobody is `401 invalid_grant`. A prototype's address is the exception: it names
-nobody, by decision, and keeps working for its hours
-([§4.12](04-data-model.md)).
+grant that names nobody is `401 invalid_grant`. A document's address on the content site is
+checked the same way (below). A prototype's address is the exception: it names nobody, by
+decision, and keeps working for its hours ([§4.12](04-data-model.md)).
 
 **Bytes are served by the service itself**, streamed from the object store with
 `X-Content-Type-Options: nosniff`, a `Content-Disposition`, range support,
 `Cache-Control: private, no-store`, and a sandboxing `Content-Security-Policy` that lets only the
 app frame them. Uploaded HTML, XHTML and SVG are always sent as
-`application/octet-stream` downloads, never renderable from the application's origin.
+`application/octet-stream` downloads, never renderable from the application's origin. An
+uploaded HTML page's preview has a route of its own, `…/attachment/view`: an HTML attachment
+(by its type, or by a `.html` or `.htm` name) of at most 4 MB, as `text/html` under
+`sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'`,
+which runs no script and loads nothing it does not carry; `415 not_html` for any other
+attachment, `413` past 4 MB.
+
+**With a content site, the app's addresses hand off.** When `WHATBUILD_CONTENT_URL` is set, each
+route that would answer with a document of people's or agents' HTML or with a PDF to show inline
+(a Story page's or mockup page's HTML, a card's front, a specimen, the print view, a PDF
+attachment without `download=1`, an HTML page's view) makes every check it makes, then answers
+`302` to `<content>/documents/<grant>/<name>`, carrying the request's `theme` and `frame`, with
+`Cache-Control: no-store` and `Referrer-Policy: no-referrer`, and no body
+([decision](../decisions/with-a-content-site-every-page-and-inline-file-is-served-from-it.md)).
+`<name>` is the attachment's name or `page.html`, `card.html`, `specimen.html`, `story.html`; the
+route ignores it. The grant (`contentAddress` in `packages/core/src/content-address.ts`) is
+`{ v: 1, purpose, t, p, …object, a, exp }`: one purpose per kind (`story_page` with the version,
+`mockup_page` with the mockup version and page, `specimen` with a house style or the digest of the
+product's style's specimen, `card` with an outcome, if any, and the digest of its front, `print`
+with the page versions, `attachment` with the file version), the tenant, the product, the
+requester, and an expiry `WHATBUILD_GRANT_TTL_SECONDS` from issue. Every load of an app address
+mints a new grant, so the web app keeps and refreshes no address.
+
+`GET|HEAD /documents/<grant>/<name>` answers on the content host alone (`404` elsewhere), reads no
+cookie or `Authorization` header, sets no cookie and never redirects
+(`apps/server/src/content-documents.ts`). It checks the grant's signature, expiry and purpose
+(`401` "This address has expired. Open it again in WhatBuild."), then that its requester may
+still read the product as the app's route needed (story access for a Story page and the print
+view, viewer for the rest; `403`, sending nothing), and finds the document with the same function
+as the app's route, within the grant's product (`404` for one deleted, archived since for a
+reader, or changed since for a front or a style). It serves the document with the same function
+and headers as the app's route, except that `frame-ancestors` names the app's origin (the print
+view keeps `'none'`), with `Cross-Origin-Resource-Policy: cross-origin` and
+`Cache-Control: private, no-store`. Refusals are `text/plain`. Agents' previews move there too:
+`story.preview` and `outcomes.card_preview` give their `url` on the content site, where the same
+paths answer under the same header grant, and the app's host refuses them with `404` naming the
+content site. Exports, a mockup version's ZIP, an attachment downloaded and an image, a recording
+or a text shown in the app stay on the app's origin.
 
 **A source's text for the web app.** `GET P/sources/:record_id/text` answers the whole derived
 text, so the app can show and edit it at once, as `text/markdown; charset=utf-8` with
@@ -670,8 +711,9 @@ carries `depth` (its depth in the hierarchy) and `level` (its outline level amon
 pages: one more than the number of chosen ancestors, so the outline never skips a level). The
 result also gives `path` and `url` for the document itself.
 
-`GET P/story/print?page_ids=…` answers that document as HTML, for a person to open in a browser
-tab and save as PDF with the browser's print dialog. The server renders no PDF
+`GET P/story/print?page_ids=…` answers that document as HTML (with a content site, it hands the
+tab to the content site under a grant naming the page versions it chose), for a person to open in
+a browser tab and save as PDF with the browser's print dialog. The server renders no PDF
 (`packages/core/src/story-print.ts`). The document has:
 
 - a title block (the product name and the export date) and a contents list. Each date is a

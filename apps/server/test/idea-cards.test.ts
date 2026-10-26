@@ -222,7 +222,7 @@ describe("a card's preview", () => {
     expect(r.body.card_advice.some((a: string) => a.includes("back is empty"))).toBe(true);
     expect((await alice.api("GET", `${P}/outcomes`)).body.items.length).toBe(outcomesBefore);
     const { url, headers } = r.body.preview;
-    expect(url).toBe(`${h.baseUrl}/api/v1/downloads/card-preview/${r.body.preview.preview_id}`);
+    expect(url).toBe(`${h.config.contentUrl ?? h.baseUrl}/api/v1/downloads/card-preview/${r.body.preview.preview_id}`);
     const doc = await fetch(`${url}?theme=dark`, { headers });
     expect(doc.status).toBe(200);
     const csp = doc.headers.get("content-security-policy")!;

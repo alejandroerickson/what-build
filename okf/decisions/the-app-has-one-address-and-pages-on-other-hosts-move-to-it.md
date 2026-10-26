@@ -3,7 +3,7 @@ type: Decision
 title: The app has one address, and a page opened on another of the deployment's names moves to it
 description: WHATBUILD_PUBLIC_URL is the canonical address; a browser's page load on any other host the deployment answers on is redirected there, while probes, agents and API clients are answered wherever they ask.
 tags: [decision, deployment, configuration, links, security]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -46,8 +46,11 @@ started there loses its state at the public URL's callback.
 
 - A new route that machines call on any host belongs under one of the exempt prefixes. A
   mockup's prototype (`/prototypes/`) is one: a frame moves between its documents with navigations,
-  answered where the prototype's address points; and a content site (`WHATBUILD_CONTENT_URL`) is
-  never redirected, since it serves prototypes and nothing else
-  ([decision](mockups-carry-prototypes-served-from-a-capability-path.md)).
+  answered where the prototype's address points; a document's address on a content site
+  (`/documents/`) is another, a frame's or a tab's navigation answered where its grant points; and
+  a content site (`WHATBUILD_CONTENT_URL`) is never redirected, since it serves prototypes, pages
+  and inline files and nothing of the app's
+  ([decision](mockups-carry-prototypes-served-from-a-capability-path.md),
+  [decision](with-a-content-site-every-page-and-inline-file-is-served-from-it.md)).
 
 Specified in: [§2.3](../spec/02-architecture.md#23-the-shape-of-the-deployment).

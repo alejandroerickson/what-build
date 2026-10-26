@@ -32,14 +32,15 @@ export const PERMISSIONS_POLICY = [
  * (page-sandbox.ts). The page runs in an opaque origin with no network, and a form submission goes
  * nowhere: form-action is 'none' for every surface, the mockup page's included, whose sandbox
  * allows forms so that a prototype's submit handler runs. Keep form-action 'none' while any
- * surface's sandbox allows forms.
+ * surface's sandbox allows forms. `ancestor` is who may frame it: the app's own origin, or, for a
+ * page served from the content site, the app's origin by name.
  */
-export function pageResponseHeaders(rules: Pick<PageRules, "sandbox">): Record<string, string> {
+export function pageResponseHeaders(rules: Pick<PageRules, "sandbox">, ancestor = "'self'"): Record<string, string> {
   return {
     "Content-Security-Policy":
       `sandbox ${rules.sandbox}; default-src 'none'; script-src 'unsafe-inline'; ` +
       "style-src 'unsafe-inline'; img-src data:; font-src data:; media-src data:; connect-src 'none'; frame-src 'none'; " +
-      "object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'",
+      `object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors ${ancestor}`,
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",

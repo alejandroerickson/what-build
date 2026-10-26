@@ -3,7 +3,7 @@ type: Decision
 title: A Story preview is the document publish would store, made by publish's own code, held for its grant's life and served in the page sandbox
 description: story.preview takes publish's input, runs publish's checks without writing, keeps the document in a short-lived row and serves it under a download grant exactly as a published page is served.
 tags: [decision, story, mcp, security, sandbox]
-generated: {by: agent:claude, at: 2026-10-14}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -32,6 +32,9 @@ result.
   a session, with the same function as a version's HTML: the Story's sandbox from
   `packages/core/src/page-sandbox.ts` (a mockup page's when the version keeps showing one), the
   carried typefaces and `?theme`. A grant in the URL was rejected: agents send download grants in a header.
+  On a deployment with a content site the preview's `url` names the content site, which serves it
+  under the same header grant, and the app's host refuses it
+  ([decision](with-a-content-site-every-page-and-inline-file-is-served-from-it.md)).
 - Preview needs what publish needs (editor, an Edit connection, a product not archived, a sandbox
   taking visitors' writes), but it is not a write: it records no activity and takes nothing from a
   sandbox visitor's allowances.
@@ -48,6 +51,6 @@ result.
 ## Constrains
 
 - A check or a change to the document belongs in `draftVersion`, never in publish's handler alone.
-- The preview route serves through `storyHtml`, as every Story HTML route does.
+- The preview route serves through `storyHtml` (`apps/server/src/documents.ts`), as every Story HTML route does.
 
 Specified in: [04-data-model §4.11](../spec/04-data-model.md), [06-operations-and-adapters](../spec/06-operations-and-adapters.md), [09-data-lifecycle](../spec/09-data-lifecycle.md).

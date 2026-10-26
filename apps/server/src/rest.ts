@@ -1,13 +1,16 @@
 import {
-  AppError, admitRead, execute, ideaCardDocument, ideaCardResponseHeaders, MOCKUP_RESPONSE_HEADERS, OPERATIONS, prototypeNotice, printDocument, printResponseHeaders, readsOnlyTheStory, resolveScope, STORY_RESPONSE_HEADERS, toAppError, unauthenticated, withStoryFonts, withStoryFrame, withStoryTheme, houseSpecimen, houseStyle, HOUSE_STYLE_IDS, shownHtml, styleSpecimen,
-  type Env, type OperationDef, type Principal, type ScopeRef,
+  AppError, admitRead, documentDigest, execute, HOUSE_STYLE_IDS, OPERATIONS, printDocument, printSelection, readsOnlyTheStory, resolveScope, toAppError, unauthenticated,
+  type Env, type OperationDef, type Principal, type Scope, type ScopeRef, type Tx,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
-import { randomBytes } from "node:crypto";
 import { sql } from "kysely";
 import { z } from "zod";
 import { isOwnOrigin, restPrincipal } from "./auth/identity.ts";
 import type { ServerConfig } from "./config.ts";
+import { handOff } from "./content-documents.ts";
+import {
+  cardFront, findAttachment, findCard, findMockupPage, findSpecimen, findStoryVersion, htmlView, isHtmlAttachment, isPdf, printView, storyHtml, storyTheme, streamFile,
+} from "./documents.ts";
 import { logError } from "./telemetry.ts";
 
 /** Where each scope's routes live. The addressed tenant, team and product are always in the path. */
@@ -61,22 +64,8 @@ function errorResponse(c: Context, e: AppError) {
   return c.json({ error: e.toJSON() }, e.status as 400);
 }
 
-export function storyTheme(theme: string | undefined): "light" | "dark" | undefined {
-  if (theme !== undefined && theme !== "light" && theme !== "dark") throw new AppError(422, "invalid_input", "theme must be light or dark.");
-  return theme;
-}
-
-/**
- * A page as the sandbox serves it: its surface's sandboxing headers (a mockup page's allows forms,
- * whose submissions form-action 'none' still stops), the carried typefaces the page names (never
- * for a mockup, which carries its own look), the theme, and the frame script when the app's frame
- * asks. A Story preview is served by the same function, so it is shown as its version would be.
- */
-export function storyHtml(c: Context, stored: string, theme: "light" | "dark" | undefined, frame: boolean, mockup = false) {
-  for (const [k, val] of Object.entries(mockup ? MOCKUP_RESPONSE_HEADERS : STORY_RESPONSE_HEADERS)) c.header(k, val);
-  const html = mockup ? stored : withStoryFonts(stored);
-  return c.body(frame ? withStoryFrame(html, theme) : theme ? withStoryTheme(html, theme) : html);
-}
+/** The last part of an attachment's path, which names it in an address. */
+const nameOf = (path: string) => path.split("/").pop() || "attachment";
 
 /** Cookie-authenticated writes must come from our own origin. SameSite=Lax does most of this; this closes the rest. */
 function checkOrigin(c: Context, config: ServerConfig, principal: Principal) {
@@ -135,7 +124,11 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
     });
   }
 
-  // ---- Bytes: file downloads and Story HTML (the two non-JSON responses) ---------------------
+  // ---- Bytes: file downloads and the documents the app shows (the non-JSON responses) ---------
+  //
+  // With a content site, a route that would answer with a document of people's HTML or a PDF to
+  // show inline makes every check it makes, then hands the browser to the content site
+  // (content-documents.ts) instead of sending it. The rest are served here as always.
 
   // A Story page's HTML is a Story read, open to readers; attachments, exports and style specimens are not.
   const scoped = async (c: Context, access: "story" | "read" = "read") => {
@@ -143,34 +136,41 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
     const { tenant, team, product } = c.req.param() as Record<string, string>;
     const scope = await resolveScope(env.db, principal, "product", access, { tenant, team, product }, "read");
     await admitRead(env, principal, scope, "attachments.read");
-    return scope;
+    return { principal, scope, productId: scope.product!.product_id };
   };
+  const site = env.config.contentUrl;
 
-  const inTenant = async <T>(tenantId: string, fn: (trx: Parameters<Parameters<ReturnType<typeof env.db.transaction>["execute"]>[0]>[0]) => Promise<T>) =>
+  const inTenant = async <T>(scope: Scope, fn: (trx: Tx) => Promise<T>) =>
     env.db.transaction().execute(async (trx) => {
-      await sql`select set_config('app.tenant_id', ${tenantId}, true)`.execute(trx);
+      await sql`select set_config('app.tenant_id', ${scope.tenant!.tenant_id}, true)`.execute(trx);
       return fn(trx);
     });
 
   app.get(`${SCOPE_PREFIX.product}/sources/:record_id/attachment`, async (c) => {
     try {
-      const scope = await scoped(c);
+      const { principal, scope, productId } = await scoped(c);
       const path = c.req.query("path") ?? "";
-      const version = c.req.query("version");
-      const found = await inTenant(scope.tenant!.tenant_id, async (trx) => {
-        const f = await trx
-          .selectFrom("files as f")
-          .innerJoin("records as r", "r.record_id", "f.record_id")
-          .select(["f.file_id", "f.current_version_id", "f.path"])
-          .where("r.product_id", "=", scope.product!.product_id)
-          .where("f.record_id", "=", c.req.param("record_id")!)
-          .where("f.path", "=", path)
-          .executeTakeFirst();
-        if (!f) return null;
-        return trx.selectFrom("file_versions").selectAll().where("file_id", "=", f.file_id).where("file_version_id", "=", version ?? f.current_version_id ?? "").executeTakeFirst();
-      });
+      const download = c.req.query("download") === "1";
+      const found = await inTenant(scope, (trx) => findAttachment(trx, productId, { recordId: c.req.param("record_id")!, path, version: c.req.query("version") }));
       if (!found) throw new AppError(404, "not_found", "No such attachment on this source.");
-      return streamFile(c, env, found, path, c.req.query("download") === "1");
+      // A PDF shown inline is a document; images, audio and video stay subresources of the app's pages.
+      if (site && !download && isPdf(found.v.media_type)) return handOff(c, env, principal, scope, { purpose: "attachment", fv: found.v.file_version_id }, nameOf(path));
+      return streamFile(c, env, found.v, path, download);
+    } catch (e) {
+      return errorResponse(c, toAppError(e, WEB));
+    }
+  });
+
+  // An uploaded HTML page, as its preview shows it: in a sandbox that runs no script (htmlView).
+  app.get(`${SCOPE_PREFIX.product}/sources/:record_id/attachment/view`, async (c) => {
+    try {
+      const { principal, scope, productId } = await scoped(c);
+      const path = c.req.query("path") ?? "";
+      const found = await inTenant(scope, (trx) => findAttachment(trx, productId, { recordId: c.req.param("record_id")!, path, version: c.req.query("version") }));
+      if (!found) throw new AppError(404, "not_found", "No such attachment on this source.");
+      if (!isHtmlAttachment(found.v.media_type, path)) throw new AppError(415, "not_html", "Only an HTML attachment is shown here. Download any other to open it.");
+      if (site) return handOff(c, env, principal, scope, { purpose: "attachment", fv: found.v.file_version_id }, nameOf(path));
+      return await htmlView(c, env, found.v);
     } catch (e) {
       return errorResponse(c, toAppError(e, WEB));
     }
@@ -180,13 +180,13 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
   // windows with derived.text.
   app.get(`${SCOPE_PREFIX.product}/sources/:record_id/text`, async (c) => {
     try {
-      const scope = await scoped(c);
-      const text = await inTenant(scope.tenant!.tenant_id, (trx) =>
+      const { scope, productId } = await scoped(c);
+      const text = await inTenant(scope, (trx) =>
         trx
           .selectFrom("source_texts as t")
           .innerJoin("records as r", "r.record_id", "t.record_id")
           .select(["t.content", "t.etag"])
-          .where("r.product_id", "=", scope.product!.product_id)
+          .where("r.product_id", "=", productId)
           .where("t.record_id", "=", c.req.param("record_id")!)
           .executeTakeFirst(),
       );
@@ -204,9 +204,9 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
 
   app.get(`${SCOPE_PREFIX.product}/exports/:export_id/file`, async (c) => {
     try {
-      const scope = await scoped(c);
+      const { scope, productId } = await scoped(c);
       const { sendExport } = await import("./uploads.ts");
-      return await sendExport(c, env, scope.tenant!.tenant_id, c.req.param("export_id")!, scope.product!.product_id);
+      return await sendExport(c, env, scope.tenant!.tenant_id, c.req.param("export_id")!, productId);
     } catch (e) {
       return errorResponse(c, toAppError(e, WEB));
     }
@@ -217,24 +217,14 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
       // ?theme=light|dark: the app's resolved theme, written onto the page's <html> for this
       // response only, so the page follows the app rather than only the system. ?frame=1: the app's
       // frame is showing it, so the frame script goes in too (focus keys, links open in a new tab).
-      const scope = await scoped(c, "story");
+      const { principal, scope, productId } = await scoped(c, "story");
       const theme = storyTheme(c.req.query("theme"));
       const frame = c.req.query("frame") === "1";
-      const v = await inTenant(scope.tenant!.tenant_id, async (trx) => {
-        let q = trx
-          .selectFrom("story_versions as v")
-          .innerJoin("story_pages as p", "p.page_id", "v.page_id")
-          .select(["v.html", "v.mockup"])
-          .where("v.product_id", "=", scope.product!.product_id)
-          .where("p.product_id", "=", scope.product!.product_id)
-          .where("v.page_id", "=", c.req.param("page_id")!)
-          .where("v.n", "=", Number(c.req.param("version")));
-        // A reader is given only live pages, as story.get_page gives them.
-        if (readsOnlyTheStory(scope.role)) q = q.where("p.archived_at", "is", null);
-        const row = await q.executeTakeFirst();
-        return row ? { html: await shownHtml(trx, row), mockup: Boolean(row.mockup) } : null;
-      });
+      const v = await inTenant(scope, (trx) =>
+        findStoryVersion(trx, productId, { pageId: c.req.param("page_id")!, n: Number(c.req.param("version")) }, readsOnlyTheStory(scope.role)),
+      );
       if (!v) throw new AppError(404, "not_found", "No such Story version.");
+      if (site) return handOff(c, env, principal, scope, { purpose: "story_page", sv: v.version_id }, "page.html");
       // A mockup page carries its own look, so it takes neither the theme nor the carried typefaces,
       // and keeps its own sandbox, which allows forms.
       return storyHtml(c, v.html, v.mockup ? undefined : theme, frame, v.mockup);
@@ -248,101 +238,83 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
   // carries its own look.
   app.get(`${SCOPE_PREFIX.product}/mockups/:mockup_id/versions/:version/pages/:page_id/html`, async (c) => {
     try {
-      const scope = await scoped(c);
-      const p = await inTenant(scope.tenant!.tenant_id, (trx) =>
-        trx
-          .selectFrom("mockup_pages as p")
-          .innerJoin("mockup_versions as v", "v.version_id", "p.version_id")
-          .select("p.html")
-          .where("v.product_id", "=", scope.product!.product_id)
-          .where("v.mockup_id", "=", c.req.param("mockup_id")!)
-          .where("v.n", "=", Number(c.req.param("version")))
-          .where("p.page_id", "=", c.req.param("page_id")!)
-          .executeTakeFirst(),
-      );
+      const { principal, scope, productId } = await scoped(c);
+      const pageId = c.req.param("page_id")!;
+      const p = await inTenant(scope, (trx) => findMockupPage(trx, productId, { mockupId: c.req.param("mockup_id")!, n: Number(c.req.param("version")) }, pageId));
       if (!p) throw new AppError(404, "not_found", "No such mockup page.");
-      // A page that enters the prototype has no HTML of its own: its frame opens the entry (prototype_url).
-      return storyHtml(c, p.html ?? prototypeNotice(), undefined, c.req.query("frame") === "1", true);
+      if (site) return handOff(c, env, principal, scope, { purpose: "mockup_page", xv: p.version_id, pg: pageId }, "page.html");
+      return storyHtml(c, p.html, undefined, c.req.query("frame") === "1", true);
     } catch (e) {
       return errorResponse(c, toAppError(e, WEB));
     }
   });
 
-  // An Idea card's front, the product concept's or an outcome's, as the app's frame shows it: the
-  // stored markup in a document with the card kit, the theme the app gives, and WhatBuild's one
-  // measuring script, which only its nonce lets run.
-  const cardFront = (c: Context, front: string, title: string) => {
-    const nonce = randomBytes(16).toString("base64");
-    for (const [k, val] of Object.entries(ideaCardResponseHeaders(nonce))) c.header(k, val);
-    return c.body(ideaCardDocument(front, { title, theme: storyTheme(c.req.query("theme")), nonce }));
+  // An Idea card's front, the product concept's or an outcome's, as the app's frame shows it
+  // (cardFront). Its grant carries the front's digest, since a front changes in place.
+  const card = async (c: Context, outcomeId: string | null) => {
+    const { principal, scope, productId } = await scoped(c);
+    const theme = storyTheme(c.req.query("theme"));
+    const found = await inTenant(scope, (trx) => findCard(trx, productId, outcomeId));
+    if (!found) throw new AppError(404, "not_found", outcomeId ? "This outcome has no front yet." : "The product concept has no front yet.");
+    if (site) return handOff(c, env, principal, scope, { purpose: "card", ...(outcomeId ? { o: outcomeId } : {}), d: documentDigest(found.front) }, "card.html");
+    return cardFront(c, found.front, found.title, theme);
   };
   app.get(`${SCOPE_PREFIX.product}/idea/concept/card`, async (c) => {
     try {
-      const scope = await scoped(c);
-      const p = await inTenant(scope.tenant!.tenant_id, (trx) =>
-        trx.selectFrom("products").select(["name", "card_html"]).where("product_id", "=", scope.product!.product_id).executeTakeFirst(),
-      );
-      if (!p?.card_html) throw new AppError(404, "not_found", "The product concept has no front yet.");
-      return cardFront(c, p.card_html, `${p.name}: product concept`);
+      return await card(c, null);
     } catch (e) {
       return errorResponse(c, toAppError(e, WEB));
     }
   });
   app.get(`${SCOPE_PREFIX.product}/outcomes/:outcome_id/card`, async (c) => {
     try {
-      const scope = await scoped(c);
-      const o = await inTenant(scope.tenant!.tenant_id, (trx) =>
-        trx
-          .selectFrom("outcomes")
-          .select(["title", "card_html"])
-          .where("product_id", "=", scope.product!.product_id)
-          .where("outcome_id", "=", c.req.param("outcome_id")!)
-          .executeTakeFirst(),
-      );
-      if (!o?.card_html) throw new AppError(404, "not_found", "This outcome has no front yet.");
-      return cardFront(c, o.card_html, o.title);
+      return await card(c, c.req.param("outcome_id")!);
     } catch (e) {
       return errorResponse(c, toAppError(e, WEB));
     }
   });
 
   // Specimens: a sample page in the product's Story style, or in a house style, shown in the app
-  // exactly as Story pages are (the same sandbox and headers) so a person can preview a style.
+  // exactly as Story pages are (the same sandbox and headers) so a person can preview a style. The
+  // product's style changes in place, so its grant carries the specimen's digest.
+  const specimen = async (c: Context, houseId: string | null) => {
+    const { principal, scope, productId } = await scoped(c);
+    const theme = storyTheme(c.req.query("theme"));
+    const html = await inTenant(scope, (trx) => findSpecimen(trx, productId, houseId));
+    if (!html) throw new AppError(404, "not_found", houseId ? `No such house style: ${HOUSE_STYLE_IDS.join(", ")}.` : "This product has no Story style yet.");
+    if (site) return handOff(c, env, principal, scope, { purpose: "specimen", ...(houseId ? { hs: houseId } : { d: documentDigest(html) }) }, "specimen.html");
+    return storyHtml(c, html, theme, c.req.query("frame") === "1");
+  };
   app.get(`${SCOPE_PREFIX.product}/story/style/specimen`, async (c) => {
     try {
-      const scope = await scoped(c);
-      const theme = storyTheme(c.req.query("theme"));
-      const s = await inTenant(scope.tenant!.tenant_id, (trx) =>
-        trx.selectFrom("story_styles").select(["name", "stylesheet", "specimen_html"]).where("product_id", "=", scope.product!.product_id).executeTakeFirst(),
-      );
-      if (!s) throw new AppError(404, "not_found", "This product has no Story style yet.");
-      return storyHtml(c, styleSpecimen(s), theme, c.req.query("frame") === "1");
+      return await specimen(c, null);
     } catch (e) {
       return errorResponse(c, toAppError(e, WEB));
     }
   });
   app.get(`${SCOPE_PREFIX.product}/story/house-styles/:style/specimen`, async (c) => {
     try {
-      await scoped(c);
-      const theme = storyTheme(c.req.query("theme"));
-      const style = houseStyle(c.req.param("style")!);
-      if (!style) throw new AppError(404, "not_found", `No such house style: ${HOUSE_STYLE_IDS.join(", ")}.`);
-      return storyHtml(c, houseSpecimen(style), theme, c.req.query("frame") === "1");
+      return await specimen(c, c.req.param("style")!);
     } catch (e) {
       return errorResponse(c, toAppError(e, WEB));
     }
   });
 
   // The Story print view: one composed HTML document, opened top-level in a new tab and printed to
-  // PDF by the browser. Its policy runs only the nonce'd print script, in an opaque origin.
+  // PDF by the browser. Its policy runs only the nonce'd print script, in an opaque origin. With a
+  // content site, the print view's own checks choose the versions, and its grant names them.
   app.get(`${SCOPE_PREFIX.product}/story/print`, async (c) => {
     try {
       const principal = await principalOf(c);
       const { tenant, team, product } = c.req.param() as Record<string, string>;
       const input = coerceQuery(printDocument as OperationDef, c.req.query());
+      if (site) {
+        const { result, scope } = await execute(env, principal, printSelection as OperationDef, input, { tenant, team, product });
+        return handOff(c, env, principal, scope, { purpose: "print", vs: (result as { versions: string[] }).versions }, "story.html");
+      }
       const { result } = await execute(env, principal, printDocument as OperationDef, input, { tenant, team, product });
       const { html, nonce } = result as { html: string; nonce: string };
-      return c.body(html, 200, printResponseHeaders(nonce));
+      return printView(c, html, nonce);
     } catch (e) {
       const err = toAppError(e, WEB);
       if (err.status === 500) logError("story print view", e);
@@ -351,40 +323,4 @@ export function restRoutes(env: Env & { config: ServerConfig }) {
   });
 
   return app;
-}
-
-export async function streamFile(
-  c: Context,
-  env: Env,
-  v: { blob_key: string; size: number; media_type: string; sha256: string; file_version_id: string },
-  path: string,
-  download: boolean,
-) {
-  const name = path.split("/").pop() ?? "file";
-  const ascii = name.replace(/[^\x20-\x7e]|["\\]/g, "_");
-  // Uploaded HTML and SVG are never served renderable from the app's origin.
-  const risky = /^(text\/html|application\/xhtml|image\/svg)/.test(v.media_type);
-  const disposition = download || risky ? "attachment" : "inline";
-  const headers: Record<string, string> = {
-    "Content-Type": risky ? "application/octet-stream" : v.media_type,
-    "Content-Disposition": `${disposition}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`,
-    "X-Content-Type-Options": "nosniff",
-    // Browsers will not render a PDF inside a sandboxed document, and their PDF viewers run no page script.
-    "Content-Security-Policy": `${v.media_type === "application/pdf" ? "default-src 'none'; object-src 'self'" : "sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'"}; base-uri 'none'; form-action 'none'; frame-ancestors 'self'`,
-    ETag: `"${v.sha256}"`,
-    "Accept-Ranges": "bytes",
-    // People's material: no cache keeps it, the browser's included.
-    "Cache-Control": "private, no-store",
-  };
-  const range = c.req.header("range");
-  const m = range ? /^bytes=(\d+)-(\d*)$/.exec(range) : null;
-  if (m) {
-    const start = Number(m[1]);
-    const end = m[2] ? Math.min(Number(m[2]), v.size - 1) : v.size - 1;
-    if (start >= v.size || start > end) return c.body(null, 416, { "Content-Range": `bytes */${v.size}` });
-    const body = await env.ports.blobs.getStream(v.blob_key, { start, end });
-    return c.body(body, 206, { ...headers, "Content-Range": `bytes ${start}-${end}/${v.size}`, "Content-Length": String(end - start + 1) });
-  }
-  const body = await env.ports.blobs.getStream(v.blob_key);
-  return c.body(body, 200, { ...headers, "Content-Length": String(v.size) });
 }
