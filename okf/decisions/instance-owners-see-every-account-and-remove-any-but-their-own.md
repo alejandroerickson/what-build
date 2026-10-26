@@ -3,7 +3,7 @@ type: Decision
 title: An instance's owners see every account and may remove any but an instance owner's, which forgets the address and keeps the name on what it wrote
 description: People lists every account for the instance's owners; removing one, in the web app only, signs it out everywhere, takes its roles with a record in each organization, and forgets its address.
 tags: [decision, identity, accounts, instance, privacy, security]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -27,8 +27,11 @@ manages people across the instance.
   web only), with the address typed exactly. An instance owner's account cannot be removed there,
   and neither can the only owner of an organization until someone else owns it or it is deleted.
 - **Removing** ends every session and agent connection, takes every role (each organization's
-  access log records it), cancels the invitations and the allowance at the address, and forgets the
-  address. The row stays, marked removed, so what the account wrote keeps its name.
+  access log records it), cancels the invitations and the allowance at the address, deletes what is
+  kept about the person, forgets the address and emails it a confirmation: exactly what a person deleting
+  their own account does ([decision](a-person-deletes-their-own-account-after-a-recent-sign-in.md)).
+  The row stays, marked removed and nameless, so its id is never taken again; what the account
+  wrote keeps the name copied onto it.
 - Rejected: letting an organization's owners remove accounts (an account is not theirs, and is in
   other organizations), and deleting the row (attribution and logs name the account by id).
 

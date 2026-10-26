@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./account-deletion": "./src/account-deletion.ts",
     "./find-in-text": "./src/find-in-text.ts",
     "./page-sandbox": "./src/page-sandbox.ts",
     "./safe-next": "./src/safe-next.ts"

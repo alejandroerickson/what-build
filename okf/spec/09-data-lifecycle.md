@@ -79,7 +79,7 @@ stores nothing in the browser. Each call to an operation adds one to a count for
 operation, its door (the web app or an agent), the agent client's family, whether it was in the
 example organization, whether an instance owner made it, and how it ended. Each day a person uses a part of
 WhatBuild is kept under a pseudonym, a keyed hash of their account that only the deployment can
-compute, for 14 months. Nothing kept names an organization, a product, a record, an address or
+compute, for 14 months, or until their account is deleted. Nothing kept names an organization, a product, a record, an address or
 content. Only the instance's owners read the totals (`products.usage`), which leave the owners out
 unless asked. `/cookies` says so under Counting without cookies.
 
@@ -96,7 +96,8 @@ name or address unless they share it, and mailed once a day to the people who ru
 and interest; backups),
 on what grounds (because a person uses WhatBuild; to run it safely and improve it, which a person
 may object to; or their consent), that providers may handle it abroad, that nothing is sold, and
-what a person can do (export, ask to see, correct, delete or object, complain to their authority).
+what a person can do (export, ask to see, correct, delete or object, delete their own account,
+in the words the deletion page and its confirmation mail use, complain to their authority).
 What only the deployment knows comes from its settings, in `privacy` from `GET /api/v1/meta`: who
 runs it (`WHATBUILD_OPERATOR`), where to write (`WHATBUILD_PRIVACY_CONTACT`, an address or a page),
 and its providers (`WHATBUILD_PROVIDERS`, `Name: what it does; …`). Without them the page says the
@@ -390,13 +391,23 @@ person in the web app (`403 web_only`), and MCP lists neither it nor its preview
 - ◆ Decision: no grace period. Earlier plans held content for 7 days so a mistake could be reversed
   by contacting the operator; that waits for undelete.
 
-### Delete an account (planned)
+### Delete an account
 
-Removes the person from every organization and deletes their sign-in, sessions and tokens. It does
-**not** delete organization content, and actor snapshots survive
-([§3.9](03-accounts-teams-and-identity.md)) — attribution on a colleague's assumption is part
-of that organization's record, not personal data we can silently rewrite. A sole owner must
-transfer ownership or close the organization first, and the UI says which.
+A person deletes their own account in the web app, in the Delete account section of Settings, and
+an instance owner removes anyone's on People; both do the same thing
+([§3.2](03-accounts-teams-and-identity.md#32-accounts-and-sign-in),
+[decision](../decisions/a-person-deletes-their-own-account-after-a-recent-sign-in.md)). It removes
+the person from every organization, deletes their sign-in, sessions and tokens, and deletes what is
+kept about them: their counts against limits and feedback, their counted days of use (§9.1), their
+name on the account, and their address wherever it is kept. It does **not** delete organization
+content, and actor snapshots survive ([§3.9](03-accounts-teams-and-identity.md)): attribution on a
+colleague's assumption is part of that organization's record, not personal data we can silently
+rewrite. Whoever wants their content gone too deletes it first, or asks the organization's admins.
+A sole owner must make someone else owner or delete the organization first, and Settings names
+each, with a link to each way out. It is final at once in the product, and Settings says it can't
+be undone. ◆ Decision: the person is told nothing about backups, which go as each deployment's
+backups age out ([backups](../operations/backups.md)); keeping to those windows, and taking a
+person out of the backups sooner, is the operator's ([erasure](../operations/erasure.md)).
 
 ## 9.6 Operator runbooks
 
@@ -414,12 +425,14 @@ a schema a later one migrated ([§2.3](02-architecture.md#23-the-shape-of-the-de
   drill: restore into a scratch environment, verify against the nightly blob manifest once it
   exists, record the date and the elapsed time. Repeated quarterly. Not performed yet.
 
-Planned, each a deliverable of [Phase 6](10-roadmap.md):
+- **erasure** — [erasure](../operations/erasure.md): the support path for what the product
+  deliberately does not automate, a request to take a person out of backups and noncurrent bucket
+  versions before they age out, and to delete content they wrote when an organization agrees.
+
+Planned, a deliverable of [Phase 6](10-roadmap.md):
 
 - **incident** — what we tell people, and how fast. A plain page and an honest note, no status
   page theatre.
-- **erasure** — the support path for what the product deliberately does not automate: content
-  that must also be removed from backups and noncurrent bucket versions before they age out.
 
 ## 9.7 Plans and limits
 

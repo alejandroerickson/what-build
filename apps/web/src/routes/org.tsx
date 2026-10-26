@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { api, ApiError, qs } from "../lib/api.ts";
 import { aRole, formatBytes, formatDate, plural, ROLE_WORD, scopeWords, slugProblem } from "../lib/format.ts";
 import { useMe, useProducts } from "../lib/session.tsx";
@@ -168,6 +168,12 @@ export function MembersPage() {
   usePageTitle(notVisible ? null : "Members");
   const tenantAdmin = t?.your_role === "owner" || t?.your_role === "admin";
   const inOrg = (products.data?.items ?? []).filter((p) => p.tenant.slug === tenant);
+  // A link to a part of the page (Delete this organization, from deleting an account) lands on it once the page is drawn.
+  const { hash } = useLocation();
+  const drawn = Boolean(q.data);
+  useEffect(() => {
+    if (drawn && hash.length > 1) document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView({ block: "start" });
+  }, [drawn, hash]);
   const canManage = (g: { scope_type: string; scope_id: string; role: string }) => {
     if (g.scope_type === "tenant") return g.role === "owner" ? t?.your_role === "owner" : tenantAdmin;
     if (g.scope_type === "team") return tenantAdmin || t?.teams.find((tm) => tm.team_id === g.scope_id)?.your_role === "admin";

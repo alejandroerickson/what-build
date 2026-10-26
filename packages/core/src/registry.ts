@@ -36,6 +36,8 @@ export interface Principal {
   connection?: string;
   /** False when the person turned off submit_feedback for this agent's connection. */
   feedback?: boolean;
+  /** When a person's browser session signed in; absent for an agent. Deleting an account needs a recent one. */
+  signed_in_at?: string;
 }
 
 export interface TenantRef {

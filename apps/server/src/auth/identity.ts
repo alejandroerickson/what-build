@@ -57,7 +57,7 @@ export function sessionTokens(c: Context, secure: boolean): string[] {
  * under `wb_session` until it expires, and is moved to the new name on the way out. A session
  * issued since is never taken under the old name, which another host could have set.
  */
-export async function sessionAccount(c: Context, db: Db, secure: boolean): Promise<AccountRow | null> {
+export async function sessionAccount(c: Context, db: Db, secure: boolean): Promise<(AccountRow & { signed_in_at: string }) | null> {
   const current = getCookie(c, sessionCookieName(secure));
   if (current) return accountBySession(db, current);
   const old = secure ? getCookie(c, SESSION_COOKIE) : undefined;
@@ -77,13 +77,13 @@ function principalFor(a: AccountRow, auth_kind: Principal["auth_kind"], surface:
   return { account_id: a.account_id, email: a.email, display_name: a.display_name, auth_kind, surface, client };
 }
 
-/** The account behind a session token; with `legacyCookie`, only for a session issued under the cookie's old name. */
-async function accountBySession(db: Db, token: string, opts: { legacyCookie?: boolean } = {}): Promise<(AccountRow & { expires_at: string }) | null> {
+/** The account behind a session token, and when the session signed in; with `legacyCookie`, only for a session issued under the cookie's old name. */
+async function accountBySession(db: Db, token: string, opts: { legacyCookie?: boolean } = {}): Promise<(AccountRow & { expires_at: string; signed_in_at: string }) | null> {
   const hash = sha256Hex(token);
   const row = await db
     .selectFrom("sessions as s")
     .innerJoin("accounts as a", "a.account_id", "s.account_id")
-    .select(["a.account_id", "a.email", "a.display_name", "s.last_seen_at", "s.expires_at"])
+    .select(["a.account_id", "a.email", "a.display_name", "s.last_seen_at", "s.expires_at", "s.created_at as signed_in_at"])
     .where("s.session_hash", "=", hash)
     .where("s.expires_at", ">", new Date().toISOString())
     .where("a.deleted_at", "is", null)
@@ -129,7 +129,7 @@ export async function restPrincipal(c: Context, db: Db, config: ServerConfig): P
   const a = await sessionAccount(c, db, config.publicBaseUrl.startsWith("https://"));
   if (!a) return null;
   signedIn.add(c.req.raw);
-  return principalFor(a, "session", "web", null);
+  return { ...principalFor(a, "session", "web", null), signed_in_at: a.signed_in_at };
 }
 
 /** The caller of an MCP request: an OAuth access token issued for this endpoint, or for one that contains it. */

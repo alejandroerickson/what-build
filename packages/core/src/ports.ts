@@ -97,6 +97,10 @@ export interface CoreConfig {
   usageKey?: string;
   /** Where the daily feedback digest goes (`feedback.ts`); null or absent, feedback stays in the database. */
   feedbackEmail?: string | null;
+  /** Whether the deployment sends mail at all; a mailer of `none` takes every message and sends nothing. */
+  sendsMail?: boolean;
+  /** Where people write about their data (WHATBUILD_PRIVACY_CONTACT): an address or a page; null when not named. */
+  privacyContact?: string | null;
 }
 
 export interface Ports {

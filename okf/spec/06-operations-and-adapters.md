@@ -1,7 +1,7 @@
 ---
 type: Specification
 title: Every capability is one registered operation, reached identically over REST and MCP.
-description: The operation registry, the error model and bounds, the full catalogue of 115 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
+description: The operation registry, the error model and bounds, the full catalogue of 117 operations with their REST routes and MCP tools, authorization and agent connection levels, upload flows, the skill and the Connect page.
 tags: [spec, operations, rest, mcp, registry, uploads, skill]
 generated: {by: agent:claude, at: 2026-10-26}
 status: stable
@@ -35,7 +35,7 @@ defineOperation({
 });
 ```
 
-`OPERATIONS` in `packages/core/src/index.ts` lists all 115. From that list, and from nothing else,
+`OPERATIONS` in `packages/core/src/index.ts` lists all 117. From that list, and from nothing else,
 the server builds the REST routes, the MCP tools with their `action` enums and JSON Schemas (via
 `z.toJSONSchema`), and the `describe` responses. The web app calls the same REST routes through
 one small hand-written client (`apps/web/src/lib/api.ts`); there is no generated client and no
@@ -104,12 +104,12 @@ tenant.
 |---|---|---|
 | 400 | Malformed upload request (relay only) | `invalid_length`, `empty_body` |
 | 401 | No or invalid identity or grant | `unauthenticated`, `invalid_grant` |
-| 403 | A role too low for the action; an agent connection's level too low for it; feedback turned off for an agent connection; something only a person does in the web app; a call outside a scoped MCP connector; a write by a guest of the example organization; a cross-origin cookie write; sign-up not allowed; something an organization's plan switches off | `forbidden`, `connection_level`, `feedback_off`, `web_only`, `outside_connector_scope`, `example_read_only`, `forbidden_origin`, `invite_only`, `invitation_wrong_address`, `plan_restricted`, `tenant_allowance` |
+| 403 | A role too low for the action; an agent connection's level too low for it; feedback turned off for an agent connection; something only a person does in the web app; a call outside a scoped MCP connector; a write by a guest of the example organization; a cross-origin cookie write; sign-up not allowed; deleting an account from a browser that has not signed in recently; something an organization's plan switches off | `forbidden`, `connection_level`, `feedback_off`, `web_only`, `outside_connector_scope`, `example_read_only`, `forbidden_origin`, `invite_only`, `invitation_wrong_address`, `plan_restricted`, `tenant_allowance`, `sign_in_again` |
 | 404 | Absent — including everything the caller has no role on | `not_found` |
-| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `frozen`, `too_many_attachments`, `no_text`, `no_file`, `mockup_on_story`, `already_uploaded`, `upload_used`, `example_organization`, `export_in_progress`, `last_owner`, `quota_exceeded` |
+| 409 | Conflict with current state | `stale_etag`, `product_archived`, `record_archived`, `mockup_archived`, `slug_taken`, `frozen`, `too_many_attachments`, `no_text`, `no_file`, `mockup_on_story`, `already_uploaded`, `upload_used`, `example_organization`, `export_in_progress`, `last_owner`, `instance_owner`, `quota_exceeded` |
 | 410 | Deliberately deleted, with a tombstone; an invitation no longer usable | `record_deleted`, `assumption_deleted`, `outcome_deleted`, `story_page_deleted`, `mockup_deleted`, `annotation_deleted`, `invitation_used`, `invitation_expired` |
 | 413 | Body or file beyond a limit | `too_large` |
-| 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `product_required`, `too_long`, `cross_product_reference`, `outcome_cites_a_record`, `invalid_query`, `invalid_cursor`, `invalid_filter`, `invalid_html`, `invalid_patch`, `invalid_upload`, `fetch_failed`, `confirmation_required`, `name_mismatch`, `confidence_requires_human` |
+| 422 | Invalid input | `invalid_input`, `edit_not_found`, `edit_ambiguous`, `unknown_field`, `unknown_action`, `unknown_tool`, `product_required`, `too_long`, `cross_product_reference`, `outcome_cites_a_record`, `invalid_query`, `invalid_cursor`, `invalid_filter`, `invalid_html`, `invalid_patch`, `invalid_upload`, `fetch_failed`, `confirmation_required`, `name_mismatch`, `typed_email`, `confidence_requires_human` |
 | 429 | Rate limited | `rate_limited` |
 
 - **`403` names the role.** A caller with a role on the product but too low for the action gets
@@ -236,7 +236,7 @@ it always has.
 
 ### The operation catalogue
 
-All 115 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
+All 117 operations, generated from `OPERATIONS`. The MCP tool is the operation name's first half;
 standalone tools (—) take their fields directly. "Needs" is the minimum role
 ([§3.5](03-accounts-teams-and-identity.md)); `members` write actions check admin at the level
 being changed inside the handler.
@@ -254,6 +254,8 @@ being changed inside the handler.
 | `products` | `set_limits` | `PATCH /api/v1/organizations/limits` | instance owner |
 | `products` | `accounts` | `GET /api/v1/accounts` | instance owner |
 | `products` | `remove_account` | `POST /api/v1/accounts/remove` | instance owner, in the web app only |
+| `products` | `delete_account_impact` | `GET /api/v1/me/delete-impact` | signed in, of their own account, in the web app only |
+| `products` | `delete_account` | `POST /api/v1/me/delete` | signed in within the last 15 minutes, of their own account, in the web app only |
 | `products` | `rename_tenant` | `PATCH /api/v1/tenants/:tenant` | tenant owner, or an instance owner ([§3.3](03-accounts-teams-and-identity.md#33-tenants-and-teams)) |
 | `products` | `create_team` | `POST /api/v1/tenants/:tenant/teams` | tenant admin |
 | `products` | `create` | `POST /api/v1/teams/:tenant/:team/products` | team admin |
@@ -775,8 +777,8 @@ the server's version and the tools, or the tool's actions, the connection is off
 `submit_feedback` where its person turned it off, and say the client may hold a list from another
 version.
 
-**Tools.** Thirteen tools over the 112 operations an agent may be offered (all 115 but deleting an
-organization and its preview, and removing an account): ten grouped by noun, three standalone
+**Tools.** Thirteen tools over the 112 operations an agent may be offered (all 117 but deleting an
+organization and its preview, removing an account, and deleting one's own account and its preview): ten grouped by noun, three standalone
 ([decision](../decisions/mcp-tools-grouped-by-noun.md)). A connection is listed
 only the actions its level allows and its person could do (below): the instance owners' actions
 (`tenant_allowances`, `set_tenant_allowance`, `remove_tenant_allowance`, `usage`,

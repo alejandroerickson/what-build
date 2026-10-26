@@ -19,6 +19,7 @@ status: stable
 - [Releasing](releasing.md): a release is a version tag on `main` with its notes and image; numbering versions, publishing one, and approving the production deploy it starts.
 - [The dev deployment](dev-deployment.md): a second Cloud Run deployment holding a copy of production, where a release that migrates is rehearsed before production moves; rehearsing, putting it back, refreshing the copy, setting one up.
 - [Backups](backups.md): what each deployment keeps, where and for how long, the nightly dump, checking that backups run, restoring a dump and checking it, and the restore drill.
+- [Erasure](erasure.md): what an operator does beyond the product when someone asks to be removed: deleting their account for them, passing on content requests, where a deleted person still is and for how long, taking them out sooner, and ending accounts again after a restore.
 - [Recovering from a bad release](recovering-from-a-bad-release.md): when a new version breaks a deployment, on Cloud Run or Azure: what runs, whether it migrated, going back, restoring the database, checking, fixing forward.
 - [Azure](azure.md): a self-hosted deployment on Azure, set up by an agent with the Azure CLI; resources, commands, sign-in with Microsoft work accounts, and the variations.
 - [Security checks](security-checks.md): what keeps secrets and private material out of the repository, and finds known vulnerabilities; where each check runs, what to do about a finding, auditing everything GitHub holds, and making the repository public.

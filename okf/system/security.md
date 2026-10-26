@@ -96,9 +96,14 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   ([decision](../decisions/only-instance-owners-decide-who-creates-organizations.md)).
 - Only an instance owner lists every account or removes one, and removing is a person's act in the
   web app (`products.remove_account` is web only, with the address typed); an instance owner's
-  account cannot be removed there. Removing signs the account out everywhere (`endSignIns`), takes
-  its roles with a record in each organization, cancels what let its address in, and forgets the
-  address ([decision](../decisions/instance-owners-see-every-account-and-remove-any-but-their-own.md)).
+  account cannot be removed there. A person deletes their own only in the web app too, from a
+  browser session that signed in within the last 15 minutes, so a browser left signed in is not
+  enough (`products.delete_account`, `signed_in_at` on the session's principal, `identity.ts`).
+  Either way it signs the account out everywhere (`endSignIns`), takes its roles with a record in
+  each organization, cancels what let its address in, deletes what is kept about the person, forgets
+  the address and emails it a confirmation, the alarm if it was not them
+  ([decision](../decisions/instance-owners-see-every-account-and-remove-any-but-their-own.md),
+  [decision](../decisions/a-person-deletes-their-own-account-after-a-recent-sign-in.md)).
 - A slug an organization had before still names it (`tenantNamed`, `policy.ts`), and no other
   organization may ever take one, so a link or a connector with an old slug can never lead into
   another organization. To anyone who cannot see the organization a former slug answers `404`, as

@@ -6,7 +6,8 @@ import { startHarness, type Browser, type Harness } from "./harness.ts";
 
 // The instance's owners see every account and may remove any but an instance owner's. Removing one
 // signs it out everywhere, takes its roles (each organization's access log records it), cancels its
-// invitations and allowance, and forgets its address; its name stays on what it wrote.
+// invitations and allowance, forgets its address and mails it a record; its name stays on what it
+// wrote. A person deleting their own account does the same (delete-own-account.test.ts).
 
 let h: Harness;
 let root: Browser; // an instance owner
@@ -118,12 +119,18 @@ describe("removing an account", () => {
     const row = await h.db.selectFrom("accounts").select(["email", "display_name", "deleted_at"]).where("account_id", "=", peteId).executeTakeFirstOrThrow();
     expect(row.deleted_at).toBeTruthy();
     expect(row.email).not.toContain("pete@example.com");
-    expect(row.display_name).toBe("Pete Editor");
+    // The account keeps no name: what he wrote keeps its own copy.
+    expect(row.display_name).toBe("");
     expect((await root.api("GET", "/api/v1/accounts")).body.items.map((a: { email: string }) => a.email)).not.toContain("pete@example.com");
 
     // What he wrote keeps his name.
     const src = (await olive.api("GET", `${P}/sources/${source}`)).body;
     expect(JSON.stringify(src)).toContain("Pete Editor");
+
+    // The address is mailed a record, saying who removed it.
+    const record = h.mailer.sent.at(-1)!;
+    expect(record).toMatchObject({ to: "pete@example.com", subject: "Your WhatBuild account has been deleted" });
+    expect(record.text).toMatch(/by an owner of this WhatBuild/);
 
     // Signing up again is refused while sign-up is limited and nothing lets the address in.
     const again = await fetch(`${h.baseUrl}/auth/email`, { method: "POST", headers: { "content-type": "application/json", origin: h.baseUrl }, body: JSON.stringify({ email: "pete@example.com" }) });

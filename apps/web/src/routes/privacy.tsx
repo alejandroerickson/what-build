@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { ACCOUNT_DELETION } from "@whatbuild/core/account-deletion";
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { api } from "../lib/api.ts";
@@ -107,7 +108,7 @@ export function PrivacyPage() {
                 </Kept>
                 <Kept lead="How WhatBuild is used.">
                   Which features are used, in the app and by agents, and how many people come back, counted under a code in place of your account that only this deployment can work
-                  out. To understand and improve WhatBuild. Kept {p.usage_people_months} months.
+                  out. To understand and improve WhatBuild. Kept {p.usage_people_months} months, or until you delete your account.
                 </Kept>
                 {p.analytics ? (
                   <Kept lead="Analytics, if you accept.">
@@ -154,6 +155,9 @@ export function PrivacyPage() {
               <ul className="privacy-list">
                 <Kept lead="Ask.">
                   To see what is kept about you, have it corrected or deleted, stop the counting of your use, or take it with you, write to {ask}.
+                </Kept>
+                <Kept lead="Delete your account.">
+                  In <Link to="/settings?delete=account">Settings</Link>, or by asking {ask}. Your email address and usage data are deleted. {ACCOUNT_DELETION.stays}
                 </Kept>
                 <Kept lead="Complain.">You may also complain to the data-protection authority where you live.</Kept>
               </ul>

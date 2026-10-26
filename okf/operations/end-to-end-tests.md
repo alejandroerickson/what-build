@@ -144,6 +144,10 @@ The plans:
   every write; and the two organizations kept apart.
 - `delete-and-agent-levels`: admins delete permanently, editors archive, and an agent is offered
   only what its connection's level and its person allow.
+- `deleting-an-account`: a person deletes their own account in the web app, never through an
+  agent; what blocks it (owning the instance, being an organization's only owner) says how to clear
+  it; afterwards they are signed out everywhere, what they wrote keeps their name, a record is
+  mailed, and the address comes back only as a new, empty account.
 - `assumptions-and-the-story`: an agent's assumption is reviewed by a person; a Story page
   is published and read by a reader, who is refused everything else.
 - `search`: the palette and the Search screen find every kind of thing by plain words, read as the

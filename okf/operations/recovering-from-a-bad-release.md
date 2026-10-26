@@ -3,7 +3,7 @@ type: System Concept
 title: When a new version breaks a WhatBuild deployment, go back to the last good version, and restore the database first if the new one migrated it.
 description: For the operator of any WhatBuild deployment and the agent working for them; how to see what runs, tell whether the bad version changed the schema, go back on Cloud Run (Neon, Cloud SQL, another Postgres) or Azure, check it, and fix forward.
 tags: [operations, recovery, rollback, migrations, deployment, cloud-run, neon, azure, runbook]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -118,7 +118,9 @@ Then check (step 6).
 ## 5. A migration ran: restore the database, then the code
 
 Restore first and move the code straight after; between the two, the app may show errors for a
-minute. Choose the restore that matches the database.
+minute. Choose the restore that matches the database. Before restoring, list the accounts ended
+since the restore point; a restore brings them back, so they are ended again after
+([erasure](erasure.md#after-a-restore)).
 
 **Neon, with restore points.** A Cloud Run deploy with `_NEON_PROJECT` set branches the database as
 `pre-migrate-<UTC time>-<commit>` before it migrates ([Cloud Run](cloud-run.md)). Restore the

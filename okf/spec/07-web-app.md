@@ -139,7 +139,8 @@ the browser's back button and "open in new tab" both work.
   per browser); **New organization**, while they may still create one; **Organizations** and
   **People**, for an owner of the instance;
   **Settings** (their own display name, and **Sign out everywhere**, which asks first and offers
-  Everywhere else to keep this browser signed in; signed out here too, the person lands on sign-in);
+  Everywhere else to keep this browser signed in; signed out here too, the person lands on sign-in;
+  and, closed until opened, **Delete account**);
   **Submit feedback**; and Sign out. Last, under a hairline, is the release this
   WhatBuild runs, from `/api/v1/meta`: "Release v0.3.1", or "Commit 1a2b3c4" for a
   build that is not a release, linking to the release notes or the commit on GitHub in a new tab;
@@ -238,7 +239,8 @@ person's organization role is in the account menu, and who has which role is on 
 /t/:tenant/members                            people and roles in an organization
 /t/:tenant/limits                             Plan and limits: an organization's plan, its limits and what is used today
 /connect            ?product                  Connect an agent: the MCP server URL for a product or all, and the agents connected now
-/settings                                     Settings: the person's display name, and Sign out everywhere
+/settings                                     Settings: the person's display name, Sign out everywhere, and Delete account (?delete=account opens it)
+/account-deleted                              Your account has been deleted (signed out)
 /instance                                     Organizations: who may create organizations, and every organization's plan and limits (instance owners)
 /people                                       People: every account, and removing one (instance owners)
 
@@ -924,7 +926,24 @@ never described as deleting. A list row showing an archived object says *Archive
   outstanding invitations with a cancel control. An inherited role links to the organization's
   Members, where it is changed. Access is per product; nothing is granted per page or per source.
 - **Settings** (`/settings`, from the account menu). Display name, and the email the person signs
-  in with (read-only); below them, a link to Cookies.
+  in with (read-only); Sign out everywhere; **Delete account**; below them, quiet links to Cookies
+  and Privacy.
+- **Delete account**, the last section of Settings (`apps/web/src/routes/delete-account.tsx`).
+  Closed, one line says it deletes the account permanently and that the person sees what happens
+  before anything is deleted, over **Delete account…**, which opens it in place
+  (`?delete=account`, so signing in again comes back to it) and reads
+  `products.delete_account_impact`. Open, it says what deleting will do, in the words of
+  `packages/core/src/account-deletion.ts`, naming the organizations the person loses access to,
+  and what stays. Below that, the one step left: every block at once (owning the instance; being
+  the only owner of an organization, each with **Make someone else owner** and **Delete
+  organization**, to its Members at Delete this organization); otherwise, for a browser that signed
+  in more than 15 minutes ago, **Sign in again to continue**, with each sign-in method the
+  deployment offers (the section reads again when a recent sign-in lapses while it is open); then
+  the address typed exactly and **Delete account**, the one danger button, beside **Cancel**,
+  which closes it. A refused delete says the account wasn't deleted, where the form was. Deleted,
+  the browser forgets the person's state and opens **Your account has been deleted**
+  (`/account-deleted`, signed out), which says what stays and that a confirmation was emailed
+  ([§3.2](03-accounts-teams-and-identity.md#32-accounts-and-sign-in)).
 - **Cookies** (`/cookies`, readable signed out; `apps/web/src/routes/cookies.tsx`). What cookies
   are for, by kind: needed for WhatBuild to work (always on), and, when the deployment uses
   analytics, Google Analytics with the person's choice, which they change here at any time. Then
@@ -1002,7 +1021,8 @@ never described as deleting. A list row showing an archived object says *Archive
   for an owner of the instance; a find field once the list is long. **Remove** (on every account
   but an instance owner's) opens a dialog that says what removing does (signed out everywhere, every
   role taken with a record in each organization, invitations and allowance cancelled, the address
-  forgotten, the name kept on what they wrote) and asks for the address typed exactly; an account
+  forgotten, their usage data deleted, a confirmation emailed, the name kept on what they wrote)
+  and asks for the address typed exactly; an account
   that is the only owner of an organization is refused, naming it
   ([§3.2](03-accounts-teams-and-identity.md#32-accounts-and-sign-in)). Anyone else reaching the
   address is told only instance owners see it.

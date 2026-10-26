@@ -3,7 +3,7 @@ type: System Concept
 title: A deployment's backups are its database's restore history, a restore point before each deploy, a nightly dump and a versioned files bucket; this guide says where each is, how to check it and how to restore one.
 description: For the operator and the agent working for them; what is kept, where and for how long on Cloud Run and Azure, setting up the nightly dump, checking that backups run, restoring a dump into an empty database, checking a restore, and the restore drill.
 tags: [operations, backups, restore, postgres, neon, cloud-run, azure, runbook]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -93,7 +93,9 @@ with no dump, a failed execution, or a dump much smaller than the night before n
 A dump holds every row; the files stay in the bucket. Restore it into an empty database owned by
 the application's role. The steps below put a dump into an empty database the same way whether it is
 last night's going back into production's or a [copy of some organizations](copying-an-organization.md)
-going into the dev deployment's.
+going into the dev deployment's. Restoring production's from before an account was deleted brings the
+account back: list the accounts ended since, and end them again after
+([erasure](erasure.md#after-a-restore)).
 
 **1. The dump.** Either last night's, or a fresh one taken now through the read-only role, which
 changes nothing. The client tools must be of the server's major version or newer. A dump is real

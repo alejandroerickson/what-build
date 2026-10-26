@@ -42,7 +42,7 @@ describe("adapter parity", () => {
     for (const [, o] of standalone) viaMcp.add(o.name);
     expect([...viaMcp].sort()).toEqual(OPERATIONS.filter((o) => !o.webOnly).map((o) => o.name).sort());
     // Closing an organization is the only thing an agent is never offered.
-    expect(OPERATIONS.filter((o) => o.webOnly).map((o) => o.name).sort()).toEqual(["products.delete_tenant", "products.delete_tenant_impact", "products.remove_account"]);
+    expect(OPERATIONS.filter((o) => o.webOnly).map((o) => o.name).sort()).toEqual(["products.delete_account", "products.delete_account_impact", "products.delete_tenant", "products.delete_tenant_impact", "products.remove_account"]);
     const restKeys = OPERATIONS.map((o) => `${o.rest.method} ${o.scope} ${o.rest.path}`);
     expect(new Set(restKeys).size).toBe(restKeys.length);
     expect(tools.length).toBeLessThanOrEqual(15);

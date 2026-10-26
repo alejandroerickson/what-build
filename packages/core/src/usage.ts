@@ -92,7 +92,7 @@ export function countCall(env: { db: Db; ports: Ports }, principal: Principal, c
   if (counted) counted.calls += 1;
   else buffer.calls.set(key, { day, operation: call.operation, surface, client, example: call.example, owner, outcome: call.outcome, calls: 1 });
   const usageKey = env.ports.config.usageKey;
-  if (usageKey && call.feature) {
+  if (usageKey && call.feature && !forgotten.has(principal.account_id)) {
     const person = personOf(usageKey, principal.account_id);
     buffer.people.set([day, person, call.feature, surface, client, call.example].join("\u0000"), { day, person, feature: call.feature, surface, client, example: call.example, owner });
   }
@@ -135,6 +135,24 @@ export async function usageSettled(): Promise<void> {
   if (timer) clearTimeout(timer);
   writeAll();
   while (writing.size) await Promise.all([...writing]);
+}
+
+/** Accounts deleted in the last minute: a call of theirs still finishing, the delete itself among them, counts no day for them. */
+const forgotten = new Map<string, number>();
+
+/**
+ * Forget a person's counted days, when their account is deleted: the ones written, in the caller's
+ * transaction, and the ones this process holds but has not written yet. The calls stay counted;
+ * they name nobody.
+ */
+export async function forgetPerson(db: Db, key: string | undefined, accountId: string): Promise<number> {
+  const now = Date.now();
+  for (const [id, at] of forgotten) if (now - at > 60_000) forgotten.delete(id);
+  forgotten.set(accountId, now);
+  if (!key) return 0;
+  const person = personOf(key, accountId);
+  for (const buffer of buffers.values()) for (const [k, row] of buffer.people) if (row.person === person) buffer.people.delete(k);
+  return Number((await db.deleteFrom("usage_people").where("person", "=", person).executeTakeFirst()).numDeletedRows);
 }
 
 /** A person's days older than they are kept. The worker runs it with its housekeeping. */
