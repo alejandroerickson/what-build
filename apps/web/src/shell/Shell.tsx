@@ -361,13 +361,24 @@ export function ProductShell({ product, app, children }: { product: Product; app
 const PLAIN_SECTIONS: Record<string, string> = { connect: "Connect an agent", settings: "Settings", instance: "Organizations", people: "People", members: "Members", limits: "Plan and limits", _system: "System" };
 
 /**
+ * The plain screen an address names: its one part, or Members or Plan and limits under
+ * /t/<organization>/. Anything else (a product that didn't open, an address the app doesn't know)
+ * is in no section, so it takes no section's title and marks nothing current in the panel.
+ */
+export function plainSection(pathname: string): string {
+  const parts = pathname.split("/").filter(Boolean);
+  if (!parts.length) return "home";
+  if (parts.length === 1) return parts[0]!;
+  return parts[0] === "t" && parts.length === 3 && (parts[2] === "members" || parts[2] === "limits") ? parts[2] : "";
+}
+
+/**
  * Screens outside a product (the overview, Connect an agent, settings, organization members): the
  * same stage with the non-product panel, which is identical on each of them.
  */
 export function PlainShell({ children }: { children: ReactNode }) {
   const loc = useLocation();
-  const parts = loc.pathname.split("/").filter(Boolean);
-  const key = parts[0] === "t" ? (parts[2] === "limits" ? "limits" : "members") : (parts[0] ?? "home");
+  const key = plainSection(loc.pathname);
   const section = PLAIN_SECTIONS[key] ?? "WhatBuild";
   const isHome = key === "home";
   return (

@@ -10,7 +10,7 @@ import {
   Avatar, Button, ButtonLink, Callout, CopyField, Dialog, EmptyState, ErrorCallout, FormGrid, Glyph, Loading, Menu, MenuGroup, MenuItem, MenuRadio, MenuSeparator,
   SelectField, Sheet, SheetBody, SheetHeader, StatusBadge, TextArea, TextField, useToast,
 } from "../ui/index.tsx";
-import { EntryPage } from "./auth.tsx";
+import { EntryPage, NotVisible } from "./auth.tsx";
 import { DeleteDialog, listed } from "./delete-dialog.tsx";
 import "../styles/screens/account.css";
 import "../styles/screens/activity.css";
@@ -154,16 +154,18 @@ export function MembersPage() {
   const q = useQuery({
     queryKey: ["members", tenant],
     // Asked only once the products say whether this person may see the members, so someone who
-    // reads only the Story is never refused (and their browser logs no refusal).
+    // reads only the Story is never refused (and their browser logs no refusal). A 403 or 404 is
+    // final, so it is not asked again (the app's default).
     enabled: !products.isPending && !t?.story_only,
-    retry: (n, e) => !(e instanceof ApiError && e.status === 403) && n < 2,
     queryFn: () => api<MembersResponse>("GET", `/api/v1/tenants/${tenant}/members`),
   });
   // Someone who reads only the Story here sees none of the organization's people.
   const storyOnly = Boolean(t?.story_only) || (q.error instanceof ApiError && q.error.status === 403);
+  // An organization the person can't see answers as one that doesn't exist, and so does this page.
+  const notVisible = q.error instanceof ApiError && q.error.status === 404;
   const orgName = t?.name ?? tenant;
   const guest = Boolean(q.data?.guest);
-  usePageTitle("Members");
+  usePageTitle(notVisible ? null : "Members");
   const tenantAdmin = t?.your_role === "owner" || t?.your_role === "admin";
   const inOrg = (products.data?.items ?? []).filter((p) => p.tenant.slug === tenant);
   const canManage = (g: { scope_type: string; scope_id: string; role: string }) => {
@@ -213,6 +215,14 @@ export function MembersPage() {
     },
     onError: (e) => toast(`Couldn’t cancel the invitation. ${(e as Error).message}`, { tone: "negative" }),
   });
+  if (notVisible) return <NotVisible what="organization" />;
+  // Until it is known whether they can see it at all (it isn't one of theirs), nothing of it is shown.
+  if (q.isPending && !t)
+    return (
+      <Sheet label="Loading members">
+        <Loading label="Loading members…" lines={4} />
+      </Sheet>
+    );
   if (storyOnly)
     return (
       <Sheet className="members-sheet" labelledBy="members-title">

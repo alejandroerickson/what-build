@@ -580,7 +580,7 @@ Compact and calm. Default buttons read as white tiles with a hairline, not as fi
 
 ### Navigation
 - **Panel nav:** 28px rows with 6px corners, a 14px faint glyph, a 500-weight label and a faint count pushed right. The current section fills with Selection Wash and switches glyph, label and count to Selection Ink. Quiet links (Connect an agent, Activity, Settings) are 26px, 11.5px, muted, and carry 12px glyphs.
-- **Crumbs:** 24px muted segments with 4px corners, separated by a faint slash.
+- **Crumbs:** 24px muted segments with 4px corners, separated by a faint slash. Each label takes its own direction and keeps to one line, at most 260px (190px on a phone): a longer one ends in an ellipsis after its last whole word that leaves room for it, in reading order, so a title that mixes English and Arabic keeps the words it begins with. The whole label is still read by assistive technology, and shown on hover.
 - **Segmented control:** a Hover-filled track with a 2px pad. The current item is a white 4px tile with the resting shadow and a Line 2 ring. It serves in-sheet sort orders and item sub-views. A list is filtered from the panel, never from its sheet head: panel filters are 26px links in a labelled section, marked current with the selection wash, and carry either a check or, where they have counts, the count in the nav's place.
 - **Phone:** the same panel becomes the drawer, opened from the floating pill.
 

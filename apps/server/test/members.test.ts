@@ -101,6 +101,16 @@ describe("who sees the organization's people", () => {
     expect(granting.status).toBe(404);
     expect(JSON.stringify(granting.body)).not.toContain("Secret Bets");
   });
+
+  it("answers someone outside the organization as if it did not exist, calling it an organization", async () => {
+    const stranger = await h.signIn("sol@example.com", "Sol Stranger");
+    const outside = await list(stranger);
+    const madeUp = await stranger.api("GET", "/api/v1/tenants/no-such-organization/members");
+    expect(outside.status).toBe(404);
+    expect(outside.body.error.message).toBe("No such organization is visible to you. It may not exist, or you may not be a member.");
+    expect(madeUp.status).toBe(404);
+    expect(madeUp.body.error.message).toBe(outside.body.error.message);
+  });
 });
 
 describe("an invitation email", () => {
@@ -145,7 +155,11 @@ describe("the organization's access log", () => {
   });
 
   it("is refused to anyone else, an admin of a product included", async () => {
-    for (const who of [pat, pam]) expect((await log(who)).status).toBe(403);
+    for (const who of [pat, pam]) {
+      const r = await log(who);
+      expect(r.status).toBe(403);
+      expect(r.body.error.message).toBe("This needs an owner or admin of Acme Labs.");
+    }
   });
 
   it("stays out of a product's own activity", async () => {

@@ -234,7 +234,8 @@ export async function resolveScope(
   // A null character names nothing, and Postgres reads no text that holds one: refused before any lookup.
   refuseNullCharacters({ tenant: ref.tenant, team: ref.team, product: ref.product });
 
-  const hidden = () => notFound(`No such ${opScope} is visible to you. It may not exist, or you may not be a member.`);
+  // A tenant is an organization wherever a person may read the answer, as in the web app.
+  const hidden = () => notFound(`No such ${opScope === "tenant" ? "organization" : opScope} is visible to you. It may not exist, or you may not be a member.`);
 
   let tenant: { tenant_id: string; slug: string; name: string; status: string; example: boolean; plan: string } | undefined;
   let team: { team_id: string; slug: string; name: string; tenant_id: string } | undefined;
@@ -331,7 +332,7 @@ export async function resolveScope(
     if (access === "owner" && !tenantRoleAtLeast(tenantRole, "owner"))
       throw forbidden(`Only an owner of ${tenant.name} can do this.`, { role: tenantRole, needed: "owner" });
     if (access === "admin" && !tenantRoleAtLeast(tenantRole, "admin"))
-      throw forbidden(`This needs a tenant admin of ${tenant.name}.`, { role: tenantRole, needed: "admin" });
+      throw forbidden(`This needs an owner or admin of ${tenant.name}.`, { role: tenantRole, needed: "admin" });
   }
   return scope;
 }
