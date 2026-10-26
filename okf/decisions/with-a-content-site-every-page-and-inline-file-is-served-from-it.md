@@ -33,8 +33,9 @@ preview, a `srcdoc` frame, kept the app's policy at `style-src 'unsafe-inline'`.
 - **A grant per document and requester**: one purpose per kind, the tenant, the product, one
   immutable version (or the digest of a front or a style that changes in place) and the account,
   for the grant lifetime. The content route checks the requester again before the first byte
-  (`requesterMayRead`), so losing access stops loads at once, and does not count the load against
-  a free organization's limits a second time; it reads no session and never redirects. One prefix,
+  (`requesterMayRead`), so losing access stops loads at once, a guest's too once the example
+  organization is no longer the example, and does not count the load against the requester's limit
+  on calls a minute a second time; it reads no session and never redirects. One prefix,
   `/documents/`, for every kind.
 - **The same lookups and headers.** Both routes find a document with the same function
   (`apps/server/src/documents.ts`) and serve it with the same headers, except `frame-ancestors`,

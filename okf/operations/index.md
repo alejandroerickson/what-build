@@ -22,4 +22,4 @@ status: stable
 - [Azure](azure.md): a self-hosted deployment on Azure, set up by an agent with the Azure CLI; resources, commands, sign-in with Microsoft work accounts, and the variations.
 - [Security checks](security-checks.md): what keeps secrets and private material out of the repository, and finds known vulnerabilities; where each check runs, what to do about a finding, auditing everything GitHub holds, and making the repository public.
 - [Analytics](analytics.md): the server's own counts, Google Analytics and Cloudflare Web Analytics, their settings, connecting a deployment, and reading them all with `pnpm usage`.
-- [Mail](mail.md): what the server sends, its settings, which deployments send mail and which never do, production's Cloudflare Email Sending, checking it, rotating its token, changing provider, and what breaks it.
+- [Mail](mail.md): what the server sends, its settings, which deployments send mail and which never do, setting up Cloudflare Email Sending, checking it, rotating its token, changing provider, and what breaks it.

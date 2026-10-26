@@ -106,8 +106,9 @@ Production secrets (database URL, grant key, Google sign-in secret) are in Secre
 `.env`; `.env` names them.
 
 The service keeps `WHATBUILD_ANALYTICS_ID` across deploys (Cloud Build only updates
-`WHATBUILD_RELEASE`). The Worker keeps nothing between deploys: every `wrangler deploy` passes all
-its settings, from the web app built at the same commit:
+`WHATBUILD_RELEASE`). The Worker keeps only its secret, `EDGE_KEY`, between deploys
+([Cloud Run](cloud-run.md)): every `wrangler deploy` passes all its other settings, from the web app
+built at the same commit:
 
 ```bash
 set -a; . ./.env; set +a

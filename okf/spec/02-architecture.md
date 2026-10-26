@@ -85,10 +85,11 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
 - **The worker ships in the same image** and polls the Postgres queue; a commit that enqueues work
   also wakes it. `serve` runs HTTP and the worker in one process unless `WHATBUILD_WORKER=0`;
   `worker` runs the worker alone. Under `serve` the worker sleeps a minute after the last request
-  to the API, MCP or sign-in, or the last job: it stops polling, so a database that suspends when
-  no query comes can while the instance stays up, and looks again at the next such request, at a
-  commit that enqueues work, and when the next job it could take falls due (a retry's `run_after`,
-  or a lock gone stale), or, if no instance is up then, at the next request.
+  someone signed in made to the API, MCP or sign-in (one with a good session or access token), or
+  the last job: it stops polling, so a database that suspends when no query comes can while the
+  instance stays up, and looks again at the next such request, at a commit that enqueues work, and
+  when the next job it could take falls due (a retry's `run_after`, or a lock gone stale), or, if no
+  instance is up then, at the next request. A request from nobody signed in never wakes it.
   `worker` polls for good. Splitting them is a configuration change, not a code change.
   A worker claims only the kinds of job its version runs (`JOB_KINDS` in
   `apps/server/src/worker.ts`), so while a release rolls out, an instance of the version before it
@@ -131,6 +132,9 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
   redirected when the public URL is a loopback address. `WHATBUILD_REDIRECT_TO_PUBLIC_URL=0` turns
   it off, for a proxy that sends its own host name and no `X-Forwarded-Host`
   ([decision](../decisions/the-app-has-one-address-and-pages-on-other-hosts-move-to-it.md)).
+  Behind the Cloudflare Worker, `WHATBUILD_EDGE_KEY` closes the other name altogether: every
+  request but `/health` without the key the Worker adds is refused, `403`, before anything else
+  runs ([decision](../decisions/behind-cloudflare-the-service-answers-only-requests-that-carry-the-workers-key.md)).
 - **A content site for what people and agents write.** `WHATBUILD_CONTENT_URL` (an origin on
   another registrable domain than the app's, such as `https://usercontent.example.net`) gives a
   deployment a host of its own for every document of people's and agents' HTML and the uploaded

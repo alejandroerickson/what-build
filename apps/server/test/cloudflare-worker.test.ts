@@ -50,4 +50,14 @@ describe("the Cloudflare Worker", () => {
       expect([p, await res.text()]).toEqual([p, p]);
     }
   });
+
+  it("sends the edge key with every request it passes on, and never one a caller sent", async () => {
+    const keys: (string | null)[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (r: Request) => (keys.push(r.headers.get("x-whatbuild-edge-key")), new Response("from the service"))));
+    const forged = { headers: { "X-WhatBuild-Edge-Key": "a key guessed by a caller" } };
+    await worker.fetch(new Request("https://app.example.com/api/v1/meta", forged), { ...env, EDGE_KEY: "the deployment's edge key" });
+    await worker.fetch(new Request("https://example.com/api/v1/interest", { method: "POST", body: "{}" }), { ...env, EDGE_KEY: "the deployment's edge key" });
+    await worker.fetch(new Request("https://app.example.com/mcp", forged), env);
+    expect(keys).toEqual(["the deployment's edge key", "the deployment's edge key", null]);
+  });
 });

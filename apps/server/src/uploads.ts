@@ -87,8 +87,9 @@ const noLongerReads = () => forbidden("Whoever requested this grant can no longe
  * the upload relay checks before it stores one: whoever requested the grant may still do, on the
  * product it reads, what the operation that gave it needed. Their account still exists; their role
  * there, capped by their connection's level, still allows it; and an agent's connection is still
- * connected. A download counts as a call against the limits their organization's plan sets; a
- * document does not, since the app's own route counted it when it handed the document off.
+ * connected. A download counts as a call against the limits they meet there (their organization's
+ * plan, or a guest's in the example organization); a document does not, since the app's own route
+ * counted it when it handed the document off.
  * Returns them, and the product as they reach it now, whose role decides what a reader is given.
  */
 export async function requesterMayRead(env: Env, claims: Record<string, unknown>, productId: string): Promise<{ principal: Principal; scope: Scope }> {

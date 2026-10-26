@@ -1,7 +1,7 @@
 ---
 type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
-description: What the production deployment is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, its alerts and traces, cost, names, and useful commands; backups and the dev deployment have guides of their own.
+description: What a deployment on Cloud Run is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, its alerts and traces, cost, names, and useful commands; backups and the dev deployment have guides of their own.
 tags: [operations, deployment, cloud-run, gcp]
 generated: {by: agent:claude, at: 2026-10-25}
 status: stable
@@ -28,9 +28,9 @@ Before each new revision serves traffic, the same image runs as the Cloud Run Jo
 built by the repository's [`deploy/Dockerfile`](../../deploy/Dockerfile), from the repository's
 root; migrations are the forward-only SQL files in `apps/server/src/migrations/`.
 
-What a deployment keeps and how to restore it is in [Backups](backups.md). The maintainer also
-runs a second deployment laid out the same way, the [dev deployment](dev-deployment.md), which
-holds a copy of production and rehearses releases before production moves.
+What a deployment keeps and how to restore it is in [Backups](backups.md). A second deployment
+laid out the same way, a [dev deployment](dev-deployment.md), can hold a copy of production and
+rehearse releases before production moves.
 
 ## Setting it up
 
@@ -109,7 +109,7 @@ its memory read there, before production moves.
 - **Email links** — re-run with `SMTP_URL=smtps://user:pass@host:465` and `MAIL_FROM`. Any SMTP
   provider works; this is also what sends invitations. Without it, invitations still work: the
   inviter is shown the single-use link to pass on. [Mail](mail.md) has what the server sends,
-  production's provider (Cloudflare Email Sending) and its commands. A re-run replaces every
+  setting up Cloudflare Email Sending, and its commands. A re-run replaces every
   setting on the service, so a deployment that sends mail passes `MAIL_FROM` each time: without it
   the sender falls back to `no-reply@localhost`, which providers refuse, and sign-in links and
   invitations to new addresses fail.
@@ -171,7 +171,7 @@ gcloud run services update whatbuild --region $R --update-env-vars \
 **The plan of a new organization.** `NEW_ORGANIZATION_PLAN=free` (`WHATBUILD_NEW_ORGANIZATION_PLAN`)
 puts every organization someone other than an instance owner creates on the free plan, whose
 limits everyone in it meets ([§9.7](../spec/09-data-lifecycle.md)); left out, they are unlimited.
-The public deployment sets `free`; a deployment for one organization's own people leaves it out.
+A deployment open to the public sets `free`; a deployment for one organization's own people leaves it out.
 Instance owners' organizations are always unlimited, and they change any organization's plan on
 `/instance`:
 
@@ -295,7 +295,7 @@ tells them apart by Host. Put them in front of the service one of three ways:
   release production takes ([releasing](releasing.md)), or the site keeps an older page. Everything for the app goes to the service but for paths the app never serves, which scanners ask for by the hundred (a dotfile such as `/.env` or `/.git/config` other than `/.well-known`, or a root file such as `/xmlrpc.php` or `/service-account.json`): the Worker answers those 404 itself, so they never wake the service or its database. Cloud Run picks a service by Host and the
   free plan cannot rewrite it, so the Worker sends each request to the `run.app` name and passes
   the browser's domain in `X-Forwarded-Host`. The free plan allows 100,000 Worker requests a day;
-  the `run.app` address keeps serving. Most of WhatBuild's callers are agents, which Cloudflare's bot defences take for
+  the `run.app` address keeps serving until the service holds an edge key (below). Most of WhatBuild's callers are agents, which Cloudflare's bot defences take for
   bots, so in the zone: leave Bot Fight Mode off; turn off blocking of AI bots and crawlers; skip
   Browser Integrity Check for `/mcp`, `/oauth`, `/.well-known` and `/api` with a configuration
   rule; and turn off Email Address Obfuscation and Rocket Loader, which rewrite HTML. A request
@@ -314,8 +314,8 @@ tells them apart by Host. Put them in front of the service one of three ways:
 
 Then re-run with `PUBLIC_URL=https://app.example.com SITE_URL=https://example.com`: OAuth metadata,
 upload grants, links and the MCP server's instructions use the first; the site's host is the
-second. The public URL is the app's one address. Where the `run.app` address keeps serving, a
-browser opening a page there is sent to the same path on it, while health checks, `/api`, `/mcp`,
+second. The public URL is the app's one address. Where the `run.app` address keeps serving (no
+edge key, below), a browser opening a page there is sent to the same path on it, while health checks, `/api`, `/mcp`,
 `/oauth` and `/.well-known` answer on either name. The Worker passes the domain in
 `X-Forwarded-Host`, so its requests are never redirected; a front that sends the `run.app` name
 as `Host` without that header needs `WHATBUILD_REDIRECT_TO_PUBLIC_URL=0`
@@ -348,13 +348,55 @@ Worker passes them all, since none has a dot in its first part. The app's `frame
 `/prototypes/` and `/documents/`. Ask people to reload WhatBuild's open tabs once it is first set.
 Deploys keep the setting; removing it puts everything back on the app's origin.
 
+**Behind Cloudflare, nobody goes around it.** Two settings keep a stranger from flooding the
+service, or keeping it and its database awake, from outside what the Worker allows:
+
+- **A rate limit** in the app's zone (Security > WAF > Rate limiting rules). The free plan has one
+  rule, which may match on the path alone and counts by IP over 10 seconds. Make it match every
+  path (`starts_with(http.request.uri.path, "/")`), and block for 10 seconds an address that sends
+  more than 100 requests in 10 seconds; it answers `429`. `/assets/` counts too: the Worker passes
+  an asset it lacks on to the service, so made-up asset paths would otherwise reach it unlimited,
+  and the app's page loads only a few. That is several times what a person or an agent sends at
+  their busiest, and less than a scanner's burst; Cloudflare counts approximately, so a burst may
+  run somewhat past it before the block. The content site's zone needs none: a
+  prototype's page may ask for hundreds of files at once.
+- **An edge key.** The `run.app` address serves anyone who finds it, past the rate limit and the
+  Worker's answers to scanners. With `WHATBUILD_EDGE_KEY` set, the service refuses every request
+  but `/health` that does not carry the key in `X-WhatBuild-Edge-Key` (`403`, before anything else
+  runs), and the Worker adds it, from its secret `EDGE_KEY`, to every request it passes on
+  ([decision](../decisions/behind-cloudflare-the-service-answers-only-requests-that-carry-the-workers-key.md)).
+  Make the key, give it to the Worker and deploy the Worker, then give it to the service, in that
+  order, so no request through the Worker is refused:
+
+```bash
+openssl rand -base64 48 | tr -d '\n' | gcloud secrets create whatbuild-edge-key --project $P --replication-policy=automatic --data-file=-
+gcloud secrets add-iam-policy-binding whatbuild-edge-key --project $P \
+  --member serviceAccount:whatbuild-runtime@$P.iam.gserviceaccount.com --role roles/secretmanager.secretAccessor
+gcloud secrets versions access latest --secret whatbuild-edge-key --project $P \
+  | npx wrangler secret put EDGE_KEY --config deploy/cloudflare/wrangler.toml
+# deploy the Worker as above, from a build that sends the key, then:
+gcloud run services update whatbuild --project $P --region $R --update-secrets WHATBUILD_EDGE_KEY=whatbuild-edge-key:latest
+curl -s -o /dev/null -w '%{http_code}\n' https://whatbuild-<project number>.$R.run.app/api/v1/meta   # 403
+curl -s -o /dev/null -w '%{http_code}\n' https://app.example.com/api/v1/meta                          # 200
+```
+
+The Worker keeps its secret across deploys, and the service its setting across builds; `setup.sh`
+passes the secret on whenever it exists. Anything else that calls the service (a scheduler, a
+script) calls the public URL, through the Worker. To change the
+key, add a version to the secret, put it on the Worker, then update the service as above: requests
+in the moments between the two are refused. Without a Worker in front, set no key. A flood sent
+straight to the `run.app` address is then refused at little cost, but not at none: each refused
+request still runs the instance (one at most, [What it costs](#what-it-costs)) and sends its short
+answer. Cloud Run's own request log line for it is dropped (`whatbuild-refused-requests`, made by
+`setup.sh`; [What is where](#what-is-where)).
+
 **Who asked to hear from us.** The site's form writes to the `interest` table
 ([§4.13](../spec/04-data-model.md)); nothing sends mail yet. Read it with Cloud SQL Studio or
 `psql`: `SELECT email, name, organization, note, created_at FROM interest ORDER BY created_at DESC;`
 
 ## Alerts
 
-[`deploy/cloud-run/alerts.mjs`](../../deploy/cloud-run/alerts.mjs) creates four alert policies in
+[`deploy/cloud-run/alerts.mjs`](../../deploy/cloud-run/alerts.mjs) creates seven alert policies, and three more with the kill switch ([A hard limit on the bill](#a-hard-limit-on-the-bill)), in
 Cloud Monitoring, or brings them up to date, each mailed to `ALERT_EMAIL` (by default the `gcloud`
 account running it); `setup.sh` runs it. They read only what Cloud Run measures and logs
 ([decision](../decisions/alerts-watch-the-platform-and-traces-go-to-a-project-of-their-own.md)):
@@ -365,8 +407,16 @@ account running it); `setup.sh` runs it. They read only what Cloud Run measures 
 | `whatbuild: errors in the log` | a line of severity ERROR from the service (Cloud Run's request log aside), at most one mail an hour | the line itself: an unexpected error names its request, `request_id`; `Memory limit … exceeded` |
 | `whatbuild: memory` | an instance above 85% of its memory for five minutes | the worker's log lines for the file being read; [Parsing](#setting-it-up) for the limits and the service's memory |
 | `whatbuild: a job failed` | a failed run of `whatbuild-backup` or `whatbuild-migrate` | `gcloud run jobs executions list --job <job>`; [Backups](backups.md) or [Recovering](recovering-from-a-bad-release.md) |
+| `whatbuild: a flood of requests` | more than 3,000 requests in five minutes, however they were answered | Cloud Run's request log, for the paths asked for and the addresses asking |
+| `whatbuild: data sent out` | more than 1 GB sent to the internet in an hour | the request log for large responses asked for again and again |
+| `whatbuild: logs written` | more than 100 MB of logs written in the project in an hour | Logs Explorer's histogram by log name; most often a flood of requests |
+| `whatbuild: kill switch, data sent out` | more than 20 GB sent to the internet in an hour; also closes the service | [A hard limit on the bill](#a-hard-limit-on-the-bill) |
+| `whatbuild: kill switch, logs` | more than 2 GB of logs written in the project in an hour; also closes the service | [A hard limit on the bill](#a-hard-limit-on-the-bill) |
+| `whatbuild: the kill switch acted` | the kill switch closed services, or could not | its log line, which names each service and why |
 
-An unexpected error behind a 500 mails twice, once from each of the first two. Nothing calls the
+The three before the kill switch's watch the costs that have no ceiling ([What it costs](#what-it-costs)),
+each set far past what a few teams and their agents send, and mail within minutes, where a budget's
+figures arrive hours late. An unexpected error behind a 500 mails twice, once from each of the first two. Nothing calls the
 service: an uptime check every few minutes would keep an instance alive, and billed, all month. So
 an outage that keeps requests from reaching Cloud Run (the domain, DNS, Cloudflare) mails nothing.
 
@@ -381,9 +431,8 @@ gcloud logging read 'jsonPayload.request_id="<request id>"' --project $P --fresh
 
 The service traces each request, the operation it runs, the statements run inside them and each
 job, when OpenTelemetry's standard settings name where to send them
-([§2.8](../spec/02-architecture.md#28-cross-cutting-rules)). Production sends them to Google's
-Telemetry API, into **a project of their own that runs nothing** (`GCP_TRACES_PROJECT` in the
-maintainer's `.env`): a project
+([§2.8](../spec/02-architecture.md#28-cross-cutting-rules)). On Cloud Run, send them to Google's
+Telemetry API, into **a project of their own that runs nothing**: a project
 with trace storage also keeps Cloud Run's own span for each request it samples, with its whole
 address (a search's words, an invitation's token) and the browser's user agent, and nothing turns
 those off. With the traces elsewhere, the service's project has no trace storage, and Cloud Run's
@@ -445,26 +494,86 @@ stays allocated while an instance is alive (`--no-cpu-throttling`) so the worker
 after the response returns, and `--min-instances 0` lets it scale to nothing when idle; the first
 request after a quiet spell waits a few seconds. An instance stays alive for up to about 15 minutes
 after its last request and is billed for all of it, so anything that calls every few minutes,
-crawlers included, keeps one running: roughly US$45 a month for each instance kept busy. The
+crawlers included, keeps one running: roughly US$62 a month for each instance kept busy in
+`northamerica-northeast2` (US$0.0864 an hour for 1 vCPU and 1 GiB; less in Google's cheaper
+regions). The
 database need not stay up with it. The worker looks at the job queue every two seconds only for a
-minute after the last request to the API, MCP or sign-in, or the last job, then sleeps until the
-next such request, a commit that queues work, or a retry falling due, and nothing else queries the
-database between requests. A Postgres that suspends when idle (Neon's free plan, after five
+minute after the last request someone signed in made to the API, MCP or sign-in, or the last job,
+then sleeps until the next such request, a commit that queues work, or a retry falling due, and
+nothing else queries the database between requests. A request from nobody signed in (a scanner's,
+a stranger's) never wakes it, so it cannot keep the database awake. A Postgres that suspends when idle (Neon's free plan, after five
 minutes with no query) therefore sleeps about six minutes after the last request, while the
 instance may stay up. On Neon's free plan a project has 100 CU-hours a month, 400 hours at its
 smallest size, and its compute is suspended until the month ends once they are used up: a
 deployment people use through much of the day needs the Launch plan. One
 instance runs at most (`MAX_INSTANCES`, default 1), which is ample for a few teams and makes that
-the ceiling. Builds deploy a new image and keep the setting. The smallest Cloud SQL instance is roughly
+the ceiling, give or take: Google may run a second for a few minutes in a sudden spike, or while a
+deploy replaces a revision. Builds deploy a new image and keep the setting. The smallest Cloud SQL instance is roughly
 US$10 a month; a free-tier Postgres elsewhere costs nothing, but holds little (1 GB a project on Neon's), so keep
 the free plan's upload allowances to match (`bytes_per_day`, `org_bytes_per_day`, changed per
 organization on `/instance`; [§9.7](../spec/09-data-lifecycle.md)): the text of what free
-organizations upload, and its search index, land in Postgres. Storage is cents; data the service
-sends out costs about US$0.12 a GB, and is the one cost that grows with downloads. Mail through
+organizations upload, and its search index, land in Postgres. Storage is cents. Data the service
+sends to the internet costs US$0.105 a GB within North America after a free first GB a month (more
+to other continents). It, the logs (US$0.50 a GB past 50 GB a project each month) and traces are
+the costs with no ceiling: each grows with requests, whoever sends them, so only a flood could make
+the bill large. Three alerts mail within minutes of one ([Alerts](#alerts)). With the kill switch, a
+budget on the billing account mails at 75%, 100%, 200% and 500% of it and when the month's forecast
+passes it, and is the kill switch's cap, which closes the service once it is reached ([A hard limit
+on the bill](#a-hard-limit-on-the-bill)). Mail through
 Cloudflare Email Sending needs the Workers Paid plan, which includes 3,000 messages a month
-([Mail](mail.md)). The four alert policies cost about US$0.10 each a month; their mail costs
-nothing. Traces are billed by the million spans ingested, and production's few thousand requests a
-day make well under a million a month.
+([Mail](mail.md)). The alert policies cost about US$0.10 each a month; their mail costs
+nothing. Traces are billed by the million spans ingested, and a few thousand requests a day make
+well under a million a month.
+
+## A hard limit on the bill
+
+Google Cloud caps nothing by itself: a budget only mails, hours late, and Google's own way to stop
+spending, disabling billing, stops everything and may delete what the project holds. The kill
+switch is a cap that keeps everything
+([decision](../decisions/at-its-spending-cap-a-deployment-closes-itself-to-the-internet.md)).
+
+**What it does.** When the month's spending on the billing account reaches the cap, or when one of
+two alerts says a flood is running away (more than 20 GB sent to the internet, or 2 GB of logs
+written, in an hour: about US$1 to US$2 an hour, far past anything people do), it takes the public
+(`allUsers`, `allAuthenticatedUsers`) off the invoker role of every service it was given. Google's
+front end then answers every request `403` before an instance starts, so nothing is billed for them
+but a few hundred bytes each, and the log exclusion drops Cloud Run's line for each. Every row,
+file, setting, revision and secret is kept, the nightly backup still runs, and behind Cloudflare
+the public site is still served by the Worker. The change takes a minute or two to apply.
+`whatbuild: the kill switch acted` mails when it closes something, and when it cannot; Pub/Sub then
+tries again.
+
+**How.** The budget and the two alerts publish to the topic `whatbuild-kill-switch`, and a push
+subscription calls the service of that name ([`deploy/cloud-run/kill-switch/`](../../deploy/cloud-run/kill-switch/kill-switch.mjs)).
+It compares a budget's message with the budget's own amount, acts on an alert that opens, and
+ignores anything else. It is private, reachable from inside the project only, and runs only while
+a message is handled. Its identity may change who calls the services it closes (the role
+`whatbuildKillSwitch`, two permissions) and nothing else: changing their ingress or their revision
+would need the right to act as their runtime identity, which reads the database and the files.
+
+```bash
+PROJECT_ID=$P CAP=<amount> SERVICES=$P/$R/whatbuild[,<another project>/$R/whatbuild] deploy/cloud-run/kill-switch.sh  # create or update
+gcloud pubsub topics publish whatbuild-kill-switch --project $P \
+  --message '{"costAmount":0,"budgetAmount":1}'                             # under the cap: nothing closes
+gcloud logging read 'resource.labels.service_name="whatbuild-kill-switch"' --project $P --freshness 1d --limit 20
+```
+
+`CAP` is a whole amount in the billing account's currency, and every project billed to the account
+counts towards it, so `SERVICES` names every deployment billed there. A message over the cap, or a
+test notification sent from the console to the kill switch's Pub/Sub channel, closes every service
+named: send one only to close them.
+
+**Opening again.** A budget's message comes several times a day and closes the services again while
+the month's spending is over the cap, so first raise the cap (re-run with a higher `CAP`) or wait
+for the next month, then:
+
+```bash
+gcloud run services add-iam-policy-binding whatbuild --project $P --region $R --member allUsers --role roles/run.invoker
+```
+
+Re-running `setup.sh` opens the service too (`--allow-unauthenticated`); a release's build does not.
+The kill switch does not reach Cloudflare: the requests the Worker passes on while the service is
+closed are still billed on Workers Paid, and the zone's rate limit is what bounds them.
 
 ## What is where
 
@@ -476,12 +585,13 @@ day make well under a million a month.
 | Build identity | the project's default compute identity, or `BUILD_SA` | deploy to Cloud Run, push images, write logs, read `<project>_cloudbuild`; `setup.sh` takes away the Editor role Google gives it |
 | Database | Cloud SQL instance `whatbuild-db`, database and user `whatbuild` (with `CLOUD_SQL=1`) | or the Postgres named by `DATABASE_URL` |
 | Bucket | `<project>-whatbuild-files` | private, uniform access, public access prevented; versioned, noncurrent versions deleted after 30 days |
-| Secrets | `whatbuild-database-url`, `whatbuild-grant-key`, optional `whatbuild-smtp-url` ([Mail](mail.md)), `whatbuild-google-client-secret` | read by the runtime identity only |
+| Secrets | `whatbuild-database-url`, `whatbuild-grant-key`, optional `whatbuild-smtp-url` ([Mail](mail.md)), `whatbuild-google-client-secret`, `whatbuild-edge-key` (behind Cloudflare; also the Worker's `EDGE_KEY`) | read by the runtime identity only |
 | Images | Artifact Registry `whatbuild` | the ten most recent always kept; others deleted after 30 days |
-| Log exclusion | `whatbuild-request-addresses` on the `_Default` sink | Cloud Run logs every request itself, with its whole address, the client's IP and its browser, for 30 days. This drops its line for an address with a query (a search's words, a sign-in link's token) or an invitation link; the service's own line for it, masked, stays |
+| Log exclusions | `whatbuild-request-addresses` and `whatbuild-refused-requests` on the `_Default` sink | Cloud Run logs every request itself, with its whole address, the client's IP and its browser, for 30 days. The first drops its line for an address with a query (a search's words, a sign-in link's token) or an invitation link; the service's own line for it, masked, stays. The second drops its line for a `403` or a `429`: a request without the edge key, refused before the service logs anything, or one Cloud Run refused for want of an instance, so a flood of them writes no logs to pay for. The request metrics count them all, and the service's own line stays for each `403` it gives |
 | Restore points (Neon, optional) | branches `pre-migrate-<time>-<commit>`, secret `whatbuild-neon-api-key` | one per deploy before migrating, the newest three kept; the key reaches only the Neon project and is read by the build identity |
-| Alerts | four policies named `whatbuild: …`, one email channel | made by `deploy/cloud-run/alerts.mjs` ([Alerts](#alerts)) |
-| Traces | a project of their own (`TRACES_PROJECT`; production's is `GCP_TRACES_PROJECT` in `.env`): trace storage `_Trace` in `us`, BigQuery dataset `whatbuild_traces` | runs nothing; the runtime identity has Cloud Telemetry Traces Writer there, and nothing else ([Traces](#traces)) |
+| Alerts | seven policies named `whatbuild: …` (ten with the kill switch), one email channel, and with the kill switch a Pub/Sub channel to its topic | made by `deploy/cloud-run/alerts.mjs` ([Alerts](#alerts)) |
+| Kill switch (optional) | service, identity, Pub/Sub topic and push subscription `whatbuild-kill-switch`; role `whatbuildKillSwitch` in each project whose service it closes; budget `WhatBuild: every project` on the billing account | made by `deploy/cloud-run/kill-switch.sh`; the service is private and reachable from inside the project only, and its identity may change who calls the services it closes, nothing else ([A hard limit on the bill](#a-hard-limit-on-the-bill)) |
+| Traces | a project of their own (`TRACES_PROJECT`): trace storage `_Trace` in `us`, BigQuery dataset `whatbuild_traces` | runs nothing; the runtime identity has Cloud Telemetry Traces Writer there, and nothing else ([Traces](#traces)) |
 | Backup (another Postgres, set up by hand) | job `whatbuild-backup`, scheduler job `whatbuild-backup-nightly`, identity `whatbuild-backup`, bucket `<project>-backups`, secret `whatbuild-backup-database-url` | a `pg_dump` each night as a read-only role that bypasses row-level security; the identity adds and reads dumps, never deletes; dumps expire after 35 days ([Backups](backups.md)) |
 
 ## Useful commands

@@ -12,8 +12,8 @@ status: stable
 ## Context
 
 The local copy, the end-to-end golden master and the dev deployment each took all of production,
-although the golden master keeps only one organization. Production also holds organizations that
-are no one's test material: the maintainer's own private work, and later customers'. The
+although the golden master keeps only one organization. A deployment also holds organizations that
+are no one's test material, such as private work and, later, customers'. The
 maintainer chose on 2026-10-11 to copy the public sandbox, or the organizations named, and nothing
 else, and to be able to take one organization out of a deployment into another database. The
 example organization took the sandbox's place as the default when it replaced the sandbox

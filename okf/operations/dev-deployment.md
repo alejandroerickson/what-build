@@ -26,16 +26,16 @@ service that production's build runs, on production's data.
 | | Production | Dev |
 |---|---|---|
 | Google Cloud project | its own | its own, with the same names inside ([Cloud Run](cloud-run.md#what-is-where)) |
-| Postgres | a Neon project, branch `production` | its own Neon project on the free plan: branch `main`, whose parent `prod-copy` holds the copy as it was loaded |
+| Postgres | a Neon project, branch `production` | its own Neon project: branch `main`, whose parent `prod-copy` holds the copy as it was loaded |
 | Organizations | all of them | the ones `NEON_DEV_COPY_ORGANIZATIONS` names, copied from production; nothing of the others ([decision](../decisions/a-copy-of-production-holds-only-the-organizations-it-is-for.md)) |
 | Files | its bucket | its own bucket, with the copied organizations' files |
 | Deploys | a trigger on release tags, after approval | by hand, any tag or commit of `main`; no trigger |
-| Sign-in | Google, with its own OAuth client | Google, with an OAuth client of its own in the same Google Auth Platform project as production's |
-| Instance owners, sign-up allowlist | the maintainer | the same |
-| Example organization, plan of a new organization | the organization production names; `free` | the same organization, from the copy; `free` |
-| Address | a custom domain through Cloudflare | the service's `run.app` address only |
-| Analytics, public site, Worker, nightly backup | yes | none |
-| Mail | Cloudflare Email Sending ([Mail](mail.md)) | none, ever: its accounts and invitations are real people's addresses |
+| Sign-in | its own identity providers and clients | Google, with an OAuth client of its own in the same Google Auth Platform project as production's |
+| Instance owners, sign-up allowlist | its own | the same as production's |
+| Example organization, plan of a new organization | as production names them | the same organization, from the copy, and the same plan |
+| Address | its own domain ([Cloud Run](cloud-run.md#setting-it-up)) | the service's `run.app` address only |
+| Analytics, public site, Worker, nightly backup | whichever production has | none |
+| Mail | its own provider ([Mail](mail.md)) | none, ever: its accounts and invitations are real people's addresses |
 
 The two share nothing: no project, database, bucket, secret or OAuth client. Nothing in dev can
 reach production.
@@ -237,7 +237,7 @@ release production runs.
 **5. Record** in `.env` the copy's time (`pulled_at`) as `NEON_DEV_COPY_TAKEN`, and the slugs it
 holds as `NEON_DEV_COPY_ORGANIZATIONS` (or `all`).
 
-The copy's accounts sign in with Google as they do on production. Browser sessions and agents'
+The copy's accounts sign in with Google, the one way dev offers. Browser sessions and agents'
 tokens from production do not work on dev: sessions belong to production's domain, and access
 tokens to production's address.
 
@@ -246,8 +246,8 @@ tokens to production's address.
 From a clone, signed in to `gcloud` and `neon` as the maintainer. Use the release production runs
 (`/api/v1/meta`), so that dev starts where production is.
 
-**1. The Google Cloud project**, on production's billing account
-(`gcloud billing projects describe $PP` names it):
+**1. The Google Cloud project**, on a billing account (`gcloud billing projects describe $PP`
+names production's; on the same one, production's kill switch and budget can count dev too):
 
 ```bash
 gcloud projects create $P --name "WhatBuild dev"
@@ -319,10 +319,11 @@ rm "$F"
 **6. Production's organizations**, by [refreshing the copy](#refreshing-the-copy). Its last step deploys
 the release, which names the service by it and makes the first restore point.
 
-**7. Production's example organization and plan**, as production names them:
+**7. Production's example organization and plan**, as production names them (its
+`WHATBUILD_EXAMPLE_TENANT` and `WHATBUILD_NEW_ORGANIZATION_PLAN`; leave out one it does not set):
 
 ```bash
-gcloud run services update whatbuild --project $P --region $R --update-env-vars WHATBUILD_EXAMPLE_TENANT=<the same slug>,WHATBUILD_NEW_ORGANIZATION_PLAN=free
+gcloud run services update whatbuild --project $P --region $R --update-env-vars WHATBUILD_EXAMPLE_TENANT=<the same slug>,WHATBUILD_NEW_ORGANIZATION_PLAN=<the same plan>
 ```
 
 **8. Record** the values in `.env` ([above](#its-values)). `$DEV_URL/api/v1/meta` names the
@@ -330,8 +331,8 @@ release and reports `"google": true`.
 
 ## Keeping it private
 
-The copy is real people's data. Dev holds it while WhatBuild has no customers, by the maintainer's
-choice ([decision](../decisions/releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production.md)),
+The copy is real people's data. Dev holds it by the maintainer's choice
+([decision](../decisions/releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production.md)),
 and that is decided again before public sign-up opens ([roadmap](../spec/10-roadmap.md)).
 
 - Dev holds only the organizations named; nothing of another leaves production for it
@@ -346,5 +347,6 @@ and that is decided again before public sign-up opens ([roadmap](../spec/10-road
 
 ## What it costs
 
-Idle, close to nothing: the service scales to zero, the database is on Neon's free plan, and the
-bucket holds a few megabytes. A rehearsal is a build and a few minutes of the service.
+Idle, it scales to nothing; a rehearsal is a build and a few minutes of the service. A kill switch
+that names it beside production closes it with production; a rehearsal then gets `403` until it is
+opened again ([A hard limit on the bill](cloud-run.md#a-hard-limit-on-the-bill)).

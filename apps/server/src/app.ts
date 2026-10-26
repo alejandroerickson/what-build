@@ -10,8 +10,9 @@ import { AcsMailer } from "./adapters/mail-acs.ts";
 import { ConsoleMailer, HmacGrantSigner, MemoryMailer, SafeUrlFetcher, SmtpMailer } from "./adapters/misc.ts";
 import { contentDocumentRoutes } from "./content-documents.ts";
 import { FALLBACK_HTML_POLICY } from "./documents.ts";
-import { carriesOurCookie, isOwnOrigin } from "./auth/identity.ts";
+import { carriesOurCookie, isOwnOrigin, wasSignedIn } from "./auth/identity.ts";
 import { canonicalHost, requestedHost } from "./canonical-host.ts";
+import { requireEdgeKey } from "./edge-key.ts";
 import { oauthRoutes } from "./auth/oauth.ts";
 import { authRoutes } from "./auth/routes.ts";
 import type { ServerConfig } from "./config.ts";
@@ -169,13 +170,17 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
 
 /** One application: static web app, REST, MCP, OAuth and the upload relay on one origin, and the public site on its own host. */
 /**
- * `onRequest` is called for every request to the API, MCP or sign-in, before it is served: the
- * service passes its worker's `nudge`, so a sleeping worker looks at the queue again.
+ * `onRequest` is called once a request to the API, MCP or sign-in that came with a good session or
+ * access token is served: the service passes its worker's `nudge`, so a sleeping worker looks at the
+ * queue again. A request from nobody signed in never calls it, so it cannot keep the database awake.
  */
 export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; release?: Release; onRequest?: () => void }) {
   const env: Env & { config: ServerConfig } = { db: deps.db, ports: deps.ports, config: deps.config };
   const release = deps.release ?? RELEASE;
   const app = new Hono();
+
+  // First of all: a request that went around the proxy holding the edge key is refused unread.
+  app.use("*", requireEdgeKey(deps.config.edgeKey, deps.config.publicBaseUrl));
 
   app.use("*", async (c, next) => {
     const started = Date.now();
@@ -244,11 +249,13 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; re
   // it, naming the field; an operation's JSON is checked with its input (null-characters.ts).
   app.use("*", refuseNullCharacters());
 
-  // Requests to the API, MCP and sign-in wake a sleeping worker; the app's pages and static files do not.
+  // Requests to the API, MCP and sign-in wake a sleeping worker once served, when someone signed in
+  // made them; a stranger's never do, nor do the app's pages and static files.
   app.use("*", async (c, next) => {
     const p = c.req.path;
-    if (p.startsWith("/api/") || p.startsWith("/mcp") || p.startsWith("/auth/")) deps.onRequest?.();
-    return next();
+    if (!(p.startsWith("/api/") || p.startsWith("/mcp") || p.startsWith("/auth/"))) return next();
+    await next();
+    if (wasSignedIn(c)) deps.onRequest?.();
   });
 
   // A content site serves prototypes, the documents of people's HTML and the files the app shows

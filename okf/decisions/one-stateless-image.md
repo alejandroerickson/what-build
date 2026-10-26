@@ -27,9 +27,10 @@ A side project on near-free infrastructure benefits from the fewest moving servi
 
 - Any instance can serve any request.
 - Splitting the worker into its own service is a configuration change.
-- In the service the worker sleeps a minute after the last request or job, and a request, a commit
-  that queues work or a job falling due wakes it, so a database that suspends when idle can sleep
-  while an instance stays up ([02-architecture](../spec/02-architecture.md)).
+- In the service the worker sleeps a minute after the last signed-in request or job, and such a
+  request, a commit that queues work or a job falling due wakes it, so a database that suspends when
+  idle can sleep while an instance stays up, and a stranger's requests cannot keep it awake
+  ([02-architecture](../spec/02-architecture.md)).
 - Large files never pass through the application or a tool call.
 - MCP has no session, so the server cannot tell a connected client that a release added tools
   (`notifications/tools/list_changed`). The client keeps its list until a new session; the skill,

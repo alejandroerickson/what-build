@@ -30,6 +30,8 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   Addresses with an old slug keep working everywhere: links and bookmarks in the app, REST, and
   connected agents and their tokens. Migration `0036` adds a column and a table, and changes no row.
 
+## v0.21.0
+
 - **With a content site, every page and inline file is served from it.** It concerns deployments
   that set `WHATBUILD_CONTENT_URL`. From this release the content site serves, besides prototypes,
   every Story page, mockup page, Idea card, style specimen and print view, agents' previews, and a
@@ -50,6 +52,38 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   `style-src 'unsafe-inline'`, and the weekly ZAP scan now fails on rule 10055. Behind the
   Cloudflare Worker, deploy it again (`deploy/cloudflare/worker.js`), so the public site's page
   carries the same policy. Sign-in's own pages allow their one stylesheet by its hash.
+- **Only a signed-in request wakes the worker.** It concerns every deployment that runs `serve`
+  with its worker, and asks nothing of it. A request to the API, MCP or sign-in wakes a sleeping
+  worker only when it comes with a good session or access token, and only once it has been served.
+  A scanner's or a stranger's requests no longer start the worker's minute of polling the job
+  queue, so they cannot keep a database that suspends when idle awake. Uploads and other commits
+  that queue work wake it as before.
+- **Behind Cloudflare, the service can refuse whoever goes around the Worker.** It concerns Cloud
+  Run deployments behind the Cloudflare Worker, and asks nothing until they choose it. With
+  `WHATBUILD_EDGE_KEY` set, the service refuses (`403`) every request but `/health` that does not
+  carry that key in `X-WhatBuild-Edge-Key`, and the Worker adds it, from
+  its secret `EDGE_KEY`, to every request it passes on. To turn it on: make the secret
+  `whatbuild-edge-key` and put it on the Worker, deploy the Worker from this release, and only then
+  give it to the service (`--update-secrets WHATBUILD_EDGE_KEY=whatbuild-edge-key:latest`), as
+  [Cloud Run](cloud-run.md) shows under "Behind Cloudflare, nobody goes around it". In the other
+  order, every request is refused until the Worker has it. After that, the `run.app` address answers
+  only `/health`. Without the setting, nothing changes. The same section describes the zone's
+  rate-limiting rule. Re-running `setup.sh` also adds the log exclusion `whatbuild-refused-requests`,
+  which drops Cloud Run's own log line for a `403` or `429`, so a flood of refused requests writes
+  no logs to pay for.
+- **Cloud Run: three alerts for a flood.** It concerns Cloud Run deployments, and asks one step of
+  them: re-run `PROJECT_ID=<project> node deploy/cloud-run/alerts.mjs` ([Alerts](cloud-run.md#alerts)).
+  It adds `whatbuild: a flood of requests` (more than 3,000 in five minutes), `whatbuild: data sent
+  out` (more than 1 GB to the internet in an hour) and `whatbuild: logs written` (more than 100 MB
+  in an hour), the costs that have no ceiling. Without the step, a flood mails nothing until a
+  budget notices, hours later.
+- **Cloud Run: a kill switch at a spending cap, if wanted.** It concerns Cloud Run deployments,
+  and asks nothing unless they want one. `deploy/cloud-run/kill-switch.sh` (`PROJECT_ID`, `CAP` in
+  the billing account's currency, `SERVICES`) makes a budget of that amount on the billing account
+  and a small private service that, when the month's spending reaches it or a flood runs away, takes
+  the public off the invoker role of each service named: closed to the internet (`403`), with its
+  data kept, until it is opened again ([A hard limit on the bill](cloud-run.md#a-hard-limit-on-the-bill)).
+  Re-running `setup.sh` opens a closed service.
 
 ## v0.20.0
 
@@ -76,7 +110,7 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   the organization meets daily limits (by default 500 writes, 25 sources, 5 exports and 100 MB of
   uploads for each person; 2,000 writes and 250 MB for the whole organization; 120 calls and 30
   writes a minute; files of at most 10 MB, documents only), which only instance owners change, on
-  `/instance` or with `products(action="set_limits")`. On the maintainer's Cloud Run production, set
+  `/instance` or with `products(action="set_limits")`. A deployment open to the public sets
   `WHATBUILD_NEW_ORGANIZATION_PLAN=free` before or with this release
   ([cloud-run.md](cloud-run.md)); a self-hosted deployment leaves it out. Changing it changes only
   organizations created afterwards.
@@ -131,19 +165,17 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   OpenTelemetry's settings: `OTEL_EXPORTER_OTLP_ENDPOINT`, and `OTEL_EXPORTER_OTLP_HEADERS` for a
   service that takes a key ([Traces](cloud-run.md#traces)). On Cloud Run, send them to a project
   of their own, never the service's: a project with trace storage also keeps Cloud Run's own
-  request spans, with every address whole. Production's traces project, its grant and its
-  BigQuery link are in place; once this release serves, set its two variables:
+  request spans, with every address whole. A deployment whose traces project, grant and BigQuery
+  link are in place sets its two variables once this release serves, `T` being the traces project:
 
   ```bash
-  set -a; . ./.env; set +a
-  gcloud run services update whatbuild --project $GCP_PROJECT --region $GCP_REGION --update-env-vars \
-    OTEL_EXPORTER_OTLP_ENDPOINT=https://telemetry.googleapis.com,OTEL_RESOURCE_ATTRIBUTES=gcp.project_id=$GCP_TRACES_PROJECT
+  gcloud run services update whatbuild --project $P --region $R --update-env-vars \
+    OTEL_EXPORTER_OTLP_ENDPOINT=https://telemetry.googleapis.com,OTEL_RESOURCE_ATTRIBUTES=gcp.project_id=$T
   ```
 
   Then check that its spans arrive: the guide's first query, a few minutes after a request.
 - **Cloud Run: alerts.** A Cloud Run deployment set up before this release has none. Make them once
-  with `PROJECT_ID=<project> node deploy/cloud-run/alerts.mjs` ([Alerts](cloud-run.md#alerts));
-  production's are made.
+  with `PROJECT_ID=<project> node deploy/cloud-run/alerts.mjs` ([Alerts](cloud-run.md#alerts)).
 
 ## v0.17.2
 
@@ -165,12 +197,12 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 ## v0.17.1
 
 - **The Cloud Build configuration moved to `deploy/cloud-run/cloudbuild.yaml`.** It concerns a
-  Cloud Run deployment whose trigger runs the build, production's `deploy-release` among them.
-  Before publishing this release, point the trigger at the new path. A trigger still naming
+  Cloud Run deployment whose trigger runs the build (`deploy-release`, as [Cloud Run](cloud-run.md)
+  names it). Before publishing this release, point the trigger at the new path. A trigger still naming
   `cloudbuild.yaml` fails at once on this release's tag and deploys nothing, and the release
   running now keeps serving:
 
-  A trigger on a GitHub connection, as production's is, refuses
+  A trigger on a GitHub connection refuses
   `gcloud builds triggers update github … --build-config` with `INVALID_ARGUMENT`. Rewrite its
   definition instead, which keeps every other setting, and check that only `filename` changed:
 
@@ -542,8 +574,7 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   new schema, except that one inserting feedback would leave `submitted_by` filled as before.
 - **Feedback can arrive by email.** Optional: set `WHATBUILD_FEEDBACK_EMAIL` to an address, on a
   deployment that sends mail, and it gets a digest of new feedback at most once a day
-  ([mail](mail.md#the-feedback-digest)). Production sets it to the maintainer's address from
-  `.env`. Without it nothing changes: feedback stays in the database.
+  ([mail](mail.md#the-feedback-digest)). Without it nothing changes: feedback stays in the database.
 - **People send feedback from the app.** Nothing to set. **Submit feedback** in the account menu
   says what is sent, and reports name nobody unless the sender shares an address. A person and
   their agents send at most 10 a day (`429 rate_limited`).

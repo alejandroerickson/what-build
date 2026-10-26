@@ -12,6 +12,9 @@
 //   PROJECT_ID    required. Deliberately not taken from gcloud's current project.
 //   SERVICE       default whatbuild; its jobs are the ones whose names start with it
 //   ALERT_EMAIL   where alerts go; default: the gcloud account running this
+//   KILL_SWITCH_TOPIC   the kill switch's Pub/Sub topic, projects/<project>/topics/<topic>
+//                 (deploy/cloud-run/kill-switch.sh passes it): two more policies, which also publish
+//                 there, so the kill switch closes the service when a flood runs away
 //   DRY_RUN=1     print the policies instead of writing them
 import { execFileSync } from "node:child_process";
 
@@ -28,19 +31,24 @@ if (!/^[^\s@]+@[^\s@]+$/.test(email)) {
   process.exit(1);
 }
 const dryRun = process.env.DRY_RUN === "1";
+const killTopic = process.env.KILL_SWITCH_TOPIC?.trim() || null;
+if (killTopic && !/^projects\/[a-z][a-z0-9-]+\/topics\/[A-Za-z][\w.~+%-]{2,254}$/.test(killTopic)) {
+  console.error("KILL_SWITCH_TOPIC must be a topic's full name, projects/<project>/topics/<topic>.");
+  process.exit(1);
+}
 const api = `https://monitoring.googleapis.com/v3/projects/${project}`;
-const guide = "okf/operations/cloud-run.md, Alerts, in the WhatBuild repository";
+const guide = (section = "Alerts") => `okf/operations/cloud-run.md, ${section}, in the WhatBuild repository`;
 
 const revision = `resource.type = "cloud_run_revision" AND resource.labels.service_name = "${service}"`;
-const threshold = (filter, aggregation, value, duration) => ({
+const threshold = (filter, aggregation, value, duration, period = "300s") => ({
   filter,
-  aggregations: [{ alignmentPeriod: "300s", ...aggregation }],
+  aggregations: [{ alignmentPeriod: period, ...aggregation }],
   comparison: "COMPARISON_GT",
   thresholdValue: value,
   duration,
   trigger: { count: 1 },
 });
-const doc = (content) => ({ content: `${content}\n\nWhat to do: ${guide}.`, mimeType: "text/markdown" });
+const doc = (content, section) => ({ content: `${content}\n\nWhat to do: ${guide(section)}.`, mimeType: "text/markdown" });
 
 /** By display name, which is how a re-run finds the policy it made before. */
 const POLICIES = [
@@ -58,7 +66,7 @@ const POLICIES = [
   },
   {
     displayName: `${service}: errors in the log`,
-    documentation: doc(`The service logged a line with severity ERROR: an unexpected error behind a 500, a public sandbox's reset that failed, or the instance stopped for lack of memory. One mail an hour at most, however many lines follow.`),
+    documentation: doc(`The service logged a line with severity ERROR: an unexpected error behind a 500 (in an operation, an upload or sign-in), a failure at start-up, or the instance stopped for lack of memory. One mail an hour at most, however many lines follow.`),
     conditions: [
       {
         displayName: "an error line",
@@ -98,7 +106,117 @@ const POLICIES = [
     alertStrategy: { autoClose: "86400s" },
     severity: "ERROR",
   },
+  // A flood: nothing caps what logs, data sent out and the requests behind them cost, so these
+  // mail within minutes, where a budget's mail comes hours later. Each is set far past what a
+  // few teams and their agents send.
+  {
+    displayName: `${service}: a flood of requests`,
+    documentation: doc(`More than 3,000 requests reached the service in five minutes, whatever they were answered, refusals included: someone is sending far more than people and agents do. Each is billed in instance time, log lines and data sent out.`),
+    conditions: [
+      {
+        displayName: "over 3,000 requests in five minutes",
+        conditionThreshold: threshold(`${revision} AND metric.type = "run.googleapis.com/request_count"`, { perSeriesAligner: "ALIGN_SUM", crossSeriesReducer: "REDUCE_SUM" }, 3000, "0s"),
+      },
+    ],
+    alertStrategy: { autoClose: "3600s" },
+    severity: "WARNING",
+  },
+  {
+    displayName: `${service}: data sent out`,
+    documentation: doc(`The service sent more than 1 GB to the internet in an hour, about US$0.10 a GB and with no ceiling: downloads repeated by someone, or a flood of requests.`),
+    conditions: [
+      {
+        displayName: "over 1 GB to the internet in an hour",
+        conditionThreshold: threshold(
+          `${revision} AND metric.type = "run.googleapis.com/container/network/sent_bytes_count" AND metric.labels.kind = "internet"`,
+          { perSeriesAligner: "ALIGN_SUM", crossSeriesReducer: "REDUCE_SUM" },
+          1e9,
+          "0s",
+          "3600s",
+        ),
+      },
+    ],
+    alertStrategy: { autoClose: "3600s" },
+    severity: "WARNING",
+  },
+  {
+    displayName: `${service}: logs written`,
+    documentation: doc(`The project wrote more than 100 MB of logs in an hour. Past 50 GB in a month each GB costs US$0.50, with no ceiling: most often a flood of requests, each logged by Cloud Run and by the service.`),
+    conditions: [
+      {
+        displayName: "over 100 MB of logs in an hour",
+        conditionThreshold: threshold(`resource.type = "global" AND metric.type = "logging.googleapis.com/billing/bytes_ingested"`, { perSeriesAligner: "ALIGN_SUM", crossSeriesReducer: "REDUCE_SUM" }, 1e8, "0s", "3600s"),
+      },
+    ],
+    alertStrategy: { autoClose: "3600s" },
+    severity: "WARNING",
+  },
 ];
+
+/**
+ * With the kill switch: the first two also publish to its topic, and the kill switch closes the
+ * service to the internet when one opens. Set far past anything people do, at about US$1 to US$2 an
+ * hour, so that only a flood trips them; the budget's cap catches anything slower, hours later. The
+ * third mails whenever the kill switch closes something, or fails to.
+ */
+const KILL_POLICIES = killTopic
+  ? [
+      {
+        displayName: `${service}: kill switch, data sent out`,
+        documentation: doc(
+          `More than 20 GB went to the internet in an hour, about US$2 an hour: a flood far past anything people do. The kill switch has closed the service to the internet (ingress internal only), keeping all it holds, until it is opened again.`,
+          "A hard limit on the bill",
+        ),
+        conditions: [
+          {
+            displayName: "over 20 GB to the internet in an hour",
+            conditionThreshold: threshold(
+              `${revision} AND metric.type = "run.googleapis.com/container/network/sent_bytes_count" AND metric.labels.kind = "internet"`,
+              { perSeriesAligner: "ALIGN_SUM", crossSeriesReducer: "REDUCE_SUM" },
+              2e10,
+              "0s",
+              "3600s",
+            ),
+          },
+        ],
+        alertStrategy: { autoClose: "3600s" },
+        severity: "CRITICAL",
+        kill: true,
+      },
+      {
+        displayName: `${service}: kill switch, logs`,
+        documentation: doc(
+          `The project wrote more than 2 GB of logs in an hour, about US$1 an hour past the free 50 GB: a flood far past anything people do. The kill switch has closed the service to the internet (ingress internal only), keeping all it holds, until it is opened again.`,
+          "A hard limit on the bill",
+        ),
+        conditions: [
+          {
+            displayName: "over 2 GB of logs in an hour",
+            conditionThreshold: threshold(`resource.type = "global" AND metric.type = "logging.googleapis.com/billing/bytes_ingested"`, { perSeriesAligner: "ALIGN_SUM", crossSeriesReducer: "REDUCE_SUM" }, 2e9, "0s", "3600s"),
+          },
+        ],
+        alertStrategy: { autoClose: "3600s" },
+        severity: "CRITICAL",
+        kill: true,
+      },
+      {
+        displayName: `${service}: the kill switch acted`,
+        documentation: doc(
+          `The kill switch (${service}-kill-switch) logged that it closed services to the internet, and why, or that it could not close one; Pub/Sub then tries again. Its log line names each service and what was done.`,
+          "A hard limit on the bill",
+        ),
+        conditions: [
+          {
+            displayName: "a line of severity WARNING or above from the kill switch",
+            // Its request log is left out: a failed push is in its own line too, as an ERROR.
+            conditionMatchedLog: { filter: `resource.type = "cloud_run_revision" AND resource.labels.service_name = "${service}-kill-switch" AND severity >= WARNING AND NOT log_id("run.googleapis.com/requests")` },
+          },
+        ],
+        alertStrategy: { notificationRateLimit: { period: "300s" }, autoClose: "1800s" },
+        severity: "CRITICAL",
+      },
+    ]
+  : [];
 
 const token = gcloud("auth", "print-access-token");
 async function call(method, path, body) {
@@ -120,7 +238,8 @@ async function list(path, key) {
 }
 
 if (dryRun) {
-  console.log(JSON.stringify(POLICIES.map((p) => ({ ...p, combiner: "OR", notificationChannels: [`(email ${email})`] })), null, 2));
+  const shown = [...POLICIES, ...KILL_POLICIES].map(({ kill, ...p }) => ({ ...p, combiner: "OR", notificationChannels: [`(email ${email})`, ...(kill ? [`(Pub/Sub ${killTopic})`] : [])] }));
+  console.log(JSON.stringify(shown, null, 2));
   process.exit(0);
 }
 
@@ -131,9 +250,18 @@ if (!channel) {
   console.log(`created the email channel for ${email}`);
 }
 
+let killChannel = null;
+if (killTopic) {
+  killChannel = channels.find((c) => c.type === "pubsub" && c.labels?.topic === killTopic);
+  if (!killChannel) {
+    killChannel = await call("POST", "notificationChannels", { type: "pubsub", displayName: `${service} kill switch`, labels: { topic: killTopic } });
+    console.log(`created the kill switch's channel to ${killTopic}`);
+  }
+}
+
 const existing = await list("alertPolicies", "alertPolicies");
-for (const policy of POLICIES) {
-  const body = { ...policy, combiner: "OR", enabled: true, notificationChannels: [channel.name] };
+for (const { kill, ...policy } of [...POLICIES, ...KILL_POLICIES]) {
+  const body = { ...policy, combiner: "OR", enabled: true, notificationChannels: [channel.name, ...(kill ? [killChannel.name] : [])] };
   const found = existing.find((p) => p.displayName === policy.displayName);
   // A PATCH without a mask replaces the whole policy, so an edit here is the policy afterwards.
   if (found) await call("PATCH", found.name.replace(`projects/${project}/`, ""), { ...body, name: found.name });

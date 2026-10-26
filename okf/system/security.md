@@ -233,7 +233,8 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   loading at once, finds the document with the same function as the app's route
   (`apps/server/src/documents.ts`), and serves it with the same headers, framed by the app's
   origin alone, with CORP `cross-origin` and `private, no-store`. A document's load counts once
-  against a free organization's limits, at the app's route, not again at the content site's.
+  against the limit on calls a minute its requester meets (in a free organization, or as a guest
+  of the example organization), at the app's route, not again at the content site's.
 - A Story preview (`story.preview`) is checked by the same code as a publish and served by the
   same function as a version's HTML (`storyHtml` in `apps/server/src/documents.ts`), in the same
   sandbox, so nothing reaches a browser through a preview that publishing would refuse. Its
@@ -273,6 +274,11 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
 - A page opened on another name for the deployment (`run.app`, Container Apps' default host) is
   redirected to `WHATBUILD_PUBLIC_URL`, where the session cookie and the own-origin check for
   writes live; machines' paths are answered on any host (`apps/server/src/canonical-host.ts`).
+- Behind the Cloudflare Worker, the service answers only requests that carry its edge key
+  (`WHATBUILD_EDGE_KEY`, which the Worker adds), so nobody goes around the zone's rate limit and the
+  Worker to the `run.app` address; the health check answers without it
+  (`apps/server/src/edge-key.ts`,
+  [decision](../decisions/behind-cloudflare-the-service-answers-only-requests-that-carry-the-workers-key.md)).
 
 **Uploads, parsing and files served back** ([derived layer](../spec/05-derived-layer.md)).
 
@@ -378,7 +384,9 @@ many.
 
 **Secrets, logs and delivery.** Configuration comes from the environment (`config.ts`); secrets
 live in Secret Manager or Key Vault (`deploy/cloud-run/setup.sh`, `deploy/azure/containerapp.yaml`),
-and the runtime identity reaches only the files bucket, its secrets and its database. Without a mail
+and the runtime identity reaches only the files bucket, its secrets and its database. The kill
+switch's identity, where there is one, may only change who calls the services it closes
+(`deploy/cloud-run/kill-switch.sh`). Without a mail
 provider, email links are off rather than logged, and production refuses to start with a mailer
 that would print them or deliver nothing (`WHATBUILD_MAILER` other than `smtp` or `none`), or with
 one it does not know (`config.ts`). Log lines hold method, masked path, status and time, never

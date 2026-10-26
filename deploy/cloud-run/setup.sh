@@ -13,9 +13,10 @@
 #     (any Postgres 15+, e.g. a Neon free-tier database);
 #   - the first image (built by Cloud Build — no local Docker needed), the migration job, and the
 #     service itself, public on the internet with WhatBuild's own sign-in in front of everything;
-#   - a log exclusion, so Cloud Run's own request log keeps no address with a query or an
-#     invitation in it (the service logs those masked);
-#   - alerts on server errors, error lines, memory and failed jobs, mailed to one address
+#   - log exclusions, so Cloud Run's own request log keeps no address with a query or an
+#     invitation in it (the service logs those masked), and no line for a request refused unread;
+#   - alerts on server errors, error lines, memory, failed jobs, and floods of requests, data
+#     sent out and logs, mailed to one address
 #     (deploy/cloud-run/alerts.mjs);
 #   - with TRACES_PROJECT, the service's traces, sent to that project and no other.
 #
@@ -44,10 +45,11 @@
 #                       whatbuild-google-client-secret, and only GOOGLE_CLIENT_ID passed.
 #   SIGNED_URLS=1       also hand agents direct-to-bucket upload URLs for files over 25 MB
 #   MAX_INSTANCES       the most instances that run at once, default 1; each one kept busy all month
-#                       costs roughly US$45, so this is also the ceiling on the service's bill
+#                       costs roughly US$62 in northamerica-northeast2, so this is also the
+#                       ceiling on the service's instance time
 #   NEW_ORGANIZATION_PLAN   free or unlimited: the plan of an organization someone other than an
-#                       instance owner creates (optional; unlimited when left out). The public
-#                       deployment sets free; a deployment for one organization's own people leaves
+#                       instance owner creates (optional; unlimited when left out). A deployment
+#                       open to the public sets free; one for an organization's own people leaves
 #                       it out.
 #   EXAMPLE_TENANT      the slug of the example organization every account reads (optional, and
 #                       for the maintainer's public deployment only: a self-hosted deployment leaves
@@ -172,8 +174,10 @@ $G secrets add-iam-policy-binding whatbuild-grant-key --member "serviceAccount:$
 SECRETS="DATABASE_URL=whatbuild-database-url:latest,WHATBUILD_GRANT_KEY=whatbuild-grant-key:latest"
 if [ -n "${SMTP_URL:-}" ]; then secret whatbuild-smtp-url "$SMTP_URL"; fi
 if [ -n "${GOOGLE_CLIENT_SECRET:-}" ]; then secret whatbuild-google-client-secret "$GOOGLE_CLIENT_SECRET"; fi
-# Either secret may also be created by hand in Secret Manager; the service uses it whenever it exists.
-for pair in WHATBUILD_SMTP_URL=whatbuild-smtp-url WHATBUILD_GOOGLE_CLIENT_SECRET=whatbuild-google-client-secret; do
+# Each of these may also be created by hand in Secret Manager, and the service uses it whenever it
+# exists. The edge key always is, once the Cloudflare Worker is in front and has it
+# (okf/operations/cloud-run.md, A custom domain).
+for pair in WHATBUILD_SMTP_URL=whatbuild-smtp-url WHATBUILD_GOOGLE_CLIENT_SECRET=whatbuild-google-client-secret WHATBUILD_EDGE_KEY=whatbuild-edge-key; do
   if $G secrets describe "${pair#*=}" >/dev/null 2>&1; then
     $G secrets add-iam-policy-binding "${pair#*=}" --member "serviceAccount:$RUNTIME_SA" --role roles/secretmanager.secretAccessor >/dev/null
     SECRETS="$SECRETS,$pair:latest"
@@ -223,7 +227,8 @@ $G run jobs execute "$JOB" --region "$REGION" --wait
 
 step "Service $SERVICE"
 # CPU stays allocated so the in-process worker parses uploads after the response returns;
-# with min-instances 0 an idle service still scales to nothing and costs nothing.
+# with min-instances 0 an idle service still scales to nothing and costs nothing. Public again with
+# each run (--allow-unauthenticated): a service the kill switch closed is opened by it.
 $G run deploy "$SERVICE" --region "$REGION" --image "$IMAGE" --service-account "$RUNTIME_SA" \
   --allow-unauthenticated --no-cpu-throttling --min-instances 0 --max-instances "${MAX_INSTANCES:-1}" --memory 1Gi --cpu 1 \
   --concurrency 40 --timeout 300 --set-secrets "$SECRETS" --set-env-vars "$ENV_ARG" ${CLOUDSQL_FLAGS[@]+"${CLOUDSQL_FLAGS[@]}"}
@@ -239,9 +244,22 @@ LOG_FILTER="log_id(\"run.googleapis.com/requests\") AND resource.labels.service_
 if $G logging sinks describe _Default --format='value(exclusions[].name)' | tr ';' '\n' | grep -qx "$SERVICE-request-addresses"; then verb=--update-exclusion; else verb=--add-exclusion; fi
 $G logging sinks update _Default "$verb=name=$SERVICE-request-addresses,filter=$LOG_FILTER" >/dev/null
 
+step "Request logs without the requests refused unread"
+# A request without the edge key is refused (403) before the service runs anything, its log line
+# included, and Cloud Run itself refuses (429) what the instances cannot take. The platform's line
+# for each is dropped too, so a flood sent straight to the run.app address writes no logs to pay
+# for. The request metrics still count every one, and the service keeps its own line for each 403
+# it gives someone it served.
+REFUSED_FILTER="log_id(\"run.googleapis.com/requests\") AND resource.labels.service_name=\"$SERVICE\" AND (httpRequest.status=403 OR httpRequest.status=429)"
+if $G logging sinks describe _Default --format='value(exclusions[].name)' | tr ';' '\n' | grep -qx "$SERVICE-refused-requests"; then verb=--update-exclusion; else verb=--add-exclusion; fi
+$G logging sinks update _Default "$verb=name=$SERVICE-refused-requests,filter=$REFUSED_FILTER" >/dev/null
+
 step "Alerts"
+# With the kill switch (kill-switch.sh), its topic, so its alerts stay as they are.
+KILL_TOPIC=""
+$G pubsub topics describe "$SERVICE-kill-switch" >/dev/null 2>&1 && KILL_TOPIC="projects/$PROJECT_ID/topics/$SERVICE-kill-switch"
 if command -v node >/dev/null 2>&1; then
-  PROJECT_ID="$PROJECT_ID" SERVICE="$SERVICE" ALERT_EMAIL="${ALERT_EMAIL:-}" node deploy/cloud-run/alerts.mjs
+  PROJECT_ID="$PROJECT_ID" SERVICE="$SERVICE" ALERT_EMAIL="${ALERT_EMAIL:-}" KILL_SWITCH_TOPIC="$KILL_TOPIC" node deploy/cloud-run/alerts.mjs
 else
   echo "Node is not installed here, so no alerts were made. Where it is: PROJECT_ID=$PROJECT_ID node deploy/cloud-run/alerts.mjs"
 fi

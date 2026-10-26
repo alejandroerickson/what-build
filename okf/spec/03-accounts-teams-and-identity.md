@@ -263,7 +263,7 @@ one to what the tenant already has writes nothing. A change is recorded in the t
 Every tenant has a plan. One created on an allowance gets the plan the deployment names in
 `WHATBUILD_NEW_ORGANIZATION_PLAN`, `unlimited` unless it names `free`; one an instance owner
 creates is always `unlimited`, and so is every tenant made before plans were read. A self-hosted
-deployment leaves the setting out; the maintainer's public deployment, and local development, name
+deployment leaves the setting out; a deployment open to the public, and local development, name
 `free`. `GET /api/v1/me` gives the caller's `new_organization_plan`, the plan an organization they
 create would get. On the free plan everyone in the
 tenant meets limits on how often and how much they work, its owners included; on the unlimited plan

@@ -108,7 +108,7 @@ behalf of any third-party processor, including the ones our own users choose.
 **What not to upload.** The statement asks people not to send material whose loss or exposure
 would hurt. Planned: a more specific line in settings — no health records, no payment card data,
 no government identifiers, nothing under a regulatory regime. This is the honest consequence of
-running on free tiers without a compliance program.
+running without a compliance program.
 
 ## 9.2 Limits and quotas
 
@@ -477,7 +477,9 @@ Rules:
    text is capped field by field, so its pages go in the call.
 6. **The routes that serve bytes are calls too.** A file, an export, and a Story or mockup page's
    HTML are served outside the registry ([§6.4](06-operations-and-adapters.md)); each counts as a
-   call against `requests_per_minute` for whoever requested its grant.
+   call against `requests_per_minute` for whoever requested its grant. On a deployment with a
+   content site, a document the app's route hands off there counts once, at the app's route; its
+   address on the content site counts nothing more.
 7. **Setting a limit to 0 refuses everything it counts.** A daily allowance set to 0
    (`writes_per_day`, `org_writes_per_day`, `sources_per_day`, `exports_per_day`, `bytes_per_day`,
    `org_bytes_per_day`) is switched off rather than used up: the call is refused, before its

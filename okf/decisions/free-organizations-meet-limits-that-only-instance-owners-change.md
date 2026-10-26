@@ -12,7 +12,7 @@ status: stable
 ## Context
 
 Anyone an instance owner lets in may create an organization, and each one costs database rows,
-storage and parsing on a deployment meant to stay within small free tiers. The public sandbox
+storage and parsing, which a deployment on small free tiers soon runs out of. The public sandbox
 already had limits on how often and how much a visitor did, enforced in one layer for both front
 doors. The maintainer chose on 2026-10-25 that those limits move to free organizations when the
 sandbox goes ([decision](every-account-reads-the-example-organization-which-only-its-staff-write.md)),
@@ -25,8 +25,8 @@ and that paid organizations will have limits too.
   unless it names free; one an instance owner creates is always unlimited. Organizations that
   existed before plans are unlimited. A paid plan, when there is one, is another value.
 - **Who sets the deployment's plan.** A self-hosted deployment, whose organizations are its own
-  people's, leaves the setting out and its organizations are unlimited. The maintainer's public
-  deployment names `free`, and so does local development.
+  people's, leaves the setting out and its organizations are unlimited. A deployment open to the
+  public names `free`, and so does local development.
 - **The free plan's limits are the sandbox's**: calls and writes a minute, writes, sources, exports
   and uploaded bytes a day for each person, writes and bytes a day for the whole organization, the
   size of a file, of a text field and of a batch, and switches for fetching from a URL and for

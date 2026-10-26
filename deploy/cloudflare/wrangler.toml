@@ -10,6 +10,11 @@
 # The last two are optional. ANALYTICS_ID is Google Analytics, loaded on the site's page once a
 # visitor accepts; CF_ANALYTICS_TOKEN is a Cloudflare Web Analytics site token, whose beacon sets
 # no cookie and so counts every visit.
+#
+# The edge key, the service's WHATBUILD_EDGE_KEY, is a secret: put it once, and deploys keep it.
+#
+#   gcloud secrets versions access latest --secret whatbuild-edge-key --project <project> \
+#     | npx wrangler secret put EDGE_KEY --config deploy/cloudflare/wrangler.toml
 name = "whatbuild-edge"
 main = "worker.js"
 compatibility_date = "2026-09-01"
