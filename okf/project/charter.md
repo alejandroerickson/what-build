@@ -17,7 +17,7 @@ status: stable
   and the [product specification](../spec/01-product.md).
 - **Agent-first.** An agent connected over MCP can do everything a person can do in the web app,
   as that person ([decision](../decisions/one-registry-two-front-doors.md)).
-- **A public, MIT-licensed repository**, `alejandroerickson/what-build`, holding the product's code,
+- **A public, MIT-licensed repository** ([decision](../decisions/whatbuild-is-mit-licensed.md)), `alejandroerickson/what-build`, holding the product's code,
   its specification and this bundle. Anyone may run the same image against their own Postgres and
   bucket.
 - **Cheap to run and simple to contribute to**: one image, one database, one object store, and a

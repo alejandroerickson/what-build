@@ -295,7 +295,7 @@ deterministic.
 
 ## 2.7 Self-hosting
 
-WhatBuild is MIT-licensed. Anyone may run the same container image against their own Postgres and
+WhatBuild is MIT-licensed ([decision](../decisions/whatbuild-is-mit-licensed.md)). Anyone may run the same container image against their own Postgres and
 bucket, using the same deployment guide we use. It is **not a separate mode**: there is no
 single-user build, no loopback-means-no-sign-in rule, and no code path that exists only for
 self-hosters. This keeps the promise cheap to make and impossible to break by accident.

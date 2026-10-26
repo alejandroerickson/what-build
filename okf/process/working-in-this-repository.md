@@ -64,7 +64,8 @@ is judgement. An edited pull request description is checked again.
 ## Issues
 
 The repository's issues are for reports from people who use, run or contribute to WhatBuild: a bug,
-a request, a question. The maintainer's own work is never an issue here, and an agent working for
+a request, a question; the issue forms (`.github/ISSUE_TEMPLATE/`) ask a reporter for where and
+which version, the steps, and what was expected. The maintainer's own work is never an issue here, and an agent working for
 the maintainer opens none. What it finds goes to the person, and planned work that may be public
 goes in the [roadmap](../spec/10-roadmap.md).
 

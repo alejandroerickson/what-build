@@ -1,0 +1,58 @@
+name: Bug
+description: Something in WhatBuild doesn't work as it should.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A vulnerability doesn't go here: report it privately, as the [security policy](https://github.com/alejandroerickson/what-build/security/policy) says.
+
+        This issue is public. Leave out anything private: real names, addresses, your organization's content, tokens, screenshots that show them.
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      description: The hosted WhatBuild (app.what-build.com), a deployment of your own (on Cloud Run, Azure, Docker…), or `pnpm dev` from a clone.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The release, shown at the bottom of the account menu (or `server_version` in `/api/v1/meta`); for a clone, the commit.
+      placeholder: v0.23.0
+    validations:
+      required: true
+  - type: dropdown
+    id: door
+    attributes:
+      label: Through
+      options:
+        - The web app
+        - An agent over MCP
+        - The REST API
+        - Running or deploying it
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps
+      description: What you did, one step at a time, so someone else can do it again. For an agent, its client and the tool call it made.
+      placeholder: |
+        1. Open a product's Evidence
+        2. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead
+      description: The message you saw, or the error the call returned (its `code` and `message`). Browser and device, if it is the web app.
+    validations:
+      required: true

@@ -66,7 +66,7 @@ hooks stop a leak before it leaves the machine; CI shows what got past them.
 | `narration` | in commit messages and the text beside the code only: an account of the work in the first person (*I* or *we* checked, tried, found…), a session as the work's context (*the next session*, *this agent session*), or the conversation (*as discussed*, *you asked*) |
 | `top-level` | a top-level file or directory not in `TOP_LEVEL` |
 | `agent-local` | anything in `.claude/` but the link to the skills and `CLAUDE.md`, the link to `AGENTS.md` |
-| `stray-document` | a document (`.md`, `.txt`, `.log`…) outside `okf/`, `.agents/skills/`, `.github/` (where `SECURITY.md` is), `AGENTS.md`, a `README.md`, the web app's `PRODUCT.md` and `DESIGN.md`, the product skill, the end-to-end test plans in `e2e/plans/` and test folders |
+| `stray-document` | a document (`.md`, `.txt`, `.log`…) outside `okf/`, `.agents/skills/`, `.github/` (where `SECURITY.md` and `CONTRIBUTING.md` are), `AGENTS.md`, a `README.md`, the web app's `PRODUCT.md` and `DESIGN.md`, the product skill, the end-to-end test plans in `e2e/plans/` and test folders |
 | `never-commit` | `.env` files, `_private/`, `.what-build/`, keys, certificates, database files and dumps, wherever they are |
 | `media` | images, PDFs, office documents, recordings and archives outside `apps/web/public/` and `.github/assets/` (the README's pictures); these are how real data slips in |
 | `large-file` | a file over 1 MB other than `pnpm-lock.yaml` and the README's animated tour, `.github/assets/whatbuild.gif` |
