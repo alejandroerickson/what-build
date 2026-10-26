@@ -293,7 +293,7 @@ tells them apart by Host. Put them in front of the service one of three ways:
   release production takes ([releasing](releasing.md)), or the site keeps an older page. Everything for the app goes to the service but for paths the app never serves, which scanners ask for by the hundred (a dotfile such as `/.env` or `/.git/config` other than `/.well-known`, or a root file such as `/xmlrpc.php` or `/service-account.json`): the Worker answers those 404 itself, so they never wake the service or its database. Cloud Run picks a service by Host and the
   free plan cannot rewrite it, so the Worker sends each request to the `run.app` name and passes
   the browser's domain in `X-Forwarded-Host`. The free plan allows 100,000 Worker requests a day;
-  the `run.app` address keeps serving. Most of WhatBuild's callers are agents, which Cloudflare's bot defences take for
+  the `run.app` address keeps serving until the service holds an edge key (below). Most of WhatBuild's callers are agents, which Cloudflare's bot defences take for
   bots, so in the zone: leave Bot Fight Mode off; turn off blocking of AI bots and crawlers; skip
   Browser Integrity Check for `/mcp`, `/oauth`, `/.well-known` and `/api` with a configuration
   rule; and turn off Email Address Obfuscation and Rocket Loader, which rewrite HTML. A request
@@ -312,8 +312,8 @@ tells them apart by Host. Put them in front of the service one of three ways:
 
 Then re-run with `PUBLIC_URL=https://app.example.com SITE_URL=https://example.com`: OAuth metadata,
 upload grants, links and the MCP server's instructions use the first; the site's host is the
-second. The public URL is the app's one address. Where the `run.app` address keeps serving, a
-browser opening a page there is sent to the same path on it, while health checks, `/api`, `/mcp`,
+second. The public URL is the app's one address. Where the `run.app` address keeps serving (no
+edge key, below), a browser opening a page there is sent to the same path on it, while health checks, `/api`, `/mcp`,
 `/oauth` and `/.well-known` answer on either name. The Worker passes the domain in
 `X-Forwarded-Host`, so its requests are never redirected; a front that sends the `run.app` name
 as `Host` without that header needs `WHATBUILD_REDIRECT_TO_PUBLIC_URL=0`
@@ -345,6 +345,48 @@ On that host the service answers `/prototypes/`, `/documents/`, the two preview 
 Worker passes them all, since none has a dot in its first part. The app's `frame-src` names its
 `/prototypes/` and `/documents/`. Ask people to reload WhatBuild's open tabs once it is first set.
 Deploys keep the setting; removing it puts everything back on the app's origin.
+
+**Behind Cloudflare, nobody goes around it.** Two settings keep a stranger from flooding the
+service, or keeping it and its database awake, from outside what the Worker allows:
+
+- **A rate limit** in the app's zone (Security > WAF > Rate limiting rules). The free plan has one
+  rule, which may match on the path alone and counts by IP over 10 seconds. Make it match every
+  path (`starts_with(http.request.uri.path, "/")`), and block for 10 seconds an address that sends
+  more than 100 requests in 10 seconds; it answers `429`. `/assets/` counts too: the Worker passes
+  an asset it lacks on to the service, so made-up asset paths would otherwise reach it unlimited,
+  and the app's page loads only a few. That is several times what a person or an agent sends at
+  their busiest, and less than a scanner's burst; Cloudflare counts approximately, so a burst may
+  run somewhat past it before the block. The content site's zone needs none: a
+  prototype's page may ask for hundreds of files at once.
+- **An edge key.** The `run.app` address serves anyone who finds it, past the rate limit and the
+  Worker's answers to scanners. With `WHATBUILD_EDGE_KEY` set, the service refuses every request
+  but `/health` that does not carry the key in `X-WhatBuild-Edge-Key` (`403`, before anything else
+  runs), and the Worker adds it, from its secret `EDGE_KEY`, to every request it passes on
+  ([decision](../decisions/behind-cloudflare-the-service-answers-only-requests-that-carry-the-workers-key.md)).
+  Make the key, give it to the Worker and deploy the Worker, then give it to the service, in that
+  order, so no request through the Worker is refused:
+
+```bash
+openssl rand -base64 48 | tr -d '\n' | gcloud secrets create whatbuild-edge-key --project $P --replication-policy=automatic --data-file=-
+gcloud secrets add-iam-policy-binding whatbuild-edge-key --project $P \
+  --member serviceAccount:whatbuild-runtime@$P.iam.gserviceaccount.com --role roles/secretmanager.secretAccessor
+gcloud secrets versions access latest --secret whatbuild-edge-key --project $P \
+  | npx wrangler secret put EDGE_KEY --config deploy/cloudflare/wrangler.toml
+# deploy the Worker as above, from a build that sends the key, then:
+gcloud run services update whatbuild --project $P --region $R --update-secrets WHATBUILD_EDGE_KEY=whatbuild-edge-key:latest
+curl -s -o /dev/null -w '%{http_code}\n' https://whatbuild-<project number>.$R.run.app/api/v1/meta   # 403
+curl -s -o /dev/null -w '%{http_code}\n' https://app.example.com/api/v1/meta                          # 200
+```
+
+The Worker keeps its secret across deploys, and the service its setting across builds; `setup.sh`
+passes the secret on whenever it exists. Anything else that calls the service (a scheduler, a
+script) calls the public URL, through the Worker. To change the
+key, add a version to the secret, put it on the Worker, then update the service as above: requests
+in the moments between the two are refused. Without a Worker in front, set no key. A flood sent
+straight to the `run.app` address is then refused at little cost, but not at none: each refused
+request still runs the instance (one at most, [What it costs](#what-it-costs)) and sends its short
+answer. Cloud Run's own request log line for it is dropped (`whatbuild-refused-requests`, made by
+`setup.sh`; [What is where](#what-is-where)).
 
 **Who asked to hear from us.** The site's form writes to the `interest` table
 ([§4.13](../spec/04-data-model.md)); nothing sends mail yet. Read it with Cloud SQL Studio or
@@ -475,9 +517,9 @@ day make well under a million a month.
 | Build identity | the project's default compute identity, or `BUILD_SA` | deploy to Cloud Run, push images, write logs, read `<project>_cloudbuild`; `setup.sh` takes away the Editor role Google gives it |
 | Database | Cloud SQL instance `whatbuild-db`, database and user `whatbuild` (with `CLOUD_SQL=1`) | or the Postgres named by `DATABASE_URL` |
 | Bucket | `<project>-whatbuild-files` | private, uniform access, public access prevented; versioned, noncurrent versions deleted after 30 days |
-| Secrets | `whatbuild-database-url`, `whatbuild-grant-key`, optional `whatbuild-smtp-url` ([Mail](mail.md)), `whatbuild-google-client-secret` | read by the runtime identity only |
+| Secrets | `whatbuild-database-url`, `whatbuild-grant-key`, optional `whatbuild-smtp-url` ([Mail](mail.md)), `whatbuild-google-client-secret`, `whatbuild-edge-key` (behind Cloudflare; also the Worker's `EDGE_KEY`) | read by the runtime identity only |
 | Images | Artifact Registry `whatbuild` | the ten most recent always kept; others deleted after 30 days |
-| Log exclusion | `whatbuild-request-addresses` on the `_Default` sink | Cloud Run logs every request itself, with its whole address, the client's IP and its browser, for 30 days. This drops its line for an address with a query (a search's words, a sign-in link's token) or an invitation link; the service's own line for it, masked, stays |
+| Log exclusions | `whatbuild-request-addresses` and `whatbuild-refused-requests` on the `_Default` sink | Cloud Run logs every request itself, with its whole address, the client's IP and its browser, for 30 days. The first drops its line for an address with a query (a search's words, a sign-in link's token) or an invitation link; the service's own line for it, masked, stays. The second drops its line for a `403` or a `429`: a request without the edge key, refused before the service logs anything, or one Cloud Run refused for want of an instance, so a flood of them writes no logs to pay for. The request metrics count them all, and the service's own line stays for each `403` it gives |
 | Restore points (Neon, optional) | branches `pre-migrate-<time>-<commit>`, secret `whatbuild-neon-api-key` | one per deploy before migrating, the newest three kept; the key reaches only the Neon project and is read by the build identity |
 | Alerts | four policies named `whatbuild: …`, one email channel | made by `deploy/cloud-run/alerts.mjs` ([Alerts](#alerts)) |
 | Traces | a project of their own (`TRACES_PROJECT`; production's is `GCP_TRACES_PROJECT` in `.env`): trace storage `_Trace` in `us`, BigQuery dataset `whatbuild_traces` | runs nothing; the runtime identity has Cloud Telemetry Traces Writer there, and nothing else ([Traces](#traces)) |

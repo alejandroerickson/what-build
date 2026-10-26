@@ -41,6 +41,9 @@ started there loses its state at the public URL's callback.
   people signed in. A link on a name that no longer reaches it is dead; inside the product being
   read, the web app and the Story frame already open such links in place
   ([§4.11](../spec/04-data-model.md#411-story)).
+- Behind the Cloudflare Worker with an edge key, Cloud Run's `run.app` name answers nothing but
+  the health check, so nothing is redirected from it
+  ([decision](behind-cloudflare-the-service-answers-only-requests-that-carry-the-workers-key.md)).
 
 ## Constrains
 

@@ -131,6 +131,9 @@ before the service moves to it, Cloud Storage for blobs, Secret Manager for secr
   redirected when the public URL is a loopback address. `WHATBUILD_REDIRECT_TO_PUBLIC_URL=0` turns
   it off, for a proxy that sends its own host name and no `X-Forwarded-Host`
   ([decision](../decisions/the-app-has-one-address-and-pages-on-other-hosts-move-to-it.md)).
+  Behind the Cloudflare Worker, `WHATBUILD_EDGE_KEY` closes the other name altogether: every
+  request but `/health` without the key the Worker adds is refused, `403`, before anything else
+  runs ([decision](../decisions/behind-cloudflare-the-service-answers-only-requests-that-carry-the-workers-key.md)).
 - **A content site for what people and agents write.** `WHATBUILD_CONTENT_URL` (an origin on
   another registrable domain than the app's, such as `https://usercontent.example.net`) gives a
   deployment a host of its own for every document of people's and agents' HTML and the uploaded

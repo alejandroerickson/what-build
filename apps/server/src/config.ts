@@ -12,6 +12,12 @@ export interface ServerConfig {
    * (canonical-host.ts). On unless WHATBUILD_REDIRECT_TO_PUBLIC_URL is 0.
    */
   redirectToPublicUrl: boolean;
+  /**
+   * The key the proxy in front sends in X-WhatBuild-Edge-Key (WHATBUILD_EDGE_KEY; the Cloudflare
+   * Worker's EDGE_KEY). Set, every request without it but the health check is refused (edge-key.ts),
+   * so the service's own address serves nobody who goes around the proxy. Null for none.
+   */
+  edgeKey: string | null;
   /** The public site's origin (e.g. https://what-build.com), served by host beside the app; null for none. */
   siteUrl: string | null;
   /**
@@ -167,6 +173,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const port = num(env["PORT"], 8787);
   const publicBaseUrl = (env["WHATBUILD_PUBLIC_URL"] ?? `http://localhost:${mode === "development" ? num(env["WHATBUILD_WEB_PORT"], 5273) : port}`).replace(/\/+$/, "");
   const contentUrl = contentOrigin(env["WHATBUILD_CONTENT_URL"], publicBaseUrl, mode);
+  const edgeKey = env["WHATBUILD_EDGE_KEY"]?.trim() || null;
+  if (edgeKey && edgeKey.length < 32) throw new Error("WHATBUILD_EDGE_KEY must be at least 32 random characters, the same the proxy in front sends.");
   const grantKey = env["WHATBUILD_GRANT_KEY"] ?? (mode === "production" ? "" : "development-only-grant-key-not-secret");
   if (mode === "production" && grantKey.length < 32) throw new Error("WHATBUILD_GRANT_KEY must be set to at least 32 random characters in production.");
   const blobStore = (env["WHATBUILD_BLOB_STORE"] ?? (env["WHATBUILD_GCS_BUCKET"] ? "gcs" : "fs")) as ServerConfig["blobStore"];
@@ -197,6 +205,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     port,
     publicBaseUrl,
     redirectToPublicUrl: env["WHATBUILD_REDIRECT_TO_PUBLIC_URL"]?.trim() !== "0",
+    edgeKey,
     siteUrl: env["WHATBUILD_SITE_URL"] ? env["WHATBUILD_SITE_URL"].replace(/\/+$/, "") : null,
     contentUrl,
     prototypeGrantSeconds: Math.max(60, Math.round(num(env["WHATBUILD_PROTOTYPE_GRANT_HOURS"], 8) * 3600)),
