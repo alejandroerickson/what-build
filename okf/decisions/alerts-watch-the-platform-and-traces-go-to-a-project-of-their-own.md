@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: Alerts watch Cloud Run's own signals, and the service's traces go over OpenTelemetry to a Google Cloud project that runs nothing
-description: Production mails its maintainer on server errors, error lines, memory and failed jobs from the platform's own metrics and log, and traces its requests, operations, statements and jobs over OpenTelemetry into a project of their own, so Cloud Run's unmasked request spans are never kept.
+description: A Cloud Run deployment mails the people who run it on server errors, error lines, memory and failed jobs from the platform's own metrics and log, and traces its requests, operations, statements and jobs over OpenTelemetry into a project of their own, so Cloud Run's unmasked request spans are never kept.
 tags: [decision, operations, observability, tracing, alerts, privacy, cloud-run]
 generated: {by: agent:claude, at: 2026-10-25}
 status: stable
@@ -11,9 +11,9 @@ status: stable
 
 ## Context
 
-Production had a request log and the server's usage counts, and nobody heard when it failed. The
-maintainer chose on 2026-10-25 to add alerts and tracing, with Google's tools rather than another
-provider. Two facts shaped how. An uptime check every few minutes would keep the one instance alive,
+A Cloud Run deployment had a request log and the server's usage counts, and nobody heard when it
+failed. The maintainer chose on 2026-10-25 to add alerts and tracing, with Google's tools rather
+than another provider. Two facts shaped how. An uptime check every few minutes would keep the one instance alive,
 and billed, all month. And once a project has trace storage, Google also keeps Cloud Run's own span
 for each request it samples, with its whole URL, query included, and the browser's user agent,
 which the [log exclusion](../operations/cloud-run.md) keeps out of the request log. Nothing turns
@@ -27,9 +27,8 @@ provider holding data about the service.
   job run, and a flood (requests, data sent to the internet, or logs written far past what a few
   teams and their agents send). `deploy/cloud-run/alerts.mjs` makes them, and they are mailed to one address.
 - **Traces** are OpenTelemetry, sent over OTLP when a deployment sets OpenTelemetry's standard
-  settings, and the service runs the same without them. Production sends them to Google's Telemetry
-  API with `gcp.project_id` naming a project that runs nothing (`GCP_TRACES_PROJECT` in `.env`).
-  The service's own project then has no trace storage, so Cloud Run's request spans are dropped as
+  settings, and the service runs the same without them. On Cloud Run they go to Google's Telemetry
+  API with `gcp.project_id` naming a project that runs nothing. The service's own project then has no trace storage, so Cloud Run's request spans are dropped as
   before.
 - **Spans hold what a log line may**, and less: a route's pattern or the masked path, an operation's
   name, the door, an agent client's family, an outcome or error code, a job's kind, a statement's
@@ -41,7 +40,7 @@ provider holding data about the service.
 
 ## Consequences
 
-- One mail when production fails, for well under a dollar a month. An outage that keeps every
+- One mail when a deployment fails, for well under a dollar a month. An outage that keeps every
   request from reaching Cloud Run (the domain, the DNS) sends none.
 - A slow request shows which operation and which statements took the time. Agents query spans with
   `bq` through a BigQuery dataset linked to the trace storage, since Google's Cloud Trace API does

@@ -40,7 +40,7 @@ agents could use again and again. The repository is public, and the copy is real
     anonymized reliably.
   - **A shared copy in the cloud for QA.** It would be one more place real data lives, behind one
     more credential. The one copy in the cloud is the dev deployment's, kept for rehearsing releases
-    while WhatBuild has no customers, which the maintainer chose on 2026-10-10
+    until public sign-up opens, which the maintainer chose on 2026-10-10
     ([decision](releases-are-rehearsed-on-a-dev-deployment-holding-a-copy-of-production.md)).
 
 ## Consequences

@@ -17,8 +17,8 @@ since ([recovering](../operations/recovering-from-a-bad-release.md)). A copy of 
 maintainer's machine tries the code ([decision](qa-uses-a-private-copy-of-production.md)), but not
 the deploy: the image build, the restore point, the migration job and the service on Cloud Run.
 The maintainer chose on 2026-10-10 to keep a second deployment holding a copy of production's data
-for this. They judged a cloud copy acceptable because WhatBuild has no customers yet, which
-narrows that decision's rejection of "a shared copy in the cloud".
+for this. They judged a cloud copy acceptable until public sign-up opens, which narrows that
+decision's rejection of "a shared copy in the cloud".
 
 ## Decision
 

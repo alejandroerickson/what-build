@@ -47,7 +47,7 @@ and [its connector rule](the-public-sandbox-is-reached-only-through-its-own-conn
 
 - No person reads what a stranger wrote, so planted instructions cannot travel between people.
 - Nobody writes before they have an organization. A new account lands in the example and creates
-  its own when ready, within its allowance and, on the public deployment, the
+  its own when ready, within its allowance and, on a deployment that names the free plan, the
   [free plan's limits](free-organizations-meet-limits-that-only-instance-owners-change.md).
 - Visitors, made-up names, invitation links with places, seats, baselines and the daily reset are
   gone. The example changes only when its staff change it.

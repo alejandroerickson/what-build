@@ -3,7 +3,7 @@ type: System Concept
 title: A deployment's backups are its database's restore history, a restore point before each deploy, a nightly dump and a versioned files bucket; this guide says where each is, how to check it and how to restore one.
 description: For the operator and the agent working for them; what is kept, where and for how long on Cloud Run and Azure, setting up the nightly dump, checking that backups run, restoring a dump into an empty database, checking a restore, and the restore drill.
 tags: [operations, backups, restore, postgres, neon, cloud-run, azure, runbook]
-generated: {by: agent:claude, at: 2026-10-24}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -28,8 +28,8 @@ says; the restore in the middle is the one here.
 | Files on Cloud Run | the bucket's object versions; files are create-only, so a noncurrent version only ever holds deleted bytes | 30 days after deletion | `setup.sh` |
 | Files on Azure | share soft delete, which brings back a deleted share but not a deleted file; Azure Backup, if added, keeps files | 30 days | [Azure](azure.md) |
 
-The maintainer's Cloud Run deployment is on Neon with restore points and the nightly dump. Its
-project, region and Neon project are in `.env` (`GCP_PROJECT`, `GCP_REGION`, `NEON_PROJECT`).
+The commands below take a deployment's project, region and, on Neon, its Neon project; the
+maintainer's are in `.env` (`GCP_PROJECT`, `GCP_REGION`, `NEON_PROJECT`).
 
 ## The nightly dump
 

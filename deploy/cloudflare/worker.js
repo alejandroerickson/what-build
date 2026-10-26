@@ -1,4 +1,4 @@
-// A Cloudflare Worker in front of WhatBuild's Cloud Run service, on Cloudflare's free plan.
+// A Cloudflare Worker in front of WhatBuild's Cloud Run service, written for Cloudflare's free plan.
 //
 // The public site is served here, from the built web app (apps/web/dist), so nothing that visits
 // it, crawlers included, wakes the service; only a request to hear from us is passed on. The app's

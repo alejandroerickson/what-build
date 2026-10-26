@@ -3,7 +3,7 @@ type: Decision
 title: Feedback names nobody and reaches the people who run WhatBuild in a daily digest
 description: People and their agents send feedback that keeps its words, kind and release but not who sent it, at most ten a UTC day each, and the deployment mails it once a day to an address it names.
 tags: [decision, feedback, privacy, mail, mcp, agents]
-generated: {by: agent:claude, at: 2026-10-18}
+generated: {by: agent:claude, at: 2026-10-25}
 status: stable
 ---
 
@@ -41,8 +41,7 @@ Only invited people use most deployments, so a CAPTCHA would cost more ease than
 ## Consequences
 
 - A maintainer cannot ask who sent a report unless its sender shared an address.
-- A sleeping Cloud Run service sends the digest when it next wakes; production's daily scheduler
-  wakes it.
+- A sleeping Cloud Run service sends the digest when it next wakes.
 
 ## Constrains
 

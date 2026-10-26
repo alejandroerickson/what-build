@@ -91,8 +91,8 @@ account reads it as its guest, a viewer of every product there, and nobody but i
 changes it
 ([decision](../decisions/every-account-reads-the-example-organization-which-only-its-staff-write.md)).
 Every organization has a plan: one someone other than an instance owner creates gets the
-deployment's (`WHATBUILD_NEW_ORGANIZATION_PLAN`, free on the public deployment, unlimited unless
-named), and on the free plan everyone in it meets limits on how often and how much, which only
+deployment's (`WHATBUILD_NEW_ORGANIZATION_PLAN`, free on a deployment open to the public,
+unlimited unless named), and on the free plan everyone in it meets limits on how often and how much, which only
 instance owners change
 ([decision](../decisions/free-organizations-meet-limits-that-only-instance-owners-change.md)).
 

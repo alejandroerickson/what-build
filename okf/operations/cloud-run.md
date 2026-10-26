@@ -1,7 +1,7 @@
 ---
 type: System Concept
 title: WhatBuild runs as one stateless Cloud Run service with Postgres and a Cloud Storage bucket.
-description: What the production deployment is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, its alerts and traces, cost, names, and useful commands; backups and the dev deployment have guides of their own.
+description: What a deployment on Cloud Run is made of, how deploy/cloud-run/setup.sh creates it, sign-in, deploying and restore points before migrating, its alerts and traces, cost, names, and useful commands; backups and the dev deployment have guides of their own.
 tags: [operations, deployment, cloud-run, gcp]
 generated: {by: agent:claude, at: 2026-10-25}
 status: stable
@@ -28,9 +28,9 @@ Before each new revision serves traffic, the same image runs as the Cloud Run Jo
 built by the repository's [`deploy/Dockerfile`](../../deploy/Dockerfile), from the repository's
 root; migrations are the forward-only SQL files in `apps/server/src/migrations/`.
 
-What a deployment keeps and how to restore it is in [Backups](backups.md). The maintainer also
-runs a second deployment laid out the same way, the [dev deployment](dev-deployment.md), which
-holds a copy of production and rehearses releases before production moves.
+What a deployment keeps and how to restore it is in [Backups](backups.md). A second deployment
+laid out the same way, a [dev deployment](dev-deployment.md), can hold a copy of production and
+rehearse releases before production moves.
 
 ## Setting it up
 
@@ -109,7 +109,7 @@ its memory read there, before production moves.
 - **Email links** — re-run with `SMTP_URL=smtps://user:pass@host:465` and `MAIL_FROM`. Any SMTP
   provider works; this is also what sends invitations. Without it, invitations still work: the
   inviter is shown the single-use link to pass on. [Mail](mail.md) has what the server sends,
-  production's provider (Cloudflare Email Sending) and its commands. A re-run replaces every
+  setting up Cloudflare Email Sending, and its commands. A re-run replaces every
   setting on the service, so a deployment that sends mail passes `MAIL_FROM` each time: without it
   the sender falls back to `no-reply@localhost`, which providers refuse, and sign-in links and
   invitations to new addresses fail.
@@ -171,7 +171,7 @@ gcloud run services update whatbuild --region $R --update-env-vars \
 **The plan of a new organization.** `NEW_ORGANIZATION_PLAN=free` (`WHATBUILD_NEW_ORGANIZATION_PLAN`)
 puts every organization someone other than an instance owner creates on the free plan, whose
 limits everyone in it meets ([§9.7](../spec/09-data-lifecycle.md)); left out, they are unlimited.
-The public deployment sets `free`; a deployment for one organization's own people leaves it out.
+A deployment open to the public sets `free`; a deployment for one organization's own people leaves it out.
 Instance owners' organizations are always unlimited, and they change any organization's plan on
 `/instance`:
 
@@ -429,9 +429,8 @@ gcloud logging read 'jsonPayload.request_id="<request id>"' --project $P --fresh
 
 The service traces each request, the operation it runs, the statements run inside them and each
 job, when OpenTelemetry's standard settings name where to send them
-([§2.8](../spec/02-architecture.md#28-cross-cutting-rules)). Production sends them to Google's
-Telemetry API, into **a project of their own that runs nothing** (`GCP_TRACES_PROJECT` in the
-maintainer's `.env`): a project
+([§2.8](../spec/02-architecture.md#28-cross-cutting-rules)). On Cloud Run, send them to Google's
+Telemetry API, into **a project of their own that runs nothing**: a project
 with trace storage also keeps Cloud Run's own span for each request it samples, with its whole
 address (a search's words, an invitation's token) and the browser's user agent, and nothing turns
 those off. With the traces elsewhere, the service's project has no trace storage, and Cloud Run's
@@ -521,8 +520,8 @@ passes it, and is the kill switch's cap, which closes the service once it is rea
 on the bill](#a-hard-limit-on-the-bill)). Mail through
 Cloudflare Email Sending needs the Workers Paid plan, which includes 3,000 messages a month
 ([Mail](mail.md)). The alert policies cost about US$0.10 each a month; their mail costs
-nothing. Traces are billed by the million spans ingested, and production's few thousand requests a
-day make well under a million a month.
+nothing. Traces are billed by the million spans ingested, and a few thousand requests a day make
+well under a million a month.
 
 ## A hard limit on the bill
 
@@ -590,7 +589,7 @@ closed are still billed on Workers Paid, and the zone's rate limit is what bound
 | Restore points (Neon, optional) | branches `pre-migrate-<time>-<commit>`, secret `whatbuild-neon-api-key` | one per deploy before migrating, the newest three kept; the key reaches only the Neon project and is read by the build identity |
 | Alerts | seven policies named `whatbuild: …` (ten with the kill switch), one email channel, and with the kill switch a Pub/Sub channel to its topic | made by `deploy/cloud-run/alerts.mjs` ([Alerts](#alerts)) |
 | Kill switch (optional) | service, identity, Pub/Sub topic and push subscription `whatbuild-kill-switch`; role `whatbuildKillSwitch` in each project whose service it closes; budget `WhatBuild: every project` on the billing account | made by `deploy/cloud-run/kill-switch.sh`; the service is private and reachable from inside the project only, and its identity may change who calls the services it closes, nothing else ([A hard limit on the bill](#a-hard-limit-on-the-bill)) |
-| Traces | a project of their own (`TRACES_PROJECT`; production's is `GCP_TRACES_PROJECT` in `.env`): trace storage `_Trace` in `us`, BigQuery dataset `whatbuild_traces` | runs nothing; the runtime identity has Cloud Telemetry Traces Writer there, and nothing else ([Traces](#traces)) |
+| Traces | a project of their own (`TRACES_PROJECT`): trace storage `_Trace` in `us`, BigQuery dataset `whatbuild_traces` | runs nothing; the runtime identity has Cloud Telemetry Traces Writer there, and nothing else ([Traces](#traces)) |
 | Backup (another Postgres, set up by hand) | job `whatbuild-backup`, scheduler job `whatbuild-backup-nightly`, identity `whatbuild-backup`, bucket `<project>-backups`, secret `whatbuild-backup-database-url` | a `pg_dump` each night as a read-only role that bypasses row-level security; the identity adds and reads dumps, never deletes; dumps expire after 35 days ([Backups](backups.md)) |
 
 ## Useful commands

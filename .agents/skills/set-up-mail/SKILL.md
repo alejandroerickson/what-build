@@ -1,20 +1,20 @@
 ---
 name: set-up-mail
-description: Set up, check, repair or change the mail a WhatBuild deployment sends (sign-in links, invitations, allowance notices), on production's Cloudflare Email Sending, any SMTP provider, or the ACS Email API with managed identity. Use when asked to set up email, SMTP or a sender address, when invitations or sign-in links are not arriving, land in spam or fail with an internal error, when email sign-in is missing from the sign-in page, when rotating or replacing the mail token, when changing mail provider, or when giving a new deployment mail.
+description: Set up, check, repair or change the mail a WhatBuild deployment sends (sign-in links, invitations, allowance notices), on Cloudflare Email Sending, any SMTP provider, or the ACS Email API with managed identity. Use when asked to set up email, SMTP or a sender address, when invitations or sign-in links are not arriving, land in spam or fail with an internal error, when email sign-in is missing from the sign-in page, when rotating or replacing the mail token, when changing mail provider, or when giving a new deployment mail.
 ---
 
 # Set up mail
 
 You are working on the mail a WhatBuild deployment sends. What it sends, every setting, which
-deployments send mail, production's setup on Cloudflare and every command are in
+deployments send mail, setting up Cloudflare Email Sending and every command are in
 `okf/operations/mail.md`. Read it before the first command. This file says how to do the work.
 
 ## What must stay true
 
 - **The dev deployment never sends mail.** It holds a copy of production, so its addresses are
   real people's. Refuse to give it mail settings, and never copy production's to it.
-- **Each deployment uses its own mail credentials or managed identity.** Production's Cloudflare
-  token sends as `what-build.com` from anywhere. Never copy it to another deployment, a self-hosted
+- **Each deployment uses its own mail credentials or managed identity.** A Cloudflare token sends
+  as its domain from anywhere. Never copy one deployment's to another deployment, a self-hosted
   one, the repository, a commit or a message. Another organization's deployment uses its own domain and provider.
 - **Tokens never pass through a command line or the conversation.** The person writes a new token
   to an ignored `.env`; you pipe it into Secret Manager (`--data-file=-`) and print nothing of it.
@@ -49,6 +49,7 @@ deployments send mail, production's setup on Cloudflare and every command are in
 ## When the guide is wrong
 
 If a command fails because `okf/operations/mail.md` is out of date, or the provider has changed how
-it works, correct the guide with the `okf-update` skill. A different provider for production is a
-new decision: supersede `okf/decisions/production-sends-mail-through-cloudflare-email-sending.md`
+it works, correct the guide with the `okf-update` skill. A different provider for the guide to set
+up is a new decision: supersede
+`okf/decisions/mail-is-set-up-through-cloudflare-email-sending-and-a-dev-deployment-sends-none.md`
 with the `okf-decision` skill. Do not record the session itself in the repository.

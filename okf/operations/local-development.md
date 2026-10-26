@@ -85,7 +85,7 @@ Over plain HTTP the session cookie is `wb_session`; a deployment served over HTT
 `pnpm dev` makes the sample organization, `harbor-labs`, the example organization every account
 reads ([§3.10](../spec/03-accounts-teams-and-identity.md#310-the-example-organization)), and puts
 every organization someone other than an instance owner creates on the free plan
-([§9.7](../spec/09-data-lifecycle.md)), as the public deployment does. The sample people are members
+([§9.7](../spec/09-data-lifecycle.md)), as a deployment open to the public does. The sample people are members
 of `harbor-labs` and work there as anywhere; to see it as a guest, use the development sign-in's "As
 the email above" with any other address, such as `guest@example.com`. Sam Okafor may start one
 organization, which starts on the free plan; Riley Chen, the instance's owner, changes its plan and
