@@ -727,8 +727,8 @@ calls, features, agent clients, failures and people coming back, as totals that 
 `products(action="accounts")` lists every account on the instance for its owners, with the
 organizations each is in and when it was last seen. Both are offered only to an owner of the
 instance, as are the allowances to start organizations; anyone else who calls one gets
-`403 forbidden`. Removing an account is never yours to do: only an instance owner does it, on
-People in the web app.
+`403 forbidden`. Ending an account is never yours to do: only an instance owner removes one, on
+People in the web app, and only a person deletes their own, in its Settings.
 
 ## The example organization
 

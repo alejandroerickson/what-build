@@ -156,6 +156,139 @@
   padding: 0 var(--sheet-px) var(--s-3h) calc(var(--sheet-px) + var(--col-label) + var(--s-4));
 }
 
+/* Deleting your own account (/settings/delete-account): the terms, then the one step left. */
+.farewell-back {
+  margin: calc(-1 * var(--s-1)) 0 var(--s-2);
+}
+.farewell-who {
+  overflow: hidden;
+  color: var(--faint);
+  font-size: var(--fs-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.farewell-intro {
+  display: grid;
+  gap: var(--s-2);
+}
+.farewell-lead {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.farewell-group {
+  margin: 0;
+  padding: var(--s-3h) var(--sheet-px) var(--s-1h);
+  border-top: 1px solid var(--line);
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0;
+}
+.farewell-terms {
+  margin: 0;
+  padding: 0 0 var(--s-2h);
+  list-style: none;
+}
+.farewell-term {
+  display: grid;
+  grid-template-columns: var(--col-face) minmax(0, 1fr);
+  gap: var(--s-2h);
+  padding: var(--s-1h) var(--sheet-px);
+}
+.farewell-term-icon {
+  margin-top: 2px;
+  color: var(--faint);
+}
+.farewell-term p {
+  max-width: var(--measure);
+  margin: 0;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.farewell-term .farewell-term-detail,
+.farewell-block .farewell-term-detail {
+  margin-top: var(--s-0);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-ui);
+}
+.farewell-after {
+  border-top: 1px solid var(--line);
+}
+.farewell-after > p {
+  max-width: var(--measure);
+  margin: 0;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.farewell-went {
+  margin: 0;
+  padding-left: var(--s-5);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.farewell-step {
+  display: grid;
+  gap: var(--s-3);
+}
+.farewell-step > p {
+  max-width: var(--measure);
+  margin: 0;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.farewell-step code {
+  font-size: var(--fs-sm);
+}
+.farewell-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.farewell-actions-end {
+  justify-content: flex-end;
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line);
+}
+.farewell-blocks {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+}
+.farewell-block {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s-3);
+  align-items: center;
+  padding: var(--s-2h) var(--sheet-px);
+  border-bottom: 1px solid var(--line);
+}
+.farewell-block:last-child {
+  border-bottom: 0;
+}
+.farewell-block-name {
+  display: grid;
+  min-width: 0;
+  font-weight: var(--fw-medium);
+}
+.farewell-block-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s-2);
+}
+@media (max-width: 760px) {
+  .farewell-block {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .farewell-block-actions {
+    justify-content: flex-start;
+  }
+}
+
 /* Screens outside the shell */
 .entry {
   min-height: 100vh;

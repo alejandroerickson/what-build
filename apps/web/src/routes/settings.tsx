@@ -64,8 +64,9 @@ export function SettingsPage() {
       </Sheet>
       <ExampleInPanel />
       <SignOutEverywhere />
+      {/* Deleting the account is a page of its own, reached from here and never beside Sign out everywhere. */}
       <p className="agents-foot">
-        <Link to="/cookies">Cookies and analytics</Link> · <Link to="/privacy">Privacy</Link>
+        <Link to="/cookies">Cookies and analytics</Link> · <Link to="/privacy">Privacy</Link> · <Link to="/settings/delete-account">Delete your account</Link>
       </p>
     </>
   );

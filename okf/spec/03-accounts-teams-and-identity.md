@@ -46,7 +46,7 @@ tenant               an organization: the isolation boundary
 |---|---|
 | `account_id` | ULID, immutable. |
 | `email` | Unique (case-insensitive), verified by the sign-in itself. |
-| `display_name` | 1–100 chars. Appears in attribution. |
+| `display_name` | 1–100 chars. Appears in attribution, which copies it; an ended account keeps none. |
 | `hide_example` | The person hid the example organization from the app's panel ([§3.10](#310-the-example-organization)); `PATCH /api/v1/me` sets it, with or without the display name. |
 
 Sign-in methods, each optional per deployment:
@@ -477,22 +477,39 @@ and whose refresh token is refused; and expires every upload grant of the accoun
 so nothing more is stored under one, while the download grants its agents held stop with their
 connections ([§6.4](06-operations-and-adapters.md#64-rest)). It answers `{ sessions, connections,
 kept_this_session }`, and writes nothing into any organization: the account is the person's own.
-No operation reaches it, so an agent cannot sign its person out. Removing an account
+No operation reaches it, so an agent cannot sign its person out. Ending an account
 (below) ends everything the same way first.
 
-**Removing an account.** Only an instance owner removes an account, in the web app, on **People**
-(`products.remove_account`, web only, with the account's address typed exactly and `confirm` set to
+**Ending an account.** An account ends one of two ways, which do the same thing (`endAccount`,
+`packages/core/src/ops/accounts.ts`). An instance owner removes someone's on **People**
+(`products.remove_account`, with the account's address typed exactly and `confirm` set to
 `"delete permanently"`); `products.accounts` lists every account for them, through either door,
 with the organizations each is in and when it was last seen
-([decision](../decisions/instance-owners-see-every-account-and-remove-any-but-their-own.md)). An
-instance owner's account is refused (`409 instance_owner`), and so is the only owner of an
-organization until someone else owns it or it is deleted (`409 last_owner`, naming the
-organizations). In one transaction it ends the account's sign-ins as Sign out everywhere does;
-takes every role it holds, recording `revoked` in each organization's access log with the person's
-name; cancels the invitations still waiting at its address; removes the address's allowance and its
-unused sign-in links; and marks the account removed (`deleted_at`) with its address replaced by one
-that is no one's, so the address is forgotten. Its name stays on what it wrote, since attribution
-is copied. The address may sign up again only if something lets it in again.
+([decision](../decisions/instance-owners-see-every-account-and-remove-any-but-their-own.md)). A
+person deletes their own on `/settings/delete-account` (`products.delete_account`, with their
+address typed and the same `confirm`), after reading what it does and what stands in its way
+(`products.delete_account_impact`), and only from a browser session that signed in within the last
+15 minutes (`403 sign_in_again`, with `signed_in_at` and `minutes`): signing in again by any
+method the deployment offers, an email link included, brings them back to the page
+([decision](../decisions/a-person-deletes-their-own-account-after-a-recent-sign-in.md)). All three
+operations are web only, and an agent is offered none. An instance owner's account is refused
+(`409 instance_owner`), and so is the only owner of an organization until someone else owns it or
+it is deleted (`409 last_owner`, naming the organizations). In one transaction it ends the
+account's sign-ins as Sign out everywhere does; takes every role it holds, recording `revoked` in
+each organization's access log with the person's name and who ended it; cancels the invitations
+still waiting at its address; removes the address's allowance and its unused sign-in links; deletes
+the person's agent tokens and authorization codes, their counts against limits and against
+feedback, and their counted days of use (`forgetPerson`, `packages/core/src/usage.ts`, also for
+days not yet written); clears the address from interest requests and from feedback it was shared
+with; and marks the account removed (`deleted_at`), with no name and an address that is no
+one's, so the id is never taken again and the address is forgotten. What it wrote keeps the name
+copied onto it (§3.9). Last, a record goes to the address it had, saying who ended it, the terms,
+and whom to tell if it was not them (`WHATBUILD_PRIVACY_CONTACT`); a mail that fails never
+keeps the account, and the answer says whether it went (`notice_sent`). The address may come back
+only as a new, empty account, if something lets it in again. The terms, in the same words on the
+page, the privacy page and the mail, are in `packages/core/src/account-deletion.ts`: what goes at
+once, what stays with each organization, that backups age out within 35 days, and what the address
+gets later.
 
 **OAuth for agents.** WhatBuild is its own authorization server: protected-resource metadata
 (RFC 9728) at `/.well-known/oauth-protected-resource/mcp`, authorization-server metadata (RFC 8414),

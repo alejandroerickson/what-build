@@ -23,7 +23,16 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
-Nothing yet.
+- **People can delete their own account.** It concerns every deployment and asks one thing of it.
+  Settings links to Delete your account, which needs a sign-in from the last 15 minutes and the
+  address typed. It and an instance owner's removal on People now also delete what was kept about
+  the person (their agent tokens, counts against limits and feedback, counted days of use, their
+  name on the account, and their address on interest requests and feedback), and mail the address a
+  record that names `WHATBUILD_PRIVACY_CONTACT` as whom to tell if it was not them: set it, or the
+  record says only "whoever runs this WhatBuild". The terms promise that backups age out within
+  35 days; a deployment that keeps them longer, or keeps Neon `pre-migrate-…` branches longer, takes
+  the steps in [erasure](erasure.md). No migration. The skill is now at version 0.41.0, saying an
+  agent never ends an account; agents fetch it again as the server's instructions tell them.
 
 ## v0.23.1
 

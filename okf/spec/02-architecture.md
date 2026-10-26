@@ -3,7 +3,7 @@ type: Specification
 title: WhatBuild is one TypeScript application image over Postgres and an object store, and the same code runs on a laptop with only Node.
 description: The requirements behind the stack, the stack itself, the deployment shape, ports and adapters, the operation protocol, the local development contract, cross-cutting rules, and the repository layout.
 tags: [spec, architecture, stack, development, deployment]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -170,7 +170,7 @@ interfaces; adapters live in [`apps/server/src/adapters`](../../apps/server/src/
 |---|---|---|---|---|
 | `BlobStore` | Immutable, create-only blobs: `put`, `putStream` (size-capped), `get`, ranged `getStream`, `stat`, `delete`; optional signed upload and download URLs | Google Cloud Storage | filesystem (`.what-build/blobs`) | in-memory |
 | `GrantSigner` | Sign and verify upload and download grants | HMAC with `WHATBUILD_GRANT_KEY` | the same, with a fixed development key | the same |
-| `Mailer` | Sign-in links, invitations, allowance notices, a new agent connection's notice and the daily feedback digest | SMTP, ACS with managed identity, or none (email links then off) | printed to the terminal | captured in memory |
+| `Mailer` | Sign-in links, invitations, allowance notices, an account's deletion record, a new agent connection's notice and the daily feedback digest | SMTP, ACS with managed identity, or none (email links then off) | printed to the terminal | captured in memory |
 | `UrlFetcher` | Size-capped, SSRF-safe HTTPS fetch for `attachments.fetch_url` | yes | yes | yes |
 | `FileParser` | Parse one attachment's bytes into its readable Markdown, away from the requests | a worker thread per file, with memory and time limits | the same | the same |
 

@@ -2,7 +2,7 @@ import {
   Activity, Archive, ArchiveRestore, ArrowLeft, ArrowRight, Blend, BookOpen, Bot, Box, Building, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronsDownUp, ChevronsUpDown, ChevronUp,
   CircleAlert, CircleCheck, CircleDashed, Clock, Cookie, Copy, CornerDownRight, Download, Ellipsis, ExternalLink, FileText, FileVolume, FolderInput,
   FlaskConical, GitCommitHorizontal, GripVertical, Image, Info, Keyboard, LayoutGrid, Library, Lightbulb, Link, LoaderCircle, LogOut, Maximize2, Menu, MessageSquare, Mic, Minimize2, Minus, Monitor, Moon, MoveHorizontal, Palette, PanelLeftClose, Paperclip, PanelLeftOpen,
-  PanelRightClose, PanelRightOpen, Pencil, Plus, Quote, RotateCcw, Scale, Search, Settings, Signpost, Sun, Tag, Target, Trash, Triangle, TriangleAlert, Upload, UserPlus, Users, X, ZoomIn, ZoomOut, Scan, Hand, MousePointer2,
+  PanelRightClose, PanelRightOpen, Pencil, Plus, Quote, RotateCcw, Scale, Search, Settings, Signpost, Sun, Tag, Target, Trash, Triangle, TriangleAlert, Upload, UserPlus, Users, UserX, X, ZoomIn, ZoomOut, Scan, Hand, MousePointer2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -91,6 +91,7 @@ const GLYPHS = {
   "zoom-in": ZoomIn,
   "zoom-out": ZoomOut,
   users: Users,
+  "user-x": UserX,
   x: X,
 } satisfies Record<string, LucideIcon>;
 

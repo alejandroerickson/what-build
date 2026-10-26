@@ -57,7 +57,7 @@ export function CookiesPage() {
       ) : null}
       <section className="entry-fine" aria-labelledby="cookies-counting">
         <h2 id="cookies-counting">Counting without cookies</h2>
-        <p>Whatever you choose, WhatBuild&rsquo;s server counts which features are used, in the app and by agents, and how many people come back. It uses no cookie and keeps no names: each person is a code, kept for 14 months, and whoever runs WhatBuild sees only totals. <Link to="/privacy">Privacy</Link> says what else is kept, and whom to ask.</p>
+        <p>Whatever you choose, WhatBuild&rsquo;s server counts which features are used, in the app and by agents, and how many people come back. It uses no cookie and keeps no names: each person is a code, kept for 14 months or until they delete their account, and whoever runs WhatBuild sees only totals. <Link to="/privacy">Privacy</Link> says what else is kept, and whom to ask.</p>
       </section>
       <section className="entry-fine" aria-labelledby="cookies-clear">
         <h2 id="cookies-clear">Clearing them</h2>

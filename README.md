@@ -39,8 +39,8 @@ There is no AI inside WhatBuild. Your team's own agents do the reading, drafting
 through an MCP server that offers the same operations as the web app. In WhatBuild, open
 **Connect an agent**, choose what it may reach, and copy the server's address into any agent that
 speaks MCP. It asks you to sign in, and the server tells it which version of the WhatBuild skill
-to install. From then on it can do almost everything you can in the web app: 112 of the 115
-operations, all but deleting an organization and removing an account.
+to install. From then on it can do almost everything you can in the web app: 112 of the 117
+operations, all but deleting an organization or an account.
 
 People and agents share one account, one set of permissions and one activity log, so you always
 see what an agent did, and an agent's guess never passes for a person's agreement.

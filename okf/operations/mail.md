@@ -1,9 +1,9 @@
 ---
 type: System Concept
 title: Mail - what WhatBuild sends, how each deployment sends it, and sending it through Cloudflare Email Sending
-description: The messages the server sends (three while a request waits, and the daily feedback digest), the settings that choose a mailer, which deployments send mail and which never do, setting up Cloudflare Email Sending over SMTP, checking it, rotating its token, changing provider, and what breaks it.
+description: The messages the server sends (four while a request waits, and the daily feedback digest), the settings that choose a mailer, which deployments send mail and which never do, setting up Cloudflare Email Sending over SMTP, checking it, rotating its token, changing provider, and what breaks it.
 tags: [operations, mail, smtp, cloudflare, invitations, sign-in, cloud-run, azure, runbook]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -14,13 +14,14 @@ this guide.
 
 ## What WhatBuild sends
 
-Plain text, one message at a time. Three are sent while the request that causes it waits:
+Plain text, one message at a time. Four are sent while the request that causes it waits:
 
 | Message | Sent when | Code |
 |---|---|---|
 | A sign-in link | someone asks for one on the sign-in page (`POST /auth/email`), at most five per address an hour | `apps/server/src/auth/routes.ts` |
 | An invitation | someone gives a role to an address that has no account | `packages/core/src/ops/products.ts` |
 | An allowance notice | an instance owner lets an address start organizations, and asks to tell them | `packages/core/src/ops/tenant-allowances.ts` |
+| An account's deletion record | a person deletes their account, or an instance owner removes it: to the address it had, saying who ended it, what went and what stays, and whom to tell if it was not them (`WHATBUILD_PRIVACY_CONTACT`) | `packages/core/src/ops/accounts.ts` |
 
 Two are sent by the worker, not a request:
 
@@ -37,7 +38,9 @@ specified in [§3](../spec/03-accounts-teams-and-identity.md), feedback in
 transaction with its message, so a failed send leaves nothing behind and the person sees an
 internal error; a failed sign-in link answers `500`. A deployment whose mail is broken therefore
 cannot invite anyone new, while one with no mail at all can: the person inviting is shown the link
-to pass on, and the sign-in page offers no email link.
+to pass on, and the sign-in page offers no email link. The one exception is a deletion's record: a
+failed send is logged (`account deletion: the record was not mailed`) and the account ends anyway,
+since the person asked for it; the answer's `notice_sent` says whether it went.
 
 **A connection's notice that cannot be sent is tried again**, as any job is, a few times with
 growing waits; the agent's connection is made either way. With no mailer none is queued, and the

@@ -240,6 +240,8 @@ const ACCOUNT: Record<string, string> = {
   "products.set_limits": "the instance owners' alone: 403 to anyone else",
   "products.accounts": "the instance owners' alone: 403 to anyone else",
   "products.remove_account": "the instance owners' alone, in the web app: 403 to anyone else",
+  "products.delete_account_impact": "the caller's own account, in the web app: names no one else and no organization they are not in",
+  "products.delete_account": "the caller's own account, in the web app: takes no input that names another",
   get_skill: "the same document for everyone",
   submit_feedback: "write-only: says nothing back about anyone",
 };

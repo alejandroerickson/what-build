@@ -23,6 +23,7 @@ import { LimitsPage } from "./routes/limits.tsx";
 import { PeoplePage } from "./routes/people.tsx";
 import { SearchPage } from "./routes/search.tsx";
 import { InstancePage } from "./routes/instance.tsx";
+import { AccountDeletedPage, DeleteAccountPage } from "./routes/delete-account.tsx";
 import { SettingsPage } from "./routes/settings.tsx";
 import { SourceDetailPage } from "./routes/source-detail.tsx";
 import { SourceNewPage } from "./routes/source-new.tsx";
@@ -174,6 +175,7 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
   { path: "/signin", element: <SignIn />, errorElement: <RouteError /> },
   { path: "/cookies", element: <CookiesPage />, errorElement: <RouteError /> },
   { path: "/privacy", element: <PrivacyPage />, errorElement: <RouteError /> },
+  { path: "/account-deleted", element: <AccountDeletedPage />, errorElement: <RouteError /> },
   // The public sandbox's invitation links are retired: one opens the app, where the example organization is.
   { path: "/join/:code", element: <Navigate to="/" replace />, errorElement: <RouteError /> },
   {
@@ -191,6 +193,7 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
         { path: "/products", element: <ProductsRedirect /> },
         { path: "/connect", element: <ConnectPage /> },
         { path: "/settings", element: <SettingsPage /> },
+        { path: "/settings/delete-account", element: <DeleteAccountPage /> },
         { path: "/instance", element: <InstancePage /> },
         { path: "/people", element: <PeoplePage /> },
         { path: "/t/:tenant/members", element: <CurrentTenantAddress><MembersPage /></CurrentTenantAddress> },
