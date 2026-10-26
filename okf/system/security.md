@@ -374,7 +374,9 @@ many.
 
 **Secrets, logs and delivery.** Configuration comes from the environment (`config.ts`); secrets
 live in Secret Manager or Key Vault (`deploy/cloud-run/setup.sh`, `deploy/azure/containerapp.yaml`),
-and the runtime identity reaches only the files bucket, its secrets and its database. Without a mail
+and the runtime identity reaches only the files bucket, its secrets and its database. The kill
+switch's identity, where there is one, may only change who calls the services it closes
+(`deploy/cloud-run/kill-switch.sh`). Without a mail
 provider, email links are off rather than logged, and production refuses to start with a mailer
 that would print them or deliver nothing (`WHATBUILD_MAILER` other than `smtp` or `none`), or with
 one it does not know (`config.ts`). Log lines hold method, masked path, status and time, never

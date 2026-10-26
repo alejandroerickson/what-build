@@ -227,7 +227,8 @@ $G run jobs execute "$JOB" --region "$REGION" --wait
 
 step "Service $SERVICE"
 # CPU stays allocated so the in-process worker parses uploads after the response returns;
-# with min-instances 0 an idle service still scales to nothing and costs nothing.
+# with min-instances 0 an idle service still scales to nothing and costs nothing. Public again with
+# each run (--allow-unauthenticated): a service the kill switch closed is opened by it.
 $G run deploy "$SERVICE" --region "$REGION" --image "$IMAGE" --service-account "$RUNTIME_SA" \
   --allow-unauthenticated --no-cpu-throttling --min-instances 0 --max-instances "${MAX_INSTANCES:-1}" --memory 1Gi --cpu 1 \
   --concurrency 40 --timeout 300 --set-secrets "$SECRETS" --set-env-vars "$ENV_ARG" ${CLOUDSQL_FLAGS[@]+"${CLOUDSQL_FLAGS[@]}"}
@@ -254,8 +255,11 @@ if $G logging sinks describe _Default --format='value(exclusions[].name)' | tr '
 $G logging sinks update _Default "$verb=name=$SERVICE-refused-requests,filter=$REFUSED_FILTER" >/dev/null
 
 step "Alerts"
+# With the kill switch (kill-switch.sh), its topic, so its alerts stay as they are.
+KILL_TOPIC=""
+$G pubsub topics describe "$SERVICE-kill-switch" >/dev/null 2>&1 && KILL_TOPIC="projects/$PROJECT_ID/topics/$SERVICE-kill-switch"
 if command -v node >/dev/null 2>&1; then
-  PROJECT_ID="$PROJECT_ID" SERVICE="$SERVICE" ALERT_EMAIL="${ALERT_EMAIL:-}" node deploy/cloud-run/alerts.mjs
+  PROJECT_ID="$PROJECT_ID" SERVICE="$SERVICE" ALERT_EMAIL="${ALERT_EMAIL:-}" KILL_SWITCH_TOPIC="$KILL_TOPIC" node deploy/cloud-run/alerts.mjs
 else
   echo "Node is not installed here, so no alerts were made. Where it is: PROJECT_ID=$PROJECT_ID node deploy/cloud-run/alerts.mjs"
 fi

@@ -347,4 +347,6 @@ and that is decided again before public sign-up opens ([roadmap](../spec/10-road
 ## What it costs
 
 Idle, close to nothing: the service scales to zero, the database is on Neon's free plan, and the
-bucket holds a few megabytes. A rehearsal is a build and a few minutes of the service.
+bucket holds a few megabytes. A rehearsal is a build and a few minutes of the service. A kill
+switch that names it beside production closes it with production; a rehearsal then gets `403`
+until it is opened again ([A hard limit on the bill](cloud-run.md#a-hard-limit-on-the-bill)).
