@@ -1149,12 +1149,22 @@ a.list-row:focus-visible {
   line-height: var(--h-sm);
   text-decoration: none;
 }
+/* One line, cut where the line breaks rather than where the box ends: a title that mixes directions
+   (English, then Arabic) keeps the words it starts with, as the heading's first line does, where
+   text-overflow would clip by position and keep the end of the Arabic. A label too long for its
+   line is cut after a word by the crumb itself (data-cut), and the ellipsis is drawn, not read. */
 .crumb-label {
-  display: block;
+  display: -webkit-box;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+}
+.crumb-label[data-cut]::after {
+  content: "…";
+  content: "…" / "";
 }
 a.crumb:hover,
 button.crumb:hover,
