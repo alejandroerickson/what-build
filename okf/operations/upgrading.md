@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.21.0
+
 - **With a content site, every page and inline file is served from it.** It concerns deployments
   that set `WHATBUILD_CONTENT_URL`. From this release the content site serves, besides prototypes,
   every Story page, mockup page, Idea card, style specimen and print view, agents' previews, and a
