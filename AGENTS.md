@@ -45,8 +45,11 @@ message, every pull request's text and every issue and comment is published, and
   providers they use, what they have set up, their traffic. Documentation gives the step any
   deployment takes (`CAP=<amount>`, `my-whatbuild` in examples and tests); those facts stay outside
   the repository.
-- A copy of production (`.what-build/fixtures/`, the `fixture` database) is real people's data:
-  never commit it, and never quote it in the repository, a commit, an issue or a pull request.
+- A copy of production (`.what-build/fixtures/`, the `fixture` database, the golden master) is
+  real people's data. Pulling the example organization to this machine is routine and needs no
+  go-ahead; a pull of every organization needs one. Never commit a copy, and never quote it in
+  the repository, a commit, an issue or a pull request
+  ([a copy of production](okf/operations/a-copy-of-production.md#what-may-be-done-with-it)).
 - Tools that install their own instructions (memory, routing or workflow tools) keep them in your
   user-level configuration, never in this file, `.agents/skills/` or `okf/`.
 - Stage files by name. `pnpm install` turns on git hooks that refuse a commit or push carrying any

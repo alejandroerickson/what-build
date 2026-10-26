@@ -18,8 +18,16 @@ A copy holds the example organization, or the organizations named, and nothing o
 ([copying an organization](copying-an-organization.md)). The skill `test-on-a-copy-of-production`
 conducts it.
 
-## It holds real people's data
+## What may be done with it
 
+A copy is real people's data. Holding what a test needs on this machine is expected; publishing
+any of it never is.
+
+- **Pulling the example organization, or the organizations a test needs, to this machine is
+  routine.** It needs nobody's go-ahead: it is how WhatBuild is tested, and the skills do it
+  without asking.
+- **A pull of every organization (`--all`) needs the person's go-ahead**, and is deleted once it
+  has served. `pnpm attention` names one left behind.
 - A copy lives in `.what-build/fixtures/` (each pull) and in the embedded Postgres in
   `.what-build/pg` (the loaded copy), which git ignores, on the maintainer's machine. It is never
   committed, uploaded, attached or copied anywhere else. The one other copy is the

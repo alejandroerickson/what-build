@@ -29,7 +29,7 @@ anyone else: sign in with any address that is not one of theirs, such as `guest@
 reads every product of the example and is refused every write with `403 example_read_only`, and
 holds no organization of their own.
 
-The content is real people's data. A plan never names or quotes it: it says "a product with
+A plan never names or quotes the content, which is a copy of production: it says "a product with
 sources", "a word you can see in a source's text", "the archived product", and the agent finds one
 in the run. Text a plan uploads is synthetic and written by the agent into the run's folder.
 

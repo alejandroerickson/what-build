@@ -102,8 +102,8 @@ replaced. A copy cannot join a database that already holds organizations.
 
 Production is never a target. It is only read.
 
-## It holds real people's data
+## Where a copy may go
 
-Every copy follows the rules of [a copy of production](a-copy-of-production.md#it-holds-real-peoples-data).
+Every copy follows the rules of [a copy of production](a-copy-of-production.md#what-may-be-done-with-it).
 It stays on the machine or goes to the deployment it is for. It never goes into the repository, a
 commit, an issue or a pull request. Once it is loaded elsewhere, it is deleted.

@@ -71,8 +71,9 @@ organization: Riley owns each, Sam edits every team, Jordan reads every Story. T
 organization is left as it was built. Its people are guests of the example, as any account that
 belongs to no part of it.
 
-The golden master is real people's data, with every rule of that guide: it stays in `.what-build/`,
-and plans, reports that leave the machine, commits and issues never name or quote it.
+The golden master is a copy of production, with every rule of that guide: it stays in
+`.what-build/`, and plans, reports that leave the machine, commits and issues never name or quote
+it.
 
 The golden master is built in the instance's cluster in UTF-8, as every local cluster is
 ([local development](local-development.md#the-local-postgres)). **A golden master built before

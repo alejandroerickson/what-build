@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // What in this repository is waiting for someone, for an agent to tell the person at the start of
 // a session (AGENTS.md): dependency updates and alerts, a red run on main, an accepted vulnerability
-// whose time is up, unreleased changes production lacks, git hooks that are off, copies of
-// production that hold more organizations than they need. Each line names the skill that handles
-// it. Prints nothing when nothing is waiting.
+// whose time is up, unreleased changes production lacks, git hooks that are off, a pull of every
+// organization left on this machine, and a dev copy holding every organization from before copies
+// could be limited.
+// Each line names the skill that handles it. Prints nothing when nothing is waiting.
 //
 //   pnpm attention
 
