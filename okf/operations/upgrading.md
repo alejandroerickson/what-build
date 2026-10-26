@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.20.0
+
 - **The public sandbox is gone; a deployment may name an example organization instead.** It
   concerns a deployment that set `WHATBUILD_SANDBOX_TENANT`. The setting is no longer read (the
   server warns at start-up while it is set without the new one), and migration `0034` drops the
@@ -59,7 +63,7 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
   allowance, and forgets its address. `products(action="accounts")` lists them for an instance
   owner's agent; removing is never offered to an agent.
 - **The MCP tool list changes.** The `sandbox` tool is gone (13 tools), and `products` gains
-  `limits`, `organizations` and `set_limits`. A connected client sees the change in a new session.
+  `limits`, `organizations`, `set_limits` and `accounts`. A connected client sees the change in a new session.
   `products.usage` takes `example` in place of `sandbox`, and `pnpm usage` takes `--example`. The
   skill is now at version 0.38.0; agents fetch it again as the server's instructions tell them.
 
