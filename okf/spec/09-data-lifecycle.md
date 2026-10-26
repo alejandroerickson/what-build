@@ -89,8 +89,9 @@ they write; every screen there says so ([§3.10](03-accounts-teams-and-identity.
 **The privacy page** (`/privacy`, readable signed out; `apps/web/src/routes/privacy.tsx`), linked
 from the sign-in page, Settings, `/cookies` and the public site's footer. It opens with the
 statement above. What it says of every deployment is fixed text: what is kept, why and for how long (the account; what people add; sessions
-and connected agents, with the deployment's session and agent lifetimes; request logs; the counts
-of use, for 14 months; Google Analytics, when the deployment has it; feedback, without the sender's
+and connected agents, with the deployment's session and agent lifetimes; the counts held against
+an organization's limits (§9.7 rules 9 and 10), for three days; request logs; the counts of use,
+for 14 months; Google Analytics, when the deployment has it; feedback, without the sender's
 name or address unless they share it, and mailed once a day to the people who run the deployment,
 and interest; backups),
 on what grounds (because a person uses WhatBuild; to run it safely and improve it, which a person
