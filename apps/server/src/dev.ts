@@ -7,6 +7,7 @@ import { loadConfig } from "./config.ts";
 import { createDb, migrate } from "./database.ts";
 import { E2E, holdInstancePid, instancePid, resetToGolden } from "./e2e.ts";
 import { addSamplePeople, FIXTURE_BLOBS, FIXTURE_DATABASE } from "./fixture.ts";
+import { addPeople, DEFAULT_COUNT, describePlan, planPeople } from "./people.ts";
 import { SEED_ACCOUNTS, seed } from "./seed.ts";
 import { connectOrStartLocalPg, startLocalPg, type LocalPg } from "./testing/pg.ts";
 import { Worker } from "./worker.ts";
@@ -27,6 +28,10 @@ import { Worker } from "./worker.ts";
  *   pnpm dev:e2e             the end-to-end instance: its own Postgres and files, reset to the golden
  *                            master that `pnpm e2e golden` built, on :5283 and :8797, beside any
  *                            pnpm dev; mail only prints here (okf/operations/end-to-end-tests.md)
+ *   pnpm dev:people [--count N]
+ *                            the sample, and a hundred synthetic people (or N) in organizations, invited,
+ *                            allowed and on the waitlist, in a database of their own, invite-only as a
+ *                            deployment taking sign-ups is (okf/operations/local-development.md)
  */
 const root = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 
@@ -40,6 +45,8 @@ const OLD_CLUSTER = (encoding: string) => `
 `;
 const FIXTURE = process.argv.includes("--fixture");
 const END_TO_END = process.argv.includes("--e2e");
+const PEOPLE = process.argv.includes("--people");
+const PEOPLE_COUNT = process.argv.includes("--count") ? Number(process.argv[process.argv.indexOf("--count") + 1]) : DEFAULT_COUNT;
 const API_PORT = END_TO_END ? E2E.apiPort : Number(process.env["PORT"] ?? 8787);
 const WEB_PORT = END_TO_END ? E2E.webPort : Number(process.env["WHATBUILD_WEB_PORT"] ?? 5273);
 
@@ -75,7 +82,7 @@ async function main() {
       await pg.stop();
       throw new Error("No copy is loaded: run pnpm fixture pull, then pnpm fixture load.");
     }
-    databaseUrl = FIXTURE ? pg.appUrl(FIXTURE_DATABASE) : await pg.createDatabase("whatbuild");
+    databaseUrl = FIXTURE ? pg.appUrl(FIXTURE_DATABASE) : await pg.createDatabase(PEOPLE ? "people" : "whatbuild");
   }
   const env = {
     ...process.env,
@@ -85,7 +92,7 @@ async function main() {
     WHATBUILD_PUBLIC_URL: process.env["WHATBUILD_PUBLIC_URL"] ?? `http://localhost:${WEB_PORT}`,
     // Vite proxies the API here, so a second instance on other ports talks to its own API.
     WHATBUILD_API: process.env["WHATBUILD_API"] ?? `http://localhost:${API_PORT}`,
-    WHATBUILD_BLOB_DIR: END_TO_END ? E2E.blobs : FIXTURE ? FIXTURE_BLOBS : (process.env["WHATBUILD_BLOB_DIR"] ?? resolve(root, ".what-build/blobs")),
+    WHATBUILD_BLOB_DIR: END_TO_END ? E2E.blobs : FIXTURE ? FIXTURE_BLOBS : (process.env["WHATBUILD_BLOB_DIR"] ?? resolve(root, PEOPLE ? ".what-build/people-blobs" : ".what-build/blobs")),
     // A copy of a deployment holds real people's addresses and files: its mail only prints here,
     // and its files are the local copy, never the deployment's bucket. The end-to-end instance
     // may hold one, and a test never mails anyone either.
@@ -94,6 +101,9 @@ async function main() {
     WHATBUILD_INSTANCE_OWNERS: process.env["WHATBUILD_INSTANCE_OWNERS"] ?? SEED_ACCOUNTS[0].email,
     // As on the deployment that offers organizations to the public: someone else's new organization is free.
     WHATBUILD_NEW_ORGANIZATION_PLAN: process.env["WHATBUILD_NEW_ORGANIZATION_PLAN"] ?? "free",
+    // Many people try to get in as on a deployment taking sign-ups: let in by the allowlist (one of
+    // the synthetic organizations' domain), an invitation or an allowance, and otherwise refused.
+    ...(PEOPLE ? { WHATBUILD_SIGNUP_ALLOWLIST: process.env["WHATBUILD_SIGNUP_ALLOWLIST"] ?? planPeople(PEOPLE_COUNT).allowlist } : {}),
     // The golden master's example stays the example; the server reads this at start-up.
     ...(exampleTenant ? { WHATBUILD_EXAMPLE_TENANT: exampleTenant } : {}),
   } as Record<string, string | undefined>;
@@ -127,7 +137,20 @@ async function main() {
   run("api", resolve(root, "apps/server/node_modules/.bin/tsx"), ["watch", "--clear-screen=false", "src/main.ts", "serve"], resolve(root, "apps/server"));
   run("web", resolve(root, "apps/web/node_modules/.bin/vite"), ["--port", String(WEB_PORT), "--strictPort"], resolve(root, "apps/web"));
 
-  console.log(END_TO_END ? `
+  console.log(PEOPLE ? `
+  WhatBuild is starting with the sample and ${PEOPLE_COUNT} synthetic people, invite-only.
+
+    App            http://localhost:${WEB_PORT}
+    Sign in as     riley@example.com (owner of this instance: People, Organization creators,
+                   Organizations) — one click on the sign-in page — or any of the people listed
+                   once they are added, with "As the email above"
+    Let in         by ${env["WHATBUILD_SIGNUP_ALLOWLIST"]}, an invitation or an allowance; anyone else is
+                   refused. Sign-in links and invitations are printed below.
+    Database       embedded Postgres in .what-build/pg, database "people"
+    Files          .what-build/people-blobs
+
+  Ctrl-C stops everything; the people stay for the next start.
+` : END_TO_END ? `
   WhatBuild's end-to-end instance is starting, reset to the golden master.
 
     App            http://localhost:${WEB_PORT}
@@ -166,6 +189,25 @@ async function main() {
 
   Sign-in links and invitation emails are printed below. Ctrl-C stops everything.
 `);
+
+  if (PEOPLE) {
+    const url = env["WHATBUILD_PUBLIC_URL"]!;
+    const owner = config.instanceOwners[0] ?? SEED_ACCOUNTS[0].email;
+    void (async () => {
+      // The web app's address, once it answers and its API behind it does.
+      for (let i = 0; ; i++) {
+        const up = await fetch(`${url}/auth/methods`).then((r) => r.ok, () => false);
+        if (up) break;
+        if (i > 120) throw new Error(`${url} did not answer within two minutes.`);
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+      const log = (line: string) => console.log(`ppl  │ ${line}`);
+      log(`Adding ${PEOPLE_COUNT} synthetic people…`);
+      const { plan, added } = await addPeople({ url, count: PEOPLE_COUNT, owner, log });
+      for (const line of describePlan(plan).split("\n")) log(line);
+      log(`Added ${added.allowances} allowances, ${added.organizations} organizations, ${added.grants} roles and ${added.invitations} invitations; the rest was there already.`);
+    })().catch((e: unknown) => console.error(`ppl  │ ${e instanceof Error ? e.message : String(e)}`));
+  }
 
   const stop = async () => {
     for (const c of children) c.kill("SIGTERM");
