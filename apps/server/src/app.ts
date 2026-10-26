@@ -8,7 +8,7 @@ import { routePath } from "hono/route";
 import { FsBlobStore, MemoryBlobStore } from "./adapters/blobs.ts";
 import { AcsMailer } from "./adapters/mail-acs.ts";
 import { ConsoleMailer, HmacGrantSigner, MemoryMailer, SafeUrlFetcher, SmtpMailer } from "./adapters/misc.ts";
-import { carriesOurCookie, isOwnOrigin } from "./auth/identity.ts";
+import { carriesOurCookie, isOwnOrigin, wasSignedIn } from "./auth/identity.ts";
 import { canonicalHost, requestedHost } from "./canonical-host.ts";
 import { oauthRoutes } from "./auth/oauth.ts";
 import { authRoutes } from "./auth/routes.ts";
@@ -163,8 +163,9 @@ export function createPorts(config: ServerConfig, blobs: BlobStore, mailer: Mail
 
 /** One application: static web app, REST, MCP, OAuth and the upload relay on one origin, and the public site on its own host. */
 /**
- * `onRequest` is called for every request to the API, MCP or sign-in, before it is served: the
- * service passes its worker's `nudge`, so a sleeping worker looks at the queue again.
+ * `onRequest` is called once a request to the API, MCP or sign-in that came with a good session or
+ * access token is served: the service passes its worker's `nudge`, so a sleeping worker looks at the
+ * queue again. A request from nobody signed in never calls it, so it cannot keep the database awake.
  */
 export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; clock?: SandboxClock; release?: Release; onRequest?: () => void }) {
   const env: Env & { config: ServerConfig } = { db: deps.db, ports: deps.ports, config: deps.config };
@@ -239,15 +240,14 @@ export function createApp(deps: { db: Db; ports: Ports; config: ServerConfig; cl
   app.use("*", refuseNullCharacters());
 
   // A public sandbox's overdue reset runs before the request that finds it, so nobody is served
-  // what its hour should have erased. The same requests wake a sleeping worker; the app's pages and
-  // static files do not.
+  // what its hour should have erased. The same requests, once served, wake a sleeping worker when
+  // someone signed in made them; the app's pages and static files never do.
   app.use("*", async (c, next) => {
     const p = c.req.path;
-    if (p.startsWith("/api/") || p.startsWith("/mcp") || p.startsWith("/auth/")) {
-      deps.onRequest?.();
-      await clock.resetIfDue().catch((e) => logError("sandbox reset", e));
-    }
-    return next();
+    if (!(p.startsWith("/api/") || p.startsWith("/mcp") || p.startsWith("/auth/"))) return next();
+    await clock.resetIfDue().catch((e) => logError("sandbox reset", e));
+    await next();
+    if (wasSignedIn(c)) deps.onRequest?.();
   });
 
   // A content site serves prototypes and nothing else: no page, API or sign-in of the app's.

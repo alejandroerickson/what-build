@@ -116,11 +116,22 @@ export async function accountByAccessToken(db: Db, token: string, endpoint: stri
   return row;
 }
 
+/** The requests whose session or access token was good. */
+const signedIn = new WeakSet<Request>();
+
+/**
+ * Whether the request came with a good session or access token. Only such a request wakes the
+ * service's worker (app.ts), so a stranger's requests cannot keep the database awake.
+ */
+export const wasSignedIn = (c: Context) => signedIn.has(c.req.raw);
+
 /** The caller of a REST request: a browser session. Agents use MCP, never REST. */
 export async function restPrincipal(c: Context, db: Db, config: ServerConfig): Promise<Principal | null> {
   if (c.req.header("authorization")?.startsWith("Bearer ")) return null;
   const a = await sessionAccount(c, db, config.publicBaseUrl.startsWith("https://"));
-  return a ? principalFor(a, "session", "web", null) : null;
+  if (!a) return null;
+  signedIn.add(c.req.raw);
+  return principalFor(a, "session", "web", null);
 }
 
 /** The caller of an MCP request: an OAuth access token issued for this endpoint, or for one that contains it. */
@@ -129,7 +140,9 @@ export async function mcpPrincipal(c: Context, db: Db, endpoint: string): Promis
   if (!auth?.startsWith("Bearer ")) return null;
   const token = auth.slice(7).trim();
   const a = await accountByAccessToken(db, token, endpoint);
-  return a ? { ...principalFor(a, "oauth", "mcp", a.client_name.slice(0, 64)), level: a.level, connection: a.family_id, ...(a.feedback ? {} : { feedback: false }) } : null;
+  if (!a) return null;
+  signedIn.add(c.req.raw);
+  return { ...principalFor(a, "oauth", "mcp", a.client_name.slice(0, 64)), level: a.level, connection: a.family_id, ...(a.feedback ? {} : { feedback: false }) };
 }
 
 /**
