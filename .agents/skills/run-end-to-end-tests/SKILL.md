@@ -1,6 +1,6 @@
 ---
 name: run-end-to-end-tests
-description: Run WhatBuild's agent-driven end-to-end tests. You follow a test plan from e2e/plans/ against a local instance reset to a fixed golden master (production's example organization and a copy of it that is not the example), drive the web app in a real browser and call the MCP server as an agent, then report failures and anything else that looks wrong. Use when asked to run the end-to-end, e2e, acceptance or smoke tests, to run or write a test plan, to QA or exploratory-test the app with the browser and MCP, to check a change end to end before merging or releasing, or to build or rebuild the golden master.
+description: Run WhatBuild's agent-driven end-to-end tests. You follow a test plan from e2e/plans/ against an instance reset to a fixed golden master (production's example organization, a copy of it that is not the example, and a synthetic organization), served locally from the checkout or by a release's image on a Docker host, drive the web app in a real browser and call the MCP server as an agent, then report failures and anything else that looks wrong. Use when asked to run the end-to-end, e2e, acceptance or smoke tests, to run or write a test plan, to QA or exploratory-test the app with the browser and MCP, to check a change end to end before merging or releasing, to test a release (on the Docker host or NAS), or to build or rebuild the golden master.
 ---
 
 # Run the end-to-end tests
@@ -14,11 +14,9 @@ what the plan expects, and report. The system, with every command, is described 
 
 - **Each run starts from the golden master.** Never repair the instance's database by hand. To
   start again, stop `pnpm dev:e2e` and start it again.
-- **Work only on the end-to-end instance**, at `http://localhost:5283`, or, when the person asks
-  to test on the Docker host, on its instance through the tunnel
-  (`okf/operations/end-to-end-on-a-docker-host.md`), with `WHATBUILD_E2E_URL` on every command and
-  `whatbuild-e2e.sh reset` over SSH in place of stopping and serving. Never point the browser or
-  the MCP client at `pnpm dev`, the dev deployment or production.
+- **Work only on an end-to-end instance**: the local one at `http://localhost:5283`, or the Docker
+  host's through its tunnel ([below](#testing-a-release-on-the-docker-host)). Never point the
+  browser or the MCP client at `pnpm dev`, the dev deployment or production.
 - **Report; do not fix.** Note every finding with its evidence and carry on with the plan. Change
   code only if the person asked you to fix what you find, and then after the report.
 - **The golden master is real people's data**, from a pull of production. The rules of the
@@ -71,10 +69,47 @@ what the plan expects, and report. The system, with every command, is described 
    not let you write it, give it in full as your answer instead. Then `pnpm e2e stop`, unless the
    person wants to look around.
 8. **Tell the person** the result of each plan, each finding in one or two lines with its
-   severity, and where the report and screenshots are. Open no issue for a finding: the
-   repository's issues are for reports from others (`AGENTS.md`). Wherever a finding is written
-   down outside the run's folder, describe it in general terms, quoting nothing from the golden
-   master.
+   severity, and where the report and screenshots are. Open no issue in this repository for a
+   finding: its issues are for reports from others (`AGENTS.md`). When the person asks for the
+   findings to be recorded, record them where their own instructions keep their work, one for each
+   finding that is not already there. Wherever a finding is written down outside the run's folder,
+   describe it in general terms, quoting nothing from the golden master.
+
+## Testing a release, on the Docker host
+
+`pnpm dev:e2e` serves the checkout's code. A release, as deployments run it, is tested on the
+instance a Docker host serves with the release's image
+(`okf/operations/end-to-end-on-a-docker-host.md`). Use it when the person asks to test a release,
+or on the Docker host or the NAS. Where it is comes from `.env` in the maintainer's clone (in a
+worktree, the main checkout's): `E2E_HOST` (the SSH host), `E2E_HOST_DIR` (the folder holding
+`whatbuild-e2e.sh`), `E2E_HOST_PORT` (the app's port on the host) and `E2E_TUNNEL_PORT` (the
+tunnel's local end). If they are not there, there is no Docker host: say so, and offer a local run
+of the checkout instead.
+
+The procedure above changes only here. On the host, run the script as
+`ssh $E2E_HOST "sudo -n $E2E_HOST_DIR/whatbuild-e2e.sh <command>"`, and nothing else.
+
+- **Instead of steps 2 and 3:**
+  1. Open the tunnel, unless `curl -sf http://localhost:$E2E_TUNNEL_PORT/health` already answers:
+     `ssh -f -N -L $E2E_TUNNEL_PORT:127.0.0.1:$E2E_HOST_PORT $E2E_HOST`.
+  2. Run `status`. It says the release served, the golden master's organizations and products,
+     and the containers.
+  3. If the release to test is not the one served (the person's, or the newest:
+     `gh release list --limit 1`), run `update <tag>`. It pulls the image, runs the release's
+     migrations on a fresh copy of the golden master, and serves it. A migration that fails there
+     is a blocker. Otherwise run `reset`.
+  4. The golden master is the host's, which `status` describes. The checkout's own, if it has one,
+     plays no part, so read the organizations' slugs and the products from `status`, not from what
+     `pnpm e2e run` prints.
+- **Every `pnpm e2e` command** carries `WHATBUILD_E2E_URL=http://localhost:$E2E_TUNNEL_PORT`.
+- **Between plans,** run `reset` instead of stopping and serving. Run it once more at the end,
+  since a run leaves behind what it created.
+- **The server log** is `logs 2000`, read from the last reset's time on. The updater's lines come
+  after it. A 5xx or a failed job there is a finding.
+- **The report** names the release served in place of the checkout's commit.
+- **If the host does not answer as expected,** report it to the person instead of repairing it:
+  the tunnel refused, `sudo` asking for a password, or the image not pulled. Setting the host up
+  and repairing it need root there, which only the maintainer has.
 
 ## What counts as a finding
 
