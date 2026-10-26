@@ -2,8 +2,9 @@ import { sql } from "kysely";
 import type { Db } from "./db.ts";
 import { AppError, forbidden, invalid, notFound } from "./errors.ts";
 import type { Plan } from "./limits.ts";
-import type { OpAccess, OperationDef, OpScope, Principal, ProductRole, Scope, TenantRole } from "./registry.ts";
+import type { OpAccess, OperationDef, OpScope, Principal, ProductRole, ReportedRole, Scope, TenantRole } from "./registry.ts";
 import { refuseNullCharacters, withArticle } from "./schemas.ts";
+import { tenantAllowanceOf, type AllowanceConfig } from "./tenant-allowance.ts";
 import { ULID_PATTERN } from "./util.ts";
 
 /**
@@ -41,7 +42,7 @@ export function roleAtLeast(role: ProductRole | null, needed: ProductRole): bool
 }
 
 /** A reader sees the Story without the notes agents keep about its pages, and nothing of the evidence behind it. */
-export function readsOnlyTheStory(role: ProductRole | null): boolean {
+export function readsOnlyTheStory(role: ReportedRole | null): boolean {
   return role === "reader";
 }
 
@@ -55,6 +56,14 @@ export function readsOnlyTheStoryIn(memberships: MembershipRow[], tenantId: stri
   if (here.some((m) => m.scope_type === "tenant" && m.role !== "member")) return false;
   const roles = here.filter((m) => m.scope_type !== "tenant").map((m) => m.role);
   return roles.length > 0 && roles.every((r) => r === "reader");
+}
+
+/**
+ * The role an answer reports as `your_role` where someone holds `role`: a guest of the example
+ * organization is `guest`, a viewer in everything it may do, as the organization's own role says.
+ */
+export function reportedRole(role: ProductRole | null, tenantRole: TenantRole | null): ReportedRole | null {
+  return role && tenantRole === "guest" ? "guest" : role;
 }
 
 export function tenantRoleAtLeast(role: TenantRole | null, needed: TenantRole): boolean {
@@ -144,6 +153,22 @@ export function roleReaches(op: Pick<OperationDef, "scope" | "access" | "mutates
   return op.access === "any" || roleAtLeast(role, ACCESS_ROLE[op.access]);
 }
 
+/** The highest roles someone holds in each organization they are in, the example's guest grant among them. */
+export function standingsIn(memberships: MembershipRow[]): Standing[] {
+  return [...new Set(memberships.map((m) => m.tenant_id))].map((t) => highestRolesIn(memberships, t));
+}
+
+/**
+ * Whether someone who may start no organization may call an operation somewhere, as the unscoped
+ * connector offers it: what their highest roles in any one organization they are in reach, so a
+ * guest of the example organization, who writes nothing there, is offered no write for it. Of the
+ * account's own operations, starting an organization is the one such a person may not call.
+ */
+export function reachesAnywhere(op: Pick<OperationDef, "scope" | "access" | "mutates" | "needsSomewhere" | "needsTenantAllowance">, standings: Standing[]): boolean {
+  if (op.scope === "account") return !op.needsTenantAllowance;
+  return standings.some((s) => roleReaches(op, s));
+}
+
 /**
  * The grants an account holds, with a guest's grant in the example organization when it holds none
  * there. The guest grant is made here and nowhere else, and only while the deployment names the
@@ -165,13 +190,30 @@ export function isGuest(scope: Pick<Scope, "tenantRole">): boolean {
   return scope.tenantRole === "guest";
 }
 
-/** The refusal of anything a guest of the example organization tries to change. */
-export function exampleReadOnly(tenantName: string, what: string): AppError {
+/**
+ * The refusal of anything a guest of the example organization tries to change. It says where the
+ * person's own work goes, as the web app's notice does: an organization they are in; one they may
+ * create, as an instance owner or with room in their allowance; or, when they may create none,
+ * whoever runs this WhatBuild, so that their agent does not set out to create one and be refused.
+ */
+export async function exampleReadOnly(db: Db, config: AllowanceConfig, account: Pick<Principal, "account_id" | "email">, tenantName: string, what: string): Promise<AppError> {
+  const elsewhere = await db
+    .selectFrom("memberships as m")
+    .innerJoin("tenants as t", "t.tenant_id", "m.tenant_id")
+    .select("m.tenant_id")
+    .where("m.account_id", "=", account.account_id)
+    .where("t.example", "=", false)
+    .limit(1)
+    .executeTakeFirst();
+  const own = elsewhere
+    ? `Do your own work in an organization you are in: products(action="list") lists them, as the panel of the WhatBuild web app does.`
+    : (await tenantAllowanceOf(db, config, account)).remaining !== 0
+      ? `To do your own work, create an organization of your own: products(action="create_tenant"), or New organization in the WhatBuild web app.`
+      : `This account may not start an organization: for one of your own, ask whoever runs this WhatBuild, or ask someone to invite you to theirs. Do not call products(action="create_tenant"), which would be refused.`;
   return new AppError(
     403,
     "example_read_only",
-    `${tenantName} is the example organization: everyone can read it, and nobody but its authors changes it, so ${what} was refused and nothing was changed. ` +
-      `To do your own work, create an organization of your own: products(action="create_tenant"), or New organization in the WhatBuild web app.`,
+    `${tenantName} is the example organization: everyone can read it, and nobody but its authors changes it, so ${what} was refused and nothing was changed. ${own}`,
   );
 }
 
@@ -219,6 +261,8 @@ export function parseProductRef(ref: string): ScopeRef {
  * (including everything in other tenants) and 403 only when they can see it but lack the role.
  * With `asInstanceOwner`, which `execute` sets only for an owner of this WhatBuild calling a tenant
  * operation that allows them, the caller acts as one of the tenant's owners, member or not.
+ * `allowances` lets the refusal of a guest of the example organization say whether they may start
+ * an organization of their own.
  */
 export async function resolveScope(
   db: Db,
@@ -227,7 +271,7 @@ export async function resolveScope(
   access: OpAccess,
   ref: ScopeRef,
   opName: string,
-  asInstanceOwner = false,
+  { asInstanceOwner = false, allowances = {} }: { asInstanceOwner?: boolean; allowances?: AllowanceConfig } = {},
 ): Promise<Scope> {
   const empty: Scope = { tenant: null, team: null, product: null, role: null, tenantRole: null };
   if (opScope === "account") return empty;
@@ -315,7 +359,7 @@ export async function resolveScope(
     }
     if (access === "story" || access === "read" || access === "write" || access === "admin") {
       const needed = ACCESS_ROLE[access];
-      if (!roleAtLeast(role, needed) && tenantRole === "guest") throw exampleReadOnly(tenant.name, opName);
+      if (!roleAtLeast(role, needed) && tenantRole === "guest") throw await exampleReadOnly(db, allowances, principal, tenant.name, opName);
       if (!roleAtLeast(role, needed)) {
         const what = opScope === "product" ? `product ${product!.name}` : `team ${team!.name}`;
         throw forbidden(
@@ -327,7 +371,7 @@ export async function resolveScope(
       throw forbidden(`Only an owner of ${tenant.name} can do this.`, { role: tenantRole, needed: "owner" });
     }
   } else if (opScope === "tenant") {
-    if ((access === "owner" || access === "admin") && tenantRole === "guest") throw exampleReadOnly(tenant.name, opName);
+    if ((access === "owner" || access === "admin") && tenantRole === "guest") throw await exampleReadOnly(db, allowances, principal, tenant.name, opName);
     if (access === "owner" && !tenantRoleAtLeast(tenantRole, "owner"))
       throw forbidden(`Only an owner of ${tenant.name} can do this.`, { role: tenantRole, needed: "owner" });
     if (access === "admin" && !tenantRoleAtLeast(tenantRole, "admin"))

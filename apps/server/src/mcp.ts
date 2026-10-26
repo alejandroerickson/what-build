@@ -2,8 +2,8 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import {
-  AppError, connectorOffers, countCall, effectiveRole, execute, invalid, isInstanceOwner, levelAllows, membershipsFor, narrowProductList, OPERATIONS, parseInput, parseProductRef, resolveConnectorScope, resolveScope, REST_BODY_MAX_BYTES, roleReaches, SKILL_NAME, SKILL_VERSION, toAppError,
-  type ConnectionLevel, type ConnectorScope, type Env, type OperationDef, type Principal, type Scope, type ScopeRef,
+  AppError, connectorOffers, countCall, effectiveRole, execute, invalid, isInstanceOwner, levelAllows, membershipsFor, narrowProductList, OPERATIONS, parseInput, parseProductRef, reachesAnywhere, reportedRole, resolveConnectorScope, resolveScope, REST_BODY_MAX_BYTES, roleReaches, SKILL_NAME, SKILL_VERSION, standingsIn, tenantAllowanceOf, toAppError,
+  type ConnectionLevel, type ConnectorScope, type Env, type OperationDef, type Principal, type Scope, type ScopeRef, type Standing,
 } from "@whatbuild/core";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
@@ -11,18 +11,64 @@ import { mcpPrincipal } from "./auth/identity.ts";
 import type { ServerConfig } from "./config.ts";
 import { logError } from "./telemetry.ts";
 
-const GROUP_SENTENCES: Record<string, string> = {
-  products: "Find the products (discoveries) you can reach, the example organization's among them; create and manage products, tenants and teams; read an organization's plan and limits; and export a whole product as a ZIP. Start with list; confirm the product with the person before writing.",
-  members: "See who belongs to a tenant and grant or revoke roles on the tenant, a team or a product; invites people by email.",
-  sources: "Find, read, create and correct sources — the discovery evidence — and comment on them. Metadata only: use search for what sources say, and derived for their text.",
-  attachments: "Add files to sources as attachments through short-lived grants (never pass bytes through a tool), and get download grants. Each attachment's text is read and kept, never searched; a source's derived text is taken from one of them.",
-  derived: "Read and write a source's derived text (its words as one Markdown document, what search reads), read the text read from an attachment and how it was read, read an attachment again, and write or read the source's summary and notes.",
-  outcomes: "Read and maintain the product's outcomes: what its users should be able to achieve with it, the compass the rest of the product is read against. Read them first. An outcome cites nothing and is current or archived. Updates change only the fields you pass and keep old text as revisions.",
-  assumptions: "The assumption register: premises the team treats as true while evidence is incomplete, with attributed reviews.",
-  story: "Read and publish the Story: versioned, sandboxed HTML pages where the team tells the people it works with what it means to build, its plan and where things stand, each with notes for agents, arranged in a hierarchy with its own etag. Pages follow the product's Story style (get_style, set_style): the team's own design system or an adopted house style, never WhatBuild's look. Read guidance first, then the style, and a page's notes before revising it; preview a page, and look at it, before publishing it.",
-  mockups: "Read and publish mockups: canvases of agent-made HTML pages (screens, flows, alternatives) in Exploration, each with design notes per page and a Markdown brief that says what the canvas explores. A version is the whole canvas. Download a version as a ZIP to build the next one elsewhere, then publish the pages that changed.",
-  activity: "What changed in the product, who changed it, and whether an agent did it.",
+/**
+ * What each grouped tool says it does, part by part: a sentence, and the actions it speaks of. A
+ * part that names actions is said only when the connection is offered one of them, so a tool never
+ * describes what it does not offer: members at the Edit level grants nobody, a reader's story
+ * publishes nothing.
+ */
+const GROUP_PARTS: Record<string, [text: string, ...actions: string[]][]> = {
+  products: [
+    ["Find the products (discoveries) you can reach, the example organization's among them, and the tenants and teams they are in."],
+    ["Read an organization's plan and limits.", "limits"],
+    ["Export a whole product as a ZIP.", "export"],
+    ["Start with list; confirm the product with the person before writing."],
+  ],
+  members: [
+    ["See who belongs to a tenant.", "list"],
+    ["Grant or revoke roles on the tenant, a team or a product; granting invites people by email.", "grant", "revoke"],
+  ],
+  sources: [
+    ["Find and read sources, the discovery evidence."],
+    ["Create and correct them, and comment on them.", "create", "update", "annotate"],
+    ["Metadata only: use search for what sources say, and derived for their text."],
+  ],
+  attachments: [
+    ["Add files to sources as attachments through short-lived grants (never pass bytes through a tool).", "request_upload", "create_upload", "create_uploads", "complete_upload", "fetch_url"],
+    ["Get a short-lived grant to download an attachment's bytes.", "get_download"],
+    ["Each attachment's text is read and kept, never searched; a source's derived text is taken from one of them."],
+  ],
+  derived: [
+    ["Read a source's derived text (its words as one Markdown document, what search reads), the text read from each of its attachments and how it was read, and the source's summary and notes."],
+    ["Write the derived text, the summary and the notes.", "write_text", "write_note"],
+    ["Read an attachment again.", "rederive"],
+  ],
+  outcomes: [
+    ["The product's outcomes: what its users should be able to achieve with it, the compass the rest of the product is read against. Read them first. An outcome cites nothing and is current or archived."],
+    ["Add and change them: an update changes only the fields you pass and keeps old text as revisions.", "create", "update"],
+  ],
+  assumptions: [["The assumption register: premises the team treats as true while evidence is incomplete, with attributed reviews."]],
+  story: [
+    ["Read the Story: versioned, sandboxed HTML pages where the team tells the people it works with what it means to build, its plan and where things stand, arranged in a hierarchy with its own etag."],
+    ["Each page has notes for agents, and pages follow the product's Story style (get_style): the team's own design system or an adopted house style, never WhatBuild's look.", "get_style"],
+    ["Change the style with set_style.", "set_style"],
+    ["To publish a page, read guidance first, then the style, and the page's notes before revising it; preview it, and look at it, before publishing it.", "publish"],
+  ],
+  mockups: [
+    ["Read mockups: canvases of agent-made HTML pages (screens, flows, alternatives) in Exploration, each with design notes per page and a Markdown brief that says what the canvas explores. A version is the whole canvas, and downloads as a ZIP."],
+    ["To build the next version, download one, build it elsewhere, then publish the pages that changed.", "publish"],
+  ],
+  activity: [["What changed in the product, who changed it, and whether an agent did it."]],
 };
+
+/** What a grouped tool says of itself, of the actions it offers. */
+function groupDescription(tool: string, ops: OperationDef[]): string {
+  const offered = new Set(ops.map((o) => o.mcp.action!));
+  return (GROUP_PARTS[tool] ?? [])
+    .filter(([, ...actions]) => !actions.length || actions.some((a) => offered.has(a)))
+    .map(([text]) => text)
+    .join(" ");
+}
 
 /** What the products tool says besides to an owner of this WhatBuild, who alone is offered its own actions. */
 const PRODUCTS_FOR_INSTANCE_OWNERS =
@@ -62,7 +108,7 @@ export function toolDefinitions(offered: (op: OperationDef) => boolean = () => t
     const owners = tool === "products" && ops.some((o) => o.instanceOwnersOnly) ? PRODUCTS_FOR_INSTANCE_OWNERS : "";
     tools.push({
       name: tool,
-      description: `${GROUP_SENTENCES[tool] ?? ""}${owners}${GROUP_SUFFIX}\nActions:\n${lines}`,
+      description: `${groupDescription(tool, ops)}${owners}${GROUP_SUFFIX}\nActions:\n${lines}`,
       inputSchema: {
         type: "object",
         properties: {
@@ -104,24 +150,39 @@ type Definitions = ReturnType<typeof toolDefinitions>;
  */
 const DEFINITIONS = toolDefinitions();
 
-/** Each tool list a connection may be offered, built the first time one is: they are few. */
+/** Each tool list a connection may be offered, by the operations it offers, built the first time one is: they are few. */
 const OFFERED = new Map<string, Definitions>();
 
 /**
  * What a connection is offered: what its level allows (an Edit connection is never shown a
- * permanent delete), the instance owners' own actions only if the person is one, and on a scoped
- * connector only what its fence answers and the person's roles inside it reach.
+ * permanent delete), the instance owners' own actions only if the person is one, and what the
+ * person's roles reach. On a scoped connector that is what its fence answers and their roles
+ * inside it reach; on the unscoped one, what their roles in any organization they are in reach,
+ * given as `standings`, or everything when they may start an organization (`standings` null).
  */
-function offeredTo(level: ConnectionLevel | undefined, owner: boolean, fence: ConnectorScope | null): Definitions {
-  const key = fence
-    ? [level, owner, fence.product ? "product" : "tenant", fence.standing.role, fence.standing.teamRole, fence.standing.tenantRole].join(":")
-    : [level, owner].join(":");
+function offeredTo(level: ConnectionLevel | undefined, owner: boolean, fence: ConnectorScope | null, standings: Standing[] | null): Definitions {
+  const keep = (op: OperationDef) =>
+    levelAllows(level, op) &&
+    (owner || !op.instanceOwnersOnly) &&
+    (fence ? connectorOffers(fence, op) && roleReaches(op, fence.standing) : !standings || reachesAnywhere(op, standings));
+  const key = OPERATIONS.filter(keep).map((o) => o.name).join(",");
   let offered = OFFERED.get(key);
   if (!offered) {
-    offered = toolDefinitions((op) => levelAllows(level, op) && (owner || !op.instanceOwnersOnly) && (!fence || (connectorOffers(fence, op) && roleReaches(op, fence.standing))));
+    offered = toolDefinitions(keep);
     OFFERED.set(key, offered);
   }
   return offered;
+}
+
+/**
+ * What the person's roles reach on the unscoped connector: the highest they hold in each
+ * organization they are in, the example's guest grant among them. Null, narrowing nothing, when
+ * they may start an organization (an instance owner, or an allowance with room), since they may
+ * create one and work in it in the same session, and no list would show them what they could do there.
+ */
+async function unscopedStandings(env: Env, principal: Principal, owner: boolean): Promise<Standing[] | null> {
+  if (owner || (await tenantAllowanceOf(env.db, env.ports.config, principal)).remaining !== 0) return null;
+  return standingsIn(await membershipsFor(env.db, principal.account_id));
 }
 
 /** What a connection lists: the tools it is offered, without submit_feedback where the person turned it off. */
@@ -146,7 +207,7 @@ export const SERVER_INSTRUCTIONS =
   "This server keeps no session, so it cannot tell your client when an upgrade adds tools or actions: the list your client got when it connected stays as it was. " +
   'Instead every product\'s answer gives the skill version the server runs now, as skill_version in its scope (products(action="list") gives it too). ' +
   "If skill_version, your installed skill or get_skill names a newer version than this one, or a tool or action the skill describes is answered unknown_tool or unknown_action, tell the person their client holds an older tool list and ask them to start a new session (in Claude Code, a new conversation or a restart). " +
-  "A tool or action the skill describes may also be missing on purpose, which is not an older list: you are offered only what this connection's level allows and what the person could do (the instance owners' own actions only to them, and on a scoped connector only what their role inside it reaches).";
+  "A tool or action the skill describes may also be missing on purpose, which is not an older list: you are offered only what this connection's level allows and what the person could do (the instance owners' own actions only to them; on a scoped connector, only what their role inside it reaches; on the unscoped one, only what their role in some organization they are in reaches, unless they may start an organization of their own).";
 
 /** What a refusal adds when the caller may be holding a tool list from another version of the server. */
 const STALE_LIST =
@@ -262,8 +323,8 @@ function scopeEcho(scope: Scope, level: ConnectionLevel | undefined) {
     tenant: scope.tenant?.slug,
     team: scope.team?.slug,
     product: { product_id: scope.product.product_id, name: scope.product.name, path: `${scope.tenant?.slug}/${scope.team?.slug}/${scope.product.slug}` },
-    // The person's role there, capped by the connection's level.
-    your_role: scope.role,
+    // The person's role there, capped by the connection's level; a guest of the example organization's is guest.
+    your_role: reportedRole(scope.role, scope.tenantRole),
     ...(level ? { connection_level: level } : {}),
     ...(scope.tenant?.example ? { example: true } : {}),
     skill_version: SKILL_VERSION,
@@ -289,12 +350,18 @@ function buildServer(env: Env, principal: Principal, bound: ScopeRef | null) {
       instructions: SERVER_INSTRUCTIONS + addressInstruction(env.ports.config.publicBaseUrl, env.ports.config.contentBaseUrl ?? null) + (bound ? scopeInstruction(bound) : "") + (principal.feedback === false ? FEEDBACK_OFF : ""),
     },
   );
-  // Resolved when first needed: an unscoped connection lists its tools without a lookup.
+  // Each resolved when first needed, once a request: what the connection is offered only to list
+  // the tools, or to name the offered ones in a refusal.
   let connector: Promise<ConnectorScope> | null = null;
   const connectorScope = () => (bound ? (connector ??= resolveConnectorScope(env.db, principal, bound)) : Promise.resolve(null));
   const owner = isInstanceOwner(env.ports.config, principal.email);
+  let offering: Promise<Definitions> | null = null;
   // A scoped connector whose scope cannot be resolved lists as an unscoped one; any call then says why.
-  const offered = async () => offeredTo(principal.level, owner, await connectorScope().catch(() => null));
+  const offered = () =>
+    (offering ??= (async () => {
+      const fence = await connectorScope().catch(() => null);
+      return offeredTo(principal.level, owner, fence, fence ? null : await unscopedStandings(env, principal, owner));
+    })());
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: listedTools(principal, await offered()) }));
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const name = req.params.name;

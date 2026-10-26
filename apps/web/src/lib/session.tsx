@@ -17,8 +17,11 @@ export interface Me {
   hide_example: boolean;
 }
 
-/** `reader` reads only the Story: the server sends it no concept, and counts of Story pages only. */
-export type ProductRole = "reader" | "viewer" | "editor" | "admin";
+/**
+ * `reader` reads only the Story: the server sends it no concept, and counts of Story pages only.
+ * `guest` is anyone the example organization gave no role, who reads there as a viewer.
+ */
+export type ProductRole = "reader" | "viewer" | "editor" | "admin" | "guest";
 
 /** Where a product opens for this role: a reader has only the Story. */
 export function productHome(role: ProductRole): "story" | "idea" {

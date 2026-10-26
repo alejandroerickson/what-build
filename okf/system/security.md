@@ -3,7 +3,7 @@ type: System Concept
 title: WhatBuild keeps each organization's material to its own people, and treats agent-written HTML, uploads and source text as hostile
 description: The threat model: what is protected, who the attackers are, the trust boundaries, and each control with where it lives in code and the decision that governs it.
 tags: [security, threat-model, tenancy, identity, oauth, example, limits, uploads]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: draft
 ---
 
@@ -148,7 +148,8 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   web app (`403 web_only`) and never listed to an agent.
 - An agent is offered only what its person could do. The instance owners' actions are listed to
   them alone; a scoped connector lists only what its fence answers and the person's roles inside
-  it reach. The list is a courtesy, not the check: every call, listed or not, is still authorized
+  it reach, and the unscoped one what their roles in some organization they are in reach, unless
+  they may start an organization. The list is a courtesy, not the check: every call, listed or not, is still authorized
   by `execute` and refused there with what it needs
   ([decision](../decisions/an-agent-is-offered-only-what-its-person-could-do.md)).
 - Feedback names nobody: a report keeps no account, only an address its sender chose to share,

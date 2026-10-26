@@ -47,12 +47,16 @@ organization). A product has four parts, named as the person sees them in the we
    (`…/mcp/t/<tenant>/<team>/<product>`); the server's instructions say so. It lists only what is
    inside its scope and refuses everything else with `403 outside_connector_scope`. That refusal is
    the person's choice, not a fault: tell them the work belongs elsewhere and ask them to use a
-   connector scoped there (or the unscoped one). Never look for a way around it. Its tool list
-   also offers only what the person's role inside it reaches: a reader there is offered the Story
-   alone, a viewer no write.
+   connector scoped there (or the unscoped one). Never look for a way around it.
+   Every connector's tool list offers only what the person's roles reach: on a scoped connector,
+   their role inside it; on the unscoped one, their highest role in any organization they are in,
+   unless they may start an organization of their own, when it offers all your level allows. So
+   someone who reads only the Story is offered the Story alone, and someone who only views (a
+   guest of the example organization among them) no write.
 3. **Know your role.** Each product lists `your_role`: reader (the Story only, without the notes
-   agents keep on its pages), viewer (read only), editor (read, write and archive), admin (also
-   permanent delete, membership and product settings). A 403 names the role you have and the one needed;
+   agents keep on its pages), viewer (read only), guest (a viewer of the example organization,
+   below), editor (read, write and archive), admin (also permanent delete, membership and product
+   settings). A 403 names the role you have and the one needed;
    do not retry a forbidden write — tell the person who can grant access.
    Your connection has a **level** the person chose when they connected you: Read only, Edit (the
    usual one) or Admin. `products(action="list")` gives it as `connection_level`, and `your_role`
@@ -119,7 +123,9 @@ again before you move on.
 
 **When a tool or action is missing.** Your tool list holds only what you may do: what your
 connection's level allows, the instance owners' own actions only if your person is one of them,
-and on a scoped connector only what the person's role inside it reaches. A tool or action this
+and what the person's roles reach: on a scoped connector, their role inside it; on the unscoped
+one, their highest role in any organization they are in, unless they may start an organization.
+A tool's description speaks only of the actions it offers you. A tool or action this
 skill describes may be missing for one of these reasons, on purpose: it is not an older list.
 Called anyway, it is refused with what it needs (a `403`), never as unknown.
 
@@ -735,9 +741,12 @@ who is not one of its members is its guest there (`your_role` guest, a viewer of
   it.
 - **Use it to learn and to show.** Read its outcomes, sources, assumptions, mockups and Story to
   see how the parts fit, and point the person at what you found.
-- **Do the person's work in an organization of theirs.** If they have none, offer to create one
-  with `products(action="create_tenant")`, or tell them about New organization in the web app;
-  creating one needs an allowance (above). Never copy their material into the example.
+- **Do the person's work in an organization of theirs.** The `example_read_only` refusal says
+  where: an organization they are in; else one they may create, with
+  `products(action="create_tenant")` or New organization in the web app (it needs room in an
+  allowance, above, and is offered to you only then); else, when they may create none, by asking
+  whoever runs this WhatBuild, or someone to invite them. In that case tell the person so, and do
+  not call `create_tenant`. Never copy their material into the example.
 - **Its people are not shown to a guest.** `members(action="list")` answers an empty list with
   `guest: true`. Names on what its authors wrote are theirs.
 - **A call that names no product** never picks one of the example's products by itself: name the

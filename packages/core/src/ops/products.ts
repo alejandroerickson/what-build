@@ -3,8 +3,8 @@ import { z } from "zod";
 import { checkEtag, keepRevision, recordActivity } from "../common.ts";
 import { json, type Db } from "../db.ts";
 import { AppError, conflict, forbidden, invalid, notFound } from "../errors.ts";
-import { effectiveRole, membershipsFor, PRODUCT_ROLES, readsOnlyTheStory, readsOnlyTheStoryIn, roleAtLeast, tenantRoleAtLeast } from "../policy.ts";
-import { capRole, defineOperation, type OpContext, type ProductRole, type TenantRole } from "../registry.ts";
+import { effectiveRole, membershipsFor, PRODUCT_ROLES, readsOnlyTheStory, readsOnlyTheStoryIn, reportedRole, roleAtLeast, tenantRoleAtLeast } from "../policy.ts";
+import { capRole, defineOperation, type OpContext, type ProductRole, type ReportedRole, type TenantRole } from "../registry.ts";
 import type { Plan } from "../limits.ts";
 import { isInstanceOwner, requireTenantAllowance } from "../tenant-allowance.ts";
 import { expectedEtag, slug } from "../schemas.ts";
@@ -91,7 +91,7 @@ function productView(p: {
     path: `${ctx.scope.tenant!.slug}/${ctx.scope.team!.slug}/${p.slug}`,
     tenant: ctx.scope.tenant,
     team: ctx.scope.team,
-    your_role: ctx.scope.role,
+    your_role: reportedRole(ctx.scope.role, ctx.scope.tenantRole),
   };
 }
 
@@ -161,7 +161,7 @@ function stageCounts(c: ProductCounts) {
 }
 
 /** What a role may count: a reader sees only how many Story pages there are, never what the evidence holds. */
-function countsFor(role: ProductRole | null, c: ProductCounts) {
+function countsFor(role: ReportedRole | null, c: ProductCounts) {
   return readsOnlyTheStory(role)
     ? { counts: { story_pages: c.story_pages }, stage_counts: { story: c.story_pages } }
     : { counts: c, stage_counts: stageCounts(c) };
@@ -199,7 +199,8 @@ export const listProducts = defineOperation({
     const items = rows
       .map((r) => {
         // Through an agent, the role is what its connection lets it do there.
-        const role = capRole(effectiveRole(memberships, { tenant_id: r.tenant_id, team_id: r.team_id, product_id: r.product_id }).role, ctx.principal.level);
+        const held = effectiveRole(memberships, { tenant_id: r.tenant_id, team_id: r.team_id, product_id: r.product_id });
+        const role = capRole(held.role, ctx.principal.level);
         return role
           ? {
               product_id: r.product_id,
@@ -210,7 +211,7 @@ export const listProducts = defineOperation({
               updated_at: r.updated_at,
               tenant: { tenant_id: r.tenant_id, slug: r.tenant_slug, name: r.tenant_name, ...(r.example ? { example: true } : {}) },
               team: { team_id: r.team_id, slug: r.team_slug, name: r.team_name },
-              your_role: role,
+              your_role: reportedRole(role, held.tenantRole),
             }
           : null;
       })
@@ -242,7 +243,10 @@ export const listProducts = defineOperation({
           your_role: tr,
           teams: teams
             .filter((tm) => tm.tenant_id === t.tenant_id)
-            .map((tm) => ({ ...tm, your_role: capRole(effectiveRole(memberships, { tenant_id: t.tenant_id, team_id: tm.team_id }).role, ctx.principal.level) }))
+            .map((tm) => {
+              const held = effectiveRole(memberships, { tenant_id: t.tenant_id, team_id: tm.team_id });
+              return { ...tm, your_role: reportedRole(capRole(held.role, ctx.principal.level), held.tenantRole) };
+            })
             .filter((tm) => tm.your_role || items.some((i) => i.team.team_id === tm.team_id)),
         };
       }),
@@ -256,6 +260,7 @@ export const createTenant = defineOperation({
   access: "any",
   mutates: true,
   connection: "admin",
+  needsTenantAllowance: true,
   summary: "Create a tenant (an organization) with its first team; you become its owner. Needs an allowance.",
   description:
     "A tenant is the isolation boundary: nothing in it is visible to any other tenant. It starts with one team; create products in that team with products(action=\"create\"). Only an instance owner, or an account whose allowance has room, may create one; belonging to a tenant never lets anyone create one. Refused with 403 tenant_allowance otherwise: tell the person to ask whoever runs this WhatBuild. An organization an instance owner creates is unlimited; one created on an allowance gets the plan this deployment gives new organizations, which may be the free plan, whose limits everyone in it meets (products(action=\"limits\")); plan in the answer says which.",

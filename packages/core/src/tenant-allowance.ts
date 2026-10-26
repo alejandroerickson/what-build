@@ -22,7 +22,8 @@ export interface TenantAllowance {
   source: "instance_owner" | "given" | "default";
 }
 
-type AllowanceConfig = Pick<CoreConfig, "instanceOwners" | "defaultTenantAllowance">;
+/** What deciding who may start an organization reads of the deployment's configuration. */
+export type AllowanceConfig = Pick<CoreConfig, "instanceOwners" | "defaultTenantAllowance">;
 
 export function isInstanceOwner(config: Pick<CoreConfig, "instanceOwners">, email: string): boolean {
   return (config.instanceOwners ?? []).includes(email.trim().toLowerCase());

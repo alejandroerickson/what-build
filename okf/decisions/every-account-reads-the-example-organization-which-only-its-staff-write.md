@@ -3,7 +3,7 @@ type: Decision
 title: Every account reads the example organization, which only its staff write
 description: The public sandbox is gone. One organization the deployment names is a read-only worked example every signed-in account can always open, and people work in organizations of their own.
 tags: [decision, example, tenancy, roles, security, mcp]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -33,8 +33,9 @@ and [its connector rule](the-public-sandbox-is-reached-only-through-its-own-conn
   The grant is never stored, so a guest is in no list of members and sees no member, and it counts
   only while the deployment names the organization.
 - **A guest changes nothing.** Every call that writes is refused with `403 example_read_only`,
-  which tells the caller how to create an organization of their own. Exporting is a write: the
-  example is read where it is.
+  which tells the caller where their own work goes: an organization they are in, one they may
+  create, or whoever runs this WhatBuild to ask for one. Exporting is a write: the example is read
+  where it is.
 - **Its members are an ordinary organization's.** Staff write under their own names, and guests see
   those names on content and in the activity log.
 - **The unscoped connector reaches it**, beside the person's own organizations: only its staff

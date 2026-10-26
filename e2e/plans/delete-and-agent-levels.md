@@ -10,7 +10,8 @@ surfaces: [web, mcp]
 Archive is the reversible default and editors' alone; permanent delete is admins', behind a
 preview, a reason and the words "delete permanently", and an agent deletes only on a connection
 its person set to Admin. An agent is offered only what its person could do: the instance owners'
-actions only to them, and on a scoped connector only what the person's role there reaches. This
+actions only to them, on a scoped connector only what the person's role there reaches, and on the
+unscoped one what their role in some organization reaches, unless they may start one. This
 plan checks both doors against each other, and that an agent cannot raise its own level. It
 deletes only what it made itself in the run.
 
@@ -20,7 +21,8 @@ deletes only what it made itself in the run.
    its own that appears nowhere in the product (search first).
 2. **MCP, as Sam, in the standard organization, at the default level.** Connect with no `--level`,
    then list the tools. *Expect:* no delete action anywhere (`sources`, `assumptions`, `outcomes`,
-   `story`, `mockups`, `products`), and no `members` write. `products(action="list")` says
+   `story`, `mockups`, `products`), and no `members` write: `members` offers `list` alone, and its
+   description says nothing of granting, revoking or inviting. `products(action="list")` says
    `connection_level: "editor"`. `products` offers `update_concept` and `outcomes` offers
    `card_preview`: an editor writes the Idea's cards. Preview a concept front with
    `outcomes(action="card_preview", kind="concept")` and open its `url` with its `headers` at 900
@@ -80,6 +82,12 @@ deletes only what it made itself in the run.
     or `members`; `sources(action="list")` called anyway answers `403`, naming reader and viewer.
     Then as Sam on the organization's connector (`--endpoint /mcp/t/<org>`): writes and archives,
     `members` `list`, and no delete, no `members` `grant` or `revoke`, no `create_team`.
+15. **MCP, as Jordan and as a guest, on the unscoped connector** (no `--endpoint`, `--level admin`;
+    the guest is `guest@example.com`). List the tools. *Expect:* neither may start an organization,
+    so neither is offered `create_tenant`. Jordan, a reader everywhere, is offered the Story and
+    `products` alone, as in step 14; the guest every read of the example and no write but
+    `submit_feedback`, and `story`'s description says nothing of publishing to Jordan. Sam, who may
+    start an organization, is offered everything the level allows.
 
 ## Look out for
 

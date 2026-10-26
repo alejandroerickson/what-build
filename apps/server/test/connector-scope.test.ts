@@ -196,12 +196,12 @@ describe("the example organization", () => {
     expect(c.getInstructions()).toContain("example organization");
     const list = body(await c.callTool({ name: "products", arguments: { action: "list" } })).json;
     expect(list.items.map((i: { path: string }) => i.path)).toEqual([showcase]);
-    expect(list.items[0]).toMatchObject({ tenant: { slug: commons, example: true }, your_role: "viewer" });
+    expect(list.items[0]).toMatchObject({ tenant: { slug: commons, example: true }, your_role: "guest" });
     expect(list.tenants).toEqual([expect.objectContaining({ slug: commons, example: true, your_role: "guest" })]);
     expect(list.public_sandboxes).toBeUndefined();
     const read = body(await c.callTool({ name: "outcomes", arguments: { action: "list", product: showcase, params: {} } }));
     expect(read.status).toBe(200);
-    expect(read.json.scope).toMatchObject({ example: true, your_role: "viewer" });
+    expect(read.json.scope).toMatchObject({ example: true, your_role: "guest" });
     const write = body(await c.callTool({ name: "outcomes", arguments: { action: "create", product: showcase, params: { title: "Not here" } } }));
     expect(write.status).toBe(403);
     expect(write.json.error.code).toBe("example_read_only");

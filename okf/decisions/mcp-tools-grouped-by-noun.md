@@ -3,7 +3,7 @@ type: Decision
 title: MCP exposes 13 tools, grouped by the kind of object, with an action parameter
 description: Ten tools group each noun's operations behind `action` and `params`; three stand alone.
 tags: [decision, mcp, agents]
-generated: {by: agent:claude, at: 2026-10-25}
+generated: {by: agent:claude, at: 2026-10-26}
 status: stable
 ---
 
@@ -30,6 +30,6 @@ More than a hundred separate tools would crowd an agent's context and bury the w
 
 ## Constrains
 
-- Group sentences live in `apps/server/src/mcp.ts`; keep them accurate when adding actions.
+- Group sentences live in `apps/server/src/mcp.ts` (`GROUP_PARTS`), each with the actions it speaks of, so a connection is told only of what it is offered; keep them accurate when adding actions.
 
 Specified in: [06-operations-and-adapters](../spec/06-operations-and-adapters.md), [overview](../system/overview.md).
