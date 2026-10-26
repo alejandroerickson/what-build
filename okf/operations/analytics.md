@@ -76,8 +76,9 @@ week's newcomers followed through the weeks after), features, operations, agent 
 by code, and every operation nobody called. `counting_since` is the first day counted; everyone
 seen before that day shows as new.
 
-**When someone asks to be removed.** There is no account deletion yet. To remove a person's counted
-days, compute their pseudonym with the deployment's grant key and delete those rows:
+**When someone asks to be removed.** Removing their account (People, for an instance owner) leaves
+their counted days, which name nobody. To remove those too, compute their pseudonym with the
+deployment's grant key and delete those rows:
 
 ```bash
 node -e 'const c=require("node:crypto"); const k=c.createHmac("sha256", process.argv[1]).update("whatbuild usage people").digest("base64url");
