@@ -23,6 +23,10 @@ deployment must do, or will notice, is kept here, because nobody remembers it at
 
 ## Unreleased
 
+Nothing yet.
+
+## v0.23.1
+
 - **A kind named in a search comes first everywhere.** It concerns every deployment and asks
   nothing of one. A search such as "mockups crew" now lists the mockups first in the search palette
   and in MCP's `search` plain mode, as the Search screen already did, rather than only nudging their
