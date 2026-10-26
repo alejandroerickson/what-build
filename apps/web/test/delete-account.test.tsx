@@ -1,12 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-// Deleting your own account says what goes and what stays before anything can be confirmed, then
-// shows the one step left: what blocks it, signing in again, or the typed address and the button
-// that names the act. Nothing is sent until the address matches.
+// Delete account is the last section of Settings. Closed, it is one line and one button, and reads
+// nothing. Open, it says what deleting will do, then the one step left: what blocks it, signing in
+// again, or the typed address and Delete account. Nothing is sent until the address matches.
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -16,8 +16,8 @@ const IMPACT = {
   display_name: "Dana Editor",
   instance_owner: false,
   organizations: [
-    { slug: "owen-co", name: "Owen Co", role: null, roles: 1, only_owner: false },
-    { slug: "shared-co", name: "Shared Co", role: "owner", roles: 0, only_owner: false },
+    { slug: "owen-co", name: "Owen Co", role: null as string | null, roles: 1, only_owner: false },
+    { slug: "shared-co", name: "Shared Co", role: "owner" as string | null, roles: 0, only_owner: false },
   ],
   only_owner_of: [] as { slug: string; name: string }[],
   sessions: 2,
@@ -50,15 +50,10 @@ vi.mock("../src/lib/api.ts", async (original) => {
   };
 });
 
-const { DeleteAccountPage } = await import("../src/routes/delete-account.tsx");
-const { ShellContext } = await import("../src/shell/slots.tsx");
-
-const slots = {
-  panelContextEl: null, inspectorEl: null, inspectorId: "inspector", registerPanelContext: () => () => {}, registerInspector: () => () => {},
-  inspectorOpen: false, setInspectorOpen: () => {}, inspectorHideLabel: "Hide details", setPageTitle: () => {}, focus: false, setFocus: () => {},
-};
+const { DeleteAccount } = await import("../src/routes/delete-account.tsx");
 
 let unmount: (() => void) | null = null;
+let at = "";
 afterEach(() => {
   unmount?.();
   unmount = null;
@@ -73,7 +68,13 @@ const settle = async () => {
   for (let i = 0; i < 20; i++) await act(() => new Promise((r) => setTimeout(r, 5)));
 };
 
-async function page() {
+function Where() {
+  const loc = useLocation();
+  at = `${loc.pathname}${loc.search}`;
+  return null;
+}
+
+async function section(url = "/settings?delete=account") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const host = document.createElement("div");
   document.body.append(host);
@@ -82,13 +83,19 @@ async function page() {
   await act(async () => {
     root.render(
       <QueryClientProvider client={qc}>
-        <ShellContext.Provider value={slots as never}>
-          <MemoryRouter initialEntries={["/settings/delete-account"]}>
-            <Routes>
-              <Route path="/settings/delete-account" element={<DeleteAccountPage />} />
-            </Routes>
-          </MemoryRouter>
-        </ShellContext.Provider>
+        <MemoryRouter initialEntries={[url]}>
+          <Routes>
+            <Route
+              path="/settings"
+              element={
+                <>
+                  <DeleteAccount />
+                  <Where />
+                </>
+              }
+            />
+          </Routes>
+        </MemoryRouter>
       </QueryClientProvider>,
     );
   });
@@ -96,8 +103,11 @@ async function page() {
   return host;
 }
 
-const step = (host: HTMLElement) => host.querySelector("#farewell-step")?.textContent;
 const button = (host: HTMLElement, name: string) => [...host.querySelectorAll("button, a")].find((b) => b.textContent?.trim() === name) as HTMLButtonElement | HTMLAnchorElement | undefined;
+const click = async (el: Element | undefined) => {
+  await act(async () => (el as HTMLElement).click());
+  await settle();
+};
 
 async function type(input: HTMLInputElement, value: string) {
   const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
@@ -107,22 +117,30 @@ async function type(input: HTMLInputElement, value: string) {
   });
 }
 
-describe("Delete your account", () => {
-  it("says what goes and what stays, with what it means for this person", async () => {
-    const text = (await page()).textContent ?? "";
-    expect(text).toContain("What goes, at once");
-    expect(text).toContain("What stays");
-    expect(text).toContain("2 browsers signed in as you now.");
-    expect(text).not.toContain("0 agents");
-    expect(text).toContain("In Owen Co (a role on a team or product) and Shared Co (owner).");
-    expect(text).toContain("1 invitation waiting.");
-    expect(text).toContain("within 35 days");
+describe("Delete account, in Settings", () => {
+  it("is closed until asked for, and reads nothing until then", async () => {
+    const host = await section("/settings");
+    expect(button(host, "Delete account…")?.getAttribute("aria-expanded")).toBe("false");
+    expect(host.textContent).toContain("You’ll see what happens before anything is deleted.");
+    expect(calls).toEqual([]);
+    await click(button(host, "Delete account…"));
+    expect(at).toBe("/settings?delete=account");
+    expect(document.activeElement?.id).toBe("delete-account-region");
+    expect(host.textContent).toContain("If you delete your account:");
+  });
+
+  it("says what deleting will do, naming the organizations, and nothing about backups", async () => {
+    const text = (await section()).textContent ?? "";
+    expect(text).toContain("You’ll be signed out everywhere, and your agents will be disconnected.");
+    expect(text).toContain("You’ll lose access to Owen Co and Shared Co, and pending invitations will be cancelled.");
+    expect(text).toContain("Your email address and usage data will be deleted.");
+    expect(text).toContain("Anything you added to an organization stays there, with your name on it.");
+    expect(text).not.toMatch(/backup|Right now|Deleted immediately/i);
   });
 
   it("sends nothing until the address is typed exactly, then deletes with the confirmation", async () => {
-    const host = await page();
-    expect(step(host)).toBe("Confirm with your email address");
-    const del = button(host, "Delete my account") as HTMLButtonElement;
+    const host = await section();
+    const del = button(host, "Delete account") as HTMLButtonElement;
     expect(del.disabled).toBe(true);
     const input = host.querySelector("input") as HTMLInputElement;
     await type(input, "dana@example.org");
@@ -131,73 +149,67 @@ describe("Delete your account", () => {
     expect(del.disabled).toBe(false);
     const assign = vi.fn();
     vi.stubGlobal("location", { ...window.location, assign });
-    await act(async () => del.click());
-    await settle();
+    await click(del);
     expect(calls.find((c) => c.path === "/api/v1/me/delete")?.body).toEqual({ email: "Dana@Example.com", confirm: "delete permanently" });
     expect(assign).toHaveBeenCalledWith("/account-deleted?mailed=1");
     vi.unstubAllGlobals();
   });
 
+  it("closes on Cancel, with focus back on its button", async () => {
+    const host = await section();
+    await click(button(host, "Cancel"));
+    expect(at).toBe("/settings");
+    expect(document.activeElement?.id).toBe("delete-account-open");
+  });
+
   it("names each organization only this person owns, with both ways out, and offers no confirmation", async () => {
     state.impact.organizations[1]!.only_owner = true;
     state.impact.only_owner_of = [{ slug: "shared-co", name: "Shared Co" }];
-    const host = await page();
-    expect(step(host)).toBe("You’re the only owner of Shared Co");
+    const host = await section();
+    expect(host.textContent).toContain("You’re the only owner of Shared Co");
     expect(host.querySelector("input")).toBeNull();
-    expect(button(host, "Delete my account")).toBeUndefined();
+    expect(button(host, "Delete account")).toBeUndefined();
     const links = [...host.querySelectorAll(".farewell-block a")].map((a) => a.getAttribute("href"));
     expect(links).toEqual(["/t/shared-co/members", "/t/shared-co/members#delete-org-title"]);
   });
 
-  it("says why an owner of the instance can't delete it here", async () => {
-    state.impact.instance_owner = true;
-    const host = await page();
-    expect(step(host)).toBe("You own this WhatBuild");
-    expect(host.querySelector("input")).toBeNull();
+  it("shows every block at once: owning the instance and being an organization's only owner", async () => {
+    state.impact = { ...state.impact, instance_owner: true, only_owner_of: [{ slug: "shared-co", name: "Shared Co" }], organizations: state.impact.organizations.map((o) => ({ ...o, only_owner: o.slug === "shared-co" })) };
+    const host = await section();
+    const titles = [...host.querySelectorAll(".callout-title")].map((t) => t.textContent);
+    expect(titles).toEqual(["You own this WhatBuild", "You’re the only owner of Shared Co"]);
   });
 
-  it("asks a browser that signed in long ago to sign in again, coming back here", async () => {
+  it("asks a browser that signed in long ago to sign in again, coming back to the open section", async () => {
     state.impact.recent_until = null;
-    state.impact.signed_in_at = new Date(Date.now() - 2 * 3600_000).toISOString();
-    const host = await page();
-    expect(step(host)).toBe("Sign in again to continue");
+    const host = await section();
+    expect(host.textContent).toContain("Sign in again to continue");
     expect(host.querySelector("input")).toBeNull();
-    expect(button(host, "Continue with Google")?.getAttribute("href")).toBe("/auth/google?next=%2Fsettings%2Fdelete-account");
-    await act(async () => (button(host, "Email me a sign-in link") as HTMLButtonElement).click());
-    await settle();
-    expect(calls.find((c) => c.path === "/auth/email")?.body).toEqual({ email: "dana@example.com", next: "/settings/delete-account" });
+    expect(button(host, "Continue with Google")?.getAttribute("href")).toBe("/auth/google?next=%2Fsettings%3Fdelete%3Daccount");
+    await click(button(host, "Email me a sign-in link"));
+    expect(calls.find((c) => c.path === "/auth/email")?.body).toEqual({ email: "dana@example.com", next: "/settings?delete=account" });
     expect(host.textContent).toContain("Check your email");
   });
 
-  it("moves to signing in again when the server says the sign-in lapsed", async () => {
-    const host = await page();
+  it("says the account wasn't deleted when the server refuses, and moves to signing in again", async () => {
+    const host = await section();
     await type(host.querySelector("input") as HTMLInputElement, "dana@example.com");
-    state.deleteError = { status: 403, code: "sign_in_again", message: "To delete your account, sign in again first." };
+    state.deleteError = { status: 403, code: "sign_in_again", message: "Sign in again to delete your account. Nothing was changed." };
     state.impact = { ...state.impact, recent_until: null };
-    await act(async () => (button(host, "Delete my account") as HTMLButtonElement).click());
-    await settle();
-    expect(step(host)).toBe("Sign in again to continue");
-    // The step that replaced the form says the account is still there, in the server's words, and takes the focus.
+    await click(button(host, "Delete account"));
+    expect(host.textContent).toContain("Sign in again to continue");
     expect(host.textContent).toContain("Your account wasn’t deleted");
-    expect(host.textContent).toContain("To delete your account, sign in again first.");
-    expect(document.activeElement?.id).toBe("farewell-step");
+    expect(host.textContent).toContain("Sign in again to delete your account.");
+    expect(document.activeElement?.id).toBe("delete-account-step");
   });
 
-  it("shows every block at once: owning the instance and being an organization's only owner", async () => {
-    state.impact = { ...state.impact, instance_owner: true, only_owner_of: [{ slug: "shared-co", name: "Shared Co" }], organizations: state.impact.organizations.map((o) => ({ ...o, only_owner: o.slug === "shared-co" })) };
-    const host = await page();
-    const headings = [...host.querySelectorAll("h2.sheet-title")].map((h) => h.textContent);
-    expect(headings).toEqual(["You own this WhatBuild", "You’re the only owner of Shared Co"]);
-    expect(host.textContent).toContain("Before it can go, your address has to come off this WhatBuild’s owners");
-  });
-
-  it("says a mistyped address is not theirs once the field is left", async () => {
-    const host = await page();
+  it("says a mistyped address doesn't match once the field is left", async () => {
+    const host = await section();
     const input = host.querySelector("input") as HTMLInputElement;
     await type(input, "dana@example.org");
     await act(async () => {
       input.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
     });
-    expect(host.textContent).toContain("That isn’t your address. Type dana@example.com.");
+    expect(host.textContent).toContain("That doesn’t match your email address.");
   });
 });

@@ -147,17 +147,18 @@ async function lockAccount(ctx: OpContext, accountId: string): Promise<Ending | 
 
 /** The two refusals both ways share, in the words of whoever is asking. */
 async function refuseBlocked(ctx: OpContext, account: Ending, self: boolean): Promise<void> {
-  const who = self ? "You" : account.display_name;
   if (isInstanceOwner(ctx.ports.config, account.email))
     throw conflict(
       "instance_owner",
-      `${self ? "You own" : `${account.display_name} owns`} this instance, as WHATBUILD_INSTANCE_OWNERS says where the service is deployed, so the account can't be ${self ? "deleted" : "removed"} here. ${self ? "Whoever deploys it can take your address off that list first. " : ""}Nothing was changed.`,
+      self
+        ? "Owners of this WhatBuild can’t delete their accounts. Remove your email address from WHATBUILD_INSTANCE_OWNERS first. Nothing was changed."
+        : `${account.display_name} owns this WhatBuild (WHATBUILD_INSTANCE_OWNERS), so their account can’t be removed. Nothing was changed.`,
     );
   const alone = await ownedAlone(ctx, account.account_id);
   if (alone.length)
     throw conflict(
       "last_owner",
-      `${who} ${self ? "are" : "is"} the only owner of ${alone.map((o) => o.name).join(", ")}. Make someone else owner there, or delete ${alone.length === 1 ? "it" : "them"}, before ${self ? "deleting your account" : "removing the account"}. Nothing was changed.`,
+      `${self ? "You’re" : `${account.display_name} is`} the only owner of ${alone.map((o) => o.name).join(", ")}. Make someone else owner, or delete ${alone.length === 1 ? "it" : "them"}, then try again. Nothing was changed.`,
       { organizations: alone.map((o) => ({ slug: o.slug, name: o.name })) },
     );
 }
@@ -222,30 +223,30 @@ async function endAccount(ctx: OpContext, account: Ending, self: boolean) {
 }
 
 /**
- * The mail that records it, to the address the account had: a record for the person, and an alarm
- * for one who didn't do it. A deployment that sends no mail sends none, and a mail that fails never
+ * The confirmation, to the address the account had: a record for the person, and an alarm for one
+ * who didn't do it. A deployment that sends no mail sends none, and a mail that fails never
  * keeps the account: the result says whether it went.
  */
 async function sendRecord(ctx: OpContext, account: Ending, self: boolean): Promise<boolean> {
   const mailer = ctx.ports.mailer;
   if (!mailer || ctx.ports.config.sendsMail === false) return false;
   const contact = ctx.ports.config.privacyContact;
-  const runner = `whoever runs this WhatBuild${contact ? `, at ${contact}` : ""}`;
+  const runner = `whoever runs this WhatBuild${contact ? ` (${contact})` : ""}`;
   const t = ACCOUNT_DELETION;
   try {
     await mailer.send({
       to: account.email,
-      subject: "Your WhatBuild account is deleted",
+      subject: "Your WhatBuild account has been deleted",
       text:
-        `The WhatBuild account for ${account.email} at ${ctx.ports.config.publicBaseUrl} was deleted on ${ctx.now.slice(0, 10)}, ${self ? "from a browser signed in as you" : "by an owner of this WhatBuild"}.\n\n` +
-        `What went:\n${t.goes.map((g) => `- ${g}`).join("\n")}\n\n` +
-        `What stays: ${t.stays} ${t.content}\n\n` +
-        `${t.final}\n\n${t.again}\n\n` +
-        (self ? `If you didn't delete it, someone used a browser signed in as you: tell ${runner}.\n` : `If you didn't expect this, ask ${runner}.\n`),
+        `Your WhatBuild account ${account.email} on ${ctx.ports.config.publicBaseUrl} was deleted on ${ctx.now.slice(0, 10)}${self ? "." : " by an owner of this WhatBuild."}\n\n` +
+        `${t.did.map((g) => `- ${g}`).join("\n")}\n\n` +
+        `${t.stays} To remove it, ask the organization’s admins.\n\n` +
+        `${t.again}\n\n` +
+        (self ? `If this wasn’t you, someone used a browser signed in to your account. Contact ${runner} right away.\n` : `If you didn’t expect this, contact ${runner}.\n`),
     });
     return true;
   } catch (e) {
-    console.error(`account deletion: the record was not mailed: ${(e as Error).message}`);
+    console.error(`account deletion: the confirmation was not mailed: ${(e as Error).message}`);
     return false;
   }
 }
@@ -261,7 +262,7 @@ export const removeAccount = defineOperation({
   summary: "REMOVE PERMANENTLY — cannot be undone. Remove an account from this instance (instance owners, in the web app).",
   description:
     `An instance owner's act in the web app, never an agent's. Needs the account's address typed exactly as email, and confirm set to exactly "${DELETE_CONFIRMATION}". ` +
-    "Does what a person deleting their own account does: ends every browser session and agent connection the account holds, takes every role it holds in every organization (each organization's access log records it), cancels the invitations sent to its address, removes the address's allowance to start organizations, deletes what is kept about the person (their counted days of use, the counts held against limits, their name on the account), forgets the address, and mails it a record. Its name stays on what it wrote. An instance owner's account cannot be removed (409 instance_owner), nor one that is the only owner of an organization until someone else owns it or it is deleted (409 last_owner). The address may sign up again only if it is let in again.",
+    "Does what a person deleting their own account does: ends every browser session and agent connection the account holds, takes every role it holds in every organization (each organization's access log records it), cancels the invitations sent to its address, removes the address's allowance to start organizations, deletes what is kept about the person (their counted days of use, the counts held against limits, their name on the account), forgets the address, and emails it a confirmation. Its name stays on what it wrote. An instance owner's account cannot be removed (409 instance_owner), nor one that is the only owner of an organization until someone else owns it or it is deleted (409 last_owner). The address may sign up again only if it is let in again.",
   input: z.strictObject({
     account_id: id("account"),
     email: z.string().trim().max(320).describe("The account's address, typed by the person to confirm."),
@@ -365,7 +366,7 @@ export const deleteAccount = defineOperation({
   summary: "DELETE PERMANENTLY — cannot be undone. Delete your own account (in the web app).",
   description:
     `A person's own act in the web app, never an agent's. Needs a browser that signed in within the last ${RECENT_SIGN_IN_MINUTES} minutes (403 sign_in_again otherwise), the account's address typed exactly as email, and confirm set to exactly "${DELETE_CONFIRMATION}". ` +
-    "Does what an instance owner's removal does: ends every browser session and agent connection, this one too, takes every role in every organization (each organization's access log records it), cancels the invitations to the address and its allowance, deletes the person's counted days of use, the counts held against limits and their name on the account, forgets the address, and mails it a record. What they wrote stays with each organization under the name they had. Refused to an owner of the instance (409 instance_owner) and to the only owner of an organization until someone else owns it or it is deleted (409 last_owner, naming each).",
+    "Does what an instance owner's removal does: ends every browser session and agent connection, this one too, takes every role in every organization (each organization's access log records it), cancels the invitations to the address and its allowance, deletes the person's counted days of use, the counts held against limits and their name on the account, forgets the address, and emails it a confirmation. What they wrote stays with each organization under the name they had. Refused to an owner of the instance (409 instance_owner) and to the only owner of an organization until someone else owns it or it is deleted (409 last_owner, naming each).",
   input: z.strictObject({
     email: z.string().trim().max(320).describe("The account's address, typed by the person to confirm."),
     confirm: z.string().describe(`Must be exactly "${DELETE_CONFIRMATION}".`),
@@ -375,16 +376,15 @@ export const deleteAccount = defineOperation({
   async handler(ctx, input) {
     checkConfirmation(input.confirm, "keep your account");
     const account = await lockAccount(ctx, ctx.principal.account_id);
-    if (!account) throw notFound("This account was deleted already.");
-    if (input.email.toLowerCase() !== account.email.toLowerCase())
-      throw invalid("typed_email", `Type your address, ${account.email}, exactly to delete your account. Nothing was changed.`);
+    if (!account) throw notFound("This account has already been deleted.");
+    if (input.email.toLowerCase() !== account.email.toLowerCase()) throw invalid("typed_email", "That doesn’t match your email address. Nothing was changed.");
     await refuseBlocked(ctx, account, true);
     const recent = signedInRecently(ctx);
     if (!recent.recent_until)
       throw new AppError(
         403,
         "sign_in_again",
-        `To delete your account, sign in again first: this browser signed in more than ${RECENT_SIGN_IN_MINUTES} minutes ago, and it may not be you using it. Nothing was changed.`,
+        `Sign in again to delete your account: your last sign-in was more than ${RECENT_SIGN_IN_MINUTES} minutes ago. Nothing was changed.`,
         { signed_in_at: recent.signed_in_at, minutes: RECENT_SIGN_IN_MINUTES },
       );
     const ended = await endAccount(ctx, account, true);

@@ -23,7 +23,7 @@ import { LimitsPage } from "./routes/limits.tsx";
 import { PeoplePage } from "./routes/people.tsx";
 import { SearchPage } from "./routes/search.tsx";
 import { InstancePage } from "./routes/instance.tsx";
-import { AccountDeletedPage, DeleteAccountPage } from "./routes/delete-account.tsx";
+import { AccountDeletedPage } from "./routes/delete-account.tsx";
 import { SettingsPage } from "./routes/settings.tsx";
 import { SourceDetailPage } from "./routes/source-detail.tsx";
 import { SourceNewPage } from "./routes/source-new.tsx";
@@ -193,7 +193,6 @@ const router = createBrowserRouter([{ element: <Root />, errorElement: <RouteErr
         { path: "/products", element: <ProductsRedirect /> },
         { path: "/connect", element: <ConnectPage /> },
         { path: "/settings", element: <SettingsPage /> },
-        { path: "/settings/delete-account", element: <DeleteAccountPage /> },
         { path: "/instance", element: <InstancePage /> },
         { path: "/people", element: <PeoplePage /> },
         { path: "/t/:tenant/members", element: <CurrentTenantAddress><MembersPage /></CurrentTenantAddress> },

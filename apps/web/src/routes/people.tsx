@@ -161,10 +161,10 @@ function RemoveDialog({ account: a, onClose }: { account: Account; onClose: () =
         }}
       >
         <ul className="instance-consequences">
-          <li>Every browser and agent signed in as them is signed out.</li>
-          {a.organizations.length ? <li>They lose their roles in {plural(a.organizations.length, "organization")}, and each organization&rsquo;s access log records it.</li> : null}
-          <li>Their invitations{a.allowance ? " and allowance" : ""} are cancelled, what WhatBuild counts about them is deleted, and their address is forgotten.</li>
-          <li>A record of it goes to their address. Their name stays on what they wrote. They can come back only if they&rsquo;re let in again.</li>
+          <li>They&rsquo;re signed out everywhere, and their agents are disconnected.</li>
+          {a.organizations.length ? <li>They lose access to {plural(a.organizations.length, "organization")}, and each one&rsquo;s access log records it.</li> : null}
+          <li>Their {a.allowance ? "invitations and allowance are" : "invitations are"} cancelled, and their email address and usage data are deleted.</li>
+          <li>Anything they added stays, with their name on it. We email them a confirmation.</li>
         </ul>
         <TextField label={`Type ${a.email} to confirm`} autoComplete="off" spellCheck={false} value={typed} onChange={(e) => setTyped(e.target.value)} />
         {remove.isError ? (

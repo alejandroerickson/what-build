@@ -1,28 +1,28 @@
 /**
- * What deleting an account does, in the words every place that says it uses: the screen where a
- * person deletes their own, the privacy page, and the mail that records it. Pure, so the web app
- * imports it as `@whatbuild/core/account-deletion`.
+ * What deleting an account does, as Settings says it before and the confirmation mail and the
+ * signed-out page say it after. Pure, so the web app imports it as `@whatbuild/core/account-deletion`.
  */
 
 /** How recently a browser must have signed in to delete its account: a borrowed browser left signed in is not enough. */
 export const RECENT_SIGN_IN_MINUTES = 15;
 
-/** The longest any backup in the operations guide keeps a copy of the database (a nightly dump, `okf/operations/backups.md`). */
-export const BACKUPS_KEPT_DAYS = 35;
-
 export const ACCOUNT_DELETION = {
-  /** What goes, at once. */
-  goes: [
-    "Your sign-in, and every browser and agent signed in as you.",
-    "Your roles in every organization, and the invitations waiting for your address.",
-    "Your name and address, and what WhatBuild counts about you: your days of use and the counts held against limits.",
+  /** What deleting will do, said before it is done. */
+  will: [
+    "You’ll be signed out everywhere, and your agents will be disconnected.",
+    "You’ll lose access to every organization, and pending invitations will be cancelled.",
+    "Your email address and usage data will be deleted.",
+  ],
+  /** What deleting did, said after. */
+  did: [
+    "You’ve been signed out everywhere, and your agents have been disconnected.",
+    "You no longer have access to any organization, and pending invitations were cancelled.",
+    "Your email address and usage data have been deleted.",
   ],
   /** What stays. */
-  stays: "What you wrote in an organization stays with it, under the name you had then, because it is the team’s work.",
-  /** How to have that go too. */
-  content: "To have it removed as well, delete it before you go, or ask the organization’s admins to.",
-  /** When it is final. */
-  final: `It is final at once in WhatBuild. Copies in backups go as the backups age out, within ${BACKUPS_KEPT_DAYS} days.`,
+  stays: "Anything you added to an organization stays there, with your name on it.",
+  /** How to have that go too, before deleting. */
+  content: "To remove it, delete it first or ask the organization’s admins.",
   /** What the same address gets later. */
-  again: "Your address is forgotten. Signing in with it later starts a new, empty account, and where sign-up is by invitation, someone has to let you in again.",
+  again: "You can sign up again with the same email address, but you’ll start with an empty account and may need a new invitation.",
 } as const;

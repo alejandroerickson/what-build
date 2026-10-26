@@ -1,19 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ACCOUNT_DELETION } from "@whatbuild/core/account-deletion";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, useSearchParams } from "react-router";
 import { api, ApiError } from "../lib/api.ts";
-import { formatTime, plural, ROLE_WORD } from "../lib/format.ts";
 import { forgetPersonalState } from "../lib/local-state.ts";
 import { useMe } from "../lib/session.tsx";
-import { usePageTitle } from "../shell/slots.tsx";
-import { Button, ButtonLink, Callout, ErrorCallout, Glyph, Loading, Sheet, SheetBody, SheetHeader, TextField, type GlyphName } from "../ui/index.tsx";
+import { Button, ButtonLink, Callout, ErrorCallout, Loading, Sheet, SheetBody, SheetHeader, TextField } from "../ui/index.tsx";
 import { EntryPage } from "./auth.tsx";
 import "../styles/screens/account.css";
 
 /** What `confirm` says on every permanent delete; the server refuses anything else. */
 const CONFIRM = "delete permanently";
-const HERE = "/settings/delete-account";
+/** Settings with this section open: where signing in again comes back to. */
+const OPEN = { key: "delete", value: "account" } as const;
+const HERE = `/settings?${OPEN.key}=${OPEN.value}`;
 
 /** `products.delete_account_impact`: what deleting this account would do, and what stops it. */
 export interface AccountDeleteImpact {
@@ -33,258 +33,218 @@ export interface AccountDeleteImpact {
   record_mailed: boolean;
 }
 
-/** One line of the terms: a glyph, the fixed words, and what they mean for this person. */
-function Term({ icon, children, detail }: { icon: GlyphName; children: string; detail?: string | null }) {
-  return (
-    <li className="farewell-term">
-      <Glyph name={icon} className="farewell-term-icon" />
-      <div>
-        <p>{children}</p>
-        {detail ? <p className="farewell-term-detail">{detail}</p> : null}
-      </div>
-    </li>
-  );
-}
-
 /** "a, b and c". */
 const listed = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}` : (xs[0] ?? ""));
 
-/** "Owen Co (a role on a team or product) and Shared Co (owner)": each organization with the role held across it. */
-function organizationWords(orgs: AccountDeleteImpact["organizations"]): string {
-  return listed(orgs.map((o) => `${o.name} (${o.role ? (ROLE_WORD[o.role]?.toLowerCase() ?? o.role) : o.roles === 1 ? "a role on a team or product" : `roles on ${o.roles} teams and products`})`));
-}
-
-/** "2 browsers and 1 agent signed in as you now", leaving out a count of none. */
-function signedInWords(d: AccountDeleteImpact): string {
-  const held = listed([d.sessions > 0 ? plural(d.sessions, "browser") : "", d.agents > 0 ? plural(d.agents, "agent") : ""].filter(Boolean));
-  return held ? `${held} signed in as you now.` : "";
-}
-
-/** "2 hours ago", in words a sentence can hold. */
-function agoWords(iso: string, now = Date.now()): string {
-  const min = Math.max(1, Math.round((now - Date.parse(iso)) / 60_000));
-  if (min < 60) return `${plural(min, "minute")} ago`;
-  if (min < 48 * 60) return `${plural(Math.round(min / 60), "hour")} ago`;
-  return `${plural(Math.round(min / 1440), "day")} ago`;
-}
-
-/** What a refused delete leaves: the step that replaces the form says the account is still there, and why. */
-function Refused({ message }: { message: string | null }) {
-  return message ? (
-    <Callout inset tone="attention" title="Your account wasn’t deleted">
-      {message}
-    </Callout>
-  ) : null;
-}
+/** Refusals that change what the section shows: it reads again, and says the account is still there. */
+const STEP_CHANGES = ["sign_in_again", "last_owner", "instance_owner"];
 
 /**
- * `/settings/delete-account`: a person deletes their own account. The terms come first, in the
- * words the privacy page and the record mail use too; then whatever stands in the way (owning the
- * instance, being an organization's only owner, a sign-in that is not recent), all of it at once,
- * and only then the typed address and the one button that names the act.
+ * Delete account, the last section of Settings. Closed, it says what it is and offers the one
+ * button that opens it; open (`?delete=account`, so signing in again comes back to it), it says
+ * what deleting will do, then whatever stands in the way, and only then asks for the address
+ * typed and offers Delete account.
  */
-export function DeleteAccountPage() {
-  usePageTitle("Delete your account");
-  const impact = useQuery({ queryKey: ["account-delete-impact"], queryFn: () => api<AccountDeleteImpact>("GET", "/api/v1/me/delete-impact") });
-  const d = impact.data;
-  const { refetch } = impact;
-  // What the server said when it refused a delete, carried into the step that takes the form's place.
-  const [refused, setRefused] = useState<string | null>(null);
-  // A recent sign-in lapses while the page is open: read again then, so the page asks to sign in again.
+export function DeleteAccount() {
+  const [params, setParams] = useSearchParams();
+  const open = params.get(OPEN.key) === OPEN.value;
+  const setOpen = (on: boolean) =>
+    setParams(
+      (p) => {
+        const next = new URLSearchParams(p);
+        if (on) next.set(OPEN.key, OPEN.value);
+        else next.delete(OPEN.key);
+        return next;
+      },
+      { replace: true },
+    );
+  // Opened, the section comes into view with focus at its start; closed again, focus goes back to its button.
+  const wasOpen = useRef(open);
   useEffect(() => {
-    if (!d?.recent_until) return;
-    const t = setTimeout(() => void refetch(), Math.max(0, Date.parse(d.recent_until) - Date.now()) + 1000);
-    return () => clearTimeout(t);
-  }, [d?.recent_until, refetch]);
-  const blocked = d ? d.instance_owner || d.only_owner_of.length > 0 : false;
-  const step = !d ? "loading" : blocked ? "blocked" : d.recent_until ? "confirm" : "sign-in";
-  // When the step changes under the person (a refusal, a lapsed sign-in), focus goes to its heading rather than nowhere.
-  const shown = useRef<string | null>(null);
-  useEffect(() => {
-    if (step === "loading") return;
-    if (shown.current && shown.current !== step) {
-      const h = document.getElementById("farewell-step");
-      h?.setAttribute("tabindex", "-1");
-      h?.focus();
-    }
-    shown.current = step;
-  }, [step]);
-  const owned = d ? d.organizations.filter((o) => o.only_owner) : [];
+    const target = document.getElementById(open ? "delete-account-region" : "delete-account-open");
+    if (open) target?.scrollIntoView?.({ block: "nearest" });
+    if (open || wasOpen.current) target?.focus();
+    wasOpen.current = open;
+  }, [open]);
   return (
-    <div className="farewell">
-      <div className="farewell-back">
-        <ButtonLink to="/settings" variant="quiet" size="sm" icon="arrow-left">
-          Settings
-        </ButtonLink>
-      </div>
-      <Sheet labelledBy="farewell-title">
-        <SheetHeader level={1} id="farewell-title" title="Delete your account" end={d ? <span className="farewell-who">{d.email}</span> : null} />
-        <SheetBody className="farewell-intro">
-          <p className="farewell-lead">Deleting your account can&rsquo;t be undone. {ACCOUNT_DELETION.final}</p>
-          {d?.instance_owner ? (
-            <p className="farewell-lead">Before it can go, your address has to come off this WhatBuild&rsquo;s owners: see below.</p>
-          ) : owned.length ? (
-            <p className="farewell-lead">Before it can go, someone else has to own {listed(owned.map((o) => o.name))}: see below.</p>
-          ) : null}
-        </SheetBody>
-        <h2 className="farewell-group">What goes, at once</h2>
-        <ul className="farewell-terms">
-          <Term icon="log-out" detail={d ? signedInWords(d) : null}>
-            {ACCOUNT_DELETION.goes[0]}
-          </Term>
-          <Term
-            icon="users"
-            detail={
-              d
-                ? [d.organizations.length ? `In ${organizationWords(d.organizations)}.` : "You hold no role in any organization.", d.invitations ? `${plural(d.invitations, "invitation")} waiting.` : null, d.allowance ? "Your allowance to start organizations goes too." : null]
-                    .filter(Boolean)
-                    .join(" ")
-                : null
-            }
-          >
-            {ACCOUNT_DELETION.goes[1]}
-          </Term>
-          <Term icon="user-x" detail={d ? `${d.display_name}, ${d.email}.` : null}>
-            {ACCOUNT_DELETION.goes[2]}
-          </Term>
-        </ul>
-        <h2 className="farewell-group">What stays</h2>
-        <ul className="farewell-terms">
-          <Term icon="file-text" detail={ACCOUNT_DELETION.content}>
-            {ACCOUNT_DELETION.stays}
-          </Term>
-        </ul>
-        <div className="sheet-body farewell-after">
-          <p>{ACCOUNT_DELETION.again}</p>
-        </div>
-      </Sheet>
-      {impact.isPending ? (
-        <Sheet label="Checking your account">
-          <SheetBody>
-            <Loading label="Checking what stands in the way…" lines={2} />
-          </SheetBody>
-        </Sheet>
-      ) : impact.isError ? (
-        <ErrorCallout error={impact.error} onRetry={() => void impact.refetch()} />
-      ) : blocked ? (
-        <>
-          {d!.instance_owner ? <InstanceOwner id="farewell-step" refused={refused} /> : null}
-          {owned.length ? <OnlyOwner id={d!.instance_owner ? "farewell-step-owned" : "farewell-step"} orgs={owned} refused={d!.instance_owner ? null : refused} /> : null}
-        </>
-      ) : !d!.recent_until ? (
-        <SignInAgain impact={d!} refused={refused} />
-      ) : (
-        <Confirm
-          impact={d!}
-          onRefused={(message) => {
-            setRefused(message);
-            void impact.refetch();
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-function InstanceOwner({ id, refused }: { id: string; refused: string | null }) {
-  return (
-    <Sheet labelledBy={id}>
-      <SheetHeader id={id} title="You own this WhatBuild" />
-      <SheetBody className="farewell-step">
-        <Refused message={refused} />
-        <p>
-          Your address is one of this WhatBuild&rsquo;s owners (<code>WHATBUILD_INSTANCE_OWNERS</code>), so the account can&rsquo;t be deleted here. Whoever runs this WhatBuild can
-          take your address off that list; then come back to delete it.
-        </p>
+    <Sheet className="account-sheet" labelledBy="delete-account-title">
+      <SheetHeader id="delete-account-title" title="Delete account" />
+      <SheetBody className="farewell">
+        {open ? (
+          <Opened onCancel={() => setOpen(false)} />
+        ) : (
+          <>
+            <p className="muted">Permanently delete your account. You&rsquo;ll see what happens before anything is deleted.</p>
+            <div>
+              <Button id="delete-account-open" aria-expanded={false} aria-controls="delete-account-region" onClick={() => setOpen(true)}>
+                Delete account…
+              </Button>
+            </div>
+          </>
+        )}
       </SheetBody>
     </Sheet>
   );
 }
 
-/** The organizations only this person owns, each with its two ways out. */
-function OnlyOwner({ id, orgs, refused }: { id: string; orgs: AccountDeleteImpact["organizations"]; refused: string | null }) {
+function Opened({ onCancel }: { onCancel: () => void }) {
+  const impact = useQuery({ queryKey: ["account-delete-impact"], queryFn: () => api<AccountDeleteImpact>("GET", "/api/v1/me/delete-impact") });
+  const d = impact.data;
+  const { refetch } = impact;
+  // What the server said when it refused a delete, shown where the form was.
+  const [refused, setRefused] = useState<string | null>(null);
+  // A recent sign-in lapses while the section is open: read again then, so it asks to sign in again.
+  useEffect(() => {
+    if (!d?.recent_until) return;
+    const t = setTimeout(() => void refetch(), Math.max(0, Date.parse(d.recent_until) - Date.now()) + 1000);
+    return () => clearTimeout(t);
+  }, [d?.recent_until, refetch]);
+  const step = !d ? "loading" : d.instance_owner || d.only_owner_of.length ? "blocked" : d.recent_until ? "confirm" : "sign-in";
+  // When the step changes under the person (a refusal, a lapsed sign-in), focus goes to it rather than nowhere.
+  const shown = useRef<string | null>(null);
+  useEffect(() => {
+    if (step === "loading") return;
+    if (shown.current && shown.current !== step) document.getElementById("delete-account-step")?.focus();
+    shown.current = step;
+  }, [step]);
+  const cancel = <Button onClick={onCancel}>Cancel</Button>;
+  if (impact.isPending)
+    return (
+      <div id="delete-account-region" tabIndex={-1} className="farewell-region">
+        <Loading label="Checking your account…" lines={2} />
+      </div>
+    );
+  if (impact.isError)
+    return (
+      <div id="delete-account-region" tabIndex={-1} className="farewell-region">
+        <ErrorCallout inset error={impact.error} onRetry={() => void refetch()} />
+        <div className="farewell-actions">{cancel}</div>
+      </div>
+    );
+  const orgs = d!.organizations;
+  // Which organizations, by name, rather than every organization in general.
+  const access = orgs.length
+    ? `You’ll lose access to ${listed(orgs.map((o) => o.name))}${d!.invitations ? ", and pending invitations will be cancelled" : ""}.`
+    : d!.invitations
+      ? "Pending invitations will be cancelled."
+      : null;
+  const owned = orgs.filter((o) => o.only_owner);
   return (
-    <Sheet labelledBy={id}>
-      <SheetHeader id={id} title={orgs.length === 1 ? `You’re the only owner of ${orgs[0]!.name}` : `You’re the only owner of ${orgs.length} organizations`} />
-      <SheetBody className="farewell-step">
-        <Refused message={refused} />
-        <p>An organization always keeps an owner. Make someone else owner of {orgs.length === 1 ? "it" : "each"}, or delete {orgs.length === 1 ? "it" : "them"}, and your account can go.</p>
-      </SheetBody>
+    <div id="delete-account-region" tabIndex={-1} className="farewell-region">
+      <p>If you delete your account:</p>
+      <ul className="farewell-list">
+        <li>{ACCOUNT_DELETION.will[0]}</li>
+        {access ? <li>{access}</li> : null}
+        <li>{ACCOUNT_DELETION.will[2]}</li>
+      </ul>
+      <p className="muted">
+        {ACCOUNT_DELETION.stays} {ACCOUNT_DELETION.content}
+      </p>
+      <div id="delete-account-step" tabIndex={-1} className="farewell-step">
+        {refused ? (
+          <Callout inset tone="attention" title="Your account wasn’t deleted">
+            {/* The title already says nothing changed. */}
+            {refused.replace(/\s*Nothing was changed\.$/, "")}
+          </Callout>
+        ) : null}
+        {step === "blocked" ? (
+          <>
+            {d!.instance_owner ? (
+              <Callout inset tone="attention" title="You own this WhatBuild">
+                Owners can&rsquo;t delete their accounts. Remove your email address from <code>WHATBUILD_INSTANCE_OWNERS</code> where WhatBuild is deployed, then come back.
+              </Callout>
+            ) : null}
+            {owned.length ? <OnlyOwner orgs={owned} /> : null}
+            <div className="farewell-actions">{cancel}</div>
+          </>
+        ) : step === "sign-in" ? (
+          <SignInAgain impact={d!} cancel={cancel} />
+        ) : (
+          <Confirm
+            impact={d!}
+            cancel={cancel}
+            onRefused={(message) => {
+              setRefused(message);
+              void refetch();
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** The organizations only this person owns, each with its two ways out. */
+function OnlyOwner({ orgs }: { orgs: AccountDeleteImpact["organizations"] }) {
+  return (
+    <div className="farewell-owned">
+      <Callout inset tone="attention" title={orgs.length === 1 ? `You’re the only owner of ${orgs[0]!.name}` : `You’re the only owner of ${orgs.length} organizations`}>
+        Every organization needs an owner. Make someone else owner, or delete the organization.
+      </Callout>
       <ul className="farewell-blocks">
         {orgs.map((o) => (
           <li key={o.slug} className="farewell-block">
-            <div className="farewell-block-name">
-              <span className="ellipsis">{o.name}</span>
-              <span className="farewell-term-detail">You&rsquo;re its only owner</span>
-            </div>
+            <span className="farewell-block-name ellipsis">{o.name}</span>
             <div className="farewell-block-actions">
               <ButtonLink size="sm" to={`/t/${o.slug}/members`} aria-label={`Make someone else owner of ${o.name}`}>
                 Make someone else owner
               </ButtonLink>
               {o.example ? null : (
-                <ButtonLink size="sm" variant="quiet" to={`/t/${o.slug}/members#delete-org-title`} aria-label={`Delete ${o.name}`}>
-                  Delete it
+                <ButtonLink size="sm" variant="quiet" to={`/t/${o.slug}/members#delete-org-title`} aria-label={`Delete organization ${o.name}`}>
+                  Delete organization
                 </ButtonLink>
               )}
             </div>
           </li>
         ))}
       </ul>
-    </Sheet>
+    </div>
   );
 }
 
 /** A sign-in that is not recent: sign in again, by any way this WhatBuild offers, and come back here. */
-function SignInAgain({ impact: d, refused }: { impact: AccountDeleteImpact; refused: string | null }) {
+function SignInAgain({ impact: d, cancel }: { impact: AccountDeleteImpact; cancel: ReactNode }) {
   const methods = useQuery({ queryKey: ["auth-methods"], queryFn: () => api<{ email_link: boolean; google: boolean; microsoft?: boolean }>("GET", "/auth/methods") });
   const send = useMutation({ mutationFn: () => api<{ sent: boolean; dev_note?: string }>("POST", "/auth/email", { email: d.email, next: HERE }) });
   const back = encodeURIComponent(HERE);
   const m = methods.data;
   return (
-    <Sheet labelledBy="farewell-step">
-      <SheetHeader id="farewell-step" title="Sign in again to continue" />
-      <SheetBody className="farewell-step">
-        <Refused message={refused} />
-        <p>
-          This browser signed in {d.signed_in_at ? agoWords(d.signed_in_at) : "a while ago"}. Before an account is deleted, WhatBuild asks for a sign-in from the last{" "}
-          {d.recent_sign_in_minutes} minutes, so a browser someone left signed in isn&rsquo;t enough. You&rsquo;ll come back to this page.
-        </p>
-        {send.isSuccess ? (
-          <Callout inset tone="positive" title="Check your email">
-            We sent a sign-in link to {d.email}. It works once, for 15 minutes.{send.data.dev_note ? ` ${send.data.dev_note}` : ""}
-          </Callout>
+    <>
+      {send.isSuccess ? (
+        <Callout inset tone="positive" title="Check your email">
+          We sent a sign-in link to {d.email}. It works once, for 15 minutes.{send.data.dev_note ? ` ${send.data.dev_note}` : ""}
+        </Callout>
+      ) : (
+        <Callout inset tone="info" title="Sign in again to continue">
+          Deleting your account needs a sign-in from the last {d.recent_sign_in_minutes} minutes. You&rsquo;ll come back here.
+        </Callout>
+      )}
+      {send.isError ? <ErrorCallout inset error={send.error} /> : null}
+      {methods.isError ? <ErrorCallout inset error={methods.error} onRetry={() => void methods.refetch()} /> : null}
+      <div className="farewell-actions">
+        {cancel}
+        {m?.email_link && !send.isSuccess ? (
+          <Button busy={send.isPending} busyLabel="Sending…" onClick={() => send.mutate()}>
+            Email me a sign-in link
+          </Button>
         ) : null}
-        {send.isError ? <ErrorCallout inset error={send.error} /> : null}
-        {methods.isError ? <ErrorCallout inset error={methods.error} onRetry={() => void methods.refetch()} /> : null}
-        {m && ((m.email_link && !send.isSuccess) || m.microsoft || m.google) ? (
-          <div className="farewell-actions">
-            {m.email_link && !send.isSuccess ? (
-              <Button busy={send.isPending} busyLabel="Sending…" onClick={() => send.mutate()}>
-                Email me a sign-in link
-              </Button>
-            ) : null}
-            {m.microsoft ? (
-              <a className="btn btn-secondary btn-md" href={`/auth/microsoft?next=${back}`}>
-                Continue with Microsoft
-              </a>
-            ) : null}
-            {m.google ? (
-              <a className="btn btn-secondary btn-md" href={`/auth/google?next=${back}`}>
-                Continue with Google
-              </a>
-            ) : null}
-          </div>
+        {m?.microsoft ? (
+          <a className="btn btn-secondary btn-md" href={`/auth/microsoft?next=${back}`}>
+            Continue with Microsoft
+          </a>
         ) : null}
-      </SheetBody>
-    </Sheet>
+        {m?.google ? (
+          <a className="btn btn-secondary btn-md" href={`/auth/google?next=${back}`}>
+            Continue with Google
+          </a>
+        ) : null}
+      </div>
+    </>
   );
 }
 
-/** Refusals that change the step itself: the page reads again and shows it, with the server's words. */
-const STEP_CHANGES = ["sign_in_again", "last_owner", "instance_owner"];
-
 /** The last step: the address typed exactly, and the one button that names the act. */
-function Confirm({ impact: d, onRefused }: { impact: AccountDeleteImpact; onRefused: (message: string) => void }) {
+function Confirm({ impact: d, cancel, onRefused }: { impact: AccountDeleteImpact; cancel: ReactNode; onRefused: (message: string) => void }) {
   const qc = useQueryClient();
   const [typed, setTyped] = useState("");
   const [left, setLeft] = useState(false);
@@ -302,64 +262,54 @@ function Confirm({ impact: d, onRefused }: { impact: AccountDeleteImpact; onRefu
     },
   });
   return (
-    <Sheet labelledBy="farewell-step">
-      <SheetHeader id="farewell-step" title="Confirm with your email address" />
-      <form
-        className="sheet-body farewell-step"
-        noValidate
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (matches) del.mutate();
-          else setLeft(true);
-        }}
-      >
-        <TextField
-          label={`Type ${d.email} to confirm`}
-          hint={`You can delete from this sign-in until ${formatTime(d.recent_until)}.${d.record_mailed ? " A record of the deletion goes to this address." : ""}`}
-          error={left && typed.trim() && !matches ? `That isn’t your address. Type ${d.email}.` : undefined}
-          type="email"
-          inputMode="email"
-          autoCapitalize="none"
-          autoCorrect="off"
-          autoComplete="off"
-          spellCheck={false}
-          value={typed}
-          onChange={(e) => setTyped(e.target.value)}
-          onBlur={() => setLeft(true)}
-        />
-        {del.isError && !(del.error instanceof ApiError && STEP_CHANGES.includes(del.error.code)) ? <ErrorCallout inset error={del.error} /> : null}
-        <div className="farewell-actions farewell-actions-end">
-          <ButtonLink to="/settings">Keep my account</ButtonLink>
-          <Button type="submit" variant="danger" icon="trash" busy={del.isPending} busyLabel="Deleting…" disabled={!matches}>
-            Delete my account
-          </Button>
-        </div>
-      </form>
-    </Sheet>
+    <form
+      className="farewell-step"
+      noValidate
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (matches) del.mutate();
+        else setLeft(true);
+      }}
+    >
+      <TextField
+        label={`Type ${d.email} to confirm`}
+        hint={`This can’t be undone.${d.record_mailed ? " We’ll email you a confirmation." : ""}`}
+        error={left && typed.trim() && !matches ? "That doesn’t match your email address." : undefined}
+        type="email"
+        inputMode="email"
+        autoCapitalize="none"
+        autoCorrect="off"
+        autoComplete="off"
+        spellCheck={false}
+        value={typed}
+        onChange={(e) => setTyped(e.target.value)}
+        onBlur={() => setLeft(true)}
+      />
+      {del.isError && !(del.error instanceof ApiError && STEP_CHANGES.includes(del.error.code)) ? <ErrorCallout inset error={del.error} /> : null}
+      <div className="farewell-actions">
+        {cancel}
+        <Button type="submit" variant="danger" icon="trash" busy={del.isPending} busyLabel="Deleting…" disabled={!matches}>
+          Delete account
+        </Button>
+      </div>
+    </form>
   );
 }
 
-/** `/account-deleted`, signed out: what just happened, in the same words. */
+/** `/account-deleted`, signed out: what just happened. */
 export function AccountDeletedPage() {
   const me = useMe();
   const [params] = useSearchParams();
   if (me.data) return <Navigate to="/" replace />;
   return (
-    <EntryPage title="Your account is deleted · WhatBuild">
+    <EntryPage title="Your account has been deleted · WhatBuild">
       <Sheet labelledBy="deleted-title">
-        <SheetHeader level={1} id="deleted-title" title="Your account is deleted" />
+        <SheetHeader level={1} id="deleted-title" title="Your account has been deleted" />
         <SheetBody className="farewell-step">
-          <p>What went:</p>
-          <ul className="farewell-went">
-            {ACCOUNT_DELETION.goes.map((g) => (
-              <li key={g}>{g}</li>
-            ))}
-          </ul>
-          <p className="muted">
-            {ACCOUNT_DELETION.stays} {ACCOUNT_DELETION.final}
-          </p>
+          <p>{ACCOUNT_DELETION.did[0]}</p>
+          <p className="muted">{ACCOUNT_DELETION.stays}</p>
           <p className="muted">{ACCOUNT_DELETION.again}</p>
-          {params.get("mailed") ? <p className="muted">A record of it went to your address.</p> : null}
+          {params.get("mailed") ? <p className="muted">We&rsquo;ve emailed you a confirmation.</p> : null}
         </SheetBody>
       </Sheet>
       <p className="entry-fine">

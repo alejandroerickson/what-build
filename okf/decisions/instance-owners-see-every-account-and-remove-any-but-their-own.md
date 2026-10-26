@@ -28,7 +28,7 @@ manages people across the instance.
   and neither can the only owner of an organization until someone else owns it or it is deleted.
 - **Removing** ends every session and agent connection, takes every role (each organization's
   access log records it), cancels the invitations and the allowance at the address, deletes what is
-  kept about the person, forgets the address and mails it a record: exactly what a person deleting
+  kept about the person, forgets the address and emails it a confirmation: exactly what a person deleting
   their own account does ([decision](a-person-deletes-their-own-account-after-a-recent-sign-in.md)).
   The row stays, marked removed and nameless, so its id is never taken again; what the account
   wrote keeps the name copied onto it.

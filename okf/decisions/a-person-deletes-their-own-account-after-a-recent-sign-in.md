@@ -17,12 +17,13 @@ wanted to leave had to write to whoever runs the deployment. Ending an account a
 what was kept about the person: revoked tokens, their counts against limits and feedback, their
 counted days of use, their name on the account row, and their address on an interest request or a
 feedback reply. Deletion is rare and final, and a browser left signed in must not be enough for it.
-The maintainer chose, on 2026-10-26, a page of its own, any recent sign-in as the re-confirmation,
-forgetting the address everywhere it is kept, and a record mail on both paths.
+The maintainer chose, on 2026-10-26, a section of Settings that opens in place, any recent sign-in
+as the re-confirmation, forgetting the address everywhere it is kept, a confirmation mail on both
+paths, and telling the person nothing about backups.
 
 ## Decision
 
-- **A person deletes their own account** on `/settings/delete-account`
+- **A person deletes their own account** in the Delete account section of Settings
   (`products.delete_account_impact`, `products.delete_account`), web only, never through an agent.
   It needs a browser session that signed in within the last 15 minutes (`403 sign_in_again`), by
   any method the deployment offers, the address typed exactly, and `confirm`.
@@ -31,11 +32,12 @@ forgetting the address everywhere it is kept, and a record mail on both paths.
   invitations, allowance and sign-in links at the address go; the person's tokens and OAuth codes,
   counts against limits and feedback, and counted days of use are deleted; the address is cleared
   from interest requests and feedback replies; the row keeps no name and no address. What they
-  wrote keeps the name copied onto it. A record goes to the address.
+  wrote keeps the name copied onto it. A confirmation goes to the address.
 - The same refusals hold on both: an instance owner (`409 instance_owner`) and the only owner of an
   organization (`409 last_owner`, naming each).
-- The terms are one text (`packages/core/src/account-deletion.ts`) on the page, the privacy page
-  and the mail.
+- The words are one text (`packages/core/src/account-deletion.ts`), said before deleting and
+  after. They promise nothing about backups, whose windows are the operator's
+  ([erasure](../operations/erasure.md)).
 - Rejected: a mailed link as the only re-confirmation (a deployment without mail could not offer
   deletion); deleting content with the account (it is the organization's record).
 

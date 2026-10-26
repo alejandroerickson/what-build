@@ -101,7 +101,7 @@ holds each one; the linked decisions say why. Observed in the code on 2026-10-10
   enough (`products.delete_account`, `signed_in_at` on the session's principal, `identity.ts`).
   Either way it signs the account out everywhere (`endSignIns`), takes its roles with a record in
   each organization, cancels what let its address in, deletes what is kept about the person, forgets
-  the address and mails it a record, the alarm if it was not them
+  the address and emails it a confirmation, the alarm if it was not them
   ([decision](../decisions/instance-owners-see-every-account-and-remove-any-but-their-own.md),
   [decision](../decisions/a-person-deletes-their-own-account-after-a-recent-sign-in.md)).
 - A slug an organization had before still names it (`tenantNamed`, `policy.ts`), and no other

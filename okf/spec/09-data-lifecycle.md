@@ -97,7 +97,7 @@ and interest; backups),
 on what grounds (because a person uses WhatBuild; to run it safely and improve it, which a person
 may object to; or their consent), that providers may handle it abroad, that nothing is sold, and
 what a person can do (export, ask to see, correct, delete or object, delete their own account,
-in the words the deletion page and its record mail use, complain to their authority).
+in the words the deletion page and its confirmation mail use, complain to their authority).
 What only the deployment knows comes from its settings, in `privacy` from `GET /api/v1/meta`: who
 runs it (`WHATBUILD_OPERATOR`), where to write (`WHATBUILD_PRIVACY_CONTACT`, an address or a page),
 and its providers (`WHATBUILD_PROVIDERS`, `Name: what it does; …`). Without them the page says the
@@ -393,7 +393,7 @@ person in the web app (`403 web_only`), and MCP lists neither it nor its preview
 
 ### Delete an account
 
-A person deletes their own account in the web app, from Settings (`/settings/delete-account`), and
+A person deletes their own account in the web app, in the Delete account section of Settings, and
 an instance owner removes anyone's on People; both do the same thing
 ([§3.2](03-accounts-teams-and-identity.md#32-accounts-and-sign-in),
 [decision](../decisions/a-person-deletes-their-own-account-after-a-recent-sign-in.md)). It removes
@@ -403,12 +403,11 @@ name on the account, and their address wherever it is kept. It does **not** dele
 content, and actor snapshots survive ([§3.9](03-accounts-teams-and-identity.md)): attribution on a
 colleague's assumption is part of that organization's record, not personal data we can silently
 rewrite. Whoever wants their content gone too deletes it first, or asks the organization's admins.
-A sole owner must make someone else owner or delete the organization first, and the page names
-each, with a link to each way out. It is final at once in the product; copies in backups go as the
-backups age out, within 35 days, the longest any backup in [backups](../operations/backups.md)
-keeps (`BACKUPS_KEPT_DAYS`, `packages/core/src/account-deletion.ts`). A deployment that keeps
-backups longer changes that sentence. To take a person out of the backups sooner, the operator
-follows [erasure](../operations/erasure.md).
+A sole owner must make someone else owner or delete the organization first, and Settings names
+each, with a link to each way out. It is final at once in the product, and Settings says it can't
+be undone. ◆ Decision: the person is told nothing about backups, which go as each deployment's
+backups age out ([backups](../operations/backups.md)); keeping to those windows, and taking a
+person out of the backups sooner, is the operator's ([erasure](../operations/erasure.md)).
 
 ## 9.6 Operator runbooks
 

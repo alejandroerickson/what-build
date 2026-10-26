@@ -129,7 +129,7 @@ describe("removing an account", () => {
 
     // The address is mailed a record, saying who removed it.
     const record = h.mailer.sent.at(-1)!;
-    expect(record).toMatchObject({ to: "pete@example.com", subject: "Your WhatBuild account is deleted" });
+    expect(record).toMatchObject({ to: "pete@example.com", subject: "Your WhatBuild account has been deleted" });
     expect(record.text).toMatch(/by an owner of this WhatBuild/);
 
     // Signing up again is refused while sign-up is limited and nothing lets the address in.

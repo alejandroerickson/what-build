@@ -16,11 +16,11 @@ person: a mail from the account's address, or a reply to one sent there.
 
 ## Deleting the account
 
-- **They can sign in:** point them to Settings, then Delete your account. It tells them what goes,
-  what stays and what blocks it, in the words the privacy page uses.
+- **They can sign in:** point them to Delete account, the last section of Settings. It tells them
+  what deleting does, what stays and what blocks it.
 - **They cannot** (no access to the address's mailbox, Google or Microsoft account any more, or they
   ask you to do it): an instance owner removes the account on People, which does the same thing and
-  mails the address a record.
+  emails the address a confirmation.
 - **Refused as the only owner of an organization:** the organization needs another owner, which its
   people agree among themselves, or to be deleted by its owner. You do neither on their behalf.
 
@@ -42,10 +42,11 @@ organization's content on one member's word.
 
 Request logs keep no address, and the counts of use are deleted with the account.
 
-The product promises the backup window (`BACKUPS_KEPT_DAYS`, 35 days). On Neon, delete a
-`pre-migrate-…` branch older than that once the release it guarded has run well, so the promise
-holds where releases are rare. Refresh or delete each copy of production that holds the person
-within the same window.
+The product tells the person only that deletion can't be undone; how long backups keep them is
+yours to hold to the windows above. On Neon, delete a `pre-migrate-…` branch older than 35 days
+once the release it guarded has run well, so it does not outlast the nightly dumps where releases
+are rare. Refresh or delete each copy of production that holds the person within the same 35
+days.
 
 ## Sooner than that
 

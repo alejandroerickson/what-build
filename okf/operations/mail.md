@@ -21,7 +21,7 @@ Plain text, one message at a time. Four are sent while the request that causes i
 | A sign-in link | someone asks for one on the sign-in page (`POST /auth/email`), at most five per address an hour | `apps/server/src/auth/routes.ts` |
 | An invitation | someone gives a role to an address that has no account | `packages/core/src/ops/products.ts` |
 | An allowance notice | an instance owner lets an address start organizations, and asks to tell them | `packages/core/src/ops/tenant-allowances.ts` |
-| An account's deletion record | a person deletes their account, or an instance owner removes it: to the address it had, saying who ended it, what went and what stays, and whom to tell if it was not them (`WHATBUILD_PRIVACY_CONTACT`) | `packages/core/src/ops/accounts.ts` |
+| An account's deletion confirmation | a person deletes their account, or an instance owner removes it: to the address it had, saying who ended it, what was deleted and what is kept, and whom to tell if it was not them (`WHATBUILD_PRIVACY_CONTACT`) | `packages/core/src/ops/accounts.ts` |
 
 Two are sent by the worker, not a request:
 
@@ -39,7 +39,7 @@ transaction with its message, so a failed send leaves nothing behind and the per
 internal error; a failed sign-in link answers `500`. A deployment whose mail is broken therefore
 cannot invite anyone new, while one with no mail at all can: the person inviting is shown the link
 to pass on, and the sign-in page offers no email link. The one exception is a deletion's record: a
-failed send is logged (`account deletion: the record was not mailed`) and the account ends anyway,
+failed send is logged (`account deletion: the confirmation was not mailed`) and the account ends anyway,
 since the person asked for it; the answer's `notice_sent` says whether it went.
 
 **A connection's notice that cannot be sent is tried again**, as any job is, a few times with

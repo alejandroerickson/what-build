@@ -115,7 +115,7 @@ describe("refusals", () => {
     expect(r.status).toBe(409);
     expect(r.body.error.code).toBe("last_owner");
     expect(r.body.error.details.organizations).toEqual([{ slug: owenOrg, name: "Owen Co" }]);
-    expect(r.body.error.message).toMatch(/You are the only owner of Owen Co/);
+    expect(r.body.error.message).toMatch(/You’re the only owner of Owen Co/);
   });
 
   it("refuses a browser that signed in too long ago, until it signs in again", async () => {
@@ -126,10 +126,10 @@ describe("refusals", () => {
     expect(r.body.error.code).toBe("sign_in_again");
     expect(r.body.error.details.minutes).toBe(15);
     // Signing in again with a link mailed to the address makes the sign-in recent.
-    const sent = await fetch(`${h.baseUrl}/auth/email`, { method: "POST", headers: { "content-type": "application/json", origin: h.baseUrl }, body: JSON.stringify({ email: "dana@example.com", next: "/settings/delete-account" }) });
+    const sent = await fetch(`${h.baseUrl}/auth/email`, { method: "POST", headers: { "content-type": "application/json", origin: h.baseUrl }, body: JSON.stringify({ email: "dana@example.com", next: "/settings?delete=account" }) });
     expect(sent.status).toBe(200);
     const { response, cookie } = await h.followSignInLink();
-    expect(response.headers.get("location")).toBe("/settings/delete-account");
+    expect(response.headers.get("location")).toBe("/settings?delete=account");
     dana = browserWith("dana@example.com", cookie!);
     expect((await impact(dana)).body.recent_until).toBeTruthy();
   });
@@ -201,11 +201,12 @@ describe("deleting your own account", () => {
     // A record goes to the address she had, saying what went and what stays, and where to turn if it wasn't her.
     expect(h.mailer.sent.length).toBe(sentBefore + 1);
     const record = h.mailer.sent.at(-1)!;
-    expect(record).toMatchObject({ to: "dana@example.com", subject: "Your WhatBuild account is deleted" });
-    expect(record.text).toMatch(/from a browser signed in as you/);
-    expect(record.text).toMatch(/What stays: What you wrote in an organization stays with it/);
-    expect(record.text).toMatch(/within 35 days/);
-    expect(record.text).toMatch(/If you didn't delete it.*privacy@example\.com/);
+    expect(record).toMatchObject({ to: "dana@example.com", subject: "Your WhatBuild account has been deleted" });
+    expect(record.text).toMatch(/You’ve been signed out everywhere/);
+    expect(record.text).toMatch(/Anything you added to an organization stays there, with your name on it/);
+    // What a deployment's backups keep is the operator's to know, not the person's to be told here.
+    expect(record.text).not.toMatch(/backup/i);
+    expect(record.text).toMatch(/If this wasn’t you, someone used a browser signed in to your account\. Contact whoever runs this WhatBuild \(privacy@example\.com\)/);
   });
 
   it("leaves the address free to start again from nothing, once let in", async () => {

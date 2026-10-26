@@ -6,6 +6,7 @@ import { plural } from "../lib/format.ts";
 import { forgetPersonalState } from "../lib/local-state.ts";
 import { useHideExample, useMe, useProducts } from "../lib/session.tsx";
 import { usePageTitle } from "../shell/slots.tsx";
+import { DeleteAccount } from "./delete-account.tsx";
 import { Button, ChoiceRow, Dialog, ErrorCallout, FormGrid, Sheet, SheetBody, SheetHeader, TextField, useToast } from "../ui/index.tsx";
 import "../styles/screens/account.css";
 
@@ -64,9 +65,9 @@ export function SettingsPage() {
       </Sheet>
       <ExampleInPanel />
       <SignOutEverywhere />
-      {/* Deleting the account is a page of its own, reached from here and never beside Sign out everywhere. */}
+      <DeleteAccount />
       <p className="agents-foot">
-        <Link to="/cookies">Cookies and analytics</Link> · <Link to="/privacy">Privacy</Link> · <Link to="/settings/delete-account">Delete your account</Link>
+        <Link to="/cookies">Cookies and analytics</Link> · <Link to="/privacy">Privacy</Link>
       </p>
     </>
   );
